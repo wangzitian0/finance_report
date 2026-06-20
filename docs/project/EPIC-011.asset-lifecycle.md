@@ -308,6 +308,7 @@ auto-classified low risk); no legacy enum value is removed.
 | AC11.22.2 | `ValuationClassification` persists stable taxonomy fields bound to the contract (L1/L2, economic_side, valuation_role, liquidity_class, confidence, review status, model/prompt version, rationale) and rejects codes outside the contract | `test_valuation_classification_persists_stable_fields_and_rejects_out_of_contract_codes()` | `assets/test_valuation_fact_storage.py` | P0 |
 | AC11.22.3 | Classification is append-only/versionable: at most one current head per fact, superseded history preserved | `test_valuation_classification_is_append_only_per_fact()` | `assets/test_valuation_fact_storage.py` | P0 |
 | AC11.22.4 | Existing manual valuation model and enum values are unchanged by the storage addition (no legacy enum value removed) | `test_manual_valuation_model_is_unchanged_by_storage_addition()` | `assets/test_valuation_fact_storage.py` | P0 |
+| AC11.22.5 | A classification cannot reference a fact owned by a different user (same-owner composite FK) | `test_valuation_classification_rejects_cross_user_fact_reference()` | `assets/test_valuation_fact_storage.py` | P0 |
 
 ## Implementation Pattern Ownership
 

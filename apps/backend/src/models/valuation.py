@@ -20,15 +20,17 @@ from sqlalchemy import (
     Date,
     Enum as SQLEnum,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from src.constants.valuation_taxonomy import (
     EconomicSide,
@@ -70,6 +72,9 @@ class AtomicValuationFact(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     __tablename__ = "atomic_valuation_facts"
     __table_args__ = (
         CheckConstraint("amount >= 0", name="ck_atomic_valuation_facts_amount_non_negative"),
+        # Composite-FK target: lets ValuationClassification enforce same-owner
+        # references at the DB level (mirrors EvidenceNode/EvidenceEdge).
+        UniqueConstraint("user_id", "id", name="uq_atomic_valuation_facts_user_id_id"),
         # Idempotent ingestion: a fact's dedup hash is unique per owner.
         Index(
             "uq_atomic_valuation_facts_user_dedup_hash",
@@ -92,12 +97,6 @@ class AtomicValuationFact(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     evidence_spans: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     dedup_hash: Mapped[str] = mapped_column(String(64), nullable=False)
 
-    classifications: Mapped[list[ValuationClassification]] = relationship(
-        "ValuationClassification",
-        back_populates="valuation_fact",
-        cascade="all, delete-orphan",
-    )
-
 
 class ValuationClassification(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """Versionable stable classification of an ``AtomicValuationFact``.
@@ -115,6 +114,15 @@ class ValuationClassification(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
             name="ck_valuation_classifications_confidence_unit_interval",
         ),
         CheckConstraint("version >= 1", name="ck_valuation_classifications_version_positive"),
+        # Same-owner reference: a classification can only point at a fact owned by
+        # the same user (composite FK mirrors EvidenceEdge). DB ON DELETE CASCADE
+        # removes classifications when their fact is deleted.
+        ForeignKeyConstraint(
+            ["user_id", "valuation_fact_id"],
+            ["atomic_valuation_facts.user_id", "atomic_valuation_facts.id"],
+            name="fk_valuation_classifications_user_fact",
+            ondelete="CASCADE",
+        ),
         # Append-only head: at most one current (non-superseded) classification
         # per fact; superseded history rows accumulate freely.
         Index(
@@ -125,11 +133,7 @@ class ValuationClassification(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         ),
     )
 
-    valuation_fact_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("atomic_valuation_facts.id", ondelete="CASCADE"),
-        nullable=False,
-    )
+    valuation_fact_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     l1: Mapped[ValuationL1] = mapped_column(
         SQLEnum(ValuationL1, name="valuation_l1_enum", values_callable=_enum_values),
         nullable=False,
@@ -166,5 +170,3 @@ class ValuationClassification(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         ForeignKey("valuation_classifications.id", ondelete="SET NULL"),
         nullable=True,
     )
-
-    valuation_fact: Mapped[AtomicValuationFact] = relationship("AtomicValuationFact", back_populates="classifications")

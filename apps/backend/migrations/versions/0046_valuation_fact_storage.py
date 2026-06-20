@@ -63,6 +63,7 @@ def upgrade() -> None:
         sa.CheckConstraint("amount >= 0", name="ck_atomic_valuation_facts_amount_non_negative"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("user_id", "id", name="uq_atomic_valuation_facts_user_id_id"),
     )
     op.create_index(
         "uq_atomic_valuation_facts_user_dedup_hash",
@@ -122,7 +123,12 @@ def upgrade() -> None:
             name="ck_valuation_classifications_confidence_unit_interval",
         ),
         sa.CheckConstraint("version >= 1", name="ck_valuation_classifications_version_positive"),
-        sa.ForeignKeyConstraint(["valuation_fact_id"], ["atomic_valuation_facts.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["user_id", "valuation_fact_id"],
+            ["atomic_valuation_facts.user_id", "atomic_valuation_facts.id"],
+            name="fk_valuation_classifications_user_fact",
+            ondelete="CASCADE",
+        ),
         sa.ForeignKeyConstraint(["superseded_by_id"], ["valuation_classifications.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),

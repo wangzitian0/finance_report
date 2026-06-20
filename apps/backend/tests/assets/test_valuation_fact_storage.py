@@ -169,6 +169,22 @@ async def test_valuation_classification_is_append_only_per_fact(db, test_user):
     assert heads[0].l2 is ValuationL2.VOLUNTARY_RETIREMENT
 
 
+async def test_valuation_classification_rejects_cross_user_fact_reference(db, test_user):
+    """AC11.22.5: same-owner composite FK rejects another user's fact reference."""
+    fact = _fact(test_user.id)
+    db.add(fact)
+    other = User(email=f"other-{uuid4()}@example.com", hashed_password="x")
+    db.add(other)
+    await db.flush()
+
+    # A classification owned by `other` cannot reference test_user's fact: the
+    # (user_id, valuation_fact_id) composite FK has no matching fact row.
+    with pytest.raises(IntegrityError):
+        async with db.begin_nested():
+            db.add(_classification(fact.id, other.id))
+            await db.flush()
+
+
 def test_manual_valuation_model_is_unchanged_by_storage_addition():
     """AC11.22.4: legacy manual valuation model + enum values are untouched."""
     # No legacy enum value removed (regression guard for the strangler approach).
