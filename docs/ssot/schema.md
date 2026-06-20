@@ -45,7 +45,7 @@ Examples:
 |---|---|
 | DIM | `accounts`, `classification_rules`, market/security/institution reference data |
 | ODS | `uploaded_documents`, `manual_valuation_snapshots` |
-| DWD | `atomic_transactions`, `atomic_positions`, `statement_summaries`, `journal_entries`, `journal_lines` |
+| DWD | `atomic_transactions`, `atomic_positions`, `atomic_valuation_facts` (raw point-in-time valuation facts), `valuation_classifications` (versionable stable taxonomy classification of a fact; #1222), `statement_summaries`, `journal_entries`, `journal_lines` |
 | DWM | `reconciliation_matches`, `consistency_checks`, `fx_conversions` (links a cross-currency transfer's out-leg + in-leg into one multi-leg event; #1123 AC2) |
 | DWS | `managed_positions`, `investment_lots`, derived balances and period aggregates |
 | ADS | `report_snapshots` |
