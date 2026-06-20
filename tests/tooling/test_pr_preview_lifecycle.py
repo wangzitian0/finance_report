@@ -3094,3 +3094,101 @@ def test_AC7_13_5_ci_cd_docs_describe_failure_modes() -> None:
     lowered = ci_cd.lower()
     assert "no new deployment" in lowered
     assert "rollback" in lowered or "roll back" in lowered
+
+
+def test_AC7_17_1_deployment_ids_parses_empty_list() -> None:
+    """AC7.17.1: deployment_ids() returns an empty set for an empty list and
+    for non-list inputs without raising."""
+    lifecycle = lifecycle_module()
+
+    assert lifecycle.deployment_ids([]) == set()
+    assert lifecycle.deployment_ids(None) == set()
+    assert lifecycle.deployment_ids("not-a-list") == set()
+    assert lifecycle.deployment_ids({"deploymentId": "dep-1"}) == set()
+
+
+def test_AC7_17_1_deployment_ids_filters_non_dict_entries() -> None:
+    """AC7.17.1: deployment_ids() skips non-dict entries (strings, None,
+    integers) instead of crashing on the malformed records."""
+    lifecycle = lifecycle_module()
+
+    ids = lifecycle.deployment_ids(
+        [
+            "not-a-dict",
+            None,
+            42,
+            ["nested"],
+            {"deploymentId": "dep-1"},
+            {"deploymentId": "dep-2", "status": "running"},
+        ]
+    )
+
+    assert ids == {"dep-1", "dep-2"}
+
+
+def test_AC7_17_1_deployment_ids_skips_missing_or_none_deployment_id() -> None:
+    """AC7.17.1: deployment_ids() drops entries with a missing, None, or empty
+    deploymentId and coerces non-string ids to str."""
+    lifecycle = lifecycle_module()
+
+    ids = lifecycle.deployment_ids(
+        [
+            {"status": "running"},
+            {"deploymentId": None},
+            {"deploymentId": ""},
+            {"deploymentId": 0},
+            {"deploymentId": 123},
+            {"deploymentId": "dep-real"},
+        ]
+    )
+
+    assert ids == {"123", "dep-real"}
+
+
+def test_AC7_17_2_deployment_signatures_parses_empty_and_non_list() -> None:
+    """AC7.17.2: deployment_signatures() returns an empty mapping for empty
+    lists and non-list inputs without raising."""
+    lifecycle = lifecycle_module()
+
+    assert lifecycle.deployment_signatures([]) == {}
+    assert lifecycle.deployment_signatures(None) == {}
+    assert lifecycle.deployment_signatures("not-a-list") == {}
+
+
+def test_AC7_17_2_deployment_signatures_filters_non_dict_entries() -> None:
+    """AC7.17.2: deployment_signatures() skips non-dict entries and entries
+    with a missing/None deploymentId instead of crashing."""
+    lifecycle = lifecycle_module()
+
+    signatures = lifecycle.deployment_signatures(
+        [
+            "not-a-dict",
+            None,
+            7,
+            {"status": "running"},
+            {"deploymentId": None, "status": "running"},
+            {"deploymentId": "dep-1", "status": "running", "createdAt": "t1"},
+        ]
+    )
+
+    assert signatures == {"dep-1": ("running", "t1", "", "")}
+
+
+def test_AC7_17_2_deployment_signatures_coerces_non_string_timestamp_fields() -> None:
+    """AC7.17.2: deployment_signatures() safely coerces missing, null, and
+    non-string (integer) status/timestamp fields to strings without raising."""
+    lifecycle = lifecycle_module()
+
+    signatures = lifecycle.deployment_signatures(
+        [
+            {
+                "deploymentId": "dep-int",
+                "status": 200,
+                "createdAt": 1718000000,
+                "startedAt": None,
+                # finishedAt intentionally missing
+            },
+        ]
+    )
+
+    assert signatures["dep-int"] == ("200", "1718000000", "", "")

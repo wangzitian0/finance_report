@@ -259,6 +259,11 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 > `GIT_COMMIT_SHA`, `IAC_CONFIG_HASH`) before the long health wait and fail fast
 > on stale Dokploy config. The fixed staging/prod path is now infra2
 > `deploy_v2` / `deploy_primitive`, not the retired app-side bash deploy script.
+>
+> Making the fixed staging/prod `deploy_primitive` no-new-deployment path raise a
+> consistent classified error (matching the PR-preview `DokployNoNewDeploymentRecord`
+> semantics) instead of a generic `TimeoutError` is tracked as cross-repo infra2
+> work in the `repo/` submodule and is out of scope for this finance-side EPIC.
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
@@ -281,6 +286,18 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 | AC7.15.1 | The CI/deploy SSOT references the live workflow job ids and triggers through a checked contract (not stale prose), and CI lint runs `tools/check_workflow_contract.py` | `test_AC7_15_1_real_repo_passes_the_workflow_contract`, `test_AC7_15_1_ci_workflow_wires_the_workflow_contract_gate` | `tests/tooling/test_workflow_contract.py` | P0 |
 | AC7.15.2 | Issue templates use only labels that exist in the current repository taxonomy (stale `infra`/`feature` and any unknown label fail) | `test_AC7_15_2_stale_issue_template_label_fails`, `test_AC7_15_2_unknown_issue_template_label_fails` | `tests/tooling/test_workflow_contract.py` | P0 |
 | AC7.15.3 | The contract FAILS when a workflow job id, trigger, or issue-template label drifts from the documented standard (e.g. `classify-changes` prose, a `push` trigger re-added to staging-deploy, or a renamed classifier job) | `test_AC7_15_3_stale_ci_classifier_job_name_fails`, `test_AC7_15_3_stale_staging_push_trigger_prose_fails`, `test_AC7_15_3_staging_push_trigger_in_workflow_fails`, `test_AC7_15_3_renamed_classifier_job_in_workflow_fails`, `test_AC7_15_3_main_cli_returns_contract_result` | `tests/tooling/test_workflow_contract.py` | P0 |
+
+### AC7.17: Dokploy deployment-response parsing contract (#755 scope 2b)
+
+> The local PR-preview parser helpers (`deployment_ids`, `deployment_signatures`
+> in `tools/_lib/dev/pr_preview_lifecycle.py`) must tolerate malformed Dokploy
+> deployment-list responses — empty lists, non-dict entries, missing/None
+> deploymentId, and missing/null/non-string timestamp fields — without raising.
+
+| ID | Requirement | Test Function | File | Priority |
+|----|-------------|---------------|------|----------|
+| AC7.17.1 | `deployment_ids()` safely parses empty lists, non-dict entries, and missing/None deploymentId without raising | `test_AC7_17_1_deployment_ids_parses_empty_list`, `test_AC7_17_1_deployment_ids_filters_non_dict_entries`, `test_AC7_17_1_deployment_ids_skips_missing_or_none_deployment_id` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
+| AC7.17.2 | `deployment_signatures()` safely coerces missing/null/non-string timestamp fields without raising | `test_AC7_17_2_deployment_signatures_parses_empty_and_non_list`, `test_AC7_17_2_deployment_signatures_filters_non_dict_entries`, `test_AC7_17_2_deployment_signatures_coerces_non_string_timestamp_fields` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
 
 
 ## 📏 Acceptance Criteria
