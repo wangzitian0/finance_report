@@ -78,7 +78,7 @@ describe("LoginPage", () => {
 
     render(<LoginPage />)
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Register" })[0])
+    fireEvent.click(screen.getByTestId("auth-mode-toggle-register"))
     fireEvent.change(screen.getByLabelText("Email Address"), {
       target: { value: "new@example.com" },
     })
@@ -95,6 +95,27 @@ describe("LoginPage", () => {
     })
   })
 
+  it("AC8.19.1 login register controls expose distinct test ids and accessible names", () => {
+    render(<LoginPage />)
+
+    const toggleRegister = screen.getByTestId("auth-mode-toggle-register")
+    const ctaRegister = screen.getByTestId("login-register-cta")
+
+    // Distinct, stable hooks for the two register controls.
+    expect(toggleRegister).not.toBe(ctaRegister)
+
+    // Visible copy is preserved for users (no copy regression, AC requirement 3).
+    expect(toggleRegister).toHaveTextContent("Register")
+    expect(ctaRegister).toHaveTextContent("Register")
+
+    // Accessible names are disambiguated so no two buttons share the same name.
+    expect(toggleRegister).toHaveAccessibleName("Switch to register")
+    expect(ctaRegister).toHaveAccessibleName("Register a new account")
+
+    // The previously ambiguous strict accessible name "Register" now matches no button.
+    expect(screen.queryAllByRole("button", { name: "Register" })).toHaveLength(0)
+  })
+
   it("AC22.18.3 tracks SIGNUP only on successful register, not on login", async () => {
     // Successful register: the signup funnel event fires.
     mockedApiFetch.mockResolvedValueOnce({
@@ -107,7 +128,7 @@ describe("LoginPage", () => {
 
     const { unmount } = render(<LoginPage />)
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Register" })[0])
+    fireEvent.click(screen.getByTestId("auth-mode-toggle-register"))
     fireEvent.change(screen.getByLabelText("Email Address"), {
       target: { value: "signup@example.com" },
     })

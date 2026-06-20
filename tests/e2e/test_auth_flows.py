@@ -42,7 +42,7 @@ async def test_registration_api_path(page: Page):
     """
     EPIC-001 EPIC-008 EPIC-016.
 
-    AC8.10.8 AC16.12.6 AC1.7.1
+    AC8.10.8 AC16.12.6 AC1.7.1 AC8.19.2
 
     Verify registration form submits to correct API path.
 
@@ -53,8 +53,10 @@ async def test_registration_api_path(page: Page):
     await page.goto(get_url("/login"))
     await expect(page.locator("h1")).to_contain_text("Finance Report")
 
-    # Switch to Register mode
-    await page.get_by_role("button", name="Register").click()
+    # Switch to Register mode. The login page has two controls that read
+    # "Register" (the segmented mode toggle and the inline CTA), so target the
+    # mode toggle by test id to avoid a strict-mode locator ambiguity (#1257).
+    await page.get_by_test_id("auth-mode-toggle-register").click()
 
     # Fill registration form with unique email
     test_email = f"e2e_test_{uuid.uuid4().hex[:8]}@test.local"
@@ -71,8 +73,8 @@ async def test_registration_api_path(page: Page):
 
     page.on("request", capture_request)
 
-    # Submit form
-    await page.get_by_role("button", name="Register").click()
+    # Submit form. In register mode the submit button reads "Create Account".
+    await page.get_by_role("button", name="Create Account").click()
 
     # Wait for either success redirect or error message
     await page.wait_for_timeout(2000)
@@ -137,7 +139,7 @@ async def test_full_registration_flow(page: Page):
     """
     EPIC-001 EPIC-008 EPIC-016.
 
-    AC8.10.8 AC16.12.6 AC1.7.1
+    AC8.10.8 AC16.12.6 AC1.7.1 AC8.19.2
 
     Full E2E test: Register a new user and verify authenticated app landing.
 
@@ -145,16 +147,17 @@ async def test_full_registration_flow(page: Page):
     """
     await page.goto(get_url("/login"))
 
-    # Switch to Register mode
-    await page.get_by_role("button", name="Register").click()
+    # Switch to Register mode via the mode toggle (test id avoids the
+    # duplicate "Register" accessible-name ambiguity, #1257).
+    await page.get_by_test_id("auth-mode-toggle-register").click()
 
     # Use unique email
     test_email = f"e2e_full_{uuid.uuid4().hex[:8]}@test.local"
     await page.get_by_label("Email").fill(test_email)
     await page.get_by_label("Password", exact=True).fill("SecureTestPass123!")
 
-    # Submit
-    await page.get_by_role("button", name="Register").click()
+    # Submit. In register mode the submit button reads "Create Account".
+    await page.get_by_role("button", name="Create Account").click()
 
     # Should land in the authenticated app shell on success, or show an error on failure.
     try:
