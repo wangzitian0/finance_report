@@ -15,6 +15,13 @@
 | 3 | **NEVER skip entry balance validation** or post entries without accounting equation check | `test_post_unbalanced_entry_rejected` |
 | 4 | **NEVER use raw `fetch()` in frontend** — use `lib/api.ts` wrapper | `apps/frontend/src/lib/api.ts` |
 | 5 | **NEVER create `sa.Enum` without `name="..."`** parameter | `test_enums_have_explicit_names` |
+| 6 | **NEVER put real financial data in issues / PRs / reports / commits / logs** — real amounts, balances, account/card numbers, account holder names, local file paths, or real statement filenames. Use redacted or generated/anonymized values. | Issue/PR redaction checklist (issue + PR templates); generated-fixture rule in [orchestration.md](./orchestration.md); see "Financial-data hygiene" below |
+
+### Financial-data hygiene
+
+Sensitive financial data includes: monetary amounts and balances; account, card, or IBAN numbers; account holder or counterparty names; local file paths; and real statement filenames.
+
+When a bug is found from real data, reproduce it with a **GENERATED/anonymized fixture** — never paste or commit the real document, its filename, or its values.
 
 ---
 
