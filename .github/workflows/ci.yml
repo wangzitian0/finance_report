@@ -323,14 +323,14 @@ jobs:
             apps/backend/ci-context/schema-migration-context.txt
           retention-days: 14
   backend:
-    name: Backend Tests (Shard ${{ matrix.shard }}/8)
+    name: Backend Tests (Shard ${{ matrix.shard }}/5)
     runs-on: ubuntu-latest
     needs: [changes]
     if: needs.changes.outputs.pr_required == 'true'
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+        shard: [1, 2, 3, 4, 5]
 
     services:
       postgres:
@@ -376,7 +376,7 @@ jobs:
 
 
 
-      - name: Run Tests (Shard ${{ matrix.shard }}/8)
+      - name: Run Tests (Shard ${{ matrix.shard }}/5)
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report_test
           S3_ACCESS_KEY: minio
@@ -387,13 +387,26 @@ jobs:
         run: |
           cd apps/backend
           mkdir -p test-results
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          seed = Path("ci/backend-test-durations.json")
+          if not seed.exists():
+              raise SystemExit(f"pytest-split duration seed is missing: {seed}")
+          durations = json.loads(seed.read_text(encoding="utf-8"))
+          if len(durations) < 500:
+              raise SystemExit(
+                  f"pytest-split duration seed is too small: {len(durations)} entries"
+              )
+          print(f"Loaded pytest-split duration seed with {len(durations)} entries")
+          PY
           uv run pytest -n auto -v \
             -m "not slow and not e2e and not integration" \
-            --splits 8 \
+            --splits 5 \
             --group ${{ matrix.shard }} \
             --splitting-algorithm=least_duration \
-            --store-durations \
-            --durations-path test-results/backend-shard-${{ matrix.shard }}-durations.json \
+            --durations-path ci/backend-test-durations.json \
             --cov=src \
             --cov-report=lcov:coverage-backend-${{ matrix.shard }}.lcov \
             --cov-report=term-missing \
@@ -417,7 +430,6 @@ jobs:
           name: backend-shard-${{ matrix.shard }}-test-context
           path: |
             apps/backend/test-results/backend-shard-${{ matrix.shard }}.xml
-            apps/backend/test-results/backend-shard-${{ matrix.shard }}-durations.json
             apps/backend/coverage-backend-${{ matrix.shard }}.lcov
           retention-days: 14
 
@@ -1306,7 +1318,7 @@ jobs:
           | Stage | Coverage Effect | Behavior Proof |
           |---|---|---|
           | schema-migrations | not included in unified coverage | yes (Alembic DDL/schema drift) |
-          | backend (8-way shard) | contributes to unified line coverage baseline | yes |
+          | backend (5-way shard) | contributes to unified line coverage baseline | yes |
           | backend-integration | not included in unified coverage | yes (marker 'integration') |
           | backend-e2e-tier1 | not included in unified coverage | yes (marker 'e2e') |
           | frontend-build | not included in unified coverage | yes (typecheck + production build) |

@@ -539,7 +539,7 @@ concepts:
 
   test_optimization:
     owner: docs/ssot/ci-cd.md#test-optimization
-    description: Smart/fast/full test modes and 8-way backend sharding strategy.
+    description: Smart/fast/full test modes and 5-way seeded backend sharding strategy.
     family: platform
     kind: concept
     proofs:

@@ -41,7 +41,7 @@ def test_AC8_13_34_workflow_timing_summary_reports_queue_and_job_durations() -> 
                 "completedAt": "2026-05-20T10:02:04Z",
             },
             {
-                "name": "Backend Tests (Shard 1/8)",
+                "name": "Backend Tests (Shard 1/5)",
                 "status": "completed",
                 "conclusion": "success",
                 "startedAt": "2026-05-20T10:02:10Z",
@@ -56,7 +56,7 @@ def test_AC8_13_34_workflow_timing_summary_reports_queue_and_job_durations() -> 
     assert "- Queue delay: `2m 0s`" in summary
     assert "- Execution window: `5m 20s`" in summary
     assert "- Run wall time: `7m 20s`" in summary
-    assert "- Longest completed job: `Backend Tests (Shard 1/8)` at `5m 10s`" in summary
+    assert "- Longest completed job: `Backend Tests (Shard 1/5)` at `5m 10s`" in summary
     assert "| `Classify Changes` | `success` | `4s` |" in summary
 
 
