@@ -392,7 +392,9 @@ jobs:
           from pathlib import Path
 
           seed = Path("ci/backend-test-durations.json")
-          durations = json.loads(seed.read_text())
+          if not seed.exists():
+              raise SystemExit(f"pytest-split duration seed is missing: {seed}")
+          durations = json.loads(seed.read_text(encoding="utf-8"))
           if len(durations) < 500:
               raise SystemExit(
                   f"pytest-split duration seed is too small: {len(durations)} entries"

@@ -1358,7 +1358,7 @@ def test_AC8_13_148_backend_shards_use_seeded_5_way_split() -> None:
     assert backend_job["name"] == "Backend Tests (Shard ${{ matrix.shard }}/5)"
     assert backend_job["strategy"]["matrix"]["shard"] == [1, 2, 3, 4, 5]
     assert len(durations) >= 2_000
-    assert all(isinstance(value, int | float) for value in durations.values())
+    assert all(isinstance(value, (int, float)) for value in durations.values())
 
     backend_commands = "\n".join(
         str(step.get("run", ""))
@@ -1366,6 +1366,7 @@ def test_AC8_13_148_backend_shards_use_seeded_5_way_split() -> None:
         if isinstance(step, dict)
     )
     assert "Loaded pytest-split duration seed" in backend_commands
+    assert "pytest-split duration seed is missing" in backend_commands
     assert "len(durations) < 500" in backend_commands
     assert "--splits 5" in backend_commands
     assert "--group ${{ matrix.shard }}" in backend_commands
