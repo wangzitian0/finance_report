@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.logger import get_logger
-from src.models import BankStatementStatus
+from src.models import BankStatementStatus, User
 from src.models.layer1 import DocumentStatus, DocumentType, UploadedDocument
 from src.models.statement_enums import Stage1Status
 from src.models.statement_summary import StatementSummary
@@ -178,7 +178,22 @@ async def _ensure_failed_document_lineage(
     thing a human most needs to inspect for a failed parse — is unreachable from the statement
     (#982). The document type is unknown for a failed parse, so it defaults to ``bank_statement``;
     a later successful reparse reconciles the same ``(user_id, file_hash)`` row via dual-write.
+
+    Re-checks user existence first (#1256, AC13.23.2): a background parse can race a
+    ``DELETE /users/{id}``; if the owning user was deleted mid-parse, inserting
+    ``uploaded_documents.user_id`` for a missing ``users.id`` raises a FK IntegrityError
+    (which, before the rollback-ordering fix, masked the original parse error). When the
+    user is gone we skip the lineage write gracefully instead.
     """
+    user_exists = await db.scalar(select(User.id).where(User.id == statement.user_id).limit(1))
+    if user_exists is None:
+        logger.warning(
+            "statement.parse.lineage_skipped_user_deleted",
+            statement_id=str(statement.id),
+            user_id=str(statement.user_id),
+        )
+        return
+
     existing = await _find_document_by_hash(db, statement.user_id, file_hash)
     if existing is not None:
         _mark_document_failed_unless_completed(existing)
@@ -218,6 +233,7 @@ async def handle_parse_failure(
     model_to_use: str | None = None,
     error_type: str | None = None,
     request_id: str | None = None,
+    statement_id: UUID | None = None,
     file_hash: str | None = None,
     storage_key: str | None = None,
     original_filename: str | None = None,
@@ -233,17 +249,48 @@ async def handle_parse_failure(
         statement: The StatementSummary envelope (may have expired session)
         db: AsyncSession for database operations
         message: Error message to store in validation_error
+        statement_id: Plain statement UUID captured before any failing operation.
+            Preferred over reading ``statement.id`` (#1256, AC13.23.3): on an
+            already-failed session, touching an expired ORM attribute raises
+            ``PendingRollbackError`` and masks the original error. We roll back
+            FIRST, then only fall back to reading the ORM attribute once the
+            session is clean.
     """
     request_id = request_id or str(uuid4())
-    statement_id = statement.id
+    # Resolve the statement id WITHOUT ever letting an expired/failed-session ORM
+    # read mask the original error (#1256, AC13.23.3). Prefer the plain id the
+    # caller captured before any failing operation; otherwise read ``statement.id``
+    # defensively. A read that raises (e.g. PendingRollbackError on an already-failed
+    # session) must NOT abort the handler — we still roll back and recover below.
+    if statement_id is None:
+        try:
+            statement_id = statement.id
+        except Exception as id_exc:
+            logger.warning(
+                "Could not read statement id before rollback; will retry after rollback",
+                original_error=message,
+                id_error=str(id_exc),
+            )
     try:
         await db.rollback()
     except Exception as rollback_exc:
         logger.warning(
             "Rollback failed during parse failure handling",
-            statement_id=str(statement_id),
+            statement_id=str(statement_id) if statement_id is not None else None,
             rollback_error=str(rollback_exc),
         )
+    # If the id was unreadable before rollback (failed session), the session is now
+    # clean, so a second read is safe.
+    if statement_id is None:
+        try:
+            statement_id = statement.id
+        except Exception as id_exc:
+            logger.error(
+                "Could not resolve statement id in parse failure handler",
+                original_error=message,
+                id_error=str(id_exc),
+            )
+            return
     try:
         refreshed = await db.get(StatementSummary, statement_id)
         if refreshed is None:
@@ -306,6 +353,7 @@ async def _handle_parse_failure(
     model_to_use: str | None,
     error_type: str | None,
     request_id: str,
+    statement_id: UUID | None = None,
     file_hash: str | None = None,
     storage_key: str | None = None,
     original_filename: str | None = None,
@@ -321,6 +369,9 @@ async def _handle_parse_failure(
                 "model_to_use": model_to_use,
                 "error_type": error_type,
                 "request_id": request_id,
+                # Plain UUID captured at task start — safe to read even if the
+                # ORM `statement` row's session is in a failed state (#1256).
+                "statement_id": statement_id,
                 "file_hash": file_hash,
                 "storage_key": storage_key,
                 "original_filename": original_filename,
@@ -464,6 +515,7 @@ async def parse_statement_background(
                 model_to_use=model_to_use,
                 error_type=type(exc).__name__,
                 request_id=request_id,
+                statement_id=statement_id,
                 file_hash=file_hash,
                 storage_key=storage_key,
                 original_filename=filename,
@@ -487,6 +539,7 @@ async def parse_statement_background(
                 model_to_use=model_to_use,
                 error_type=type(exc).__name__,
                 request_id=request_id,
+                statement_id=statement_id,
                 file_hash=file_hash,
                 storage_key=storage_key,
                 original_filename=filename,
@@ -544,6 +597,7 @@ async def parse_statement_background(
                 model_to_use=model_to_use,
                 error_type=type(exc).__name__,
                 request_id=request_id,
+                statement_id=statement_id,
                 file_hash=file_hash,
                 storage_key=storage_key,
                 original_filename=filename,

@@ -422,3 +422,34 @@ self-check balance guard and these deterministic seams stay hard-tested.
 | AC13.20.6 | AC-C2: when no repair backend is injected, the hook is a safe no-op returning the original payload | `test_AC13_20_6_repair_is_safe_noop_without_backend()` | `extraction/test_chain_break_repair.py` | P1 |
 | AC13.20.7 | AC-C3: the synthetic dropped-row fixture drives the detector to the correct index and triggers the repair hook | `test_AC13_20_7_regression_fixture_detects_and_repairs()` | `extraction/test_chain_break_repair.py` | P1 |
 | AC13.20.8 | AC-C3: the clean-bank dropped-row regression-corpus fixture triggers the chain-break detector + `repair_under_extraction` end-to-end through `ExtractionService._extract_with_balance_retry` with an injected `RegionReExtractor` (recall stays a soft metric) | `test_AC13_20_8_corpus_fixture_triggers_repair_end_to_end()` | `extraction/test_chain_break_repair.py` | P1 |
+
+### AC13.23: User Deletion During In-Flight Parse — Lifecycle Coordination ([#1256](https://github.com/wangzitian0/finance_report/issues/1256))
+
+Deleting a user (`DELETE /users/{id}`) while an async statement parse is still
+running caused two distinct, compounding defects:
+
+1. **No lifecycle coordination.** The delete cascaded (`UserOwnedMixin` FK with
+   `ON DELETE CASCADE`) with no check for in-flight parses. The background parse
+   then wrote uploaded-document lineage for the now-deleted `user_id`, which
+   PostgreSQL rejected with an `uploaded_documents.user_id → users.id` FK
+   `IntegrityError`.
+2. **Original error masked.** The failure handler read `statement.id` off the
+   expired ORM row *before* `db.rollback()`; on an already-failed session that
+   raises `PendingRollbackError`, masking the real FK error so it never gets
+   logged.
+
+**Chosen coordination strategy: 409 when a parse is in flight.** Statement
+in-flight state is already queryable (`StatementSummary.status == PARSING`), so
+`delete_user()` returns a clear, actionable HTTP 409 if the user has any
+statement still parsing — the least-invasive option (no cancellation plumbing,
+no waiting on a fire-and-forget/remote task, no terminal-marking race). Defence
+in depth: the parse finalization path re-checks user/statement existence before
+writing lineage, and the failure handler rolls back before touching ORM
+attributes using a plain cached `statement_id`, so a parse that races past the
+guard fails gracefully without masking the original error.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC13.23.1 | User deletion is refused with HTTP 409 (actionable message) while the user has a statement in the `PARSING` (in-flight) state; with no in-flight parse the delete still succeeds (204) | `test_AC13_23_1_delete_user_with_in_flight_parse_returns_409()`, `test_AC13_23_1_delete_user_without_in_flight_parse_succeeds()` | `api/test_users_router.py` | P0 |
+| AC13.23.2 | Parse-failure lineage write re-checks user existence and skips the FK-violating insert (no `IntegrityError`) when the owning user is gone | `test_AC13_23_2_failed_lineage_skips_when_user_deleted()` | `extraction/test_parse_user_deletion_lifecycle.py` | P0 |
+| AC13.23.3 | The failure handler rolls back before reading ORM attributes (cached `statement_id`); the original error is preserved/logged and never masked by `PendingRollbackError` | `test_AC13_23_3_failure_handler_rolls_back_before_reading_orm()`, `test_AC13_23_3_original_error_not_masked()` | `extraction/test_parse_user_deletion_lifecycle.py` | P0 |
