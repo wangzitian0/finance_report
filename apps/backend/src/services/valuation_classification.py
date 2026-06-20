@@ -26,6 +26,10 @@ VALUATION_CLASSIFICATION_PROMPT_VERSION = "valuation-classify-v1"
 # gate, expressed on the 0..1 scale.
 REVIEW_CONFIDENCE_THRESHOLD = Decimal("0.85")
 
+# Matches the ValuationClassification.model_version / prompt_version columns
+# (String(120)); guard at the boundary so over-long ids fail fast, not at flush.
+_MAX_VERSION_LENGTH = 120
+
 
 @dataclass(frozen=True)
 class GatedValuationClassification:
@@ -54,6 +58,10 @@ def gate_classification(
     prompt_version: str = VALUATION_CLASSIFICATION_PROMPT_VERSION,
 ) -> GatedValuationClassification:
     """Route a validated classification to review or trusted use by confidence."""
+
+    for name, value in (("model_version", model_version), ("prompt_version", prompt_version)):
+        if len(value) > _MAX_VERSION_LENGTH:
+            raise ValueError(f"{name} exceeds {_MAX_VERSION_LENGTH} characters")
 
     review_status = (
         ValuationReviewStatus.APPROVED

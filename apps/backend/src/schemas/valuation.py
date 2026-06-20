@@ -40,41 +40,40 @@ class ValuationClassificationLLMOutput(BaseModel):
     """The bounded output a model returns when classifying one valuation fact."""
 
     # Raw extracted values — echoed for auditability; jurisdiction/issuer/scheme
-    # stay metadata and are never promoted into the stable codes.
+    # stay metadata and are never promoted into the stable codes. Numeric and
+    # currency bounds match the AtomicValuationFact storage constraints so the
+    # contract rejects values that would later fail or be silently rounded.
     raw_label: str
     issuer: str | None = None
     jurisdiction: str | None = None
     scheme_name: str | None = None
-    amount: Decimal
-    currency: str
+    amount: Decimal = Field(ge=0, max_digits=18, decimal_places=2)
+    currency: str = Field(min_length=3, max_length=3, description="ISO-4217 code")
     as_of_date: date
     evidence_spans: list[ValuationEvidenceSpan] = Field(
         default_factory=list, description="Pointers back to where each value was read in the source."
     )
 
     # Stable classification — bound to the contract; out-of-contract values are
-    # rejected by enum validation.
+    # rejected by enum validation. confidence precision matches the
+    # ValuationClassification Numeric(5,4) column.
     l1: ValuationL1
     l2: ValuationL2 | None = None
     economic_side: EconomicSide
     valuation_role: ValuationRole
     liquidity_class: LiquidityClass
-    confidence: Decimal
+    confidence: Decimal = Field(ge=0, le=1, max_digits=5, decimal_places=4)
     rationale: str
 
-    model_config = ConfigDict(from_attributes=True)
+    # extra="forbid" keeps the bounded contract deterministic: prompt/model drift
+    # that adds unknown keys fails loudly instead of being silently ignored.
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
-    @field_validator("currency")
+    @field_validator("currency", mode="before")
     @classmethod
-    def _normalize_currency(cls, value: str) -> str:
-        return value.strip().upper()
-
-    @field_validator("confidence")
-    @classmethod
-    def _confidence_in_unit_interval(cls, value: Decimal) -> Decimal:
-        if not (Decimal("0") <= value <= Decimal("1")):
-            raise ValueError("confidence must be within [0, 1]")
-        return value
+    def _normalize_currency(cls, value: object) -> object:
+        # Normalize before the length constraint runs so " usd " -> "USD".
+        return value.strip().upper() if isinstance(value, str) else value
 
     @model_validator(mode="after")
     def _stable_code_consistency(self) -> ValuationClassificationLLMOutput:

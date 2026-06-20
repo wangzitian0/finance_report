@@ -123,6 +123,24 @@ def test_llm_output_rejects_out_of_contract_codes():
         ValuationClassificationLLMOutput.model_validate(_payload(confidence="1.4"))
 
 
+def test_storage_boundary_constraints_are_enforced_at_the_contract():
+    """AC11.24.6: amount/currency/confidence/extra match storage so persistence can't fail late."""
+    # currency is normalized before the length check ( " usd " -> "USD").
+    assert ValuationClassificationLLMOutput.model_validate(_payload(currency=" usd ")).currency == "USD"
+
+    # Negative amount, >2dp amount, non-3-char currency, >4dp confidence, and
+    # unknown keys are all rejected at the boundary (match the storage columns).
+    for bad in (
+        {"amount": "-1.00"},
+        {"amount": "10.999"},
+        {"currency": "US"},
+        {"confidence": "0.95001"},
+        {"unexpected_field": "x"},
+    ):
+        with pytest.raises(ValidationError):
+            ValuationClassificationLLMOutput.model_validate(_payload(**bad))
+
+
 def test_cash_value_is_asset_coverage_amount_excluded_from_net_worth():
     """AC11.24.2: insurance cash value is an asset; coverage is excluded."""
     cash_value = ValuationClassificationLLMOutput.model_validate(FIXTURES["insurance_cash_value"][0])
@@ -171,3 +189,8 @@ def test_prompt_and_model_version_persisted():
     assert fields["prompt_version"] == VALUATION_CLASSIFICATION_PROMPT_VERSION
     assert fields["review_status"] is ValuationReviewStatus.APPROVED
     assert fields["l1"] is ValuationL1.RETIREMENT_AND_BENEFIT
+
+    # An over-long version id fails fast at the gate, not at DB flush
+    # (matches the String(120) columns).
+    with pytest.raises(ValueError):
+        gate_classification(output, model_version="x" * 121)

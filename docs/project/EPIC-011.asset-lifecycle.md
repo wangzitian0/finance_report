@@ -346,7 +346,8 @@ transport and no report switch-over (that is #1225).
 | AC11.24.2 | Insurance cash value classifies as an asset that contributes to net worth; a coverage amount is a non-asset excluded from net worth | `test_cash_value_is_asset_coverage_amount_excluded_from_net_worth()` | `assets/test_valuation_classification_contract.py` | P0 |
 | AC11.24.3 | Low-confidence classifications route to review; confident ones are auto-approved for trusted use | `test_low_confidence_routes_to_review()` | `assets/test_valuation_classification_contract.py` | P0 |
 | AC11.24.4 | Deterministic fixtures (CPF/provident, 401k, China social-security personal account, insurance cash value, insurance coverage amount) classify to the expected stable codes | `test_deterministic_fixtures_classify_to_expected_codes()` | `assets/test_valuation_classification_contract.py` | P0 |
-| AC11.24.5 | Prompt version and model identifier are persisted with the classification output | `test_prompt_and_model_version_persisted()` | `assets/test_valuation_classification_contract.py` | P0 |
+| AC11.24.5 | Prompt version and model identifier are persisted with the classification output (and over-long ids fail fast) | `test_prompt_and_model_version_persisted()` | `assets/test_valuation_classification_contract.py` | P0 |
+| AC11.24.6 | The contract enforces the storage boundary constraints — non-negative 2dp amount, 3-char normalized currency, 4dp confidence, and forbidden unknown keys | `test_storage_boundary_constraints_are_enforced_at_the_contract()` | `assets/test_valuation_classification_contract.py` | P0 |
 
 ## Implementation Pattern Ownership
 
