@@ -14,6 +14,7 @@ from typing import Any
 from uuid import UUID
 
 from src.config import settings
+from src.llm.cassette import CassetteMode, current_mode
 from src.llm.client import litellm_stream, resolve_provider_and_model
 from src.llm.common import LLMConfigError, LLMError, ProviderRef, ReasoningEffort
 from src.llm.env_config import _protocol_for
@@ -115,7 +116,19 @@ async def _stream_ai_base(
     litellm owns the transport. ``user_id`` scopes provider resolution to that
     user's configured provider (else deployment default, else env).
     """
-    if api_key is None and user_id is not None:
+    if current_mode() is CassetteMode.REPLAY:
+        # Replay serves the committed cassette from litellm_stream, keyed on
+        # (role + messages + decode params) — provider-agnostic. Skip provider
+        # resolution so CI replays with NO key and NO configured provider; the
+        # dummy ref satisfies the signature and is never used for a network call.
+        provider = ProviderRef(
+            id="replay",
+            label="replay",
+            protocol=_protocol_for(settings.ai_provider),
+            api_key="replay",
+            api_base=None,
+        )
+    elif api_key is None and user_id is not None:
         # Per-user path: honour a binding's ``provider_id/model`` qualifier so a
         # user with several providers resolves the exact one (the scene-less
         # ``_resolve_provider`` fails closed on >1). ``model`` becomes the bare model.
