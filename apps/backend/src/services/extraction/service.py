@@ -41,12 +41,25 @@ from src.services.extraction._media import _MediaMixin
 from src.services.extraction._ocr import _OcrMixin
 from src.services.validation import (
     compute_confidence_score,
+    count_within_document_dedup_collapse,
+    detect_balance_chain_break,
     normalize_amount_direction,
     route_by_threshold,
     validate_balance,
     validate_balance_explicit,
     validate_balance_per_currency,
 )
+from src.telemetry_metrics import record_financial_invariant_violation
+
+
+def _institution_class(*, is_brokerage: bool) -> str:
+    """Anonymized, low-cardinality institution bucket for invariant metrics.
+
+    Deliberately coarse — ``"brokerage"`` vs ``"bank"`` — so the metric never
+    carries a real institution name or any account identifier (PII-free, bounded
+    label space).
+    """
+    return "brokerage" if is_brokerage else "bank"
 
 
 class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _CsvMixin):
@@ -212,6 +225,14 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                             "Per-currency brokerage NAV failed self-check",
                             per_currency=per_currency_result["per_currency"],
                         )
+                        # Observability (EPIC-026 AC26.8.1): promote this invariant
+                        # violation to a structured, queryable counter. Pure
+                        # detection — the per_currency_invalid_note above already
+                        # owns the (unchanged) status/balance_validated behavior.
+                        record_financial_invariant_violation(
+                            kind="per_currency_nav",
+                            institution_class=_institution_class(is_brokerage=is_brokerage_payload),
+                        )
                     # Serialize Decimal -> str for the JSONB column (no float). The
                     # scalar opening/closing columns stay populated for the
                     # single-currency degenerate case and backward compatibility;
@@ -351,6 +372,35 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 transaction._occurrence_index = occurrence_index
                 transactions.append(transaction)
 
+            # Within-document dedup-collapse signal (EPIC-026 AC26.8.1; #1254 class).
+            # Compare the rows kept for THIS parse against the distinct dedup hashes
+            # they produced. A positive count means two rows in this single document
+            # collided on one hash despite the per-document occurrence_index
+            # disambiguator — the silent within-parse row loss that #1254 fixed. This
+            # is computed only over this parse's freshly-built rows and BEFORE any DB
+            # upsert, so legitimate cross-document dedup (a re-uploaded statement
+            # collapsing against an already-persisted row) can never trip it. Purely a
+            # detection signal: no status/routing/persistence change.
+            within_doc_collapse = count_within_document_dedup_collapse([t.dedup_hash for t in transactions])
+            if within_doc_collapse > 0:
+                logger.warning(
+                    "Within-document dedup collapse detected (defense-in-depth, #1254 class)",
+                    extracted_rows=len(transactions),
+                    distinct_hashes=len(transactions) - within_doc_collapse,
+                    collapsed_rows=within_doc_collapse,
+                    is_brokerage=is_brokerage_payload,
+                    statement_file=original_filename or (file_path.name if file_path else "unknown"),
+                )
+                record_financial_invariant_violation(
+                    kind="dedup_within_doc_collapse",
+                    institution_class=_institution_class(is_brokerage=is_brokerage_payload),
+                )
+                # Non-blocking flag on the envelope's metadata so the collapse is
+                # auditable per statement WITHOUT touching status/routing/approval.
+                metadata = statement.extraction_metadata if isinstance(statement.extraction_metadata, dict) else {}
+                metadata = {**metadata, "within_document_dedup_collapse": within_doc_collapse}
+                statement.extraction_metadata = metadata
+
             # Validation
             balance_result = validate_balance_explicit(
                 opening=statement.opening_balance or Decimal("0.00"),
@@ -411,6 +461,40 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 statement.validation_error = balance_result["notes"]
             statement.confidence_score = confidence
             statement.status = status
+
+            # Promote invariant violations to structured, queryable counters
+            # (EPIC-026 AC26.8.1). These mirror the already-computed self-check
+            # results; they add observability ONLY and do not change is_valid,
+            # status, or the validation_error set above. A balance-invalid bank
+            # statement still routes to PARSED/review exactly as before.
+            institution_class = _institution_class(is_brokerage=is_brokerage_payload)
+            if not is_valid and per_currency_invalid_note is None and not has_inferred_csv_balances:
+                # Scalar running-balance reconciliation failed. (The per-currency
+                # NAV failure already emits its own counter at detection time, and
+                # the inferred-CSV path is a review marker, not a true mismatch.)
+                record_financial_invariant_violation(
+                    kind="balance_mismatch",
+                    institution_class=institution_class,
+                )
+                # Deterministic chain-break detector: pinpoint a dropped/misparsed
+                # row when the mismatch has that shape. Emitted as a distinct,
+                # queryable signal; never alters routing.
+                chain_break = detect_balance_chain_break(
+                    extracted.get("transactions", []) or [],
+                    opening_balance=statement.opening_balance,
+                )
+                if chain_break is not None:
+                    logger.warning(
+                        "Running-balance chain break detected",
+                        break_index=chain_break.index,
+                        delta=str(chain_break.delta),
+                        statement_file=original_filename or (file_path.name if file_path else "unknown"),
+                    )
+                    record_financial_invariant_violation(
+                        kind="chain_break",
+                        institution_class=institution_class,
+                    )
+
             # A statement that lands in review must carry an explicit pending_review marker so the
             # queue does not rely on a NULL fallback. The auto-approve path owns the approved/None
             # transitions for APPROVED rows, so only set this for review-bound PARSED statements.

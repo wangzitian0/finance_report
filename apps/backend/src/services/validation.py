@@ -292,6 +292,31 @@ def detect_balance_chain_break(
     return None
 
 
+def count_within_document_dedup_collapse(dedup_hashes: list[str]) -> int:
+    """Count transactions lost to within-a-single-parse dedup collapse (#1254 shape).
+
+    Given the ordered ``dedup_hash`` values produced for the rows of **one**
+    document parse, return ``len(hashes) - len(distinct hashes)`` — how many rows
+    were silently absorbed because they hashed identically to an earlier row in
+    the *same* parse.
+
+    This is a pure within-document conservation check. It is deliberately scoped
+    to a single document's freshly-built rows and is computed BEFORE any database
+    upsert, so legitimate CROSS-document dedup (the same transaction re-uploaded in
+    a later statement, which collapses against an already-persisted row) can never
+    trigger it — that collapse happens later, against the DB, and is never counted
+    here. A non-zero result means two rows *within this one parse* that the
+    per-document ``occurrence_index`` disambiguator (see
+    :meth:`DeduplicationService.calculate_transaction_hash`) was expected to keep
+    distinct still collided — exactly the #1254 class of silent row loss. The
+    detector is conservative: it never over-reports, because the count is purely
+    the number of extra (duplicate) hashes within this single parse.
+    """
+    if not dedup_hashes:
+        return 0
+    return len(dedup_hashes) - len(set(dedup_hashes))
+
+
 def validate_completeness(extracted: dict[str, Any]) -> list[str]:
     """Return missing required fields for a statement."""
     required_fields = [

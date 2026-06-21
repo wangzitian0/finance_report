@@ -133,6 +133,17 @@ def _create_instruments(meter: Any) -> None:
         unit="1",
         description="Async statement parse task failures.",
     )
+    _instruments["financial_invariant_violation"] = meter.create_counter(
+        "finance.invariant.violation",
+        unit="1",
+        description=(
+            "Financial-invariant violations detected during statement parsing "
+            "(balance mismatch, per-currency NAV fail, running-balance chain break, "
+            "within-document dedup collapse), labelled by kind and anonymized "
+            "institution class. A non-silent, queryable/alertable signal; emitting "
+            "it does NOT change statement routing, status, or approval."
+        ),
+    )
     meter.create_observable_gauge(
         "finance.async_parse.in_flight",
         callbacks=[_observe_async_parse_in_flight],
@@ -336,3 +347,31 @@ def record_rate_limit_rejected(*, scope: str) -> None:
     counter = _instruments.get("rate_limit_rejected")
     if counter is not None:
         counter.add(1, {"scope": scope})
+
+
+# Canonical low-cardinality kinds for the financial-invariant violation counter.
+# Keeping this a closed set keeps the metric label space bounded and alertable.
+INVARIANT_VIOLATION_KINDS = (
+    "balance_mismatch",
+    "per_currency_nav",
+    "chain_break",
+    "dedup_within_doc_collapse",
+)
+
+
+def record_financial_invariant_violation(*, kind: str, institution_class: str = "unknown") -> None:
+    """Record one detected financial-invariant violation as a queryable counter.
+
+    ``kind`` is one of :data:`INVARIANT_VIOLATION_KINDS`. ``institution_class`` is
+    an anonymized, low-cardinality bucket (e.g. ``"bank"`` / ``"brokerage"`` /
+    ``"unknown"``) — never a real institution name or any account identifier — so
+    the metric stays PII-free and bounded.
+
+    This is the observability half of closing the "silent failure" gap: a slipped
+    invariant violation (balance mismatch, per-currency NAV fail, running-balance
+    chain break, within-document dedup collapse) becomes a structured, alertable
+    signal. It is purely additive — it never changes routing, status, or approval.
+    """
+    counter = _instruments.get("financial_invariant_violation")
+    if counter is not None:
+        counter.add(1, {"kind": kind, "institution_class": institution_class})
