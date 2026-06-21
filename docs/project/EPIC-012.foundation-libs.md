@@ -506,6 +506,22 @@ duplicated local `quantize` helper as raw `Decimal` glue.
 | AC12.32.2 | Cross-language conformance: the Python reference (`common/unit_price`) and shipped backend (`src.unit_price`) reproduce the same `vectors.json` (quantize / product / from_total) and export the same `shared_api` (identifier-parity guard). Frontend is a P2 follow-up | `test_AC12_32_2_unit_price_quantize_matches_standard` (+ siblings), `test_AC12_32_2_backend_exposes_shared_unit_price_api` | `tests/tooling/test_unit_price_conformance.py`, `tests/tooling/test_unit_price_api_parity.py`, `apps/backend/tests/accounting/test_unit_price_backend.py` | P1 |
 | AC12.32.3 | UnitPrice adoption: investment accounting prices buys/sells and lot/avg-cost through `UnitPrice` (removing the local `_quantized_unit_rate` helper and `UNIT_RATE_QUANTUM` literal), and market-data single-sources the price quantum from `UNIT_PRICE_QUANTUM` | `test_AC12_32_3_investment_accounting_uses_unit_price`, `test_AC12_32_3_market_data_price_quantum_is_single_sourced` | `tests/tooling/test_unit_price_adoption.py` | P1 |
 
+### AC12.33: Composite value operations — Money predicates/sum, Ratio fallback, MoneyTolerance ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
+
+Reusable composite operations on the existing base elements so business code
+stays typed instead of re-deriving them as raw `Decimal` glue: `Money` gains
+`is_zero`/`is_positive`/`is_negative` and a typed `Money.sum`; `Ratio` gains the
+zero-denominator fallbacks `fraction_or_zero`/`fraction_or_none`; and a new
+`MoneyTolerance` owns the absolute+relative amount-matching band (`max(absolute,
+relative*|expected|)`). These are added cross-language-ready (shared conformance
+vectors) but adopted on the backend first.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC12.33.1 | `Money` exposes `is_zero`/`is_positive`/`is_negative` and a typed `Money.sum` (cross-currency raises; empty needs a currency); `Ratio.fraction_or_zero`/`fraction_or_none` give the zero-denominator fallback; `MoneyTolerance(absolute, relative)` matches on `max(absolute, relative*\|expected\|)`, scales, and rejects cross-currency comparison | `test_AC12_33_1_money_predicates_and_sum` (+ siblings) | `tests/tooling/test_composite_ops.py`, `apps/backend/tests/accounting/test_composite_ops_backend.py` | P1 |
+| AC12.33.2 | Cross-language conformance: the Python reference and shipped backend reproduce the shared `vectors.json` groups (`predicates`/`sum`/`tolerance` for money, `fraction_or_zero` for ratio) | `test_AC12_33_2_money_composite_matches_standard`, `test_AC12_33_2_ratio_fraction_or_zero_matches_standard`, `test_AC12_33_2_backend_composite_matches_standard` | `tests/tooling/test_composite_ops.py`, `apps/backend/tests/accounting/test_composite_ops_backend.py` | P1 |
+| AC12.33.3 | Adoption: zero-denominator ratio branching routes through `Ratio.fraction_or_zero` (retiring the local `_ratio_or_zero` helper in portfolio, plus performance-report and reconciliation-stats call sites), and investment accounting uses `Money` predicates + `Money.sum` instead of naked `Decimal("0")` comparisons | `test_AC12_33_3_zero_denominator_branching_routes_through_ratio`, `test_AC12_33_3_money_predicates_and_sum_adopted` | `tests/tooling/test_composite_ops_adoption.py` | P1 |
+
 ---
 
 *Planning snapshot captured: January 2026*

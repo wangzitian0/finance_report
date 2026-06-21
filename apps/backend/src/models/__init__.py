@@ -51,11 +51,6 @@ from src.models.reconciliation import ReconciliationMatch, ReconciliationMatchJo
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
 from src.models.user import AiFeedback, User
-from src.models.valuation import (
-    AtomicValuationFact,
-    ValuationClassification,
-    ValuationReviewStatus,
-)
 from src.models.workflow import (
     WorkflowEvent,
     WorkflowEventFamily,
@@ -74,7 +69,6 @@ __all__ = [
     "AtomicPositionSourceDocument",
     "AtomicTransaction",
     "AtomicTransactionSourceDocument",
-    "AtomicValuationFact",
     "BankStatementStatus",
     "ChatMessage",
     "ChatMessageRole",
@@ -128,8 +122,6 @@ __all__ = [
     "TransactionDirection",
     "UploadedDocument",
     "User",
-    "ValuationClassification",
-    "ValuationReviewStatus",
     "WorkflowEvent",
     "WorkflowEventFamily",
     "WorkflowEventSeverity",

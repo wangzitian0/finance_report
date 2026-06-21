@@ -103,3 +103,13 @@ migrations:
     staging_validation: Deploy to staging and exercise upload -> parse -> reconcile -> report; confirm journal entries persist and read back with the rebuilt enum and that no path attempts to write bank_statement.
     production_preflight: None required - the defensive UPDATE collapses any residual bank_statement rows before the enum rebuild, so the type recreate cannot fail on a stray value regardless of production row count. Optionally count rows with source_type::text = 'bank_statement' to confirm zero.
     rollback_strategy: downgrade() re-adds the bank_statement label idempotently (ADD VALUE IF NOT EXISTS); restore from pre-migration snapshot only if the type rebuild is interrupted. The raw string stays tolerated by normalize_source_type so reverted code keeps working.
+
+  0047_drop_valuation_fact_storage:
+    file: 0047_drop_valuation_fact_storage.py
+    risk: critical
+    issue: "#1221"
+    proof: Destructive drop of atomic_valuation_facts + valuation_classifications and their six enum types. The valuation taxonomy stack (#1221-1224) reinvented existing accounting primitives (Account/AccountType, JournalEntry/JournalLine, ClassificationRule/TransactionClassification, EvidenceNode/EvidenceEdge) and was an orphaned island — no production code ever wrote either table (verified by grep; only models/__init__.py referenced them). Both tables are empty, so the drop is data-safe.
+    staging_validation: Deploy to staging and exercise upload -> parse -> reconcile -> report and the manual-valuation snapshot flow end-to-end; confirm no code path references atomic_valuation_facts or valuation_classifications and reports are unaffected.
+    production_preflight: Confirm atomic_valuation_facts and valuation_classifications are empty (row count 0) before applying; no producer exists so they are guaranteed empty.
+    rollback_strategy: downgrade() recreates both tables and their enums exactly as revision 0046 defined them (no data is restored because none ever existed). Restore from pre-migration snapshot only if the drop is interrupted.
+    destructive_confirmation: Confirmed destructive drop of two empty, never-populated orphan tables; no production data exists and no consumer references them.

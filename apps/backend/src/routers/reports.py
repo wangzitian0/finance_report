@@ -59,6 +59,9 @@ from src.services.annualized_income import generate_annualized_income_schedule
 from src.services.confidence_metric import ConfidenceMetricService
 from src.services.framework_policy import derive_user_framework_policy_result
 from src.services.market_data import ensure_market_data_fresh
+from src.services.performance_report import (
+    build_investment_performance_report_schedule,
+)
 from src.services.report_package import (
     jsonable as _jsonable,
     package_currency as _package_currency,
@@ -253,8 +256,6 @@ async def _personal_report_package_section_payloads(
     currency: str,
     include_restricted: bool = False,
 ) -> dict[str, Any]:
-    from src.routers.portfolio import get_investment_performance_report_schedule
-
     balance_sheet_payload = await generate_balance_sheet(
         db,
         user_id,
@@ -276,9 +277,14 @@ async def _personal_report_package_section_payloads(
         end_date=end_date,
         currency=currency,
     )
-    investment_performance_payload = await get_investment_performance_report_schedule(
-        db=db,
-        user_id=user_id,
+    # #1097 (AC25.5.1): call the service directly instead of importing the
+    # portfolio router handler. The package path already passes validated,
+    # concrete dates and a normalized (uppercased) currency, so the router
+    # handler's input-defaulting/validation is moot here and behavior is
+    # preserved by invoking the same underlying service.
+    investment_performance_payload = await build_investment_performance_report_schedule(
+        db,
+        user_id,
         period_start=start_date,
         period_end=end_date,
         as_of_date=as_of_date,

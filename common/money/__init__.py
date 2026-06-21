@@ -30,6 +30,7 @@ from common.money.errors import (
 from common.money.exchange_rate import ExchangeRate
 from common.money.money import Money
 from common.money.rounding import MONEY_QUANTUM, to_money
+from common.money.tolerance import MoneyTolerance
 from common.money.wire import (
     exchange_rate_from_db_fields,
     exchange_rate_from_wire,
@@ -55,6 +56,7 @@ __all__ = [
     "InvalidMoneyPayloadError",
     "Money",
     "MoneyError",
+    "MoneyTolerance",
     "convert",
     "exchange_rate_from_db_fields",
     "exchange_rate_from_wire",

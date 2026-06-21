@@ -37,12 +37,16 @@ def _coerce(value: object, what: str = "ratio value") -> Decimal:
     if isinstance(value, bool):
         raise FloatNotAllowedError(f"bool is not a valid {what}")
     if isinstance(value, float):
-        raise FloatNotAllowedError(f"float is not allowed for {what} (IEEE-754 precision loss); use Decimal")
+        raise FloatNotAllowedError(
+            f"float is not allowed for {what} (IEEE-754 precision loss); use Decimal"
+        )
     if isinstance(value, Decimal):
         return value
     if isinstance(value, int):
         return Decimal(value)
-    raise FloatNotAllowedError(f"{what} must be Decimal or int, got {type(value).__name__}")
+    raise FloatNotAllowedError(
+        f"{what} must be Decimal or int, got {type(value).__name__}"
+    )
 
 
 @dataclass(frozen=True)
@@ -69,6 +73,29 @@ class Ratio:
         return cls(p / w)
 
     @classmethod
+    def fraction_or_zero(cls, part: _RatioInput, whole: _RatioInput) -> Ratio:
+        """``fraction(part, whole)`` but a zero whole yields :meth:`zero` instead
+        of raising — the canonical zero-denominator fallback (no naked
+        ``if whole == 0`` branching at call sites).
+
+        Delegates to :meth:`fraction`, so both inputs are still validated (a
+        ``float`` ``part`` raises even when ``whole`` is zero)."""
+        try:
+            return cls.fraction(part, whole)
+        except UndefinedRatioError:
+            return cls.zero()
+
+    @classmethod
+    def fraction_or_none(cls, part: _RatioInput, whole: _RatioInput) -> Ratio | None:
+        """``fraction(part, whole)`` but a zero whole yields ``None`` — for call
+        sites that must distinguish "undefined" from "zero". Both inputs are
+        still validated (a ``float`` ``part`` raises)."""
+        try:
+            return cls.fraction(part, whole)
+        except UndefinedRatioError:
+            return None
+
+    @classmethod
     def zero(cls) -> Ratio:
         return cls(Decimal("0"))
 
@@ -82,7 +109,9 @@ class Ratio:
         return cls(_coerce(percent, "percent") / Decimal("100"))
 
     # ── percent rendering (the single shared standard) ──────────────────
-    def to_percent(self, dp: int = PERCENT_DP, rounding: str = PERCENT_ROUNDING) -> Decimal:
+    def to_percent(
+        self, dp: int = PERCENT_DP, rounding: str = PERCENT_ROUNDING
+    ) -> Decimal:
         """Return the percentage value quantized to ``dp`` (default 2 dp, HALF_UP)."""
         quantum = Decimal(1).scaleb(-dp)  # 10**-dp, e.g. dp=2 -> 0.01
         return (self.value * Decimal("100")).quantize(quantum, rounding=rounding)

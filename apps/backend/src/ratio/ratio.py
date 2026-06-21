@@ -69,6 +69,25 @@ class Ratio:
         return cls(p / w)
 
     @classmethod
+    def fraction_or_zero(cls, part: _RatioInput, whole: _RatioInput) -> Ratio:
+        """``fraction(part, whole)`` but a zero whole yields :meth:`zero` instead
+        of raising. Delegates to :meth:`fraction` so both inputs are validated
+        (a ``float`` ``part`` raises even when ``whole`` is zero)."""
+        try:
+            return cls.fraction(part, whole)
+        except UndefinedRatioError:
+            return cls.zero()
+
+    @classmethod
+    def fraction_or_none(cls, part: _RatioInput, whole: _RatioInput) -> Ratio | None:
+        """``fraction(part, whole)`` but a zero whole yields ``None``. Both inputs
+        are still validated (a ``float`` ``part`` raises)."""
+        try:
+            return cls.fraction(part, whole)
+        except UndefinedRatioError:
+            return None
+
+    @classmethod
     def zero(cls) -> Ratio:
         return cls(Decimal("0"))
 

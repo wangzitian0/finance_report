@@ -51,6 +51,15 @@ Nothing else currently qualifies — see the per-domain verdicts in the #1167
 audit (date/period, confidence scoring, source-type, lineage, attention are app
 logic or presentation, not base packages).
 
+**Composite operations** live *on* the elements, not as new packages: `Money`
+owns `is_zero`/`is_positive`/`is_negative` and `Money.sum`; `Ratio` owns the
+zero-denominator fallbacks `fraction_or_zero`/`fraction_or_none`. `MoneyTolerance`
+(absolute + relative band, inside `money`) is a comparison *primitive*, not a
+policy — which absolute/percent to use stays with the caller (e.g. reconciliation
+config). These let business code stay typed instead of re-deriving
+`sum(..., Decimal("0"))`, `amount <= Decimal("0")`, or `abs(a-b) < Decimal("0.01")`
+(EPIC-012 AC12.33, #1253).
+
 ## 3. Raw Decimal boundary policy
 
 `Decimal` is the storage/interchange substrate for exact numeric values; it is
