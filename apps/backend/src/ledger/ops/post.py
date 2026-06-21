@@ -3,8 +3,8 @@
 Takes a balanced :class:`~src.ledger.types.entry.Entry` and persists it as a
 posted ``JournalEntry``. The balance invariant is already guaranteed by ``Entry``
 construction; this op only translates legs to the storage shape and runs the
-existing create + post pipeline (account ownership, fx-rate, system-account, and
-posting-status checks remain in ``services.accounting``).
+create + post pipeline in ``ledger.store.posting`` (account ownership, fx-rate,
+system-account, and posting-status checks live there).
 
 This is the single typed front door for "record a transaction"; callers build an
 ``Entry`` (their account-selection policy) and hand it here instead of hand-rolling
