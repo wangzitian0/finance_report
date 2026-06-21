@@ -126,25 +126,25 @@ async def test_AC23_5_4_record_writes_cassette_against_mocked_client(record_reco
 
 async def test_AC23_5_4_re_record_is_idempotent(record_recorder, temp_store):
     """AC23.5.4: re-recording an unchanged request writes identical bytes (no diff
-    churn)."""
+    churn) even when the live response carries a per-call volatile field — the
+    stored response is normalised so `request_id`/`created`/`id` do not churn the
+    committed cassette."""
     key = fingerprint(role=_ROLE, messages=_MESSAGES, decode_params=_DECODE)
-    await record_recorder.call(_live, role=_ROLE, messages=_MESSAGES, decode_params=_DECODE)
-    first = temp_store._path(key).read_text(encoding="utf-8")
-    # Second record with a response carrying a volatile field that differs.
 
     async def _live_volatile():
-        return {**_RESPONSE, "request_id": "rid-changes-every-call"}
+        # A new random id on every call, as a real provider would return.
+        import uuid
 
-    changed = temp_store.put(
-        Cassette(
-            key=key,
-            role=_ROLE,
-            tag=CassetteTag.FLOW_ONLY,
-            request={"role": _ROLE, "messages": _MESSAGES, "decode_params": _DECODE},
-            response=_RESPONSE,
-        )
-    )
-    assert changed is False  # identical content -> no rewrite
+        return {**_RESPONSE, "request_id": uuid.uuid4().hex, "created": 1700000000}
+
+    await record_recorder.call(_live_volatile, role=_ROLE, messages=_MESSAGES, decode_params=_DECODE)
+    first = temp_store._path(key).read_text(encoding="utf-8")
+    # The committed cassette dropped the volatile fields.
+    assert "request_id" not in first
+    assert "created" not in first
+
+    # Re-record: a fresh random id, but the stored bytes must be identical.
+    await record_recorder.call(_live_volatile, role=_ROLE, messages=_MESSAGES, decode_params=_DECODE)
     assert temp_store._path(key).read_text(encoding="utf-8") == first
 
 

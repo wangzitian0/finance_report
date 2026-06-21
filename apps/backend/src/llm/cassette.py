@@ -30,7 +30,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -273,7 +273,7 @@ class CassetteStore:
 # A correctness validator takes the recorded response dict and returns True when
 # it matches the fixture ground-truth. Returning False (or raising) refuses the
 # record. ``flow-only`` cassettes pass ``None``.
-CorrectnessValidator = Any  # Callable[[dict[str, Any]], bool]; kept loose for the mypy-free repo.
+CorrectnessValidator = Callable[[dict[str, Any]], bool]
 
 
 class CassetteRecorder:
@@ -331,9 +331,10 @@ class CassetteRecorder:
             )
         response = await live_call()
         if tag is CassetteTag.CORRECTNESS:
+            # Validate the RAW provider response (what it actually returned).
             ok = False
             try:
-                ok = bool(validator(response))  # type: ignore[misc]
+                ok = bool(validator(response)) if validator is not None else False
             except Exception as exc:  # noqa: BLE001 - any validator error refuses the record
                 raise CassetteValidationError(
                     f"correctness validation raised for role={role}: {type(exc).__name__}"
@@ -343,8 +344,13 @@ class CassetteRecorder:
                     f"correctness cassette (role={role}, key={key}) refused: response failed "
                     "ground-truth validation; recording it would freeze a wrong answer"
                 )
+        # Strip volatile fields (timestamps, random ids) from the STORED response
+        # too, so re-recording an unchanged semantic response rewrites identical
+        # bytes — a provider's per-call ``id``/``created``/``request_id`` must not
+        # churn the committed cassette.
+        stored_response = _normalize(response)
         request = _canonical_request(role=role, messages=messages, decode_params=decode_params)
-        cassette = Cassette(key=key, role=role, tag=tag, request=request, response=response)
+        cassette = Cassette(key=key, role=role, tag=tag, request=request, response=stored_response)
         changed = self._store.put(cassette)
         logger.info("llm cassette recorded", key=key, role=role, tag=tag.value, changed=changed)
         return response
