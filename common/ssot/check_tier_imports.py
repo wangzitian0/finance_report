@@ -105,12 +105,14 @@ def _matches_forbidden(module: str) -> str | None:
 
 
 def imported_modules(source: str) -> list[str]:
-    """Return the dotted module names imported by *source* (direct imports only).
+    """Return the dotted module/name targets imported by *source* (direct only).
 
-    Parses with :mod:`ast`. ``import a.b, c`` yields ``["a.b", "c"]``;
-    ``from a.b import x`` yields ``["a.b"]``. Relative imports (``from . import
-    x``) yield nothing — they cannot reference the LLM layer by name and v1 does
-    not resolve them.
+    Parses with :mod:`ast`. ``import a.b, c`` yields ``["a.b", "c"]``. For
+    ``from a.b import x, y`` we yield the source module *and* each imported name
+    qualified onto it (``["a.b", "a.b.x", "a.b.y"]``) — so that ``from src import
+    llm`` surfaces ``src.llm`` and is caught, not just the bare parent ``src``.
+    Relative imports (``from . import x``) yield nothing — they cannot reference
+    the LLM layer by name and v1 does not resolve them.
     """
     tree = ast.parse(source)
     modules: list[str] = []
@@ -121,6 +123,10 @@ def imported_modules(source: str) -> list[str]:
             # node.level > 0 => relative import; node.module may be None.
             if node.level == 0 and node.module:
                 modules.append(node.module)
+                # `from pkg import name` also pulls `pkg.name` into scope; check
+                # it so the forbidden layer cannot be reached via its parent
+                # package (e.g. `from src import llm` -> `src.llm`).
+                modules.extend(f"{node.module}.{alias.name}" for alias in node.names)
     return modules
 
 
@@ -129,13 +135,23 @@ def forbidden_imports_in_source(source: str) -> list[tuple[str, str]]:
 
     Pure function over source text — used by the gate and by tests against
     synthetic fixtures (no need to touch the real tree).
+
+    At most ONE pair is reported per matched forbidden prefix, keyed to the
+    shortest imported target that triggered it. This keeps output deterministic
+    and avoids double-reporting: ``from src.llm.client import X`` expands (via
+    :func:`imported_modules`) to both ``src.llm.client`` and
+    ``src.llm.client.X`` — both match ``src.llm``, but only ``src.llm.client``
+    is reported.
     """
-    violations_found: list[tuple[str, str]] = []
+    best: dict[str, str] = {}
     for module in imported_modules(source):
         matched = _matches_forbidden(module)
-        if matched is not None:
-            violations_found.append((module, matched))
-    return violations_found
+        if matched is None:
+            continue
+        current = best.get(matched)
+        if current is None or len(module) < len(current):
+            best[matched] = module
+    return [(module, matched) for matched, module in best.items()]
 
 
 def resolve_protected_files(repo_root: Path) -> list[Path]:

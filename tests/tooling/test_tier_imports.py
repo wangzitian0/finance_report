@@ -49,6 +49,15 @@ def test_AC26_7_1_synthetic_llm_import_is_detected() -> None:
         ("apps.backend.src.llm.factory", "apps.backend.src.llm")
     ]
 
+    # parent-package spelling: `from src import llm` pulls in `src.llm`, so it
+    # must be caught even though the from-module is the innocuous parent `src`.
+    src_parent = "from src import llm\n"
+    assert gate.forbidden_imports_in_source(src_parent) == [("src.llm", "src.llm")]
+    src_parent_abs = "from apps.backend.src import llm\n"
+    assert gate.forbidden_imports_in_source(src_parent_abs) == [
+        ("apps.backend.src.llm", "apps.backend.src.llm")
+    ]
+
 
 def test_AC26_7_1_clean_and_lookalike_sources_are_not_flagged() -> None:
     """AC26.7.1 (b): clean / look-alike imports are false-positive-free."""

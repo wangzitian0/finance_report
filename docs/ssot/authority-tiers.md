@@ -113,7 +113,9 @@ The contract (the checker is the machine-checkable mirror of this list):
   (prefix match on dotted-path boundaries, so `src.llmx` does not match).
 
 Detection is **direct imports only** for v1 (both `import X` and
-`from X import …`); transitive import-graph following is a documented follow-up.
+`from X import …`, including the parent-package spelling `from src import llm`
+which pulls `src.llm` into scope); transitive import-graph following is a
+documented follow-up.
 A protected glob that resolves to no file also fails the gate, so the curated set
 cannot silently shrink as the tree evolves.
 
