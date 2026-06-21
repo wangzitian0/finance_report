@@ -1,5 +1,25 @@
 version: 1
 exceptions:
+  # Retiring the valuation taxonomy island: the `stable_valuation_taxonomy`
+  # MANIFEST entry (which carried family+kind) is removed because the concept it
+  # owned was reinvented scaffolding (it duplicated the chart of accounts +
+  # ledger + classification + evidence primitives) and its SSOT section is
+  # deleted. Removing a family+kind entry lowers manifest family/kind coverage by
+  # one entry; these two exceptions cover only that intentional, one-entry
+  # regression. Remove them once the ratio re-baselines on main.
+  - target: finance_report:ratio:manifest_family_coverage
+    issue: https://github.com/wangzitian0/finance_report/issues/1221
+    reason: >-
+      Removed the stable_valuation_taxonomy MANIFEST entry (had family+kind)
+      while retiring the reinvented valuation taxonomy island; the one-entry drop
+      in family coverage is intentional. Remove once re-baselined on main.
+  - target: finance_report:ratio:manifest_kind_coverage
+    issue: https://github.com/wangzitian0/finance_report/issues/1221
+    reason: >-
+      Removed the stable_valuation_taxonomy MANIFEST entry (had family+kind)
+      while retiring the reinvented valuation taxonomy island; the one-entry drop
+      in kind coverage is intentional. Remove once re-baselined on main.
+
   # Storage migration: the AC-score ratchet baseline moved from a central JSON
   # object to conflict-free sorted JSONL (docs/ssot/ac-score-baseline.jsonl,
   # merge=union). The deleted .json shows up as a changed SSOT file with no

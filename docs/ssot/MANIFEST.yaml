@@ -290,15 +290,6 @@ concepts:
       - docs/ssot/reporting.md
       - docs/ssot/schema.md
 
-  stable_valuation_taxonomy:
-    owner: docs/ssot/assets.md#stable-valuation-taxonomy
-    description: Durable L1/L2 valuation classes and report-stable dimensions (economic_side, valuation_role, liquidity_class) that reports depend on.
-    family: assets
-    kind: concept
-    cross_refs:
-      - docs/ssot/reporting.md
-      - docs/project/EPIC-011.asset-lifecycle.md
-
   # ── Market data ────────────────────────────────────────────────────────
   market_data:
     owner: docs/ssot/market_data.md
