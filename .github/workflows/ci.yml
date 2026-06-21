@@ -200,6 +200,16 @@ jobs:
           # (an LLM-emitted output cannot be proven by an exact golden assertion);
           # HU must be `evidence`; PL must not be exact.
           uv run --with pyyaml python tools/check_ac_proof_kind.py
+      - name: Tier Import Guard (PC must not import the LLM layer)
+        run: |
+          # EPIC-026 phase 3: enforce the cross-tier STRUCTURAL MUST rule
+          # (docs/ssot/authority-tiers.md, rule 2 "PC stays pure"). AST-based,
+          # direct-imports-only: a curated set of PC/financial-truth modules
+          # (money/**, ledger/**, journal model, deterministic services) must
+          # not import the LLM layer (src.llm) or a raw provider SDK
+          # (litellm/openrouter/anthropic/openai). GREEN on main today; this is a
+          # regression guard that keeps the deterministic core pure.
+          python tools/check_tier_imports.py
       - name: SSOT Ownership Lint
         run: |
           python tools/check_ssot_ownership.py --verbose

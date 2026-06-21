@@ -87,6 +87,36 @@ between the deterministic core and the LLM surface.
    If a behavior both extracts (LP) and validates-then-persists (PC), those are
    two ACs.
 
+### Enforcing rule 2 structurally — the tier-import guard (phase 3)
+
+Rule 2 ("PC stays pure") has a *structural* half that is checkable statically:
+a deterministic financial-truth (PC) module MUST NOT **import** the LLM layer.
+`tools/check_tier_imports.py` (impl `common/ssot/check_tier_imports.py`) makes
+this a deterministic gate, AST-based and direct-import-only, complementing the
+per-AC `{proof:KIND}` gate. On `main` today no protected module imports the LLM
+layer, so the gate starts GREEN — it is a guard against regression.
+
+The contract (the checker is the machine-checkable mirror of this list):
+
+- **Protected PC / financial-truth module set:** everything under
+  `apps/backend/src/money/**` and `apps/backend/src/ledger/**`, the journal model
+  `apps/backend/src/models/journal.py`, and the deterministic services
+  `deduplication.py`, `accounting.py`, `account_service.py`,
+  `investment_accounting.py`, `statement_posting.py`, `reporting.py`,
+  `reporting_calc.py`, `reporting_snapshot.py`, `validation.py`,
+  `statement_validation.py`, `fx.py` / `fx_revaluation.py` / `fx_transfer.py` /
+  `fx_transfer_discovery.py`, `portfolio.py`, `performance.py`,
+  `performance_report.py`, and `allocation.py`.
+- **Forbidden import targets:** the project's LLM layer (`src.llm` /
+  `apps.backend.src.llm`) and any raw LLM SDK / provider client — `litellm`,
+  `openrouter`, `anthropic`, `openai` — including any submodule of those
+  (prefix match on dotted-path boundaries, so `src.llmx` does not match).
+
+Detection is **direct imports only** for v1 (both `import X` and
+`from X import …`); transitive import-graph following is a documented follow-up.
+A protected glob that resolves to no file also fails the gate, so the curated set
+cannot silently shrink as the tree evolves.
+
 ## How a tier is declared
 
 Declare the tier at the AC's **definition site** in the EPIC doc, inline in the
