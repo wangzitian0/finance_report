@@ -62,10 +62,9 @@ def test_AC12_30_4_backend_quantity_hot_paths_use_quantity_type():
 
     portfolio = _read(Path("apps/backend/src/services/portfolio.py"))
     assert "from src.quantity import Quantity" in portfolio
-    assert (
-        "position_quantity = Quantity(position.quantity, PORTFOLIO_QUANTITY_UNIT).quantize()"
-        in portfolio
-    )
+    # Quantity now flows via the ManagedPosition.quantity_qty accessor (#3 boundary
+    # push); still the Quantity value type, just read at the ORM boundary.
+    assert "position_quantity = position.quantity_qty.quantize()" in portfolio
     assert "snapshot_quantity.is_zero()" in portfolio
     assert 'quantity == Decimal("0")' not in portfolio
     assert 'quantity != Decimal("0")' not in portfolio
