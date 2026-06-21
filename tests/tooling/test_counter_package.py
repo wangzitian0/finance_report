@@ -8,6 +8,7 @@ counter, so the contract and the live package can never silently drift.
 """
 
 import ast
+import sys
 from pathlib import Path
 
 from common.governance.check_package_contract import discover_packages, run
@@ -15,6 +16,14 @@ from common.testing.ac_proof import ac_proof
 
 REPO = Path(__file__).resolve().parents[2]
 COUNTER = REPO / "apps/backend/src/counter"
+
+# The implementation is importable as ``src.counter`` only with ``apps/backend``
+# on the path. Insert it at import time so the published-language test below
+# (``import src.counter``) is order-independent — it must not rely on another
+# test having triggered the governance gate's sys.path side effect first.
+_BACKEND_ROOT = str(REPO / "apps" / "backend")
+if _BACKEND_ROOT not in sys.path:
+    sys.path.insert(0, _BACKEND_ROOT)
 
 
 def _imported_modules(path: Path) -> set[str]:
@@ -94,11 +103,12 @@ def test_AC25_6_3_ops_never_import_the_orm_session_or_api():
 def test_AC25_6_1_only_all_is_the_published_language():
     """AC25.6.1: the package's contract.interface equals its __init__.__all__."""
     import src.counter as counter_pkg
-    from src.counter.contract import CONTRACT
+    from common.counter.contract import CONTRACT
 
     assert sorted(CONTRACT.interface) == sorted(counter_pkg.__all__)
     assert CONTRACT.name == "counter"
     assert CONTRACT.klass == "platform"
+    assert CONTRACT.implementations["be"] == "apps/backend/src/counter"
 
 
 @ac_proof(

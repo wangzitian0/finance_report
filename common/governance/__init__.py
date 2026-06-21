@@ -1,15 +1,20 @@
-"""``common.governance`` — the package-model meta-scaffolding.
+"""``common.governance`` — the package-model meta-scaffolding (a self-hosting package).
 
-A *package* in this repo is a DDD bounded context: a README (prose / ubiquitous
-language) + a :class:`PackageContract` (the machine-checkable contract) + role
-folders ``types/ops/store/api`` + a published language declared via ``__all__``.
+A *package* in this repo is a DDD bounded context: a ``readme.md`` (prose /
+ubiquitous language) + a :class:`PackageContract` (the machine-checkable
+contract in ``contract.py``) + a ``todo.md`` + conforming implementations whose
+files converge by role (``types/ops/store/api``) and whose published language is
+declared via ``__all__``.
 
 Governance is *computed from contracts*, not hand-maintained: every package
-declares a :class:`PackageContract` in its ``contract.py`` and
-``tools/check_package_contract.py`` validates the live package against it.
+declares a :class:`PackageContract` in ``common/<pkg>/contract.py`` and
+``tools/check_package_contract.py`` validates the implementation against it. The
+model self-hosts — this package ships its own ``contract.py`` and is checked by
+the very gate it provides.
 
-See ``docs/ssot/package-model.md`` for the spec and ``apps/backend/src/counter``
-for the first worked example.
+See ``common/governance/readme.md`` for the package-model spec and
+``common/counter`` (spec) + ``apps/backend/src/counter`` (implementation) for the
+first worked example.
 """
 
 from __future__ import annotations

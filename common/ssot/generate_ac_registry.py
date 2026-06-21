@@ -291,6 +291,68 @@ def find_ac_collisions(
     return duplicate_definitions, duplicate_headings
 
 
+# Package contracts (``common/<pkg>/contract.py``) are a SECOND, additive source
+# of ACs: a package's ``roadmap`` owns its ACs directly, so they no longer need a
+# mirrored EPIC table. Discovery reuses the governance gate's scanner so the two
+# stay in lockstep.
+
+
+def _repo_root_for(source_dir: Path) -> Path:
+    """Derive the repo root from the EPIC ``source_dir`` (``<root>/docs/project``).
+
+    Package contracts live at ``<root>/common/*/contract.py``, so the package
+    scan must use the SAME root the EPIC scan does. Deriving it from
+    ``source_dir`` (rather than the module-level ``REPO_ROOT``) keeps the two
+    sources aligned and lets tests that point ``EPIC_DIR`` at a tmp repo isolate
+    package discovery too (a tmp repo with no ``common/`` yields no package ACs).
+    """
+    parts = source_dir.resolve().parts
+    if len(parts) >= 2 and parts[-2:] == ("docs", "project"):
+        return source_dir.resolve().parents[1]
+    return source_dir.resolve()
+
+
+def _package_roadmap_acs(source_dir: Path) -> dict[str, dict]:
+    """Source ACs from every ``<root>/common/<pkg>/contract.py`` ``roadmap``.
+
+    Each :class:`ACRecord` becomes a registry entry keyed by its AC id, with the
+    same shape an EPIC-table row produces: ``epic`` (parsed from the AC id),
+    ``epic_name`` (from :data:`EPIC_NAMES` or the ``epic-NNN`` fallback),
+    ``description``, ``mandatory=True``, and — when the record carries a
+    ``tier`` — that tier plus its ``proof_kind`` (explicit, else the tier's
+    canonical kind), exactly as the tier/proof markers did in an EPIC table.
+    """
+    # Imported lazily (not at module top) so importing this module does not pull
+    # the governance package + pydantic eagerly. We deliberately do NOT swallow an
+    # ImportError here: package-contract ACs are authoritative, so a missing
+    # dependency must fail LOUDLY rather than silently drop ACs (which would make
+    # the protection ratchet regress with a confusing message).
+    from common.governance.check_package_contract import discover_packages
+
+    repo_root = _repo_root_for(source_dir)
+    acs: dict[str, dict] = {}
+    for pkg in discover_packages(repo_root):
+        for record in pkg.contract.roadmap:
+            ac_id = record.id
+            match = AC_PATTERN.fullmatch(ac_id)
+            if not match:
+                continue
+            ac_epic = int(match.group(2))
+            entry: dict = {
+                "epic": ac_epic,
+                "epic_name": EPIC_NAMES.get(ac_epic, f"epic-{ac_epic:03d}"),
+                "description": _clean_description(record.statement),
+                "mandatory": True,
+            }
+            if record.tier:
+                entry["tier"] = record.tier
+                entry["proof_kind"] = record.proof_kind or _default_proof_for_tier(
+                    record.tier
+                )
+            acs[ac_id] = entry
+    return acs
+
+
 def extract_acs(
     existing_acs: dict[str, dict] | None = None,
     epic_dir: str | Path | None = None,
@@ -349,6 +411,13 @@ def extract_acs(
                     or _default_proof_for_tier(ac_tier)
                 )
             all_acs[ac_id] = entry
+
+    # Additively fold in package-contract roadmap ACs (from the SAME repo root the
+    # EPIC scan used). EPIC-table definitions win on id collision (kept for
+    # back-compat), so this only ADDS ACs whose sole home is now a package
+    # contract — it can never drop or shadow an EPIC-sourced AC.
+    for ac_id, entry in _package_roadmap_acs(source_dir).items():
+        all_acs.setdefault(ac_id, entry)
 
     return all_acs
 

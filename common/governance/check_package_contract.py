@@ -1,19 +1,24 @@
 """``check_package_contract`` — the gate that validates packages against contracts.
 
-Governance in the package model is *computed from contracts*, not hand-kept. For
-every registered package this gate asserts:
+Governance in the package model is *computed from contracts*, not hand-kept. The
+authoritative spec for each package lives in ``common/<pkg>/`` (its ``readme.md``
++ ``contract.py``); the running code lives in the *implementations* the contract
+points at (``implementations["be"]`` under ``apps/backend/src/<pkg>``). For every
+registered package this gate asserts:
 
-  (a) ``contract.interface`` equals the package's ``__init__.__all__`` (the
-      published language and the contract agree);
+  (a) ``contract.interface`` equals the BE implementation's ``__init__.__all__``
+      (the published language and the contract agree);
   (b) every ``invariants[].test`` and ``roadmap[].test`` (``"path::func"``)
       resolves to a real test function in the repo;
   (c) ``depends_on`` introduces no forbidden edge — a ``platform``/``kernel``
-      package's modules must not import a higher layer (mirrors the spirit of
-      ``tests/tooling/test_ledger_module.py``: dependencies point down only).
+      package's implementation modules must not import a higher layer (mirrors
+      the spirit of ``tests/tooling/test_ledger_module.py``: down only).
 
-Packages are discovered by scanning ``apps/backend/src/*/contract.py`` for a
-module-level ``CONTRACT = PackageContract(...)``; that single registry keeps the
-gate additive — a new package is governed the moment it ships a ``contract.py``.
+Packages are discovered by scanning ``common/*/contract.py`` for a module-level
+``CONTRACT = PackageContract(...)``; that single registry keeps the gate additive
+— a new package is governed the moment it ships a ``common/<pkg>/contract.py``.
+The meta package ``common/governance`` self-hosts: it ships its own contract and
+is validated by this very gate.
 
 stdlib + pydantic only (no app/framework imports) so the gate runs anywhere.
 """
@@ -30,7 +35,7 @@ from pathlib import Path
 from common.governance.package_contract import PackageContract
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PACKAGE_GLOB = "apps/backend/src/*/contract.py"
+PACKAGE_GLOB = "common/*/contract.py"
 
 # Layer rank for the DAG rule: a package may only import packages of a STRICTLY
 # LOWER class (dependencies point strictly downward; same-rank edges are
@@ -47,41 +52,64 @@ _CLASS_RANK = {"kernel": 0, "platform": 1, "core": 2}
 
 @dataclass(frozen=True)
 class DiscoveredPackage:
-    """A package found by the registry scan."""
+    """A package found by the registry scan.
+
+    ``spec_dir`` is the authoritative ``common/<pkg>/`` directory (where the
+    contract + readme live). ``impl_dir`` is the BE implementation directory the
+    contract points at via ``implementations["be"]`` — the code whose ``__all__``
+    must equal ``contract.interface`` and whose modules the DAG rule scans. A
+    package with no BE implementation has ``impl_dir is None``.
+    """
 
     name: str
-    src_dir: Path
+    spec_dir: Path
+    impl_dir: Path | None
     contract: PackageContract
+
+    @property
+    def src_dir(self) -> Path:
+        """Back-compat alias: the directory whose ``__all__`` the gate checks."""
+        return self.impl_dir or self.spec_dir
 
 
 def discover_packages(repo_root: Path = REPO_ROOT) -> list[DiscoveredPackage]:
-    """Scan ``apps/backend/src/*/contract.py`` for ``CONTRACT`` instances."""
+    """Scan ``common/*/contract.py`` for ``CONTRACT`` instances."""
     found: list[DiscoveredPackage] = []
     for contract_path in sorted(repo_root.glob(PACKAGE_GLOB)):
-        src_dir = contract_path.parent
-        contract = _load_contract(contract_path)
+        spec_dir = contract_path.parent
+        contract = _load_contract(contract_path, repo_root)
         if contract is None:
             continue
+        be_rel = contract.implementations.get("be")
+        impl_dir = (repo_root / be_rel) if be_rel else None
         found.append(
-            DiscoveredPackage(name=contract.name, src_dir=src_dir, contract=contract)
+            DiscoveredPackage(
+                name=contract.name,
+                spec_dir=spec_dir,
+                impl_dir=impl_dir,
+                contract=contract,
+            )
         )
     return found
 
 
-def _load_contract(contract_path: Path) -> PackageContract | None:
+def _load_contract(
+    contract_path: Path, repo_root: Path = REPO_ROOT
+) -> PackageContract | None:
     """Import ``contract.py`` and return its module-level ``CONTRACT``, if any.
 
-    The backend ``src`` package must be importable as ``src.*``; ensure
-    ``apps/backend`` is on ``sys.path`` so ``contract.py``'s ``from
-    common.governance...`` and the package's own imports resolve.
+    ``repo_root`` and ``repo_root/apps/backend`` are placed on ``sys.path`` so a
+    ``contract.py``'s ``from common.governance...`` import and any BE-package
+    import (``src.*``) it needs both resolve.
     """
-    backend_root = REPO_ROOT / "apps" / "backend"
-    for path in (str(REPO_ROOT), str(backend_root)):
+    backend_root = repo_root / "apps" / "backend"
+    for path in (str(repo_root), str(backend_root)):
         if path not in sys.path:
             sys.path.insert(0, path)
 
-    rel = contract_path.relative_to(REPO_ROOT / "apps" / "backend")
-    module_name = ".".join(rel.with_suffix("").parts)  # e.g. src.counter.contract
+    rel = contract_path.relative_to(repo_root)
+    # e.g. common.counter.contract / common.governance.contract
+    module_name = ".".join(rel.with_suffix("").parts)
     spec = importlib.util.spec_from_file_location(module_name, contract_path)
     if spec is None or spec.loader is None:
         return None
@@ -147,9 +175,11 @@ def _check_no_forbidden_edge(
     edge). Self-imports are always allowed.
     """
     offenders: list[str] = []
+    if pkg.impl_dir is None or not pkg.impl_dir.exists():
+        return offenders
     my_rank = _CLASS_RANK[pkg.contract.klass]
     allowed = set(pkg.contract.depends_on)
-    for py in sorted(pkg.src_dir.rglob("*.py")):
+    for py in sorted(pkg.impl_dir.rglob("*.py")):
         tree = ast.parse(py.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             mods: list[str] = []
@@ -185,14 +215,27 @@ def check_package(
     """Return the list of contract violations for one package (empty == OK)."""
     errors: list[str] = []
 
-    # (a) interface == __init__.__all__
-    declared_all = _package_all(pkg.src_dir)
-    if sorted(pkg.contract.interface) != sorted(declared_all):
+    # (a) interface == the BE implementation's __init__.__all__
+    impl_dir = pkg.impl_dir
+    if impl_dir is None:
+        if pkg.contract.interface:
+            errors.append(
+                f"[{pkg.name}] declares interface {sorted(pkg.contract.interface)} "
+                "but implementations['be'] is missing — no __all__ to check it against"
+            )
+    elif not (impl_dir / "__init__.py").exists():
         errors.append(
-            f"[{pkg.name}] interface != __all__\n"
-            f"    contract.interface: {sorted(pkg.contract.interface)}\n"
-            f"    __init__.__all__:   {sorted(declared_all)}"
+            f"[{pkg.name}] implementations['be'] points at {impl_dir} "
+            "which has no __init__.py"
         )
+    else:
+        declared_all = _package_all(impl_dir)
+        if sorted(pkg.contract.interface) != sorted(declared_all):
+            errors.append(
+                f"[{pkg.name}] interface != __all__\n"
+                f"    contract.interface: {sorted(pkg.contract.interface)}\n"
+                f"    __init__.__all__:   {sorted(declared_all)}"
+            )
 
     # (b) every invariant/roadmap test resolves to a real test function
     for inv in pkg.contract.invariants:

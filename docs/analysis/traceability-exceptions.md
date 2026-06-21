@@ -126,7 +126,7 @@ explicit AC IDs for the behavior.
 | `tests/tooling/test_brokerage_prompt_contract.py` | `docs/ssot/extraction.md` |
 | `tests/tooling/test_check_env_keys.py` | `docs/ssot/development.md` |
 | `tests/tooling/test_check_manifest.py` | `docs/ssot/MANIFEST.yaml` |
-| `tests/tooling/test_check_package_contract.py` | `docs/ssot/package-model.md` |
+| `tests/tooling/test_check_package_contract.py` | `common/governance/readme.md` |
 | `tests/tooling/test_check_ssot_ownership.py` | `docs/ssot/MANIFEST.yaml` |
 | `tests/tooling/test_coverage_analyzer.py` | `docs/ssot/coverage.md` |
 | `tests/tooling/test_delivery_gates_contract.py` | `docs/ssot/delivery-gates.yaml` |
