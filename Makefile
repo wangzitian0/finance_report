@@ -67,8 +67,15 @@ test:
 # plan). Records in `record` mode (real call + write/update cassette under
 # apps/backend/tests/fixtures/llm_cassettes); commit the resulting diff. CI runs
 # the same tests in `replay` mode with no key. Pass extra args via ARGS=...
+#
+# Covers the AC23.5 non-streaming layer and the AC23.6 streaming bridge. To record
+# the (currently skipped) extraction scaffold cassettes — the real text/vision/
+# #1254-class statements — add the marker and flip the skip:
+#   make llm-record ARGS='tests/extraction/test_extraction_cassette_replay.py -m needs_real_cassette'
+# then remove the `needs_real_cassette` module skip so the dedicated replay CI
+# step runs them with no key.
 llm-record:
-	cd apps/backend && LLM_CASSETTE_MODE=record uv run pytest tests/unit/llm/test_cassette.py --llm-record $(ARGS)
+	cd apps/backend && LLM_CASSETTE_MODE=record uv run pytest tests/unit/llm/test_cassette.py tests/unit/llm/test_streaming_cassette.py --llm-record $(ARGS)
 
 env-check:
 	python tools/check_env_keys.py

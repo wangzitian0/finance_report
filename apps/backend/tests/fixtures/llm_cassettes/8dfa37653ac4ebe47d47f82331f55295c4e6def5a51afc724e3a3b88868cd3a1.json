@@ -1,0 +1,31 @@
+{
+  "fingerprint": "8dfa37653ac4ebe47d47f82331f55295c4e6def5a51afc724e3a3b88868cd3a1",
+  "request": {
+    "decode_params": {
+      "temperature": 0.0
+    },
+    "messages": [
+      {
+        "content": [
+          {
+            "text": "Read this statement image and return JSON.",
+            "type": "text"
+          },
+          {
+            "image_url": {
+              "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGNgYGAAAAAEAAH2FzhVAAAAAElFTkSuQmCC"
+            },
+            "type": "image_url"
+          }
+        ],
+        "role": "user"
+      }
+    ],
+    "role": "vision"
+  },
+  "response": {
+    "stream_text": "{\"transactions\": [], \"closing_balance\": \"250.00\"}"
+  },
+  "role": "vision",
+  "tag": "flow-only"
+}

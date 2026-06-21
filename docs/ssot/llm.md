@@ -105,10 +105,12 @@ runs.
 ## 5. <a id="cassettes"></a>Record/Replay Cassettes (deterministic CI)
 
 LLM calls are made **deterministic in CI** via a record/replay cassette layer
-(`apps/backend/src/llm/cassette.py`, exposed through `client.cassette_completion`).
-A *cassette* is a committed JSON file under
-`apps/backend/tests/fixtures/llm_cassettes/` holding the semantic request
-fingerprint and the frozen provider response — reviewed in the diff.
+(`apps/backend/src/llm/cassette.py`) exposed through two chokepoints:
+`client.cassette_completion` (non-streaming) and the **streaming bridge**
+`client.litellm_stream` (the real extraction transport — see below). A *cassette*
+is a committed JSON file under `apps/backend/tests/fixtures/llm_cassettes/`
+holding the semantic request fingerprint and the frozen provider response —
+reviewed in the diff.
 
 ### Modes — `LLM_CASSETTE_MODE`
 
@@ -146,6 +148,31 @@ Each cassette is tagged:
   `validator`.
 - **`flow-only`** — asserts response *handling* only; it never claims the LLM read
   numbers correctly. The default tag.
+
+### Streaming bridge — the real extraction transport
+
+The real extraction transport is **streaming** (`services/ai_streaming.stream_ai_json`
+→ `client.litellm_stream` → `accumulate_stream`), and both text and
+default-config vision (`OCR_MODEL == VISION_MODEL`, layout parser skipped) flow
+through it. `litellm_stream` is cassette-aware **while preserving streaming**:
+
+- **`off`** — the prior live `litellm.acompletion(stream=True)` passthrough,
+  byte-for-byte (deltas arrive as they stream). Prod/staging run `off`, so the
+  staging `-m llm` live gate stays real and untouched.
+- **`record`** — the real streaming call, accumulating the full text, then a
+  cassette is frozen (storing the accumulated text under `stream_text`; a
+  `correctness` tag validates the accumulated text first) and the text is yielded.
+- **`replay`** — fingerprint + lookup with **no key/network**; a HIT synthesises
+  the stream from the frozen text (one chunk), a MISS is a hard `CassetteMiss`.
+
+The fingerprint **role** is derived from the messages — `vision` if any message
+carries an image part, else `text` — so callers need no change and text vs vision
+key distinctly. The non-default raw-httpx layout path
+(`services/extraction/_ocr.py`) bypasses this bridge and is a known out-of-scope
+gap. Wiring the first batch of extraction tests onto replay is scaffolded under
+`apps/backend/tests/extraction/test_extraction_cassette_replay.py` (skipped via
+the `needs_real_cassette` marker until the operator records real cassettes with
+`make llm-record`).
 
 ### Scope (anti-false-confidence)
 

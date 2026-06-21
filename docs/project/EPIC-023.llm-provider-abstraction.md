@@ -151,3 +151,27 @@ parallel once PR1 merges.
 | AC23.5.5 | Fingerprint integrity: a change to an output-affecting field → different key (no stale match); two semantically-different requests → different keys (no false match); the same semantic request under a different model id → the **same** key (model-id-agnostic); image content is keyed by a bytes hash {tier:PC}{proof:property} | `apps/backend/tests/unit/llm/test_cassette.py` | P1 |
 | AC23.5.6 | Normalisation strips only the intended volatile fields (timestamps, random request ids): differing volatile fields keep the key stable, while any output-relevant field changing the key proves nothing else is stripped {tier:PC}{proof:property} | `apps/backend/tests/unit/llm/test_cassette.py` | P1 |
 | AC23.5.7 | A `correctness` cassette MUST refuse to record (`CassetteValidationError`) when the response fails ground-truth validation or no validator is supplied; a `flow-only` cassette records freely and never claims LLM correctness {tier:PC}{proof:property} | `apps/backend/tests/unit/llm/test_cassette.py` | P1 |
+
+### AC23.6 — Streaming-cassette bridge (the real extraction transport)
+> The real extraction transport is STREAMING (`services/ai_streaming.stream_ai_json`
+> → `client.litellm_stream` → `accumulate_stream`) and previously bypassed the
+> AC23.5 cassette layer entirely, so PR CI never exercised the LLM path. This
+> slice makes `litellm_stream` cassette-aware while **preserving streaming** for
+> the caller: `off` is the prior live passthrough (prod/staging stay live & real —
+> the staging `-m llm` gate is untouched), `record` accumulates the live stream
+> and freezes the text, `replay` synthesises the stream from the frozen text with
+> no key/network. Both text and default-config vision (OCR_MODEL==VISION_MODEL)
+> flow through this path; the non-default raw-httpx layout-parser path
+> (`services/extraction/_ocr.py`) is a documented out-of-scope gap. Wiring the
+> first batch of extraction tests onto replay is scaffolded here (skipped pending
+> real recording via `make llm-record`) so PR CI stays green; recording the real
+> correctness cassettes is the operator follow-up. **Scope (anti-false-confidence):**
+> as with AC23.5, CI green ≠ a real unknown statement works.
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC23.6.1 | `litellm_stream` in `replay` serves a committed frozen-text cassette by synthesising a stream (text and image-part/vision requests both resolve their cassette) with **zero network and no API key**; the caller's `accumulate_stream` rebuilds the recorded text {tier:PC}{proof:property} | `apps/backend/tests/unit/llm/test_streaming_cassette.py` | P1 |
+| AC23.6.2 | A streamed request with no matching cassette is a **hard failure** in `replay` (`CassetteMiss`, scene = derived role) that never falls back to the network {tier:PC}{proof:property} | `apps/backend/tests/unit/llm/test_streaming_cassette.py` | P1 |
+| AC23.6.3 | `record` performs the real (here mocked) streaming call, accumulates the full text, freezes a cassette idempotently (no diff churn) and yields the text so the caller still works; a `correctness` streaming cassette refuses to record without a validator; the mode defaults to `LLM_CASSETTE_MODE` {tier:PC}{proof:property} | `apps/backend/tests/unit/llm/test_streaming_cassette.py` | P1 |
+| AC23.6.4 | `off` mode is an EXACT passthrough of the live (mocked) stream — deltas arrive unchanged (not collapsed), no cassette is written, and a provider failure is normalised to `LLMError` exactly as before — so prod/staging keep running the live `-m llm` path real {tier:PC}{proof:property} | `apps/backend/tests/unit/llm/test_streaming_cassette.py` | P1 |
+| AC23.6.5 | The fingerprint role is derived from the messages (any image part → `vision`, else `text`), so text and vision get **different** keys, while the same semantic request under a different model id resolves the **same** cassette (model-id-agnostic) {tier:PC}{proof:property} | `apps/backend/tests/unit/llm/test_streaming_cassette.py` | P1 |
