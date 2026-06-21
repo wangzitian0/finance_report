@@ -25,6 +25,13 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
 from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
+from src.money import Money
+from src.quantity import Quantity
+
+# A managed position's quantity has no stored unit column; shares/units are the
+# implicit unit (matches PORTFOLIO_QUANTITY_UNIT / INVESTMENT_QUANTITY_UNIT in the
+# services, kept here as a literal so the model never imports a service).
+POSITION_QUANTITY_UNIT = "units"
 
 if TYPE_CHECKING:
     from src.models.account import Account
@@ -230,6 +237,26 @@ class ManagedPosition(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     position_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     account: Mapped["Account"] = relationship("Account")
+
+    # ── typed read accessors (the ORM→business boundary, #3) ────────────────
+    # Business code reads these and stays in value types; the raw Decimal columns
+    # remain the storage/write boundary. Nullable PnL columns coalesce to zero
+    # (matching the existing ``or Decimal("0.00")`` call-site convention).
+    @property
+    def cost_basis_money(self) -> Money:
+        return Money(self.cost_basis, self.currency)
+
+    @property
+    def unrealized_pnl_money(self) -> Money:
+        return Money(self.unrealized_pnl or Decimal("0"), self.currency)
+
+    @property
+    def realized_pnl_money(self) -> Money:
+        return Money(self.realized_pnl or Decimal("0"), self.currency)
+
+    @property
+    def quantity_qty(self) -> Quantity:
+        return Quantity(self.quantity, POSITION_QUANTITY_UNIT)
 
 
 class ManualValuationComponentType(str, Enum):

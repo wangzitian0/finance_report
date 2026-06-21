@@ -540,6 +540,20 @@ runtime `abs(debit-credit) < 0.01` checks.
 | AC12.34.5 | Every computed/transfer posting path gates balance through `Entry`: opening-balance, fx-revaluation, and processing-account transfers construct an `Entry` before persisting (fx-revaluation and processing-account previously wrote raw `JournalLine`s with no balance validation at all). The remaining raw site `review_queue` validates via `validate_journal_balance`/`_posting_invariants`; `reconciliation_audit` is a deterministic audit fixture {tier:PC} | `test_AC12_34_5_remaining_posting_paths_guard_balance_with_entry` | `tests/tooling/test_ledger_module.py` | P1 |
 | AC12.34.6 | The journal write pipeline (`create_journal_entry`/`post_journal_entry`/`void_journal_entry` + validators) lives in `ledger.store`; `ledger.ops` depends down on it instead of up on `services.accounting`, dissolving the `ledger ↔ services.accounting` import cycle. `services.accounting` re-exports the pipeline so external callers and `except ValidationError` are unchanged {tier:PC} | `test_AC12_34_6_ledger_owns_posting_pipeline_no_upward_edge` | `tests/tooling/test_ledger_module.py` | P1 |
 
+### AC12.35: ORM read layer returns value types — boundary push ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
+
+The read/model layer hands business code typed values (`Money`/`Quantity`) so
+services stop pulling raw `Decimal` off rows and wrapping it ad-hoc with
+`to_money(...)`. Raw columns stay the storage/write boundary; business reads typed
+accessors. API response shapes are unchanged (serialized from the value at the
+edge). Pilot: `ManagedPosition` + `investment_accounting` (single-currency, no FX);
+other models/services follow incrementally.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC12.35.1 | `ManagedPosition` exposes typed read accessors at the ORM boundary — `cost_basis_money`/`unrealized_pnl_money`/`realized_pnl_money` → `Money` (nullable PnL coalesces to zero) and `quantity_qty` → `Quantity` — built from the raw amount + currency columns (kernel `src.money`/`src.quantity`, no service import) {tier:PC} | `test_AC12_35_1_managed_position_exposes_typed_accessors` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
+| AC12.35.2 | Investment accounting updates position state through the typed accessors (`position.cost_basis_money`/`realized_pnl_money`/`quantity_qty`) with `Money`/`Quantity` arithmetic instead of re-wrapping raw `Decimal` columns; writes back `.amount`/`.value` only at the storage edge {tier:PC} | `test_AC12_35_2_investment_accounting_reads_position_via_accessors` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
+
 ---
 
 *Planning snapshot captured: January 2026*

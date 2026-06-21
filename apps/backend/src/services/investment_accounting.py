@@ -140,9 +140,8 @@ class InvestmentAccountingService:
         )
         db.add(lot)
 
-        position_quantity = Quantity(position.quantity, INVESTMENT_QUANTITY_UNIT)
-        position.quantity = (position_quantity + trade_quantity).quantize().value
-        position.cost_basis = to_money(position.cost_basis + amount)
+        position.quantity = (position.quantity_qty + trade_quantity).quantize().value
+        position.cost_basis = (position.cost_basis_money + gross).quantize().amount
         position.cost_basis_method = cost_basis_method
         position.status = PositionStatus.ACTIVE
         position.disposal_date = None
@@ -246,10 +245,10 @@ class InvestmentAccountingService:
             entry=Entry.of(*legs),
         )
 
-        position_quantity = (Quantity(position.quantity, INVESTMENT_QUANTITY_UNIT) - trade_quantity).quantize()
+        position_quantity = (position.quantity_qty - trade_quantity).quantize()
         position.quantity = position_quantity.value
-        position.cost_basis = to_money(position.cost_basis - cost_basis)
-        position.realized_pnl = to_money((position.realized_pnl or Decimal("0.00")) + realized_pnl)
+        position.cost_basis = (position.cost_basis_money - Money(cost_basis, currency)).quantize().amount
+        position.realized_pnl = (position.realized_pnl_money + Money(realized_pnl, currency)).quantize().amount
         position.cost_basis_method = cost_basis_method
         if position_quantity.is_zero():
             position.status = PositionStatus.DISPOSED
