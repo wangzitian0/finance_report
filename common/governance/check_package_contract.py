@@ -32,9 +32,11 @@ from common.governance.package_contract import PackageContract
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PACKAGE_GLOB = "apps/backend/src/*/contract.py"
 
-# Layer rank for the DAG rule: a package may only import packages of a class at
-# its own rank or below. ``core`` (vertical slice) may use ``platform`` +
-# ``kernel``; ``platform`` may use ``kernel``; ``kernel`` is a leaf.
+# Layer rank for the DAG rule: a package may only import packages of a STRICTLY
+# LOWER class (dependencies point strictly downward; same-rank edges are
+# rejected by ``_check_no_forbidden_edge``'s ``target_rank >= my_rank`` guard).
+# ``core`` (vertical slice) may use ``platform`` + ``kernel``; ``platform`` may
+# use ``kernel``; ``kernel`` is a leaf.
 _CLASS_RANK = {"kernel": 0, "platform": 1, "core": 2}
 
 # Packages a given class is forbidden to import, by the import prefix
@@ -100,9 +102,15 @@ def _package_all(src_dir: Path) -> list[str]:
         if isinstance(node, ast.Assign):
             for target in node.targets:
                 if isinstance(target, ast.Name) and target.id == "__all__":
+                    # Only a literal list/tuple has ``.elts``; a computed
+                    # ``__all__`` (e.g. ``sorted(...)``) is not statically
+                    # readable, so return [] (an interface mismatch the gate
+                    # reports) instead of crashing on the missing attribute.
+                    if not isinstance(node.value, (ast.List, ast.Tuple)):
+                        return []
                     return [
                         elt.value
-                        for elt in node.value.elts  # type: ignore[attr-defined]
+                        for elt in node.value.elts
                         if isinstance(elt, ast.Constant) and isinstance(elt.value, str)
                     ]
     return []

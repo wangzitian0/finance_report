@@ -233,6 +233,16 @@ def test_package_all_handles_missing_dunder(synthetic_repo: Path) -> None:
     assert _package_all(pkg_dir) == []
 
 
+def test_package_all_tolerates_non_literal_all(synthetic_repo: Path) -> None:
+    """A computed ``__all__`` is not statically readable -> [] (never a crash)."""
+    pkg_dir = _src(synthetic_repo) / "computed"
+    pkg_dir.mkdir(parents=True)
+    (pkg_dir / "__init__.py").write_text(
+        "__all__ = sorted(['B', 'A'])\n", encoding="utf-8"
+    )
+    assert _package_all(pkg_dir) == []
+
+
 def test_run_reports_no_packages_when_empty(synthetic_repo: Path) -> None:
     ok, messages = run(synthetic_repo)
     assert ok is False
