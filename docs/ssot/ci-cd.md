@@ -41,7 +41,7 @@ main-only: unified-coverage ─→ unified-coverage-baseline-pr (not required by
 | **frontend-vitest** | Frontend Vitest coverage and JUnit evidence when heavy CI is required | `needs: [changes]` |
 | **frontend-playwright** | Provider-free frontend browser UI proof when heavy CI is required | `needs: [changes]` |
 | **frontend-telemetry-e2e** | Hermetic browser telemetry-emission proof when heavy CI is required | `needs: [changes]` |
-| **container-images** | Build backend and frontend staging images without pushing on PRs; push SHA-tagged images only on `main` | `needs: [changes]` |
+| **container-images** | Fail-closed gitleaks secret scan over each component's Docker build context (`apps/<component>`) before the build, then build backend and frontend staging images without pushing on PRs; push SHA-tagged images only on `main` | `needs: [changes]` |
 | **tooling-coverage** | Run root tooling tests with common/tools coverage and upload LCOV inputs | `needs: [changes]` |
 | **unified-coverage** | Merge backend, frontend Vitest, common, and tools LCOV inputs, audit source-tree/LCOV policy, calculate unified coverage, compare to baseline, upload the coverage context artifact, and update Coveralls on `main` when heavy CI is required | `needs: [changes, backend, frontend-vitest, tooling-coverage]` |
 | **unified-coverage-baseline-pr** | Main-only automation that downloads `unified-coverage-context`, commits a changed `unified-coverage.json` to `automation/unified-coverage-baseline`, and opens or updates the reviewed baseline PR. This job owns write-scoped GitHub token permissions; PR coverage calculation remains read-only. | `needs: [changes, unified-coverage]` |
@@ -367,6 +367,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - CI calls `tools/check_toolchain_contract.py` in lint before dependency installation and `tools/check_ci_metrics_contract.py` in lint before coverage jobs finish. Runtime versions and base images are owned by `toolchain.toml`, mirrored to local tool-manager files, and used by GitHub Actions, Dockerfiles, and `docker-compose.yml`.
 - PR CI avoids Moon bootstrap in heavy runner jobs that execute direct `pytest` and `npm` commands. Backend shards, backend integration, Tier-1 API E2E, and the split frontend jobs use task-native commands directly so GitHub release CDN failures for optional Moon installation cannot mask deterministic code failures. Moon CLI availability and project graph coverage are static contracts over `.moon/toolchain.yml`, `moon.yml`, and app-level `moon.yml` files; runtime execution of Moon remains a local contributor responsibility and is not a PR merge gate unless a future workflow explicitly needs Moon semantics.
 - PR CI dry-runs staging image builds before merge. The `container-images` job uses `docker/build-push-action` for both backend and frontend images with `push: false` on pull requests, then `finish` fails if that validation job fails.
+- Build-time secret scan (AC7.18.1, #1277 secret-scan half): the `container-images` job runs a fail-closed gitleaks scan over each component's Docker build context (`apps/<component>`, `--no-git --redact --exit-code 1`) BEFORE `docker/build-push-action`, so a secret that entered the build context cannot be baked into a published `:<sha>` image; the redacted finding stays visible in the job logs. This is the secret-scan half of #1277 only — image `:<sha>` retention is tracked separately and #1277 stays open for it.
 - Main and release-branch push CI, plus on-demand `workflow_dispatch`, publish SHA-tagged images (P1a, #879). Registry login and image push are guarded by `(github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/'))) || github.event_name == 'workflow_dispatch'`; registry availability and authorization remain post-merge external-service risks, but Dockerfile, build-context, and build-argument errors are caught before merge.
 - Frontend dependency installation uses `actions/setup-node@v6` with npm cache and deterministic `npm ci`. The lint job runs `npm run audit:prod` after install so production frontend dependency advisories fail before merge; the former duplicate audit in the frontend runtime job is removed, and dev-only advisories remain outside this production gate.
 - GitHub JavaScript action runtime is explicitly validated on Node 24 by setting `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"` at the workflow level. This does not change the application toolchain `NODE_VERSION`; it only opts GitHub-hosted JavaScript actions into the runtime that GitHub will make the default.
@@ -649,12 +650,21 @@ BASE_URL=https://report.zitian.party bash tools/smoke_test.sh
 
 | Endpoint | Check |
 |----------|-------|
-| `/` | Homepage loads |
+| `/` | Home / dashboard page loads (there is no separate `/dashboard` route) |
+| `/accounts` | Accounts page loads |
+| `/journal` | Journal page loads |
+| `/statements/upload` | Statement upload page loads (there is no bare `/statements` page) |
+| `/reports` | Reports page loads |
+| `/reconciliation` | Workbench loads |
+| `/login` | Login page loads |
 | `/api/health` | Returns "healthy" |
 | `/api/docs` | Swagger UI loads |
-| `/ping-pong` | Demo page loads |
-| `/reconciliation` | Workbench loads |
 | `/api/ping` | Ping API responds |
+
+> Smoke route integrity (AC7.17.1, #411): every page path the shell smoke gate
+> asserts must map to a real public Next.js route under `apps/frontend/src/app`.
+> `tests/tooling/test_smoke_routes_contract.py` fails if the script asserts a
+> path with no `page.tsx` (e.g. the removed `/dashboard` / bare `/statements`).
 
 ## Deploy E2E Gates
 
