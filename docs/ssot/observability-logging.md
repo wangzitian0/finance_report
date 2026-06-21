@@ -195,6 +195,22 @@ wrapper. It uses low-cardinality attributes only: `task` and `error_type`.
 Per-statement correlation stays in `statement.parse.async_task.failed` logs via
 `statement_id` and `request_id`; those identifiers must not become metric labels.
 
+### Financial-Invariant Violation Metric
+
+`finance.invariant.violation` is a counter emitted during statement parsing so a
+financial-invariant violation can never slip silently — it becomes queryable and
+alertable (EPIC-026 AC26.8.1). It uses low-cardinality attributes only: `kind`
+(one of `balance_mismatch`, `per_currency_nav`, `chain_break`,
+`dedup_within_doc_collapse`) and an anonymized `institution_class`
+(`bank` / `brokerage` / `unknown`) — never a real institution name or any account
+identifier. Each violation also keeps its existing WARNING-level structured log
+line (the metric is additive, not a replacement). `dedup_within_doc_collapse` is
+the #1254-class signal: `extracted-rows − distinct dedup hashes` over a SINGLE
+parse's freshly-built rows, computed before any DB upsert, so legitimate
+cross-document dedup never triggers it. Emitting these metrics is purely
+observability — it never changes statement routing, status, confidence, or
+approval gates.
+
 ---
 
 ## Design Constraints

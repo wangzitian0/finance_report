@@ -133,6 +133,17 @@ def _create_instruments(meter: Any) -> None:
         unit="1",
         description="Async statement parse task failures.",
     )
+    _instruments["financial_invariant_violation"] = meter.create_counter(
+        "finance.invariant.violation",
+        unit="1",
+        description=(
+            "Financial-invariant violations detected during statement parsing "
+            "(balance mismatch, per-currency NAV fail, running-balance chain break, "
+            "within-document dedup collapse), labelled by kind and anonymized "
+            "institution class. A non-silent, queryable/alertable signal; emitting "
+            "it does NOT change statement routing, status, or approval."
+        ),
+    )
     meter.create_observable_gauge(
         "finance.async_parse.in_flight",
         callbacks=[_observe_async_parse_in_flight],
@@ -336,3 +347,49 @@ def record_rate_limit_rejected(*, scope: str) -> None:
     counter = _instruments.get("rate_limit_rejected")
     if counter is not None:
         counter.add(1, {"scope": scope})
+
+
+# Canonical low-cardinality kinds for the financial-invariant violation counter.
+# Keeping this a closed set keeps the metric label space bounded and alertable.
+INVARIANT_VIOLATION_KINDS = (
+    "balance_mismatch",
+    "per_currency_nav",
+    "chain_break",
+    "dedup_within_doc_collapse",
+)
+
+# Closed, anonymized institution-class vocabulary. Anything outside this set is
+# coerced to ``"unknown"`` so a stray real institution name can never become a
+# metric label (PII / unbounded-cardinality guard).
+INVARIANT_INSTITUTION_CLASSES = ("bank", "brokerage", "unknown")
+
+
+def record_financial_invariant_violation(*, kind: str, institution_class: str = "unknown") -> None:
+    """Record one detected financial-invariant violation as a queryable counter.
+
+    ``kind`` MUST be one of :data:`INVARIANT_VIOLATION_KINDS`; an unrecognized
+    ``kind`` is logged and dropped (a no-op) rather than emitted, so a typo can
+    never silently explode the metric's label cardinality. ``institution_class``
+    is coerced into the closed :data:`INVARIANT_INSTITUTION_CLASSES` set
+    (defaulting to ``"unknown"``) — never a real institution name or any account
+    identifier — so the metric stays PII-free and bounded.
+
+    This is the observability half of closing the "silent failure" gap: a slipped
+    invariant violation (balance mismatch, per-currency NAV fail, running-balance
+    chain break, within-document dedup collapse) becomes a structured, alertable
+    signal. It is purely additive — it never changes routing, status, or approval.
+    """
+    if kind not in INVARIANT_VIOLATION_KINDS:
+        # Reject out-of-vocabulary kinds rather than forwarding them as labels:
+        # an unbounded/typo'd label is worse than a dropped metric, and the gap is
+        # visible in logs.
+        logger.warning(
+            "Ignoring financial-invariant violation with unknown kind",
+            kind=kind,
+            valid_kinds=list(INVARIANT_VIOLATION_KINDS),
+        )
+        return
+    safe_class = institution_class if institution_class in INVARIANT_INSTITUTION_CLASSES else "unknown"
+    counter = _instruments.get("financial_invariant_violation")
+    if counter is not None:
+        counter.add(1, {"kind": kind, "institution_class": safe_class})
