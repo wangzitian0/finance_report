@@ -107,9 +107,10 @@ attribute of the generated AC entry. `XX` is one of `PC | CP | HU | LP | PL`.
 debt ratchet**, mirroring the protection-floor / AC-score baselines:
 
 - The untagged debt lives in [`ac-tier-baseline.json`](./ac-tier-baseline.json).
-- `tools/check_ac_tier_baseline.py` fails only when an AC that is **new or
-  modified relative to the baseline** lacks a tier. Already-untagged ACs in the
-  baseline are tolerated.
+- `tools/check_ac_tier_baseline.py` is **id-based**: it fails only when an AC
+  whose id is **absent from the baseline** (i.e. a genuinely new AC) lacks a
+  tier. Already-untagged AC ids listed in the baseline are tolerated; the gate
+  does not detect edits to the text of an existing untagged AC.
 - The baseline may only **shrink** (`--update` drops newly-tagged ACs and refuses
   to launder fresh debt), so the untagged count is monotonically non-increasing.
 

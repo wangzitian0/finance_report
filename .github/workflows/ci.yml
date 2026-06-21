@@ -187,9 +187,9 @@ jobs:
       - name: AC Authority-Tier Ratchet
         run: |
           # EPIC-026: shrink-only ratchet over docs/ssot/ac-tier-baseline.json.
-          # Fails only when an AC that is NEW/MODIFIED relative to the baseline
-          # lacks a {tier:XX} marker; the ~1830 legacy untagged ACs are tolerated
-          # and the untagged-debt baseline may only shrink, never grow.
+          # Id-based: fails only when an AC whose id is absent from the baseline
+          # (a genuinely new AC) lacks a {tier:XX} marker; the legacy untagged AC
+          # ids in the baseline are tolerated and the debt may only shrink.
           uv run --with pyyaml python tools/check_ac_tier_baseline.py
       - name: SSOT Ownership Lint
         run: |
