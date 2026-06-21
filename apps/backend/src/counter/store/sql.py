@@ -31,7 +31,10 @@ class CounterTally(Base):
     __tablename__ = "counter_tally"
 
     user_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, nullable=False)
-    key: Mapped[str] = mapped_column(String(255), primary_key=True, nullable=False)
+    # ``index=True`` declares the single-column index the migration creates
+    # (default name ``ix_counter_tally_key``); it backs the GLOBAL ``total(key)``
+    # sum query that filters on ``key`` across all users.
+    key: Mapped[str] = mapped_column(String(255), primary_key=True, nullable=False, index=True)
     count: Mapped[int] = mapped_column(nullable=False, server_default="0")
 
 

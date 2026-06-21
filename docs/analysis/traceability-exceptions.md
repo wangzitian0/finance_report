@@ -25,6 +25,8 @@ These files are test infrastructure, not behavior proof.
 | `apps/backend/tests/assets/__init__.py` | Package marker |
 | `apps/backend/tests/auth/__init__.py` | Package marker |
 | `apps/backend/tests/conftest.py` | Shared backend pytest fixtures |
+| `apps/backend/tests/counter/__init__.py` | Package marker |
+| `apps/backend/tests/counter/_fake.py` | In-memory counter store fake for ops unit tests |
 | `apps/backend/tests/reconciliation/conftest.py` | EPIC-011 PR-B Layer-2 read bridge fixture |
 | `apps/backend/tests/e2e/conftest.py` | Shared E2E fixtures |
 | `apps/backend/tests/extraction/__init__.py` | Package marker |
@@ -124,6 +126,7 @@ explicit AC IDs for the behavior.
 | `tests/tooling/test_brokerage_prompt_contract.py` | `docs/ssot/extraction.md` |
 | `tests/tooling/test_check_env_keys.py` | `docs/ssot/development.md` |
 | `tests/tooling/test_check_manifest.py` | `docs/ssot/MANIFEST.yaml` |
+| `tests/tooling/test_check_package_contract.py` | `docs/ssot/package-model.md` |
 | `tests/tooling/test_check_ssot_ownership.py` | `docs/ssot/MANIFEST.yaml` |
 | `tests/tooling/test_coverage_analyzer.py` | `docs/ssot/coverage.md` |
 | `tests/tooling/test_delivery_gates_contract.py` | `docs/ssot/delivery-gates.yaml` |
