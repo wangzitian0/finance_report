@@ -64,12 +64,16 @@ def _ac(ac_id: str, *, mandatory: bool = True, has_test: bool = True) -> AcNode:
     )
 
 
-def _proof(proof_id: str, ac_ids: tuple[str, ...], *, file: str, test: str) -> ProofEdge:
+def _proof(
+    proof_id: str, ac_ids: tuple[str, ...], *, file: str, test: str
+) -> ProofEdge:
     return ProofEdge(
         proof_id=proof_id,
         file=file,
         test=test,
         ac_ids=ac_ids,
+        stage="github_ci.merge_authority",
+        task_category="critical_behavioral",
         ci_tier="pr_ci",
         scope="behavioral",
         required_markers=(),
@@ -131,13 +135,17 @@ def test_AC8_13_139_gate_fails_on_proof_missing_test_or_ac() -> None:
     """AC8.13.139: an @ac_proof must point at a real test AND real AC ids."""
     # (a) proof names an AC id that is not in the registry.
     graph = _consistent_graph()
-    graph.proofs.append(_proof("p-bad-ac", ("AC9.9.9",), file=REAL_FILE, test=REAL_TEST))
+    graph.proofs.append(
+        _proof("p-bad-ac", ("AC9.9.9",), file=REAL_FILE, test=REAL_TEST)
+    )
     errors = gate.check_integrity(graph)
     assert any("unknown AC id" in e and "AC9.9.9" in e for e in errors), errors
 
     # (b) proof names a test function that does not exist.
     graph2 = _consistent_graph()
-    graph2.proofs.append(_proof("p-bad-test", ("AC8.13.139",), file=REAL_FILE, test="no_such_test_fn"))
+    graph2.proofs.append(
+        _proof("p-bad-test", ("AC8.13.139",), file=REAL_FILE, test="no_such_test_fn")
+    )
     errors2 = gate.check_integrity(graph2)
     assert any("does not resolve to a real test" in e for e in errors2), errors2
 
@@ -195,7 +203,9 @@ def test_AC8_13_139_gate_fails_on_mandatory_ac_without_proof(tmp_path) -> None:
 def test_AC8_13_139_gate_fails_on_macro_outcome_missing_proof() -> None:
     """AC8.13.139: a macro outcome's proof_ids must resolve to a declared proof."""
     graph = _consistent_graph()
-    graph.outcomes.append(Outcome(id="o-bad", proof_ids=("no-such-proof",), raw={"id": "o-bad"}))
+    graph.outcomes.append(
+        Outcome(id="o-bad", proof_ids=("no-such-proof",), raw={"id": "o-bad"})
+    )
     errors = gate.check_integrity(graph)
     assert any("no-such-proof" in e and "does not resolve" in e for e in errors), errors
 
@@ -207,7 +217,9 @@ def test_AC8_13_139_gate_fails_on_ratchet_regression(tmp_path) -> None:
         baseline,
         {
             "version": 1,
-            "acs": {"AC1.1.1": {"score": 0.9, "metric": "m", "provenance": "deterministic"}},
+            "acs": {
+                "AC1.1.1": {"score": 0.9, "metric": "m", "provenance": "deterministic"}
+            },
         },
     )
     regressed = tmp_path / "current.json"
@@ -324,7 +336,9 @@ def test_AC8_13_140_load_floor_rejects_malformed_value(tmp_path) -> None:
 
     # A MISSING type still defaults to 0 (new repo / newly added type passes).
     floor_file.write_text(json.dumps({"version": 1, "floor": {}}), encoding="utf-8")
-    assert protection.load_floor(floor_file) == dict.fromkeys(protection.PROTECTION_TYPES, 0)
+    assert protection.load_floor(floor_file) == dict.fromkeys(
+        protection.PROTECTION_TYPES, 0
+    )
 
 
 def test_AC8_13_140_write_floor_creates_missing_parent(tmp_path) -> None:
@@ -332,7 +346,9 @@ def test_AC8_13_140_write_floor_creates_missing_parent(tmp_path) -> None:
     nested = tmp_path / "does" / "not" / "exist" / "protection-floor.json"
     protection.write_floor(nested, dict.fromkeys(protection.PROTECTION_TYPES, 0))
     assert nested.exists()
-    assert protection.load_floor(nested) == dict.fromkeys(protection.PROTECTION_TYPES, 0)
+    assert protection.load_floor(nested) == dict.fromkeys(
+        protection.PROTECTION_TYPES, 0
+    )
 
 
 def test_AC8_13_140_count_floor_fails_when_type_drops_below_floor(tmp_path) -> None:
@@ -340,9 +356,13 @@ def test_AC8_13_140_count_floor_fails_when_type_drops_below_floor(tmp_path) -> N
     floor_file = tmp_path / "protection-floor.json"
     graph = _floor_graph()  # has_proof current = 1
     # Commit a floor that requires MORE proofs than currently exist.
-    protection.write_floor(floor_file, {"has_real_ref": 2, "has_proof": 5, "has_score": 1, "has_mirror": 0})
+    protection.write_floor(
+        floor_file, {"has_real_ref": 2, "has_proof": 5, "has_score": 1, "has_mirror": 0}
+    )
     result = protection.check_count_floor(graph, floor_file)
-    assert any("has_proof" in e and "regressed" in e for e in result.errors), result.errors
+    assert any("has_proof" in e and "regressed" in e for e in result.errors), (
+        result.errors
+    )
 
 
 def test_AC8_13_140_count_floor_passes_when_protection_added(tmp_path) -> None:
@@ -388,7 +408,9 @@ def test_AC8_13_140_update_floor_raises_floors(tmp_path) -> None:
     raised = protection.update_floor(graph, floor_file)
     assert raised == counts
     # Re-running with a LOWER current count never lowers the locked floor.
-    poorer = _consistent_graph()  # has_proof current = 0 (p-1 not bound here? see below)
+    poorer = (
+        _consistent_graph()
+    )  # has_proof current = 0 (p-1 not bound here? see below)
     # Strip all proofs so has_proof current drops to 0.
     poorer.proofs.clear()
     for ac_id, node in list(poorer.nodes.items()):
@@ -418,7 +440,9 @@ def test_AC8_13_139_no_committed_materialized_index_files() -> None:
         "docs/ssot/vision-proof-matrix.yaml",
         "docs/reference/vision-proof-matrix.md",
     ):
-        assert not (REPO_ROOT / relative).exists(), f"{relative} must NOT be committed-materialized any more"
+        assert not (REPO_ROOT / relative).exists(), (
+            f"{relative} must NOT be committed-materialized any more"
+        )
 
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     assert "<!-- BEGIN GENERATED: epic-status -->" in readme

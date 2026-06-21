@@ -31,6 +31,8 @@ from typing import Any
 
 import yaml
 
+from common.ssot.ac_proof_execution import normalize_proof_execution
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # Test roots scanned for @ac_proof declarations. These mirror the product test
@@ -48,6 +50,8 @@ DECORATOR_NAME = "ac_proof"
 # generated artifact is stable and diff-friendly.
 _PROOF_KEY_ORDER = (
     "id",
+    "stage",
+    "task_category",
     "scope",
     "ci_tier",
     "trust_mode",
@@ -97,7 +101,9 @@ def _literal(node: ast.AST, *, where: str) -> Any:
     try:
         value = ast.literal_eval(node)
     except (ValueError, SyntaxError) as exc:
-        raise GeneratorError(f"{where}: @ac_proof arguments must be plain literals") from exc
+        raise GeneratorError(
+            f"{where}: @ac_proof arguments must be plain literals"
+        ) from exc
     if isinstance(value, tuple):
         return list(value)
     return value
@@ -109,7 +115,13 @@ def _decorator_proof_call(node: ast.AST) -> ast.Call | None:
         if not isinstance(decorator, ast.Call):
             continue
         func = decorator.func
-        name = func.attr if isinstance(func, ast.Attribute) else func.id if isinstance(func, ast.Name) else None
+        name = (
+            func.attr
+            if isinstance(func, ast.Attribute)
+            else func.id
+            if isinstance(func, ast.Name)
+            else None
+        )
         if name == DECORATOR_NAME:
             return decorator
     return None
@@ -152,10 +164,15 @@ def _collect_from_file(path: Path, repo_root: Path) -> list[CollectedProof]:
             "test": node.name,
             "ac_ids": [str(ac_id) for ac_id in ac_ids],
         }
+        for optional in ("stage", "task_category"):
+            value = kwargs.get(optional)
+            if value:
+                fields[optional] = str(value)
         for optional in ("trust_mode", "mirror_proof_id", "issue"):
             value = kwargs.get(optional)
             if value:
                 fields[optional] = str(value)
+        fields["stage"], fields["task_category"] = normalize_proof_execution(fields)
         for list_key in ("source_classes", "required_markers"):
             value = kwargs.get(list_key)
             if value:
@@ -193,7 +210,9 @@ def _ordered_proof(fields: dict[str, Any]) -> dict[str, Any]:
     return ordered
 
 
-def _matrix_payload(outcomes_doc: dict[str, Any], proofs: list[CollectedProof]) -> dict[str, Any]:
+def _matrix_payload(
+    outcomes_doc: dict[str, Any], proofs: list[CollectedProof]
+) -> dict[str, Any]:
     """Assemble the matrix payload from an outcomes source doc + collected proofs.
 
     Drives ``build_matrix_from_graph`` (which reuses the single :class:`AcGraph`
@@ -205,10 +224,15 @@ def _matrix_payload(outcomes_doc: dict[str, Any], proofs: list[CollectedProof]) 
     for proof in proofs:
         prior = seen.get(proof.proof_id)
         if prior is not None:
-            duplicates.append(f"{proof.proof_id} ({prior} and {proof.file}::{proof.test})")
+            duplicates.append(
+                f"{proof.proof_id} ({prior} and {proof.file}::{proof.test})"
+            )
         seen[proof.proof_id] = f"{proof.file}::{proof.test}"
     if duplicates:
-        raise GeneratorError("duplicate proof ids across @ac_proof declarations: " + "; ".join(sorted(duplicates)))
+        raise GeneratorError(
+            "duplicate proof ids across @ac_proof declarations: "
+            + "; ".join(sorted(duplicates))
+        )
 
     ordered = sorted(proofs, key=lambda item: item.proof_id)
     payload: dict[str, Any] = {

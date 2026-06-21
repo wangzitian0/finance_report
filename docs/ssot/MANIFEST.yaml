@@ -516,6 +516,21 @@ concepts:
     proofs:
       - tests/tooling/test_check_pr_review_threads.py
 
+  ac_proof_execution_model:
+    owner: docs/ssot/ci-cd.md#ac-proof-execution-model
+    family: delivery
+    kind: concept
+    parent: ci_workflow
+    authority: documented_contract
+    description: AC-keyed proof execution placement model; stage and task_category are metadata on proof edges, not extra coverage keys.
+    cross_refs:
+      - common/ssot/ac_proof_execution.py
+      - common/testing/ac_proof.py
+      - common/ssot/ac_graph.py
+      - docs/project/EPIC-008.testing-strategy.md
+    proofs:
+      - tests/tooling/test_ac_proof_execution_model.py
+
   ci_gate_inventory:
     owner: docs/ssot/ci-gate-inventory.yaml
     family: delivery

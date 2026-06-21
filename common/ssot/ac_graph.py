@@ -49,6 +49,7 @@ from common.ssot.generate_critical_proof_matrix import (
     CollectedProof,
     collect_proofs,
 )
+from common.ssot.ac_proof_execution import normalize_proof_execution
 from common.ssot.test_surface import default_ac_test_dirs
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -84,6 +85,8 @@ class ProofEdge:
     file: str
     test: str
     ac_ids: tuple[str, ...]
+    stage: str
+    task_category: str
     ci_tier: str
     scope: str
     required_markers: tuple[str, ...]
@@ -170,15 +173,20 @@ def _proof_edges(proofs: list[CollectedProof]) -> list[ProofEdge]:
     edges: list[ProofEdge] = []
     for proof in proofs:
         fields = proof.fields
+        stage, task_category = normalize_proof_execution(fields)
         edges.append(
             ProofEdge(
                 proof_id=proof.proof_id,
                 file=proof.file,
                 test=proof.test,
                 ac_ids=tuple(str(ac_id) for ac_id in fields.get("ac_ids", [])),
+                stage=stage,
+                task_category=task_category,
                 ci_tier=str(fields.get("ci_tier", "")),
                 scope=str(fields.get("scope", "")),
-                required_markers=tuple(str(marker) for marker in fields.get("required_markers", [])),
+                required_markers=tuple(
+                    str(marker) for marker in fields.get("required_markers", [])
+                ),
                 fields=fields,
             )
         )
@@ -275,7 +283,9 @@ def build_proofs_only(
     to start up.
     """
     repo_root = repo_root.resolve()
-    outcomes_path = outcomes_path or (repo_root / DEFAULT_OUTCOMES.relative_to(REPO_ROOT))
+    outcomes_path = outcomes_path or (
+        repo_root / DEFAULT_OUTCOMES.relative_to(REPO_ROOT)
+    )
 
     proofs = _proof_edges(collect_proofs(repo_root))
 
@@ -283,7 +293,9 @@ def build_proofs_only(
     if not isinstance(outcomes_doc, dict):
         outcomes_doc = {}
 
-    return ProofsOnlyGraph(repo_root=repo_root, proofs=proofs, outcomes_doc=outcomes_doc)
+    return ProofsOnlyGraph(
+        repo_root=repo_root, proofs=proofs, outcomes_doc=outcomes_doc
+    )
 
 
 def build_ac_graph(
@@ -300,8 +312,12 @@ def build_ac_graph(
     this materialized model instead of re-reading the sources independently.
     """
     repo_root = repo_root.resolve()
-    outcomes_path = outcomes_path or (repo_root / DEFAULT_OUTCOMES.relative_to(REPO_ROOT))
-    baseline_path = baseline_path or (repo_root / DEFAULT_BASELINE.relative_to(REPO_ROOT))
+    outcomes_path = outcomes_path or (
+        repo_root / DEFAULT_OUTCOMES.relative_to(REPO_ROOT)
+    )
+    baseline_path = baseline_path or (
+        repo_root / DEFAULT_BASELINE.relative_to(REPO_ROOT)
+    )
 
     # AC nodes from EPIC docs (via the registry loader) + overrides.
     registry = build_registry_entries(epic_source=repo_root / "docs" / "project")

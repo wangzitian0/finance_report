@@ -28,6 +28,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TypeVar
 
+from common.ssot.ac_proof_execution import normalize_proof_execution
+
 F = TypeVar("F", bound=Callable[..., object])
 
 # The marker attribute the decorator attaches to the wrapped function. The
@@ -47,6 +49,8 @@ class AcProof:
 
     proof_id: str
     ac_ids: tuple[str, ...]
+    stage: str = ""
+    task_category: str = ""
     scope: str = "behavioral"
     ci_tier: str = "post_merge_environment"
     trust_mode: str = ""
@@ -61,6 +65,8 @@ def ac_proof(
     proof_id: str,
     *,
     ac_ids: list[str] | tuple[str, ...],
+    stage: str = "",
+    task_category: str = "",
     scope: str = "behavioral",
     ci_tier: str = "post_merge_environment",
     trust_mode: str = "",
@@ -82,9 +88,20 @@ def ac_proof(
     them statically and rejects non-literal values.
     """
 
+    resolved_stage, resolved_task_category = normalize_proof_execution(
+        {
+            "stage": stage,
+            "task_category": task_category,
+            "scope": scope,
+            "ci_tier": ci_tier,
+        }
+    )
+
     proof = AcProof(
         proof_id=proof_id,
         ac_ids=tuple(ac_ids),
+        stage=resolved_stage,
+        task_category=resolved_task_category,
         scope=scope,
         ci_tier=ci_tier,
         trust_mode=trust_mode,
