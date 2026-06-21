@@ -120,7 +120,7 @@ def _stream_role(messages: Sequence[Message]) -> str:
     """
     for message in messages:
         content = message.get("content") if isinstance(message, Mapping) else None
-        if not isinstance(content, (list | tuple)):
+        if not isinstance(content, (list, tuple)):
             continue
         for part in content:
             if not isinstance(part, Mapping):
