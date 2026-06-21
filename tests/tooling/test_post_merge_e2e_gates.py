@@ -3072,12 +3072,20 @@ def test_AC8_13_47_delivery_engine_recommendations_are_tracked() -> None:
         "workflow_run staging trigger",
         "parallel image build jobs",
         "Current baseline",
+        "#1252 closure readout",
+        "27896401849",
+        "ab2630e1",
+        "4m 46s",
+        "3m31s / 3m43s / 3m49s / 3m50s / 3m41s",
+        "Do not add more shards",
         "Out of scope for this PR",
     ):
         assert token in recommendation
 
     assert "DELIVERY_ENGINE_RECOMMENDATIONS.md" in project_readme
     assert "delivery-engine recommendation note" in ci_cd
+    assert "Main CI run `27896401849` after PR #1288" in ci_cd
+    assert "backend shards finished in the 3m31s-3m50s band" in ci_cd
 
 
 def test_AC8_13_112_sparse_matrix_recommendation_tracks_simplification_path() -> None:

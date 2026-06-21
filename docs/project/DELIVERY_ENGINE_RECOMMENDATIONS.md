@@ -9,6 +9,29 @@ branch-protection behavior.
 
 ## Current baseline
 
+Observed on June 21, 2026 after the #1252 ROI sequence landed through PR
+#1288 at merge commit `ab2630e1`:
+
+| Lane | Recent duration | Main contributor |
+|---|---:|---|
+| Main CI heavy path | 4m 46s | Seeded 5-way backend shard tail plus unified coverage / AC ratchet fan-in |
+| Slowest backend shard | 3m 50s | Backend shard 3/5 in run `27896401849` |
+| Frontend browser proof | 2m 45s | Split `frontend-playwright`; frontend is no longer the critical path |
+| Unified coverage job | 27s | Artifact fan-in + local unified coverage + main-only Coveralls reporting |
+
+Backend shards in run `27896401849` completed in
+3m31s / 3m43s / 3m49s / 3m50s / 3m41s.
+
+#1252 closure readout: the highest-ROI left shifts and convergence work are now
+done for this phase. The old single frontend critical path was split, duplicate
+frontend production audit was removed, backend sharding was corrected to a
+seeded 5-way least-duration split, and production/staging release parameters
+were aligned around `version_ref`. The measured bottleneck is now the backend
+shard tail, not frontend or fan-in. Do not add more shards until new timing
+evidence shows backend tail regression; the next ROI work should be targeted
+debt items such as GitHub action runtime governance (#817) and GHCR retention
+(#1277), not another topology split.
+
 Observed on May 27, 2026:
 
 | Lane | Recent duration | Main contributor |
