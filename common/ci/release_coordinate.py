@@ -31,13 +31,18 @@ def write_github_output(values: dict[str, str]) -> None:
 
 
 def resolve(version_ref: str) -> dict[str, str]:
-    version_ref = version_ref.strip()
     if not _RELEASE_VERSION_REF_RE.fullmatch(version_ref):
         raise ValueError(
             f"version_ref must be a release tag like vX.Y.Z, got {version_ref!r}"
         )
 
-    _run("git", "fetch", "--force", "--tags", "origin", "refs/tags/*:refs/tags/*")
+    _run(
+        "git",
+        "fetch",
+        "--no-tags",
+        "origin",
+        f"refs/tags/{version_ref}:refs/tags/{version_ref}",
+    )
     _run("git", "checkout", "--detach", version_ref)
     _run("git", "submodule", "update", "--init", "--recursive")
 

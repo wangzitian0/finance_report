@@ -104,7 +104,10 @@ auto-follow main CI. The only operator-supplied release selector is
 `version_ref`, and it must be a `vX.Y.Z` release tag. The deploy job resolves
 that coordinate through `tools/resolve_release_coordinate.py`, checks out the
 tag, derives the pinned infra2 `iac_ref`, never polls or waits for CI inside the
-job, and deploys only images that already exist under that release tag.
+job, and deploys only images that already exist under that release tag. The
+resolver validates the exact operator input rather than trimming whitespace, and
+fetches only `refs/tags/<version_ref>` without `--force` so moved or rewritten
+release tags fail closed.
 `release-images.yml` must have promoted the main-CI SHA images to `:vX.Y.Z`
 before staging is dispatched. Provider-backed AI/OCR tests run after deploy
 health in the same serialized dispatch workflow unit as a right-shifted
@@ -184,7 +187,9 @@ the same tag.
 checks for source CI, release-image publication, and exact staging proof;
 `tools/verify_release_images.py` owns backend/frontend release digest discovery.
 The dry-run and deploy jobs call the same tools so production eligibility logic
-does not fork between the two lanes.
+does not fork between the two lanes. Both jobs set up the configured
+`PYTHON_VERSION` before invoking release-coordinate, evidence, or image-digest
+tools so these gates never depend on the runner's default Python alias.
 Before mutating production, the release workflow probes the current production
 health endpoint and records the pre-deploy version in the deploy context. The
 same artifact records deploy-health, smoke, read-only E2E, and failure-domain
