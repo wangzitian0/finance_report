@@ -23,6 +23,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.config import settings
+from src.ledger import Entry
 from src.models import (
     Direction,
     JournalEntry,
@@ -32,6 +34,7 @@ from src.models import (
 )
 from src.models.account import Account
 from src.models.layer2 import AtomicTransaction
+from src.money import Money
 from src.services.account_service import get_or_create_processing_account
 
 # Transfer detection keywords from SSOT SOP-001
@@ -368,6 +371,10 @@ async def create_transfer_out_entry(
         source_type=JournalEntrySourceType.SYSTEM,
     )
 
+    # Dr Processing / Cr source — guarantee the balance as a type before persisting.
+    _ccy = settings.base_currency
+    Entry.transfer(debit=processing_account.id, credit=source_account_id, money=Money(amount, _ccy))
+
     lines = [
         JournalLine(
             journal_entry=entry,
@@ -425,6 +432,10 @@ async def create_transfer_in_entry(
         status=JournalEntryStatus.POSTED,
         source_type=JournalEntrySourceType.SYSTEM,
     )
+
+    # Dr destination / Cr Processing — guarantee the balance as a type before persisting.
+    _ccy = settings.base_currency
+    Entry.transfer(debit=dest_account_id, credit=processing_account.id, money=Money(amount, _ccy))
 
     lines = [
         JournalLine(
