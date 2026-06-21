@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from src.ledger.ops import post_entry
 from src.ledger.types import (
-    EmptyEntryError,
+    DegenerateEntryError,
     Entry,
     LedgerError,
     Leg,
@@ -26,7 +26,7 @@ from src.ledger.types import (
 
 __all__ = [
     "Entry",
-    "EmptyEntryError",
+    "DegenerateEntryError",
     "Leg",
     "LedgerError",
     "UnbalancedEntryError",

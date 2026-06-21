@@ -16,5 +16,10 @@ class UnbalancedEntryError(LedgerError, ValueError):
     """
 
 
-class EmptyEntryError(LedgerError, ValueError):
-    """An entry was constructed with no legs."""
+class DegenerateEntryError(LedgerError, ValueError):
+    """An entry was constructed with fewer than two legs.
+
+    A double-entry posting needs at least one debit and one credit; an empty or
+    single-leg entry is degenerate (and could never balance), so it is rejected
+    with a clear error rather than a confusing "unbalanced" one.
+    """

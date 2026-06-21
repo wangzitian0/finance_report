@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from src.ledger.types.entry import Entry, Leg
 from src.ledger.types.errors import (
-    EmptyEntryError,
+    DegenerateEntryError,
     LedgerError,
     UnbalancedEntryError,
 )
 
 __all__ = [
     "Entry",
-    "EmptyEntryError",
+    "DegenerateEntryError",
     "Leg",
     "LedgerError",
     "UnbalancedEntryError",

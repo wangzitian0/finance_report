@@ -22,7 +22,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from src.ledger.types.errors import EmptyEntryError, UnbalancedEntryError
+from src.ledger.types.errors import DegenerateEntryError, UnbalancedEntryError
 from src.models.journal import Direction
 from src.money import Money
 
@@ -39,6 +39,8 @@ class Leg:
     tags: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
+        if not isinstance(self.direction, Direction):
+            raise TypeError(f"leg direction must be a Direction, got {type(self.direction).__name__}")
         if not isinstance(self.money, Money):
             raise TypeError(f"leg amount must be Money, got {type(self.money).__name__}")
         if not self.money.is_positive():
@@ -52,8 +54,8 @@ class Entry:
     legs: tuple[Leg, ...] = field(default=())
 
     def __post_init__(self) -> None:
-        if not self.legs:
-            raise EmptyEntryError("an entry needs at least two legs")
+        if len(self.legs) < 2:
+            raise DegenerateEntryError(f"an entry needs at least two legs, got {len(self.legs)}")
         net_by_currency: dict[str, Decimal] = defaultdict(lambda: Decimal("0"))
         for leg in self.legs:
             code = leg.money.currency.code
