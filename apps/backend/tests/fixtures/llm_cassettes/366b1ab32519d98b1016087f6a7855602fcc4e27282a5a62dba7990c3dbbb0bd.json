@@ -1,0 +1,25 @@
+{
+  "fingerprint": "366b1ab32519d98b1016087f6a7855602fcc4e27282a5a62dba7990c3dbbb0bd",
+  "request": {
+    "decode_params": {
+      "temperature": 0
+    },
+    "messages": [
+      {
+        "content": "You are a finance advisor.",
+        "role": "system"
+      },
+      {
+        "content": "What is 2 + 2 in my synthetic ledger?",
+        "role": "user"
+      }
+    ],
+    "role": "advisor.chat"
+  },
+  "response": {
+    "model_id": "synthetic/glm",
+    "text": "4"
+  },
+  "role": "advisor.chat",
+  "tag": "correctness"
+}

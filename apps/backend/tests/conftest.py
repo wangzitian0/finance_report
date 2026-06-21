@@ -35,6 +35,25 @@ if _REPO_ROOT not in sys.path:
 logger = get_logger(__name__)
 
 
+# --- LLM cassette record/replay (EPIC-023 AC23.5) ---
+# ``--llm-record`` (or ``LLM_CASSETTE_MODE=record``) flips the cassette layer into
+# record mode for the run; ``make llm-record`` passes the flag. Without it the
+# mode is whatever ``LLM_CASSETTE_MODE`` says (replay in CI, off in local dev), so
+# normal test runs never touch the network or need an API key.
+def pytest_addoption(parser):
+    parser.addoption(
+        "--llm-record",
+        action="store_true",
+        default=False,
+        help="Run LLM cassette-backed tests in record mode (real provider call + write cassette).",
+    )
+
+
+def pytest_configure(config):
+    if config.getoption("--llm-record"):
+        os.environ["LLM_CASSETTE_MODE"] = "record"
+
+
 # --- AC behavioral-evidence emission ---
 # Lets a backend test attach a measured (code, score, metric, comment,
 # provenance) record per AC to its junit result. The repo-root path is appended

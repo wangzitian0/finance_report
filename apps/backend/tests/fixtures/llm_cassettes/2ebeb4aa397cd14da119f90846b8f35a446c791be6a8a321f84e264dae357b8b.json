@@ -1,0 +1,26 @@
+{
+  "fingerprint": "2ebeb4aa397cd14da119f90846b8f35a446c791be6a8a321f84e264dae357b8b",
+  "request": {
+    "decode_params": {
+      "max_tokens": 256,
+      "temperature": 0
+    },
+    "messages": [
+      {
+        "content": "Extract the closing balance.",
+        "role": "system"
+      },
+      {
+        "content": "Closing balance: 100.00 on statement S-0001.",
+        "role": "user"
+      }
+    ],
+    "role": "extraction.json"
+  },
+  "response": {
+    "model_id": "synthetic/glm",
+    "text": "{\"closing_balance\": \"100.00\"}"
+  },
+  "role": "extraction.json",
+  "tag": "flow-only"
+}

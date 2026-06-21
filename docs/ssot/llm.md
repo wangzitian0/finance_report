@@ -99,3 +99,57 @@ source; EPIC B swaps in a DB-backed one without the client changing. When
 `ConfigSource.is_configured()` is `False` (no provider exists), the frontend
 shows a first-run modal asking the user to add a provider before any AI feature
 runs.
+
+---
+
+## 5. <a id="cassettes"></a>Record/Replay Cassettes (deterministic CI)
+
+LLM calls are made **deterministic in CI** via a record/replay cassette layer
+(`apps/backend/src/llm/cassette.py`, exposed through `client.cassette_completion`).
+A *cassette* is a committed JSON file under
+`apps/backend/tests/fixtures/llm_cassettes/` holding the semantic request
+fingerprint and the frozen provider response — reviewed in the diff.
+
+### Modes — `LLM_CASSETTE_MODE`
+
+| Mode | Where | Behaviour |
+|------|-------|-----------|
+| `replay` | **CI default** | Read-only from cassettes; **no API key, no network**. A cache MISS is a **hard failure** (`CassetteMiss`) with an actionable batch summary (`N cassette(s) need re-record: …; run make llm-record`) — it never falls back to the network. |
+| `record` | local, with a provider key | Real provider call **and** write/update the cassette. Re-recording an unchanged request is idempotent (identical bytes). |
+| `off` | local dev default | Normal live call, no cassette involvement. |
+
+An unknown mode value fails closed (`LLMConfigError`) rather than silently
+behaving like `off`. Re-record with **`make llm-record`** (or `pytest
+--llm-record`); it is **provider-agnostic** — any provider key works, not only
+the GLM plan.
+
+### Fingerprint — model-id-agnostic
+
+`key = sha256(normalize(role + messages + decode params + image-bytes hash))`.
+It is computed on the *semantic request and modality role*, **NOT the exact model
+id**, so bumping `glm-5.1 → 5.2` does not invalidate every cassette — refreshing
+content is a re-record, the key is stable. Volatile fields (timestamps, random
+request ids) are stripped before hashing; image content is reduced to a sha256 of
+its bytes so transport encoding does not change the key. Only provably
+output-irrelevant fields are stripped — any byte the provider would see changes
+the key.
+
+### Tagging — determinism ≠ correctness
+
+Each cassette is tagged:
+
+- **`correctness`** — its frozen response was validated against fixture
+  ground-truth *at record time*. A `correctness` cassette **refuses to record**
+  (`CassetteValidationError`) if validation fails or no validator is supplied — a
+  frozen-wrong response would make CI green while asserting the LLM read numbers
+  it never read. A test declares this via `tag=CassetteTag.CORRECTNESS` plus a
+  `validator`.
+- **`flow-only`** — asserts response *handling* only; it never claims the LLM read
+  numbers correctly. The default tag.
+
+### Scope (anti-false-confidence)
+
+Record/replay is **regression protection for KNOWN inputs only**. It does **not**
+discover new real-world document shapes — that stays the staging real-doc audit
+loop — and **CI green ≠ a real unknown statement works**. Provider-specific
+correctness is the staging `-m llm` gate's job, not the cassette tests'.

@@ -187,3 +187,172 @@ async def test_AC23_2_2_single_provider_keeps_slashed_openrouter_model():
     provider, model = await resolve_provider_and_model(_FakeConfig([p]), "deepseek/deepseek-chat")
     assert provider is p
     assert model == "deepseek/deepseek-chat"
+
+
+class _FakeResponse:
+    """A litellm-style response exposing model_dump (pydantic-ish)."""
+
+    def __init__(self, payload: dict) -> None:
+        self._payload = payload
+
+    def model_dump(self) -> dict:
+        return dict(self._payload)
+
+
+async def test_AC23_5_4_cassette_completion_off_mode_does_a_live_litellm_call(monkeypatch, tmp_path):
+    """AC23.5.4: cassette_completion in off mode performs the real (mocked) litellm
+    call and projects the response dict; no cassette is written."""
+    from src.llm.cassette import CassetteMode, CassetteRecorder, CassetteStore
+    from src.llm.client import cassette_completion
+
+    async def fake_acompletion(**kwargs):
+        return _FakeResponse({"choices": [{"message": {"content": "ok"}}]})
+
+    monkeypatch.setattr(client_mod.litellm, "acompletion", fake_acompletion)
+    store = CassetteStore(directory=tmp_path / "c")
+    recorder = CassetteRecorder(store, mode=CassetteMode.OFF)
+    out = await cassette_completion(
+        [{"role": "user", "content": "hi"}],
+        role="advisor.chat",
+        provider=_provider(),
+        model_id="glm-5.1",
+        recorder=recorder,
+        temperature=0.0,
+        max_tokens=16,
+    )
+    assert out == {"choices": [{"message": {"content": "ok"}}]}
+
+
+async def test_AC23_5_4_cassette_completion_record_then_replay_roundtrips(monkeypatch, tmp_path):
+    """AC23.5.4 + AC23.5.2: record performs the live call and freezes it; a later
+    replay serves it back with no live call (the model id may differ — keying is
+    model-id-agnostic)."""
+    from src.llm.cassette import CassetteMode, CassetteRecorder, CassetteStore
+    from src.llm.client import cassette_completion
+
+    async def fake_acompletion(**kwargs):
+        return _FakeResponse({"text": "frozen"})
+
+    monkeypatch.setattr(client_mod.litellm, "acompletion", fake_acompletion)
+    store = CassetteStore(directory=tmp_path / "c")
+    messages = [{"role": "user", "content": "balance?"}]
+
+    rec = await cassette_completion(
+        messages,
+        role="extraction.json",
+        provider=_provider(),
+        model_id="glm-5.1",
+        recorder=CassetteRecorder(store, mode=CassetteMode.RECORD),
+        temperature=0.0,
+    )
+    assert rec == {"text": "frozen"}
+
+    async def explode(**kwargs):  # pragma: no cover - replay must not call litellm
+        raise AssertionError("replay must not call litellm")
+
+    monkeypatch.setattr(client_mod.litellm, "acompletion", explode)
+    # A different model id resolves the SAME cassette (model-id-agnostic key).
+    play = await cassette_completion(
+        messages,
+        role="extraction.json",
+        provider=_provider(),
+        model_id="glm-5.2",
+        recorder=CassetteRecorder(store, mode=CassetteMode.REPLAY),
+        temperature=0.0,
+    )
+    assert play == {"text": "frozen"}
+
+
+async def test_AC23_5_4_cassette_completion_record_wraps_provider_error(monkeypatch, tmp_path):
+    """AC23.5.4: a provider failure during a record live call is normalised to LLMError."""
+    from src.llm.cassette import CassetteMode, CassetteRecorder, CassetteStore
+    from src.llm.client import cassette_completion
+
+    async def boom(**kwargs):
+        raise ValueError("bad request")
+
+    monkeypatch.setattr(client_mod.litellm, "acompletion", boom)
+    store = CassetteStore(directory=tmp_path / "c")
+    with pytest.raises(LLMError):
+        await cassette_completion(
+            [{"role": "user", "content": "x"}],
+            role="advisor.chat",
+            provider=_provider(),
+            model_id="m",
+            recorder=CassetteRecorder(store, mode=CassetteMode.RECORD),
+        )
+
+
+async def test_AC23_5_4_cassette_completion_all_decode_params_and_dict_response(monkeypatch, tmp_path):
+    """AC23.5.4: reasoning/seed/extra_body/timeout knobs reach the live call and a
+    plain-dict response (no model_dump) is returned as-is."""
+    from src.llm.cassette import CassetteMode, CassetteRecorder, CassetteStore
+    from src.llm.client import cassette_completion
+    from src.llm.common import ReasoningEffort
+
+    captured_kwargs: dict = {}
+
+    async def fake_acompletion(**kwargs):
+        captured_kwargs.update(kwargs)
+        return {"plain": "dict"}
+
+    monkeypatch.setattr(client_mod.litellm, "acompletion", fake_acompletion)
+    store = CassetteStore(directory=tmp_path / "c")
+    out = await cassette_completion(
+        [{"role": "user", "content": "hi"}],
+        role="extraction.vision",
+        provider=_provider(),
+        model_id="glm-4.6V",
+        recorder=CassetteRecorder(store, mode=CassetteMode.RECORD),
+        reasoning=ReasoningEffort.MEDIUM,
+        seed=11,
+        extra_body={"thinking": {"type": "disabled"}},
+        timeout=5.0,
+    )
+    assert out == {"plain": "dict"}
+    assert captured_kwargs["reasoning_effort"] == "medium"
+    assert captured_kwargs["seed"] == 11
+    assert captured_kwargs["timeout"] == 5.0
+
+
+async def test_AC23_5_4_cassette_completion_stringifies_opaque_response(monkeypatch, tmp_path):
+    """AC23.5.4: an opaque response (no model_dump, not a dict) is projected to a
+    text payload so any provider shape is freezable."""
+    from src.llm.cassette import CassetteMode, CassetteRecorder, CassetteStore
+    from src.llm.client import cassette_completion
+
+    async def fake_acompletion(**kwargs):
+        return 12345  # opaque, neither pydantic nor dict
+
+    monkeypatch.setattr(client_mod.litellm, "acompletion", fake_acompletion)
+    store = CassetteStore(directory=tmp_path / "c")
+    out = await cassette_completion(
+        [{"role": "user", "content": "hi"}],
+        role="advisor.chat",
+        provider=_provider(),
+        model_id="m",
+        recorder=CassetteRecorder(store, mode=CassetteMode.RECORD),
+    )
+    assert out == {"text": "12345"}
+
+
+async def test_AC23_5_4_cassette_completion_passes_through_llmerror(monkeypatch, tmp_path):
+    """AC23.5.4: an LLMError raised by the transport is re-raised unchanged (not
+    re-wrapped), preserving its retryable verdict."""
+    from src.llm.cassette import CassetteMode, CassetteRecorder, CassetteStore
+    from src.llm.client import cassette_completion
+
+    async def raise_llmerror(**kwargs):
+        raise LLMError("already normalised", retryable=True)
+
+    monkeypatch.setattr(client_mod.litellm, "acompletion", raise_llmerror)
+    store = CassetteStore(directory=tmp_path / "c")
+    with pytest.raises(LLMError) as ei:
+        await cassette_completion(
+            [{"role": "user", "content": "x"}],
+            role="advisor.chat",
+            provider=_provider(),
+            model_id="m",
+            recorder=CassetteRecorder(store, mode=CassetteMode.RECORD),
+        )
+    assert ei.value.retryable is True

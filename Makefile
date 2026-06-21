@@ -1,4 +1,4 @@
-.PHONY: help install dev test lint format check pre-commit clean
+.PHONY: help install dev test lint format check pre-commit clean llm-record
 
 help:
 	@echo "Finance Report - Development Commands"
@@ -17,6 +17,7 @@ help:
 	@echo "  make format       Auto-format code"
 	@echo "  make check        Run all checks (lint + env-check)"
 	@echo "  make test         Run backend tests"
+	@echo "  make llm-record   Re-record LLM cassettes (record mode; any provider key)"
 	@echo ""
 	@echo "Utilities:"
 	@echo "  make env-check    Validate env var consistency"
@@ -60,6 +61,14 @@ check: lint env-check
 
 test:
 	moon run :test
+
+# Re-record the LLM cassettes against a live provider. Provider-agnostic: it uses
+# whatever provider key the env config resolves (any provider, not only the GLM
+# plan). Records in `record` mode (real call + write/update cassette under
+# apps/backend/tests/fixtures/llm_cassettes); commit the resulting diff. CI runs
+# the same tests in `replay` mode with no key. Pass extra args via ARGS=...
+llm-record:
+	cd apps/backend && LLM_CASSETTE_MODE=record uv run pytest tests/unit/llm/test_cassette.py --llm-record $(ARGS)
 
 env-check:
 	python tools/check_env_keys.py
