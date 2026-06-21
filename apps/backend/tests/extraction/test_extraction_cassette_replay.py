@@ -36,8 +36,8 @@ from src.services.ai_streaming import accumulate_stream, stream_ai_json
 # normal off-mode shards there is no key, so self-gate to replay: they SKIP in
 # shards and RUN in the dedicated cassette-replay CI step (LLM_CASSETTE_MODE=replay).
 pytestmark = pytest.mark.skipif(
-    current_mode() is not CassetteMode.REPLAY,
-    reason="cassette-replay only (run with LLM_CASSETTE_MODE=replay)",
+    current_mode() is CassetteMode.OFF,
+    reason="cassette record/replay only (set LLM_CASSETTE_MODE=record to record, replay to run)",
 )
 
 # --- Deterministic, anonymised inputs (synthetic; no real financial data). ---
@@ -115,8 +115,46 @@ async def test_AC23_6_extraction_vision_happy_path_via_replay() -> None:
     pytest.skip("vision cassette not yet recorded")
 
 
-@pytest.mark.skip(reason="needs real #1254-class cassette (see module docstring / issue #1306)")
+_DUP_MODEL = "glm-5.2"
+_DUP_MAX_TOKENS = 512
+_DUP_STATEMENT = (
+    "Opening balance: 1000.00\n"
+    "2026-02-01  Deposit ABC        +250.00\n"
+    "2026-02-01  Deposit ABC        +250.00\n"  # genuine same-date same-amount duplicate
+    "2026-02-03  Service fee         -10.00\n"
+    "Closing balance: 1490.00\n"
+)
+_DUP_MESSAGES = [{"role": "user", "content": _TEXT_PROMPT + "\n\n" + _DUP_STATEMENT}]
+_DUP_OPENING = Decimal("1000.00")
+_DUP_CLOSING = Decimal("1490.00")
+_DUP_DEPOSIT = Decimal("250.00")
+
+
 async def test_AC23_6_extraction_1254_class_dedup_balance_via_replay() -> None:
-    """#1254-class dedup/balance behaviour through the LLM path in replay. Pending
-    a recorded cassette of the duplicate-deposit edge case."""
-    pytest.skip("#1254-class cassette not yet recorded")
+    """#1254-class duplicate-deposit behaviour through the LLM path in replay.
+
+    Two genuine same-date/same-amount deposits must BOTH survive extraction (the
+    #1254 bug dropped one), and the balance chain must reconcile — asserted on the
+    frozen LLM output with NO network and NO key.
+    """
+    stream = stream_ai_json(
+        messages=_DUP_MESSAGES,
+        model=_DUP_MODEL,
+        max_tokens=_DUP_MAX_TOKENS,
+        temperature=0.0,
+        thinking={"type": "disabled"},
+    )
+    content = await accumulate_stream(stream)
+    data = _loads_tolerant(content)
+
+    opening = Decimal(str(data["opening_balance"]))
+    closing = Decimal(str(data["closing_balance"]))
+    txns = data["transactions"]
+    amounts = [Decimal(str(t["amount"])) for t in txns]
+    net = sum(amounts, Decimal("0"))
+
+    # Both same-amount deposits survived (the #1254 oracle: count is preserved).
+    assert sum(1 for a in amounts if a == _DUP_DEPOSIT) == 2
+    assert abs(opening - _DUP_OPENING) <= _TEXT_TOLERANCE
+    assert abs(closing - _DUP_CLOSING) <= _TEXT_TOLERANCE
+    assert abs((opening + net) - closing) <= _TEXT_TOLERANCE
