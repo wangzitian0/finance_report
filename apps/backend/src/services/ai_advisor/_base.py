@@ -7,7 +7,7 @@ import re
 from src.logger import get_logger
 from src.prompts.ai_advisor import DISCLAIMER_EN, DISCLAIMER_ZH
 
-logger = get_logger(__name__)
+logger = get_logger("src.services.ai_advisor")
 
 MAX_CONTEXT_MESSAGES = 20
 CACHE_TTL_SECONDS = 3600

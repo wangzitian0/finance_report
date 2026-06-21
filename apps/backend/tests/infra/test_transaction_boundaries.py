@@ -65,7 +65,7 @@ def _service_commit_calls() -> list[tuple[str, str, int]]:
     calls: list[tuple[str, str, int]] = []
     for path in sorted(SERVICE_ROOT.rglob("*.py")):
         tree = ast.parse(path.read_text(), filename=str(path))
-        visitor = _CommitCallVisitor(str(path.relative_to(SERVICE_ROOT)))
+        visitor = _CommitCallVisitor(path.relative_to(SERVICE_ROOT).as_posix())
         visitor.visit(tree)
         calls.extend(visitor.calls)
     return calls
