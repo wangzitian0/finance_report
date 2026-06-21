@@ -44,7 +44,6 @@ from src.schemas.workflow import (
     WorkflowReportReadinessState,
     WorkflowStatusResponse,
 )
-from src.services import ai_advisor as ai_advisor_service
 from src.services.ai_advisor import (
     AIAdvisorError,
     AIAdvisorService,
@@ -60,6 +59,7 @@ from src.services.ai_advisor import (
     is_write_request,
     normalize_question,
     redact_sensitive,
+    service as ai_advisor_service,
 )
 from src.services.ai_streaming import AIStreamError
 from src.services.reporting import ReportError
@@ -1036,7 +1036,7 @@ async def test_stream_model_yields_chunks(monkeypatch: pytest.MonkeyPatch) -> No
         yield "chunk-a"
         yield "chunk-b"
 
-    import src.services.ai_advisor as _mod
+    import src.services.ai_advisor.service as _mod
 
     monkeypatch.setattr(_mod, "stream_ai_chat", fake_stream_ai_chat)
 

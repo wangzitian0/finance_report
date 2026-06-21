@@ -19,7 +19,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[4]
 SERVICE_ROOT = PROJECT_ROOT / "apps" / "backend" / "src" / "services"
 
 ALLOWED_SERVICE_COMMIT_BOUNDARIES = {
-    ("ai_advisor.py", "AIAdvisorService._stream_and_store"),
+    ("ai_advisor/service.py", "AIAdvisorService._stream_and_store"),
     ("market_data_scheduler.py", "run_daily_market_data_sync"),
     ("statement_parsing.py", "handle_parse_failure"),
     ("statement_parsing.py", "import_brokerage_payload_if_present"),
@@ -63,9 +63,9 @@ class _CommitCallVisitor(ast.NodeVisitor):
 
 def _service_commit_calls() -> list[tuple[str, str, int]]:
     calls: list[tuple[str, str, int]] = []
-    for path in sorted(SERVICE_ROOT.glob("*.py")):
+    for path in sorted(SERVICE_ROOT.rglob("*.py")):
         tree = ast.parse(path.read_text(), filename=str(path))
-        visitor = _CommitCallVisitor(path.name)
+        visitor = _CommitCallVisitor(str(path.relative_to(SERVICE_ROOT)))
         visitor.visit(tree)
         calls.extend(visitor.calls)
     return calls
