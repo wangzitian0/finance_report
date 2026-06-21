@@ -456,6 +456,19 @@ def check_action_runtime_inventory(repo_root: Path, errors: list[str]) -> None:
         for uses, entry in inventoried.items()
         if entry.get("runtime_status") == "forced_node20_metadata"
     }
+    expected_forced_count = inventory.get("forced_node20_metadata_count_must_be")
+    if not isinstance(expected_forced_count, int):
+        errors.append(
+            f"{ACTION_RUNTIME_INVENTORY}: "
+            "forced_node20_metadata_count_must_be must be an integer"
+        )
+    elif expected_forced_count != len(forced_actions):
+        errors.append(
+            f"{ACTION_RUNTIME_INVENTORY}: "
+            "forced_node20_metadata_count_must_be must match runtime inventory "
+            f"(expected={expected_forced_count}, actual={len(forced_actions)})"
+        )
+
     if forced_actions != set(exception_actions):
         errors.append(
             f"{ACTION_RUNTIME_INVENTORY}: forced Node20 metadata actions must "
@@ -463,10 +476,10 @@ def check_action_runtime_inventory(repo_root: Path, errors: list[str]) -> None:
             f"(forced={sorted(forced_actions)}, exceptions={sorted(exception_actions)})"
         )
 
+    workflow_paths = sorted(
+        (repo_root / ".github" / "workflows").glob("*.yml")
+    ) + sorted((repo_root / ".github" / "workflows").glob("*.yaml"))
     if forced_actions:
-        workflow_paths = sorted(
-            (repo_root / ".github" / "workflows").glob("*.yml")
-        ) + sorted((repo_root / ".github" / "workflows").glob("*.yaml"))
         for workflow_path in workflow_paths:
             workflow_text = workflow_path.read_text(encoding="utf-8")
             if 'FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"' not in workflow_text:
@@ -474,6 +487,15 @@ def check_action_runtime_inventory(repo_root: Path, errors: list[str]) -> None:
                 errors.append(
                     f"{rel}: forced Node20 metadata exceptions exist, so the "
                     "workflow must keep FORCE_JAVASCRIPT_ACTIONS_TO_NODE24 enabled"
+                )
+    else:
+        for workflow_path in workflow_paths:
+            workflow_text = workflow_path.read_text(encoding="utf-8")
+            if "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24" in workflow_text:
+                rel = workflow_path.relative_to(repo_root)
+                errors.append(
+                    f"{rel}: no forced Node20 metadata exceptions remain, so "
+                    "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24 must be removed"
                 )
 
 

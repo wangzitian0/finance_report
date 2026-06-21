@@ -2261,7 +2261,7 @@ def test_AC8_13_107_pr_preview_workflow_uploads_context_without_image_preflight(
 
     deploy_block = workflow.split("  deploy-preview:", 1)[1].split("  e2e:", 1)[0]
 
-    assert "docker/build-push-action@v5" not in workflow
+    assert "docker/build-push-action@v7" not in workflow
     assert "- name: Preflight PR preview image tags" not in workflow
     assert "docker buildx imagetools inspect" not in workflow
     # The persistent deploy job writes its own context (no image preflight).

@@ -1334,12 +1334,12 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
 
 
 def test_AC8_13_16_workflows_opt_into_node24_actions_runtime() -> None:
-    """AC8.13.16: JavaScript actions are validated against the Node 24 runtime before migration."""
+    """AC8.13.16: workflows stay on Node 24-native JavaScript actions."""
     workflow_paths = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
     assert workflow_paths
     for workflow_path in workflow_paths:
         workflow = workflow_path.read_text(encoding="utf-8")
-        assert 'FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"' in workflow, (
+        assert "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24" not in workflow, (
             workflow_path.name
         )
 
@@ -1351,12 +1351,13 @@ def test_AC8_13_16_workflows_opt_into_node24_actions_runtime() -> None:
         if action["runtime_status"] == "forced_node20_metadata"
     ]
     exceptions = {exception["uses"] for exception in inventory["exceptions"]}
+    assert inventory["forced_node20_metadata_count_must_be"] == 0
     assert "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24" in ci_cd
     assert (
-        "GitHub JavaScript action runtime is explicitly validated on Node 24" in ci_cd
+        "GitHub JavaScript action runtime debt is closed" in ci_cd
     )
     assert "docs/ssot/github-action-runtime.yaml" in ci_cd
-    assert forced_actions
+    assert not forced_actions
     assert set(forced_actions) == exceptions
 
 
@@ -2297,7 +2298,7 @@ def test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge() -> None:
         "if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/'))) || github.event_name == 'workflow_dispatch'"
         in login_block
     )
-    assert container_block.count("uses: docker/build-push-action@v5") == 2
+    assert container_block.count("uses: docker/build-push-action@v7") == 2
     assert (
         container_block.count(
             "push: ${{ (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/'))) || github.event_name == 'workflow_dispatch' }}"
@@ -2344,7 +2345,7 @@ def test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds() -> None:
     assert "build-preview-backend-image:" not in workflow
     assert "build-preview-frontend-image:" not in workflow
     assert "Preflight PR preview image tags" not in workflow
-    assert "docker/build-push-action@v5" not in workflow
+    assert "docker/build-push-action@v7" not in workflow
     assert "push: true" not in workflow
     assert "packages: write" not in workflow
     # Persistent preview: non-blocking deploy job, after the in-runner E2E gate,

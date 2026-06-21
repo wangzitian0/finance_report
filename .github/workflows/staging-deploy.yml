@@ -22,7 +22,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ${{ github.repository_owner }}/finance_report
   STAGING_E2E_PRIMARY_MODEL: glm-5.1
@@ -182,6 +181,7 @@ jobs:
         uses: astral-sh/setup-uv@v8.2.0
         with:
           version: ${{ env.UV_VERSION }}
+          save-cache: false
 
       - name: Set up Python
         id: setup_python
