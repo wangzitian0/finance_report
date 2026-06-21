@@ -5,11 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-try:
-    import yaml
-except ImportError:  # pragma: no cover - CLI guard
-    yaml = None
-
 
 from common.ssot.governance_report._base import (
     GATE_HLS_RULE,

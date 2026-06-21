@@ -3,12 +3,6 @@
 from __future__ import annotations
 
 
-try:
-    import yaml
-except ImportError:  # pragma: no cover - CLI guard
-    yaml = None
-
-
 from common.ssot.governance_report._base import (
     PROTECTED_DEBT_LABELS,
     PROTECTED_RATIO_LABELS,

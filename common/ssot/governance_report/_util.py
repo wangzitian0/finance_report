@@ -6,11 +6,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-try:
-    import yaml
-except ImportError:  # pragma: no cover - CLI guard
-    yaml = None
-
 
 from common.ssot.governance_report._base import (
     HIGH_RISK_SUBSTRINGS,

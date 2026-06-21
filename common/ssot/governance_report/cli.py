@@ -8,11 +8,6 @@ import sys
 from collections.abc import Mapping
 from pathlib import Path
 
-try:
-    import yaml
-except ImportError:  # pragma: no cover - CLI guard
-    yaml = None
-
 
 from common.ssot.governance_report._base import (
     GATE_EXCEPTION_PATH,
