@@ -371,7 +371,6 @@ async def test_per_currency_nav_self_check_failure_marks_statement_invalid(test_
     """
     from unittest.mock import AsyncMock
 
-
     service = ExtractionService()
     payload = _load_fixture("ibkr-multicurrency-positions_parsed.json")
     service.extract_financial_data = AsyncMock(return_value=payload)
