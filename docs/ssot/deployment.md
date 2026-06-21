@@ -94,18 +94,21 @@ Smoke:   ❌ Not run (unit tests only)
 ### staging-deploy.yml
 
 ```yaml
-Trigger: Manual dispatch only (workflow_dispatch with a required `tag` input)
-Flow:    deploy release tag via deploy_v2 -> smoke/non-LLM E2E -> AI/OCR regression record
+Trigger: Manual dispatch only (workflow_dispatch with a required `version_ref` input)
+Flow:    resolve release coordinate -> deploy_v2 -> smoke/non-LLM E2E -> AI/OCR regression record
 URL:     https://report-staging.zitian.party
 ```
 
 Staging deploy is manual: it runs only on `workflow_dispatch` and does not
-auto-follow main CI. The deploy job checks out the dispatched release `tag`,
-never polls or waits for CI inside the job, and deploys only images that already
-exist under that release tag. `release-images.yml` must have promoted the
-main-CI SHA images to `:vX.Y.Z` before staging is dispatched. Provider-backed
-AI/OCR tests run after deploy health in the same serialized dispatch workflow
-unit as a right-shifted regression record, and can also be invoked on demand via
+auto-follow main CI. The only operator-supplied release selector is
+`version_ref`, and it must be a `vX.Y.Z` release tag. The deploy job resolves
+that coordinate through `tools/resolve_release_coordinate.py`, checks out the
+tag, derives the pinned infra2 `iac_ref`, never polls or waits for CI inside the
+job, and deploys only images that already exist under that release tag.
+`release-images.yml` must have promoted the main-CI SHA images to `:vX.Y.Z`
+before staging is dispatched. Provider-backed AI/OCR tests run after deploy
+health in the same serialized dispatch workflow unit as a right-shifted
+regression record, and can also be invoked on demand via
 `staging-ai-ocr-gate.yml` when the team wants a blocking diagnostic rerun.
 
 The release process keeps a promote-not-rebuild consistency ladder:
@@ -132,19 +135,19 @@ rollout failure, not an application health timeout.
 
 Production release eligibility depends on the staging run's release-critical
 jobs: `Deploy Staging` and `Staging Provider Gate` must succeed for the exact
-`Deploy Staging <tag>` run. The automatic staging `Staging AI/OCR Gate` records
-full-provider regression evidence but does not block production after deploy
-health, non-LLM E2E, and provider connectivity have passed.
+`Deploy Staging <version_ref>` run. The automatic staging `Staging AI/OCR Gate`
+records full-provider regression evidence but does not block production after
+deploy health, non-LLM E2E, and provider connectivity have passed.
 
 ### production-release.yml
 
 ```yaml
 Triggers:
-  - Manual dispatch: Deploy existing release tag to production
+  - Manual dispatch: Deploy existing release version_ref to production
   - Manual dry-run:  Validate release prerequisites without deploy
 
-Dry-run:    Manual -> Resolve release tag -> Verify main CI, release-images, staging -> Release lint -> Verify release image digests -> Skip production mutation
-Deploy job: Manual -> Resolve release tag -> Verify main CI, release-images, staging -> Verify release image digests -> deploy_v2 -> Health -> Smoke/E2E
+Dry-run:    Manual -> Resolve release coordinate -> Verify main CI, release-images, staging -> Release lint -> Verify release image digests -> Skip production mutation
+Deploy job: Manual -> Resolve release coordinate -> Verify main CI, release-images, staging -> Verify release image digests -> deploy_v2 -> Health -> Smoke/E2E
 
 URL: https://report.zitian.party
 ```
@@ -161,13 +164,13 @@ git push origin v1.2.3
 # -> Images: ghcr.io/.../finance_report-{backend,frontend}:v1.2.3
 
 # Deploy to staging (manual)
-# -> Actions -> Deploy Staging -> Run workflow -> tag=v1.2.3
+# -> Actions -> Deploy Staging -> Run workflow -> version_ref=v1.2.3
 
 # Deploy to production (manual, after staging passes)
-# -> Actions -> Production Release -> Run workflow -> version=v1.2.3
+# -> Actions -> Production Release -> Run workflow -> version_ref=v1.2.3
 
 # Dry-run production release proof (manual, no production mutation)
-# -> Actions -> Production Release -> Run workflow -> dry_run=true
+# -> Actions -> Production Release -> Run workflow -> version_ref=v1.2.3, dry_run=true
 ```
 
 Production app deploys must keep the image tag, Dokploy runtime
@@ -212,8 +215,8 @@ compose env and verifies `IAC_CONFIG_HASH` with `verify_effective_config_hash`
 
 There is no automated force-recreate escape hatch in the fixed staging/prod
 release workflow. Recovery is fail-closed: correct the Dokploy/env issue, then
-perform a manual rerun of the same `deploy_v2` workflow for the release tag. The
-rerun generates a fresh `IAC_CONFIG_HASH`, snapshots deployment ids before
+perform a manual rerun of the same `deploy_v2` workflow for the release
+`version_ref`. The rerun generates a fresh `IAC_CONFIG_HASH`, snapshots deployment ids before
 mutation again, and must pass rollout plus effective-config verification before
 health/smoke/E2E run.
 

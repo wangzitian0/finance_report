@@ -600,14 +600,14 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
         in deploy_workflow
     )
     assert "name: Staging AI/OCR Gate" in deploy_workflow
-    assert "commit_full_sha: ${{ steps.get_sha.outputs.full_sha }}" in deploy_workflow
-    assert "deployed_tag: ${{ inputs.tag }}" in deploy_workflow
+    assert "commit_full_sha: ${{ steps.release.outputs.full_sha }}" in deploy_workflow
+    assert "deployed_version_ref: ${{ steps.release.outputs.version_ref }}" in deploy_workflow
     assert (
         "ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}" in deploy_workflow
     )
     assert "PARSING_TIMEOUT_MS: 480000" in deploy_workflow
     assert (
-        "EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.deployed_tag }}"
+        "EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.deployed_version_ref }}"
         in deploy_workflow
     )
     assert 'run_timed_phase "Staging AI/OCR Gate' in deploy_workflow
@@ -840,11 +840,12 @@ def test_AC8_13_51_staging_deploy_is_manual_dispatch_only() -> None:
         "staging deploy must NOT auto-follow CI (manual-only)"
     )
     inputs = triggers["workflow_dispatch"].get("inputs") or {}
-    assert "tag" in inputs, (
-        "manual dispatch must accept a `tag` input to deploy a published release"
+    assert "version_ref" in inputs, (
+        "manual dispatch must accept a deploy_v2-aligned `version_ref` input"
     )
-    assert inputs["tag"].get("required") is True, (
-        "staging deploy must require an explicit published release tag"
+    assert "tag" not in inputs, "staging deploy must not expose a second release-ref name"
+    assert inputs["version_ref"].get("required") is True, (
+        "staging deploy must require an explicit published release version_ref"
     )
     # The deploy job still must not poll/wait for CI inside the job.
     assert "wait_for_github_ci.py" not in workflow
@@ -995,12 +996,16 @@ def test_AC8_13_52_production_release_dry_run_does_not_mutate_production() -> No
     ci_cd = read("docs/ssot/ci-cd.md")
 
     assert "dry_run:" in workflow
+    assert "version_ref:" in workflow
+    assert "Version ref to deploy (vX.Y.Z release tag)" in workflow
+    assert "leave empty for latest" not in workflow
     assert "Validate release prerequisites without deploying production" in workflow
     assert "dry-run:" in workflow
     assert "github.event_name == 'workflow_dispatch' && inputs.dry_run" in workflow
     assert "moon run :lint" in workflow
     assert "moon run :test" not in workflow
-    assert "Resolve release tag" in workflow
+    assert "Resolve release coordinate" in workflow
+    assert "tools/resolve_release_coordinate.py" in workflow
     assert "Verify source CI passed" in workflow
     assert "--workflow ci.yml" in workflow
     assert '--commit "$RELEASE_SHA"' in workflow
@@ -1019,10 +1024,10 @@ def test_AC8_13_52_production_release_dry_run_does_not_mutate_production() -> No
 
 
 def test_AC8_13_52_production_release_matches_exact_staging_run_name() -> None:
-    """AC8.13.52: Production release requires staging validation for the exact tag."""
+    """AC8.13.52: Production release requires staging validation for the exact version_ref."""
     workflow = read(".github/workflows/production-release.yml")
 
-    assert 'expected_title = f"Deploy Staging {release_tag}"' in workflow
+    assert 'expected_title = f"Deploy Staging {release_version_ref}"' in workflow
     assert workflow.count('run.get("displayTitle") == expected_title') == 2
     assert 'run.get("status") == "completed"' in workflow
     assert 'run.get("conclusion") == "success"' not in workflow
@@ -1040,7 +1045,7 @@ def test_AC8_13_52_production_release_matches_exact_staging_run_name() -> None:
     assert workflow.count("with successful release-critical jobs") == 2
     assert "Staging AI/OCR Gate" in workflow
     assert "does not block production release eligibility" in workflow
-    assert 'release_tag in (run.get("displayTitle") or "")' not in workflow
+    assert 'release_version_ref in (run.get("displayTitle") or "")' not in workflow
 
 
 def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
@@ -1662,6 +1667,7 @@ def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
     """AC7.10.1 - AC7.10.5: Production release promotes staging-validated SHA image and fails closed on drift."""
     workflow = read(".github/workflows/production-release.yml")
     release_images = read(".github/workflows/release-images.yml")
+    resolver = read("tools/resolve_release_coordinate.py")
     ci_cd = read("docs/ssot/ci-cd.md")
     deployment = read("docs/ssot/deployment.md")
 
@@ -1671,8 +1677,8 @@ def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
     )
     assert "docker/build-push-action" not in release_images
     assert "docker buildx imagetools create --tag" not in workflow
-    assert 'short_sha="${full_sha:0:7}"' in workflow
-    assert workflow.count('short_sha="${full_sha:0:7}"') == 2
+    assert '"short_sha": full_sha[:7]' in resolver
+    assert workflow.count("tools/resolve_release_coordinate.py") == 2
 
     # AC7.10.2: fails closed if no staging-validated SHA image exists or digests differ
     assert "Verify staging passed" in workflow
@@ -1683,7 +1689,7 @@ def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
     assert 'frontend_sha_digest" != "$frontend_promoted_digest' in release_images
 
     # AC7.10.3: summary records released commit, source CI run, digest, and no rebuild
-    assert "Released commit: ${{ steps.version.outputs.full_sha }}" in workflow
+    assert "Released commit: ${{ steps.release.outputs.full_sha }}" in workflow
     assert "Source CI run: ${{ steps.source_ci.outputs.run_id }}" in workflow
     assert "Backend release image digest" in workflow
     assert "No rebuild occurred" in workflow
@@ -1867,8 +1873,9 @@ def test_AC8_13_120_staging_runs_lightweight_provider_connectivity_smoke() -> No
 
 
 def test_AC8_13_22_staging_deploys_manually_dispatched_release_tag() -> None:
-    """AC8.13.22: Staging deploys the manually dispatched published release tag."""
+    """AC8.13.22: Staging deploys the manually dispatched release version_ref."""
     workflow = read(".github/workflows/staging-deploy.yml")
+    resolver = read("tools/resolve_release_coordinate.py")
 
     parsed = yaml.safe_load(workflow)
     # PyYAML parses the bare `on:` key as the boolean True.
@@ -1885,12 +1892,17 @@ def test_AC8_13_22_staging_deploys_manually_dispatched_release_tag() -> None:
     assert list(triggers.keys()) == ["workflow_dispatch"]
     assert "Wait for matching CI success" not in workflow
     inputs = triggers["workflow_dispatch"].get("inputs") or {}
-    assert "tag" in inputs
-    assert inputs["tag"].get("required") is True
-    # Checkout uses the dispatched release tag, and that checkout happens before
-    # deploy_v2 consumes the already-published release images.
-    assert "ref: ${{ inputs.tag }}" in workflow
-    assert workflow.index("ref: ${{ inputs.tag }}") < workflow.index(
+    assert "version_ref" in inputs
+    assert "tag" not in inputs
+    assert inputs["version_ref"].get("required") is True
+    assert "Version ref to deploy (vX.Y.Z release tag)" in workflow
+    assert "tools/resolve_release_coordinate.py" in workflow
+    assert "_RELEASE_VERSION_REF_RE" in resolver
+    assert "version_ref must be a release tag" in resolver
+    # The shared resolver checks out the dispatched release tag before deploy_v2
+    # consumes the already-published release images.
+    assert "VERSION_REF: ${{ inputs.version_ref }}" in workflow
+    assert workflow.index("Resolve release coordinate") < workflow.index(
         "Deploy to Staging"
     )
     assert "Build and push Backend" not in workflow
@@ -1898,7 +1910,7 @@ def test_AC8_13_22_staging_deploys_manually_dispatched_release_tag() -> None:
     assert "Promote Backend Image to Staging Tag" not in workflow
     assert "python -m tools.deploy_v2" in workflow
     assert "--type staging" in workflow
-    assert '--version-ref "$tag"' in workflow
+    assert '--version-ref "$version_ref"' in workflow
 
 
 def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
@@ -1906,6 +1918,7 @@ def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
     ci_workflow = read(".github/workflows/ci.yml")
     release_workflow = read(".github/workflows/release-images.yml")
     deploy_workflow = read(".github/workflows/staging-deploy.yml")
+    resolver = read("tools/resolve_release_coordinate.py")
     ci_cd = read("docs/ssot/ci-cd.md")
 
     assert "container-images:" in ci_workflow
@@ -1957,18 +1970,19 @@ def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
     assert "Build and push Backend" not in deploy_workflow
     assert "Build and push Frontend" not in deploy_workflow
     assert "Promote Backend Image to Staging Tag" not in deploy_workflow
-    assert "ref: ${{ inputs.tag }}" in deploy_workflow
-    assert "full_sha=$(git rev-parse HEAD)" in deploy_workflow
-    assert 'short_sha="${full_sha:0:7}"' in deploy_workflow
-    assert deploy_workflow.index("ref: ${{ inputs.tag }}") < deploy_workflow.index(
+    assert "VERSION_REF: ${{ inputs.version_ref }}" in deploy_workflow
+    assert "tools/resolve_release_coordinate.py" in deploy_workflow
+    assert '"git", "rev-parse", "HEAD"' in resolver
+    assert '"short_sha": full_sha[:7]' in resolver
+    assert deploy_workflow.index("Resolve release coordinate") < deploy_workflow.index(
         "Deploy to Staging"
     )
     assert (
-        "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ inputs.tag }}"
+        "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.release.outputs.version_ref }}"
         in deploy_workflow
     )
     assert (
-        "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ inputs.tag }}"
+        "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.release.outputs.version_ref }}"
         in deploy_workflow
     )
 
@@ -2118,13 +2132,13 @@ def test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit() -> None:
         "STAGING_AI_OCR_REASON: ${{ steps.classify.outputs.staging_ai_ocr_reason }}"
         in deploy_workflow
     )
-    assert "commit_full_sha: ${{ steps.get_sha.outputs.full_sha }}" in deploy_workflow
-    assert "deployed_tag: ${{ inputs.tag }}" in deploy_workflow
+    assert "commit_full_sha: ${{ steps.release.outputs.full_sha }}" in deploy_workflow
+    assert "deployed_version_ref: ${{ steps.release.outputs.version_ref }}" in deploy_workflow
     assert (
         "ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}" in deploy_workflow
     )
     assert (
-        "EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.deployed_tag }}"
+        "EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.deployed_version_ref }}"
         in deploy_workflow
     )
     assert 'workflows: ["Deploy Staging"]' not in ai_workflow
@@ -2495,8 +2509,9 @@ def test_AC8_13_93_staging_promotion_requires_manual_dispatch() -> None:
     # can mutate staging.
     assert list(triggers.keys()) == ["workflow_dispatch"]
     inputs = triggers["workflow_dispatch"].get("inputs") or {}
-    assert "tag" in inputs
-    assert inputs["tag"].get("required") is True
+    assert "version_ref" in inputs
+    assert "tag" not in inputs
+    assert inputs["version_ref"].get("required") is True
 
     # The retired auto-deploy machinery (the dedicated "CI Workflow Run Ignored"
     # skip-summary job that fired on a non-success CI workflow_run) is gone.
@@ -2639,18 +2654,18 @@ def test_AC8_13_72_staging_deploy_proves_health_sha_after_dokploy_trigger() -> N
 
     assert "python -m tools.deploy_v2" in deploy_block
     assert "--type staging" in deploy_block
-    assert '--version-ref "$tag"' in deploy_block
+    assert '--version-ref "$version_ref"' in deploy_block
     assert '--iac-ref "$iac_ref"' in deploy_block
     assert "bash tools/health_check.sh" in health_block
     assert '"https://report-staging.zitian.party/api/health"' in health_block
-    assert '"${{ inputs.tag }}"' in health_block
+    assert '"${{ steps.release.outputs.version_ref }}"' in health_block
     assert workflow.index("- name: Deploy to Staging") < workflow.index(
         "- name: Confirm staging backend health"
     )
     assert workflow.index("- name: Confirm staging backend health") < workflow.index(
         "- name: Setup E2E Tests"
     )
-    assert "EXPECTED_SHA: ${{ inputs.tag }}" in workflow
+    assert "EXPECTED_SHA: ${{ steps.release.outputs.version_ref }}" in workflow
 
     assert "verify_vault / verify_config / model_overrides" in deploy_v2
     assert "verify_config=verify_config" in deploy_v2
@@ -2739,7 +2754,7 @@ def test_AC8_13_108_staging_failure_context_fails_closed_on_classifier_and_unkno
 
     for step_id in [
         "checkout",
-        "get_sha",
+        "release",
         "classify",
         "install_uv",
         "setup_python",
@@ -2750,6 +2765,7 @@ def test_AC8_13_108_staging_failure_context_fails_closed_on_classifier_and_unkno
         assert f"id: {step_id}" in workflow
 
     assert '"classification"' in failure_context
+    assert '"release-coordinate-resolution"' in failure_context
     assert '"change-classification"' in failure_context
     assert (
         "Change classification failed before staging relevance could be trusted."

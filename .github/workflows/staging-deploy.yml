@@ -3,17 +3,17 @@
 # Trigger: MANUAL ONLY (workflow_dispatch). Staging no longer auto-follows main.
 # Per docs/ssot/environments.md, staging and prod are deployed manually;
 # CI is the quality gate for development, not an auto-deploy trigger.
-# Actions: Deploy release tag via deploy_v2 → Smoke/E2E → AI/OCR regression record
+# Actions: Resolve release coordinate → deploy_v2 → Smoke/E2E → AI/OCR regression record
 # Data is persisted between deployments.
 
 name: Deploy Staging
-run-name: Deploy Staging ${{ inputs.tag }}
+run-name: Deploy Staging ${{ inputs.version_ref }}
 
 on:
   workflow_dispatch:
     inputs:
-      tag:
-        description: "Release tag to deploy to staging (vX.Y.Z; must already be published by release-images.yml)"
+      version_ref:
+        description: "Version ref to deploy (vX.Y.Z release tag)"
         required: true
         type: string
 
@@ -41,9 +41,9 @@ jobs:
       contents: read
       packages: read
     outputs:
-      commit_full_sha: ${{ steps.get_sha.outputs.full_sha }}
-      commit_sha: ${{ steps.get_sha.outputs.short_sha }}
-      deployed_tag: ${{ inputs.tag }}
+      commit_full_sha: ${{ steps.release.outputs.full_sha }}
+      commit_sha: ${{ steps.release.outputs.short_sha }}
+      deployed_version_ref: ${{ steps.release.outputs.version_ref }}
       staging_required: ${{ steps.gates.outputs.staging_required }}
       staging_reason: ${{ steps.gates.outputs.staging_reason }}
       provider_gate_required: ${{ steps.gates.outputs.provider_gate_required }}
@@ -59,18 +59,14 @@ jobs:
         id: checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.tag }}
           fetch-depth: 0
-          submodules: recursive
 
-      - name: Get Commit SHA
-        id: get_sha
+      - name: Resolve release coordinate
+        id: release
+        env:
+          VERSION_REF: ${{ inputs.version_ref }}
         run: |
-          full_sha=$(git rev-parse HEAD)
-          short_sha="${full_sha:0:7}"
-          echo "full_sha=$full_sha" >> "$GITHUB_OUTPUT"
-          echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
-          echo "Deploying commit: $short_sha"
+          python3 tools/resolve_release_coordinate.py --version-ref "$VERSION_REF"
 
       - name: Classify staging and AI/OCR relevance
         id: classify
@@ -139,7 +135,7 @@ jobs:
             echo ""
             echo "- Staging deploy required: \`${{ steps.gates.outputs.staging_required }}\`"
             echo "- Staging reason: \`${{ steps.gates.outputs.staging_reason }}\`"
-            echo "- Target release tag: \`${{ inputs.tag }}\`"
+            echo "- Target version_ref: \`${{ steps.release.outputs.version_ref }}\`"
             echo ""
             echo "No deploy_v2 mutation, smoke/E2E, or AI/OCR validation ran."
           } >> "$GITHUB_STEP_SUMMARY"
@@ -177,7 +173,7 @@ jobs:
             echo "- Health URL: $STAGING_HEALTH_URL"
             echo "- Health probe succeeded: $healthy"
             echo "- Current staging version: $staging_sha"
-            echo "- Target release tag: ${{ inputs.tag }}"
+            echo "- Target version_ref: ${{ steps.release.outputs.version_ref }}"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Install uv
@@ -247,13 +243,13 @@ jobs:
           # release-images.yml on the tag push; deploy_v2 pulls them (promote-not-rebuild).
           # --iac-ref is the pinned infra2 submodule sha so staging uses the same IaC the
           # app was tested against (and that prod will promote on the same tag).
-          tag="${{ inputs.tag }}"
-          iac_ref="$(git rev-parse HEAD)"
-          echo "Deploying staging via deploy_v2: type=staging version-ref=$tag iac-ref=$iac_ref"
+          version_ref="${{ steps.release.outputs.version_ref }}"
+          iac_ref="${{ steps.release.outputs.iac_ref }}"
+          echo "Deploying staging via deploy_v2: type=staging version-ref=$version_ref iac-ref=$iac_ref"
           python -m tools.deploy_v2 \
             --service finance_report/app \
             --type staging \
-            --version-ref "$tag" \
+            --version-ref "$version_ref" \
             --iac-ref "$iac_ref" \
             --domain zitian.party \
             --timeout 600
@@ -270,7 +266,7 @@ jobs:
             "https://report-staging.zitian.party/api/health" \
             "staging" \
             60 \
-            "${{ inputs.tag }}"
+            "${{ steps.release.outputs.version_ref }}"
 
       - name: Wait for frontend readiness
         id: frontend_ready
@@ -278,7 +274,7 @@ jobs:
         timeout-minutes: 10
         env:
           APP_URL: https://report-staging.zitian.party
-          EXPECTED_SHA: ${{ steps.get_sha.outputs.short_sha }}
+          EXPECTED_SHA: ${{ steps.release.outputs.short_sha }}
         run: |
           # The browser E2E loads the frontend bundle, so the backend SHA gate in
           # health_check.sh is not enough: the frontend service deploys separately
@@ -332,9 +328,9 @@ jobs:
           TEST_ENV: staging
           SKIP_UI_TESTS: false
           STRICT_E2E_GATES: true
-          # Backend /api/health reports GIT_COMMIT_SHA=<tag> in the tag-based model, so the
-          # E2E version check (tests/e2e/test_version_check.py) gates on the release tag.
-          EXPECTED_SHA: ${{ inputs.tag }}
+          # Backend /api/health reports GIT_COMMIT_SHA=<version_ref> for release tags,
+          # so the E2E version check gates on the release version_ref.
+          EXPECTED_SHA: ${{ steps.release.outputs.version_ref }}
           RUN_MARKET_DATA_PROVIDER_E2E: true
           MARKET_DATA_E2E_DATE: "2024-06-03"
         run: |
@@ -405,11 +401,11 @@ jobs:
               "checkout" \
               "repository-checkout" \
               "Repository checkout failed before staging deploy classification."
-          elif [ "${{ steps.get_sha.outcome }}" = "failure" ]; then
+          elif [ "${{ steps.release.outcome }}" = "failure" ]; then
             classify_failure \
-              "get_sha" \
-              "git-sha-resolution" \
-              "Target SHA resolution failed before staging deploy classification."
+              "release" \
+              "release-coordinate-resolution" \
+              "Release coordinate resolution failed before staging deploy classification."
           elif [ "${{ steps.classify.outcome }}" = "failure" ]; then
             classify_failure \
               "classification" \
@@ -478,8 +474,8 @@ jobs:
             echo "- Failure domain: ${failure_domain}"
             echo "- Failed step: ${failed_step}"
             echo "- Failure summary: ${failure_summary}"
-            echo "- SigNoz logs: https://signoz.zitian.party/logs?service.name=finance-report-backend&deployment.environment=staging&service.version=${{ inputs.tag }}&github.run_id=${{ github.run_id }}"
-            echo "- SigNoz traces: https://signoz.zitian.party/traces?service.name=finance-report-backend&deployment.environment=staging&service.version=${{ inputs.tag }}&github.run_id=${{ github.run_id }}"
+            echo "- SigNoz logs: https://signoz.zitian.party/logs?service.name=finance-report-backend&deployment.environment=staging&service.version=${{ steps.release.outputs.version_ref }}&github.run_id=${{ github.run_id }}"
+            echo "- SigNoz traces: https://signoz.zitian.party/traces?service.name=finance-report-backend&deployment.environment=staging&service.version=${{ steps.release.outputs.version_ref }}&github.run_id=${{ github.run_id }}"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Write staging deploy context
@@ -497,20 +493,22 @@ jobs:
             echo "sha=${{ github.sha }}"
             echo "run_id=${{ github.run_id }}"
             echo "run_attempt=${{ github.run_attempt }}"
-            echo "deploy_input_tag=${{ inputs.tag }}"
-            echo "deployed_full_sha=${{ steps.get_sha.outputs.full_sha }}"
-            echo "target_short_sha=${{ steps.get_sha.outputs.short_sha }}"
+            echo "deploy_input_version_ref=${{ inputs.version_ref }}"
+            echo "deployed_version_ref=${{ steps.release.outputs.version_ref }}"
+            echo "deployed_full_sha=${{ steps.release.outputs.full_sha }}"
+            echo "target_short_sha=${{ steps.release.outputs.short_sha }}"
+            echo "iac_ref=${{ steps.release.outputs.iac_ref }}"
             echo "app_url=${APP_URL}"
-            echo "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ inputs.tag }}"
-            echo "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ inputs.tag }}"
+            echo "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.release.outputs.version_ref }}"
+            echo "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.release.outputs.version_ref }}"
             echo "staging_before_healthy=${{ steps.staging_before.outputs.healthy }}"
             echo "staging_before_sha=${{ steps.staging_before.outputs.staging_sha }}"
             echo "staging_e2e_outcome=${{ steps.staging_e2e_tests.outcome }}"
             echo "failure_domain=${{ steps.deploy_failure_context.outputs.failure_domain }}"
             echo "failed_step=${{ steps.deploy_failure_context.outputs.failed_step }}"
             echo "failure_summary=${{ steps.deploy_failure_context.outputs.failure_summary }}"
-            echo "signoz_logs_query_url=https://signoz.zitian.party/logs?service.name=finance-report-backend&deployment.environment=staging&service.version=${{ inputs.tag }}&github.run_id=${{ github.run_id }}"
-            echo "signoz_traces_query_url=https://signoz.zitian.party/traces?service.name=finance-report-backend&deployment.environment=staging&service.version=${{ inputs.tag }}&github.run_id=${{ github.run_id }}"
+            echo "signoz_logs_query_url=https://signoz.zitian.party/logs?service.name=finance-report-backend&deployment.environment=staging&service.version=${{ steps.release.outputs.version_ref }}&github.run_id=${{ github.run_id }}"
+            echo "signoz_traces_query_url=https://signoz.zitian.party/traces?service.name=finance-report-backend&deployment.environment=staging&service.version=${{ steps.release.outputs.version_ref }}&github.run_id=${{ github.run_id }}"
             echo "strict_e2e_gates=true"
             echo "marker=(smoke or e2e) and not llm"
           } > ci-context/staging-deploy-context.txt
@@ -560,7 +558,7 @@ jobs:
         id: ai_provider_connectivity
         timeout-minutes: 10
         env:
-          EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.deployed_tag }}
+          EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.deployed_version_ref }}
         run: |
           set -uo pipefail
           mkdir -p test-results
@@ -612,7 +610,7 @@ jobs:
       - name: Write provider gate context
         if: ${{ always() }}
         env:
-          EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.deployed_tag }}
+          EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.deployed_version_ref }}
         run: |
           mkdir -p ci-context
           {
@@ -676,7 +674,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 22
         env:
-          EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.deployed_tag }}
+          EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.deployed_version_ref }}
         run: |
           run_timed_phase() {
             local phase_name="$1"
@@ -803,7 +801,7 @@ jobs:
       - name: Write staging AI/OCR context
         if: ${{ always() }}
         env:
-          EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.deployed_tag }}
+          EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.deployed_version_ref }}
         run: |
           mkdir -p ci-context
           {
@@ -864,7 +862,7 @@ jobs:
           run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           target_sha="${{ needs.build-and-deploy.outputs.commit_full_sha || github.sha }}"
           target_short="${target_sha:0:7}"
-          target_version="${{ needs.build-and-deploy.outputs.deployed_tag || inputs.tag }}"
+          target_version_ref="${{ needs.build-and-deploy.outputs.deployed_version_ref || inputs.version_ref }}"
           failed=false
           delivery_status="passed"
           failure_reason="none"
@@ -890,7 +888,7 @@ jobs:
             echo ""
             echo "- Delivery status: ${delivery_status}"
             echo "- Failure reason: ${failure_reason}"
-            echo "- Target release tag: ${target_version}"
+            echo "- Target version_ref: ${target_version_ref}"
             echo "- Target SHA: ${target_sha}"
             echo "- Target short SHA: ${target_short}"
             echo "- Run URL: ${run_url}"
