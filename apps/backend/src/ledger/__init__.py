@@ -50,11 +50,14 @@ _TYPE_NAMES = {
 
 def __getattr__(name: str):
     if name in _TYPE_NAMES:
-        from src.ledger import types
+        from . import types
 
-        return getattr(types, name)
-    if name == "post_entry":
-        from src.ledger.ops import post_entry
-
-        return post_entry
-    raise AttributeError(f"module 'src.ledger' has no attribute {name!r}")
+        value = getattr(types, name)
+    elif name == "post_entry":
+        from .ops import post_entry as value
+    else:
+        raise AttributeError(f"module 'src.ledger' has no attribute {name!r}")
+    # Cache so subsequent attribute access skips the re-import (consistent with
+    # the lazy-__getattr__ pattern in src.services.__init__).
+    globals()[name] = value
+    return value

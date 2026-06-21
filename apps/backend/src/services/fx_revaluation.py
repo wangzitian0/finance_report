@@ -337,44 +337,55 @@ async def create_revaluation_entry(
         )
         return None
 
-    total_adjustment = sum(r.unrealized_gain_loss for r in material_revaluations)
-
     base_currency = settings.base_currency.upper()
     reval_tags = {"revaluation_date": revaluation_date.isoformat()}
+
+    # Quantize each adjustment to the money quantum (2dp) up front so the Entry
+    # balance is validated against exactly what the DECIMAL(18,2) columns persist.
+    # Individual revaluations are material (>= 0.01), but their *sum* can be
+    # sub-cent (e.g. +0.014 - 0.011 = 0.003) and would otherwise round to a
+    # zero/unbalanced offset line at the DB layer.
+    adjustments = [
+        (reval.account_id, Money(reval.unrealized_gain_loss, base_currency).quantize())
+        for reval in material_revaluations
+    ]
+    net = Money.sum([adj for _, adj in adjustments], currency=base_currency)
 
     # Build the legs first so the double-entry balance is guaranteed as a TYPE
     # before anything is persisted (Axiom D / double-entry integrity). This path
     # previously wrote raw JournalLines with no balance check at all.
-    legs: list[Leg] = []
-    for reval in material_revaluations:
+    legs: list[Leg] = [
         # FX Gain: asset worth MORE in base currency → DEBIT asset; FX Loss → CREDIT.
-        asset_direction = Direction.DEBIT if reval.unrealized_gain_loss > 0 else Direction.CREDIT
+        Leg(
+            account_id,
+            Direction.DEBIT if adj.is_positive() else Direction.CREDIT,
+            abs(adj),
+            Decimal("1"),
+            "fx_revaluation",
+            reval_tags,
+        )
+        for account_id, adj in adjustments
+        if not adj.is_zero()
+    ]
+
+    # Offsetting FX leg, opposite to the net asset adjustment. When the net is zero
+    # the asset legs already balance, so no offset line is added (which also avoids
+    # the previously-possible zero-amount line).
+    if not net.is_zero():
         legs.append(
             Leg(
-                reval.account_id,
-                asset_direction,
-                Money(abs(reval.unrealized_gain_loss), base_currency),
+                fx_account.id,
+                Direction.CREDIT if net.is_positive() else Direction.DEBIT,
+                abs(net),
                 Decimal("1"),
                 "fx_revaluation",
                 reval_tags,
             )
         )
 
-    # Offsetting FX leg, opposite to the net asset adjustment. When the net is zero
-    # the asset legs already balance, so no offset line is added (which also avoids
-    # the previously-possible zero-amount line).
-    if total_adjustment != 0:
-        fx_direction = Direction.CREDIT if total_adjustment > 0 else Direction.DEBIT
-        legs.append(
-            Leg(
-                fx_account.id,
-                fx_direction,
-                Money(abs(total_adjustment), base_currency),
-                Decimal("1"),
-                "fx_revaluation",
-                reval_tags,
-            )
-        )
+    if len(legs) < 2:
+        # Nothing material survives quantization to net a balanced entry.
+        return None
 
     Entry.of(*legs)  # raises UnbalancedEntryError if the legs do not net to zero
 
