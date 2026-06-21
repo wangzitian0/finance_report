@@ -10,9 +10,9 @@ name: Production Release
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: "Version to deploy (leave empty for latest vX.Y.Z tag)"
-        required: false
+      version_ref:
+        description: "Version ref to deploy (vX.Y.Z release tag)"
+        required: true
         type: string
       dry_run:
         description: "Validate release prerequisites without deploying production"
@@ -42,35 +42,13 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          submodules: recursive
 
-      - name: Resolve release tag
-        id: version
+      - name: Resolve release coordinate
+        id: release
+        env:
+          VERSION_REF: ${{ inputs.version_ref }}
         run: |
-          set -euo pipefail
-          git fetch --force --tags origin 'refs/tags/*:refs/tags/*'
-          tag="${{ github.event.inputs.version }}"
-          if [ -z "$tag" ]; then
-            tag="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1)"
-          fi
-          if [ -z "$tag" ]; then
-            echo "::error::No release tag found. Push a vX.Y.Z tag first so release-images.yml can publish images."
-            exit 1
-          fi
-          if ! printf '%s' "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "::error::Invalid release tag '$tag'; expected vX.Y.Z."
-            exit 1
-          fi
-          git checkout --detach "$tag"
-          git submodule update --init --recursive
-          full_sha="$(git rev-parse HEAD)"
-          short_sha="${full_sha:0:7}"
-          {
-            echo "tag=$tag"
-            echo "full_sha=$full_sha"
-            echo "short_sha=$short_sha"
-          } >> "$GITHUB_OUTPUT"
-          echo "Resolved production dry-run tag: $tag ($short_sha)"
+          python3 tools/resolve_release_coordinate.py --version-ref "$VERSION_REF"
 
       - name: Install moon
         uses: moonrepo/setup-toolchain@v0
@@ -100,7 +78,7 @@ jobs:
         id: source_ci
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_SHA: ${{ steps.version.outputs.full_sha }}
+          RELEASE_SHA: ${{ steps.release.outputs.full_sha }}
         run: |
           set -euo pipefail
           run_id="$(
@@ -123,7 +101,7 @@ jobs:
         id: release_images_run
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_SHA: ${{ steps.version.outputs.full_sha }}
+          RELEASE_SHA: ${{ steps.release.outputs.full_sha }}
         run: |
           set -euo pipefail
           run_id="$(
@@ -146,7 +124,7 @@ jobs:
         id: staging
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_VERSION_REF: ${{ steps.release.outputs.version_ref }}
         run: |
           set -euo pipefail
           runs_json="$(
@@ -161,8 +139,8 @@ jobs:
           import json
           import os
 
-          release_tag = os.environ["RELEASE_TAG"]
-          expected_title = f"Deploy Staging {release_tag}"
+          release_version_ref = os.environ["RELEASE_VERSION_REF"]
+          expected_title = f"Deploy Staging {release_version_ref}"
           runs = json.loads(os.environ["RUNS_JSON"])
           for run in runs:
               if (
@@ -173,7 +151,7 @@ jobs:
           PY
           )"
           if [ -z "$candidate_run_ids" ]; then
-            echo "::error::No completed Deploy Staging run found for $RELEASE_TAG. Run staging-deploy.yml for this tag first."
+            echo "::error::No completed Deploy Staging run found for $RELEASE_VERSION_REF. Run staging-deploy.yml for this version_ref first."
             exit 1
           fi
           staging_run_id=""
@@ -209,7 +187,7 @@ jobs:
             fi
           done
           if [ -z "$staging_run_id" ]; then
-            echo "::error::No completed Deploy Staging run found for $RELEASE_TAG with successful release-critical jobs. Rerun staging-deploy.yml for this tag first."
+            echo "::error::No completed Deploy Staging run found for $RELEASE_VERSION_REF with successful release-critical jobs. Rerun staging-deploy.yml for this version_ref first."
             exit 1
           fi
           echo "run_id=$staging_run_id" >> "$GITHUB_OUTPUT"
@@ -217,7 +195,7 @@ jobs:
 
       - name: Verify Release Codebase
         env:
-          GITHUB_SHA: ${{ steps.version.outputs.full_sha }}
+          GITHUB_SHA: ${{ steps.release.outputs.full_sha }}
         run: |
           set -euo pipefail
           moon run :lint
@@ -241,11 +219,11 @@ jobs:
       - name: Verify Release Images Dry Run
         id: release_images
         env:
-          VERSION: ${{ steps.version.outputs.tag }}
+          VERSION_REF: ${{ steps.release.outputs.version_ref }}
         run: |
           set -euo pipefail
           for service in backend frontend; do
-            image="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${service}:$VERSION"
+            image="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${service}:$VERSION_REF"
             digest="$(docker buildx imagetools inspect "$image" 2>/dev/null | awk '/^Digest:/ {print $2; exit}' || true)"
             if [ -z "$digest" ]; then
               echo "::error::Release image not found: $image"
@@ -260,8 +238,8 @@ jobs:
           {
             echo "## Production Release Dry Run"
             echo ""
-            echo "- Release tag: ${{ steps.version.outputs.tag }}"
-            echo "- Released commit: ${{ steps.version.outputs.full_sha }}"
+            echo "- Release version_ref: ${{ steps.release.outputs.version_ref }}"
+            echo "- Released commit: ${{ steps.release.outputs.full_sha }}"
             echo "- Source CI run: ${{ steps.source_ci.outputs.run_id }}"
             echo "- Release images run: ${{ steps.release_images_run.outputs.run_id }}"
             echo "- Staging run: ${{ steps.staging.outputs.run_id }}"
@@ -287,15 +265,16 @@ jobs:
             echo "sha=${{ github.sha }}"
             echo "run_id=${{ github.run_id }}"
             echo "run_attempt=${{ github.run_attempt }}"
-            echo "tag=${{ steps.version.outputs.tag }}"
-            echo "release_full_sha=${{ steps.version.outputs.full_sha }}"
-            echo "release_short_sha=${{ steps.version.outputs.short_sha }}"
+            echo "version_ref=${{ steps.release.outputs.version_ref }}"
+            echo "release_full_sha=${{ steps.release.outputs.full_sha }}"
+            echo "release_short_sha=${{ steps.release.outputs.short_sha }}"
+            echo "iac_ref=${{ steps.release.outputs.iac_ref }}"
             echo "source_ci_run_id=${{ steps.source_ci.outputs.run_id }}"
             echo "release_images_run_id=${{ steps.release_images_run.outputs.run_id }}"
             echo "staging_run_id=${{ steps.staging.outputs.run_id }}"
             echo "production_mutation_skipped=true"
-            echo "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.version.outputs.tag }}"
-            echo "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.version.outputs.tag }}"
+            echo "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.release.outputs.version_ref }}"
+            echo "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.release.outputs.version_ref }}"
             echo "backend_digest=${{ steps.release_images.outputs.backend_digest }}"
             echo "frontend_digest=${{ steps.release_images.outputs.frontend_digest }}"
             echo "no_rebuild=true"
@@ -327,41 +306,19 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          submodules: recursive
 
-      - name: Resolve release tag
-        id: version
+      - name: Resolve release coordinate
+        id: release
+        env:
+          VERSION_REF: ${{ inputs.version_ref }}
         run: |
-          set -euo pipefail
-          git fetch --force --tags origin 'refs/tags/*:refs/tags/*'
-          tag="${{ github.event.inputs.version }}"
-          if [ -z "$tag" ]; then
-            tag="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1)"
-          fi
-          if [ -z "$tag" ]; then
-            echo "::error::No release tag found. Push a vX.Y.Z tag first so release-images.yml can publish images."
-            exit 1
-          fi
-          if ! printf '%s' "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "::error::Invalid release tag '$tag'; expected vX.Y.Z."
-            exit 1
-          fi
-          git checkout --detach "$tag"
-          git submodule update --init --recursive
-          full_sha="$(git rev-parse HEAD)"
-          short_sha="${full_sha:0:7}"
-          {
-            echo "tag=$tag"
-            echo "full_sha=$full_sha"
-            echo "short_sha=$short_sha"
-          } >> "$GITHUB_OUTPUT"
-          echo "Resolved production deploy tag: $tag ($short_sha)"
+          python3 tools/resolve_release_coordinate.py --version-ref "$VERSION_REF"
 
       - name: Verify source CI passed
         id: source_ci
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_SHA: ${{ steps.version.outputs.full_sha }}
+          RELEASE_SHA: ${{ steps.release.outputs.full_sha }}
         run: |
           set -euo pipefail
           run_id="$(
@@ -384,7 +341,7 @@ jobs:
         id: release_images_run
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_SHA: ${{ steps.version.outputs.full_sha }}
+          RELEASE_SHA: ${{ steps.release.outputs.full_sha }}
         run: |
           set -euo pipefail
           run_id="$(
@@ -407,7 +364,7 @@ jobs:
         id: staging
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_VERSION_REF: ${{ steps.release.outputs.version_ref }}
         run: |
           set -euo pipefail
           runs_json="$(
@@ -422,8 +379,8 @@ jobs:
           import json
           import os
 
-          release_tag = os.environ["RELEASE_TAG"]
-          expected_title = f"Deploy Staging {release_tag}"
+          release_version_ref = os.environ["RELEASE_VERSION_REF"]
+          expected_title = f"Deploy Staging {release_version_ref}"
           runs = json.loads(os.environ["RUNS_JSON"])
           for run in runs:
               if (
@@ -434,7 +391,7 @@ jobs:
           PY
           )"
           if [ -z "$candidate_run_ids" ]; then
-            echo "::error::No completed Deploy Staging run found for $RELEASE_TAG. Run staging-deploy.yml for this tag first."
+            echo "::error::No completed Deploy Staging run found for $RELEASE_VERSION_REF. Run staging-deploy.yml for this version_ref first."
             exit 1
           fi
           staging_run_id=""
@@ -470,7 +427,7 @@ jobs:
             fi
           done
           if [ -z "$staging_run_id" ]; then
-            echo "::error::No completed Deploy Staging run found for $RELEASE_TAG with successful release-critical jobs. Rerun staging-deploy.yml for this tag first."
+            echo "::error::No completed Deploy Staging run found for $RELEASE_VERSION_REF with successful release-critical jobs. Rerun staging-deploy.yml for this version_ref first."
             exit 1
           fi
           echo "run_id=$staging_run_id" >> "$GITHUB_OUTPUT"
@@ -489,11 +446,11 @@ jobs:
       - name: Verify release images
         id: verify_images
         env:
-          VERSION: ${{ steps.version.outputs.tag }}
+          VERSION_REF: ${{ steps.release.outputs.version_ref }}
         run: |
           set -euo pipefail
           for service in backend frontend; do
-            image="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${service}:$VERSION"
+            image="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${service}:$VERSION_REF"
             digest="$(docker buildx imagetools inspect "$image" 2>/dev/null | awk '/^Digest:/ {print $2; exit}' || true)"
             if [ -z "$digest" ]; then
               echo "::error::Release image not found: $image"
@@ -576,13 +533,13 @@ jobs:
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
         run: |
           set -euo pipefail
-          tag="${{ steps.version.outputs.tag }}"
-          iac_ref="$(git rev-parse HEAD)"
-          echo "Deploying production via deploy_v2: type=prod version-ref=$tag iac-ref=$iac_ref"
+          version_ref="${{ steps.release.outputs.version_ref }}"
+          iac_ref="${{ steps.release.outputs.iac_ref }}"
+          echo "Deploying production via deploy_v2: type=prod version-ref=$version_ref iac-ref=$iac_ref"
           python -m tools.deploy_v2 \
             --service finance_report/app \
             --type prod \
-            --version-ref "$tag" \
+            --version-ref "$version_ref" \
             --iac-ref "$iac_ref" \
             --domain zitian.party \
             --staging-validated \
@@ -597,14 +554,14 @@ jobs:
             "https://report.zitian.party/api/health" \
             "production" \
             24 \
-            "${{ steps.version.outputs.tag }}"
+            "${{ steps.release.outputs.version_ref }}"
 
       - name: Production Infrastructure Smoke
         id: production_infra_smoke
         run: |
           python tools/production_infra_smoke.py \
             --base-url "https://report.zitian.party" \
-            --expected-sha "${{ steps.version.outputs.tag }}" \
+            --expected-sha "${{ steps.release.outputs.version_ref }}" \
             --signoz-url "https://signoz.zitian.party"
 
       - name: Smoke Tests
@@ -635,7 +592,7 @@ jobs:
         run: |
           set -euo pipefail
           rollback_ref="${{ steps.production_before.outputs.rollback_ref }}"
-          iac_ref="$(git rev-parse HEAD)"
+          iac_ref="${{ steps.release.outputs.iac_ref }}"
           echo "Rolling back production via deploy_v2 to $rollback_ref with iac_ref=$iac_ref"
           python -m tools.deploy_v2 \
             --service finance_report/app \
@@ -716,15 +673,16 @@ jobs:
             echo "sha=${{ github.sha }}"
             echo "run_id=${{ github.run_id }}"
             echo "run_attempt=${{ github.run_attempt }}"
-            echo "tag=${{ steps.version.outputs.tag }}"
-            echo "release_full_sha=${{ steps.version.outputs.full_sha }}"
-            echo "release_short_sha=${{ steps.version.outputs.short_sha }}"
+            echo "version_ref=${{ steps.release.outputs.version_ref }}"
+            echo "release_full_sha=${{ steps.release.outputs.full_sha }}"
+            echo "release_short_sha=${{ steps.release.outputs.short_sha }}"
+            echo "iac_ref=${{ steps.release.outputs.iac_ref }}"
             echo "source_ci_run_id=${{ steps.source_ci.outputs.run_id }}"
             echo "release_images_run_id=${{ steps.release_images_run.outputs.run_id }}"
             echo "staging_run_id=${{ steps.staging.outputs.run_id }}"
             echo "app_url=https://report.zitian.party"
-            echo "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.version.outputs.tag }}"
-            echo "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.version.outputs.tag }}"
+            echo "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.release.outputs.version_ref }}"
+            echo "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.release.outputs.version_ref }}"
             echo "backend_digest=${{ steps.verify_images.outputs.backend_digest }}"
             echo "frontend_digest=${{ steps.verify_images.outputs.frontend_digest }}"
             echo "production_before_http_status=${{ steps.production_before.outputs.http_status }}"
@@ -744,8 +702,8 @@ jobs:
             echo "failure_domain=${failure_domain}"
             echo "failed_step=${failed_step}"
             echo "failure_summary=${failure_summary}"
-            echo "signoz_logs_query_url=https://signoz.zitian.party/logs?service.name=finance-report-backend&deployment.environment=production&service.version=${{ steps.version.outputs.tag }}&github.run_id=${{ github.run_id }}"
-            echo "signoz_traces_query_url=https://signoz.zitian.party/traces?service.name=finance-report-backend&deployment.environment=production&service.version=${{ steps.version.outputs.tag }}&github.run_id=${{ github.run_id }}"
+            echo "signoz_logs_query_url=https://signoz.zitian.party/logs?service.name=finance-report-backend&deployment.environment=production&service.version=${{ steps.release.outputs.version_ref }}&github.run_id=${{ github.run_id }}"
+            echo "signoz_traces_query_url=https://signoz.zitian.party/traces?service.name=finance-report-backend&deployment.environment=production&service.version=${{ steps.release.outputs.version_ref }}&github.run_id=${{ github.run_id }}"
             echo "marker=prod_safe"
           } > ci-context/production-deploy-context.txt
 

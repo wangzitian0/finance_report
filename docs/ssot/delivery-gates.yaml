@@ -53,9 +53,9 @@ gates:
     blocking: false
     image_free: false
     description: >
-      Manual staging deploy. Consumes an existing release tag through deploy_v2 and
-      rolls staging. Staging is a pre-prod canary (approx prod, slightly ahead);
-      deploys are manual (CI is the dev quality gate, not auto-deploy).
+      Manual staging deploy. Consumes an existing release version_ref through
+      deploy_v2 and rolls staging. Staging is a pre-prod canary (approx prod,
+      slightly ahead); deploys are manual (CI is the dev quality gate, not auto-deploy).
 
   - id: release-images
     workflow: .github/workflows/release-images.yml
@@ -84,6 +84,6 @@ gates:
     job: deploy
     trigger: workflow_dispatch
     blocking: false
-    image_free: true              # consumes existing release tag images; no rebuild
+    image_free: true              # consumes existing release version_ref images; no rebuild
     description: >
-      Deploy an existing staging-validated release tag to production via deploy_v2.
+      Deploy an existing staging-validated release version_ref to production via deploy_v2.
