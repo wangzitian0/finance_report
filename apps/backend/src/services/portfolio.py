@@ -426,10 +426,7 @@ class PortfolioService:
             assert position.disposal_date is not None
             disposal_price = await self._get_latest_price(db, position, position.disposal_date, user_id)
             position_quantity = position.quantity_qty.quantize()
-            disposal_value = (
-                UnitPrice(disposal_price, position.currency, PORTFOLIO_QUANTITY_UNIT)
-                * position_quantity
-            )
+            disposal_value = UnitPrice(disposal_price, position.currency, PORTFOLIO_QUANTITY_UNIT) * position_quantity
 
             # Convert to base currency (no-op when already in base; no if/else branch).
             # Per-position values are not quantized here — only the response total is.
@@ -528,10 +525,7 @@ class PortfolioService:
 
             # Calculate market value
             position_quantity = position.quantity_qty.quantize()
-            market_value = (
-                UnitPrice(latest_price, position.currency, PORTFOLIO_QUANTITY_UNIT)
-                * position_quantity
-            )
+            market_value = UnitPrice(latest_price, position.currency, PORTFOLIO_QUANTITY_UNIT) * position_quantity
 
             # Convert to base currency (no-op when already in base; no if/else).
             # Per-position values are not quantized here — only the response total is.

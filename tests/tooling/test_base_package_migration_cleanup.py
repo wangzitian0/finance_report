@@ -240,10 +240,8 @@ def test_AC12_31_7_backend_quantity_business_code_uses_value_type():
     assert "buy_price * trade_quantity" in investment
 
     portfolio = _read(Path("apps/backend/src/services/portfolio.py"))
-    assert (
-        "position_quantity = Quantity(position.quantity, PORTFOLIO_QUANTITY_UNIT).quantize()"
-        in portfolio
-    )
+    # Quantity flows via the ManagedPosition.quantity_qty accessor (#3 boundary push).
+    assert "position_quantity = position.quantity_qty.quantize()" in portfolio
     assert "snapshot_quantity.is_zero()" in portfolio
 
     reporting = _read(Path("apps/backend/src/services/reporting"))
