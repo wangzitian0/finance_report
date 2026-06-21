@@ -25,7 +25,7 @@ CONTRACT = PackageContract(
     name="counter",
     klass="platform",
     status="active",
-    depends_on=[],
+    depends_on=["platform"],
     roles=["types", "ops", "store", "api"],
     implementations={"be": "apps/backend/src/counter", "fe": None},
     interface=[
@@ -39,6 +39,7 @@ CONTRACT = PackageContract(
         "get_count",
         "increment",
         "read_count",
+        "record_increment",
     ],
     events=["Incremented"],
     invariants=[
@@ -90,8 +91,9 @@ CONTRACT = PackageContract(
             id="AC25.6.3",
             statement=(
                 "increment bumps the per-(user, key) tally by one, returns the new "
-                "per-user Count, and emits an Incremented domain event; ops depend "
-                "only on the CounterRepository port, never the ORM."
+                "per-user Count, and publishes an Incremented domain event through "
+                "the platform EventBus; ops depend only on the CounterRepository "
+                "port and the EventBus port, never the ORM."
             ),
             test="apps/backend/tests/counter/test_increment.py::test_increment_is_per_user",
             priority="P1",
