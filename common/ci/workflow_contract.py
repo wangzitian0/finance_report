@@ -359,6 +359,20 @@ def check_issue_templates(repo_root: Path, errors: list[str]) -> None:
             )
 
 
+def required_string(
+    mapping: dict,
+    key: str,
+    *,
+    context: str,
+    errors: list[str],
+) -> str:
+    value = mapping.get(key)
+    if not isinstance(value, str) or not value.strip():
+        errors.append(f"{ACTION_RUNTIME_INVENTORY}: {context} missing `{key}`")
+        return ""
+    return value.strip()
+
+
 def check_action_runtime_inventory(repo_root: Path, errors: list[str]) -> None:
     try:
         inventory = load_yaml(repo_root, ACTION_RUNTIME_INVENTORY)
@@ -381,21 +395,29 @@ def check_action_runtime_inventory(repo_root: Path, errors: list[str]) -> None:
         if not isinstance(entry, dict):
             errors.append(f"{ACTION_RUNTIME_INVENTORY}: action entries must be maps")
             continue
-        uses = str(entry.get("uses", ""))
-        status = str(entry.get("runtime_status", ""))
+        uses = required_string(
+            entry,
+            "uses",
+            context="action entry",
+            errors=errors,
+        )
+        status = required_string(
+            entry,
+            "runtime_status",
+            context=f"action {uses!r}",
+            errors=errors,
+        )
         if not uses:
-            errors.append(f"{ACTION_RUNTIME_INVENTORY}: action entry missing `uses`")
             continue
         if uses in inventoried:
             errors.append(f"{ACTION_RUNTIME_INVENTORY}: duplicate action {uses!r}")
-        inventoried[uses] = entry
+        inventoried[uses] = {**entry, "runtime_status": status}
         if status not in ACTION_RUNTIME_STATUSES:
             errors.append(
                 f"{ACTION_RUNTIME_INVENTORY}: {uses} has invalid "
                 f"runtime_status {status!r}"
             )
-        if not str(entry.get("owner", "")):
-            errors.append(f"{ACTION_RUNTIME_INVENTORY}: {uses} is missing owner")
+        required_string(entry, "owner", context=f"action {uses!r}", errors=errors)
 
     missing = sorted(used_actions - set(inventoried))
     if missing:
@@ -415,15 +437,19 @@ def check_action_runtime_inventory(repo_root: Path, errors: list[str]) -> None:
         if not isinstance(exception, dict):
             errors.append(f"{ACTION_RUNTIME_INVENTORY}: exception entries must be maps")
             continue
-        uses = str(exception.get("uses", ""))
+        uses = required_string(
+            exception,
+            "uses",
+            context="exception entry",
+            errors=errors,
+        )
+        if not uses:
+            continue
         if uses in exception_actions:
             errors.append(f"{ACTION_RUNTIME_INVENTORY}: duplicate exception {uses!r}")
         exception_actions[uses] = exception
         for key in ("owner", "reason", "review_after"):
-            if not str(exception.get(key, "")):
-                errors.append(
-                    f"{ACTION_RUNTIME_INVENTORY}: exception {uses!r} missing `{key}`"
-                )
+            required_string(exception, key, context=f"exception {uses!r}", errors=errors)
 
     forced_actions = {
         uses
@@ -438,7 +464,10 @@ def check_action_runtime_inventory(repo_root: Path, errors: list[str]) -> None:
         )
 
     if forced_actions:
-        for workflow_path in sorted((repo_root / ".github" / "workflows").glob("*.yml")):
+        workflow_paths = sorted(
+            (repo_root / ".github" / "workflows").glob("*.yml")
+        ) + sorted((repo_root / ".github" / "workflows").glob("*.yaml"))
+        for workflow_path in workflow_paths:
             workflow_text = workflow_path.read_text(encoding="utf-8")
             if 'FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"' not in workflow_text:
                 rel = workflow_path.relative_to(repo_root)
