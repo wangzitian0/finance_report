@@ -1340,10 +1340,20 @@ def test_AC8_13_16_workflows_opt_into_node24_actions_runtime() -> None:
         )
 
     ci_cd = read("docs/ssot/ci-cd.md")
+    inventory = yaml.safe_load(read("docs/ssot/github-action-runtime.yaml"))
+    forced_actions = [
+        action["uses"]
+        for action in inventory["actions"]
+        if action["runtime_status"] == "forced_node20_metadata"
+    ]
+    exceptions = {exception["uses"] for exception in inventory["exceptions"]}
     assert "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24" in ci_cd
     assert (
         "GitHub JavaScript action runtime is explicitly validated on Node 24" in ci_cd
     )
+    assert "docs/ssot/github-action-runtime.yaml" in ci_cd
+    assert forced_actions
+    assert set(forced_actions) == exceptions
 
 
 def test_AC8_13_17_ac_traceability_runs_registry_generation_check() -> None:

@@ -1,0 +1,89 @@
+version: "1.0"
+owner: ci_workflow
+purpose: >
+  Inventory of external GitHub JavaScript actions used by repository workflows
+  and composite actions. This keeps Node 20 action-runtime migration debt
+  visible while FORCE_JAVASCRIPT_ACTIONS_TO_NODE24 remains enabled.
+
+forced_runtime_env: FORCE_JAVASCRIPT_ACTIONS_TO_NODE24
+remove_forced_runtime_when_forced_node20_metadata_count_is: 0
+
+actions:
+  - uses: actions/cache@v5
+    runtime_status: node24_native
+    owner: ci_workflow
+  - uses: actions/checkout@v7
+    runtime_status: node24_native
+    owner: ci_workflow
+  - uses: actions/configure-pages@v4
+    runtime_status: node24_native
+    owner: docs_workflow
+  - uses: actions/deploy-pages@v4
+    runtime_status: node24_native
+    owner: docs_workflow
+  - uses: actions/download-artifact@v4
+    runtime_status: forced_node20_metadata
+    owner: ci_workflow
+  - uses: actions/github-script@v7
+    runtime_status: forced_node20_metadata
+    owner: pr_preview_workflow
+  - uses: actions/setup-node@v6
+    runtime_status: node24_native
+    owner: ci_workflow
+  - uses: actions/setup-python@v6
+    runtime_status: node24_native
+    owner: ci_workflow
+  - uses: actions/upload-artifact@v7
+    runtime_status: node24_native
+    owner: ci_workflow
+  - uses: actions/upload-pages-artifact@v3
+    runtime_status: forced_node20_metadata
+    owner: docs_workflow
+  - uses: astral-sh/setup-uv@v8.2.0
+    runtime_status: node24_native
+    owner: ci_workflow
+  - uses: coverallsapp/github-action@v2
+    runtime_status: forced_node20_metadata
+    owner: ci_workflow
+  - uses: docker/build-push-action@v5
+    runtime_status: forced_node20_metadata
+    owner: ci_workflow
+  - uses: docker/login-action@v3
+    runtime_status: forced_node20_metadata
+    owner: ci_workflow
+  - uses: docker/setup-buildx-action@v3
+    runtime_status: forced_node20_metadata
+    owner: ci_workflow
+  - uses: moonrepo/setup-toolchain@v0
+    runtime_status: node24_native
+    owner: ci_workflow
+
+exceptions:
+  - uses: actions/download-artifact@v4
+    owner: ci_workflow
+    reason: Upstream metadata still emits Node 20 runtime warnings under forced Node 24 validation.
+    review_after: "2026-07-15"
+  - uses: actions/github-script@v7
+    owner: pr_preview_workflow
+    reason: PR preview comment/update helpers remain pinned until the Node 24 native major is available and tested.
+    review_after: "2026-07-15"
+  - uses: actions/upload-pages-artifact@v3
+    owner: docs_workflow
+    reason: Pages artifact upload is retained until a Node 24 native replacement is available for GitHub Pages.
+    review_after: "2026-07-15"
+  - uses: coverallsapp/github-action@v2
+    owner: ci_workflow
+    reason: Main-only coverage reporting action is retained while local unified coverage remains authoritative.
+    review_after: "2026-07-15"
+  - uses: docker/build-push-action@v5
+    owner: ci_workflow
+    reason: Docker image validation/publish still emits Node 20 metadata warnings; upgrade when Docker publishes a Node 24 native major.
+    review_after: "2026-07-15"
+  - uses: docker/login-action@v3
+    owner: ci_workflow
+    reason: GHCR authentication still emits Node 20 metadata warnings; upgrade when Docker publishes a Node 24 native major.
+    review_after: "2026-07-15"
+  - uses: docker/setup-buildx-action@v3
+    owner: ci_workflow
+    reason: Buildx setup still emits Node 20 metadata warnings; upgrade when Docker publishes a Node 24 native major.
+    review_after: "2026-07-15"
