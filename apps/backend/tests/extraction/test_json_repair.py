@@ -112,8 +112,8 @@ class TestExtractionSalvagesFencedResponse:
         with (
             patch.object(service, "api_key", "test-key"),
             patch.object(service, "base_url", "https://test.api"),
-            patch("src.services.extraction.stream_ai_json", return_value=MagicMock()),
-            patch("src.services.extraction.accumulate_stream", AsyncMock(return_value=fenced)),
+            patch("src.services.extraction.service.stream_ai_json", return_value=MagicMock()),
+            patch("src.services.extraction.service.accumulate_stream", AsyncMock(return_value=fenced)),
         ):
             result = await service._extract_json_with_models(
                 messages=[{"role": "user", "content": "x"}],
@@ -135,8 +135,8 @@ class TestExtractionSalvagesFencedResponse:
         with (
             patch.object(service, "api_key", "test-key"),
             patch.object(service, "base_url", "https://test.api"),
-            patch("src.services.extraction.stream_ai_json", return_value=MagicMock()),
-            patch("src.services.extraction.accumulate_stream", AsyncMock(return_value="not json at all")),
+            patch("src.services.extraction.service.stream_ai_json", return_value=MagicMock()),
+            patch("src.services.extraction.service.accumulate_stream", AsyncMock(return_value="not json at all")),
         ):
             with pytest.raises(ExtractionError):
                 await service._extract_json_with_models(

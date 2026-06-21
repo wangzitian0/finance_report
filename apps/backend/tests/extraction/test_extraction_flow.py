@@ -154,7 +154,7 @@ class TestExtractionServiceFlow:
 
         json_content = json.dumps({"test": "data"})
 
-        with patch("src.services.extraction.stream_ai_json") as mock_stream:
+        with patch("src.services.extraction.service.stream_ai_json") as mock_stream:
             mock_stream.return_value = mock_stream_generator(json_content)
 
             result = await service.extract_financial_data(b"content", "DBS", "png")
@@ -166,7 +166,7 @@ class TestExtractionServiceFlow:
 
         content = 'Here is json:\n```json\n{"test": "markdown"}\n```'
 
-        with patch("src.services.extraction.stream_ai_json") as mock_stream:
+        with patch("src.services.extraction.service.stream_ai_json") as mock_stream:
             mock_stream.return_value = mock_stream_generator(content)
 
             result = await service.extract_financial_data(b"content", "DBS", "png")
@@ -178,7 +178,7 @@ class TestExtractionServiceFlow:
 
         content = 'Sure! {"test": "value"}\nThanks!'
 
-        with patch("src.services.extraction.stream_ai_json") as mock_stream:
+        with patch("src.services.extraction.service.stream_ai_json") as mock_stream:
             mock_stream.return_value = mock_stream_generator(content)
 
             result = await service.extract_financial_data(b"content", "DBS", "png")
@@ -190,7 +190,7 @@ class TestExtractionServiceFlow:
 
         content = json.dumps([{"test": "value"}])
 
-        with patch("src.services.extraction.stream_ai_json") as mock_stream:
+        with patch("src.services.extraction.service.stream_ai_json") as mock_stream:
             mock_stream.return_value = mock_stream_generator(content)
 
             with pytest.raises(ExtractionError, match="strict JSON object"):
@@ -202,7 +202,7 @@ class TestExtractionServiceFlow:
 
         from src.services.ai_streaming import AIStreamError
 
-        with patch("src.services.extraction.stream_ai_json") as mock_stream:
+        with patch("src.services.extraction.service.stream_ai_json") as mock_stream:
             mock_stream.side_effect = AIStreamError("HTTP 400: Bad Request")
 
             with pytest.raises(ExtractionError, match="failed"):
@@ -223,7 +223,7 @@ class TestExtractionServiceFlow:
 
         json_content = json.dumps({"success": True})
 
-        with patch("src.services.extraction.stream_ai_json") as mock_stream:
+        with patch("src.services.extraction.service.stream_ai_json") as mock_stream:
             mock_stream.return_value = mock_stream_generator(json_content)
 
             await service.extract_financial_data(file_content=content, file_url=url, institution="DBS", file_type="png")
@@ -244,7 +244,7 @@ class TestExtractionServiceFlow:
 
         json_content = json.dumps({"success": True})
 
-        with patch("src.services.extraction.stream_ai_json") as mock_stream:
+        with patch("src.services.extraction.service.stream_ai_json") as mock_stream:
             mock_stream.return_value = mock_stream_generator(json_content)
 
             await service.extract_financial_data(file_content=None, file_url=url, institution="DBS", file_type="pdf")
@@ -276,7 +276,7 @@ class TestExtractionServiceFlow:
 
         with (
             patch.object(service, "_render_pdf_pages_as_image_payloads", return_value=[image_payload]) as mock_render,
-            patch("src.services.extraction.stream_ai_json") as mock_stream,
+            patch("src.services.extraction.service.stream_ai_json") as mock_stream,
         ):
             mock_stream.return_value = mock_stream_generator(json_content)
             await service.extract_financial_data(
@@ -299,7 +299,7 @@ class TestExtractionServiceFlow:
 
         with (
             patch.object(service, "_render_pdf_pages_as_image_payloads", return_value=[image_payload]) as mock_render,
-            patch("src.services.extraction.stream_ai_json") as mock_stream,
+            patch("src.services.extraction.service.stream_ai_json") as mock_stream,
         ):
             mock_stream.return_value = mock_stream_generator(json_content)
             await service.extract_financial_data(
@@ -329,7 +329,7 @@ class TestExtractionServiceFlow:
 
         with (
             patch.object(service, "_render_pdf_pages_as_image_payloads", return_value=[image_payload]) as mock_render,
-            patch("src.services.extraction.stream_ai_json") as mock_stream,
+            patch("src.services.extraction.service.stream_ai_json") as mock_stream,
         ):
             mock_stream.return_value = mock_stream_generator(json_content)
 

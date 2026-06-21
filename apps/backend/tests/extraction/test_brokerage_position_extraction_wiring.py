@@ -371,7 +371,6 @@ async def test_per_currency_nav_self_check_failure_marks_statement_invalid(test_
     """
     from unittest.mock import AsyncMock
 
-    import src.services.extraction as extraction_module
 
     service = ExtractionService()
     payload = _load_fixture("ibkr-multicurrency-positions_parsed.json")
@@ -393,7 +392,7 @@ async def test_per_currency_nav_self_check_failure_marks_statement_invalid(test_
             ],
         }
 
-    monkeypatch.setattr(extraction_module, "validate_balance_per_currency", _failing_per_currency)
+    monkeypatch.setattr("src.services.extraction.service.validate_balance_per_currency", _failing_per_currency)
 
     statement, _ = await service.parse_document(
         file_path=Path("ibkr-multicurrency-2506.pdf"),
