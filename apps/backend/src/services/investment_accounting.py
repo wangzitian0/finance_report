@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.ledger import Entry, post_entry
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType
 from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
@@ -89,35 +90,23 @@ class InvestmentAccountingService:
             cost_basis_method=cost_basis_method,
         )
 
-        entry = await create_journal_entry(
+        # Dr investment / Cr cash — a balanced two-leg transfer. Entry guarantees
+        # the balance invariant at construction; post_entry persists + posts it.
+        posted = await post_entry(
             db,
             user_id=user_id,
             entry_date=transaction_date,
             memo=f"Buy {asset_identifier}",
-            source_type=JournalEntrySourceType.SYSTEM,
             source_id=source_id,
-            lines_data=[
-                {
-                    "account_id": investment_account.id,
-                    "direction": Direction.DEBIT,
-                    "amount": amount,
-                    "currency": currency,
-                    "fx_rate": fx_rate,
-                    "event_type": "investment_buy",
-                    "tags": {"asset_identifier": asset_identifier},
-                },
-                {
-                    "account_id": cash_account.id,
-                    "direction": Direction.CREDIT,
-                    "amount": amount,
-                    "currency": currency,
-                    "fx_rate": fx_rate,
-                    "event_type": "investment_buy",
-                    "tags": {"asset_identifier": asset_identifier},
-                },
-            ],
+            entry=Entry.transfer(
+                debit=investment_account.id,
+                credit=cash_account.id,
+                money=gross,
+                fx_rate=fx_rate,
+                event_type="investment_buy",
+                tags={"asset_identifier": asset_identifier},
+            ),
         )
-        posted = await self._post_and_load(db, entry.id, user_id)
 
         transaction = InvestmentTransaction(
             user_id=user_id,

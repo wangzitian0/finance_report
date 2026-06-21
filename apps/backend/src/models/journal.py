@@ -5,7 +5,7 @@ from __future__ import annotations
 import enum
 from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
 from sqlalchemy import DECIMAL, CheckConstraint, Date, DateTime, Enum, ForeignKey, String, Text, event
@@ -41,6 +41,31 @@ class JournalEntrySourceType(str, enum.Enum):
     # ``normalize_source_type`` and the immutability trigger's text guards.
     SYSTEM = "system"
     FX_REVALUATION = "fx_revaluation"
+
+
+ConfidenceTier = Literal["TRUSTED", "HIGH", "MEDIUM", "LOW"]
+
+# Source-type → UI confidence tier (EPIC-018). Co-located with the enum it maps so
+# the model layer never needs to import a service (keeps the dependency a DAG).
+_SOURCE_TYPE_TIERS: dict[str, ConfidenceTier] = {
+    "manual": "TRUSTED",
+    "user_confirmed": "HIGH",
+    "auto_matched": "MEDIUM",
+    "auto_parsed": "LOW",
+    "bank_statement": "LOW",
+    "system": "LOW",
+    "fx_revaluation": "LOW",
+}
+
+
+def derive_confidence_tier(
+    source_type: JournalEntrySourceType | str | None,
+) -> ConfidenceTier:
+    """Map a journal ``source_type`` to the EPIC-018 UI confidence tier contract."""
+    if source_type is None:
+        return "LOW"
+    value = source_type.value if isinstance(source_type, JournalEntrySourceType) else str(source_type)
+    return _SOURCE_TYPE_TIERS.get(value, "LOW")
 
 
 class Direction(str, enum.Enum):
@@ -102,8 +127,6 @@ class JournalEntry(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     @property
     def confidence_tier(self) -> str:
         """Derived UI confidence tier based on source type."""
-        from src.services.confidence_tier import derive_confidence_tier
-
         return derive_confidence_tier(self.source_type)
 
 
