@@ -34,6 +34,7 @@ from src.schemas.portfolio import (
 )
 from src.schemas.provenance import DataProvenance
 from src.services import fx
+from src.unit_price import UnitPrice
 
 logger = get_logger(__name__)
 
@@ -147,40 +148,27 @@ class PortfolioService:
             # Get latest market price from AtomicPosition (per-unit price)
             latest_price = await self._get_latest_price(db, position, eval_date, user_id)
 
-            # Calculate market value
-            position_quantity = Quantity(position.quantity, PORTFOLIO_QUANTITY_UNIT).quantize()
-            market_value = position_quantity.value * latest_price
-
-            # Convert to base currency if needed
-            if position.currency != settings.base_currency:
-                converted_value = await fx.convert_amount(
+            # Market value as money-per-unit × quantity, converted to base currency.
+            # convert_money is a no-op when already in base, so no if/else branch.
+            position_quantity = position.quantity_qty.quantize()
+            market_value = UnitPrice(latest_price, position.currency, PORTFOLIO_QUANTITY_UNIT) * position_quantity
+            converted_value = (
+                await fx.convert_money(db, market_value, settings.base_currency, rate_date=eval_date, lazy_load=True)
+            ).quantize()
+            converted_cost = (
+                await fx.convert_money(
                     db,
-                    amount=market_value,
-                    currency=position.currency,
-                    target_currency=settings.base_currency,
-                    rate_date=eval_date,
-                    lazy_load=True,
-                )
-                converted_cost = await fx.convert_amount(
-                    db,
-                    amount=position.cost_basis,
-                    currency=position.currency,
-                    target_currency=settings.base_currency,
+                    position.cost_basis_money,
+                    settings.base_currency,
                     rate_date=position.acquisition_date,
                     lazy_load=True,
                 )
-                currency = settings.base_currency
-            else:
-                converted_value = market_value
-                converted_cost = position.cost_basis
-                currency = position.currency
-
-            converted_value = to_money(converted_value)
-            converted_cost = to_money(converted_cost)
+            ).quantize()
+            currency = converted_value.currency.code
 
             # Calculate P&L (unrealized: market_value - cost_basis)
-            unrealized_pnl = to_money(converted_value - converted_cost)
-            unrealized_pnl_ratio = Ratio.fraction_or_zero(unrealized_pnl, converted_cost)
+            unrealized_pnl = converted_value - converted_cost
+            unrealized_pnl_ratio = Ratio.fraction_or_zero(unrealized_pnl.amount, converted_cost.amount)
 
             # Get asset classification from latest AtomicPosition (scoped by user_id)
             asset_type = None
@@ -201,9 +189,9 @@ class PortfolioService:
                 account_id=position.account_id,
                 asset_identifier=position.asset_identifier,
                 quantity=position.quantity,
-                cost_basis=converted_cost,
-                market_value=converted_value,
-                unrealized_pnl=unrealized_pnl,
+                cost_basis=converted_cost.amount,
+                market_value=converted_value.amount,
+                unrealized_pnl=unrealized_pnl.amount,
                 unrealized_pnl_percent=unrealized_pnl_ratio.to_percent(),
                 currency=currency,
                 acquisition_date=position.acquisition_date,
