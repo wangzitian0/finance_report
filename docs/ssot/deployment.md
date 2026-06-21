@@ -146,8 +146,8 @@ Triggers:
   - Manual dispatch: Deploy existing release version_ref to production
   - Manual dry-run:  Validate release prerequisites without deploy
 
-Dry-run:    Manual -> Resolve release coordinate -> Verify main CI, release-images, staging -> Release lint -> Verify release image digests -> Skip production mutation
-Deploy job: Manual -> Resolve release coordinate -> Verify main CI, release-images, staging -> Verify release image digests -> deploy_v2 -> Health -> Smoke/E2E
+Dry-run:    Manual -> Resolve release coordinate -> Verify release evidence -> Release lint -> Verify release image digests -> Skip production mutation
+Deploy job: Manual -> Resolve release coordinate -> Verify release evidence -> Verify release image digests -> deploy_v2 -> Health -> Smoke/E2E
 
 URL: https://report.zitian.party
 ```
@@ -180,6 +180,11 @@ the tag into backend/frontend image names by manifest-copying main-CI images in
 `deploy_primitive`, which sets runtime `IMAGE_TAG`, `GIT_COMMIT_SHA`, and a fresh
 per-deploy `IAC_CONFIG_HASH` so Dokploy restarts the app even when redeploying
 the same tag.
+`tools/verify_release_evidence.py` owns the shared production prerequisite
+checks for source CI, release-image publication, and exact staging proof;
+`tools/verify_release_images.py` owns backend/frontend release digest discovery.
+The dry-run and deploy jobs call the same tools so production eligibility logic
+does not fork between the two lanes.
 Before mutating production, the release workflow probes the current production
 health endpoint and records the pre-deploy version in the deploy context. The
 same artifact records deploy-health, smoke, read-only E2E, and failure-domain

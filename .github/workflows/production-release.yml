@@ -81,21 +81,10 @@ jobs:
           RELEASE_SHA: ${{ steps.release.outputs.full_sha }}
         run: |
           set -euo pipefail
-          run_id="$(
-            gh run list \
-              --repo "$GITHUB_REPOSITORY" \
-              --workflow ci.yml \
-              --commit "$RELEASE_SHA" \
-              --limit 30 \
-              --json databaseId,status,conclusion,event,headBranch \
-              --jq '[.[] | select(.event == "push" and .headBranch == "main" and .status == "completed" and .conclusion == "success")][0].databaseId // ""'
-          )"
-          if [ -z "$run_id" ]; then
-            echo "::error::No successful main CI run found for $RELEASE_SHA"
-            exit 1
-          fi
-          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
-          echo "Using successful main CI run: $run_id"
+          python tools/verify_release_evidence.py \
+            --check source-ci \
+            --repository "$GITHUB_REPOSITORY" \
+            --release-sha "$RELEASE_SHA"
 
       - name: Verify release images workflow passed
         id: release_images_run
@@ -104,94 +93,22 @@ jobs:
           RELEASE_SHA: ${{ steps.release.outputs.full_sha }}
         run: |
           set -euo pipefail
-          run_id="$(
-            gh run list \
-              --repo "$GITHUB_REPOSITORY" \
-              --workflow release-images.yml \
-              --commit "$RELEASE_SHA" \
-              --limit 30 \
-              --json databaseId,status,conclusion,event \
-              --jq '[.[] | select(.event == "push" and .status == "completed" and .conclusion == "success")][0].databaseId // ""'
-          )"
-          if [ -z "$run_id" ]; then
-            echo "::error::No successful release-images.yml run found for $RELEASE_SHA"
-            exit 1
-          fi
-          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
-          echo "Using successful release-images.yml run: $run_id"
+          python tools/verify_release_evidence.py \
+            --check release-images-run \
+            --repository "$GITHUB_REPOSITORY" \
+            --release-sha "$RELEASE_SHA"
 
       - name: Verify staging passed
         id: staging
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_VERSION_REF: ${{ steps.release.outputs.version_ref }}
+          VERSION_REF: ${{ steps.release.outputs.version_ref }}
         run: |
           set -euo pipefail
-          runs_json="$(
-            gh run list \
-              --repo "$GITHUB_REPOSITORY" \
-              --workflow staging-deploy.yml \
-              --limit 50 \
-              --json databaseId,status,displayTitle,url
-          )"
-          candidate_run_ids="$(
-            RUNS_JSON="$runs_json" python - <<'PY'
-          import json
-          import os
-
-          release_version_ref = os.environ["RELEASE_VERSION_REF"]
-          expected_title = f"Deploy Staging {release_version_ref}"
-          runs = json.loads(os.environ["RUNS_JSON"])
-          for run in runs:
-              if (
-                  run.get("status") == "completed"
-                  and run.get("displayTitle") == expected_title
-              ):
-                  print(run["databaseId"])
-          PY
-          )"
-          if [ -z "$candidate_run_ids" ]; then
-            echo "::error::No completed Deploy Staging run found for $RELEASE_VERSION_REF. Run staging-deploy.yml for this version_ref first."
-            exit 1
-          fi
-          staging_run_id=""
-          for candidate_run_id in $candidate_run_ids; do
-            jobs_json="$(gh run view "$candidate_run_id" --repo "$GITHUB_REPOSITORY" --json jobs)"
-            if CANDIDATE_RUN_ID="$candidate_run_id" JOBS_JSON="$jobs_json" python - <<'PY'
-          import json
-          import os
-          import sys
-
-          candidate_run_id = os.environ["CANDIDATE_RUN_ID"]
-          required_staging_jobs = {"Deploy Staging", "Staging Provider Gate"}
-          optional_staging_jobs = {"Staging AI/OCR Gate"}
-          jobs = json.loads(os.environ["JOBS_JSON"])["jobs"]
-          by_name = {job.get("name"): job for job in jobs}
-          missing = sorted(required_staging_jobs - set(by_name))
-          failed = sorted(
-              name
-              for name in required_staging_jobs
-              if name in by_name and by_name[name].get("conclusion") != "success"
-          )
-          if missing or failed:
-              print(f"::notice::Skipping staging run {candidate_run_id}: release-critical jobs missing={missing} failed={failed}")
-              sys.exit(1)
-          for name in sorted(optional_staging_jobs):
-              job = by_name.get(name)
-              if job and job.get("conclusion") != "success":
-                  print(f"::warning::{name} concluded {job.get('conclusion')}; it does not block production release eligibility.")
-          PY
-            then
-              staging_run_id="$candidate_run_id"
-              break
-            fi
-          done
-          if [ -z "$staging_run_id" ]; then
-            echo "::error::No completed Deploy Staging run found for $RELEASE_VERSION_REF with successful release-critical jobs. Rerun staging-deploy.yml for this version_ref first."
-            exit 1
-          fi
-          echo "run_id=$staging_run_id" >> "$GITHUB_OUTPUT"
-          echo "Using release-critical Deploy Staging run: $staging_run_id"
+          python tools/verify_release_evidence.py \
+            --check staging \
+            --repository "$GITHUB_REPOSITORY" \
+            --version-ref "$VERSION_REF"
 
       - name: Verify Release Codebase
         env:
@@ -222,16 +139,10 @@ jobs:
           VERSION_REF: ${{ steps.release.outputs.version_ref }}
         run: |
           set -euo pipefail
-          for service in backend frontend; do
-            image="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${service}:$VERSION_REF"
-            digest="$(docker buildx imagetools inspect "$image" 2>/dev/null | awk '/^Digest:/ {print $2; exit}' || true)"
-            if [ -z "$digest" ]; then
-              echo "::error::Release image not found: $image"
-              exit 1
-            fi
-            echo "Found ${service} release image digest: $digest"
-            echo "${service}_digest=$digest" >> "$GITHUB_OUTPUT"
-          done
+          python tools/verify_release_images.py \
+            --registry "${{ env.REGISTRY }}" \
+            --image-prefix "${{ env.IMAGE_PREFIX }}" \
+            --version-ref "$VERSION_REF"
 
       - name: Summary
         run: |
@@ -321,21 +232,10 @@ jobs:
           RELEASE_SHA: ${{ steps.release.outputs.full_sha }}
         run: |
           set -euo pipefail
-          run_id="$(
-            gh run list \
-              --repo "$GITHUB_REPOSITORY" \
-              --workflow ci.yml \
-              --commit "$RELEASE_SHA" \
-              --limit 30 \
-              --json databaseId,status,conclusion,event,headBranch \
-              --jq '[.[] | select(.event == "push" and .headBranch == "main" and .status == "completed" and .conclusion == "success")][0].databaseId // ""'
-          )"
-          if [ -z "$run_id" ]; then
-            echo "::error::No successful main CI run found for $RELEASE_SHA"
-            exit 1
-          fi
-          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
-          echo "Using successful main CI run: $run_id"
+          python tools/verify_release_evidence.py \
+            --check source-ci \
+            --repository "$GITHUB_REPOSITORY" \
+            --release-sha "$RELEASE_SHA"
 
       - name: Verify release images workflow passed
         id: release_images_run
@@ -344,94 +244,22 @@ jobs:
           RELEASE_SHA: ${{ steps.release.outputs.full_sha }}
         run: |
           set -euo pipefail
-          run_id="$(
-            gh run list \
-              --repo "$GITHUB_REPOSITORY" \
-              --workflow release-images.yml \
-              --commit "$RELEASE_SHA" \
-              --limit 30 \
-              --json databaseId,status,conclusion,event \
-              --jq '[.[] | select(.event == "push" and .status == "completed" and .conclusion == "success")][0].databaseId // ""'
-          )"
-          if [ -z "$run_id" ]; then
-            echo "::error::No successful release-images.yml run found for $RELEASE_SHA"
-            exit 1
-          fi
-          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
-          echo "Using successful release-images.yml run: $run_id"
+          python tools/verify_release_evidence.py \
+            --check release-images-run \
+            --repository "$GITHUB_REPOSITORY" \
+            --release-sha "$RELEASE_SHA"
 
       - name: Verify staging passed
         id: staging
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_VERSION_REF: ${{ steps.release.outputs.version_ref }}
+          VERSION_REF: ${{ steps.release.outputs.version_ref }}
         run: |
           set -euo pipefail
-          runs_json="$(
-            gh run list \
-              --repo "$GITHUB_REPOSITORY" \
-              --workflow staging-deploy.yml \
-              --limit 50 \
-              --json databaseId,status,displayTitle,url
-          )"
-          candidate_run_ids="$(
-            RUNS_JSON="$runs_json" python - <<'PY'
-          import json
-          import os
-
-          release_version_ref = os.environ["RELEASE_VERSION_REF"]
-          expected_title = f"Deploy Staging {release_version_ref}"
-          runs = json.loads(os.environ["RUNS_JSON"])
-          for run in runs:
-              if (
-                  run.get("status") == "completed"
-                  and run.get("displayTitle") == expected_title
-              ):
-                  print(run["databaseId"])
-          PY
-          )"
-          if [ -z "$candidate_run_ids" ]; then
-            echo "::error::No completed Deploy Staging run found for $RELEASE_VERSION_REF. Run staging-deploy.yml for this version_ref first."
-            exit 1
-          fi
-          staging_run_id=""
-          for candidate_run_id in $candidate_run_ids; do
-            jobs_json="$(gh run view "$candidate_run_id" --repo "$GITHUB_REPOSITORY" --json jobs)"
-            if CANDIDATE_RUN_ID="$candidate_run_id" JOBS_JSON="$jobs_json" python - <<'PY'
-          import json
-          import os
-          import sys
-
-          candidate_run_id = os.environ["CANDIDATE_RUN_ID"]
-          required_staging_jobs = {"Deploy Staging", "Staging Provider Gate"}
-          optional_staging_jobs = {"Staging AI/OCR Gate"}
-          jobs = json.loads(os.environ["JOBS_JSON"])["jobs"]
-          by_name = {job.get("name"): job for job in jobs}
-          missing = sorted(required_staging_jobs - set(by_name))
-          failed = sorted(
-              name
-              for name in required_staging_jobs
-              if name in by_name and by_name[name].get("conclusion") != "success"
-          )
-          if missing or failed:
-              print(f"::notice::Skipping staging run {candidate_run_id}: release-critical jobs missing={missing} failed={failed}")
-              sys.exit(1)
-          for name in sorted(optional_staging_jobs):
-              job = by_name.get(name)
-              if job and job.get("conclusion") != "success":
-                  print(f"::warning::{name} concluded {job.get('conclusion')}; it does not block production release eligibility.")
-          PY
-            then
-              staging_run_id="$candidate_run_id"
-              break
-            fi
-          done
-          if [ -z "$staging_run_id" ]; then
-            echo "::error::No completed Deploy Staging run found for $RELEASE_VERSION_REF with successful release-critical jobs. Rerun staging-deploy.yml for this version_ref first."
-            exit 1
-          fi
-          echo "run_id=$staging_run_id" >> "$GITHUB_OUTPUT"
-          echo "Using release-critical Deploy Staging run: $staging_run_id"
+          python tools/verify_release_evidence.py \
+            --check staging \
+            --repository "$GITHUB_REPOSITORY" \
+            --version-ref "$VERSION_REF"
 
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -449,16 +277,10 @@ jobs:
           VERSION_REF: ${{ steps.release.outputs.version_ref }}
         run: |
           set -euo pipefail
-          for service in backend frontend; do
-            image="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${service}:$VERSION_REF"
-            digest="$(docker buildx imagetools inspect "$image" 2>/dev/null | awk '/^Digest:/ {print $2; exit}' || true)"
-            if [ -z "$digest" ]; then
-              echo "::error::Release image not found: $image"
-              exit 1
-            fi
-            echo "Found ${service} release image digest: $digest"
-            echo "${service}_digest=$digest" >> "$GITHUB_OUTPUT"
-          done
+          python tools/verify_release_images.py \
+            --registry "${{ env.REGISTRY }}" \
+            --image-prefix "${{ env.IMAGE_PREFIX }}" \
+            --version-ref "$VERSION_REF"
 
       - name: Set up Python
         uses: actions/setup-python@v6

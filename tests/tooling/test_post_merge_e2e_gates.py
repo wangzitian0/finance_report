@@ -993,6 +993,8 @@ def test_AC8_13_60_deploy_workflows_have_no_nonblocking_noop_gates() -> None:
 def test_AC8_13_52_production_release_dry_run_does_not_mutate_production() -> None:
     """AC8.13.52 AC8.13.65: Production dry-run validates without deploying."""
     workflow = read(".github/workflows/production-release.yml")
+    release_evidence = read("common/ci/release_evidence.py")
+    release_images = read("common/ci/release_images.py")
     ci_cd = read("docs/ssot/ci-cd.md")
 
     assert "dry_run:" in workflow
@@ -1006,13 +1008,19 @@ def test_AC8_13_52_production_release_dry_run_does_not_mutate_production() -> No
     assert "moon run :test" not in workflow
     assert "Resolve release coordinate" in workflow
     assert "tools/resolve_release_coordinate.py" in workflow
+    assert workflow.count("tools/verify_release_evidence.py") == 6
+    assert workflow.count("tools/verify_release_images.py") == 2
     assert "Verify source CI passed" in workflow
-    assert "--workflow ci.yml" in workflow
-    assert '--commit "$RELEASE_SHA"' in workflow
-    assert '.headBranch == "main"' in workflow
+    assert '"--workflow"' in release_evidence
+    assert '"ci.yml"' in release_evidence
+    assert "--commit" in release_evidence
+    assert 'run.get("headBranch") == "main"' in release_evidence
     assert "Verify release images workflow passed" in workflow
     assert "Verify staging passed" in workflow
     assert "Verify Release Images Dry Run" in workflow
+    assert '"docker", "buildx", "imagetools", "inspect"' in release_images
+    assert "gh run list" not in workflow
+    assert "gh run view" not in workflow
     assert "Production mutation skipped" in workflow
     dry_run_section = workflow.split("dry-run:", 1)[1].split("\n  deploy:", 1)[0]
     assert "environment:" not in dry_run_section
@@ -1026,26 +1034,196 @@ def test_AC8_13_52_production_release_dry_run_does_not_mutate_production() -> No
 def test_AC8_13_52_production_release_matches_exact_staging_run_name() -> None:
     """AC8.13.52: Production release requires staging validation for the exact version_ref."""
     workflow = read(".github/workflows/production-release.yml")
+    release_evidence = read("common/ci/release_evidence.py")
+    staging_contract = release_evidence.split("def verify_staging", 1)[1].split(
+        "def _required", 1
+    )[0]
 
-    assert 'expected_title = f"Deploy Staging {release_version_ref}"' in workflow
-    assert workflow.count('run.get("displayTitle") == expected_title') == 2
-    assert 'run.get("status") == "completed"' in workflow
-    assert 'run.get("conclusion") == "success"' not in workflow
+    assert 'expected_title = f"Deploy Staging {version_ref}"' in staging_contract
+    assert 'run.get("displayTitle") == expected_title' in staging_contract
+    assert 'run.get("status") == "completed"' in staging_contract
+    assert 'run.get("conclusion") == "success"' not in staging_contract
     assert (
-        workflow.count(
-            'required_staging_jobs = {"Deploy Staging", "Staging Provider Gate"}'
-        )
-        == 2
+        'required_staging_jobs = {"Deploy Staging", "Staging Provider Gate"}'
+        in staging_contract
     )
-    assert workflow.count('optional_staging_jobs = {"Staging AI/OCR Gate"}') == 2
-    assert workflow.count("candidate_run_ids") >= 4
-    assert workflow.count("for candidate_run_id in $candidate_run_ids; do") == 2
-    assert workflow.count('gh run view "$candidate_run_id"') == 2
-    assert workflow.count("Skipping staging run {candidate_run_id}") == 2
-    assert workflow.count("with successful release-critical jobs") == 2
-    assert "Staging AI/OCR Gate" in workflow
-    assert "does not block production release eligibility" in workflow
-    assert 'release_version_ref in (run.get("displayTitle") or "")' not in workflow
+    assert 'optional_staging_jobs = {"Staging AI/OCR Gate"}' in staging_contract
+    assert "candidate_run_ids" in staging_contract
+    assert "for candidate_run_id in candidate_run_ids:" in staging_contract
+    assert '"gh",' in staging_contract
+    assert '"run",' in staging_contract
+    assert '"view",' in staging_contract
+    assert "candidate_run_id," in staging_contract
+    assert "Skipping staging run " in staging_contract
+    assert "{candidate_run_id}: release-critical jobs" in staging_contract
+    assert "with successful release-critical jobs" in staging_contract
+    assert "Staging AI/OCR Gate" in staging_contract
+    assert "does not block production release eligibility" in staging_contract
+    assert 'version_ref in (run.get("displayTitle") or "")' not in staging_contract
+
+
+def test_AC8_13_52_release_evidence_tool_requires_exact_successful_staging_run() -> (
+    None
+):
+    """AC8.13.52: Shared release evidence rejects fuzzy or failed staging proof."""
+    from common.ci import release_evidence
+
+    def fake_gh_json(args: list[str]) -> object:
+        command = " ".join(args)
+        if " run list " in f" {command} ":
+            return [
+                {
+                    "databaseId": 10,
+                    "status": "completed",
+                    "displayTitle": "Deploy Staging v1.2.30",
+                },
+                {
+                    "databaseId": 11,
+                    "status": "completed",
+                    "displayTitle": "Deploy Staging v1.2.3",
+                },
+                {
+                    "databaseId": 12,
+                    "status": "completed",
+                    "displayTitle": "Deploy Staging v1.2.3",
+                },
+            ]
+        assert " run view " in f" {command} "
+        run_id = args[3]
+        jobs_by_run = {
+            "11": [
+                {"name": "Deploy Staging", "conclusion": "success"},
+                {"name": "Staging Provider Gate", "conclusion": "failure"},
+            ],
+            "12": [
+                {"name": "Deploy Staging", "conclusion": "success"},
+                {"name": "Staging Provider Gate", "conclusion": "success"},
+                {"name": "Staging AI/OCR Gate", "conclusion": "failure"},
+            ],
+        }
+        return {"jobs": jobs_by_run[run_id]}
+
+    run_id = release_evidence.verify_staging(
+        repository="owner/repo",
+        version_ref="v1.2.3",
+        gh_json=fake_gh_json,
+    )
+
+    assert run_id == "12"
+
+
+def test_AC8_13_52_release_evidence_tool_reports_source_and_release_runs() -> None:
+    """AC8.13.52: Shared release evidence reports source and release-image runs."""
+    from common.ci import release_evidence
+
+    def source_ci_json(_args: list[str]) -> object:
+        return [
+            {
+                "databaseId": 20,
+                "event": "pull_request",
+                "headBranch": "main",
+                "status": "completed",
+                "conclusion": "success",
+            },
+            {
+                "databaseId": 21,
+                "event": "push",
+                "headBranch": "main",
+                "status": "completed",
+                "conclusion": "success",
+            },
+        ]
+
+    def release_images_json(_args: list[str]) -> object:
+        return [
+            {
+                "databaseId": 30,
+                "event": "push",
+                "status": "completed",
+                "conclusion": "success",
+            }
+        ]
+
+    assert (
+        release_evidence.verify_source_ci(
+            repository="owner/repo",
+            release_sha="a" * 40,
+            gh_json=source_ci_json,
+        )
+        == "21"
+    )
+    assert (
+        release_evidence.verify_release_images_run(
+            repository="owner/repo",
+            release_sha="a" * 40,
+            gh_json=release_images_json,
+        )
+        == "30"
+    )
+
+
+def test_AC8_13_52_release_evidence_tool_fails_without_staging_jobs() -> None:
+    """AC8.13.52: Shared release evidence fails when staging jobs are missing."""
+    from common.ci import release_evidence
+
+    def fake_gh_json(args: list[str]) -> object:
+        command = " ".join(args)
+        if " run list " in f" {command} ":
+            return [
+                {
+                    "databaseId": 40,
+                    "status": "completed",
+                    "displayTitle": "Deploy Staging v1.2.3",
+                }
+            ]
+        return {"jobs": [{"name": "Deploy Staging", "conclusion": "success"}]}
+
+    with pytest.raises(RuntimeError, match="successful release-critical jobs"):
+        release_evidence.verify_staging(
+            repository="owner/repo",
+            version_ref="v1.2.3",
+            gh_json=fake_gh_json,
+        )
+
+
+def test_AC8_13_52_release_image_tool_reports_backend_and_frontend_digests() -> None:
+    """AC8.13.52: Shared release image verification emits both image digests."""
+    from common.ci import release_images
+
+    def inspect_image(image: str) -> tuple[int, str]:
+        digest_by_image = {
+            "ghcr.io/owner/finance_report-backend:v1.2.3": "sha256:backend",
+            "ghcr.io/owner/finance_report-frontend:v1.2.3": "sha256:frontend",
+        }
+        return 0, f"Name: {image}\nDigest: {digest_by_image[image]}\n"
+
+    digests = release_images.verify_release_images(
+        registry="ghcr.io",
+        image_prefix="owner/finance_report",
+        version_ref="v1.2.3",
+        inspect_image=inspect_image,
+    )
+
+    assert digests == {
+        "backend_digest": "sha256:backend",
+        "frontend_digest": "sha256:frontend",
+    }
+
+
+def test_AC8_13_52_release_image_tool_fails_when_a_digest_is_missing() -> None:
+    """AC8.13.52: Shared release image verification fails closed on missing digest."""
+    from common.ci import release_images
+
+    def inspect_image(_image: str) -> tuple[int, str]:
+        return 0, "Name: missing-digest\n"
+
+    with pytest.raises(RuntimeError, match="Release image not found"):
+        release_images.verify_release_images(
+            registry="ghcr.io",
+            image_prefix="owner/finance_report",
+            version_ref="v1.2.3",
+            inspect_image=inspect_image,
+        )
 
 
 def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
@@ -1667,7 +1845,8 @@ def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
     """AC7.10.1 - AC7.10.5: Production release promotes staging-validated SHA image and fails closed on drift."""
     workflow = read(".github/workflows/production-release.yml")
     release_images = read(".github/workflows/release-images.yml")
-    resolver = read("tools/resolve_release_coordinate.py")
+    resolver = read("common/ci/release_coordinate.py")
+    release_image_tool = read("common/ci/release_images.py")
     ci_cd = read("docs/ssot/ci-cd.md")
     deployment = read("docs/ssot/deployment.md")
 
@@ -1683,7 +1862,8 @@ def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
     # AC7.10.2: fails closed if no staging-validated SHA image exists or digests differ
     assert "Verify staging passed" in workflow
     assert "Verify release images workflow passed" in workflow
-    assert "docker buildx imagetools inspect" in workflow
+    assert '"docker", "buildx", "imagetools", "inspect"' in release_image_tool
+    assert "tools/verify_release_images.py" in workflow
     assert "main-CI SHA images not found" in release_images
     assert 'backend_sha_digest" != "$backend_promoted_digest' in release_images
     assert 'frontend_sha_digest" != "$frontend_promoted_digest' in release_images
@@ -1875,7 +2055,7 @@ def test_AC8_13_120_staging_runs_lightweight_provider_connectivity_smoke() -> No
 def test_AC8_13_22_staging_deploys_manually_dispatched_release_tag() -> None:
     """AC8.13.22: Staging deploys the manually dispatched release version_ref."""
     workflow = read(".github/workflows/staging-deploy.yml")
-    resolver = read("tools/resolve_release_coordinate.py")
+    resolver = read("common/ci/release_coordinate.py")
 
     parsed = yaml.safe_load(workflow)
     # PyYAML parses the bare `on:` key as the boolean True.
@@ -1913,12 +2093,20 @@ def test_AC8_13_22_staging_deploys_manually_dispatched_release_tag() -> None:
     assert '--version-ref "$version_ref"' in workflow
 
 
+def test_AC8_13_22_release_coordinate_rejects_non_release_ref() -> None:
+    """AC8.13.22: Release coordinate resolution rejects branch-form refs."""
+    from common.ci import release_coordinate
+
+    with pytest.raises(ValueError, match="version_ref must be a release tag"):
+        release_coordinate.resolve("main")
+
+
 def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
     """AC8.13.36: Main CI builds SHA images, release-images tags them, staging deploys the tag."""
     ci_workflow = read(".github/workflows/ci.yml")
     release_workflow = read(".github/workflows/release-images.yml")
     deploy_workflow = read(".github/workflows/staging-deploy.yml")
-    resolver = read("tools/resolve_release_coordinate.py")
+    resolver = read("common/ci/release_coordinate.py")
     ci_cd = read("docs/ssot/ci-cd.md")
 
     assert "container-images:" in ci_workflow
