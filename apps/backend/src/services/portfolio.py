@@ -425,38 +425,32 @@ class PortfolioService:
             # disposal_date is guaranteed non-None by the isnot(None) filter above
             assert position.disposal_date is not None
             disposal_price = await self._get_latest_price(db, position, position.disposal_date, user_id)
-            position_quantity = Quantity(position.quantity, PORTFOLIO_QUANTITY_UNIT).quantize()
-            disposal_value = position_quantity.value * disposal_price
+            position_quantity = position.quantity_qty.quantize()
+            disposal_value = (
+                UnitPrice(disposal_price, position.currency, PORTFOLIO_QUANTITY_UNIT)
+                * position_quantity
+            )
 
-            # Convert to base currency if needed
-            if position.currency != settings.base_currency:
-                converted_disposal = await fx.convert_amount(
-                    db,
-                    amount=disposal_value,
-                    currency=position.currency,
-                    target_currency=settings.base_currency,
-                    rate_date=position.disposal_date,
-                    lazy_load=True,
-                )
-                converted_cost = await fx.convert_amount(
-                    db,
-                    amount=position.cost_basis,
-                    currency=position.currency,
-                    target_currency=settings.base_currency,
-                    rate_date=position.acquisition_date,
-                    lazy_load=True,
-                )
-            else:
-                converted_disposal = disposal_value
-                converted_cost = position.cost_basis
+            # Convert to base currency (no-op when already in base; no if/else branch).
+            # Per-position values are not quantized here — only the response total is.
+            converted_disposal = await fx.convert_money(
+                db, disposal_value, settings.base_currency, rate_date=position.disposal_date, lazy_load=True
+            )
+            converted_cost = await fx.convert_money(
+                db,
+                position.cost_basis_money,
+                settings.base_currency,
+                rate_date=position.acquisition_date,
+                lazy_load=True,
+            )
 
             # Calculate P&L based on cost basis method
             realized_pnl = converted_disposal - converted_cost
 
-            realized_pnl_ratio = Ratio.fraction_or_zero(realized_pnl, converted_cost)
+            realized_pnl_ratio = Ratio.fraction_or_zero(realized_pnl.amount, converted_cost.amount)
 
-            total_realized_pnl += realized_pnl
-            total_converted_cost += converted_cost
+            total_realized_pnl += realized_pnl.amount
+            total_converted_cost += converted_cost.amount
 
             details.append(
                 {
@@ -464,9 +458,9 @@ class PortfolioService:
                     "quantity": position.quantity,
                     "disposal_date": position.disposal_date,
                     "disposal_price": disposal_price,
-                    "cost_basis": converted_cost,
-                    "disposal_value": converted_disposal,
-                    "realized_pnl": realized_pnl,
+                    "cost_basis": converted_cost.amount,
+                    "disposal_value": converted_disposal.amount,
+                    "realized_pnl": realized_pnl.amount,
                     "realized_pnl_percent": realized_pnl_ratio.to_percent(),
                     "currency": position.currency,
                     "cost_basis_method": position.cost_basis_method,
@@ -533,48 +527,41 @@ class PortfolioService:
             latest_price = await self._get_latest_price(db, position, eval_date, user_id)
 
             # Calculate market value
-            position_quantity = Quantity(position.quantity, PORTFOLIO_QUANTITY_UNIT).quantize()
-            market_value = position_quantity.value * latest_price
+            position_quantity = position.quantity_qty.quantize()
+            market_value = (
+                UnitPrice(latest_price, position.currency, PORTFOLIO_QUANTITY_UNIT)
+                * position_quantity
+            )
 
-            # Convert to base currency if needed
-            if position.currency != settings.base_currency:
-                converted_market = await fx.convert_amount(
-                    db,
-                    amount=market_value,
-                    currency=position.currency,
-                    target_currency=settings.base_currency,
-                    rate_date=eval_date,
-                    lazy_load=True,
-                )
-                converted_cost = await fx.convert_amount(
-                    db,
-                    amount=position.cost_basis,
-                    currency=position.currency,
-                    target_currency=settings.base_currency,
-                    rate_date=position.acquisition_date,
-                    lazy_load=True,
-                )
-                currency = settings.base_currency
-            else:
-                converted_market = market_value
-                converted_cost = position.cost_basis
-                currency = position.currency
+            # Convert to base currency (no-op when already in base; no if/else).
+            # Per-position values are not quantized here — only the response total is.
+            converted_market = await fx.convert_money(
+                db, market_value, settings.base_currency, rate_date=eval_date, lazy_load=True
+            )
+            converted_cost = await fx.convert_money(
+                db,
+                position.cost_basis_money,
+                settings.base_currency,
+                rate_date=position.acquisition_date,
+                lazy_load=True,
+            )
+            currency = converted_market.currency.code
 
             # Calculate unrealized P&L
             unrealized_pnl = converted_market - converted_cost
-            total_market_value += converted_market
-            total_cost_basis += converted_cost
-            total_unrealized_pnl += unrealized_pnl
+            total_market_value += converted_market.amount
+            total_cost_basis += converted_cost.amount
+            total_unrealized_pnl += unrealized_pnl.amount
 
-            unrealized_pnl_ratio = Ratio.fraction_or_zero(unrealized_pnl, converted_cost)
+            unrealized_pnl_ratio = Ratio.fraction_or_zero(unrealized_pnl.amount, converted_cost.amount)
             details.append(
                 {
                     "asset_identifier": position.asset_identifier,
                     "quantity": position.quantity,
                     "current_price": latest_price,
-                    "market_value": converted_market,
-                    "cost_basis": converted_cost,
-                    "unrealized_pnl": unrealized_pnl,
+                    "market_value": converted_market.amount,
+                    "cost_basis": converted_cost.amount,
+                    "unrealized_pnl": unrealized_pnl.amount,
                     "unrealized_pnl_percent": unrealized_pnl_ratio.to_percent(),
                     "currency": currency,
                 }
