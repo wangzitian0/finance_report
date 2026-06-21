@@ -320,13 +320,23 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 > context (`./apps/<component>`) and be baked into a published `:<sha>` image.
 > The `container-images` job must run a fail-closed gitleaks scan over the build
 > context BEFORE `docker/build-push-action`, so a secret in the context fails the
-> build and the finding stays visible in the job logs (redacted value). This is
-> the secret-scan half of #1277 only; image `:<sha>` retention is out of scope
-> and #1277 stays open for it.
+> build and the finding stays visible in the job logs (redacted value).
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
 | AC7.18.1 | The CI `container-images` job runs a gitleaks secret scan over the per-component build context before the image build step, fails closed on detection (`--exit-code 1` / `--no-git`), and keeps the finding visible in logs (`--redact`, no `--no-banner`-only silent pass) | `test_AC7_18_1_container_images_job_has_build_context_secret_scan`, `test_AC7_18_1_build_secret_scan_is_fail_closed_before_build` | `tests/tooling/test_build_secret_scan_contract.py` | P0 |
+
+### AC7.19: GHCR SHA Image Retention (#1277)
+
+> Main and release-branch CI publish backend/frontend `:<sha>` images. The
+> scheduled GHCR retention lane must keep these tags bounded without touching
+> release tags or the SHA backing a currently live staging/production deploy.
+> If live deploy SHA discovery fails, the job fails before deleting package
+> versions.
+
+| ID | Requirement | Test Function | File | Priority |
+|----|-------------|---------------|------|----------|
+| AC7.19.1 | The scheduled GHCR retention workflow prunes only backend/frontend `:<sha>` package versions older than 28 days, never prunes `vX.Y.Z` release tags, preserves live staging/production deploy SHAs resolved from health `git_sha`/`version`, and fails closed when no live SHA exemption is available {tier:PC} | `test_AC7_19_1_retention_selects_only_stale_sha_tags`, `test_AC7_19_1_live_sha_exemption_matches_full_and_short_tags`, `test_AC7_19_1_pruner_requires_live_sha_exemptions`, `test_AC7_19_1_pruner_deletes_selected_versions_only`, `test_AC7_19_1_load_versions_accepts_gh_paginated_slurp`, `test_AC7_19_1_workflow_schedules_28_day_sha_retention_with_live_exemption` | `tests/tooling/test_ghcr_sha_retention.py` | P0 |
 
 
 ## 📏 Acceptance Criteria

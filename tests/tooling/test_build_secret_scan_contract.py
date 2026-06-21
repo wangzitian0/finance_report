@@ -7,8 +7,7 @@ The CI ``container-images`` job must run a fail-closed gitleaks scan over the
 build context BEFORE ``docker/build-push-action``, keeping the finding visible
 in the logs.
 
-This is the secret-scan half of #1277 only — image ``:<sha>`` retention is out
-of scope and #1277 stays open for it.
+AC7.19 owns the separate scheduled GHCR ``:<sha>`` retention lane.
 """
 
 from __future__ import annotations
