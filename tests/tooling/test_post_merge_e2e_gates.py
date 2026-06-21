@@ -1031,6 +1031,47 @@ def test_AC8_13_52_production_release_dry_run_does_not_mutate_production() -> No
     assert "docker buildx imagetools create" not in dry_run_section
 
 
+def test_AC8_13_52_production_release_checks_use_pinned_python() -> None:
+    """AC8.13.52: Production release checks run after setup-python."""
+    workflow = read(".github/workflows/production-release.yml")
+    dry_run_section = workflow.split("  dry-run:", 1)[1].split("\n  deploy:", 1)[0]
+    deploy_section = workflow.split("\n  deploy:", 1)[1]
+
+    def step_index(
+        section: str,
+        step_name_prefix: str,
+        *,
+        exclude: tuple[str, ...] = (),
+    ) -> int:
+        prefix = step_name_prefix.casefold()
+        excluded = tuple(value.casefold() for value in exclude)
+        for match in re.finditer(r"(?m)^\s*-\s+name:\s+(.+)$", section):
+            step_name = match.group(1).strip().casefold()
+            if step_name.startswith(prefix) and not any(
+                value in step_name for value in excluded
+            ):
+                return match.start()
+        raise AssertionError(f"missing workflow step matching {step_name_prefix!r}")
+
+    for section in (dry_run_section, deploy_section):
+        setup_python = step_index(section, "Set up Python")
+        resolve_coordinate = step_index(section, "Resolve release coordinate")
+        source_ci = step_index(section, "Verify source CI passed")
+        release_images_run = step_index(section, "Verify release images workflow passed")
+        staging = step_index(section, "Verify staging passed")
+        verify_images = step_index(
+            section,
+            "Verify release images",
+            exclude=("workflow passed",),
+        )
+
+        assert setup_python < resolve_coordinate
+        assert setup_python < source_ci
+        assert setup_python < release_images_run
+        assert setup_python < staging
+        assert setup_python < verify_images
+
+
 def test_AC8_13_52_production_release_matches_exact_staging_run_name() -> None:
     """AC8.13.52: Production release requires staging validation for the exact version_ref."""
     workflow = read(".github/workflows/production-release.yml")
@@ -2052,7 +2093,7 @@ def test_AC8_13_120_staging_runs_lightweight_provider_connectivity_smoke() -> No
     assert "inherits the deploy workflow's `workflow_dispatch` trigger" in ci_cd
 
 
-def test_AC8_13_22_staging_deploys_manually_dispatched_release_tag() -> None:
+def test_AC8_13_22_staging_deploys_manually_dispatched_version_ref() -> None:
     """AC8.13.22: Staging deploys the manually dispatched release version_ref."""
     workflow = read(".github/workflows/staging-deploy.yml")
     resolver = read("common/ci/release_coordinate.py")
@@ -2079,6 +2120,11 @@ def test_AC8_13_22_staging_deploys_manually_dispatched_release_tag() -> None:
     assert "tools/resolve_release_coordinate.py" in workflow
     assert "_RELEASE_VERSION_REF_RE" in resolver
     assert "version_ref must be a release tag" in resolver
+    assert "version_ref.strip()" not in resolver
+    assert '"--force"' not in resolver
+    assert '"--tags"' not in resolver
+    assert '"refs/tags/*:refs/tags/*"' not in resolver
+    assert 'f"refs/tags/{version_ref}:refs/tags/{version_ref}"' in resolver
     # The shared resolver checks out the dispatched release tag before deploy_v2
     # consumes the already-published release images.
     assert "VERSION_REF: ${{ inputs.version_ref }}" in workflow
@@ -2099,6 +2145,45 @@ def test_AC8_13_22_release_coordinate_rejects_non_release_ref() -> None:
 
     with pytest.raises(ValueError, match="version_ref must be a release tag"):
         release_coordinate.resolve("main")
+
+
+def test_AC8_13_22_release_coordinate_rejects_whitespace_version_ref(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC8.13.22: Whitespace-padded release refs fail instead of being trimmed."""
+    from common.ci import release_coordinate
+
+    monkeypatch.setattr(release_coordinate, "_run", lambda *_args: None)
+    monkeypatch.setattr(release_coordinate, "_out", lambda *_args: "a" * 40)
+
+    with pytest.raises(ValueError, match="version_ref must be a release tag"):
+        release_coordinate.resolve(" v1.2.3 ")
+
+
+def test_AC8_13_22_release_coordinate_fetches_only_requested_tag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC8.13.22: Release coordinate resolution does not force-fetch every tag."""
+    from common.ci import release_coordinate
+
+    commands: list[tuple[str, ...]] = []
+    monkeypatch.setattr(
+        release_coordinate,
+        "_run",
+        lambda *args: commands.append(args),
+    )
+    monkeypatch.setattr(release_coordinate, "_out", lambda *_args: "a" * 40)
+
+    release_coordinate.resolve("v1.2.3")
+
+    assert commands[0] == (
+        "git",
+        "fetch",
+        "--no-tags",
+        "origin",
+        "refs/tags/v1.2.3:refs/tags/v1.2.3",
+    )
+    assert not any("--force" in command for command in commands)
 
 
 def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:

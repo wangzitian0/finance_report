@@ -43,6 +43,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
       - name: Resolve release coordinate
         id: release
         env:
@@ -57,11 +62,6 @@ jobs:
         uses: astral-sh/setup-uv@v8.2.0
         with:
           version: ${{ env.UV_VERSION }}
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Set up Node
         uses: actions/setup-node@v6
@@ -218,6 +218,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
       - name: Resolve release coordinate
         id: release
         env:
@@ -281,11 +286,6 @@ jobs:
             --registry "${{ env.REGISTRY }}" \
             --image-prefix "${{ env.IMAGE_PREFIX }}" \
             --version-ref "$VERSION_REF"
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install deploy_v2 dependencies
         id: install_deploy_v2
