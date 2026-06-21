@@ -459,7 +459,9 @@ class PortfolioService:
                     "disposal_value": converted_disposal.amount,
                     "realized_pnl": realized_pnl.amount,
                     "realized_pnl_percent": realized_pnl_ratio.to_percent(),
-                    "currency": position.currency,
+                    # amounts above are converted to base, so label them with base
+                    # (was position.currency — mislabelled converted amounts).
+                    "currency": converted_cost.currency.code,
                     "cost_basis_method": position.cost_basis_method,
                 }
             )
