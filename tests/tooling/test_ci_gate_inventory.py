@@ -7,41 +7,17 @@ from typing import Any
 
 import yaml
 
+from common.ssot.ac_proof_execution import (
+    PROOF_EXECUTION_STAGES,
+    PROOF_TASK_CATEGORIES,
+)
+
 ROOT = Path(__file__).resolve().parents[2]
 INVENTORY = ROOT / "docs" / "ssot" / "ci-gate-inventory.yaml"
 WORKFLOWS = ROOT / ".github" / "workflows"
 
-EXPECTED_STAGES = {
-    "local.advisory",
-    "github_ci.merge_authority",
-    "preview.runtime",
-    "staging.release_validation",
-    "staging.provider_regression",
-    "prod.release_integrity",
-    "ops.scheduled_cleanup",
-    "manual.adjudication",
-}
-
-EXPECTED_TASK_CATEGORIES = {
-    "aggregate",
-    "classify",
-    "static_contract",
-    "ac_traceability",
-    "backend_unit",
-    "backend_integration",
-    "backend_api_e2e",
-    "frontend_build",
-    "frontend_unit",
-    "frontend_browser_e2e",
-    "image_build",
-    "tooling_contract",
-    "coverage_fan_in",
-    "behavioral_ratchet",
-    "deploy_smoke",
-    "provider_gate",
-    "release_integrity",
-    "cleanup_retention",
-}
+EXPECTED_STAGES = set(PROOF_EXECUTION_STAGES)
+EXPECTED_TASK_CATEGORIES = set(PROOF_TASK_CATEGORIES)
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
@@ -73,6 +49,18 @@ def _job_run_commands(workflow: dict[str, Any], job_id: str) -> str:
         for step in job.get("steps", [])
         if isinstance(step, dict)
     )
+
+
+def test_AC8_13_151_ci_gate_inventory_uses_shared_proof_execution_vocabulary() -> None:
+    """AC8.13.151: inventory vocabulary is shared with proof execution helpers."""
+
+    data = _load_yaml(INVENTORY)
+    stages = data.get("stages")
+    task_categories = data.get("task_categories")
+    assert isinstance(stages, dict)
+    assert isinstance(task_categories, dict)
+    assert tuple(stages) == PROOF_EXECUTION_STAGES
+    assert tuple(task_categories) == PROOF_TASK_CATEGORIES
 
 
 def test_AC8_13_142_ci_gate_inventory_uses_stage_and_task_category_per_job() -> None:

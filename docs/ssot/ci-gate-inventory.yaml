@@ -82,6 +82,12 @@ task_categories:
   cleanup_retention:
     definition: Retention and stale-resource cleanup checks.
     owner_rule: Owns cleanup classification and scoped deletion decisions.
+  critical_behavioral:
+    definition: Co-located critical product proof edge.
+    owner_rule: Used by AC proof metadata, not by a workflow job unless a job owns that proof lane directly.
+  manual_evidence:
+    definition: Manual gate evidence record.
+    owner_rule: Used by manual proof metadata, not by a workflow job unless manual adjudication is represented as a tracked gate.
 
 gates:
   - id: ci.changes
