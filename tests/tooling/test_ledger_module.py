@@ -112,3 +112,32 @@ def test_AC12_34_5_remaining_posting_paths_guard_balance_with_entry():
             f"{path} must use ledger Entry/Leg"
         )
         assert "Entry.of(" in src, f"{path} must construct an Entry to guard balance"
+
+
+@ac_proof(
+    proof_id="test_ledger_owns_posting_pipeline",
+    ac_ids=["AC12.34.6"],
+    ci_tier="pr_ci",
+)
+def test_AC12_34_6_ledger_owns_posting_pipeline_no_upward_edge():
+    """AC12.34.6: the journal write pipeline lives in ledger.store; ledger.ops depends
+    down on it (not up on services.accounting), dissolving the ledger↔accounting cycle.
+
+    services.accounting re-exports the pipeline so external callers are unchanged.
+    """
+    assert (SRC / "ledger/store/posting.py").exists()
+    post = _read("apps/backend/src/ledger/ops/post.py")
+    assert (
+        "from src.ledger.store.posting import create_journal_entry, post_journal_entry"
+        in post
+    )
+    assert "from src.services.accounting import" not in post, (
+        "ledger.ops must not import upward into services.accounting"
+    )
+    acct = _read("apps/backend/src/services/accounting.py")
+    assert "from src.ledger.store.posting import" in acct, (
+        "services.accounting must re-export the pipeline from ledger.store"
+    )
+    # the pipeline defs no longer live in services.accounting
+    assert "async def create_journal_entry(" not in acct
+    assert "async def post_journal_entry(" not in acct

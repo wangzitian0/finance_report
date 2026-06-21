@@ -18,9 +18,9 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.ledger.store.posting import create_journal_entry, post_journal_entry
 from src.ledger.types.entry import Entry
 from src.models.journal import JournalEntry, JournalEntrySourceType
-from src.services.accounting import create_journal_entry, post_journal_entry
 
 
 async def post_entry(
