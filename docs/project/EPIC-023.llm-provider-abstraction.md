@@ -129,3 +129,25 @@ parallel once PR1 merges.
 | AC23.4.8 | `DbConfigSource.get_provider` is scoped to the caller's scope (own rows, else deployment default); it never resolves or decrypts another tenant's provider by id {tier:PC} | `apps/backend/tests/integration/test_llm_db_config.py` | P1 |
 | AC23.4.9 | `api_base` rejects loopback/private/link-local/reserved IPs and local-only names (`localhost`, `*.internal`, metadata) at the schema boundary, closing the obvious SSRF foot-guns {tier:PC} | `apps/backend/tests/integration/test_llm_api.py` | P1 |
 | AC23.4.10 | Provider creation is capped per user (`MAX_PROVIDERS_PER_USER`); exceeding it returns 409 instead of growing the table unbounded {tier:PC} | `apps/backend/tests/integration/test_llm_api.py` | P1 |
+
+### AC23.5 — LLM record/replay cassette layer
+> Foundation slice for deterministic LLM tests in CI. A wrapper around the
+> chat-completion call (`src/llm/cassette.py`, re-exported via `client.py`)
+> records real provider responses locally and replays committed JSON cassettes in
+> CI — no API key, no network, no flakiness. **Scope (anti-false-confidence):**
+> record/replay is regression protection for KNOWN inputs only; it does NOT
+> discover new real-world document shapes (that stays the staging real-doc audit
+> loop), and **CI green ≠ a real unknown statement works**. Provider-specific
+> correctness is the staging `-m llm` gate's job, not the cassette tests'. See
+> `docs/ssot/llm.md#cassettes`. (Wiring existing extraction/advisor tests onto
+> replay and the eval/drift ratchet are separate follow-up issues.)
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC23.5.1 | `LLM_CASSETTE_MODE` selects `replay` / `record` / `off`; it defaults to `off` (live, local dev) and an unknown value fails closed with `LLMConfigError` rather than silently calling the network {tier:PC}{proof:property} | `apps/backend/tests/unit/llm/test_cassette.py` | P1 |
+| AC23.5.2 | `replay` returns the recorded response with **zero network calls and no API key** (the live call is never invoked); committed synthetic cassettes are keyed by their own fingerprint so the default store resolves them {tier:PC}{proof:property} | `apps/backend/tests/unit/llm/test_cassette.py` | P1 |
+| AC23.5.3 | A request with no matching cassette is a **hard failure** in `replay` (`CassetteMiss`) that never falls back to the network, and misses batch into one actionable summary (`N cassette(s) need re-record: …; run make llm-record`) {tier:PC}{proof:property} | `apps/backend/tests/unit/llm/test_cassette.py` | P1 |
+| AC23.5.4 | `record` performs the (here mocked) provider call and persists the cassette; re-recording an unchanged request is idempotent (identical bytes, no diff churn); `off` is a plain live call that writes nothing {tier:PC}{proof:property} | `apps/backend/tests/unit/llm/test_cassette.py` | P1 |
+| AC23.5.5 | Fingerprint integrity: a change to an output-affecting field → different key (no stale match); two semantically-different requests → different keys (no false match); the same semantic request under a different model id → the **same** key (model-id-agnostic); image content is keyed by a bytes hash {tier:PC}{proof:property} | `apps/backend/tests/unit/llm/test_cassette.py` | P1 |
+| AC23.5.6 | Normalisation strips only the intended volatile fields (timestamps, random request ids): differing volatile fields keep the key stable, while any output-relevant field changing the key proves nothing else is stripped {tier:PC}{proof:property} | `apps/backend/tests/unit/llm/test_cassette.py` | P1 |
+| AC23.5.7 | A `correctness` cassette MUST refuse to record (`CassetteValidationError`) when the response fails ground-truth validation or no validator is supplied; a `flow-only` cassette records freely and never claims LLM correctness {tier:PC}{proof:property} | `apps/backend/tests/unit/llm/test_cassette.py` | P1 |

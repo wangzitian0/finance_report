@@ -16,6 +16,10 @@ from typing import Any
 
 import litellm
 
+from src.llm.cassette import (
+    CassetteRecorder,
+    CassetteTag,
+)
 from src.llm.common import (
     ConfigSource,
     LLMConfigError,
@@ -153,6 +157,88 @@ async def litellm_stream(
             duration_ms=round((time.perf_counter() - start) * 1000, 2),
             total_chars=chars,
         )
+
+
+async def cassette_completion(
+    messages: Sequence[Message],
+    *,
+    role: str,
+    provider: ProviderRef,
+    model_id: str,
+    recorder: CassetteRecorder | None = None,
+    tag: CassetteTag = CassetteTag.FLOW_ONLY,
+    validator: Any = None,
+    max_tokens: int | None = None,
+    temperature: float | None = None,
+    reasoning: ReasoningEffort | None = None,
+    seed: int | None = None,
+    extra_body: dict[str, Any] | None = None,
+    timeout: float | None = None,
+) -> dict[str, Any]:
+    """Cassette-aware non-streaming completion (EPIC-023 AC23.5).
+
+    The chokepoint that gives CI deterministic LLM responses. In ``replay`` mode
+    it returns the committed cassette response with **zero network and no API
+    key**; a miss is a hard failure (``CassetteMiss``), never a network fallback.
+    In ``record`` mode it performs the real litellm call and freezes the response
+    (validated against ground-truth for a ``correctness`` cassette). In ``off``
+    mode it is a plain live call.
+
+    The fingerprint keys on ``role`` (the semantic modality role / scene), the
+    messages, and the decode params — NOT ``model_id`` — so swapping models does
+    not invalidate cassettes; ``model_id`` is used only by the live call.
+    """
+    recorder = recorder or CassetteRecorder()
+    # Decode params that actually change the bytes the provider emits — the model
+    # id is intentionally excluded (model-id-agnostic keying).
+    decode_params: dict[str, Any] = {}
+    if max_tokens is not None:
+        decode_params["max_tokens"] = max_tokens
+    if temperature is not None:
+        decode_params["temperature"] = temperature
+    if reasoning is not None and reasoning is not ReasoningEffort.NONE:
+        decode_params["reasoning_effort"] = reasoning.value
+    if seed is not None:
+        decode_params["seed"] = seed
+    if extra_body:
+        decode_params["extra_body"] = dict(extra_body)
+
+    async def live_call() -> dict[str, Any]:
+        kwargs = _base_kwargs(
+            provider=provider,
+            model_id=model_id,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            reasoning=reasoning,
+            seed=seed,
+            extra_body=extra_body,
+        )
+        if timeout is not None:
+            kwargs["timeout"] = timeout
+        try:
+            response = await litellm.acompletion(**kwargs)
+        except LLMError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - normalise every provider failure
+            logger.error("litellm completion failed", model=kwargs.get("model"), error_type=type(exc).__name__)
+            raise _wrap(exc) from exc
+        # litellm responses expose ``model_dump`` (pydantic) or are dict-like; fall
+        # back to a minimal text projection so any provider's shape is freezable.
+        if hasattr(response, "model_dump"):
+            return dict(response.model_dump())
+        if isinstance(response, dict):
+            return dict(response)
+        return {"text": str(response)}
+
+    return await recorder.call(
+        live_call,
+        role=role,
+        messages=messages,
+        decode_params=decode_params,
+        tag=tag,
+        validator=validator,
+    )
 
 
 async def resolve_provider_and_model(config_source: ConfigSource, model_id: str) -> tuple[ProviderRef, str]:
