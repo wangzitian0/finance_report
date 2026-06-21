@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from common.ssot import generate_critical_proof_matrix as matrix
 from common.ssot.ac_graph import _proof_edges
 from common.ssot.ac_proof_execution import (
@@ -81,3 +83,24 @@ def test_AC8_13_150_ac_proof_execution_model_is_ac_keyed_and_backward_compatible
     [edge] = _proof_edges([collected])
     assert edge.stage == "staging.provider_regression"
     assert edge.task_category == "provider_gate"
+
+
+def test_AC8_13_150_ac_proof_execution_model_rejects_unknown_metadata() -> None:
+    """AC8.13.150: proof placement values fail fast on typos."""
+    with pytest.raises(ValueError, match="unknown AC proof stage"):
+        normalize_proof_execution(
+            {
+                "ci_tier": "pr_ci",
+                "stage": "staging.provider_regresion",
+                "task_category": "provider_gate",
+            }
+        )
+
+    with pytest.raises(ValueError, match="unknown AC proof task_category"):
+        normalize_proof_execution(
+            {
+                "ci_tier": "pr_ci",
+                "stage": "staging.provider_regression",
+                "task_category": "provider_gat",
+            }
+        )

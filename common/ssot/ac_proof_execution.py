@@ -56,6 +56,15 @@ SCOPE_TO_TASK_CATEGORY = {
 }
 
 
+def _validate_known(value: str, *, field: str, allowed: tuple[str, ...]) -> str:
+    if value not in allowed:
+        expected = ", ".join(allowed)
+        raise ValueError(
+            f"unknown AC proof {field} {value!r}; expected one of: {expected}"
+        )
+    return value
+
+
 def stage_for_ci_tier(ci_tier: str) -> str:
     """Return the stage implied by a legacy critical-proof ``ci_tier`` value."""
     return LEGACY_CI_TIER_TO_STAGE.get(ci_tier, "")
@@ -81,4 +90,9 @@ def normalize_proof_execution(fields: dict[str, Any]) -> tuple[str, str]:
         fields.get("task_category")
         or task_category_for_scope(str(fields.get("scope", "behavioral")))
     )
-    return stage, task_category
+    return (
+        _validate_known(stage, field="stage", allowed=PROOF_EXECUTION_STAGES),
+        _validate_known(
+            task_category, field="task_category", allowed=PROOF_TASK_CATEGORIES
+        ),
+    )
