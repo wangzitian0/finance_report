@@ -333,7 +333,7 @@ class TestDualWriteLayer2:
 
         with patch.object(service, "extract_financial_data", return_value=mock_ai_response):
             with patch(
-                "src.services.extraction.DeduplicationService.create_uploaded_document",
+                "src.services.extraction.service.DeduplicationService.create_uploaded_document",
                 side_effect=Exception("DB error"),
             ):
                 with pytest.raises(ExtractionError) as exc_info:

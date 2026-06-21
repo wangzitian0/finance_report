@@ -26,7 +26,7 @@ pytestmark = pytest.mark.no_db
 
 def _read(path: Path) -> str:
     if path.is_dir():
-        return "\n".join(p.read_text(encoding="utf-8") for p in sorted(path.rglob("*.py")))
+        return "\n# <<< file-boundary >>>\n".join(p.read_text(encoding="utf-8") for p in sorted(path.rglob("*.py")))
     return path.read_text(encoding="utf-8")
 
 
@@ -311,7 +311,7 @@ def test_AC10_11_3_provider_error_body_logging_is_redacted() -> None:
     assert "[EMAIL]" in pii_message
     assert "[BANK_ACCOUNT]" in pii_message
 
-    extraction = _read(REPO_ROOT / "apps" / "backend" / "src" / "services" / "extraction.py")
+    extraction = _read(REPO_ROOT / "apps" / "backend" / "src" / "services" / "extraction")
     assert "error_body=" not in extraction
     assert "safe_error_message=" in extraction
     assert "OCR layout parsing failed: HTTP {response.status_code}: {error_body}" not in extraction
