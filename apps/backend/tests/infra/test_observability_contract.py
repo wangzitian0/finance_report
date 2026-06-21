@@ -25,6 +25,8 @@ pytestmark = pytest.mark.no_db
 
 
 def _read(path: Path) -> str:
+    if path.is_dir():
+        return "\n".join(p.read_text(encoding="utf-8") for p in sorted(path.rglob("*.py")))
     return path.read_text(encoding="utf-8")
 
 
@@ -166,7 +168,7 @@ def test_AC10_8_4_high_volume_fx_audit_noise_uses_debug_level() -> None:
     """AC10.8.4: High-volume staging audit noise is debug-only by default."""
     database = _read(REPO_ROOT / "apps" / "backend" / "src" / "database.py")
     fx_revaluation = _read(REPO_ROOT / "apps" / "backend" / "src" / "services" / "fx_revaluation.py")
-    reporting = _read(REPO_ROOT / "apps" / "backend" / "src" / "services" / "reporting.py")
+    reporting = _read(REPO_ROOT / "apps" / "backend" / "src" / "services" / "reporting")
 
     assert "echo=settings.debug" in database
     assert 'logger.debug(\n        "Calculated unrealized FX gains/losses"' in fx_revaluation

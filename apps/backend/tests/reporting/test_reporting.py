@@ -21,7 +21,6 @@ from src.models.layer3 import (
     ManualValuationLiquidityClass,
     ManualValuationSnapshot,
 )
-from src.services import reporting as reporting_service
 from src.services.reporting import (
     ReportError,
     generate_balance_sheet,
@@ -928,7 +927,7 @@ async def test_account_trend_monthly(db: AsyncSession, chart_of_accounts, test_u
         def today(cls) -> "FixedDate":
             return cls(2025, 3, 15)
 
-    monkeypatch.setattr(reporting_service, "date", FixedDate)
+    monkeypatch.setattr("src.services.reporting.net_worth.date", FixedDate)
 
     entry_one = JournalEntry(
         user_id=test_user_id,
@@ -1012,7 +1011,7 @@ async def test_category_breakdown_quarterly(db: AsyncSession, chart_of_accounts,
         def today(cls) -> "FixedDate":
             return cls(2025, 3, 15)
 
-    monkeypatch.setattr(reporting_service, "date", FixedDate)
+    monkeypatch.setattr("src.services.reporting.net_worth.date", FixedDate)
 
     entry = JournalEntry(
         user_id=test_user_id,
