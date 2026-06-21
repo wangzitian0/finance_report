@@ -188,7 +188,7 @@ async def test_net_worth_timeseries_monthly_uses_period_end_and_normalizes_curre
             "total_liabilities": Decimal("250.00"),
         }
 
-    monkeypatch.setattr("src.services.reporting.generate_balance_sheet", fake_balance_sheet)
+    monkeypatch.setattr("src.services.reporting.net_worth.generate_balance_sheet", fake_balance_sheet)
 
     report = await get_net_worth_timeseries(
         db,
