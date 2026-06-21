@@ -212,8 +212,10 @@ def test_AC12_31_7_backend_quantity_business_code_uses_value_type():
     ]
     for path in BACKEND_QUANTITY_ADAPTER_FILES:
         src = _read(path)
-        assert "from src.quantity import Quantity" in src, (
-            f"{path} must use the Quantity value type"
+        # value type used by direct import OR via a model .quantity_qty accessor
+        # (the #3 boundary push: reporting reads Quantity off the ORM accessor).
+        assert "from src.quantity import Quantity" in src or "quantity_qty" in src, (
+            f"{path} must use the Quantity value type (import or .quantity_qty accessor)"
         )
         for needle in forbidden_local_adapters:
             assert needle not in src, (
@@ -245,10 +247,8 @@ def test_AC12_31_7_backend_quantity_business_code_uses_value_type():
     assert "snapshot_quantity.is_zero()" in portfolio
 
     reporting = _read(Path("apps/backend/src/services/reporting"))
-    assert (
-        "position_quantity = Quantity(position.quantity, REPORTING_QUANTITY_UNIT).quantize()"
-        in reporting
-    )
+    # Quantity flows via the ManagedPosition.quantity_qty accessor (#3 boundary push).
+    assert "position_quantity = position.quantity_qty.quantize()" in reporting
 
 
 @ac_proof(
