@@ -77,6 +77,23 @@ concepts:
       - tests/tooling/test_quantity_conformance.py
       - tests/tooling/test_quantity_api_parity.py
 
+  package_model:
+    owner: docs/ssot/package-model.md#package-model
+    description: A package = a DDD bounded context (README + PackageContract + types/ops/store/api roles + __all__ published language); three classes core/platform/kernel; governance is computed from contracts by check_package_contract.
+    family: platform
+    kind: concept
+    authority: documented_contract
+    cross_refs:
+      - common/governance/package_contract.py
+      - common/governance/check_package_contract.py
+      - apps/backend/src/counter/__init__.py
+      - apps/backend/src/counter/contract.py
+      - apps/backend/src/counter/README.md
+      - apps/backend/src/ledger/ledger.contract.md
+      - docs/project/EPIC-025.dry-ssot-simplification.md
+    proofs:
+      - tests/tooling/test_counter_package.py
+
   accounting_equation:
     owner: docs/ssot/accounting.md#accounting-equation
     description: "Assets = Liabilities + Equity + (Income - Expenses) invariant."
