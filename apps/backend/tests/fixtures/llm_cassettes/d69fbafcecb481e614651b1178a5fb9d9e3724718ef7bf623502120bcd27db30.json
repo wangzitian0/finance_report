@@ -1,0 +1,26 @@
+{
+  "fingerprint": "d69fbafcecb481e614651b1178a5fb9d9e3724718ef7bf623502120bcd27db30",
+  "request": {
+    "decode_params": {
+      "extra_body": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "max_tokens": 512,
+      "temperature": 0.0
+    },
+    "messages": [
+      {
+        "content": "Extract this bank statement as strict JSON only (no prose, no markdown fence) with keys opening_balance, closing_balance, transactions (a list of {date, description, amount}). Amounts are negative for debits, positive for credits.\n\nOpening balance: 100.00\n2026-01-02  Coffee shop        -5.00\n2026-01-05  Salary credit      +50.00\n2026-01-09  Groceries          -15.00\nClosing balance: 130.00\n",
+        "role": "user"
+      }
+    ],
+    "role": "text"
+  },
+  "response": {
+    "stream_text": "{\n  \"opening_balance\": 100.00,\n  \"closing_balance\": 130.00,\n  \"transactions\": [\n    {\n      \"date\": \"2026-01-02\",\n      \"description\": \"Coffee shop\",\n      \"amount\": -5.00\n    },\n    {\n      \"date\": \"2026-01-05\",\n      \"description\": \"Salary credit\",\n      \"amount\": 50.00\n    },\n    {\n      \"date\": \"2026-01-09\",\n      \"description\": \"Groceries\",\n      \"amount\": -15.00\n    }\n  ]\n}"
+  },
+  "role": "text",
+  "tag": "flow-only"
+}
