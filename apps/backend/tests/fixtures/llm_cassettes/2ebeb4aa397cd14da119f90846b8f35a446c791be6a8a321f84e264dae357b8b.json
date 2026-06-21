@@ -1,5 +1,5 @@
 {
-  "key": "2ebeb4aa397cd14da119f90846b8f35a446c791be6a8a321f84e264dae357b8b",
+  "fingerprint": "2ebeb4aa397cd14da119f90846b8f35a446c791be6a8a321f84e264dae357b8b",
   "request": {
     "decode_params": {
       "max_tokens": 256,

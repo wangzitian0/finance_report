@@ -210,8 +210,12 @@ class Cassette:
     response: dict[str, Any]
 
     def to_json(self) -> dict[str, Any]:
+        # The fingerprint field is named ``fingerprint`` (not ``key``) on purpose:
+        # a 64-char hex value next to a JSON field literally named ``key`` trips
+        # the secret-scanner's generic-api-key rule (the value looks like an API
+        # key). It is a content hash, not a credential.
         return {
-            "key": self.key,
+            "fingerprint": self.key,
             "role": self.role,
             "tag": self.tag.value,
             "request": self.request,
@@ -221,7 +225,7 @@ class Cassette:
     @classmethod
     def from_json(cls, data: Mapping[str, Any]) -> Cassette:
         return cls(
-            key=str(data["key"]),
+            key=str(data["fingerprint"]),
             role=str(data["role"]),
             tag=CassetteTag(str(data["tag"])),
             request=dict(data["request"]),
