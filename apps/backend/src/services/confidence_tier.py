@@ -1,28 +1,21 @@
-"""Confidence tier derivation from journal source type."""
+"""Confidence tier derivation.
 
-from typing import Literal
+``ConfidenceTier`` and ``derive_confidence_tier`` now live in the model layer
+(:mod:`src.models.journal`, co-located with ``JournalEntrySourceType``) so the
+model no longer imports a service — the previous ``model → service`` import cycle
+is removed. They are re-exported here for the existing call sites.
 
-from src.models.journal import JournalEntrySourceType
+``derive_reconciliation_score_tier`` stays here: it maps a numeric score (not a
+journal enum) and has no model dependency.
+"""
 
-ConfidenceTier = Literal["TRUSTED", "HIGH", "MEDIUM", "LOW"]
+from src.models.journal import ConfidenceTier, derive_confidence_tier
 
-
-def derive_confidence_tier(source_type: JournalEntrySourceType | str | None) -> ConfidenceTier:
-    """Map journal source_type to the EPIC-018 UI confidence tier contract."""
-    if source_type is None:
-        return "LOW"
-
-    value = source_type.value if isinstance(source_type, JournalEntrySourceType) else str(source_type)
-    tiers: dict[str, ConfidenceTier] = {
-        "manual": "TRUSTED",
-        "user_confirmed": "HIGH",
-        "auto_matched": "MEDIUM",
-        "auto_parsed": "LOW",
-        "bank_statement": "LOW",
-        "system": "LOW",
-        "fx_revaluation": "LOW",
-    }
-    return tiers.get(value, "LOW")
+__all__ = [
+    "ConfidenceTier",
+    "derive_confidence_tier",
+    "derive_reconciliation_score_tier",
+]
 
 
 def derive_reconciliation_score_tier(score: int | None) -> ConfidenceTier:

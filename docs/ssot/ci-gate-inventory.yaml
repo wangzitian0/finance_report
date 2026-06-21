@@ -371,8 +371,8 @@ gates:
     owner: production release workflow
     triggers: [workflow_dispatch]
     blocks_workflow: true
-    inputs: [version_ref, release_tag_images, staging_validation]
-    outputs: [dry_run_context, release_image_digests]
+    inputs: [version_ref, release_evidence, release_tag_images, staging_validation]
+    outputs: [dry_run_context, release_evidence_run_ids, release_image_digests]
     artifacts: [production-dry-run-context]
     failure_semantics: Production release dry-run validation failed.
     action: keep
@@ -383,7 +383,7 @@ gates:
     owner: production release workflow
     triggers: [workflow_dispatch]
     blocks_workflow: true
-    inputs: [version_ref, release_tag_images, staging_validation, production_environment]
+    inputs: [version_ref, release_evidence, release_tag_images, staging_validation, production_environment]
     outputs: [production_deployment, prod_safe_smoke, production_rollback, production_deploy_context]
     artifacts: [production-deploy-test-context]
     failure_semantics: Production deploy_v2 rollout, route health, prod-safe smoke, or rollback-to-previous-version failed.

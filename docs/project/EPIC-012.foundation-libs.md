@@ -522,6 +522,22 @@ vectors) but adopted on the backend first.
 | AC12.33.2 | Cross-language conformance: the Python reference and shipped backend reproduce the shared `vectors.json` groups (`predicates`/`sum`/`tolerance` for money, `fraction_or_zero` for ratio) | `test_AC12_33_2_money_composite_matches_standard`, `test_AC12_33_2_ratio_fraction_or_zero_matches_standard`, `test_AC12_33_2_backend_composite_matches_standard` | `tests/tooling/test_composite_ops.py`, `apps/backend/tests/accounting/test_composite_ops_backend.py` | P1 |
 | AC12.33.3 | Adoption: zero-denominator ratio branching routes through `Ratio.fraction_or_zero` (retiring the local `_ratio_or_zero` helper in portfolio, plus performance-report and reconciliation-stats call sites), and investment accounting uses `Money` predicates + `Money.sum` instead of naked `Decimal("0")` comparisons | `test_AC12_33_3_zero_denominator_branching_routes_through_ratio`, `test_AC12_33_3_money_predicates_and_sum_adopted` | `tests/tooling/test_composite_ops_adoption.py` | P1 |
 
+### AC12.34: Ledger module — `Entry` value object + vertical-slice template ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
+
+The first **vertical domain module** (`src/ledger`) as the template every other
+domain follows: files converge by role (`types/` nouns, `ops/` verbs), and the
+project's layer-DAG rule is enforced (model layer never imports a service). Its
+core noun `Entry` makes the double-entry balance invariant a **type** — an
+unbalanced entry is unconstructable (`UnbalancedEntryError`), replacing scattered
+runtime `abs(debit-credit) < 0.01` checks.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC12.34.1 | `Entry`/`Leg` make double-entry a value object: a balanced transfer/multi-leg entry constructs; an unbalanced one raises `UnbalancedEntryError`; balance is checked **per currency**; legs must be positive `Money`; empty entries raise | `test_AC12_34_1_balanced_entry_constructs` (+ siblings) | `apps/backend/tests/ledger/test_entry.py` | P1 |
+| AC12.34.2 | The ledger module converges by role — `types/` (nouns) + `ops/` (verbs) — and exports `Entry`/`Leg`/`post_entry`/`UnbalancedEntryError` | `test_AC12_34_2_ledger_module_converges_by_role` | `tests/tooling/test_ledger_module.py` | P1 |
+| AC12.34.3 | Layer-DAG rule: the model layer imports no service (no upward edge / import cycle); `derive_confidence_tier` lives in the model and the service re-exports it (the old `models.journal → services.confidence_tier` cycle is removed) | `test_AC12_34_3_model_layer_never_imports_a_service`, `test_AC12_34_3_confidence_tier_lives_in_model_layer` | `tests/tooling/test_ledger_module.py` | P1 |
+| AC12.34.4 | Adoption: the investment buy posting builds a typed `Entry` and posts via `ledger.post_entry` instead of hand-rolling balanced `lines_data` dicts | `test_AC12_34_4_investment_buy_uses_ledger_post` | `tests/tooling/test_ledger_module.py` | P1 |
+
 ---
 
 *Planning snapshot captured: January 2026*
