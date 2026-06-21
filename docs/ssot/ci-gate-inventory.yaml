@@ -292,6 +292,18 @@ gates:
     artifacts: [pr-preview-scheduled-cleanup-context]
     failure_semantics: Scheduled or manual preview cleanup could not classify or remove stale resources.
     action: keep
+  - id: ghcr_sha_retention.prune_sha_images
+    category: deploy_ops
+    workflow: .github/workflows/ghcr-sha-retention.yml
+    job: prune-sha-images
+    owner: tools/ghcr_retention.py
+    triggers: [schedule, workflow_dispatch]
+    blocks_workflow: true
+    inputs: [ghcr_package_versions, live_deploy_shas]
+    outputs: [stale_sha_prune_decisions]
+    artifacts: [ghcr-sha-retention-context]
+    failure_semantics: Scheduled or manual GHCR SHA retention could not discover live deploy SHAs, classify package versions, or delete selected stale SHA versions.
+    action: keep
   - id: notify_infra2_report_main.dispatch
     category: deploy_ops
     workflow: .github/workflows/notify-infra2-report-main.yml

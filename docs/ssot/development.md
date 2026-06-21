@@ -406,10 +406,15 @@ missed PR close events or old Dokploy cleanup failures. Every six hours it:
 - Prunes legacy closed-PR GHCR tags after the retention window.
 - Runs bounded Docker build-cache and unused-image pruning with age filters.
 
+The scheduled `GHCR SHA Retention` workflow is separate from PR preview cleanup.
+It prunes backend/frontend `:<sha>` GHCR package versions older than 28 days,
+preserving live staging/production deploy SHAs and every `vX.Y.Z` release tag.
+
 Manual dry run:
 
 ```bash
 gh workflow run pr-preview-cleanup.yml -f dry_run=true
+gh workflow run ghcr-sha-retention.yml -f dry_run=true
 ```
 
 ---

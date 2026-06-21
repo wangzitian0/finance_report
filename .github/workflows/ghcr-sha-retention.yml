@@ -1,0 +1,136 @@
+name: GHCR SHA Retention
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Show GHCR SHA image pruning decisions without deleting package versions"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+concurrency:
+  group: ghcr-sha-retention
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  GHCR_SHA_RETENTION_DAYS: "28"
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/finance_report
+  STAGING_HEALTH_URL: https://report-staging.zitian.party/api/health
+  PRODUCTION_HEALTH_URL: https://report.zitian.party/api/health
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  prune-sha-images:
+    name: Prune stale GHCR SHA images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Resolve GHCR package scope
+        id: package_scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          owner_type="$(gh api -H "Accept: application/vnd.github+json" "/users/${{ github.repository_owner }}" --jq '.type')"
+          if [[ "$owner_type" == "Organization" ]]; then
+            package_scope_path="/orgs/${{ github.repository_owner }}"
+          else
+            package_scope_path="/users/${{ github.repository_owner }}"
+          fi
+          echo "package_scope_path=${package_scope_path}" >> "$GITHUB_OUTPUT"
+
+      - name: Collect live deploy SHA exemptions
+        env:
+          HEALTH_URLS: ${{ env.STAGING_HEALTH_URL }} ${{ env.PRODUCTION_HEALTH_URL }}
+        run: |
+          set -euo pipefail
+          : > live-shas.txt
+
+          for url in $HEALTH_URLS; do
+            payload="$(curl -fsS "$url")"
+            candidate="$(
+              python3 -c 'import json,sys; data=json.load(sys.stdin); print(data.get("git_sha") or data.get("version") or "")' \
+              <<< "$payload"
+            )"
+            if [[ -z "$candidate" ]]; then
+              echo "::error::Health endpoint $url did not expose git_sha or version"
+              exit 1
+            fi
+
+            if [[ "$candidate" =~ ^[0-9a-f]{7,40}$ ]]; then
+              echo "$candidate" >> live-shas.txt
+              echo "${candidate:0:7}" >> live-shas.txt
+              continue
+            fi
+
+            if git rev-parse --verify --quiet "$candidate^{commit}" >/dev/null; then
+              full_sha="$(git rev-parse "$candidate^{commit}")"
+              echo "$full_sha" >> live-shas.txt
+              echo "${full_sha:0:7}" >> live-shas.txt
+              continue
+            fi
+
+            echo "::error::Could not resolve live deploy ref '$candidate' from $url to a commit SHA"
+            exit 1
+          done
+
+          sort -u live-shas.txt -o live-shas.txt
+          if [[ ! -s live-shas.txt ]]; then
+            echo "::error::No live deploy SHA exemptions discovered; refusing to prune GHCR SHA tags"
+            exit 1
+          fi
+
+      - name: Prune GHCR SHA images older than 28 days
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN_FLAG: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true' && '--dry-run' || '' }}
+        run: |
+          set -euo pipefail
+          mkdir -p ci-context
+          python tools/ghcr_retention.py \
+            --package-scope-path "${{ steps.package_scope.outputs.package_scope_path }}" \
+            --image-name finance_report-backend \
+            --image-name finance_report-frontend \
+            --retention-days "${GHCR_SHA_RETENTION_DAYS}" \
+            --live-shas-file live-shas.txt \
+            ${DRY_RUN_FLAG:+"$DRY_RUN_FLAG"} \
+            | tee ci-context/ghcr-sha-retention-context.txt
+
+      - name: Write GHCR retention context
+        if: ${{ always() }}
+        run: |
+          mkdir -p ci-context
+          {
+            echo "GHCR SHA Retention Context"
+            echo "=========================="
+            echo "repository=${{ github.repository }}"
+            echo "event_name=${{ github.event_name }}"
+            echo "sha=${{ github.sha }}"
+            echo "retention_days=${GHCR_SHA_RETENTION_DAYS}"
+            echo "dry_run=${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true' }}"
+            echo "live_sha_exemptions=$(tr '\n' ',' < live-shas.txt 2>/dev/null || true)"
+            echo "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:<sha>"
+            echo "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:<sha>"
+          } >> ci-context/ghcr-sha-retention-context.txt
+
+      - name: Upload GHCR retention context
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ghcr-sha-retention-context
+          path: ci-context/
+          retention-days: 14
