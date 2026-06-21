@@ -122,19 +122,20 @@ verifiable.
 
 ### AC25.6 — Package model: the `counter` worked example (a package = DDD bounded context)
 
-> The package model (README + `PackageContract` + `types/ops/store/api` roles +
-> `__all__` published language, governance computed from contracts) is specified
-> in [../ssot/package-model.md](../ssot/package-model.md). The `counter` platform
-> package is its first worked example; these ACs are mirrored from
-> `apps/backend/src/counter/contract.py`'s `roadmap` so the AC-index gate stays
-> green while governance moves into package contracts.
-
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC25.6.1 | `CounterKey` validates the namespaced lowercase dotted `domain.action` shape and rejects invalid keys with `InvalidCounterKeyError`; the package converges by role and `contract.interface` equals `__init__.__all__` {tier:PC} | `test_counter_key_rejects_invalid` | `apps/backend/tests/counter/test_key.py` | P0 |
-| AC25.6.2 | `Count` is a non-negative tally; constructing a negative count raises `NegativeCountError`; domain `types` never import the store/api/ORM {tier:PC} | `test_count_rejects_negative` | `apps/backend/tests/counter/test_count.py` | P0 |
-| AC25.6.3 | `increment` bumps the per-(user, key) tally by one, returns the new per-user `Count`, and emits an `Incremented` domain event; ops depend only on the `CounterRepository` port, never the ORM {tier:PC} | `test_increment_is_per_user` | `apps/backend/tests/counter/test_increment.py` | P1 |
-| AC25.6.4 | `get_count` returns the per-user count for a concrete `user_id` and the global count (sum across users) when `user_id` is `None`; `check_package_contract` validates `counter` against its `PackageContract` {tier:PC} | `test_global_vs_per_user_count` | `apps/backend/tests/counter/test_query.py` | P1 |
+> The package model (a package = a DDD bounded context: `readme.md` +
+> `PackageContract` + `types/ops/store/api` roles + `__all__` published language,
+> governance computed from contracts) is specified by the meta package itself in
+> [../../common/governance/readme.md](../../common/governance/readme.md). The
+> `counter` platform package is its first worked example.
+>
+> **`AC25.6.1`, `AC25.6.2`, `AC25.6.3`, and `AC25.6.4` are NOT defined here.**
+> They are owned by, and sourced directly from,
+> [`common/counter/contract.py`](../../common/counter/contract.py)'s `roadmap`;
+> `common/ssot/generate_ac_registry.py` reads package-contract roadmaps
+> additively, so the AC index counts them without an EPIC-table mirror. This
+> blockquote references the IDs (keeping the registry↔EPIC link intact) but
+> defines none of them — the contract is the single definition source. This is
+> the precedent: a package's ACs live in its contract, never duplicated.
 
 ---
 

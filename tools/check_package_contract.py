@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Command wrapper for the package-contract governance gate.
 
-Validates every package's ``contract.py`` (a ``PackageContract``) against the
-live package: published language (``interface`` == ``__all__``), every
-invariant/roadmap test resolves, and no forbidden dependency edge. See
-``common/governance/check_package_contract.py`` and ``docs/ssot/package-model.md``.
+Validates every package's ``common/<pkg>/contract.py`` (a ``PackageContract``)
+against its BE implementation: published language (``interface`` == the
+implementation's ``__all__``), every invariant/roadmap test resolves, and no
+forbidden dependency edge. See ``common/governance/check_package_contract.py``
+and ``common/governance/readme.md``.
 """
 
 from __future__ import annotations

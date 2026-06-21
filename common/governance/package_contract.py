@@ -32,6 +32,16 @@ Priority = Literal["P0", "P1", "P2"]
 #: AC lifecycle status within a package roadmap.
 ACStatus = Literal["open", "done"]
 
+#: Package lifecycle status. ``active`` packages are governed and shipped;
+#: ``deprecated`` ones are on the way out (still checked, but flagged).
+PackageStatus = Literal["active", "deprecated"]
+
+#: Authority tier of a roadmap AC (SSOT: ``docs/ssot/authority-tiers.md``). The
+#: tier travels with the AC into the package-aware AC registry so the existing
+#: tier/proof-kind gates keep seeing the same tier they did when the AC lived in
+#: an EPIC table. ``None`` leaves the AC untagged (tracked by the tier ratchet).
+ACTier = Literal["PC", "CP", "HU", "LP", "PL"]
+
 
 class Invariant(BaseModel):
     """A property the package guarantees, pinned to the test that proves it.
@@ -60,19 +70,34 @@ class ACRecord(BaseModel):
     test: str
     priority: Priority
     status: ACStatus
+    #: Authority tier (``docs/ssot/authority-tiers.md``); carried into the AC
+    #: registry so the tier/proof-kind gates see the same tier the EPIC table
+    #: declared. ``None`` = untagged (the tier ratchet tracks that debt).
+    tier: ACTier | None = None
+    #: Proof kind the AC's test provides. When ``None`` the AC registry derives
+    #: the tier's canonical kind, exactly as a tier-tagged EPIC row would.
+    proof_kind: str | None = None
 
 
 class PackageContract(BaseModel):
     """The contract a package publishes — the unit the governance gate checks.
 
     Fields:
-        name:       the package name (matches its directory).
-        klass:      ``core`` / ``platform`` / ``kernel`` (the dependency tier).
-        depends_on: names of packages this one may import (down-only edges).
-        interface:  the published language — must equal ``__init__.__all__``.
-        events:     domain event type names this package publishes.
-        invariants: guaranteed properties, each pinned to a proving test.
-        roadmap:    the ACs this package owns (the package-model AC registry).
+        name:            the package name (matches its ``common/<name>/`` dir).
+        klass:           ``core`` / ``platform`` / ``kernel`` (the dependency tier).
+        status:          ``active`` / ``deprecated`` (package lifecycle).
+        depends_on:      names of packages this one may import (down-only edges).
+        roles:           the role folders the implementation converges into
+                         (e.g. ``["types", "ops", "store", "api"]``).
+        implementations: where each implementation lives, by surface key
+                         (``"be"`` / ``"fe"``); ``None`` means "no implementation
+                         on that surface yet". The governance gate resolves
+                         ``__all__`` against ``implementations["be"]``.
+        interface:       the published language — must equal the BE
+                         implementation's ``__init__.__all__``.
+        events:          domain event type names this package publishes.
+        invariants:      guaranteed properties, each pinned to a proving test.
+        roadmap:         the ACs this package owns (the package-model AC registry).
     """
 
     name: str
@@ -82,3 +107,6 @@ class PackageContract(BaseModel):
     events: list[str]
     invariants: list[Invariant]
     roadmap: list[ACRecord]
+    status: PackageStatus = "active"
+    roles: list[str] = []
+    implementations: dict[str, str | None] = {}

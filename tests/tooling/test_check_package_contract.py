@@ -33,7 +33,7 @@ from common.governance.package_contract import ACRecord, Invariant, PackageContr
 
 
 def _write_package(
-    src_root: Path,
+    repo_root: Path,
     name: str,
     *,
     klass: str,
@@ -44,16 +44,24 @@ def _write_package(
     roadmap: list[ACRecord] | None = None,
     extra_module: tuple[str, str] | None = None,
 ) -> DiscoveredPackage:
-    """Materialize ``src_root/<name>/`` with ``__init__.py`` + ``contract.py``."""
-    pkg_dir = src_root / name
-    pkg_dir.mkdir(parents=True)
+    """Materialize a package in the package model: a ``common/<name>/contract.py``
+    spec pointing at a BE implementation under ``apps/backend/src/<name>``.
+
+    The implementation dir holds the ``__init__.py`` (whose ``__all__`` the gate
+    checks against ``interface``) and any ``extra_module`` used to drive the
+    dependency-edge scan.
+    """
+    impl_rel = f"apps/backend/src/{name}"
+    impl_dir = repo_root / impl_rel
+    impl_dir.mkdir(parents=True)
     all_literal = ", ".join(repr(n) for n in all_names)
-    (pkg_dir / "__init__.py").write_text(
+    (impl_dir / "__init__.py").write_text(
         f"__all__ = [{all_literal}]\n", encoding="utf-8"
     )
     if extra_module is not None:
         mod_name, mod_body = extra_module
-        (pkg_dir / mod_name).write_text(mod_body, encoding="utf-8")
+        (impl_dir / mod_name).write_text(mod_body, encoding="utf-8")
+
     contract = PackageContract(
         name=name,
         klass=klass,  # type: ignore[arg-type]
@@ -62,8 +70,11 @@ def _write_package(
         events=[],
         invariants=invariants or [],
         roadmap=roadmap or [],
+        implementations={"be": impl_rel, "fe": None},
     )
-    (pkg_dir / "contract.py").write_text(
+    spec_dir = repo_root / "common" / name
+    spec_dir.mkdir(parents=True)
+    (spec_dir / "contract.py").write_text(
         textwrap.dedent(
             f"""
             from common.governance.package_contract import PackageContract
@@ -72,12 +83,15 @@ def _write_package(
         ),
         encoding="utf-8",
     )
-    return DiscoveredPackage(name=name, src_dir=pkg_dir, contract=contract)
+    return DiscoveredPackage(
+        name=name, spec_dir=spec_dir, impl_dir=impl_dir, contract=contract
+    )
 
 
 @pytest.fixture
 def synthetic_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A throwaway repo root with ``apps/backend/src`` and ``REPO_ROOT`` patched.
+    """A throwaway repo root with ``common/`` + ``apps/backend/src`` and
+    ``REPO_ROOT`` patched.
 
     Patching the module-level ``REPO_ROOT`` is required because
     ``_check_no_forbidden_edge`` computes ``py.relative_to(REPO_ROOT)`` for its
@@ -85,11 +99,60 @@ def synthetic_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """
     monkeypatch.setattr(cpc, "REPO_ROOT", tmp_path)
     (tmp_path / "apps" / "backend" / "src").mkdir(parents=True)
+    (tmp_path / "common").mkdir(parents=True)
     return tmp_path
 
 
 def _src(repo: Path) -> Path:
-    return repo / "apps" / "backend" / "src"
+    """The repo root: ``_write_package`` now derives both spec and impl dirs."""
+    return repo
+
+
+# --- implementations["be"] path containment ----------------------------------
+
+
+def test_contained_impl_dir_accepts_repo_relative(tmp_path: Path) -> None:
+    resolved = cpc._contained_impl_dir("apps/backend/src/counter", tmp_path)
+    assert resolved == (tmp_path / "apps" / "backend" / "src" / "counter").resolve()
+
+
+def test_contained_impl_dir_allows_repo_root_itself(tmp_path: Path) -> None:
+    # The meta package points its BE implementation at common/governance, a
+    # normal repo-relative path; the root itself is also accepted.
+    assert cpc._contained_impl_dir(".", tmp_path) == tmp_path.resolve()
+
+
+def test_contained_impl_dir_rejects_absolute_path(tmp_path: Path) -> None:
+    assert cpc._contained_impl_dir("/etc", tmp_path) is None
+
+
+def test_contained_impl_dir_rejects_escape(tmp_path: Path) -> None:
+    assert cpc._contained_impl_dir("../../outside", tmp_path) is None
+
+
+def test_contained_impl_dir_none_for_missing(tmp_path: Path) -> None:
+    assert cpc._contained_impl_dir(None, tmp_path) is None
+
+
+def test_escaping_be_path_reported_not_crashed(synthetic_repo: Path) -> None:
+    """A contract whose implementations['be'] escapes the repo is reported as a
+    violation (interface with no __all__ to check), never a crash."""
+    pkg = _write_package(
+        _src(synthetic_repo),
+        "escaper",
+        klass="kernel",
+        all_names=["E"],
+        interface=["E"],
+    )
+    # Re-point the discovered package's BE impl outside the repo.
+    pkg = cpc.DiscoveredPackage(
+        name=pkg.name,
+        spec_dir=pkg.spec_dir,
+        impl_dir=cpc._contained_impl_dir("../escape", synthetic_repo),
+        contract=pkg.contract,
+    )
+    errors = cpc.check_package(pkg, {"escaper": "kernel"}, synthetic_repo)
+    assert any("implementations['be'] is missing" in e for e in errors)
 
 
 # --- (a) interface vs __all__ -------------------------------------------------

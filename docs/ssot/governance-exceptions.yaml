@@ -50,6 +50,19 @@ exceptions:
       view of the AC graph (gated by tools/check_ac_index.py). Remove this
       exception once the deletion is merged.
 
+  # Package model self-hosts: the package-model spec moved out of docs/ssot/
+  # into the meta package that owns it (common/governance/readme.md). The
+  # MANIFEST `package_model` concept now points there, so docs/ssot/package-model.md
+  # is deleted; its deletion shows up as a changed SSOT file with no owner. This
+  # temporary exception covers only the deletion churn in this PR.
+  - target: finance_report:docs/ssot/package-model.md
+    issue: https://github.com/wangzitian0/finance_report/issues/1313
+    reason: >-
+      package-model.md moved to common/governance/readme.md (the package model
+      self-hosts in the common/governance meta package); the MANIFEST
+      package_model owner now points there. Remove this exception once the
+      deletion is merged.
+
 # ---------------------------------------------------------------------------
 # Temporary SSOT governance gate exceptions live in `exceptions` above.
 # Each exception must target a single gate finding and link a GitHub issue.
