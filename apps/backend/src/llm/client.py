@@ -11,14 +11,22 @@ entry point is ``services.ai_streaming`` (which counts request/token usage).
 from __future__ import annotations
 
 import time
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
 from typing import Any
 
 import litellm
 
 from src.llm.cassette import (
+    Cassette as _Cassette,
+    CassetteMiss,
+    CassetteMode,
     CassetteRecorder,
+    CassetteStore,
     CassetteTag,
+    CassetteValidationError,
+    _canonical_request,
+    current_mode,
+    fingerprint,
 )
 from src.llm.common import (
     ConfigSource,
@@ -95,38 +103,66 @@ def _base_kwargs(
     return kwargs
 
 
-async def litellm_stream(
-    messages: Sequence[Message],
+# The streaming cassette's frozen-response convention: a streamed completion has
+# no single provider "response dict", so we freeze the *accumulated text* under
+# this key. Replay synthesises a stream from it (one chunk); the key is the only
+# field replay reads, so any extra metadata a recorder adds is ignored.
+_STREAM_TEXT_KEY = "stream_text"
+
+
+def _stream_role(messages: Sequence[Message]) -> str:
+    """Derive the cassette fingerprint role from the message modality.
+
+    ``"vision"`` when any message content carries an image part (an ``image_url``
+    part, or a part/dict whose ``type`` mentions ``image``); ``"text"`` otherwise.
+    Callers need no change — the streaming transport classifies its own modality,
+    matching the text/default-config-vision split that flows through this path.
+    """
+    for message in messages:
+        content = message.get("content") if isinstance(message, Mapping) else None
+        if not isinstance(content, (list | tuple)):
+            continue
+        for part in content:
+            if not isinstance(part, Mapping):
+                continue
+            part_type = str(part.get("type", "")).lower()
+            if "image" in part_type or "image_url" in part:
+                return "vision"
+    return "text"
+
+
+def _stream_decode_params(
     *,
-    provider: ProviderRef,
-    model_id: str,
-    max_tokens: int | None = None,
-    temperature: float | None = None,
-    reasoning: ReasoningEffort | None = None,
-    seed: int | None = None,
-    extra_body: dict[str, Any] | None = None,
-    timeout: float | None = None,
-) -> AsyncIterator[str]:
-    """Stream text delta chunks for one completion via litellm.
+    max_tokens: int | None,
+    temperature: float | None,
+    reasoning: ReasoningEffort | None,
+    seed: int | None,
+    extra_body: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Decode params that change the bytes the provider emits (model id excluded).
 
-    Note: we deliberately do NOT request ``stream_options={"include_usage": True}`` —
-    Z.AI/GLM rejects unknown params with HTTP 400 and litellm won't drop it (it's a
-    supported openai-compatible field). Token usage is estimated by the caller from
-    text instead (see ``services.ai_streaming``)."""
-    kwargs = _base_kwargs(
-        provider=provider,
-        model_id=model_id,
-        messages=messages,
-        max_tokens=max_tokens,
-        temperature=temperature,
-        reasoning=reasoning,
-        seed=seed,
-        extra_body=extra_body,
-    )
-    kwargs["stream"] = True
-    if timeout is not None:
-        kwargs["timeout"] = timeout
+    Mirrors ``cassette_completion``'s decode-param block so a streamed call and a
+    non-streamed call with the same knobs key the same way."""
+    decode_params: dict[str, Any] = {}
+    if max_tokens is not None:
+        decode_params["max_tokens"] = max_tokens
+    if temperature is not None:
+        decode_params["temperature"] = temperature
+    if reasoning is not None and reasoning is not ReasoningEffort.NONE:
+        decode_params["reasoning_effort"] = reasoning.value
+    if seed is not None:
+        decode_params["seed"] = seed
+    if extra_body:
+        decode_params["extra_body"] = dict(extra_body)
+    return decode_params
 
+
+async def _litellm_stream_live(kwargs: dict[str, Any]) -> AsyncIterator[str]:
+    """The real litellm streaming call — yields content deltas, skipping empties.
+
+    Extracted so OFF (passthrough) and RECORD (passthrough + accumulate) share the
+    exact same transport; provider failures are normalised to ``LLMError`` here so
+    both modes see the identical error contract OFF always had."""
     start = time.perf_counter()
     chars = 0
     success = False
@@ -157,6 +193,123 @@ async def litellm_stream(
             duration_ms=round((time.perf_counter() - start) * 1000, 2),
             total_chars=chars,
         )
+
+
+async def litellm_stream(
+    messages: Sequence[Message],
+    *,
+    provider: ProviderRef,
+    model_id: str,
+    max_tokens: int | None = None,
+    temperature: float | None = None,
+    reasoning: ReasoningEffort | None = None,
+    seed: int | None = None,
+    extra_body: dict[str, Any] | None = None,
+    timeout: float | None = None,
+    cassette_store: CassetteStore | None = None,
+    cassette_mode: CassetteMode | None = None,
+    cassette_tag: CassetteTag = CassetteTag.FLOW_ONLY,
+    cassette_validator: Any = None,
+) -> AsyncIterator[str]:
+    """Stream text delta chunks for one completion via litellm — cassette-aware.
+
+    The streaming bridge for the cassette layer (EPIC-023 AC23.6): the real
+    extraction transport is streaming and previously bypassed the record/replay
+    layer entirely, so PR CI never exercised the LLM path. This routes the stream
+    through that layer while preserving streaming for the caller.
+
+    Modes (``cassette_mode``, default ``LLM_CASSETTE_MODE`` via ``current_mode()``):
+
+    - ``off`` — EXACT prior behaviour: a live ``litellm.acompletion(stream=True)``
+      passthrough, deltas yielded as they arrive. Prod/staging run ``off`` so the
+      staging ``-m llm`` gate stays live and real; this branch touches no cassette.
+    - ``record`` — the real streaming call, accumulating the full text, then freeze
+      a cassette (a ``correctness`` tag validates the accumulated text first), and
+      yield the text so the caller still works. No re-stream of frozen bytes.
+    - ``replay`` — fingerprint + cassette lookup with **zero network and no API
+      key**; HIT synthesises the stream from the frozen text (one chunk); MISS is a
+      hard ``CassetteMiss`` (never a network fallback).
+
+    The fingerprint role is derived from the messages (``vision`` if any image
+    part, else ``text``) and the key is model-id-agnostic — callers are unchanged.
+
+    Note: we deliberately do NOT request ``stream_options={"include_usage": True}`` —
+    Z.AI/GLM rejects unknown params with HTTP 400 and litellm won't drop it (it's a
+    supported openai-compatible field). Token usage is estimated by the caller from
+    text instead (see ``services.ai_streaming``)."""
+    mode = cassette_mode if cassette_mode is not None else current_mode()
+
+    kwargs = _base_kwargs(
+        provider=provider,
+        model_id=model_id,
+        messages=messages,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        reasoning=reasoning,
+        seed=seed,
+        extra_body=extra_body,
+    )
+    kwargs["stream"] = True
+    if timeout is not None:
+        kwargs["timeout"] = timeout
+
+    # OFF: the prior passthrough, byte-for-byte. Keeps prod/staging live & real.
+    if mode is CassetteMode.OFF:
+        async for content in _litellm_stream_live(kwargs):
+            yield content
+        return
+
+    role = _stream_role(messages)
+    decode_params = _stream_decode_params(
+        max_tokens=max_tokens,
+        temperature=temperature,
+        reasoning=reasoning,
+        seed=seed,
+        extra_body=extra_body,
+    )
+    key = fingerprint(role=role, messages=messages, decode_params=decode_params)
+    store = cassette_store or CassetteStore()
+
+    if mode is CassetteMode.REPLAY:
+        cassette = store.get(key)
+        if cassette is None:
+            # Hard fail — no network fallback (replay needs no key, makes no call).
+            raise CassetteMiss(key, scene=role)
+        text = str(cassette.response.get(_STREAM_TEXT_KEY, ""))
+        # Synthesise the stream from the frozen text as a single chunk; the caller
+        # accumulates it back to the same string it would have streamed live.
+        if text:
+            yield text
+        return
+
+    # RECORD: real streaming call + accumulate, then freeze and replay-yield.
+    if cassette_tag is CassetteTag.CORRECTNESS and cassette_validator is None:
+        raise CassetteValidationError(f"correctness cassette (role={role}) requires a ground-truth validator to record")
+    parts: list[str] = []
+    async for content in _litellm_stream_live(kwargs):
+        parts.append(content)
+    text = "".join(parts)
+    response = {_STREAM_TEXT_KEY: text}
+    if cassette_tag is CassetteTag.CORRECTNESS:
+        ok = False
+        try:
+            ok = bool(cassette_validator(response)) if cassette_validator is not None else False
+        except Exception as exc:  # noqa: BLE001 - any validator error refuses the record
+            raise CassetteValidationError(
+                f"correctness validation raised for role={role}: {type(exc).__name__}"
+            ) from exc
+        if not ok:
+            raise CassetteValidationError(
+                f"correctness cassette (role={role}, key={key}) refused: accumulated stream failed "
+                "ground-truth validation; recording it would freeze a wrong answer"
+            )
+    request = _canonical_request(role=role, messages=messages, decode_params=decode_params)
+    cassette = _Cassette(key=key, role=role, tag=cassette_tag, request=request, response=response)
+    changed = store.put(cassette)
+    logger.info("llm stream cassette recorded", key=key, role=role, tag=cassette_tag.value, changed=changed)
+    # Yield the recorded text so a record run still produces output for the caller.
+    if text:
+        yield text
 
 
 async def cassette_completion(
@@ -190,18 +343,15 @@ async def cassette_completion(
     """
     recorder = recorder or CassetteRecorder()
     # Decode params that actually change the bytes the provider emits — the model
-    # id is intentionally excluded (model-id-agnostic keying).
-    decode_params: dict[str, Any] = {}
-    if max_tokens is not None:
-        decode_params["max_tokens"] = max_tokens
-    if temperature is not None:
-        decode_params["temperature"] = temperature
-    if reasoning is not None and reasoning is not ReasoningEffort.NONE:
-        decode_params["reasoning_effort"] = reasoning.value
-    if seed is not None:
-        decode_params["seed"] = seed
-    if extra_body:
-        decode_params["extra_body"] = dict(extra_body)
+    # id is intentionally excluded (model-id-agnostic keying). Shared with the
+    # streaming path so a streamed and non-streamed call key the same way.
+    decode_params = _stream_decode_params(
+        max_tokens=max_tokens,
+        temperature=temperature,
+        reasoning=reasoning,
+        seed=seed,
+        extra_body=extra_body,
+    )
 
     async def live_call() -> dict[str, Any]:
         kwargs = _base_kwargs(

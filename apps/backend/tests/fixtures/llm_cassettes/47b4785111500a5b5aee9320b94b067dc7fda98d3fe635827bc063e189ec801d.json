@@ -1,0 +1,25 @@
+{
+  "fingerprint": "47b4785111500a5b5aee9320b94b067dc7fda98d3fe635827bc063e189ec801d",
+  "request": {
+    "decode_params": {
+      "max_tokens": 512,
+      "temperature": 0.0
+    },
+    "messages": [
+      {
+        "content": "Extract transactions as JSON.",
+        "role": "system"
+      },
+      {
+        "content": "Statement S-0001 closing balance 100.00",
+        "role": "user"
+      }
+    ],
+    "role": "text"
+  },
+  "response": {
+    "stream_text": "{\"transactions\": [], \"closing_balance\": \"100.00\"}"
+  },
+  "role": "text",
+  "tag": "flow-only"
+}

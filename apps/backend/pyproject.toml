@@ -94,6 +94,7 @@ markers = [
     "integration: Backend cross-module integration tests with infrastructure and service boundaries",
     "e2e: End-to-end tests, including backend API scenarios and browser UI flows",
     "no_db: Pure tests that must not initialize the autouse database fixture",
+    "needs_real_cassette: Cassette-backed extraction tests pending real recording (run make llm-record); skipped in PR CI until the operator records them",
 ]
 
 # Default: Run all tests except slow/perf/e2e

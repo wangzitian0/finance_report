@@ -441,6 +441,29 @@ jobs:
             --dist worksteal \
             --junit-xml=test-results/backend-shard-${{ matrix.shard }}.xml
 
+      # EPIC-023 AC23.5/AC23.6: exercise the LLM cassette layer (non-streaming +
+      # the streaming bridge) deterministically in PR CI via REPLAY — no API key,
+      # no network. LLM_CASSETTE_MODE is set HERE, scoped to this step only, so it
+      # NEVER leaks into the staging `-m "llm"` live gates (staging-deploy.yml /
+      # staging-ai-ocr-gate.yml set no cassette var and stay live/real). The
+      # not-yet-recorded extraction scaffold tests are excluded
+      # (`needs_real_cassette`) so this step stays green until the operator records
+      # real cassettes with `make llm-record`.
+      - name: LLM cassette replay (deterministic, no key/network)
+        if: ${{ matrix.shard == 1 }}
+        env:
+          LLM_CASSETTE_MODE: replay
+        run: |
+          cd apps/backend
+          mkdir -p test-results
+          uv run pytest -n auto -v \
+            tests/unit/llm/test_cassette.py \
+            tests/unit/llm/test_streaming_cassette.py \
+            -m "not needs_real_cassette" \
+            -p no:randomly \
+            --no-cov \
+            --junit-xml=test-results/backend-llm-cassette-replay.xml
+
       - name: Upload coverage artifact
         if: ${{ always() }}
         uses: actions/upload-artifact@v7
