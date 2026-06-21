@@ -83,6 +83,15 @@ WORKFLOW_FORBIDDEN_TRIGGERS: dict[str, tuple[str, ...]] = {
     ".github/workflows/production-release.yml": ("push", "pull_request"),
 }
 
+ACTION_RUNTIME_INVENTORY = "docs/ssot/github-action-runtime.yaml"
+ACTION_RUNTIME_STATUSES = {"node24_native", "forced_node20_metadata"}
+ACTION_RUNTIME_METADATA_GLOBS = (
+    ".github/workflows/*.yml",
+    ".github/workflows/*.yaml",
+    ".github/actions/**/*.yml",
+    ".github/actions/**/*.yaml",
+)
+
 # Stale prose that must never reappear in the CI/deploy SSOT, keyed by file.
 # Each entry is (forbidden substring, explanation of the correct fact).
 SSOT_FORBIDDEN_PROSE: dict[str, tuple[tuple[str, str], ...]] = {
@@ -219,6 +228,35 @@ def workflow_job_ids(workflow: dict) -> set[str]:
     return {str(job_id) for job_id in jobs}
 
 
+def iter_action_uses(value: object) -> set[str]:
+    """Collect external `uses:` action references from workflow-like YAML."""
+    found: set[str] = set()
+    if isinstance(value, dict):
+        uses = value.get("uses")
+        if isinstance(uses, str) and not uses.startswith(("./", "docker://")):
+            found.add(uses)
+        for nested in value.values():
+            found.update(iter_action_uses(nested))
+    elif isinstance(value, list):
+        for nested in value:
+            found.update(iter_action_uses(nested))
+    return found
+
+
+def workflow_action_uses(repo_root: Path) -> set[str]:
+    uses: set[str] = set()
+    for pattern in ACTION_RUNTIME_METADATA_GLOBS:
+        for path in sorted(repo_root.glob(pattern)):
+            try:
+                data = load_yaml(repo_root, str(path.relative_to(repo_root)))
+            except ValueError:
+                # YAML validity is checked elsewhere in the same contract path;
+                # avoid duplicate parse noise here.
+                continue
+            uses.update(iter_action_uses(data))
+    return uses
+
+
 def check_workflows(repo_root: Path, errors: list[str]) -> None:
     for path, expected in WORKFLOW_CONTRACT.items():
         try:
@@ -321,11 +359,101 @@ def check_issue_templates(repo_root: Path, errors: list[str]) -> None:
             )
 
 
+def check_action_runtime_inventory(repo_root: Path, errors: list[str]) -> None:
+    try:
+        inventory = load_yaml(repo_root, ACTION_RUNTIME_INVENTORY)
+    except ValueError as exc:
+        errors.append(str(exc))
+        return
+
+    actions = inventory.get("actions")
+    exceptions = inventory.get("exceptions", [])
+    if not isinstance(actions, list) or not actions:
+        errors.append(f"{ACTION_RUNTIME_INVENTORY}: `actions` must be a non-empty list")
+        return
+    if not isinstance(exceptions, list):
+        errors.append(f"{ACTION_RUNTIME_INVENTORY}: `exceptions` must be a list")
+        return
+
+    used_actions = workflow_action_uses(repo_root)
+    inventoried: dict[str, dict] = {}
+    for entry in actions:
+        if not isinstance(entry, dict):
+            errors.append(f"{ACTION_RUNTIME_INVENTORY}: action entries must be maps")
+            continue
+        uses = str(entry.get("uses", ""))
+        status = str(entry.get("runtime_status", ""))
+        if not uses:
+            errors.append(f"{ACTION_RUNTIME_INVENTORY}: action entry missing `uses`")
+            continue
+        if uses in inventoried:
+            errors.append(f"{ACTION_RUNTIME_INVENTORY}: duplicate action {uses!r}")
+        inventoried[uses] = entry
+        if status not in ACTION_RUNTIME_STATUSES:
+            errors.append(
+                f"{ACTION_RUNTIME_INVENTORY}: {uses} has invalid "
+                f"runtime_status {status!r}"
+            )
+        if not str(entry.get("owner", "")):
+            errors.append(f"{ACTION_RUNTIME_INVENTORY}: {uses} is missing owner")
+
+    missing = sorted(used_actions - set(inventoried))
+    if missing:
+        errors.append(
+            f"{ACTION_RUNTIME_INVENTORY}: workflow action(s) missing from "
+            f"runtime inventory: {missing}"
+        )
+    stale = sorted(set(inventoried) - used_actions)
+    if stale:
+        errors.append(
+            f"{ACTION_RUNTIME_INVENTORY}: runtime inventory action(s) are not "
+            f"used by workflows/composite actions: {stale}"
+        )
+
+    exception_actions: dict[str, dict] = {}
+    for exception in exceptions:
+        if not isinstance(exception, dict):
+            errors.append(f"{ACTION_RUNTIME_INVENTORY}: exception entries must be maps")
+            continue
+        uses = str(exception.get("uses", ""))
+        if uses in exception_actions:
+            errors.append(f"{ACTION_RUNTIME_INVENTORY}: duplicate exception {uses!r}")
+        exception_actions[uses] = exception
+        for key in ("owner", "reason", "review_after"):
+            if not str(exception.get(key, "")):
+                errors.append(
+                    f"{ACTION_RUNTIME_INVENTORY}: exception {uses!r} missing `{key}`"
+                )
+
+    forced_actions = {
+        uses
+        for uses, entry in inventoried.items()
+        if entry.get("runtime_status") == "forced_node20_metadata"
+    }
+    if forced_actions != set(exception_actions):
+        errors.append(
+            f"{ACTION_RUNTIME_INVENTORY}: forced Node20 metadata actions must "
+            "match exceptions exactly "
+            f"(forced={sorted(forced_actions)}, exceptions={sorted(exception_actions)})"
+        )
+
+    if forced_actions:
+        for workflow_path in sorted((repo_root / ".github" / "workflows").glob("*.yml")):
+            workflow_text = workflow_path.read_text(encoding="utf-8")
+            if 'FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"' not in workflow_text:
+                rel = workflow_path.relative_to(repo_root)
+                errors.append(
+                    f"{rel}: forced Node20 metadata exceptions exist, so the "
+                    "workflow must keep FORCE_JAVASCRIPT_ACTIONS_TO_NODE24 enabled"
+                )
+
+
 def run_contract(repo_root: Path) -> int:
     errors: list[str] = []
     check_workflows(repo_root, errors)
     check_ssot_docs(repo_root, errors)
     check_issue_templates(repo_root, errors)
+    check_action_runtime_inventory(repo_root, errors)
 
     if errors:
         for error in errors:

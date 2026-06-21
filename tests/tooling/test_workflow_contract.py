@@ -28,7 +28,13 @@ _CONTRACT_INPUTS = (
     ".github/workflows/release-images.yml",
     ".github/workflows/production-release.yml",
     ".github/workflows/docs.yml",
+    ".github/workflows/pr-test.yml",
+    ".github/workflows/pr-preview-cleanup.yml",
+    ".github/workflows/notify-infra2-report-main.yml",
+    ".github/workflows/staging-ai-ocr-gate.yml",
+    ".github/actions/setup-e2e-tests/action.yml",
     "docs/ssot/ci-cd.md",
+    "docs/ssot/github-action-runtime.yaml",
     "docs/ssot/deployment.md",
     "docs/ssot/environments.md",
     ".github/ISSUE_TEMPLATE/issue.yml",
@@ -138,3 +144,36 @@ def test_AC7_15_1_ci_workflow_wires_the_workflow_contract_gate() -> None:
         str(step.get("run", "")) for step in lint_job.get("steps", [])
     )
     assert "tools/check_workflow_contract.py" in lint_run_commands
+
+
+def test_action_runtime_inventory_rejects_uninventoried_workflow_actions(
+    tmp_path,
+) -> None:
+    _copy_inputs(tmp_path)
+    target = tmp_path / "docs/ssot/github-action-runtime.yaml"
+    content = target.read_text(encoding="utf-8")
+    content = content.replace(
+        "  - uses: actions/checkout@v7\n"
+        "    runtime_status: node24_native\n"
+        "    owner: ci_workflow\n",
+        "",
+    )
+    target.write_text(content, encoding="utf-8")
+    assert contract.run_contract(tmp_path) == 1
+
+
+def test_action_runtime_inventory_requires_exceptions_for_forced_node20_metadata(
+    tmp_path,
+) -> None:
+    _copy_inputs(tmp_path)
+    target = tmp_path / "docs/ssot/github-action-runtime.yaml"
+    content = target.read_text(encoding="utf-8")
+    content = content.replace(
+        "  - uses: docker/login-action@v3\n"
+        "    owner: ci_workflow\n"
+        "    reason: GHCR authentication still emits Node 20 metadata warnings; upgrade when Docker publishes a Node 24 native major.\n"
+        "    review_after: \"2026-07-15\"\n",
+        "",
+    )
+    target.write_text(content, encoding="utf-8")
+    assert contract.run_contract(tmp_path) == 1

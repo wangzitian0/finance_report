@@ -513,6 +513,20 @@ concepts:
       - docs/project/EPIC-008.testing-strategy.md
       - .github/workflows/ci.yml
 
+  github_action_runtime:
+    owner: docs/ssot/github-action-runtime.yaml
+    family: delivery
+    kind: matrix
+    parent: ci_workflow
+    authority: human_curated
+    description: External GitHub JavaScript action runtime inventory, including forced Node20 metadata exceptions while workflows validate under Node24.
+    proofs:
+      - tests/tooling/test_workflow_contract.py
+      - tests/tooling/test_post_merge_e2e_gates.py
+    cross_refs:
+      - docs/ssot/ci-cd.md
+      - .github/workflows/ci.yml
+
   delivery_gate_triggers:
     owner: docs/ssot/delivery-gates.yaml
     family: delivery
