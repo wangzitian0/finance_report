@@ -60,6 +60,7 @@ explicit AC IDs for the behavior.
 | `apps/backend/tests/auth/test_auth_router_unit.py` | `docs/ssot/auth.md` |
 | `apps/backend/tests/extraction/test_account_last4_defense.py` | `docs/ssot/extraction.md` |
 | `apps/backend/tests/extraction/test_classification_service.py` | `docs/ssot/extraction.md` |
+| `apps/backend/tests/extraction/test_extraction_cassette_replay.py` | `docs/ssot/llm.md` (EPIC-023 AC23.6 streaming-bridge scaffold; skipped via `needs_real_cassette` until real cassettes are recorded with `make llm-record`, then it becomes AC proof) |
 | `apps/backend/tests/extraction/test_dual_write_layer2.py` | `docs/ssot/extraction.md` |
 | `apps/backend/tests/extraction/test_extraction_logging.py` | `docs/ssot/extraction.md` |
 | `apps/backend/tests/extraction/test_pdf_fixtures.py` | `docs/ssot/extraction.md` |
