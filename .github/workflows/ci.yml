@@ -453,6 +453,7 @@ jobs:
         env:
           LLM_CASSETTE_MODE: replay
         run: |
+          cd apps/backend
           uv run pytest -v \
             tests/extraction/test_extraction_cassette_replay.py \
             -p no:randomly --no-cov \
