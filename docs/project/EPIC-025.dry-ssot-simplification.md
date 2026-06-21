@@ -114,6 +114,12 @@ verifiable.
 |----|-------------|---------------|------|----------|
 | AC25.4.1 | Shared reporting fixtures (standard chart of accounts, golden dashboard scenario, standard FX rates) are provided by a single `tests/reporting/_report_fixtures` module and reused, with duplicate per-file `test_user_id` fixtures removed; existing AC traceability is preserved | `test_report_fixtures_shared` | `apps/backend/tests/reporting/test_report_fixtures_shared.py` | P1 |
 
+### AC25.5 — Router boundary: no router imports another router (#1097)
+
+| ID | Requirement | Test Function | File | Priority |
+|----|-------------|---------------|------|----------|
+| AC25.5.1 | No backend router module imports a symbol from another router (`from src.routers.<x> import ...` is absent across `apps/backend/src/routers`); the personal-report-package assembly calls `services.performance_report.build_investment_performance_report_schedule` directly instead of the portfolio router handler, preserving behavior | `test_AC25_5_1_no_router_imports_another_router` | `apps/backend/tests/api/test_router_boundary.py` | P1 |
+
 ---
 
 ## 📏 Acceptance Criteria
