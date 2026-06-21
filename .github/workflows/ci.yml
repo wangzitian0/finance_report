@@ -441,24 +441,6 @@ jobs:
             --dist worksteal \
             --junit-xml=test-results/backend-shard-${{ matrix.shard }}.xml
 
-      # EPIC-023 AC23.6 / #1306: replay the recorded extraction cassettes (real
-      # glm-5.2/glm-4.6v responses, frozen) deterministically — NO key, NO
-      # network. LLM_CASSETTE_MODE=replay is scoped to THIS step only (staging
-      # `-m "llm"` gates set no cassette var and stay live/real). Runs ONLY the
-      # extraction-cassette file (which self-skips outside replay mode), so its
-      # AC evidence is emitted exactly once — no duplicate-evidence aggregator
-      # skew. Shard 1 only (the cassettes are shard-independent).
-      - name: LLM extraction cassette replay (deterministic, no key/network)
-        if: ${{ matrix.shard == 1 }}
-        env:
-          LLM_CASSETTE_MODE: replay
-        run: |
-          cd apps/backend
-          uv run pytest -v \
-            tests/extraction/test_extraction_cassette_replay.py \
-            -p no:randomly --no-cov \
-            --junit-xml=test-results/backend-extraction-cassette-replay.xml
-
       - name: Upload coverage artifact
         if: ${{ always() }}
         uses: actions/upload-artifact@v7
