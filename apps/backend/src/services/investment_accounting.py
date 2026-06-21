@@ -8,9 +8,9 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.ledger import Entry, post_entry
+from src.ledger import Entry, Leg, post_entry
 from src.models.account import Account, AccountType
-from src.models.journal import Direction, JournalEntry, JournalEntrySourceType
+from src.models.journal import Direction, JournalEntry
 from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.models.portfolio import (
     DividendIncome,
@@ -21,7 +21,6 @@ from src.models.portfolio import (
 )
 from src.money import Money, to_money
 from src.quantity import Quantity
-from src.services.accounting import create_journal_entry, post_journal_entry
 from src.unit_price import UnitPrice
 
 INVESTMENT_QUANTITY_UNIT = "units"
@@ -203,61 +202,49 @@ class InvestmentAccountingService:
         )
         realized_pnl = to_money(proceeds - cost_basis)
 
-        lines = [
-            {
-                "account_id": cash_account.id,
-                "direction": Direction.DEBIT,
-                "amount": proceeds,
-                "currency": currency,
-                "fx_rate": fx_rate,
-                "event_type": "investment_sell",
-                "tags": {"asset_identifier": asset_identifier},
-            },
-            {
-                "account_id": investment_account.id,
-                "direction": Direction.CREDIT,
-                "amount": cost_basis,
-                "currency": currency,
-                "fx_rate": fx_rate,
-                "event_type": "investment_sell",
-                "tags": {"asset_identifier": asset_identifier},
-            },
+        sell_tags = {"asset_identifier": asset_identifier}
+        legs = [
+            Leg(cash_account.id, Direction.DEBIT, Money(proceeds, currency), fx_rate, "investment_sell", sell_tags),
+            Leg(
+                investment_account.id,
+                Direction.CREDIT,
+                Money(cost_basis, currency),
+                fx_rate,
+                "investment_sell",
+                sell_tags,
+            ),
         ]
         if realized_pnl > Decimal("0"):
-            lines.append(
-                {
-                    "account_id": pnl_account.id,
-                    "direction": Direction.CREDIT,
-                    "amount": realized_pnl,
-                    "currency": currency,
-                    "fx_rate": fx_rate,
-                    "event_type": "investment_realized_pnl",
-                    "tags": {"asset_identifier": asset_identifier},
-                }
+            legs.append(
+                Leg(
+                    pnl_account.id,
+                    Direction.CREDIT,
+                    Money(realized_pnl, currency),
+                    fx_rate,
+                    "investment_realized_pnl",
+                    sell_tags,
+                )
             )
         elif realized_pnl < Decimal("0"):
-            lines.append(
-                {
-                    "account_id": pnl_account.id,
-                    "direction": Direction.DEBIT,
-                    "amount": abs(realized_pnl),
-                    "currency": currency,
-                    "fx_rate": fx_rate,
-                    "event_type": "investment_realized_pnl",
-                    "tags": {"asset_identifier": asset_identifier},
-                }
+            legs.append(
+                Leg(
+                    pnl_account.id,
+                    Direction.DEBIT,
+                    Money(abs(realized_pnl), currency),
+                    fx_rate,
+                    "investment_realized_pnl",
+                    sell_tags,
+                )
             )
 
-        entry = await create_journal_entry(
+        posted = await post_entry(
             db,
             user_id=user_id,
             entry_date=transaction_date,
             memo=f"Sell {asset_identifier}",
-            source_type=JournalEntrySourceType.SYSTEM,
             source_id=source_id,
-            lines_data=lines,
+            entry=Entry.of(*legs),
         )
-        posted = await self._post_and_load(db, entry.id, user_id)
 
         position_quantity = (Quantity(position.quantity, INVESTMENT_QUANTITY_UNIT) - trade_quantity).quantize()
         position.quantity = position_quantity.value
@@ -334,53 +321,35 @@ class InvestmentAccountingService:
         tax = to_money(withholding_tax)
         net_cash = to_money(gross - tax)
 
-        lines = []
+        div_tags = {"asset_identifier": asset_identifier}
+        legs = []
         if net_cash > Decimal("0"):
-            lines.append(
-                {
-                    "account_id": cash_account.id,
-                    "direction": Direction.DEBIT,
-                    "amount": net_cash,
-                    "currency": currency,
-                    "fx_rate": fx_rate,
-                    "event_type": "investment_dividend",
-                    "tags": {"asset_identifier": asset_identifier},
-                }
+            legs.append(
+                Leg(
+                    cash_account.id,
+                    Direction.DEBIT,
+                    Money(net_cash, currency),
+                    fx_rate,
+                    "investment_dividend",
+                    div_tags,
+                )
             )
         if tax > Decimal("0") and tax_account is not None:
-            lines.append(
-                {
-                    "account_id": tax_account.id,
-                    "direction": Direction.DEBIT,
-                    "amount": tax,
-                    "currency": currency,
-                    "fx_rate": fx_rate,
-                    "event_type": "investment_dividend_tax",
-                    "tags": {"asset_identifier": asset_identifier},
-                }
+            legs.append(
+                Leg(tax_account.id, Direction.DEBIT, Money(tax, currency), fx_rate, "investment_dividend_tax", div_tags)
             )
-        lines.append(
-            {
-                "account_id": income_account.id,
-                "direction": Direction.CREDIT,
-                "amount": gross,
-                "currency": currency,
-                "fx_rate": fx_rate,
-                "event_type": "investment_dividend",
-                "tags": {"asset_identifier": asset_identifier},
-            }
+        legs.append(
+            Leg(income_account.id, Direction.CREDIT, Money(gross, currency), fx_rate, "investment_dividend", div_tags)
         )
 
-        entry = await create_journal_entry(
+        posted = await post_entry(
             db,
             user_id=user_id,
             entry_date=payment_date,
             memo=f"Dividend {asset_identifier}",
-            source_type=JournalEntrySourceType.SYSTEM,
             source_id=source_id,
-            lines_data=lines,
+            entry=Entry.of(*legs),
         )
-        posted = await self._post_and_load(db, entry.id, user_id)
 
         transaction = InvestmentTransaction(
             user_id=user_id,
@@ -552,11 +521,6 @@ class InvestmentAccountingService:
         else:
             query = query.order_by(InvestmentLot.acquisition_date.asc(), InvestmentLot.created_at.asc())
         return list((await db.execute(query)).scalars().all())
-
-    async def _post_and_load(self, db: AsyncSession, entry_id: UUID, user_id: UUID) -> JournalEntry:
-        posted = await post_journal_entry(db, entry_id, user_id)
-        await db.refresh(posted, ["lines"])
-        return posted
 
     def _validate_positive(self, value: Decimal, field: str) -> None:
         if value <= Decimal("0"):
