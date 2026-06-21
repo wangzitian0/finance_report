@@ -9,10 +9,10 @@
 
 | Dimension | Physical Location (SSOT) | Description |
 |-----------|--------------------------|-------------|
-| **Report Lazy FX Resolution** | `apps/backend/src/services/market_data.py` | On-demand FX derivation/fetch for reports |
+| **Report Lazy FX Resolution** | `apps/backend/src/services/market_data/` | On-demand FX derivation/fetch for reports |
 | **FX Lookup API** | `apps/backend/src/services/fx.py` | DB lookup, in-process cache, optional lazy resolution |
 | **Rate Storage** | `fx_rates` table | Historical direct and derived rates |
-| **Market Data Sync** | `apps/backend/src/services/market_data.py` | Incremental FX/stock sync and provider validation |
+| **Market Data Sync** | `apps/backend/src/services/market_data/` | Incremental FX/stock sync and provider validation |
 | **Market Data Status** | `GET /api/market-data/status` | Authenticated read-only freshness status for ordinary-user E2E and support diagnostics |
 | **Market Data Scheduler** | `apps/backend/src/services/market_data_scheduler.py` | Daily 22:00 Asia/Singapore background sync |
 | **Price Storage** | `stock_prices` table | Historical daily stock prices |

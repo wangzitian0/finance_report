@@ -42,7 +42,7 @@ BACKEND_MONEY_ADAPTER_FILES = [
 BACKEND_QUANTITY_ADAPTER_FILES = [
     Path("apps/backend/src/services/assets.py"),
     Path("apps/backend/src/services/investment_accounting.py"),
-    Path("apps/backend/src/services/market_data.py"),
+    Path("apps/backend/src/services/market_data"),
     Path("apps/backend/src/services/portfolio.py"),
     Path("apps/backend/src/services/reporting"),
 ]
@@ -53,7 +53,9 @@ def _read(path: Path) -> str:
     if target.is_dir():
         # Package directory: concatenate its modules so the checks are robust to
         # a single-file module being split into a package.
-        return "\n".join(p.read_text(encoding="utf-8") for p in sorted(target.rglob("*.py")))
+        return "\n".join(
+            p.read_text(encoding="utf-8") for p in sorted(target.rglob("*.py"))
+        )
     return target.read_text(encoding="utf-8")
 
 

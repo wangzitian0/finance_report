@@ -105,7 +105,7 @@ async def test_get_exchange_rate_lazy_fetches_provider_when_enabled(db: AsyncSes
         )
 
     monkeypatch.setattr(settings, "market_data_lazy_fetch_enabled", True)
-    monkeypatch.setattr(market_data, "_fetch_yahoo_fx_rate", fake_yahoo_fetch)
+    monkeypatch.setattr(market_data._providers, "_fetch_yahoo_fx_rate", fake_yahoo_fetch)
 
     result = await get_exchange_rate(db, "HKD", "SGD", date(2025, 6, 30), lazy_load=True)
 
@@ -154,7 +154,7 @@ async def test_resolve_missing_fx_rate_returns_none_when_provider_misses(db: Asy
         return None
 
     monkeypatch.setattr(settings, "market_data_lazy_fetch_enabled", True)
-    monkeypatch.setattr(market_data, "_fetch_yahoo_or_derived_fx_rate", fake_provider_fetch)
+    monkeypatch.setattr(market_data._providers, "_fetch_yahoo_or_derived_fx_rate", fake_provider_fetch)
 
     result = await market_data.resolve_missing_fx_rate(db, "HKD", "SGD", date(2025, 6, 30))
 
@@ -311,7 +311,7 @@ async def test_fetch_yahoo_or_derived_fx_rate_uses_inverse(monkeypatch):
             )
         return None
 
-    monkeypatch.setattr(market_data, "_fetch_yahoo_fx_rate", fake_fetch)
+    monkeypatch.setattr(market_data._providers, "_fetch_yahoo_fx_rate", fake_fetch)
 
     result = await market_data._fetch_yahoo_or_derived_fx_rate("HKD", "SGD", date(2025, 6, 30))
 
@@ -348,7 +348,7 @@ async def test_fetch_yahoo_or_derived_fx_rate_uses_bridge(monkeypatch):
         return observations.get((base, quote))
 
     monkeypatch.setattr(settings, "market_data_fx_bridge_currency", "USD")
-    monkeypatch.setattr(market_data, "_fetch_yahoo_fx_rate", fake_fetch)
+    monkeypatch.setattr(market_data._providers, "_fetch_yahoo_fx_rate", fake_fetch)
 
     result = await market_data._fetch_yahoo_or_derived_fx_rate("HKD", "SGD", date(2025, 6, 30))
 
@@ -368,7 +368,7 @@ async def test_fetch_yahoo_or_derived_fx_rate_skips_bridge_when_bridge_is_pair_c
         return None
 
     monkeypatch.setattr(settings, "market_data_fx_bridge_currency", "SGD")
-    monkeypatch.setattr(market_data, "_fetch_yahoo_fx_rate", fake_fetch)
+    monkeypatch.setattr(market_data._providers, "_fetch_yahoo_fx_rate", fake_fetch)
 
     result = await market_data._fetch_yahoo_or_derived_fx_rate("HKD", "SGD", date(2025, 6, 30))
 
@@ -390,7 +390,7 @@ async def test_fetch_yahoo_or_derived_fx_rate_returns_none_when_bridge_leg_missi
         return None
 
     monkeypatch.setattr(settings, "market_data_fx_bridge_currency", "USD")
-    monkeypatch.setattr(market_data, "_fetch_yahoo_fx_rate", fake_fetch)
+    monkeypatch.setattr(market_data._providers, "_fetch_yahoo_fx_rate", fake_fetch)
 
     result = await market_data._fetch_yahoo_or_derived_fx_rate("HKD", "SGD", date(2025, 6, 30))
 

@@ -15,7 +15,12 @@ REPO = Path(__file__).resolve().parents[2]
 
 
 def _read(path: Path) -> str:
-    return (REPO / path).read_text(encoding="utf-8")
+    target = REPO / path
+    if target.is_dir():
+        return "\n# <<< file-boundary >>>\n".join(
+            p.read_text(encoding="utf-8") for p in sorted(target.rglob("*.py"))
+        )
+    return target.read_text(encoding="utf-8")
 
 
 @ac_proof(
@@ -44,6 +49,6 @@ def test_AC12_32_3_investment_accounting_uses_unit_price():
 )
 def test_AC12_32_3_market_data_price_quantum_is_single_sourced():
     """AC12.32.3: market-data prices reuse the package quantum, not a local literal."""
-    src = _read(Path("apps/backend/src/services/market_data.py"))
+    src = _read(Path("apps/backend/src/services/market_data"))
     assert "from src.unit_price import UNIT_PRICE_QUANTUM" in src
     assert "_PRICE_QUANT = UNIT_PRICE_QUANTUM" in src
