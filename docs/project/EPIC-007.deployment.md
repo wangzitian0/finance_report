@@ -299,6 +299,35 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 | AC7.16.1 | The shared E2E toolchain-setup composite (`setup-e2e-tests`) retries transient dependency/browser download failures (`uv pip install`, `playwright install`) with bounded exponential backoff and keeps the original external error visible on exhaustion | `test_AC7_16_1_setup_e2e_composite_retries_toolchain_downloads`, `test_AC7_16_1_setup_e2e_composite_does_not_wrap_test_execution` | `tests/tooling/test_staging_toolchain_retry.py` | P0 |
 | AC7.16.2 | The staging deploy_v2 dependency install retries transient download failures with bounded exponential backoff; application deploy/test steps remain fail-fast (not wrapped in retry) | `test_AC7_16_2_staging_deploy_v2_dependency_install_retries`, `test_AC7_16_2_staging_deploy_and_e2e_steps_stay_fail_fast` | `tests/tooling/test_staging_toolchain_retry.py` | P0 |
 
+### AC7.17: Smoke Gate Asserts Only Real Public Frontend Routes (#411)
+
+> The deploy-smoke gate (`tools/_lib/shell/smoke_test.sh`) runs in the staging /
+> PR-preview health gate. Every page route it asserts must correspond to a real,
+> publicly reachable Next.js route under `apps/frontend/src/app` — a smoke check
+> for a non-existent path (e.g. `/dashboard`, which 404s) makes the gate either
+> flap or pass for the wrong reason. The smoke script must not assert a page path
+> that has no `page.tsx` and must not assert a path that 401s for anonymous
+> requests.
+
+| ID | Requirement | Test Function | File | Priority |
+|----|-------------|---------------|------|----------|
+| AC7.17.1 | Every page route the smoke gate asserts (`check_endpoint "...Page" "$BASE_URL/<route>"`) maps to a real public Next.js route that exists under `apps/frontend/src/app` (route-group folders excluded); the removed `/dashboard` path (no `page.tsx`) is not asserted | `test_AC7_17_1_smoke_asserts_only_existing_public_frontend_routes`, `test_AC7_17_1_smoke_does_not_assert_nonexistent_dashboard_route` | `tests/tooling/test_smoke_routes_contract.py` | P0 |
+
+### AC7.18: Build-Time Secret-Scan Gate on the Image Build Context (#1277)
+
+> The lint job already content-scans the working tree with gitleaks. The image
+> build is a second, independent surface: a secret can enter the Docker build
+> context (`./apps/<component>`) and be baked into a published `:<sha>` image.
+> The `container-images` job must run a fail-closed gitleaks scan over the build
+> context BEFORE `docker/build-push-action`, so a secret in the context fails the
+> build and the finding stays visible in the job logs (redacted value). This is
+> the secret-scan half of #1277 only; image `:<sha>` retention is out of scope
+> and #1277 stays open for it.
+
+| ID | Requirement | Test Function | File | Priority |
+|----|-------------|---------------|------|----------|
+| AC7.18.1 | The CI `container-images` job runs a gitleaks secret scan over the per-component build context before the image build step, fails closed on detection (`--exit-code 1` / `--no-git`), and keeps the finding visible in logs (`--redact`, no `--no-banner`-only silent pass) | `test_AC7_18_1_container_images_job_has_build_context_secret_scan`, `test_AC7_18_1_build_secret_scan_is_fail_closed_before_build` | `tests/tooling/test_build_secret_scan_contract.py` | P0 |
+
 
 ## 📏 Acceptance Criteria
 
