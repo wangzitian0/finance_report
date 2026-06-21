@@ -127,7 +127,7 @@ or HK-like report classification, measurement, presentation, or disclosure.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC3.1.1 | Parse DBS PDF {tier:LP} | `test_dbs_fixture_has_valid_structure` | `extraction/test_pdf_parsing.py` | P0 |
+| AC3.1.1 | Parse DBS PDF {tier:LP} {proof:invariant} | `test_balance_chain_invariant_holds_for_consistent_statements`, `test_balance_chain_tolerance_is_symmetric`, `test_dbs_fixture_has_valid_structure` | `extraction/test_extraction_invariants.py`, `extraction/test_pdf_parsing.py` | P0 |
 | AC3.1.2 | Parse CSV (DBS) {tier:PC} | `test_parse_dbs_csv` | `test_csv_parsing.py` | P0 |
 | AC3.1.3 | Parse CSV (Wise) {tier:PC} | `test_parse_wise_csv` | `test_csv_parsing.py` | P0 |
 | AC3.1.4 | Parse CSV (Generic) {tier:PC} | `test_parse_generic_csv_with_amount_column` | `test_csv_parsing.py` | P0 |
@@ -148,7 +148,7 @@ or HK-like report classification, measurement, presentation, or disclosure.
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC3.3.1 | High Confidence (Auto-Accept) {tier:PC} | `test_high_confidence`, `test_auto_approve_high_confidence_statement_creates_posted_entries`, `test_auto_approve_guard_failure_preserves_uncommitted_parse_data` | `extraction/test_extraction.py`, `api/test_statements_router.py` | P0 |
-| AC3.3.2 | Medium Confidence (Review) {tier:HU} | `test_medium_confidence` | `extraction/test_extraction.py` | P0 |
+| AC3.3.2 | Medium Confidence (Review) {tier:HU} {proof:evidence} | `test_medium_confidence` | `extraction/test_extraction.py` | P0 |
 | AC3.3.3 | Low Confidence (Manual) {tier:PC} | `test_low_confidence_empty_transactions` | `extraction/test_extraction.py` | P0 |
 
 ### AC3.4: Error Handling
@@ -168,10 +168,10 @@ or HK-like report classification, measurement, presentation, or disclosure.
 | AC3.5.4 | Extraction Flow Tests {tier:PC} | `test_extraction_flow` | `extraction/test_extraction_flow.py` | P0 |
 | AC3.5.5 | Statement Parsing Supervisor {tier:PC} | `test_statement_parsing_supervisor` | `extraction/test_statement_parsing_supervisor.py` | P1 |
 | AC3.5.6 | Invalid file extension should return 400. {tier:PC} | `test_upload_invalid_extension` | `api/test_statements_router.py` | P1 |
-| AC3.5.7 | PDF/image uploads may omit model and use the default OCR pipeline. {tier:LP} | `test_upload_uses_default_ocr_pipeline_for_pdf` | `api/test_statements_router.py` | P1 |
+| AC3.5.7 | PDF/image uploads may omit model and use the default OCR pipeline. {tier:LP} {proof:invariant} | `test_balance_chain_invariant_holds_for_consistent_statements`, `test_upload_uses_default_ocr_pipeline_for_pdf` | `extraction/test_extraction_invariants.py`, `api/test_statements_router.py` | P1 |
 | AC3.5.8 | Upload rejects models without image modalities. {tier:PC} | `test_upload_rejects_text_only_model` | `api/test_statements_router.py` | P1 |
 | AC3.5.9 | Upload then list statements and transactions. {tier:PC} | `test_list_and_transactions_flow` | `api/test_statements_router.py` | P1 |
-| AC3.5.10 | Review queue includes reviewable parsed statements and supports approve/reject. {tier:HU} | `test_pending_review_and_decisions` | `api/test_statements_router.py` | P1 |
+| AC3.5.10 | Review queue includes reviewable parsed statements and supports approve/reject. {tier:HU} {proof:evidence} | `test_pending_review_and_decisions` | `api/test_statements_router.py` | P1 |
 | AC3.5.11 | Missing statement returns 404. {tier:PC} | `test_get_statement_not_found` | `api/test_statements_router.py` | P1 |
 | AC3.5.12 | File exceeding 10MB limit returns 413. {tier:PC} | `test_upload_file_too_large` | `api/test_statements_router.py` | P1 |
 | AC3.5.13 | Extraction failure marks statement as rejected. {tier:PC} | `test_upload_extraction_failure` | `api/test_statements_router.py` | P1 |
@@ -180,7 +180,7 @@ or HK-like report classification, measurement, presentation, or disclosure.
 | AC3.5.16 | Retry returns 503 if storage fetch fails. {tier:PC} | `test_retry_statement_storage_failure` | `api/test_statements_router.py` | P1 |
 | AC3.5.17 | Retry on statement not in parsed/rejected status returns 400. {tier:PC} | `test_retry_statement_invalid_status` | `api/test_statements_router.py` | P1 |
 | AC3.5.18 | Verify that retrying a statement in PARSING status is allowed. {tier:PC} | `test_retry_statement_parsing_allowed` | `api/test_statements_router.py` | P1 |
-| AC3.5.19 | Retry parsing with stronger model succeeds. {tier:LP} | `test_retry_statement_success` | `api/test_statements_router.py` | P1 |
+| AC3.5.19 | Retry parsing with stronger model succeeds. {tier:LP} {proof:property} | `test_distinct_same_amount_rows_never_collapse`, `test_balance_chain_invariant_detects_broken_chain`, `test_retry_statement_success` | `extraction/test_extraction_invariants.py`, `api/test_statements_router.py` | P1 |
 | AC3.5.20 | Retry extraction failure returns 422. {tier:PC} | `test_retry_statement_extraction_failure` | `api/test_statements_router.py` | P1 |
 | AC3.5.21 | Upload rejects models not in the OpenRouter catalog. {tier:PC} | `test_upload_statement_rejects_invalid_model` | `api/test_statements_router.py` | P1 |
 | AC3.5.22 | Upload rejects a model lacking image/PDF modality (400). _(EPIC-023: model validation now resolves through the local `LitellmCatalog`; the prior remote-catalog 503 path no longer exists.)_ {tier:PC} | `test_upload_statement_rejects_model_without_image_modality` | `api/test_statements_router.py` | P1 |
@@ -194,7 +194,7 @@ or HK-like report classification, measurement, presentation, or disclosure.
 | AC3.6.1 | Unique Prior Mapping {tier:PC} | `test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account` | `api/test_statements_router.py` | P0 |
 | AC3.6.2 | No Silent Fallback Posting {tier:PC} | `test_approve_statement_stage1_blocks_unmapped_account_without_fallback`, `test_approve_statement_stage1_blocks_unsafe_explicit_account_mapping`, `test_create_entry_from_txn_auto_post_requires_account_mapping` | `api/test_statements_router.py`, `reconciliation/test_review_queue.py` | P0 |
 | AC3.6.3 | Ambiguous Mapping Blocked {tier:PC} | `test_approve_statement_stage1_blocks_ambiguous_account_mapping` | `api/test_statements_router.py` | P0 |
-| AC3.6.4 | Explicit First-Upload Account Creation {tier:HU} | `test_approve_statement_stage1_creates_account_with_explicit_confirmation` | `api/test_statements_router.py` | P0 |
+| AC3.6.4 | Explicit First-Upload Account Creation {tier:HU} {proof:evidence} | `test_approve_statement_stage1_creates_account_with_explicit_confirmation` | `api/test_statements_router.py` | P0 |
 | AC3.6.5 | Prior Mapping Requires Confirmed Statement {tier:PC} | `test_approve_statement_stage1_blocks_prior_unconfirmed_account_mapping` | `api/test_statements_router.py` | P0 |
 | AC3.6.6 | Source Period Unique Before Posting {tier:PC} | `test_approve_statement_stage1_blocks_overlapping_statement_period_before_posting` | `api/test_statements_router.py` | P0 |
 

@@ -101,6 +101,44 @@ requirement cell, with a `{tier:XX}` marker:
 `tier: LP` (etc.) into the AC's registry value, so the tier is a first-class
 attribute of the generated AC entry. `XX` is one of `PC | CP | HU | LP | PL`.
 
+## How a proof kind is declared (and enforced)
+
+The tier→proof matrix above is **enforced**, not merely descriptive, for every
+AC that carries a tier. Each AC declares the KIND of proof its tests provide with
+a second definition-site marker, parsed exactly like `{tier:XX}`:
+
+```text
+| AC3.1.1 | Parse DBS PDF {tier:LP} {proof:invariant} | `test_...` | ... | P0 |
+```
+
+`KIND` is one of `property | invariant | eval | exact | evidence | smoke`. The
+generator strips it from the description and lifts it into the registry as
+`proof_kind`. When a tier-tagged AC declares **no** `{proof:KIND}` marker, its
+`proof_kind` defaults to the tier's canonical valid kind, so the registry value
+is always a kind the matrix accepts (never a sentinel):
+
+| Tier | Default proof kind |
+|------|--------------------|
+| PC | `exact` |
+| CP | `exact` |
+| HU | `evidence` |
+| LP | `property` |
+| PL | `smoke` |
+
+`tools/check_ac_proof_kind.py` (impl `common/ssot/check_ac_proof_kind.py`) then
+asserts the declared/defaulted `proof_kind` is valid for the AC's tier per the
+matrix above. It runs **only for tier-tagged ACs** (untagged legacy ACs have no
+`proof_kind` and are ignored — non-breaking), and the rule with teeth is **an LP
+AC's proof_kind MUST NOT be `exact`** (likewise PL). The gate asserts the
+*declared* kind; statically verifying the referenced test's runtime shape (so a
+golden assertion mislabeled `property` is rejected) is a documented follow-up.
+
+`proof_kind` is a different axis from the critical-proof matrix's `trust_mode`
+(`deterministic_pr` / `llm_ocr_post_merge` / `hybrid`): `trust_mode` says which
+CI stage may be trusted to run a proof, while `proof_kind` says what SHAPE of
+proof is valid for the AC's authority tier. They are orthogonal and may both
+apply to one AC.
+
 ## Ratchet gate (non-breaking adoption)
 
 ~1830 ACs predate this attribute, so coverage is adopted via a **shrink-only
@@ -118,8 +156,11 @@ debt ratchet**, mirroring the protection-floor / AC-score baselines:
 
 - Full backfill of the remaining untagged ACs (ratcheted over time).
 - A derived **module-level tier view** (aggregating AC tiers per module).
-- CI enforcement of **tier -> proof-type** (e.g. rejecting an exact-golden proof
-  for an LP AC, or a number-touching assertion for a PL AC).
+- Upgrading the proof-kind gate from asserting the *declared* `proof_kind` to
+  statically inspecting the referenced test's shape (e.g. rejecting an
+  exact-golden assertion mislabeled `property` on an LP AC, or a number-touching
+  assertion on a PL AC). Phase 2 enforces the declared kind; the test-shape
+  verification is the next ratchet.
 
 ## Related
 

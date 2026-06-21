@@ -114,8 +114,8 @@ Clearly labeled "for reference only"
 |----|-----------|---------------|------|----------|
 | AC6.2.1 | Chinese language detection {tier:PC} | `test_detect_language()`, `test_detect_language_chinese()` | `ai/test_ai_advisor_service.py`, `ai/test_chat_router.py` | P0 |
 | AC6.2.2 | English language detection {tier:PC} | `test_detect_language()`, `test_detect_language_english()` | `ai/test_ai_advisor_service.py`, `ai/test_chat_router.py` | P0 |
-| AC6.2.3 | Chinese suggestions {tier:PL} | `test_chat_suggestions_zh()` | `ai/test_chat_router.py` | P0 |
-| AC6.2.4 | English suggestions {tier:PL} | `test_chat_suggestions_en()` | `ai/test_chat_router.py` | P0 |
+| AC6.2.3 | Chinese suggestions {tier:PL} {proof:smoke} | `test_chat_suggestions_zh()` | `ai/test_chat_router.py` | P0 |
+| AC6.2.4 | English suggestions {tier:PL} {proof:smoke} | `test_chat_suggestions_en()` | `ai/test_chat_router.py` | P0 |
 | AC6.2.5 | Auto-detect Chinese {tier:PC} | `test_chat_suggestions_auto_detect_zh()` | `ai/test_chat_router.py` | P0 |
 | AC6.2.6 | Auto-detect English {tier:PC} | `test_chat_suggestions_auto_detect_en()` | `ai/test_chat_router.py` | P0 |
 

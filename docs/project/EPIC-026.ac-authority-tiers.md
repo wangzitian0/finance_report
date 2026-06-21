@@ -64,12 +64,20 @@ contract rather than restating it.
 
 ## ✅ Scope
 
-- **In**: tier vocabulary (SSOT), AC `tier` schema + generator support, the
-  shrink-only ratchet gate + its test, and a first batch of tagged EPICs.
+- **In (phase 1)**: tier vocabulary (SSOT), AC `tier` schema + generator support,
+  the shrink-only ratchet gate + its test, and a first batch of tagged EPICs.
+- **In (phase 2)**: a `{proof:KIND}` marker giving each AC a declared proof kind,
+  generator support that lifts it into the registry (`proof_kind`, defaulting to
+  the tier's canonical kind), and `tools/check_ac_proof_kind.py` enforcing the
+  tier→proof matrix for **tier-tagged ACs only** (non-breaking) — the rule that
+  must fire is **LP cannot be exact**. The first-batch LP/HU/PL ACs are
+  retrofitted so each carries a matrix-valid proof (the LP extraction ACs gain
+  invariant/property proofs that double as the #1254 money-bug regression).
 - **Out**: full backfill of the remaining untagged ACs; the derived module-level
-  tier view; CI enforcement of tier→proof-type (rejecting an exact-golden proof
-  for an LP AC, or a number-touching assertion for a PL AC). These are explicit
-  follow-ups. No application/runtime logic changes.
+  tier view; upgrading the proof-kind gate from asserting the *declared* kind to
+  inspecting the referenced test's runtime shape (e.g. statically rejecting an
+  exact assertion mislabeled `property`). These are explicit follow-ups. No
+  application/runtime logic changes.
 
 ---
 
@@ -119,6 +127,18 @@ contract rather than restating it.
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
 | AC26.4.1 | Every AC in the first-batch EPICs (003, 006, 021, 023) declares a valid tier, and none of those ACs remains in the untagged-debt baseline {tier:PC} | `test_AC26_4_1_first_batch_epics_fully_tagged_and_off_baseline` | `tests/tooling/test_ac_authority_tiers.py` | P0 |
+
+### AC26.5 — Tier→proof-kind matrix is enforced (phase 2)
+
+| ID | Requirement | Test Function | File | Priority |
+|----|-------------|---------------|------|----------|
+| AC26.5.1 | An AC declares the KIND of its proof via a `{proof:KIND}` marker (KIND ∈ property/invariant/eval/exact/evidence/smoke), parsed alongside `{tier:XX}`, stripped from the description, and lifted into the registry as `proof_kind` (defaulting to the tier's canonical valid kind when unmarked); the enforcement gate then asserts, **for tier-tagged ACs only** (untagged ACs ignored, so it is non-breaking), that the declared kind matches the tier→proof matrix — in particular an **LP AC's proof_kind MUST NOT be `exact`**, HU must be `evidence`, and PL must not be exact. The gate asserts the *declared* kind; verifying the referenced test's runtime shape is a documented follow-up. {tier:PC} {proof:property} | `test_AC26_5_1_proof_kind_marker_flows_and_gate_enforces_matrix` | `tests/tooling/test_ac_proof_kind.py` | P0 |
+
+### AC26.6 — First-batch LP/CP ACs carry a valid-kind proof
+
+| ID | Requirement | Test Function | File | Priority |
+|----|-------------|---------------|------|----------|
+| AC26.6.1 | The first-batch LP/HU/PL ACs retrofitted in this phase (the LP extraction ACs AC3.1.1/AC3.5.7/AC3.5.19, the HU review ACs AC3.3.2/AC3.5.10/AC3.6.4, the PL suggestion ACs AC6.2.3/AC6.2.4) each declare a matrix-valid `proof_kind`; the LP ACs carry an invariant/property proof (the balance-chain `opening + ΣIN − ΣOUT ≈ closing` detector and the #1254 dedup conservation property), so the whole tier-tagged set passes the proof-kind gate. {tier:PC} {proof:property} | `test_AC26_6_1_first_batch_lp_acs_carry_invariant_proof` | `tests/tooling/test_ac_proof_kind.py` | P0 |
 
 ---
 
