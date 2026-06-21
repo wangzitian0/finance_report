@@ -209,6 +209,9 @@ def test_AC8_13_58_ci_tools_delegate_to_common_implementations():
             "common.ci.github_workflow_timing_summary"
         ),
         "tools.production_infra_smoke": "common.ci.production_infra_smoke",
+        "tools.resolve_release_coordinate": "common.ci.release_coordinate",
+        "tools.verify_release_evidence": "common.ci.release_evidence",
+        "tools.verify_release_images": "common.ci.release_images",
         "tools.wait_post_merge_train_turn": ("common.ci.wait_post_merge_train_turn"),
     }
 
