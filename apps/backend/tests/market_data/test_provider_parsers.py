@@ -309,7 +309,7 @@ async def test_persist_stock_price_returns_concurrent_row_after_integrity_error(
             source="concurrent",
         )
 
-    monkeypatch.setattr(market_data, "_load_stored_stock_price_on_date", fake_load)
+    monkeypatch.setattr(market_data._store, "_load_stored_stock_price_on_date", fake_load)
 
     price = await market_data._persist_stock_price(
         FakeDb(),  # type: ignore[arg-type]
@@ -342,10 +342,10 @@ async def test_fetch_validated_provider_functions_cross_validate(monkeypatch: py
     async def fake_stooq_stock(symbol: str, requested_date: date) -> market_data.StockPriceObservation:
         return market_data.StockPriceObservation(symbol, Decimal("100.10"), "USD", requested_date, "stooq")
 
-    monkeypatch.setattr(market_data, "_fetch_yahoo_or_derived_fx_rate", fake_yahoo_fx)
-    monkeypatch.setattr(market_data, "_fetch_stooq_fx_rate", fake_stooq_fx)
-    monkeypatch.setattr(market_data, "_fetch_yahoo_stock_price", fake_yahoo_stock)
-    monkeypatch.setattr(market_data, "_fetch_stooq_stock_price", fake_stooq_stock)
+    monkeypatch.setattr(market_data._providers, "_fetch_yahoo_or_derived_fx_rate", fake_yahoo_fx)
+    monkeypatch.setattr(market_data._providers, "_fetch_stooq_fx_rate", fake_stooq_fx)
+    monkeypatch.setattr(market_data._providers, "_fetch_yahoo_stock_price", fake_yahoo_stock)
+    monkeypatch.setattr(market_data._providers, "_fetch_stooq_stock_price", fake_stooq_stock)
 
     fx = await market_data._fetch_validated_fx_rate("USD", "SGD", observed_date)
     stock = await market_data._fetch_validated_stock_price("aapl", observed_date)
@@ -391,10 +391,10 @@ async def test_fetch_validated_provider_series_functions_cross_validate(monkeypa
     ) -> list[market_data.StockPriceObservation]:
         return [market_data.StockPriceObservation(symbol, Decimal("100.10"), "USD", observed_date, "stooq")]
 
-    monkeypatch.setattr(market_data, "_fetch_yahoo_or_derived_fx_rate_series", fake_yahoo_fx)
-    monkeypatch.setattr(market_data, "_fetch_stooq_fx_rate_series", fake_stooq_fx)
-    monkeypatch.setattr(market_data, "_fetch_yahoo_stock_price_series", fake_yahoo_stock)
-    monkeypatch.setattr(market_data, "_fetch_stooq_stock_price_series", fake_stooq_stock)
+    monkeypatch.setattr(market_data._providers, "_fetch_yahoo_or_derived_fx_rate_series", fake_yahoo_fx)
+    monkeypatch.setattr(market_data._providers, "_fetch_stooq_fx_rate_series", fake_stooq_fx)
+    monkeypatch.setattr(market_data._providers, "_fetch_yahoo_stock_price_series", fake_yahoo_stock)
+    monkeypatch.setattr(market_data._providers, "_fetch_stooq_stock_price_series", fake_stooq_stock)
 
     fx = await market_data._fetch_validated_fx_rate_series("USD", "SGD", observed_date, observed_date)
     stock = await market_data._fetch_validated_stock_price_series("aapl", observed_date, observed_date)
@@ -416,7 +416,7 @@ async def test_fetch_yahoo_or_derived_fx_rate_uses_inverse_and_bridge(monkeypatc
             return market_data.FxRateObservation(base, quote, Decimal("0.740000"), requested_date, "yahoo_finance")
         return None
 
-    monkeypatch.setattr(market_data, "_fetch_yahoo_fx_rate", fake_inverse_fetch)
+    monkeypatch.setattr(market_data._providers, "_fetch_yahoo_fx_rate", fake_inverse_fetch)
     inverse = await market_data._fetch_yahoo_or_derived_fx_rate("USD", "SGD", observed_date)
     assert inverse is not None
     assert inverse.rate == Decimal("1.351351")
@@ -432,7 +432,7 @@ async def test_fetch_yahoo_or_derived_fx_rate_uses_inverse_and_bridge(monkeypatc
             return None
         return market_data.FxRateObservation(base, quote, rate, requested_date, "yahoo_finance")
 
-    monkeypatch.setattr(market_data, "_fetch_yahoo_fx_rate", fake_bridge_fetch)
+    monkeypatch.setattr(market_data._providers, "_fetch_yahoo_fx_rate", fake_bridge_fetch)
     bridge = await market_data._fetch_yahoo_or_derived_fx_rate("EUR", "SGD", observed_date)
     assert bridge is not None
     assert bridge.rate == Decimal("1.485000")
@@ -458,7 +458,7 @@ async def test_fetch_yahoo_or_derived_fx_rate_series_uses_inverse_bridge_and_fai
             return [market_data.FxRateObservation(base, quote, Decimal("0.740000"), observed_date, "yahoo_finance")]
         return []
 
-    monkeypatch.setattr(market_data, "_fetch_yahoo_fx_rate_series", fake_inverse_fetch)
+    monkeypatch.setattr(market_data._providers, "_fetch_yahoo_fx_rate_series", fake_inverse_fetch)
     inverse = await market_data._fetch_yahoo_or_derived_fx_rate_series("USD", "SGD", observed_date, observed_date)
     assert inverse is not None
     assert inverse[0].rate == Decimal("1.351351")
@@ -479,7 +479,7 @@ async def test_fetch_yahoo_or_derived_fx_rate_series_uses_inverse_bridge_and_fai
             return []
         return [market_data.FxRateObservation(base, quote, rate, observed_date, "yahoo_finance")]
 
-    monkeypatch.setattr(market_data, "_fetch_yahoo_fx_rate_series", fake_bridge_fetch)
+    monkeypatch.setattr(market_data._providers, "_fetch_yahoo_fx_rate_series", fake_bridge_fetch)
     bridge = await market_data._fetch_yahoo_or_derived_fx_rate_series("EUR", "SGD", observed_date, observed_date)
     assert bridge is not None
     assert bridge[0].rate == Decimal("1.485000")
@@ -493,7 +493,7 @@ async def test_fetch_yahoo_or_derived_fx_rate_series_uses_inverse_bridge_and_fai
     ) -> list[market_data.FxRateObservation] | None:
         return None
 
-    monkeypatch.setattr(market_data, "_fetch_yahoo_fx_rate_series", fake_failed_fetch)
+    monkeypatch.setattr(market_data._providers, "_fetch_yahoo_fx_rate_series", fake_failed_fetch)
     assert await market_data._fetch_yahoo_or_derived_fx_rate_series("GBP", "SGD", observed_date, observed_date) is None
 
     async def fake_pair_bridge_fetch(
@@ -504,7 +504,7 @@ async def test_fetch_yahoo_or_derived_fx_rate_series_uses_inverse_bridge_and_fai
     ) -> list[market_data.FxRateObservation] | None:
         return []
 
-    monkeypatch.setattr(market_data, "_fetch_yahoo_fx_rate_series", fake_pair_bridge_fetch)
+    monkeypatch.setattr(market_data._providers, "_fetch_yahoo_fx_rate_series", fake_pair_bridge_fetch)
     assert await market_data._fetch_yahoo_or_derived_fx_rate_series("USD", "SGD", observed_date, observed_date) == []
 
     async def fake_missing_bridge_leg_fetch(
@@ -517,7 +517,7 @@ async def test_fetch_yahoo_or_derived_fx_rate_series_uses_inverse_bridge_and_fai
             return [market_data.FxRateObservation(base, quote, Decimal("1.100000"), observed_date, "yahoo_finance")]
         return []
 
-    monkeypatch.setattr(market_data, "_fetch_yahoo_fx_rate_series", fake_missing_bridge_leg_fetch)
+    monkeypatch.setattr(market_data._providers, "_fetch_yahoo_fx_rate_series", fake_missing_bridge_leg_fetch)
     assert await market_data._fetch_yahoo_or_derived_fx_rate_series("EUR", "SGD", observed_date, observed_date) == []
 
     async def fake_mismatched_bridge_fetch(
@@ -540,7 +540,7 @@ async def test_fetch_yahoo_or_derived_fx_rate_series_uses_inverse_bridge_and_fai
             ]
         return []
 
-    monkeypatch.setattr(market_data, "_fetch_yahoo_fx_rate_series", fake_mismatched_bridge_fetch)
+    monkeypatch.setattr(market_data._providers, "_fetch_yahoo_fx_rate_series", fake_mismatched_bridge_fetch)
     assert await market_data._fetch_yahoo_or_derived_fx_rate_series("EUR", "SGD", observed_date, observed_date) == []
 
 
@@ -693,7 +693,7 @@ async def test_yahoo_stock_fetch_short_circuits_for_non_ticker(monkeypatch: pyte
     async def fail_if_called(*_args: object, **_kwargs: object) -> httpx.Response | None:
         raise AssertionError("Yahoo provider must not be queried for non-ticker identifiers")
 
-    monkeypatch.setattr(market_data, "_fetch_provider_response", fail_if_called)
+    monkeypatch.setattr(market_data._providers, "_fetch_provider_response", fail_if_called)
 
     result = await market_data._fetch_yahoo_stock_price_series(
         "CSOP USD MONEY MARKET FUND SGX296797238",

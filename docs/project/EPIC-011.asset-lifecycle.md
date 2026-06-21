@@ -67,7 +67,7 @@ facts are managed by the SSOT/code surfaces below instead of being copied here:
 | Four-layer raw/atomic/logic/report architecture | [assets.md](../ssot/assets.md), [schema.md](../ssot/schema.md), models, migrations |
 | Upload, extraction, and atomic record flow | [extraction.md](../ssot/extraction.md), `apps/backend/src/services/extraction.py` |
 | Reconciliation and reporting integration | [reconciliation.md](../ssot/reconciliation.md), [reporting.md](../ssot/reporting.md) |
-| Market data sync, freshness, and provider fallback | [market_data.md](../ssot/market_data.md), `apps/backend/src/services/market_data.py` |
+| Market data sync, freshness, and provider fallback | [market_data.md](../ssot/market_data.md), `apps/backend/src/services/market_data/` |
 | AC-to-test proof and current counts | `python tools/analyze_test_ac_coverage.py --no-write --stdout`, CI traceability artifact |
 
 Historical migration options, copied table schemas, and implementation-phase

@@ -13,7 +13,9 @@ REPO = Path(__file__).resolve().parents[2]
 def _read(path: Path) -> str:
     target = REPO / path
     if target.is_dir():
-        return "\n".join(p.read_text(encoding="utf-8") for p in sorted(target.rglob("*.py")))
+        return "\n".join(
+            p.read_text(encoding="utf-8") for p in sorted(target.rglob("*.py"))
+        )
     return target.read_text(encoding="utf-8")
 
 
@@ -61,7 +63,7 @@ def test_AC12_31_3_migrated_hotspots_use_base_packages():
     quantity_service_files = [
         Path("apps/backend/src/services/assets.py"),
         Path("apps/backend/src/services/investment_accounting.py"),
-        Path("apps/backend/src/services/market_data.py"),
+        Path("apps/backend/src/services/market_data"),
         Path("apps/backend/src/services/reporting"),
     ]
     naked_quantity_zero = re.compile(

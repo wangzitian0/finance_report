@@ -36,7 +36,7 @@ async def test_sync_stock_prices_inserts_missing_daily_rows_and_is_idempotent(
             ]
         )
 
-    monkeypatch.setattr(market_data, "_fetch_validated_stock_price_series", fake_fetch)
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_stock_price_series", fake_fetch)
 
     first = await market_data.sync_stock_prices(
         db,
@@ -99,7 +99,7 @@ async def test_sync_stock_prices_fetches_decade_range_once(
             ]
         )
 
-    monkeypatch.setattr(market_data, "_fetch_validated_stock_price_series", fake_fetch)
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_stock_price_series", fake_fetch)
 
     result = await market_data.sync_stock_prices(db, symbols=["AAPL"], start_date=start, end_date=end)
 
@@ -144,7 +144,7 @@ async def test_sync_fx_rates_starts_after_last_stored_date(
             ]
         )
 
-    monkeypatch.setattr(market_data, "_fetch_validated_fx_rate_series", fake_fetch)
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_fx_rate_series", fake_fetch)
 
     result = await market_data.sync_fx_rates(
         db,
@@ -205,7 +205,7 @@ async def test_sync_fx_rates_reports_skip_missing_disagreement_and_empty_work(
             )
         return market_data.ValidatedMarketObservationSeries(observations=[])
 
-    monkeypatch.setattr(market_data, "_fetch_validated_fx_rate_series", fake_fetch)
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_fx_rate_series", fake_fetch)
 
     result = await market_data.sync_fx_rates(
         db,
@@ -267,8 +267,8 @@ async def test_sync_ignores_mismatched_observation_types(
             ]
         )
 
-    monkeypatch.setattr(market_data, "_fetch_validated_fx_rate_series", fake_stock_observation_for_fx)
-    monkeypatch.setattr(market_data, "_fetch_validated_stock_price_series", fake_fx_observation_for_stock)
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_fx_rate_series", fake_stock_observation_for_fx)
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_stock_price_series", fake_fx_observation_for_stock)
 
     fx_result = await market_data.sync_fx_rates(
         db,
@@ -313,7 +313,7 @@ async def test_sync_fx_rates_defaults_usd_to_base_currency_when_empty(
             ]
         )
 
-    monkeypatch.setattr(market_data, "_fetch_validated_fx_rate_series", fake_fetch)
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_fx_rate_series", fake_fetch)
 
     result = await market_data.sync_fx_rates(
         db,
@@ -411,7 +411,7 @@ async def test_sync_stock_prices_records_missing_trading_days(
     ) -> market_data.ValidatedMarketObservationSeries:
         return market_data.ValidatedMarketObservationSeries(observations=[])
 
-    monkeypatch.setattr(market_data, "_fetch_validated_stock_price_series", fake_fetch)
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_stock_price_series", fake_fetch)
 
     result = await market_data.sync_stock_prices(
         db,
@@ -446,7 +446,7 @@ async def test_sync_stock_prices_skips_empty_symbols_and_completed_ranges(
     ) -> market_data.ValidatedMarketObservationSeries:
         raise AssertionError("completed ranges should not call the provider")
 
-    monkeypatch.setattr(market_data, "_fetch_validated_stock_price_series", fake_fetch)
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_stock_price_series", fake_fetch)
 
     result = await market_data.sync_stock_prices(
         db,
@@ -482,7 +482,7 @@ async def test_stock_provider_disagreement_is_reported_without_persisting(
             ],
         )
 
-    monkeypatch.setattr(market_data, "_fetch_validated_stock_price_series", fake_fetch)
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_stock_price_series", fake_fetch)
 
     result = await market_data.sync_stock_prices(
         db,
@@ -667,7 +667,7 @@ async def test_persist_stock_price_reraises_integrity_error_without_concurrent_r
     async def fake_load(*_args: object) -> None:
         return None
 
-    monkeypatch.setattr(market_data, "_load_stored_stock_price_on_date", fake_load)
+    monkeypatch.setattr(market_data._store, "_load_stored_stock_price_on_date", fake_load)
 
     with pytest.raises(IntegrityError):
         await market_data._persist_stock_price(
@@ -723,7 +723,7 @@ async def test_upsert_sync_state_handles_concurrent_insert(monkeypatch: pytest.M
         calls += 1
         return None if calls == 1 else state
 
-    monkeypatch.setattr(market_data, "_load_sync_state", fake_load)
+    monkeypatch.setattr(market_data._store, "_load_sync_state", fake_load)
 
     observed_now = datetime(2026, 1, 6, tzinfo=UTC)
     db = FakeDb()
@@ -825,8 +825,8 @@ async def test_market_data_freshness_sync_runs_once_after_24h(
             ]
         )
 
-    monkeypatch.setattr(market_data, "_fetch_validated_fx_rate_series", fake_fx_fetch)
-    monkeypatch.setattr(market_data, "_fetch_validated_stock_price_series", fake_stock_fetch)
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_fx_rate_series", fake_fx_fetch)
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_stock_price_series", fake_stock_fetch)
 
     checked_at = datetime(2026, 1, 6, 8, 0, tzinfo=UTC)
     first = await market_data.ensure_market_data_fresh(
@@ -913,7 +913,7 @@ async def test_market_data_freshness_backfills_report_date_when_latest_price_is_
             ]
         )
 
-    monkeypatch.setattr(market_data, "_fetch_validated_stock_price_series", fake_stock_fetch)
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_stock_price_series", fake_stock_fetch)
 
     result = await market_data.ensure_market_data_fresh(
         db,
@@ -936,7 +936,7 @@ async def test_market_data_freshness_skips_same_currency_pair(
     async def fake_sync(*_args: object, **_kwargs: object) -> market_data.MarketDataSyncResult:
         raise AssertionError("same-currency scope should not sync")
 
-    monkeypatch.setattr(market_data, "sync_fx_rates", fake_sync)
+    monkeypatch.setattr(market_data.service, "sync_fx_rates", fake_sync)
 
     result = await market_data.ensure_market_data_fresh(
         db,
@@ -958,7 +958,7 @@ async def test_market_data_sync_state_updates_when_provider_has_no_rows(
     ) -> market_data.ValidatedMarketObservationSeries:
         return market_data.ValidatedMarketObservationSeries(observations=[], provider_success=True)
 
-    monkeypatch.setattr(market_data, "_fetch_validated_stock_price_series", fake_fetch)
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_stock_price_series", fake_fetch)
 
     result = await market_data.sync_stock_prices(
         db,

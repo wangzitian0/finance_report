@@ -151,8 +151,8 @@ async def test_market_data_sync_endpoint_commits_service_writes_at_router_bounda
             provider_success=True,
         )
 
-    monkeypatch.setattr(market_data, "_fetch_validated_fx_rate_series", fake_fetch)
-    monkeypatch.setattr(market_data, "_fetch_validated_stock_price_series", fake_stock_fetch)
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_fx_rate_series", fake_fetch)
+    monkeypatch.setattr(market_data._providers, "_fetch_validated_stock_price_series", fake_stock_fetch)
 
     fx_response = await client.post(
         "/market-data/fx/syncs",
