@@ -81,6 +81,7 @@ cleanup that backfills `family` / `kind` and binds child clauses.
 | [schema.md](./schema.md) | `schema` | Data-layer rationale and migration guardrails; mutable inventory is generated |
 | [migration-risk.yaml](./migration-risk.yaml) | `migration_risk_classification` | Alembic migration risk levels and required release proof notes |
 | [accounting.md](./accounting.md) | `accounting` | Double-entry rationale and invariant references |
+| [package-model.md](./package-model.md) | `package_model` | Package = DDD bounded context; PackageContract + role model; governance computed from contracts |
 | [MANIFEST.yaml](./MANIFEST.yaml) | `manifest` | Machine-readable concept owner registry |
 
 ## Feature Documents

@@ -93,6 +93,7 @@ nav:
       - TDD Workflow: ssot/tdd.md
       - Accounting Model: ssot/accounting.md
       - Base Packages: ssot/base-packages.md
+      - Package Model: ssot/package-model.md
       - Auth: ssot/auth.md
       - Reconciliation Engine: ssot/reconciliation.md
       - Confirmation Workflow: ssot/confirmation-workflow.md
