@@ -3,7 +3,9 @@
 Governance in the package model is *computed from contracts*, not hand-kept. The
 authoritative spec for each package lives in ``common/<pkg>/`` (its ``readme.md``
 + ``contract.py``); the running code lives in the *implementations* the contract
-points at (``implementations["be"]`` under ``apps/backend/src/<pkg>``). For every
+points at. ``implementations["be"]`` is a **repo-relative** path — usually
+``apps/backend/src/<pkg>``, but not required (the meta package ``governance``
+points its BE implementation at ``common/governance`` itself). For every
 registered package this gate asserts:
 
   (a) ``contract.interface`` equals the BE implementation's ``__init__.__all__``
@@ -72,6 +74,27 @@ class DiscoveredPackage:
         return self.impl_dir or self.spec_dir
 
 
+def _contained_impl_dir(be_rel: str | None, repo_root: Path) -> Path | None:
+    """Resolve ``implementations["be"]`` to a repo-contained directory, or None.
+
+    ``be_rel`` must be a *repo-relative* path. We reject an absolute path or one
+    that escapes ``repo_root`` (``..``) and return ``None`` — so the gate never
+    reads or scans outside the repo, and ``check_package`` reports the missing BE
+    implementation as a contract violation instead of crashing on a later
+    ``relative_to(repo_root)``.
+    """
+    if not be_rel:
+        return None
+    candidate = Path(be_rel)
+    if candidate.is_absolute():
+        return None
+    resolved = (repo_root / candidate).resolve()
+    root = repo_root.resolve()
+    if resolved != root and root not in resolved.parents:
+        return None
+    return resolved
+
+
 def discover_packages(repo_root: Path = REPO_ROOT) -> list[DiscoveredPackage]:
     """Scan ``common/*/contract.py`` for ``CONTRACT`` instances."""
     found: list[DiscoveredPackage] = []
@@ -80,8 +103,7 @@ def discover_packages(repo_root: Path = REPO_ROOT) -> list[DiscoveredPackage]:
         contract = _load_contract(contract_path, repo_root)
         if contract is None:
             continue
-        be_rel = contract.implementations.get("be")
-        impl_dir = (repo_root / be_rel) if be_rel else None
+        impl_dir = _contained_impl_dir(contract.implementations.get("be"), repo_root)
         found.append(
             DiscoveredPackage(
                 name=contract.name,

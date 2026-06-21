@@ -108,6 +108,53 @@ def _src(repo: Path) -> Path:
     return repo
 
 
+# --- implementations["be"] path containment ----------------------------------
+
+
+def test_contained_impl_dir_accepts_repo_relative(tmp_path: Path) -> None:
+    resolved = cpc._contained_impl_dir("apps/backend/src/counter", tmp_path)
+    assert resolved == (tmp_path / "apps" / "backend" / "src" / "counter").resolve()
+
+
+def test_contained_impl_dir_allows_repo_root_itself(tmp_path: Path) -> None:
+    # The meta package points its BE implementation at common/governance, a
+    # normal repo-relative path; the root itself is also accepted.
+    assert cpc._contained_impl_dir(".", tmp_path) == tmp_path.resolve()
+
+
+def test_contained_impl_dir_rejects_absolute_path(tmp_path: Path) -> None:
+    assert cpc._contained_impl_dir("/etc", tmp_path) is None
+
+
+def test_contained_impl_dir_rejects_escape(tmp_path: Path) -> None:
+    assert cpc._contained_impl_dir("../../outside", tmp_path) is None
+
+
+def test_contained_impl_dir_none_for_missing(tmp_path: Path) -> None:
+    assert cpc._contained_impl_dir(None, tmp_path) is None
+
+
+def test_escaping_be_path_reported_not_crashed(synthetic_repo: Path) -> None:
+    """A contract whose implementations['be'] escapes the repo is reported as a
+    violation (interface with no __all__ to check), never a crash."""
+    pkg = _write_package(
+        _src(synthetic_repo),
+        "escaper",
+        klass="kernel",
+        all_names=["E"],
+        interface=["E"],
+    )
+    # Re-point the discovered package's BE impl outside the repo.
+    pkg = cpc.DiscoveredPackage(
+        name=pkg.name,
+        spec_dir=pkg.spec_dir,
+        impl_dir=cpc._contained_impl_dir("../escape", synthetic_repo),
+        contract=pkg.contract,
+    )
+    errors = cpc.check_package(pkg, {"escaper": "kernel"}, synthetic_repo)
+    assert any("implementations['be'] is missing" in e for e in errors)
+
+
 # --- (a) interface vs __all__ -------------------------------------------------
 
 
