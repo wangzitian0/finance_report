@@ -214,7 +214,7 @@ def test_AC12_31_7_backend_quantity_business_code_uses_value_type():
         src = _read(path)
         # value type used by direct import OR via a model .quantity_qty accessor
         # (the #3 boundary push: reporting reads Quantity off the ORM accessor).
-        assert "from src.quantity import Quantity" in src or "quantity_qty" in src, (
+        assert "from src.quantity import Quantity" in src or ".quantity_qty" in src, (
             f"{path} must use the Quantity value type (import or .quantity_qty accessor)"
         )
         for needle in forbidden_local_adapters:

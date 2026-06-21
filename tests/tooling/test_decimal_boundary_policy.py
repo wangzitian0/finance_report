@@ -74,7 +74,7 @@ def test_AC12_31_3_migrated_hotspots_use_base_packages():
     for path in quantity_service_files:
         src = _read(path)
         # value type via direct import OR a model .quantity_qty accessor (#3 push)
-        assert "from src.quantity import Quantity" in src or "quantity_qty" in src, (
+        assert "from src.quantity import Quantity" in src or ".quantity_qty" in src, (
             f"{path} must use Quantity (import or .quantity_qty accessor)"
         )
         assert "quantized_quantity_value" not in src

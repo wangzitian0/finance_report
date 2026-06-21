@@ -73,12 +73,12 @@ async def _portfolio_market_basis_by_account(
             continue
 
         source_currency = position.currency.upper()
-        # Value/cost flow as Money; convert only when the position is non-base
-        # (per-position values are not quantized here — accumulators are Decimal).
+        # Value/cost flow as Money; convert only when source and target currencies
+        # differ (per-position values are not quantized here — accumulators are Decimal).
         position_quantity = position.quantity_qty.quantize()
         market_value = UnitPrice(latest_price, source_currency, REPORTING_QUANTITY_UNIT) * position_quantity
         cost_basis = position.cost_basis_money
-        if source_currency != target_currency:
+        if source_currency != target_currency.upper():
             try:
                 market_value = await fx.convert_money(
                     db, market_value, target_currency, rate_date=portfolio_eval_date, lazy_load=True
