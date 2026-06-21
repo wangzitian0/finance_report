@@ -191,6 +191,15 @@ jobs:
           # (a genuinely new AC) lacks a {tier:XX} marker; the legacy untagged AC
           # ids in the baseline are tolerated and the debt may only shrink.
           uv run --with pyyaml python tools/check_ac_tier_baseline.py
+      - name: AC Proof-Kind Matrix Enforcement
+        run: |
+          # EPIC-026 phase 2: enforce the tier->valid-proof-kind matrix
+          # (docs/ssot/authority-tiers.md) for ACs that carry a {tier:XX}.
+          # Untagged legacy ACs have no proof_kind and are ignored (non-breaking).
+          # The rule with teeth: an LP AC's proof_kind MUST NOT be `exact`
+          # (an LLM-emitted output cannot be proven by an exact golden assertion);
+          # HU must be `evidence`; PL must not be exact.
+          uv run --with pyyaml python tools/check_ac_proof_kind.py
       - name: SSOT Ownership Lint
         run: |
           python tools/check_ssot_ownership.py --verbose

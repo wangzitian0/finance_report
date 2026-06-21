@@ -72,6 +72,35 @@ AC_TIERS = ("PC", "CP", "HU", "LP", "PL")
 # into the AC description.
 _TIER_MARKER_RE = re.compile(r"\{tier:\s*(PC|CP|HU|LP|PL)\s*\}", re.IGNORECASE)
 
+# Proof-kind vocabulary (SSOT: docs/ssot/authority-tiers.md). The KIND of proof
+# an AC's tests provide; an AC's tier dictates which kinds are VALID for it (the
+# tier->proof matrix, enforced by tools/check_ac_proof_kind.py for tier-tagged
+# ACs). ``exact`` = deterministic exact/golden assertion; ``property`` /
+# ``invariant`` = an asserted invariant that holds across inputs (e.g. a balance
+# chain); ``eval`` = graded/quality eval; ``evidence`` = an evidence-chain
+# assertion (HU); ``smoke`` = guardrail/quality smoke (PL).
+AC_PROOF_KINDS = ("property", "invariant", "eval", "exact", "evidence", "smoke")
+
+# Definition-site proof-kind marker, e.g. ``{proof:property}``. Declared next to
+# the AC text the same way as ``{tier:XX}`` and lifted into the registry value as
+# ``proof_kind``; stripped from the description so it never leaks.
+_PROOF_MARKER_RE = re.compile(
+    r"\{proof:\s*(property|invariant|eval|exact|evidence|smoke)\s*\}",
+    re.IGNORECASE,
+)
+
+# When an AC declares a tier but no explicit ``{proof:KIND}`` marker, its
+# proof_kind defaults to the tier's CANONICAL valid kind, so the registry value
+# is always a kind the matrix accepts (never a sentinel the gate must reject).
+# Untagged ACs get no proof_kind key at all.
+_TIER_DEFAULT_PROOF = {
+    "PC": "exact",
+    "CP": "exact",
+    "HU": "evidence",
+    "LP": "property",
+    "PL": "smoke",
+}
+
 
 def _extract_tier(text: str) -> tuple[str, str | None]:
     """Split an inline ``{tier:XX}`` marker out of *text*.
@@ -85,6 +114,27 @@ def _extract_tier(text: str) -> tuple[str, str | None]:
     tier = match.group(1).upper()
     cleaned = _TIER_MARKER_RE.sub("", text)
     return cleaned, tier
+
+
+def _extract_proof(text: str) -> tuple[str, str | None]:
+    """Split an inline ``{proof:KIND}`` marker out of *text*.
+
+    Returns ``(text_without_marker, proof_kind_or_None)``. The kind is
+    lower-cased to the canonical vocabulary. Text with no marker is unchanged.
+    """
+    match = _PROOF_MARKER_RE.search(text)
+    if not match:
+        return text, None
+    proof_kind = match.group(1).lower()
+    cleaned = _PROOF_MARKER_RE.sub("", text)
+    return cleaned, proof_kind
+
+
+def _default_proof_for_tier(tier: str | None) -> str | None:
+    """Canonical proof kind for a tier when no ``{proof:KIND}`` marker is given."""
+    if not tier:
+        return None
+    return _TIER_DEFAULT_PROOF.get(tier.upper())
 
 
 def _clean_description(text: str) -> str:
@@ -103,14 +153,18 @@ def _is_reference_only_line(line: str) -> bool:
     return False
 
 
-def _extract_ac_definition(line: str) -> tuple[str, int, str, str | None] | None:
+def _extract_ac_definition(
+    line: str,
+) -> tuple[str, int, str, str | None, str | None] | None:
     """Extract one AC definition from a Markdown table, bullet, or plain line.
 
-    Returns ``(ac_id, epic, description, tier)`` where ``tier`` is the optional
-    authority-tier code declared at the definition site via a ``{tier:XX}``
-    marker (one of :data:`AC_TIERS`), or ``None`` when no marker is present. The
-    marker is stripped from the description so it never leaks into the registry
-    text. The marker may appear anywhere on the line (any cell of a table row).
+    Returns ``(ac_id, epic, description, tier, proof_kind)`` where ``tier`` is the
+    optional authority-tier code declared via a ``{tier:XX}`` marker (one of
+    :data:`AC_TIERS`) and ``proof_kind`` the optional proof-kind code declared via
+    a ``{proof:KIND}`` marker (one of :data:`AC_PROOF_KINDS`); each is ``None``
+    when its marker is absent. Both markers are stripped from the description so
+    neither leaks into the registry text, and may appear anywhere on the line
+    (any cell of a table row).
     """
     if _is_reference_only_line(line):
         return None
@@ -119,7 +173,10 @@ def _extract_ac_definition(line: str) -> tuple[str, int, str, str | None] | None
     if not stripped:
         return None
 
+    # Strip both definition-site markers BEFORE splitting table cells, so a
+    # marker in any cell is lifted and never leaks into the description.
     stripped, tier = _extract_tier(stripped)
+    stripped, proof_kind = _extract_proof(stripped)
 
     if stripped.startswith("|"):
         cells = [cell.strip() for cell in stripped.strip("|").split("|")]
@@ -129,7 +186,7 @@ def _extract_ac_definition(line: str) -> tuple[str, int, str, str | None] | None
         if not match:
             return None
         desc = _clean_description(cells[1] if len(cells) > 1 else "")
-        return match.group(1), int(match.group(2)), desc, tier
+        return match.group(1), int(match.group(2)), desc, tier, proof_kind
 
     match = re.match(
         r"^(?:[-*]\s*)?(?:\[[ xX]\]\s*)?(?:\*\*)?"
@@ -142,7 +199,7 @@ def _extract_ac_definition(line: str) -> tuple[str, int, str, str | None] | None
     ac_id = match.group(1)
     ac_epic = int(match.group(2))
     desc = _clean_description(match.group(5))
-    return ac_id, ac_epic, desc, tier
+    return ac_id, ac_epic, desc, tier, proof_kind
 
 
 def _require_yaml() -> None:
@@ -260,7 +317,7 @@ def extract_acs(
             definition = _extract_ac_definition(line)
             if definition is None:
                 continue
-            ac_id, ac_epic, desc, tier = definition
+            ac_id, ac_epic, desc, tier, proof_kind = definition
             if ac_id in all_acs:
                 continue
 
@@ -280,6 +337,17 @@ def extract_acs(
             ac_tier = tier or existing.get("tier")
             if ac_tier:
                 entry["tier"] = ac_tier
+                # The proof KIND that this AC's tests provide. An explicit
+                # {proof:KIND} marker wins; otherwise it falls back to an
+                # existing/override value, then to the tier's canonical kind so
+                # the registry value is always a kind the tier->proof matrix
+                # accepts. Only tier-tagged ACs carry a proof_kind (the gate
+                # only enforces the matrix for tier-tagged ACs).
+                entry["proof_kind"] = (
+                    proof_kind
+                    or existing.get("proof_kind")
+                    or _default_proof_for_tier(ac_tier)
+                )
             all_acs[ac_id] = entry
 
     return all_acs
@@ -316,6 +384,7 @@ def write_registry(all_acs: dict[str, dict], output_path: str | None = None) -> 
                 "epic_name",
                 "description",
                 "tier",
+                "proof_kind",
                 "title",
                 "status",
                 "mandatory",
