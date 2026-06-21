@@ -73,11 +73,11 @@ parallel once PR1 merges.
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC23.1.1 | The three axes are typed: `ProtocolFamily` enumerates exactly the three universal protocol families, `Scene` the fixed call sites, and `ModelSpec`/`SceneBinding` carry modality/free/reasoning so model selection is data, not code | `apps/backend/tests/unit/llm/test_types.py` | P1 |
-| AC23.1.2 | `FernetCipher` round-trips a provider secret (`encrypt` → `decrypt`) and never persists plaintext | `apps/backend/tests/unit/llm/test_secrets.py` | P1 |
-| AC23.1.3 | Key rotation is single-pass: a secret sealed by an older key still decrypts after a newer key is prepended, and `rotate()` re-stamps it to the newest `key_version` | `apps/backend/tests/unit/llm/test_secrets.py` | P1 |
-| AC23.1.4 | `build_cipher()` raises `LLMConfigError` when `LLM_ENCRYPTION_KEYS` is unset, and `FernetCipher` rejects malformed keys — DB-backed secrets fail closed | `apps/backend/tests/unit/llm/test_secrets.py` | P1 |
-| AC23.1.5 | The seam protocols (`ConfigSource`, `LLMClient`, `CatalogProvider`, `SecretCipher`) are runtime-checkable and a conforming implementation satisfies `isinstance`, so EPIC A/B can swap implementations behind the contract | `apps/backend/tests/unit/llm/test_contract.py` | P1 |
+| AC23.1.1 | The three axes are typed: `ProtocolFamily` enumerates exactly the three universal protocol families, `Scene` the fixed call sites, and `ModelSpec`/`SceneBinding` carry modality/free/reasoning so model selection is data, not code {tier:PC} | `apps/backend/tests/unit/llm/test_types.py` | P1 |
+| AC23.1.2 | `FernetCipher` round-trips a provider secret (`encrypt` → `decrypt`) and never persists plaintext {tier:PC} | `apps/backend/tests/unit/llm/test_secrets.py` | P1 |
+| AC23.1.3 | Key rotation is single-pass: a secret sealed by an older key still decrypts after a newer key is prepended, and `rotate()` re-stamps it to the newest `key_version` {tier:PC} | `apps/backend/tests/unit/llm/test_secrets.py` | P1 |
+| AC23.1.4 | `build_cipher()` raises `LLMConfigError` when `LLM_ENCRYPTION_KEYS` is unset, and `FernetCipher` rejects malformed keys — DB-backed secrets fail closed {tier:PC} | `apps/backend/tests/unit/llm/test_secrets.py` | P1 |
+| AC23.1.5 | The seam protocols (`ConfigSource`, `LLMClient`, `CatalogProvider`, `SecretCipher`) are runtime-checkable and a conforming implementation satisfies `isinstance`, so EPIC A/B can swap implementations behind the contract {tier:PC} | `apps/backend/tests/unit/llm/test_contract.py` | P1 |
 
 ### AC23.2 — litellm-backed scene surface
 > PR2 slice (EPIC A). The litellm implementation of the contract: provider
@@ -86,12 +86,12 @@ parallel once PR1 merges.
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC23.2.1 | Provider routing maps each protocol family onto the correct litellm call — `openai`/`anthropic`/`openrouter` prefix, custom `api_base` for OpenAI-compatible endpoints, OpenRouter attribution headers — and normalises an already-qualified model id | `apps/backend/tests/unit/llm/test_routing.py` | P1 |
-| AC23.2.2 | The litellm transport streams via litellm with `drop_params` (model-rejected params like `seed` are dropped, not 400'd) and resolves a binding's provider/model through the `ConfigSource` (`resolve_provider_and_model`, honouring the `provider_id/model` qualifier) | `apps/backend/tests/unit/llm/test_client.py` | P1 |
-| AC23.2.3 | Provider failures are normalised to `LLMError` with a retryable verdict (rate-limit/5xx/timeout → retryable; others not) | `apps/backend/tests/unit/llm/test_client.py` | P1 |
-| AC23.2.4 | `EnvConfigSource` projects the existing env settings onto scene bindings (vision/ocr → vision/ocr models, the rest → primary) and reports `is_configured() == False` when no API key, driving the first-run modal | `apps/backend/tests/unit/llm/test_env_config.py` | P1 |
-| AC23.2.5 | The dynamic catalogue lists configured models enriched with litellm pricing, flags the free tier, and filters by provider/modality/free | `apps/backend/tests/unit/llm/test_catalog.py` | P1 |
-| AC23.2.6 | The usage meter counts requests and (estimated) tokens per UTC day and rolls over at the day boundary — observability only, no money/cost and no ceiling (per-token pricing is too unreliable across providers to enforce a USD limit; the unenforced `AI_DAILY_LIMIT_USD` is dropped) | `apps/backend/tests/unit/llm/test_usage.py` | P1 |
+| AC23.2.1 | Provider routing maps each protocol family onto the correct litellm call — `openai`/`anthropic`/`openrouter` prefix, custom `api_base` for OpenAI-compatible endpoints, OpenRouter attribution headers — and normalises an already-qualified model id {tier:PC} | `apps/backend/tests/unit/llm/test_routing.py` | P1 |
+| AC23.2.2 | The litellm transport streams via litellm with `drop_params` (model-rejected params like `seed` are dropped, not 400'd) and resolves a binding's provider/model through the `ConfigSource` (`resolve_provider_and_model`, honouring the `provider_id/model` qualifier) {tier:PC} | `apps/backend/tests/unit/llm/test_client.py` | P1 |
+| AC23.2.3 | Provider failures are normalised to `LLMError` with a retryable verdict (rate-limit/5xx/timeout → retryable; others not) {tier:PC} | `apps/backend/tests/unit/llm/test_client.py` | P1 |
+| AC23.2.4 | `EnvConfigSource` projects the existing env settings onto scene bindings (vision/ocr → vision/ocr models, the rest → primary) and reports `is_configured() == False` when no API key, driving the first-run modal {tier:PC} | `apps/backend/tests/unit/llm/test_env_config.py` | P1 |
+| AC23.2.5 | The dynamic catalogue lists configured models enriched with litellm pricing, flags the free tier, and filters by provider/modality/free {tier:PC} | `apps/backend/tests/unit/llm/test_catalog.py` | P1 |
+| AC23.2.6 | The usage meter counts requests and (estimated) tokens per UTC day and rolls over at the day boundary — observability only, no money/cost and no ceiling (per-token pricing is too unreliable across providers to enforce a USD limit; the unenforced `AI_DAILY_LIMIT_USD` is dropped) {tier:PC} | `apps/backend/tests/unit/llm/test_usage.py` | P1 |
 
 ### AC23.3 — DB-backed configuration & cutover
 > PR3 slice (EPIC B): the provider/binding tables, the DB config source layered
@@ -102,8 +102,8 @@ parallel once PR1 merges.
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC23.3.1 | `DbConfigSource` reads provider instances (decrypting the at-rest API key) and scene bindings (qualified by provider id) from `llm_providers` / `llm_scene_bindings` | `apps/backend/tests/integration/test_llm_db_config.py` | P1 |
-| AC23.3.2 | Config resolves DB-first with an env fallback; `is_configured()` is true when either has a provider and false when both are empty (driving the first-run modal) | `apps/backend/tests/integration/test_llm_db_config.py` | P1 |
+| AC23.3.1 | `DbConfigSource` reads provider instances (decrypting the at-rest API key) and scene bindings (qualified by provider id) from `llm_providers` / `llm_scene_bindings` {tier:PC} | `apps/backend/tests/integration/test_llm_db_config.py` | P1 |
+| AC23.3.2 | Config resolves DB-first with an env fallback; `is_configured()` is true when either has a provider and false when both are empty (driving the first-run modal) {tier:PC} | `apps/backend/tests/integration/test_llm_db_config.py` | P1 |
 
 ### AC23.4 — `/llm` config API, per-user model selection & legacy retirement
 > PR4 slice. Puts `LitellmCatalog`/`LitellmClient` on the live path behind a
@@ -119,13 +119,13 @@ parallel once PR1 merges.
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC23.4.1 | `GET /llm/config/status` reports `{configured}` for the current user from the layered (user → deployment → env) config source, driving the first-run modal | `apps/backend/tests/integration/test_llm_api.py` | P1 |
-| AC23.4.2 | `GET/POST/DELETE /llm/providers` is scoped to the current user; POST encrypts the API key via `build_cipher` before persist and the response **never** returns or logs the plaintext key; with `LLM_ENCRYPTION_KEYS` unset, POST fails closed | `apps/backend/tests/integration/test_llm_api.py` | P1 |
-| AC23.4.3 | `GET /llm/catalog` lists models via `LitellmCatalog` enriched with pricing/free-tier and filtered by `modality`/`free_only` | `apps/backend/tests/integration/test_llm_api.py` | P1 |
-| AC23.4.4 | `GET/PUT /llm/scenes` round-trips the current user's scene→model bindings (model + reasoning + fallbacks), validated against their providers | `apps/backend/tests/integration/test_llm_api.py` | P1 |
-| AC23.4.5 | Per-user config resolves through the scene-keyed seam and is **live for the AI advisor**: `ai_streaming` resolves the provider via `get_config_source(user_id)` (the user's provider, else deployment default, else env) and `advisor.chat` prefers the user's bound model when no per-message model is given; a BYO-provider user is not blocked by a missing deployment `AI_API_KEY`. (Threading `user_id` into the remaining `extraction` OCR/vision/json call sites is the documented follow-up, verified via the post-merge AI/OCR gate.) | `apps/backend/tests/integration/test_llm_api.py`, `apps/backend/tests/ai/test_ai_advisor_service.py` | P1 |
-| AC23.4.6 | The legacy `services/ai_models.py` + `routers/ai_models.py` are removed; remaining model lookups (`statements`, `chat`) resolve through `LitellmCatalog`, and the dead `AI_MODEL_CATALOG_SOURCE` config is dropped | `apps/backend/tests/integration/test_llm_api.py` | P1 |
-| AC23.4.7 | The usage meter is a process-wide singleton (`get_usage_meter`), so the live transport accumulates onto one counter and request/token tallies survive across requests (a fresh meter per call would reset the totals); a completed live stream records one request plus estimated prompt/completion tokens, and `stream_options` is never sent (Z.AI rejects unknown params) | `apps/backend/tests/unit/llm/test_factory.py`, `apps/backend/tests/ai/test_ai_streaming.py` | P1 |
-| AC23.4.8 | `DbConfigSource.get_provider` is scoped to the caller's scope (own rows, else deployment default); it never resolves or decrypts another tenant's provider by id | `apps/backend/tests/integration/test_llm_db_config.py` | P1 |
-| AC23.4.9 | `api_base` rejects loopback/private/link-local/reserved IPs and local-only names (`localhost`, `*.internal`, metadata) at the schema boundary, closing the obvious SSRF foot-guns | `apps/backend/tests/integration/test_llm_api.py` | P1 |
-| AC23.4.10 | Provider creation is capped per user (`MAX_PROVIDERS_PER_USER`); exceeding it returns 409 instead of growing the table unbounded | `apps/backend/tests/integration/test_llm_api.py` | P1 |
+| AC23.4.1 | `GET /llm/config/status` reports `{configured}` for the current user from the layered (user → deployment → env) config source, driving the first-run modal {tier:PC} | `apps/backend/tests/integration/test_llm_api.py` | P1 |
+| AC23.4.2 | `GET/POST/DELETE /llm/providers` is scoped to the current user; POST encrypts the API key via `build_cipher` before persist and the response **never** returns or logs the plaintext key; with `LLM_ENCRYPTION_KEYS` unset, POST fails closed {tier:PC} | `apps/backend/tests/integration/test_llm_api.py` | P1 |
+| AC23.4.3 | `GET /llm/catalog` lists models via `LitellmCatalog` enriched with pricing/free-tier and filtered by `modality`/`free_only` {tier:PC} | `apps/backend/tests/integration/test_llm_api.py` | P1 |
+| AC23.4.4 | `GET/PUT /llm/scenes` round-trips the current user's scene→model bindings (model + reasoning + fallbacks), validated against their providers {tier:PC} | `apps/backend/tests/integration/test_llm_api.py` | P1 |
+| AC23.4.5 | Per-user config resolves through the scene-keyed seam and is **live for the AI advisor**: `ai_streaming` resolves the provider via `get_config_source(user_id)` (the user's provider, else deployment default, else env) and `advisor.chat` prefers the user's bound model when no per-message model is given; a BYO-provider user is not blocked by a missing deployment `AI_API_KEY`. (Threading `user_id` into the remaining `extraction` OCR/vision/json call sites is the documented follow-up, verified via the post-merge AI/OCR gate.) {tier:CP} | `apps/backend/tests/integration/test_llm_api.py`, `apps/backend/tests/ai/test_ai_advisor_service.py` | P1 |
+| AC23.4.6 | The legacy `services/ai_models.py` + `routers/ai_models.py` are removed; remaining model lookups (`statements`, `chat`) resolve through `LitellmCatalog`, and the dead `AI_MODEL_CATALOG_SOURCE` config is dropped {tier:PC} | `apps/backend/tests/integration/test_llm_api.py` | P1 |
+| AC23.4.7 | The usage meter is a process-wide singleton (`get_usage_meter`), so the live transport accumulates onto one counter and request/token tallies survive across requests (a fresh meter per call would reset the totals); a completed live stream records one request plus estimated prompt/completion tokens, and `stream_options` is never sent (Z.AI rejects unknown params) {tier:PC} | `apps/backend/tests/unit/llm/test_factory.py`, `apps/backend/tests/ai/test_ai_streaming.py` | P1 |
+| AC23.4.8 | `DbConfigSource.get_provider` is scoped to the caller's scope (own rows, else deployment default); it never resolves or decrypts another tenant's provider by id {tier:PC} | `apps/backend/tests/integration/test_llm_db_config.py` | P1 |
+| AC23.4.9 | `api_base` rejects loopback/private/link-local/reserved IPs and local-only names (`localhost`, `*.internal`, metadata) at the schema boundary, closing the obvious SSRF foot-guns {tier:PC} | `apps/backend/tests/integration/test_llm_api.py` | P1 |
+| AC23.4.10 | Provider creation is capped per user (`MAX_PROVIDERS_PER_USER`); exceeding it returns 409 instead of growing the table unbounded {tier:PC} | `apps/backend/tests/integration/test_llm_api.py` | P1 |

@@ -127,115 +127,115 @@ or HK-like report classification, measurement, presentation, or disclosure.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC3.1.1 | Parse DBS PDF | `test_dbs_fixture_has_valid_structure` | `extraction/test_pdf_parsing.py` | P0 |
-| AC3.1.2 | Parse CSV (DBS) | `test_parse_dbs_csv` | `test_csv_parsing.py` | P0 |
-| AC3.1.3 | Parse CSV (Wise) | `test_parse_wise_csv` | `test_csv_parsing.py` | P0 |
-| AC3.1.4 | Parse CSV (Generic) | `test_parse_generic_csv_with_amount_column` | `test_csv_parsing.py` | P0 |
-| AC3.1.5 | Parse CSV with BOM | `test_parse_csv_with_bom` | `test_csv_parsing.py` | P1 |
+| AC3.1.1 | Parse DBS PDF {tier:LP} | `test_dbs_fixture_has_valid_structure` | `extraction/test_pdf_parsing.py` | P0 |
+| AC3.1.2 | Parse CSV (DBS) {tier:PC} | `test_parse_dbs_csv` | `test_csv_parsing.py` | P0 |
+| AC3.1.3 | Parse CSV (Wise) {tier:PC} | `test_parse_wise_csv` | `test_csv_parsing.py` | P0 |
+| AC3.1.4 | Parse CSV (Generic) {tier:PC} | `test_parse_generic_csv_with_amount_column` | `test_csv_parsing.py` | P0 |
+| AC3.1.5 | Parse CSV with BOM {tier:PC} | `test_parse_csv_with_bom` | `test_csv_parsing.py` | P1 |
 
 ### AC3.2: Validation Logic
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC3.2.1 | Balance Validation (Pass) | `test_balance_valid` | `extraction/test_extraction.py` | P0 |
-| AC3.2.2 | Balance Validation (Fail) | `test_balance_invalid` | `extraction/test_extraction.py` | P0 |
-| AC3.2.3 | Completeness Validation | `test_missing_required_fields_detected` | `extraction/test_pdf_parsing.py` | P1 |
-| AC3.2.4 | Bank statement balance mismatches preserve validation_error details | `test_parse_document_bank_balance_mismatch_records_validation_error` | `extraction/test_pdf_parsing.py` | P0 |
-| AC3.2.5 | CSV transaction exports without statement balances remain reviewable | `test_parse_document_csv_without_statement_balances_remains_reviewable` | `extraction/test_extraction_flow.py` | P0 |
+| AC3.2.1 | Balance Validation (Pass) {tier:PC} | `test_balance_valid` | `extraction/test_extraction.py` | P0 |
+| AC3.2.2 | Balance Validation (Fail) {tier:PC} | `test_balance_invalid` | `extraction/test_extraction.py` | P0 |
+| AC3.2.3 | Completeness Validation {tier:PC} | `test_missing_required_fields_detected` | `extraction/test_pdf_parsing.py` | P1 |
+| AC3.2.4 | Bank statement balance mismatches preserve validation_error details {tier:PC} | `test_parse_document_bank_balance_mismatch_records_validation_error` | `extraction/test_pdf_parsing.py` | P0 |
+| AC3.2.5 | CSV transaction exports without statement balances remain reviewable {tier:PC} | `test_parse_document_csv_without_statement_balances_remains_reviewable` | `extraction/test_extraction_flow.py` | P0 |
 
 ### AC3.3: Confidence & Routing
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC3.3.1 | High Confidence (Auto-Accept) | `test_high_confidence`, `test_auto_approve_high_confidence_statement_creates_posted_entries`, `test_auto_approve_guard_failure_preserves_uncommitted_parse_data` | `extraction/test_extraction.py`, `api/test_statements_router.py` | P0 |
-| AC3.3.2 | Medium Confidence (Review) | `test_medium_confidence` | `extraction/test_extraction.py` | P0 |
-| AC3.3.3 | Low Confidence (Manual) | `test_low_confidence_empty_transactions` | `extraction/test_extraction.py` | P0 |
+| AC3.3.1 | High Confidence (Auto-Accept) {tier:PC} | `test_high_confidence`, `test_auto_approve_high_confidence_statement_creates_posted_entries`, `test_auto_approve_guard_failure_preserves_uncommitted_parse_data` | `extraction/test_extraction.py`, `api/test_statements_router.py` | P0 |
+| AC3.3.2 | Medium Confidence (Review) {tier:HU} | `test_medium_confidence` | `extraction/test_extraction.py` | P0 |
+| AC3.3.3 | Low Confidence (Manual) {tier:PC} | `test_low_confidence_empty_transactions` | `extraction/test_extraction.py` | P0 |
 
 ### AC3.4: Error Handling
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC3.4.1 | Invalid Parse Not Persisted | `test_extraction_error_not_persisted` | `extraction/test_pdf_parsing.py` | P0 |
-| AC3.4.2 | Unsupported File Type | `test_parse_document_unsupported_type` | `extraction/test_extraction_flow.py` | P1 |
-| AC3.4.3 | Extraction Timeout | `test_extraction_timeout_raises_error` | `extraction/test_pdf_parsing.py` | P1 |
+| AC3.4.1 | Invalid Parse Not Persisted {tier:PC} | `test_extraction_error_not_persisted` | `extraction/test_pdf_parsing.py` | P0 |
+| AC3.4.2 | Unsupported File Type {tier:PC} | `test_parse_document_unsupported_type` | `extraction/test_extraction_flow.py` | P1 |
+| AC3.4.3 | Extraction Timeout {tier:PC} | `test_extraction_timeout_raises_error` | `extraction/test_pdf_parsing.py` | P1 |
 
 ### AC3.5: Additional Test Coverage
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC3.5.1 | Full Upload Flow | `test_statement_upload_full_flow` | `e2e/test_statement_upload_e2e.py` | P0 |
-| AC3.5.2 | File Size Limit | `test_upload_file_exceeds_10mb_limit` | `extraction/test_pdf_parsing.py` | P1 |
-| AC3.5.3 | Model Selection Flow | `test_model_selection_and_upload` | `e2e/test_statement_upload_e2e.py` | P1 |
-| AC3.5.4 | Extraction Flow Tests | `test_extraction_flow` | `extraction/test_extraction_flow.py` | P0 |
-| AC3.5.5 | Statement Parsing Supervisor | `test_statement_parsing_supervisor` | `extraction/test_statement_parsing_supervisor.py` | P1 |
-| AC3.5.6 | Invalid file extension should return 400. | `test_upload_invalid_extension` | `api/test_statements_router.py` | P1 |
-| AC3.5.7 | PDF/image uploads may omit model and use the default OCR pipeline. | `test_upload_uses_default_ocr_pipeline_for_pdf` | `api/test_statements_router.py` | P1 |
-| AC3.5.8 | Upload rejects models without image modalities. | `test_upload_rejects_text_only_model` | `api/test_statements_router.py` | P1 |
-| AC3.5.9 | Upload then list statements and transactions. | `test_list_and_transactions_flow` | `api/test_statements_router.py` | P1 |
-| AC3.5.10 | Review queue includes reviewable parsed statements and supports approve/reject. | `test_pending_review_and_decisions` | `api/test_statements_router.py` | P1 |
-| AC3.5.11 | Missing statement returns 404. | `test_get_statement_not_found` | `api/test_statements_router.py` | P1 |
-| AC3.5.12 | File exceeding 10MB limit returns 413. | `test_upload_file_too_large` | `api/test_statements_router.py` | P1 |
-| AC3.5.13 | Extraction failure marks statement as rejected. | `test_upload_extraction_failure` | `api/test_statements_router.py` | P1 |
-| AC3.5.14 | Retry on missing statement returns 404. | `test_retry_statement_not_found` | `api/test_statements_router.py` | P1 |
-| AC3.5.15 | Retry rejects models without image modalities. | `test_retry_rejects_text_only_model` | `api/test_statements_router.py` | P1 |
-| AC3.5.16 | Retry returns 503 if storage fetch fails. | `test_retry_statement_storage_failure` | `api/test_statements_router.py` | P1 |
-| AC3.5.17 | Retry on statement not in parsed/rejected status returns 400. | `test_retry_statement_invalid_status` | `api/test_statements_router.py` | P1 |
-| AC3.5.18 | Verify that retrying a statement in PARSING status is allowed. | `test_retry_statement_parsing_allowed` | `api/test_statements_router.py` | P1 |
-| AC3.5.19 | Retry parsing with stronger model succeeds. | `test_retry_statement_success` | `api/test_statements_router.py` | P1 |
-| AC3.5.20 | Retry extraction failure returns 422. | `test_retry_statement_extraction_failure` | `api/test_statements_router.py` | P1 |
-| AC3.5.21 | Upload rejects models not in the OpenRouter catalog. | `test_upload_statement_rejects_invalid_model` | `api/test_statements_router.py` | P1 |
-| AC3.5.22 | Upload rejects a model lacking image/PDF modality (400). _(EPIC-023: model validation now resolves through the local `LitellmCatalog`; the prior remote-catalog 503 path no longer exists.)_ | `test_upload_statement_rejects_model_without_image_modality` | `api/test_statements_router.py` | P1 |
-| AC3.5.23 | Retry rejects a model not in the catalogue (400). _(EPIC-023: model validation now resolves through the local `LitellmCatalog`; the prior remote-catalog 503 path no longer exists.)_ | `test_retry_statement_rejects_invalid_model` | `api/test_statements_router.py` | P1 |
-| AC3.5.24 | Background parse error should be caught and logged. | `test_background_parse_error_logging` | `api/test_statements_router.py` | P1 |
-| AC3.5.25 | Background retry error should be caught and logged. | `test_background_retry_error_logging` | `api/test_statements_router.py` | P1 |
+| AC3.5.1 | Full Upload Flow {tier:PC} | `test_statement_upload_full_flow` | `e2e/test_statement_upload_e2e.py` | P0 |
+| AC3.5.2 | File Size Limit {tier:PC} | `test_upload_file_exceeds_10mb_limit` | `extraction/test_pdf_parsing.py` | P1 |
+| AC3.5.3 | Model Selection Flow {tier:CP} | `test_model_selection_and_upload` | `e2e/test_statement_upload_e2e.py` | P1 |
+| AC3.5.4 | Extraction Flow Tests {tier:PC} | `test_extraction_flow` | `extraction/test_extraction_flow.py` | P0 |
+| AC3.5.5 | Statement Parsing Supervisor {tier:PC} | `test_statement_parsing_supervisor` | `extraction/test_statement_parsing_supervisor.py` | P1 |
+| AC3.5.6 | Invalid file extension should return 400. {tier:PC} | `test_upload_invalid_extension` | `api/test_statements_router.py` | P1 |
+| AC3.5.7 | PDF/image uploads may omit model and use the default OCR pipeline. {tier:LP} | `test_upload_uses_default_ocr_pipeline_for_pdf` | `api/test_statements_router.py` | P1 |
+| AC3.5.8 | Upload rejects models without image modalities. {tier:PC} | `test_upload_rejects_text_only_model` | `api/test_statements_router.py` | P1 |
+| AC3.5.9 | Upload then list statements and transactions. {tier:PC} | `test_list_and_transactions_flow` | `api/test_statements_router.py` | P1 |
+| AC3.5.10 | Review queue includes reviewable parsed statements and supports approve/reject. {tier:HU} | `test_pending_review_and_decisions` | `api/test_statements_router.py` | P1 |
+| AC3.5.11 | Missing statement returns 404. {tier:PC} | `test_get_statement_not_found` | `api/test_statements_router.py` | P1 |
+| AC3.5.12 | File exceeding 10MB limit returns 413. {tier:PC} | `test_upload_file_too_large` | `api/test_statements_router.py` | P1 |
+| AC3.5.13 | Extraction failure marks statement as rejected. {tier:PC} | `test_upload_extraction_failure` | `api/test_statements_router.py` | P1 |
+| AC3.5.14 | Retry on missing statement returns 404. {tier:PC} | `test_retry_statement_not_found` | `api/test_statements_router.py` | P1 |
+| AC3.5.15 | Retry rejects models without image modalities. {tier:PC} | `test_retry_rejects_text_only_model` | `api/test_statements_router.py` | P1 |
+| AC3.5.16 | Retry returns 503 if storage fetch fails. {tier:PC} | `test_retry_statement_storage_failure` | `api/test_statements_router.py` | P1 |
+| AC3.5.17 | Retry on statement not in parsed/rejected status returns 400. {tier:PC} | `test_retry_statement_invalid_status` | `api/test_statements_router.py` | P1 |
+| AC3.5.18 | Verify that retrying a statement in PARSING status is allowed. {tier:PC} | `test_retry_statement_parsing_allowed` | `api/test_statements_router.py` | P1 |
+| AC3.5.19 | Retry parsing with stronger model succeeds. {tier:LP} | `test_retry_statement_success` | `api/test_statements_router.py` | P1 |
+| AC3.5.20 | Retry extraction failure returns 422. {tier:PC} | `test_retry_statement_extraction_failure` | `api/test_statements_router.py` | P1 |
+| AC3.5.21 | Upload rejects models not in the OpenRouter catalog. {tier:PC} | `test_upload_statement_rejects_invalid_model` | `api/test_statements_router.py` | P1 |
+| AC3.5.22 | Upload rejects a model lacking image/PDF modality (400). _(EPIC-023: model validation now resolves through the local `LitellmCatalog`; the prior remote-catalog 503 path no longer exists.)_ {tier:PC} | `test_upload_statement_rejects_model_without_image_modality` | `api/test_statements_router.py` | P1 |
+| AC3.5.23 | Retry rejects a model not in the catalogue (400). _(EPIC-023: model validation now resolves through the local `LitellmCatalog`; the prior remote-catalog 503 path no longer exists.)_ {tier:PC} | `test_retry_statement_rejects_invalid_model` | `api/test_statements_router.py` | P1 |
+| AC3.5.24 | Background parse error should be caught and logged. {tier:PC} | `test_background_parse_error_logging` | `api/test_statements_router.py` | P1 |
+| AC3.5.25 | Background retry error should be caught and logged. {tier:PC} | `test_background_retry_error_logging` | `api/test_statements_router.py` | P1 |
 
 ### AC3.6: Statement-Account Mapping Hardening
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC3.6.1 | Unique Prior Mapping | `test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account` | `api/test_statements_router.py` | P0 |
-| AC3.6.2 | No Silent Fallback Posting | `test_approve_statement_stage1_blocks_unmapped_account_without_fallback`, `test_approve_statement_stage1_blocks_unsafe_explicit_account_mapping`, `test_create_entry_from_txn_auto_post_requires_account_mapping` | `api/test_statements_router.py`, `reconciliation/test_review_queue.py` | P0 |
-| AC3.6.3 | Ambiguous Mapping Blocked | `test_approve_statement_stage1_blocks_ambiguous_account_mapping` | `api/test_statements_router.py` | P0 |
-| AC3.6.4 | Explicit First-Upload Account Creation | `test_approve_statement_stage1_creates_account_with_explicit_confirmation` | `api/test_statements_router.py` | P0 |
-| AC3.6.5 | Prior Mapping Requires Confirmed Statement | `test_approve_statement_stage1_blocks_prior_unconfirmed_account_mapping` | `api/test_statements_router.py` | P0 |
-| AC3.6.6 | Source Period Unique Before Posting | `test_approve_statement_stage1_blocks_overlapping_statement_period_before_posting` | `api/test_statements_router.py` | P0 |
+| AC3.6.1 | Unique Prior Mapping {tier:PC} | `test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account` | `api/test_statements_router.py` | P0 |
+| AC3.6.2 | No Silent Fallback Posting {tier:PC} | `test_approve_statement_stage1_blocks_unmapped_account_without_fallback`, `test_approve_statement_stage1_blocks_unsafe_explicit_account_mapping`, `test_create_entry_from_txn_auto_post_requires_account_mapping` | `api/test_statements_router.py`, `reconciliation/test_review_queue.py` | P0 |
+| AC3.6.3 | Ambiguous Mapping Blocked {tier:PC} | `test_approve_statement_stage1_blocks_ambiguous_account_mapping` | `api/test_statements_router.py` | P0 |
+| AC3.6.4 | Explicit First-Upload Account Creation {tier:HU} | `test_approve_statement_stage1_creates_account_with_explicit_confirmation` | `api/test_statements_router.py` | P0 |
+| AC3.6.5 | Prior Mapping Requires Confirmed Statement {tier:PC} | `test_approve_statement_stage1_blocks_prior_unconfirmed_account_mapping` | `api/test_statements_router.py` | P0 |
+| AC3.6.6 | Source Period Unique Before Posting {tier:PC} | `test_approve_statement_stage1_blocks_overlapping_statement_period_before_posting` | `api/test_statements_router.py` | P0 |
 
 ### AC3.7: Account Statement Coverage
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC3.7.1 | Latest Confirmed Source | `test_account_coverage_reports_latest_confirmed_balance_and_stale_status` | `accounting/test_account_statement_coverage.py` | P1 |
-| AC3.7.2 | Adjacent Opening Continuity | `test_account_coverage_detects_adjacent_opening_balance_mismatch` | `accounting/test_account_statement_coverage.py` | P1 |
-| AC3.7.3 | Missing/Overlapping/Duplicate Periods | `test_account_coverage_reports_missing_overlapping_and_duplicate_ranges` | `accounting/test_account_statement_coverage.py` | P1 |
-| AC3.7.4 | Broker Daily Snapshot Override | `test_account_coverage_accepts_broker_monthly_cadence_with_daily_snapshot_override` | `accounting/test_account_statement_coverage.py` | P1 |
+| AC3.7.1 | Latest Confirmed Source {tier:PC} | `test_account_coverage_reports_latest_confirmed_balance_and_stale_status` | `accounting/test_account_statement_coverage.py` | P1 |
+| AC3.7.2 | Adjacent Opening Continuity {tier:PC} | `test_account_coverage_detects_adjacent_opening_balance_mismatch` | `accounting/test_account_statement_coverage.py` | P1 |
+| AC3.7.3 | Missing/Overlapping/Duplicate Periods {tier:PC} | `test_account_coverage_reports_missing_overlapping_and_duplicate_ranges` | `accounting/test_account_statement_coverage.py` | P1 |
+| AC3.7.4 | Broker Daily Snapshot Override {tier:PC} | `test_account_coverage_accepts_broker_monthly_cadence_with_daily_snapshot_override` | `accounting/test_account_statement_coverage.py` | P1 |
 
 ### AC3.8: Storage Lifecycle Cleanup
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC3.8.1 | Delete old orphaned storage objects | `test_sweep_deletes_orphaned_object` | `services/test_storage_sweep.py` | P1 |
-| AC3.8.2 | Preserve objects with DB records | `test_sweep_skips_known_db_objects` | `services/test_storage_sweep.py` | P1 |
-| AC3.8.3 | Skip recent in-flight uploads | `test_sweep_skips_recent_objects` | `services/test_storage_sweep.py` | P1 |
-| AC3.8.4 | No-op without configured S3 bucket | `test_sweep_skips_when_no_bucket_configured` | `services/test_storage_sweep.py` | P1 |
-| AC3.8.5 | Return zero for empty statement prefix | `test_sweep_returns_zero_when_no_objects` | `services/test_storage_sweep.py` | P1 |
-| AC3.8.6 | Handle storage listing errors | `test_sweep_handles_storage_list_error` | `services/test_storage_sweep.py` | P1 |
-| AC3.8.7 | Handle object delete errors | `test_sweep_handles_delete_error` | `services/test_storage_sweep.py` | P1 |
-| AC3.8.8 | Paginate storage keys and normalize timestamps | `test_list_storage_keys_returns_paginated_keys_and_normalizes_timestamps` | `services/test_storage_sweep.py` | P1 |
-| AC3.8.9 | Convert storage client listing errors | `test_list_storage_keys_raises_on_client_error` | `services/test_storage_sweep.py` | P1 |
-| AC3.8.10 | Exit runner on stop event | `test_run_storage_sweep_exits_on_stop_event` | `services/test_storage_sweep.py` | P1 |
-| AC3.8.11 | Log runner deletion counts | `test_run_storage_sweep_logs_when_objects_deleted` | `services/test_storage_sweep.py` | P1 |
-| AC3.8.12 | Continue runner after unexpected sweep exception | `test_run_storage_sweep_handles_exception` | `services/test_storage_sweep.py` | P1 |
-| AC3.8.13 | Disable runner by feature flag | `test_run_storage_sweep_disabled_by_feature_flag` | `services/test_storage_sweep.py` | P1 |
-| AC3.8.14 | Grace period + interval config defaults match issue #356 (24h / daily) | `test_grace_period_and_interval_defaults_match_issue_356` | `services/test_storage_sweep.py` | P1 |
-| AC3.8.15 | Sweep grace-period cutoff is config-driven, not a hardcoded constant | `test_sweep_reads_grace_period_from_config` | `services/test_storage_sweep.py` | P1 |
-| AC3.8.16 | Sweep runner wait interval is read from config | `test_run_storage_sweep_reads_interval_from_config` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.1 | Delete old orphaned storage objects {tier:PC} | `test_sweep_deletes_orphaned_object` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.2 | Preserve objects with DB records {tier:PC} | `test_sweep_skips_known_db_objects` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.3 | Skip recent in-flight uploads {tier:PC} | `test_sweep_skips_recent_objects` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.4 | No-op without configured S3 bucket {tier:PC} | `test_sweep_skips_when_no_bucket_configured` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.5 | Return zero for empty statement prefix {tier:PC} | `test_sweep_returns_zero_when_no_objects` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.6 | Handle storage listing errors {tier:PC} | `test_sweep_handles_storage_list_error` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.7 | Handle object delete errors {tier:PC} | `test_sweep_handles_delete_error` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.8 | Paginate storage keys and normalize timestamps {tier:PC} | `test_list_storage_keys_returns_paginated_keys_and_normalizes_timestamps` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.9 | Convert storage client listing errors {tier:PC} | `test_list_storage_keys_raises_on_client_error` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.10 | Exit runner on stop event {tier:PC} | `test_run_storage_sweep_exits_on_stop_event` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.11 | Log runner deletion counts {tier:PC} | `test_run_storage_sweep_logs_when_objects_deleted` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.12 | Continue runner after unexpected sweep exception {tier:PC} | `test_run_storage_sweep_handles_exception` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.13 | Disable runner by feature flag {tier:PC} | `test_run_storage_sweep_disabled_by_feature_flag` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.14 | Grace period + interval config defaults match issue #356 (24h / daily) {tier:PC} | `test_grace_period_and_interval_defaults_match_issue_356` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.15 | Sweep grace-period cutoff is config-driven, not a hardcoded constant {tier:PC} | `test_sweep_reads_grace_period_from_config` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.16 | Sweep runner wait interval is read from config {tier:PC} | `test_run_storage_sweep_reads_interval_from_config` | `services/test_storage_sweep.py` | P1 |
 
 ### AC3.9: Audit-Failed Case Registry
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC3.9.1 | Parsing cases that fail audit are recorded in an SSOT registry without expanding deterministic parser scope or committing real documents | `test_AC3_9_1_extraction_failed_case_registry_preserves_audit_cases_without_parser_expansion` | `tests/tooling/test_extraction_failed_case_registry.py` | P0 |
+| AC3.9.1 | Parsing cases that fail audit are recorded in an SSOT registry without expanding deterministic parser scope or committing real documents {tier:PC} | `test_AC3_9_1_extraction_failed_case_registry_preserves_audit_cases_without_parser_expansion` | `tests/tooling/test_extraction_failed_case_registry.py` | P0 |
 
 ### AC3.10: Settlement Evidence Capture Boundary
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC3.10.1 | Statement parsing owns fact-forward settlement evidence capture and must preserve source metadata needed by framework readiness while leaving US/HK policy decisions to EPIC-020 | `test_AC3_10_1_statement_parsing_is_source_capture_not_framework_policy` | `tests/tooling/test_framework_reporting_epic_contract.py` | P0 |
+| AC3.10.1 | Statement parsing owns fact-forward settlement evidence capture and must preserve source metadata needed by framework readiness while leaving US/HK policy decisions to EPIC-020 {tier:PC} | `test_AC3_10_1_statement_parsing_is_source_capture_not_framework_policy` | `tests/tooling/test_framework_reporting_epic_contract.py` | P0 |
 
 ## 📏 Acceptance Criteria
 

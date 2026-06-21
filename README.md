@@ -109,6 +109,7 @@ registries, and generated reports rather than duplicated here.
 | [EPIC-023](docs/project/EPIC-023.llm-provider-abstraction.md) | LLM provider abstraction (litellm) |
 | [EPIC-024](docs/project/EPIC-024.frontend-observability.md) | Frontend browser observability |
 | [EPIC-025](docs/project/EPIC-025.dry-ssot-simplification.md) | DRY/SSOT simplification (reporting, statements, FE contracts, tests) |
+| [EPIC-026](docs/project/EPIC-026.ac-authority-tiers.md) | AC authority tiers (PC/CP/HU/LP/PL) and the tier-to-valid-proof matrix |
 
 ## EPIC Status (Generated)
 

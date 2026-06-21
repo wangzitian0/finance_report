@@ -641,6 +641,38 @@ concepts:
       - common/ssot/generate_critical_proof_matrix.py
       - tools/generate_critical_proof_matrix.py
 
+  authority_tiers:
+    owner: docs/ssot/authority-tiers.md
+    family: tdd
+    kind: concept
+    parent: tdd_workflow
+    authority: documented_contract
+    description: The five AC authority tiers (PC/CP/HU/LP/PL), the cross-tier MUST rules, and the tier->valid-proof matrix; one AC = one tier, declared via a {tier:XX} marker at the AC definition site and ratcheted by a shrink-only untagged-debt baseline.
+    proofs:
+      - tests/tooling/test_ac_authority_tiers.py
+    cross_refs:
+      - docs/ssot/tdd.md
+      - docs/ssot/ai.md
+      - docs/ssot/extraction.md
+      - docs/project/EPIC-026.ac-authority-tiers.md
+      - docs/ssot/ac-tier-baseline.json
+      - common/ssot/generate_ac_registry.py
+      - common/ssot/check_ac_tier_baseline.py
+      - tools/check_ac_tier_baseline.py
+
+  ac_tier_baseline:
+    owner: docs/ssot/ac-tier-baseline.json
+    family: tdd
+    kind: baseline
+    parent: authority_tiers
+    authority: machine_generated
+    description: Shrink-only untagged-AC debt baseline for the authority-tier ratchet (tools/check_ac_tier_baseline.py); lists ACs that predate the tier attribute and may stay untagged, so new/changed ACs must declare a tier while legacy debt ratchets down.
+    cross_refs:
+      - docs/ssot/authority-tiers.md
+      - common/ssot/check_ac_tier_baseline.py
+      - tools/check_ac_tier_baseline.py
+      - tests/tooling/test_ac_authority_tiers.py
+
   ssot_governance_metrics:
     owner: docs/ssot/tdd.md#ssot-governance-metrics
     description: Report-only governance metrics for SSOT ownership, shape, proof coverage, and future gate candidates.

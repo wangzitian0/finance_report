@@ -78,25 +78,25 @@ Not owned here:
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC21.1.1 | EPIC-021 and AI SSOT define AI Advisor as a read-only application layer that consumes deterministic application facts and is not the source of record | `test_AC21_1_1_ai_advisor_is_application_layer_contract`, `test_application_ai_advisor_epic021_product_owner_contract` | `tests/tooling/test_application_ai_advisor_epic021_contract.py`, `tests/e2e/test_application_ai_advisor_epic021.py` | P0 |
-| AC21.1.2 | Scale coverage and confidence work is explicitly routed to existing EPICs and issues instead of being re-owned by EPIC-021 | `test_AC21_1_2_scale_and_confidence_work_stays_in_existing_epics`, `test_application_ai_advisor_epic021_product_owner_contract` | `tests/tooling/test_application_ai_advisor_epic021_contract.py`, `tests/e2e/test_application_ai_advisor_epic021.py` | P0 |
+| AC21.1.1 | EPIC-021 and AI SSOT define AI Advisor as a read-only application layer that consumes deterministic application facts and is not the source of record {tier:PC} | `test_AC21_1_1_ai_advisor_is_application_layer_contract`, `test_application_ai_advisor_epic021_product_owner_contract` | `tests/tooling/test_application_ai_advisor_epic021_contract.py`, `tests/e2e/test_application_ai_advisor_epic021.py` | P0 |
+| AC21.1.2 | Scale coverage and confidence work is explicitly routed to existing EPICs and issues instead of being re-owned by EPIC-021 {tier:PC} | `test_AC21_1_2_scale_and_confidence_work_stays_in_existing_epics`, `test_application_ai_advisor_epic021_product_owner_contract` | `tests/tooling/test_application_ai_advisor_epic021_contract.py`, `tests/e2e/test_application_ai_advisor_epic021.py` | P0 |
 
 ### AC21.2: Backend Advisor Context and Suggestions
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC21.2.1 | Backend advisor context includes deterministic report readiness, source trust, workflow action counts, market-data freshness, portfolio facts, cash-flow facts, and structured source-cited suggestions | `test_AC21_2_1_advisor_context_includes_readiness_trust_workflow_and_suggestions` | `apps/backend/tests/ai/test_ai_advisor_service.py` | P0 |
-| AC21.2.2 | Prompt construction consumes structured advisor facts and must not describe blocked, stale, unreviewed, unsupported, or manual-trusted data as trusted | `test_AC21_2_2_prompt_consumes_structured_advisor_facts_without_trusting_blocked_state` | `apps/backend/tests/ai/test_ai_advisor_service.py` | P0 |
-| AC21.2.3 | Chat provider calls and persisted chat messages redact sensitive numeric fields while preserving read-only advisor behavior | `test_AC21_2_3_chat_stream_redacts_sensitive_numbers_before_provider_and_persistence` | `apps/backend/tests/ai/test_ai_advisor_service.py` | P0 |
+| AC21.2.1 | Backend advisor context includes deterministic report readiness, source trust, workflow action counts, market-data freshness, portfolio facts, cash-flow facts, and structured source-cited suggestions {tier:PC} | `test_AC21_2_1_advisor_context_includes_readiness_trust_workflow_and_suggestions` | `apps/backend/tests/ai/test_ai_advisor_service.py` | P0 |
+| AC21.2.2 | Prompt construction consumes structured advisor facts and must not describe blocked, stale, unreviewed, unsupported, or manual-trusted data as trusted {tier:PC} | `test_AC21_2_2_prompt_consumes_structured_advisor_facts_without_trusting_blocked_state` | `apps/backend/tests/ai/test_ai_advisor_service.py` | P0 |
+| AC21.2.3 | Chat provider calls and persisted chat messages redact sensitive numeric fields while preserving read-only advisor behavior {tier:PC} | `test_AC21_2_3_chat_stream_redacts_sensitive_numbers_before_provider_and_persistence` | `apps/backend/tests/ai/test_ai_advisor_service.py` | P0 |
 
 ### AC21.3: Frontend Advisor Brief and Contextual Next Actions
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC21.3.1 | Chat suggestions endpoint exposes structured advisor suggestions to the frontend without relying on LLM prose parsing | `test_AC21_3_1_chat_suggestions_include_structured_advisor_facts` | `apps/backend/tests/ai/test_chat_router.py` | P0 |
-| AC21.3.2 | Advisor Brief renders blocked, ready, review-required, and stale-market-data cards with source basis, limitation, and safe internal action links | `test_AC21_3_2_advisor_brief_renders_structured_cards_and_safe_routes` | `apps/frontend/src/__tests__/advisorBrief.test.tsx` | P0 |
-| AC21.3.3 | Chat and dashboard surfaces expose contextual Ask AI links that seed a scoped prompt without losing existing chat behavior | `test_AC21_3_3_chat_panel_renders_contextual_advisor_brief`, `test_AC21_3_3_dashboard_renders_advisor_brief_before_analytics` | `apps/frontend/src/__tests__/chatPanelComponent.test.tsx`, `apps/frontend/src/__tests__/dashboardPage.test.tsx` | P0 |
-| AC21.3.4 | Advisor Brief keeps desktop and mobile layouts free of horizontal overflow | `advisor-brief desktop and mobile layouts avoid horizontal overflow` | `apps/frontend/playwright/advisor-brief.spec.ts` | P1 |
+| AC21.3.1 | Chat suggestions endpoint exposes structured advisor suggestions to the frontend without relying on LLM prose parsing {tier:PC} | `test_AC21_3_1_chat_suggestions_include_structured_advisor_facts` | `apps/backend/tests/ai/test_chat_router.py` | P0 |
+| AC21.3.2 | Advisor Brief renders blocked, ready, review-required, and stale-market-data cards with source basis, limitation, and safe internal action links {tier:PC} | `test_AC21_3_2_advisor_brief_renders_structured_cards_and_safe_routes` | `apps/frontend/src/__tests__/advisorBrief.test.tsx` | P0 |
+| AC21.3.3 | Chat and dashboard surfaces expose contextual Ask AI links that seed a scoped prompt without losing existing chat behavior {tier:PC} | `test_AC21_3_3_chat_panel_renders_contextual_advisor_brief`, `test_AC21_3_3_dashboard_renders_advisor_brief_before_analytics` | `apps/frontend/src/__tests__/chatPanelComponent.test.tsx`, `apps/frontend/src/__tests__/dashboardPage.test.tsx` | P0 |
+| AC21.3.4 | Advisor Brief keeps desktop and mobile layouts free of horizontal overflow {tier:PC} | `advisor-brief desktop and mobile layouts avoid horizontal overflow` | `apps/frontend/playwright/advisor-brief.spec.ts` | P1 |
 
 ## Planned Implementation Slices
 
