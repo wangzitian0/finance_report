@@ -6,17 +6,18 @@ fixture — never by a real provider. They carry only ``@pytest.mark.e2e`` (no
 ``@pytest.mark.llm``), so they run in the merge-blocking no-LLM tier
 (``pr-test.yml`` / ``ci.yml backend-e2e-tier1``: ``-m "... and not llm"``).
 
-The point these prove that the legacy ``@pytest.mark.llm`` mega-journeys could not:
-the DOM/CRUD/render assertions on a parsed statement (list row link text, detail
-fields, transactions, report numbers) run pre-merge with zero provider cost, so a
-selector/contract drift fails CI at PR time instead of slipping to staging.
+The point these prove, which the legacy ``@pytest.mark.llm`` mega-journeys could
+not, is this: the DOM/CRUD/render assertions on a parsed statement (list row link
+text, detail fields, transactions, report numbers) run pre-merge with zero
+provider cost, so a selector/contract drift fails CI at PR time instead of
+slipping to staging.
 """
 
 from decimal import Decimal
 
 import pytest
 
-from tests.e2e.conftest import SeededParsedStatement
+from tests.factories import SeededParsedStatement
 
 
 @pytest.mark.e2e
