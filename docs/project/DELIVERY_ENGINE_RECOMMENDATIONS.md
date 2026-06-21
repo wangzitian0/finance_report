@@ -20,7 +20,7 @@ Observed on June 21, 2026 after the #1252 ROI sequence landed through PR
 | Unified coverage job | 27s | Artifact fan-in + local unified coverage + main-only Coveralls reporting |
 
 Backend shards in run `27896401849` completed in
-3m31s / 3m43s / 3m49s / 3m50s / 3m41s.
+3m 31s / 3m 43s / 3m 49s / 3m 50s / 3m 41s.
 
 #1252 closure readout: the highest-ROI left shifts and convergence work are now
 done for this phase. The old single frontend critical path was split, duplicate

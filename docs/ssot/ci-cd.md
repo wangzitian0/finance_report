@@ -628,7 +628,7 @@ SSOT edits: [DELIVERY_ENGINE_RECOMMENDATIONS.md](../project/DELIVERY_ENGINE_RECO
 
 **CI Pipeline (Phase 2 backend/fan-in trim, 2026-06-20 observed baseline):**
 - The 8-shard Phase 2 run proved fan-in trimming but did not prove duration-aware balancing because CI had no restored duration seed and `pytest-split` fell back to unseeded even splitting.
-- Phase 2b corrects the backend fast path to 5 seeded shards using `apps/backend/ci/backend-test-durations.json`. Main CI run `27896401849` after PR #1288 completed successfully in about 4m46s; backend shards finished in the 3m31s-3m50s band, frontend split gates stayed below the backend tail, unified coverage took 27s, and AC behavioral ratchet took 25s.
+- Phase 2b corrects the backend fast path to 5 seeded shards using `apps/backend/ci/backend-test-durations.json`. Main CI run `27896401849` after PR #1288 completed successfully in about 4m 46s; backend shards finished in the 3m 31s-3m 50s band, frontend split gates stayed below the backend tail, unified coverage took 27s, and AC behavioral ratchet took 25s.
 - `unified-coverage` runs repo-local stdlib Python scripts directly, and `ac-behavioral-ratchet` downloads only JUnit-producing test-context artifacts.
 
 **Post-merge staging (2026-05-20 observed baseline):**

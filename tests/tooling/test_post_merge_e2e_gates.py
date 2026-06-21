@@ -3076,7 +3076,7 @@ def test_AC8_13_47_delivery_engine_recommendations_are_tracked() -> None:
         "27896401849",
         "ab2630e1",
         "4m 46s",
-        "3m31s / 3m43s / 3m49s / 3m50s / 3m41s",
+        "3m 31s / 3m 43s / 3m 49s / 3m 50s / 3m 41s",
         "Do not add more shards",
         "Out of scope for this PR",
     ):
@@ -3085,7 +3085,7 @@ def test_AC8_13_47_delivery_engine_recommendations_are_tracked() -> None:
     assert "DELIVERY_ENGINE_RECOMMENDATIONS.md" in project_readme
     assert "delivery-engine recommendation note" in ci_cd
     assert "Main CI run `27896401849` after PR #1288" in ci_cd
-    assert "backend shards finished in the 3m31s-3m50s band" in ci_cd
+    assert "backend shards finished in the 3m 31s-3m 50s band" in ci_cd
 
 
 def test_AC8_13_112_sparse_matrix_recommendation_tracks_simplification_path() -> None:
