@@ -14,7 +14,12 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def read(path: str) -> str:
-    return (ROOT / path).read_text(encoding="utf-8")
+    target = ROOT / path
+    if target.is_dir():
+        return "\n# <<< file-boundary >>>\n".join(
+            p.read_text(encoding="utf-8") for p in sorted(target.rglob("*.py"))
+        )
+    return target.read_text(encoding="utf-8")
 
 
 def build_critical_matrix() -> dict:
@@ -1944,7 +1949,7 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     four_asset = read("tests/e2e/test_four_asset_net_worth_golden_path.py")
     upload = read("tests/e2e/test_statement_upload_e2e.py")
     primitive = read("repo/tools/deploy_primitive.py")
-    preview_lifecycle = read("tools/_lib/dev/pr_preview_lifecycle.py")
+    preview_lifecycle = read("tools/_lib/dev/pr_preview_lifecycle")
 
     assert "post-merge-train-turn:" not in workflow
     assert "wait_post_merge_train_turn.py" not in workflow
@@ -2895,7 +2900,7 @@ def test_AC8_13_38_pr_preview_dokploy_responses_are_not_logged() -> None:
     """AC8.13.38: PR preview cleanup parses Dokploy responses without raw logs."""
     preview = read(".github/workflows/pr-test.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
-    lifecycle = read("tools/_lib/dev/pr_preview_lifecycle.py")
+    lifecycle = read("tools/_lib/dev/pr_preview_lifecycle")
 
     assert (
         "PR preview Dokploy API responses are parsed for required fields only" in ci_cd

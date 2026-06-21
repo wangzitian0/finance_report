@@ -91,8 +91,8 @@ def test_module_readmes_are_thin_reports_duplicate_sections(tmp_path) -> None:
     )
 
     with (
-        mock.patch.object(ldc, "REPO_ROOT", tmp_path),
-        mock.patch.object(ldc, "THIN_README_LIMITS", {"module/README.md": 4}),
+        mock.patch.object(ldc._base, "REPO_ROOT", tmp_path),
+        mock.patch.object(ldc._parsing, "THIN_README_LIMITS", {"module/README.md": 4}),
     ):
         violations = ldc.check_module_readmes_are_thin()
 
@@ -500,7 +500,7 @@ class TestNoAcTestExceptions:
         exceptions.parent.mkdir(parents=True)
         exceptions.write_text("| `tests/conftest.py` | Shared fixtures |\n")
 
-        with mock.patch.object(ldc, "REPO_ROOT", tmp_path):
+        with mock.patch.object(ldc._base, "REPO_ROOT", tmp_path):
             violations = ldc.check_no_ac_test_exceptions([test_file], exceptions)
 
         assert violations == []
@@ -513,7 +513,7 @@ class TestNoAcTestExceptions:
         exceptions.parent.mkdir(parents=True)
         exceptions.write_text("| `tests/other.py` | Other |\n")
 
-        with mock.patch.object(ldc, "REPO_ROOT", tmp_path):
+        with mock.patch.object(ldc._base, "REPO_ROOT", tmp_path):
             violations = ldc.check_no_ac_test_exceptions([test_file], exceptions)
 
         assert len(violations) == 1
@@ -603,7 +603,7 @@ class TestCollectAcRefsInTests:
         tests.mkdir()
         tf = tests / "test_accounting.py"
         tf.write_text("# AC1.1.1\n# AC2.1.1\n")
-        with mock.patch.object(ldc, "REPO_ROOT", tmp_path):
+        with mock.patch.object(ldc._base, "REPO_ROOT", tmp_path):
             refs = ldc.collect_ac_refs_in_tests([tests])
         assert "AC1.1.1" in refs
         assert "AC2.1.1" in refs
@@ -621,7 +621,7 @@ class TestCollectAcRefsInTests:
         tests.mkdir()
         tf = tests / "accounting.test.ts"
         tf.write_text("// AC1.1.1\n")
-        with mock.patch.object(ldc, "REPO_ROOT", tmp_path):
+        with mock.patch.object(ldc._base, "REPO_ROOT", tmp_path):
             refs = ldc.collect_ac_refs_in_tests([tests])
         assert "AC1.1.1" in refs
 
@@ -970,13 +970,13 @@ class TestMain:
     def test_passing_run(self, tmp_path):
         vision, epic_dir, epic_file, reg, infra, tests = self._make_env(tmp_path)
         with (
-            mock.patch.object(ldc, "VISION_PATH", vision),
-            mock.patch.object(ldc, "EPIC_DIR", epic_dir),
-            mock.patch.object(ldc, "AC_REGISTRY", reg),
-            mock.patch.object(ldc, "INFRA_REGISTRY", infra),
-            mock.patch.object(ldc, "TEST_ROOTS", [tests]),
+            mock.patch.object(ldc._base, "VISION_PATH", vision),
+            mock.patch.object(ldc._base, "EPIC_DIR", epic_dir),
+            mock.patch.object(ldc._base, "AC_REGISTRY", reg),
+            mock.patch.object(ldc._base, "INFRA_REGISTRY", infra),
+            mock.patch.object(ldc._base, "TEST_ROOTS", [tests]),
             mock.patch.object(ldc, "CHECK6_TEST_ROOTS", [tests]),
-            mock.patch.object(ldc, "REPO_ROOT", tmp_path),
+            mock.patch.object(ldc._base, "REPO_ROOT", tmp_path),
             mock.patch("sys.argv", ["lint_doc_consistency.py"]),
         ):
             result = ldc.main()
@@ -985,13 +985,13 @@ class TestMain:
     def test_verbose_flag(self, tmp_path, capsys):
         vision, epic_dir, epic_file, reg, infra, tests = self._make_env(tmp_path)
         with (
-            mock.patch.object(ldc, "VISION_PATH", vision),
-            mock.patch.object(ldc, "EPIC_DIR", epic_dir),
-            mock.patch.object(ldc, "AC_REGISTRY", reg),
-            mock.patch.object(ldc, "INFRA_REGISTRY", infra),
-            mock.patch.object(ldc, "TEST_ROOTS", [tests]),
+            mock.patch.object(ldc._base, "VISION_PATH", vision),
+            mock.patch.object(ldc._base, "EPIC_DIR", epic_dir),
+            mock.patch.object(ldc._base, "AC_REGISTRY", reg),
+            mock.patch.object(ldc._base, "INFRA_REGISTRY", infra),
+            mock.patch.object(ldc._base, "TEST_ROOTS", [tests]),
             mock.patch.object(ldc, "CHECK6_TEST_ROOTS", [tests]),
-            mock.patch.object(ldc, "REPO_ROOT", tmp_path),
+            mock.patch.object(ldc._base, "REPO_ROOT", tmp_path),
             mock.patch("sys.argv", ["lint_doc_consistency.py", "--verbose"]),
         ):
             result = ldc.main()
@@ -1001,7 +1001,7 @@ class TestMain:
 
     def test_missing_vision_md_exits_1(self, tmp_path):
         with (
-            mock.patch.object(ldc, "VISION_PATH", tmp_path / "nonexistent.md"),
+            mock.patch.object(ldc._base, "VISION_PATH", tmp_path / "nonexistent.md"),
             mock.patch("sys.argv", ["lint_doc_consistency.py"]),
         ):
             result = ldc.main()
@@ -1011,8 +1011,8 @@ class TestMain:
         vision = tmp_path / "vision.md"
         vision.write_text(MINIMAL_VISION_MD)
         with (
-            mock.patch.object(ldc, "VISION_PATH", vision),
-            mock.patch.object(ldc, "EPIC_DIR", tmp_path / "nonexistent"),
+            mock.patch.object(ldc._base, "VISION_PATH", vision),
+            mock.patch.object(ldc._base, "EPIC_DIR", tmp_path / "nonexistent"),
             mock.patch("sys.argv", ["lint_doc_consistency.py"]),
         ):
             result = ldc.main()
@@ -1024,8 +1024,8 @@ class TestMain:
         epic_dir = tmp_path / "docs" / "project"
         epic_dir.mkdir(parents=True)
         with (
-            mock.patch.object(ldc, "VISION_PATH", vision),
-            mock.patch.object(ldc, "EPIC_DIR", epic_dir),
+            mock.patch.object(ldc._base, "VISION_PATH", vision),
+            mock.patch.object(ldc._base, "EPIC_DIR", epic_dir),
             mock.patch("sys.argv", ["lint_doc_consistency.py"]),
         ):
             result = ldc.main()
@@ -1046,13 +1046,13 @@ class TestMain:
         tests = tmp_path / "tests"
         tests.mkdir()
         with (
-            mock.patch.object(ldc, "VISION_PATH", vision),
-            mock.patch.object(ldc, "EPIC_DIR", epic_dir),
-            mock.patch.object(ldc, "AC_REGISTRY", reg),
-            mock.patch.object(ldc, "INFRA_REGISTRY", infra),
-            mock.patch.object(ldc, "TEST_ROOTS", [tests]),
+            mock.patch.object(ldc._base, "VISION_PATH", vision),
+            mock.patch.object(ldc._base, "EPIC_DIR", epic_dir),
+            mock.patch.object(ldc._base, "AC_REGISTRY", reg),
+            mock.patch.object(ldc._base, "INFRA_REGISTRY", infra),
+            mock.patch.object(ldc._base, "TEST_ROOTS", [tests]),
             mock.patch.object(ldc, "CHECK6_TEST_ROOTS", [tests]),
-            mock.patch.object(ldc, "REPO_ROOT", tmp_path),
+            mock.patch.object(ldc._base, "REPO_ROOT", tmp_path),
             mock.patch("sys.argv", ["lint_doc_consistency.py"]),
         ):
             result = ldc.main()
