@@ -91,9 +91,32 @@ def test_AC26_8_1_invariant_violation_recorder_emits_labelled_counter(monkeypatc
         assert kind in telemetry_metrics.INVARIANT_VIOLATION_KINDS
 
 
-def test_AC26_8_1_recorder_is_safe_noop_without_instrument() -> None:
+def test_AC26_8_1_recorder_guards_label_cardinality_and_pii(monkeypatch) -> None:
+    """AC26.8.1: an unknown kind is dropped and a stray institution_class is coerced.
+
+    The metric label space must stay bounded and PII-free: a typo'd kind is a no-op
+    (no label emitted), and anything outside the closed institution-class set
+    becomes ``"unknown"`` so a real institution name can never become a label.
+    """
+    counter = _FakeCounter()
+    monkeypatch.setitem(telemetry_metrics._instruments, "financial_invariant_violation", counter)
+
+    # Unknown kind -> dropped, nothing emitted.
+    telemetry_metrics.record_financial_invariant_violation(kind="totally_bogus_kind")
+    assert counter.add_calls == []
+
+    # A leaked real institution name is coerced to the anonymized "unknown" bucket.
+    telemetry_metrics.record_financial_invariant_violation(
+        kind="balance_mismatch", institution_class="DBS Bank Account 1234"
+    )
+    assert counter.add_calls == [(1, {"kind": "balance_mismatch", "institution_class": "unknown"})]
+
+
+def test_AC26_8_1_recorder_is_safe_noop_without_instrument(monkeypatch) -> None:
     """AC26.8.1: recording is a safe no-op when metrics export is not configured."""
-    telemetry_metrics._instruments.pop("financial_invariant_violation", None)
+    # monkeypatch.delitem restores the dict afterward, so removing the instrument
+    # cannot leak into other tests (no order-dependent failures).
+    monkeypatch.delitem(telemetry_metrics._instruments, "financial_invariant_violation", raising=False)
     # Must not raise when the instrument is absent (export disabled).
     telemetry_metrics.record_financial_invariant_violation(kind="chain_break")
 
