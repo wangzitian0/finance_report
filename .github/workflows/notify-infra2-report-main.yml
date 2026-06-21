@@ -25,10 +25,6 @@ on:
 permissions:
   contents: read
 
-env:
-  # AC8.13.16: opt JavaScript actions into the Node 24 runtime ahead of the GitHub migration.
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
 concurrency:
   # Collapse bursts of main pushes into one in-flight dispatch; the infra2 receiver also
   # serializes the actual preview deploy (cancel-in-progress on its own slot).

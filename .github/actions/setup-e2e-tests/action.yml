@@ -9,6 +9,7 @@ runs:
       with:
         version: "0.9.18"
         enable-cache: true
+        save-cache: false
         cache-dependency-glob: "tests/e2e/requirements.txt"
 
     - name: Set up Python

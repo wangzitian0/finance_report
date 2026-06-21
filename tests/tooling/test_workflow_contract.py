@@ -169,11 +169,38 @@ def test_action_runtime_inventory_requires_exceptions_for_forced_node20_metadata
     target = tmp_path / "docs/ssot/github-action-runtime.yaml"
     content = target.read_text(encoding="utf-8")
     content = content.replace(
-        "  - uses: docker/login-action@v3\n"
-        "    owner: ci_workflow\n"
-        "    reason: GHCR authentication still emits Node 20 metadata warnings; upgrade when Docker publishes a Node 24 native major.\n"
-        "    review_after: \"2026-07-15\"\n",
-        "",
+        "  - uses: actions/cache@v5\n"
+        "    runtime_status: node24_native\n"
+        "    owner: ci_workflow\n",
+        "  - uses: actions/cache@v5\n"
+        "    runtime_status: forced_node20_metadata\n"
+        "    owner: ci_workflow\n",
     )
     target.write_text(content, encoding="utf-8")
+    assert contract.run_contract(tmp_path) == 1
+
+
+def test_action_runtime_inventory_rejects_forced_count_drift(tmp_path) -> None:
+    _copy_inputs(tmp_path)
+    target = tmp_path / "docs/ssot/github-action-runtime.yaml"
+    content = target.read_text(encoding="utf-8")
+    content = content.replace(
+        "forced_node20_metadata_count_must_be: 0",
+        "forced_node20_metadata_count_must_be: 1",
+    )
+    target.write_text(content, encoding="utf-8")
+    assert contract.run_contract(tmp_path) == 1
+
+
+def test_action_runtime_inventory_rejects_forced_runtime_env_without_exceptions(
+    tmp_path,
+) -> None:
+    _copy_inputs(tmp_path)
+    workflow = tmp_path / ".github/workflows/ci.yml"
+    content = workflow.read_text(encoding="utf-8")
+    content = content.replace(
+        "env:\n  REGISTRY: ghcr.io\n",
+        'env:\n  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"\n  REGISTRY: ghcr.io\n',
+    )
+    workflow.write_text(content, encoding="utf-8")
     assert contract.run_contract(tmp_path) == 1

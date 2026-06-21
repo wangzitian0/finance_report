@@ -327,7 +327,7 @@ def test_pr_preview_follows_successful_ci_without_dokploy_deploy() -> None:
     assert "build-preview-backend-image" not in jobs
     assert "build-preview-frontend-image" not in jobs
     assert "deploy" not in jobs
-    assert "docker/build-push-action@v5" not in workflow_text
+    assert "docker/build-push-action@v7" not in workflow_text
     assert "Delete GHCR images" not in workflow_text
 
     e2e_blob = yaml.safe_dump(jobs["e2e"])
