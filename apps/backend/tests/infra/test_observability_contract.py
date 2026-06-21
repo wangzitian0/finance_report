@@ -26,7 +26,7 @@ pytestmark = pytest.mark.no_db
 
 def _read(path: Path) -> str:
     if path.is_dir():
-        return "\n".join(p.read_text(encoding="utf-8") for p in sorted(path.rglob("*.py")))
+        return "\n# <<< file-boundary >>>\n".join(p.read_text(encoding="utf-8") for p in sorted(path.rglob("*.py")))
     return path.read_text(encoding="utf-8")
 
 

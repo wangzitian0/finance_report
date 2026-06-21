@@ -1,13 +1,14 @@
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 
 
 def read(path: str) -> str:
     target = ROOT / path
     if target.is_dir():
-        return "\n".join(
+        # Sentinel separator so substring assertions can't match across a
+        # cross-file boundary formed by concatenation.
+        return "\n# <<< file-boundary >>>\n".join(
             p.read_text(encoding="utf-8") for p in sorted(target.rglob("*.py"))
         )
     return target.read_text(encoding="utf-8")
