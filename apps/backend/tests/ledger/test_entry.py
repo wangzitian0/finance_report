@@ -7,7 +7,7 @@ import pytest
 from common.testing.ac_proof import ac_proof
 
 from src.ledger import Entry, Leg, UnbalancedEntryError
-from src.ledger.types.errors import EmptyEntryError
+from src.ledger.types.errors import DegenerateEntryError
 from src.models.journal import Direction
 from src.money import Money
 
@@ -42,8 +42,11 @@ def test_AC12_34_1_unbalanced_entry_is_unconstructable():
             Leg(A, Direction.DEBIT, _m("100.00")),
             Leg(B, Direction.CREDIT, _m("80.00")),
         )
-    with pytest.raises(EmptyEntryError):
+    with pytest.raises(DegenerateEntryError):
         Entry.of()
+    # a single-leg entry is degenerate (clear error, not a confusing "unbalanced")
+    with pytest.raises(DegenerateEntryError):
+        Entry.of(Leg(A, Direction.DEBIT, _m("10.00")))
 
 
 @ac_proof(proof_id="test_entry_per_currency", ac_ids=["AC12.34.1"], ci_tier="pr_ci")
@@ -72,3 +75,10 @@ def test_AC12_34_1_legs_must_be_positive():
         Leg(A, Direction.DEBIT, _m("0.00"))
     with pytest.raises(UnbalancedEntryError):
         Leg(A, Direction.DEBIT, _m("-1.00"))
+
+
+@ac_proof(proof_id="test_entry_leg_direction", ac_ids=["AC12.34.1"], ci_tier="pr_ci")
+def test_AC12_34_1_leg_direction_must_be_typed():
+    """AC12.34.1: a non-Direction direction is rejected (no silent credit)."""
+    with pytest.raises(TypeError):
+        Leg(A, "DEBIT", _m("10.00"))  # type: ignore[arg-type]
