@@ -1079,7 +1079,6 @@ def test_AC8_13_52_production_release_checks_use_pinned_python() -> None:
 
 def test_AC8_13_52_production_release_matches_exact_staging_run_name() -> None:
     """AC8.13.52: Production release requires staging validation for the exact version_ref."""
-    workflow = read(".github/workflows/production-release.yml")
     release_evidence = read("common/ci/release_evidence.py")
     staging_contract = release_evidence.split("def verify_staging", 1)[1].split(
         "def _required", 1
@@ -3203,6 +3202,89 @@ def test_AC8_13_112_workflows_consume_structured_env_stage_gates() -> None:
     assert "env_required['staging']" in staging_workflow
     assert "provider_required['staging']" in staging_workflow
     assert "steps.classify.outputs.staging_required" not in staging_workflow
+
+
+def test_AC8_13_152_workflow_consumers_keep_classification_single_owned() -> None:
+    """AC8.13.152: downstream workflow jobs do not reclassify changed paths."""
+    ci_workflow = read(".github/workflows/ci.yml")
+    pr_workflow = read(".github/workflows/pr-test.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_jobs = yaml.safe_load(ci_workflow)["jobs"]
+    pr_jobs = yaml.safe_load(pr_workflow)["jobs"]
+
+    def step(job: dict[str, object], name: str) -> dict[str, object]:
+        steps = job["steps"]
+        assert isinstance(steps, list)
+        for candidate in steps:
+            assert isinstance(candidate, dict)
+            if candidate.get("name") == name:
+                return candidate
+        raise AssertionError(f"Missing step: {name}")
+
+    def job_text(job: object) -> str:
+        return json.dumps(job, sort_keys=True)
+
+    def needs_job(job: dict[str, object], required: str) -> bool:
+        needs = job.get("needs", [])
+        if isinstance(needs, str):
+            return needs == required
+        assert isinstance(needs, list)
+        return required in needs
+
+    ci_classify = step(ci_jobs["changes"], "Classify changed paths")
+    assert "python tools/ci_change_classifier.py" in str(ci_classify["run"])
+
+    ci_gate = step(ci_jobs["changes"], "Normalize Env x Stage gates")
+    assert ci_jobs["changes"]["outputs"]["pr_required"] == (
+        "${{ steps.gates.outputs.pr_required }}"
+    )
+    assert ci_gate["env"] == {
+        "ENV_STAGE_REQUIRED": "${{ steps.classify.outputs.env_stage_required }}",
+        "ENV_STAGE_REASONS": "${{ steps.classify.outputs.env_stage_reasons }}",
+    }
+    assert 'json.loads(os.environ["ENV_STAGE_REQUIRED"])' in str(ci_gate["run"])
+    assert "required['pr']" in str(ci_gate["run"])
+
+    for job_name, job in ci_jobs.items():
+        assert isinstance(job, dict)
+        if not needs_job(job, "changes"):
+            continue
+        text = job_text(job)
+        assert "tools/ci_change_classifier.py" not in text, job_name
+        assert "git diff --name-only" not in text, job_name
+        assert "changed-files.txt" not in text, job_name
+        assert "/pulls/" not in text, job_name
+
+    preview_classify = step(pr_jobs["setup"], "Classify PR preview relevance")
+    assert "python tools/ci_change_classifier.py" in str(preview_classify["run"])
+
+    preview_gate = step(pr_jobs["setup"], "Normalize PR preview gate")
+    assert pr_jobs["setup"]["outputs"]["pr_preview_required"] == (
+        "${{ steps.preview_gate.outputs.pr_preview_required }}"
+    )
+    assert preview_gate["env"] == {
+        "ENV_STAGE_REQUIRED": "${{ steps.preview.outputs.env_stage_required }}",
+        "ENV_STAGE_REASONS": "${{ steps.preview.outputs.env_stage_reasons }}",
+    }
+    assert 'json.loads(os.environ["ENV_STAGE_REQUIRED"])' in str(
+        preview_gate["run"]
+    )
+    assert "required['pr-preview']" in str(preview_gate["run"])
+
+    for job_name in ("deploy-preview", "e2e"):
+        text = job_text(pr_jobs[job_name])
+        assert "needs.setup.outputs.pr_preview_required == 'true'" in text
+        assert "tools/ci_change_classifier.py" not in text, job_name
+        assert "changed-files.txt" not in text, job_name
+        assert "/pulls/" not in text, job_name
+
+    assert (
+        "Workflow YAML remains explicit; it is not generated from SSOT or the "
+        "classifier at runtime."
+    ) in ci_cd
+    assert (
+        "changed-path classification stays owned by the classifier step"
+    ) in ci_cd
 
 
 def test_AC8_13_113_sparse_matrix_evidence_and_resource_leak_audit_are_recorded() -> (
