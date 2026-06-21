@@ -67,11 +67,20 @@ def test_AC12_34_3_confidence_tier_lives_in_model_layer():
 
 
 @ac_proof(proof_id="test_ledger_buy_adoption", ac_ids=["AC12.34.4"], ci_tier="pr_ci")
-def test_AC12_34_4_investment_buy_uses_ledger_post():
-    """AC12.34.4: the buy posting uses Entry + post_entry, not hand-built line dicts."""
+def test_AC12_34_4_investment_postings_use_ledger_post():
+    """AC12.34.4: investment buy/sell/dividend post via Entry + post_entry."""
     src = _read("apps/backend/src/services/investment_accounting.py")
-    assert "from src.ledger import Entry, post_entry" in src
-    assert "Entry.transfer(" in src
-    assert "post_entry(" in src
-    # the hand-rolled buy lines_data dict is gone
-    assert '"event_type": "investment_buy"' not in src
+    assert "from src.ledger import Entry, Leg, post_entry" in src
+    assert "Entry.transfer(" in src  # buy
+    assert "Entry.of(" in src  # sell + dividend
+    # all hand-rolled investment line dicts are gone, and the legacy post path is retired
+    for needle in (
+        '"event_type": "investment_buy"',
+        '"event_type": "investment_sell"',
+        '"event_type": "investment_dividend"',
+        "create_journal_entry(",
+        "_post_and_load(",
+    ):
+        assert needle not in src, (
+            f"investment_accounting should no longer contain {needle!r}"
+        )
