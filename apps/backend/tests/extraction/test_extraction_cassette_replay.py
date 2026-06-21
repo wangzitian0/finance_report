@@ -24,6 +24,7 @@ documents remains the staging ``-m llm`` live gate's job (untouched here).
 from __future__ import annotations
 
 import json
+from decimal import Decimal
 
 import pytest
 
@@ -58,9 +59,11 @@ _TEXT_STATEMENT = (
     "Closing balance: 130.00\n"
 )
 _TEXT_MESSAGES = [{"role": "user", "content": _TEXT_PROMPT + "\n\n" + _TEXT_STATEMENT}]
-# Ground truth the cassette is validated against (opening + net == closing).
-_TEXT_OPENING = 100.00
-_TEXT_CLOSING = 130.00
+# Ground truth the test asserts on replay (opening + net == closing). Decimal,
+# never float — money invariants must not accrue float rounding artefacts.
+_TEXT_OPENING = Decimal("100.00")
+_TEXT_CLOSING = Decimal("130.00")
+_TEXT_TOLERANCE = Decimal("0.01")
 _TEXT_TXN_COUNT = 3
 
 
@@ -92,16 +95,17 @@ async def test_AC23_6_extraction_text_happy_path_via_replay() -> None:
     content = await accumulate_stream(stream)
     data = _loads_tolerant(content)
 
-    opening = float(data["opening_balance"])
-    closing = float(data["closing_balance"])
+    # Decimal end-to-end (str() before Decimal so a JSON float never seeds it).
+    opening = Decimal(str(data["opening_balance"]))
+    closing = Decimal(str(data["closing_balance"]))
     txns = data["transactions"]
-    net = sum(float(t["amount"]) for t in txns)
+    net = sum((Decimal(str(t["amount"])) for t in txns), Decimal("0"))
 
-    assert opening == pytest.approx(_TEXT_OPENING, abs=0.01)
-    assert closing == pytest.approx(_TEXT_CLOSING, abs=0.01)
+    assert abs(opening - _TEXT_OPENING) <= _TEXT_TOLERANCE
+    assert abs(closing - _TEXT_CLOSING) <= _TEXT_TOLERANCE
     assert len(txns) == _TEXT_TXN_COUNT
     # Balance-chain invariant on the LLM's extraction (the #1254-class oracle).
-    assert (opening + net) == pytest.approx(closing, abs=0.01)
+    assert abs((opening + net) - closing) <= _TEXT_TOLERANCE
 
 
 @pytest.mark.skip(reason="needs real vision cassette: record glm-4.6v (see module docstring / issue #1306)")
