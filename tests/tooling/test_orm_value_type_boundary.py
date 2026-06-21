@@ -52,3 +52,22 @@ def test_AC12_35_2_investment_accounting_reads_position_via_accessors():
     assert "to_money(position.cost_basis" not in src
     assert "position.realized_pnl or Decimal" not in src
     assert "Quantity(position.quantity," not in src
+
+
+@ac_proof(
+    proof_id="test_portfolio_holdings_money_native",
+    ac_ids=["AC12.35.3"],
+    ci_tier="pr_ci",
+)
+def test_AC12_35_3_portfolio_holdings_value_flows_as_money():
+    """AC12.35.3: portfolio holdings valuation flows as Money end-to-end via a
+    Money-native FX convert + the ManagedPosition accessors (no Decimal FX branch)."""
+    fx = _read("apps/backend/src/services/fx.py")
+    assert "async def convert_money(" in fx, (
+        "fx must expose a Money-native convert helper"
+    )
+    src = _read("apps/backend/src/services/portfolio.py")
+    assert "fx.convert_money(" in src
+    assert "position.cost_basis_money" in src
+    assert "position.quantity_qty" in src
+    assert "UnitPrice(latest_price" in src

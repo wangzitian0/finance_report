@@ -42,8 +42,10 @@ def test_AC12_31_1_decimal_boundary_policy_is_mece_and_enforced():
         assert phrase in ssot
 
     fx = _read(Path("apps/backend/src/services/fx.py"))
+    # convert_amount routes through the money primitive (imported privately as
+    # _money_convert; the public fx.convert_money is now the Money-native helper).
     assert (
-        "from src.money import ExchangeRate, Money, MoneyError, convert as convert_money"
+        "from src.money import ExchangeRate, Money, MoneyError, convert as _money_convert"
         in fx
     )
     assert "ExchangeRate(source, target, rate)" in fx

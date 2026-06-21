@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config import settings
 from src.logger import get_logger
 from src.models import FxRate
-from src.money import ExchangeRate, Money, MoneyError, convert as convert_money
+from src.money import ExchangeRate, Money, MoneyError, convert as _money_convert
 
 logger = get_logger(__name__)
 
@@ -89,7 +89,7 @@ def _append_fx_warning(fx_warnings: list[FxWarning] | None, warning: FxWarning) 
 
 def _convert_money_amount(amount: Decimal, source: str, target: str, rate: Decimal) -> Decimal:
     try:
-        return convert_money(Money(amount, source), ExchangeRate(source, target, rate)).amount
+        return _money_convert(Money(amount, source), ExchangeRate(source, target, rate)).amount
     except MoneyError as exc:
         raise FxRateError(f"Invalid FX conversion boundary for {source}/{target}: {exc}") from exc
 
@@ -238,6 +238,38 @@ async def convert_amount(
         rate = await get_exchange_rate(db, source, target, rate_date, lazy_load=lazy_load)
 
     return _convert_money_amount(amount, source, target, rate)
+
+
+async def convert_money(
+    db: AsyncSession,
+    money: Money,
+    target_currency: str,
+    rate_date: date,
+    *,
+    average_start: date | None = None,
+    average_end: date | None = None,
+    fx_warnings: list[FxWarning] | None = None,
+    lazy_load: bool = False,
+) -> Money:
+    """Money-native FX conversion: ``Money(source) -> Money(target)``.
+
+    Thin typed wrapper over :func:`convert_amount` so business code stays in
+    ``Money`` across the FX boundary instead of unwrapping to ``Decimal``. A
+    same-currency conversion is a no-op (returns ``money`` re-stamped in the target
+    code), so callers no longer need an ``if currency != base`` branch.
+    """
+    converted = await convert_amount(
+        db,
+        amount=money.amount,
+        currency=money.currency.code,
+        target_currency=target_currency,
+        rate_date=rate_date,
+        average_start=average_start,
+        average_end=average_end,
+        fx_warnings=fx_warnings,
+        lazy_load=lazy_load,
+    )
+    return Money(converted, target_currency)
 
 
 async def convert_to_base(

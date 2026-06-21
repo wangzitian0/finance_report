@@ -593,7 +593,10 @@ async def test_AC12_31_2_convert_amount_routes_through_money_exchange_rate(
         calls.append((money, rate))
         return Money(Decimal("120.00"), "SGD")
 
-    monkeypatch.setattr(fx_service, "convert_money", fake_convert)
+    # ``convert_money`` is now the public Money-native FX helper; the common
+    # money primitive is imported privately as ``_money_convert`` (what
+    # convert_amount routes through).
+    monkeypatch.setattr(fx_service, "_money_convert", fake_convert)
 
     result = await convert_amount(db, Decimal("100.00"), "USD", "SGD", date(2025, 1, 1))
 
