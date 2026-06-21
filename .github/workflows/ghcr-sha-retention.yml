@@ -61,7 +61,14 @@ jobs:
           : > live-shas.txt
 
           for url in $HEALTH_URLS; do
-            payload="$(curl -fsS "$url")"
+            payload="$(
+              curl -fsS \
+                --connect-timeout 5 \
+                --max-time 20 \
+                --retry 2 \
+                --retry-delay 2 \
+                "$url"
+            )"
             candidate="$(
               python3 -c 'import json,sys; data=json.load(sys.stdin); print(data.get("git_sha") or data.get("version") or "")' \
               <<< "$payload"

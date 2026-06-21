@@ -161,6 +161,8 @@ def test_AC7_19_1_workflow_schedules_28_day_sha_retention_with_live_exemption() 
     collect = _run_text(workflow, "Collect live deploy SHA exemptions")
     assert "https://report-staging.zitian.party/api/health" in workflow_text
     assert "https://report.zitian.party/api/health" in workflow_text
+    assert "--connect-timeout 5" in collect
+    assert "--max-time 20" in collect
     assert 'git rev-parse --verify --quiet "$candidate^{commit}"' in collect
     assert "No live deploy SHA exemptions discovered" in collect
 
