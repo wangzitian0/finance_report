@@ -106,6 +106,39 @@ async def test_buy_transaction_creates_balanced_journal_entry_and_lot(
     assert lots[0].unit_cost == Decimal("100.500000")
 
 
+async def test_transaction_currency_must_match_position_currency(
+    db: AsyncSession,
+    test_user,
+    chart,
+    svc: InvestmentAccountingService,
+):
+    """AC12.35.2: a transaction in a currency other than the position's raises a clean
+    domain error (not a raw CurrencyMismatchError) once Money arithmetic is used."""
+    await svc.post_buy(
+        db,
+        user_id=test_user.id,
+        transaction_date=date(2026, 1, 5),
+        asset_identifier="VWRA",
+        quantity=Decimal("10"),
+        unit_price=Decimal("100.00"),
+        currency="SGD",
+        cash_account_id=chart["cash"].id,
+        investment_account_id=chart["investment"].id,
+    )
+    with pytest.raises(InvestmentAccountingValidationError, match="currency"):
+        await svc.post_buy(
+            db,
+            user_id=test_user.id,
+            transaction_date=date(2026, 1, 6),
+            asset_identifier="VWRA",
+            quantity=Decimal("1"),
+            unit_price=Decimal("100.00"),
+            currency="USD",
+            cash_account_id=chart["cash"].id,
+            investment_account_id=chart["investment"].id,
+        )
+
+
 async def test_sell_transaction_uses_fifo_and_records_realized_gain(
     db: AsyncSession,
     test_user,

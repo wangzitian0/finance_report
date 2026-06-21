@@ -248,11 +248,11 @@ class ManagedPosition(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
 
     @property
     def unrealized_pnl_money(self) -> Money:
-        return Money(self.unrealized_pnl or Decimal("0"), self.currency)
+        return Money(self.unrealized_pnl or Decimal("0.00"), self.currency)
 
     @property
     def realized_pnl_money(self) -> Money:
-        return Money(self.realized_pnl or Decimal("0"), self.currency)
+        return Money(self.realized_pnl or Decimal("0.00"), self.currency)
 
     @property
     def quantity_qty(self) -> Quantity:

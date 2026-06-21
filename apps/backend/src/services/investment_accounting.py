@@ -88,6 +88,7 @@ class InvestmentAccountingService:
             currency=currency,
             cost_basis_method=cost_basis_method,
         )
+        self._require_position_currency(position, currency)
 
         # Dr investment / Cr cash — a balanced two-leg transfer. Entry guarantees
         # the balance invariant at construction; post_entry persists + posts it.
@@ -185,6 +186,7 @@ class InvestmentAccountingService:
             account_id=investment_account.id,
             asset_identifier=asset_identifier,
         )
+        self._require_position_currency(position, currency)
 
         sell_price = UnitPrice(unit_price, currency, INVESTMENT_QUANTITY_UNIT)
         net = (sell_price * trade_quantity - Money(fees, currency)).quantize()
@@ -450,6 +452,19 @@ class InvestmentAccountingService:
         if position is None:
             raise InvestmentAccountingValidationError(f"position {asset_identifier} not found")
         return position
+
+    @staticmethod
+    def _require_position_currency(position: ManagedPosition, currency: str) -> None:
+        """A transaction must be in the position's currency.
+
+        Money arithmetic on the position's typed accessors rejects cross-currency
+        mixing; surface that as a clean domain error rather than a raw
+        ``CurrencyMismatchError`` (this was a silent currency-blind add before).
+        """
+        if position.currency != currency:
+            raise InvestmentAccountingValidationError(
+                f"transaction currency {currency} does not match position currency {position.currency}"
+            )
 
     async def _consume_lots(
         self,
