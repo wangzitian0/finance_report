@@ -131,10 +131,10 @@ verifiable.
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC25.6.1 | `CounterKey` validates the namespaced lowercase dotted `domain.action` shape and rejects invalid keys with `InvalidCounterKeyError`; the package converges by role and `contract.interface` equals `__init__.__all__` | `test_counter_key_rejects_invalid` | `apps/backend/tests/counter/test_key.py` | P0 |
-| AC25.6.2 | `Count` is a non-negative tally; constructing a negative count raises `NegativeCountError`; domain `types` never import the store/api/ORM | `test_count_rejects_negative` | `apps/backend/tests/counter/test_count.py` | P0 |
-| AC25.6.3 | `increment` bumps the per-(user, key) tally by one, returns the new per-user `Count`, and emits an `Incremented` domain event; ops depend only on the `CounterRepository` port, never the ORM | `test_increment_is_per_user` | `apps/backend/tests/counter/test_increment.py` | P1 |
-| AC25.6.4 | `get_count` returns the per-user count for a concrete `user_id` and the global count (sum across users) when `user_id` is `None`; `check_package_contract` validates `counter` against its `PackageContract` | `test_global_vs_per_user_count` | `apps/backend/tests/counter/test_query.py` | P1 |
+| AC25.6.1 | `CounterKey` validates the namespaced lowercase dotted `domain.action` shape and rejects invalid keys with `InvalidCounterKeyError`; the package converges by role and `contract.interface` equals `__init__.__all__` {tier:PC} | `test_counter_key_rejects_invalid` | `apps/backend/tests/counter/test_key.py` | P0 |
+| AC25.6.2 | `Count` is a non-negative tally; constructing a negative count raises `NegativeCountError`; domain `types` never import the store/api/ORM {tier:PC} | `test_count_rejects_negative` | `apps/backend/tests/counter/test_count.py` | P0 |
+| AC25.6.3 | `increment` bumps the per-(user, key) tally by one, returns the new per-user `Count`, and emits an `Incremented` domain event; ops depend only on the `CounterRepository` port, never the ORM {tier:PC} | `test_increment_is_per_user` | `apps/backend/tests/counter/test_increment.py` | P1 |
+| AC25.6.4 | `get_count` returns the per-user count for a concrete `user_id` and the global count (sum across users) when `user_id` is `None`; `check_package_contract` validates `counter` against its `PackageContract` {tier:PC} | `test_global_vs_per_user_count` | `apps/backend/tests/counter/test_query.py` | P1 |
 
 ---
 
