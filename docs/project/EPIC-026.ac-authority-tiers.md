@@ -140,6 +140,12 @@ contract rather than restating it.
 |----|-------------|---------------|------|----------|
 | AC26.6.1 | The first-batch LP/HU/PL ACs retrofitted in this phase (the LP extraction ACs AC3.1.1/AC3.5.7/AC3.5.19, the HU review ACs AC3.3.2/AC3.5.10/AC3.6.4, the PL suggestion ACs AC6.2.3/AC6.2.4) each declare a matrix-valid `proof_kind`; the LP ACs carry an invariant/property proof (the balance-chain `opening + ΣIN − ΣOUT ≈ closing` detector and the #1254 dedup conservation property), so the whole tier-tagged set passes the proof-kind gate. {tier:PC} {proof:property} | `test_AC26_6_1_first_batch_lp_acs_carry_invariant_proof` | `tests/tooling/test_ac_proof_kind.py` | P0 |
 
+### AC26.7 — Cross-tier structural rule enforced (phase 3)
+
+| ID | Requirement | Test Function | File | Priority |
+|----|-------------|---------------|------|----------|
+| AC26.7.1 | PC/financial-truth modules are statically proven free of LLM-layer imports — the cross-tier structural MUST rule ("PC stays pure", `authority-tiers.md` rule 2) made deterministic. `tools/check_tier_imports.py` (impl `common/ssot/check_tier_imports.py`) AST-parses a curated protected set (`money/**`, `ledger/**`, the journal model, and the deterministic dedup/accounting/posting/reporting/validation/fx/portfolio/performance/allocation services) and fails on any direct import of the LLM layer (`src.llm` / `apps.backend.src.llm`) or a raw provider SDK (`litellm`/`openrouter`/`anthropic`/`openai`), including submodules (dotted-prefix match). The real tree passes today (guard against regression); a synthetic protected-style module importing `src.llm` is detected; a glob that resolves to no file also fails so the protected set cannot silently shrink. Direct imports only for v1 (transitive following is a follow-up). {tier:PC} {proof:property} | `test_AC26_7_1_real_tree_has_no_llm_imports_in_protected_modules` | `tests/tooling/test_tier_imports.py` | P0 |
+
 ---
 
 ## 📏 Acceptance Criteria
