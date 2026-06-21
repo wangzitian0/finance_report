@@ -25,10 +25,38 @@ value; the ratchet gate keeps new/changed ACs from skipping it. See
 | Code | Name (中文) | Authority | Reproducible? | Typical behaviors |
 |------|-------------|-----------|---------------|-------------------|
 | **PC** | 纯代码 pure-code | Code | Bit-level, fully reproducible, no LLM | money/accounting, dedup, validation, persistence, security, reporting-calc, types |
-| **CP** | 代码为主·LLM辅助 code-primary | Deterministic code owns the outcome; LLM only suggests/accelerates | Code decision reproducible; suggestion discardable | reconciliation candidate generation (LLM proposes, deterministic scoring decides) |
+| **CP** | 代码为主·LLM辅助 code-primary | **Code emits the output**; the LLM may only adjust *configuration* — thresholds, which profile/strategy to run, mapping hints | Reproducible once the config is pinned (the LLM only turned knobs) | model/strategy selection feeding a deterministic parser; LLM-tuned reconciliation thresholds with deterministic scoring |
 | **HU** | 人来判定 human-decides | A human adjudicates; system presents evidence + options | Decision NOT reproducible; the EVIDENCE CHAIN is | review queue, low-confidence corrections |
-| **LP** | LLM为主·代码守门 LLM-primary | LLM owns the mapping/output; deterministic invariants only GUARD (detect), never produce | Not reproducible but DETECTABLE | extraction, OCR, classification, brokerage schema mapping |
+| **LP** | LLM为主·代码守门 LLM-primary | **The LLM emits the output/content**; code does only format constraints + sanity / invariant checks — it can reject or flag, never produce | Not reproducible but DETECTABLE | extraction, OCR, classification, brokerage CSV→canonical mapping |
 | **PL** | 纯LLM pure-LLM | LLM output is the deliverable; low blast radius; no hard oracle | Not required | advisor narrative, chat answer/suggestion text |
+
+The five tiers form one axis — **how much of the output the LLM controls, from 0
+(PC) to full (PL)** — with **HU as the orthogonal escape hatch** for when neither
+code nor LLM should hold authority. `CP` and `LP` are mirror images around a
+single question:
+
+> **CP vs LP — the deciding test:** is the artifact that actually gets used
+> *computed by code* or *emitted by the LLM*? Code computes it and the LLM only
+> turned configuration knobs → **CP**. The LLM emits it and code only
+> validates / constrains it → **LP**. The line is **who emits**, not how much LLM
+> is involved.
+
+## How a tier is assigned
+
+A tier is **bounded by the blast radius of an *undetected* error**, not by how
+much LLM happens to be in the loop. Walk this order and take the first match:
+
+1. The outcome is a human judgment with no automatable oracle → **HU**.
+2. A wrong automated output could **silently become financial truth** with no
+   deterministic oracle to catch it → it MUST be **PC / CP** (never LP/PL — the
+   LLM is not allowed to own an unverifiable money-affecting result).
+3. It maps messy input where a **deterministic invariant can catch errors and
+   recover** → **LP**.
+4. Code makes the final call; the LLM only tunes config / assists → **CP**.
+5. Pure narrative — touches no number and persists nothing → **PL**.
+
+Governance / scoping / architecture statements (no runtime decision authority)
+default to **PC**: they are deterministic assertions, not adjudicated behavior.
 
 ## tier -> valid proof type
 
