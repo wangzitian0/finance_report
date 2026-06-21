@@ -271,83 +271,25 @@ restricted compensation.
 | AC11.20.2 | Net-worth allocation groups retirement accounts, social-security personal balances, legacy CPF, and insurance cash value under the retirement-and-benefit asset class | `test_AC11_20_2_net_worth_allocation_groups_retirement_and_benefit_assets()` | `reporting/test_reporting_net_worth_components.py` | P1 |
 | AC11.20.3 | The assets page labels retirement and benefit asset entry options as assets, with insurance represented only by cash value | `test_AC11_20_3_assets_page_surfaces_retirement_and_benefit_asset_labels()` | `apps/frontend/src/__tests__/assetsPage.test.tsx` | P1 |
 
-### AC11.21: Stable Valuation Taxonomy Contract (#1221)
+### AC11.21-11.24: Valuation Taxonomy Stack (RETIRED — reinvented existing accounting primitives)
 
-The durable L1/L2 valuation taxonomy that report generation, net worth,
-allocation, and framework-policy logic depend on. Jurisdiction-, scheme-, and
-vendor-specific names (CPF, 401k, MPF, SRS, IRA, social-security personal
-accounts, specific insurers/brokers) are extracted as metadata and mapped onto
-this small stable set — they are never stable taxonomy codes. Durable economic
-meaning lives in three report-stable dimensions (`economic_side`,
-`valuation_role`, `liquidity_class`) plus the L1/L2 class tree. This AC owns the
-contract language only; storage (#1222), adapter (#1223), LLM classification
-(#1224), and report consumption (#1225) build on it.
+> **Retired.** Issues #1221-1224 built a parallel valuation-classification stack
+> (a `valuation_taxonomy` catalog, `atomic_valuation_facts` /
+> `valuation_classifications` storage, a legacy adapter, and an LLM output
+> contract). It reinvented primitives the system already has: the chart of
+> accounts (`AccountType` / `Account`), the double-entry ledger
+> (`JournalEntry` / `JournalLine` / `Direction`), transaction classification
+> (`ClassificationRule` / `TransactionClassification`, with confidence +
+> append-only versioning), and the audit-evidence graph (`EvidenceNode` /
+> `EvidenceEdge`). The stack was an orphaned island — nothing ever produced or
+> consumed its tables. The code, tests, storage tables, and SSOT vocabulary have
+> been removed; the corrected direction folds manual / non-bank valuations into
+> the existing Account + Journal + Classification + Evidence pipeline, with an
+> LLM classifier mapping a raw record onto chart-of-accounts postings. The
+> acceptance criteria above are obsolete and have been removed; replacement ACs
+> will land with the ledger-pipeline extension. See issues #1221, #1222, #1223,
+> #1224, #1225, #1226, #1279.
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC11.21.1 | Stable L1 taxonomy defines the required durable classes (cash, marketable investment, retirement/benefit, restricted compensation, real estate, liability, and asset/non-asset fallbacks) | `test_l1_taxonomy_covers_required_stable_classes()` | `assets/test_valuation_taxonomy_contract.py` | P0 |
-| AC11.21.2 | The contract exposes `economic_side`, `valuation_role`, and `liquidity_class` as report-stable dimensions, expressing insurance cash value (asset) vs coverage amount (non-asset) | `test_report_stable_dimensions_present()` | `assets/test_valuation_taxonomy_contract.py` | P0 |
-| AC11.21.3 | A deterministic guard rejects jurisdiction-, scheme-, and vendor-specific tokens in stable taxonomy codes | `test_stable_codes_reject_vendor_jurisdiction_scheme_tokens()` | `assets/test_valuation_taxonomy_contract.py` | P0 |
-| AC11.21.4 | Every L2 code maps to exactly one L1 parent with a default economic side | `test_l2_maps_to_single_l1_and_default_side()` | `assets/test_valuation_taxonomy_contract.py` | P0 |
-
-### AC11.22: Atomic Valuation Fact + Classification Storage (#1222)
-
-Persistence for raw extracted valuation facts (`atomic_valuation_facts`) and
-their versionable stable classification (`valuation_classifications`), bound to
-the AC11.21 taxonomy contract. Storage only: no LLM, no legacy bridge, and no
-report/UI behaviour change. Jurisdiction/issuer/scheme are raw metadata on the
-fact; the classification columns are bound to the stable contract enums so codes
-outside the contract are rejected at persistence. Reclassification appends a
-version and supersedes the prior head, so prior model output is never destroyed.
-Tables are additive (Alembic revision `0046_valuation_fact_storage`,
-auto-classified low risk); no legacy enum value is removed.
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC11.22.1 | `AtomicValuationFact` persists a point-in-time fact (Decimal amount, currency, as-of, raw label, issuer, jurisdiction, scheme, anchors, payload, evidence spans) with a per-user-unique dedup hash | `test_atomic_valuation_fact_persists_and_dedup_hash_is_unique_per_user()` | `assets/test_valuation_fact_storage.py` | P0 |
-| AC11.22.2 | `ValuationClassification` persists stable taxonomy fields bound to the contract (L1/L2, economic_side, valuation_role, liquidity_class, confidence, review status, model/prompt version, rationale) and rejects codes outside the contract | `test_valuation_classification_persists_stable_fields_and_rejects_out_of_contract_codes()` | `assets/test_valuation_fact_storage.py` | P0 |
-| AC11.22.3 | Classification is append-only/versionable: at most one current head per fact, superseded history preserved | `test_valuation_classification_is_append_only_per_fact()` | `assets/test_valuation_fact_storage.py` | P0 |
-| AC11.22.4 | Existing manual valuation model and enum values are unchanged by the storage addition (no legacy enum value removed) | `test_manual_valuation_model_is_unchanged_by_storage_addition()` | `assets/test_valuation_fact_storage.py` | P0 |
-| AC11.22.5 | A classification cannot reference a fact owned by a different user (same-owner composite FK) | `test_valuation_classification_rejects_cross_user_fact_reference()` | `assets/test_valuation_fact_storage.py` | P0 |
-
-### AC11.23: Legacy Manual Valuation Adapter (#1223)
-
-Read-only compatibility bridge from legacy `ManualValuationComponentType` to the
-stable taxonomy (AC11.21). It maps each legacy component deterministically onto
-stable codes and projects a `ManualValuationSnapshot` onto the same stable
-classification read-model that new valuation facts will use. The legacy enum
-becomes an input hint; it is not retired and no PostgreSQL enum value is removed.
-No new persistence, no LLM, and the existing snapshot read path is unchanged —
-reports keep current behaviour until #1225 switches consumption over. The
-adapter's `liquidity_class` is cross-checked against the live legacy
-`_DEFAULT_LIQUIDITY_CLASS` table so the bridge is provably behaviour-preserving.
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC11.23.1 | Every legacy component type maps to stable codes (total + deterministic), with economic_side derived from the L1 default | `test_legacy_component_mapping_is_total_and_deterministic()` | `assets/test_valuation_adapter.py` | P0 |
-| AC11.23.2 | The adapter's stable `liquidity_class` matches the legacy default for every component (backward-compatible) | `test_adapter_preserves_legacy_liquidity_class()` | `assets/test_valuation_adapter.py` | P0 |
-| AC11.23.3 | A snapshot projects onto the stable read-model preserving source, as-of date, currency, value, and valuation basis | `test_adapt_snapshot_preserves_fact_fields_in_stable_view()` | `assets/test_valuation_adapter.py` | P0 |
-| AC11.23.4 | Legacy CPF/insurance cash value/RSU/mortgage fixtures classify to the expected stable L1/L2 (cash value is an asset, not coverage) | `test_legacy_fixtures_classify_to_expected_stable_codes()` | `assets/test_valuation_adapter.py` | P0 |
-
-### AC11.24: LLM Valuation Classification Contract + Review Gates (#1224)
-
-The bounded LLM output contract for classifying a raw valuation fact into the
-stable taxonomy (AC11.21), plus deterministic review gating. The model adapts
-provider/jurisdiction/plan specifics (CPF, 401k, MPF, social security, insurers)
-into stable codes; the taxonomy fields are bound to the contract enums so the
-model cannot invent new report classes. Low-confidence or ambiguous output is
-routed to review instead of trusted report use, and the prompt + model versions
-are persisted with each classification. Contract/gating only — no live LLM
-transport and no report switch-over (that is #1225).
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC11.24.1 | The bounded output schema accepts a valid classification and rejects out-of-contract codes, mismatched L1/L2, and out-of-range confidence | `test_llm_output_rejects_out_of_contract_codes()` | `assets/test_valuation_classification_contract.py` | P0 |
-| AC11.24.2 | Insurance cash value classifies as an asset that contributes to net worth; a coverage amount is a non-asset excluded from net worth | `test_cash_value_is_asset_coverage_amount_excluded_from_net_worth()` | `assets/test_valuation_classification_contract.py` | P0 |
-| AC11.24.3 | Low-confidence classifications route to review; confident ones are auto-approved for trusted use | `test_low_confidence_routes_to_review()` | `assets/test_valuation_classification_contract.py` | P0 |
-| AC11.24.4 | Deterministic fixtures (CPF/provident, 401k, China social-security personal account, insurance cash value, insurance coverage amount) classify to the expected stable codes | `test_deterministic_fixtures_classify_to_expected_codes()` | `assets/test_valuation_classification_contract.py` | P0 |
-| AC11.24.5 | Prompt version and model identifier are persisted with the classification output (and over-long ids fail fast) | `test_prompt_and_model_version_persisted()` | `assets/test_valuation_classification_contract.py` | P0 |
-| AC11.24.6 | The contract enforces the storage boundary constraints — non-negative 2dp amount, 3-char normalized currency, 4dp confidence, and forbidden unknown keys | `test_storage_boundary_constraints_are_enforced_at_the_contract()` | `assets/test_valuation_classification_contract.py` | P0 |
 
 ## Implementation Pattern Ownership
 
