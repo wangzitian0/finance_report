@@ -69,7 +69,7 @@ cleanup that backfills `family` / `kind` and binds child clauses.
 |---|---|---|
 | [development.md](./development.md) | `development` | Developer workflow and command entry points |
 | [environments.md](./environments.md) | `environments` | Environment taxonomy and isolation rationale |
-| [ci-cd.md](./ci-cd.md) | `ci-cd` | CI gate semantics and workflow references |
+| [ci-cd.md](./ci-cd.md) | `ci-cd` / `ac_proof_execution_model` | CI gate semantics, workflow references, and AC-keyed proof execution placement |
 | [ci-gate-inventory.yaml](./ci-gate-inventory.yaml) | `ci_gate_inventory` | MECE gate inventory and duplicate-cleanup candidate registry |
 | [github-action-runtime.yaml](./github-action-runtime.yaml) | `github_action_runtime` | GitHub JavaScript action runtime inventory and Node20 metadata exceptions |
 | [deployment.md](./deployment.md) | `deployment` | Deployment model and release rationale |

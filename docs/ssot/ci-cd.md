@@ -123,6 +123,60 @@ and environment names must not be counted as pipeline stages.
 Production release proof is intentionally narrow: production validates release
 integrity and availability, not first-time deterministic business behavior.
 
+#### AC Proof Execution Model
+
+The AC id remains the only coverage key. Execution placement is metadata on a
+proof edge:
+
+```text
+AC -> proof(name, stage, task_category)
+```
+
+`stage` answers where the proof runs and how strong that protection is.
+`task_category` answers which execution family/job lane performs it. Neither
+field is an identity key, and neither competes with the AC id for ownership. This
+execution-placement metadata also does not replace authority tier or proof_kind:
+authority tier says who owns the behavior's decision, and `proof_kind` says what
+shape of proof is valid for that authority tier.
+
+Valid proof execution stages:
+
+| Stage | Meaning |
+|---|---|
+| `local.advisory` | Developer-local feedback that helps iteration but does not block merge. |
+| `github_ci.merge_authority` | GitHub CI proof required before code can merge. |
+| `preview.runtime` | PR preview runtime proof outside the merge-authority CI job set. |
+| `staging.release_validation` | Staging validation for a selected merged SHA or release coordinate. |
+| `staging.provider_regression` | Staging proof that needs real provider credentials or provider spend. |
+| `prod.release_integrity` | Production release integrity and prod-safe smoke proof. |
+| `ops.scheduled_cleanup` | Scheduled operational cleanup or retention proof. |
+| `manual.adjudication` | Manual evidence review that cannot be reduced to a deterministic runtime check. |
+
+Valid proof task categories:
+
+| Task category | Typical job family |
+|---|---|
+| `aggregate` | Final fan-in / status aggregation. |
+| `classify` | Changed-path or dispatch-scope classification. |
+| `static_contract` | Static lint, docs, SSOT, generated-reference, or workflow contract checks. |
+| `ac_traceability` | AC registry, AC-index, and traceability audits. |
+| `backend_unit` | Backend fast unit shards. |
+| `backend_integration` | Backend service-backed integration tests. |
+| `backend_api_e2e` | Backend Tier-1 API E2E tests. |
+| `frontend_build` | Frontend typecheck and production build. |
+| `frontend_unit` | Frontend unit/component coverage. |
+| `frontend_browser_e2e` | Frontend browser E2E proof. |
+| `image_build` | Docker image build or promotion validation. |
+| `tooling_contract` | Tooling/common contract tests. |
+| `coverage_fan_in` | Coverage input aggregation and regression checks. |
+| `behavioral_ratchet` | AC behavioral evidence ratchet. |
+| `deploy_smoke` | Deployed route, health, version, and smoke checks. |
+| `provider_gate` | Provider-backed OCR/LLM/API connectivity or regression checks. |
+| `release_integrity` | Release coordinate, immutable image, and prod-release checks. |
+| `cleanup_retention` | Retention and stale-resource cleanup checks. |
+| `critical_behavioral` | Co-located critical product proof edge. |
+| `manual_evidence` | Manual gate evidence record. |
+
 ### Path Risk to Local Gate Matrix
 
 Default local verification starts with affected fast tests such as
