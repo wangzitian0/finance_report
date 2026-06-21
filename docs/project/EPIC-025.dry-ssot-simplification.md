@@ -128,11 +128,14 @@ verifiable.
 > [../../common/governance/readme.md](../../common/governance/readme.md). The
 > `counter` platform package is its first worked example.
 >
-> **AC25.6.1–AC25.6.4 are NOT mirrored here.** They are owned by, and sourced
-> directly from, [`common/counter/contract.py`](../../common/counter/contract.py)'s
-> `roadmap`; `common/ssot/generate_ac_registry.py` reads package-contract
-> roadmaps additively, so the AC index counts them without an EPIC-table mirror.
-> This is the precedent: a package's ACs live in its contract, never duplicated.
+> **`AC25.6.1`, `AC25.6.2`, `AC25.6.3`, and `AC25.6.4` are NOT defined here.**
+> They are owned by, and sourced directly from,
+> [`common/counter/contract.py`](../../common/counter/contract.py)'s `roadmap`;
+> `common/ssot/generate_ac_registry.py` reads package-contract roadmaps
+> additively, so the AC index counts them without an EPIC-table mirror. This
+> blockquote references the IDs (keeping the registry↔EPIC link intact) but
+> defines none of them — the contract is the single definition source. This is
+> the precedent: a package's ACs live in its contract, never duplicated.
 
 ---
 

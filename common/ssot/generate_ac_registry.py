@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import ast
 import re
 import os
 import sys
@@ -312,28 +313,94 @@ def _repo_root_for(source_dir: Path) -> Path:
     return source_dir.resolve()
 
 
+def _ac_record_field(call: ast.Call, field: str) -> str | None:
+    """Return the literal string value of an ``ACRecord(...)`` keyword, or None.
+
+    Reads a keyword argument from an ``ACRecord(...)`` AST call node, returning
+    its value only when it is a string constant or a parenthesised concatenation
+    of string constants (the implicit ``("a" "b")`` form the contracts use).
+    Non-literal values (unlikely for these fields) yield ``None``.
+    """
+    for kw in call.keywords:
+        if kw.arg != field:
+            continue
+        node = kw.value
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value
+        # Implicit string concatenation parses as nested BinOp/JoinedStr-free
+        # Constants under ``ast.Constant`` only when adjacent literals; CPython
+        # folds ``("a" "b")`` into a single Constant, so the branch above covers
+        # it. Anything else (a Name, an f-string) is treated as absent.
+    return None
+
+
+def _roadmap_acs_from_contract(contract_path: Path) -> list[dict]:
+    """Statically read a contract's ``roadmap`` ``ACRecord(...)`` entries.
+
+    Parses ``common/<pkg>/contract.py`` with :mod:`ast` (no import, so no
+    pydantic/governance dependency — this runs in every tooling environment) and
+    returns one dict per ``ACRecord`` in the ``roadmap=[...]`` list, with its
+    ``id``/``statement``/``tier``/``proof_kind`` literals.
+    """
+    tree = ast.parse(contract_path.read_text(encoding="utf-8"))
+    records: list[dict] = []
+    for node in ast.walk(tree):
+        # The single ``CONTRACT = PackageContract(...)`` assignment; find its
+        # ``roadmap=[...]`` keyword and read each ``ACRecord(...)`` element.
+        if not (
+            isinstance(node, ast.Call) and _call_name(node.func) == "PackageContract"
+        ):
+            continue
+        for kw in node.keywords:
+            if kw.arg != "roadmap" or not isinstance(kw.value, (ast.List, ast.Tuple)):
+                continue
+            for elt in kw.value.elts:
+                if not (
+                    isinstance(elt, ast.Call) and _call_name(elt.func) == "ACRecord"
+                ):
+                    continue
+                ac_id = _ac_record_field(elt, "id")
+                if not ac_id:
+                    continue
+                records.append(
+                    {
+                        "id": ac_id,
+                        "statement": _ac_record_field(elt, "statement") or "",
+                        "tier": _ac_record_field(elt, "tier"),
+                        "proof_kind": _ac_record_field(elt, "proof_kind"),
+                    }
+                )
+    return records
+
+
+def _call_name(func: ast.expr) -> str | None:
+    """Return the bare callee name of an ``ast.Call`` func (``Name`` or attr)."""
+    if isinstance(func, ast.Name):
+        return func.id
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    return None
+
+
 def _package_roadmap_acs(source_dir: Path) -> dict[str, dict]:
     """Source ACs from every ``<root>/common/<pkg>/contract.py`` ``roadmap``.
 
-    Each :class:`ACRecord` becomes a registry entry keyed by its AC id, with the
-    same shape an EPIC-table row produces: ``epic`` (parsed from the AC id),
+    Each ``ACRecord`` becomes a registry entry keyed by its AC id, with the same
+    shape an EPIC-table row produces: ``epic`` (parsed from the AC id),
     ``epic_name`` (from :data:`EPIC_NAMES` or the ``epic-NNN`` fallback),
     ``description``, ``mandatory=True``, and — when the record carries a
     ``tier`` — that tier plus its ``proof_kind`` (explicit, else the tier's
     canonical kind), exactly as the tier/proof markers did in an EPIC table.
-    """
-    # Imported lazily (not at module top) so importing this module does not pull
-    # the governance package + pydantic eagerly. We deliberately do NOT swallow an
-    # ImportError here: package-contract ACs are authoritative, so a missing
-    # dependency must fail LOUDLY rather than silently drop ACs (which would make
-    # the protection ratchet regress with a confusing message).
-    from common.governance.check_package_contract import discover_packages
 
+    Read **statically** (AST), so this needs no pydantic/governance import and
+    yields the SAME ACs in every tooling environment (no asymmetry, no silent
+    drop): the heavy governance gate still validates the contracts elsewhere.
+    """
     repo_root = _repo_root_for(source_dir)
     acs: dict[str, dict] = {}
-    for pkg in discover_packages(repo_root):
-        for record in pkg.contract.roadmap:
-            ac_id = record.id
+    for contract_path in sorted(repo_root.glob("common/*/contract.py")):
+        for record in _roadmap_acs_from_contract(contract_path):
+            ac_id = record["id"]
             match = AC_PATTERN.fullmatch(ac_id)
             if not match:
                 continue
@@ -341,13 +408,14 @@ def _package_roadmap_acs(source_dir: Path) -> dict[str, dict]:
             entry: dict = {
                 "epic": ac_epic,
                 "epic_name": EPIC_NAMES.get(ac_epic, f"epic-{ac_epic:03d}"),
-                "description": _clean_description(record.statement),
+                "description": _clean_description(record["statement"]),
                 "mandatory": True,
             }
-            if record.tier:
-                entry["tier"] = record.tier
-                entry["proof_kind"] = record.proof_kind or _default_proof_for_tier(
-                    record.tier
+            tier = record["tier"]
+            if tier:
+                entry["tier"] = tier
+                entry["proof_kind"] = record["proof_kind"] or _default_proof_for_tier(
+                    tier
                 )
             acs[ac_id] = entry
     return acs
