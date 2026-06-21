@@ -861,6 +861,28 @@ jobs:
           echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
           echo "Building staging images for commit: $short_sha"
 
+      - name: Build-context Secret Scan (gitleaks)
+        # AC7.18.1 (#1277, secret-scan half): fail-closed gitleaks scan over the
+        # per-component Docker build context BEFORE the image build, so a secret
+        # that entered ./apps/<component> cannot be baked into the published
+        # :<sha> image. Mirrors the lint-job gitleaks gate (pinned + checksummed)
+        # but scoped to the build context. --redact keeps the file/line finding
+        # visible in the logs while masking the secret value. This is the
+        # secret-scan half of #1277 only; image :<sha> retention is out of scope
+        # and #1277 stays open for it.
+        run: |
+          set -euo pipefail
+          GITLEAKS_VERSION=8.18.4
+          GITLEAKS_SHA256=ba6dbb656933921c775ee5a2d1c13a91046e7952e9d919f9bac4cec61d628e7d
+          ARCHIVE=/tmp/gitleaks.tar.gz
+          curl -sSfL -o "$ARCHIVE" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  ${ARCHIVE}" | sha256sum -c -
+          tar -xzf "$ARCHIVE" -C /tmp gitleaks
+          echo "Scanning Docker build context: apps/${{ matrix.component }}"
+          /tmp/gitleaks detect --source "apps/${{ matrix.component }}" --no-git --redact \
+            --config .gitleaks.toml --exit-code 1
+
       - name: Log in to Container registry
         # P1a (#879, AC7.12.4): publish :<sha> for main + release-branch commits, and
         # on demand via workflow_dispatch (the rare "preview an unmerged sha" escape hatch).
