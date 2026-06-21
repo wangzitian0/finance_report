@@ -18,6 +18,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
+from src.ledger import Entry, Leg
 from src.logger import get_logger
 from src.models import (
     Account,
@@ -28,6 +29,7 @@ from src.models import (
     JournalEntryStatus,
     JournalLine,
 )
+from src.money import Money
 from src.services.fx import FxRateError, get_exchange_rate
 
 logger = get_logger(__name__)
@@ -337,6 +339,45 @@ async def create_revaluation_entry(
 
     total_adjustment = sum(r.unrealized_gain_loss for r in material_revaluations)
 
+    base_currency = settings.base_currency.upper()
+    reval_tags = {"revaluation_date": revaluation_date.isoformat()}
+
+    # Build the legs first so the double-entry balance is guaranteed as a TYPE
+    # before anything is persisted (Axiom D / double-entry integrity). This path
+    # previously wrote raw JournalLines with no balance check at all.
+    legs: list[Leg] = []
+    for reval in material_revaluations:
+        # FX Gain: asset worth MORE in base currency → DEBIT asset; FX Loss → CREDIT.
+        asset_direction = Direction.DEBIT if reval.unrealized_gain_loss > 0 else Direction.CREDIT
+        legs.append(
+            Leg(
+                reval.account_id,
+                asset_direction,
+                Money(abs(reval.unrealized_gain_loss), base_currency),
+                Decimal("1"),
+                "fx_revaluation",
+                reval_tags,
+            )
+        )
+
+    # Offsetting FX leg, opposite to the net asset adjustment. When the net is zero
+    # the asset legs already balance, so no offset line is added (which also avoids
+    # the previously-possible zero-amount line).
+    if total_adjustment != 0:
+        fx_direction = Direction.CREDIT if total_adjustment > 0 else Direction.DEBIT
+        legs.append(
+            Leg(
+                fx_account.id,
+                fx_direction,
+                Money(abs(total_adjustment), base_currency),
+                Decimal("1"),
+                "fx_revaluation",
+                reval_tags,
+            )
+        )
+
+    Entry.of(*legs)  # raises UnbalancedEntryError if the legs do not net to zero
+
     entry = JournalEntry(
         user_id=user_id,
         entry_date=revaluation_date,
@@ -347,45 +388,19 @@ async def create_revaluation_entry(
     db.add(entry)
     await db.flush()
 
-    base_currency = settings.base_currency.upper()
-
-    for reval in material_revaluations:
-        # FX Gain: Asset worth MORE in base currency → DEBIT asset, CREDIT FX account
-        # FX Loss: Asset worth LESS in base currency → CREDIT asset, DEBIT FX account
-        if reval.unrealized_gain_loss > 0:
-            asset_direction = Direction.DEBIT
-        else:
-            asset_direction = Direction.CREDIT
-
-        asset_line = JournalLine(
-            journal_entry_id=entry.id,
-            account_id=reval.account_id,
-            direction=asset_direction,
-            amount=abs(reval.unrealized_gain_loss),
-            currency=base_currency,
-            fx_rate=Decimal("1"),
-            event_type="fx_revaluation",
-            tags={"revaluation_date": revaluation_date.isoformat()},
+    for leg in legs:
+        db.add(
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=leg.account_id,
+                direction=leg.direction,
+                amount=leg.money.amount,
+                currency=leg.money.currency.code,
+                fx_rate=leg.fx_rate,
+                event_type=leg.event_type,
+                tags=leg.tags,
+            )
         )
-        db.add(asset_line)
-
-    # Offsetting entry: opposite direction to net asset adjustments
-    if total_adjustment > 0:
-        fx_direction = Direction.CREDIT
-    else:
-        fx_direction = Direction.DEBIT
-
-    fx_line = JournalLine(
-        journal_entry_id=entry.id,
-        account_id=fx_account.id,
-        direction=fx_direction,
-        amount=abs(total_adjustment),
-        currency=base_currency,
-        fx_rate=Decimal("1"),
-        event_type="fx_revaluation",
-        tags={"revaluation_date": revaluation_date.isoformat()},
-    )
-    db.add(fx_line)
 
     await db.flush()
     await db.refresh(entry, ["lines"])

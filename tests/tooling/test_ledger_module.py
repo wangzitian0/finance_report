@@ -88,3 +88,27 @@ def test_AC12_34_4_investment_postings_use_ledger_post():
         assert needle not in src, (
             f"investment_accounting should no longer contain {needle!r}"
         )
+
+
+@ac_proof(
+    proof_id="test_ledger_all_posting_paths_balance_guaranteed",
+    ac_ids=["AC12.34.5"],
+    ci_tier="pr_ci",
+)
+def test_AC12_34_5_remaining_posting_paths_guard_balance_with_entry():
+    """AC12.34.5: opening-balance and fx-revaluation also gate balance through Entry.
+
+    These were the last two posting paths not covered by Entry — opening-balance
+    relied on the create-time check, and fx-revaluation wrote raw JournalLines with
+    no balance validation at all. Both now construct an Entry before persisting, so
+    every posting path in the codebase is balance-guaranteed as a type.
+    """
+    for path in (
+        "apps/backend/src/services/accounting.py",
+        "apps/backend/src/services/fx_revaluation.py",
+    ):
+        src = _read(path)
+        assert "from src.ledger import Entry, Leg" in src, (
+            f"{path} must use ledger Entry/Leg"
+        )
+        assert "Entry.of(" in src, f"{path} must construct an Entry to guard balance"
