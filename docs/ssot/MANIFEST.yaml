@@ -692,7 +692,7 @@ concepts:
     description: Report-only governance metrics for SSOT ownership, shape, proof coverage, and future gate candidates.
     cross_refs:
       - docs/project/EPIC-014.ttd-transformation.md
-      - common/ssot/governance_report.py
+      - common/ssot/governance_report/_metrics.py
       - tools/report_ssot_governance.py
       - tests/tooling/test_ssot_governance_report.py
       - .github/workflows/ci.yml
@@ -705,7 +705,7 @@ concepts:
     cross_refs:
       - docs/project/EPIC-014.ttd-transformation.md
       - docs/ssot/governance-exceptions.yaml
-      - common/ssot/governance_report.py
+      - common/ssot/governance_report/_gate.py
       - tools/report_ssot_governance.py
       - tests/tooling/test_ssot_governance_report.py
       - .github/workflows/ci.yml
@@ -718,7 +718,7 @@ concepts:
     parent: ssot_governance_gates
     cross_refs:
       - docs/ssot/tdd.md
-      - common/ssot/governance_report.py
+      - common/ssot/governance_report/_gate.py
       - tests/tooling/test_ssot_governance_report.py
 
   # ── Agent governance ──────────────────────────────────────────────────
