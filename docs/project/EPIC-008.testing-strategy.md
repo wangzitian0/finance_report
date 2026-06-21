@@ -545,6 +545,33 @@ non-PR events. The classification rule is owned by [ci-cd.md](../ssot/ci-cd.md).
 | AC8.20.2 | Resolved/outdated threads and lower-severity (P2/P3/nit) unresolved threads do NOT block; they are reported | `test_AC8_20_2_resolved_p0_passes`, `test_AC8_20_2_outdated_p0_passes`, `test_AC8_20_2_unresolved_nit_passes_but_reported`, `test_AC8_20_2_empty_passes`, `test_AC8_20_2_mixed_blocks_only_on_active_p0` | `tests/tooling/test_check_pr_review_threads.py` | P1 |
 | AC8.20.3 | The severity classification rule is documented in the CI/CD SSOT | `test_AC8_20_3_severity_rule_documented_in_ssot` | `tests/tooling/test_check_pr_review_threads.py` | P1 |
 
+---
+
+### AC8.21: Seeded No-LLM Statement Journey (provider-free merge tier)
+
+The statement review -> reconcile -> report journey previously needed a real
+provider, so its LLM-independent DOM/CRUD/render assertions were stranded behind
+`@pytest.mark.llm` mega-journeys that only run on the manual staging deploy —
+letting selector/contract drift (and the empty-`original_filename` invisible-link
+bug, #1142) slip past the merge gate. A `seeded_parsed_statement` fixture
+(`apps/backend/tests/e2e/conftest.py`) injects an already-parsed statement —
+ODS `UploadedDocument`, DWD `StatementSummary` (`status=PARSED`), and Layer-2
+`AtomicTransaction` rows joined via `source_documents[*].doc_id` — directly into
+the test database, bypassing the `ExtractionService.parse_document` -> `stream_ai_json`
+seam entirely. The downstream journey then runs in the no-LLM merge-blocking tier
+(`-m "... and not llm"`). This is the reusable enabler for moving the remaining
+LLM-gated journeys (#1146 PR-B/PR-C) into CI; the browser/Playwright selector
+fixes for `test_statement_upload_e2e` / `test_statement_full_journey` /
+`test_four_asset_net_worth_golden_path` and the `_api_url(...)` fix in
+`test_personal_financial_report_package` (#1142) are deferred to that follow-up,
+which runs in the full-stack `pr-test.yml` lane that carries the frontend bundle.
+
+| AC ID | Test Case | Test Function | File | Priority |
+|---|---|---|---|---|
+| AC8.21.1 | A seeded no-LLM fixture materializes an already-parsed statement (PARSED envelope, linked ODS document, atomic transactions, non-empty `original_filename`, Decimal balances) with zero provider calls, bypassing the extraction/LLM seam | `test_seeded_fixture_bypasses_provider` | `apps/backend/tests/e2e/test_seeded_statement_journey.py` | P0 |
+| AC8.21.2 | The previously LLM-gated statement list -> detail journey runs in the no-LLM merge tier via the fixture: the list row and detail expose `status=parsed`, a non-empty `original_filename` (the stretched-link label, #1142), and the parsed transactions | `test_seeded_statement_list_and_detail_no_llm` | `apps/backend/tests/e2e/test_seeded_statement_journey.py` | P0 |
+| AC8.21.3 | The seeded statement's transactions endpoint resolves the parsed atomic transactions (descriptions, Decimal amounts, directions) with no provider call, so the downstream review/reconcile journey runs provider-free | `test_seeded_statement_transactions_endpoint_no_llm` | `apps/backend/tests/e2e/test_seeded_statement_journey.py` | P0 |
+
 ## 5. E2E Suite Ownership
 
 Current test counts and coverage percentages belong to generated reports and CI

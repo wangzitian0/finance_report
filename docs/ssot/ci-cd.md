@@ -160,6 +160,23 @@ file.
 | Frontend telemetry E2E | `frontend-telemetry-e2e` job | Hermetic browser telemetry-emission spec with fake same-origin telemetry endpoints; the job builds before `npm run start -- --port` because the telemetry CI config starts an already-built app | Behavioral proof only; not in unified line coverage | Keep isolated from provider-free UI specs because it injects telemetry env via its own Playwright config |
 | Tier 3 Browser E2E | Staging/PR preview/prod smoke jobs | Playwright/HTTP deployment suites (`smoke`, `e2e`, `llm` split) | Behavioral/prod-risk proof only | Keep provider-dependent `llm` in post-merge; split provider-free subset for PR preview |
 
+#### Seeded no-LLM statement fixture (provider-free journeys in the merge tier)
+
+Journeys that depend on a parsed statement (review -> reconcile -> report) must
+not require a real provider to run in the merge-blocking tier. The reusable
+pattern is the `seeded_parsed_statement` fixture in
+`apps/backend/tests/e2e/conftest.py`: it injects an already-parsed statement —
+ODS `UploadedDocument`, DWD `StatementSummary` (`status=PARSED`), and Layer-2
+`AtomicTransaction` rows joined via `source_documents[*].doc_id` — directly into
+the test database via `tests/factories.py`, bypassing the extraction/LLM seam
+(`ExtractionService.parse_document` -> `stream_ai_json`) entirely. A test using
+it carries only `@pytest.mark.e2e` (never `@pytest.mark.llm`), so it runs under
+`-m "(smoke or e2e) and not llm"`. **Tag discipline**: only a test that actually
+calls the extraction service carries `@pytest.mark.llm`; everything provider-free
+seeds its parsed input through this fixture and stays in the merge gate. New
+statement journeys reuse `seed_parsed_statement(...)` rather than uploading a
+real document and waiting on a provider parse.
+
 ### PR vs Main CI Responsibilities
 
 Pull requests run the same heavy CI path as `main` when runtime, tests, tooling,
