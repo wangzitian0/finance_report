@@ -102,8 +102,8 @@ The contract (the checker is the machine-checkable mirror of this list):
   `apps/backend/src/money/**` and `apps/backend/src/ledger/**`, the journal model
   `apps/backend/src/models/journal.py`, and the deterministic services
   `deduplication.py`, `accounting.py`, `account_service.py`,
-  `investment_accounting.py`, `statement_posting.py`, `reporting.py`,
-  `reporting_calc.py`, `reporting_snapshot.py`, `validation.py`,
+  `investment_accounting.py`, `statement_posting.py`, the `reporting/**`
+  package, `reporting_calc.py`, `reporting_snapshot.py`, `validation.py`,
   `statement_validation.py`, `fx.py` / `fx_revaluation.py` / `fx_transfer.py` /
   `fx_transfer_discovery.py`, `portfolio.py`, `performance.py`,
   `performance_report.py`, and `allocation.py`.

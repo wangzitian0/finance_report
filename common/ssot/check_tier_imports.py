@@ -61,7 +61,7 @@ PROTECTED_MODULE_GLOBS: tuple[str, ...] = (
     "apps/backend/src/services/account_service.py",
     "apps/backend/src/services/investment_accounting.py",
     "apps/backend/src/services/statement_posting.py",
-    "apps/backend/src/services/reporting.py",
+    "apps/backend/src/services/reporting/**/*.py",
     "apps/backend/src/services/reporting_calc.py",
     "apps/backend/src/services/reporting_snapshot.py",
     "apps/backend/src/services/validation.py",
