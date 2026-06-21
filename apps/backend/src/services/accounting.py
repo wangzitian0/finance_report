@@ -312,7 +312,8 @@ async def post_opening_balance_entry(
     """
     # Imported lazily so importing this module stays free of the FastAPI/util
     # dependency graph (tooling tests import accounting without those installed).
-    from src.money import to_money
+    from src.ledger import Entry, Leg
+    from src.money import Money, to_money
     from src.services.account_service import get_or_create_opening_balance_equity_account
 
     if not balances:
@@ -391,6 +392,13 @@ async def post_opening_balance_entry(
                 "currency": normalized_currency,
             }
         )
+
+    # Guarantee the double-entry balance as a TYPE before persistence: if the
+    # equity-plug logic above is wrong, Entry construction raises here rather than
+    # producing an unbalanced opening entry (Axiom D / double-entry integrity).
+    Entry.of(
+        *(Leg(line["account_id"], line["direction"], Money(line["amount"], line["currency"])) for line in lines_data)
+    )
 
     # SYSTEM-typed: the guided flow orchestrates this entry and it offsets into
     # the system Opening Balance Equity account, which manual entries may not touch.
