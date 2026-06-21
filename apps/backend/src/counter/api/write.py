@@ -15,6 +15,7 @@ in-memory fake can unit-test. Dispatch is NOT done here — the row is left
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,8 +50,6 @@ async def record_increment(
     return Count(new_value)
 
 
-def _now():
+def _now() -> datetime:
     """UTC timestamp for the event's ``occurred_at`` (kept tiny + injectable)."""
-    from datetime import UTC, datetime
-
     return datetime.now(UTC)

@@ -88,12 +88,13 @@ class OutboxEventBus:
 
     def publish(self, event: DomainEvent) -> None:
         """INSERT ``event`` into the outbox in the caller's transaction."""
+        payload = event.payload()
         self._repo.enqueue(
             occurred_at=event.occurred_at,
             event_type=event.event_type,
             source_pkg=self._source_pkg,
-            payload=event.payload(),
-            aggregate_id=event.payload().get("aggregate_id"),
+            payload=payload,
+            aggregate_id=payload.get("aggregate_id"),
         )
 
     def subscribe(self, event_type: str, handler: EventHandler) -> None:

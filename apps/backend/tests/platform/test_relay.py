@@ -86,7 +86,6 @@ async def test_redelivery_of_pending_is_idempotent_safe(db):
     registry.subscribe("counter.Incremented", idempotent_handler)
     await _seed(db, n=1)
 
-    rehearsal = OutboxRelay(registry)
     # Dispatch the same pending rows twice WITHOUT marking published in between
     # (simulating a crash-before-mark redelivery), by reading pending directly.
     from src.platform.store.outbox import OutboxRepository
@@ -95,7 +94,7 @@ async def test_redelivery_of_pending_is_idempotent_safe(db):
     for _ in range(2):
         for row in await repo.fetch_pending(limit=10):
             for handler in registry.handlers_for(row.event_type):
-                handler(rehearsal and _event_from_row(row))
+                handler(_event_from_row(row))
 
     assert len(events) == 2  # handler invoked twice (at-least-once)
     assert applied == {"u1"}  # but the idempotent effect collapses to one

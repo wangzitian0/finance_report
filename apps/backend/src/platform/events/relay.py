@@ -76,12 +76,20 @@ class OutboxRelay:
         repo = OutboxRepository(session)
         rows = await repo.fetch_pending(limit=self._batch_size)
         published = 0
-        for row in rows:
-            event = _to_event(row)
-            for handler in self._registry.handlers_for(row.event_type):
-                handler(event)
-            await repo.mark_published(row, published_at=datetime.now(UTC))
-            published += 1
+        try:
+            for row in rows:
+                event = _to_event(row)
+                for handler in self._registry.handlers_for(row.event_type):
+                    handler(event)
+                await repo.mark_published(row, published_at=datetime.now(UTC))
+                published += 1
+        except Exception:
+            # A handler (or a mark) raised mid-batch: abandon the partially
+            # updated transaction so the caller is never left in a failed-txn
+            # state and no half-marked rows can be committed later. The still-
+            # pending rows are redelivered on the next pass (at-least-once).
+            await session.rollback()
+            raise
         if published:
             await session.commit()
         return published
