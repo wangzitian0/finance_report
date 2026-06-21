@@ -14,7 +14,7 @@ def test_AC8_13_38_legacy_cleanup_entrypoints_are_removed() -> None:
 
 def test_AC8_13_38_pr_preview_lifecycle_has_no_host_hygiene_commands() -> None:
     module = "\n# <<< file-boundary >>>\n".join(
-        p.read_text()
+        p.read_text(encoding="utf-8")
         for p in sorted((ROOT / "tools/_lib/dev/pr_preview_lifecycle").rglob("*.py"))
     )
 

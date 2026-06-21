@@ -95,6 +95,12 @@ def dokploy_api_call(
         data_file: tempfile.NamedTemporaryFile[str] | None = None
         config_path = config_file.name
         data_path = ""
+        if "\n" in config.api_key or "\r" in config.api_key:
+            config_file.close()
+            raise DokployRequestError(
+                "Dokploy API key must not contain newline characters "
+                "(would corrupt the curl config / allow header injection)"
+            )
         escaped_api_key = config.api_key.replace("\\", "\\\\").replace('"', '\\"')
         config_file.write(f'header = "x-api-key: {escaped_api_key}"\n')
         config_file.close()
