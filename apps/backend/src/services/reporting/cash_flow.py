@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import date
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants.error_ids import ErrorIds
@@ -32,7 +34,7 @@ from src.services.reporting_calc import (
 logger = get_logger(__name__)
 
 
-def _cash_flow_agg_stmt(user_id: UUID, *date_conditions):
+def _cash_flow_agg_stmt(user_id: UUID, *date_conditions: Any) -> Select[Any]:
     """Per-(account, currency, direction) journal-line sums for the cash-flow
     statement: report-eligible entries scoped by the given date conditions."""
     stmt = (
@@ -54,7 +56,7 @@ def _cash_flow_agg_stmt(user_id: UUID, *date_conditions):
 
 
 def _accumulate_period_balances(
-    rows,
+    rows: Iterable[Any],
     account_id_to_account: dict[UUID, Account],
     fx_rates: PrefetchedFxRates,
     *,

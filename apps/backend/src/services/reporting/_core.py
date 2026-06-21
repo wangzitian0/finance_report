@@ -342,7 +342,7 @@ async def _aggregate_net_income_sql(
 
     Uses period-average FX rates matching the income statement reporting convention.
     When start_date is omitted (cumulative balance sheet use), the average spans all
-    available historical FX rates up to as_of_date (sentinel: 1970-01-01).
+    available historical FX rates up to as_of_date (sentinel: ``date.min``).
     If no FX rates exist in the range, get_average_rate falls back to the most recent
     spot rate on or before as_of_date; if that is also absent, FxRateError is raised
     and re-raised here as ReportError.
