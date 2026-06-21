@@ -11,14 +11,36 @@ ROOT = Path(__file__).resolve().parents[2]
 INVENTORY = ROOT / "docs" / "ssot" / "ci-gate-inventory.yaml"
 WORKFLOWS = ROOT / ".github" / "workflows"
 
-EXPECTED_CATEGORIES = {
+EXPECTED_STAGES = {
+    "local.advisory",
+    "github_ci.merge_authority",
+    "preview.runtime",
+    "staging.release_validation",
+    "staging.provider_regression",
+    "prod.release_integrity",
+    "ops.scheduled_cleanup",
+    "manual.adjudication",
+}
+
+EXPECTED_TASK_CATEGORIES = {
     "aggregate",
     "classify",
     "static_contract",
-    "runtime_test",
-    "evidence_fan_in",
-    "audit_artifact",
-    "deploy_ops",
+    "ac_traceability",
+    "backend_unit",
+    "backend_integration",
+    "backend_api_e2e",
+    "frontend_build",
+    "frontend_unit",
+    "frontend_browser_e2e",
+    "image_build",
+    "tooling_contract",
+    "coverage_fan_in",
+    "behavioral_ratchet",
+    "deploy_smoke",
+    "provider_gate",
+    "release_integrity",
+    "cleanup_retention",
 }
 
 
@@ -53,13 +75,17 @@ def _job_run_commands(workflow: dict[str, Any], job_id: str) -> str:
     )
 
 
-def test_AC8_13_142_ci_gate_inventory_uses_one_mece_category_per_job() -> None:
-    """AC8.13.142: every workflow job has one MECE gate category."""
+def test_AC8_13_142_ci_gate_inventory_uses_stage_and_task_category_per_job() -> None:
+    """AC8.13.142: every workflow job has one stage and one task_category."""
 
     data = _load_yaml(INVENTORY)
-    categories = data.get("categories")
-    assert isinstance(categories, dict)
-    assert set(categories) == EXPECTED_CATEGORIES
+    assert "categories" not in data
+    stages = data.get("stages")
+    task_categories = data.get("task_categories")
+    assert isinstance(stages, dict)
+    assert isinstance(task_categories, dict)
+    assert set(stages) == EXPECTED_STAGES
+    assert set(task_categories) == EXPECTED_TASK_CATEGORIES
 
     gates = _inventory_gates()
     assert {gate["id"] for gate in gates}
@@ -69,7 +95,9 @@ def test_AC8_13_142_ci_gate_inventory_uses_one_mece_category_per_job() -> None:
     assert inventory_jobs == _workflow_jobs()
 
     for gate in gates:
-        assert gate["category"] in EXPECTED_CATEGORIES
+        assert "category" not in gate
+        assert gate["stage"] in EXPECTED_STAGES
+        assert gate["task_category"] in EXPECTED_TASK_CATEGORIES
         assert isinstance(gate["owner"], str) and gate["owner"]
         assert isinstance(gate["failure_semantics"], str) and gate["failure_semantics"]
         assert gate["action"] in {
@@ -88,7 +116,8 @@ def test_AC8_13_142_finish_inventory_matches_ci_fan_in() -> None:
 
     gates = _inventory_gates()
     finish_gate = next(gate for gate in gates if gate["id"] == "ci.finish")
-    assert finish_gate["category"] == "aggregate"
+    assert finish_gate["stage"] == "github_ci.merge_authority"
+    assert finish_gate["task_category"] == "aggregate"
     assert finish_gate["branch_required_context"] == "finish"
 
     inventory_finish_needs = {

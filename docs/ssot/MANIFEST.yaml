@@ -537,7 +537,7 @@ concepts:
     kind: matrix
     parent: ci_workflow
     authority: human_curated
-    description: MECE inventory of workflow gates, gate categories, finish fan-in ownership, and duplicate cleanup candidates used to prevent gate simplification from leaving old and new entrances behind.
+    description: Transitional workflow-job inventory mapping current gates to proof stage and task_category, plus finish fan-in ownership and duplicate cleanup candidates.
     proofs:
       - tests/tooling/test_ci_gate_inventory.py
     cross_refs:

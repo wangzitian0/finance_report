@@ -1498,7 +1498,7 @@ def test_AC8_13_145_backend_tier1_pr_fail_fast_but_main_reports_all_failures() -
     assert "--junit-xml=test-results/backend-tier1-e2e.xml" in tier1_block
     assert "push/main Tier-1 E2E runs without `--maxfail=1`" in ci_cd
     assert "id: ci.backend_e2e_tier1" in inventory
-    assert "category: runtime_test" in inventory
+    assert "task_category: backend_api_e2e" in inventory
 
 
 def test_AC8_13_147_frontend_ci_split_preserves_merge_authority() -> None:
@@ -2752,7 +2752,7 @@ def test_AC8_13_143_unified_coverage_updates_baseline_through_pr_not_direct_main
     assert "[skip ci]" not in baseline_block
     assert "unified-coverage-baseline-pr" not in workflow.split("  finish:", 1)[1]
     assert "automatic baseline PR" in ci_cd
-    assert "category: evidence_fan_in" in inventory
+    assert "task_category: coverage_fan_in" in inventory
     assert "baseline_update_pr_on_main" in inventory
 
 

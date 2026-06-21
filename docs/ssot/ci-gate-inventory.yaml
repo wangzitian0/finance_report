@@ -1,14 +1,33 @@
 version: "1.0"
 owner: ci_workflow
 purpose: >
-  MECE inventory of CI, delivery, and operational workflow gates. This file is
-  descriptive only: it classifies the current gates during simplification work,
-  so cleanup PRs remove duplicate owners instead of adding another layer.
+  Transitional inventory of CI, delivery, and operational workflow jobs. This
+  file is descriptive only: it maps current jobs to proof stage and
+  task_category while simplification work removes duplicate entrances. It is not
+  a primary coverage key; AC remains the coverage key.
 
 branch_required_status_contexts:
   - finish
 
-categories:
+stages:
+  local.advisory:
+    definition: Developer-local feedback that helps iteration but does not block merge.
+  github_ci.merge_authority:
+    definition: GitHub CI proof required before code can merge or before a post-merge consumer trusts the SHA.
+  preview.runtime:
+    definition: PR preview runtime proof outside the merge-authority CI job set.
+  staging.release_validation:
+    definition: Staging validation for a selected merged SHA or release coordinate.
+  staging.provider_regression:
+    definition: Staging proof that needs real provider credentials or provider spend.
+  prod.release_integrity:
+    definition: Production release integrity and prod-safe smoke proof.
+  ops.scheduled_cleanup:
+    definition: Scheduled operational cleanup or retention proof.
+  manual.adjudication:
+    definition: Manual evidence review that cannot be reduced to a deterministic runtime check.
+
+task_categories:
   aggregate:
     definition: Final merge authority that aggregates upstream job conclusions.
     owner_rule: Exactly one required status context should point here.
@@ -18,22 +37,56 @@ categories:
   static_contract:
     definition: Validates source, docs, policy, generated references, or workflow contracts without running deployed behavior.
     owner_rule: Fails on deterministic drift or contract violation.
-  runtime_test:
-    definition: Runs tests, builds, migrations, or image validation as executable proof.
-    owner_rule: Owns direct command failure and any same-job test artifacts.
-  evidence_fan_in:
-    definition: Consumes artifacts from earlier jobs and computes an aggregate evidence decision.
+  ac_traceability:
+    definition: AC registry, AC-index, and traceability audits.
+    owner_rule: Owns AC graph/index integrity and reviewable traceability evidence.
+  backend_unit:
+    definition: Backend fast unit shard proof.
+    owner_rule: Owns backend unit command failure, backend LCOV, and shard JUnit artifacts.
+  backend_integration:
+    definition: Backend service-backed integration or migration proof.
+    owner_rule: Owns deterministic backend behavior with required services.
+  backend_api_e2e:
+    definition: Backend Tier-1 API E2E proof.
+    owner_rule: Owns API journey behavior before deployed-environment gates.
+  frontend_build:
+    definition: Frontend typecheck and production build proof.
+    owner_rule: Owns TypeScript and build command failure.
+  frontend_unit:
+    definition: Frontend unit/component coverage proof.
+    owner_rule: Owns Vitest/JUnit/LCOV evidence.
+  frontend_browser_e2e:
+    definition: Frontend or runner-local browser E2E proof.
+    owner_rule: Owns provider-free browser behavior evidence.
+  image_build:
+    definition: Docker image build or promotion validation.
+    owner_rule: Owns image build/promotion failure and digest validation.
+  tooling_contract:
+    definition: Tooling/common contract tests.
+    owner_rule: Owns tooling command failure and common/tools LCOV evidence.
+  coverage_fan_in:
+    definition: Coverage input aggregation, reporting, and regression checks.
     owner_rule: Must not run before every producer has had a chance to upload artifacts.
-  audit_artifact:
-    definition: Builds reviewable audit artifacts and may fail when audit contracts are violated.
-    owner_rule: Owns audit materialization and upload, not the final aggregate.
-  deploy_ops:
-    definition: Creates, validates, deploys, or cleans runtime environments outside the PR merge gate.
-    owner_rule: Stays out of PR CI cleanup unless the trigger and environment semantics match.
+  behavioral_ratchet:
+    definition: AC behavioral evidence ratchet.
+    owner_rule: Consumes JUnit evidence and enforces the persisted per-AC floor.
+  deploy_smoke:
+    definition: Deployed route, health, version, preview, or smoke checks.
+    owner_rule: Owns runtime environment mutation or health proof.
+  provider_gate:
+    definition: Provider-backed OCR/LLM/API connectivity or regression checks.
+    owner_rule: Owns real-provider evidence and provider failure classification.
+  release_integrity:
+    definition: Release coordinate, immutable image, and production-release checks.
+    owner_rule: Owns release eligibility and production rollout validation.
+  cleanup_retention:
+    definition: Retention and stale-resource cleanup checks.
+    owner_rule: Owns cleanup classification and scoped deletion decisions.
 
 gates:
   - id: ci.changes
-    category: classify
+    stage: github_ci.merge_authority
+    task_category: classify
     workflow: .github/workflows/ci.yml
     job: changes
     owner: tools/ci_change_classifier.py
@@ -46,7 +99,8 @@ gates:
     failure_semantics: Changed-path classification is unavailable, so downstream skip/heavy decisions are unsafe.
     action: keep
   - id: ci.lint
-    category: static_contract
+    stage: github_ci.merge_authority
+    task_category: static_contract
     workflow: .github/workflows/ci.yml
     job: lint
     owner: .github/workflows/ci.yml#lint
@@ -59,7 +113,8 @@ gates:
     failure_semantics: Deterministic static contract, lint, generated-reference, AC-index, or governance drift.
     action: keep
   - id: ci.schema_migrations
-    category: runtime_test
+    stage: github_ci.merge_authority
+    task_category: backend_integration
     workflow: .github/workflows/ci.yml
     job: schema-migrations
     owner: apps/backend/migrations
@@ -72,7 +127,8 @@ gates:
     failure_semantics: Alembic cannot upgrade to head or model metadata drifts from migrations.
     action: keep
   - id: ci.backend
-    category: runtime_test
+    stage: github_ci.merge_authority
+    task_category: backend_unit
     workflow: .github/workflows/ci.yml
     job: backend
     owner: apps/backend/tests
@@ -86,7 +142,8 @@ gates:
     failure_semantics: Deterministic backend unit shard failed or did not produce expected coverage/JUnit evidence.
     action: observe
   - id: ci.backend_integration
-    category: runtime_test
+    stage: github_ci.merge_authority
+    task_category: backend_integration
     workflow: .github/workflows/ci.yml
     job: backend-integration
     owner: apps/backend/tests
@@ -99,7 +156,8 @@ gates:
     failure_semantics: Backend integration proof failed; behavioral evidence is absent or red.
     action: observe
   - id: ci.backend_e2e_tier1
-    category: runtime_test
+    stage: github_ci.merge_authority
+    task_category: backend_api_e2e
     workflow: .github/workflows/ci.yml
     job: backend-e2e-tier1
     owner: tests/e2e/test_core_journeys.py
@@ -112,7 +170,8 @@ gates:
     failure_semantics: Tier-1 API E2E behavioral proof failed.
     action: observe
   - id: ci.frontend_build
-    category: runtime_test
+    stage: github_ci.merge_authority
+    task_category: frontend_build
     workflow: .github/workflows/ci.yml
     job: frontend-build
     owner: apps/frontend
@@ -125,7 +184,8 @@ gates:
     failure_semantics: Frontend TypeScript typecheck or production build failed.
     action: keep
   - id: ci.frontend_vitest
-    category: runtime_test
+    stage: github_ci.merge_authority
+    task_category: frontend_unit
     workflow: .github/workflows/ci.yml
     job: frontend-vitest
     owner: apps/frontend
@@ -138,7 +198,8 @@ gates:
     failure_semantics: Frontend Vitest coverage failed or did not produce expected LCOV/JUnit evidence.
     action: keep
   - id: ci.frontend_playwright
-    category: runtime_test
+    stage: github_ci.merge_authority
+    task_category: frontend_browser_e2e
     workflow: .github/workflows/ci.yml
     job: frontend-playwright
     owner: apps/frontend/playwright
@@ -151,7 +212,8 @@ gates:
     failure_semantics: Frontend provider-free browser UI proof failed.
     action: keep
   - id: ci.frontend_telemetry_e2e
-    category: runtime_test
+    stage: github_ci.merge_authority
+    task_category: frontend_browser_e2e
     workflow: .github/workflows/ci.yml
     job: frontend-telemetry-e2e
     owner: apps/frontend/playwright/telemetry-emission.spec.ts
@@ -164,7 +226,8 @@ gates:
     failure_semantics: Frontend telemetry-emission browser E2E proof failed.
     action: keep
   - id: ci.container_images
-    category: runtime_test
+    stage: github_ci.merge_authority
+    task_category: image_build
     workflow: .github/workflows/ci.yml
     job: container-images
     owner: apps/backend/Dockerfile + apps/frontend/Dockerfile
@@ -178,7 +241,8 @@ gates:
     failure_semantics: Backend or frontend staging image cannot be built for the current SHA.
     action: keep
   - id: ci.tooling_coverage
-    category: runtime_test
+    stage: github_ci.merge_authority
+    task_category: tooling_contract
     workflow: .github/workflows/ci.yml
     job: tooling-coverage
     owner: tests/tooling
@@ -191,7 +255,8 @@ gates:
     failure_semantics: Tooling/common contract tests failed or could not emit common/tools coverage inputs.
     action: keep
   - id: ci.unified_coverage
-    category: evidence_fan_in
+    stage: github_ci.merge_authority
+    task_category: coverage_fan_in
     workflow: .github/workflows/ci.yml
     job: unified-coverage
     owner: common/coverage/policy.py
@@ -204,7 +269,8 @@ gates:
     failure_semantics: Coverage policy audit, no-regression calculation, artifact upload, or main-only Coveralls reporting failed after consuming producer artifacts.
     action: keep
   - id: ci.unified_coverage_baseline_pr
-    category: evidence_fan_in
+    stage: github_ci.merge_authority
+    task_category: coverage_fan_in
     workflow: .github/workflows/ci.yml
     job: unified-coverage-baseline-pr
     owner: unified-coverage.json
@@ -217,7 +283,8 @@ gates:
     failure_semantics: Main-only automatic baseline PR update failed after the read-only unified coverage job produced a changed baseline artifact.
     action: keep
   - id: ci.ac_traceability
-    category: audit_artifact
+    stage: github_ci.merge_authority
+    task_category: ac_traceability
     workflow: .github/workflows/ci.yml
     job: ac-traceability
     owner: docs/project + tools/build_ac_traceability.py
@@ -230,7 +297,8 @@ gates:
     failure_semantics: Registry generation, E2E EPIC ownership, traceability audit materialization, or reconciliation audit failed.
     action: keep
   - id: ci.ac_behavioral_ratchet
-    category: evidence_fan_in
+    stage: github_ci.merge_authority
+    task_category: behavioral_ratchet
     workflow: .github/workflows/ci.yml
     job: ac-behavioral-ratchet
     owner: docs/ssot/ac-score-baseline.jsonl
@@ -243,7 +311,8 @@ gates:
     failure_semantics: AC behavioral evidence regressed or required JUnit artifacts are absent.
     action: keep
   - id: ci.finish
-    category: aggregate
+    stage: github_ci.merge_authority
+    task_category: aggregate
     workflow: .github/workflows/ci.yml
     job: finish
     owner: GitHub ruleset required status context
@@ -257,7 +326,8 @@ gates:
     failure_semantics: One or more merge-authority upstream jobs failed or a required heavy job was skipped incorrectly.
     action: keep
   - id: docs.build
-    category: static_contract
+    stage: github_ci.merge_authority
+    task_category: static_contract
     workflow: .github/workflows/docs.yml
     job: build
     owner: docs
@@ -269,7 +339,8 @@ gates:
     failure_semantics: Documentation site cannot build.
     action: keep
   - id: docs.deploy
-    category: deploy_ops
+    stage: github_ci.merge_authority
+    task_category: deploy_smoke
     workflow: .github/workflows/docs.yml
     job: deploy
     owner: GitHub Pages
@@ -281,7 +352,8 @@ gates:
     failure_semantics: GitHub Pages deployment failed after a successful docs build.
     action: keep
   - id: pr_preview_cleanup.cleanup
-    category: deploy_ops
+    stage: ops.scheduled_cleanup
+    task_category: cleanup_retention
     workflow: .github/workflows/pr-preview-cleanup.yml
     job: cleanup
     owner: tools/pr_preview_lifecycle.py
@@ -293,7 +365,8 @@ gates:
     failure_semantics: Scheduled or manual preview cleanup could not classify or remove stale resources.
     action: keep
   - id: ghcr_sha_retention.prune_sha_images
-    category: deploy_ops
+    stage: ops.scheduled_cleanup
+    task_category: cleanup_retention
     workflow: .github/workflows/ghcr-sha-retention.yml
     job: prune-sha-images
     owner: tools/ghcr_retention.py
@@ -305,7 +378,8 @@ gates:
     failure_semantics: Scheduled or manual GHCR SHA retention could not discover live deploy SHAs, classify package versions, or delete selected stale SHA versions.
     action: keep
   - id: notify_infra2_report_main.dispatch
-    category: deploy_ops
+    stage: staging.release_validation
+    task_category: deploy_smoke
     workflow: .github/workflows/notify-infra2-report-main.yml
     job: dispatch
     owner: .github/workflows/notify-infra2-report-main.yml#dispatch
@@ -317,7 +391,8 @@ gates:
     failure_semantics: Successful app main CI could not notify infra2 to redeploy the report-branch-main preview guarded by the exact completed SHA (INFRA2_PAT missing/expired, stale CI completion skipped, or repository_dispatch did not return HTTP 204).
     action: keep
   - id: pr_test.setup
-    category: classify
+    stage: preview.runtime
+    task_category: classify
     workflow: .github/workflows/pr-test.yml
     job: setup
     owner: .github/workflows/pr-test.yml#setup
@@ -329,7 +404,8 @@ gates:
     failure_semantics: PR preview action or PR number could not be normalized.
     action: keep
   - id: pr_test.deploy_preview
-    category: deploy_ops
+    stage: preview.runtime
+    task_category: deploy_smoke
     workflow: .github/workflows/pr-test.yml
     job: deploy-preview
     owner: tools/pr_preview_lifecycle.py
@@ -341,7 +417,8 @@ gates:
     failure_semantics: On-demand persistent PR preview could not be deployed.
     action: keep
   - id: pr_test.e2e
-    category: runtime_test
+    stage: github_ci.merge_authority
+    task_category: frontend_browser_e2e
     workflow: .github/workflows/pr-test.yml
     job: e2e
     owner: tests/e2e
@@ -353,7 +430,8 @@ gates:
     failure_semantics: Required in-runner PR E2E proof failed.
     action: keep
   - id: pr_test.cleanup
-    category: deploy_ops
+    stage: preview.runtime
+    task_category: cleanup_retention
     workflow: .github/workflows/pr-test.yml
     job: cleanup
     owner: tools/pr_preview_lifecycle.py
@@ -365,7 +443,8 @@ gates:
     failure_semantics: PR test cleanup failed after runner-local or preview work.
     action: keep
   - id: release_images.promote
-    category: deploy_ops
+    stage: prod.release_integrity
+    task_category: release_integrity
     workflow: .github/workflows/release-images.yml
     job: promote
     owner: release images workflow
@@ -377,7 +456,8 @@ gates:
     failure_semantics: Release tag image promotion or digest verification failed.
     action: keep
   - id: production_release.dry_run
-    category: deploy_ops
+    stage: prod.release_integrity
+    task_category: release_integrity
     workflow: .github/workflows/production-release.yml
     job: dry-run
     owner: production release workflow
@@ -389,7 +469,8 @@ gates:
     failure_semantics: Production release dry-run validation failed.
     action: keep
   - id: production_release.deploy
-    category: deploy_ops
+    stage: prod.release_integrity
+    task_category: release_integrity
     workflow: .github/workflows/production-release.yml
     job: deploy
     owner: production release workflow
@@ -401,7 +482,8 @@ gates:
     failure_semantics: Production deploy_v2 rollout, route health, prod-safe smoke, or rollback-to-previous-version failed.
     action: keep
   - id: staging_ai_ocr_gate.ai_ocr_gate
-    category: deploy_ops
+    stage: staging.provider_regression
+    task_category: provider_gate
     workflow: .github/workflows/staging-ai-ocr-gate.yml
     job: ai-ocr-gate
     owner: tests/e2e provider-backed OCR corpus
@@ -413,7 +495,8 @@ gates:
     failure_semantics: Manual staging AI/OCR provider gate failed or could not summarize evidence.
     action: keep
   - id: staging_deploy.build_and_deploy
-    category: deploy_ops
+    stage: staging.release_validation
+    task_category: deploy_smoke
     workflow: .github/workflows/staging-deploy.yml
     job: build-and-deploy
     owner: staging deployment workflow
@@ -425,7 +508,8 @@ gates:
     failure_semantics: Staging deploy_v2 rollout, route health, smoke, or E2E failed.
     action: keep
   - id: staging_deploy.provider_gate
-    category: deploy_ops
+    stage: staging.provider_regression
+    task_category: provider_gate
     workflow: .github/workflows/staging-deploy.yml
     job: provider-gate
     owner: staging provider smoke
@@ -437,7 +521,8 @@ gates:
     failure_semantics: Required provider connectivity gate failed after staging deploy.
     action: keep
   - id: staging_deploy.ai_ocr_gate
-    category: deploy_ops
+    stage: staging.provider_regression
+    task_category: provider_gate
     workflow: .github/workflows/staging-deploy.yml
     job: ai-ocr-gate
     owner: staging provider-backed OCR corpus
@@ -449,7 +534,8 @@ gates:
     failure_semantics: Automatic staging AI/OCR corpus regression failed after release-critical deploy validation; record and triage, but do not block production eligibility.
     action: keep
   - id: staging_deploy.post_merge_delivery
-    category: deploy_ops
+    stage: staging.release_validation
+    task_category: aggregate
     workflow: .github/workflows/staging-deploy.yml
     job: post-merge-delivery
     owner: staging delivery assertion
@@ -461,7 +547,8 @@ gates:
     failure_semantics: Staging post-merge delivery contract failed after release-critical build/deploy or provider connectivity gates; automatic full AI/OCR regression failures are recorded, not blocking.
     action: keep
   - id: staging_deploy.post_merge_summary
-    category: deploy_ops
+    stage: staging.release_validation
+    task_category: aggregate
     workflow: .github/workflows/staging-deploy.yml
     job: post-merge-summary
     owner: staging delivery summary
