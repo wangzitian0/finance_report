@@ -75,6 +75,7 @@ cleanup that backfills `family` / `kind` and binds child clauses.
 | [observability.md](./observability.md) | `observability` | Structured logging and SigNoz OTLP rationale |
 | [runtime-incident-response.md](./runtime-incident-response.md) | `runtime_incident_response` | Runtime incident triage and stability-proof routing |
 | [tdd.md](./tdd.md) | `tdd-transformation` | EPIC -> AC -> test workflow |
+| [authority-tiers.md](./authority-tiers.md) | `authority_tiers` | AC authority tiers (PC/CP/HU/LP/PL) and the tier->valid-proof matrix |
 | [coverage.md](./coverage.md) | `coverage` | Coverage metric semantics; code owner is `common/coverage/policy.py` |
 | [auth.md](./auth.md) | `auth` | Auth architecture rationale and code references |
 | [frontend-patterns.md](./frontend-patterns.md) | `frontend-patterns` | Frontend integration rules and proof references |

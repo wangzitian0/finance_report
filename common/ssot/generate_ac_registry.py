@@ -26,7 +26,7 @@ OVERRIDES = "docs/ac_registry_overrides.yaml"
 
 # EPIC classification: which EPICs are feature vs infra
 FEATURE_EPICS = {1, 2, 3, 4, 5, 6, 8, 11, 13, 15, 16, 17, 18, 19, 20, 21, 22, 23}
-INFRA_EPICS = {7, 9, 10, 12, 14}
+INFRA_EPICS = {7, 9, 10, 12, 14, 26}
 
 # EPIC-016 sub-classification: these AC16.XX.x groups route to infra
 EPIC16_INFRA_GROUPS = {11, 13}
@@ -56,10 +56,35 @@ EPIC_NAMES: dict[int, str] = {
     22: "everyday-user-ia",
     23: "llm-provider-abstraction",
     24: "frontend-observability",
+    26: "ac-authority-tiers",
 }
 
 
 AC_PATTERN = re.compile(r"\b(AC(\d+)\.(\d+)\.(\d+))\b")
+
+# Authority tier vocabulary (SSOT: docs/ssot/authority-tiers.md). One AC = one
+# tier; the tier dictates what KIND of proof is valid for the AC's behavior.
+AC_TIERS = ("PC", "CP", "HU", "LP", "PL")
+
+# Definition-site tier marker, e.g. ``{tier:PC}``. Declared next to the AC text
+# in the EPIC doc so the tier travels with the behavior it describes. The marker
+# is parsed out of the line and lifted into the registry value; it never leaks
+# into the AC description.
+_TIER_MARKER_RE = re.compile(r"\{tier:\s*(PC|CP|HU|LP|PL)\s*\}", re.IGNORECASE)
+
+
+def _extract_tier(text: str) -> tuple[str, str | None]:
+    """Split an inline ``{tier:XX}`` marker out of *text*.
+
+    Returns ``(text_without_marker, tier_or_None)``. The tier code is upper-cased
+    to the canonical vocabulary. Text with no marker is returned unchanged.
+    """
+    match = _TIER_MARKER_RE.search(text)
+    if not match:
+        return text, None
+    tier = match.group(1).upper()
+    cleaned = _TIER_MARKER_RE.sub("", text)
+    return cleaned, tier
 
 
 def _clean_description(text: str) -> str:
@@ -78,14 +103,23 @@ def _is_reference_only_line(line: str) -> bool:
     return False
 
 
-def _extract_ac_definition(line: str) -> tuple[str, int, str] | None:
-    """Extract one AC definition from a Markdown table, bullet, or plain line."""
+def _extract_ac_definition(line: str) -> tuple[str, int, str, str | None] | None:
+    """Extract one AC definition from a Markdown table, bullet, or plain line.
+
+    Returns ``(ac_id, epic, description, tier)`` where ``tier`` is the optional
+    authority-tier code declared at the definition site via a ``{tier:XX}``
+    marker (one of :data:`AC_TIERS`), or ``None`` when no marker is present. The
+    marker is stripped from the description so it never leaks into the registry
+    text. The marker may appear anywhere on the line (any cell of a table row).
+    """
     if _is_reference_only_line(line):
         return None
 
     stripped = line.strip()
     if not stripped:
         return None
+
+    stripped, tier = _extract_tier(stripped)
 
     if stripped.startswith("|"):
         cells = [cell.strip() for cell in stripped.strip("|").split("|")]
@@ -95,7 +129,7 @@ def _extract_ac_definition(line: str) -> tuple[str, int, str] | None:
         if not match:
             return None
         desc = _clean_description(cells[1] if len(cells) > 1 else "")
-        return match.group(1), int(match.group(2)), desc
+        return match.group(1), int(match.group(2)), desc, tier
 
     match = re.match(
         r"^(?:[-*]\s*)?(?:\[[ xX]\]\s*)?(?:\*\*)?"
@@ -108,7 +142,7 @@ def _extract_ac_definition(line: str) -> tuple[str, int, str] | None:
     ac_id = match.group(1)
     ac_epic = int(match.group(2))
     desc = _clean_description(match.group(5))
-    return ac_id, ac_epic, desc
+    return ac_id, ac_epic, desc, tier
 
 
 def _require_yaml() -> None:
@@ -226,12 +260,12 @@ def extract_acs(
             definition = _extract_ac_definition(line)
             if definition is None:
                 continue
-            ac_id, ac_epic, desc = definition
+            ac_id, ac_epic, desc, tier = definition
             if ac_id in all_acs:
                 continue
 
             existing = existing_acs.get(ac_id, {})
-            all_acs[ac_id] = {
+            entry = {
                 "epic": int(existing.get("epic", ac_epic)),
                 "epic_name": existing.get(
                     "epic_name", EPIC_NAMES.get(ac_epic, f"epic-{ac_epic:03d}")
@@ -239,6 +273,14 @@ def extract_acs(
                 "description": existing.get("description", desc),
                 "mandatory": existing.get("mandatory", True),
             }
+            # Tier is an attribute of the AC's behavior; the definition-site
+            # marker is authoritative, falling back to any tier carried by an
+            # existing/override entry. ACs with no declared tier stay untagged
+            # (the ratchet gate tracks that debt).
+            ac_tier = tier or existing.get("tier")
+            if ac_tier:
+                entry["tier"] = ac_tier
+            all_acs[ac_id] = entry
 
     return all_acs
 
@@ -273,6 +315,7 @@ def write_registry(all_acs: dict[str, dict], output_path: str | None = None) -> 
                 "epic",
                 "epic_name",
                 "description",
+                "tier",
                 "title",
                 "status",
                 "mandatory",
