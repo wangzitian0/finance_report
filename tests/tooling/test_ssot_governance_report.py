@@ -350,7 +350,7 @@ def test_AC14_1_12_helper_and_error_branches_stay_report_only(
     _write(tmp_path / "docs/ssot/README.md")
     assert governance_report._orphan_ssot_files(missing_source, [], tmp_path) == []
 
-    monkeypatch.setattr(governance_report, "yaml", None)
+    monkeypatch.setattr(governance_report._base, "yaml", None)
     assert governance_report.main(["--repo-root", str(tmp_path), "--no-infra2"]) == 1
     captured = capsys.readouterr()
     assert "PyYAML is required" in captured.err
