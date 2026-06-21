@@ -11,7 +11,10 @@ REPO = Path(__file__).resolve().parents[2]
 
 
 def _read(path: Path) -> str:
-    return (REPO / path).read_text(encoding="utf-8")
+    target = REPO / path
+    if target.is_dir():
+        return "\n".join(p.read_text(encoding="utf-8") for p in sorted(target.rglob("*.py")))
+    return target.read_text(encoding="utf-8")
 
 
 @ac_proof(
@@ -59,7 +62,7 @@ def test_AC12_31_3_migrated_hotspots_use_base_packages():
         Path("apps/backend/src/services/assets.py"),
         Path("apps/backend/src/services/investment_accounting.py"),
         Path("apps/backend/src/services/market_data.py"),
-        Path("apps/backend/src/services/reporting.py"),
+        Path("apps/backend/src/services/reporting"),
     ]
     naked_quantity_zero = re.compile(
         r"(?:quantity|remaining_quantity)\s*(?:==|!=|>|<|>=|<=)\s*Decimal\(\"0(?:\.0+)?\"\)"
@@ -74,7 +77,7 @@ def test_AC12_31_3_migrated_hotspots_use_base_packages():
             f"{path} has a naked Decimal quantity-zero comparison"
         )
 
-    reporting = _read(Path("apps/backend/src/services/reporting.py"))
+    reporting = _read(Path("apps/backend/src/services/reporting"))
     assert "position.quantity * latest_price" not in reporting
     assert (
         "position_quantity = Quantity(position.quantity, REPORTING_QUANTITY_UNIT).quantize()"

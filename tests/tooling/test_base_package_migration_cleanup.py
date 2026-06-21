@@ -44,12 +44,17 @@ BACKEND_QUANTITY_ADAPTER_FILES = [
     Path("apps/backend/src/services/investment_accounting.py"),
     Path("apps/backend/src/services/market_data.py"),
     Path("apps/backend/src/services/portfolio.py"),
-    Path("apps/backend/src/services/reporting.py"),
+    Path("apps/backend/src/services/reporting"),
 ]
 
 
 def _read(path: Path) -> str:
-    return (REPO / path).read_text(encoding="utf-8")
+    target = REPO / path
+    if target.is_dir():
+        # Package directory: concatenate its modules so the checks are robust to
+        # a single-file module being split into a package.
+        return "\n".join(p.read_text(encoding="utf-8") for p in sorted(target.rglob("*.py")))
+    return target.read_text(encoding="utf-8")
 
 
 def _ensure_backend_src_importable() -> None:
@@ -239,7 +244,7 @@ def test_AC12_31_7_backend_quantity_business_code_uses_value_type():
     )
     assert "snapshot_quantity.is_zero()" in portfolio
 
-    reporting = _read(Path("apps/backend/src/services/reporting.py"))
+    reporting = _read(Path("apps/backend/src/services/reporting"))
     assert (
         "position_quantity = Quantity(position.quantity, REPORTING_QUANTITY_UNIT).quantize()"
         in reporting

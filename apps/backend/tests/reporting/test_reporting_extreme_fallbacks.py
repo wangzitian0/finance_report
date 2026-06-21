@@ -333,7 +333,7 @@ async def test_net_income_sql_detects_missing_fx_map_row() -> None:
     fake_db.execute = AsyncMock(side_effect=[transfer_result, discovery_result, currency_result, agg_result])
 
     # Patch get_average_rate so we don't need to mock DB FX queries; USD gets a rate
-    with patch("src.services.reporting.get_average_rate", new_callable=AsyncMock) as mock_avg:
+    with patch("src.services.reporting._core.get_average_rate", new_callable=AsyncMock) as mock_avg:
         mock_avg.return_value = Decimal("1.35")
         with pytest.raises(ReportError, match="data consistency error"):
             await _aggregate_net_income_sql(fake_db, uuid4(), "SGD", as_of_date=date(2025, 1, 31))
@@ -371,8 +371,8 @@ async def test_account_trend_raises_when_prefetched_rate_missing(db: AsyncSessio
     await db.commit()
 
     with (
-        patch("src.services.reporting.PrefetchedFxRates.prefetch", new_callable=AsyncMock, return_value=None),
-        patch("src.services.reporting.PrefetchedFxRates.get_rate", return_value=None),
+        patch("src.services.reporting.net_worth.PrefetchedFxRates.prefetch", new_callable=AsyncMock, return_value=None),
+        patch("src.services.reporting.net_worth.PrefetchedFxRates.get_rate", return_value=None),
     ):
         with pytest.raises(ReportError, match="No FX rate available for USD/SGD"):
             await get_account_trend(db, test_user_id, account_id=account.id, period="daily", currency="SGD")
@@ -412,8 +412,8 @@ async def test_category_breakdown_raises_when_prefetched_rate_missing(db: AsyncS
     await db.commit()
 
     with (
-        patch("src.services.reporting.PrefetchedFxRates.prefetch", new_callable=AsyncMock, return_value=None),
-        patch("src.services.reporting.PrefetchedFxRates.get_rate", return_value=None),
+        patch("src.services.reporting.net_worth.PrefetchedFxRates.prefetch", new_callable=AsyncMock, return_value=None),
+        patch("src.services.reporting.net_worth.PrefetchedFxRates.get_rate", return_value=None),
     ):
         with pytest.raises(ReportError, match="No FX rate available for USD/SGD"):
             await get_category_breakdown(
@@ -459,8 +459,8 @@ async def test_cash_flow_raises_when_start_date_rate_missing(db: AsyncSession, t
     await db.commit()
 
     with (
-        patch("src.services.reporting.PrefetchedFxRates.prefetch", new_callable=AsyncMock, return_value=None),
-        patch("src.services.reporting.PrefetchedFxRates.get_rate", return_value=None),
+        patch("src.services.reporting.cash_flow.PrefetchedFxRates.prefetch", new_callable=AsyncMock, return_value=None),
+        patch("src.services.reporting.cash_flow.PrefetchedFxRates.get_rate", return_value=None),
     ):
         with pytest.raises(ReportError, match="on 2025-01-01"):
             await generate_cash_flow(
@@ -502,8 +502,8 @@ async def test_cash_flow_raises_when_end_date_rate_missing(db: AsyncSession, tes
     await db.commit()
 
     with (
-        patch("src.services.reporting.PrefetchedFxRates.prefetch", new_callable=AsyncMock, return_value=None),
-        patch("src.services.reporting.PrefetchedFxRates.get_rate", side_effect=[Decimal("1"), None]),
+        patch("src.services.reporting.cash_flow.PrefetchedFxRates.prefetch", new_callable=AsyncMock, return_value=None),
+        patch("src.services.reporting.cash_flow.PrefetchedFxRates.get_rate", side_effect=[Decimal("1"), None]),
     ):
         with pytest.raises(ReportError, match="on 2025-01-31"):
             await generate_cash_flow(

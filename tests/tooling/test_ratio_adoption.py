@@ -19,7 +19,7 @@ BACKEND_RATIO_ADOPTION_FILES = [
     Path("apps/backend/src/services/portfolio.py"),
     Path("apps/backend/src/services/allocation.py"),
     Path("apps/backend/src/services/performance_report.py"),
-    Path("apps/backend/src/services/reporting.py"),
+    Path("apps/backend/src/services/reporting"),
     Path("apps/backend/src/services/reconciliation_stats.py"),
 ]
 
@@ -36,7 +36,10 @@ FRONTEND_RATIO_ADOPTION_FILES = [
 
 
 def _read(path: Path) -> str:
-    return (REPO / path).read_text(encoding="utf-8")
+    target = REPO / path
+    if target.is_dir():
+        return "\n".join(p.read_text(encoding="utf-8") for p in sorted(target.rglob("*.py")))
+    return target.read_text(encoding="utf-8")
 
 
 @ac_proof(
