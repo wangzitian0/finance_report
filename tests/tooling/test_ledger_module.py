@@ -96,22 +96,25 @@ def test_AC12_34_4_investment_postings_use_ledger_post():
     ci_tier="pr_ci",
 )
 def test_AC12_34_5_remaining_posting_paths_guard_balance_with_entry():
-    """AC12.34.5: opening-balance and fx-revaluation also gate balance through Entry.
+    """AC12.34.5: the raw-ORM posting paths gate balance through Entry.
 
-    These were the last two posting paths not covered by Entry — opening-balance
-    relied on the create-time check, and fx-revaluation wrote raw JournalLines with
-    no balance validation at all. Both now construct an Entry before persisting, so
-    every posting path in the codebase is balance-guaranteed as a type.
+    opening-balance, fx-revaluation, and processing-account transfers each
+    construct an Entry before persisting (fx-revaluation previously had no balance
+    validation at all; processing-account had none either). The remaining raw site
+    `review_queue` validates via `validate_journal_balance`/`_posting_invariants`,
+    and `reconciliation_audit` is a deterministic audit fixture. So every computed
+    or transfer posting path is balance-guaranteed as a type.
     """
     for path in (
         "apps/backend/src/services/accounting.py",
         "apps/backend/src/services/fx_revaluation.py",
+        "apps/backend/src/services/processing_account.py",
     ):
         src = _read(path)
-        assert "from src.ledger import Entry, Leg" in src, (
-            f"{path} must use ledger Entry/Leg"
+        assert "from src.ledger import Entry" in src, f"{path} must import ledger Entry"
+        assert "Entry.of(" in src or "Entry.transfer(" in src, (
+            f"{path} must construct an Entry to guard balance"
         )
-        assert "Entry.of(" in src, f"{path} must construct an Entry to guard balance"
 
 
 @ac_proof(
