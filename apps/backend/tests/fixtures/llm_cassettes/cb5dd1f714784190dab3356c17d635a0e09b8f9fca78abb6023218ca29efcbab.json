@@ -1,0 +1,26 @@
+{
+  "fingerprint": "cb5dd1f714784190dab3356c17d635a0e09b8f9fca78abb6023218ca29efcbab",
+  "request": {
+    "decode_params": {
+      "extra_body": {
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "max_tokens": 512,
+      "temperature": 0.0
+    },
+    "messages": [
+      {
+        "content": "Extract this bank statement as strict JSON only (no prose, no markdown fence) with keys opening_balance, closing_balance, transactions (a list of {date, description, amount}). Amounts are negative for debits, positive for credits.\n\nOpening balance: 1000.00\n2026-02-01  Deposit ABC        +250.00\n2026-02-01  Deposit ABC        +250.00\n2026-02-03  Service fee         -10.00\nClosing balance: 1490.00\n",
+        "role": "user"
+      }
+    ],
+    "role": "text"
+  },
+  "response": {
+    "stream_text": "{\n  \"opening_balance\": 1000.00,\n  \"closing_balance\": 1490.00,\n  \"transactions\": [\n    {\n      \"date\": \"2026-02-01\",\n      \"description\": \"Deposit ABC\",\n      \"amount\": 250.00\n    },\n    {\n      \"date\": \"2026-02-01\",\n      \"description\": \"Deposit ABC\",\n      \"amount\": 250.00\n    },\n    {\n      \"date\": \"2026-02-03\",\n      \"description\": \"Service fee\",\n      \"amount\": -10.00\n    }\n  ]\n}"
+  },
+  "role": "text",
+  "tag": "flow-only"
+}
