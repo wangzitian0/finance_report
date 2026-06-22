@@ -5,7 +5,8 @@ from uuid import uuid4
 import pytest
 from common.testing.ac_proof import ac_proof
 
-from src.counter import Count, CounterKey, Incremented, increment
+from src.counter import Count, CounterKey, increment
+from src.platform import RecordingEventBus
 
 from ._fake import InMemoryCounterRepository
 
@@ -31,17 +32,20 @@ def test_increment_is_per_user():
 
 @ac_proof(proof_id="test_increment_emits_event", ac_ids=["AC25.6.3"], ci_tier="pr_ci")
 def test_increment_emits_incremented_event():
-    """AC25.6.3: increment publishes an Incremented domain event."""
+    """AC25.6.3: increment publishes an Incremented domain event through the bus."""
     repo = InMemoryCounterRepository()
     u1 = uuid4()
-    events: list[Incremented] = []
+    bus = RecordingEventBus()
 
-    increment(repo, user_id=u1, key=KEY, emit=events.append)
+    increment(repo, user_id=u1, key=KEY, bus=bus)
 
-    assert len(events) == 1
-    assert events[0].user_id == u1
-    assert events[0].key == KEY
-    assert events[0].at is not None
+    assert len(bus.published) == 1
+    event = bus.published[0]
+    assert event.user_id == u1
+    assert event.key == KEY
+    assert event.count == 1
+    assert event.event_type == "counter.Incremented"
+    assert event.occurred_at is not None
 
 
 @ac_proof(proof_id="test_keys_users_isolated", ac_ids=["AC25.6.3"], ci_tier="pr_ci")

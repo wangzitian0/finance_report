@@ -137,6 +137,28 @@ verifiable.
 > defines none of them — the contract is the single definition source. This is
 > the precedent: a package's ACs live in its contract, never duplicated.
 
+### AC25.7 — Platform: domain EventBus via the transactional outbox (meta-layer capability #1)
+
+> The first *runtime* capability of the meta layer: a domain **EventBus
+> implemented with the transactional outbox pattern**, in the new
+> [`common/platform`](../../common/platform/readme.md) package. A producer
+> publishes a `DomainEvent` through an `OutboxEventBus` built from the caller's
+> `AsyncSession`, so the event row is written into one shared `outbox` table in
+> the SAME transaction as the domain state change (atomic); a separate
+> `OutboxRelay` reads committed `pending` rows and dispatches them post-commit
+> (at-least-once, so handlers must be idempotent). `counter` now emits its
+> `Incremented` event through this bus.
+>
+> **`AC25.7.1`, `AC25.7.2`, `AC25.7.3`, `AC25.7.4`, and `AC25.7.5` are NOT defined
+> here.** They are owned by, and sourced directly from,
+> [`common/platform/contract.py`](../../common/platform/contract.py)'s `roadmap`
+> (`AC25.7.5` is the cross-package one proving `counter` emits atomically through
+> the outbox); `common/ssot/generate_ac_registry.py` reads it additively, so the
+> AC index counts them without an EPIC-table mirror. This blockquote references
+> the IDs (keeping the registry-to-EPIC link intact) but defines none of them —
+> the contract is the single definition source, exactly as the `AC25.6`
+> precedent.
+
 ---
 
 ## 📏 Acceptance Criteria
