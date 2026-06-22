@@ -275,6 +275,10 @@ def workflow_file_set(repo_root: Path, relative_dir: str) -> set[str]:
     }
 
 
+def workflow_set_display(paths: set[str], *, prefix: str = "") -> list[str]:
+    return sorted(f"{prefix}{path}" for path in paths)
+
+
 def iter_action_uses(value: object) -> set[str]:
     """Collect external `uses:` action references from workflow-like YAML."""
     found: set[str] = set()
@@ -310,8 +314,8 @@ def check_workflows(repo_root: Path, errors: list[str]) -> None:
     if app_workflows != expected_app_workflows:
         errors.append(
             ".github/workflows: consolidated app workflow set drifted "
-            f"(expected: {sorted(expected_app_workflows)}, "
-            f"found: {sorted(app_workflows)})"
+            f"(expected: {workflow_set_display(expected_app_workflows)}, "
+            f"found: {workflow_set_display(app_workflows)})"
         )
 
     infra_workflow_dir = repo_root / "repo" / ".github" / "workflows"
@@ -321,8 +325,8 @@ def check_workflows(repo_root: Path, errors: list[str]) -> None:
         if infra_workflows != expected_infra_workflows:
             errors.append(
                 "repo/.github/workflows: consolidated infra2 workflow set drifted "
-                f"(expected: {sorted(expected_infra_workflows)}, "
-                f"found: {sorted(infra_workflows)})"
+                f"(expected: {workflow_set_display(expected_infra_workflows, prefix='repo/')}, "
+                f"found: {workflow_set_display(infra_workflows, prefix='repo/')})"
             )
 
     for path, expected in WORKFLOW_CONTRACT.items():
