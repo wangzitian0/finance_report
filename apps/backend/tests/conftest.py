@@ -289,6 +289,11 @@ async def _schema_engine(test_database_url):
     """
     await ensure_database(test_database_url)
 
+    # Register the role packages' ORM tables on Base.metadata before create_all
+    # so every per-worker schema includes them (counter_tally + the shared
+    # outbox), independent of which test module imported them first.
+    import src.counter.store.sql  # noqa: F401
+    import src.platform.store.outbox  # noqa: F401
     from src.database import Base
     from src.models import (  # noqa: F401
         Account,

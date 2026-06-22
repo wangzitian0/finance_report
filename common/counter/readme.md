@@ -28,31 +28,42 @@ or the global count (sum across users).
   tally for *that key*.
 - a **query** returns either the **per-user** count (a concrete `user_id`) or the
   **global** count (`user_id=None`, summed across all users).
-- **`Incremented`** — the domain event published on each increment
-  (`user_id`, `key`, `at`); other contexts (e.g. report generation) react to it
-  without importing this package's internals.
+- **`Incremented`** — the domain event published on each increment. It is a
+  `platform` **`DomainEvent`** (`event_type="counter.Incremented"`, with
+  `user_id`/`key`/`count`/`at` in its `payload()`); other contexts (e.g. report
+  generation) react to it without importing this package's internals.
 
 ## Usage
 
 ```python
 from src.counter import CounterKey, increment, get_count
+from src.platform import RecordingEventBus
 
 key = CounterKey("report.generated")
 
-# write: bump this user's tally; returns the new per-user Count, emits Incremented
-new_count = increment(repo, user_id=user_id, key=key)          # Count(1), Count(2), ...
+# write (pure op): bump this user's tally; publish Incremented through any EventBus
+bus = RecordingEventBus()
+new_count = increment(repo, user_id=user_id, key=key, bus=bus)  # Count(1), Count(2), ...
 
 # read: per-user vs global
 mine    = get_count(repo, key=key, user_id=user_id)            # this user's count
 overall = get_count(repo, key=key)                             # global (all users)
 ```
 
-`repo` is any `CounterRepository` (the store port). Ops are pure and DB-free, so
-in tests an in-memory fake satisfies the port. In production the SQL adapter is
-awaited at the boundary:
+`repo` is any `CounterRepository` (the store port); `bus` is any platform
+`EventBus`. Ops are pure and DB-free, so in tests an in-memory fake repo + a
+`RecordingEventBus` satisfy the ports. In production the async boundary does the
+**atomic** write — bump + outbox event in one transaction — and a thin read:
 
 ```python
-from src.counter.api import read_count   # thin async read for reporting
+from src.counter.api import record_increment, read_count
+
+# write: bump the tally AND enqueue counter.Incremented into the platform outbox,
+# both in `db`'s transaction; the caller's single commit makes them atomic.
+new_count = await record_increment(db, user_id=user_id, key=key)
+await db.commit()
+
+# read: thin async read for reporting
 overall = await read_count(db, key=CounterKey("report.generated"))   # Count
 ```
 
@@ -60,19 +71,22 @@ overall = await read_count(db, key=CounterKey("report.generated"))   # Count
 
 | role | what lives here |
 |------|-----------------|
-| `types/` | `CounterKey`, `Count`, `Incremented` value objects + typed errors (pure; no I/O) |
-| `ops/` | `increment` (emits `Incremented`) and `get_count` (per-user/global), over the store **port** |
+| `types/` | `CounterKey`, `Count`, `Incremented` (a platform `DomainEvent`) + typed errors (pure; no I/O) |
+| `ops/` | `increment` (publishes `Incremented` through an `EventBus`) and `get_count` (per-user/global), over the store **port** |
 | `store/` | `CounterRepository` (a `typing.Protocol` port) + `SqlCounterRepository`/`CounterTally` (the SQLAlchemy adapter — the only role that touches the ORM) |
-| `api/` | `read_count` — the thin async boundary that bridges an `AsyncSession` to a `Count` for reporting |
+| `api/` | `read_count` (thin async read) and `record_increment` (atomic write: tally bump + outbox event in one transaction) |
 
-Dependency rule (DAG, down only): `api → ops → {types, store}`. The
-ORM/`AsyncSession` lives only in `store`/`api` and never leaks into `types`/`ops`.
+Dependency rule (DAG, down only): `api → ops → {types, store}`, and the package
+depends downward on the `platform` package (the `DomainEvent`/`EventBus`/outbox
+substrate) — declared in `contract.depends_on`. The ORM/`AsyncSession` lives only
+in `store`/`api` and never leaks into `types`/`ops`.
 
 ## Public vs internal
 
 **Public** (`__all__`, == `contract.interface`): `CounterKey`, `Count`,
-`Incremented`, `increment`, `get_count`, `CounterRepository`, `read_count`, and
-the errors `CounterError`, `InvalidCounterKeyError`, `NegativeCountError`.
+`Incremented`, `increment`, `get_count`, `CounterRepository`, `read_count`,
+`record_increment`, and the errors `CounterError`, `InvalidCounterKeyError`,
+`NegativeCountError`.
 
 **Internal** (not importable as public language): `SqlCounterRepository`,
 `CounterTally` (the table model), and module internals. Persistence is an
