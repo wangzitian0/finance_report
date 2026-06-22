@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
@@ -108,11 +109,33 @@ async def test_AC23_6_extraction_text_happy_path_via_replay() -> None:
     assert abs((opening + net) - closing) <= _TEXT_TOLERANCE
 
 
-@pytest.mark.skip(reason="needs real vision cassette: record glm-4.6v (see module docstring / issue #1306)")
+_VISION_PDF = Path(__file__).resolve().parents[1] / "fixtures" / "vision" / "simple_statement.pdf"
+
+
 async def test_AC23_6_extraction_vision_happy_path_via_replay() -> None:
     """Text+image (vision) extraction happy-path through the default-config vision
-    path (OCR_MODEL==VISION_MODEL). Pending a recorded glm-4.6v cassette."""
-    pytest.skip("vision cassette not yet recorded")
+    path (OCR_MODEL == VISION_MODEL == glm-4.6v), in replay.
+
+    Drives a committed FIXED-BYTES statement PDF through ``ExtractionService``: the
+    app renders it to a PNG (deterministic), the vision OCR call replays the frozen
+    glm-4.6v response, and the result must pass the app's own balance validation —
+    which uses amount+direction (IN/OUT), exactly how glm-4.6v reads a statement.
+    NO network, NO key in replay.
+    """
+    from src.services.extraction.service import ExtractionService
+    from src.services.validation import validate_balance
+
+    service = ExtractionService()
+    service.api_key = "replay"  # passes the key-check; replay performs no live call
+    result = await service.extract_financial_data(
+        file_content=_VISION_PDF.read_bytes(),
+        institution="ACME",
+        file_type="pdf",
+        filename="simple_statement.pdf",
+    )
+    assert len(result["transactions"]) == 3
+    # The app's own balance oracle (amount+direction aware) must reconcile.
+    assert validate_balance(result)["balance_valid"] is True
 
 
 _DUP_MODEL = "glm-5.2"

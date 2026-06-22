@@ -23,6 +23,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CASSETTE_DIR = REPO_ROOT / "apps" / "backend" / "tests" / "fixtures" / "llm_cassettes"
 TOLERANCE = Decimal("0.01")
 _STATEMENT_KEYS = ("opening_balance", "closing_balance", "transactions")
+# Mirror services/validation.normalize_amount_direction: the canonical extraction
+# carries a magnitude ``amount`` plus a ``direction`` (IN credits / OUT debits);
+# only when direction is absent do we fall back to the sign of ``amount``.
+_IN_DIRECTIONS = {"IN", "CREDIT", "CR", "DEPOSIT", "INFLOW"}
+_OUT_DIRECTIONS = {"OUT", "DEBIT", "DR", "WITHDRAWAL", "WITHDRAW", "OUTFLOW", "PAYMENT"}
 
 
 def _response_text(response: object) -> str | None:
@@ -61,7 +66,13 @@ def balance_violation(payload: dict) -> str | None:
         amount = _as_decimal(txn.get("amount")) if isinstance(txn, dict) else None
         if amount is None:
             return "transaction with unparseable amount"
-        net += amount
+        direction = str(txn.get("direction") or "").strip().upper() if isinstance(txn, dict) else ""
+        if direction in _IN_DIRECTIONS:
+            net += abs(amount)
+        elif direction in _OUT_DIRECTIONS:
+            net -= abs(amount)
+        else:
+            net += amount  # no direction -> trust the sign of the amount
     diff = abs((opening + net) - closing)
     if diff > TOLERANCE:
         return f"balance chain broken: opening {opening} + net {net} != closing {closing} (diff {diff})"

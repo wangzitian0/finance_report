@@ -39,6 +39,34 @@ def test_AC23_7_1_balance_violation_detects_a_drifted_cassette() -> None:
     assert balance_violation(drifted) is not None
 
 
+def test_AC23_7_1_balance_uses_direction_not_just_amount_sign() -> None:
+    """AC23.7.1: net is computed amount+direction aware (the canonical/vision shape),
+    not a naive sum of unsigned amounts."""
+    # Magnitudes + IN/OUT direction (how glm-4.6v reads a statement): -5 +50 -15 = +30.
+    directional = {
+        "opening_balance": "100.00",
+        "closing_balance": "130.00",
+        "transactions": [
+            {"amount": "5.00", "direction": "OUT"},
+            {"amount": "50.00", "direction": "IN"},
+            {"amount": "15.00", "direction": "OUT"},
+        ],
+    }
+    assert balance_violation(directional) is None
+    # If direction were ignored (naive sum 5+50+15=70 -> 170 != 130) this would pass
+    # incorrectly; flipping all to IN must be flagged, proving direction is applied.
+    all_in = {
+        "opening_balance": "100.00",
+        "closing_balance": "130.00",
+        "transactions": [
+            {"amount": "5.00", "direction": "IN"},
+            {"amount": "50.00", "direction": "IN"},
+            {"amount": "15.00", "direction": "IN"},
+        ],
+    }
+    assert balance_violation(all_in) is not None
+
+
 def test_AC23_7_1_uses_decimal_not_float() -> None:
     """AC23.7.1: amounts that would lose precision as float still reconcile via Decimal."""
     payload = {
