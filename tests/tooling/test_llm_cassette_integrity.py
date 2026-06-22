@@ -52,9 +52,11 @@ def test_AC23_7_1_balance_uses_direction_not_just_amount_sign() -> None:
             {"amount": "15.00", "direction": "OUT"},
         ],
     }
+    # `directional` reconciles ONLY because OUT subtracts (+50 - 5 - 15 = +30). A
+    # direction-ignoring magnitude sum would be 5+50+15 = 70 -> 170 != 130 and would
+    # WRONGLY flag this — so a None result here proves direction is applied.
     assert balance_violation(directional) is None
-    # If direction were ignored (naive sum 5+50+15=70 -> 170 != 130) this would pass
-    # incorrectly; flipping all to IN must be flagged, proving direction is applied.
+    # Sanity: an all-credit set genuinely does not reconcile (+70 -> 170 != 130).
     all_in = {
         "opening_balance": "100.00",
         "closing_balance": "130.00",

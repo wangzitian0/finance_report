@@ -126,7 +126,10 @@ async def test_AC23_6_extraction_vision_happy_path_via_replay() -> None:
     from src.services.validation import validate_balance
 
     service = ExtractionService()
-    service.api_key = "replay"  # passes the key-check; replay performs no live call
+    # Replay performs no live call, but extract_financial_data guards on a truthy
+    # api_key — supply a dummy ONLY when none is configured (replay/CI). In record
+    # mode the real key from the env is preserved so recording still works.
+    service.api_key = service.api_key or "replay"
     result = await service.extract_financial_data(
         file_content=_VISION_PDF.read_bytes(),
         institution="ACME",
