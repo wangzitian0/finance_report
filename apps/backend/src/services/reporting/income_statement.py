@@ -23,7 +23,7 @@ from src.services.fx import (
     FxRateError,
     FxWarning,
     PrefetchedFxRates,
-    convert_amount,
+    convert_money,
 )
 from src.services.reporting._core import _REPORT_STATUSES, _build_account_lines, _load_accounts
 from src.services.reporting.balance_sheet import generate_balance_sheet
@@ -147,17 +147,18 @@ async def generate_income_statement(
             if rate_total is None:
                 # Fallback to slow path if not pre-fetched (should be rare)
                 try:
-                    converted_total = await convert_amount(
-                        db,
-                        amount=line.amount,
-                        currency=line.currency,
-                        target_currency=target_currency,
-                        rate_date=end_date,
-                        average_start=start_date,
-                        average_end=end_date,
-                        fx_warnings=fx_warnings,
-                        lazy_load=True,
-                    )
+                    converted_total = (
+                        await convert_money(
+                            db,
+                            line.money,
+                            target_currency,
+                            end_date,
+                            average_start=start_date,
+                            average_end=end_date,
+                            fx_warnings=fx_warnings,
+                            lazy_load=True,
+                        )
+                    ).amount
                 except FxRateError as exc:
                     logger.warning(
                         "Average FX rate unavailable, falling back to spot",
@@ -170,14 +171,15 @@ async def generate_income_statement(
                     )
                     # Fallback to spot rate at end_date
                     try:
-                        converted_total = await convert_amount(
-                            db,
-                            amount=line.amount,
-                            currency=line.currency,
-                            target_currency=target_currency,
-                            rate_date=end_date,
-                            lazy_load=True,
-                        )
+                        converted_total = (
+                            await convert_money(
+                                db,
+                                line.money,
+                                target_currency,
+                                end_date,
+                                lazy_load=True,
+                            )
+                        ).amount
                     except FxRateError as final_exc:
                         logger.error(
                             "All FX rate fallbacks failed for income statement",

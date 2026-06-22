@@ -17,6 +17,7 @@ from src.models import (
     JournalEntryStatus,
     JournalLine,
 )
+from src.money import Money
 from src.services.reporting import (
     ReportError,
     _aggregate_balances_sql,
@@ -398,12 +399,12 @@ async def test_income_statement_fx_average_to_spot_fallback(db: AsyncSession, ac
         mock_instance.get_rate = mock_get_rate
         MockPrefetched.return_value = mock_instance
 
-        async def mock_convert(db, amount, currency, target_currency, rate_date, **kwargs):
+        async def mock_convert(db, money, target_currency, rate_date, **kwargs):
             if kwargs.get("average_start") is not None:
                 raise FxRateError("No average rate available")
-            return amount * Decimal("1.35")
+            return Money(money.amount * Decimal("1.35"), target_currency)
 
-        with patch("src.services.reporting.income_statement.convert_amount", side_effect=mock_convert):
+        with patch("src.services.reporting.income_statement.convert_money", side_effect=mock_convert):
             report = await generate_income_statement(
                 db, user_id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31), currency="SGD"
             )
@@ -465,10 +466,10 @@ async def test_income_statement_fx_all_fallbacks_fail(db: AsyncSession, accounts
         mock_instance.get_rate = lambda *args, **kwargs: None
         MockPrefetched.return_value = mock_instance
 
-        async def mock_convert_fail(db, amount, currency, target_currency, rate_date, **kwargs):
+        async def mock_convert_fail(db, money, target_currency, rate_date, **kwargs):
             raise FxRateError("No rate available at all")
 
-        with patch("src.services.reporting.income_statement.convert_amount", side_effect=mock_convert_fail):
+        with patch("src.services.reporting.income_statement.convert_money", side_effect=mock_convert_fail):
             with pytest.raises(ReportError, match="FX conversion failed"):
                 await generate_income_statement(
                     db, user_id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31), currency="SGD"

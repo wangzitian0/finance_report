@@ -143,3 +143,20 @@ def test_AC12_37_2_reconciliation_config_sums_lines_as_money():
     assert "line.money" in src
     assert "Money.sum(" in src
     assert "sum(line.amount" not in src
+
+
+@ac_proof(
+    proof_id="test_income_statement_converts_money_native",
+    ac_ids=["AC12.37.3"],
+    ci_tier="pr_ci",
+)
+def test_AC12_37_3_income_statement_fx_is_money_native():
+    """AC12.37.3: the income-statement slow-path FX converts journal lines via the
+    Money-native `convert_money(line.money, ...)`, not raw `convert_amount(line.amount)`."""
+    src = _read("apps/backend/src/services/reporting/income_statement.py")
+    assert "convert_money(" in src
+    assert "line.money" in src
+    # robust: income_statement no longer references raw convert_amount at all
+    # (import or call) — catches positional / intermediate-variable regressions
+    # that an `amount=line.amount` substring check would miss.
+    assert "convert_amount" not in src
