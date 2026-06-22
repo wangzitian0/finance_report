@@ -266,9 +266,15 @@ class PortfolioService:
                     UnitPrice(synced_price.price, synced_price.currency, PORTFOLIO_QUANTITY_UNIT) * snapshot_quantity
                 )
                 cost_money = position.cost_basis_money
+                # managed-position cost is converted at its acquisition-date FX
+                # boundary (consistent with get_holdings + the reporting SSOT).
+                cost_rate_date = position.acquisition_date
             else:
+                # snapshot proxy: cost == market, both at as_of_date so the
+                # fallback unrealized P&L stays zero.
                 market_money = Money(snapshot.market_value, snapshot.currency)
                 cost_money = Money(snapshot.market_value, snapshot.currency)
+                cost_rate_date = as_of_date
 
             # Market and cost may carry different source currencies; convert each to
             # base as Money (no-op when already base, so no per-side if/else branch).
@@ -276,7 +282,7 @@ class PortfolioService:
                 await fx.convert_money(db, market_money, settings.base_currency, rate_date=as_of_date, lazy_load=True)
             ).quantize()
             converted_cost_basis = (
-                await fx.convert_money(db, cost_money, settings.base_currency, rate_date=as_of_date, lazy_load=True)
+                await fx.convert_money(db, cost_money, settings.base_currency, rate_date=cost_rate_date, lazy_load=True)
             ).quantize()
             currency = converted_market_value.currency.code
 
