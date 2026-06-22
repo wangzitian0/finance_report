@@ -555,6 +555,22 @@ other models/services follow incrementally.
 | AC12.35.2 | Investment accounting updates position state through the typed accessors (`position.cost_basis_money`/`realized_pnl_money`/`quantity_qty`) with `Money`/`Quantity` arithmetic instead of re-wrapping raw `Decimal` columns; writes back `.amount`/`.value` only at the storage edge {tier:PC} | `test_AC12_35_2_investment_accounting_reads_position_via_accessors` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
 | AC12.35.3 | The FX boundary is Money-native: `fx.convert_money(money, target) -> Money` wraps `convert_amount`, and portfolio holdings valuation flows as `Money` end-to-end (`UnitPrice(price) * position.quantity_qty` → `fx.convert_money` → `Money` P&L), collapsing the `if currency != base` Decimal branch {tier:PC} | `test_AC12_35_3_portfolio_holdings_value_flows_as_money` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
 
+### AC12.36: Shared Decimal-scalar codec — one SSOT per layer ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
+
+The raw-`Decimal` boundary codec required by `base-packages.md` §3 was re-implemented
+in every base package — a byte-identical `_decimal_to_wire`, a `_decimal_from_wire` /
+`_payload_mapping` / `_field` triad, and a construction-time `_coerce` — differing only
+by which typed error it raised. That codec is now factored once into a single
+`decimal_scalar` module per layer (`decimal_to_wire` / `coerce_decimal` / `WireCodec`);
+each package supplies its own error classes, so the per-domain error hierarchy is
+preserved while the duplicated bodies disappear. The module is dependency-light (it
+imports no base package, so the family stays bounded — not a fifth base package).
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC12.36.1 | The four `common/` base-package codecs route raw-`Decimal` conversion through one shared `common.decimal_scalar` module (`decimal_to_wire` / `coerce_decimal` / `WireCodec`); no base package re-defines the `_decimal_to_wire` / `_decimal_from_wire` / `_payload_mapping` / `_field` bodies or the construction-time `_coerce` body locally, and the canonical codec logic (`rstrip`, `IEEE-754` rejection, decimal-string parse) lives only in `decimal_scalar` {tier:PC} | `test_AC12_36_1_common_base_packages_share_one_scalar_codec` | `tests/tooling/test_decimal_scalar_ssot.py` | P1 |
+| AC12.36.2 | The backend self-contained mirror likewise routes every base-package `Decimal` boundary through one shared `src.decimal_scalar` module, keeping the backend end conformant without re-duplicating the codec per package {tier:PC} | `test_AC12_36_2_backend_base_packages_share_one_scalar_codec` | `tests/tooling/test_decimal_scalar_ssot.py` | P1 |
+
 ---
 
 *Planning snapshot captured: January 2026*

@@ -3,51 +3,29 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
+from src.decimal_scalar import WireCodec, decimal_to_wire as _decimal_to_wire
 from src.unit_price.errors import FloatNotAllowedError, InvalidUnitPricePayloadError
 from src.unit_price.unit_price import UnitPrice
 
 UnitPriceWire = dict[str, str]
 UnitPriceDbFields = dict[str, Decimal | str]
 
-
-def _decimal_to_wire(value: Decimal) -> str:
-    text = format(value, "f")
-    if "." in text:
-        text = text.rstrip("0").rstrip(".")
-    if text in {"", "-0"}:
-        return "0"
-    return text
+# The shared scalar codec bound to unit-price's typed errors (parse / mapping / field).
+_CODEC = WireCodec(FloatNotAllowedError, InvalidUnitPricePayloadError)
 
 
 def _decimal_from_wire(value: object, what: str = "unit-price rate") -> Decimal:
-    if isinstance(value, bool):
-        raise FloatNotAllowedError(f"bool is not a valid {what}")
-    if isinstance(value, float):
-        raise FloatNotAllowedError(f"float is not allowed for {what}; use a decimal string")
-    if not isinstance(value, str):
-        raise FloatNotAllowedError(f"{what} must be encoded as a decimal string, got {type(value).__name__}")
-    try:
-        parsed = Decimal(value)
-    except (InvalidOperation, ValueError) as exc:
-        raise InvalidUnitPricePayloadError(f"{what} is not a valid decimal string") from exc
-    if not parsed.is_finite():
-        raise FloatNotAllowedError(f"{what} must be finite")
-    return parsed
+    return _CODEC.parse(value, what)
 
 
 def _payload_mapping(payload: object) -> Mapping[str, object]:
-    if not isinstance(payload, Mapping):
-        raise InvalidUnitPricePayloadError(f"UnitPrice payload must be an object, got {type(payload).__name__}")
-    return payload
+    return _CODEC.mapping(payload, "UnitPrice")
 
 
 def _field(payload: Mapping[str, object], key: str) -> object:
-    try:
-        return payload[key]
-    except KeyError as exc:
-        raise InvalidUnitPricePayloadError(f"UnitPrice payload missing {key!r}") from exc
+    return _CODEC.field(payload, key, "UnitPrice")
 
 
 def unit_price_to_wire(unit_price: UnitPrice) -> UnitPriceWire:

@@ -30,6 +30,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 
+from common.decimal_scalar import coerce_decimal
 from common.money.currency import Currency
 from common.money.money import Money
 from common.quantity.quantity import Quantity
@@ -52,21 +53,8 @@ _RateInput = Decimal | int
 
 
 def _coerce_rate(value: object) -> Decimal:
-    if isinstance(value, bool):
-        raise FloatNotAllowedError("bool is not a valid unit-price rate")
-    if isinstance(value, float):
-        raise FloatNotAllowedError(
-            "float is not allowed for unit-price rates (IEEE-754 precision loss); "
-            "use Decimal"
-        )
-    if isinstance(value, Decimal):
-        if not value.is_finite():
-            raise FloatNotAllowedError("unit-price rate must be finite")
-        return value
-    if isinstance(value, int):
-        return Decimal(value)
-    raise FloatNotAllowedError(
-        f"unit-price rate must be Decimal or int, got {type(value).__name__}"
+    return coerce_decimal(
+        value, "unit-price rate", float_error=FloatNotAllowedError, require_finite=True
     )
 
 

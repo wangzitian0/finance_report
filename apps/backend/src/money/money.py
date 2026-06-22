@@ -22,25 +22,18 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from decimal import ROUND_HALF_EVEN, Decimal
 
+from src.decimal_scalar import coerce_decimal
 from src.money.currency import Currency
 from src.money.errors import CurrencyMismatchError, FloatNotAllowedError
 from src.money.rounding import to_money
 
 # Amount inputs accepted at construction. ``bool`` is an ``int`` subclass but is
-# never a valid amount, so it is rejected explicitly below.
+# never a valid amount, so it is rejected explicitly by the shared codec below.
 _AmountInput = Decimal | int
 
 
 def _coerce_amount(value: object) -> Decimal:
-    if isinstance(value, bool):
-        raise FloatNotAllowedError("bool is not a valid Money amount")
-    if isinstance(value, float):
-        raise FloatNotAllowedError("float is not allowed for money amounts (IEEE-754 precision loss); use Decimal")
-    if isinstance(value, Decimal):
-        return value
-    if isinstance(value, int):
-        return Decimal(value)
-    raise FloatNotAllowedError(f"Money amount must be Decimal or int, got {type(value).__name__}")
+    return coerce_decimal(value, "Money amount", float_error=FloatNotAllowedError)
 
 
 @dataclass(frozen=True)
