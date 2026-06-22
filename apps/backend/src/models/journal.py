@@ -14,6 +14,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
 from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
+from src.money import Money
 
 if TYPE_CHECKING:
     from src.models.account import Account
@@ -166,6 +167,19 @@ class JournalLine(Base, UUIDMixin, TimestampMixin):
 
     journal_entry: Mapped[JournalEntry] = relationship("JournalEntry", back_populates="lines")
     account: Mapped[Account] = relationship("Account", back_populates="journal_lines")
+
+    @property
+    def money(self) -> Money:
+        """Line amount as a typed Money (read accessor, #3 boundary push).
+
+        Lines are immutable (amount > 0); the raw amount/currency columns remain
+        the storage boundary while business code reads this typed value. ``currency``
+        is non-nullable with a SQLAlchemy column default of "SGD" that only
+        materializes on insert, so mirror it ONLY for ``None`` on in-memory rows not
+        yet flushed — an empty/invalid present value still surfaces via Money.
+        """
+        currency = self.currency if self.currency is not None else "SGD"
+        return Money(self.amount, currency)
 
     def __repr__(self) -> str:
         return f"<JournalLine {self.direction.value} {self.amount} {self.currency}>"

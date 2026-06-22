@@ -13,6 +13,7 @@ from src.models import (
     Direction,
     JournalEntry,
 )
+from src.money import Money
 from src.services.accounting import ValidationError, validate_journal_balance
 from src.services.promotion_gate import RECONCILIATION_AUTO_ACCEPT_SCORE, RECONCILIATION_REVIEW_SCORE
 from src.services.source_type_priority import source_type_rank
@@ -79,7 +80,8 @@ def _candidate_is_better(
 
 def entry_total_amount(entry: JournalEntry) -> Decimal:
     """Return total debit amount for matching."""
-    return sum(line.amount for line in entry.lines if line.direction == Direction.DEBIT)
+    debits = [line.money for line in entry.lines if line.direction == Direction.DEBIT]
+    return Money.sum(debits).amount if debits else Decimal("0.00")
 
 
 def entry_bank_side_amount(entry: JournalEntry, transaction_direction: str | None) -> Decimal:
@@ -89,12 +91,12 @@ def entry_bank_side_amount(entry: JournalEntry, transaction_direction: str | Non
     direction = transaction_direction.upper()
     bank_line_direction = Direction.DEBIT if direction == "IN" else Direction.CREDIT
     bank_lines = [
-        line.amount
+        line.money
         for line in entry.lines
         if line.direction == bank_line_direction and line.account and line.account.type == AccountType.ASSET
     ]
     if bank_lines:
-        return sum(bank_lines, Decimal("0.00"))
+        return Money.sum(bank_lines).amount
     return entry_total_amount(entry)
 
 
