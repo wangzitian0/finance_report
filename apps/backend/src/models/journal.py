@@ -174,10 +174,12 @@ class JournalLine(Base, UUIDMixin, TimestampMixin):
 
         Lines are immutable (amount > 0); the raw amount/currency columns remain
         the storage boundary while business code reads this typed value. ``currency``
-        has a DB default of "SGD" (nullable=False) that only materializes on insert,
-        so mirror it for in-memory rows not yet flushed.
+        is non-nullable with a SQLAlchemy column default of "SGD" that only
+        materializes on insert, so mirror it ONLY for ``None`` on in-memory rows not
+        yet flushed — an empty/invalid present value still surfaces via Money.
         """
-        return Money(self.amount, self.currency or "SGD")
+        currency = self.currency if self.currency is not None else "SGD"
+        return Money(self.amount, currency)
 
     def __repr__(self) -> str:
         return f"<JournalLine {self.direction.value} {self.amount} {self.currency}>"
