@@ -92,17 +92,26 @@ def check(cassette_dir: Path = CASSETTE_DIR) -> list[str]:
     return violations
 
 
+def statement_cassette_count(cassette_dir: Path = CASSETTE_DIR) -> int:
+    """Count statement-shaped cassettes, skipping unreadable ones (never raises)."""
+    count = 0
+    for path in cassette_dir.glob("*.json"):
+        try:
+            cassette = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        text = _response_text(cassette.get("response"))
+        if text and _is_statement(text):
+            count += 1
+    return count
+
+
 def main() -> int:
     if not CASSETTE_DIR.exists():
         print(f"[CASSETTE] no cassette dir at {CASSETTE_DIR}; nothing to check.")
         return 0
     violations = check()
-    statement_count = sum(
-        1
-        for path in CASSETTE_DIR.glob("*.json")
-        if (t := _response_text(json.loads(path.read_text()).get("response")))
-        and _is_statement(t)
-    )
+    statement_count = statement_cassette_count()
     if violations:
         for message in violations:
             print(f"::error title=LLM cassette integrity::{message}", file=sys.stderr)
