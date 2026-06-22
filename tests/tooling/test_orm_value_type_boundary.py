@@ -23,9 +23,11 @@ MIGRATED_MANAGED_POSITION_FILES = [
 ]
 # A raw money-column READ: position.cost_basis / unrealized_pnl / realized_pnl that
 # is not the typed accessor (`_money`), not a different column (`_method`), and not
-# a write (`position.x = ...`, the allowed storage edge).
+# a write (`position.x = ...`, the allowed storage edge). The write lookahead
+# matches a single `=` assignment regardless of whitespace, but not `==`/`!=`
+# (those are comparisons, i.e. reads).
 _RAW_MANAGED_POSITION_MONEY_READ = re.compile(
-    r"position\.(?:cost_basis|unrealized_pnl|realized_pnl)(?!_money|_method)(?!\s*=\s)"
+    r"position\.(?:cost_basis|unrealized_pnl|realized_pnl)(?!_money|_method)(?!\s*=(?!=))"
 )
 
 
