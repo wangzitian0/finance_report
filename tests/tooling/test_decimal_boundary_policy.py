@@ -73,7 +73,10 @@ def test_AC12_31_3_migrated_hotspots_use_base_packages():
     )
     for path in quantity_service_files:
         src = _read(path)
-        assert "from src.quantity import Quantity" in src, f"{path} must use Quantity"
+        # value type via direct import OR a model .quantity_qty accessor (#3 push)
+        assert "from src.quantity import Quantity" in src or ".quantity_qty" in src, (
+            f"{path} must use Quantity (import or .quantity_qty accessor)"
+        )
         assert "quantized_quantity_value" not in src
         assert "quantity_is_zero" not in src
         assert "quantity_zero_value" not in src
@@ -83,10 +86,9 @@ def test_AC12_31_3_migrated_hotspots_use_base_packages():
 
     reporting = _read(Path("apps/backend/src/services/reporting"))
     assert "position.quantity * latest_price" not in reporting
-    assert (
-        "position_quantity = Quantity(position.quantity, REPORTING_QUANTITY_UNIT).quantize()"
-        in reporting
-    )
+    # Quantity flows via the ManagedPosition.quantity_qty accessor (#3 boundary push);
+    # market value is UnitPrice(price) * quantity, no raw quantity*price.
+    assert "position_quantity = position.quantity_qty.quantize()" in reporting
 
     investment = _read(Path("apps/backend/src/services/investment_accounting.py"))
     assert (

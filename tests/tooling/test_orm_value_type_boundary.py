@@ -71,3 +71,9 @@ def test_AC12_35_3_portfolio_holdings_value_flows_as_money():
     assert "position.cost_basis_money" in src
     assert "position.quantity_qty" in src
     assert "UnitPrice(latest_price" in src
+
+    # reporting's portfolio valuation also flows Money via the same helpers
+    market = _read("apps/backend/src/services/reporting/portfolio_market.py")
+    assert "fx.convert_money(" in market
+    assert "position.cost_basis_money" in market
+    assert "position.quantity_qty" in market

@@ -21,7 +21,6 @@ from src.models.layer3 import (
     ManualValuationLiquidityClass,
     PositionStatus,
 )
-from src.quantity import Quantity
 from src.services import fx
 from src.services.fx import (
     FxRateError,
@@ -32,6 +31,7 @@ from src.services.reporting_calc import (
     ReportError,
     _quantize_money,
 )
+from src.unit_price import UnitPrice
 
 logger = get_logger(__name__)
 
@@ -72,27 +72,19 @@ async def _portfolio_market_basis_by_account(
             )
             continue
 
-        position_quantity = Quantity(position.quantity, REPORTING_QUANTITY_UNIT).quantize()
-        market_value = position_quantity.value * latest_price
-        cost_basis = position.cost_basis
         source_currency = position.currency.upper()
-        if source_currency != target_currency:
+        # Value/cost flow as Money; convert only when source and target currencies
+        # differ (per-position values are not quantized here — accumulators are Decimal).
+        position_quantity = position.quantity_qty.quantize()
+        market_value = UnitPrice(latest_price, source_currency, REPORTING_QUANTITY_UNIT) * position_quantity
+        cost_basis = position.cost_basis_money
+        if source_currency != target_currency.upper():
             try:
-                market_value = await fx.convert_amount(
-                    db,
-                    amount=market_value,
-                    currency=source_currency,
-                    target_currency=target_currency,
-                    rate_date=portfolio_eval_date,
-                    lazy_load=True,
+                market_value = await fx.convert_money(
+                    db, market_value, target_currency, rate_date=portfolio_eval_date, lazy_load=True
                 )
-                cost_basis = await fx.convert_amount(
-                    db,
-                    amount=cost_basis,
-                    currency=source_currency,
-                    target_currency=target_currency,
-                    rate_date=position.acquisition_date,
-                    lazy_load=True,
+                cost_basis = await fx.convert_money(
+                    db, cost_basis, target_currency, rate_date=position.acquisition_date, lazy_load=True
                 )
             except FxRateError as exc:
                 raise ReportError(str(exc)) from exc
@@ -106,8 +98,8 @@ async def _portfolio_market_basis_by_account(
                 "source_currencies": set(),
             },
         )
-        basis["market_value"] = Decimal(str(basis["market_value"])) + market_value
-        basis["cost_basis"] = Decimal(str(basis["cost_basis"])) + cost_basis
+        basis["market_value"] = Decimal(str(basis["market_value"])) + market_value.amount
+        basis["cost_basis"] = Decimal(str(basis["cost_basis"])) + cost_basis.amount
         basis["source_currencies"].add(source_currency)
 
     return basis_by_account
