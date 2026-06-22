@@ -6,11 +6,29 @@ storage/write boundary; business reads the typed accessors. This is the pilot on
 ManagedPosition + investment_accounting; other models/services follow.
 """
 
+import re
 from pathlib import Path
 
 from common.testing.ac_proof import ac_proof
 
 REPO = Path(__file__).resolve().parents[2]
+
+# Business files where ManagedPosition money is fully migrated to typed accessors.
+MIGRATED_MANAGED_POSITION_FILES = [
+    "apps/backend/src/services/portfolio.py",
+    "apps/backend/src/services/investment_accounting.py",
+    "apps/backend/src/services/assets.py",
+    "apps/backend/src/services/performance_report.py",
+    "apps/backend/src/services/reporting/portfolio_market.py",
+]
+# A raw money-column READ: position.cost_basis / unrealized_pnl / realized_pnl that
+# is not the typed accessor (`_money`), not a different column (`_method`), and not
+# a write (`position.x = ...`, the allowed storage edge). The write lookahead
+# matches a single `=` assignment regardless of whitespace, but not `==`/`!=`
+# (those are comparisons, i.e. reads).
+_RAW_MANAGED_POSITION_MONEY_READ = re.compile(
+    r"position\.(?:cost_basis|unrealized_pnl|realized_pnl)(?!_money|_method)(?!\s*=(?!=))"
+)
 
 
 def _read(path: str) -> str:
@@ -77,3 +95,23 @@ def test_AC12_35_3_portfolio_holdings_value_flows_as_money():
     assert "fx.convert_money(" in market
     assert "position.cost_basis_money" in market
     assert "position.quantity_qty" in market
+
+
+@ac_proof(
+    proof_id="test_managed_position_raw_reads_forbidden",
+    ac_ids=["AC12.35.4"],
+    ci_tier="pr_ci",
+)
+def test_AC12_35_4_no_raw_managed_position_money_reads_in_migrated_files():
+    """AC12.35.4 (ratchet): the migrated business files read ManagedPosition money
+    only via the typed accessors — no raw position.cost_basis/unrealized_pnl/
+    realized_pnl reads remain (writes `position.x = ...` at the storage edge stay
+    allowed). This forbids the old raw-Decimal pattern from creeping back."""
+    offenders = {
+        path: _RAW_MANAGED_POSITION_MONEY_READ.findall(_read(path))
+        for path in MIGRATED_MANAGED_POSITION_FILES
+        if _RAW_MANAGED_POSITION_MONEY_READ.search(_read(path))
+    }
+    assert not offenders, (
+        f"raw ManagedPosition money reads must use accessors: {offenders}"
+    )
