@@ -387,8 +387,8 @@ concepts:
       - apps/backend/tests/extraction/test_statement_parsing_audit_logging.py
       - apps/backend/tests/reconciliation/test_reconciliation_router_additional.py
       - tests/tooling/test_post_merge_e2e_gates.py
-      - .github/workflows/staging-deploy.yml
-      - .github/workflows/staging-ai-ocr-gate.yml
+      - .github/workflows/deploy.yml
+      - .github/workflows/deploy.yml
 
   runtime_incident_response:
     owner: docs/ssot/runtime-incident-response.md
@@ -569,9 +569,9 @@ concepts:
       - docs/ssot/ci-cd.md
       - docs/ssot/environments.md
       - docs/project/EPIC-008.testing-strategy.md
-      - .github/workflows/pr-test.yml
-      - .github/workflows/staging-deploy.yml
-      - .github/workflows/production-release.yml
+      - .github/workflows/preview.yml
+      - .github/workflows/deploy.yml
+      - .github/workflows/deploy.yml
     proofs:
       - tests/tooling/test_delivery_gates_contract.py
 

@@ -1,24 +1,43 @@
-# Staging Deployment Workflow
+# Deployment Workflow
 #
-# Trigger: MANUAL ONLY (workflow_dispatch). Staging no longer auto-follows main.
+# Trigger: tag push for release-image promotion, manual dispatch for staging,
+# production, and on-demand staging AI/OCR diagnostics.
+# Staging no longer auto-follows main.
 # Per docs/ssot/environments.md, staging and prod are deployed manually;
 # CI is the quality gate for development, not an auto-deploy trigger.
-# Actions: Resolve release coordinate → deploy_v2 → Smoke/E2E → AI/OCR regression record
+# Actions: promote release images or resolve release coordinate → deploy_v2 →
+# Smoke/E2E → AI/OCR regression record.
 # Data is persisted between deployments.
 
-name: Deploy Staging
-run-name: Deploy Staging ${{ inputs.version_ref }}
+name: Deploy
+run-name: ${{ github.event_name == 'push' && format('Release Images {0}', github.ref_name) || inputs.target == 'production' && format('Production Release {0}', inputs.version_ref) || inputs.target == 'staging-ai-ocr-gate' && 'Staging AI/OCR Gate' || format('Deploy Staging {0}', inputs.version_ref) }}
 
 on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
   workflow_dispatch:
     inputs:
+      target:
+        description: "Deployment target/action"
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+          - staging-ai-ocr-gate
       version_ref:
         description: "Version ref to deploy (vX.Y.Z release tag)"
-        required: true
+        required: false
         type: string
+      dry_run:
+        description: "Validate release prerequisites without deploying production (target=production)"
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
-  group: staging-deploy
+  group: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && 'staging-deploy' || github.event_name == 'workflow_dispatch' && inputs.target == 'staging-ai-ocr-gate' && format('staging-manual-ai-ocr-{0}', github.ref) || github.event_name == 'workflow_dispatch' && inputs.target == 'production' && format('production-release-{0}', inputs.version_ref || github.run_id) || format('release-images-{0}', github.ref) }}
   cancel-in-progress: false
 
 env:
@@ -28,11 +47,18 @@ env:
   STAGING_E2E_OCR_MODEL: glm-4.6v
   STAGING_E2E_VISION_MODEL: glm-4.6v
   PYTHON_VERSION: "3.12.12"
+  NODE_VERSION: "20.19.0"
   UV_VERSION: "0.9.18"
+  APP_URL: https://report-staging.zitian.party
+  TEST_ENV: staging
+  SKIP_UI_TESTS: false
+  STRICT_E2E_GATES: true
+  PARSING_TIMEOUT_MS: 480000
 
 jobs:
   build-and-deploy:
     name: Deploy Staging
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'staging' }}
     runs-on: ubuntu-latest
     timeout-minutes: 75
     permissions:
@@ -240,7 +266,7 @@ jobs:
           set -euo pipefail
           # Staging deploys the release tag through the infra2 deploy_v2 front door
           # (deploy_primitive -> Dokploy compose). The :<tag> images were published by
-          # release-images.yml on the tag push; deploy_v2 pulls them (promote-not-rebuild).
+          # deploy.yml on the tag push; deploy_v2 pulls them (promote-not-rebuild).
           # --iac-ref is the pinned infra2 submodule sha so staging uses the same IaC the
           # app was tested against (and that prod will promote on the same tag).
           version_ref="${{ steps.release.outputs.version_ref }}"
@@ -527,7 +553,7 @@ jobs:
     name: Staging Provider Gate
     runs-on: ubuntu-latest
     needs: [build-and-deploy]
-    if: ${{ needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.provider_gate_required == 'true' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.provider_gate_required == 'true' }}
     timeout-minutes: 12
     permissions:
       contents: read
@@ -646,7 +672,7 @@ jobs:
     name: Staging AI/OCR Gate
     runs-on: ubuntu-latest
     needs: [build-and-deploy, provider-gate]
-    if: ${{ always() && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.ai_ocr_required == 'true' && needs.provider-gate.outputs.provider_status == 'pass' }}
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.ai_ocr_required == 'true' && needs.provider-gate.outputs.provider_status == 'pass' }}
     continue-on-error: true
     outputs:
       ai_ocr_status: ${{ steps.staging_ai_ocr_tests.outputs.ai_ocr_status || 'not-run' }}
@@ -839,7 +865,7 @@ jobs:
     name: Post-merge Delivery
     runs-on: ubuntu-latest
     needs: [build-and-deploy, provider-gate, ai-ocr-gate]
-    if: ${{ always() }}
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' }}
     steps:
       - name: Aggregate post-merge delivery result
         run: |
@@ -918,7 +944,7 @@ jobs:
     name: Post-merge Timing Summary
     runs-on: ubuntu-latest
     needs: [build-and-deploy, provider-gate, ai-ocr-gate, post-merge-delivery]
-    if: ${{ always() }}
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' }}
     permissions:
       actions: read
       contents: read
@@ -936,3 +962,802 @@ jobs:
             --run-id "${{ github.run_id }}" \
             --title "Post-merge Timing Summary" \
             --summary-path "$GITHUB_STEP_SUMMARY"
+
+  # Release image promotion jobs
+  promote:
+    name: Promote SHA images to release tag
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Extract version
+        id: version
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify source CI passed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id="$(
+            gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow ci.yml \
+              --commit "$GITHUB_SHA" \
+              --limit 20 \
+              --json databaseId,status,conclusion,event,headBranch \
+              --jq '[.[] | select(.event == "push" and .headBranch == "main" and .status == "completed" and .conclusion == "success")][0].databaseId // ""'
+          )"
+          if [ -z "$run_id" ]; then
+            echo "::error::No successful main CI run found for $GITHUB_SHA — the :<sha> images may not be published. Tag a commit that passed main CI."
+            exit 1
+          fi
+          echo "Using successful main CI run: $run_id"
+
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Promote SHA images to release tag
+        id: promote
+        run: |
+          full_sha="$(git rev-parse "$GITHUB_SHA")"
+          short_sha="${full_sha:0:7}"
+          tag="${{ steps.version.outputs.tag }}"
+
+          backend_sha_image="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${short_sha}"
+          frontend_sha_image="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${short_sha}"
+
+          backend_version_image="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${tag}"
+          frontend_version_image="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${tag}"
+
+          # Inspect and check SHA images exist (published by main CI).
+          backend_sha_digest="$(docker buildx imagetools inspect "$backend_sha_image" | grep -i '^Digest:' | awk '{print $2}')"
+          frontend_sha_digest="$(docker buildx imagetools inspect "$frontend_sha_image" | grep -i '^Digest:' | awk '{print $2}')"
+
+          if [ -z "$backend_sha_digest" ] || [ -z "$frontend_sha_digest" ]; then
+            echo "::error::main-CI SHA images not found for $short_sha"
+            exit 1
+          fi
+
+          echo "Found backend SHA image digest: $backend_sha_digest"
+          echo "Found frontend SHA image digest: $frontend_sha_digest"
+
+          # Promote (manifest copy, zero rebuild). Keep single-platform manifests
+          # as manifests instead of wrapping them into new OCI indexes, otherwise
+          # the release tag gets a different top-level digest from the source tag.
+          docker buildx imagetools create --prefer-index=false --tag "$backend_version_image" "$backend_sha_image"
+          docker buildx imagetools create --prefer-index=false --tag "$frontend_version_image" "$frontend_sha_image"
+
+          # Verify the promoted digests match the source digests exactly.
+          backend_promoted_digest="$(docker buildx imagetools inspect "$backend_version_image" | grep -i '^Digest:' | awk '{print $2}')"
+          frontend_promoted_digest="$(docker buildx imagetools inspect "$frontend_version_image" | grep -i '^Digest:' | awk '{print $2}')"
+
+          if [ "$backend_sha_digest" != "$backend_promoted_digest" ]; then
+            echo "::error::Backend digests differ! Expected $backend_sha_digest, got $backend_promoted_digest"
+            exit 1
+          fi
+
+          if [ "$frontend_sha_digest" != "$frontend_promoted_digest" ]; then
+            echo "::error::Frontend digests differ! Expected $frontend_sha_digest, got $frontend_promoted_digest"
+            exit 1
+          fi
+
+          echo "backend_digest=$backend_sha_digest" >> "$GITHUB_OUTPUT"
+          echo "frontend_digest=$frontend_sha_digest" >> "$GITHUB_OUTPUT"
+          echo "✅ Release $tag promoted (promote-not-rebuild): $short_sha -> $tag"
+
+      - name: Summary
+        run: |
+          {
+            echo "## Release Images — ${{ steps.version.outputs.tag }}"
+            echo ""
+            echo "Promoted main-CI SHA images to the release tag (zero rebuild)."
+            echo ""
+            echo "- backend digest: \`${{ steps.promote.outputs.backend_digest }}\`"
+            echo "- frontend digest: \`${{ steps.promote.outputs.frontend_digest }}\`"
+            echo ""
+            echo "Next: deploy staging on this tag (\`deploy_v2 --type staging --version-ref ${{ steps.version.outputs.tag }}\`)."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Production release jobs
+  dry-run:
+    name: Production Release Dry Run
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'production' && inputs.dry_run }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Resolve release coordinate
+        id: release
+        env:
+          VERSION_REF: ${{ inputs.version_ref }}
+        run: |
+          python3 tools/resolve_release_coordinate.py --version-ref "$VERSION_REF"
+
+      - name: Install moon
+        uses: moonrepo/setup-toolchain@v0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.2.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          save-cache: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: apps/frontend
+
+      - name: Verify source CI passed
+        id: source_ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ steps.release.outputs.full_sha }}
+        run: |
+          set -euo pipefail
+          python tools/verify_release_evidence.py \
+            --check source-ci \
+            --repository "$GITHUB_REPOSITORY" \
+            --release-sha "$RELEASE_SHA"
+
+      - name: Verify release images workflow passed
+        id: release_images_run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ steps.release.outputs.full_sha }}
+        run: |
+          set -euo pipefail
+          python tools/verify_release_evidence.py \
+            --check release-images-run \
+            --repository "$GITHUB_REPOSITORY" \
+            --release-sha "$RELEASE_SHA"
+
+      - name: Verify staging passed
+        id: staging
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION_REF: ${{ steps.release.outputs.version_ref }}
+        run: |
+          set -euo pipefail
+          python tools/verify_release_evidence.py \
+            --check staging \
+            --repository "$GITHUB_REPOSITORY" \
+            --version-ref "$VERSION_REF"
+
+      - name: Verify Release Codebase
+        env:
+          GITHUB_SHA: ${{ steps.release.outputs.full_sha }}
+        run: |
+          set -euo pipefail
+          moon run :lint
+
+      - name: Validate Migration Risk Contract
+        run: |
+          mkdir -p ci-context
+          uv run --with pyyaml python tools/check_migration_risk.py \
+            --summary ci-context/production-migration-risk-context.md
+
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Verify Release Images Dry Run
+        id: release_images
+        env:
+          VERSION_REF: ${{ steps.release.outputs.version_ref }}
+        run: |
+          set -euo pipefail
+          python tools/verify_release_images.py \
+            --registry "${{ env.REGISTRY }}" \
+            --image-prefix "${{ env.IMAGE_PREFIX }}" \
+            --version-ref "$VERSION_REF"
+
+      - name: Summary
+        run: |
+          {
+            echo "## Production Release Dry Run"
+            echo ""
+            echo "- Release version_ref: ${{ steps.release.outputs.version_ref }}"
+            echo "- Released commit: ${{ steps.release.outputs.full_sha }}"
+            echo "- Source CI run: ${{ steps.source_ci.outputs.run_id }}"
+            echo "- Release images run: ${{ steps.release_images_run.outputs.run_id }}"
+            echo "- Staging run: ${{ steps.staging.outputs.run_id }}"
+            echo "- Backend release image digest: ${{ steps.release_images.outputs.backend_digest }}"
+            echo "- Frontend release image digest: ${{ steps.release_images.outputs.frontend_digest }}"
+            echo "- No rebuild occurred: true"
+            echo "- Production mutation skipped: true"
+            echo ""
+            cat ci-context/production-migration-risk-context.md
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "Production mutation skipped"
+
+      - name: Write production dry-run context
+        if: ${{ always() }}
+        run: |
+          mkdir -p ci-context
+          {
+            echo "Production Release Dry-run Context"
+            echo "=================================="
+            echo "repository=${{ github.repository }}"
+            echo "event_name=${{ github.event_name }}"
+            echo "ref=${{ github.ref }}"
+            echo "sha=${{ github.sha }}"
+            echo "run_id=${{ github.run_id }}"
+            echo "run_attempt=${{ github.run_attempt }}"
+            echo "version_ref=${{ steps.release.outputs.version_ref }}"
+            echo "release_full_sha=${{ steps.release.outputs.full_sha }}"
+            echo "release_short_sha=${{ steps.release.outputs.short_sha }}"
+            echo "iac_ref=${{ steps.release.outputs.iac_ref }}"
+            echo "source_ci_run_id=${{ steps.source_ci.outputs.run_id }}"
+            echo "release_images_run_id=${{ steps.release_images_run.outputs.run_id }}"
+            echo "staging_run_id=${{ steps.staging.outputs.run_id }}"
+            echo "production_mutation_skipped=true"
+            echo "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.release.outputs.version_ref }}"
+            echo "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.release.outputs.version_ref }}"
+            echo "backend_digest=${{ steps.release_images.outputs.backend_digest }}"
+            echo "frontend_digest=${{ steps.release_images.outputs.frontend_digest }}"
+            echo "no_rebuild=true"
+          } > ci-context/production-dry-run-context.txt
+
+      - name: Upload production dry-run context
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: production-dry-run-context
+          path: |
+            ci-context/production-dry-run-context.txt
+            ci-context/production-migration-risk-context.md
+          retention-days: 14
+
+  deploy:
+    name: Production Deploy
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'production' && !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+    environment:
+      name: production
+      url: https://report.zitian.party
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Resolve release coordinate
+        id: release
+        env:
+          VERSION_REF: ${{ inputs.version_ref }}
+        run: |
+          python3 tools/resolve_release_coordinate.py --version-ref "$VERSION_REF"
+
+      - name: Verify source CI passed
+        id: source_ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ steps.release.outputs.full_sha }}
+        run: |
+          set -euo pipefail
+          python tools/verify_release_evidence.py \
+            --check source-ci \
+            --repository "$GITHUB_REPOSITORY" \
+            --release-sha "$RELEASE_SHA"
+
+      - name: Verify release images workflow passed
+        id: release_images_run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ steps.release.outputs.full_sha }}
+        run: |
+          set -euo pipefail
+          python tools/verify_release_evidence.py \
+            --check release-images-run \
+            --repository "$GITHUB_REPOSITORY" \
+            --release-sha "$RELEASE_SHA"
+
+      - name: Verify staging passed
+        id: staging
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION_REF: ${{ steps.release.outputs.version_ref }}
+        run: |
+          set -euo pipefail
+          python tools/verify_release_evidence.py \
+            --check staging \
+            --repository "$GITHUB_REPOSITORY" \
+            --version-ref "$VERSION_REF"
+
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Verify release images
+        id: verify_images
+        env:
+          VERSION_REF: ${{ steps.release.outputs.version_ref }}
+        run: |
+          set -euo pipefail
+          python tools/verify_release_images.py \
+            --registry "${{ env.REGISTRY }}" \
+            --image-prefix "${{ env.IMAGE_PREFIX }}" \
+            --version-ref "$VERSION_REF"
+
+      - name: Install deploy_v2 dependencies
+        id: install_deploy_v2
+        run: python -m pip install httpx python-dotenv rich
+
+      - name: Probe current production version
+        id: production_before
+        continue-on-error: true
+        run: |
+          status_file="$(mktemp)"
+          body_file="$(mktemp)"
+          http_status="$(
+            curl \
+              --silent \
+              --show-error \
+              --location \
+              --connect-timeout 5 \
+              --max-time 15 \
+              --header "Cache-Control: no-cache" \
+              --header "Pragma: no-cache" \
+              --output "$body_file" \
+              --write-out "%{http_code}" \
+              "https://report.zitian.party/api/health" \
+              2>"$status_file" || true
+          )"
+          metadata_file="$(mktemp)"
+          python3 - "$body_file" > "$metadata_file" <<'PY'
+          import json
+          import re
+          import sys
+          from pathlib import Path
+
+          try:
+              payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8") or "{}")
+          except json.JSONDecodeError:
+              payload = {}
+
+          def clean(value):
+              return str(value or "").strip().replace("\n", " ").replace("\r", " ")[:200]
+
+          health_version = clean(payload.get("version"))
+          git_sha = clean(payload.get("git_sha"))
+          rollback_ref = ""
+          for candidate in (health_version, git_sha):
+              if re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", candidate):
+                  rollback_ref = candidate
+                  break
+
+          print(f"version={git_sha or health_version}")
+          print(f"health_version={health_version}")
+          print(f"git_sha={git_sha}")
+          print(f"rollback_ref={rollback_ref}")
+          PY
+          cat "$metadata_file" >> "$GITHUB_OUTPUT"
+          echo "http_status=${http_status:-000}" >> "$GITHUB_OUTPUT"
+          if [ -s "$status_file" ]; then
+            probe_error="$(head -c 200 "$status_file" | tr '\n\r' '  ')"
+            echo "probe_error=${probe_error}" >> "$GITHUB_OUTPUT"
+          else
+            echo "probe_error=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy with deploy_v2
+        id: deploy_v2
+        working-directory: repo
+        env:
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+        run: |
+          set -euo pipefail
+          version_ref="${{ steps.release.outputs.version_ref }}"
+          iac_ref="${{ steps.release.outputs.iac_ref }}"
+          echo "Deploying production via deploy_v2: type=prod version-ref=$version_ref iac-ref=$iac_ref"
+          python -m tools.deploy_v2 \
+            --service finance_report/app \
+            --type prod \
+            --version-ref "$version_ref" \
+            --iac-ref "$iac_ref" \
+            --domain zitian.party \
+            --staging-validated \
+            --code-reviewed \
+            --timeout 600
+
+      - name: Confirm production backend health
+        id: deploy_health
+        run: |
+          set -euo pipefail
+          bash tools/health_check.sh \
+            "https://report.zitian.party/api/health" \
+            "production" \
+            24 \
+            "${{ steps.release.outputs.version_ref }}"
+
+      - name: Production Infrastructure Smoke
+        id: production_infra_smoke
+        run: |
+          python tools/production_infra_smoke.py \
+            --base-url "https://report.zitian.party" \
+            --expected-sha "${{ steps.release.outputs.version_ref }}" \
+            --signoz-url "https://signoz.zitian.party"
+
+      - name: Smoke Tests
+        id: production_smoke
+        run: bash tools/smoke_test.sh https://report.zitian.party production
+
+      - name: Setup E2E Tests
+        uses: ./.github/actions/setup-e2e-tests
+
+      - name: Production Read-only E2E Smoke
+        id: production_readonly_e2e
+        env:
+          APP_URL: https://report.zitian.party
+          FRONTEND_URL: https://report.zitian.party
+          TEST_ENV: production
+          PROD_SMOKE_EMAIL: ${{ secrets.PROD_SMOKE_EMAIL }}
+          PROD_SMOKE_PASSWORD: ${{ secrets.PROD_SMOKE_PASSWORD }}
+        run: |
+          mkdir -p test-results
+          pytest tests/e2e/test_production_readonly_smoke.py -v -m "prod_safe" --junit-xml=test-results/production-readonly-e2e.xml
+
+      - name: Roll back production after post-deploy failure
+        id: production_rollback
+        if: ${{ failure() && steps.deploy_v2.outcome == 'success' && steps.production_before.outputs.rollback_ref != '' && (steps.deploy_health.outcome == 'failure' || steps.production_infra_smoke.outcome == 'failure' || steps.production_smoke.outcome == 'failure' || steps.production_readonly_e2e.outcome == 'failure') }}
+        working-directory: repo
+        env:
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+        run: |
+          set -euo pipefail
+          rollback_ref="${{ steps.production_before.outputs.rollback_ref }}"
+          iac_ref="${{ steps.release.outputs.iac_ref }}"
+          echo "Rolling back production via deploy_v2 to $rollback_ref with iac_ref=$iac_ref"
+          python -m tools.deploy_v2 \
+            --service finance_report/app \
+            --type prod \
+            --version-ref "$rollback_ref" \
+            --iac-ref "$iac_ref" \
+            --domain zitian.party \
+            --staging-validated \
+            --code-reviewed \
+            --timeout 600
+
+          bash ../tools/health_check.sh \
+            "https://report.zitian.party/api/health" \
+            "production-rollback" \
+            24 \
+            "$rollback_ref"
+
+      - name: Warn when production rollback cannot run
+        id: production_rollback_unavailable
+        if: ${{ failure() && steps.deploy_v2.outcome == 'success' && steps.production_before.outputs.rollback_ref == '' && (steps.deploy_health.outcome == 'failure' || steps.production_infra_smoke.outcome == 'failure' || steps.production_smoke.outcome == 'failure' || steps.production_readonly_e2e.outcome == 'failure') }}
+        run: |
+          echo "::warning::Production rollback skipped: pre-deploy health did not expose a deploy_v2/prod-compatible release tag. health_version='${{ steps.production_before.outputs.health_version }}' git_sha='${{ steps.production_before.outputs.git_sha }}'"
+
+      - name: Write production deploy context
+        if: ${{ always() }}
+        run: |
+          mkdir -p ci-context
+          failure_domain="none"
+          failed_step="none"
+          failure_summary="Production release deploy completed."
+          if [ "${{ steps.source_ci.outcome }}" = "failure" ]; then
+            failure_domain="source-ci"
+            failed_step="source_ci"
+            failure_summary="No successful main CI run was found for the release commit."
+          elif [ "${{ steps.release_images_run.outcome }}" = "failure" ]; then
+            failure_domain="release-images-run"
+            failed_step="release_images_run"
+            failure_summary="No successful deploy.yml run was found for the release commit."
+          elif [ "${{ steps.staging.outcome }}" = "failure" ]; then
+            failure_domain="staging-validation"
+            failed_step="staging"
+            failure_summary="No successful staging deploy run was found for the release tag."
+          elif [ "${{ steps.verify_images.outcome }}" = "failure" ]; then
+            failure_domain="registry-release-image"
+            failed_step="verify_images"
+            failure_summary="Version-tagged release image was missing before production mutation."
+          elif [ "${{ steps.install_deploy_v2.outcome }}" = "failure" ]; then
+            failure_domain="toolchain/deploy-v2-deps"
+            failed_step="install_deploy_v2"
+            failure_summary="deploy_v2 dependency install failed before production mutation."
+          elif [ "${{ steps.deploy_v2.outcome }}" = "failure" ]; then
+            failure_domain="deploy-v2-rollout"
+            failed_step="deploy_v2"
+            failure_summary="deploy_v2 production deploy failed (data-lane red lines, staging validation, Dokploy rollout, or effective-config verify)."
+          elif [ "${{ steps.deploy_health.outcome }}" = "failure" ]; then
+            failure_domain="production-route-health"
+            failed_step="deploy_health"
+            failure_summary="Production public health gate failed: Traefik did not serve the deployed tag in time."
+          elif [ "${{ steps.production_infra_smoke.outcome }}" = "failure" ]; then
+            failure_domain="production-infra-smoke"
+            failed_step="production_infra_smoke"
+            failure_summary="Production infrastructure smoke failed after deploy health."
+          elif [ "${{ steps.production_smoke.outcome }}" = "failure" ]; then
+            failure_domain="production-app-smoke"
+            failed_step="production_smoke"
+            failure_summary="Production application smoke failed after deploy health."
+          elif [ "${{ steps.production_readonly_e2e.outcome }}" = "failure" ]; then
+            failure_domain="production-readonly-e2e"
+            failed_step="production_readonly_e2e"
+            failure_summary="Production read-only E2E failed after release health."
+          fi
+          {
+            echo "Production Deploy Context"
+            echo "========================="
+            echo "repository=${{ github.repository }}"
+            echo "event_name=${{ github.event_name }}"
+            echo "ref=${{ github.ref }}"
+            echo "sha=${{ github.sha }}"
+            echo "run_id=${{ github.run_id }}"
+            echo "run_attempt=${{ github.run_attempt }}"
+            echo "version_ref=${{ steps.release.outputs.version_ref }}"
+            echo "release_full_sha=${{ steps.release.outputs.full_sha }}"
+            echo "release_short_sha=${{ steps.release.outputs.short_sha }}"
+            echo "iac_ref=${{ steps.release.outputs.iac_ref }}"
+            echo "source_ci_run_id=${{ steps.source_ci.outputs.run_id }}"
+            echo "release_images_run_id=${{ steps.release_images_run.outputs.run_id }}"
+            echo "staging_run_id=${{ steps.staging.outputs.run_id }}"
+            echo "app_url=https://report.zitian.party"
+            echo "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.release.outputs.version_ref }}"
+            echo "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.release.outputs.version_ref }}"
+            echo "backend_digest=${{ steps.verify_images.outputs.backend_digest }}"
+            echo "frontend_digest=${{ steps.verify_images.outputs.frontend_digest }}"
+            echo "production_before_http_status=${{ steps.production_before.outputs.http_status }}"
+            echo "production_before_version=${{ steps.production_before.outputs.version }}"
+            echo "production_before_health_version=${{ steps.production_before.outputs.health_version }}"
+            echo "production_before_git_sha=${{ steps.production_before.outputs.git_sha }}"
+            echo "production_before_rollback_ref=${{ steps.production_before.outputs.rollback_ref }}"
+            echo "production_before_probe_error=${{ steps.production_before.outputs.probe_error }}"
+            echo "verify_images_outcome=${{ steps.verify_images.outcome }}"
+            echo "deploy_v2_outcome=${{ steps.deploy_v2.outcome }}"
+            echo "deploy_health_outcome=${{ steps.deploy_health.outcome }}"
+            echo "production_infra_smoke_outcome=${{ steps.production_infra_smoke.outcome }}"
+            echo "production_smoke_outcome=${{ steps.production_smoke.outcome }}"
+            echo "production_readonly_e2e_outcome=${{ steps.production_readonly_e2e.outcome }}"
+            echo "production_rollback_outcome=${{ steps.production_rollback.outcome }}"
+            echo "production_rollback_unavailable_outcome=${{ steps.production_rollback_unavailable.outcome }}"
+            echo "failure_domain=${failure_domain}"
+            echo "failed_step=${failed_step}"
+            echo "failure_summary=${failure_summary}"
+            echo "signoz_logs_query_url=https://signoz.zitian.party/logs?service.name=finance-report-backend&deployment.environment=production&service.version=${{ steps.release.outputs.version_ref }}&github.run_id=${{ github.run_id }}"
+            echo "signoz_traces_query_url=https://signoz.zitian.party/traces?service.name=finance-report-backend&deployment.environment=production&service.version=${{ steps.release.outputs.version_ref }}&github.run_id=${{ github.run_id }}"
+            echo "marker=prod_safe"
+          } > ci-context/production-deploy-context.txt
+
+      - name: Upload production deploy test context
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: production-deploy-test-context
+          path: |
+            test-results/
+            ci-context/production-deploy-context.txt
+          retention-days: 14
+
+  # On-demand staging AI/OCR diagnostic jobs
+  manual-ai-ocr-gate:
+    name: Staging AI/OCR Gate
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'staging-ai-ocr-gate' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Resolve expected SHA
+        id: expected_sha
+        run: |
+          full_sha="${{ github.sha }}"
+          echo "full_sha=${full_sha}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${full_sha:0:7}" >> "$GITHUB_OUTPUT"
+          echo "Manually validating staging AI/OCR for commit ${full_sha}"
+
+      - name: Setup E2E Tests
+        uses: ./.github/actions/setup-e2e-tests
+
+      - name: Run Staging AI/OCR Gate
+        id: staging_ai_ocr_tests
+        timeout-minutes: 22
+        env:
+          EXPECTED_SHA: ${{ steps.expected_sha.outputs.short_sha }}
+        run: |
+          run_timed_phase() {
+            local phase_name="$1"
+            shift
+            local start
+            local end
+            local duration
+            local status
+
+            start=$(date +%s)
+            echo "::group::${phase_name}"
+            printf '[phase:start] %s at %s\n' "$phase_name" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            set +e
+            "$@"
+            status=$?
+            set -e
+            end=$(date +%s)
+            duration=$((end - start))
+            printf '[phase:end] %s status=%s duration=%ss\n' "$phase_name" "$status" "$duration"
+            echo "::endgroup::"
+            return "$status"
+          }
+
+          write_staging_audit_inventory() {
+            {
+              echo "## Staging Audit Replay Inputs"
+              echo ""
+              echo "- Environment: staging"
+              echo "- GitHub run ID: ${{ github.run_id }}"
+              echo "- Expected SHA: ${EXPECTED_SHA}"
+              echo "- Backend image tag: ${REGISTRY}/${IMAGE_PREFIX}-backend:${EXPECTED_SHA}"
+              echo "- Frontend image tag: ${REGISTRY}/${IMAGE_PREFIX}-frontend:${EXPECTED_SHA}"
+              echo "- App URL: ${APP_URL}"
+              echo "- Models: primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL}"
+              echo "- Fixture tests:"
+              for fixture_test in "${STAGING_AI_OCR_TESTS[@]}"; do
+                echo "  - ${fixture_test}"
+              done
+              echo "- Expected uploads: ${STAGING_AI_OCR_EXPECTED_UPLOADS}"
+              echo "- Expected parse completions: ${STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS}"
+              echo "- Expected brokerage imports: ${STAGING_AI_OCR_EXPECTED_BROKERAGE_IMPORTS}"
+              echo "- Expected report verifications: ${STAGING_AI_OCR_EXPECTED_REPORT_VERIFICATIONS}"
+              echo "- Expected failures: 0"
+            } | tee -a "$GITHUB_STEP_SUMMARY"
+          }
+
+          write_staging_audit_result() {
+            local status="$1"
+            local verified_uploads="unknown"
+            local verified_parse_completions="unknown"
+            local verified_brokerage_imports="unknown"
+            local verified_report_verifications="unknown"
+            local verified_failures="1+"
+            if [ "$status" = "0" ]; then
+              verified_uploads="${STAGING_AI_OCR_EXPECTED_UPLOADS}"
+              verified_parse_completions="${STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS}"
+              verified_brokerage_imports="${STAGING_AI_OCR_EXPECTED_BROKERAGE_IMPORTS}"
+              verified_report_verifications="${STAGING_AI_OCR_EXPECTED_REPORT_VERIFICATIONS}"
+              verified_failures="0"
+            fi
+            {
+              echo "## Staging Audit Replay Summary"
+              echo ""
+              echo "- Environment: staging"
+              echo "- GitHub run ID: ${{ github.run_id }}"
+              echo "- Expected SHA: ${EXPECTED_SHA}"
+              echo "- Gate status: ${status}"
+              echo "- Expected uploads: ${STAGING_AI_OCR_EXPECTED_UPLOADS}"
+              echo "- Expected parse completions: ${STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS}"
+              echo "- Expected brokerage imports: ${STAGING_AI_OCR_EXPECTED_BROKERAGE_IMPORTS}"
+              echo "- Expected report verifications: ${STAGING_AI_OCR_EXPECTED_REPORT_VERIFICATIONS}"
+              echo "- Expected failures: 0"
+              echo "- Uploads verified: ${verified_uploads}"
+              echo "- Parse completions verified: ${verified_parse_completions}"
+              echo "- Brokerage imports verified: ${verified_brokerage_imports}"
+              echo "- Report verifications verified: ${verified_report_verifications}"
+              echo "- Failures observed: ${verified_failures}"
+              echo "- Audit filter: attributes.audit_event EXISTS"
+            } | tee -a "$GITHUB_STEP_SUMMARY"
+            # #1089: surface which corpus docs actually failed (and real counts)
+            # from the JUnit output instead of a binary "unknown / 1+".
+            if [ -f test-results/staging-ai-ocr-gate.xml ]; then
+              echo "" | tee -a "$GITHUB_STEP_SUMMARY"
+              .venv/bin/python tools/staging_ai_ocr_gate_contract.py \
+                --summarize-junit test-results/staging-ai-ocr-gate.xml \
+                | tee -a "$GITHUB_STEP_SUMMARY" || true
+            fi
+          }
+
+          echo "Starting Staging AI/OCR Gate for $APP_URL"
+          echo "Models: primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL}"
+          eval "$(.venv/bin/python tools/staging_ai_ocr_gate_contract.py --shell)"
+          mkdir -p test-results
+          write_staging_audit_inventory
+
+          version_status=0
+          run_timed_phase "Staging AI/OCR Version Check" \
+            pytest tests/e2e/test_version_check.py -v -m "smoke" --junit-xml=test-results/staging-ai-ocr-version.xml || version_status=$?
+          if [ "$version_status" -ne 0 ]; then
+            write_staging_audit_result "$version_status"
+            exit "$version_status"
+          fi
+
+          gate_status=0
+          run_timed_phase "Staging AI/OCR Gate (primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL})" \
+            pytest "${STAGING_AI_OCR_TESTS[@]}" \
+              -v -m "llm" --junit-xml=test-results/staging-ai-ocr-gate.xml || gate_status=$?
+          write_staging_audit_result "$gate_status"
+          if [ "$gate_status" -ne 0 ]; then
+            exit "$gate_status"
+          fi
+
+          echo "Staging AI/OCR Gate passed."
+
+      - name: Write staging AI/OCR context
+        if: ${{ always() }}
+        env:
+          EXPECTED_SHA: ${{ steps.expected_sha.outputs.short_sha }}
+        run: |
+          mkdir -p ci-context
+          {
+            echo "Staging AI/OCR Context"
+            echo "======================"
+            echo "repository=${{ github.repository }}"
+            echo "event_name=${{ github.event_name }}"
+            echo "ref=${{ github.ref }}"
+            echo "sha=${{ github.sha }}"
+            echo "run_id=${{ github.run_id }}"
+            echo "run_attempt=${{ github.run_attempt }}"
+            echo "expected_sha=${EXPECTED_SHA}"
+            echo "app_url=${APP_URL}"
+            echo "primary_model=${STAGING_E2E_PRIMARY_MODEL}"
+            echo "ocr_model=${STAGING_E2E_OCR_MODEL}"
+            echo "vision_model=${STAGING_E2E_VISION_MODEL}"
+            echo "ai_ocr_outcome=${{ steps.staging_ai_ocr_tests.outcome }}"
+            echo "strict_e2e_gates=true"
+            echo "marker=llm"
+          } > ci-context/staging-ai-ocr-context.txt
+
+      - name: Upload staging AI/OCR test context
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: staging-ai-ocr-test-context
+          path: |
+            test-results/
+            ci-context/staging-ai-ocr-context.txt
+          retention-days: 14

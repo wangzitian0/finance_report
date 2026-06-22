@@ -2030,7 +2030,7 @@ def test_AC8_13_98_existing_preview_compose_is_redeployed_without_pre_stop(
 
 def test_AC8_13_100_pr_preview_runner_readiness_is_bounded_and_observable() -> None:
     """AC8.13.100: Runner preview readiness is bounded and logs stack failures."""
-    workflow = (ROOT / ".github/workflows/pr-test.yml").read_text()
+    workflow = (ROOT / ".github/workflows/preview.yml").read_text()
     e2e_block = workflow.split("  e2e:", 1)[1].split("  cleanup:", 1)[0]
 
     assert "workflow_run:" not in workflow
@@ -2255,7 +2255,7 @@ def test_AC8_13_107_pr_preview_workflow_uploads_context_without_image_preflight(
     None
 ):
     """AC8.13.107: PR preview uploads context and does not preflight PR images."""
-    workflow = (ROOT / ".github/workflows/pr-test.yml").read_text()
+    workflow = (ROOT / ".github/workflows/preview.yml").read_text()
     e2e_block = workflow.split("  e2e:", 1)[1].split("  cleanup:", 1)[0]
     cleanup_block = workflow.split("  cleanup:", 1)[1]
 
@@ -2279,7 +2279,7 @@ def test_AC8_13_107_pr_preview_workflow_uploads_context_without_image_preflight(
 
 def test_AC8_13_101_pr_test_workflow_uses_runner_preview_url() -> None:
     """AC8.13.101: E2E consumes the runner-local preview URL."""
-    workflow = (ROOT / ".github/workflows/pr-test.yml").read_text()
+    workflow = (ROOT / ".github/workflows/preview.yml").read_text()
     e2e_block = workflow.split("  e2e:", 1)[1].split("  cleanup:", 1)[0]
 
     assert (
@@ -2401,7 +2401,7 @@ def test_AC8_13_71_main_rejects_unsupported_action() -> None:
 
 
 def test_AC8_13_74_scheduled_cleanup_only_reconciles_closed_prs() -> None:
-    workflow = (ROOT / ".github/workflows/pr-preview-cleanup.yml").read_text()
+    workflow = (ROOT / ".github/workflows/maintenance.yml").read_text()
 
     assert "tools/pr_preview_lifecycle.py" in workflow
     assert "--action reconcile" in workflow
@@ -2414,7 +2414,7 @@ def test_AC8_13_74_scheduled_cleanup_only_reconciles_closed_prs() -> None:
 
 
 def test_AC8_13_71_pr_test_workflow_uses_lifecycle_for_cleanup() -> None:
-    workflow = (ROOT / ".github/workflows/pr-test.yml").read_text()
+    workflow = (ROOT / ".github/workflows/preview.yml").read_text()
 
     assert "--action cleanup" in workflow
     assert "--action delete" not in workflow
@@ -2422,7 +2422,7 @@ def test_AC8_13_71_pr_test_workflow_uses_lifecycle_for_cleanup() -> None:
 
 
 def test_AC8_13_71_close_cleanup_checks_out_lifecycle_tool() -> None:
-    workflow = (ROOT / ".github/workflows/pr-test.yml").read_text()
+    workflow = (ROOT / ".github/workflows/preview.yml").read_text()
 
     cleanup_block = workflow.split("  cleanup:", 1)[1]
     assert "uses: actions/checkout@v7" in cleanup_block
@@ -2434,7 +2434,7 @@ def test_AC8_13_71_close_cleanup_checks_out_lifecycle_tool() -> None:
 
 
 def test_AC8_13_74_close_cleanup_notice_does_not_claim_host_volume_cleanup() -> None:
-    workflow = (ROOT / ".github/workflows/pr-test.yml").read_text()
+    workflow = (ROOT / ".github/workflows/preview.yml").read_text()
 
     cleanup_block = workflow.split("  cleanup:", 1)[1]
     assert "Docker Volumes" not in cleanup_block
@@ -2777,7 +2777,7 @@ def test_AC8_13_125_busy_dokploy_queue_cannot_extend_past_rollout_deadline(
 
 def test_AC8_13_125_pr_preview_runner_lifecycle_has_hard_timeout() -> None:
     """AC8.13.125: GitHub caps PR preview runner lifecycle runtime."""
-    workflow = (ROOT / ".github/workflows/pr-test.yml").read_text()
+    workflow = (ROOT / ".github/workflows/preview.yml").read_text()
     e2e_block = workflow.split("  e2e:", 1)[1].split("  cleanup:", 1)[0]
 
     assert "timeout-minutes: 25" in e2e_block

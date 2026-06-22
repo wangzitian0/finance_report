@@ -191,8 +191,8 @@ def test_AC8_13_96_pr_preview_classifier_includes_preview_infrastructure_paths()
 ):
     """AC8.13.96: PR preview workflow and lifecycle changes exercise preview proof."""
     for path in (
-        ".github/workflows/pr-test.yml",
-        ".github/workflows/pr-preview-cleanup.yml",
+        ".github/workflows/preview.yml",
+        ".github/workflows/maintenance.yml",
         ".github/actions/setup-e2e-tests/action.yml",
         "docker-compose.pr-preview.yml",
         "tools/pr_preview_lifecycle.py",
@@ -211,7 +211,7 @@ def test_AC8_13_96_pr_preview_classifier_includes_preview_infrastructure_paths()
     result = classify_changed_paths(
         [
             "docs/ssot/ci-cd.md",
-            ".github/workflows/pr-test.yml",
+            ".github/workflows/preview.yml",
             "tools/_lib/dev/pr_preview_lifecycle.py",
         ]
     )
@@ -219,7 +219,7 @@ def test_AC8_13_96_pr_preview_classifier_includes_preview_infrastructure_paths()
     assert result.heavy_required is True
     assert result.pr_preview_required is True
     assert result.pr_preview_files == (
-        ".github/workflows/pr-test.yml",
+        ".github/workflows/preview.yml",
         "tools/_lib/dev/pr_preview_lifecycle.py",
     )
     assert result.pr_preview_reason == "pr-preview-paths-changed"
@@ -254,8 +254,8 @@ def test_AC8_13_20_pdf_fixture_docs_do_not_trigger_preview_or_staging() -> None:
 def test_AC8_13_104_staging_ai_ocr_runs_only_for_provider_risk_paths() -> None:
     """AC8.13.104: Provider-backed staging proof is risk-triggered."""
     for path in (
-        ".github/workflows/staging-deploy.yml",
-        ".github/workflows/staging-ai-ocr-gate.yml",
+        ".github/workflows/deploy.yml",
+        ".github/workflows/deploy.yml",
         "apps/backend/src/config.py",
         "apps/backend/src/prompts/statement.py",
         "apps/backend/src/services/extraction.py",
@@ -324,9 +324,7 @@ def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None
         "apps/frontend/package-lock.json",
         "tests/e2e/test_core_journeys.py",
         "docker-compose.yml",
-        ".github/workflows/staging-deploy.yml",
-        ".github/workflows/staging-ai-ocr-gate.yml",
-        ".github/workflows/release-images.yml",
+        ".github/workflows/deploy.yml",
         ".github/workflows/ci.yml",
         ".github/actions/setup-e2e-tests/action.yml",
         "tools/health_check.sh",
@@ -359,7 +357,6 @@ def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None
         "tools/_lib/pdf_fixtures/FONT_HANDLING.md",
         "tools/_lib/pdf_fixtures/analyzers/README.md",
         ".github/workflows/docs.yml",
-        ".github/workflows/production-release.yml",
     ):
         assert is_staging_relevant(path) is False
 
@@ -543,7 +540,7 @@ def test_AC8_13_110_github_outputs_include_structured_env_stage_matrix(
     result = classify_changed_paths(
         [
             "apps/backend/src/services/reporting.py",
-            ".github/workflows/pr-test.yml",
+            ".github/workflows/preview.yml",
             "docs/ssot/ci-cd.md",
         ]
     )
@@ -586,16 +583,16 @@ def test_AC8_13_110_github_outputs_include_structured_env_stage_matrix(
     assert json.loads(lines["env_stage_files"]) == {
         "local": [
             "apps/backend/src/services/reporting.py",
-            ".github/workflows/pr-test.yml",
+            ".github/workflows/preview.yml",
             "docs/ssot/ci-cd.md",
         ],
         "pr": [
             "apps/backend/src/services/reporting.py",
-            ".github/workflows/pr-test.yml",
+            ".github/workflows/preview.yml",
         ],
         "pr-preview": [
             "apps/backend/src/services/reporting.py",
-            ".github/workflows/pr-test.yml",
+            ".github/workflows/preview.yml",
         ],
         "staging": ["apps/backend/src/services/reporting.py"],
         "prd": [],

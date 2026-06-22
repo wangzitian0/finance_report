@@ -970,11 +970,11 @@ def test_pr_workflow_runs_e2e_tests():
     EPIC-007 EPIC-008.
 
     AC8.9.1: PR workflow contains E2E test steps
-    GIVEN the pr-test.yml workflow file
+    GIVEN the preview.yml workflow file
     WHEN reading its contents
     THEN it should contain e2e or smoke test references
     """
-    workflow_path = REPO_ROOT / ".github" / "workflows" / "pr-test.yml"
+    workflow_path = REPO_ROOT / ".github" / "workflows" / "preview.yml"
     assert workflow_path.exists(), f"Workflow file not found: {workflow_path}"
     content = workflow_path.read_text()
     assert "e2e" in content.lower() or "smoke" in content.lower(), "PR workflow must reference e2e or smoke tests"
@@ -1007,11 +1007,11 @@ def test_critical_test_check_in_workflow():
     EPIC-007 EPIC-008.
 
     AC8.9.3: Workflow includes junit-xml or test result reporting
-    GIVEN the pr-test.yml workflow file
+    GIVEN the preview.yml workflow file
     WHEN reading its contents
     THEN it should contain test result reporting (junit, pytest, or coverage)
     """
-    workflow_path = REPO_ROOT / ".github" / "workflows" / "pr-test.yml"
+    workflow_path = REPO_ROOT / ".github" / "workflows" / "preview.yml"
     content = workflow_path.read_text()
     has_test_reporting = any(kw in content.lower() for kw in ["junit", "pytest", "coverage", "test-results", "--cov"])
     assert has_test_reporting, "PR workflow must include test result reporting (junit/pytest/coverage)"
@@ -1022,11 +1022,11 @@ def test_environment_isolation():
     EPIC-007 EPIC-008.
 
     AC8.9.4: PR workflow uses PR-specific naming for environment isolation
-    GIVEN the pr-test.yml workflow file
+    GIVEN the preview.yml workflow file
     WHEN reading its contents
     THEN it should contain PR-number-based naming patterns
     """
-    workflow_path = REPO_ROOT / ".github" / "workflows" / "pr-test.yml"
+    workflow_path = REPO_ROOT / ".github" / "workflows" / "preview.yml"
     content = workflow_path.read_text()
     has_pr_naming = any(pattern in content for pattern in ["pr-$", "pr_number", "PR_NUMBER", "pr-test", "BRANCH_NAME"])
     assert has_pr_naming, "PR workflow must use PR-specific naming for environment isolation"

@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/wangzitian0/finance_report/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/wangzitian0/finance_report/actions/workflows/ci.yml)
 [![Coverage Status](https://coveralls.io/repos/github/wangzitian0/finance_report/badge.svg?branch=main)](https://coveralls.io/github/wangzitian0/finance_report?branch=main)
-[![Deploy Staging](https://github.com/wangzitian0/finance_report/actions/workflows/staging-deploy.yml/badge.svg?branch=main)](https://github.com/wangzitian0/finance_report/actions/workflows/staging-deploy.yml)
+[![Deploy Staging](https://github.com/wangzitian0/finance_report/actions/workflows/deploy.yml/badge.svg?branch=main)](https://github.com/wangzitian0/finance_report/actions/workflows/deploy.yml)
 [![Docs](https://github.com/wangzitian0/finance_report/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/wangzitian0/finance_report/actions/workflows/docs.yml)
 
 Personal finance system for accurate, auditable asset reporting and generated

@@ -38,8 +38,8 @@
 | **2** | **Local CI** | `localhost:3000` | Manual<br>`moon run :lint && moon run :test` | Source (Host)<br>pytest | Shared Containers<br>(Podman/Docker) | `finance_report_test_{namespace}` | DB/bucket name |
 | **3** | **GitHub CI** | - | Push/PR<br>`ci.yml` | Source (Runner)<br>pytest | GitHub Services<br>(Ephemeral) | `finance_report_test` | Job isolation |
 | **4** | **PR Preview** | Required gate: `http://localhost:8080` inside GitHub runner<br>Manual inspection: optional `report-pr-<N>.zitian.party` | PR push — synchronous `pull_request` runner E2E<br>Manual `workflow_dispatch` persistent preview | Runner compose stack for merge gate<br>On-demand Dokploy host-build for inspection | GitHub runner containers for merge gate<br>Optional Dokploy preview compose | Ephemeral Postgres/MinIO | Runner `COMPOSE_PROJECT_NAME=fr-e2e-<run>-<attempt>`<br>Dokploy `report-pr-<N>` alias |
-| **5** | **Staging** | `report-staging.zitian.party` | **Manual**<br>`staging-deploy.yml` (`workflow_dispatch`) | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name<br>`-staging` |
-| **6** | **Production** | `report.zitian.party` | Manual release<br>`production-release.yml` | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name |
+| **5** | **Staging** | `report-staging.zitian.party` | **Manual**<br>`deploy.yml` (`workflow_dispatch`) | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name<br>`-staging` |
+| **6** | **Production** | `report.zitian.party` | Manual release<br>`deploy.yml` | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name |
 
 Environment taxonomy is not the delivery pipeline stage count. The CI/CD model
 is documented in [ci-cd.md](./ci-cd.md) as a sparse environment x pipeline stage
@@ -100,7 +100,7 @@ PR validation is split into two independent things (issue #839):
 
 **In-runner E2E** — the per-PR validation gate:
 - Runs after the matching PR `CI` workflow completes successfully (the `e2e`
-  job in `pr-test.yml`). Failed, cancelled, timed-out, non-PR, forked, or
+  job in `preview.yml`). Failed, cancelled, timed-out, non-PR, forked, or
   already-closed CI runs do not create a preview.
 - Stands up the full stack **inside the GitHub runner** via
   `docker compose up --build` (base compose + `docker-compose.ci-e2e.yml`,
@@ -128,10 +128,10 @@ PR validation is split into two independent things (issue #839):
 ### Production Environments (Staging + Production)
 
 **Staging** — Manually deployed from a release `version_ref`:
-- **Image deployment**: `staging-deploy.yml` requires an existing `vX.Y.Z`
-  release tag as `version_ref`. `release-images.yml` promotes main-CI SHA
+- **Image deployment**: `deploy.yml` requires an existing `vX.Y.Z`
+  release tag as `version_ref`. `deploy.yml` promotes main-CI SHA
   images to that retained release tag, then staging deploys it via `deploy_v2`.
-- Deployed to Dokploy **manually** via `staging-deploy.yml` (`workflow_dispatch`); it does **not** auto-follow push to main. CI is the development quality gate, not a staging deploy trigger.
+- Deployed to Dokploy **manually** via `deploy.yml` (`workflow_dispatch`); it does **not** auto-follow push to main. CI is the development quality gate, not a staging deploy trigger.
 - Persistent data, stable environment for QA
 - Uses dedicated DB/Redis + shared Platform (SigNoz, MinIO with bucket isolation)
 
@@ -175,10 +175,10 @@ PR validation is split into two independent things (issue #839):
 | Workflow File | Environment | Trigger | Actions |
 |---------------|-------------|---------|---------|
 | `.github/workflows/ci.yml` | GitHub CI | Push/PR to main | Run lint, traceability, backend shards, frontend build/tests, common/tools coverage, unified coverage, and image validation |
-| `.github/workflows/pr-test.yml` | PR Preview | PR opened/sync; manual dispatch for persistent preview | Run runner-local E2E as merge gate; optionally deploy/cleanup a non-blocking persistent Dokploy preview |
-| `.github/workflows/release-images.yml` | Release images | Tag `vX.Y.Z` push | Promote main-CI SHA images to immutable release tags |
-| `.github/workflows/staging-deploy.yml` | Staging | Manual (`workflow_dispatch`) | Deploy an existing release `version_ref` via deploy_v2, then smoke/E2E/AI-OCR gates |
-| `.github/workflows/production-release.yml` | Production | Manual (`workflow_dispatch`) | Dry-run or deploy an existing release `version_ref` via deploy_v2 |
+| `.github/workflows/preview.yml` | PR Preview | PR opened/sync; manual dispatch for persistent preview | Run runner-local E2E as merge gate; optionally deploy/cleanup a non-blocking persistent Dokploy preview |
+| `.github/workflows/deploy.yml` | Release images | Tag `vX.Y.Z` push | Promote main-CI SHA images to immutable release tags |
+| `.github/workflows/deploy.yml` | Staging | Manual (`workflow_dispatch`) | Deploy an existing release `version_ref` via deploy_v2, then smoke/E2E/AI-OCR gates |
+| `.github/workflows/deploy.yml` | Production | Manual (`workflow_dispatch`) | Dry-run or deploy an existing release `version_ref` via deploy_v2 |
 
 ---
 

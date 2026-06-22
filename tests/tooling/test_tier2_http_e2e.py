@@ -133,7 +133,7 @@ def test_AC8_18_2_tier2_http_accepts_short_and_full_sha_match() -> None:
 
 def test_AC8_18_3_staging_workflow_runs_tier2_http_before_tier3_browser_e2e() -> None:
     """AC8.18.3: Staging runs Tier 2 HTTP proof before broader deployed E2E."""
-    workflow = (ROOT / ".github/workflows/staging-deploy.yml").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github/workflows/deploy.yml").read_text(encoding="utf-8")
     e2e_step = workflow.split("id: staging_e2e_tests", 1)[1].split("- name: Classify staging", 1)[0]
 
     tier2_index = e2e_step.index("tools/tier2_http_e2e.py")

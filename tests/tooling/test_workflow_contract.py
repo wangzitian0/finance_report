@@ -24,14 +24,11 @@ ROOT = Path(__file__).resolve().parents[2]
 # without mutating the real tree.
 _CONTRACT_INPUTS = (
     ".github/workflows/ci.yml",
-    ".github/workflows/staging-deploy.yml",
-    ".github/workflows/release-images.yml",
-    ".github/workflows/production-release.yml",
+    ".github/workflows/deploy.yml",
     ".github/workflows/docs.yml",
-    ".github/workflows/pr-test.yml",
-    ".github/workflows/pr-preview-cleanup.yml",
-    ".github/workflows/notify-infra2-report-main.yml",
-    ".github/workflows/staging-ai-ocr-gate.yml",
+    ".github/workflows/preview.yml",
+    ".github/workflows/maintenance.yml",
+    ".github/workflows/notify-infra2.yml",
     ".github/actions/setup-e2e-tests/action.yml",
     "docs/ssot/ci-cd.md",
     "docs/ssot/github-action-runtime.yaml",
@@ -82,13 +79,13 @@ def test_AC7_15_3_stale_staging_push_trigger_prose_fails(tmp_path) -> None:
 
 
 def test_AC7_15_3_staging_push_trigger_in_workflow_fails(tmp_path) -> None:
-    """AC7.15.3: Re-adding a `push` trigger to staging-deploy.yml fails."""
+    """AC7.15.3: Re-adding a push-to-main trigger to deploy.yml fails."""
     _copy_inputs(tmp_path)
-    target = tmp_path / ".github/workflows/staging-deploy.yml"
+    target = tmp_path / ".github/workflows/deploy.yml"
     content = target.read_text(encoding="utf-8")
     content = content.replace(
-        "on:\n  workflow_dispatch:",
-        "on:\n  push:\n    branches: [main]\n  workflow_dispatch:",
+        "  push:\n    tags: ['v[0-9]+.[0-9]+.[0-9]+']",
+        "  push:\n    branches: [main]\n    tags: ['v[0-9]+.[0-9]+.[0-9]+']",
     )
     target.write_text(content, encoding="utf-8")
     assert contract.run_contract(tmp_path) == 1

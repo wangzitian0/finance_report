@@ -90,7 +90,7 @@ def verify_release_images_run(
                 "--repo",
                 repository,
                 "--workflow",
-                "release-images.yml",
+                "deploy.yml",
                 "--commit",
                 release_sha,
                 "--limit",
@@ -108,7 +108,7 @@ def verify_release_images_run(
             and run.get("conclusion") == "success"
         ):
             return str(run["databaseId"])
-    raise RuntimeError(f"No successful release-images.yml run found for {release_sha}")
+    raise RuntimeError(f"No successful deploy.yml run found for {release_sha}")
 
 
 def verify_staging(
@@ -123,7 +123,7 @@ def verify_staging(
                 "--repo",
                 repository,
                 "--workflow",
-                "staging-deploy.yml",
+                "deploy.yml",
                 "--limit",
                 "50",
                 "--json",
@@ -142,7 +142,7 @@ def verify_staging(
     if not candidate_run_ids:
         raise RuntimeError(
             "No completed Deploy Staging run found for "
-            f"{version_ref}. Run staging-deploy.yml for this version_ref first."
+            f"{version_ref}. Run deploy.yml for this version_ref first."
         )
 
     required_staging_jobs = {"Deploy Staging", "Staging Provider Gate"}
@@ -189,7 +189,7 @@ def verify_staging(
     raise RuntimeError(
         "No completed Deploy Staging run found for "
         f"{version_ref} with successful release-critical jobs. "
-        "Rerun staging-deploy.yml for this version_ref first."
+        "Rerun deploy.yml for this version_ref first."
     )
 
 

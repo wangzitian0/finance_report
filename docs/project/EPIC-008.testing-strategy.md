@@ -296,7 +296,7 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.18 | Brokerage portfolio gate validates market valuation adjustment lines even when unrelated asset lines lower total assets | `test_portfolio_valuation_gate_ignores_unrelated_negative_asset_lines` / `test_portfolio_market_adjustment_survives_unrelated_negative_asset_lines` | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` / `apps/backend/tests/reporting/test_reporting_net_worth_components.py` | P0 |
 | AC8.13.19 | Brokerage portfolio gate failures include holdings, valuation adjustment, non-portfolio asset, and balance-sheet diagnostics | `test_portfolio_valuation_gate_failure_diagnostics_are_actionable` | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | P0 |
 | AC8.13.20 | CI change classification is covered by multi-commit and markdown edge-case regression tests | `test_AC8_13_20_*` | `tests/tooling/test_ci_change_classifier.py` | P1 |
-| AC8.13.21 | Provider-backed staging AI/OCR gate runs inside a manual staging dispatch (inheriting `workflow_dispatch`) and via the on-demand `staging-ai-ocr-gate.yml`, never auto-after-CI | `test_AC8_13_21_staging_ai_ocr_gate_runs_under_manual_dispatch` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.21 | Provider-backed staging AI/OCR gate runs inside a manual staging dispatch (inheriting `workflow_dispatch`) and via the on-demand `deploy.yml`, never auto-after-CI | `test_AC8_13_21_staging_ai_ocr_gate_runs_under_manual_dispatch` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.22 | Staging deploys an explicitly supplied published release `version_ref` (`vX.Y.Z` tag) on `workflow_dispatch`; it does not build or promote images inside the deploy workflow | `test_AC8_13_22_staging_deploys_manually_dispatched_version_ref`, `test_AC8_13_22_release_coordinate_rejects_non_release_ref`, `test_AC8_13_22_release_coordinate_rejects_whitespace_version_ref`, `test_AC8_13_22_release_coordinate_fetches_only_requested_tag` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.23 | Automatic staging deploy health and AI/OCR validation run in one serialized post-merge workflow unit | `test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.24 | AC traceability audit is uploaded as a CI artifact instead of failing on a stale committed report | `test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate` | `tests/tooling/test_post_merge_e2e_gates.py` | P1 |
@@ -311,7 +311,7 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.33 | Shared E2E setup caches Python virtualenv and Playwright browser artifacts for staging and preview gates and exports repository-root `PYTHONPATH` for stable `tests.e2e.*` imports | `test_AC8_13_33_e2e_setup_caches_virtualenv_and_playwright_browsers` | `tests/tooling/test_post_merge_e2e_gates.py` | P1 |
 | AC8.13.34 | CI and post-merge workflows append queue, execution, and per-job timing summaries to GitHub Step Summary | `test_AC8_13_34_*` | `tests/tooling/` | P1 |
 | AC8.13.35 | AC traceability reporting distinguishes real test references from `_ac_stubs` and trivial placeholder assertions | `test_classifies_placeholder_assertion`, `test_classifies_pure_pass_ac_file_as_placeholder`, `test_classifies_ac_stub_directory`, `test_placeholder_and_stub_refs_do_not_count_as_real_coverage` | `tests/tooling/test_check_ac_traceability.py` | P0 |
-| AC8.13.36 | Main CI builds SHA-tagged images, `release-images.yml` promotes those digests to an immutable `vX.Y.Z` release tag, and staging deploy consumes that tag without rebuilding or moving a `staging` tag | `test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.36 | Main CI builds SHA-tagged images, `deploy.yml` promotes those digests to an immutable `vX.Y.Z` release tag, and staging deploy consumes that tag without rebuilding or moving a `staging` tag | `test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.37 | AC traceability fails mandatory ACs that are covered only by `_ac_stubs` | `test_returns_one_with_stub_only` | `tests/tooling/test_check_ac_traceability.py` | P0 |
 | AC8.13.38 | Scheduled PR preview cleanup removes stale closed-PR VPS resources while preserving open PR previews | `test_AC8_13_38_*` | `tests/tooling/test_cleanup_pr_preview_resources.py` | P0 |
 | AC8.13.39 | Runtime and container versions stay aligned across local, CI, and Docker environments | `test_AC8_13_39_*` | `tests/tooling/test_toolchain_contract.py` | P0 |
@@ -567,7 +567,7 @@ LLM-gated journeys (#1146 PR-B/PR-C) into CI; the browser/Playwright selector
 fixes for `test_statement_upload_e2e` / `test_statement_full_journey` /
 `test_four_asset_net_worth_golden_path` and the `_api_url(...)` fix in
 `test_personal_financial_report_package` (#1142) are deferred to that follow-up,
-which runs in the full-stack `pr-test.yml` lane that carries the frontend bundle.
+which runs in the full-stack `preview.yml` lane that carries the frontend bundle.
 
 | AC ID | Test Case | Test Function | File | Priority |
 |---|---|---|---|---|
@@ -684,7 +684,7 @@ submodule sync process.
     scripts that have not been migrated.
 
 - **Residual B: Legacy gate normalization step wrappers**
-  - `pr-test.yml` and `staging-deploy.yml` still deserialize
+  - `preview.yml` and `deploy.yml` still deserialize
     `env_stage_required` and `provider_gate_required` into legacy scalar outputs
     before job-level `if:` checks.
   - Functionally correct, but it adds one wrapper hop and keeps the code path

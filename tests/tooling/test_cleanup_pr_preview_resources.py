@@ -28,7 +28,7 @@ def test_AC8_13_38_pr_preview_lifecycle_has_no_host_hygiene_commands() -> None:
 
 
 def test_AC8_13_74_workflow_runs_lifecycle_reconciliation_only() -> None:
-    workflow = (ROOT / ".github/workflows/pr-preview-cleanup.yml").read_text()
+    workflow = (ROOT / ".github/workflows/maintenance.yml").read_text()
 
     assert 'cron: "37 */6 * * *"' in workflow
     assert "workflow_dispatch:" in workflow

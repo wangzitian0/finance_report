@@ -28,8 +28,8 @@
 | `tools/smoke_test.sh` | Unified smoke tests |
 | `docker-compose.yml` | Development service containers |
 | `.github/workflows/ci.yml` | GitHub Actions CI |
-| `.github/workflows/staging-deploy.yml` | Staging Build & Deploy |
-| `.github/workflows/production-release.yml` | Production Release |
+| `.github/workflows/deploy.yml` | Staging Build & Deploy |
+| `.github/workflows/deploy.yml` | Production Release |
 
 ### Toolchain Contract
 
@@ -413,8 +413,8 @@ preserving live staging/production deploy SHAs and every `vX.Y.Z` release tag.
 Manual dry run:
 
 ```bash
-gh workflow run pr-preview-cleanup.yml -f dry_run=true
-gh workflow run ghcr-sha-retention.yml -f dry_run=true
+gh workflow run maintenance.yml -f task=pr-preview-cleanup -f preview_cleanup_dry_run=true
+gh workflow run maintenance.yml -f task=ghcr-sha-retention -f ghcr_dry_run=true
 ```
 
 ---

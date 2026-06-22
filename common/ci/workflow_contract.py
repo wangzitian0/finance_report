@@ -56,19 +56,11 @@ WORKFLOW_CONTRACT: dict[str, dict[str, tuple[str, ...]]] = {
         ),
         "triggers": ("push", "pull_request", "workflow_dispatch"),
     },
-    ".github/workflows/staging-deploy.yml": {
-        # Staging is manual-only: workflow_dispatch, no `push`.
-        "jobs": ("build-and-deploy",),
-        "triggers": ("workflow_dispatch",),
-    },
-    ".github/workflows/release-images.yml": {
-        # Tag-push image promotion lives here; production-release consumes the tag.
-        "jobs": ("promote",),
-        "triggers": ("push",),
-    },
-    ".github/workflows/production-release.yml": {
-        "jobs": ("dry-run", "deploy"),
-        "triggers": ("workflow_dispatch",),
+    ".github/workflows/deploy.yml": {
+        # Staging and production are manual-only jobs; tag-push image promotion
+        # shares the deploy workflow but is gated to release tags.
+        "jobs": ("build-and-deploy", "promote", "dry-run", "deploy"),
+        "triggers": ("push", "workflow_dispatch"),
     },
     ".github/workflows/docs.yml": {
         "jobs": ("build",),
@@ -78,9 +70,9 @@ WORKFLOW_CONTRACT: dict[str, dict[str, tuple[str, ...]]] = {
 
 # Triggers a workflow must NOT declare. Staging auto-following `main` is the
 # specific drift #531 fixes: the staging workflow must stay manual-only.
-WORKFLOW_FORBIDDEN_TRIGGERS: dict[str, tuple[str, ...]] = {
-    ".github/workflows/staging-deploy.yml": ("push", "pull_request"),
-    ".github/workflows/production-release.yml": ("push", "pull_request"),
+WORKFLOW_FORBIDDEN_TRIGGERS: dict[str, tuple[str, ...]] = {}
+WORKFLOW_FORBIDDEN_PUSH_BRANCHES: dict[str, tuple[str, ...]] = {
+    ".github/workflows/deploy.yml": ("main",),
 }
 
 ACTION_RUNTIME_INVENTORY = "docs/ssot/github-action-runtime.yaml"
@@ -104,7 +96,7 @@ SSOT_FORBIDDEN_PROSE: dict[str, tuple[tuple[str, str], ...]] = {
     "docs/ssot/deployment.md": (
         (
             "Push to main (apps/** changed)",
-            "staging-deploy.yml triggers on workflow_dispatch only, not push",
+            "deploy.yml triggers on workflow_dispatch only, not push",
         ),
     ),
     "docs/ssot/environments.md": (
@@ -207,17 +199,38 @@ def load_yaml(repo_root: Path, relative_path: str) -> dict:
 
 def workflow_triggers(workflow: dict) -> set[str]:
     """Return the set of trigger event names declared by a workflow `on:`."""
-    on_value = None
-    for key in ON_KEYS:
-        if key in workflow:
-            on_value = workflow[key]
-            break
+    on_value = workflow_on_value(workflow)
     if on_value is None:
         return set()
     if isinstance(on_value, str):
         return {on_value}
     if isinstance(on_value, (list, dict)):
         return {str(item) for item in on_value}
+    return set()
+
+
+def workflow_on_value(workflow: dict) -> object | None:
+    """Return the raw workflow `on:` value, handling PyYAML's boolean key."""
+    on_value = None
+    for key in ON_KEYS:
+        if key in workflow:
+            on_value = workflow[key]
+            break
+    return on_value
+
+
+def workflow_push_branches(workflow: dict) -> set[str]:
+    on_value = workflow_on_value(workflow)
+    if not isinstance(on_value, dict):
+        return set()
+    push = on_value.get("push")
+    if not isinstance(push, dict):
+        return set()
+    branches = push.get("branches")
+    if isinstance(branches, str):
+        return {branches}
+    if isinstance(branches, list):
+        return {str(branch) for branch in branches}
     return set()
 
 
@@ -287,6 +300,14 @@ def check_workflows(repo_root: Path, errors: list[str]) -> None:
                     f"{path}: trigger {forbidden_trigger!r} is forbidden by "
                     "the documented standard (this workflow must stay "
                     "manual-only)"
+                )
+
+        push_branches = workflow_push_branches(workflow)
+        for forbidden_branch in WORKFLOW_FORBIDDEN_PUSH_BRANCHES.get(path, ()):
+            if forbidden_branch in push_branches:
+                errors.append(
+                    f"{path}: push branch {forbidden_branch!r} is forbidden; "
+                    "deploy.yml may only use push for release tag promotion"
                 )
 
 

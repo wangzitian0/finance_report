@@ -311,7 +311,7 @@ def test_AC8_13_73_dokploy_schedule_payload_normalizes_null_and_empty_server_ids
 
 
 def test_AC8_13_74_pr_preview_cleanup_workflow_has_no_host_hygiene() -> None:
-    workflow = (ROOT / ".github/workflows/pr-preview-cleanup.yml").read_text()
+    workflow = (ROOT / ".github/workflows/maintenance.yml").read_text()
 
     assert "docker container prune" not in workflow
     assert "docker builder prune" not in workflow

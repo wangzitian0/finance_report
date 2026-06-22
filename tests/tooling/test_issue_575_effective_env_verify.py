@@ -21,8 +21,8 @@ def read(path: str) -> str:
 def test_AC7_14_1_verify_runs_after_rollout_and_before_health() -> None:
     """AC7.14.1 AC7.14.4: effective-config verification gates fixed-env deploy success."""
     primitive = read("repo/tools/deploy_primitive.py")
-    staging = read(".github/workflows/staging-deploy.yml")
-    production = read(".github/workflows/production-release.yml")
+    staging = read(".github/workflows/deploy.yml")
+    production = read(".github/workflows/deploy.yml")
     primitive_tests = read("repo/libs/tests/test_deploy_primitive.py")
 
     assert "def verify_effective_config_hash(" in primitive
@@ -75,7 +75,7 @@ def test_AC7_14_2_stale_effective_config_fails_fast_without_secret_echo() -> Non
 def test_AC7_14_3_no_force_recreate_escape_hatch_remains() -> None:
     """AC7.14.3: stale effective config is fail-closed; reruns use deploy_v2."""
     primitive = read("repo/tools/deploy_primitive.py")
-    production = read(".github/workflows/production-release.yml")
+    production = read(".github/workflows/deploy.yml")
     deployment_doc = read("docs/ssot/deployment.md")
 
     assert "DOKPLOY_ALLOW_FORCE_RECREATE" not in primitive
