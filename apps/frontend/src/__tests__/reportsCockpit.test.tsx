@@ -126,7 +126,7 @@ describe("Reports cockpit (EPIC-022 AC22.3)", () => {
     render(<ReportsPage />)
 
     const cockpit = await screen.findByRole("region", { name: "Report readiness cockpit" })
-    expect(cockpit).toHaveTextContent("Blocked")
+    await waitFor(() => expect(cockpit).toHaveTextContent("Blocked"))
     expect(cockpit).toHaveTextContent("2 blockers")
     expect(cockpit).toHaveTextContent("1 trust gap")
     expect(cockpit).toHaveTextContent("Manual records")
@@ -216,7 +216,9 @@ describe("Reports cockpit (EPIC-022 AC22.3)", () => {
 
       const view = render(<ReportsPage />)
       const cockpit = await screen.findByRole("region", { name: "Report readiness cockpit" })
-      expect(cockpit).toHaveTextContent(`Current package state is ${label.toLowerCase()}.`)
+      await waitFor(() =>
+        expect(cockpit).toHaveTextContent(`Current package state is ${label.toLowerCase()}.`),
+      )
       expect(cockpit).toHaveTextContent("unknown source")
       const statusBadge = Array.from(cockpit.querySelectorAll(".badge")).find(
         (badge) => badge.textContent === label,
@@ -259,7 +261,7 @@ describe("Reports cockpit (EPIC-022 AC22.3)", () => {
     render(<ReportsPage />)
 
     const cockpit = await screen.findByRole("region", { name: "Report readiness cockpit" })
-    expect(cockpit).toHaveTextContent("0 trust gaps")
+    await waitFor(() => expect(cockpit).toHaveTextContent("0 trust gaps"))
     expect(cockpit).toHaveTextContent("No source gaps reported.")
     expect(cockpit).toHaveTextContent("No blockers reported.")
   })
