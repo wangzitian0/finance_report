@@ -165,7 +165,8 @@ gh run view "$RUN_ID" --log-failed 2>&1 | grep -A 5 "FAILED\|Error\|assert"
 | File | Purpose |
 |------|---------|
 | `.github/workflows/ci.yml` | CI pipeline definition |
-| `.github/workflows/pr-test.yml` | PR preview smoke/E2E |
-| `.github/workflows/staging-deploy.yml` | Manual staging deployment |
-| `.github/workflows/staging-ai-ocr-gate.yml` | On-demand staging AI/OCR gate |
-| `.github/workflows/production-release.yml` | Production release |
+| `.github/workflows/preview.yml` | PR preview smoke/E2E |
+| `.github/workflows/deploy.yml` | Staging deploy, production release, release image promotion, and manual AI/OCR gate |
+| `.github/workflows/maintenance.yml` | Scheduled/manual GHCR SHA retention and PR preview cleanup |
+| `.github/workflows/docs.yml` | Documentation build/deploy |
+| `.github/workflows/notify-infra2.yml` | Cross-repo infra2 report-main notification |

@@ -56,7 +56,7 @@ def preview_app_url(pr_number: int, commit_sha: str, internal_domain: str) -> st
 def preview_compose_command(project_name: str | None = None) -> str:
     # Build the PR's source on the Dokploy host (GitHub-source deploy) instead of
     # pulling a CI-pushed image. PR previews never push images; image building +
-    # promotion happens only post-merge (staging-deploy). `--build` rebuilds the
+    # promotion happens only post-merge (deploy.yml target=staging). `--build` rebuilds the
     # backend/frontend contexts that the preview compose now declares.
     #
     # The `-p` project name MUST equal Dokploy's own appName for this compose.

@@ -1028,7 +1028,7 @@ def test_environment_isolation():
     """
     workflow_path = REPO_ROOT / ".github" / "workflows" / "preview.yml"
     content = workflow_path.read_text()
-    has_pr_naming = any(pattern in content for pattern in ["pr-$", "pr_number", "PR_NUMBER", "pr-test", "BRANCH_NAME"])
+    has_pr_naming = any(pattern in content for pattern in ["pr-$", "pr_number", "PR_NUMBER", "BRANCH_NAME"])
     assert has_pr_naming, "PR workflow must use PR-specific naming for environment isolation"
 
 

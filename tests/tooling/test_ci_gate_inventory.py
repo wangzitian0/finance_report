@@ -117,6 +117,23 @@ def test_AC8_13_142_finish_inventory_matches_ci_fan_in() -> None:
     assert inventory_finish_needs == finish_needs
 
 
+def test_AC8_13_142_inventory_artifacts_match_live_workflows() -> None:
+    """AC8.13.142: declared gate artifacts stay anchored to live workflow names."""
+
+    workflow_text_by_path = {
+        f".github/workflows/{workflow.name}": workflow.read_text(encoding="utf-8")
+        for workflow in sorted(WORKFLOWS.glob("*.yml"))
+    }
+
+    for gate in _inventory_gates():
+        artifacts = gate.get("artifacts") or []
+        assert isinstance(artifacts, list)
+        workflow_text = workflow_text_by_path[gate["workflow"]]
+        for artifact in artifacts:
+            assert isinstance(artifact, str)
+            assert artifact in workflow_text, (gate["id"], artifact)
+
+
 def test_AC8_13_142_duplicate_cleanup_is_explicit_not_implicit() -> None:
     """AC8.13.142: duplicate gate cleanup stays recorded after deletion."""
 

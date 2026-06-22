@@ -709,9 +709,10 @@ The simplification priority remains:
 ### 5.3 CI Logic Review Findings
 
 - Current CI logic is logically consistent with the target sparse Env×Stage model:
-  `ci` follows `pr` gates for deterministic behavior and coverage, `pr-test`
-  follows `pr-preview` gates for scoped preview deployment, and `staging-deploy`
-  follows `staging` + provider gates for post-merge infra and provider replay.
+  `ci.yml` follows `pr` gates for deterministic behavior and coverage,
+  `preview.yml` follows `pr-preview` gates for scoped preview deployment, and
+  `deploy.yml` with `target=staging` follows `staging` + provider gates for
+  post-merge infra and provider replay.
 - The strongest remaining complexity is historical compatibility: scalar outputs are
   still emitted as shims, and several workflows run small normalization glue. The
   signal-to-risk ratio is acceptable because these shims protect external

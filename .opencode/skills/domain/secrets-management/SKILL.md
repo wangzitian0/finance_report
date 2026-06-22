@@ -489,7 +489,7 @@ curl -H "Authorization: Bearer <old-token>" https://report.zitian.party/api/acco
 ### PR Test Environment
 
 ```yaml
-# .github/workflows/pr-test.yml
+# .github/workflows/preview.yml
 - name: Deploy preview lifecycle
   env:
     ENV: pr-${{ github.event.pull_request.number }}
