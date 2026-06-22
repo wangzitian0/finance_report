@@ -156,4 +156,7 @@ def test_AC12_37_3_income_statement_fx_is_money_native():
     src = _read("apps/backend/src/services/reporting/income_statement.py")
     assert "convert_money(" in src
     assert "line.money" in src
-    assert "amount=line.amount" not in src
+    # robust: income_statement no longer references raw convert_amount at all
+    # (import or call) — catches positional / intermediate-variable regressions
+    # that an `amount=line.amount` substring check would miss.
+    assert "convert_amount" not in src
