@@ -212,6 +212,14 @@ jobs:
           # (litellm/openrouter/anthropic/openai). GREEN on main today; this is a
           # regression guard that keeps the deterministic core pure.
           python tools/check_tier_imports.py
+      - name: LLM Cassette Integrity (balance-chain invariant)
+        run: |
+          # EPIC-023 AC23.7 / #1306-7: every committed statement-extraction
+          # cassette must satisfy opening + Σ amounts ≈ closing (Decimal). A
+          # re-recorded cassette where the LLM drifted into an inconsistent
+          # extraction fails here. Pure Python (no key/network/DB), so it runs in
+          # lint without touching the AC behavioral-score aggregator.
+          python tools/check_llm_cassettes.py
       - name: SSOT Ownership Lint
         run: |
           python tools/check_ssot_ownership.py --verbose
