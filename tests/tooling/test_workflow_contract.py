@@ -66,6 +66,41 @@ def test_AC7_15_3_stale_ci_classifier_job_name_fails(tmp_path) -> None:
     assert contract.run_contract(tmp_path) == 1
 
 
+def test_AC7_15_3_stale_backend_shard_count_prose_fails(tmp_path) -> None:
+    """AC7.15.3: Stale 8-shard backend prose fails."""
+    _copy_inputs(tmp_path)
+    target = tmp_path / "docs/ssot/ci-cd.md"
+    target.write_text(
+        target.read_text(encoding="utf-8").replace("Shards 1-5", "Shards 1-8"),
+        encoding="utf-8",
+    )
+    assert contract.run_contract(tmp_path) == 1
+
+
+def test_AC7_15_3_extra_app_workflow_file_fails(tmp_path) -> None:
+    """AC7.15.3: Reintroducing an app workflow entrypoint fails."""
+    _copy_inputs(tmp_path)
+    extra = tmp_path / ".github/workflows/release-images.yml"
+    extra.write_text(
+        "name: Retired Release Images\n"
+        "on: workflow_dispatch\n"
+        "jobs:\n"
+        "  noop:\n"
+        "    runs-on: ubuntu-latest\n"
+        "    steps:\n"
+        "      - run: true\n",
+        encoding="utf-8",
+    )
+    assert contract.run_contract(tmp_path) == 1
+
+
+def test_AC7_15_1_infra2_submodule_workflow_set_is_consolidated() -> None:
+    """AC7.15.1: The checked-out infra2 submodule exposes the target workflow set."""
+    assert contract.workflow_file_set(ROOT, "repo/.github/workflows") == set(
+        contract.INFRA2_WORKFLOW_FILES
+    )
+
+
 def test_AC7_15_3_stale_staging_push_trigger_prose_fails(tmp_path) -> None:
     """AC7.15.3: Stale `Push to main (apps/** changed)` prose fails."""
     _copy_inputs(tmp_path)
