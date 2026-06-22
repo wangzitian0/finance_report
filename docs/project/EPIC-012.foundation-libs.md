@@ -584,6 +584,7 @@ incrementally by area; the forbid-ratchet follows once the surface is covered.
 |----|-----------|---------------|------|----------|
 | AC12.37.1 | `JournalLine` exposes a typed `money` read accessor (`Money(amount, currency)`, currency mirroring the column's "SGD" default for unflushed rows) at the ORM boundary; the raw `amount`/`currency` columns remain the storage edge {tier:PC} | `test_AC12_37_1_journal_line_exposes_money_accessor` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
 | AC12.37.2 | The reconciliation entry-amount helpers (`entry_total_amount`/`entry_bank_side_amount`) sum journal lines via `line.money` + `Money.sum` (currency-checked) instead of a raw currency-blind `sum(line.amount)` {tier:PC} | `test_AC12_37_2_reconciliation_config_sums_lines_as_money` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
+| AC12.37.3 | The income-statement slow-path FX converts journal lines through the Money-native `convert_money(line.money, …)` (incl. average-rate + spot fallbacks) instead of raw `convert_amount(line.amount, line.currency, …)`. (The pre-fetched-rate fast path stays a raw `Decimal` multiply by design; serialization edges and the balance core legitimately read raw columns) {tier:PC} | `test_AC12_37_3_income_statement_fx_is_money_native` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
 
 ---
 
