@@ -2,35 +2,19 @@
 
 from __future__ import annotations
 
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
+from src.decimal_scalar import WireCodec, decimal_to_wire as _decimal_to_wire
 from src.ratio.errors import FloatNotAllowedError, InvalidRatioPayloadError
 from src.ratio.ratio import Ratio
 
-
-def _decimal_to_wire(value: Decimal) -> str:
-    text = format(value, "f")
-    if "." in text:
-        text = text.rstrip("0").rstrip(".")
-    if text in {"", "-0"}:
-        return "0"
-    return text
+# The shared scalar codec bound to ratio's typed errors (ratio wire is a bare
+# decimal string, so only ``parse`` is needed — no payload envelope).
+_CODEC = WireCodec(FloatNotAllowedError, InvalidRatioPayloadError)
 
 
 def _decimal_from_wire(value: object, what: str = "ratio value") -> Decimal:
-    if isinstance(value, bool):
-        raise FloatNotAllowedError(f"bool is not a valid {what}")
-    if isinstance(value, float):
-        raise FloatNotAllowedError(f"float is not allowed for {what}; use a decimal string")
-    if not isinstance(value, str):
-        raise FloatNotAllowedError(f"{what} must be encoded as a decimal string, got {type(value).__name__}")
-    try:
-        parsed = Decimal(value)
-    except (InvalidOperation, ValueError) as exc:
-        raise InvalidRatioPayloadError(f"{what} is not a valid decimal string") from exc
-    if not parsed.is_finite():
-        raise FloatNotAllowedError(f"{what} must be finite")
-    return parsed
+    return _CODEC.parse(value, what)
 
 
 def ratio_to_wire(ratio: Ratio) -> str:

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 
+from src.decimal_scalar import coerce_decimal
 from src.quantity.errors import FloatNotAllowedError, UnitMismatchError
 from src.quantity.unit import Unit
 from src.ratio import Ratio
@@ -17,17 +18,7 @@ _QuantityInput = Decimal | int
 
 
 def _coerce(value: object, what: str = "quantity value") -> Decimal:
-    if isinstance(value, bool):
-        raise FloatNotAllowedError(f"bool is not a valid {what}")
-    if isinstance(value, float):
-        raise FloatNotAllowedError(f"float is not allowed for {what} (IEEE-754 precision loss); use Decimal")
-    if isinstance(value, Decimal):
-        if not value.is_finite():
-            raise FloatNotAllowedError(f"{what} must be finite")
-        return value
-    if isinstance(value, int):
-        return Decimal(value)
-    raise FloatNotAllowedError(f"{what} must be Decimal or int, got {type(value).__name__}")
+    return coerce_decimal(value, what, float_error=FloatNotAllowedError, require_finite=True)
 
 
 @dataclass(frozen=True)
@@ -76,7 +67,7 @@ class Quantity:
         # invariants hold (finiteness check; float/bool stay a hard red line).
         # Any other operand type yields NotImplemented so a reflected op can handle
         # it — e.g. quantity * UnitPrice -> Money.
-        if isinstance(factor, (Decimal, int, float)):  # bool is an int subclass
+        if isinstance(factor, Decimal | int | float):  # bool is an int subclass
             return Quantity(self.value * _coerce(factor, "factor"), self.unit)
         return NotImplemented
 

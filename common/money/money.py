@@ -22,30 +22,18 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from decimal import ROUND_HALF_EVEN, Decimal
 
+from common.decimal_scalar import coerce_decimal
 from common.money.currency import Currency
 from common.money.errors import CurrencyMismatchError, FloatNotAllowedError
 from common.money.rounding import to_money
 
 # Amount inputs accepted at construction. ``bool`` is an ``int`` subclass but is
-# never a valid amount, so it is rejected explicitly below.
+# never a valid amount, so it is rejected explicitly by the shared codec below.
 _AmountInput = Decimal | int
 
 
 def _coerce_amount(value: object) -> Decimal:
-    if isinstance(value, bool):
-        raise FloatNotAllowedError("bool is not a valid Money amount")
-    if isinstance(value, float):
-        raise FloatNotAllowedError(
-            "float is not allowed for money amounts (IEEE-754 precision loss); "
-            "use Decimal"
-        )
-    if isinstance(value, Decimal):
-        return value
-    if isinstance(value, int):
-        return Decimal(value)
-    raise FloatNotAllowedError(
-        f"Money amount must be Decimal or int, got {type(value).__name__}"
-    )
+    return coerce_decimal(value, "Money amount", float_error=FloatNotAllowedError)
 
 
 @dataclass(frozen=True)
@@ -69,7 +57,9 @@ class Money:
         return cls(Decimal("0"), currency)
 
     @classmethod
-    def sum(cls, items: Iterable[Money], *, currency: Currency | str | None = None) -> Money:
+    def sum(
+        cls, items: Iterable[Money], *, currency: Currency | str | None = None
+    ) -> Money:
         """Add up same-currency ``Money`` values (replaces ``sum(xs, Decimal(0))``).
 
         Cross-currency items raise via ``+``. An empty iterable needs an explicit
@@ -78,7 +68,9 @@ class Money:
         total: Money | None = None
         for item in items:
             if not isinstance(item, Money):
-                raise TypeError(f"Money.sum expects Money items, got {type(item).__name__}")
+                raise TypeError(
+                    f"Money.sum expects Money items, got {type(item).__name__}"
+                )
             total = item if total is None else total + item
         if total is None:
             if currency is None:
@@ -109,7 +101,9 @@ class Money:
         """
         if rounding == ROUND_HALF_EVEN:
             return Money(to_money(self.amount), self.currency)
-        return Money(self.amount.quantize(Decimal("0.01"), rounding=rounding), self.currency)
+        return Money(
+            self.amount.quantize(Decimal("0.01"), rounding=rounding), self.currency
+        )
 
     # ── same-currency arithmetic ────────────────────────────────────────
     def _require_same_currency(self, other: Money, op: str) -> None:
