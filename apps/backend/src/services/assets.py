@@ -22,7 +22,7 @@ from src.models.layer3 import (
     ManualValuationSnapshot,
     PositionStatus,
 )
-from src.money import to_money
+from src.money import Money, to_money
 from src.quantity import Quantity
 from src.schemas.provenance import DataProvenance
 
@@ -549,7 +549,8 @@ class AssetService:
 
             if position:
                 quantity_changed = position.quantity != quantity
-                valuation_changed = position.cost_basis != snap.market_value or position.currency != snap.currency
+                # Money inequality compares amount AND currency in one go.
+                valuation_changed = position.cost_basis_money != Money(snap.market_value, snap.currency)
                 if quantity_changed or valuation_changed:
                     logger.info(
                         "Updating managed position from latest atomic snapshot",
@@ -651,7 +652,10 @@ class AssetService:
         if position.status == PositionStatus.DISPOSED:
             raise AssetServiceError("Cannot depreciate disposed position")
 
-        cost_basis = position.cost_basis
+        # Read cost via the money accessor; the depreciation math below is a
+        # self-contained single-currency calculation (salvage_value carries no
+        # currency), so it operates on the scalar amount.
+        cost_basis = position.cost_basis_money.amount
         acquisition_date = position.acquisition_date
 
         years_held = (as_of_date - acquisition_date).days / Decimal("365.25")

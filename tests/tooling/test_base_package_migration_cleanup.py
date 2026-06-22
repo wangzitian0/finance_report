@@ -141,7 +141,9 @@ def test_AC12_31_5_backend_money_adapters_are_not_duplicated():
             f"{path} must import the backend Money adapter"
         )
         assert "def _money(" not in src, f"{path} still defines a local money adapter"
-        assert not re.search(r"(?<!to)_money\(", src), (
+        # Forbid a standalone local `_money(` adapter; allow any qualified
+        # `<identifier>_money(` (to_money, convert_money, …).
+        assert not re.search(r"(?<![A-Za-z0-9_])_money\(", src), (
             f"{path} still calls a local money adapter"
         )
 

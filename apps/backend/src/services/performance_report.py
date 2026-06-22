@@ -20,7 +20,7 @@ from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
 from src.models.market_data import StockPrice
 from src.models.portfolio import MarketDataOverride, PriceSource
-from src.money import to_money
+from src.money import Money, to_money
 from src.ratio import Ratio
 from src.schemas.portfolio import (
     HoldingResponse,
@@ -30,7 +30,7 @@ from src.schemas.portfolio import (
     InvestmentPerformanceReportScheduleResponse,
 )
 from src.services import allocation, performance
-from src.services.fx import convert_amount
+from src.services.fx import convert_money
 from src.services.performance import InsufficientDataError, PerformanceError
 from src.services.portfolio import AssetNotFoundError, PortfolioNotFoundError, portfolio_service
 
@@ -149,8 +149,8 @@ async def build_investment_performance_report_schedule(
         )
         position_by_asset = {position.asset_identifier: position for position in position_result.scalars().all()}
 
-    async def _schedule_amount(amount: Decimal, source_currency: str, rate_date: date) -> Decimal:
-        return await convert_amount(db, amount, source_currency, currency, rate_date, lazy_load=True)
+    async def _schedule_amount(money: Money, rate_date: date) -> Money:
+        return await convert_money(db, money, currency, rate_date, lazy_load=True)
 
     async def _metric_or_note(metric_name: str, calculation):
         try:
@@ -197,21 +197,19 @@ async def build_investment_performance_report_schedule(
     for holding in holdings:
         position = position_by_asset.get(holding.asset_identifier)
         if position is None:
-            cost_basis = to_money(
-                await _schedule_amount(holding.cost_basis, holding.currency, holding.acquisition_date)
-            )
+            cost_basis = (
+                await _schedule_amount(Money(holding.cost_basis, holding.currency), holding.acquisition_date)
+            ).quantize()
         else:
-            cost_basis = to_money(
-                await _schedule_amount(position.cost_basis, position.currency, position.acquisition_date)
-            )
+            cost_basis = (await _schedule_amount(position.cost_basis_money, position.acquisition_date)).quantize()
         market_value = to_money(holding.market_value)
         holding_rows.append(
             InvestmentPerformanceHoldingRow(
                 asset_identifier=holding.asset_identifier,
                 quantity=holding.quantity,
-                cost_basis=cost_basis,
+                cost_basis=cost_basis.amount,
                 market_value=market_value,
-                unrealized_pnl=to_money(market_value - cost_basis),
+                unrealized_pnl=to_money(market_value - cost_basis.amount),
                 realized_pnl=to_money(realized_by_asset.get(holding.asset_identifier, Decimal("0.00"))),
                 dividend_income=to_money(dividend_by_asset.get(holding.asset_identifier, Decimal("0.00"))),
                 currency=holding.currency,
