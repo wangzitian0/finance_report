@@ -23,6 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 
+from src.decimal_scalar import coerce_decimal
 from src.ratio.errors import FloatNotAllowedError, UndefinedRatioError
 
 # Canonical percent-display policy (NOT money's HALF_EVEN — percentages are not
@@ -34,15 +35,7 @@ _RatioInput = Decimal | int
 
 
 def _coerce(value: object, what: str = "ratio value") -> Decimal:
-    if isinstance(value, bool):
-        raise FloatNotAllowedError(f"bool is not a valid {what}")
-    if isinstance(value, float):
-        raise FloatNotAllowedError(f"float is not allowed for {what} (IEEE-754 precision loss); use Decimal")
-    if isinstance(value, Decimal):
-        return value
-    if isinstance(value, int):
-        return Decimal(value)
-    raise FloatNotAllowedError(f"{what} must be Decimal or int, got {type(value).__name__}")
+    return coerce_decimal(value, what, float_error=FloatNotAllowedError)
 
 
 @dataclass(frozen=True)

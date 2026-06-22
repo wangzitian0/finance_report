@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
+from src.decimal_scalar import WireCodec, decimal_to_wire as _decimal_to_wire
 from src.money.errors import FloatNotAllowedError, InvalidMoneyPayloadError
 from src.money.exchange_rate import ExchangeRate
 from src.money.money import Money
@@ -14,43 +15,20 @@ ExchangeRateWire = dict[str, str]
 MoneyDbFields = dict[str, Decimal | str]
 ExchangeRateDbFields = dict[str, Decimal | str]
 
-
-def _decimal_to_wire(value: Decimal) -> str:
-    text = format(value, "f")
-    if "." in text:
-        text = text.rstrip("0").rstrip(".")
-    if text in {"", "-0"}:
-        return "0"
-    return text
+# The shared scalar codec bound to money's typed errors (parse / mapping / field).
+_CODEC = WireCodec(FloatNotAllowedError, InvalidMoneyPayloadError)
 
 
 def _decimal_from_wire(value: object, what: str) -> Decimal:
-    if isinstance(value, bool):
-        raise FloatNotAllowedError(f"bool is not a valid {what}")
-    if isinstance(value, float):
-        raise FloatNotAllowedError(f"float is not allowed for {what}; use a decimal string")
-    if not isinstance(value, str):
-        raise FloatNotAllowedError(f"{what} must be encoded as a decimal string, got {type(value).__name__}")
-    try:
-        parsed = Decimal(value)
-    except (InvalidOperation, ValueError) as exc:
-        raise InvalidMoneyPayloadError(f"{what} is not a valid decimal string") from exc
-    if not parsed.is_finite():
-        raise FloatNotAllowedError(f"{what} must be finite")
-    return parsed
+    return _CODEC.parse(value, what)
 
 
 def _payload_mapping(payload: object, what: str) -> Mapping[str, object]:
-    if not isinstance(payload, Mapping):
-        raise InvalidMoneyPayloadError(f"{what} payload must be an object, got {type(payload).__name__}")
-    return payload
+    return _CODEC.mapping(payload, what)
 
 
 def _field(payload: Mapping[str, object], key: str, what: str) -> object:
-    try:
-        return payload[key]
-    except KeyError as exc:
-        raise InvalidMoneyPayloadError(f"{what} payload missing {key!r}") from exc
+    return _CODEC.field(payload, key, what)
 
 
 def money_to_wire(money: Money) -> MoneyWire:

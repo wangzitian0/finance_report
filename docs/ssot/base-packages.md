@@ -112,6 +112,15 @@ return exact `Decimal` storage fields plus their semantic key (`currency` or
 errors (`Invalid*PayloadError` or `FloatNotAllowedError`), giving application
 code one place to audit and translate failures.
 
+The Decimal-scalar mechanics shared by every package's codec — the canonical
+wire string form (`decimal_to_wire`), the construction-time coercion
+(`coerce_decimal`), and the wire-parse / mapping / field triad (`WireCodec`) —
+live once in a single `decimal_scalar` module per layer (`common/decimal_scalar.py`
+and its `apps/backend/src` mirror), parameterized by each package's typed errors.
+It is dependency-light substrate, not a fifth base package, so the family stays
+bounded (§2). Routing every package through it is enforced by AC12.36, so the
+per-package codec bodies cannot silently re-duplicate.
+
 Runtime service code should keep the owning value type alive once a raw storage
 field crosses into business logic. For example, backend services should turn a
 quantity DB `Decimal` into `Quantity(value, unit).quantize()`, call methods such

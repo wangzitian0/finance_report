@@ -1,9 +1,26 @@
 import { act, renderHook } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useReportFilters } from "@/hooks/useReportFilters";
 
+// Mock next/navigation so the hook can seed its initial state from the URL
+// query params (the AC5.34.6 deep-link contract). Tests set `urlParams` and the
+// mocked `useSearchParams().get()` reads from it.
+let urlParams = new URLSearchParams();
+
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => ({ get: (key: string) => urlParams.get(key) }),
+}));
+
 describe("useReportFilters", () => {
+  beforeEach(() => {
+    urlParams = new URLSearchParams();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("AC5.34.3 builds query string from filter state", () => {
     const { result } = renderHook(() =>
       useReportFilters({
@@ -53,5 +70,55 @@ describe("useReportFilters", () => {
     });
 
     expect(new URLSearchParams(result.current.queryString).get("currency")).toBe("EUR");
+  });
+
+  it("AC5.34.6 seeds initial filter state from URL query params", () => {
+    urlParams = new URLSearchParams({
+      as_of_date: "2026-05-31",
+      start_date: "2026-04-01",
+      end_date: "2026-05-31",
+      currency: "USD",
+    });
+
+    const { result } = renderHook(() =>
+      useReportFilters({ reportType: "balance-sheet" }),
+    );
+
+    expect(result.current.asOfDate).toBe("2026-05-31");
+    expect(result.current.startDate).toBe("2026-04-01");
+    expect(result.current.endDate).toBe("2026-05-31");
+    expect(result.current.currency).toBe("USD");
+
+    const params = new URLSearchParams(result.current.queryString);
+    expect(params.get("as_of_date")).toBe("2026-05-31");
+    expect(params.get("currency")).toBe("USD");
+  });
+
+  it("AC5.34.6 lets an explicit option override the URL query param", () => {
+    urlParams = new URLSearchParams({
+      as_of_date: "2026-05-31",
+      currency: "USD",
+    });
+
+    const { result } = renderHook(() =>
+      useReportFilters({
+        reportType: "balance-sheet",
+        initialAsOfDate: "2026-01-15",
+        initialCurrency: "SGD",
+      }),
+    );
+
+    expect(result.current.asOfDate).toBe("2026-01-15");
+    expect(result.current.currency).toBe("SGD");
+  });
+
+  it("AC5.34.6 falls back to defaults when neither option nor URL is present", () => {
+    const { result } = renderHook(() =>
+      useReportFilters({ reportType: "balance-sheet" }),
+    );
+
+    // No URL param and no option: as-of date defaults to today, currency to SGD.
+    expect(result.current.asOfDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(result.current.currency).toBe("SGD");
   });
 });

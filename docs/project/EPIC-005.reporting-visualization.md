@@ -380,6 +380,7 @@ page-level intent.
 | AC5.34.3 | `useReportFilters` builds a query string from its date and currency state | `AC5.34.3 builds query string from filter state` | `apps/frontend/src/__tests__/useReportFilters.test.ts` | P1 |
 | AC5.34.4 | `useReportFilters` derives the CSV export path for the given report type | `AC5.34.4 derives csv export path for report type` | `apps/frontend/src/__tests__/useReportFilters.test.ts` | P1 |
 | AC5.34.5 | `useReportFilters` updates the query string when the currency changes | `AC5.34.5 updates query string when currency changes` | `apps/frontend/src/__tests__/useReportFilters.test.ts` | P1 |
+| AC5.34.6 {tier:PC} | `useReportFilters` seeds its initial date/currency state from the URL query params (`as_of_date`/`start_date`/`end_date`/`currency`) with precedence explicit option > URL param > default, so report routes honour deep links | `AC5.34.6 seeds initial filter state from URL query params` | `apps/frontend/src/__tests__/useReportFilters.test.ts` | P1 |
 
 ### AC5.35: Dashboard Aggregation Moved Into Hook Layer ([#751](https://github.com/wangzitian0/finance_report/issues/751))
 

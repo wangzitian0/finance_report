@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 
 import { formatDateInput } from "@/lib/date";
@@ -50,10 +51,27 @@ export function useReportFilters(
   const { reportType } = options;
   const isPointInTime = reportType === "balance-sheet";
 
-  const [asOfDate, setAsOfDate] = useState(options.initialAsOfDate ?? today());
-  const [startDate, setStartDate] = useState(options.initialStartDate ?? today());
-  const [endDate, setEndDate] = useState(options.initialEndDate ?? today());
-  const [currency, setCurrency] = useState(options.initialCurrency ?? "SGD");
+  // Seed initial filter state with precedence:
+  //   explicit option ?? URL query param ?? existing default.
+  // This restores deep-link support (e.g. ?as_of_date=2026-05-31&currency=SGD)
+  // that was dropped when filters were centralized into this hook (Slice 3 of
+  // #751). `useSearchParams` is read once; the values only seed `useState`
+  // initial expressions (evaluated on mount), so they never fight user edits and
+  // no URL round-trip / router.replace is performed here.
+  const searchParams = useSearchParams();
+  const initialAsOfDate =
+    options.initialAsOfDate ?? searchParams.get("as_of_date") ?? today();
+  const initialStartDate =
+    options.initialStartDate ?? searchParams.get("start_date") ?? today();
+  const initialEndDate =
+    options.initialEndDate ?? searchParams.get("end_date") ?? today();
+  const initialCurrency =
+    options.initialCurrency ?? searchParams.get("currency") ?? "SGD";
+
+  const [asOfDate, setAsOfDate] = useState(initialAsOfDate);
+  const [startDate, setStartDate] = useState(initialStartDate);
+  const [endDate, setEndDate] = useState(initialEndDate);
+  const [currency, setCurrency] = useState(initialCurrency);
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams();

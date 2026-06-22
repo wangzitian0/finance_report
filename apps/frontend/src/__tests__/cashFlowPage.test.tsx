@@ -9,6 +9,10 @@ vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
 }))
 
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => ({ get: () => null }),
+}))
+
 vi.mock("@/components/charts/SankeyChart", () => ({
   SankeyChart: () => <div>SankeyChartMock</div>,
 }))
