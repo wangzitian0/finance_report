@@ -50,6 +50,13 @@ def _copy_inputs(target_root: Path) -> None:
         shutil.copyfile(source, target)
 
 
+def _write_infra2_workflow_set(target_root: Path) -> None:
+    for relative_path in contract.INFRA2_WORKFLOW_FILES:
+        target = target_root / "repo" / relative_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("name: placeholder\n", encoding="utf-8")
+
+
 def test_AC7_15_1_real_repo_passes_the_workflow_contract() -> None:
     """AC7.15.1: The real CI/deploy SSOT matches the live workflow contract."""
     assert contract.run_contract(ROOT) == 0
@@ -64,6 +71,56 @@ def test_AC7_15_3_stale_ci_classifier_job_name_fails(tmp_path) -> None:
         encoding="utf-8",
     )
     assert contract.run_contract(tmp_path) == 1
+
+
+def test_AC7_15_3_stale_backend_shard_count_prose_fails(tmp_path) -> None:
+    """AC7.15.3: Stale 8-shard backend prose fails."""
+    _copy_inputs(tmp_path)
+    target = tmp_path / "docs/ssot/ci-cd.md"
+    target.write_text(
+        target.read_text(encoding="utf-8").replace("Shards 1-5", "Shards 1-8"),
+        encoding="utf-8",
+    )
+    assert contract.run_contract(tmp_path) == 1
+
+
+def test_AC7_15_3_extra_app_workflow_file_fails(tmp_path) -> None:
+    """AC7.15.3: Reintroducing an app workflow entrypoint fails."""
+    _copy_inputs(tmp_path)
+    extra = tmp_path / ".github/workflows/release-images.yml"
+    extra.write_text(
+        "name: Retired Release Images\n"
+        "on: workflow_dispatch\n"
+        "jobs:\n"
+        "  noop:\n"
+        "    runs-on: ubuntu-latest\n"
+        "    steps:\n"
+        "      - run: true\n",
+        encoding="utf-8",
+    )
+    assert contract.run_contract(tmp_path) == 1
+
+
+def test_AC7_15_1_infra2_submodule_workflow_set_is_consolidated() -> None:
+    """AC7.15.1: The checked-out infra2 submodule exposes the target workflow set."""
+    assert contract.workflow_file_set(ROOT, "repo/.github/workflows") == set(
+        contract.INFRA2_WORKFLOW_FILES
+    )
+
+
+def test_AC7_15_3_infra2_workflow_drift_message_uses_submodule_prefix(
+    tmp_path,
+    capsys,
+) -> None:
+    """AC7.15.3: infra2 workflow drift reports point at the submodule path."""
+    _copy_inputs(tmp_path)
+    _write_infra2_workflow_set(tmp_path)
+    extra = tmp_path / "repo/.github/workflows/legacy.yml"
+    extra.write_text("name: legacy\n", encoding="utf-8")
+
+    assert contract.run_contract(tmp_path) == 1
+    captured = capsys.readouterr()
+    assert "repo/.github/workflows/legacy.yml" in captured.err
 
 
 def test_AC7_15_3_stale_staging_push_trigger_prose_fails(tmp_path) -> None:

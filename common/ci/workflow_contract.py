@@ -68,6 +68,25 @@ WORKFLOW_CONTRACT: dict[str, dict[str, tuple[str, ...]]] = {
     },
 }
 
+APP_WORKFLOW_FILES = (
+    ".github/workflows/ci.yml",
+    ".github/workflows/deploy.yml",
+    ".github/workflows/docs.yml",
+    ".github/workflows/maintenance.yml",
+    ".github/workflows/notify-infra2.yml",
+    ".github/workflows/preview.yml",
+)
+
+INFRA2_WORKFLOW_FILES = (
+    ".github/workflows/apply-observability.yml",
+    ".github/workflows/deploy-report-main.yml",
+    ".github/workflows/deploy.yml",
+    ".github/workflows/docs.yml",
+    ".github/workflows/infra-ci.yml",
+    ".github/workflows/ops-checks.yml",
+    ".github/workflows/reconcile-iac-inputs.yml",
+)
+
 # Triggers a workflow must NOT declare. Staging auto-following `main` is the
 # specific drift #531 fixes: the staging workflow must stay manual-only.
 WORKFLOW_FORBIDDEN_TRIGGERS: dict[str, tuple[str, ...]] = {}
@@ -91,6 +110,10 @@ SSOT_FORBIDDEN_PROSE: dict[str, tuple[tuple[str, str], ...]] = {
         (
             "classify-changes",
             "the CI classifier job id is `changes`, not `classify-changes`",
+        ),
+        (
+            "Shards 1-8",
+            "the backend fast path uses 5 seeded shards, not 8 shards",
         ),
     ),
     "docs/ssot/deployment.md": (
@@ -241,6 +264,21 @@ def workflow_job_ids(workflow: dict) -> set[str]:
     return {str(job_id) for job_id in jobs}
 
 
+def workflow_file_set(repo_root: Path, relative_dir: str) -> set[str]:
+    workflow_dir = repo_root / relative_dir
+    if not workflow_dir.exists():
+        return set()
+    return {
+        f".github/workflows/{path.name}" for path in sorted(workflow_dir.glob("*.yml"))
+    } | {
+        f".github/workflows/{path.name}" for path in sorted(workflow_dir.glob("*.yaml"))
+    }
+
+
+def workflow_set_display(paths: set[str], *, prefix: str = "") -> list[str]:
+    return sorted(f"{prefix}{path}" for path in paths)
+
+
 def iter_action_uses(value: object) -> set[str]:
     """Collect external `uses:` action references from workflow-like YAML."""
     found: set[str] = set()
@@ -271,6 +309,26 @@ def workflow_action_uses(repo_root: Path) -> set[str]:
 
 
 def check_workflows(repo_root: Path, errors: list[str]) -> None:
+    app_workflows = workflow_file_set(repo_root, ".github/workflows")
+    expected_app_workflows = set(APP_WORKFLOW_FILES)
+    if app_workflows != expected_app_workflows:
+        errors.append(
+            ".github/workflows: consolidated app workflow set drifted "
+            f"(expected: {workflow_set_display(expected_app_workflows)}, "
+            f"found: {workflow_set_display(app_workflows)})"
+        )
+
+    infra_workflow_dir = repo_root / "repo" / ".github" / "workflows"
+    if infra_workflow_dir.exists():
+        infra_workflows = workflow_file_set(repo_root, "repo/.github/workflows")
+        expected_infra_workflows = set(INFRA2_WORKFLOW_FILES)
+        if infra_workflows != expected_infra_workflows:
+            errors.append(
+                "repo/.github/workflows: consolidated infra2 workflow set drifted "
+                f"(expected: {workflow_set_display(expected_infra_workflows, prefix='repo/')}, "
+                f"found: {workflow_set_display(infra_workflows, prefix='repo/')})"
+            )
+
     for path, expected in WORKFLOW_CONTRACT.items():
         try:
             workflow = load_yaml(repo_root, path)
@@ -470,7 +528,9 @@ def check_action_runtime_inventory(repo_root: Path, errors: list[str]) -> None:
             errors.append(f"{ACTION_RUNTIME_INVENTORY}: duplicate exception {uses!r}")
         exception_actions[uses] = exception
         for key in ("owner", "reason", "review_after"):
-            required_string(exception, key, context=f"exception {uses!r}", errors=errors)
+            required_string(
+                exception, key, context=f"exception {uses!r}", errors=errors
+            )
 
     forced_actions = {
         uses
