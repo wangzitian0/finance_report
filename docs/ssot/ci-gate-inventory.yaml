@@ -77,7 +77,7 @@ task_categories:
     definition: Provider-backed OCR/LLM/API connectivity or regression checks.
     owner_rule: Owns real-provider evidence and provider failure classification.
   release_integrity:
-    definition: Release coordinate, immutable image, and production-release checks.
+    definition: Release coordinate, immutable image, and production release checks.
     owner_rule: Owns release eligibility and production rollout validation.
   cleanup_retention:
     definition: Retention and stale-resource cleanup checks.
@@ -396,7 +396,7 @@ gates:
     artifacts: []
     failure_semantics: Successful app main CI could not notify infra2 to redeploy the report-branch-main preview guarded by the exact completed SHA (INFRA2_PAT missing/expired, stale CI completion skipped, or repository_dispatch did not return HTTP 204).
     action: keep
-  - id: pr_test.setup
+  - id: preview.setup
     stage: preview.runtime
     task_category: classify
     workflow: .github/workflows/preview.yml
@@ -409,7 +409,7 @@ gates:
     artifacts: []
     failure_semantics: PR preview action or PR number could not be normalized.
     action: keep
-  - id: pr_test.deploy_preview
+  - id: preview.deploy_preview
     stage: preview.runtime
     task_category: deploy_smoke
     workflow: .github/workflows/preview.yml
@@ -419,10 +419,10 @@ gates:
     blocks_workflow: true
     inputs: [pr_number, source_tree, dokploy_host]
     outputs: [preview_url]
-    artifacts: [pr-preview-context]
+    artifacts: [pr-preview-deploy-context]
     failure_semantics: On-demand persistent PR preview could not be deployed.
     action: keep
-  - id: pr_test.e2e
+  - id: preview.e2e
     stage: github_ci.merge_authority
     task_category: frontend_browser_e2e
     workflow: .github/workflows/preview.yml
@@ -432,10 +432,10 @@ gates:
     blocks_workflow: true
     inputs: [runner_local_stack, provider_free_e2e]
     outputs: [runner_e2e_context]
-    artifacts: [pr-test-e2e-context]
+    artifacts: [pr-preview-test-context]
     failure_semantics: Required in-runner PR E2E proof failed.
     action: keep
-  - id: pr_test.cleanup
+  - id: preview.cleanup
     stage: preview.runtime
     task_category: cleanup_retention
     workflow: .github/workflows/preview.yml
@@ -445,8 +445,8 @@ gates:
     blocks_workflow: true
     inputs: [runner_local_stack, optional_preview_state]
     outputs: [cleanup_context]
-    artifacts: [pr-test-cleanup-context]
-    failure_semantics: PR test cleanup failed after runner-local or preview work.
+    artifacts: [pr-preview-cleanup-context]
+    failure_semantics: PR preview cleanup failed after runner-local or preview work.
     action: keep
   - id: release_images.promote
     stage: prod.release_integrity
@@ -497,7 +497,7 @@ gates:
     blocks_workflow: true
     inputs: [staging_environment, provider_credentials, llm_e2e_corpus]
     outputs: [ai_ocr_gate_summary]
-    artifacts: [staging-ai-ocr-gate-context]
+    artifacts: [staging-ai-ocr-test-context]
     failure_semantics: Manual staging AI/OCR provider gate failed or could not summarize evidence.
     action: keep
   - id: staging_deploy.build_and_deploy
@@ -536,7 +536,7 @@ gates:
     blocks_workflow: false
     inputs: [staging_environment, provider_credentials, llm_e2e_corpus]
     outputs: [ai_ocr_gate_summary, ai_ocr_status]
-    artifacts: [staging-ai-ocr-gate-context]
+    artifacts: [staging-ai-ocr-test-context]
     failure_semantics: Automatic staging AI/OCR corpus regression failed after release-critical deploy validation; record and triage, but do not block production eligibility.
     action: keep
   - id: staging_deploy.post_merge_delivery
@@ -562,7 +562,7 @@ gates:
     blocks_workflow: false
     inputs: [staging_job_results]
     outputs: [step_summary]
-    artifacts: [post-merge-summary-context]
+    artifacts: []
     failure_semantics: Staging summary could not be produced; upstream jobs still own deploy gate failures.
     action: keep
 

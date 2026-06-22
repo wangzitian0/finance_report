@@ -3,7 +3,7 @@
 # Dokploy uses this file for per-PR preview environments. Backend and frontend
 # are built from the PR's source on the Dokploy host (GitHub-source deploy with
 # `up --build`); PR previews never pull or push GHCR images. Image building and
-# promotion to staging/production happen only post-merge (staging-deploy). The
+# promotion to staging/production happen only post-merge (deploy.yml target=staging). The
 # `image:` tags below are just local build tags.
 
 x-json-logging: &json-logging

@@ -1869,8 +1869,8 @@ def test_AC8_13_67_production_release_preserves_version_metadata() -> None:
     primitive = read("repo/tools/deploy_primitive.py")
     app_compose = read("repo/finance_report/finance_report/10.app/compose.yaml")
 
-    # In the promote-not-rebuild pattern, release-images publishes the retained tag
-    # once. Production consumes the tag through deploy_v2 and never re-promotes it.
+    # In the promote-not-rebuild pattern, deploy.yml promotes the retained tag once.
+    # Production consumes the tag through deploy_v2 and never re-promotes it.
     promote_blocks = re.findall(
         r"docker buildx imagetools create --prefer-index=false --tag",
         release_images,
@@ -1913,7 +1913,7 @@ def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
     ci_cd = read("docs/ssot/ci-cd.md")
     deployment = read("docs/ssot/deployment.md")
 
-    # AC7.10.1: release-images promotes main-CI SHA images instead of rebuilding.
+    # AC7.10.1: deploy.yml promotes main-CI SHA images instead of rebuilding.
     assert (
         "docker buildx imagetools create --prefer-index=false --tag" in release_images
     )
@@ -2209,7 +2209,7 @@ def test_AC8_13_22_release_coordinate_fetches_only_requested_tag(
 
 
 def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
-    """AC8.13.36: Main CI builds SHA images, release-images tags them, staging deploys the tag."""
+    """AC8.13.36: Main CI builds SHA images, deploy.yml tags them, staging deploys the tag."""
     ci_workflow = read(".github/workflows/ci.yml")
     release_workflow = read(".github/workflows/deploy.yml")
     deploy_workflow = read(".github/workflows/deploy.yml")

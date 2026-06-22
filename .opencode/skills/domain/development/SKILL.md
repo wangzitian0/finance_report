@@ -96,7 +96,8 @@ Terminal 1 exits                   → refcount=0 (stop container)
 | `tools/test_lifecycle.py` | Database lifecycle |
 | `docker-compose.yml` | Development containers |
 | `.github/workflows/ci.yml` | GitHub Actions CI |
-| `.github/workflows/pr-test.yml` | PR preview smoke/E2E |
-| `.github/workflows/staging-deploy.yml` | Manual staging deploy |
-| `.github/workflows/staging-ai-ocr-gate.yml` | On-demand staging AI/OCR gate |
-| `.github/workflows/production-release.yml` | Production release |
+| `.github/workflows/preview.yml` | PR preview smoke/E2E |
+| `.github/workflows/deploy.yml` | Staging deploy, production release, release image promotion, and manual AI/OCR gate |
+| `.github/workflows/maintenance.yml` | Scheduled/manual GHCR SHA retention and PR preview cleanup |
+| `.github/workflows/docs.yml` | Documentation build/deploy |
+| `.github/workflows/notify-infra2.yml` | Cross-repo infra2 report-main notification |
