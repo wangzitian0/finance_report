@@ -4,7 +4,7 @@ These E2E tests exercise the statement review -> reconcile -> report journey for
 an **already-parsed** statement that was injected by the ``seeded_parsed_statement``
 fixture — never by a real provider. They carry only ``@pytest.mark.e2e`` (no
 ``@pytest.mark.llm``), so they run in the merge-blocking no-LLM tier
-(``pr-test.yml`` / ``ci.yml backend-e2e-tier1``: ``-m "... and not llm"``).
+(``preview.yml`` / ``ci.yml backend-e2e-tier1``: ``-m "... and not llm"``).
 
 The point these prove, which the legacy ``@pytest.mark.llm`` mega-journeys could
 not, is this: the DOM/CRUD/render assertions on a parsed statement (list row link

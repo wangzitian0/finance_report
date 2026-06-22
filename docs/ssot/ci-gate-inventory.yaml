@@ -360,7 +360,7 @@ gates:
   - id: pr_preview_cleanup.cleanup
     stage: ops.scheduled_cleanup
     task_category: cleanup_retention
-    workflow: .github/workflows/pr-preview-cleanup.yml
+    workflow: .github/workflows/maintenance.yml
     job: cleanup
     owner: tools/pr_preview_lifecycle.py
     triggers: [schedule, workflow_dispatch]
@@ -373,7 +373,7 @@ gates:
   - id: ghcr_sha_retention.prune_sha_images
     stage: ops.scheduled_cleanup
     task_category: cleanup_retention
-    workflow: .github/workflows/ghcr-sha-retention.yml
+    workflow: .github/workflows/maintenance.yml
     job: prune-sha-images
     owner: tools/ghcr_retention.py
     triggers: [schedule, workflow_dispatch]
@@ -386,9 +386,9 @@ gates:
   - id: notify_infra2_report_main.dispatch
     stage: staging.release_validation
     task_category: deploy_smoke
-    workflow: .github/workflows/notify-infra2-report-main.yml
+    workflow: .github/workflows/notify-infra2.yml
     job: dispatch
-    owner: .github/workflows/notify-infra2-report-main.yml#dispatch
+    owner: .github/workflows/notify-infra2.yml#dispatch
     triggers: [workflow_run, workflow_dispatch]
     blocks_workflow: false
     inputs: [successful_main_ci_sha]
@@ -399,9 +399,9 @@ gates:
   - id: pr_test.setup
     stage: preview.runtime
     task_category: classify
-    workflow: .github/workflows/pr-test.yml
+    workflow: .github/workflows/preview.yml
     job: setup
-    owner: .github/workflows/pr-test.yml#setup
+    owner: .github/workflows/preview.yml#setup
     triggers: [pull_request, workflow_dispatch]
     blocks_workflow: true
     inputs: [pull_request_event, workflow_dispatch_inputs]
@@ -412,7 +412,7 @@ gates:
   - id: pr_test.deploy_preview
     stage: preview.runtime
     task_category: deploy_smoke
-    workflow: .github/workflows/pr-test.yml
+    workflow: .github/workflows/preview.yml
     job: deploy-preview
     owner: tools/pr_preview_lifecycle.py
     triggers: [workflow_dispatch]
@@ -425,7 +425,7 @@ gates:
   - id: pr_test.e2e
     stage: github_ci.merge_authority
     task_category: frontend_browser_e2e
-    workflow: .github/workflows/pr-test.yml
+    workflow: .github/workflows/preview.yml
     job: e2e
     owner: tests/e2e
     triggers: [pull_request, workflow_dispatch]
@@ -438,7 +438,7 @@ gates:
   - id: pr_test.cleanup
     stage: preview.runtime
     task_category: cleanup_retention
-    workflow: .github/workflows/pr-test.yml
+    workflow: .github/workflows/preview.yml
     job: cleanup
     owner: tools/pr_preview_lifecycle.py
     triggers: [pull_request, workflow_dispatch]
@@ -451,7 +451,7 @@ gates:
   - id: release_images.promote
     stage: prod.release_integrity
     task_category: release_integrity
-    workflow: .github/workflows/release-images.yml
+    workflow: .github/workflows/deploy.yml
     job: promote
     owner: release images workflow
     triggers: [push]
@@ -464,7 +464,7 @@ gates:
   - id: production_release.dry_run
     stage: prod.release_integrity
     task_category: release_integrity
-    workflow: .github/workflows/production-release.yml
+    workflow: .github/workflows/deploy.yml
     job: dry-run
     owner: production release workflow
     triggers: [workflow_dispatch]
@@ -477,7 +477,7 @@ gates:
   - id: production_release.deploy
     stage: prod.release_integrity
     task_category: release_integrity
-    workflow: .github/workflows/production-release.yml
+    workflow: .github/workflows/deploy.yml
     job: deploy
     owner: production release workflow
     triggers: [workflow_dispatch]
@@ -487,11 +487,11 @@ gates:
     artifacts: [production-deploy-test-context]
     failure_semantics: Production deploy_v2 rollout, route health, prod-safe smoke, or rollback-to-previous-version failed.
     action: keep
-  - id: staging_ai_ocr_gate.ai_ocr_gate
+  - id: staging_ai_ocr_gate.manual_ai_ocr_gate
     stage: staging.provider_regression
     task_category: provider_gate
-    workflow: .github/workflows/staging-ai-ocr-gate.yml
-    job: ai-ocr-gate
+    workflow: .github/workflows/deploy.yml
+    job: manual-ai-ocr-gate
     owner: tests/e2e provider-backed OCR corpus
     triggers: [workflow_dispatch]
     blocks_workflow: true
@@ -503,7 +503,7 @@ gates:
   - id: staging_deploy.build_and_deploy
     stage: staging.release_validation
     task_category: deploy_smoke
-    workflow: .github/workflows/staging-deploy.yml
+    workflow: .github/workflows/deploy.yml
     job: build-and-deploy
     owner: staging deployment workflow
     triggers: [workflow_dispatch]
@@ -516,7 +516,7 @@ gates:
   - id: staging_deploy.provider_gate
     stage: staging.provider_regression
     task_category: provider_gate
-    workflow: .github/workflows/staging-deploy.yml
+    workflow: .github/workflows/deploy.yml
     job: provider-gate
     owner: staging provider smoke
     triggers: [workflow_dispatch]
@@ -529,7 +529,7 @@ gates:
   - id: staging_deploy.ai_ocr_gate
     stage: staging.provider_regression
     task_category: provider_gate
-    workflow: .github/workflows/staging-deploy.yml
+    workflow: .github/workflows/deploy.yml
     job: ai-ocr-gate
     owner: staging provider-backed OCR corpus
     triggers: [workflow_dispatch]
@@ -542,7 +542,7 @@ gates:
   - id: staging_deploy.post_merge_delivery
     stage: staging.release_validation
     task_category: aggregate
-    workflow: .github/workflows/staging-deploy.yml
+    workflow: .github/workflows/deploy.yml
     job: post-merge-delivery
     owner: staging delivery assertion
     triggers: [workflow_dispatch]
@@ -555,7 +555,7 @@ gates:
   - id: staging_deploy.post_merge_summary
     stage: staging.release_validation
     task_category: aggregate
-    workflow: .github/workflows/staging-deploy.yml
+    workflow: .github/workflows/deploy.yml
     job: post-merge-summary
     owner: staging delivery summary
     triggers: [workflow_dispatch]

@@ -91,7 +91,7 @@ DB:      GitHub services (ephemeral)
 Smoke:   ❌ Not run (unit tests only)
 ```
 
-### staging-deploy.yml
+### deploy.yml
 
 ```yaml
 Trigger: Manual dispatch only (workflow_dispatch with a required `version_ref` input)
@@ -108,15 +108,15 @@ job, and deploys only images that already exist under that release tag. The
 resolver validates the exact operator input rather than trimming whitespace, and
 fetches only `refs/tags/<version_ref>` without `--force` so moved or rewritten
 release tags fail closed.
-`release-images.yml` must have promoted the main-CI SHA images to `:vX.Y.Z`
+`deploy.yml` must have promoted the main-CI SHA images to `:vX.Y.Z`
 before staging is dispatched. Provider-backed AI/OCR tests run after deploy
 health in the same serialized dispatch workflow unit as a right-shifted
 regression record, and can also be invoked on demand via
-`staging-ai-ocr-gate.yml` when the team wants a blocking diagnostic rerun.
+`deploy.yml` when the team wants a blocking diagnostic rerun.
 
 The release process keeps a promote-not-rebuild consistency ladder:
-`main CI (:<sha7>) -> release-images.yml (:vX.Y.Z) -> staging deploy_v2
-(:vX.Y.Z) -> production deploy_v2 (:vX.Y.Z)`. `release-images.yml` is the only
+`main CI (:<sha7>) -> deploy.yml (:vX.Y.Z) -> staging deploy_v2
+(:vX.Y.Z) -> production deploy_v2 (:vX.Y.Z)`. `deploy.yml` is the only
 tag-push promotion path; staging and production both consume the retained release
 tag without rebuilding or retagging. The `sha7` tag is fixed to the first 7 hex
 characters of the release commit rather than Git's adaptive short length. By
@@ -125,7 +125,7 @@ release tag keeps the exact same image digest from main CI through production,
 eliminating drift from base images, build-time dependencies, or workflow changes.
 
 The staging deploy gate separates platform rollout from application readiness.
-`.github/workflows/staging-deploy.yml` invokes `repo/tools/deploy_v2.py`, which
+`.github/workflows/deploy.yml` invokes `repo/tools/deploy_v2.py`, which
 routes fixed staging/prod deploys through `repo/tools/deploy_primitive.py`.
 The primitive updates the allowlisted Dokploy environment, snapshots deployment
 ids before mutation, triggers `compose.deploy`, and waits up to 600 seconds for
@@ -142,7 +142,7 @@ jobs: `Deploy Staging` and `Staging Provider Gate` must succeed for the exact
 records full-provider regression evidence but does not block production after
 deploy health, non-LLM E2E, and provider connectivity have passed.
 
-### production-release.yml
+### deploy.yml
 
 ```yaml
 Triggers:
@@ -163,7 +163,7 @@ URL: https://report.zitian.party
 # Create release tag
 git tag -a v1.2.3 -m "Release v1.2.3"
 git push origin v1.2.3
-# -> Triggers release-images.yml
+# -> Triggers deploy.yml
 # -> Images: ghcr.io/.../finance_report-{backend,frontend}:v1.2.3
 
 # Deploy to staging (manual)
@@ -179,7 +179,7 @@ git push origin v1.2.3
 Production app deploys must keep the image tag, Dokploy runtime
 `GIT_COMMIT_SHA`, and `/api/health.git_sha` aligned. The release workflow bakes
 the tag into backend/frontend image names by manifest-copying main-CI images in
-`release-images.yml`. `deploy_v2` then deploys that tag through
+`deploy.yml`. `deploy_v2` then deploys that tag through
 `deploy_primitive`, which sets runtime `IMAGE_TAG`, `GIT_COMMIT_SHA`, and a fresh
 per-deploy `IAC_CONFIG_HASH` so Dokploy restarts the app even when redeploying
 the same tag.

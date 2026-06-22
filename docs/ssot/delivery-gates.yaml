@@ -4,7 +4,7 @@
 # blocks merge. The behavior contract lives HERE, in one machine-readable place.
 #
 # Why this file exists: the "in-runner e2e is a synchronous required gate" fact used
-# to be restated across ci-cd.md, environments.md, EPIC-008, the pr-test.yml comment,
+# to be restated across ci-cd.md, environments.md, EPIC-008, the preview.yml comment,
 # and a dozen string-grep contract tests. Changing one trigger meant editing 7+ files,
 # and a comment reword broke unrelated tests. Now:
 #   - this manifest declares the trigger/blocking contract (one edit),
@@ -27,7 +27,7 @@ version: "1.0"
 
 gates:
   - id: pr-in-runner-e2e
-    workflow: .github/workflows/pr-test.yml
+    workflow: .github/workflows/preview.yml
     job: e2e
     trigger: pull_request          # synchronous — NOT workflow_run (#943)
     blocking: true                 # the merge authority: a required check before merge
@@ -38,7 +38,7 @@ gates:
       runs as a required check (a skipped required check counts as passed).
 
   - id: pr-persistent-preview
-    workflow: .github/workflows/pr-test.yml
+    workflow: .github/workflows/preview.yml
     job: deploy-preview
     trigger: workflow_dispatch     # on-demand only (P1a-2, #879); never per-PR auto
     blocking: false
@@ -47,7 +47,7 @@ gates:
       On-demand persistent Dokploy preview. Non-blocking; one click via Run workflow.
 
   - id: staging-deploy
-    workflow: .github/workflows/staging-deploy.yml
+    workflow: .github/workflows/deploy.yml
     job: build-and-deploy
     trigger: workflow_dispatch      # manual only — staging no longer auto-follows main
     blocking: false
@@ -58,7 +58,7 @@ gates:
       slightly ahead); deploys are manual (CI is the dev quality gate, not auto-deploy).
 
   - id: release-images
-    workflow: .github/workflows/release-images.yml
+    workflow: .github/workflows/deploy.yml
     job: promote
     trigger: tag                   # vX.Y.Z release tag push
     blocking: false
@@ -67,7 +67,7 @@ gates:
       Promote main-CI SHA images to immutable release tags with digest verification.
 
   - id: report-main-preview
-    workflow: .github/workflows/notify-infra2-report-main.yml
+    workflow: .github/workflows/notify-infra2.yml
     job: dispatch
     trigger: workflow_run          # after app main CI completes successfully
     blocking: false
@@ -80,7 +80,7 @@ gates:
       race image publication.
 
   - id: production-release
-    workflow: .github/workflows/production-release.yml
+    workflow: .github/workflows/deploy.yml
     job: deploy
     trigger: workflow_dispatch
     blocking: false

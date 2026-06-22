@@ -492,8 +492,8 @@ def test_AC8_13_11_deploy_preflights_vault_token_before_redeploy() -> None:
     """AC8.13.11: deploy_v2 fails before rollout on invalid legacy Vault tokens."""
     primitive = read("repo/tools/deploy_primitive.py")
     deploy_v2 = read("repo/tools/deploy_v2.py")
-    staging_workflow = read(".github/workflows/staging-deploy.yml")
-    production_workflow = read(".github/workflows/production-release.yml")
+    staging_workflow = read(".github/workflows/deploy.yml")
+    production_workflow = read(".github/workflows/deploy.yml")
 
     assert "def preflight_vault_token(" in primitive
     assert "verify_vault_token(" in primitive
@@ -540,11 +540,11 @@ def test_AC8_13_12_ai_ocr_gate_failure_includes_statement_context() -> None:
 
 def test_AC8_13_13_staging_deploy_fast_fail_guardrails() -> None:
     """AC8.13.13 AC8.13.105: Staging deploy is a singleton post-merge train."""
-    workflow = read(".github/workflows/staging-deploy.yml")
+    workflow = read(".github/workflows/deploy.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
     assert "concurrency:" in workflow
-    assert "group: staging-deploy" in workflow
+    assert "inputs.target == 'staging' && 'staging-deploy'" in workflow
     assert "cancel-in-progress: false" in workflow
     assert "post-merge-train-turn:" not in workflow
     assert "classify-staging:" not in workflow
@@ -594,14 +594,14 @@ def test_AC8_13_13_main_ci_keeps_each_merge_commit_run() -> None:
 
 def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
     """AC8.13.14: Provider-backed AI/OCR gate runs outside deploy health."""
-    deploy_workflow = read(".github/workflows/staging-deploy.yml")
-    ai_workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
+    deploy_workflow = read(".github/workflows/deploy.yml")
+    ai_workflow = read(".github/workflows/deploy.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
     assert "ai-ocr-gate:" in deploy_workflow
     assert "needs: [build-and-deploy, provider-gate]" in deploy_workflow
     assert (
-        "if: ${{ always() && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.ai_ocr_required == 'true' && needs.provider-gate.outputs.provider_status == 'pass' }}"
+        "if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.ai_ocr_required == 'true' && needs.provider-gate.outputs.provider_status == 'pass' }}"
         in deploy_workflow
     )
     assert "name: Staging AI/OCR Gate" in deploy_workflow
@@ -626,7 +626,7 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
     assert "name: Staging AI/OCR Gate" in ai_workflow
     assert 'workflows: ["Deploy Staging"]' not in ai_workflow
     assert "workflow_dispatch:" in ai_workflow
-    assert "group: staging-manual-ai-ocr-${{ github.ref }}" in ai_workflow
+    assert "inputs.target == 'staging-ai-ocr-gate' && format('staging-manual-ai-ocr-{0}', github.ref)" in ai_workflow
     assert "cancel-in-progress: false" in ai_workflow
     assert "timeout-minutes: 22" in ai_workflow
     assert "STRICT_E2E_GATES: true" in ai_workflow
@@ -642,8 +642,8 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
 
 def test_AC8_13_49_staging_ai_ocr_gate_publishes_audit_inventory_and_summary() -> None:
     """AC8.13.49: Staging AI/OCR gates publish replay inputs and summary fields."""
-    deploy_workflow = read(".github/workflows/staging-deploy.yml")
-    ai_workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
+    deploy_workflow = read(".github/workflows/deploy.yml")
+    ai_workflow = read(".github/workflows/deploy.yml")
     observability = read("docs/ssot/observability-logging.md")
 
     for workflow in (deploy_workflow, ai_workflow):
@@ -738,8 +738,8 @@ def test_AC8_13_50_critical_llm_post_merge_proofs_are_in_ai_ocr_gates() -> None:
     ]
 
     for workflow_path in (
-        ".github/workflows/staging-deploy.yml",
-        ".github/workflows/staging-ai-ocr-gate.yml",
+        ".github/workflows/deploy.yml",
+        ".github/workflows/deploy.yml",
     ):
         workflow = read(workflow_path)
         assert "tools/staging_ai_ocr_gate_contract.py --shell" in workflow
@@ -752,11 +752,11 @@ def test_AC8_13_50_critical_llm_post_merge_proofs_are_in_ai_ocr_gates() -> None:
 def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
     """AC8.13.76: CI and deploy gates upload replayable status context."""
     ci = read(".github/workflows/ci.yml")
-    pr_preview = read(".github/workflows/pr-test.yml")
-    staging = read(".github/workflows/staging-deploy.yml")
-    manual_ai = read(".github/workflows/staging-ai-ocr-gate.yml")
-    production = read(".github/workflows/production-release.yml")
-    cleanup = read(".github/workflows/pr-preview-cleanup.yml")
+    pr_preview = read(".github/workflows/preview.yml")
+    staging = read(".github/workflows/deploy.yml")
+    manual_ai = read(".github/workflows/deploy.yml")
+    production = read(".github/workflows/deploy.yml")
+    cleanup = read(".github/workflows/maintenance.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
     for token in (
@@ -831,13 +831,13 @@ def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
 
 def test_AC8_13_51_staging_deploy_is_manual_dispatch_only() -> None:
     """AC8.13.51: Staging deploy is manual (`workflow_dispatch`) only; it does not auto-follow main CI."""
-    workflow = read(".github/workflows/staging-deploy.yml")
+    workflow = read(".github/workflows/deploy.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
     parsed = yaml.safe_load(workflow)
     # PyYAML parses the bare `on:` key as the boolean True.
     triggers = parsed.get("on", parsed.get(True))
-    assert isinstance(triggers, dict), "staging-deploy.yml must declare an `on:` map"
+    assert isinstance(triggers, dict), "deploy.yml must declare an `on:` map"
     assert "workflow_dispatch" in triggers, (
         "staging deploy must be manually dispatchable"
     )
@@ -849,8 +849,9 @@ def test_AC8_13_51_staging_deploy_is_manual_dispatch_only() -> None:
         "manual dispatch must accept a deploy_v2-aligned `version_ref` input"
     )
     assert "tag" not in inputs, "staging deploy must not expose a second release-ref name"
-    assert inputs["version_ref"].get("required") is True, (
-        "staging deploy must require an explicit published release version_ref"
+    assert inputs["version_ref"].get("required") is False, (
+        "version_ref is validated by the staging/production target jobs because "
+        "deploy.yml also hosts the on-demand AI/OCR diagnostic target"
     )
     # The deploy job still must not poll/wait for CI inside the job.
     assert "wait_for_github_ci.py" not in workflow
@@ -862,7 +863,7 @@ def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates()
     None
 ):
     """AC8.13.103/AC8.13.108: Delivery aggregates gates and failure context."""
-    workflow = read(".github/workflows/staging-deploy.yml")
+    workflow = read(".github/workflows/deploy.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     epic = read("docs/project/EPIC-008.testing-strategy.md")
 
@@ -936,7 +937,7 @@ def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates()
 
 def test_AC8_13_55_post_merge_staging_is_scoped_to_deploy_relevant_paths() -> None:
     """AC8.13.55: Post-merge staging only runs for deploy-relevant changes."""
-    workflow = read(".github/workflows/staging-deploy.yml")
+    workflow = read(".github/workflows/deploy.yml")
     classifier = read("common/ci/change_classifier.py")
     classifier_tests = read("tests/tooling/test_ci_change_classifier.py")
     ci_cd = read("docs/ssot/ci-cd.md")
@@ -979,9 +980,9 @@ def test_AC8_13_55_post_merge_staging_is_scoped_to_deploy_relevant_paths() -> No
 def test_AC8_13_60_deploy_workflows_have_no_nonblocking_noop_gates() -> None:
     """AC8.13.60: Deploy gates do not keep no-op or warning-only checks."""
     workflows = [
-        read(".github/workflows/staging-deploy.yml"),
-        read(".github/workflows/production-release.yml"),
-        read(".github/workflows/pr-test.yml"),
+        read(".github/workflows/deploy.yml"),
+        read(".github/workflows/deploy.yml"),
+        read(".github/workflows/preview.yml"),
     ]
     ci_cd = read("docs/ssot/ci-cd.md")
 
@@ -997,7 +998,7 @@ def test_AC8_13_60_deploy_workflows_have_no_nonblocking_noop_gates() -> None:
 
 def test_AC8_13_52_production_release_dry_run_does_not_mutate_production() -> None:
     """AC8.13.52 AC8.13.65: Production dry-run validates without deploying."""
-    workflow = read(".github/workflows/production-release.yml")
+    workflow = read(".github/workflows/deploy.yml")
     release_evidence = read("common/ci/release_evidence.py")
     release_images = read("common/ci/release_images.py")
     ci_cd = read("docs/ssot/ci-cd.md")
@@ -1008,7 +1009,10 @@ def test_AC8_13_52_production_release_dry_run_does_not_mutate_production() -> No
     assert "leave empty for latest" not in workflow
     assert "Validate release prerequisites without deploying production" in workflow
     assert "dry-run:" in workflow
-    assert "github.event_name == 'workflow_dispatch' && inputs.dry_run" in workflow
+    assert (
+        "github.event_name == 'workflow_dispatch' && inputs.target == 'production' && inputs.dry_run"
+        in workflow
+    )
     assert "moon run :lint" in workflow
     assert "moon run :test" not in workflow
     assert "Resolve release coordinate" in workflow
@@ -1024,13 +1028,16 @@ def test_AC8_13_52_production_release_dry_run_does_not_mutate_production() -> No
     assert "Verify staging passed" in workflow
     assert "Verify Release Images Dry Run" in workflow
     assert '"docker", "buildx", "imagetools", "inspect"' in release_images
-    assert "gh run list" not in workflow
+    production_jobs = workflow.split("  # Production release jobs", 1)[1].split(
+        "  # On-demand staging AI/OCR diagnostic jobs", 1
+    )[0]
+    assert "gh run list" not in production_jobs
     assert "gh run view" not in workflow
     assert "Production mutation skipped" in workflow
     dry_run_section = workflow.split("dry-run:", 1)[1].split("\n  deploy:", 1)[0]
     assert "environment:" not in dry_run_section
     assert "dokploy_deploy.sh" not in dry_run_section
-    assert "inputs.dry_run" in workflow.split("deploy:", 1)[1].split("steps:", 1)[0]
+    assert "inputs.dry_run" in workflow.split("\n  deploy:", 1)[1].split("steps:", 1)[0]
     assert "Production release dry-run" in ci_cd
     assert "Verify Release Images Dry Run" in workflow
     assert "docker buildx imagetools create" not in dry_run_section
@@ -1038,7 +1045,7 @@ def test_AC8_13_52_production_release_dry_run_does_not_mutate_production() -> No
 
 def test_AC8_13_52_production_release_checks_use_pinned_python() -> None:
     """AC8.13.52: Production release checks run after setup-python."""
-    workflow = read(".github/workflows/production-release.yml")
+    workflow = read(".github/workflows/deploy.yml")
     dry_run_section = workflow.split("  dry-run:", 1)[1].split("\n  deploy:", 1)[0]
     deploy_section = workflow.split("\n  deploy:", 1)[1]
 
@@ -1274,7 +1281,7 @@ def test_AC8_13_52_release_image_tool_fails_when_a_digest_is_missing() -> None:
 def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     """AC8.13.16: CI skips heavy jobs for lightweight changes and caches npm."""
     workflow = read(".github/workflows/ci.yml")
-    pr_workflow = read(".github/workflows/pr-test.yml")
+    pr_workflow = read(".github/workflows/preview.yml")
     classifier = read("common/ci/change_classifier.py")
     ci_cd = read("docs/ssot/ci-cd.md")
     environments = read("docs/ssot/environments.md")
@@ -1670,7 +1677,7 @@ def test_AC8_13_149_fan_in_jobs_download_only_required_artifacts() -> None:
 
 def test_AC8_13_146_report_main_dispatch_waits_for_ci_images() -> None:
     """AC8.13.146: report-branch-main deploys only successful CI SHA images."""
-    notify = read(".github/workflows/notify-infra2-report-main.yml")
+    notify = read(".github/workflows/notify-infra2.yml")
     notify_yaml = yaml.safe_load(notify)
     notify_on = notify_yaml.get(True) or notify_yaml.get("on")
 
@@ -1759,7 +1766,7 @@ def test_AC8_13_70_ci_documents_closed_e2e_traceability_system() -> None:
 
 def test_AC8_13_9_production_release_runs_prod_safe_e2e_smoke() -> None:
     """AC8.13.9: Production release runs prod-safe read-only E2E smoke."""
-    workflow = read(".github/workflows/production-release.yml")
+    workflow = read(".github/workflows/deploy.yml")
     prod_smoke = read("tests/e2e/test_production_readonly_smoke.py")
 
     assert 'NODE_VERSION: "20.19.0"' in workflow
@@ -1792,7 +1799,7 @@ def test_AC8_13_144_production_release_rolls_back_with_deploy_v2_after_post_depl
     None
 ):
     """AC8.13.144: production rollback uses deploy_v2 and confirms previous health."""
-    workflow = read(".github/workflows/production-release.yml")
+    workflow = read(".github/workflows/deploy.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     inventory = read("docs/ssot/ci-gate-inventory.yaml")
 
@@ -1857,8 +1864,8 @@ def test_AC8_13_144_production_release_rolls_back_with_deploy_v2_after_post_depl
 
 def test_AC8_13_67_production_release_preserves_version_metadata() -> None:
     """AC8.13.67: Production release preserves deployed version metadata."""
-    workflow = read(".github/workflows/production-release.yml")
-    release_images = read(".github/workflows/release-images.yml")
+    workflow = read(".github/workflows/deploy.yml")
+    release_images = read(".github/workflows/deploy.yml")
     primitive = read("repo/tools/deploy_primitive.py")
     app_compose = read("repo/finance_report/finance_report/10.app/compose.yaml")
 
@@ -1899,8 +1906,8 @@ def test_AC8_13_67_production_release_preserves_version_metadata() -> None:
 
 def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
     """AC7.10.1 - AC7.10.5: Production release promotes staging-validated SHA image and fails closed on drift."""
-    workflow = read(".github/workflows/production-release.yml")
-    release_images = read(".github/workflows/release-images.yml")
+    workflow = read(".github/workflows/deploy.yml")
+    release_images = read(".github/workflows/deploy.yml")
     resolver = read("common/ci/release_coordinate.py")
     release_image_tool = read("common/ci/release_images.py")
     ci_cd = read("docs/ssot/ci-cd.md")
@@ -1913,7 +1920,7 @@ def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
     assert "docker/build-push-action" not in release_images
     assert "docker buildx imagetools create --tag" not in workflow
     assert '"short_sha": full_sha[:7]' in resolver
-    assert workflow.count("tools/resolve_release_coordinate.py") == 2
+    assert workflow.count("tools/resolve_release_coordinate.py") == 3
 
     # AC7.10.2: fails closed if no staging-validated SHA image exists or digests differ
     assert "Verify staging passed" in workflow
@@ -1941,9 +1948,9 @@ def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
 
 def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     """AC8.13.7: Post-merge AI/OCR E2E is a single-provider-access gate."""
-    workflow = read(".github/workflows/staging-deploy.yml")
-    ai_workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
-    pr_workflow = read(".github/workflows/pr-test.yml")
+    workflow = read(".github/workflows/deploy.yml")
+    ai_workflow = read(".github/workflows/deploy.yml")
+    pr_workflow = read(".github/workflows/preview.yml")
     journey = read("tests/e2e/test_statement_full_journey.py")
     brokerage = read("tests/e2e/test_brokerage_upload_to_portfolio_value.py")
     four_asset = read("tests/e2e/test_four_asset_net_worth_golden_path.py")
@@ -2001,13 +2008,13 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
 
 def test_AC8_13_21_staging_ai_ocr_gate_runs_under_manual_dispatch() -> None:
     """AC8.13.21: Provider-backed staging AI/OCR runs inside a manual dispatch, not auto-after-CI."""
-    workflow = read(".github/workflows/staging-deploy.yml")
-    on_demand_gate = read(".github/workflows/staging-ai-ocr-gate.yml")
+    workflow = read(".github/workflows/deploy.yml")
+    on_demand_gate = read(".github/workflows/deploy.yml")
 
     parsed = yaml.safe_load(workflow)
     # PyYAML parses the bare `on:` key as the boolean True.
     triggers = parsed.get("on", parsed.get(True))
-    assert isinstance(triggers, dict), "staging-deploy.yml must declare an `on:` map"
+    assert isinstance(triggers, dict), "deploy.yml must declare an `on:` map"
     assert "workflow_dispatch" in triggers, (
         "staging deploy must be manually dispatchable"
     )
@@ -2018,10 +2025,10 @@ def test_AC8_13_21_staging_ai_ocr_gate_runs_under_manual_dispatch() -> None:
     assert "ai-ocr-gate:" in workflow
     assert "name: Staging AI/OCR Gate" in workflow
     assert "Run Staging AI/OCR Gate" in workflow
-    # workflow_dispatch is the sole trigger, so every job (build-and-deploy and the
-    # gate it gates on) runs only on a manual dispatch; a redundant job-level
-    # `if: github.event_name == 'workflow_dispatch'` would always be true.
-    assert list(triggers.keys()) == ["workflow_dispatch"]
+    assert set(triggers) == {"push", "workflow_dispatch"}
+    assert triggers["push"] == {"tags": ["v[0-9]+.[0-9]+.[0-9]+"]}
+    assert "if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'staging' }}" in workflow
+    assert "workflow_run" not in triggers
 
     # An on-demand recovery entry point also runs the gate via workflow_dispatch.
     on_demand_parsed = yaml.safe_load(on_demand_gate)
@@ -2032,7 +2039,7 @@ def test_AC8_13_21_staging_ai_ocr_gate_runs_under_manual_dispatch() -> None:
 
 def test_AC8_13_120_staging_runs_lightweight_provider_connectivity_smoke() -> None:
     """AC8.13.120: provider-risk staging changes prove a provider round trip."""
-    workflow = read(".github/workflows/staging-deploy.yml")
+    workflow = read(".github/workflows/deploy.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     provider_test = read("tests/e2e/test_ai_provider_connectivity.py")
 
@@ -2040,7 +2047,7 @@ def test_AC8_13_120_staging_runs_lightweight_provider_connectivity_smoke() -> No
     assert "name: Staging Provider Gate" in workflow
     assert "needs: [build-and-deploy]" in workflow
     assert (
-        "if: ${{ needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.provider_gate_required == 'true' }}"
+        "if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.provider_gate_required == 'true' }}"
         in workflow
     )
     assert (
@@ -2110,7 +2117,7 @@ def test_AC8_13_120_staging_runs_lightweight_provider_connectivity_smoke() -> No
 
 def test_AC8_13_22_staging_deploys_manually_dispatched_version_ref() -> None:
     """AC8.13.22: Staging deploys the manually dispatched release version_ref."""
-    workflow = read(".github/workflows/staging-deploy.yml")
+    workflow = read(".github/workflows/deploy.yml")
     resolver = read("common/ci/release_coordinate.py")
 
     parsed = yaml.safe_load(workflow)
@@ -2123,14 +2130,14 @@ def test_AC8_13_22_staging_deploys_manually_dispatched_version_ref() -> None:
     assert "actions: read" in workflow
     assert "contents: read" in workflow
     assert "packages: read" in workflow
-    # workflow_dispatch is the sole trigger, so the build-and-deploy job runs only
-    # on a manual dispatch without a redundant (always-true) job-level `if`.
-    assert list(triggers.keys()) == ["workflow_dispatch"]
+    assert set(triggers) == {"push", "workflow_dispatch"}
+    assert triggers["push"] == {"tags": ["v[0-9]+.[0-9]+.[0-9]+"]}
+    assert "if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'staging' }}" in workflow
     assert "Wait for matching CI success" not in workflow
     inputs = triggers["workflow_dispatch"].get("inputs") or {}
     assert "version_ref" in inputs
     assert "tag" not in inputs
-    assert inputs["version_ref"].get("required") is True
+    assert inputs["version_ref"].get("required") is False
     assert "Version ref to deploy (vX.Y.Z release tag)" in workflow
     assert "tools/resolve_release_coordinate.py" in workflow
     assert "_RELEASE_VERSION_REF_RE" in resolver
@@ -2204,8 +2211,8 @@ def test_AC8_13_22_release_coordinate_fetches_only_requested_tag(
 def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
     """AC8.13.36: Main CI builds SHA images, release-images tags them, staging deploys the tag."""
     ci_workflow = read(".github/workflows/ci.yml")
-    release_workflow = read(".github/workflows/release-images.yml")
-    deploy_workflow = read(".github/workflows/staging-deploy.yml")
+    release_workflow = read(".github/workflows/deploy.yml")
+    deploy_workflow = read(".github/workflows/deploy.yml")
     resolver = read("common/ci/release_coordinate.py")
     ci_cd = read("docs/ssot/ci-cd.md")
 
@@ -2275,7 +2282,7 @@ def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
     )
 
     assert "SHA-tagged images" in ci_cd
-    assert "release-images.yml" in ci_cd
+    assert "deploy.yml" in ci_cd
     assert "promotes main-CI SHA images to the immutable release tag" in ci_cd
     assert "staging deploy consumes the release tag without rebuilding" in ci_cd
 
@@ -2315,7 +2322,7 @@ def test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge() -> None:
 def test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds() -> None:
     """AC8.13.89: the in-runner e2e gate runs synchronously on pull_request (independent
     of CI) and does not build/push PR images."""
-    workflow = read(".github/workflows/pr-test.yml")
+    workflow = read(".github/workflows/preview.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     compose = read("docker-compose.yml")
     frontend_dockerfile = read("apps/frontend/Dockerfile")
@@ -2397,8 +2404,8 @@ def test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds() -> None:
 
 def test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit() -> None:
     """AC8.13.23: Deploy health and provider gate share one serialized workflow unit."""
-    deploy_workflow = read(".github/workflows/staging-deploy.yml")
-    ai_workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
+    deploy_workflow = read(".github/workflows/deploy.yml")
+    ai_workflow = read(".github/workflows/deploy.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
     assert "post-merge-train-turn:" not in deploy_workflow
@@ -2785,31 +2792,31 @@ def test_AC8_13_66_coveralls_uploads_use_line_only_lcov() -> None:
 
 def test_AC8_13_93_staging_promotion_requires_manual_dispatch() -> None:
     """AC8.13.93: Staging is mutated only by an explicit manual dispatch; no auto path."""
-    workflow = read(".github/workflows/staging-deploy.yml")
+    workflow = read(".github/workflows/deploy.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     deployment = read("docs/ssot/deployment.md")
 
     parsed = yaml.safe_load(workflow)
     # PyYAML parses the bare `on:` key as the boolean True.
     triggers = parsed.get("on", parsed.get(True))
-    assert isinstance(triggers, dict), "staging-deploy.yml must declare an `on:` map"
-    # The ONLY trigger is a manual dispatch: no workflow_run / push / schedule path
-    # can mutate staging.
-    assert list(triggers.keys()) == ["workflow_dispatch"]
+    assert isinstance(triggers, dict), "deploy.yml must declare an `on:` map"
+    # deploy.yml also owns release-image tag promotion; no workflow_run / branch
+    # push / schedule path can mutate staging.
+    assert set(triggers) == {"push", "workflow_dispatch"}
+    assert triggers["push"] == {"tags": ["v[0-9]+.[0-9]+.[0-9]+"]}
     inputs = triggers["workflow_dispatch"].get("inputs") or {}
     assert "version_ref" in inputs
     assert "tag" not in inputs
-    assert inputs["version_ref"].get("required") is True
+    assert inputs["version_ref"].get("required") is False
 
     # The retired auto-deploy machinery (the dedicated "CI Workflow Run Ignored"
     # skip-summary job that fired on a non-success CI workflow_run) is gone.
     assert "ci-not-success-summary:" not in workflow
     assert "name: CI Workflow Run Ignored" not in workflow
 
-    # The build-and-deploy job, image promotion, and Dokploy mutation only run on
-    # a manual dispatch. Because workflow_dispatch is the sole `on:` trigger, a
-    # job-level `if: github.event_name == 'workflow_dispatch'` would be redundant
-    # (always true) and is intentionally absent.
+    # The staging build-and-deploy job and Dokploy mutation only run on the
+    # staging manual target; a bare event-only guard would be too weak now that
+    # deploy.yml also owns tag-push image promotion.
     assert "if: ${{ github.event_name == 'workflow_dispatch' }}" not in workflow
 
     # The structured deploy failure-context classification is preserved.
@@ -2870,8 +2877,8 @@ def test_AC8_13_45_root_moon_tasks_do_not_hash_repo_submodule() -> None:
 
 def test_AC8_13_46_pr_preview_non_llm_gate_matches_staging_strict_parallelism() -> None:
     """AC8.13.46: PR preview keeps strictness while narrowing to preview scope."""
-    preview = read(".github/workflows/pr-test.yml")
-    staging = read(".github/workflows/staging-deploy.yml")
+    preview = read(".github/workflows/preview.yml")
+    staging = read(".github/workflows/deploy.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
     preview_block = preview.split("- name: End-to-End Tests", 1)[1].split(
@@ -2898,7 +2905,7 @@ def test_AC8_13_46_pr_preview_non_llm_gate_matches_staging_strict_parallelism() 
 
 def test_AC8_13_38_pr_preview_dokploy_responses_are_not_logged() -> None:
     """AC8.13.38: PR preview cleanup parses Dokploy responses without raw logs."""
-    preview = read(".github/workflows/pr-test.yml")
+    preview = read(".github/workflows/preview.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     lifecycle = read("tools/_lib/dev/pr_preview_lifecycle")
 
@@ -2928,7 +2935,7 @@ def test_AC8_13_38_pr_preview_dokploy_responses_are_not_logged() -> None:
 
 def test_AC8_13_72_staging_deploy_proves_health_sha_after_dokploy_trigger() -> None:
     """AC8.13.72 AC8.13.106: staging proof checks health git_sha, not just Dokploy trigger."""
-    workflow = read(".github/workflows/staging-deploy.yml")
+    workflow = read(".github/workflows/deploy.yml")
     deploy_v2 = read("repo/tools/deploy_v2.py")
     primitive = read("repo/tools/deploy_primitive.py")
     health_check = read("tools/_lib/shell/health_check.sh")
@@ -3012,7 +3019,7 @@ def test_AC8_13_72_staging_dokploy_rollout_parsing_is_typed_and_fail_fast() -> N
 def test_AC8_13_72_staging_dokploy_noop_after_redeploy_fails_before_health() -> None:
     """AC8.13.72: staging fails when Dokploy accepts deploys without rollout records."""
     primitive = read("repo/tools/deploy_primitive.py")
-    workflow = read(".github/workflows/staging-deploy.yml")
+    workflow = read(".github/workflows/deploy.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
     assert "deploy rollout did not finish within {timeout}s" in primitive
@@ -3035,7 +3042,7 @@ def test_AC8_13_108_staging_failure_context_fails_closed_on_classifier_and_unkno
     None
 ):
     """AC8.13.108: staging failure context does not hide real failures as skips."""
-    workflow = read(".github/workflows/staging-deploy.yml")
+    workflow = read(".github/workflows/deploy.yml")
     failure_context = workflow.split("Classify staging deploy failure context", 1)[
         1
     ].split("Write staging deploy context", 1)[0]
@@ -3140,8 +3147,8 @@ def test_AC8_13_112_sparse_matrix_recommendation_tracks_simplification_path() ->
 def test_AC8_13_112_workflows_consume_structured_env_stage_gates() -> None:
     """AC8.13.112: workflows consume structured gates, not legacy scalar gates."""
     ci_workflow = read(".github/workflows/ci.yml")
-    pr_workflow = read(".github/workflows/pr-test.yml")
-    staging_workflow = read(".github/workflows/staging-deploy.yml")
+    pr_workflow = read(".github/workflows/preview.yml")
+    staging_workflow = read(".github/workflows/deploy.yml")
 
     assert "pr_required: ${{ steps.gates.outputs.pr_required }}" in ci_workflow
     assert (
@@ -3208,7 +3215,7 @@ def test_AC8_13_112_workflows_consume_structured_env_stage_gates() -> None:
 def test_AC8_13_152_workflow_consumers_keep_classification_single_owned() -> None:
     """AC8.13.152: downstream workflow jobs do not reclassify changed paths."""
     ci_workflow = read(".github/workflows/ci.yml")
-    pr_workflow = read(".github/workflows/pr-test.yml")
+    pr_workflow = read(".github/workflows/preview.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     ci_jobs = yaml.safe_load(ci_workflow)["jobs"]
     pr_jobs = yaml.safe_load(pr_workflow)["jobs"]
@@ -3329,10 +3336,10 @@ def test_AC8_13_119_delivery_resource_leak_hardening_is_contracted() -> None:
     """AC8.13.119: delivery cleanup covers the five known leak paths."""
     epic = read("docs/project/EPIC-008.testing-strategy.md")
     recommendation = read("docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md")
-    preview_cleanup = read(".github/workflows/pr-preview-cleanup.yml")
-    pr_preview = read(".github/workflows/pr-test.yml")
-    staging = read(".github/workflows/staging-deploy.yml")
-    production = read(".github/workflows/production-release.yml")
+    preview_cleanup = read(".github/workflows/maintenance.yml")
+    pr_preview = read(".github/workflows/preview.yml")
+    staging = read(".github/workflows/deploy.yml")
+    production = read(".github/workflows/deploy.yml")
     hygiene = read("tools/_lib/dev/vps_host_hygiene.py")
 
     for token in (
@@ -3412,7 +3419,7 @@ def test_AC8_13_119_delivery_resource_leak_hardening_is_contracted() -> None:
 
 def test_AC8_13_10_multi_brokerage_upload_to_portfolio_value_gate() -> None:
     """AC8.13.10: Staging proves multi-brokerage upload through latest value."""
-    workflow = read(".github/workflows/staging-deploy.yml")
+    workflow = read(".github/workflows/deploy.yml")
     brokerage = read("tests/e2e/test_brokerage_upload_to_portfolio_value.py")
     statements_router = read("apps/backend/src/routers/statements.py")
     brokerage_payload = read("apps/backend/src/services/brokerage_statement_payload.py")
@@ -3556,8 +3563,8 @@ def test_AC8_13_32_vision_hard_gate_proves_trusted_reporting_totals() -> None:
 def test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical() -> None:
     """AC8.13.42: four-asset as-of net worth proof is wired into the post-merge hard gate."""
     gate = read("tests/e2e/test_four_asset_net_worth_golden_path.py")
-    deploy_workflow = read(".github/workflows/staging-deploy.yml")
-    ai_workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
+    deploy_workflow = read(".github/workflows/deploy.yml")
+    ai_workflow = read(".github/workflows/deploy.yml")
     matrix = critical_matrix_text()
     epic = read("docs/project/EPIC-008.testing-strategy.md")
     ci_cd = read("docs/ssot/ci-cd.md")
@@ -3629,7 +3636,7 @@ def test_AC8_13_33_e2e_setup_caches_virtualenv_and_playwright_browsers() -> None
 def test_AC8_13_34_ci_and_post_merge_write_timing_summaries() -> None:
     """AC8.13.34: CI and post-merge workflows report queue and critical-path timing."""
     ci_workflow = read(".github/workflows/ci.yml")
-    deploy_workflow = read(".github/workflows/staging-deploy.yml")
+    deploy_workflow = read(".github/workflows/deploy.yml")
     timing_script = read("common/ci/github_workflow_timing_summary.py")
     ci_cd = read("docs/ssot/ci-cd.md")
 
@@ -3656,7 +3663,7 @@ def test_AC8_13_114_pr_preview_follows_successful_ci_workflow_run() -> None:
     via workflow_run — that fired after CI and a quick merge could land before it ran as
     a gate (skipped required checks count as passed). It is image-free, so it needs no
     CI artifact and runs independently."""
-    workflow = read(".github/workflows/pr-test.yml")
+    workflow = read(".github/workflows/preview.yml")
     assert "workflow_run:" not in workflow
     assert "types: [opened, synchronize, reopened, closed]" in workflow
     assert 'action_reason = "pull-request-sync"' in workflow
@@ -3671,7 +3678,7 @@ def test_AC8_13_114_pr_preview_follows_successful_ci_workflow_run() -> None:
 
 def test_AC8_13_115_readiness_fail_fast() -> None:
     """AC8.13.115: Runner preview readiness is bounded before smoke/E2E starts."""
-    workflow = read(".github/workflows/pr-test.yml")
+    workflow = read(".github/workflows/preview.yml")
     e2e_block = workflow.split("  e2e:", 1)[1].split("  cleanup:", 1)[0]
     assert "timeout-minutes: 25" in e2e_block
     assert "Wait for stack readiness" in e2e_block

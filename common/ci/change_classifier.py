@@ -102,8 +102,8 @@ COMMON_DEPLOY_RUNTIME_PREFIXES = (
 
 PR_PREVIEW_ONLY_EXACT = frozenset(
     {
-        ".github/workflows/pr-preview-cleanup.yml",
-        ".github/workflows/pr-test.yml",
+        ".github/workflows/maintenance.yml",
+        ".github/workflows/preview.yml",
         "docker-compose.pr-preview.yml",
         "tools/pr_preview_lifecycle.py",
         "tools/_lib/dev/pr_preview_lifecycle.py",
@@ -112,9 +112,7 @@ PR_PREVIEW_ONLY_EXACT = frozenset(
 STAGING_ONLY_EXACT = frozenset(
     {
         ".github/workflows/ci.yml",
-        ".github/workflows/release-images.yml",
-        ".github/workflows/staging-deploy.yml",
-        ".github/workflows/staging-ai-ocr-gate.yml",
+        ".github/workflows/deploy.yml",
         ".node-version",
         ".python-version",
         "tools/check_ghcr_image_tag.sh",
@@ -143,8 +141,7 @@ STAGING_PREFIXES = COMMON_DEPLOY_RUNTIME_PREFIXES + ("repo/",)
 
 STAGING_AI_OCR_EXACT = frozenset(
     {
-        ".github/workflows/staging-deploy.yml",
-        ".github/workflows/staging-ai-ocr-gate.yml",
+        ".github/workflows/deploy.yml",
         "apps/backend/src/config.py",
         "apps/backend/src/prompts/statement.py",
         "docs/ssot/ai.md",

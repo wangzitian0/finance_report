@@ -96,14 +96,9 @@ def check_workflows(repo_root: Path, toolchain: dict, errors: list[str]) -> None
             "version: ${{ env.UV_VERSION }}",
             "python tools/check_toolchain_contract.py",
         ),
-        ".github/workflows/staging-deploy.yml": (
+        ".github/workflows/deploy.yml": (
             f'PYTHON_VERSION: "{python_version}"',
-            f'UV_VERSION: "{uv_version}"',
-            "python-version: ${{ env.PYTHON_VERSION }}",
-            "version: ${{ env.UV_VERSION }}",
-        ),
-        ".github/workflows/production-release.yml": (
-            f'PYTHON_VERSION: "{python_version}"',
+            f'NODE_VERSION: "{node_version}"',
             f'UV_VERSION: "{uv_version}"',
             "python-version: ${{ env.PYTHON_VERSION }}",
             "version: ${{ env.UV_VERSION }}",

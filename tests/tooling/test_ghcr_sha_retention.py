@@ -16,7 +16,7 @@ from common.ci.ghcr_retention import (
 )
 
 ROOT = Path(__file__).resolve().parents[2]
-WORKFLOW = ROOT / ".github" / "workflows" / "ghcr-sha-retention.yml"
+WORKFLOW = ROOT / ".github" / "workflows" / "maintenance.yml"
 
 
 def _version(
@@ -150,11 +150,13 @@ def test_AC7_19_1_workflow_schedules_28_day_sha_retention_with_live_exemption() 
     workflow_text = WORKFLOW.read_text(encoding="utf-8")
     workflow = yaml.safe_load(workflow_text)
 
-    assert workflow["name"] == "GHCR SHA Retention"
+    assert workflow["name"] == "Maintenance"
     triggers = workflow.get("on") or workflow.get(True)
     assert "schedule" in triggers
-    assert triggers["schedule"][0]["cron"] == "17 3 * * *"
+    assert {"cron": "17 3 * * *"} in triggers["schedule"]
     assert "workflow_dispatch" in triggers
+    assert "ghcr-sha-retention" in workflow_text
+    assert "inputs.ghcr_dry_run" in workflow_text
     assert workflow["env"]["GHCR_SHA_RETENTION_DAYS"] == "28"
     assert workflow["permissions"]["packages"] == "write"
 

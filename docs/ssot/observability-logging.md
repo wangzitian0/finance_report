@@ -18,8 +18,8 @@
 - `apps/backend/src/services/extraction.py` - Model selection and HTTP error logging
 - `apps/backend/src/services/ai_provider_models.py` - Cache and model lookup logging
 - `apps/backend/src/services/ai_provider_streaming.py` - Enhanced AI provider API error logging
-- `.github/workflows/staging-deploy.yml` - Post-merge staging audit input inventory and phase summary
-- `.github/workflows/staging-ai-ocr-gate.yml` - Manual staging AI/OCR audit input inventory
+- `.github/workflows/deploy.yml` - Post-merge staging audit input inventory and phase summary
+- `.github/workflows/deploy.yml` - Manual staging AI/OCR audit input inventory
 
 ### Configuration
 - **Logger**: Structured logging via `src/logger.py` with OTEL integration

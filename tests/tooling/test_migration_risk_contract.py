@@ -527,7 +527,7 @@ def test_AC7_11_4_ci_and_release_dry_run_execute_migration_risk_contract() -> No
     """AC7.11.4: CI and production dry-run surface migration risk classification."""
 
     ci = read(".github/workflows/ci.yml")
-    release = read(".github/workflows/production-release.yml")
+    release = read(".github/workflows/deploy.yml")
 
     assert "Migration Risk Contract Check" in ci
     assert "python tools/check_migration_risk.py" in ci

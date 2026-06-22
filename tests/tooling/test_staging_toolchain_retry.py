@@ -29,7 +29,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 
 SETUP_E2E_ACTION = ".github/actions/setup-e2e-tests/action.yml"
-STAGING_DEPLOY_WORKFLOW = ".github/workflows/staging-deploy.yml"
+STAGING_DEPLOY_WORKFLOW = ".github/workflows/deploy.yml"
 
 
 def read(path: str) -> str:

@@ -25,7 +25,7 @@ _BAKED_ENV_DOMAIN = re.compile(
     r"""NEXT_PUBLIC_(?:API|APP)_URL\s*[=:]\s*["']?\s*https?://"""
 )
 
-# Files that contribute to the *published* image. staging-deploy.yml is intentionally
+# Files that contribute to the *published* image. deploy.yml is intentionally
 # excluded — its build-on-missing path is the deploy-side escape hatch owned by P1b/P2.
 _PUBLISH_BUILD_SOURCES = (".github/workflows/ci.yml", "apps/frontend/Dockerfile")
 

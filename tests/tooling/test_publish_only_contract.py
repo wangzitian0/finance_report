@@ -69,7 +69,7 @@ def test_AC7_12_4_image_push_publishes_for_main_release_and_dispatch():
 
 
 def test_AC7_12_4_persistent_preview_is_on_demand_not_per_pr():
-    pr = read(".github/workflows/pr-test.yml")
+    pr = read(".github/workflows/preview.yml")
     # deploy-preview runs only via manual workflow_dispatch — no per-PR auto-deploy (P1a-2).
     deploy_block = pr.split("  deploy-preview:", 1)[1].split("\n  e2e:", 1)[0]
     deploy_if = next(

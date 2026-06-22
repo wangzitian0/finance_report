@@ -212,7 +212,7 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC7.10.1 | `production-release.yml` promotes the staging-validated image to `vX.Y.Z` instead of rebuilding from source | `test_AC7_10_production_release_promotes_not_rebuilds` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC7.10.1 | `deploy.yml` promotes the staging-validated image to `vX.Y.Z` instead of rebuilding from source | `test_AC7_10_production_release_promotes_not_rebuilds` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC7.10.2 | Release fails closed if no staging-validated SHA image exists or if digests differ | `test_AC7_10_production_release_promotes_not_rebuilds` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC7.10.3 | Workflow summary records released commit, source CI run, promoted image digest, and no rebuild | `test_AC7_10_production_release_promotes_not_rebuilds` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC7.10.4 | Deployment and CI SSOTs document the promote-not-rebuild consistency ladder | `test_AC7_10_production_release_promotes_not_rebuilds` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |

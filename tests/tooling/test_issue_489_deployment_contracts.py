@@ -268,7 +268,7 @@ def test_app_iac_wires_vault_secrets_health_and_traefik_routes() -> None:
 
 def test_pr_preview_gate_exercises_health_smoke_e2e_and_storage_paths() -> None:
     """AC7.9.1 AC7.9.2 AC7.9.3 AC7.9.4 AC7.9.5: PR preview validates runtime health, API, domain, and storage upload paths."""
-    workflow = read(".github/workflows/pr-test.yml")
+    workflow = read(".github/workflows/preview.yml")
     smoke = read("tools/_lib/shell/smoke_test.sh")
     hard_gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
 
@@ -315,8 +315,8 @@ def test_pr_preview_gate_exercises_health_smoke_e2e_and_storage_paths() -> None:
 
 def test_pr_preview_follows_successful_ci_without_dokploy_deploy() -> None:
     """Issue #839: PR preview follows CI and does not build/push PR images."""
-    workflow = load_yaml(".github/workflows/pr-test.yml")
-    workflow_text = read(".github/workflows/pr-test.yml")
+    workflow = load_yaml(".github/workflows/preview.yml")
+    workflow_text = read(".github/workflows/preview.yml")
     jobs = workflow["jobs"]
 
     assert "preview_opt_in" not in yaml.safe_dump(workflow)
@@ -353,7 +353,7 @@ def test_in_runner_e2e_is_image_free_and_self_cleaning() -> None:
     and runs the stack locally (no image push, no Dokploy), and always tears the
     stack down so no container / volume / network leaks.
     """
-    workflow = load_yaml(".github/workflows/pr-test.yml")
+    workflow = load_yaml(".github/workflows/preview.yml")
     e2e = workflow["jobs"]["e2e"]
 
     # Runs by default on runtime PRs — NOT behind the opt-in preview label.
