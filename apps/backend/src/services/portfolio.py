@@ -21,7 +21,7 @@ from src.models.portfolio import (
     MarketDataOverride,
     PriceSource,
 )
-from src.money import to_money
+from src.money import Money, to_money
 from src.quantity import Quantity
 from src.ratio import Ratio
 from src.schemas.portfolio import (
@@ -262,48 +262,32 @@ class PortfolioService:
 
             synced_price = await self._get_latest_synced_stock_price(db, snapshot.asset_identifier, as_of_date)
             if synced_price is not None and not snapshot_quantity.is_zero():
-                market_value = synced_price.price * snapshot_quantity.value
-                market_value_currency = synced_price.currency
-                cost_basis = position.cost_basis
-                cost_basis_currency = position.currency
-            else:
-                market_value = snapshot.market_value
-                market_value_currency = snapshot.currency
-                cost_basis = snapshot.market_value
-                cost_basis_currency = snapshot.currency
-
-            currency = market_value_currency
-            if market_value_currency != settings.base_currency:
-                converted_market_value = await fx.convert_amount(
-                    db,
-                    amount=market_value,
-                    currency=market_value_currency,
-                    target_currency=settings.base_currency,
-                    rate_date=as_of_date,
-                    lazy_load=True,
+                market_money = (
+                    UnitPrice(synced_price.price, synced_price.currency, PORTFOLIO_QUANTITY_UNIT) * snapshot_quantity
                 )
-                currency = settings.base_currency
+                cost_money = position.cost_basis_money
+                # managed-position cost is converted at its acquisition-date FX
+                # boundary (consistent with get_holdings + the reporting SSOT).
+                cost_rate_date = position.acquisition_date
             else:
-                converted_market_value = market_value
+                # snapshot proxy: cost == market, both at as_of_date so the
+                # fallback unrealized P&L stays zero.
+                market_money = Money(snapshot.market_value, snapshot.currency)
+                cost_money = Money(snapshot.market_value, snapshot.currency)
+                cost_rate_date = as_of_date
 
-            if cost_basis_currency != settings.base_currency:
-                converted_cost_basis = await fx.convert_amount(
-                    db,
-                    amount=cost_basis,
-                    currency=cost_basis_currency,
-                    target_currency=settings.base_currency,
-                    rate_date=as_of_date,
-                    lazy_load=True,
-                )
-                currency = settings.base_currency
-            else:
-                converted_cost_basis = cost_basis
+            # Market and cost may carry different source currencies; convert each to
+            # base as Money (no-op when already base, so no per-side if/else branch).
+            converted_market_value = (
+                await fx.convert_money(db, market_money, settings.base_currency, rate_date=as_of_date, lazy_load=True)
+            ).quantize()
+            converted_cost_basis = (
+                await fx.convert_money(db, cost_money, settings.base_currency, rate_date=cost_rate_date, lazy_load=True)
+            ).quantize()
+            currency = converted_market_value.currency.code
 
-            converted_market_value = to_money(converted_market_value)
-            converted_cost_basis = to_money(converted_cost_basis)
-
-            unrealized_pnl = to_money(converted_market_value - converted_cost_basis)
-            unrealized_pnl_ratio = Ratio.fraction_or_zero(unrealized_pnl, converted_cost_basis)
+            unrealized_pnl = converted_market_value - converted_cost_basis
+            unrealized_pnl_ratio = Ratio.fraction_or_zero(unrealized_pnl.amount, converted_cost_basis.amount)
 
             holdings.append(
                 HoldingResponse(
@@ -312,9 +296,9 @@ class PortfolioService:
                     account_id=position.account_id,
                     asset_identifier=snapshot.asset_identifier,
                     quantity=snapshot.quantity,
-                    cost_basis=converted_cost_basis,
-                    market_value=converted_market_value,
-                    unrealized_pnl=unrealized_pnl,
+                    cost_basis=converted_cost_basis.amount,
+                    market_value=converted_market_value.amount,
+                    unrealized_pnl=unrealized_pnl.amount,
                     unrealized_pnl_percent=unrealized_pnl_ratio.to_percent(),
                     currency=currency,
                     acquisition_date=position.acquisition_date,
