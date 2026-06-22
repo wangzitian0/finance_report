@@ -572,6 +572,19 @@ imports no base package, so the family stays bounded — not a fifth base packag
 | AC12.36.1 | The four `common/` base-package codecs route raw-`Decimal` conversion through one shared `common.decimal_scalar` module (`decimal_to_wire` / `coerce_decimal` / `WireCodec`); no base package re-defines the `_decimal_to_wire` / `_decimal_from_wire` / `_payload_mapping` / `_field` bodies or the construction-time `_coerce` body locally, and the canonical codec logic (`rstrip`, `IEEE-754` rejection, decimal-string parse) lives only in `decimal_scalar` {tier:PC} | `test_AC12_36_1_common_base_packages_share_one_scalar_codec` | `tests/tooling/test_decimal_scalar_ssot.py` | P1 |
 | AC12.36.2 | The backend self-contained mirror likewise routes every base-package `Decimal` boundary through one shared `src.decimal_scalar` module, keeping the backend end conformant without re-duplicating the codec per package {tier:PC} | `test_AC12_36_2_backend_base_packages_share_one_scalar_codec` | `tests/tooling/test_decimal_scalar_ssot.py` | P1 |
 
+### AC12.37: `JournalLine.money` accessor — boundary push Phase 2 ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
+
+After the `ManagedPosition` pilot (AC12.35), the next-largest raw-`Decimal` read
+surface is `JournalLine.amount` (~40 service reads). Journal lines are immutable
+(`amount > 0`), so a read-only `money` accessor is the boundary; business sums/reads
+lines as `Money` (currency-checked) instead of raw currency-blind `Decimal`. Migrated
+incrementally by area; the forbid-ratchet follows once the surface is covered.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC12.37.1 | `JournalLine` exposes a typed `money` read accessor (`Money(amount, currency)`, currency mirroring the column's "SGD" default for unflushed rows) at the ORM boundary; the raw `amount`/`currency` columns remain the storage edge {tier:PC} | `test_AC12_37_1_journal_line_exposes_money_accessor` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
+| AC12.37.2 | The reconciliation entry-amount helpers (`entry_total_amount`/`entry_bank_side_amount`) sum journal lines via `line.money` + `Money.sum` (currency-checked) instead of a raw currency-blind `sum(line.amount)` {tier:PC} | `test_AC12_37_2_reconciliation_config_sums_lines_as_money` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
+
 ---
 
 *Planning snapshot captured: January 2026*

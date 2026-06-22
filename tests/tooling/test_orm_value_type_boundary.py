@@ -115,3 +115,31 @@ def test_AC12_35_4_no_raw_managed_position_money_reads_in_migrated_files():
     assert not offenders, (
         f"raw ManagedPosition money reads must use accessors: {offenders}"
     )
+
+
+@ac_proof(
+    proof_id="test_journal_line_money_accessor",
+    ac_ids=["AC12.37.1"],
+    ci_tier="pr_ci",
+)
+def test_AC12_37_1_journal_line_exposes_money_accessor():
+    """AC12.37.1: JournalLine exposes a typed `money` read accessor at the ORM
+    boundary (lines are immutable; amount/currency columns stay storage)."""
+    src = _read("apps/backend/src/models/journal.py")
+    assert "from src.money import Money" in src
+    assert "def money(self) -> Money" in src
+
+
+@ac_proof(
+    proof_id="test_reconciliation_config_sums_money",
+    ac_ids=["AC12.37.2"],
+    ci_tier="pr_ci",
+)
+def test_AC12_37_2_reconciliation_config_sums_lines_as_money():
+    """AC12.37.2: reconciliation entry-amount helpers sum journal lines via the
+    typed `line.money` accessor + `Money.sum` (currency-checked), not a raw
+    currency-blind `sum(line.amount)`."""
+    src = _read("apps/backend/src/services/reconciliation_config.py")
+    assert "line.money" in src
+    assert "Money.sum(" in src
+    assert "sum(line.amount" not in src
