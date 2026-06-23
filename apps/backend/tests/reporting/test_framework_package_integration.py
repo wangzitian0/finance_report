@@ -185,7 +185,9 @@ async def test_AC19_7_1_readiness_consumes_framework_specific_evidence_blockers(
         quantity=Decimal("1"),
         market_value=Decimal("500.00"),
         currency="SGD",
-        asset_type=AssetType.OTHER,
+        # asset_type=None is genuinely unclassifiable -> UNSUPPORTED/gap. (OTHER is
+        # now a mapped category since #1342, so it no longer produces a policy gap.)
+        asset_type=None,
         dedup_hash=f"framework-token-{uuid4()}",
         source_documents={"documents": [{"doc_id": "token-doc", "doc_type": "brokerage_statement"}]},
     )
@@ -494,8 +496,8 @@ def test_AC20_5_1_atomic_position_asset_types_map_to_policy_domains() -> None:
         (AssetType.MUTUAL_FUND, PolicyFactDomain.FUND, "fund"),
         (AssetType.CASH, PolicyFactDomain.CASH, "cash"),
         (AssetType.PROPERTY, PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, "property"),
-        (AssetType.BOND, PolicyFactDomain.UNSUPPORTED, "bond"),
-        (AssetType.OTHER, PolicyFactDomain.UNSUPPORTED, "other"),
+        (AssetType.BOND, PolicyFactDomain.LISTED_SECURITY, "bond"),
+        (AssetType.OTHER, PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, "manual_asset"),
         (None, PolicyFactDomain.UNSUPPORTED, "unknown_asset"),
     ]
 
