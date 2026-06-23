@@ -47,9 +47,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # tier -> the set of proof kinds the SSOT matrix accepts for that tier. The prose
 # source of truth is docs/ssot/authority-tiers.md; its single MACHINE mirror is
-# common/governance/package_contract.TIER_VALID_PROOF_KINDS (the same matrix the
-# ACRecord model validates against). Aliased here so this gate and the contract
-# model enforce one identical matrix — they cannot drift apart.
+# common/ssot/authority_matrix.TIER_VALID_PROOF_KINDS (which package_contract also
+# re-exports for the PackageContract model). Aliased here so this gate and the
+# contract model enforce one identical matrix — they cannot drift apart.
 VALID_PROOF_KINDS: dict[str, frozenset[str]] = TIER_VALID_PROOF_KINDS
 
 

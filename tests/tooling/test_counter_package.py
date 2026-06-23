@@ -39,7 +39,7 @@ def _imported_modules(path: Path) -> set[str]:
 @ac_proof(
     proof_id="test_counter_converges_by_role", ac_ids=["AC-counter.1.1"], ci_tier="pr_ci"
 )
-def test_AC25_6_1_counter_converges_by_role():
+def test_AC_counter_1_1_counter_converges_by_role():
     """AC-counter.1.1: counter exposes types (nouns/events), ops (verbs), store, api."""
     assert (COUNTER / "types/key.py").exists()
     assert (COUNTER / "types/count.py").exists()
@@ -54,7 +54,7 @@ def test_AC25_6_1_counter_converges_by_role():
 
 
 @ac_proof(proof_id="test_counter_types_pure", ac_ids=["AC-counter.1.2"], ci_tier="pr_ci")
-def test_AC25_6_2_types_never_import_store_api_or_orm():
+def test_AC_counter_1_2_types_never_import_store_api_or_orm():
     """AC-counter.1.2: domain types depend on nothing below them (no store/api/ORM/session).
 
     The value language must stay free of persistence and transport so it is a
@@ -77,7 +77,7 @@ def test_AC25_6_2_types_never_import_store_api_or_orm():
 
 
 @ac_proof(proof_id="test_counter_ops_pure", ac_ids=["AC-counter.1.3"], ci_tier="pr_ci")
-def test_AC25_6_3_ops_never_import_the_orm_session_or_api():
+def test_AC_counter_1_3_ops_never_import_the_orm_session_or_api():
     """AC-counter.1.3: ops depend on the store *port* + types only — no ORM/session/api.
 
     Verbs talk to the ``CounterRepository`` Protocol, never to ``store.sql`` /
@@ -100,7 +100,7 @@ def test_AC25_6_3_ops_never_import_the_orm_session_or_api():
 
 
 @ac_proof(proof_id="test_counter_only_all_public", ac_ids=["AC-counter.1.1"], ci_tier="pr_ci")
-def test_AC25_6_1_only_all_is_the_published_language():
+def test_AC_counter_1_1_only_all_is_the_published_language():
     """AC-counter.1.1: the package's contract.interface equals its __init__.__all__."""
     import src.counter as counter_pkg
     from common.counter.contract import CONTRACT
@@ -116,7 +116,7 @@ def test_AC25_6_1_only_all_is_the_published_language():
     ac_ids=["AC-counter.1.4"],
     ci_tier="pr_ci",
 )
-def test_AC25_6_4_package_contract_gate_passes_for_counter():
+def test_AC_counter_1_4_package_contract_gate_passes_for_counter():
     """AC-counter.1.4: check_package_contract discovers and validates counter (green)."""
     names = {p.name for p in discover_packages(REPO)}
     assert "counter" in names, f"counter not discovered; found {names}"

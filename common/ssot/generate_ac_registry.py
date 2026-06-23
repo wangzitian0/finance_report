@@ -73,9 +73,9 @@ EPIC_NAMES: dict[int, str] = {
 AC_PATTERN = re.compile(r"\b(AC(\d+)\.(\d+)\.(\d+))\b")
 
 # Authority tier + proof-kind vocabulary and the tier->proof matrix all come from
-# the single machine source in common/governance/package_contract.py (the same
-# definitions the ACRecord model validates against), so the EPIC-table source and
-# the package-contract source can never disagree about the matrix.
+# the single machine source common/ssot/authority_matrix.py (stdlib-only;
+# package_contract re-exports the same definitions for its model validation), so
+# the EPIC-table source and the package-contract source can never disagree.
 AC_TIERS = _AC_TIERS
 AC_PROOF_KINDS = _AC_PROOF_KINDS
 

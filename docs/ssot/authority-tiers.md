@@ -27,7 +27,7 @@ permanent tiers:
 
 | Code | Name (中文) | Produces the result | Reproducible? | Typical modules |
 |------|-------------|---------------------|---------------|-----------------|
-| **PC** | 纯代码 pure-code | **Code**, no LLM | Bit-level, fully reproducible (bit-level reproducible) | money/accounting, dedup, validation, persistence, reporting-calc, **recording a human decision/label** |
+| **PC** | 纯代码 pure-code | **Code**, no LLM | Bit-level, fully reproducible | money/accounting, dedup, validation, persistence, reporting-calc, **recording a human decision/label** |
 | **CP** | 代码为主·LLM辅助 code-primary | **Code**; the LLM only assists within strict code constraints on the I/O and decisions | Reproducible once the config/knobs are pinned | model/strategy selection feeding a deterministic parser; LLM-tuned thresholds with deterministic scoring |
 | **LP** | LLM为主·代码守门 LLM-primary | **The LLM**; code validates its format/invariants and may reject, never produces | Not reproducible but DETECTABLE | extraction, OCR, classification, brokerage CSV→canonical mapping |
 | **PL** | 纯LLM pure-LLM | **The LLM**, with no validation | Not required | advisor narrative, chat answer/suggestion text |
