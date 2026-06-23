@@ -132,6 +132,26 @@ def test_AC20_7_1_same_fixture_must_drive_framework_differentiated_reports() -> 
     assert "readiness blockers" in epic
 
 
+def test_AC20_9_1_reporting_pipeline_declares_layer_authority_tiers() -> None:
+    """AC20.9.1: The three pipeline layers each declare a locked EPIC-026 tier + proof."""
+    epic = read(EPIC_020)
+
+    assert "Reporting Pipeline Authority Tiers" in epic
+    # The three layers, named.
+    for layer in ("event → L2", "L2 → L1", "L1 → report"):
+        assert layer in epic
+    # Each layer's locked tier from the EPIC-026 5-tier set.
+    for tier in ("**LP**", "**CP**", "**PC**"):
+        assert tier in epic
+    # The tier-appropriate proof obligation per layer.
+    assert "no exact-golden" in epic  # LP
+    assert "the **code's** decision" in epic  # CP
+    assert "exact / property test" in epic  # PC
+    # LLM authority confined to the LP layer; CP is code-authoritative (PC today).
+    assert "PC today" in epic
+    assert "docs/ssot/authority-tiers.md" in epic
+
+
 def test_AC2_18_1_canonical_ledger_is_framework_neutral() -> None:
     """AC2.18.1: Canonical ledger remains framework-neutral."""
     epic = read("docs/project/EPIC-002.double-entry-core.md")
