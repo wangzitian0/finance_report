@@ -77,9 +77,9 @@ code holds final authority everywhere a number becomes financial truth.
 
 | Layer | What it decides | Tier | Who emits the used artifact | Proof obligation | Enforcing gate |
 |---|---|---|---|---|---|
-| **event → L2** | classify a financial event (category, direction) — polymorphic | **LP** (强LLM/LLM为主) | LLM emits the classification; code does enum + balance/dedup sanity and may reject, never author | invariant / property + eval + provenance; **no exact-golden** | LLM cassette balance-chain drift gate (`tools/check_llm_cassettes.py`, AC23.7.1) |
-| **L2 → L1** | map an L2 category to a report line | **CP** (强代码/代码为主) — PC today | code's deterministic rule table emits the line; LLM only fills ambiguous knobs (`holding_intent` / `horizon`, `OTHER` disambiguation) and code validates | assert the **code's** decision, not the LLM output | L2→L1 completeness gate (`test_framework_policy_coverage.py`, AC20.8.1) |
-| **L1 → report** | aggregate by the L1 registry into statements | **PC** (纯代码) | code sums by registry; no LLM in the path; bit-reproducible | exact / property test | pending — L1 registry + exact-aggregation test (tracked separately) |
+| **event → L2** | classify a financial event (category, direction) — polymorphic | **LP** (LLM-led) | LLM emits the classification; code does enum + balance/dedup sanity and may reject, never author | invariant / property + eval + provenance; **no exact-golden** | LLM cassette balance-chain drift gate (`tools/check_llm_cassettes.py`, AC23.7.1) |
+| **L2 → L1** | map an L2 category to a report line | **CP** (code-led) — PC today | code's deterministic rule table emits the line; LLM only fills ambiguous knobs (`holding_intent` / `horizon`, `OTHER` disambiguation) and code validates | assert the **code's** decision, not the LLM output | L2→L1 completeness gate (`test_framework_policy_coverage.py`, AC20.8.1) |
+| **L1 → report** | aggregate by the L1 registry into statements | **PC** (pure code) | code sums by registry; no LLM in the path; bit-reproducible | exact / property test | pending — L1 registry + exact-aggregation test (tracked separately) |
 
 Notes:
 - **L2 → L1 is PC today** (the `framework_policy` rule table is pure deterministic
