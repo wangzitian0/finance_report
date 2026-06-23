@@ -1821,6 +1821,34 @@
         "title": "BankTransactionSummary",
         "type": "object"
       },
+      "BaseCurrencyResponse": {
+        "description": "The effective base reporting currency (persisted override else env default).",
+        "properties": {
+          "base_currency": {
+            "title": "Base Currency",
+            "type": "string"
+          }
+        },
+        "required": [
+          "base_currency"
+        ],
+        "title": "BaseCurrencyResponse",
+        "type": "object"
+      },
+      "BaseCurrencyUpdate": {
+        "description": "Request body to set the effective base reporting currency.\n\nThe code is validated against ISO 4217 via ``src.money.Currency`` so an\ninvalid code is rejected at the request boundary (HTTP 422) and never\npersisted; the stored value is the normalized (upper-cased) code.",
+        "properties": {
+          "base_currency": {
+            "title": "Base Currency",
+            "type": "string"
+          }
+        },
+        "required": [
+          "base_currency"
+        ],
+        "title": "BaseCurrencyUpdate",
+        "type": "object"
+      },
       "BatchAcceptRequest": {
         "description": "Request body for batch accept.",
         "properties": {
@@ -11328,6 +11356,218 @@
         "summary": "List Ai Suggestions",
         "tags": [
           "ai-feedback"
+        ]
+      }
+    },
+    "/app-config/base-currency": {
+      "get": {
+        "description": "Return the effective base currency (persisted override else env default).",
+        "operationId": "get_base_currency_app_config_base_currency_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseCurrencyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Base Currency",
+        "tags": [
+          "app-config"
+        ]
+      },
+      "put": {
+        "description": "Persist a new effective base currency. Invalid ISO 4217 code -> HTTP 422.",
+        "operationId": "update_base_currency_app_config_base_currency_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BaseCurrencyUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseCurrencyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Update Base Currency",
+        "tags": [
+          "app-config"
         ]
       }
     },

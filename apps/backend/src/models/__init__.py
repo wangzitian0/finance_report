@@ -1,6 +1,7 @@
 """SQLAlchemy models package."""
 
 from src.models.account import Account, AccountType
+from src.models.app_config import BASE_CURRENCY_KEY, AppConfig
 from src.models.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 from src.models.correction import CorrectionLog
@@ -62,9 +63,11 @@ from src.models.workflow import (
 )
 
 __all__ = [
+    "BASE_CURRENCY_KEY",
     "Account",
     "AccountType",
     "AiFeedback",
+    "AppConfig",
     "AtomicPosition",
     "AtomicPositionSourceDocument",
     "AtomicTransaction",

@@ -2,6 +2,7 @@ import {
     BarChart3,
     Bell,
     BookOpen,
+    Coins,
     Cpu,
     ClipboardCheck,
     Clock,
@@ -46,6 +47,7 @@ export const advancedNavItems: NavItem[] = [
     { icon: Link2, label: "Reconciliation", href: "/reconciliation", protected: true },
     { icon: Clock, label: "Processing", href: "/processing", protected: true },
     { icon: TrendingDown, label: "Confidence Trend", href: "/confidence", protected: true },
+    { icon: Coins, label: "General Settings", href: "/settings/general", protected: true },
     { icon: SlidersHorizontal, label: "AI Settings", href: "/settings/ai", protected: true },
     { icon: Cpu, label: "LLM Models", href: "/settings/llm", protected: true },
 ];
@@ -81,6 +83,7 @@ export const ROUTE_CONFIG: Record<string, RouteConfig> = {
     "/processing": { label: "Processing", Icon: Clock },
     "/confidence": { label: "Confidence Trend", Icon: TrendingDown },
     "/chat": { label: "Chat", Icon: MessageSquare },
+    "/settings/general": { label: "General Settings", Icon: Coins },
     "/settings/ai": { label: "AI Settings", Icon: SlidersHorizontal },
     "/settings/llm": { label: "LLM Models", Icon: Cpu },
     "/ping-pong": { label: "Ping-Pong", Icon: Zap },

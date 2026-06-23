@@ -556,3 +556,44 @@ describe('apiDownload', () => {
     expect(window.location.href).toBe('/login');
   });
 });
+
+describe('base currency app-config api (EPIC-012 AC12.39)', () => {
+  beforeEach(() => {
+    localStorageMock.clear();
+    vi.unstubAllGlobals();
+    vi.stubGlobal('localStorage', localStorageMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.stubGlobal('localStorage', localStorageMock);
+  });
+
+  it('AC12.39 fetchBaseCurrency GETs the effective base currency', async () => {
+    const fetchMock = makeFetchMock(200, { base_currency: 'SGD' });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { fetchBaseCurrency } = await import('../lib/api');
+    const result = await fetchBaseCurrency();
+
+    expect(result).toEqual({ base_currency: 'SGD' });
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/app-config/base-currency'),
+      expect.objectContaining({ credentials: 'include' })
+    );
+  });
+
+  it('AC12.39 updateBaseCurrency PUTs the new ISO code', async () => {
+    const fetchMock = makeFetchMock(200, { base_currency: 'USD' });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { updateBaseCurrency } = await import('../lib/api');
+    const result = await updateBaseCurrency('USD');
+
+    expect(result).toEqual({ base_currency: 'USD' });
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/app-config/base-currency'),
+      expect.objectContaining({ method: 'PUT', body: JSON.stringify({ base_currency: 'USD' }) })
+    );
+  });
+});

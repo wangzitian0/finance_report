@@ -1,5 +1,6 @@
 import { getAccessToken } from "./auth";
 import type {
+  BaseCurrency,
   ConfidenceNorthStarResponse,
   CorrectionLoopReplayResponse,
   CurrentUser,
@@ -400,6 +401,23 @@ export async function patchUserSettings(
   return apiFetch<UserAiSettings>("/api/users/me/settings", {
     method: "PATCH",
     body: JSON.stringify(update),
+  });
+}
+
+// ── App-level base currency (EPIC-012 AC12.39 / #1340) ─────────────────────
+
+/** The effective base reporting currency (persisted override else env default). */
+export async function fetchBaseCurrency(): Promise<BaseCurrency> {
+  return apiFetch<BaseCurrency>("/api/app-config/base-currency");
+}
+
+/** Persist a new effective base reporting currency (ISO 4217). */
+export async function updateBaseCurrency(
+  baseCurrency: string
+): Promise<BaseCurrency> {
+  return apiFetch<BaseCurrency>("/api/app-config/base-currency", {
+    method: "PUT",
+    body: JSON.stringify({ base_currency: baseCurrency }),
   });
 }
 

@@ -33,6 +33,7 @@ from src.rate_limit import api_rate_limiter
 from src.routers import (
     accounts,
     ai_feedback,
+    app_config,
     assets,
     audit,
     auth,
@@ -362,6 +363,7 @@ app.add_middleware(
 _router_kwargs = {"responses": COMMON_ERROR_RESPONSES}
 app.include_router(auth.router, **_router_kwargs)
 app.include_router(accounts.router, **_router_kwargs)
+app.include_router(app_config.router, **_router_kwargs)
 app.include_router(ai_feedback.router, **_router_kwargs)
 app.include_router(audit.router, **_router_kwargs)
 app.include_router(assets.router, **_router_kwargs)
