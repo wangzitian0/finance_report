@@ -37,7 +37,10 @@ def _resolves(domain: PolicyFactDomain, instrument: str, framework: PersonalRepo
         return False
     matrix = get_framework_policy_matrix(framework)
     fact = SimpleNamespace(domain=domain, instrument_type=instrument)
-    return _find_rule(matrix, fact) is not None
+    rule = _find_rule(matrix, fact)
+    # "Concrete L1 line": a matching rule is not enough — it must carry a non-empty
+    # line_mappings (otherwise the category resolves but still has no report line).
+    return rule is not None and bool(rule.line_mappings)
 
 
 @pytest.mark.parametrize("framework", _FRAMEWORKS)

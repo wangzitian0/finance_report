@@ -497,7 +497,7 @@ def test_AC20_5_1_atomic_position_asset_types_map_to_policy_domains() -> None:
         (AssetType.CASH, PolicyFactDomain.CASH, "cash"),
         (AssetType.PROPERTY, PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, "property"),
         (AssetType.BOND, PolicyFactDomain.LISTED_SECURITY, "bond"),
-        (AssetType.OTHER, PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, "manual_asset"),
+        (AssetType.OTHER, PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, "private_asset"),
         (None, PolicyFactDomain.UNSUPPORTED, "unknown_asset"),
     ]
 

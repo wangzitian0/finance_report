@@ -340,8 +340,10 @@ def _position_domain_and_instrument(position: AtomicPosition) -> tuple[PolicyFac
         # A bond is a marketable financial asset -> the listed-security line.
         return PolicyFactDomain.LISTED_SECURITY, "bond"
     if position.asset_type == AssetType.OTHER:
-        # Unclassified holdings land in the manual/private asset line, not a gap.
-        return PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, "manual_asset"
+        # An unclassified *position* (brokerage evidence) lands in the private-asset
+        # line; "private_asset" (not "manual_asset", which implies manual-valuation
+        # provenance) keeps the instrument type's source semantics honest.
+        return PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, "private_asset"
     return (
         PolicyFactDomain.UNSUPPORTED,
         position.asset_type.value if position.asset_type is not None else "unknown_asset",
