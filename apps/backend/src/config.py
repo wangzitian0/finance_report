@@ -429,6 +429,17 @@ class Settings(BaseSettings):
         json_schema_extra={"group": "AI Provider", "vault": True},
     )
 
+    @field_validator("base_currency", mode="before")
+    @classmethod
+    def _normalize_base_currency(cls, value: object) -> object:
+        """Normalize the base currency to a canonical upper-case, whitespace-free
+        code so the single SSOT is comparison-safe and DB-safe (the value is the
+        default for the `String(3)` journal-line currency column). Full ISO-4217
+        validation is owned by the configurable base-currency work (#1340)."""
+        if isinstance(value, str):
+            return value.strip().upper()
+        return value
+
     @field_validator("ai_json_seed", mode="before")
     @classmethod
     def _empty_seed_is_none(cls, value: object) -> object:

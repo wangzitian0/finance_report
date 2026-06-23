@@ -12,6 +12,7 @@ from sqlalchemy import DECIMAL, CheckConstraint, Date, DateTime, Enum, ForeignKe
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from src.config import settings
 from src.database import Base
 from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 from src.money import Money
@@ -160,7 +161,9 @@ class JournalLine(Base, UUIDMixin, TimestampMixin):
         nullable=False,
     )
     amount: Mapped[Decimal] = mapped_column(DECIMAL(18, 2), nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="SGD")
+    # default mirrors the single base-currency SSOT (settings.base_currency), not a
+    # hard-coded literal; applied at flush. Reads go through `.money` (below).
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, default=lambda: settings.base_currency)
     fx_rate: Mapped[Decimal | None] = mapped_column(DECIMAL(18, 6), nullable=True)
     event_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     tags: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
@@ -174,11 +177,12 @@ class JournalLine(Base, UUIDMixin, TimestampMixin):
 
         Lines are immutable (amount > 0); the raw amount/currency columns remain
         the storage boundary while business code reads this typed value. ``currency``
-        is non-nullable with a SQLAlchemy column default of "SGD" that only
-        materializes on insert, so mirror it ONLY for ``None`` on in-memory rows not
-        yet flushed — an empty/invalid present value still surfaces via Money.
+        is non-nullable with a SQLAlchemy column default of ``settings.base_currency``
+        that only materializes on insert, so mirror that single SSOT for ``None`` on
+        in-memory rows not yet flushed — an empty/invalid present value still surfaces
+        via Money.
         """
-        currency = self.currency if self.currency is not None else "SGD"
+        currency = self.currency if self.currency is not None else settings.base_currency
         return Money(self.amount, currency)
 
     def __repr__(self) -> str:

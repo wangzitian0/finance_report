@@ -482,12 +482,10 @@ async def get_processing_balance(db: AsyncSession, user_id: UUID) -> Decimal:
     )
     lines = result.scalars().all()
 
-    # Calculate balance (Asset account: debit - credit)
-    balance = sum(
-        (line.amount if line.direction == Direction.DEBIT else -line.amount for line in lines), start=Decimal("0")
-    )
-
-    return balance
+    # Calculate balance (Asset account: debit - credit). Lines are single-currency
+    # (the account's own); Money.sum infers it and would raise on a cross-currency mix.
+    line_monies = [line.money if line.direction == Direction.DEBIT else -line.money for line in lines]
+    return Money.sum(line_monies).amount if line_monies else Decimal("0")
 
 
 async def get_unpaired_transfers(

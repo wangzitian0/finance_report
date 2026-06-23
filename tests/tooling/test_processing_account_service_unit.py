@@ -25,6 +25,7 @@ from src.models import (  # noqa: E402
     JournalEntryStatus,
     JournalLine,
 )
+from src.money import Money  # noqa: E402
 
 
 def _load_processing_account_module():
@@ -43,7 +44,12 @@ def _load_processing_account_module():
     try:
         spec = importlib.util.spec_from_file_location(
             "_processing_account_under_test",
-            REPO_ROOT / "apps" / "backend" / "src" / "services" / "processing_account.py",
+            REPO_ROOT
+            / "apps"
+            / "backend"
+            / "src"
+            / "services"
+            / "processing_account.py",
         )
         assert spec is not None
         assert spec.loader is not None
@@ -111,7 +117,9 @@ def _make_transfer_entry(
     other_line = JournalLine(
         journal_entry=entry,
         account_id=other_account_id,
-        direction=Direction.CREDIT if processing_direction == Direction.DEBIT else Direction.DEBIT,
+        direction=Direction.CREDIT
+        if processing_direction == Direction.DEBIT
+        else Direction.DEBIT,
         amount=amount,
         currency="SGD",
     )
@@ -194,7 +202,9 @@ async def test_find_transfer_pairs_keeps_partial_match_in_review_band() -> None:
         processing_direction=Direction.CREDIT,
     )
 
-    confidence, _ = _calculate_pair_confidence(out_entry, in_entry, processing_account.id)
+    confidence, _ = _calculate_pair_confidence(
+        out_entry, in_entry, processing_account.id
+    )
     assert 60 <= confidence < 85
 
     db = AsyncMock()
@@ -239,7 +249,9 @@ async def test_find_transfer_pairs_rejects_unmatched_pair() -> None:
         processing_direction=Direction.CREDIT,
     )
 
-    confidence, breakdown = _calculate_pair_confidence(out_entry, in_entry, processing_account.id)
+    confidence, breakdown = _calculate_pair_confidence(
+        out_entry, in_entry, processing_account.id
+    )
     assert confidence < 60
     assert breakdown["amount"] < 70.0
 
@@ -260,8 +272,13 @@ async def test_find_transfer_pairs_rejects_unmatched_pair() -> None:
 async def test_processing_balance_uses_decimal_net_balance() -> None:
     """AC15.3.1 · Processing balance keeps unpaired funds visible as a Decimal net balance."""
     processing_account = SimpleNamespace(id=uuid4(), currency="SGD")
-    debit_line = SimpleNamespace(direction=Direction.DEBIT, amount=Decimal("120.00"))
-    credit_line = SimpleNamespace(direction=Direction.CREDIT, amount=Decimal("35.00"))
+    # balance now reads the typed `line.money` accessor (Phase C / AC12.38)
+    debit_line = SimpleNamespace(
+        direction=Direction.DEBIT, money=Money(Decimal("120.00"), "SGD")
+    )
+    credit_line = SimpleNamespace(
+        direction=Direction.CREDIT, money=Money(Decimal("35.00"), "SGD")
+    )
 
     db = AsyncMock()
     db.execute = AsyncMock(return_value=_ScalarUniqueResult([debit_line, credit_line]))
