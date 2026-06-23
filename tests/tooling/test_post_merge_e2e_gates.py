@@ -3136,7 +3136,10 @@ def test_AC8_13_112_sparse_matrix_recommendation_tracks_simplification_path() ->
         assert token in recommendation
 
     assert "Env x Stage Contract" in ci_cd
-    assert "Legacy scalar outputs" in ci_cd
+    # Migration complete: the per-env legacy scalar outputs are retired, and the
+    # SSOT records that completed state rather than an in-progress shim.
+    assert "legacy per-env scalar outputs" in ci_cd
+    assert "retired" in ci_cd
     assert (
         "GitHub Actions consumers normalize gates from the structured matrix" in ci_cd
     )
