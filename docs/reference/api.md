@@ -5,8 +5,8 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `134`
-- Schema count: `242`
+- Endpoint count: `136`
+- Schema count: `244`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -16,6 +16,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 |---|---:|
 | `accounts` | 10 |
 | `ai-feedback` | 2 |
+| `app-config` | 2 |
 | `assets` | 11 |
 | `audit` | 1 |
 | `auth` | 3 |
@@ -60,6 +61,13 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 |---|---|---|---|---|---|---|
 | `POST` | `/ai/feedback` | yes | - | `AiFeedbackRequest` | `201` `AiFeedbackResponse` | Create Ai Feedback |
 | `GET` | `/ai/suggestions` | yes | `limit` (query), `offset` (query) | - | `200` `AiSuggestionListResponse` | List Ai Suggestions |
+
+### app-config
+
+| Method | Path | Auth | Params | Request | Success responses | Summary |
+|---|---|---|---|---|---|---|
+| `GET` | `/app-config/base-currency` | yes | - | - | `200` `BaseCurrencyResponse` | Get Base Currency |
+| `PUT` | `/app-config/base-currency` | yes | - | `BaseCurrencyUpdate` | `200` `BaseCurrencyResponse` | Update Base Currency |
 
 ### assets
 
