@@ -41,6 +41,7 @@ def upgrade() -> None:
         sa.Column(
             "currency_resolved_by",
             sa.UUID(),
+            sa.ForeignKey("users.id"),
             nullable=True,
             comment="EPIC-012 AC12.40.3: user_id of the reviewer who specified the currency (audit: who).",
         ),

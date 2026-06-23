@@ -96,6 +96,7 @@ class AtomicTransaction(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     )
     currency_resolved_by: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
+        ForeignKey("users.id"),
         nullable=True,
         comment="EPIC-012 AC12.40.3: user_id of the reviewer who specified the currency (audit: who).",
     )

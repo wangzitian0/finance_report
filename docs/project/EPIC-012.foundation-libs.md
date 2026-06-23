@@ -620,10 +620,10 @@ construction — closing the input-selection seam where currency was previously 
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC12.40.1 | Ingest resolution attaches the first valid ISO-4217 candidate (parsed transaction currency, then statement currency), normalized, when the currency is determinable {tier:PC} | `test_AC12_40_1_attaches_explicit_currency` | `tests/services/test_currency_resolution.py` | P0 |
-| AC12.40.2 | When no candidate is a valid ISO-4217 code the row is flagged `currency_unresolved` with a non-trusted placeholder and is NOT silently defaulted to a base currency {tier:PC} | `test_AC12_40_2_flags_unresolved_instead_of_silent_default` | `tests/services/test_currency_resolution.py` | P0 |
-| AC12.40.3 | A reviewer specifies the currency (ISO-4217 validated via `src.money.Currency`; an invalid code is rejected and nothing is written); the resolution records who/when/value {tier:PC} | `test_AC12_40_3_reviewer_resolves_currency_with_audit` | `tests/services/test_currency_resolution.py` | P0 |
-| AC12.40.4 | The promotion gate (`create_entry_from_txn`) blocks a `currency_unresolved` transaction from becoming a `JournalLine` {tier:PC} | `test_AC12_40_4_promotion_gate_blocks_unresolved_currency` | `tests/services/test_currency_resolution.py` | P0 |
+| AC12.40.1 | Ingest resolution attaches the first valid ISO-4217 candidate (parsed transaction currency, then statement currency), normalized, when the currency is determinable {tier:PC} | `test_AC12_40_1_attaches_explicit_currency` | `apps/backend/tests/services/test_currency_resolution.py` | P0 |
+| AC12.40.2 | When no candidate is a valid ISO-4217 code the row is flagged `currency_unresolved` with a non-trusted placeholder and is NOT silently defaulted to a base currency {tier:PC} | `test_AC12_40_2_flags_unresolved_instead_of_silent_default` | `apps/backend/tests/services/test_currency_resolution.py` | P0 |
+| AC12.40.3 | A reviewer specifies the currency (ISO-4217 validated via `src.money.Currency`; an invalid code is rejected and nothing is written); the resolution records who/when/value {tier:PC} | `test_AC12_40_3_reviewer_resolves_currency_with_audit` | `apps/backend/tests/services/test_currency_resolution.py` | P0 |
+| AC12.40.4 | The promotion gate (`create_entry_from_txn`) blocks a `currency_unresolved` transaction from becoming a `JournalLine` {tier:PC} | `test_AC12_40_4_promotion_gate_blocks_unresolved_currency` | `apps/backend/tests/services/test_currency_resolution.py` | P0 |
 
 ---
 
