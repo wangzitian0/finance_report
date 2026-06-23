@@ -32,4 +32,5 @@ async def update_base_currency(
 ) -> BaseCurrencyResponse:
     """Persist a new effective base currency. Invalid ISO 4217 code -> HTTP 422."""
     stored = await set_base_currency(db, payload.base_currency)
+    await db.commit()  # router owns the transaction boundary
     return BaseCurrencyResponse(base_currency=stored)

@@ -42,5 +42,6 @@ async def set_base_currency(db: AsyncSession, code: str) -> str:
         db.add(AppConfig(key=BASE_CURRENCY_KEY, value=normalized))
     else:
         row.value = normalized
-    await db.commit()
+    # Service flushes; the router owns the commit (transaction-boundary policy).
+    await db.flush()
     return normalized

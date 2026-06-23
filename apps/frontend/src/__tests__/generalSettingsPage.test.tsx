@@ -60,4 +60,25 @@ describe("GeneralSettingsPage (EPIC-012 AC12.39.3)", () => {
     expect(screen.getByLabelText("Base currency")).toHaveValue("XYZ")
     expect(showToast).not.toHaveBeenCalled()
   })
+
+  it("AC12.39.3 surfaces a load error when fetching the base currency fails", async () => {
+    mockedFetch.mockReset()
+    mockedFetch.mockRejectedValueOnce(new Error("Network Error"))
+    render(<GeneralSettingsPage />)
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Network Error"))
+  })
+
+  it("AC12.39.3 Reset restores the saved value and clears the dirty state", async () => {
+    render(<GeneralSettingsPage />)
+    await waitFor(() => expect(screen.getByText("General Settings")).toBeInTheDocument())
+
+    fireEvent.change(screen.getByLabelText("Base currency"), { target: { value: "usd" } })
+    expect(screen.getByLabelText("Base currency")).toHaveValue("USD")
+    expect(screen.getByText("Unsaved changes")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: /Reset/i }))
+    expect(screen.getByLabelText("Base currency")).toHaveValue("SGD")
+    expect(screen.queryByText("Unsaved changes")).not.toBeInTheDocument()
+    expect(mockedUpdate).not.toHaveBeenCalled()
+  })
 })
