@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.logger import get_logger
 from src.models.layer2 import AtomicTransaction
 from src.money import Currency, InvalidCurrencyError
+from src.utils.exceptions import BaseAppException
 
 logger = get_logger(__name__)
 
@@ -41,13 +42,16 @@ __all__ = [
 ]
 
 
-class CurrencyUnresolvedError(ValueError):
+class CurrencyUnresolvedError(BaseAppException, ValueError):
     """A transaction whose currency was never human-confirmed was promoted.
 
-    Subclasses ``ValueError`` so existing ``except ValueError`` promotion callers
-    surface it as a 400 without special-casing, while callers that care can catch
-    the specific type.
+    Subclasses ``BaseAppException`` so the global handler returns a structured 409
+    to API callers (the promotion routers don't catch ``ValueError``), and
+    ``ValueError`` so existing ``except ValueError`` callers still match.
     """
+
+    def __init__(self, message: str) -> None:
+        super().__init__(error_id="currency_unresolved", message=message, status_code=409)
 
 
 @dataclass(frozen=True)

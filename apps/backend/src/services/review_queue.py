@@ -362,7 +362,10 @@ async def create_entry_from_txn(
     else:
         statement = await _resolve_statement_summary(db, txn, user_id=user_id)
 
-    currency = ((statement.currency if statement else None) or txn.currency or "SGD").upper()
+    # The transaction's own (human-confirmed at this point) currency is authoritative
+    # per AC12.40; the statement currency is only a fallback, then the base SSOT. This
+    # preserves a transaction-specific currency in multi-currency statements.
+    currency = (txn.currency or (statement.currency if statement else None) or settings.base_currency).upper()
     base_currency = settings.base_currency.upper()
     line_fx_rate: Decimal | None = None
     if currency != base_currency:
