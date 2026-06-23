@@ -27,7 +27,7 @@ from src.models import (
     JournalEntryStatus,
     JournalLine,
 )
-from src.money import Money
+from src.money import Currency, Money
 from src.services.source_type_priority import normalize_source_type
 
 
@@ -54,13 +54,13 @@ def validate_fx_rates(lines: list[JournalLine]) -> None:
 
 def _line_base_amount(line: JournalLine) -> Money:
     """Return the line value converted to the configured base currency, as Money."""
-    base_currency = settings.base_currency.upper()
+    base = Currency.of(settings.base_currency)  # canonical, normalization-safe compare
     line_money = line.money  # currency resolved via the single SSOT (None -> base)
-    if line_money.currency.code == base_currency:
+    if line_money.currency == base:
         return line_money
     if line.fx_rate is None:
-        raise ValidationError(f"fx_rate required for currency {line_money.currency.code} (base {base_currency})")
-    return Money(line.amount * line.fx_rate, base_currency)
+        raise ValidationError(f"fx_rate required for currency {line_money.currency.code} (base {base.code})")
+    return Money(line.amount * line.fx_rate, base.code)
 
 
 def validate_journal_balance(lines: list[JournalLine]) -> None:

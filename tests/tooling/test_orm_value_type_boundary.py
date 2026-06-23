@@ -163,7 +163,11 @@ def test_AC12_37_3_income_statement_fx_is_money_native():
 
 
 # ── Phase C: currency as a single base SSOT, balance core typed, ratchet ──────
-_CURRENCY_BLIND_LINE_SUM = re.compile(r"sum\(\s*line\.amount|line\.amount\s+for\s")
+# Only a `sum(...)` whose arguments reference a raw `line.amount` (currency-blind
+# addition). Does NOT match plain list/generator comprehensions used for
+# serialization, nor `Money.sum(_line_base_amount(...))` (the `(` of the inner call
+# bounds the `[^)]*` before any `line.amount`).
+_CURRENCY_BLIND_LINE_SUM = re.compile(r"\bsum\([^)]*\bline\.amount\b")
 
 
 @ac_proof(
@@ -215,10 +219,12 @@ def test_AC12_38_3_annualized_income_reads_line_money():
     ci_tier="pr_ci",
 )
 def test_AC12_38_4_no_currency_blind_line_amount_sum():
-    """AC12.38.4 (ratchet): no service/ledger code sums journal-line amounts raw
-    (`sum(line.amount …)` / `line.amount for …`) — currency-blind cross-currency
-    addition must go through `Money.sum`. (Manual fast-path rate multiplies and
-    serialization edges that read a single `line.amount` are not sums and stay raw.)"""
+    """AC12.38.4 (ratchet): no service/ledger code performs a raw `sum(...)` over
+    `line.amount` — currency-blind cross-currency addition must go through
+    `Money.sum`. Scoped to `sum(...)` argument contexts only, so list/generator
+    comprehensions built for serialization, manual fast-path rate multiplies, and
+    single-value `line.amount` reads stay raw (and `Money.sum(_line_base_amount(...))`
+    is not flagged)."""
     offenders: dict[str, list[str]] = {}
     for folder in ("apps/backend/src/services", "apps/backend/src/ledger"):
         for path in sorted((REPO / folder).rglob("*.py")):
