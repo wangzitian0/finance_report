@@ -60,8 +60,12 @@ normalize their gates from that structured matrix:
   `provider_gate_required.staging` instead of the legacy `staging_required` and
   `staging_ai_ocr_required` outputs.
 
-The legacy scalar outputs remain only as external compatibility shims while
-downstream ad hoc consumers migrate.
+The legacy scalar outputs (the per-env `pr_preview_required`, `staging_required`,
+and `staging_ai_ocr_required`) that were retained as compatibility shims have now
+been **retired**: every workflow consumer derives its own scalar from the
+structured matrix, so the classifier emits the structured Env x Stage and
+provider-gate JSON only, alongside the top-level `heavy_required` / `reason`
+scalars. The per-env values survive only in the human-readable job summary.
 
 Latest evidence review on June 9, 2026 sampled the three newest successful and
 three newest failed logs for the active CI lanes: `CI`,
@@ -81,9 +85,11 @@ three newest failed logs for the active CI lanes: `CI`,
   narrow. They prove provider or release integrity only after deterministic PR
   and staging proof exists.
 
-The next code simplification should remove the scalar compatibility shims after
-branch protection, required-check behavior, and any external ad hoc consumers
-are confirmed to rely only on the structured consumers.
+The scalar compatibility shims have now been removed. The documented
+precondition was met: all workflow consumers read the structured matrix, and
+branch protection required-check behavior is keyed on job names (not classifier
+step outputs), so retiring the per-env step outputs cannot affect required
+contexts or any external ad hoc consumer. See Implemented follow-ups.
 
 ### Sparse matrix evidence audit
 
@@ -171,11 +177,11 @@ path now has either cleanup or failure context attached to the narrowest stage
 that owns it.
 
 safe simplification boundary: workflow consumers already read the structured
-Env x Stage matrix, so the next real code reduction is to remove legacy scalar
-classifier outputs only after external ad hoc consumers and required-check
-configuration are confirmed. Image-build topology can also be simplified by
-splitting backend and frontend builds into separate jobs, but that is a separate
-branch-protection and GHCR-cache change.
+Env x Stage matrix, and on that basis the per-env legacy scalar classifier
+outputs have now been removed (required-check configuration is keyed on job
+names, not classifier step outputs). Image-build topology can also be simplified
+by splitting backend and frontend builds into separate jobs, but that is a
+separate branch-protection and GHCR-cache change.
 
 ### Coveralls reporting split
 
@@ -200,10 +206,17 @@ main pushes.
 
 - Changing branch-protection required contexts.
 - Reworking Docker image build topology.
-- Removing legacy scalar change-classifier outputs before all workflows consume
-  the structured Env x Stage matrix.
 
 ## Implemented follow-ups
+
+### retire per-env legacy scalar classifier outputs
+
+The classifier no longer emits the per-env `pr_preview_required`,
+`staging_required`, and `staging_ai_ocr_required` step outputs. The structured
+Env x Stage / provider-gate JSON (plus the top-level `heavy_required` / `reason`
+scalars) is the sole machine-readable gate contract; every workflow consumer
+derives its own scalar from that matrix, and the per-env values survive only in
+the human-readable job summary (AC8.13.110, AC8.13.112).
 
 ### workflow_run staging trigger
 

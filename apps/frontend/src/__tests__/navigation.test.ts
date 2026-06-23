@@ -36,6 +36,7 @@ describe("navigation metadata", () => {
       "Reconciliation",
       "Processing",
       "Confidence Trend",
+      "General Settings",
       "AI Settings",
       "LLM Models",
     ]);

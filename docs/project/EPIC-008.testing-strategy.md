@@ -383,9 +383,9 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.107 | PR preview uploads runner preview context artifacts without PR image preflight, while legacy lifecycle deploy helpers still redact context for compatibility tests | `test_AC8_13_107_deploy_action_fails_fast_on_missing_required_inputs`, `test_AC8_13_107_preview_deploy_context_is_written_without_secrets`, `test_AC8_13_107_pr_preview_workflow_uploads_context_without_image_preflight` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
 | AC8.13.108 | Main post-merge staging deploy failures publish structured failure domain, failed step, and failure summary in the deploy context artifact and Post-merge Delivery summary so deploy_v2 dependency setup, Dokploy rollout, route health, E2E setup, and application E2E failures can be separated without manual log scraping | `test_AC8_13_93_staging_promotion_requires_manual_dispatch`, `test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates`, `test_AC8_13_108_staging_failure_context_fails_closed_on_classifier_and_unknown_failures` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.109 | Post-merge staging AI/OCR gate tests use isolated users, browser-cookie auth, deterministic UI waits, and cleanup-capable test accounts; PR tooling rejects shared mutable users, localStorage bearer tokens, and generic deployed-env idle waits before provider-backed replay | `test_AC8_13_109_ai_ocr_gate_tests_use_isolated_users`; `test_AC8_13_109_ai_ocr_gate_tests_use_cookie_auth_for_api_calls`; `test_AC8_13_109_ai_ocr_gate_tests_avoid_networkidle_waits`; `test_delete_current_user_removes_authenticated_user`; `test_delete_user_does_not_allow_cross_user_deletion` | `tests/tooling/test_staging_ai_ocr_gate_contract.py`; `apps/backend/tests/api/test_users_router.py` | P0 |
-| AC8.13.110 | CI change classification emits structured Env x Stage JSON outputs and matrix summaries while preserving legacy workflow outputs during migration | `test_AC8_13_110_*` | `tests/tooling/test_ci_change_classifier.py` | P0 |
+| AC8.13.110 | CI change classification emits structured Env x Stage JSON outputs and matrix summaries as the sole machine-readable gate contract; the per-env legacy scalar outputs (`pr_preview_required`, `staging_required`, `staging_ai_ocr_required`) are retired now that every workflow consumer derives its own scalar from the structured matrix | `test_AC8_13_110_*` | `tests/tooling/test_ci_change_classifier.py` | P0 |
 | AC8.13.111 | CI change classification structured Env x Stage outputs cover the complete environment axis (`local`, `pr`, `pr-preview`, `staging`, `prd`) while keeping PR heavy gating and deployed-environment gates represented as matrix cells | `test_AC8_13_111_*` | `tests/tooling/test_ci_change_classifier.py` | P0 |
-| AC8.13.112 | Delivery-engine recommendations, SSOT, workflow gates, and contract tests stay aligned around structured Env x Stage consumers while legacy scalar outputs remain compatibility-only shims | `test_AC8_13_112_sparse_matrix_recommendation_tracks_simplification_path`, `test_AC8_13_112_workflows_consume_structured_env_stage_gates` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.112 | Delivery-engine recommendations, SSOT, workflow gates, and contract tests stay aligned around structured Env x Stage consumers as the sole gate contract; the per-env legacy scalar classifier outputs are retired and the simplification path is recorded as complete | `test_AC8_13_112_sparse_matrix_recommendation_tracks_simplification_path`, `test_AC8_13_112_workflows_consume_structured_env_stage_gates` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.113 | Sparse Env x Stage reviews record the three newest successful and three newest failed evidence samples for active delivery lanes, then summarize delivery-speed balance, end-to-end consistency, quality fallback, resource leak candidates, and the safe simplification boundary | `test_AC8_13_113_sparse_matrix_evidence_and_resource_leak_audit_are_recorded` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.114 | The in-runner E2E gate runs synchronously on `pull_request` as a real required check a fast/auto merge cannot bypass (not async via `workflow_run`, which a merge could outrun); PR close triggers cleanup, not a gate | `test_AC8_13_114_pr_preview_follows_successful_ci_workflow_run` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.115 | Runner preview readiness is bounded before smoke/E2E starts, with stack logs emitted on failure | `test_AC8_13_115_readiness_fail_fast` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
@@ -672,16 +672,24 @@ submodule sync process.
   runs only a runner-local full-stack preview. PR image build/push/preflight and
   immediate PR image deletion were removed; legacy Dokploy resources are
   cleanup-only.
+- 2026-06-23: Completed the migration — the per-env legacy scalar outputs
+  (`pr_preview_required`, `staging_required`, `staging_ai_ocr_required`) are no
+  longer emitted by `ci_change_classifier`. The 2026-06-10 precondition was met
+  (all GitHub Actions consumers normalize from the structured matrix; required
+  contexts are keyed on job names, not classifier step outputs), so Residual A
+  is removed. `heavy_required` and `reason` are retained as top-level scalars,
+  and the human-readable job summary still prints per-env lines.
 
 ### 5.6 Residual Drift to Simplify Next
 
-- **Residual A: Compatibility scalar outputs**
-  - `heavy_required`, `pr_preview_required`, `staging_required`, and
-    `staging_ai_ocr_required` are still emitted as migration shims from
-    `ci_change_classifier`.
-  - They are **not** used for primary control decisions in core workflows, but
-    they still exist as temporary compatibility contract for ad hoc tools and
-    scripts that have not been migrated.
+- **Residual A: Compatibility scalar outputs — ✅ DONE (2026-06-23)**
+  - The per-env scalars (`pr_preview_required`, `staging_required`,
+    `staging_ai_ocr_required`) are no longer emitted by `ci_change_classifier`;
+    the structured Env×Stage / provider-gate JSON is the sole machine-readable
+    gate contract. `heavy_required` and `reason` are retained as top-level
+    scalars (the PR heavy gate is also expressed as `env_stage_required.pr`).
+  - All GitHub Actions consumers normalize their own scalar from the structured
+    matrix, so no migration shim remained.
 
 - **Residual B: Legacy gate normalization step wrappers**
   - `preview.yml` and `deploy.yml` still deserialize
@@ -700,8 +708,7 @@ submodule sync process.
 The simplification priority remains:
 
 1. Remove Residual B (single-step expression gating from structured outputs).
-2. Add explicit external consumer migration audit for Residual A, then remove
-   scalar shims in one bounded PR.
+2. ~~Remove the per-env scalar shims (Residual A)~~ — **done 2026-06-23**.
 3. Add a narrow enforcement test that each lane consumes only matrix cells it
    is authorized for, and that unused matrix dimensions are intentionally
    read-only.
@@ -713,10 +720,11 @@ The simplification priority remains:
   `preview.yml` follows `pr-preview` gates for scoped preview deployment, and
   `deploy.yml` with `target=staging` follows `staging` + provider gates for
   post-merge infra and provider replay.
-- The strongest remaining complexity is historical compatibility: scalar outputs are
-  still emitted as shims, and several workflows run small normalization glue. The
-  signal-to-risk ratio is acceptable because these shims protect external
-  consumers during migration, but they are now a clear simplification boundary.
+- The per-env scalar shims have been retired (2026-06-23); the remaining
+  complexity is the small per-workflow normalization glue (Residual B) that
+  deserializes the structured matrix into a local scalar before job-level `if:`
+  checks. That glue is functionally correct and is the next simplification
+  boundary.
 - Logging sufficiency check is favorable: every critical stage emits both context
   artifacts and step-level classification/failure-domain breadcrumbs before exit
   (`pr-preview-readiness-context.json`, `staging-deploy-context.txt`,

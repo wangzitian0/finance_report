@@ -537,14 +537,12 @@ def write_github_outputs(
         fh.write(
             f"provider_gate_files={_json_output(_provider_gate_files(classification))}\n"
         )
-        for environment, output_prefix, *_labels in LEGACY_ENV_OUTPUTS:
-            env_result = classification.envs[environment]
-            fh.write(f"{output_prefix}_required={str(env_result.required).lower()}\n")
-            fh.write(f"{output_prefix}_reason={env_result.reason}\n")
-        fh.write(
-            f"staging_ai_ocr_required={str(classification.staging_ai_ocr_required).lower()}\n"
-        )
-        fh.write(f"staging_ai_ocr_reason={classification.staging_ai_ocr_reason}\n")
+        # The structured Env x Stage / provider-gate JSON above is the sole
+        # machine-readable gate contract. Every workflow consumer (ci.yml,
+        # preview.yml) normalizes its own scalar from that matrix, so the legacy
+        # per-env scalar outputs (`pr_preview_required`, `staging_required`,
+        # `staging_ai_ocr_required`, ...) are no longer emitted (AC8.13.110).
+        # Human-readable per-env lines still appear in write_github_summary.
 
 
 def write_github_summary(
@@ -637,10 +635,6 @@ def main() -> int:
     print(
         f"provider_gate_required={_json_output(_provider_gate_required(classification))}"
     )
-    for environment, output_prefix, *_labels in LEGACY_ENV_OUTPUTS:
-        env_result = classification.envs[environment]
-        print(f"{output_prefix}_required={str(env_result.required).lower()}")
-        print(f"{output_prefix}_reason={env_result.reason}")
     print(f"changed_files={len(classification.files)}")
     return 0
 

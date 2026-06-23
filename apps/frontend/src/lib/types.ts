@@ -748,6 +748,12 @@ export interface UserAiSettings {
 
 export type UserAiSettingsUpdate = Schemas["UserAiSettingsUpdate"];
 
+// Mirrors backend `BaseCurrencyResponse` / `BaseCurrencyUpdate`
+// (apps/backend/src/schemas/app_config.py) — EPIC-012 AC12.39 / #1340.
+export interface BaseCurrency {
+  base_currency: string;
+}
+
 /**
  * Identity returned by `GET /api/auth/me`, consumed by `useSessionBootstrap`.
  *

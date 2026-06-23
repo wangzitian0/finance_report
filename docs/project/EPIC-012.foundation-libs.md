@@ -597,6 +597,17 @@ Currency was resolved ad-hoc in ≥3 divergent ways (`or "SGD"`, `or settings.ba
 | AC12.38.3 | Annualized-income (and the fx-revaluation + processing-account balance sums) read `line.money` / sum via `Money.sum`, dropping the per-site `or account.currency or target` currency fallback (only the impossible currency-`None` path differs; the column is non-null) {tier:PC} | `test_AC12_38_3_annualized_income_reads_line_money` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
 | AC12.38.4 | Ratchet: no service/ledger code sums journal-line amounts raw (`sum(line.amount …)` / `line.amount for …`); currency-blind addition must use `Money.sum`. Manual fast-path rate multiplies and single-value serialization reads are not sums and stay raw {tier:PC} | `test_AC12_38_4_no_currency_blind_line_amount_sum` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
 
+### AC12.39: Editable base reporting currency — DB-backed app config (Phase D) ([#1340](https://github.com/wangzitian0/finance_report/issues/1340))
+
+`settings.base_currency` was env-only (default `"SGD"`), so the base reporting currency could only change via a redeploy. Phase D persists an app-level override in a single key/value `app_config` table and reads it dynamically through one accessor, so an operator can edit the base currency at runtime on the config page. The override is ISO 4217 validated (reusing the `src.money.Currency` value type) at the request boundary, so an invalid code returns HTTP 422 and is never persisted.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC12.39.1 | The backend exposes `GET`/`PUT /app-config/base-currency` to read and update the effective base currency; the code is ISO 4217 validated via `src.money.Currency` and persisted in the DB-backed `app_config` row, and an invalid code returns HTTP 422 without persisting {tier:PC} | `test_AC12_39_1_get_returns_env_default_when_unset`, `test_AC12_39_1_invalid_currency_returns_422_and_is_not_persisted` | `apps/backend/tests/api/test_app_config_router.py` | P1 |
+| AC12.39.2 | A single accessor `get_effective_base_currency` returns the effective base currency — the persisted `app_config` override if present, else `settings.base_currency` {tier:PC} | `test_AC12_39_2_effective_accessor_falls_back_to_env_default` | `apps/backend/tests/api/test_app_config_router.py` | P1 |
+| AC12.39.3 | The frontend General Settings page exposes a "Base currency" control that reads + updates the effective value via `lib/api.ts` (`fetchBaseCurrency`/`updateBaseCurrency`, never raw `fetch`) {tier:PC} | `AC12.39.3 renders the effective base currency`, `AC12.39.3 submits the edited currency via updateBaseCurrency` | `apps/frontend/src/__tests__/generalSettingsPage.test.tsx` | P1 |
+| AC12.39.4 | Updating the base currency persists the override and the effective accessor returns the new value on a subsequent read {tier:PC} | `test_AC12_39_4_update_persists_and_effective_accessor_returns_new_value` | `apps/backend/tests/api/test_app_config_router.py` | P1 |
+
 ---
 
 *Planning snapshot captured: January 2026*

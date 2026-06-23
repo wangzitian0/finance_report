@@ -100,7 +100,7 @@ gates:
     required_by_finish: true
     blocks_workflow: true
     inputs: [changed_files, event_ref]
-    outputs: [pr_required, pr_preview_required]
+    outputs: [pr_required, pr_reason]
     artifacts: []
     failure_semantics: Changed-path classification is unavailable, so downstream skip/heavy decisions are unsafe.
     action: keep

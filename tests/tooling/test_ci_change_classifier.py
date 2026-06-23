@@ -401,12 +401,14 @@ def test_AC8_13_20_github_outputs_and_summary_include_heavy_files(
         "staging": False,
         "prd": False,
     }
-    assert output_lines["pr_preview_required"] == "false"
-    assert output_lines["pr_preview_reason"] == "no-pr-preview-paths-changed"
-    assert output_lines["staging_required"] == "false"
-    assert output_lines["staging_reason"] == "no-staging-paths-changed"
-    assert output_lines["staging_ai_ocr_required"] == "false"
-    assert output_lines["staging_ai_ocr_reason"] == "no-staging-ai-ocr-paths-changed"
+    # Legacy per-env scalar outputs are retired: the structured matrix above is
+    # the sole machine-readable gate contract (AC8.13.110).
+    assert "pr_preview_required" not in output_lines
+    assert "pr_preview_reason" not in output_lines
+    assert "staging_required" not in output_lines
+    assert "staging_reason" not in output_lines
+    assert "staging_ai_ocr_required" not in output_lines
+    assert "staging_ai_ocr_reason" not in output_lines
     summary_text = summary.read_text(encoding="utf-8")
     assert "## Change Classification" in summary_text
     assert "- Heavy CI required: `true`" in summary_text
@@ -466,14 +468,16 @@ def test_AC8_13_20_cli_writes_outputs_summary_and_stdout(
     stdout = capsys.readouterr().out
     assert "heavy_required=false" in stdout
     assert "reason=lightweight-docs-or-docs-workflow-only" in stdout
-    assert "pr_preview_required=false" in stdout
-    assert "pr_preview_reason=no-pr-preview-paths-changed" in stdout
-    assert "staging_required=false" in stdout
-    assert "staging_reason=no-staging-paths-changed" in stdout
+    assert "env_stage_required=" in stdout
     assert "changed_files=2" in stdout
-    assert "heavy_required=false" in github_output.read_text(encoding="utf-8")
-    assert "pr_preview_required=false" in github_output.read_text(encoding="utf-8")
-    assert "staging_required=false" in github_output.read_text(encoding="utf-8")
+    # Legacy per-env scalar outputs are retired (AC8.13.110).
+    assert "pr_preview_required=" not in stdout
+    assert "staging_required=" not in stdout
+    github_output_text = github_output.read_text(encoding="utf-8")
+    assert "heavy_required=false" in github_output_text
+    assert "env_stage_required=" in github_output_text
+    assert "pr_preview_required=" not in github_output_text
+    assert "staging_required=" not in github_output_text
     assert "Changed files: `2`" in github_summary.read_text(encoding="utf-8")
 
 
@@ -599,10 +603,11 @@ def test_AC8_13_110_github_outputs_include_structured_env_stage_matrix(
     }
     assert json.loads(lines["provider_gate_required"]) == {"staging": False}
 
-    # Legacy workflow outputs stay during migration.
-    assert lines["pr_preview_required"] == "true"
-    assert lines["staging_required"] == "true"
-    assert lines["staging_ai_ocr_required"] == "false"
+    # Migration complete: legacy per-env scalar outputs are no longer emitted;
+    # the structured matrix is the sole machine-readable gate contract.
+    assert "pr_preview_required" not in lines
+    assert "staging_required" not in lines
+    assert "staging_ai_ocr_required" not in lines
 
 
 def test_AC8_13_111_structured_env_stage_outputs_cover_complete_environment_axis() -> (
