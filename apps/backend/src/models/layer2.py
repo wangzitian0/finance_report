@@ -1,13 +1,15 @@
 """Layer 2: Atomic Records - Immutable, deduplicated transaction and position records."""
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
 from uuid import UUID
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Date,
+    DateTime,
     Enum as SQLEnum,
     ForeignKey,
     Index,
@@ -16,6 +18,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    false as sa_false,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -79,6 +82,28 @@ class AtomicTransaction(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     reference: Mapped[str | None] = mapped_column(String(100), nullable=True)
     currency: Mapped[str] = mapped_column(String(3), nullable=False, comment="ISO currency code")
+    currency_unresolved: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default=sa_false(),
+        default=False,
+        comment=(
+            "EPIC-012 AC12.40: True when the ingest boundary could NOT determine the "
+            "transaction currency (no statement/account metadata). The currency column then "
+            "holds a non-authoritative placeholder and the row MUST NOT be promoted to a "
+            "JournalLine until a reviewer specifies the currency. Never silent-default."
+        ),
+    )
+    currency_resolved_by: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        nullable=True,
+        comment="EPIC-012 AC12.40.3: user_id of the reviewer who specified the currency (audit: who).",
+    )
+    currency_resolved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="EPIC-012 AC12.40.3: timestamp the currency was specified by a reviewer (audit: when).",
+    )
     balance_after: Mapped[Decimal | None] = mapped_column(
         Numeric(18, 2),
         nullable=True,

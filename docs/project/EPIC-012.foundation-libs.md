@@ -608,6 +608,23 @@ Currency was resolved ad-hoc in ≥3 divergent ways (`or "SGD"`, `or settings.ba
 | AC12.39.3 | The frontend General Settings page exposes a "Base currency" control that reads + updates the effective value via `lib/api.ts` (`fetchBaseCurrency`/`updateBaseCurrency`, never raw `fetch`) {tier:PC} | `AC12.39.3 renders the effective base currency`, `AC12.39.3 submits the edited currency via updateBaseCurrency` | `apps/frontend/src/__tests__/generalSettingsPage.test.tsx` | P1 |
 | AC12.39.4 | Updating the base currency persists the override and the effective accessor returns the new value on a subsequent read {tier:PC} | `test_AC12_39_4_update_persists_and_effective_accessor_returns_new_value` | `apps/backend/tests/api/test_app_config_router.py` | P1 |
 
+### AC12.40: Currency established at ingest, never silent-defaulted — Phase E ([#1341](https://github.com/wangzitian0/finance_report/issues/1341))
+
+A transaction's currency must be established **at the ingest boundary**: attached
+explicitly when determinable, and otherwise flagged `currency_unresolved` and routed
+to human review rather than silently defaulted to a base currency. An unresolved
+transaction cannot be promoted to a `JournalLine` until a reviewer specifies an
+ISO-4217 currency (validated via `src.money.Currency`), with the resolution audited
+(who/when/value). This makes the downstream `JournalLine.currency` human-confirmed by
+construction — closing the input-selection seam where currency was previously assumed.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC12.40.1 | Ingest resolution attaches the first valid ISO-4217 candidate (parsed transaction currency, then statement currency), normalized, when the currency is determinable {tier:PC} | `test_AC12_40_1_attaches_explicit_currency` | `tests/services/test_currency_resolution.py` | P0 |
+| AC12.40.2 | When no candidate is a valid ISO-4217 code the row is flagged `currency_unresolved` with a non-trusted placeholder and is NOT silently defaulted to a base currency {tier:PC} | `test_AC12_40_2_flags_unresolved_instead_of_silent_default` | `tests/services/test_currency_resolution.py` | P0 |
+| AC12.40.3 | A reviewer specifies the currency (ISO-4217 validated via `src.money.Currency`; an invalid code is rejected and nothing is written); the resolution records who/when/value {tier:PC} | `test_AC12_40_3_reviewer_resolves_currency_with_audit` | `tests/services/test_currency_resolution.py` | P0 |
+| AC12.40.4 | The promotion gate (`create_entry_from_txn`) blocks a `currency_unresolved` transaction from becoming a `JournalLine` {tier:PC} | `test_AC12_40_4_promotion_gate_blocks_unresolved_currency` | `tests/services/test_currency_resolution.py` | P0 |
+
 ---
 
 *Planning snapshot captured: January 2026*

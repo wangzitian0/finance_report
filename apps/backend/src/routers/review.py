@@ -15,6 +15,7 @@ from src.models import (
 from src.models.consistency_check import CheckStatus, CheckType
 from src.models.layer2 import AtomicTransaction
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
+from src.money import InvalidCurrencyError
 from src.schemas.review import (
     BatchApproveRequest,
     BatchApproveResponse,
@@ -24,6 +25,8 @@ from src.schemas.review import (
     ConsistencyCheckResponse,
     ResolveCheckRequest,
     ResolveConflictsRequest,
+    ResolveCurrencyRequest,
+    ResolveCurrencyResponse,
     ReviewConflictCandidate,
     ReviewConflictsResolveResponse,
     ReviewConflictsResponse,
@@ -38,6 +41,7 @@ from src.services.consistency_checks import (
     resolve_check,
     run_all_consistency_checks,
 )
+from src.services.currency_resolution import resolve_transaction_currency
 from src.services.review_queue import accept_match as accept_match_service, get_stage2_queue
 from src.services.source_type_priority import STATEMENT_SOURCE_TYPES
 from src.services.statement_validation import resolve_statement_conflicts, resolve_statement_transactions
@@ -133,6 +137,47 @@ async def resolve_review_conflicts(
         note=request.note,
     )
     return ReviewConflictsResolveResponse(resolved=True, resolved_at=resolved_at)
+
+
+@conflicts_router.post(
+    "/transactions/{transaction_id}/currency",
+    response_model=ResolveCurrencyResponse,
+)
+async def resolve_transaction_currency_endpoint(
+    transaction_id: UUID,
+    request: ResolveCurrencyRequest,
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> ResolveCurrencyResponse:
+    """Reviewer specifies the currency for a ``currency_unresolved`` transaction (AC12.40.3).
+
+    Validates the chosen code as ISO-4217 (``src.money.Currency``), clears the
+    unresolved flag, and records the resolution audit (who/when). Only after this
+    can the transaction be promoted to a journal entry (AC12.40.4).
+    """
+    try:
+        txn = await resolve_transaction_currency(
+            db,
+            transaction_id,
+            user_id=user_id,
+            currency=request.currency,
+        )
+    except InvalidCurrencyError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    except ValueError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    response = ResolveCurrencyResponse(
+        transaction_id=txn.id,
+        currency=txn.currency,
+        currency_unresolved=txn.currency_unresolved,
+        resolved_by=txn.currency_resolved_by,
+        resolved_at=txn.currency_resolved_at,
+    )
+    await db.commit()
+    return response
 
 
 @router.get("/stage2/queue", response_model=Stage2ReviewQueueResponse)
