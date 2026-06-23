@@ -218,7 +218,7 @@ def get_framework_policy_matrix(framework_id: PersonalReportingFrameworkId) -> F
     if framework_id == PersonalReportingFrameworkId.US_GAAP_LIKE:
         listed_security = _rule(
             domain=PolicyFactDomain.LISTED_SECURITY,
-            supported_instrument_types=["listed_equity", "listed_security", "etf", "fixture"],
+            supported_instrument_types=["listed_equity", "listed_security", "etf", "bond", "fixture"],
             recognition="Recognize listed securities when brokerage evidence confirms trade or holding ownership.",
             measurement="Measure at quoted fair value when market data is fresh; preserve cost basis and unrealized gain evidence.",
             classification="Marketable investment asset.",
@@ -233,7 +233,7 @@ def get_framework_policy_matrix(framework_id: PersonalReportingFrameworkId) -> F
     else:
         listed_security = _rule(
             domain=PolicyFactDomain.LISTED_SECURITY,
-            supported_instrument_types=["listed_equity", "listed_security", "etf", "fixture"],
+            supported_instrument_types=["listed_equity", "listed_security", "etf", "bond", "fixture"],
             recognition="Recognize listed securities when brokerage evidence confirms trade or holding ownership.",
             measurement="Measure at quoted fair value when market data is fresh; preserve cost basis and fair-value movement evidence.",
             classification="Financial asset measured with HK-like fair-value presentation.",
@@ -336,6 +336,12 @@ def _position_domain_and_instrument(position: AtomicPosition) -> tuple[PolicyFac
         return PolicyFactDomain.CASH, "cash"
     if position.asset_type == AssetType.PROPERTY:
         return PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, "property"
+    if position.asset_type == AssetType.BOND:
+        # A bond is a marketable financial asset -> the listed-security line.
+        return PolicyFactDomain.LISTED_SECURITY, "bond"
+    if position.asset_type == AssetType.OTHER:
+        # Unclassified holdings land in the manual/private asset line, not a gap.
+        return PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, "manual_asset"
     return (
         PolicyFactDomain.UNSUPPORTED,
         position.asset_type.value if position.asset_type is not None else "unknown_asset",
