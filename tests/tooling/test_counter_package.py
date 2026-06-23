@@ -1,4 +1,4 @@
-"""counter package + package-model governance guards (EPIC-025 AC25.6.x).
+"""counter package + package-model governance guards (EPIC-025 AC-counter.1.x).
 
 The ``counter`` package is the first worked example of the package model. These
 guards keep its shape honest — roles converge (types/ops never reach down into
@@ -37,10 +37,10 @@ def _imported_modules(path: Path) -> set[str]:
 
 
 @ac_proof(
-    proof_id="test_counter_converges_by_role", ac_ids=["AC25.6.1"], ci_tier="pr_ci"
+    proof_id="test_counter_converges_by_role", ac_ids=["AC-counter.1.1"], ci_tier="pr_ci"
 )
 def test_AC25_6_1_counter_converges_by_role():
-    """AC25.6.1: counter exposes types (nouns/events), ops (verbs), store, api."""
+    """AC-counter.1.1: counter exposes types (nouns/events), ops (verbs), store, api."""
     assert (COUNTER / "types/key.py").exists()
     assert (COUNTER / "types/count.py").exists()
     assert (COUNTER / "types/events.py").exists()
@@ -53,9 +53,9 @@ def test_AC25_6_1_counter_converges_by_role():
         assert name in exports, f"counter must export {name}"
 
 
-@ac_proof(proof_id="test_counter_types_pure", ac_ids=["AC25.6.2"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_counter_types_pure", ac_ids=["AC-counter.1.2"], ci_tier="pr_ci")
 def test_AC25_6_2_types_never_import_store_api_or_orm():
-    """AC25.6.2: domain types depend on nothing below them (no store/api/ORM/session).
+    """AC-counter.1.2: domain types depend on nothing below them (no store/api/ORM/session).
 
     The value language must stay free of persistence and transport so it is a
     pure, reusable vocabulary (the DAG points down only).
@@ -76,9 +76,9 @@ def test_AC25_6_2_types_never_import_store_api_or_orm():
     assert not offenders, f"counter types reach below their layer: {offenders}"
 
 
-@ac_proof(proof_id="test_counter_ops_pure", ac_ids=["AC25.6.3"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_counter_ops_pure", ac_ids=["AC-counter.1.3"], ci_tier="pr_ci")
 def test_AC25_6_3_ops_never_import_the_orm_session_or_api():
-    """AC25.6.3: ops depend on the store *port* + types only — no ORM/session/api.
+    """AC-counter.1.3: ops depend on the store *port* + types only — no ORM/session/api.
 
     Verbs talk to the ``CounterRepository`` Protocol, never to ``store.sql`` /
     ``store.__init__`` concretes, the ORM, or the api boundary.
@@ -99,9 +99,9 @@ def test_AC25_6_3_ops_never_import_the_orm_session_or_api():
     assert not offenders, f"counter ops reach into ORM/concretes/api: {offenders}"
 
 
-@ac_proof(proof_id="test_counter_only_all_public", ac_ids=["AC25.6.1"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_counter_only_all_public", ac_ids=["AC-counter.1.1"], ci_tier="pr_ci")
 def test_AC25_6_1_only_all_is_the_published_language():
-    """AC25.6.1: the package's contract.interface equals its __init__.__all__."""
+    """AC-counter.1.1: the package's contract.interface equals its __init__.__all__."""
     import src.counter as counter_pkg
     from common.counter.contract import CONTRACT
 
@@ -113,11 +113,11 @@ def test_AC25_6_1_only_all_is_the_published_language():
 
 @ac_proof(
     proof_id="test_counter_contract_gate_passes",
-    ac_ids=["AC25.6.4"],
+    ac_ids=["AC-counter.1.4"],
     ci_tier="pr_ci",
 )
 def test_AC25_6_4_package_contract_gate_passes_for_counter():
-    """AC25.6.4: check_package_contract discovers and validates counter (green)."""
+    """AC-counter.1.4: check_package_contract discovers and validates counter (green)."""
     names = {p.name for p in discover_packages(REPO)}
     assert "counter" in names, f"counter not discovered; found {names}"
     ok, messages = run(REPO)

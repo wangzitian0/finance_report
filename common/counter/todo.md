@@ -10,7 +10,7 @@ The package-local worklist. Cross-package migration lives in
 - [x] Become the `common/`-centric template: spec (`readme.md` + `contract.py` +
       `todo.md`) under `common/counter/`, implementation under
       `apps/backend/src/counter`.
-- [x] ACs (`AC25.6.1`–`AC25.6.4`) sourced directly from the contract `roadmap`.
+- [x] ACs (`AC-counter.1.1`–`AC-counter.1.4`) sourced directly from the contract `roadmap`.
 
 ## Next
 

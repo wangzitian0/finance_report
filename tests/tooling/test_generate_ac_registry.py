@@ -10,13 +10,18 @@ from common.ssot.ac_registry_format import load_registry_entries
 
 
 class TestSortKey:
-    """sort_key converts AC IDs to numeric tuples for correct ordering."""
+    """sort_key totally orders BOTH id grammars.
+
+    Legacy numeric ids carry a leading ``0`` discriminant, package-scoped ids a
+    leading ``1`` (so they sort after, and an int field is never compared to a
+    str one). The contract that matters is the ORDERING, asserted below.
+    """
 
     def test_simple_ac(self):
-        assert gar.sort_key("AC1.2.3") == [1, 2, 3]
+        assert gar.sort_key("AC1.2.3") == (0, "", 1, 2, 3)
 
     def test_double_digit_epic(self):
-        assert gar.sort_key("AC16.3.1") == [16, 3, 1]
+        assert gar.sort_key("AC16.3.1") == (0, "", 16, 3, 1)
 
     def test_ordering_correctness(self):
         ids = ["AC10.1.1", "AC2.1.1", "AC1.99.1"]
@@ -24,9 +29,22 @@ class TestSortKey:
         assert sorted_ids == ["AC1.99.1", "AC2.1.1", "AC10.1.1"]
 
     def test_three_digit_sort_stability(self):
-        assert gar.sort_key("AC1.1.10") == [1, 1, 10]
-        assert gar.sort_key("AC1.1.9") == [1, 1, 9]
+        assert gar.sort_key("AC1.1.10") == (0, "", 1, 1, 10)
+        assert gar.sort_key("AC1.1.9") == (0, "", 1, 1, 9)
         assert gar.sort_key("AC1.1.10") > gar.sort_key("AC1.1.9")
+
+    def test_package_ids_sort_after_legacy_and_by_package(self):
+        assert gar.sort_key("AC-counter.1.1") == (1, "counter", 1, 1)
+        # Package ids sort after every legacy numeric id...
+        assert gar.sort_key("AC-counter.1.1") > gar.sort_key("AC999.9.9")
+        # ...then by (package, group, seq).
+        ids = ["AC-platform.1.2", "AC-counter.2.1", "AC-counter.1.1", "AC1.1.1"]
+        assert sorted(ids, key=gar.sort_key) == [
+            "AC1.1.1",
+            "AC-counter.1.1",
+            "AC-counter.2.1",
+            "AC-platform.1.2",
+        ]
 
 
 class TestExtractAcs:

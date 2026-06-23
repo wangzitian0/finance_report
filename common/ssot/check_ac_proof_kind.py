@@ -40,20 +40,17 @@ import sys
 from pathlib import Path
 
 from common.ssot.ac_registry_format import sort_key
+from common.ssot.authority_matrix import TIER_VALID_PROOF_KINDS
 from common.ssot.generate_ac_registry import AC_PROOF_KINDS, build_registry_entries
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# tier -> the set of proof kinds the SSOT matrix accepts for that tier. The
-# single source of truth for these rules is docs/ssot/authority-tiers.md; this
-# dict is the machine-checkable mirror.
-VALID_PROOF_KINDS: dict[str, frozenset[str]] = {
-    "PC": frozenset({"exact", "property"}),
-    "CP": frozenset({"exact", "property"}),
-    "HU": frozenset({"evidence"}),
-    "LP": frozenset({"property", "invariant", "eval"}),
-    "PL": frozenset({"eval", "smoke"}),
-}
+# tier -> the set of proof kinds the SSOT matrix accepts for that tier. The prose
+# source of truth is docs/ssot/authority-tiers.md; its single MACHINE mirror is
+# common/governance/package_contract.TIER_VALID_PROOF_KINDS (the same matrix the
+# ACRecord model validates against). Aliased here so this gate and the contract
+# model enforce one identical matrix — they cannot drift apart.
+VALID_PROOF_KINDS: dict[str, frozenset[str]] = TIER_VALID_PROOF_KINDS
 
 
 def proof_kind_violations(repo_root: Path) -> list[str]:

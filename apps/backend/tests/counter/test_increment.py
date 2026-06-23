@@ -1,4 +1,4 @@
-"""increment verb — per-user bump + Incremented event (EPIC-025 AC25.6.3)."""
+"""increment verb — per-user bump + Incremented event (EPIC-025 AC-counter.1.3)."""
 
 from uuid import uuid4
 
@@ -16,9 +16,9 @@ KEY = CounterKey("report.generated")
 OTHER = CounterKey("statement.uploaded")
 
 
-@ac_proof(proof_id="test_increment_per_user", ac_ids=["AC25.6.3"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_increment_per_user", ac_ids=["AC-counter.1.3"], ci_tier="pr_ci")
 def test_increment_is_per_user():
-    """AC25.6.3: increment bumps THIS user's tally and returns the new Count."""
+    """AC-counter.1.3: increment bumps THIS user's tally and returns the new Count."""
     repo = InMemoryCounterRepository()
     u1, u2 = uuid4(), uuid4()
 
@@ -30,9 +30,9 @@ def test_increment_is_per_user():
     assert increment(repo, user_id=u1, key=OTHER) == Count(1)
 
 
-@ac_proof(proof_id="test_increment_emits_event", ac_ids=["AC25.6.3"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_increment_emits_event", ac_ids=["AC-counter.1.3"], ci_tier="pr_ci")
 def test_increment_emits_incremented_event():
-    """AC25.6.3: increment publishes an Incremented domain event through the bus."""
+    """AC-counter.1.3: increment publishes an Incremented domain event through the bus."""
     repo = InMemoryCounterRepository()
     u1 = uuid4()
     bus = RecordingEventBus()
@@ -48,9 +48,9 @@ def test_increment_emits_incremented_event():
     assert event.occurred_at is not None
 
 
-@ac_proof(proof_id="test_keys_users_isolated", ac_ids=["AC25.6.3"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_keys_users_isolated", ac_ids=["AC-counter.1.3"], ci_tier="pr_ci")
 def test_two_keys_two_users_do_not_interfere():
-    """AC25.6.3: (user, key) pairs are independent tallies."""
+    """AC-counter.1.3: (user, key) pairs are independent tallies."""
     repo = InMemoryCounterRepository()
     u1, u2 = uuid4(), uuid4()
     increment(repo, user_id=u1, key=KEY)

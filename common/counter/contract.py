@@ -25,6 +25,9 @@ CONTRACT = PackageContract(
     name="counter",
     klass="platform",
     status="active",
+    # Deterministic tally + event emission, no LLM: a pure-code (PC) package.
+    # Every AC in the roadmap inherits this tier.
+    tier="PC",
     depends_on=["platform"],
     roles=["types", "ops", "store", "api"],
     implementations={"be": "apps/backend/src/counter", "fe": None},
@@ -63,7 +66,7 @@ CONTRACT = PackageContract(
     ],
     roadmap=[
         ACRecord(
-            id="AC25.6.1",
+            id="AC-counter.1.1",
             statement=(
                 "CounterKey validates the namespaced lowercase dotted "
                 "'domain.action' shape and rejects invalid keys with "
@@ -73,10 +76,9 @@ CONTRACT = PackageContract(
             test="apps/backend/tests/counter/test_key.py::test_counter_key_rejects_invalid",
             priority="P0",
             status="done",
-            tier="PC",
         ),
         ACRecord(
-            id="AC25.6.2",
+            id="AC-counter.1.2",
             statement=(
                 "Count is a non-negative tally; constructing a negative count "
                 "raises NegativeCountError; domain types never import the "
@@ -85,10 +87,9 @@ CONTRACT = PackageContract(
             test="apps/backend/tests/counter/test_count.py::test_count_rejects_negative",
             priority="P0",
             status="done",
-            tier="PC",
         ),
         ACRecord(
-            id="AC25.6.3",
+            id="AC-counter.1.3",
             statement=(
                 "increment bumps the per-(user, key) tally by one, returns the new "
                 "per-user Count, and publishes an Incremented domain event through "
@@ -98,10 +99,9 @@ CONTRACT = PackageContract(
             test="apps/backend/tests/counter/test_increment.py::test_increment_is_per_user",
             priority="P1",
             status="done",
-            tier="PC",
         ),
         ACRecord(
-            id="AC25.6.4",
+            id="AC-counter.1.4",
             statement=(
                 "get_count returns the per-user count for a concrete user_id and "
                 "the global count (sum across users) when user_id is None; "
@@ -111,7 +111,6 @@ CONTRACT = PackageContract(
             test="apps/backend/tests/counter/test_query.py::test_global_vs_per_user_count",
             priority="P1",
             status="done",
-            tier="PC",
         ),
     ],
 )

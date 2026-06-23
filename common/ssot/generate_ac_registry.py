@@ -6,7 +6,16 @@ import os
 import sys
 from pathlib import Path
 
+# Import the matrix from the stdlib-only source (NOT package_contract, which
+# pulls pydantic) so this generator stays importable in the lightweight CI lint
+# env (`uv run --with pyyaml ...`).
+from common.ssot.authority_matrix import (
+    AC_PROOF_KINDS as _AC_PROOF_KINDS,
+    AC_TIERS as _AC_TIERS,
+    TIER_DEFAULT_PROOF_KIND as _TIER_DEFAULT_PROOF_KIND,
+)
 from common.ssot.ac_registry_format import (
+    PKG_AC_PATTERN,
     epic_group_key,
     load_registry_entries,
     registry_validation_errors,
@@ -63,44 +72,35 @@ EPIC_NAMES: dict[int, str] = {
 
 AC_PATTERN = re.compile(r"\b(AC(\d+)\.(\d+)\.(\d+))\b")
 
-# Authority tier vocabulary (SSOT: docs/ssot/authority-tiers.md). One AC = one
-# tier; the tier dictates what KIND of proof is valid for the AC's behavior.
-AC_TIERS = ("PC", "CP", "HU", "LP", "PL")
+# Authority tier + proof-kind vocabulary and the tier->proof matrix all come from
+# the single machine source in common/governance/package_contract.py (the same
+# definitions the ACRecord model validates against), so the EPIC-table source and
+# the package-contract source can never disagree about the matrix.
+AC_TIERS = _AC_TIERS
+AC_PROOF_KINDS = _AC_PROOF_KINDS
 
 # Definition-site tier marker, e.g. ``{tier:PC}``. Declared next to the AC text
 # in the EPIC doc so the tier travels with the behavior it describes. The marker
 # is parsed out of the line and lifted into the registry value; it never leaks
 # into the AC description.
-_TIER_MARKER_RE = re.compile(r"\{tier:\s*(PC|CP|HU|LP|PL)\s*\}", re.IGNORECASE)
-
-# Proof-kind vocabulary (SSOT: docs/ssot/authority-tiers.md). The KIND of proof
-# an AC's tests provide; an AC's tier dictates which kinds are VALID for it (the
-# tier->proof matrix, enforced by tools/check_ac_proof_kind.py for tier-tagged
-# ACs). ``exact`` = deterministic exact/golden assertion; ``property`` /
-# ``invariant`` = an asserted invariant that holds across inputs (e.g. a balance
-# chain); ``eval`` = graded/quality eval; ``evidence`` = an evidence-chain
-# assertion (HU); ``smoke`` = guardrail/quality smoke (PL).
-AC_PROOF_KINDS = ("property", "invariant", "eval", "exact", "evidence", "smoke")
+_TIER_MARKER_RE = re.compile(
+    r"\{tier:\s*(" + "|".join(AC_TIERS) + r")\s*\}", re.IGNORECASE
+)
 
 # Definition-site proof-kind marker, e.g. ``{proof:property}``. Declared next to
 # the AC text the same way as ``{tier:XX}`` and lifted into the registry value as
-# ``proof_kind``; stripped from the description so it never leaks.
+# ``proof_kind``; stripped from the description so it never leaks. The alternation
+# is built from the canonical vocabulary so it cannot drift from it.
 _PROOF_MARKER_RE = re.compile(
-    r"\{proof:\s*(property|invariant|eval|exact|evidence|smoke)\s*\}",
+    r"\{proof:\s*(" + "|".join(AC_PROOF_KINDS) + r")\s*\}",
     re.IGNORECASE,
 )
 
 # When an AC declares a tier but no explicit ``{proof:KIND}`` marker, its
-# proof_kind defaults to the tier's CANONICAL valid kind, so the registry value
-# is always a kind the matrix accepts (never a sentinel the gate must reject).
-# Untagged ACs get no proof_kind key at all.
-_TIER_DEFAULT_PROOF = {
-    "PC": "exact",
-    "CP": "exact",
-    "HU": "evidence",
-    "LP": "property",
-    "PL": "smoke",
-}
+# proof_kind defaults to the tier's CANONICAL valid kind (single source:
+# package_contract.TIER_DEFAULT_PROOF_KIND), so the registry value is always a
+# kind the matrix accepts. Untagged ACs get no proof_kind key at all.
+_TIER_DEFAULT_PROOF = _TIER_DEFAULT_PROOF_KIND
 
 
 def _extract_tier(text: str) -> tuple[str, str | None]:
@@ -340,17 +340,20 @@ def _roadmap_acs_from_contract(contract_path: Path) -> list[dict]:
     Parses ``common/<pkg>/contract.py`` with :mod:`ast` (no import, so no
     pydantic/governance dependency — this runs in every tooling environment) and
     returns one dict per ``ACRecord`` in the ``roadmap=[...]`` list, with its
-    ``id``/``statement``/``tier``/``proof_kind`` literals.
+    ``id``/``statement``/``proof_kind`` literals plus the PACKAGE's ``tier``
+    (authority tier is a module-design property declared once on the
+    ``PackageContract``; every AC the package owns inherits it).
     """
     tree = ast.parse(contract_path.read_text(encoding="utf-8"))
     records: list[dict] = []
     for node in ast.walk(tree):
-        # The single ``CONTRACT = PackageContract(...)`` assignment; find its
-        # ``roadmap=[...]`` keyword and read each ``ACRecord(...)`` element.
+        # The single ``CONTRACT = PackageContract(...)`` assignment; read its
+        # package-level ``tier`` then each ``ACRecord(...)`` in ``roadmap=[...]``.
         if not (
             isinstance(node, ast.Call) and _call_name(node.func) == "PackageContract"
         ):
             continue
+        package_tier = _ac_record_field(node, "tier")
         for kw in node.keywords:
             if kw.arg != "roadmap" or not isinstance(kw.value, (ast.List, ast.Tuple)):
                 continue
@@ -366,7 +369,7 @@ def _roadmap_acs_from_contract(contract_path: Path) -> list[dict]:
                     {
                         "id": ac_id,
                         "statement": _ac_record_field(elt, "statement") or "",
-                        "tier": _ac_record_field(elt, "tier"),
+                        "tier": package_tier,
                         "proof_kind": _ac_record_field(elt, "proof_kind"),
                     }
                 )
@@ -401,16 +404,28 @@ def _package_roadmap_acs(source_dir: Path) -> dict[str, dict]:
     for contract_path in sorted(repo_root.glob("common/*/contract.py")):
         for record in _roadmap_acs_from_contract(contract_path):
             ac_id = record["id"]
-            match = AC_PATTERN.fullmatch(ac_id)
-            if not match:
-                continue
-            ac_epic = int(match.group(2))
-            entry: dict = {
-                "epic": ac_epic,
-                "epic_name": EPIC_NAMES.get(ac_epic, f"epic-{ac_epic:03d}"),
-                "description": _clean_description(record["statement"]),
-                "mandatory": True,
-            }
+            pkg_match = PKG_AC_PATTERN.fullmatch(ac_id)
+            if pkg_match:
+                # Package-scoped id (AC-{package}.{group}.{seq}): the key names its
+                # owner, so there is no EPIC number and no cross-package collision.
+                package = pkg_match.group("package")
+                entry = {
+                    "epic": 0,
+                    "epic_name": f"pkg-{package}",
+                    "description": _clean_description(record["statement"]),
+                    "mandatory": True,
+                }
+            else:
+                match = AC_PATTERN.fullmatch(ac_id)
+                if not match:
+                    continue
+                ac_epic = int(match.group(2))
+                entry = {
+                    "epic": ac_epic,
+                    "epic_name": EPIC_NAMES.get(ac_epic, f"epic-{ac_epic:03d}"),
+                    "description": _clean_description(record["statement"]),
+                    "mandatory": True,
+                }
             tier = record["tier"]
             if tier:
                 entry["tier"] = tier
@@ -492,6 +507,10 @@ def extract_acs(
 
 def classify_ac(ac_id: str, entry: dict) -> str:
     """Return 'feature' or 'infra' for a given AC entry."""
+    # Package-scoped ids carry their own grouping (AC-{package}.…) and no EPIC
+    # number; route them to the feature registry (the package model's default).
+    if PKG_AC_PATTERN.fullmatch(ac_id):
+        return "feature"
     epic = entry["epic"]
     if epic in INFRA_EPICS:
         return "infra"

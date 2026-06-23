@@ -120,7 +120,7 @@ verifiable.
 |----|-------------|---------------|------|----------|
 | AC25.5.1 | No backend router module imports a symbol from another router (`from src.routers.<x> import ...` is absent across `apps/backend/src/routers`); the personal-report-package assembly calls `services.performance_report.build_investment_performance_report_schedule` directly instead of the portfolio router handler, preserving behavior | `test_AC25_5_1_no_router_imports_another_router` | `apps/backend/tests/api/test_router_boundary.py` | P1 |
 
-### AC25.6 — Package model: the `counter` worked example (a package = DDD bounded context)
+### AC-counter — Package model: the `counter` worked example (a package = DDD bounded context)
 
 > The package model (a package = a DDD bounded context: `readme.md` +
 > `PackageContract` + `types/ops/store/api` roles + `__all__` published language,
@@ -128,7 +128,7 @@ verifiable.
 > [../../common/governance/readme.md](../../common/governance/readme.md). The
 > `counter` platform package is its first worked example.
 >
-> **`AC25.6.1`, `AC25.6.2`, `AC25.6.3`, and `AC25.6.4` are NOT defined here.**
+> **`AC-counter.1.1`, `AC-counter.1.2`, `AC-counter.1.3`, and `AC-counter.1.4` are NOT defined here.**
 > They are owned by, and sourced directly from,
 > [`common/counter/contract.py`](../../common/counter/contract.py)'s `roadmap`;
 > `common/ssot/generate_ac_registry.py` reads package-contract roadmaps
@@ -137,7 +137,7 @@ verifiable.
 > defines none of them — the contract is the single definition source. This is
 > the precedent: a package's ACs live in its contract, never duplicated.
 
-### AC25.7 — Platform: domain EventBus via the transactional outbox (meta-layer capability #1)
+### AC-platform — Platform: domain EventBus via the transactional outbox (meta-layer capability #1)
 
 > The first *runtime* capability of the meta layer: a domain **EventBus
 > implemented with the transactional outbox pattern**, in the new
@@ -149,14 +149,14 @@ verifiable.
 > (at-least-once, so handlers must be idempotent). `counter` now emits its
 > `Incremented` event through this bus.
 >
-> **`AC25.7.1`, `AC25.7.2`, `AC25.7.3`, `AC25.7.4`, and `AC25.7.5` are NOT defined
+> **`AC-platform.1.1`, `AC-platform.1.2`, `AC-platform.1.3`, `AC-platform.1.4`, and `AC-platform.1.5` are NOT defined
 > here.** They are owned by, and sourced directly from,
 > [`common/platform/contract.py`](../../common/platform/contract.py)'s `roadmap`
-> (`AC25.7.5` is the cross-package one proving `counter` emits atomically through
+> (`AC-platform.1.5` is the cross-package one proving `counter` emits atomically through
 > the outbox); `common/ssot/generate_ac_registry.py` reads it additively, so the
 > AC index counts them without an EPIC-table mirror. This blockquote references
 > the IDs (keeping the registry-to-EPIC link intact) but defines none of them —
-> the contract is the single definition source, exactly as the `AC25.6`
+> the contract is the single definition source, exactly as the `AC-counter`
 > precedent.
 
 ---
