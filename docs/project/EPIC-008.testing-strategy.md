@@ -672,16 +672,24 @@ submodule sync process.
   runs only a runner-local full-stack preview. PR image build/push/preflight and
   immediate PR image deletion were removed; legacy Dokploy resources are
   cleanup-only.
+- 2026-06-23: Completed the migration — the per-env legacy scalar outputs
+  (`pr_preview_required`, `staging_required`, `staging_ai_ocr_required`) are no
+  longer emitted by `ci_change_classifier`. The 2026-06-10 precondition was met
+  (all GitHub Actions consumers normalize from the structured matrix; required
+  contexts are keyed on job names, not classifier step outputs), so Residual A
+  is removed. `heavy_required` and `reason` are retained as top-level scalars,
+  and the human-readable job summary still prints per-env lines.
 
 ### 5.6 Residual Drift to Simplify Next
 
-- **Residual A: Compatibility scalar outputs**
-  - `heavy_required`, `pr_preview_required`, `staging_required`, and
-    `staging_ai_ocr_required` are still emitted as migration shims from
-    `ci_change_classifier`.
-  - They are **not** used for primary control decisions in core workflows, but
-    they still exist as temporary compatibility contract for ad hoc tools and
-    scripts that have not been migrated.
+- **Residual A: Compatibility scalar outputs — ✅ DONE (2026-06-23)**
+  - The per-env scalars (`pr_preview_required`, `staging_required`,
+    `staging_ai_ocr_required`) are no longer emitted by `ci_change_classifier`;
+    the structured Env×Stage / provider-gate JSON is the sole machine-readable
+    gate contract. `heavy_required` and `reason` are retained as top-level
+    scalars (the PR heavy gate is also expressed as `env_stage_required.pr`).
+  - All GitHub Actions consumers normalize their own scalar from the structured
+    matrix, so no migration shim remained.
 
 - **Residual B: Legacy gate normalization step wrappers**
   - `preview.yml` and `deploy.yml` still deserialize
@@ -700,8 +708,7 @@ submodule sync process.
 The simplification priority remains:
 
 1. Remove Residual B (single-step expression gating from structured outputs).
-2. Add explicit external consumer migration audit for Residual A, then remove
-   scalar shims in one bounded PR.
+2. ~~Remove the per-env scalar shims (Residual A)~~ — **done 2026-06-23**.
 3. Add a narrow enforcement test that each lane consumes only matrix cells it
    is authorized for, and that unused matrix dimensions are intentionally
    read-only.
@@ -713,10 +720,11 @@ The simplification priority remains:
   `preview.yml` follows `pr-preview` gates for scoped preview deployment, and
   `deploy.yml` with `target=staging` follows `staging` + provider gates for
   post-merge infra and provider replay.
-- The strongest remaining complexity is historical compatibility: scalar outputs are
-  still emitted as shims, and several workflows run small normalization glue. The
-  signal-to-risk ratio is acceptable because these shims protect external
-  consumers during migration, but they are now a clear simplification boundary.
+- The per-env scalar shims have been retired (2026-06-23); the remaining
+  complexity is the small per-workflow normalization glue (Residual B) that
+  deserializes the structured matrix into a local scalar before job-level `if:`
+  checks. That glue is functionally correct and is the next simplification
+  boundary.
 - Logging sufficiency check is favorable: every critical stage emits both context
   artifacts and step-level classification/failure-domain breadcrumbs before exit
   (`pr-preview-readiness-context.json`, `staging-deploy-context.txt`,
