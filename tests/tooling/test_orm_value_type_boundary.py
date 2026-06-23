@@ -160,3 +160,73 @@ def test_AC12_37_3_income_statement_fx_is_money_native():
     # (import or call) — catches positional / intermediate-variable regressions
     # that an `amount=line.amount` substring check would miss.
     assert "convert_amount" not in src
+
+
+# ── Phase C: currency as a single base SSOT, balance core typed, ratchet ──────
+_CURRENCY_BLIND_LINE_SUM = re.compile(r"sum\(\s*line\.amount|line\.amount\s+for\s")
+
+
+@ac_proof(
+    proof_id="test_journal_line_currency_single_ssot",
+    ac_ids=["AC12.38.1"],
+    ci_tier="pr_ci",
+)
+def test_AC12_38_1_journal_line_currency_resolves_to_base_ssot():
+    """AC12.38.1: JournalLine currency resolves to the single `settings.base_currency`
+    SSOT — accessor fallback + column default — with no hard-coded base literal."""
+    src = _read("apps/backend/src/models/journal.py")
+    assert "from src.config import settings" in src
+    assert "else settings.base_currency" in src
+    assert "default=lambda: settings.base_currency" in src
+    assert 'else "SGD"' not in src
+    assert 'default="SGD"' not in src
+
+
+@ac_proof(
+    proof_id="test_balance_core_typed_money",
+    ac_ids=["AC12.38.2"],
+    ci_tier="pr_ci",
+)
+def test_AC12_38_2_balance_core_sums_money():
+    """AC12.38.2: the journal balance core computes via `line.money` + `Money.sum`
+    (currency-checked), not a raw currency-blind Decimal sum."""
+    src = _read("apps/backend/src/ledger/store/posting.py")
+    assert "def _line_base_amount(line: JournalLine) -> Money" in src
+    assert "line.money" in src
+    assert "Money.sum(" in src
+
+
+@ac_proof(
+    proof_id="test_annualized_income_line_money",
+    ac_ids=["AC12.38.3"],
+    ci_tier="pr_ci",
+)
+def test_AC12_38_3_annualized_income_reads_line_money():
+    """AC12.38.3: annualized income reads `line.money` (single SSOT) instead of the
+    per-site `line.currency or account.currency or target` fallback."""
+    src = _read("apps/backend/src/services/annualized_income.py")
+    assert "line.money" in src
+    assert "or account.currency or" not in src
+
+
+@ac_proof(
+    proof_id="test_no_currency_blind_line_amount_sum",
+    ac_ids=["AC12.38.4"],
+    ci_tier="pr_ci",
+)
+def test_AC12_38_4_no_currency_blind_line_amount_sum():
+    """AC12.38.4 (ratchet): no service/ledger code sums journal-line amounts raw
+    (`sum(line.amount …)` / `line.amount for …`) — currency-blind cross-currency
+    addition must go through `Money.sum`. (Manual fast-path rate multiplies and
+    serialization edges that read a single `line.amount` are not sums and stay raw.)"""
+    offenders: dict[str, list[str]] = {}
+    for folder in ("apps/backend/src/services", "apps/backend/src/ledger"):
+        for path in sorted((REPO / folder).rglob("*.py")):
+            text = path.read_text(encoding="utf-8")
+            if _CURRENCY_BLIND_LINE_SUM.search(text):
+                offenders[str(path.relative_to(REPO))] = (
+                    _CURRENCY_BLIND_LINE_SUM.findall(text)
+                )
+    assert not offenders, (
+        f"currency-blind journal-line sums must use Money.sum: {offenders}"
+    )

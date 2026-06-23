@@ -60,8 +60,12 @@ async def generate_annualized_income_schedule(
     }
     currency = settings.base_currency.strip().upper()
     for line, account in income_result.all():
-        signed_amount = line.amount if line.direction == Direction.CREDIT else -line.amount
-        source_currency = (line.currency or account.currency or currency).strip().upper()
+        # Currency is the line's own, resolved via the single base-currency SSOT
+        # (the previous per-site account/target fallback chain is dropped — only the
+        # impossible currency-is-None path differs, since the column is non-null).
+        line_money = line.money
+        signed_amount = line_money.amount if line.direction == Direction.CREDIT else -line_money.amount
+        source_currency = line_money.currency.code
         try:
             signed_amount = await convert_amount(
                 db,

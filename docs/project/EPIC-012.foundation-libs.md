@@ -586,6 +586,17 @@ incrementally by area; the forbid-ratchet follows once the surface is covered.
 | AC12.37.2 | The reconciliation entry-amount helpers (`entry_total_amount`/`entry_bank_side_amount`) sum journal lines via `line.money` + `Money.sum` (currency-checked) instead of a raw currency-blind `sum(line.amount)` {tier:PC} | `test_AC12_37_2_reconciliation_config_sums_lines_as_money` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
 | AC12.37.3 | The income-statement slow-path FX converts journal lines through the Money-native `convert_money(line.money, …)` (incl. average-rate + spot fallbacks) instead of raw `convert_amount(line.amount, line.currency, …)`. (The pre-fetched-rate fast path stays a raw `Decimal` multiply by design; serialization edges and the balance core legitimately read raw columns) {tier:PC} | `test_AC12_37_3_income_statement_fx_is_money_native` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
 
+### AC12.38: Currency as a single base SSOT + typed balance core (Phase C) ([#1339](https://github.com/wangzitian0/finance_report/issues/1339))
+
+Currency was resolved ad-hoc in ≥3 divergent ways (`or "SGD"`, `or settings.base_currency`, `or account.currency or target`). Phase C consolidates to **one** resolution — `settings.base_currency`, read only via `line.money` — and migrates the journal balance core + the remaining currency-blind line sums to `Money.sum`, so cross-currency addition becomes a typed error instead of a silent bug. A ratchet forbids new currency-blind `sum(line.amount)`.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC12.38.1 | `JournalLine` currency resolves to the single `settings.base_currency` SSOT — `.money` accessor fallback + column default `lambda: settings.base_currency` — with no hard-coded base literal (`"SGD"`) {tier:PC} | `test_AC12_38_1_journal_line_currency_resolves_to_base_ssot` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
+| AC12.38.2 | The journal balance core (`_line_base_amount` → `Money`, `validate_journal_balance` → `Money.sum`) computes balance currency-checked; single-currency entries balance identically, a cross-currency line set without `fx_rate` raises instead of silently summing {tier:PC} | `test_AC12_38_2_balance_core_sums_money` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
+| AC12.38.3 | Annualized-income (and the fx-revaluation + processing-account balance sums) read `line.money` / sum via `Money.sum`, dropping the per-site `or account.currency or target` currency fallback (only the impossible currency-`None` path differs; the column is non-null) {tier:PC} | `test_AC12_38_3_annualized_income_reads_line_money` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
+| AC12.38.4 | Ratchet: no service/ledger code sums journal-line amounts raw (`sum(line.amount …)` / `line.amount for …`); currency-blind addition must use `Money.sum`. Manual fast-path rate multiplies and single-value serialization reads are not sums and stay raw {tier:PC} | `test_AC12_38_4_no_currency_blind_line_amount_sum` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
+
 ---
 
 *Planning snapshot captured: January 2026*

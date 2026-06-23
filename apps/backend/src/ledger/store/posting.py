@@ -27,6 +27,7 @@ from src.models import (
     JournalEntryStatus,
     JournalLine,
 )
+from src.money import Money
 from src.services.source_type_priority import normalize_source_type
 
 
@@ -51,15 +52,15 @@ def validate_fx_rates(lines: list[JournalLine]) -> None:
             raise ValidationError(f"fx_rate required for currency {line_currency} (base {base_currency})")
 
 
-def _line_base_amount(line: JournalLine) -> Decimal:
-    """Return line amount converted to the configured base currency."""
+def _line_base_amount(line: JournalLine) -> Money:
+    """Return the line value converted to the configured base currency, as Money."""
     base_currency = settings.base_currency.upper()
-    line_currency = (line.currency or base_currency).upper()
-    if line_currency == base_currency:
-        return line.amount
+    line_money = line.money  # currency resolved via the single SSOT (None -> base)
+    if line_money.currency.code == base_currency:
+        return line_money
     if line.fx_rate is None:
-        raise ValidationError(f"fx_rate required for currency {line_currency} (base {base_currency})")
-    return line.amount * line.fx_rate
+        raise ValidationError(f"fx_rate required for currency {line_money.currency.code} (base {base_currency})")
+    return Money(line.amount * line.fx_rate, base_currency)
 
 
 def validate_journal_balance(lines: list[JournalLine]) -> None:
@@ -75,17 +76,19 @@ def validate_journal_balance(lines: list[JournalLine]) -> None:
     if len(lines) < 2:
         raise ValidationError("Journal entry must have at least 2 lines")
 
-    total_debit = sum(
+    # All per-line amounts are in base currency here, so Money.sum is single-currency;
+    # a cross-currency mix would raise instead of silently summing.
+    total_debit = Money.sum(
         (_line_base_amount(line) for line in lines if line.direction == Direction.DEBIT),
-        Decimal("0"),
+        currency=settings.base_currency,
     )
-    total_credit = sum(
+    total_credit = Money.sum(
         (_line_base_amount(line) for line in lines if line.direction == Direction.CREDIT),
-        Decimal("0"),
+        currency=settings.base_currency,
     )
 
-    if abs(total_debit - total_credit) > Decimal("0.01"):
-        raise ValidationError(f"Journal entry not balanced: debit={total_debit}, credit={total_credit}")
+    if abs((total_debit - total_credit).amount) > Decimal("0.01"):
+        raise ValidationError(f"Journal entry not balanced: debit={total_debit.amount}, credit={total_credit.amount}")
 
 
 def validate_journal_posting_invariants(entry: JournalEntry) -> None:

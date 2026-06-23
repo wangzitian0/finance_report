@@ -416,11 +416,20 @@ async def create_revaluation_entry(
     await db.flush()
     await db.refresh(entry, ["lines"])
 
-    total_debits = sum(line.amount for line in entry.lines if line.direction == Direction.DEBIT)
-    total_credits = sum(line.amount for line in entry.lines if line.direction == Direction.CREDIT)
+    # Revaluation lines are all in base currency; sum as Money (cross-currency would raise).
+    total_debits = Money.sum(
+        (line.money for line in entry.lines if line.direction == Direction.DEBIT),
+        currency=settings.base_currency,
+    )
+    total_credits = Money.sum(
+        (line.money for line in entry.lines if line.direction == Direction.CREDIT),
+        currency=settings.base_currency,
+    )
 
-    if abs(total_debits - total_credits) >= Decimal("0.01"):
-        raise RevaluationError(f"Revaluation entry is unbalanced: debits={total_debits}, credits={total_credits}")
+    if abs((total_debits - total_credits).amount) >= Decimal("0.01"):
+        raise RevaluationError(
+            f"Revaluation entry is unbalanced: debits={total_debits.amount}, credits={total_credits.amount}"
+        )
 
     return entry
 
