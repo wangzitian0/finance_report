@@ -110,6 +110,12 @@ Not owned here:
 |----|-----------|---------------|------|----------|
 | AC20.7.1 | The same settlement and portfolio fixture must be able to produce US-like and HK-like personal report packages with framework-specific line mappings, notes, source anchors, export metadata, and readiness blockers | `test_AC20_7_1_same_fixture_must_drive_framework_differentiated_reports`, `test_AC20_7_1_same_settlement_fixture_drives_us_hk_report_policy_outputs`, `AC20.6.1 AC20.7.1 loads readiness and policy result with the selected framework` | `tests/tooling/test_framework_reporting_epic_contract.py`, `reporting/test_framework_policy.py`, `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
 
+### AC20.8: L2→L1 Line-Mapping Completeness
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC20.8.1 | Every L2 category — each `AssetType` and each `ManualValuationComponentType` — resolves to a concrete L1 report line via the framework policy matrix in both `personal_us_gaap_like` and `personal_hkfrs_like`; a known category landing in the `UNSUPPORTED`/gap path fails the gate, so report assembly never improvises a line for a known category (`BOND`/`OTHER` regression covered) {tier:PC}{proof:property} | `test_AC20_8_1_every_asset_type_maps_to_an_l1_line`, `test_AC20_8_1_every_manual_component_maps_to_an_l1_line`, `test_AC20_8_1_bond_and_other_are_mapped_not_gaps` | `reporting/test_framework_policy_coverage.py` | P0 |
+
 ## Implementation Order
 
 1. Define the framework policy result schema and SSOT contract.
