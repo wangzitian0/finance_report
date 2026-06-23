@@ -14,8 +14,8 @@ currency could not be determined are flagged ``true``.
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0050_add_currency_unresolved"
-down_revision = "0049_add_outbox"
+revision = "0051_add_currency_unresolved"
+down_revision = "0050_add_app_config"
 branch_labels = None
 depends_on = None
 
