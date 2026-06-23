@@ -66,6 +66,30 @@ Not owned here:
 - Rendering report pages or exports (EPIC-005).
 - AI prompt execution or model integration (EPIC-018).
 
+## Reporting Pipeline Authority Tiers (EPIC-026 applied)
+
+The personal-report pipeline is three layers, each with a distinct authority tier
+from the locked EPIC-026 5-tier set (see `docs/ssot/authority-tiers.md`). The tier
+is assigned by *who emits the artifact that is used*, and it dictates the layer's
+valid proof type. This is the deterministic-by-construction spine of the report:
+LLM judgement is confined to the one layer where polymorphism is irreducible, and
+code holds final authority everywhere a number becomes financial truth.
+
+| Layer | What it decides | Tier | Who emits the used artifact | Proof obligation | Enforcing gate |
+|---|---|---|---|---|---|
+| **event → L2** | classify a financial event (category, direction) — polymorphic | **LP** (强LLM/LLM为主) | LLM emits the classification; code does enum + balance/dedup sanity and may reject, never author | invariant / property + eval + provenance; **no exact-golden** | LLM cassette balance-chain drift gate (`tools/check_llm_cassettes.py`, AC23.7.1) |
+| **L2 → L1** | map an L2 category to a report line | **CP** (强代码/代码为主) — PC today | code's deterministic rule table emits the line; LLM only fills ambiguous knobs (`holding_intent` / `horizon`, `OTHER` disambiguation) and code validates | assert the **code's** decision, not the LLM output | L2→L1 completeness gate (`test_framework_policy_coverage.py`, AC20.8.1) |
+| **L1 → report** | aggregate by the L1 registry into statements | **PC** (纯代码) | code sums by registry; no LLM in the path; bit-reproducible | exact / property test | pending — L1 registry + exact-aggregation test (tracked separately) |
+
+Notes:
+- **L2 → L1 is PC today** (the `framework_policy` rule table is pure deterministic
+  code, zero LLM). It becomes **CP** only when the `holding_intent` / `horizon`
+  judgement knob is added; the rule table stays code-authoritative and the LLM
+  fills only that knob under code validation.
+- The **L1 → report** PC proof requires the enumerated L1 registry, which is the
+  one piece blocked on the reporting taxonomy template; until then this layer's
+  exact-aggregation proof is pending.
+
 ## Acceptance Criteria
 
 ### AC20.1: Framework Target Registry
@@ -115,6 +139,12 @@ Not owned here:
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC20.8.1 | Every L2 category — each `AssetType` and each `ManualValuationComponentType` — resolves to a concrete L1 report line via the framework policy matrix in both `personal_us_gaap_like` and `personal_hkfrs_like`; a known category landing in the `UNSUPPORTED`/gap path fails the gate, so report assembly never improvises a line for a known category (`BOND`/`OTHER` regression covered) {tier:PC}{proof:property} | `test_AC20_8_1_every_asset_type_maps_to_an_l1_line`, `test_AC20_8_1_every_manual_component_maps_to_an_l1_line`, `test_AC20_8_1_bond_and_other_are_mapped_not_gaps` | `reporting/test_framework_policy_coverage.py` | P0 |
+
+### AC20.9: Reporting Pipeline Authority Tiers
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC20.9.1 | EPIC-020 declares the three reporting-pipeline layers (`event → L2`, `L2 → L1`, `L1 → report`) each with a locked EPIC-026 tier (LP / CP / PC) and its valid proof obligation; LLM authority is confined to the LP layer and code holds final authority where a number becomes financial truth {tier:PC}{proof:property} | `test_AC20_9_1_reporting_pipeline_declares_layer_authority_tiers` | `tests/tooling/test_framework_reporting_epic_contract.py` | P0 |
 
 ## Implementation Order
 
