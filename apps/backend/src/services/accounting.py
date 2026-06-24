@@ -240,13 +240,13 @@ async def post_opening_balance_entry(
     # Imported lazily so importing this module stays free of the FastAPI/util
     # dependency graph (tooling tests import accounting without those installed).
     from src.ledger import Entry, Leg
-    from src.money import Money, to_money
+    from src.money import Money, normalize_currency_code, to_money
     from src.services.account_service import get_or_create_opening_balance_equity_account
 
     if not balances:
         raise ValidationError("At least one opening balance is required")
 
-    normalized_currency = currency.strip().upper()
+    normalized_currency = normalize_currency_code(currency)
     account_ids = list(balances.keys())
     result = await db.execute(select(Account).where(Account.id.in_(account_ids), Account.user_id == user_id))
     accounts = {account.id: account for account in result.scalars().all()}
@@ -261,7 +261,7 @@ async def post_opening_balance_entry(
     if system_targets:
         raise ValidationError(f"Opening balances cannot target system accounts: {system_targets}")
 
-    base_currency = settings.base_currency.strip().upper()
+    base_currency = normalize_currency_code(settings.base_currency)
     if normalized_currency != base_currency:
         raise ValidationError(
             f"Opening balances are supported only in the base currency ({base_currency}); got {normalized_currency}."
@@ -293,7 +293,7 @@ async def post_opening_balance_entry(
         if amount <= Decimal("0"):
             raise ValidationError("Opening balance amounts must be positive")
         account = accounts[account_id]
-        if (account.currency or "").strip().upper() != normalized_currency:
+        if normalize_currency_code(account.currency or "") != normalized_currency:
             raise ValidationError(
                 f"Opening balance currency {normalized_currency} does not match the currency "
                 f"of account {account_id} ({account.currency}); lines must not be mis-stamped."

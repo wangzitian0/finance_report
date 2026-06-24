@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config import settings
 from src.logger import get_logger
 from src.models import FxRate
-from src.money import ExchangeRate, Money, MoneyError, convert as _money_convert
+from src.money import ExchangeRate, Money, MoneyError, convert as _money_convert, normalize_currency_code
 
 logger = get_logger(__name__)
 
@@ -78,10 +78,6 @@ def clear_fx_cache() -> None:
     _cache._store.clear()
 
 
-def _normalize_currency(code: str) -> str:
-    return code.strip().upper()
-
-
 def _append_fx_warning(fx_warnings: list[FxWarning] | None, warning: FxWarning) -> None:
     if fx_warnings is not None and warning not in fx_warnings:
         fx_warnings.append(warning)
@@ -103,8 +99,8 @@ async def get_exchange_rate(
     lazy_load: bool = False,
 ) -> Decimal:
     """Get FX rate for a given date, falling back to the most recent prior rate."""
-    base = _normalize_currency(base_currency)
-    quote = _normalize_currency(quote_currency)
+    base = normalize_currency_code(base_currency)
+    quote = normalize_currency_code(quote_currency)
 
     if base == quote:
         return Decimal("1")
@@ -151,8 +147,8 @@ async def get_average_rate(
     lazy_load: bool = False,
 ) -> Decimal:
     """Get average FX rate over a period, falling back to period-end rate."""
-    base = _normalize_currency(base_currency)
-    quote = _normalize_currency(quote_currency)
+    base = normalize_currency_code(base_currency)
+    quote = normalize_currency_code(quote_currency)
 
     if base == quote:
         return Decimal("1")
@@ -218,8 +214,8 @@ async def convert_amount(
     lazy_load: bool = False,
 ) -> Decimal:
     """Convert an amount into the target currency using FX rates."""
-    source = _normalize_currency(currency)
-    target = _normalize_currency(target_currency)
+    source = normalize_currency_code(currency)
+    target = normalize_currency_code(target_currency)
 
     if source == target:
         return amount
@@ -304,8 +300,8 @@ class PrefetchedFxRates:
         average_start: date | None = None,
         average_end: date | None = None,
     ) -> Decimal | None:
-        base = _normalize_currency(base)
-        quote = _normalize_currency(quote)
+        base = normalize_currency_code(base)
+        quote = normalize_currency_code(quote)
         if base == quote:
             return Decimal("1")
 
@@ -324,8 +320,8 @@ class PrefetchedFxRates:
         average_start: date | None = None,
         average_end: date | None = None,
     ) -> None:
-        base = _normalize_currency(base)
-        quote = _normalize_currency(quote)
+        base = normalize_currency_code(base)
+        quote = normalize_currency_code(quote)
         if average_start and average_end:
             key = f"avg:{base}:{quote}:{average_start.isoformat()}:{average_end.isoformat()}"
         else:

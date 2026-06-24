@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from src.money.balances import CurrencyBalance, CurrencyBalances
 from src.money.convert import convert
-from src.money.currency import ISO_4217_CODES, Currency
+from src.money.currency import ISO_4217_CODES, Currency, normalize_currency_code
 from src.money.errors import (
     CurrencyMismatchError,
     FloatNotAllowedError,
@@ -54,6 +54,7 @@ __all__ = [
     "MoneyError",
     "MoneyTolerance",
     "convert",
+    "normalize_currency_code",
     "exchange_rate_from_db_fields",
     "exchange_rate_from_wire",
     "exchange_rate_to_db_fields",
