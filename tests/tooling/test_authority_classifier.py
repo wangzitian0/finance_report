@@ -80,15 +80,15 @@ def test_AC26_9_1_counter_runs_over_repo_and_is_well_formed() -> None:
     assert result["packages"].get("EPIC-006", {}).get("llm", 0) > 0
 
 
-def test_AC26_9_1_counter_renders_and_writes_snapshot(tmp_path: Path) -> None:
-    """AC26.9.1: the runnable counter renders a table, a deterministic snapshot, and runs."""
-    from tools.authority_counter import main, render_table, snapshot_text
+def test_AC26_9_1_counter_renders_live_table(tmp_path: Path) -> None:
+    """AC26.9.1: the runnable counter renders a live table and runs print-only.
 
-    result = classify_repo()
-    table = render_table(result)
+    The committed snapshot was removed (it was ungated derived data); the live
+    check_authority_reconcile gate is the enforced check, this counter is the
+    on-demand human view.
+    """
+    from tools.authority_counter import main, render_table
+
+    table = render_table(classify_repo())
     assert "band" in table and "ALL" in table
-    snap = snapshot_text(result)
-    # Deterministic: same input -> byte-identical snapshot (no timestamps).
-    assert snapshot_text(result) == snap
-    assert snap.endswith("\n")
     assert main([]) == 0  # print-only mode

@@ -20,14 +20,10 @@ from typing import Literal
 
 from pydantic import BaseModel, model_validator
 
-# Re-exported (hence noqa) so existing imports like
-# `from common.governance.package_contract import TIER_VALID_PROOF_KINDS` keep
-# resolving; the single source of these definitions is common.authority.authority_matrix.
-from common.authority.authority_matrix import (  # noqa: F401
-    AC_PROOF_KINDS,
-    AC_TIERS,
+# The tier vocabulary + matrix live in one source: common.authority.authority_matrix.
+# Import only what this model uses (the field types + the validator's matrix).
+from common.authority.authority_matrix import (
     ACProofKind,
-    ACTier,
     PackageTier,
     TIER_DEFAULT_PROOF_KIND,
     TIER_VALID_PROOF_KINDS,

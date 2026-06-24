@@ -31,6 +31,19 @@ exceptions:
       merge=union) to remove merge-train false sharing; remove this exception
       once the deletion is merged.
 
+  # De-materialization: authority-distribution.json was an UNGATED committed
+  # snapshot of the CODE/LLM classifier output — drift-prone derived data. It is
+  # deleted in favour of the live check_authority_reconcile gate (the enforced
+  # declared-vs-detected check) + on-demand tools/authority_counter.py. The
+  # deletion shows up as a changed SSOT file with no owner; this temporary
+  # exception covers only that deletion churn. Remove once merged.
+  - target: finance_report:docs/ssot/authority-distribution.json
+    issue: https://github.com/wangzitian0/finance_report/issues/1357
+    reason: >-
+      authority-distribution.json (the committed CODE/LLM snapshot) is deleted —
+      it was ungated derived data, superseded by the live check_authority_reconcile
+      gate (and the on-demand authority_counter). Remove this exception once merged.
+
   # De-materialization: the critical-proof and vision-proof matrices are no
   # longer committed — they are derived on-demand views of the one AC-keyed
   # graph (common/ssot/ac_graph.py), gated by tools/check_ac_index.py. Their
