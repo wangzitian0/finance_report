@@ -73,6 +73,31 @@ AC:
 > state). `PackageContract` enforces this at construction, so a *shipped untyped
 > package is unrepresentable*.
 
+### Structural assertions go in `invariants`, not `roadmap`
+
+A package's **structural / governance guarantees** — interface == `__all__`,
+"converges by role", layer-purity (types/ops never import the store/ORM),
+"passes its own `check_package_contract`" — are NOT domain ACs. They are
+deterministic properties of *how the package is assembled*, so they belong in
+`PackageContract.invariants` (which carry no tier and are not constrained by the
+tier→proof matrix), and the `roadmap` holds only the package's **domain** ACs,
+which inherit the package tier.
+
+This matters for **non-PC packages**: a structural assertion is inherently an
+`exact`/deterministic test. If it sat in the `roadmap` of an **LP/PL** package it
+would inherit that tier and the proof-matrix gate would reject it (LP/PL may not
+be `exact`) — or force a dishonest mislabel. Putting it in `invariants` removes
+the conflict. The matrix gate is therefore the enforcement: a structural `exact`
+test wrongly placed in an LP roadmap fails CI, pushing it to `invariants` (no new
+bespoke lint needed).
+
+`common/counter` is the worked example: its `roadmap` is pure domain (key
+validation, count, increment, query) while its structural guarantees
+(`converges-by-role`, `types-layer-pure`, `ops-layer-pure`,
+`passes-own-governance-gate`) are `invariants`. A PC package like `counter` would
+not *fail* with structural ACs in its roadmap (PC permits `exact`), but it follows
+the convention so it is a correct template to copy for LP/PL packages.
+
 ## tier -> valid proof type
 
 This matrix is the operative contract: which proof shape is *valid* evidence for

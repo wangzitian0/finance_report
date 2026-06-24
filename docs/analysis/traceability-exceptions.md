@@ -131,6 +131,7 @@ explicit AC IDs for the behavior.
 | `tests/tooling/test_check_package_contract.py` | `common/governance/readme.md` |
 | `tests/tooling/test_check_ssot_ownership.py` | `docs/ssot/MANIFEST.yaml` |
 | `tests/tooling/test_coverage_analyzer.py` | `docs/ssot/coverage.md` |
+| `tests/tooling/test_migration_safety_gates.py` | `docs/ssot/authority-tiers.md` |
 | `tests/tooling/test_delivery_gates_contract.py` | `docs/ssot/delivery-gates.yaml` |
 | `tests/tooling/test_dokploy_failure_snapshot.py` | `docs/ssot/ci-cd.md` |
 | `tests/tooling/test_env_contract_boundary.py` | `docs/ssot/observability.md`, `docs/ssot/environments.md` |
