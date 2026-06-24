@@ -138,7 +138,7 @@ deterministic core and the LLM surface:
 
 Rule 2 ("CODE-ONLY stays pure") has a *structural* half that is checkable statically:
 a deterministic financial-truth (CODE-ONLY) module MUST NOT **import** the LLM layer.
-`tools/check_tier_imports.py` (impl `common/ssot/check_tier_imports.py`) makes
+`tools/check_tier_imports.py` (impl `common/authority/check_tier_imports.py`) makes
 this a deterministic gate, AST-based and direct-import-only, complementing the
 per-AC `{proof:KIND}` gate. On `main` today no protected module imports the LLM
 layer, so the gate starts GREEN — it is a guard against regression.
@@ -262,7 +262,7 @@ into four bands:
 Because the bit is detected, the band is **computed, not argued** — so it serves
 as a **cross-check on the declared `PackageContract.tier`**: a package declared on
 the hard side (`CODE-ONLY`/`CODE-LED`) but measuring `LLM` ACs is drift to flag. The base
-library is `common/ssot/authority_classifier.py` and the runnable counter is
+library is `common/authority/authority_classifier.py` and the runnable counter is
 `tools/authority_counter.py` (snapshot: `authority-distribution.json`). The
 cross-tier MUST rules still bind (an `LLM` value entering financial truth crosses a
 CODE-ONLY oracle; an `LLM` AC must have a cassette). Wiring the counter to the

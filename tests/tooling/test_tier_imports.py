@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from common.ssot import check_tier_imports as gate
+from common.authority import check_tier_imports as gate
 
 ROOT = Path(__file__).resolve().parents[2]
 

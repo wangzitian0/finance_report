@@ -10,7 +10,7 @@ against this contract, so governance is *computed*, not hand-maintained.
 stdlib + pydantic only by design: importable from the governance gate and from a
 package's ``contract.py`` without pulling app/framework dependencies. The
 authority-tier vocabulary and the tier->proof matrix come from the stdlib-only
-:mod:`common.ssot.authority_matrix` (the single machine source, also imported by
+:mod:`common.authority.authority_matrix` (the single machine source, also imported by
 the lightweight SSOT tooling that must NOT pull pydantic).
 """
 
@@ -22,8 +22,8 @@ from pydantic import BaseModel, model_validator
 
 # Re-exported (hence noqa) so existing imports like
 # `from common.governance.package_contract import TIER_VALID_PROOF_KINDS` keep
-# resolving; the single source of these definitions is common.ssot.authority_matrix.
-from common.ssot.authority_matrix import (  # noqa: F401
+# resolving; the single source of these definitions is common.authority.authority_matrix.
+from common.authority.authority_matrix import (  # noqa: F401
     AC_PROOF_KINDS,
     AC_TIERS,
     ACProofKind,

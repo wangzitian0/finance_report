@@ -2,7 +2,7 @@
 """Gate: reconcile a package's DECLARED authority tier against its DETECTED band.
 
 The authority tier has two views over one CODE↔LLM spectrum
-(``common/ssot/authority_matrix.py``):
+(``common/authority/authority_matrix.py``):
 
 - **declared** — ``PackageContract.tier`` (the package's authorial intent);
 - **detected** — the band the ``authority_classifier`` measures from the shapes
@@ -28,7 +28,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from common.ssot.authority_classifier import band, build_test_index, classify_test_files
+from common.authority.authority_classifier import band, build_test_index, classify_test_files
 from common.ssot.generate_ac_registry import package_contract_meta
 
 REPO_ROOT = Path(__file__).resolve().parents[2]

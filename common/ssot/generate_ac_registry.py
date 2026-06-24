@@ -9,7 +9,7 @@ from pathlib import Path
 # Import the matrix from the stdlib-only source (NOT package_contract, which
 # pulls pydantic) so this generator stays importable in the lightweight CI lint
 # env (`uv run --with pyyaml ...`).
-from common.ssot.authority_matrix import (
+from common.authority.authority_matrix import (
     AC_PROOF_KINDS as _AC_PROOF_KINDS,
     AC_TIERS as _AC_TIERS,
     TIER_DEFAULT_PROOF_KIND as _TIER_DEFAULT_PROOF_KIND,
@@ -73,7 +73,7 @@ EPIC_NAMES: dict[int, str] = {
 AC_PATTERN = re.compile(r"\b(AC(\d+)\.(\d+)\.(\d+))\b")
 
 # Authority tier + proof-kind vocabulary and the tier->proof matrix all come from
-# the single machine source common/ssot/authority_matrix.py (stdlib-only;
+# the single machine source common/authority/authority_matrix.py (stdlib-only;
 # package_contract re-exports the same definitions for its model validation), so
 # the EPIC-table source and the package-contract source can never disagree.
 AC_TIERS = _AC_TIERS
