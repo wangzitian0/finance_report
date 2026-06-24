@@ -48,7 +48,7 @@ def _old_within_tolerance(combined: Decimal, amount: Decimal, config) -> bool:
     ],
 )
 def test_combination_tolerance_matches_legacy_formula(combined: Decimal, amount: Decimal) -> None:
-    """#4: MoneyTolerance path == the old max(amount*pct, abs)*2 comparison."""
+    """AC4.2.3: multi-entry tolerance boundary == the old max(amount*pct, abs)*2 comparison."""
     txn = _Txn(amount)
     assert _within_combination_tolerance(combined, txn, DEFAULT_CONFIG) == _old_within_tolerance(
         combined, amount, DEFAULT_CONFIG
@@ -56,7 +56,7 @@ def test_combination_tolerance_matches_legacy_formula(combined: Decimal, amount:
 
 
 def test_build_allocation_zero_total_yields_zero_percent() -> None:
-    """#6: an all-zero portfolio yields 0% per category (no ZeroDivision, no raise)."""
+    """AC17.4.4: an all-zero portfolio yields 0% per category (no ZeroDivision, no raise)."""
     enriched = [(object(), Decimal("0")), (object(), Decimal("0"))]
     breakdowns = _build_allocation(enriched, key_fn=lambda _atomic: "cash")
     assert len(breakdowns) == 1
@@ -65,7 +65,7 @@ def test_build_allocation_zero_total_yields_zero_percent() -> None:
 
 
 def test_build_allocation_splits_by_value_share() -> None:
-    """#6: non-zero total splits into the expected percentage shares."""
+    """AC17.4.4: non-zero total splits into the expected percentage shares."""
     categories = iter(["a", "b", "b"])
     enriched = [(object(), Decimal("25")), (object(), Decimal("50")), (object(), Decimal("25"))]
     breakdowns = {b.category: b for b in _build_allocation(enriched, key_fn=lambda _a: next(categories))}
@@ -74,7 +74,8 @@ def test_build_allocation_splits_by_value_share() -> None:
 
 
 def test_line_total_sums_and_quantizes() -> None:
-    """#2: the shared verb sums string/Decimal amounts and quantizes to 2dp."""
+    """AC5.2.1 / AC5.3.1: the shared income-statement/cash-flow total verb sums
+    string/Decimal amounts and quantizes to 2dp (the body both reports now reuse)."""
     lines = [{"amount": "10.005"}, {"amount": Decimal("0.001")}, {"amount": "-2.50"}]
     assert _line_total(lines) == Decimal("7.51")
     assert _line_total([]) == Decimal("0.00")
