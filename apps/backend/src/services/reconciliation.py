@@ -61,6 +61,25 @@ from src.services.statement_summary import resolve_custody_account_id
 logger = get_logger(__name__)
 
 
+def _within_combination_tolerance(
+    combined: Decimal, transaction: AtomicTransaction, config: ReconciliationConfig
+) -> bool:
+    """Whether a multi-entry ``combined`` total is within the matching amount band.
+
+    The shared multi-entry guard, historically inlined verbatim at every 2-/3-entry
+    combination site: the per-config band ``max(absolute, percent * |amount|)``
+    widened 2x for combinations.
+
+    Kept on raw ``Decimal`` magnitudes (not ``MoneyTolerance``) on purpose: the
+    matching pipeline compares same-currency amounts without ever converting, and
+    its transactions do not carry a reliable currency, so wrapping in ``Money``
+    would add a null-currency failure mode the prior code never had. Adopting
+    ``MoneyTolerance`` here waits on reconciliation amounts becoming Money-typed.
+    """
+    tolerance = max(transaction.amount * config.amount_percent, config.amount_absolute)
+    return abs(combined - transaction.amount) <= tolerance * 2
+
+
 def prune_candidates(
     candidates: list[JournalEntry],
     *,
@@ -429,8 +448,7 @@ def _find_normal_candidates(
             if not (is_entry_balanced(entry_a) and is_entry_balanced(entry_b)):
                 continue
             combined = entry_bank_side_amount(entry_a, txn.direction) + entry_bank_side_amount(entry_b, txn.direction)
-            tolerance = max(txn.amount * config.amount_percent, config.amount_absolute)
-            if abs(combined - txn.amount) > tolerance * 2:
+            if not _within_combination_tolerance(combined, txn, config):
                 continue
             candidate = _score_entries(txn, [entry_a, entry_b], history_score, is_multi=True)
             candidate.breakdown["multi_entry"] = 1
@@ -446,8 +464,7 @@ def _find_normal_candidates(
                 + entry_bank_side_amount(entry_b, txn.direction)
                 + entry_bank_side_amount(entry_c, txn.direction)
             )
-            tolerance = max(txn.amount * config.amount_percent, config.amount_absolute)
-            if abs(combined - txn.amount) > tolerance * 2:
+            if not _within_combination_tolerance(combined, txn, config):
                 continue
             candidate = _score_entries(txn, [entry_a, entry_b, entry_c], history_score, is_multi=True)
             candidate.breakdown["multi_entry"] = 2
@@ -729,8 +746,7 @@ async def execute_matching(
             if not (is_entry_balanced(entry_a) and is_entry_balanced(entry_b)):
                 continue
             combined = entry_bank_side_amount(entry_a, txn.direction) + entry_bank_side_amount(entry_b, txn.direction)
-            tolerance = max(txn.amount * config.amount_percent, config.amount_absolute)
-            if abs(combined - txn.amount) > tolerance * 2:
+            if not _within_combination_tolerance(combined, txn, config):
                 continue
             candidate = await calculate_match_score(
                 db,
@@ -753,8 +769,7 @@ async def execute_matching(
                 + entry_bank_side_amount(entry_b, txn.direction)
                 + entry_bank_side_amount(entry_c, txn.direction)
             )
-            tolerance = max(txn.amount * config.amount_percent, config.amount_absolute)
-            if abs(combined - txn.amount) > tolerance * 2:
+            if not _within_combination_tolerance(combined, txn, config):
                 continue
             candidate = await calculate_match_score(
                 db,

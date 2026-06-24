@@ -25,7 +25,7 @@ from src.services.fx import (
     PrefetchedFxRates,
     convert_money,
 )
-from src.services.reporting._core import _REPORT_STATUSES, _build_account_lines, _load_accounts
+from src.services.reporting._core import _REPORT_STATUSES, _build_account_lines, _line_total, _load_accounts
 from src.services.reporting.balance_sheet import generate_balance_sheet
 from src.services.reporting.internal_transfer import _internal_transfer_adjustment
 from src.services.reporting_calc import (
@@ -257,8 +257,8 @@ async def generate_income_statement(
             }
         )
 
-    total_income = _quantize_money(sum((Decimal(str(line["amount"])) for line in income_lines), Decimal("0")))
-    total_expenses = _quantize_money(sum((Decimal(str(line["amount"])) for line in expense_lines), Decimal("0")))
+    total_income = _line_total(income_lines)
+    total_expenses = _line_total(expense_lines)
     net_income = _quantize_money(total_income - total_expenses)
 
     # Add the fee into the correct monthly trend/period bucket so the trends and the
