@@ -2177,3 +2177,57 @@ async def test_get_existing_active_match_layer2(db: AsyncSession):
     result = await _get_existing_active_match(db, txn_id)
     assert result is not None
     assert result.atomic_txn_id == txn_id
+
+
+async def test_AC10_10_4_reconciliation_match_outcome_metric_emitted(db: AsyncSession, monkeypatch):
+    """AC10.10.4: execute_matching emits one business metric per resolved match,
+    labelled by the match's final disposition (driven through the real path)."""
+    from src.models.layer2 import AtomicTransaction
+
+    outcomes: list[str] = []
+    monkeypatch.setattr(
+        "src.services.reconciliation.record_reconciliation_match_outcome",
+        lambda *, outcome: outcomes.append(outcome),
+    )
+
+    user_id = uuid4()
+    user = User(id=user_id, email=f"recon-metric-{uuid4()}@example.com", hashed_password="hashed")
+    db.add(user)
+    await db.flush()
+    account = Account(id=uuid4(), name="Asset", type=AccountType.ASSET, user_id=user_id, currency="SGD")
+    expense = Account(id=uuid4(), name="Expense", type=AccountType.EXPENSE, user_id=user_id, currency="SGD")
+    db.add_all([account, expense])
+    await db.flush()
+    entry = JournalEntry(user_id=user_id, entry_date=date(2024, 1, 1), memo="Metric", status=JournalEntryStatus.POSTED)
+    db.add(entry)
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id, account_id=account.id, amount=Decimal("100.00"), direction=Direction.DEBIT
+            ),
+            JournalLine(
+                journal_entry_id=entry.id, account_id=expense.id, amount=Decimal("100.00"), direction=Direction.CREDIT
+            ),
+        ]
+    )
+    await db.flush()
+    l2_txn = AtomicTransaction(
+        user_id=user_id,
+        txn_date=date(2024, 1, 1),
+        amount=Decimal("100.00"),
+        direction="OUT",
+        description="Metric",
+        currency="SGD",
+        dedup_hash=uuid4().hex,
+        source_documents=[],
+    )
+    db.add(l2_txn)
+    await db.commit()
+
+    matches = await execute_matching(db, user_id=user_id)
+
+    assert len(matches) == 1
+    # One emission per resolved match, labelled by its status.
+    assert outcomes == [m.status.value for m in matches]
+    assert outcomes == ["auto_accepted"]

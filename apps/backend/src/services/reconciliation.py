@@ -57,6 +57,7 @@ from src.services.reconciliation_scoring import (  # noqa: F401
 from src.services.reconciliation_stats import ReconciliationStats, get_reconciliation_stats  # noqa: F401
 from src.services.source_type_priority import promote_entry_source_type
 from src.services.statement_summary import resolve_custody_account_id
+from src.telemetry_metrics import record_reconciliation_match_outcome
 
 logger = get_logger(__name__)
 
@@ -842,6 +843,12 @@ async def execute_matching(
             error_type=type(e).__name__,
         )
         raise
+
+    # AC10.10.4: emit one business metric per resolved match, labelled by its
+    # final disposition (auto_accepted / pending_review / rejected). Low
+    # cardinality — the label is the bounded ReconciliationStatus enum value.
+    for created_match in matches:
+        record_reconciliation_match_outcome(outcome=created_match.status.value)
 
     return matches
 

@@ -13,7 +13,7 @@ import pytest
 import src.llm.client as client_mod
 import src.services.ai_streaming as ai_streaming
 from src.config import settings
-from src.llm.common import ProtocolFamily, ProviderRef
+from src.llm.common import LLMError, ProtocolFamily, ProviderRef
 from src.services.ai_streaming import AIStreamError, accumulate_stream, stream_ai_chat, stream_ai_json
 
 pytestmark = pytest.mark.no_db
@@ -197,3 +197,41 @@ async def test_litellm_error_becomes_retryable_aistreamerror(monkeypatch):
     with pytest.raises(AIStreamError) as ei:
         await accumulate_stream(stream_ai_chat([{"role": "user", "content": "x"}], "glm-5.1", api_key="k"))
     assert ei.value.retryable is True
+
+
+async def test_AC10_10_4_ai_provider_call_metric_emitted_on_success(litellm_stub, monkeypatch):
+    """AC10.10.4: a completed provider stream emits the ai-provider latency metric
+    (outcome=success), driven through the real _stream_ai_base path."""
+    _explicit_provider(monkeypatch)
+    calls: list[dict] = []
+    monkeypatch.setattr(ai_streaming, "record_ai_provider_call", lambda **kw: calls.append(kw))
+
+    text = await accumulate_stream(
+        stream_ai_json([{"role": "user", "content": "x"}], "glm-4.6v", api_key="sk-explicit")
+    )
+
+    assert text == '{"ok": true}'
+    assert len(calls) == 1
+    assert calls[0]["outcome"] == "success"
+    assert calls[0]["model"] == "glm-4.6v"
+    assert calls[0]["duration_ms"] >= 0
+
+
+async def test_AC10_10_4_ai_provider_call_metric_emitted_on_error(monkeypatch):
+    """AC10.10.4: a failed provider stream emits the ai-provider metric (outcome=error)
+    and still re-raises AIStreamError."""
+    _explicit_provider(monkeypatch)
+    calls: list[dict] = []
+    monkeypatch.setattr(ai_streaming, "record_ai_provider_call", lambda **kw: calls.append(kw))
+
+    async def boom_stream(*_a, **_k):
+        raise LLMError("provider exploded", retryable=True)
+        yield  # pragma: no cover - async-generator marker
+
+    monkeypatch.setattr(ai_streaming, "litellm_stream", lambda *a, **k: boom_stream())
+
+    with pytest.raises(AIStreamError):
+        await accumulate_stream(stream_ai_json([{"role": "user", "content": "x"}], "glm-4.6v", api_key="sk-explicit"))
+
+    assert len(calls) == 1
+    assert calls[0]["outcome"] == "error"
