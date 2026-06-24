@@ -261,12 +261,13 @@ into four bands:
 
 Because the bit is detected, the band is **computed, not argued** — so it serves
 as a **cross-check on the declared `PackageContract.tier`**: a package declared on
-the hard side (`CODE-ONLY`/`CODE-LED`) but measuring `LLM` ACs is drift to flag. The base
-library is `common/authority/authority_classifier.py` and the runnable counter is
-`tools/authority_counter.py` (snapshot: `authority-distribution.json`). The
-cross-tier MUST rules still bind (an `LLM` value entering financial truth crosses a
-CODE-ONLY oracle; an `LLM` AC must have a cassette). Wiring the counter to the
-`PackageContract` declarations as a blocking drift gate is a follow-up.
+the hard side (`CODE-ONLY`/`CODE-LED`) but measuring `LLM` ACs is drift. The base
+library is `common/authority/authority_classifier.py`; `tools/authority_counter.py`
+prints the live view on demand (no committed snapshot). This cross-check is
+**enforced** by `tools/check_authority_reconcile.py`, which fails CI at the
+enforceable ends (declared `CODE-ONLY` ⟹ no `LLM` test; `LLM-ONLY` ⟹ no
+deterministic test). The cross-tier MUST rules still bind (an `LLM` value entering
+financial truth crosses a CODE-ONLY oracle; an `LLM` AC must have a cassette).
 
 ## Follow-ups (out of scope here)
 

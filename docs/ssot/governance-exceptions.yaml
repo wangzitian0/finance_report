@@ -41,8 +41,8 @@ exceptions:
     issue: https://github.com/wangzitian0/finance_report/issues/1357
     reason: >-
       authority-distribution.json (the committed CODE/LLM snapshot) is deleted —
-      it was ungated derived data; the live check_authority_reconcile gate +
-      on-demand authority_counter replace it. Remove this exception once merged.
+      it was ungated derived data, superseded by the live check_authority_reconcile
+      gate (and the on-demand authority_counter). Remove this exception once merged.
 
   # De-materialization: the critical-proof and vision-proof matrices are no
   # longer committed — they are derived on-demand views of the one AC-keyed
