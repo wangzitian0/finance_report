@@ -8,6 +8,7 @@ import { CalendarDays, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { PortfolioHolding, PortfolioSummaryResponse } from "@/lib/types";
 import { PerformanceCard } from "@/components/portfolio/PerformanceCard";
+import { LoadingState } from "@/components/ui";
 import { HoldingsTable } from "@/components/portfolio/HoldingsTable";
 import { AllocationChart } from "@/components/portfolio/AllocationChart";
 import { InvestmentPerformanceSchedule } from "@/components/portfolio/InvestmentPerformanceSchedule";
@@ -446,10 +447,7 @@ export default function PortfolioPage() {
       </div>
 
       {isLoading ? (
-        <div className="card p-8 text-center text-muted">
-          <div className="inline-block w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin mb-2" />
-          <p className="text-sm">Loading holdings...</p>
-        </div>
+        <LoadingState label="Loading holdings" />
       ) : error ? (
         <div className="card p-8 text-center" role="alert" aria-live="polite">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[var(--error-muted)] text-[var(--error)] mb-4">

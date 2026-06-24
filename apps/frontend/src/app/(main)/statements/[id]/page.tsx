@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 
 import { useToast } from "@/components/ui/Toast";
+import { LoadingState } from "@/components/ui";
 import { FlowStepBanner } from "@/components/workflow/FlowStepBanner";
 import { apiFetch } from "@/lib/api";
 import { BankStatement, BrokerageImportResponse } from "@/lib/types";
@@ -157,10 +158,7 @@ export default function StatementDetailPage() {
     if (loading) {
         return (
             <div className="p-6">
-                <div className="card p-8 text-center text-muted">
-                    <div className="inline-block w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin mb-2" />
-                    <p className="text-sm">Loading statement...</p>
-                </div>
+                <LoadingState label="Loading statement" />
             </div>
         );
     }
