@@ -8,7 +8,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from src.models.layer3 import CostBasisMethod, PositionStatus
-from src.schemas.base import BaseResponse, ListResponse, MoneyAmount, NonNegativeMoneyAmount, Quantity
+from src.schemas.base import BaseResponse, ListResponse, MoneyAmount, NonNegativeMoneyAmount, Percent, Quantity
 from src.schemas.provenance import DataProvenance
 
 
@@ -23,7 +23,7 @@ class HoldingResponse(BaseResponse):
     cost_basis: MoneyAmount
     market_value: MoneyAmount
     unrealized_pnl: MoneyAmount
-    unrealized_pnl_percent: MoneyAmount
+    unrealized_pnl_percent: Percent
     currency: Annotated[str, Field(min_length=3, max_length=3)]
     acquisition_date: date
     disposal_date: date | None = None
@@ -51,7 +51,7 @@ class RealizedPnLResponse(BaseModel):
     period_start: date
     period_end: date
     total_realized_pnl: MoneyAmount
-    total_realized_pnl_percent: MoneyAmount
+    total_realized_pnl_percent: Percent
     positions_count: int
     details: list[dict]
 
@@ -61,7 +61,7 @@ class UnrealizedPnLResponse(BaseModel):
 
     as_of_date: date
     total_unrealized_pnl: MoneyAmount
-    total_unrealized_pnl_percent: MoneyAmount
+    total_unrealized_pnl_percent: Percent
     total_market_value: MoneyAmount
     total_cost_basis: MoneyAmount
     holdings_count: int
@@ -114,11 +114,11 @@ class PortfolioSummaryResponse(BaseModel):
     total_market_value: MoneyAmount
     total_cost_basis: MoneyAmount
     total_unrealized_pnl: MoneyAmount
-    total_unrealized_pnl_percent: MoneyAmount
+    total_unrealized_pnl_percent: Percent
     total_realized_pnl: MoneyAmount
-    total_realized_pnl_percent: MoneyAmount
+    total_realized_pnl_percent: Percent
     net_pnl: MoneyAmount
-    net_pnl_percent: MoneyAmount
+    net_pnl_percent: Percent
     holdings_count: int
     active_positions_count: int
     disposed_positions_count: int
@@ -151,7 +151,7 @@ class InvestmentPerformanceAllocationRow(BaseModel):
     dimension: str
     category: str
     value: MoneyAmount
-    percentage: MoneyAmount
+    percentage: Percent
     count: int
 
 
