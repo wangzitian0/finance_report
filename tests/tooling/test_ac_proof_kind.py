@@ -3,8 +3,8 @@
 Covers:
 - AC26.5.1 — the {proof:KIND} marker flows into the registry value (with the
   tier-aware default) and the gate enforces the tier->proof matrix for
-  tier-tagged ACs only (LP cannot be exact; HU must be evidence; PL not exact).
-- AC26.6.1 — the first-batch LP ACs carry an invariant/property proof (the
+  tier-tagged ACs only (LLM-LED cannot be exact; HU must be evidence; LLM-ONLY not exact).
+- AC26.6.1 — the first-batch LLM-LED ACs carry an invariant/property proof (the
   #1254 balance-chain + dedup-conservation regression).
 """
 
@@ -34,12 +34,12 @@ def test_AC26_5_1_proof_kind_marker_flows_and_gate_enforces_matrix(
     _write_epic(
         epic_dir,
         "EPIC-003.statement-parsing.md",
-        # LP with an explicit invariant proof -> valid.
-        "| AC3.1.1 | Parse DBS PDF {tier:LP} {proof:invariant} | t | f | P0 |\n"
-        # PC with no proof marker -> defaults to exact -> valid.
-        "| AC3.1.2 | Parse CSV {tier:PC} | t | f | P0 |\n"
-        # LP with no proof marker -> defaults to property (NOT exact) -> valid.
-        "| AC3.1.3 | OCR default {tier:LP} | t | f | P0 |\n"
+        # LLM-LED with an explicit invariant proof -> valid.
+        "| AC3.1.1 | Parse DBS PDF {tier:LLM-LED} {proof:invariant} | t | f | P0 |\n"
+        # CODE-ONLY with no proof marker -> defaults to exact -> valid.
+        "| AC3.1.2 | Parse CSV {tier:CODE-ONLY} | t | f | P0 |\n"
+        # LLM-LED with no proof marker -> defaults to property (NOT exact) -> valid.
+        "| AC3.1.3 | OCR default {tier:LLM-LED} | t | f | P0 |\n"
         # HU with no proof marker -> defaults to evidence -> valid.
         "| AC3.1.4 | Review queue {tier:HU} | t | f | P0 |\n"
         # Untagged AC -> no proof_kind, ignored by the gate.
@@ -55,8 +55,8 @@ def test_AC26_5_1_proof_kind_marker_flows_and_gate_enforces_matrix(
     assert "{proof" not in entries["AC3.1.1"]["description"]
     assert entries["AC3.1.1"]["description"] == "Parse DBS PDF"
     # Tier-aware defaults.
-    assert entries["AC3.1.2"]["proof_kind"] == "exact"  # PC default
-    assert entries["AC3.1.3"]["proof_kind"] == "property"  # LP default (not exact)
+    assert entries["AC3.1.2"]["proof_kind"] == "exact"  # CODE-ONLY default
+    assert entries["AC3.1.3"]["proof_kind"] == "property"  # LLM-LED default (not exact)
     assert entries["AC3.1.4"]["proof_kind"] == "evidence"  # HU default
     # Untagged AC carries no proof_kind (gate ignores it) even with a stray marker.
     assert "proof_kind" not in entries["AC3.1.5"]
@@ -65,11 +65,11 @@ def test_AC26_5_1_proof_kind_marker_flows_and_gate_enforces_matrix(
     # The valid fixture passes the gate.
     assert proof_gate.proof_kind_violations(tmp_path) == []
 
-    # Now the rule that must fire: an LP AC marked exact is rejected.
+    # Now the rule that must fire: an LLM-LED AC marked exact is rejected.
     _write_epic(
         epic_dir,
         "EPIC-003.statement-parsing.md",
-        "| AC3.1.1 | Parse DBS PDF {tier:LP} {proof:exact} | t | f | P0 |\n",
+        "| AC3.1.1 | Parse DBS PDF {tier:LLM-LED} {proof:exact} | t | f | P0 |\n",
     )
     violations = proof_gate.proof_kind_violations(tmp_path)
     assert any("AC3.1.1" in v and "exact" in v for v in violations), violations
@@ -83,11 +83,11 @@ def test_AC26_5_1_proof_kind_marker_flows_and_gate_enforces_matrix(
     hu_violations = proof_gate.proof_kind_violations(tmp_path)
     assert any("AC3.1.4" in v for v in hu_violations), hu_violations
 
-    # PL marked exact is rejected (PL must not assert numbers/exact output).
+    # LLM-ONLY marked exact is rejected (LLM-ONLY must not assert numbers/exact output).
     _write_epic(
         epic_dir,
         "EPIC-006.ai-advisor.md",
-        "| AC6.2.3 | Suggestions {tier:PL} {proof:exact} | t | f | P0 |\n",
+        "| AC6.2.3 | Suggestions {tier:LLM-ONLY} {proof:exact} | t | f | P0 |\n",
     )
     pl_violations = proof_gate.proof_kind_violations(tmp_path)
     assert any("AC6.2.3" in v for v in pl_violations), pl_violations
@@ -96,34 +96,34 @@ def test_AC26_5_1_proof_kind_marker_flows_and_gate_enforces_matrix(
 def test_AC26_5_1_matrix_mirrors_ssot_and_real_repo_passes() -> None:
     """AC26.5.1: the live repo passes the gate (every tier-tagged AC is valid)."""
     assert proof_gate.proof_kind_violations(ROOT) == []
-    # The matrix mirror is the five tiers, and LP/PL never accept exact.
+    # The matrix mirror is the five tiers, and LLM-LED/LLM-ONLY never accept exact.
     assert set(proof_gate.VALID_PROOF_KINDS) == set(gar.AC_TIERS)
-    assert "exact" not in proof_gate.VALID_PROOF_KINDS["LP"]
-    assert "exact" not in proof_gate.VALID_PROOF_KINDS["PL"]
+    assert "exact" not in proof_gate.VALID_PROOF_KINDS["LLM-LED"]
+    assert "exact" not in proof_gate.VALID_PROOF_KINDS["LLM-ONLY"]
     assert proof_gate.VALID_PROOF_KINDS["HU"] == frozenset({"evidence"})
 
 
 def test_AC26_6_1_first_batch_lp_acs_carry_invariant_proof() -> None:
-    """AC26.6.1: the retrofitted first-batch LP/HU/PL ACs declare valid kinds."""
+    """AC26.6.1: the retrofitted first-batch LLM-LED/HU/LLM-ONLY ACs declare valid kinds."""
     entries = gar.build_registry_entries(epic_source=ROOT / "docs" / "project")
 
-    # The LP extraction ACs carry an invariant/property proof (#1254 regression).
+    # The LLM-LED extraction ACs carry an invariant/property proof (#1254 regression).
     assert entries["AC3.1.1"]["proof_kind"] == "invariant"
     assert entries["AC3.5.7"]["proof_kind"] == "invariant"
     assert entries["AC3.5.19"]["proof_kind"] == "property"
     # HU review ACs carry an evidence proof.
     for ac_id in ("AC3.3.2", "AC3.5.10", "AC3.6.4"):
         assert entries[ac_id]["proof_kind"] == "evidence", ac_id
-    # PL suggestion ACs carry a smoke proof.
+    # LLM-ONLY suggestion ACs carry a smoke proof.
     for ac_id in ("AC6.2.3", "AC6.2.4"):
         assert entries[ac_id]["proof_kind"] == "smoke", ac_id
 
-    # None of the LP ACs is exact (the matrix rule that must hold).
+    # None of the LLM-LED ACs is exact (the matrix rule that must hold).
     for ac_id in ("AC3.1.1", "AC3.5.7", "AC3.5.19"):
-        assert entries[ac_id]["tier"] == "LP"
+        assert entries[ac_id]["tier"] == "LLM-LED"
         assert entries[ac_id]["proof_kind"] != "exact"
 
     # The new EPIC-026 governance ACs are themselves tagged + valid.
-    assert entries["AC26.5.1"]["tier"] == "PC"
-    assert entries["AC26.6.1"]["tier"] == "PC"
+    assert entries["AC26.5.1"]["tier"] == "CODE-ONLY"
+    assert entries["AC26.6.1"]["tier"] == "CODE-ONLY"
     assert proof_gate.proof_kind_violations(ROOT) == []

@@ -222,3 +222,62 @@ async def test_AC10_8_3_brokerage_import_audit_checkpoints(db, test_user, monkey
     assert failed["model_to_use"] == "glm-5.1"
     assert failed["error_type"] == "RuntimeError"
     assert failed["safe_error_message"] == "provider payload had no positions and raw text is omitted"
+
+
+async def test_AC10_10_4_parse_outcome_metric_emitted(db, test_user, monkeypatch):
+    """AC10.10.4: parse_statement_background emits the parse-outcome business metric
+    on both the success and failure paths, driven through the real code path."""
+    user_id = test_user.id
+    outcomes: list[str] = []
+    monkeypatch.setattr(
+        statement_parsing,
+        "record_statement_parse_outcome",
+        lambda *, outcome, parser="default": outcomes.append(outcome),
+    )
+    monkeypatch.setattr(
+        statement_parsing.StorageService,
+        "generate_presigned_url",
+        lambda *_args, **_kwargs: "https://example.com/audit.pdf",
+    )
+
+    success = await _create_statement(db, user_id, file_hash="metric-success")
+
+    async def ok_parse_document(*_args, **_kwargs):
+        return _parsed_statement(user_id, "metric-success"), []
+
+    monkeypatch.setattr(statement_parsing.ExtractionService, "parse_document", ok_parse_document)
+    await parse_statement_background(
+        statement_id=success.id,
+        filename="audit.pdf",
+        institution="DBS",
+        user_id=user_id,
+        account_id=None,
+        file_hash="metric-success",
+        storage_key="statements/audit.pdf",
+        content=b"%PDF-1.7",
+        model="glm-5.1",
+        session_maker=create_session_maker_from_db(db),
+        request_id="req-metric-ok",
+    )
+
+    failure = await _create_statement(db, user_id, file_hash="metric-failure")
+
+    async def bad_parse_document(*_args, **_kwargs):
+        raise ExtractionError("metric failure path")
+
+    monkeypatch.setattr(statement_parsing.ExtractionService, "parse_document", bad_parse_document)
+    await parse_statement_background(
+        statement_id=failure.id,
+        filename="audit.pdf",
+        institution="DBS",
+        user_id=user_id,
+        account_id=None,
+        file_hash="metric-failure",
+        storage_key="statements/audit.pdf",
+        content=b"%PDF-1.7",
+        model="glm-5.1",
+        session_maker=create_session_maker_from_db(db),
+        request_id="req-metric-fail",
+    )
+
+    assert outcomes == ["success", "failure"]

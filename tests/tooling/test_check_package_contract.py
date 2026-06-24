@@ -51,7 +51,7 @@ def _write_package(
     invariants: list[Invariant] | None = None,
     roadmap: list[ACRecord] | None = None,
     extra_module: tuple[str, str] | None = None,
-    tier: str = "PC",
+    tier: str = "CODE-ONLY",
 ) -> DiscoveredPackage:
     """Materialize a package in the package model: a ``common/<name>/contract.py``
     spec pointing at a BE implementation under ``apps/backend/src/<name>``.
@@ -407,7 +407,7 @@ def _pkg(**overrides: object) -> PackageContract:
         "invariants": [],
         "roadmap": [],
         "status": "active",
-        "tier": "PC",
+        "tier": "CODE-ONLY",
     }
     kwargs.update(overrides)
     return PackageContract(**kwargs)  # type: ignore[arg-type]
@@ -417,7 +417,7 @@ def test_active_package_must_declare_a_tier() -> None:
     """An active/deprecated package with an undecided tier cannot be constructed.
 
     Authority tier is a module-design property: a shipped package must have
-    resolved it to one of PC/CP/LP/PL. The "undecided" state (the legacy ``HU``)
+    resolved it to one of CODE-ONLY/CODE-LED/LLM-LED/LLM-ONLY. The "undecided" state (the legacy ``HU``)
     is legal only while the package is still a ``draft``.
     """
     for status in ("active", "deprecated"):
@@ -432,9 +432,9 @@ def test_package_proof_kind_must_satisfy_the_tier_matrix() -> None:
     """A roadmap AC whose proof_kind is invalid for the PACKAGE tier is rejected.
 
     Enforces the tier->proof matrix at construction, against the package's tier
-    (not a per-AC one): under an LP/PL package an AC can never claim ``exact``.
+    (not a per-AC one): under an LLM-LED/LLM-ONLY package an AC can never claim ``exact``.
     """
-    for tier in ("LP", "PL"):
+    for tier in ("LLM-LED", "LLM-ONLY"):
         with pytest.raises(ValidationError):
             _pkg(tier=tier, roadmap=[_ac(proof_kind="exact")])
 

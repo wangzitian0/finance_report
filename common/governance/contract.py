@@ -24,8 +24,8 @@ CONTRACT = PackageContract(
     klass="platform",
     status="active",
     # The package-model gate is deterministic code (AST + set comparison), no
-    # LLM: a pure-code (PC) package. It also OWNS the authority-tier rules below.
-    tier="PC",
+    # LLM: a pure-code (CODE-ONLY) package. It also OWNS the authority-tier rules below.
+    tier="CODE-ONLY",
     depends_on=[],
     roles=["package_contract", "check_package_contract"],
     implementations={"be": "common/governance", "fe": None},
@@ -77,7 +77,7 @@ CONTRACT = PackageContract(
                 "Authority tier is a module-design property declared once on the "
                 "PackageContract (docs/ssot/authority-tiers.md). An active/"
                 "deprecated package must have resolved its tier to one of "
-                "PC/CP/LP/PL; only a draft package may leave tier undecided (the "
+                "CODE-ONLY/CODE-LED/LLM-LED/LLM-ONLY; only a draft package may leave tier undecided (the "
                 "legacy 'HU' state), so a shipped untyped package is "
                 "unrepresentable."
             ),
@@ -93,7 +93,7 @@ CONTRACT = PackageContract(
                 "tier per the single machine matrix "
                 "(package_contract.TIER_VALID_PROOF_KINDS); PackageContract "
                 "enforces it at construction, so a contract that violates the "
-                "tier->proof matrix (e.g. an LP/PL package with an AC claiming an "
+                "tier->proof matrix (e.g. an LLM-LED/LLM-ONLY package with an AC claiming an "
                 "exact golden proof) fails to import."
             ),
             test=(

@@ -1,21 +1,19 @@
 """Schemas for income analytics endpoints."""
 
 from datetime import date
-from decimal import Decimal
-from typing import Annotated
 
 from pydantic import BaseModel, Field
 
-from src.schemas.base import CurrencyCode
+from src.schemas.base import CurrencyCode, MoneyAmount
 
 
 class AnnualizedIncomeResponse(BaseModel):
     """Annualized income summary derived from posted income journal lines."""
 
-    annualized_salary: Annotated[Decimal, Field(decimal_places=2)]
-    annualized_bonus: Annotated[Decimal, Field(decimal_places=2)]
-    annualized_dividend: Annotated[Decimal, Field(decimal_places=2)]
-    annualized_total: Annotated[Decimal, Field(decimal_places=2)]
+    annualized_salary: MoneyAmount
+    annualized_bonus: MoneyAmount
+    annualized_dividend: MoneyAmount
+    annualized_total: MoneyAmount
     # Typed, normalized ISO-4217 presentation currency (was a soft ``str``).
     currency: CurrencyCode
     as_of: date

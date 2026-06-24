@@ -9,7 +9,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator
 
 from src.models.account import AccountType
-from src.schemas.base import BaseResponse, ListResponse
+from src.schemas.base import BaseResponse, ListResponse, MoneyAmount
 
 
 class OpeningBalanceRequest(BaseModel):
@@ -82,7 +82,7 @@ class AccountResponse(AccountBase, BaseResponse):
     user_id: UUID
     is_active: bool
     is_system: bool
-    balance: Annotated[Decimal, Field(decimal_places=2)] | None = None
+    balance: MoneyAmount | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -110,9 +110,9 @@ class AccountCoverageIssue(BaseResponse):
     period_end: date
     statement_id: UUID | None = None
     previous_statement_id: UUID | None = None
-    expected_opening_balance: Annotated[Decimal, Field(decimal_places=2)] | None = None
-    actual_opening_balance: Annotated[Decimal, Field(decimal_places=2)] | None = None
-    delta: Annotated[Decimal, Field(decimal_places=2)] | None = None
+    expected_opening_balance: MoneyAmount | None = None
+    actual_opening_balance: MoneyAmount | None = None
+    delta: MoneyAmount | None = None
 
 
 class AccountCoverageResponse(BaseResponse):
@@ -121,7 +121,7 @@ class AccountCoverageResponse(BaseResponse):
     currency: Annotated[str, Field(min_length=3, max_length=3)]
     cadence: AccountCoverageCadence
     latest_source_date: date | None = None
-    latest_confirmed_balance: Annotated[Decimal, Field(decimal_places=2)] | None = None
+    latest_confirmed_balance: MoneyAmount | None = None
     stale_after_days: int
     is_stale: bool
     has_daily_snapshot_override: bool
@@ -137,8 +137,8 @@ class AccountCoverageListResponse(BaseResponse):
 
 class ProcessingSummaryResponse(BaseResponse):
     pending_count: int
-    pending_total: Annotated[Decimal, Field(decimal_places=2)]
-    current_balance: Annotated[Decimal, Field(decimal_places=2)]
+    pending_total: MoneyAmount
+    current_balance: MoneyAmount
     currency: Annotated[str, Field(min_length=3, max_length=3)]
     oldest_pending_date: date | None = None
 
@@ -147,7 +147,7 @@ class ProcessingPendingItem(BaseResponse):
     entry_id: UUID
     from_account: str
     to_account: str
-    amount: Annotated[Decimal, Field(decimal_places=2)]
+    amount: MoneyAmount
     currency: Annotated[str, Field(min_length=3, max_length=3)]
     initiated_date: date
     days_outstanding: int

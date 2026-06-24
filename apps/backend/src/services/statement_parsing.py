@@ -20,6 +20,7 @@ from src.models.statement_summary import StatementSummary
 from src.services import ExtractionError, ExtractionService, StorageError, StorageService
 from src.services.brokerage_positions import BrokeragePositionImportService, looks_like_brokerage_payload
 from src.services.statement_posting import try_auto_approve_high_confidence_statement
+from src.telemetry_metrics import record_statement_parse_outcome
 
 if TYPE_CHECKING:
     pass
@@ -324,6 +325,8 @@ async def handle_parse_failure(
             error_type=error_type,
             safe_error_message=_safe_error_message(message),
         )
+        # AC10.10.4: business metric for the parse outcome (failure path).
+        record_statement_parse_outcome(outcome="failure")
     except Exception as inner_exc:
         logger.exception(
             "Failed to mark statement as rejected",
@@ -579,6 +582,8 @@ async def parse_statement_background(
                 transactions_count=len(transactions),
                 auto_posted_count=auto_posted_count,
             )
+            # AC10.10.4: business metric for the parse outcome (success path).
+            record_statement_parse_outcome(outcome="success")
         except Exception as exc:
             logger.exception(
                 "Failed to finalize statement parsing",

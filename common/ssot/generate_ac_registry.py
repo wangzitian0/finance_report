@@ -79,7 +79,7 @@ AC_PATTERN = re.compile(r"\b(AC(\d+)\.(\d+)\.(\d+))\b")
 AC_TIERS = _AC_TIERS
 AC_PROOF_KINDS = _AC_PROOF_KINDS
 
-# Definition-site tier marker, e.g. ``{tier:PC}``. Declared next to the AC text
+# Definition-site tier marker, e.g. ``{tier:CODE-ONLY}``. Declared next to the AC text
 # in the EPIC doc so the tier travels with the behavior it describes. The marker
 # is parsed out of the line and lifted into the registry value; it never leaks
 # into the AC description.

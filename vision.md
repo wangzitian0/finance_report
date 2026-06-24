@@ -140,6 +140,28 @@ When two goods conflict, the higher rule wins.
 If a choice still feels balanced after these rules, run the Decision Filter and
 take the smaller step that improves proof quality.
 
+## Good Taste
+
+Culture for *how* we build — the craft counterpart to the axioms. The
+trade-off rules say *what* to choose; these say whether the thing is built well.
+
+1. **Good taste — kill the special case.** Re-see the problem so the edge case
+   becomes the normal path; deleting a branch beats guarding it. Taste is
+   earned by experience, not won by argument.
+2. **Never break the user's trust.** Breaking a working report, a stored fact,
+   or a published contract is a bug — however "theoretically correct."
+   Backward compatibility of trusted data and contracts is sacred; we serve the
+   user's data, we do not re-educate it. (Axiom A, pointed at our users.)
+3. **Pragmatism over purity.** Solve the real problem in front of us, not a
+   hypothetical one; reject the elegant-on-paper design that is complex in
+   practice. Code serves reality, not a research paper.
+4. **Simplicity is the standard.** One function, one thing, done well and
+   short; past three levels of nesting, fix the function, not the symptom.
+   Over-specified complexity is a defect, not rigor. (Axiom D.)
+
+These govern *how* a change is built; when they still leave the choice
+ambiguous, run the Decision Filter.
+
 <a id="decision-filter-accuracy-auditability"></a>
 
 ## Decision Filter

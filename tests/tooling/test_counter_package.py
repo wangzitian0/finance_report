@@ -1,10 +1,13 @@
-"""counter package + package-model governance guards (EPIC-025 AC-counter.1.x).
+"""counter package — package-model structural invariant guards.
 
 The ``counter`` package is the first worked example of the package model. These
-guards keep its shape honest — roles converge (types/ops never reach down into
-the ORM/session or up into store/api wiring), only ``__all__`` is public — and
-assert that the computed governance gate (``check_package_contract``) passes for
-counter, so the contract and the live package can never silently drift.
+tests prove its **structural invariants** (declared in
+``common/counter/contract.py`` ``invariants`` and resolved by
+``check_package_contract`` via ``invariants[].test``): roles converge, the
+layers stay pure (types/ops never reach the ORM/session or up into store/api),
+the published language equals ``__all__``, and the governance gate passes. They
+are invariant proofs, NOT AC critical-proofs, so they carry no ``@ac_proof``
+(the domain ACs are proven by the tests under ``apps/backend/tests/counter/``).
 """
 
 import ast
@@ -12,7 +15,6 @@ import sys
 from pathlib import Path
 
 from common.governance.check_package_contract import discover_packages, run
-from common.testing.ac_proof import ac_proof
 
 REPO = Path(__file__).resolve().parents[2]
 COUNTER = REPO / "apps/backend/src/counter"
@@ -36,11 +38,8 @@ def _imported_modules(path: Path) -> set[str]:
     return mods
 
 
-@ac_proof(
-    proof_id="test_counter_converges_by_role", ac_ids=["AC-counter.1.1"], ci_tier="pr_ci"
-)
 def test_AC_counter_1_1_counter_converges_by_role():
-    """AC-counter.1.1: counter exposes types (nouns/events), ops (verbs), store, api."""
+    """Invariant converges-by-role: counter exposes types (nouns/events), ops, store, api."""
     assert (COUNTER / "types/key.py").exists()
     assert (COUNTER / "types/count.py").exists()
     assert (COUNTER / "types/events.py").exists()
@@ -53,9 +52,8 @@ def test_AC_counter_1_1_counter_converges_by_role():
         assert name in exports, f"counter must export {name}"
 
 
-@ac_proof(proof_id="test_counter_types_pure", ac_ids=["AC-counter.1.2"], ci_tier="pr_ci")
 def test_AC_counter_1_2_types_never_import_store_api_or_orm():
-    """AC-counter.1.2: domain types depend on nothing below them (no store/api/ORM/session).
+    """Invariant types-layer-pure: domain types depend on nothing below them (no store/api/ORM).
 
     The value language must stay free of persistence and transport so it is a
     pure, reusable vocabulary (the DAG points down only).
@@ -76,9 +74,8 @@ def test_AC_counter_1_2_types_never_import_store_api_or_orm():
     assert not offenders, f"counter types reach below their layer: {offenders}"
 
 
-@ac_proof(proof_id="test_counter_ops_pure", ac_ids=["AC-counter.1.3"], ci_tier="pr_ci")
 def test_AC_counter_1_3_ops_never_import_the_orm_session_or_api():
-    """AC-counter.1.3: ops depend on the store *port* + types only — no ORM/session/api.
+    """Invariant ops-layer-pure: ops depend on the store *port* + types only — no ORM/session/api.
 
     Verbs talk to the ``CounterRepository`` Protocol, never to ``store.sql`` /
     ``store.__init__`` concretes, the ORM, or the api boundary.
@@ -99,9 +96,8 @@ def test_AC_counter_1_3_ops_never_import_the_orm_session_or_api():
     assert not offenders, f"counter ops reach into ORM/concretes/api: {offenders}"
 
 
-@ac_proof(proof_id="test_counter_only_all_public", ac_ids=["AC-counter.1.1"], ci_tier="pr_ci")
 def test_AC_counter_1_1_only_all_is_the_published_language():
-    """AC-counter.1.1: the package's contract.interface equals its __init__.__all__."""
+    """Invariant interface-equals-published-language: contract.interface == __init__.__all__."""
     import src.counter as counter_pkg
     from common.counter.contract import CONTRACT
 
@@ -111,13 +107,8 @@ def test_AC_counter_1_1_only_all_is_the_published_language():
     assert CONTRACT.implementations["be"] == "apps/backend/src/counter"
 
 
-@ac_proof(
-    proof_id="test_counter_contract_gate_passes",
-    ac_ids=["AC-counter.1.4"],
-    ci_tier="pr_ci",
-)
 def test_AC_counter_1_4_package_contract_gate_passes_for_counter():
-    """AC-counter.1.4: check_package_contract discovers and validates counter (green)."""
+    """Invariant passes-own-governance-gate: check_package_contract validates counter (green)."""
     names = {p.name for p in discover_packages(REPO)}
     assert "counter" in names, f"counter not discovered; found {names}"
     ok, messages = run(REPO)

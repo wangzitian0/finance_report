@@ -1,6 +1,6 @@
 """Tests for EPIC-026 phase 3: the cross-tier LLM-import structural gate.
 
-Covers AC26.7.1 — PC/financial-truth modules are statically proven free of
+Covers AC26.7.1 — CODE-ONLY/financial-truth modules are statically proven free of
 LLM-layer imports (the cross-tier structural MUST rule, ``authority-tiers.md``
 rule 2, made deterministic):
 
@@ -34,7 +34,7 @@ def test_AC26_7_1_real_tree_has_no_llm_imports_in_protected_modules() -> None:
 
 
 def test_AC26_7_1_synthetic_llm_import_is_detected() -> None:
-    """AC26.7.1 (b): a synthetic PC-style module importing the LLM layer fails."""
+    """AC26.7.1 (b): a synthetic CODE-ONLY-style module importing the LLM layer fails."""
     # from-import of the project LLM layer
     src_from = "from src.llm.client import LLMClient\n\ndef calc():\n    return 1\n"
     assert gate.forbidden_imports_in_source(src_from) == [("src.llm.client", "src.llm")]

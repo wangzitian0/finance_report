@@ -9,6 +9,7 @@ handles provider routing + dropping model-rejected params (e.g. Z.AI/GLM
 (back-compat / tests); otherwise the configured default provider is resolved.
 """
 
+import time
 from collections.abc import AsyncIterator
 from typing import Any
 from uuid import UUID
@@ -21,6 +22,7 @@ from src.llm.env_config import _protocol_for
 from src.llm.factory import get_config_source, get_usage_meter
 from src.llm.usage import estimate_tokens, estimate_tokens_from_chars
 from src.logger import get_logger
+from src.telemetry_metrics import record_ai_provider_call
 
 logger = get_logger(__name__)
 
@@ -146,6 +148,10 @@ async def _stream_ai_base(
         extra_body["thinking"] = thinking
 
     completion_chars = 0
+    # AC10.10.4: time the provider call and emit a latency+outcome metric on
+    # both the success and error paths. Labels are low-cardinality (provider
+    # label, model id, bounded outcome) — never PII or response content.
+    provider_call_start = time.perf_counter()
     try:
         async for content in litellm_stream(
             messages,
@@ -162,6 +168,14 @@ async def _stream_ai_base(
             completion_chars += len(content)
             yield content
     except LLMError as exc:
+        record_ai_provider_call(
+            # `provider.label` is user-editable free text (PII + unbounded
+            # cardinality); the protocol family is a bounded StrEnum — safe label.
+            provider=provider.protocol.value,
+            model=model,
+            outcome="error",
+            duration_ms=round((time.perf_counter() - provider_call_start) * 1000, 2),
+        )
         logger.error(
             "AI provider streaming failed",
             provider=provider.label,  # resolved provider (DB or env), not the env AI_PROVIDER
@@ -173,6 +187,14 @@ async def _stream_ai_base(
         )
         raise AIStreamError(str(exc), retryable=exc.retryable) from exc
     else:
+        record_ai_provider_call(
+            # Bounded protocol-family label (see error path above) — never the
+            # user-editable provider.label.
+            provider=provider.protocol.value,
+            model=model,
+            outcome="success",
+            duration_ms=round((time.perf_counter() - provider_call_start) * 1000, 2),
+        )
         # Count the request + (estimated) token usage. Usage telemetry must never
         # break a completed stream.
         try:
