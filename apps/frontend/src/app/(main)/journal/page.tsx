@@ -8,7 +8,7 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 import { FilterTabs } from "@/components/ui/FilterTabs";
 import ConfidenceBadge from "@/components/ui/ConfidenceBadge";
-import { EmptyState, LoadingState } from "@/components/ui";
+import { EmptyState, LoadingState, StatusBadge } from "@/components/ui";
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
 import { formatCurrencyLocale, sumAmounts } from "@/lib/money";
@@ -163,13 +163,10 @@ export default function JournalPage() {
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 mb-1">
                                                 <span className="font-medium truncate">{entry.memo}</span>
-                                                <span className={`badge ${entry.status === "posted" ? "badge-success" :
-                                                    entry.status === "reconciled" ? "badge-primary" :
-                                                        entry.status === "void" ? "badge-error" :
-                                                            "badge-muted"
-                                                    }`}>
-                                                    {entry.status}
-                                                </span>
+                                                <StatusBadge
+                                                    status={entry.status}
+                                                    variants={{ posted: "success", reconciled: "primary", void: "error" }}
+                                                />
                                             </div>
                                             <div className="flex items-center gap-3 text-xs text-muted">
                                                 <span>{formatDateDisplay(entry.entry_date)}</span>
