@@ -339,8 +339,8 @@ def package_contract_meta(contract_path: Path) -> dict | None:
 
     Returns ``{name, status, tier, roadmap}`` where ``tier``/``status``/``name``
     are the string literals on the ``PackageContract(...)`` call (``None`` if not
-    an AST-readable literal) and ``roadmap`` is a list of ``{id, status}`` per
-    ``ACRecord``. Returns ``None`` if the file has no ``PackageContract(...)``.
+    an AST-readable literal) and ``roadmap`` is a list of ``{id, status, test}``
+    per ``ACRecord``. Returns ``None`` if the file has no ``PackageContract(...)``.
 
     This is the AST view the registry generator and the migration-safety gates
     consume; it deliberately does NOT import the contract, so it runs in the
@@ -361,7 +361,11 @@ def package_contract_meta(contract_path: Path) -> dict | None:
                     ac_id = _ac_record_field(elt, "id")
                     if ac_id:
                         roadmap.append(
-                            {"id": ac_id, "status": _ac_record_field(elt, "status")}
+                            {
+                                "id": ac_id,
+                                "status": _ac_record_field(elt, "status"),
+                                "test": _ac_record_field(elt, "test"),
+                            }
                         )
         return {
             "name": _ac_record_field(node, "name"),
