@@ -3,15 +3,37 @@
 Construction normalizes (``strip().upper()``) and then rejects anything that is
 not an active ISO-4217 alphabetic code, so ``Currency`` cannot hold ``"US"``,
 ``"usd "`` (un-normalized), ``"XYZ"``, or ``"EURO"``. The soft
-``normalize_currency_code`` used at the Pydantic boundary only enforces length;
-this type adds the membership check the issue (#1167) requires.
+``normalize_currency_code`` below only normalizes (``strip().upper()``); this type
+adds the ISO-4217 membership check the issue (#1167) requires.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any, overload
 
 from src.money.errors import InvalidCurrencyError
+
+
+@overload
+def normalize_currency_code(value: str) -> str: ...
+
+
+@overload
+def normalize_currency_code(value: Any) -> Any: ...
+
+
+def normalize_currency_code(value: Any) -> Any:
+    """Canonical soft normalization of an ISO-4217 code: ``strip().upper()``.
+
+    Single source of truth for the ``str`` normalization that was duplicated as
+    inline ``.strip().upper()`` across services/routers and re-defined in
+    ``schemas.base`` and ``fx``. Non-``str`` values pass through unchanged so
+    downstream validation (Pydantic, :class:`Currency`) raises its own type error.
+    This is the *soft* form (no membership check); :class:`Currency` adds that.
+    """
+    return value.strip().upper() if isinstance(value, str) else value
+
 
 # Active ISO-4217 alphabetic codes. Deliberately a static, dependency-light set
 # (no network / no third-party package) so the backend money module stays importable

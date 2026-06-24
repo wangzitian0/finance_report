@@ -21,6 +21,7 @@ from src.models.layer3 import (
     ManualValuationSnapshot,
 )
 from src.money import to_money
+from src.money.currency import normalize_currency_code
 from src.schemas import (
     AnnualizedIncomeScheduleHolding,
     AnnualizedIncomeScheduleIncome,
@@ -58,7 +59,7 @@ async def generate_annualized_income_schedule(
         "dividend": Decimal("0.00"),
         "total": Decimal("0.00"),
     }
-    currency = settings.base_currency.strip().upper()
+    currency = normalize_currency_code(settings.base_currency)
     for line, account in income_result.all():
         # Currency is the line's own, resolved via the single base-currency SSOT
         # (the previous per-site account/target fallback chain is dropped — only the
