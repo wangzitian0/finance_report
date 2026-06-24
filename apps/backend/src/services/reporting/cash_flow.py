@@ -23,7 +23,7 @@ from src.services.fx import (
     FxRateError,
     PrefetchedFxRates,
 )
-from src.services.reporting._core import _REPORT_STATUSES
+from src.services.reporting._core import _REPORT_STATUSES, _line_total
 from src.services.reporting_calc import (
     ReportError,
     _normalize_currency,
@@ -203,9 +203,9 @@ async def generate_cash_flow(
     investing_items.sort(key=lambda x: abs(Decimal(str(x["amount"]))), reverse=True)
     financing_items.sort(key=lambda x: abs(Decimal(str(x["amount"]))), reverse=True)
 
-    operating_total = _quantize_money(sum([Decimal(str(item["amount"])) for item in operating_items], Decimal("0")))
-    investing_total = _quantize_money(sum([Decimal(str(item["amount"])) for item in investing_items], Decimal("0")))
-    financing_total = _quantize_money(sum([Decimal(str(item["amount"])) for item in financing_items], Decimal("0")))
+    operating_total = _line_total(operating_items)
+    investing_total = _line_total(investing_items)
+    financing_total = _line_total(financing_items)
     net_cash_flow = _quantize_money(ending_cash - beginning_cash)
 
     summary = {

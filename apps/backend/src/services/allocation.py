@@ -93,7 +93,7 @@ def _build_allocation(
 
     breakdowns = []
     for category, value in category_values.items():
-        allocation_ratio = Ratio.fraction(value, total_value) if total_value > Decimal("0") else Ratio.zero()
+        allocation_ratio = Ratio.fraction_or_zero(value, total_value)
         breakdowns.append(
             AllocationBreakdown(
                 category=category,
