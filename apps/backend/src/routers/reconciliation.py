@@ -44,7 +44,7 @@ from src.services.review_queue import (
     reject_match as reject_match_service,
 )
 from src.services.source_type_priority import STATEMENT_SOURCE_TYPES
-from src.utils import raise_bad_request, raise_not_found
+from src.utils import get_owned_or_404, raise_bad_request, raise_not_found
 
 router = APIRouter(prefix="/reconciliation", tags=["reconciliation"])
 logger = get_logger(__name__)
@@ -565,12 +565,7 @@ async def list_anomalies(
     user_id: CurrentUserId,
     pagination: Pagination,
 ) -> list[AnomalyResponse]:
-    result = await db.execute(
-        select(AtomicTransaction).where(AtomicTransaction.id == txn_id).where(AtomicTransaction.user_id == user_id)
-    )
-    txn = result.scalar_one_or_none()
-    if not txn:
-        raise_not_found("Transaction")
+    txn = await get_owned_or_404(db, AtomicTransaction, txn_id, user_id, name="Transaction")
     anomalies = await detect_anomalies(db, txn, user_id=user_id)
     page = anomalies[pagination.offset : pagination.offset + pagination.limit]
     return [AnomalyResponse(**anomaly.__dict__) for anomaly in page]

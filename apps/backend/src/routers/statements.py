@@ -63,6 +63,7 @@ from src.services.statement_validation import (
 )
 from src.services.statement_workflow import approve_statement_workflow, reject_statement_workflow
 from src.utils import (
+    get_owned_or_404,
     raise_bad_request,
     raise_internal_error,
     raise_not_found,
@@ -138,13 +139,7 @@ async def _get_statement_or_404(
     statement_id: UUID,
     user_id: UUID,
 ) -> StatementSummary:
-    result = await db.execute(
-        select(StatementSummary).where(StatementSummary.id == statement_id).where(StatementSummary.user_id == user_id)
-    )
-    statement = result.scalar_one_or_none()
-    if not statement:
-        raise_not_found("Statement")
-    return statement
+    return await get_owned_or_404(db, StatementSummary, statement_id, user_id, name="Statement")
 
 
 async def _queue_statement_reparse(

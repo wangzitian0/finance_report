@@ -36,7 +36,7 @@ from src.schemas.llm import (
     LlmScenesResponse,
     LlmScenesUpdate,
 )
-from src.utils import raise_bad_request, raise_conflict, raise_not_found, raise_service_unavailable
+from src.utils import get_owned_or_404, raise_bad_request, raise_conflict, raise_not_found, raise_service_unavailable
 
 logger = get_logger(__name__)
 
@@ -116,11 +116,7 @@ async def delete_provider(provider_id: str, db: DbSession, user_id: CurrentUserI
     except (ValueError, TypeError):
         # A non-UUID path param is a not-found, not a 500 from the UUID column cast.
         raise_not_found("Provider")
-    row = (
-        await db.execute(select(LlmProvider).where(LlmProvider.id == pid, LlmProvider.user_id == user_id))
-    ).scalar_one_or_none()
-    if row is None:
-        raise_not_found("Provider")
+    row = await get_owned_or_404(db, LlmProvider, pid, user_id, name="Provider")
     deleted_id = row.id
     await db.delete(row)
     await db.commit()

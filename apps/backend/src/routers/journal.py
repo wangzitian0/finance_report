@@ -2,7 +2,7 @@ from datetime import date as date_type
 from uuid import UUID
 
 from fastapi import APIRouter, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from src.deps import CurrentUserId, DbSession
@@ -21,7 +21,7 @@ from src.services import (
     post_journal_entry,
     void_journal_entry,
 )
-from src.utils import raise_bad_request, raise_not_found
+from src.utils import get_owned_or_404, paginate, raise_bad_request
 
 router = APIRouter(prefix="/journal-entries", tags=["journal-entries"])
 logger = get_logger(__name__)
@@ -71,21 +71,14 @@ async def list_journal_entries(
     if end_date:
         query = query.where(JournalEntry.entry_date <= end_date)
 
-    # Get total count efficiently without loading data
-    count_query = select(func.count()).select_from(query.subquery())
-    count_result = await db.execute(count_query)
-    total = count_result.scalar() or 0
-
-    # Apply pagination and eager load lines
-    query = (
-        query.options(selectinload(JournalEntry.lines))
-        .order_by(JournalEntry.entry_date.desc(), JournalEntry.created_at.desc())
-        .offset(offset)
-        .limit(limit)
+    entries, total = await paginate(
+        db,
+        query,
+        limit=limit,
+        offset=offset,
+        options=[selectinload(JournalEntry.lines)],
+        order_by=[JournalEntry.entry_date.desc(), JournalEntry.created_at.desc()],
     )
-
-    result = await db.execute(query)
-    entries = result.scalars().all()
 
     items = [JournalEntryResponse.model_validate(e) for e in entries]
     return JournalEntryListResponse(items=items, total=total)
@@ -97,17 +90,14 @@ async def get_journal_entry(
     db: DbSession = None,
     user_id: CurrentUserId = None,
 ) -> JournalEntryResponse:
-    result = await db.execute(
-        select(JournalEntry)
-        .where(JournalEntry.id == entry_id)
-        .where(JournalEntry.user_id == user_id)
-        .options(selectinload(JournalEntry.lines))
+    entry = await get_owned_or_404(
+        db,
+        JournalEntry,
+        entry_id,
+        user_id,
+        name="Journal entry",
+        options=[selectinload(JournalEntry.lines)],
     )
-    entry = result.scalar_one_or_none()
-
-    if not entry:
-        raise_not_found("Journal entry")
-
     return JournalEntryResponse.model_validate(entry)
 
 
@@ -166,13 +156,7 @@ async def delete_journal_entry(
     db: DbSession = None,
     user_id: CurrentUserId = None,
 ) -> None:
-    result = await db.execute(
-        select(JournalEntry).where(JournalEntry.id == entry_id).where(JournalEntry.user_id == user_id)
-    )
-    entry = result.scalar_one_or_none()
-
-    if not entry:
-        raise_not_found("Journal entry")
+    entry = await get_owned_or_404(db, JournalEntry, entry_id, user_id, name="Journal entry")
 
     if entry.status != JournalEntryStatus.DRAFT:
         raise_bad_request("Only draft entries can be deleted")

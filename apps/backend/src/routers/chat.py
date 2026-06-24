@@ -26,7 +26,7 @@ from src.schemas.chat import (
 )
 from src.schemas.streaming import ChatStreamEnvelope
 from src.services.ai_advisor import AIAdvisorError, AIAdvisorService, detect_language
-from src.utils import raise_bad_request, raise_not_found, raise_service_unavailable
+from src.utils import get_owned_or_404, raise_bad_request, raise_not_found, raise_service_unavailable
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 logger = get_logger(__name__)
@@ -215,12 +215,7 @@ async def delete_session(
     user_id: CurrentUserId = None,
 ) -> None:
     """Soft-delete a chat session."""
-    result = await db.execute(
-        select(ChatSession).where(ChatSession.id == session_id).where(ChatSession.user_id == user_id)
-    )
-    session = result.scalar_one_or_none()
-    if not session:
-        raise_not_found("Chat session")
+    session = await get_owned_or_404(db, ChatSession, session_id, user_id, name="Chat session")
     session.status = ChatSessionStatus.DELETED
     await db.commit()
 

@@ -45,7 +45,7 @@ from src.services.currency_resolution import resolve_transaction_currency
 from src.services.review_queue import accept_match as accept_match_service, get_stage2_queue
 from src.services.source_type_priority import STATEMENT_SOURCE_TYPES
 from src.services.statement_validation import resolve_statement_conflicts, resolve_statement_transactions
-from src.utils import raise_conflict, raise_not_found
+from src.utils import get_owned_or_404, raise_conflict
 
 logger = get_logger(__name__)
 
@@ -60,12 +60,7 @@ async def get_review_conflicts(
     user_id: CurrentUserId,
 ) -> ReviewConflictsResponse:
     """Return duplicate and transfer-pair candidates for a statement."""
-    statement_result = await db.execute(
-        select(StatementSummary).where(StatementSummary.id == statement_id).where(StatementSummary.user_id == user_id)
-    )
-    statement = statement_result.scalar_one_or_none()
-    if not statement:
-        raise_not_found("Statement")
+    statement = await get_owned_or_404(db, StatementSummary, statement_id, user_id, name="Statement")
 
     transactions = await resolve_statement_transactions(db, statement)
 
@@ -220,12 +215,8 @@ async def run_stage2_checks(
     user_id: CurrentUserId,
 ) -> ConsistencyCheckListResponse:
     """Run consistency checks for a statement."""
-    result = await db.execute(
-        select(StatementSummary).where(StatementSummary.id == statement_id).where(StatementSummary.user_id == user_id)
-    )
-    statement = result.scalar_one_or_none()
-    if not statement:
-        raise_not_found("Statement")
+    # Existence/ownership guard (404); the checks below key off statement_id.
+    await get_owned_or_404(db, StatementSummary, statement_id, user_id, name="Statement")
 
     checks = await run_all_consistency_checks(db, user_id, statement_id)
     await db.commit()
