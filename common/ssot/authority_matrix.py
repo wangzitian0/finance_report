@@ -48,3 +48,6 @@ TIER_DEFAULT_PROOF_KIND: dict[str, str] = {
 #: (used by the ssot tooling) cannot drift from the type form.
 AC_TIERS: tuple[str, ...] = get_args(ACTier)
 AC_PROOF_KINDS: tuple[str, ...] = get_args(ACProofKind)
+
+#: The four permanent package tiers as a tuple (no HU — that is the draft state).
+PACKAGE_TIERS: tuple[str, ...] = get_args(PackageTier)

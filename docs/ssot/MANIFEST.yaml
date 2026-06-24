@@ -704,8 +704,12 @@ concepts:
       - docs/project/EPIC-026.ac-authority-tiers.md
       - docs/ssot/ac-tier-baseline.json
       - common/ssot/generate_ac_registry.py
+      - common/ssot/authority_matrix.py
       - common/ssot/check_ac_tier_baseline.py
       - tools/check_ac_tier_baseline.py
+      - common/ssot/check_tier_ast_literal.py
+      - common/ssot/check_epic_package_dual.py
+      - common/ssot/check_draft_packages.py
 
   ac_tier_baseline:
     owner: docs/ssot/ac-tier-baseline.json
@@ -719,6 +723,19 @@ concepts:
       - common/ssot/check_ac_tier_baseline.py
       - tools/check_ac_tier_baseline.py
       - tests/tooling/test_ac_authority_tiers.py
+
+  draft_package_baseline:
+    owner: docs/ssot/draft-package-baseline.json
+    family: tdd
+    kind: baseline
+    parent: authority_tiers
+    authority: machine_generated
+    description: Registered draft packages for the migration-safety draft gate (tools/check_draft_packages.py); a draft package leaves its authority tier undecided, so listing it here makes adding one a reviewed act and a draft must carry no done ACs.
+    cross_refs:
+      - docs/ssot/authority-tiers.md
+      - common/ssot/check_draft_packages.py
+      - tools/check_draft_packages.py
+      - tests/tooling/test_migration_safety_gates.py
 
   ssot_governance_metrics:
     owner: docs/ssot/tdd.md#ssot-governance-metrics

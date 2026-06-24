@@ -334,6 +334,44 @@ def _ac_record_field(call: ast.Call, field: str) -> str | None:
     return None
 
 
+def package_contract_meta(contract_path: Path) -> dict | None:
+    """Statically read a contract's package-level metadata (no import / pydantic).
+
+    Returns ``{name, status, tier, roadmap}`` where ``tier``/``status``/``name``
+    are the string literals on the ``PackageContract(...)`` call (``None`` if not
+    an AST-readable literal) and ``roadmap`` is a list of ``{id, status}`` per
+    ``ACRecord``. Returns ``None`` if the file has no ``PackageContract(...)``.
+
+    This is the AST view the registry generator and the migration-safety gates
+    consume; it deliberately does NOT import the contract, so it runs in the
+    lightweight CI lint env (``uv run --with pyyaml …``) without pydantic.
+    """
+    tree = ast.parse(contract_path.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if not (
+            isinstance(node, ast.Call) and _call_name(node.func) == "PackageContract"
+        ):
+            continue
+        roadmap: list[dict] = []
+        for kw in node.keywords:
+            if kw.arg != "roadmap" or not isinstance(kw.value, (ast.List, ast.Tuple)):
+                continue
+            for elt in kw.value.elts:
+                if isinstance(elt, ast.Call) and _call_name(elt.func) == "ACRecord":
+                    ac_id = _ac_record_field(elt, "id")
+                    if ac_id:
+                        roadmap.append(
+                            {"id": ac_id, "status": _ac_record_field(elt, "status")}
+                        )
+        return {
+            "name": _ac_record_field(node, "name"),
+            "status": _ac_record_field(node, "status"),
+            "tier": _ac_record_field(node, "tier"),
+            "roadmap": roadmap,
+        }
+    return None
+
+
 def _roadmap_acs_from_contract(contract_path: Path) -> list[dict]:
     """Statically read a contract's ``roadmap`` ``ACRecord(...)`` entries.
 
