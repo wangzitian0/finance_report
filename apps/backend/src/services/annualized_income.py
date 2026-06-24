@@ -20,7 +20,8 @@ from src.models.layer3 import (
     ManualValuationLiquidityClass,
     ManualValuationSnapshot,
 )
-from src.money import normalize_currency_code, to_money
+from src.money import to_money
+from src.money.currency import normalize_currency_code
 from src.schemas import (
     AnnualizedIncomeScheduleHolding,
     AnnualizedIncomeScheduleIncome,

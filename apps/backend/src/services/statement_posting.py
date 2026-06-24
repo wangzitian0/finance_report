@@ -23,7 +23,7 @@ from src.models import (
 )
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
-from src.money import normalize_currency_code
+from src.money.currency import normalize_currency_code
 from src.services.review_queue import create_entry_from_txn
 from src.services.source_type_priority import STATEMENT_SOURCE_TYPES, promote_entry_source_type
 from src.services.statement_validation import approve_statement, resolve_statement_transactions
