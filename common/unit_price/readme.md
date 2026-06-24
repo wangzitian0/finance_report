@@ -23,7 +23,7 @@ checked — not a float multiply that loses precision or silently mixes currenci
   unit, quantized by `UNIT_PRICE_DP` / `UNIT_PRICE_QUANTUM` / `UNIT_PRICE_ROUNDING`.
   Float construction is unrepresentable (`FloatNotAllowedError`).
 - **product** — `UnitPrice` × `Quantity` → `Money`, rounded deterministically;
-  a currency clash raises `CurrencyMismatchError` and a unit clash
+  a currency clash raises `CurrencyMismatchError` and a unit clash raises
   `UnitMismatchError`.
 - **undefined** — an undefined unit price raises `UndefinedUnitPriceError`.
 - **wire/db adapters** — `unit_price_{to,from}_{wire,db_fields}` convert at the
