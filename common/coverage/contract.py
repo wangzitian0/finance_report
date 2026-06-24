@@ -5,7 +5,7 @@
 ``build_unified_lcov``, ``strip_lcov_branches``, ``analyzer``) — not a domain
 bounded context, so it publishes no curated symbol language (``interface=[]``);
 callers import its modules directly. The contract governs it as a ``kernel`` leaf
-(zero cross-package imports, gate-enforced) with invariants pinned to its tests.
+(`depends_on=[]`) with invariants pinned to its tests.
 A curated published-language surface is a future cleanup.
 """
 

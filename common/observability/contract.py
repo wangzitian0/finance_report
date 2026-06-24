@@ -3,8 +3,7 @@
 ``observability`` is internal tooling — the OpenPanel query CLI
 (``openpanel_query``) — not a domain bounded context, so it publishes no curated
 symbol language (``interface=[]``); callers invoke its module/CLI directly.
-The contract still governs it: a ``kernel`` leaf (zero cross-package imports,
-gate-enforced) with an invariant pinned to its test. A curated published-language
+The contract still governs it: a ``kernel`` leaf (`depends_on=[]`) with an invariant pinned to its test. A curated published-language
 surface is a future cleanup.
 """
 

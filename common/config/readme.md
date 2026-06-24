@@ -10,11 +10,11 @@ Helpers that validate environment-key definitions across the secrets template, `
 
 ## Shape
 
-A `kernel` leaf: **zero cross-package imports** (gate-enforced) and `tier=CODE-ONLY`
+A `kernel` leaf: no declared dependencies (`depends_on=[]`) and `tier=CODE-ONLY`
 (pure Python, no LLM). It is a **collection of modules** invoked directly (and via
 `tools/` wrappers), so it publishes **no curated symbol language** —
 `contract.interface` is `[]`. Its [`contract.py`](./contract.py) is validated by
-`tools/check_package_contract.py` (leaf-DAG purity + invariants pinned to tests).
+`tools/check_package_contract.py` (invariants pinned to tests (the DAG import-scan only inspects `src.<pkg>` imports, so for a `common/`-implemented package leaf-purity is a declared, not a scanned, property)).
 
 ## Follow-up
 
