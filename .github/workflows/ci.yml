@@ -202,6 +202,19 @@ jobs:
           # (an LLM-emitted output cannot be proven by an exact golden assertion);
           # HU must be `evidence`; PL must not be exact.
           uv run --with pyyaml python tools/check_ac_proof_kind.py
+      - name: Package-Model Migration-Safety Gates
+        run: |
+          # EPIC-026 phase 5 (issue #1355): the cross-source gates that must hold
+          # before migrating legacy EPIC ACs into package roadmaps. All AST/text
+          # (no pydantic), so they run in this lightweight lint env.
+          # 1b: a shipped package's tier must be an AST-readable literal (else the
+          #     registry untags it while the model keeps a tier).
+          uv run --with pyyaml python tools/check_tier_ast_literal.py
+          # 1c: an AC id must not be defined in both an EPIC table and a package
+          #     roadmap (move ⇒ delete the EPIC row, else the stale tier wins).
+          uv run --with pyyaml python tools/check_epic_package_dual.py
+          # 1e: a draft package must carry no done ACs and must be registered.
+          uv run --with pyyaml python tools/check_draft_packages.py
       - name: Tier Import Guard (PC must not import the LLM layer)
         run: |
           # EPIC-026 phase 3: enforce the cross-tier STRUCTURAL MUST rule
