@@ -5,9 +5,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus, Scale, Trash2 } from "lucide-react";
 
 import AccountFormModal from "@/components/accounts/AccountFormModal";
+import { FilterTabs } from "@/components/ui/FilterTabs";
 import OpeningBalanceModal from "@/components/accounts/OpeningBalanceModal";
 import AccountDetailsSidebar from "@/components/accounts/AccountDetailsSidebar";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { Alert, Badge, Button, EmptyState, IconButton, LoadingState, PageHeader } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
@@ -23,8 +25,6 @@ export default function AccountsPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isOpeningBalanceOpen, setIsOpeningBalanceOpen] = useState(false);
     const [editingAccount, setEditingAccount] = useState<Account | null>(null);
-    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-    const [deletingAccountId, setDeletingAccountId] = useState<string | null>(null);
     const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
 
     const { data, isLoading, error, refetch } = useQuery({
@@ -53,22 +53,13 @@ export default function AccountsPage() {
         },
     });
 
-    const handleDeleteAccount = (accountId: string) => {
-        setDeletingAccountId(accountId);
-        setDeleteDialogOpen(true);
-    };
-
-    const handleDeleteConfirm = async () => {
-        if (!deletingAccountId) return;
+    const deleteDialog = useConfirmDialog(async (accountId) => {
         try {
-            await deleteMutation.mutateAsync(deletingAccountId);
+            await deleteMutation.mutateAsync(accountId);
         } catch {
-            // onError handler already shows the toast
-        } finally {
-            setDeleteDialogOpen(false);
-            setDeletingAccountId(null);
+            // onError handler already shows the toast; close the dialog regardless.
         }
-    };
+    });
 
     const handleModalSuccess = () => {
         queryClient.invalidateQueries({ queryKey: ["accounts"] });
@@ -130,20 +121,12 @@ export default function AccountsPage() {
             )}
 
             {/* Tabs */}
-            <div className="mb-6 flex w-full flex-wrap gap-1 rounded-lg bg-[var(--background-muted)] p-1 sm:w-fit">
-                {ACCOUNT_TYPES.map((type) => (
-                    <button
-                        key={type}
-                        onClick={() => setActiveFilter(type)}
-                        className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeFilter === type
-                            ? "bg-[var(--background-card)] text-[var(--foreground)]"
-                            : "text-muted hover:text-[var(--foreground)]"
-                            }`}
-                    >
-                        {type}
-                    </button>
-                ))}
-            </div>
+            <FilterTabs
+                options={ACCOUNT_TYPES}
+                value={activeFilter}
+                onChange={setActiveFilter}
+                className="mb-6 flex w-full flex-wrap gap-1 rounded-lg bg-[var(--background-muted)] p-1 sm:w-fit"
+            />
 
             {/* Error */}
             {error && (
@@ -214,7 +197,7 @@ export default function AccountsPage() {
                                                 <IconButton
                                                     icon={Trash2}
                                                     label="Delete Account"
-                                                    onClick={(e) => { e.stopPropagation(); handleDeleteAccount(account.id); }}
+                                                    onClick={(e) => { e.stopPropagation(); deleteDialog.open(account.id); }}
                                                     className="text-muted hover:text-[var(--error)]"
                                                     disabled={deleteMutation.isPending}
                                                 />
@@ -247,9 +230,9 @@ export default function AccountsPage() {
             />
 
             <ConfirmDialog
-                isOpen={deleteDialogOpen}
-                onCancel={() => { setDeleteDialogOpen(false); setDeletingAccountId(null); }}
-                onConfirm={handleDeleteConfirm}
+                isOpen={deleteDialog.isOpen}
+                onCancel={deleteDialog.cancel}
+                onConfirm={() => deleteDialog.confirm()}
                 title="Delete Account"
                 message="Are you sure you want to delete this account? This will only work if there are no transactions."
                 confirmLabel="Delete Account"

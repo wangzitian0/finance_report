@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { useToast } from "@/components/ui/Toast";
 import { TableSkeleton } from "@/components/ui";
+import { FilterTabs } from "@/components/ui/FilterTabs";
 import { apiFetch } from "@/lib/api";
 import { formatCurrencyLocale, parseAmount } from "@/lib/money";
 import { formatQuantity } from "@/lib/quantity";
@@ -377,23 +378,13 @@ export default function AssetsPage() {
 
 
             <div className="flex items-center justify-between mb-6">
-                <div role="tablist" aria-label="Asset status filter" className="flex gap-1 bg-[var(--background-muted)] p-1 rounded-lg w-fit">
-                    {STATUS_FILTERS.map((status) => (
-                        <button
-                            key={status}
-                            role="tab"
-                            aria-selected={activeFilter === status}
-                            onClick={() => setActiveFilter(status)}
-                            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors capitalize ${
-                                activeFilter === status
-                                    ? "bg-[var(--background-card)] text-[var(--foreground)]"
-                                    : "text-muted hover:text-[var(--foreground)]"
-                            }`}
-                        >
-                            {status}
-                        </button>
-                    ))}
-                </div>
+                <FilterTabs
+                    options={STATUS_FILTERS}
+                    value={activeFilter}
+                    onChange={setActiveFilter}
+                    capitalize
+                    ariaLabel="Asset status filter"
+                />
 
                 {!isLoading && !error && positions.length > 0 && (
                     <div className="text-sm text-muted">
