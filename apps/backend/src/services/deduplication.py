@@ -18,6 +18,7 @@ from src.models.layer2 import (
     TransactionDirection,
 )
 from src.models.statement_summary import StatementSummary
+from src.services.currency_resolution import resolve_ingest_currency
 
 logger = get_logger(__name__)
 
@@ -133,11 +134,17 @@ class DeduplicationService:
         reference: str | None = None,
         balance_after: Decimal | None = None,
         occurrence_index: int = 0,
+        currency_unresolved: bool = False,
     ) -> AtomicTransaction:
         """Upsert atomic transaction with deduplication.
 
         If dedup_hash exists -> Append to source_documents array
         If dedup_hash new -> Insert new record
+
+        ``currency_unresolved`` (EPIC-012 AC12.40.2) flags a new row whose currency
+        could not be determined at the ingest boundary; ``currency`` then holds a
+        non-authoritative placeholder and the row is blocked from promotion until a
+        reviewer specifies the currency.
         """
         dedup_hash = self.calculate_transaction_hash(
             user_id, txn_date, amount, direction, description, reference, balance_after, occurrence_index
@@ -199,6 +206,7 @@ class DeduplicationService:
             description=description,
             reference=reference,
             currency=currency,
+            currency_unresolved=currency_unresolved,
             balance_after=balance_after,
             dedup_hash=dedup_hash,
             source_documents=[source_doc],
@@ -531,6 +539,19 @@ async def dual_write_layer2(
 
         layer2_count = 0
         for txn in transactions:
+            # EPIC-012 AC12.40.1/.2: the currency is decided once at the ingest boundary
+            # in ``ExtractionService.parse_document`` via ``resolve_ingest_currency`` and
+            # stashed on ``txn._currency_unresolved`` (alongside the resolved/placeholder
+            # code already on ``txn.currency``). Callers that build transactions outside
+            # that path fall back to a fresh resolution over the model + statement fields
+            # so this stays the single DB-write boundary and never silent-defaults.
+            if hasattr(txn, "_currency_unresolved"):
+                resolved_code = txn.currency
+                currency_unresolved = bool(txn._currency_unresolved)
+            else:
+                resolved = resolve_ingest_currency(txn.currency, statement.currency)
+                resolved_code = resolved.code
+                currency_unresolved = resolved.unresolved
             upserted_txn = await dedup_service.upsert_atomic_transaction(
                 db=db,
                 user_id=user_id,
@@ -538,7 +559,8 @@ async def dual_write_layer2(
                 amount=txn.amount,
                 direction=txn.direction,
                 description=txn.description,
-                currency=txn.currency or statement.currency or "SGD",
+                currency=resolved_code,
+                currency_unresolved=currency_unresolved,
                 source_doc_id=uploaded_doc.id,
                 source_doc_type=doc_type,
                 reference=txn.reference,

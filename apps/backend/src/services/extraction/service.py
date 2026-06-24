@@ -27,6 +27,7 @@ from src.services.brokerage_positions import (
     looks_like_brokerage_payload,
 )
 from src.services.chain_repair import RegionReExtractor, repair_under_extraction
+from src.services.currency_resolution import resolve_ingest_currency
 from src.services.deduplication import DeduplicationService, _decimal_key, dual_write_layer2
 from src.services.extraction._base import (
     CSV_INFERRED_BALANCE_REVIEW_NOTE,
@@ -152,7 +153,11 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             )
 
             resolved_file_hash = file_hash or hashlib.sha256(file_content or b"").hexdigest()
-            statement_currency = extracted.get("currency", "SGD")
+            # Raw extracted statement currency (no fallback) — feeds the per-transaction
+            # ingest-boundary resolution (AC12.40) so a genuinely-missing currency is
+            # flagged for review rather than masked by the StatementSummary default.
+            raw_statement_currency = extracted.get("currency")
+            statement_currency = raw_statement_currency or "SGD"
             statement = StatementSummary(
                 user_id=user_id,
                 account_id=account_id,
@@ -318,7 +323,12 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 else:
                     net_transactions -= amount
 
-                txn_currency = txn.get("currency") or statement_currency or "SGD"
+                # EPIC-012 AC12.40.1/.2: establish the currency at the ingest boundary from
+                # the parsed transaction then the statement's RAW extracted currency. When
+                # neither is a valid ISO-4217 code, flag the row ``currency_unresolved`` so it
+                # is routed to human review instead of silently defaulting to the base currency.
+                resolved_currency = resolve_ingest_currency(txn.get("currency"), raw_statement_currency)
+                txn_currency = resolved_currency.code
                 txn_balance_after = self._safe_decimal(txn.get("balance_after"))
                 txn_direction = TransactionDirection.IN if direction == "IN" else TransactionDirection.OUT
                 txn_description = txn.get("description", "Unknown")
@@ -370,6 +380,8 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 )
                 transaction._extracted_balance_after = txn_balance_after
                 transaction._occurrence_index = occurrence_index
+                # AC12.40.2: carry the ingest-boundary resolution decision to dual_write_layer2.
+                transaction._currency_unresolved = resolved_currency.unresolved
                 transactions.append(transaction)
 
             # Within-document dedup-collapse signal (EPIC-026 AC26.8.1; #1254 class).
