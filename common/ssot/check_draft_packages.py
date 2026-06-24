@@ -31,17 +31,30 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_BASELINE = REPO_ROOT / "docs" / "ssot" / "draft-package-baseline.json"
 
 
-def _draft_packages(repo_root: Path) -> dict[str, list[str]]:
-    """Map each draft package name -> its list of ``done`` roadmap AC ids."""
-    drafts: dict[str, list[str]] = {}
+def _draft_packages(repo_root: Path) -> dict[str, dict]:
+    """Map each draft package name -> ``{done, unreadable}`` roadmap AC ids.
+
+    ``done`` are ACs explicitly ``status="done"``. ``unreadable`` are ACs whose
+    ``id`` or ``status`` is NOT an AST-readable literal (a non-literal or omitted
+    value); those are flagged rather than silently skipped, so the "no done work
+    hides in draft" guarantee cannot be bypassed by writing ``status=SOME_CONST``.
+    """
+    drafts: dict[str, dict] = {}
     for path in sorted(repo_root.glob("common/*/contract.py")):
         meta = package_contract_meta(path)
         if meta is None or meta.get("status") != "draft":
             continue
         name = meta.get("name") or path.parent.name
-        drafts[name] = [
-            ac["id"] for ac in meta.get("roadmap", []) if ac.get("status") == "done"
-        ]
+        done: list[str] = []
+        unreadable: list[str] = []
+        for index, ac in enumerate(meta.get("roadmap", [])):
+            ac_id = ac.get("id")
+            status = ac.get("status")
+            if ac_id is None or status is None:
+                unreadable.append(ac_id or f"<roadmap entry #{index}>")
+            elif status == "done":
+                done.append(ac_id)
+        drafts[name] = {"done": done, "unreadable": unreadable}
     return drafts
 
 
@@ -49,7 +62,12 @@ def load_baseline(path: Path) -> set[str]:
     if not path.exists():
         return set()
     payload = json.loads(path.read_text(encoding="utf-8"))
-    return {str(n) for n in payload.get("draft_packages", [])}
+    if not isinstance(payload, dict):
+        raise ValueError(f"{path} must contain a JSON object")
+    draft_packages = payload.get("draft_packages", [])
+    if not isinstance(draft_packages, list):
+        raise ValueError(f"{path}: 'draft_packages' must be a list")
+    return {str(n) for n in draft_packages}
 
 
 def write_baseline(path: Path, drafts: set[str]) -> None:
@@ -69,11 +87,18 @@ def violations(repo_root: Path, baseline_path: Path) -> list[str]:
     baseline = load_baseline(baseline_path)
     errors: list[str] = []
     for name in sorted(drafts):
-        done = drafts[name]
+        done = drafts[name]["done"]
+        unreadable = drafts[name]["unreadable"]
         if done:
             errors.append(
                 f"draft package {name!r} contains done AC(s) {done}: finished work "
                 "must not hide in draft — decide the tier and ship it active."
+            )
+        if unreadable:
+            errors.append(
+                f"draft package {name!r} has roadmap AC(s) {unreadable} whose id or "
+                "status is not an AST-readable literal: the done-work check cannot "
+                "be verified statically. Declare id/status as plain literals."
             )
         if name not in baseline:
             errors.append(

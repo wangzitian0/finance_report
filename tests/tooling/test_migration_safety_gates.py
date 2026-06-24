@@ -19,6 +19,8 @@ from __future__ import annotations
 import textwrap
 from pathlib import Path
 
+import pytest
+
 from common.ssot import check_draft_packages as g_draft
 from common.ssot import check_epic_package_dual as g_dual
 from common.ssot import check_tier_ast_literal as g_tier
@@ -155,6 +157,34 @@ def test_1e_flags_unregistered_draft(tmp_path: Path) -> None:
     baseline.write_text('{"draft_packages": []}', encoding="utf-8")
     errors = g_draft.violations(tmp_path, baseline)
     assert any("not registered" in e for e in errors)
+
+
+def test_1e_flags_unreadable_status_in_draft(tmp_path: Path) -> None:
+    # status written as a non-literal must not silently bypass the done check.
+    _write_contract(
+        tmp_path,
+        "wip",
+        """
+        from common.governance.package_contract import PackageContract, ACRecord
+        S = "done"
+        CONTRACT = PackageContract(
+            name="wip", klass="kernel", status="draft",
+            depends_on=[], interface=[], events=[], invariants=[], roadmap=[
+            ACRecord(id="AC-wip.1.1", statement="s", test="t::f",
+                     priority="P0", status=S)])
+        """,
+    )
+    baseline = tmp_path / "bl.json"
+    baseline.write_text('{"draft_packages": ["wip"]}', encoding="utf-8")
+    errors = g_draft.violations(tmp_path, baseline)
+    assert any("not an AST-readable literal" in e for e in errors)
+
+
+def test_1e_load_baseline_rejects_malformed(tmp_path: Path) -> None:
+    bad = tmp_path / "bl.json"
+    bad.write_text('["wip"]', encoding="utf-8")  # a list, not an object
+    with pytest.raises(ValueError):
+        g_draft.load_baseline(bad)
 
 
 def test_1e_passes_for_registered_draft_without_done(tmp_path: Path) -> None:
