@@ -18,6 +18,7 @@ from uuid import UUID
 
 from src.config import settings
 from src.models.layer4 import ReportSnapshot
+from src.money.currency import normalize_currency_code
 from src.schemas import (
     PersonalReportPackageSnapshotResponse,
     PersonalReportPackageSnapshotStatus,
@@ -56,7 +57,7 @@ def package_dates(
 
 
 def package_currency(currency: str | None) -> str:
-    return (currency or settings.base_currency).strip().upper()
+    return normalize_currency_code(currency or settings.base_currency)
 
 
 def package_snapshot_status(readiness: dict[str, Any]) -> PersonalReportPackageSnapshotStatus:

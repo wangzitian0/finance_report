@@ -23,6 +23,7 @@ from src.models import (
 )
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
+from src.money.currency import normalize_currency_code
 from src.services.review_queue import create_entry_from_txn
 from src.services.source_type_priority import STATEMENT_SOURCE_TYPES, promote_entry_source_type
 from src.services.statement_validation import approve_statement, resolve_statement_transactions
@@ -104,7 +105,7 @@ async def resolve_statement_posting_account(
     user_id: UUID,
 ) -> Account:
     """Resolve the asset account for automatic posting without generic fallback."""
-    currency = (statement.currency or "").strip().upper()
+    currency = normalize_currency_code(statement.currency or "")
     if not currency:
         raise ValueError("Statement currency required before posting. Confirm the source currency before posting.")
 
@@ -179,7 +180,7 @@ async def validate_statement_period_unique(
     if statement.period_start > statement.period_end:
         raise ValueError("Statement period is invalid. Confirm the source date range before posting.")
 
-    currency = (statement.currency or "").strip().upper()
+    currency = normalize_currency_code(statement.currency or "")
     if not currency:
         raise ValueError("Statement currency required before posting. Confirm the source currency before posting.")
 
