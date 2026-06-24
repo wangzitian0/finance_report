@@ -154,7 +154,7 @@ trade-off rules say *what* to choose; these say whether the thing is built well.
    user's data, we do not re-educate it. (Axiom A, pointed at our users.)
 3. **Pragmatism over purity.** Solve the real problem in front of us, not a
    hypothetical one; reject the elegant-on-paper design that is complex in
-   practice. Code serves reality, not a paper.
+   practice. Code serves reality, not a research paper.
 4. **Simplicity is the standard.** One function, one thing, done well and
    short; past three levels of nesting, fix the function, not the symptom.
    Over-specified complexity is a defect, not rigor. (Axiom D.)
