@@ -79,12 +79,16 @@ APP_WORKFLOW_FILES = (
 
 INFRA2_WORKFLOW_FILES = (
     ".github/workflows/apply-observability.yml",
+    ".github/workflows/deploy-guard-audit.yml",
+    ".github/workflows/deploy-platform.yml",
     ".github/workflows/deploy-report-main.yml",
+    ".github/workflows/deploy-v2-canary.yml",
     ".github/workflows/deploy.yml",
-    ".github/workflows/docs.yml",
+    ".github/workflows/docs-site.yml",
+    ".github/workflows/dokploy-route-canary.yml",
     ".github/workflows/infra-ci.yml",
-    ".github/workflows/ops-checks.yml",
-    ".github/workflows/reconcile-iac-inputs.yml",
+    ".github/workflows/out-of-band-watchdog.yml",
+    ".github/workflows/watchdog-weekly-digest.yml",
 )
 
 # Triggers a workflow must NOT declare. Staging auto-following `main` is the
