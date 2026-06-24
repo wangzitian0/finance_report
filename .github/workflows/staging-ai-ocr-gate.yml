@@ -170,6 +170,11 @@ jobs:
 
           record_and_finish() {
             # Record the gate outcome as job outputs, then honor the blocking mode.
+            #   blocking=true  -> fail the job with the gate status (manual diagnostic).
+            #   blocking=false -> right-shift: record the status output and exit 0 so
+            #                     the job stays green (replaces the old inline
+            #                     continue-on-error: true). post-merge delivery reads
+            #                     ai_ocr_status, not the job result.
             local status="$1"
             local ai_ocr_status="$2"
             echo "ai_ocr_status=${ai_ocr_status}" >> "$GITHUB_OUTPUT"
@@ -180,7 +185,7 @@ jobs:
             if [ "$status" -ne 0 ]; then
               echo "::warning::Staging AI/OCR gate '${ai_ocr_status}' recorded as right-shifted regression; not blocking release-critical delivery."
             fi
-            exit "$status"
+            exit 0
           }
 
           echo "Starting Staging AI/OCR Gate for $APP_URL"

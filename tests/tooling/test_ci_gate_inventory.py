@@ -151,6 +151,14 @@ def test_AC8_13_153_staging_ai_ocr_gate_is_a_single_reusable_workflow() -> None:
     assert "tools/staging_ai_ocr_gate_contract.py --shell" in reusable_text
     assert 'pytest "${STAGING_AI_OCR_TESTS[@]}"' in reusable_text
 
+    # Record-only (blocking=false) must NOT fail the job: a non-zero exit is
+    # guarded by BLOCKING == "true", and the record-only path exits 0 so it keeps
+    # the old inline continue-on-error semantics (#1365 Copilot fix).
+    assert (
+        'if [ "$status" -ne 0 ] && [ "$BLOCKING" = "true" ]; then' in reusable_text
+    )
+    assert "exit 0" in reusable_text
+
     # Both deploy.yml entrances are uses: callers of the reusable workflow that
     # differ only by the blocking input (and checkout/expected_sha).
     ref = "./.github/workflows/staging-ai-ocr-gate.yml"
