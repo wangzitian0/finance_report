@@ -134,8 +134,11 @@ The recipe for moving a module (and its EPIC-table ACs) into the package model.
    package's structural `exact` tests stay valid — see counter's 7 invariants.)
 
 5. **Anchor every `test` to a real test.** Each `roadmap[].test` /
-   `invariants[].test` is a `"path::func"` the gate resolves; add
-   `@ac_proof(ac_ids=[...])` on the critical-proof tests.
+   `invariants[].test` is a `"path::func"` the gate resolves. Put
+   `@ac_proof(ac_ids=["AC-<pkg>.x.y"])` on the **domain-AC** tests only;
+   **structural/invariant tests do NOT carry `@ac_proof`** — they are governed
+   via `invariants[].test`, not the AC critical-proof matrix (a structural test
+   tagged with a domain AC id is a stale anchor — see counter's cleanup).
 
 6. **Delete the AC's old EPIC-table rows.** The AC id now lives in the roadmap;
    leaving the EPIC row makes `check_epic_package_dual` fail. This is a
