@@ -6,6 +6,7 @@ import JournalEntryForm from "@/components/journal/JournalEntryForm";
 import JournalEntryDetailsModal from "@/components/journal/JournalEntryDetailsModal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import ConfidenceBadge from "@/components/ui/ConfidenceBadge";
+import { EmptyState, LoadingState } from "@/components/ui";
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
 import { formatCurrencyLocale, sumAmounts } from "@/lib/money";
@@ -170,10 +171,7 @@ export default function JournalPage() {
 
             {/* Content */}
             {loading ? (
-                <div className="card p-8 text-center text-muted">
-                    <div className="inline-block w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin mb-2" />
-                    <p className="text-sm">Loading entries...</p>
-                </div>
+                <LoadingState label="Loading entries" />
             ) : error ? (
                 <div className="card p-8 text-center" role="alert" aria-live="polite">
                     <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[var(--error-muted)] text-[var(--error)] mb-4">
@@ -192,10 +190,10 @@ export default function JournalPage() {
                     </button>
                 </div>
             ) : entries.length === 0 ? (
-                <div className="card p-8 text-center">
-                    <p className="text-muted mb-4">No journal entries yet</p>
-                    <button onClick={() => setIsFormOpen(true)} className="btn-primary">Create First Entry</button>
-                </div>
+                <EmptyState
+                    title="No journal entries yet"
+                    action={<button onClick={() => setIsFormOpen(true)} className="btn-primary">Create First Entry</button>}
+                />
             ) : (
                 <div className="card">
                     <div className="divide-y divide-[var(--border)]">

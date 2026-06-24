@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { BackLink } from "@/components/ui/BackLink";
+import { LoadingState } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
 import { ProcessingPendingItem, ProcessingPendingListResponse } from "@/lib/types";
 import { formatDateDisplay } from "@/lib/date";
@@ -39,10 +40,7 @@ export default function ProcessingPage() {
       </div>
 
       {loading ? (
-        <div className="card p-8 text-center text-muted">
-          <div className="inline-block w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin mb-2" />
-          <p className="text-sm">Loading transfers...</p>
-        </div>
+        <LoadingState label="Loading transfers" />
       ) : error ? (
         <div className="card p-8 text-center text-[var(--error)] border-[var(--error)]/30">
           <p>{error}</p>
