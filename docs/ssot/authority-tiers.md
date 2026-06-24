@@ -213,15 +213,16 @@ proof is valid for the module's authority tier. They are orthogonal.
 
 ## CODE/LLM bit (counted view)
 
-The five tiers above collapse, for measurement, into **one bit per AC plus a
-per-package ratio** — and the bit is **detected from the AC's test shape**, not
-declared:
+This is the **measured** mirror of the declared `PackageContract.tier`: the same
+**hard/soft cut** of the four permanent tiers, but **detected per-AC from its test
+shape** rather than declared on the package.
 
-- `LLM` — the AC's test exercises the record/replay (cassette) harness.
-- `CODE` — a structured-input deterministic test, no LLM in the loop.
-
-Mapping from the five tiers: `PC`,`CP` → `CODE`; `LP`,`PL` → `LLM`; `HU` stays an
-orthogonal human-decision tag, not part of the ratio.
+- `CODE` — the hard side (`PC`, `CP`): a structured-input deterministic test, no
+  LLM in the loop.
+- `LLM` — the soft side (`LP`, `PL`): the AC's test exercises the record/replay
+  (cassette) harness.
+- An undecided/`draft` package (legacy `HU`, `tier=None`) is **unclassified**, not
+  a band — it has not resolved its tier yet.
 
 Each package (currently an EPIC) gets an `LLM-share = #LLM / (#CODE + #LLM)` placed
 into four bands:
@@ -233,12 +234,14 @@ into four bands:
 | `LLM-LED` | 50–100 | measured; ratchet caps drift |
 | `LLM-ONLY` | 100 | enforceable: no hardcode permitted (narrative) |
 
-Because the bit is detected, the band is **computed, not argued**. The base
+Because the bit is detected, the band is **computed, not argued** — so it serves
+as a **cross-check on the declared `PackageContract.tier`**: a package declared on
+the hard side (`PC`/`CP`) but measuring `LLM` ACs is drift to flag. The base
 library is `common/ssot/authority_classifier.py` and the runnable counter is
-`tools/authority_counter.py` (snapshot: `authority-distribution.json`). Two
-orthogonal rules still apply: an `LLM` value entering financial truth must pass a
-code check (cross-tier rule 2), and an `LLM` AC must have a cassette. Migrating
-the existing `{tier:XX}` markers onto this counted view is a follow-up.
+`tools/authority_counter.py` (snapshot: `authority-distribution.json`). The
+cross-tier MUST rules still bind (an `LLM` value entering financial truth crosses a
+PC oracle; an `LLM` AC must have a cassette). Wiring the counter to the
+`PackageContract` declarations as a blocking drift gate is a follow-up.
 
 ## Follow-ups (out of scope here)
 
