@@ -141,14 +141,14 @@ def test_AC20_9_1_reporting_pipeline_declares_layer_authority_tiers() -> None:
     for layer in ("event → L2", "L2 → L1", "L1 → report"):
         assert layer in epic
     # Each layer's locked tier from the EPIC-026 5-tier set.
-    for tier in ("**LP**", "**CP**", "**PC**"):
+    for tier in ("**LLM-LED**", "**CODE-LED**", "**CODE-ONLY**"):
         assert tier in epic
     # The tier-appropriate proof obligation per layer.
-    assert "no exact-golden" in epic  # LP
-    assert "the **code's** decision" in epic  # CP
-    assert "exact / property test" in epic  # PC
-    # LLM authority confined to the LP layer; CP is code-authoritative (PC today).
-    assert "PC today" in epic
+    assert "no exact-golden" in epic  # LLM-LED
+    assert "the **code's** decision" in epic  # CODE-LED
+    assert "exact / property test" in epic  # CODE-ONLY
+    # LLM authority confined to the LLM-LED layer; CODE-LED is code-authoritative (CODE-ONLY today).
+    assert "CODE-ONLY today" in epic
     assert "docs/ssot/authority-tiers.md" in epic
 
 
