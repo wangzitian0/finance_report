@@ -42,7 +42,9 @@ BANDS = (CODE_ONLY, CODE_LED, LLM_LED, LLM_ONLY)
 
 _AC_ROW = re.compile(r"\|\s*(AC\d+\.\d+\.\d+)\s*\|")
 _FILE_TOKEN = re.compile(r"([\w./-]+\.(?:py|tsx|ts))")
-_SKIP_DIRS = ("node_modules", "/.venv", "/.git/", "/dist/", "/build/")
+# Skip vendored/duplicated trees: worktree copies and the `repo/` submodule each
+# hold a FULL copy of the test tree, which would make every basename ambiguous.
+_SKIP_DIRS = ("node_modules", "/.venv", "/.git/", "/dist/", "/build/", "/.claude/", "/repo/")
 
 
 def band(llm_share: float) -> str:
@@ -56,16 +58,34 @@ def band(llm_share: float) -> str:
     return LLM_ONLY
 
 
-def build_test_index(root: Path = REPO_ROOT) -> dict[str, Path]:
-    """Index test files by basename once (first occurrence wins)."""
-    index: dict[str, Path] = {}
+def build_test_index(root: Path = REPO_ROOT) -> dict[str, list[Path]]:
+    """Index test files by basename once (basename -> all paths with that name)."""
+    index: dict[str, list[Path]] = {}
     for path in root.rglob("*"):
         text = str(path)
         if any(skip in text for skip in _SKIP_DIRS):
             continue
         if path.suffix in (".py", ".tsx", ".ts") and path.is_file():
-            index.setdefault(path.name, path)
+            index.setdefault(path.name, []).append(path)
     return index
+
+
+def resolve_token(token: str, index: dict[str, list[Path]]) -> Path | None:
+    """Resolve an EPIC-table file token to a real path.
+
+    Disambiguates real basename collisions (e.g. two ``test_core_journeys.py``) by
+    matching the token's directory suffix; if still ambiguous, returns None so the
+    AC is counted ``unknown`` rather than silently mis-classified.
+    """
+    token = token.strip().strip("`")
+    candidates = index.get(token.split("/")[-1], [])
+    if len(candidates) == 1:
+        return candidates[0]
+    if not candidates:
+        return None
+    suffix = token.lstrip("./")
+    matches = [p for p in candidates if p.as_posix().endswith(suffix)]
+    return matches[0] if len(matches) == 1 else None
 
 
 def is_llm_test(path: Path | None, _cache: dict[Path, bool] | None = None) -> bool | None:
@@ -84,11 +104,11 @@ def is_llm_test(path: Path | None, _cache: dict[Path, bool] | None = None) -> bo
     return verdict
 
 
-def classify_test_files(file_tokens: list[str], index: dict[str, Path], cache: dict[Path, bool]) -> str:
+def classify_test_files(file_tokens: list[str], index: dict[str, list[Path]], cache: dict[Path, bool]) -> str:
     """Classify one AC from its test-file tokens: 'LLM' | 'CODE' | 'unknown'."""
     verdict = "unknown"
     for token in file_tokens:
-        path = index.get(token.split("/")[-1])
+        path = resolve_token(token, index)
         llm = is_llm_test(path, cache)
         if llm is True:
             return "LLM"

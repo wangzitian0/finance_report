@@ -227,12 +227,12 @@ shape** rather than declared on the package.
 Each package (currently an EPIC) gets an `LLM-share = #LLM / (#CODE + #LLM)` placed
 into four bands:
 
-| Band | LLM-share | Meaning |
-|------|-----------|---------|
-| `CODE-ONLY` | 0 | enforceable: no LLM permitted (money math, ledger) |
-| `CODE-LED` | 0–50 | measured; ratchet caps drift |
-| `LLM-LED` | 50–100 | measured; ratchet caps drift |
-| `LLM-ONLY` | 100 | enforceable: no hardcode permitted (narrative) |
+| Band | LLM-share (`s`) | Meaning |
+|------|-----------------|---------|
+| `CODE-ONLY` | `s = 0` | enforceable: no LLM permitted (money math, ledger) |
+| `CODE-LED` | `0 < s < 50` | measured; ratchet caps drift |
+| `LLM-LED` | `50 ≤ s < 100` | measured; ratchet caps drift |
+| `LLM-ONLY` | `s = 100` | enforceable: no hardcode permitted (narrative) |
 
 Because the bit is detected, the band is **computed, not argued** — so it serves
 as a **cross-check on the declared `PackageContract.tier`**: a package declared on
