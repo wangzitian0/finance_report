@@ -137,9 +137,11 @@ AC -> proof(name, stage, task_category)
 `stage` answers where the proof runs and how strong that protection is.
 `task_category` answers which execution family/job lane performs it. Neither
 field is an identity key, and neither competes with the AC id for ownership. This
-execution-placement metadata also does not replace authority tier or proof_kind:
-authority tier says who owns the behavior's decision, and `proof_kind` says what
-shape of proof is valid for that authority tier.
+execution-placement metadata also does not replace an AC's CODE/LLM authority:
+`stage`/`task_category` say where and in which lane a proof runs, while an AC's
+**detected CODE/LLM authority** (detected from its test shape — see
+[authority-tiers.md](./authority-tiers.md)) says whether deterministic code or
+the LLM produces the result the AC proves.
 
 Valid proof execution stages:
 

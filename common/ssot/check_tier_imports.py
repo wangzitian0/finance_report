@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
-"""Cross-tier STRUCTURAL gate: PC / financial-truth modules MUST NOT import the LLM layer.
+"""Structural gate: CODE / financial-truth modules MUST NOT import the LLM layer.
 
-EPIC-026 phase 3. The authority-tier SSOT (``docs/ssot/authority-tiers.md``,
-"Cross-tier MUST rules", rule 2) states:
-
-    **PC stays pure.** A PC AC MUST NOT depend on an LLM client; its outcome is
-    produced and proven by deterministic code alone.
-
-Phases 1 and 2 made the *per-AC* tier and proof-kind contracts machine-checkable.
-This gate makes the *structural* half of rule 2 deterministic: a curated set of
-deterministic financial-truth (PC) modules is statically proven, via the ``ast``
-module, to contain no import of the LLM layer (``src.llm``) or of any raw LLM
-SDK/provider (``litellm`` / ``openrouter`` / ``anthropic`` / ``openai``).
+The authority SSOT (``docs/ssot/authority-tiers.md``) classifies code as CODE or
+LLM. A deterministic financial-truth module is CODE: its outcome is produced and
+proven by deterministic code alone, never by an LLM. This gate makes the
+structural half of that rule machine-checkable: a curated set of deterministic
+financial-truth modules is statically proven, via the ``ast`` module, to contain
+no import of the LLM layer (``src.llm``) or of any raw LLM SDK/provider
+(``litellm`` / ``openrouter`` / ``anthropic`` / ``openai``).
 
 This is a *guard against regression*: on ``main`` today none of the protected
 modules imports the LLM layer, so the gate starts GREEN. Its job is to keep the
@@ -24,7 +20,7 @@ Scope (v1, deliberately simple + false-positive-free):
 - **Direct imports only.** We flag a module only for the imports written in its
   own source (``import X`` / ``from X import ...``). We do not follow the import
   graph transitively — a v2 follow-up. Direct detection already enforces the
-  structural MUST rule at the boundary that matters (a PC module reaching for an
+  structural rule at the boundary that matters (a CODE module reaching for an
   LLM client) without guessing at deep, conditional, or runtime imports.
 - **Name-prefixed matching.** ``src.llm`` matches ``src.llm`` and any submodule
   (``src.llm.client``), but never an unrelated module that merely starts with the
@@ -43,10 +39,10 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# --- The contract (mirror of docs/ssot/authority-tiers.md "Cross-tier MUST
-# --- rules", rule 2). Keep these in sync with the SSOT subsection.
+# --- The contract (mirror of docs/ssot/authority-tiers.md). Keep these in sync
+# --- with the SSOT.
 
-# Protected PC / financial-truth modules, as path globs relative to the repo
+# Protected CODE / financial-truth modules, as path globs relative to the repo
 # root. These are deterministic modules whose output can become financial truth;
 # none of them may import the LLM layer. Each glob is confirmed to resolve to at
 # least one real file (see ``missing_protected_globs``).
@@ -195,8 +191,8 @@ def violations(repo_root: Path) -> list[tuple[str, str, str]]:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Cross-tier structural gate: PC/financial-truth modules MUST NOT "
-            "import the LLM layer (docs/ssot/authority-tiers.md)."
+            "Structural gate: CODE/financial-truth modules MUST NOT import the "
+            "LLM layer (docs/ssot/authority-tiers.md)."
         )
     )
     parser.add_argument("--repo-root", type=Path, default=REPO_ROOT)
@@ -228,21 +224,21 @@ def main(argv: list[str] | None = None) -> int:
         for module_path, imported, matched in found:
             print(
                 f"::error title=Tier import guard::{module_path} imports {imported!r} "
-                f"(forbidden LLM-layer target {matched!r}). A PC/financial-truth "
-                "module MUST NOT depend on the LLM layer "
-                "(docs/ssot/authority-tiers.md, cross-tier MUST rule 2).",
+                f"(forbidden LLM-layer target {matched!r}). A CODE/financial-truth "
+                "module MUST NOT import the LLM layer "
+                "(docs/ssot/authority-tiers.md).",
                 file=sys.stderr,
             )
         print(
             f"[TIER-IMPORTS] FAILED: {len(found)} forbidden LLM-layer import(s) in "
-            "PC/financial-truth modules. The deterministic core must stay pure.",
+            "CODE/financial-truth modules. The deterministic core must stay pure.",
             file=sys.stderr,
         )
         return 1
 
     n_files = len(resolve_protected_files(repo_root))
     print(
-        f"[TIER-IMPORTS] PASSED: {n_files} protected PC/financial-truth module(s) "
+        f"[TIER-IMPORTS] PASSED: {n_files} protected CODE/financial-truth module(s) "
         "import no LLM layer (src.llm / litellm / openrouter / anthropic / openai)."
     )
     return 0

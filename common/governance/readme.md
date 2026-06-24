@@ -108,30 +108,30 @@ The recipe for moving a module (and its EPIC-table ACs) into the package model.
 [`contract.py`](../counter/contract.py).** One PR per package; `base=main`.
 
 1. **Name the bounded context and its axes.** Pick the package `name` (its
-   `common/<name>/` dir), the `klass` (`kernel` < `platform` < `core` — its
-   position in the import DAG), and the authority **tier**
-   ([`authority-tiers.md`](../../docs/ssot/authority-tiers.md): PC/CP/LP/PL — how
-   the module is built). If the tier is genuinely undecided, ship `status="draft"`
-   with `tier=None` and resolve it before going `active` (the shipped-package
-   rule). **One package = one tier**; a module mixing deterministic + LLM-emitted
-   behavior is two packages.
+   `common/<name>/` dir) and the `klass` (`kernel` < `platform` < `core` — its
+   position in the import DAG). **One package = one bounded context**; a module
+   mixing deterministic + LLM-emitted behavior is two packages. If the context is
+   genuinely undecided, ship `status="draft"` and resolve it before going
+   `active`. (Authority is not a declared package attribute — it is the detected
+   CODE/LLM bit per AC; see
+   [`authority-tiers.md`](../../docs/ssot/authority-tiers.md).)
 
 2. **Write `contract.py`.** One `PackageContract(...)` with `name`, `klass`,
-   `status`, `tier`, `depends_on` (down-only edges), `roles`
+   `status`, `depends_on` (down-only edges), `roles`
    (`types`/`ops`/`store`/`api`), `implementations` (`be`/`fe` paths),
    `interface` (must equal the BE `__init__.__all__`), `events`, `invariants`,
    `roadmap`.
 
 3. **Domain ACs → `roadmap`.** Each `ACRecord(id, statement, test, priority,
    status)` with a **package-scoped id `AC-{package}.{group}.{seq}`** (e.g.
-   `AC-counter.1.1`). The AC inherits the package tier; `proof_kind` defaults to
-   the tier's canonical kind — set it explicitly only when different, and it MUST
-   satisfy the tier→proof matrix (LP/PL may never be `exact`).
+   `AC-counter.1.1`). Each AC's authority (CODE vs LLM) is **detected from its
+   test shape** by the classifier, never declared on the AC.
 
 4. **Structural guarantees → `invariants`, NOT `roadmap`.** interface==`__all__`,
-   converges-by-role, layer purity, "passes its own gate" carry no tier and are
-   not matrix-constrained. (Keeping them out of `roadmap` is what lets an LP/PL
-   package's structural `exact` tests stay valid — see counter's 7 invariants.)
+   converges-by-role, layer purity, "passes its own gate" are deterministic
+   properties of how the package is assembled, so they belong in `invariants`,
+   while `roadmap` holds only the package's **domain** ACs. (See counter's 7
+   invariants.)
 
 5. **Anchor every `test` to a real test.** Each `roadmap[].test` /
    `invariants[].test` is a `"path::func"` the gate resolves. Put
@@ -151,7 +151,7 @@ The recipe for moving a module (and its EPIC-table ACs) into the package model.
    [`traceability-exceptions.md`](../../docs/analysis/traceability-exceptions.md).
 
 8. **Run the gates locally before pushing:** `check_package_contract`,
-   `generate_ac_registry --check`, `check_ac_proof_kind`, `check_tier_ast_literal`,
-   `check_epic_package_dual`, `check_draft_packages`, `check_tier_imports`, and
-   `lint_doc_consistency`. The untagged-debt ratchet shrinks automatically as the
-   moved ACs leave the EPIC source.
+   `generate_ac_registry --check`, `check_epic_package_dual`,
+   `check_draft_packages`, `check_tier_imports` (the structural guard: a
+   deterministic financial-truth / CODE-ONLY module must not import the LLM
+   layer), and `lint_doc_consistency`.

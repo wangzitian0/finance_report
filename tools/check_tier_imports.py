@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Command wrapper for the cross-tier LLM-import structural gate."""
+"""Command wrapper for the CODE/financial-truth LLM-import structural gate."""
 
 from __future__ import annotations
 

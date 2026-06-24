@@ -10,18 +10,26 @@
 
 ## 🎯 Objective
 
-Make **authority** a first-class, machine-readable attribute of every acceptance
-criterion. Each AC records *who holds final decision authority over the behavior
-it describes* — deterministic code, a human, or an LLM — as one of five tiers
-(`PC / CP / HU / LP / PL`). The tier is an attribute of the AC's behavior, not of
-a file: the AC is the unit of intent, so the same module can host PC and LP
-behaviors and each AC still carries its own tier.
+Make **authority** a machine-readable property of every acceptance criterion:
+*does deterministic code or the LLM produce the result the AC proves?* The
+surviving model is the **detected CODE/LLM bit** — one bit per AC, **detected
+from the AC's test shape** (a record/replay cassette test ⇒ `LLM`; a
+structured-input deterministic test ⇒ `CODE`), rolled up per package (EPIC) into
+an `LLM-share` and one of four bands (`CODE-ONLY` / `CODE-LED` / `LLM-LED` /
+`LLM-ONLY`). Because the bit is detected, the band is **computed, not argued**.
+The vocabulary, the cross-cutting MUST rules, and the structural import guard are
+owned by the SSOT ([authority-tiers.md](../ssot/authority-tiers.md)); this EPIC
+references that contract rather than restating it.
 
-The crucial payoff: **an AC's tier dictates what KIND of proof is valid for it**,
-tying the testing strategy to intent. The tier vocabulary, the cross-tier MUST
-rules, and the tier→valid-proof matrix are owned by the SSOT
-([authority-tiers.md](../ssot/authority-tiers.md)); this EPIC references that
-contract rather than restating it.
+> **Superseded — declared tiers removed.** An earlier phase of this EPIC declared
+> authority as a **5-tier attribute** (`PC / CP / HU / LP / PL`) on each AC /
+> `PackageContract`, with a tier→valid-proof matrix and inline `{tier:XX}` /
+> `{proof:KIND}` markers, enforced by a tier ratchet, a proof-kind gate, and a
+> tier-AST-literal gate. That **declared** model and all of those gates were
+> **removed** in favor of the detected CODE/LLM model (AC26.9). Only the
+> structural import guard (AC26.7) and the CODE/LLM classifier (AC26.9) survive;
+> the AC blocks below are kept for historical traceability and marked
+> accordingly.
 
 ---
 
@@ -39,64 +47,61 @@ contract rather than restating it.
   attribute on an AC saying which discipline of proof applies.
 
 ### Tasks
-- **Dictionary**: define the five tiers + cross-tier MUST rules + proof matrix in
-  SSOT.
-- **Schema**: let an AC declare `tier` at its definition site; flow it into the
-  generated registry value.
-- **Gate**: a non-breaking ratchet so new/changed ACs declare a tier while ~1830
-  legacy untagged ACs ratchet down over time.
-- **First batch**: tag the EPICs central to the strict↔LLM design discussion.
+- **Dictionary**: define the CODE/LLM bit, the per-package LLM-share + four
+  bands, the cross-cutting MUST rules, and the structural import guard in SSOT.
+- **Classifier**: detect the CODE/LLM bit from each AC's test shape.
+- **Counter**: roll the bits up per package into an LLM-share + band snapshot.
+- **Structural guard**: keep a deterministic financial-truth (CODE-ONLY) module
+  from importing the LLM layer.
 
 ### Actions
 1. Author [authority-tiers.md](../ssot/authority-tiers.md); register it in
    `docs/ssot/MANIFEST.yaml` (`authority_tiers`).
-2. Extend the EPIC AC declaration with a `{tier:XX}` marker and teach
-   `tools/generate_ac_registry.py` to lift it into the AC value.
-3. Add `tools/check_ac_tier_baseline.py` + `docs/ssot/ac-tier-baseline.json`
-   (shrink-only untagged-debt baseline), wired into the AC/lint gate; add a test.
-4. Tag every AC in the first-batch EPICs and shrink the baseline accordingly.
+2. Implement `common/ssot/authority_classifier.py` (the per-AC CODE/LLM bit) and
+   `tools/authority_counter.py` (the per-package LLM-share + band snapshot).
+3. Implement `common/ssot/check_tier_imports.py` (the structural guard).
+4. **Removed**: the declared `{tier:XX}` / `{proof:KIND}` markers, the tier
+   ratchet (`check_ac_tier_baseline`), the proof-kind matrix gate
+   (`check_ac_proof_kind`), and the tier-AST-literal gate
+   (`check_tier_ast_literal`).
 
 ### Result
-- Every AC can carry a tier; new/changed ACs must; the proof discipline for each
-  AC is now explicit and machine-readable.
+- Every AC carries a detected CODE/LLM bit; each package has a computed
+  LLM-share and band; financial-truth modules are statically barred from
+  importing the LLM layer.
 
 ---
 
 ## ✅ Scope
 
-- **In (phase 1)**: tier vocabulary (SSOT), AC `tier` schema + generator support,
-  the shrink-only ratchet gate + its test, and a first batch of tagged EPICs.
-- **In (phase 2)**: a `{proof:KIND}` marker giving each AC a declared proof kind,
-  generator support that lifts it into the registry (`proof_kind`, defaulting to
-  the tier's canonical kind), and `tools/check_ac_proof_kind.py` enforcing the
-  tier→proof matrix for **tier-tagged ACs only** (non-breaking) — the rule that
-  must fire is **LP cannot be exact**. The first-batch LP/HU/PL ACs are
-  retrofitted so each carries a matrix-valid proof (the LP extraction ACs gain
-  invariant/property proofs that double as the #1254 money-bug regression).
-- **Out**: full backfill of the remaining untagged ACs; the derived module-level
-  tier view; upgrading the proof-kind gate from asserting the *declared* kind to
-  inspecting the referenced test's runtime shape (e.g. statically rejecting an
-  exact assertion mislabeled `property`). These are explicit follow-ups. No
-  application/runtime logic changes.
+- **In (surviving)**: the CODE/LLM vocabulary + four bands + cross-cutting MUST
+  rules in SSOT; the per-AC classifier and per-package counter (AC26.9); the
+  structural import guard (AC26.7); the invariant-observability metrics (AC26.8).
+- **Removed**: the declared 5-tier model (`PC / CP / HU / LP / PL`) on the AC /
+  `PackageContract`, the tier→valid-proof matrix, the inline `{tier:XX}` /
+  `{proof:KIND}` markers, the tier ratchet, the proof-kind matrix gate, and the
+  tier-AST-literal gate (AC26.1–AC26.6). These were superseded by the detected
+  CODE/LLM model.
+- **Out**: wiring the counter to a blocking per-package drift ratchet; transitive
+  import-graph following for the structural guard. These are explicit follow-ups.
+  No application/runtime logic changes.
 
 ---
 
 ## ✅ Must Have
 
-- The five-tier vocabulary, cross-tier MUST rules, and tier→valid-proof matrix
-  exist in one SSOT owner.
-- An AC can declare its tier next to its text and the tier becomes a first-class
-  registry attribute.
-- New or changed ACs cannot silently skip a tier; the legacy untagged debt can
-  only shrink.
-- The first-batch EPICs have every AC tagged.
+- The CODE/LLM vocabulary, four bands, cross-cutting MUST rules, and the
+  structural import guard exist in one SSOT owner.
+- Every AC's authority is detected from its test shape (never declared); each
+  package has a computed LLM-share and band.
+- A deterministic financial-truth (CODE-ONLY) module cannot import the LLM layer.
 
 ---
 
 ## 🌟 Nice to Have
 
-- A derived dashboard of tier coverage per EPIC / per module.
-- A `tier`-aware proof linter.
+- A blocking per-package LLM-share drift ratchet.
+- A derived dashboard of band coverage per EPIC / per module.
 
 ---
 
@@ -104,59 +109,59 @@ contract rather than restating it.
 
 > **Test Organization**: Tests organized by feature blocks using ACx.y.z numbering.
 
-### AC26.1 — Tier vocabulary & proof matrix in SSOT
+### AC26.1 — ~~Tier vocabulary & proof matrix in SSOT~~ (REMOVED — declared-tier model superseded by CODE/LLM)
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC26.1.1 | The SSOT `authority-tiers.md` defines exactly the five tiers (PC/CP/HU/LP/PL), the cross-tier MUST rules, and the tier→valid-proof matrix, and is registered as the single owner of `authority_tiers` in the manifest {tier:PC} | `test_AC26_1_1_ssot_defines_five_tiers_and_proof_matrix` | `tests/tooling/test_ac_authority_tiers.py` | P0 |
+| ~~AC26.1.1~~ | ~~The SSOT `authority-tiers.md` defines exactly the five tiers (PC/CP/HU/LP/PL), the cross-tier MUST rules, and the tier→valid-proof matrix.~~ **Removed**: the SSOT now defines only the detected CODE/LLM model. | — | — | — |
 
-### AC26.2 — AC schema carries the tier
-
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC26.2.1 | An AC declaring a `{tier:XX}` marker at its definition site flows `tier: XX` into its generated registry value, with the marker stripped from the description; an undeclared tier and an invalid code are both ignored, not errors {tier:PC} | `test_AC26_2_1_tier_marker_flows_into_registry_value` | `tests/tooling/test_ac_authority_tiers.py` | P0 |
-
-### AC26.3 — Non-breaking ratchet gate
+### AC26.2 — ~~AC schema carries the tier~~ (REMOVED — `{tier:XX}` marker dropped)
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC26.3.1 | The tier ratchet fails when an AC absent from the untagged-debt baseline lacks a tier (new/changed debt), passes when every untagged AC is in the baseline, and `--update` only shrinks the baseline (never launders fresh untagged debt) {tier:PC} | `test_AC26_3_1_tier_ratchet_is_shrink_only_and_blocks_new_debt` | `tests/tooling/test_ac_authority_tiers.py` | P0 |
+| ~~AC26.2.1~~ | ~~An AC declaring a `{tier:XX}` marker flows `tier: XX` into its generated registry value.~~ **Removed**: authority is detected from test shape, never declared. | — | — | — |
 
-### AC26.4 — First-batch backfill
-
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC26.4.1 | Every AC in the first-batch EPICs (003, 006, 021, 023) declares a valid tier, and none of those ACs remains in the untagged-debt baseline {tier:PC} | `test_AC26_4_1_first_batch_epics_fully_tagged_and_off_baseline` | `tests/tooling/test_ac_authority_tiers.py` | P0 |
-
-### AC26.5 — Tier→proof-kind matrix is enforced (phase 2)
+### AC26.3 — ~~Non-breaking ratchet gate~~ (REMOVED — tier ratchet `check_ac_tier_baseline` deleted)
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC26.5.1 | An AC declares the KIND of its proof via a `{proof:KIND}` marker (KIND ∈ property/invariant/eval/exact/evidence/smoke), parsed alongside `{tier:XX}`, stripped from the description, and lifted into the registry as `proof_kind` (defaulting to the tier's canonical valid kind when unmarked); the enforcement gate then asserts, **for tier-tagged ACs only** (untagged ACs ignored, so it is non-breaking), that the declared kind matches the tier→proof matrix — in particular an **LP AC's proof_kind MUST NOT be `exact`**, HU must be `evidence`, and PL must not be exact. The gate asserts the *declared* kind; verifying the referenced test's runtime shape is a documented follow-up. {tier:PC} {proof:property} | `test_AC26_5_1_proof_kind_marker_flows_and_gate_enforces_matrix` | `tests/tooling/test_ac_proof_kind.py` | P0 |
+| ~~AC26.3.1~~ | ~~The tier ratchet fails when an AC absent from the untagged-debt baseline lacks a tier.~~ **Removed** with the declared-tier model. | — | — | — |
 
-### AC26.6 — First-batch LP/CP ACs carry a valid-kind proof
-
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC26.6.1 | The first-batch LP/HU/PL ACs retrofitted in this phase (the LP extraction ACs AC3.1.1/AC3.5.7/AC3.5.19, the HU review ACs AC3.3.2/AC3.5.10/AC3.6.4, the PL suggestion ACs AC6.2.3/AC6.2.4) each declare a matrix-valid `proof_kind`; the LP ACs carry an invariant/property proof (the balance-chain `opening + ΣIN − ΣOUT ≈ closing` detector and the #1254 dedup conservation property), so the whole tier-tagged set passes the proof-kind gate. {tier:PC} {proof:property} | `test_AC26_6_1_first_batch_lp_acs_carry_invariant_proof` | `tests/tooling/test_ac_proof_kind.py` | P0 |
-
-### AC26.7 — Cross-tier structural rule enforced (phase 3)
+### AC26.4 — ~~First-batch backfill~~ (REMOVED — no tiers to backfill)
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC26.7.1 | PC/financial-truth modules are statically proven free of LLM-layer imports — the cross-tier structural MUST rule ("PC stays pure", `authority-tiers.md` rule 2) made deterministic. `tools/check_tier_imports.py` (impl `common/ssot/check_tier_imports.py`) AST-parses a curated protected set (`money/**`, `ledger/**`, the journal model, and the deterministic dedup/accounting/posting/reporting/validation/fx/portfolio/performance/allocation services) and fails on any direct import of the LLM layer (`src.llm` / `apps.backend.src.llm`) or a raw provider SDK (`litellm`/`openrouter`/`anthropic`/`openai`), including submodules (dotted-prefix match). The real tree passes today (guard against regression); a synthetic protected-style module importing `src.llm` is detected; a glob that resolves to no file also fails so the protected set cannot silently shrink. Direct imports only for v1 (transitive following is a follow-up). {tier:PC} {proof:property} | `test_AC26_7_1_real_tree_has_no_llm_imports_in_protected_modules` | `tests/tooling/test_tier_imports.py` | P0 |
+| ~~AC26.4.1~~ | ~~Every AC in the first-batch EPICs declares a valid tier.~~ **Removed** with the declared-tier model. | — | — | — |
+
+### AC26.5 — ~~Tier→proof-kind matrix is enforced~~ (REMOVED — proof-kind gate `check_ac_proof_kind` deleted)
+
+| ID | Requirement | Test Function | File | Priority |
+|----|-------------|---------------|------|----------|
+| ~~AC26.5.1~~ | ~~An AC declares the KIND of its proof via a `{proof:KIND}` marker and the gate enforces the tier→proof matrix.~~ **Removed**: there is no proof-kind matrix in the CODE/LLM model. | — | — | — |
+
+### AC26.6 — ~~First-batch LP/CP ACs carry a valid-kind proof~~ (REMOVED)
+
+| ID | Requirement | Test Function | File | Priority |
+|----|-------------|---------------|------|----------|
+| ~~AC26.6.1~~ | ~~The first-batch LP/HU/PL ACs each declare a matrix-valid `proof_kind`.~~ **Removed** with the proof-kind matrix. | — | — | — |
+
+### AC26.7 — Structural rule enforced: financial-truth modules must not import the LLM layer (SURVIVES)
+
+| ID | Requirement | Test Function | File | Priority |
+|----|-------------|---------------|------|----------|
+| AC26.7.1 | Deterministic financial-truth (CODE-ONLY) modules are statically proven free of LLM-layer imports — the cross-cutting structural MUST rule (`authority-tiers.md`) made deterministic. `tools/check_tier_imports.py` (impl `common/ssot/check_tier_imports.py`) AST-parses a curated protected set (`money/**`, `ledger/**`, the journal model, and the deterministic dedup/accounting/posting/reporting/validation/fx/portfolio/performance/allocation services) and fails on any direct import of the LLM layer (`src.llm` / `apps.backend.src.llm`) or a raw provider SDK (`litellm`/`openrouter`/`anthropic`/`openai`), including submodules (dotted-prefix match). The real tree passes today (guard against regression); a synthetic protected-style module importing `src.llm` is detected; a glob that resolves to no file also fails so the protected set cannot silently shrink. Direct imports only for v1 (transitive following is a follow-up). | `test_AC26_7_1_real_tree_has_no_llm_imports_in_protected_modules` | `tests/tooling/test_tier_imports.py` | P0 |
 
 ### AC26.8 — Financial-invariant violations are detectable, not silent (phase 4)
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC26.8.1 | Financial-invariant violations emit structured, queryable metrics so a slipped violation is never silent — closing the original retrospective's observability gap. During a statement parse, a balance mismatch, a per-currency NAV self-check failure, a running-balance chain break, and a within-document dedup collapse each emit a WARNING-level structured log plus a `finance.invariant.violation` counter (via the existing `telemetry_metrics` mechanism) labelled by `kind` and an anonymized `institution_class` (`bank`/`brokerage`, never a real institution name or account id). Within-document dedup collapse is detected as a deterministic conservation property — `extracted-rows − distinct dedup hashes` over a SINGLE parse's freshly-built rows, computed BEFORE any DB upsert — so it catches the #1254 silent row-loss class (defense-in-depth, since #1254 is fixed) while legitimate CROSS-document dedup (a re-uploaded statement collapsing against already-persisted rows) can never trip it. This is purely detection/observability plus a non-blocking metadata flag: statement routing, status, confidence, approval gates, and persistence outcomes are UNCHANGED — a balance-invalid bank statement still routes to `PARSED`/review. {tier:PC} {proof:property} | `test_AC26_8_1_balance_invalid_parse_keeps_routing_and_emits_metric` | `apps/backend/tests/extraction/test_invariant_observability.py` | P0 |
+| AC26.8.1 | Financial-invariant violations emit structured, queryable metrics so a slipped violation is never silent — closing the original retrospective's observability gap. During a statement parse, a balance mismatch, a per-currency NAV self-check failure, a running-balance chain break, and a within-document dedup collapse each emit a WARNING-level structured log plus a `finance.invariant.violation` counter (via the existing `telemetry_metrics` mechanism) labelled by `kind` and an anonymized `institution_class` (`bank`/`brokerage`, never a real institution name or account id). Within-document dedup collapse is detected as a deterministic conservation property — `extracted-rows − distinct dedup hashes` over a SINGLE parse's freshly-built rows, computed BEFORE any DB upsert — so it catches the #1254 silent row-loss class (defense-in-depth, since #1254 is fixed) while legitimate CROSS-document dedup (a re-uploaded statement collapsing against already-persisted rows) can never trip it. This is purely detection/observability plus a non-blocking metadata flag: statement routing, status, confidence, approval gates, and persistence outcomes are UNCHANGED — a balance-invalid bank statement still routes to `PARSED`/review. | `test_AC26_8_1_balance_invalid_parse_keeps_routing_and_emits_metric` | `apps/backend/tests/extraction/test_invariant_observability.py` | P0 |
 
 ### AC26.9 — CODE/LLM authority is counted from test shape (phase 5)
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC26.9.1 | A base library classifies every AC as `CODE` or `LLM` **detected from its test shape** (a record/replay cassette test ⇒ `LLM`; a structured-input deterministic test ⇒ `CODE`), and a counter aggregates each package (EPIC) into an `LLM-share = #LLM / (#CODE + #LLM)` mapped to one of four bands — `CODE-ONLY` (`s = 0`), `CODE-LED` (`0 < s < 50`), `LLM-LED` (`50 ≤ s < 100`), `LLM-ONLY` (`s = 100`). Classification is detected, never declared, so the band is computed not argued; the counter writes a deterministic snapshot and reports the unresolved-test rate. See `docs/ssot/authority-tiers.md` §CODE/LLM bit. {tier:PC} {proof:property} | `test_AC26_9_1_band_boundaries`, `test_AC26_9_1_test_shape_classifies_code_vs_llm`, `test_AC26_9_1_counter_runs_over_repo_and_is_well_formed` | `tests/tooling/test_authority_classifier.py` | P0 |
+| AC26.9.1 | A base library classifies every AC as `CODE` or `LLM` **detected from its test shape** (a record/replay cassette test ⇒ `LLM`; a structured-input deterministic test ⇒ `CODE`), and a counter aggregates each package (EPIC) into an `LLM-share = #LLM / (#CODE + #LLM)` mapped to one of four bands — `CODE-ONLY` (`s = 0`), `CODE-LED` (`0 < s < 50`), `LLM-LED` (`50 ≤ s < 100`), `LLM-ONLY` (`s = 100`). Classification is detected, never declared, so the band is computed not argued; the counter writes a deterministic snapshot and reports the unresolved-test rate. See `docs/ssot/authority-tiers.md` §CODE/LLM bit. | `test_AC26_9_1_band_boundaries`, `test_AC26_9_1_test_shape_classifies_code_vs_llm`, `test_AC26_9_1_counter_runs_over_repo_and_is_well_formed` | `tests/tooling/test_authority_classifier.py` | P0 |
 
 ---
 
@@ -166,16 +171,15 @@ contract rather than restating it.
 
 | Standard | Verification | Status |
 |----------|--------------|--------|
-| Tier vocabulary + proof matrix in one SSOT owner | `authority-tiers.md` + manifest `authority_tiers` | 🚧 |
-| AC schema carries `tier` | `{tier:XX}` flows into registry value | 🚧 |
-| Ratchet is non-breaking | Untagged-debt baseline shrink-only | 🚧 |
-| First batch tagged | EPIC-003/006/021/023 fully tiered | 🚧 |
+| CODE/LLM vocabulary + bands + MUST rules in one SSOT owner | `authority-tiers.md` + manifest `authority_tiers` | ✅ |
+| Authority detected from test shape, never declared | `common/ssot/authority_classifier.py` | ✅ |
+| Per-package LLM-share + band computed | `tools/authority_counter.py` → `authority-distribution.json` | ✅ |
+| Financial-truth modules barred from importing the LLM layer | `tools/check_tier_imports.py` (AC26.7) | ✅ |
 
 ### 🚫 Not Acceptable
 
-- A hard "every AC must have a tier" check that fails CI on the legacy untagged ACs.
-- A tier marker leaking into the AC description text.
-- An AC declaring more than one tier (one AC = one tier).
+- Re-introducing a declared authority attribute (`{tier:XX}`, `PackageContract.tier`).
+- A CODE-ONLY package containing an LLM-classified AC, or vice versa.
 - Any application/runtime logic change.
 
 ---
@@ -183,6 +187,7 @@ contract rather than restating it.
 ## 🔗 References
 
 - SSOT: [authority-tiers.md](../ssot/authority-tiers.md)
-- Untagged-debt baseline: [ac-tier-baseline.json](../ssot/ac-tier-baseline.json)
-- Generator: `tools/generate_ac_registry.py` · Gate: `tools/check_ac_tier_baseline.py`
+- CODE/LLM snapshot: [authority-distribution.json](../ssot/authority-distribution.json)
+- Classifier: `common/ssot/authority_classifier.py` · Counter: `tools/authority_counter.py`
+- Structural guard: `common/ssot/check_tier_imports.py` (`tools/check_tier_imports.py`)
 - Workflow context: [tdd.md](../ssot/tdd.md)

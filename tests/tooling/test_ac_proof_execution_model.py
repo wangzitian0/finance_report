@@ -26,7 +26,7 @@ def test_AC8_13_150_ac_proof_execution_model_is_ac_keyed_and_backward_compatible
 
     assert "AC -> proof(name, stage, task_category)" in ci_cd
     assert "The AC id remains the only coverage key" in ci_cd
-    assert "does not replace authority tier or proof_kind" in ci_cd
+    assert "does not replace an AC's CODE/LLM authority" in ci_cd
     for stage in PROOF_EXECUTION_STAGES:
         assert f"`{stage}`" in ci_cd
     for task_category in PROOF_TASK_CATEGORIES:

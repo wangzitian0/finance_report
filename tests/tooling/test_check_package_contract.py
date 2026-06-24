@@ -29,11 +29,7 @@ from common.governance.check_package_contract import (
     main,
     run,
 )
-from pydantic import ValidationError
-
 from common.governance.package_contract import (
-    TIER_DEFAULT_PROOF_KIND,
-    TIER_VALID_PROOF_KINDS,
     ACRecord,
     Invariant,
     PackageContract,
@@ -51,7 +47,6 @@ def _write_package(
     invariants: list[Invariant] | None = None,
     roadmap: list[ACRecord] | None = None,
     extra_module: tuple[str, str] | None = None,
-    tier: str = "PC",
 ) -> DiscoveredPackage:
     """Materialize a package in the package model: a ``common/<name>/contract.py``
     spec pointing at a BE implementation under ``apps/backend/src/<name>``.
@@ -74,7 +69,6 @@ def _write_package(
     contract = PackageContract(
         name=name,
         klass=klass,  # type: ignore[arg-type]
-        tier=tier,  # type: ignore[arg-type]
         depends_on=depends_on or [],
         interface=interface,
         events=[],
@@ -381,69 +375,3 @@ def test_main_fails_on_empty_repo(
     rc = main(["--repo-root", str(synthetic_repo)])
     assert rc == 1
     assert "no packages discovered" in capsys.readouterr().out
-
-
-def _ac(**overrides: object) -> ACRecord:
-    """Build a roadmap ACRecord with valid defaults, overriding per test."""
-    kwargs: dict[str, object] = {
-        "id": "AC1.1.1",
-        "statement": "s",
-        "test": "t::f",
-        "priority": "P0",
-        "status": "open",
-    }
-    kwargs.update(overrides)
-    return ACRecord(**kwargs)  # type: ignore[arg-type]
-
-
-def _pkg(**overrides: object) -> PackageContract:
-    """Build a minimal PackageContract with valid defaults, overriding per test."""
-    kwargs: dict[str, object] = {
-        "name": "p",
-        "klass": "kernel",
-        "depends_on": [],
-        "interface": [],
-        "events": [],
-        "invariants": [],
-        "roadmap": [],
-        "status": "active",
-        "tier": "PC",
-    }
-    kwargs.update(overrides)
-    return PackageContract(**kwargs)  # type: ignore[arg-type]
-
-
-def test_active_package_must_declare_a_tier() -> None:
-    """An active/deprecated package with an undecided tier cannot be constructed.
-
-    Authority tier is a module-design property: a shipped package must have
-    resolved it to one of PC/CP/LP/PL. The "undecided" state (the legacy ``HU``)
-    is legal only while the package is still a ``draft``.
-    """
-    for status in ("active", "deprecated"):
-        with pytest.raises(ValidationError):
-            _pkg(status=status, tier=None)
-    # A draft package may stay undecided (tier=None) — that is the HU state.
-    draft = _pkg(status="draft", tier=None)
-    assert draft.tier is None
-
-
-def test_package_proof_kind_must_satisfy_the_tier_matrix() -> None:
-    """A roadmap AC whose proof_kind is invalid for the PACKAGE tier is rejected.
-
-    Enforces the tier->proof matrix at construction, against the package's tier
-    (not a per-AC one): under an LP/PL package an AC can never claim ``exact``.
-    """
-    for tier in ("LP", "PL"):
-        with pytest.raises(ValidationError):
-            _pkg(tier=tier, roadmap=[_ac(proof_kind="exact")])
-
-
-def test_package_ac_proof_kind_defaults_to_the_tier_canonical_kind() -> None:
-    """Omitting an AC's proof_kind resolves to the package tier's canonical kind."""
-    for tier, expected in TIER_DEFAULT_PROOF_KIND.items():
-        if tier == "HU":  # not a permanent package tier
-            continue
-        pkg = _pkg(tier=tier, roadmap=[_ac()])
-        assert pkg.roadmap[0].proof_kind == expected
-        assert pkg.roadmap[0].proof_kind in TIER_VALID_PROOF_KINDS[tier]

@@ -133,22 +133,22 @@ def test_AC20_7_1_same_fixture_must_drive_framework_differentiated_reports() -> 
 
 
 def test_AC20_9_1_reporting_pipeline_declares_layer_authority_tiers() -> None:
-    """AC20.9.1: The three pipeline layers each declare a locked EPIC-026 tier + proof."""
+    """AC20.9.1: The three pipeline layers each declare CODE/LLM authority + proof."""
     epic = read(EPIC_020)
 
-    assert "Reporting Pipeline Authority Tiers" in epic
+    assert "Reporting Pipeline Authority (CODE / LLM)" in epic
     # The three layers, named.
     for layer in ("event → L2", "L2 → L1", "L1 → report"):
         assert layer in epic
-    # Each layer's locked tier from the EPIC-026 5-tier set.
-    for tier in ("**LP**", "**CP**", "**PC**"):
-        assert tier in epic
-    # The tier-appropriate proof obligation per layer.
-    assert "no exact-golden" in epic  # LP
-    assert "the **code's** decision" in epic  # CP
-    assert "exact / property test" in epic  # PC
-    # LLM authority confined to the LP layer; CP is code-authoritative (PC today).
-    assert "PC today" in epic
+    # Each layer declares CODE or LLM authority; LLM is confined to one layer.
+    assert "**LLM**" in epic
+    assert "**CODE**" in epic
+    # The authority-appropriate proof obligation per layer.
+    assert "no exact-golden" in epic  # LLM layer
+    assert "the **code's** decision" in epic  # CODE-led mapping
+    assert "exact / property test" in epic  # CODE aggregation
+    # LLM authority confined to one layer; mapping stays code-authoritative.
+    assert "CODE today" in epic
     assert "docs/ssot/authority-tiers.md" in epic
 
 

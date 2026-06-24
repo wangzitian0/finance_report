@@ -1,10 +1,8 @@
 """Migration-safety gates for the package-model AC migration (issue #1355).
 
-Covers the three gates that must hold before the legacy EPIC ACs are migrated
+Covers the gates that must hold before the legacy EPIC ACs are migrated
 into package roadmaps:
 
-- 1b ``check_tier_ast_literal`` — a shipped package's tier must be an AST-readable
-  literal (else the registry untags it while the model keeps a tier).
 - 1c ``check_epic_package_dual`` — an AC id must not live in both an EPIC table
   and a package roadmap (move ⇒ delete the EPIC row).
 - 1e ``check_draft_packages`` — a draft package must carry no done ACs and must
@@ -23,7 +21,6 @@ import pytest
 
 from common.ssot import check_draft_packages as g_draft
 from common.ssot import check_epic_package_dual as g_dual
-from common.ssot import check_tier_ast_literal as g_tier
 
 
 def _write_contract(repo: Path, name: str, body: str) -> None:
@@ -32,51 +29,13 @@ def _write_contract(repo: Path, name: str, body: str) -> None:
     (pkg / "contract.py").write_text(textwrap.dedent(body), encoding="utf-8")
 
 
-def _active(name: str, *, tier: str = '"PC"', roadmap: str = "") -> str:
+def _active(name: str, *, roadmap: str = "") -> str:
     return f"""
     from common.governance.package_contract import PackageContract, ACRecord
     CONTRACT = PackageContract(
-        name="{name}", klass="kernel", status="active", tier={tier},
+        name="{name}", klass="kernel", status="active",
         depends_on=[], interface=[], events=[], invariants=[], roadmap=[{roadmap}])
     """
-
-
-# --- 1b: tier must be an AST-readable literal ---------------------------------
-
-
-def test_1b_passes_for_literal_tier(tmp_path: Path) -> None:
-    _write_contract(tmp_path, "good", _active("good"))
-    assert g_tier.violations(tmp_path) == []
-
-
-def test_1b_flags_non_literal_tier_on_shipped_package(tmp_path: Path) -> None:
-    _write_contract(
-        tmp_path,
-        "bad",
-        """
-        from common.governance.package_contract import PackageContract
-        T = "PC"
-        CONTRACT = PackageContract(
-            name="bad", klass="kernel", status="active", tier=T,
-            depends_on=[], interface=[], events=[], invariants=[], roadmap=[])
-        """,
-    )
-    errors = g_tier.violations(tmp_path)
-    assert len(errors) == 1 and "AST-readable literal" in errors[0]
-
-
-def test_1b_allows_undecided_tier_only_for_draft(tmp_path: Path) -> None:
-    _write_contract(
-        tmp_path,
-        "wip",
-        """
-        from common.governance.package_contract import PackageContract
-        CONTRACT = PackageContract(
-            name="wip", klass="kernel", status="draft",
-            depends_on=[], interface=[], events=[], invariants=[], roadmap=[])
-        """,
-    )
-    assert g_tier.violations(tmp_path) == []
 
 
 # --- 1c: no AC id defined in both an EPIC table and a package -----------------

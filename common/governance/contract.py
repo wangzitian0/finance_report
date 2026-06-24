@@ -23,9 +23,6 @@ CONTRACT = PackageContract(
     name="governance",
     klass="platform",
     status="active",
-    # The package-model gate is deterministic code (AST + set comparison), no
-    # LLM: a pure-code (PC) package. It also OWNS the authority-tier rules below.
-    tier="PC",
     depends_on=[],
     roles=["package_contract", "check_package_contract"],
     implementations={"be": "common/governance", "fe": None},
@@ -69,36 +66,6 @@ CONTRACT = PackageContract(
             test=(
                 "tests/tooling/test_check_package_contract.py"
                 "::test_upward_edge_is_forbidden"
-            ),
-        ),
-        Invariant(
-            id="active-package-has-a-decided-tier",
-            statement=(
-                "Authority tier is a module-design property declared once on the "
-                "PackageContract (docs/ssot/authority-tiers.md). An active/"
-                "deprecated package must have resolved its tier to one of "
-                "PC/CP/LP/PL; only a draft package may leave tier undecided (the "
-                "legacy 'HU' state), so a shipped untyped package is "
-                "unrepresentable."
-            ),
-            test=(
-                "tests/tooling/test_check_package_contract.py"
-                "::test_active_package_must_declare_a_tier"
-            ),
-        ),
-        Invariant(
-            id="ac-proof-kind-satisfies-package-tier-matrix",
-            statement=(
-                "Every roadmap AC's proof_kind must be valid for the package's "
-                "tier per the single machine matrix "
-                "(package_contract.TIER_VALID_PROOF_KINDS); PackageContract "
-                "enforces it at construction, so a contract that violates the "
-                "tier->proof matrix (e.g. an LP/PL package with an AC claiming an "
-                "exact golden proof) fails to import."
-            ),
-            test=(
-                "tests/tooling/test_check_package_contract.py"
-                "::test_package_proof_kind_must_satisfy_the_tier_matrix"
             ),
         ),
     ],

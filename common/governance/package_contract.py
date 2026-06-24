@@ -8,30 +8,14 @@ ACs it owns). ``tools/check_package_contract.py`` validates the live package
 against this contract, so governance is *computed*, not hand-maintained.
 
 stdlib + pydantic only by design: importable from the governance gate and from a
-package's ``contract.py`` without pulling app/framework dependencies. The
-authority-tier vocabulary and the tier->proof matrix come from the stdlib-only
-:mod:`common.ssot.authority_matrix` (the single machine source, also imported by
-the lightweight SSOT tooling that must NOT pull pydantic).
+package's ``contract.py`` without pulling app/framework dependencies.
 """
 
 from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, model_validator
-
-# Re-exported (hence noqa) so existing imports like
-# `from common.governance.package_contract import TIER_VALID_PROOF_KINDS` keep
-# resolving; the single source of these definitions is common.ssot.authority_matrix.
-from common.ssot.authority_matrix import (  # noqa: F401
-    AC_PROOF_KINDS,
-    AC_TIERS,
-    ACProofKind,
-    ACTier,
-    PackageTier,
-    TIER_DEFAULT_PROOF_KIND,
-    TIER_VALID_PROOF_KINDS,
-)
+from pydantic import BaseModel
 
 #: A package class. The three orthogonal kinds in the model:
 #: - ``kernel``   — leaf value-language reused everywhere (e.g. ``money``);
@@ -48,9 +32,9 @@ Priority = Literal["P0", "P1", "P2"]
 #: AC lifecycle status within a package roadmap.
 ACStatus = Literal["open", "done"]
 
-#: Package lifecycle status. ``draft`` = still being designed (its authority
-#: tier may be undecided); ``active`` = governed and shipped (tier MUST be
-#: decided); ``deprecated`` = on the way out (still checked, but flagged).
+#: Package lifecycle status. ``draft`` = still being designed; ``active`` =
+#: governed and shipped; ``deprecated`` = on the way out (still checked, but
+#: flagged).
 PackageStatus = Literal["draft", "active", "deprecated"]
 
 class Invariant(BaseModel):
@@ -80,14 +64,6 @@ class ACRecord(BaseModel):
     test: str
     priority: Priority
     status: ACStatus
-    #: Proof kind the AC's test provides. The AC inherits its authority tier from
-    #: the owning :class:`PackageContract` (tier is a module-design property, not a
-    #: per-AC one), so ``proof_kind`` is the only tier-related attribute an AC
-    #: carries. ``None`` resolves to the package tier's canonical kind
-    #: (:data:`TIER_DEFAULT_PROOF_KIND`); an explicit value MUST be valid for the
-    #: package tier per :data:`TIER_VALID_PROOF_KINDS` (e.g. under an LP/PL package
-    #: an AC can never be ``exact``). Enforced by the owning ``PackageContract``.
-    proof_kind: ACProofKind | None = None
 
 
 class PackageContract(BaseModel):
@@ -97,8 +73,6 @@ class PackageContract(BaseModel):
         name:            the package name (matches its ``common/<name>/`` dir).
         klass:           ``core`` / ``platform`` / ``kernel`` (the dependency tier).
         status:          ``draft`` / ``active`` / ``deprecated`` (package lifecycle).
-        tier:            the package's permanent authority tier (:data:`PackageTier`);
-                         ``None`` = undecided, allowed only while ``status="draft"``.
         depends_on:      names of packages this one may import (down-only edges).
         roles:           the role folders the implementation converges into
                          (e.g. ``["types", "ops", "store", "api"]``).
@@ -121,44 +95,5 @@ class PackageContract(BaseModel):
     invariants: list[Invariant]
     roadmap: list[ACRecord]
     status: PackageStatus = "active"
-    #: The package's permanent authority tier. ``None`` means "undecided" and is
-    #: legal only for a ``draft`` package; an ``active``/``deprecated`` package
-    #: must have resolved its tier to a concrete :data:`PackageTier`.
-    tier: PackageTier | None = None
     roles: list[str] = []
     implementations: dict[str, str | None] = {}
-
-    @model_validator(mode="after")
-    def _tier_decided_and_proofs_match(self) -> PackageContract:
-        """Enforce the module-design tier rules at construction.
-
-        1. A shipped package has a decided tier: ``status != "draft"`` requires a
-           concrete :data:`PackageTier` (a ``draft`` may stay ``tier=None`` — the
-           "undecided" state that the legacy EPIC source spelled ``HU``).
-        2. Every roadmap AC's proof kind is valid for the package's tier per the
-           single matrix (:data:`TIER_VALID_PROOF_KINDS`); a missing kind resolves
-           to the tier's canonical default and is materialized on the record. An
-           undecided (``None``) tier skips the proof check — there is no tier to
-           validate against yet.
-        """
-        if self.tier is None:
-            if self.status != "draft":
-                raise ValueError(
-                    f"package {self.name!r}: status {self.status!r} requires a "
-                    "decided authority tier (one of PC/CP/LP/PL); only a 'draft' "
-                    "package may leave tier undecided (the legacy 'HU' state)."
-                )
-            return self
-
-        valid = TIER_VALID_PROOF_KINDS[self.tier]
-        for ac in self.roadmap:
-            kind = ac.proof_kind or TIER_DEFAULT_PROOF_KIND[self.tier]
-            if kind not in valid:
-                raise ValueError(
-                    f"package {self.name!r} AC {ac.id}: proof_kind {kind!r} is "
-                    f"not valid for the package tier {self.tier} "
-                    f"(valid: {sorted(valid)}). Under an LP/PL package an AC can "
-                    "never be proven by an exact golden assertion."
-                )
-            ac.proof_kind = kind
-        return self

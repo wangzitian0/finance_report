@@ -336,7 +336,7 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC7.19.1 | The scheduled GHCR retention workflow prunes only backend/frontend `:<sha>` package versions older than 28 days, never prunes `vX.Y.Z` release tags, preserves live staging/production deploy SHAs resolved from health `git_sha`/`version`, and fails closed when no live SHA exemption is available {tier:PC} | `test_AC7_19_1_retention_selects_only_stale_sha_tags`, `test_AC7_19_1_live_sha_exemption_matches_full_and_short_tags`, `test_AC7_19_1_pruner_requires_live_sha_exemptions`, `test_AC7_19_1_pruner_deletes_selected_versions_only`, `test_AC7_19_1_load_versions_accepts_gh_paginated_slurp`, `test_AC7_19_1_workflow_schedules_28_day_sha_retention_with_live_exemption` | `tests/tooling/test_ghcr_sha_retention.py` | P0 |
+| AC7.19.1 | The scheduled GHCR retention workflow prunes only backend/frontend `:<sha>` package versions older than 28 days, never prunes `vX.Y.Z` release tags, preserves live staging/production deploy SHAs resolved from health `git_sha`/`version`, and fails closed when no live SHA exemption is available | `test_AC7_19_1_retention_selects_only_stale_sha_tags`, `test_AC7_19_1_live_sha_exemption_matches_full_and_short_tags`, `test_AC7_19_1_pruner_requires_live_sha_exemptions`, `test_AC7_19_1_pruner_deletes_selected_versions_only`, `test_AC7_19_1_load_versions_accepts_gh_paginated_slurp`, `test_AC7_19_1_workflow_schedules_28_day_sha_retention_with_live_exemption` | `tests/tooling/test_ghcr_sha_retention.py` | P0 |
 
 
 ## 📏 Acceptance Criteria

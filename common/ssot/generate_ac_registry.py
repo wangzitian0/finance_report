@@ -6,14 +6,6 @@ import os
 import sys
 from pathlib import Path
 
-# Import the matrix from the stdlib-only source (NOT package_contract, which
-# pulls pydantic) so this generator stays importable in the lightweight CI lint
-# env (`uv run --with pyyaml ...`).
-from common.ssot.authority_matrix import (
-    AC_PROOF_KINDS as _AC_PROOF_KINDS,
-    AC_TIERS as _AC_TIERS,
-    TIER_DEFAULT_PROOF_KIND as _TIER_DEFAULT_PROOF_KIND,
-)
 from common.ssot.ac_registry_format import (
     PKG_AC_PATTERN,
     epic_group_key,
@@ -72,72 +64,6 @@ EPIC_NAMES: dict[int, str] = {
 
 AC_PATTERN = re.compile(r"\b(AC(\d+)\.(\d+)\.(\d+))\b")
 
-# Authority tier + proof-kind vocabulary and the tier->proof matrix all come from
-# the single machine source common/ssot/authority_matrix.py (stdlib-only;
-# package_contract re-exports the same definitions for its model validation), so
-# the EPIC-table source and the package-contract source can never disagree.
-AC_TIERS = _AC_TIERS
-AC_PROOF_KINDS = _AC_PROOF_KINDS
-
-# Definition-site tier marker, e.g. ``{tier:PC}``. Declared next to the AC text
-# in the EPIC doc so the tier travels with the behavior it describes. The marker
-# is parsed out of the line and lifted into the registry value; it never leaks
-# into the AC description.
-_TIER_MARKER_RE = re.compile(
-    r"\{tier:\s*(" + "|".join(AC_TIERS) + r")\s*\}", re.IGNORECASE
-)
-
-# Definition-site proof-kind marker, e.g. ``{proof:property}``. Declared next to
-# the AC text the same way as ``{tier:XX}`` and lifted into the registry value as
-# ``proof_kind``; stripped from the description so it never leaks. The alternation
-# is built from the canonical vocabulary so it cannot drift from it.
-_PROOF_MARKER_RE = re.compile(
-    r"\{proof:\s*(" + "|".join(AC_PROOF_KINDS) + r")\s*\}",
-    re.IGNORECASE,
-)
-
-# When an AC declares a tier but no explicit ``{proof:KIND}`` marker, its
-# proof_kind defaults to the tier's CANONICAL valid kind (single source:
-# package_contract.TIER_DEFAULT_PROOF_KIND), so the registry value is always a
-# kind the matrix accepts. Untagged ACs get no proof_kind key at all.
-_TIER_DEFAULT_PROOF = _TIER_DEFAULT_PROOF_KIND
-
-
-def _extract_tier(text: str) -> tuple[str, str | None]:
-    """Split an inline ``{tier:XX}`` marker out of *text*.
-
-    Returns ``(text_without_marker, tier_or_None)``. The tier code is upper-cased
-    to the canonical vocabulary. Text with no marker is returned unchanged.
-    """
-    match = _TIER_MARKER_RE.search(text)
-    if not match:
-        return text, None
-    tier = match.group(1).upper()
-    cleaned = _TIER_MARKER_RE.sub("", text)
-    return cleaned, tier
-
-
-def _extract_proof(text: str) -> tuple[str, str | None]:
-    """Split an inline ``{proof:KIND}`` marker out of *text*.
-
-    Returns ``(text_without_marker, proof_kind_or_None)``. The kind is
-    lower-cased to the canonical vocabulary. Text with no marker is unchanged.
-    """
-    match = _PROOF_MARKER_RE.search(text)
-    if not match:
-        return text, None
-    proof_kind = match.group(1).lower()
-    cleaned = _PROOF_MARKER_RE.sub("", text)
-    return cleaned, proof_kind
-
-
-def _default_proof_for_tier(tier: str | None) -> str | None:
-    """Canonical proof kind for a tier when no ``{proof:KIND}`` marker is given."""
-    if not tier:
-        return None
-    return _TIER_DEFAULT_PROOF.get(tier.upper())
-
-
 def _clean_description(text: str) -> str:
     return text.replace("**", "").replace("`", "").strip()
 
@@ -156,16 +82,10 @@ def _is_reference_only_line(line: str) -> bool:
 
 def _extract_ac_definition(
     line: str,
-) -> tuple[str, int, str, str | None, str | None] | None:
+) -> tuple[str, int, str] | None:
     """Extract one AC definition from a Markdown table, bullet, or plain line.
 
-    Returns ``(ac_id, epic, description, tier, proof_kind)`` where ``tier`` is the
-    optional authority-tier code declared via a ``{tier:XX}`` marker (one of
-    :data:`AC_TIERS`) and ``proof_kind`` the optional proof-kind code declared via
-    a ``{proof:KIND}`` marker (one of :data:`AC_PROOF_KINDS`); each is ``None``
-    when its marker is absent. Both markers are stripped from the description so
-    neither leaks into the registry text, and may appear anywhere on the line
-    (any cell of a table row).
+    Returns ``(ac_id, epic, description)``.
     """
     if _is_reference_only_line(line):
         return None
@@ -173,11 +93,6 @@ def _extract_ac_definition(
     stripped = line.strip()
     if not stripped:
         return None
-
-    # Strip both definition-site markers BEFORE splitting table cells, so a
-    # marker in any cell is lifted and never leaks into the description.
-    stripped, tier = _extract_tier(stripped)
-    stripped, proof_kind = _extract_proof(stripped)
 
     if stripped.startswith("|"):
         cells = [cell.strip() for cell in stripped.strip("|").split("|")]
@@ -187,7 +102,7 @@ def _extract_ac_definition(
         if not match:
             return None
         desc = _clean_description(cells[1] if len(cells) > 1 else "")
-        return match.group(1), int(match.group(2)), desc, tier, proof_kind
+        return match.group(1), int(match.group(2)), desc
 
     match = re.match(
         r"^(?:[-*]\s*)?(?:\[[ xX]\]\s*)?(?:\*\*)?"
@@ -200,7 +115,7 @@ def _extract_ac_definition(
     ac_id = match.group(1)
     ac_epic = int(match.group(2))
     desc = _clean_description(match.group(5))
-    return ac_id, ac_epic, desc, tier, proof_kind
+    return ac_id, ac_epic, desc
 
 
 def _require_yaml() -> None:
@@ -337,10 +252,10 @@ def _ac_record_field(call: ast.Call, field: str) -> str | None:
 def package_contract_meta(contract_path: Path) -> dict | None:
     """Statically read a contract's package-level metadata (no import / pydantic).
 
-    Returns ``{name, status, tier, roadmap}`` where ``tier``/``status``/``name``
-    are the string literals on the ``PackageContract(...)`` call (``None`` if not
-    an AST-readable literal) and ``roadmap`` is a list of ``{id, status}`` per
-    ``ACRecord``. Returns ``None`` if the file has no ``PackageContract(...)``.
+    Returns ``{name, status, roadmap}`` where ``status``/``name`` are the string
+    literals on the ``PackageContract(...)`` call (``None`` if not an AST-readable
+    literal) and ``roadmap`` is a list of ``{id, status}`` per ``ACRecord``.
+    Returns ``None`` if the file has no ``PackageContract(...)``.
 
     This is the AST view the registry generator and the migration-safety gates
     consume; it deliberately does NOT import the contract, so it runs in the
@@ -366,7 +281,6 @@ def package_contract_meta(contract_path: Path) -> dict | None:
         return {
             "name": _ac_record_field(node, "name"),
             "status": _ac_record_field(node, "status"),
-            "tier": _ac_record_field(node, "tier"),
             "roadmap": roadmap,
         }
     return None
@@ -378,20 +292,17 @@ def _roadmap_acs_from_contract(contract_path: Path) -> list[dict]:
     Parses ``common/<pkg>/contract.py`` with :mod:`ast` (no import, so no
     pydantic/governance dependency — this runs in every tooling environment) and
     returns one dict per ``ACRecord`` in the ``roadmap=[...]`` list, with its
-    ``id``/``statement``/``proof_kind`` literals plus the PACKAGE's ``tier``
-    (authority tier is a module-design property declared once on the
-    ``PackageContract``; every AC the package owns inherits it).
+    ``id``/``statement`` literals.
     """
     tree = ast.parse(contract_path.read_text(encoding="utf-8"))
     records: list[dict] = []
     for node in ast.walk(tree):
-        # The single ``CONTRACT = PackageContract(...)`` assignment; read its
-        # package-level ``tier`` then each ``ACRecord(...)`` in ``roadmap=[...]``.
+        # The single ``CONTRACT = PackageContract(...)`` assignment; read each
+        # ``ACRecord(...)`` in ``roadmap=[...]``.
         if not (
             isinstance(node, ast.Call) and _call_name(node.func) == "PackageContract"
         ):
             continue
-        package_tier = _ac_record_field(node, "tier")
         for kw in node.keywords:
             if kw.arg != "roadmap" or not isinstance(kw.value, (ast.List, ast.Tuple)):
                 continue
@@ -407,8 +318,6 @@ def _roadmap_acs_from_contract(contract_path: Path) -> list[dict]:
                     {
                         "id": ac_id,
                         "statement": _ac_record_field(elt, "statement") or "",
-                        "tier": package_tier,
-                        "proof_kind": _ac_record_field(elt, "proof_kind"),
                     }
                 )
     return records
@@ -429,9 +338,7 @@ def _package_roadmap_acs(source_dir: Path) -> dict[str, dict]:
     Each ``ACRecord`` becomes a registry entry keyed by its AC id, with the same
     shape an EPIC-table row produces: ``epic`` (parsed from the AC id),
     ``epic_name`` (from :data:`EPIC_NAMES` or the ``epic-NNN`` fallback),
-    ``description``, ``mandatory=True``, and — when the record carries a
-    ``tier`` — that tier plus its ``proof_kind`` (explicit, else the tier's
-    canonical kind), exactly as the tier/proof markers did in an EPIC table.
+    ``description``, and ``mandatory=True``.
 
     Read **statically** (AST), so this needs no pydantic/governance import and
     yields the SAME ACs in every tooling environment (no asymmetry, no silent
@@ -464,12 +371,6 @@ def _package_roadmap_acs(source_dir: Path) -> dict[str, dict]:
                     "description": _clean_description(record["statement"]),
                     "mandatory": True,
                 }
-            tier = record["tier"]
-            if tier:
-                entry["tier"] = tier
-                entry["proof_kind"] = record["proof_kind"] or _default_proof_for_tier(
-                    tier
-                )
             acs[ac_id] = entry
     return acs
 
@@ -500,7 +401,7 @@ def extract_acs(
             definition = _extract_ac_definition(line)
             if definition is None:
                 continue
-            ac_id, ac_epic, desc, tier, proof_kind = definition
+            ac_id, ac_epic, desc = definition
             if ac_id in all_acs:
                 continue
 
@@ -513,24 +414,6 @@ def extract_acs(
                 "description": existing.get("description", desc),
                 "mandatory": existing.get("mandatory", True),
             }
-            # Tier is an attribute of the AC's behavior; the definition-site
-            # marker is authoritative, falling back to any tier carried by an
-            # existing/override entry. ACs with no declared tier stay untagged
-            # (the ratchet gate tracks that debt).
-            ac_tier = tier or existing.get("tier")
-            if ac_tier:
-                entry["tier"] = ac_tier
-                # The proof KIND that this AC's tests provide. An explicit
-                # {proof:KIND} marker wins; otherwise it falls back to an
-                # existing/override value, then to the tier's canonical kind so
-                # the registry value is always a kind the tier->proof matrix
-                # accepts. Only tier-tagged ACs carry a proof_kind (the gate
-                # only enforces the matrix for tier-tagged ACs).
-                entry["proof_kind"] = (
-                    proof_kind
-                    or existing.get("proof_kind")
-                    or _default_proof_for_tier(ac_tier)
-                )
             all_acs[ac_id] = entry
 
     # Additively fold in package-contract roadmap ACs (from the SAME repo root the
@@ -577,8 +460,6 @@ def write_registry(all_acs: dict[str, dict], output_path: str | None = None) -> 
                 "epic",
                 "epic_name",
                 "description",
-                "tier",
-                "proof_kind",
                 "title",
                 "status",
                 "mandatory",

@@ -25,9 +25,6 @@ CONTRACT = PackageContract(
     name="counter",
     klass="platform",
     status="active",
-    # Deterministic tally + event emission, no LLM: a pure-code (PC) package.
-    # Every AC in the roadmap inherits this tier.
-    tier="PC",
     depends_on=["platform"],
     roles=["types", "ops", "store", "api"],
     implementations={"be": "apps/backend/src/counter", "fe": None},
@@ -63,10 +60,8 @@ CONTRACT = PackageContract(
             ),
             test="apps/backend/tests/counter/test_count.py::test_count_rejects_negative",
         ),
-        # Structural guarantees live as invariants (no authority tier, not
-        # matrix-constrained) — see docs/ssot/authority-tiers.md. The roadmap
-        # below holds only the package's DOMAIN behavior, which inherits the
-        # package tier.
+        # Structural guarantees live as invariants; the roadmap below holds only
+        # the package's DOMAIN behavior.
         Invariant(
             id="converges-by-role",
             statement="The package's files converge by role (types/ops/store/api).",

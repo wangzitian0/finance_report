@@ -34,9 +34,6 @@ CONTRACT = PackageContract(
     name="platform",
     klass="kernel",
     status="active",
-    # Deterministic event/outbox substrate, no LLM: a pure-code (PC) package.
-    # Every AC in the roadmap inherits this tier.
-    tier="PC",
     depends_on=[],
     roles=["events", "store"],
     implementations={"be": "apps/backend/src/platform", "fe": None},

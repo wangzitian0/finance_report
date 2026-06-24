@@ -4,8 +4,8 @@
 During the migration of legacy EPIC-table ACs into package ``roadmap``s, the
 common mistake is to add the AC to a package contract but forget to delete its
 row from the EPIC table. The registry builder folds the two sources with
-``setdefault`` (EPIC wins on collision), so the stale EPIC ``{tier:XX}`` marker
-silently overrides the package's tier and nobody is warned.
+``setdefault`` (EPIC wins on collision), so the stale EPIC row silently
+overrides the package's definition and nobody is warned.
 
 This gate fails if any AC id appears in both sources, forcing "move ⇒ delete the
 EPIC row". It is pure text/AST (no pydantic), so it runs in the CI lint env.
