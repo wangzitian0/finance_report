@@ -110,7 +110,7 @@ The recipe for moving a module (and its EPIC-table ACs) into the package model.
 1. **Name the bounded context and its axes.** Pick the package `name` (its
    `common/<name>/` dir), the `klass` (`kernel` < `platform` < `core` — its
    position in the import DAG), and the authority **tier**
-   ([`authority-tiers.md`](../../docs/ssot/authority-tiers.md): PC/CP/LP/PL — how
+   ([`authority-tiers.md`](../../docs/ssot/authority-tiers.md): CODE-ONLY/CODE-LED/LLM-LED/LLM-ONLY — how
    the module is built). If the tier is genuinely undecided, ship `status="draft"`
    with `tier=None` and resolve it before going `active` (the shipped-package
    rule). **One package = one tier**; a module mixing deterministic + LLM-emitted
@@ -126,11 +126,11 @@ The recipe for moving a module (and its EPIC-table ACs) into the package model.
    status)` with a **package-scoped id `AC-{package}.{group}.{seq}`** (e.g.
    `AC-counter.1.1`). The AC inherits the package tier; `proof_kind` defaults to
    the tier's canonical kind — set it explicitly only when different, and it MUST
-   satisfy the tier→proof matrix (LP/PL may never be `exact`).
+   satisfy the tier→proof matrix (LLM-LED/LLM-ONLY may never be `exact`).
 
 4. **Structural guarantees → `invariants`, NOT `roadmap`.** interface==`__all__`,
    converges-by-role, layer purity, "passes its own gate" carry no tier and are
-   not matrix-constrained. (Keeping them out of `roadmap` is what lets an LP/PL
+   not matrix-constrained. (Keeping them out of `roadmap` is what lets an LLM-LED/LLM-ONLY
    package's structural `exact` tests stay valid — see counter's 7 invariants.)
 
 5. **Anchor every `test` to a real test.** Each `roadmap[].test` /

@@ -25,9 +25,9 @@ CONTRACT = PackageContract(
     name="counter",
     klass="platform",
     status="active",
-    # Deterministic tally + event emission, no LLM: a pure-code (PC) package.
+    # Deterministic tally + event emission, no LLM: a pure-code (CODE-ONLY) package.
     # Every AC in the roadmap inherits this tier.
-    tier="PC",
+    tier="CODE-ONLY",
     depends_on=["platform"],
     roles=["types", "ops", "store", "api"],
     implementations={"be": "apps/backend/src/counter", "fe": None},

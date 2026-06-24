@@ -35,7 +35,7 @@ def test_AC26_1_1_ssot_defines_five_tiers_and_proof_matrix() -> None:
     )
 
     # Exactly the five tier codes are the canonical vocabulary.
-    assert gar.AC_TIERS == ("PC", "CP", "HU", "LP", "PL")
+    assert gar.AC_TIERS == ("CODE-ONLY", "CODE-LED", "LLM-LED", "LLM-ONLY", "HU")
     for code in gar.AC_TIERS:
         assert f"**{code}**" in doc
 
@@ -43,9 +43,9 @@ def test_AC26_1_1_ssot_defines_five_tiers_and_proof_matrix() -> None:
     assert "tier -> valid proof type" in doc
     assert "Cross-tier MUST rules" in doc
     # The defining proof-discipline statements per tier.
-    assert "bit-level reproducible" in doc  # PC
+    assert "bit-level reproducible" in doc  # CODE-ONLY
     assert "evidence chain" in doc.lower()  # HU
-    assert "golden" in doc.lower()  # LP: golden assertions are NOT valid
+    assert "golden" in doc.lower()  # LLM-LED: golden assertions are NOT valid
 
     # Single owner registered in the manifest.
     concept = manifest["concepts"]["authority_tiers"]
@@ -61,8 +61,8 @@ def test_AC26_2_1_tier_marker_flows_into_registry_value(tmp_path, monkeypatch) -
     _write_epic(
         epic_dir,
         "EPIC-003.statement-parsing.md",
-        "| AC3.1.1 | Parse DBS PDF {tier:LP} | t | f | P0 |\n"
-        "| AC3.1.2 | Parse CSV (DBS) {tier:PC} | t | f | P0 |\n"
+        "| AC3.1.1 | Parse DBS PDF {tier:LLM-LED} | t | f | P0 |\n"
+        "| AC3.1.2 | Parse CSV (DBS) {tier:CODE-ONLY} | t | f | P0 |\n"
         "| AC3.1.3 | No tier declared here | t | f | P0 |\n"
         "| AC3.1.4 | Bad tier {tier:ZZ} marker | t | f | P0 |\n",
     )
@@ -71,8 +71,8 @@ def test_AC26_2_1_tier_marker_flows_into_registry_value(tmp_path, monkeypatch) -
 
     entries = gar.build_registry_entries(epic_source=epic_dir, overrides=overrides)
 
-    assert entries["AC3.1.1"]["tier"] == "LP"
-    assert entries["AC3.1.2"]["tier"] == "PC"
+    assert entries["AC3.1.1"]["tier"] == "LLM-LED"
+    assert entries["AC3.1.2"]["tier"] == "CODE-ONLY"
     # Marker is stripped from the description, never leaked.
     assert "{tier" not in entries["AC3.1.1"]["description"]
     assert entries["AC3.1.1"]["description"] == "Parse DBS PDF"
@@ -131,5 +131,5 @@ def test_AC26_4_1_first_batch_epics_fully_tagged_and_off_baseline() -> None:
         )
 
     # EPIC-026's own governance ACs are tagged too (and live in infra_registry).
-    assert entries["AC26.1.1"]["tier"] == "PC"
+    assert entries["AC26.1.1"]["tier"] == "CODE-ONLY"
     assert gar.classify_ac("AC26.1.1", entries["AC26.1.1"]) == "infra"

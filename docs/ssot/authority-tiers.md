@@ -27,28 +27,28 @@ permanent tiers:
 
 | Code | Name (中文) | Produces the result | Reproducible? | Typical modules |
 |------|-------------|---------------------|---------------|-----------------|
-| **PC** | 纯代码 pure-code | **Code**, no LLM | Bit-level, fully reproducible | money/accounting, dedup, validation, persistence, reporting-calc, **recording a human decision/label** |
-| **CP** | 代码为主·LLM辅助 code-primary | **Code**; the LLM only assists within strict code constraints on the I/O and decisions | Reproducible once the config/knobs are pinned | model/strategy selection feeding a deterministic parser; LLM-tuned thresholds with deterministic scoring |
-| **LP** | LLM为主·代码守门 LLM-primary | **The LLM**; code validates its format/invariants and may reject, never produces | Not reproducible but DETECTABLE | extraction, OCR, classification, brokerage CSV→canonical mapping |
-| **PL** | 纯LLM pure-LLM | **The LLM**, with no validation | Not required | advisor narrative, chat answer/suggestion text |
+| **CODE-ONLY** | 纯代码 pure-code | **Code**, no LLM | Bit-level, fully reproducible | money/accounting, dedup, validation, persistence, reporting-calc, **recording a human decision/label** |
+| **CODE-LED** | 代码为主·LLM辅助 code-primary | **Code**; the LLM only assists within strict code constraints on the I/O and decisions | Reproducible once the config/knobs are pinned | model/strategy selection feeding a deterministic parser; LLM-tuned thresholds with deterministic scoring |
+| **LLM-LED** | LLM为主·代码守门 LLM-primary | **The LLM**; code validates its format/invariants and may reject, never produces | Not reproducible but DETECTABLE | extraction, OCR, classification, brokerage CSV→canonical mapping |
+| **LLM-ONLY** | 纯LLM pure-LLM | **The LLM**, with no validation | Not required | advisor narrative, chat answer/suggestion text |
 
-The **hard/soft** cut (who produces the used artifact) falls between CP and LP —
+The **hard/soft** cut (who produces the used artifact) falls between CODE-LED and LLM-LED —
 the same "who emits" test as before: code computes it and the LLM only turned
-knobs → **CP**; the LLM emits it and code only validates/constrains → **LP**.
+knobs → **CODE-LED**; the LLM emits it and code only validates/constrains → **LLM-LED**.
 
 ### HU is not a permanent tier — it is "undecided"
 
 The legacy vocabulary had a fifth code, **HU** (人来判定). In the module-design
 model it is **not a peer tier**: it means *the module's tier has not been decided
 yet*. It is represented by a `draft` package with `tier=None` and **MUST resolve
-to one of PC/CP/LP/PL before the package goes `active`** (see the rule below).
+to one of CODE-ONLY/CODE-LED/LLM-LED/LLM-ONLY before the package goes `active`** (see the rule below).
 
 There is deliberately **no permanent "human" tier**, because:
 
 - **Genuine human review is narrow and is an *input*.** The only place a person
   truly adjudicates is where reconciliation does not match and a human decides or
-  labels. The matching engine is PC/CP (deterministic scoring); the human's
-  decision is an *input* to a PC module that records it — exactly like an
+  labels. The matching engine is CODE-ONLY/CODE-LED (deterministic scoring); the human's
+  decision is an *input* to a CODE-ONLY module that records it — exactly like an
   uploaded file or an FX rate is an input. The proof is a deterministic
   assertion that the **evidence chain** is surfaced and the chosen label is
   applied correctly — not an assertion of the human's outcome.
@@ -63,12 +63,12 @@ AC:
 - `PackageContract.tier` is the single declaration; ACs inherit it.
 - **One package = one tier.** A module that genuinely both *emits via the LLM*
   and *computes deterministically* is two bounded contexts — split it into two
-  packages (LP's definition already includes the code-side validation gate, so a
-  well-formed LP package does not need a separate PC tier for its guard).
+  packages (LLM-LED's definition already includes the code-side validation gate, so a
+  well-formed LLM-LED package does not need a separate CODE-ONLY tier for its guard).
 
 ### The shipped-package rule (replaces the per-AC ratchet for packages)
 
-> **`status="active"` (or `"deprecated"`) ⟹ `tier ∈ {PC, CP, LP, PL}`.**
+> **`status="active"` (or `"deprecated"`) ⟹ `tier ∈ {CODE-ONLY, CODE-LED, LLM-LED, LLM-ONLY}`.**
 > Only a `draft` package may leave `tier=None` (the "undecided" / legacy `HU`
 > state). `PackageContract` enforces this at construction, so a *shipped untyped
 > package is unrepresentable*.
@@ -83,20 +83,20 @@ deterministic properties of *how the package is assembled*, so they belong in
 tier→proof matrix), and the `roadmap` holds only the package's **domain** ACs,
 which inherit the package tier.
 
-This matters for **non-PC packages**: a structural assertion is inherently an
-`exact`/deterministic test. If it sat in the `roadmap` of an **LP/PL** package it
-would inherit that tier and the proof-matrix gate would reject it (LP/PL may not
+This matters for **non-CODE-ONLY packages**: a structural assertion is inherently an
+`exact`/deterministic test. If it sat in the `roadmap` of an **LLM-LED/LLM-ONLY** package it
+would inherit that tier and the proof-matrix gate would reject it (LLM-LED/LLM-ONLY may not
 be `exact`) — or force a dishonest mislabel. Putting it in `invariants` removes
 the conflict. The matrix gate is therefore the enforcement: a structural `exact`
-test wrongly placed in an LP roadmap fails CI, pushing it to `invariants` (no new
+test wrongly placed in an LLM-LED roadmap fails CI, pushing it to `invariants` (no new
 bespoke lint needed).
 
 `common/counter` is the worked example: its `roadmap` is pure domain (key
 validation, count, increment, query) while its structural guarantees
 (`converges-by-role`, `types-layer-pure`, `ops-layer-pure`,
-`passes-own-governance-gate`) are `invariants`. A PC package like `counter` would
-not *fail* with structural ACs in its roadmap (PC permits `exact`), but it follows
-the convention so it is a correct template to copy for LP/PL packages.
+`passes-own-governance-gate`) are `invariants`. A CODE-ONLY package like `counter` would
+not *fail* with structural ACs in its roadmap (CODE-ONLY permits `exact`), but it follows
+the convention so it is a correct template to copy for LLM-LED/LLM-ONLY packages.
 
 ## tier -> valid proof type
 
@@ -107,13 +107,13 @@ matrix `PackageContract` and `check_ac_proof_kind` both enforce).
 
 | Tier | Valid proof | NOT valid |
 |------|-------------|-----------|
-| **PC** | Deterministic exact-assertion / property test; bit-level reproducible | — |
-| **CP** | Test asserts the **code's final decision** is correct; the LLM suggestion may vary and is **not** asserted | Asserting the LLM suggestion text |
-| **LP** | Invariant/property test + graded eval + provenance | Exact "golden" assertions on the LLM output |
-| **PL** | Quality/smoke eval + guardrail assertions (must not touch numbers) | Reproducibility / exact-match requirements |
+| **CODE-ONLY** | Deterministic exact-assertion / property test; bit-level reproducible | — |
+| **CODE-LED** | Test asserts the **code's final decision** is correct; the LLM suggestion may vary and is **not** asserted | Asserting the LLM suggestion text |
+| **LLM-LED** | Invariant/property test + graded eval + provenance | Exact "golden" assertions on the LLM output |
+| **LLM-ONLY** | Quality/smoke eval + guardrail assertions (must not touch numbers) | Reproducibility / exact-match requirements |
 | **HU** *(legacy/undecided)* | Test asserts the **evidence chain** is present (evidence + options surfaced) | Asserting the human's outcome |
 
-The rule with teeth: **an LP/PL behavior MUST NOT be proven by an exact golden
+The rule with teeth: **an LLM-LED/LLM-ONLY behavior MUST NOT be proven by an exact golden
 assertion** — LLM-emitted output has no golden oracle. The `HU` row applies only
 to the handful of pre-package ACs still carrying the legacy marker; new packages
 do not use it.
@@ -123,21 +123,21 @@ do not use it.
 Hard rules a module's tier must respect — the safety boundary between the
 deterministic core and the LLM surface:
 
-1. **No LLM-sourced financial truth without a deterministic oracle.** LP/PL
-   output MUST cross a PC oracle (validation/guard) before it is persisted as
+1. **No LLM-sourced financial truth without a deterministic oracle.** LLM-LED/LLM-ONLY
+   output MUST cross a CODE-ONLY oracle (validation/guard) before it is persisted as
    financial truth. An LLM never writes a ledger number unchecked.
-2. **PC stays pure.** A PC module MUST NOT depend on an LLM client; its outcome
+2. **CODE-ONLY stays pure.** A CODE-ONLY module MUST NOT depend on an LLM client; its outcome
    is produced and proven by deterministic code alone.
-3. **PL owns no money.** A PL module MUST NOT source a number or persist
+3. **LLM-ONLY owns no money.** A LLM-ONLY module MUST NOT source a number or persist
    financial facts; its deliverable is narrative/UX text with low blast radius.
 4. **One package = one tier.** A package whose behaviors span tiers is too coarse
    and MUST be split (e.g. an LLM extractor that also validates-then-persists is
-   an LP package whose guard is its code-side validation, not a PC package).
+   an LLM-LED package whose guard is its code-side validation, not a CODE-ONLY package).
 
 ### Enforcing rule 2 structurally — the tier-import guard (phase 3)
 
-Rule 2 ("PC stays pure") has a *structural* half that is checkable statically:
-a deterministic financial-truth (PC) module MUST NOT **import** the LLM layer.
+Rule 2 ("CODE-ONLY stays pure") has a *structural* half that is checkable statically:
+a deterministic financial-truth (CODE-ONLY) module MUST NOT **import** the LLM layer.
 `tools/check_tier_imports.py` (impl `common/ssot/check_tier_imports.py`) makes
 this a deterministic gate, AST-based and direct-import-only, complementing the
 per-AC `{proof:KIND}` gate. On `main` today no protected module imports the LLM
@@ -145,7 +145,7 @@ layer, so the gate starts GREEN — it is a guard against regression.
 
 The contract (the checker is the machine-checkable mirror of this list):
 
-- **Protected PC / financial-truth module set:** everything under
+- **Protected CODE-ONLY / financial-truth module set:** everything under
   `apps/backend/src/money/**` and `apps/backend/src/ledger/**`, the journal model
   `apps/backend/src/models/journal.py`, and the deterministic services
   `deduplication.py`, `accounting.py`, `account_service.py`,
@@ -175,7 +175,7 @@ CONTRACT = PackageContract(
     name="counter",
     klass="platform",
     status="active",
-    tier="PC",        # the whole package's authority tier; every AC inherits it
+    tier="CODE-ONLY",        # the whole package's authority tier; every AC inherits it
     ...
 )
 ```
@@ -186,11 +186,11 @@ the inherited tier.
 
 **Legacy (EPIC-table source, being phased out):** a pre-package AC declares its
 tier inline at the definition site with a `{tier:XX}` marker, where `XX` is one of
-`PC | CP | HU | LP | PL`:
+`CODE-ONLY | CODE-LED | HU | LLM-LED | LLM-ONLY`:
 
 ```text
-| AC3.1.1 | Parse DBS PDF {tier:LP} | `test_...` | `extraction/test_pdf_parsing.py` | P0 |
-| AC3.2.1 | Balance Validation (Pass) {tier:PC} | `test_balance_valid` | ... | P0 |
+| AC3.1.1 | Parse DBS PDF {tier:LLM-LED} | `test_...` | `extraction/test_pdf_parsing.py` | P0 |
+| AC3.2.1 | Balance Validation (Pass) {tier:CODE-ONLY} | `test_balance_valid` | ... | P0 |
 ```
 
 `tools/generate_ac_registry.py` strips the marker and lifts the tier into the AC's
@@ -207,16 +207,16 @@ the value is always a kind the matrix accepts:
 
 | Tier | Default proof kind |
 |------|--------------------|
-| PC | `exact` |
-| CP | `exact` |
-| LP | `property` |
-| PL | `smoke` |
+| CODE-ONLY | `exact` |
+| CODE-LED | `exact` |
+| LLM-LED | `property` |
+| LLM-ONLY | `smoke` |
 | HU *(legacy)* | `evidence` |
 
 `PackageContract` validates each roadmap AC's `proof_kind` against the package
 tier at construction (a violating contract fails to import);
 `tools/check_ac_proof_kind.py` enforces the same matrix for the legacy EPIC
-source. The rule with teeth is **an LP/PL AC's proof_kind MUST NOT be `exact`**.
+source. The rule with teeth is **an LLM-LED/LLM-ONLY AC's proof_kind MUST NOT be `exact`**.
 Statically verifying the referenced test's runtime *shape* (so a golden assertion
 mislabeled `property` is rejected) is a documented follow-up.
 
@@ -242,9 +242,9 @@ This is the **measured** mirror of the declared `PackageContract.tier`: the same
 **hard/soft cut** of the four permanent tiers, but **detected per-AC from its test
 shape** rather than declared on the package.
 
-- `CODE` — the hard side (`PC`, `CP`): a structured-input deterministic test, no
+- `CODE` — the hard side (`CODE-ONLY`, `CODE-LED`): a structured-input deterministic test, no
   LLM in the loop.
-- `LLM` — the soft side (`LP`, `PL`): the AC's test exercises the record/replay
+- `LLM` — the soft side (`LLM-LED`, `LLM-ONLY`): the AC's test exercises the record/replay
   (cassette) harness.
 - An undecided/`draft` package (legacy `HU`, `tier=None`) is **unclassified**, not
   a band — it has not resolved its tier yet.
@@ -261,11 +261,11 @@ into four bands:
 
 Because the bit is detected, the band is **computed, not argued** — so it serves
 as a **cross-check on the declared `PackageContract.tier`**: a package declared on
-the hard side (`PC`/`CP`) but measuring `LLM` ACs is drift to flag. The base
+the hard side (`CODE-ONLY`/`CODE-LED`) but measuring `LLM` ACs is drift to flag. The base
 library is `common/ssot/authority_classifier.py` and the runnable counter is
 `tools/authority_counter.py` (snapshot: `authority-distribution.json`). The
 cross-tier MUST rules still bind (an `LLM` value entering financial truth crosses a
-PC oracle; an `LLM` AC must have a cassette). Wiring the counter to the
+CODE-ONLY oracle; an `LLM` AC must have a cassette). Wiring the counter to the
 `PackageContract` declarations as a blocking drift gate is a follow-up.
 
 ## Follow-ups (out of scope here)
@@ -277,11 +277,11 @@ PC oracle; an `LLM` AC must have a cassette). Wiring the counter to the
   per-package).
 - Upgrading the proof-kind gate from asserting the *declared* `proof_kind` to
   statically inspecting the referenced test's shape (e.g. rejecting an
-  exact-golden assertion mislabeled `property` on an LP AC).
+  exact-golden assertion mislabeled `property` on an LLM-LED AC).
 
 ## Related
 
 - [tdd.md](./tdd.md) — EPIC -> AC -> Test workflow that this attribute extends.
 - [EPIC-026](../project/EPIC-026.ac-authority-tiers.md) — the EPIC that introduces tiers.
-- [ai.md](./ai.md), [extraction.md](./extraction.md) — domains where LP/PL behaviors concentrate.
+- [ai.md](./ai.md), [extraction.md](./extraction.md) — domains where LLM-LED/LLM-ONLY behaviors concentrate.
 - [`common/governance/package_contract.py`](../../common/governance/package_contract.py) — the machine source of `PackageTier` and the proof matrix.

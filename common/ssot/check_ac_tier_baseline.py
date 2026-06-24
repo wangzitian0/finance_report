@@ -144,7 +144,7 @@ def main(argv: list[str] | None = None) -> int:
             print(
                 "::error title=AC tier ratchet::"
                 f"{ac_id}: new/modified AC has no authority tier. Add a "
-                "{tier:PC|CP|HU|LP|PL} marker at its definition site "
+                "{tier:CODE-ONLY|CODE-LED|HU|LLM-LED|LLM-ONLY} marker at its definition site "
                 "(see docs/ssot/authority-tiers.md).",
                 file=sys.stderr,
             )

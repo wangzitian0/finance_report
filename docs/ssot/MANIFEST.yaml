@@ -694,7 +694,7 @@ concepts:
     kind: concept
     parent: tdd_workflow
     authority: documented_contract
-    description: The five AC authority tiers (PC/CP/HU/LP/PL), the cross-tier MUST rules, and the tier->valid-proof matrix; one AC = one tier, declared via a {tier:XX} marker at the AC definition site and ratcheted by a shrink-only untagged-debt baseline.
+    description: The five AC authority tiers (CODE-ONLY/CODE-LED/HU/LLM-LED/LLM-ONLY), the cross-tier MUST rules, and the tier->valid-proof matrix; one AC = one tier, declared via a {tier:XX} marker at the AC definition site and ratcheted by a shrink-only untagged-debt baseline.
     proofs:
       - tests/tooling/test_ac_authority_tiers.py
     cross_refs:

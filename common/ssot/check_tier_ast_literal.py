@@ -6,7 +6,7 @@ The AC registry derives every package AC's tier by reading the package
 NOT import the contract (so it runs in the lightweight CI lint env without
 pydantic). The pydantic ``PackageContract`` model, by contrast, resolves the
 tier at import time. These two readers agree only while ``tier`` is a plain
-string literal: write ``tier=SOME_CONST`` or ``tier=PackageTier.PC`` and the AST
+string literal: write ``tier=SOME_CONST`` (a module constant or enum) and the AST
 reader sees ``None`` (untagging that package's ACs in the registry) while the
 model still has a tier — a silent drift, exactly what the package model exists
 to kill.
@@ -47,7 +47,7 @@ def violations(repo_root: Path) -> list[str]:
                 f"(expected one of {list(PACKAGE_TIERS)}). The AC registry reads "
                 "tier statically; a non-literal tier silently untags this "
                 "package's ACs while the model still carries one. Declare "
-                "tier=\"PC|CP|LP|PL\" as a plain string literal, or mark the "
+                "tier=\"CODE-ONLY|CODE-LED|LLM-LED|LLM-ONLY\" as a plain string literal, or mark the "
                 "package status=\"draft\"."
             )
     return errors

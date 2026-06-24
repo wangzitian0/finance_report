@@ -115,7 +115,7 @@ relay's "oldest pending, in order" drain. `status` is plain text (not a
 ## Governance
 
 The package's ACs (`AC-platform.1.1`–`AC-platform.1.5`) live in [`contract.py`](./contract.py)'s
-`roadmap` (carrying `tier: PC`, EPIC-026's authority-tier model) and are sourced
+`roadmap` (carrying `tier: CODE-ONLY`, EPIC-026's authority-tier model) and are sourced
 directly from there into the AC registry; its invariants pin to the DB-backed
 tests that prove atomicity and post-commit dispatch.
 `tools/check_package_contract.py` validates the implementation against this

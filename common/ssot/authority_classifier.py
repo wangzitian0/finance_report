@@ -21,6 +21,11 @@ import re
 from collections.abc import Iterator
 from pathlib import Path
 
+# Band names are the SINGLE authority vocabulary (common.ssot.authority_matrix):
+# the detected band scale IS the declared PackageTier scale — imported, not
+# re-declared, so the two views cannot drift apart.
+from common.ssot.authority_matrix import PACKAGE_TIERS as BANDS
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EPIC_DIR = REPO_ROOT / "docs" / "project"
 
@@ -34,11 +39,7 @@ LLM_TEST_MARKERS = (
     "litellm_stream",
 )
 
-CODE_ONLY = "CODE-ONLY"
-CODE_LED = "CODE-LED"
-LLM_LED = "LLM-LED"
-LLM_ONLY = "LLM-ONLY"
-BANDS = (CODE_ONLY, CODE_LED, LLM_LED, LLM_ONLY)
+CODE_ONLY, CODE_LED, LLM_LED, LLM_ONLY = BANDS
 
 _AC_ROW = re.compile(r"\|\s*(AC\d+\.\d+\.\d+)\s*\|")
 _FILE_TOKEN = re.compile(r"([\w./-]+\.(?:py|tsx|ts))")

@@ -2,11 +2,11 @@
 """Enforcement gate for the tier -> valid-proof-kind matrix (EPIC-026 phase 2).
 
 EPIC-026 phase 1 gave every acceptance criterion (AC) an authority *tier*
-(PC/CP/HU/LP/PL) and an SSOT matrix (``docs/ssot/authority-tiers.md``) saying
-which KIND of proof is valid for an AC at each tier. That matrix was descriptive
-only. This gate makes it ENFORCED — but ONLY for ACs that carry a tier, so it is
-non-breaking for the ~1655 untagged legacy ACs (they have no ``proof_kind`` key
-and are ignored).
+(CODE-ONLY/CODE-LED/HU/LLM-LED/LLM-ONLY) and an SSOT matrix
+(``docs/ssot/authority-tiers.md``) saying which KIND of proof is valid for an AC
+at each tier. That matrix was descriptive only. This gate makes it ENFORCED —
+but ONLY for ACs that carry a tier, so it is non-breaking for the ~1655 untagged
+legacy ACs (they have no ``proof_kind`` key and are ignored).
 
 The proof KIND is declared next to the AC text with a ``{proof:KIND}`` marker
 (parsed by :mod:`common.ssot.generate_ac_registry` alongside ``{tier:XX}``). When
@@ -17,20 +17,20 @@ unless someone declares an explicit, *contradictory* marker.
 The matrix this gate enforces (mirroring ``authority-tiers.md`` "tier -> valid
 proof type"):
 
-- **PC**: ``exact`` or ``property`` — a deterministic exact/property assertion.
-- **CP**: ``exact`` or ``property`` — the test asserts the CODE's final decision.
+- **CODE-ONLY**: ``exact`` or ``property`` — a deterministic exact/property assertion.
+- **CODE-LED**: ``exact`` or ``property`` — the test asserts the CODE's final decision.
 - **HU**: ``evidence`` — the test asserts the evidence chain is present.
-- **LP**: ``property`` | ``invariant`` | ``eval`` and **MUST NOT** be ``exact`` —
+- **LLM-LED**: ``property`` | ``invariant`` | ``eval`` and **MUST NOT** be ``exact`` —
   an LLM-emitted output cannot be proven by an exact golden assertion; it is
   caught by a deterministic invariant or graded eval instead.
-- **PL**: ``eval`` | ``smoke`` and **MUST NOT** be ``exact`` — pure-LLM narrative
-  has no hard oracle and must not assert numbers.
+- **LLM-ONLY**: ``eval`` | ``smoke`` and **MUST NOT** be ``exact`` — pure-LLM
+  narrative has no hard oracle and must not assert numbers.
 
 This gate asserts the AC's *declared* (or tier-defaulted) proof kind matches its
-tier. It does not yet inspect the referenced test's shape — verifying that an LP
-AC's test is genuinely invariant-style (not an exact assertion mislabeled
-``property``) is a documented follow-up; until then the first-batch LP ACs are
-repointed at real property/invariant tests so the declared kind is honest.
+tier. It does not yet inspect the referenced test's shape — verifying that an
+LLM-LED AC's test is genuinely invariant-style (not an exact assertion mislabeled
+``property``) is a documented follow-up; until then the first-batch LLM-LED ACs
+are repointed at real property/invariant tests so the declared kind is honest.
 """
 
 from __future__ import annotations
@@ -89,11 +89,11 @@ def proof_kind_violations(repo_root: Path) -> list[str]:
             )
             continue
         if proof_kind not in valid:
-            forbidden_exact = tier in {"LP", "PL"} and proof_kind == "exact"
+            forbidden_exact = tier in {"LLM-LED", "LLM-ONLY"} and proof_kind == "exact"
             hint = (
-                " — LP/PL behavior is LLM-emitted and MUST NOT be proven by an "
-                "exact golden assertion; use property/invariant/eval (LP) or "
-                "eval/smoke (PL)."
+                " — LLM-LED/LLM-ONLY behavior is LLM-emitted and MUST NOT be proven "
+                "by an exact golden assertion; use property/invariant/eval (LLM-LED) "
+                "or eval/smoke (LLM-ONLY)."
                 if forbidden_exact
                 else ""
             )
@@ -136,7 +136,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print(
         "[PROOF-KIND] PASSED: every tier-tagged AC declares a proof kind valid "
-        "for its tier (LP/PL never exact; HU is evidence)."
+        "for its tier (LLM-LED/LLM-ONLY never exact; HU is evidence)."
     )
     return 0
 

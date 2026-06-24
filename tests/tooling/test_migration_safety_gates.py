@@ -32,7 +32,7 @@ def _write_contract(repo: Path, name: str, body: str) -> None:
     (pkg / "contract.py").write_text(textwrap.dedent(body), encoding="utf-8")
 
 
-def _active(name: str, *, tier: str = '"PC"', roadmap: str = "") -> str:
+def _active(name: str, *, tier: str = '"CODE-ONLY"', roadmap: str = "") -> str:
     return f"""
     from common.governance.package_contract import PackageContract, ACRecord
     CONTRACT = PackageContract(
@@ -55,7 +55,7 @@ def test_1b_flags_non_literal_tier_on_shipped_package(tmp_path: Path) -> None:
         "bad",
         """
         from common.governance.package_contract import PackageContract
-        T = "PC"
+        T = "CODE-ONLY"
         CONTRACT = PackageContract(
             name="bad", klass="kernel", status="active", tier=T,
             depends_on=[], interface=[], events=[], invariants=[], roadmap=[])

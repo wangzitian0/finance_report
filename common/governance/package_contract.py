@@ -85,7 +85,7 @@ class ACRecord(BaseModel):
     #: per-AC one), so ``proof_kind`` is the only tier-related attribute an AC
     #: carries. ``None`` resolves to the package tier's canonical kind
     #: (:data:`TIER_DEFAULT_PROOF_KIND`); an explicit value MUST be valid for the
-    #: package tier per :data:`TIER_VALID_PROOF_KINDS` (e.g. under an LP/PL package
+    #: package tier per :data:`TIER_VALID_PROOF_KINDS` (e.g. under an LLM-LED/LLM-ONLY package
     #: an AC can never be ``exact``). Enforced by the owning ``PackageContract``.
     proof_kind: ACProofKind | None = None
 
@@ -145,7 +145,7 @@ class PackageContract(BaseModel):
             if self.status != "draft":
                 raise ValueError(
                     f"package {self.name!r}: status {self.status!r} requires a "
-                    "decided authority tier (one of PC/CP/LP/PL); only a 'draft' "
+                    "decided authority tier (one of CODE-ONLY/CODE-LED/LLM-LED/LLM-ONLY); only a 'draft' "
                     "package may leave tier undecided (the legacy 'HU' state)."
                 )
             return self
@@ -157,7 +157,7 @@ class PackageContract(BaseModel):
                 raise ValueError(
                     f"package {self.name!r} AC {ac.id}: proof_kind {kind!r} is "
                     f"not valid for the package tier {self.tier} "
-                    f"(valid: {sorted(valid)}). Under an LP/PL package an AC can "
+                    f"(valid: {sorted(valid)}). Under an LLM-LED/LLM-ONLY package an AC can "
                     "never be proven by an exact golden assertion."
                 )
             ac.proof_kind = kind
