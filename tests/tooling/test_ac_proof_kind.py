@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from common.ssot import check_ac_proof_kind as proof_gate
+from common.authority import check_ac_proof_kind as proof_gate
 from common.ssot import generate_ac_registry as gar
 
 ROOT = Path(__file__).resolve().parents[2]

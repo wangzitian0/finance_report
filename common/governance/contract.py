@@ -26,7 +26,7 @@ CONTRACT = PackageContract(
     # The package-model gate is deterministic code (AST + set comparison), no
     # LLM: a pure-code (CODE-ONLY) package. It also OWNS the authority-tier rules below.
     tier="CODE-ONLY",
-    depends_on=[],
+    depends_on=["authority"],
     roles=["package_contract", "check_package_contract"],
     implementations={"be": "common/governance", "fe": None},
     interface=[

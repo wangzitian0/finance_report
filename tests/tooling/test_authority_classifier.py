@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from common.ssot.authority_classifier import (
+from common.authority.authority_classifier import (
     CODE_LED,
     CODE_ONLY,
     LLM_LED,

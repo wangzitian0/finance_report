@@ -40,14 +40,14 @@ import sys
 from pathlib import Path
 
 from common.ssot.ac_registry_format import sort_key
-from common.ssot.authority_matrix import TIER_VALID_PROOF_KINDS
+from common.authority.authority_matrix import TIER_VALID_PROOF_KINDS
 from common.ssot.generate_ac_registry import AC_PROOF_KINDS, build_registry_entries
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # tier -> the set of proof kinds the SSOT matrix accepts for that tier. The prose
 # source of truth is docs/ssot/authority-tiers.md; its single MACHINE mirror is
-# common/ssot/authority_matrix.TIER_VALID_PROOF_KINDS (which package_contract also
+# common/authority/authority_matrix.TIER_VALID_PROOF_KINDS (which package_contract also
 # re-exports for the PackageContract model). Aliased here so this gate and the
 # contract model enforce one identical matrix — they cannot drift apart.
 VALID_PROOF_KINDS: dict[str, frozenset[str]] = TIER_VALID_PROOF_KINDS

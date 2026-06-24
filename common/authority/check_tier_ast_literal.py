@@ -13,7 +13,7 @@ to kill.
 
 This gate closes that gap WITHOUT importing anything pydantic: every shipped
 (non-``draft``) package must expose its tier as a literal in
-:data:`common.ssot.authority_matrix.PACKAGE_TIERS`. (A ``draft`` package may
+:data:`common.authority.authority_matrix.PACKAGE_TIERS`. (A ``draft`` package may
 leave the tier undecided; its ACs are legitimately untagged until it ships.)
 """
 
@@ -23,7 +23,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from common.ssot.authority_matrix import PACKAGE_TIERS
+from common.authority.authority_matrix import PACKAGE_TIERS
 from common.ssot.generate_ac_registry import package_contract_meta
 
 REPO_ROOT = Path(__file__).resolve().parents[2]

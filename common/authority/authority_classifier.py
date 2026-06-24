@@ -21,10 +21,10 @@ import re
 from collections.abc import Iterator
 from pathlib import Path
 
-# Band names are the SINGLE authority vocabulary (common.ssot.authority_matrix):
+# Band names are the SINGLE authority vocabulary (common.authority.authority_matrix):
 # the detected band scale IS the declared PackageTier scale — imported, not
 # re-declared, so the two views cannot drift apart.
-from common.ssot.authority_matrix import PACKAGE_TIERS as BANDS
+from common.authority.authority_matrix import PACKAGE_TIERS as BANDS
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EPIC_DIR = REPO_ROOT / "docs" / "project"
