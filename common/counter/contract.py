@@ -69,9 +69,16 @@ CONTRACT = PackageContract(
         # package tier.
         Invariant(
             id="converges-by-role",
+            statement="The package's files converge by role (types/ops/store/api).",
+            test=(
+                "tests/tooling/test_counter_package.py"
+                "::test_AC_counter_1_1_counter_converges_by_role"
+            ),
+        ),
+        Invariant(
+            id="interface-equals-published-language",
             statement=(
-                "The package converges by role and its published language equals "
-                "contract.interface (== __init__.__all__)."
+                "The published language (contract.interface) equals __init__.__all__."
             ),
             test=(
                 "tests/tooling/test_counter_package.py"
