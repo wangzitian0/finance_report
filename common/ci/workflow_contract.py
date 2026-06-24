@@ -57,10 +57,23 @@ WORKFLOW_CONTRACT: dict[str, dict[str, tuple[str, ...]]] = {
         "triggers": ("push", "pull_request", "workflow_dispatch"),
     },
     ".github/workflows/deploy.yml": {
-        # Staging and production are manual-only jobs; tag-push image promotion
-        # shares the deploy workflow but is gated to release tags.
-        "jobs": ("build-and-deploy", "promote", "dry-run", "deploy"),
+        # Staging is a manual-only job; tag-push image promotion shares the
+        # deploy workflow but is gated to release tags. Production release moved
+        # to release.yml (#1354 / AC8.13.154).
+        "jobs": ("build-and-deploy", "promote"),
         "triggers": ("push", "workflow_dispatch"),
+    },
+    ".github/workflows/release.yml": {
+        # Production release line, split out of deploy.yml: manual-dispatch only,
+        # dry-run + deploy gated on the `dry_run` input.
+        "jobs": ("dry-run", "deploy"),
+        "triggers": ("workflow_dispatch",),
+    },
+    ".github/workflows/staging-ai-ocr-gate.yml": {
+        # Reusable workflow that owns the staging AI/OCR corpus gate; both the
+        # inline and manual deploy.yml entrances call it (AC8.13.153).
+        "jobs": ("run",),
+        "triggers": ("workflow_call",),
     },
     ".github/workflows/docs.yml": {
         "jobs": ("build",),
@@ -75,6 +88,8 @@ APP_WORKFLOW_FILES = (
     ".github/workflows/maintenance.yml",
     ".github/workflows/notify-infra2.yml",
     ".github/workflows/preview.yml",
+    ".github/workflows/release.yml",
+    ".github/workflows/staging-ai-ocr-gate.yml",
 )
 
 INFRA2_WORKFLOW_FILES = (
@@ -92,6 +107,8 @@ INFRA2_WORKFLOW_FILES = (
 WORKFLOW_FORBIDDEN_TRIGGERS: dict[str, tuple[str, ...]] = {}
 WORKFLOW_FORBIDDEN_PUSH_BRANCHES: dict[str, tuple[str, ...]] = {
     ".github/workflows/deploy.yml": ("main",),
+    # release.yml is manual-dispatch only; a branch push must never deploy prod.
+    ".github/workflows/release.yml": ("main",),
 }
 
 ACTION_RUNTIME_INVENTORY = "docs/ssot/github-action-runtime.yaml"

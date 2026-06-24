@@ -134,6 +134,100 @@ def test_AC8_13_142_inventory_artifacts_match_live_workflows() -> None:
             assert artifact in workflow_text, (gate["id"], artifact)
 
 
+def test_AC8_13_153_staging_ai_ocr_gate_is_a_single_reusable_workflow() -> None:
+    """AC8.13.153: both AI/OCR entrances call one reusable workflow; no duplicate body."""
+    deploy = _load_yaml(WORKFLOWS / "deploy.yml")
+    reusable_path = WORKFLOWS / "staging-ai-ocr-gate.yml"
+    reusable = _load_yaml(reusable_path)
+    reusable_text = reusable_path.read_text(encoding="utf-8")
+
+    # The reusable workflow is workflow_call with the parameterized blocking input.
+    on = reusable.get("on", reusable.get(True))
+    assert isinstance(on, dict) and "workflow_call" in on
+    inputs = on["workflow_call"]["inputs"]
+    assert {"commit_ref", "expected_sha", "blocking"} <= set(inputs)
+    assert "run" in reusable["jobs"]
+    # The ~120-line gate body lives here exactly once.
+    assert "tools/staging_ai_ocr_gate_contract.py --shell" in reusable_text
+    assert 'pytest "${STAGING_AI_OCR_TESTS[@]}"' in reusable_text
+
+    # Both deploy.yml entrances are uses: callers of the reusable workflow that
+    # differ only by the blocking input (and checkout/expected_sha).
+    ref = "./.github/workflows/staging-ai-ocr-gate.yml"
+    for job_id, blocking in (("ai-ocr-gate", False), ("manual-ai-ocr-gate", True)):
+        job = deploy["jobs"][job_id]
+        assert job["uses"] == ref
+        assert job["with"]["blocking"] is blocking
+        assert job.get("secrets") == "inherit"
+        # A caller cannot also inline steps — the body must not be duplicated.
+        assert "steps" not in job
+
+    # The duplicate cleanup is recorded explicitly, like every other resolved one.
+    inventory = _load_yaml(INVENTORY)
+    cleanup = next(
+        item
+        for item in inventory["resolved_duplicate_cleanups"]
+        if item["id"] == "staging_ai_ocr_gate_duplicate"
+    )
+    assert cleanup["status"] == "removed"
+    assert cleanup["retained_owner"] == "staging_ai_ocr_gate.reusable_run"
+
+
+def test_AC8_13_154_production_release_line_lives_in_release_yml() -> None:
+    """AC8.13.154: production release split into release.yml; deploy.yml keeps staging + promote."""
+    from common.ci.workflow_contract import APP_WORKFLOW_FILES, WORKFLOW_CONTRACT
+
+    release = _load_yaml(WORKFLOWS / "release.yml")
+    deploy = _load_yaml(WORKFLOWS / "deploy.yml")
+
+    # release.yml is manual-dispatch only and hosts exactly the prod jobs.
+    on = release.get("on", release.get(True))
+    assert isinstance(on, dict) and set(on) == {"workflow_dispatch"}
+    assert set(release["jobs"]) == {"dry-run", "deploy"}
+
+    # Serialized per version_ref so two production releases never run concurrently.
+    concurrency = release["concurrency"]
+    assert "production-release-" in concurrency["group"]
+    assert concurrency["cancel-in-progress"] is False
+
+    # deploy.yml no longer hosts the prod jobs but keeps staging + tag-push promote.
+    assert "dry-run" not in deploy["jobs"]
+    assert "deploy" not in deploy["jobs"]
+    assert {"build-and-deploy", "promote"} <= set(deploy["jobs"])
+
+    # The workflow contract tracks the new file and re-homed job ids.
+    assert ".github/workflows/release.yml" in APP_WORKFLOW_FILES
+    assert WORKFLOW_CONTRACT[".github/workflows/release.yml"]["jobs"] == (
+        "dry-run",
+        "deploy",
+    )
+    assert "dry-run" not in WORKFLOW_CONTRACT[".github/workflows/deploy.yml"]["jobs"]
+
+
+def test_AC8_13_155_pr_preview_cleanup_split_is_intentional_fallback() -> None:
+    """AC8.13.155: event-driven + scheduled PR-preview cleanup are both kept on purpose."""
+    preview = _load_yaml(WORKFLOWS / "preview.yml")
+    maintenance = _load_yaml(WORKFLOWS / "maintenance.yml")
+
+    # Event-driven cleanup runs on PR close; the scheduled one is a fallback.
+    preview_on = preview.get("on", preview.get(True))
+    assert "pull_request" in preview_on
+    assert "cleanup" in preview["jobs"]
+    maintenance_on = maintenance.get("on", maintenance.get(True))
+    assert "schedule" in maintenance_on
+    assert "cleanup" in maintenance["jobs"]
+
+    # The split is recorded as a deliberate keep_separate decision, not drift.
+    inventory = _load_yaml(INVENTORY)
+    candidate = next(
+        item
+        for item in inventory["deferred_candidates"]
+        if item["id"] == "pr_preview_cleanup_event_vs_scheduled"
+    )
+    assert candidate["status"] == "keep_separate"
+    assert set(candidate["gates"]) == {"preview.cleanup", "pr_preview_cleanup.cleanup"}
+
+
 def test_AC8_13_142_duplicate_cleanup_is_explicit_not_implicit() -> None:
     """AC8.13.142: duplicate gate cleanup stays recorded after deletion."""
 

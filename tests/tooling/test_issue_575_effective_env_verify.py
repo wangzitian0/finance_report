@@ -22,7 +22,7 @@ def test_AC7_14_1_verify_runs_after_rollout_and_before_health() -> None:
     """AC7.14.1 AC7.14.4: effective-config verification gates fixed-env deploy success."""
     primitive = read("repo/tools/deploy_primitive.py")
     staging = read(".github/workflows/deploy.yml")
-    production = read(".github/workflows/deploy.yml")
+    production = read(".github/workflows/release.yml")
     primitive_tests = read("repo/libs/tests/test_deploy_primitive.py")
 
     assert "def verify_effective_config_hash(" in primitive
