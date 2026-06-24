@@ -78,6 +78,28 @@ export function Badge({ variant = "muted", className, ...props }: BadgeProps) {
   return <span className={cx("badge", badgeClasses[variant], className)} {...props} />;
 }
 
+interface StatusBadgeProps extends HTMLAttributes<HTMLSpanElement> {
+  /** The status value to render (also the default label). */
+  status: string;
+  /** Maps a status value to a badge variant. */
+  variants: Record<string, BadgeVariant>;
+  /** Variant for a status not present in `variants` (default "muted"). */
+  fallback?: BadgeVariant;
+}
+
+/**
+ * A `Badge` whose variant is derived from a status value — replaces the
+ * `badge ${x === "a" ? "badge-success" : …}` ternary chains repeated across pages.
+ * Renders the status as the label unless `children` is provided.
+ */
+export function StatusBadge({ status, variants, fallback = "muted", children, ...props }: StatusBadgeProps) {
+  return (
+    <Badge variant={variants[status] ?? fallback} {...props}>
+      {children ?? status}
+    </Badge>
+  );
+}
+
 type AlertVariant = "error" | "success" | "warning" | "info";
 
 interface AlertProps extends HTMLAttributes<HTMLDivElement> {

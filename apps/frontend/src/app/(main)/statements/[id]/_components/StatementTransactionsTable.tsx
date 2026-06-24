@@ -1,5 +1,6 @@
 import { BankStatement, BankStatementTransaction } from "@/lib/types";
 import { formatCurrencyLocale } from "@/lib/money";
+import { StatusBadge } from "@/components/ui";
 
 interface StatementTransactionsTableProps {
     statement: BankStatement;
@@ -52,22 +53,17 @@ export function StatementTransactionsTable({ statement }: StatementTransactionsT
                                     <td className="px-4 py-3 whitespace-nowrap text-sm text-[var(--foreground-muted)]">{txn.currency || "—"}</td>
                                     <td className="px-4 py-3 whitespace-nowrap text-sm text-[var(--foreground-muted)]">{txn.balance_after != null ? formatCurrencyLocale(txn.balance_after, (txn.currency ?? statement.currency) || "SGD") : "—"}</td>
                                     <td className="px-4 py-3 text-center">
-                                        <span className={`badge ${
-                                            txn.confidence === "high" ? "badge-success" :
-                                            txn.confidence === "medium" ? "badge-warning" :
-                                            "badge-error"
-                                        }`}>
-                                            {txn.confidence}
-                                        </span>
+                                        <StatusBadge
+                                            status={txn.confidence}
+                                            variants={{ high: "success", medium: "warning" }}
+                                            fallback="error"
+                                        />
                                     </td>
                                     <td className="px-4 py-3 text-center">
-                                        <span className={`badge ${
-                                            txn.status === "matched" ? "badge-success" :
-                                            txn.status === "unmatched" ? "badge-error" :
-                                            "badge-muted"
-                                        }`}>
-                                            {txn.status}
-                                        </span>
+                                        <StatusBadge
+                                            status={txn.status}
+                                            variants={{ matched: "success", unmatched: "error" }}
+                                        />
                                     </td>
                                 </tr>
                             ))}

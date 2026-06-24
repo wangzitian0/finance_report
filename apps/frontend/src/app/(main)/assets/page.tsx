@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { useToast } from "@/components/ui/Toast";
-import { TableSkeleton } from "@/components/ui";
+import { StatusBadge, TableSkeleton } from "@/components/ui";
 import { FilterTabs } from "@/components/ui/FilterTabs";
 import { apiFetch } from "@/lib/api";
 import { formatCurrencyLocale, parseAmount } from "@/lib/money";
@@ -467,9 +467,7 @@ export default function AssetsPage() {
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2">
                                                     <span className="font-medium font-mono">{position.asset_identifier}</span>
-                                                    <span className={`badge ${position.status === "active" ? "badge-success" : "badge-muted"}`}>
-                                                        {position.status}
-                                                    </span>
+                                                    <StatusBadge status={position.status} variants={{ active: "success" }} />
                                                 </div>
                                                 <div className="text-xs text-muted mt-0.5">
                                                     Acquired: {formatDateDisplay(position.acquisition_date)}

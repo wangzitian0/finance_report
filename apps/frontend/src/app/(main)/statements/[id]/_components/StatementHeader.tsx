@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { BankStatement } from "@/lib/types";
+import { StatusBadge } from "@/components/ui";
 
 interface StatementHeaderProps {
     statement: BankStatement;
@@ -32,14 +33,10 @@ export function StatementHeader({
             <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-3 mb-2">
                     <h1 className="page-title truncate">{statement.original_filename}</h1>
-                    <span className={`badge ${
-                        statement.status === "approved" ? "badge-success" :
-                        statement.status === "rejected" ? "badge-error" :
-                        statement.status === "parsed" ? "badge-warning" :
-                        "badge-muted"
-                    }`}>
-                        {statement.status}
-                    </span>
+                    <StatusBadge
+                        status={statement.status}
+                        variants={{ approved: "success", rejected: "error", parsed: "warning" }}
+                    />
                 </div>
                 <p className="page-description">
                     {statement.institution} • {formatCode(statement.currency)} • {formatPeriod(statement.period_start, statement.period_end)}
