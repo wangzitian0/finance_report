@@ -1,4 +1,4 @@
-"""DB-backed atomicity of the transactional outbox (AC25.7.1).
+"""DB-backed atomicity of the transactional outbox (AC-platform.1.1).
 
 The single invariant the pattern rests on: a domain event row is written in the
 SAME transaction as the domain state change. So a transaction that publishes an
@@ -27,10 +27,10 @@ async def _outbox_count(db) -> int:
     return int(result.scalar_one())
 
 
-@ac_proof(proof_id="test_outbox_commit_persists_row", ac_ids=["AC25.7.1"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_outbox_commit_persists_row", ac_ids=["AC-platform.1.1"], ci_tier="pr_ci")
 @pytest.mark.asyncio
 async def test_commit_leaves_exactly_one_outbox_row(db):
-    """AC25.7.1: a committed publish leaves exactly one pending outbox row."""
+    """AC-platform.1.1: a committed publish leaves exactly one pending outbox row."""
     bus = OutboxEventBus(db, source_pkg="test")
     bus.publish(_event())
     await db.commit()
@@ -43,10 +43,10 @@ async def test_commit_leaves_exactly_one_outbox_row(db):
     assert row.published_at is None
 
 
-@ac_proof(proof_id="test_outbox_rollback_leaves_no_row", ac_ids=["AC25.7.1"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_outbox_rollback_leaves_no_row", ac_ids=["AC-platform.1.1"], ci_tier="pr_ci")
 @pytest.mark.asyncio
 async def test_rollback_leaves_no_outbox_row(db):
-    """AC25.7.1: a rolled-back publish leaves NO outbox row (atomic)."""
+    """AC-platform.1.1: a rolled-back publish leaves NO outbox row (atomic)."""
     bus = OutboxEventBus(db, source_pkg="test")
     bus.publish(_event())
     await db.flush()  # row is in the transaction...

@@ -294,9 +294,11 @@ def check_test_id_epic_alignment(
         if ac_id in CHECK6_FIXTURE_EXCLUDE:
             continue
         match = AC_PATTERN.match(ac_id)
-        if not match:
+        if not match or match.group("epic") is None:
+            # Package-scoped ids (AC-{package}.…) carry no EPIC number to
+            # cross-check against the registry's epic field; skip them here.
             continue
-        expected_epic = int(match.group(1))
+        expected_epic = int(match.group("epic"))
         entry = registry_by_id.get(ac_id)
         if entry is None:
             # Missing registry entries are surfaced by check #4

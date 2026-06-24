@@ -76,9 +76,14 @@ TEST_FILE_SUFFIXES = (
     ".spec.tsx",
 )
 
-# Matches the canonical AC ID form used by common.ssot.ac_traceability_refs:
-# ``ACx.y.z`` (epic.major.minor).
-AC_PATTERN = re.compile(r"\bAC(\d+)\.(\d+)\.(\d+)\b")
+# Matches BOTH AC id grammars (mirrors common.ssot.ac_traceability_refs):
+# legacy ``AC{epic}.{n}.{n}`` and package-scoped ``AC-{package}.{n}.{n}``. The
+# ``epic`` group is set only for the legacy form (``pkg`` for the package form),
+# so consumers needing the EPIC number must check ``group("epic")`` is not None.
+AC_PATTERN = re.compile(
+    r"\bAC(?:(?P<epic>\d+)|-(?P<pkg>[a-z][a-z0-9_]*))"
+    r"\.(?P<scenario>\d+)\.(?P<case>\d+)\b"
+)
 
 # Lines in EPIC docs that document AC IDs as removed/duplicated/
 # canonicalised must NOT count as live references for check #4

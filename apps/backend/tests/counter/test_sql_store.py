@@ -1,7 +1,7 @@
 """DB-backed SqlCounterRepository — atomic upsert + per-user/global reads.
 
 Exercises the only role that touches the ORM against the real ``counter_tally``
-table (EPIC-025 AC25.6.3 / AC25.6.4). The bump is an atomic upsert-increment, so
+table (EPIC-025 AC-counter.1.3 / AC-counter.1.4). The bump is an atomic upsert-increment, so
 the second bump of the same (user, key) returns 2 rather than colliding on the
 unique (user_id, key) primary key.
 """
@@ -18,10 +18,10 @@ from src.counter.store.sql import SqlCounterRepository
 KEY = CounterKey("report.generated")
 
 
-@ac_proof(proof_id="test_sql_counter_atomic", ac_ids=["AC25.6.3"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_sql_counter_atomic", ac_ids=["AC-counter.1.3"], ci_tier="pr_ci")
 @pytest.mark.asyncio
 async def test_sql_bump_is_atomic_and_per_user(db):
-    """AC25.6.3: repeated bumps increment the same (user, key) row atomically."""
+    """AC-counter.1.3: repeated bumps increment the same (user, key) row atomically."""
     repo = SqlCounterRepository(db)
     u1, u2 = uuid4(), uuid4()
 
@@ -34,10 +34,10 @@ async def test_sql_bump_is_atomic_and_per_user(db):
     assert await repo.for_user(u2, KEY) == 1
 
 
-@ac_proof(proof_id="test_sql_counter_global", ac_ids=["AC25.6.4"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_sql_counter_global", ac_ids=["AC-counter.1.4"], ci_tier="pr_ci")
 @pytest.mark.asyncio
 async def test_sql_global_and_per_user_reads(db):
-    """AC25.6.4: total() sums across users; read_count bridges to a Count."""
+    """AC-counter.1.4: total() sums across users; read_count bridges to a Count."""
     repo = SqlCounterRepository(db)
     u1, u2 = uuid4(), uuid4()
     await repo.bump(u1, KEY)
@@ -53,10 +53,10 @@ async def test_sql_global_and_per_user_reads(db):
     assert int(await read_count(db, key=KEY, user_id=uuid4())) == 0
 
 
-@ac_proof(proof_id="test_sql_ops_port_parity", ac_ids=["AC25.6.4"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_sql_ops_port_parity", ac_ids=["AC-counter.1.4"], ci_tier="pr_ci")
 @pytest.mark.asyncio
 async def test_sql_repo_satisfies_read_via_ops_after_sync_snapshot(db):
-    """AC25.6.4: ops over an in-memory snapshot of the SQL state agree with the DB."""
+    """AC-counter.1.4: ops over an in-memory snapshot of the SQL state agree with the DB."""
     from tests.counter._fake import InMemoryCounterRepository
 
     repo = SqlCounterRepository(db)

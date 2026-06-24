@@ -1,4 +1,4 @@
-"""The relay drains committed pending rows post-commit (AC25.7.2 / AC25.7.3).
+"""The relay drains committed pending rows post-commit (AC-platform.1.2 / AC-platform.1.3).
 
 Proves the read half of the outbox: ``run_once`` dispatches each pending row to
 its subscribed handlers with the rehydrated event, marks the row published, and a
@@ -31,10 +31,10 @@ async def _seed(db, *, n=1, name="counter.Incremented"):
     await db.commit()
 
 
-@ac_proof(proof_id="test_relay_dispatches_pending", ac_ids=["AC25.7.2"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_relay_dispatches_pending", ac_ids=["AC-platform.1.2"], ci_tier="pr_ci")
 @pytest.mark.asyncio
 async def test_run_once_dispatches_and_marks_published(db):
-    """AC25.7.2: run_once invokes the handler with the event, then marks published."""
+    """AC-platform.1.2: run_once invokes the handler with the event, then marks published."""
     registry = SubscriberRegistry()
     seen: list[dict] = []
     registry.subscribe("counter.Incremented", lambda e: seen.append(e.payload()))
@@ -50,10 +50,10 @@ async def test_run_once_dispatches_and_marks_published(db):
     assert all(r.status == STATUS_PUBLISHED and r.published_at is not None for r in rows)
 
 
-@ac_proof(proof_id="test_relay_no_redispatch", ac_ids=["AC25.7.3"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_relay_no_redispatch", ac_ids=["AC-platform.1.3"], ci_tier="pr_ci")
 @pytest.mark.asyncio
 async def test_second_run_does_not_redispatch_published(db):
-    """AC25.7.3: a second run_once does NOT re-deliver already-published rows."""
+    """AC-platform.1.3: a second run_once does NOT re-deliver already-published rows."""
     registry = SubscriberRegistry()
     deliveries: list[str] = []
     registry.subscribe("counter.Incremented", lambda e: deliveries.append(e.event_type))
@@ -66,10 +66,10 @@ async def test_second_run_does_not_redispatch_published(db):
     assert deliveries == ["counter.Incremented"]  # delivered exactly once
 
 
-@ac_proof(proof_id="test_relay_redelivery_idempotent", ac_ids=["AC25.7.3"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_relay_redelivery_idempotent", ac_ids=["AC-platform.1.3"], ci_tier="pr_ci")
 @pytest.mark.asyncio
 async def test_redelivery_of_pending_is_idempotent_safe(db):
-    """AC25.7.3: re-delivering a still-pending row twice is safe for an idempotent handler.
+    """AC-platform.1.3: re-delivering a still-pending row twice is safe for an idempotent handler.
 
     Models at-least-once: if a pass crashes before marking published, the next
     pass redelivers. An idempotent handler keyed by aggregate_id collapses the

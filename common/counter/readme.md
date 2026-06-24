@@ -103,7 +103,7 @@ concurrent increments cannot lose updates. Migration:
 
 ## Governance
 
-The package's ACs (`AC25.6.1`–`AC25.6.4`) live in [`contract.py`](./contract.py)'s
+The package's ACs (`AC-counter.1.1`–`AC-counter.1.4`) live in [`contract.py`](./contract.py)'s
 `roadmap` and are sourced **directly** from there into the AC registry (no EPIC
 mirror); its invariants pin to the tests that prove them.
 `tools/check_package_contract.py` validates the implementation against this

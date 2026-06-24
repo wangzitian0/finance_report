@@ -34,6 +34,9 @@ CONTRACT = PackageContract(
     name="platform",
     klass="kernel",
     status="active",
+    # Deterministic event/outbox substrate, no LLM: a pure-code (PC) package.
+    # Every AC in the roadmap inherits this tier.
+    tier="PC",
     depends_on=[],
     roles=["events", "store"],
     implementations={"be": "apps/backend/src/platform", "fe": None},
@@ -76,7 +79,7 @@ CONTRACT = PackageContract(
     ],
     roadmap=[
         ACRecord(
-            id="AC25.7.1",
+            id="AC-platform.1.1",
             statement=(
                 "The OutboxEventBus writes a domain event into the shared outbox "
                 "table using the caller's AsyncSession; a rolled-back transaction "
@@ -89,10 +92,9 @@ CONTRACT = PackageContract(
             ),
             priority="P0",
             status="done",
-            tier="PC",
         ),
         ACRecord(
-            id="AC25.7.2",
+            id="AC-platform.1.2",
             statement=(
                 "OutboxRelay.run_once reads committed pending rows in enqueue "
                 "order, dispatches each to its subscribed handlers with the "
@@ -104,10 +106,9 @@ CONTRACT = PackageContract(
             ),
             priority="P0",
             status="done",
-            tier="PC",
         ),
         ACRecord(
-            id="AC25.7.3",
+            id="AC-platform.1.3",
             statement=(
                 "Dispatch is at-least-once: a second run_once does not re-deliver "
                 "published rows, and re-delivery of a still-pending row is safe "
@@ -119,10 +120,9 @@ CONTRACT = PackageContract(
             ),
             priority="P1",
             status="done",
-            tier="PC",
         ),
         ACRecord(
-            id="AC25.7.4",
+            id="AC-platform.1.4",
             statement=(
                 "The platform package converges by role and its published "
                 "language equals contract.interface; check_package_contract "
@@ -134,10 +134,9 @@ CONTRACT = PackageContract(
             ),
             priority="P1",
             status="done",
-            tier="PC",
         ),
         ACRecord(
-            id="AC25.7.5",
+            id="AC-platform.1.5",
             statement=(
                 "counter.record_increment bumps the per-(user, key) tally and "
                 "enqueues a counter.Incremented event into the shared outbox in "
@@ -149,7 +148,6 @@ CONTRACT = PackageContract(
             ),
             priority="P1",
             status="done",
-            tier="PC",
         ),
     ],
 )

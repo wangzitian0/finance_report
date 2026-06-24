@@ -179,9 +179,11 @@ def collect_references(test_files: list[Path]) -> dict[str, ACReferenceStats]:
 # ---------------------------------------------------------------------------
 
 
-def _ac_sort_key(ac_id: str) -> tuple[int, ...]:
-    """Sort ACs numerically (AC1.2.10 after AC1.2.9)."""
-    return tuple(int(p) for p in ac_id[2:].split("."))
+def _ac_sort_key(ac_id: str) -> tuple:
+    """Sort ACs over both id grammars (AC1.2.10 after AC1.2.9; package ids last)."""
+    from common.ssot.ac_registry_format import sort_key
+
+    return sort_key(ac_id)
 
 
 _DEPRECATED_PATTERN = re.compile(r"^~~.+~~$", re.DOTALL)
