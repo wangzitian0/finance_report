@@ -100,3 +100,55 @@ edit: a new package is governed the moment it ships a `common/<pkg>/contract.py`
   role/DAG idea (`types`/`ops` with the balance invariant as a type). See
   [`ledger.contract.md`](../../apps/backend/src/ledger/ledger.contract.md). It
   predates `PackageContract`; it will adopt one as the model rolls out.
+
+## Migrating a module into the package model
+
+The recipe for moving a module (and its EPIC-table ACs) into the package model.
+**`counter` is the canonical worked example — copy its
+[`contract.py`](../counter/contract.py).** One PR per package; `base=main`.
+
+1. **Name the bounded context and its axes.** Pick the package `name` (its
+   `common/<name>/` dir), the `klass` (`kernel` < `platform` < `core` — its
+   position in the import DAG), and the authority **tier**
+   ([`authority-tiers.md`](../../docs/ssot/authority-tiers.md): PC/CP/LP/PL — how
+   the module is built). If the tier is genuinely undecided, ship `status="draft"`
+   with `tier=None` and resolve it before going `active` (the shipped-package
+   rule). **One package = one tier**; a module mixing deterministic + LLM-emitted
+   behavior is two packages.
+
+2. **Write `contract.py`.** One `PackageContract(...)` with `name`, `klass`,
+   `status`, `tier`, `depends_on` (down-only edges), `roles`
+   (`types`/`ops`/`store`/`api`), `implementations` (`be`/`fe` paths),
+   `interface` (must equal the BE `__init__.__all__`), `events`, `invariants`,
+   `roadmap`.
+
+3. **Domain ACs → `roadmap`.** Each `ACRecord(id, statement, test, priority,
+   status)` with a **package-scoped id `AC-{package}.{group}.{seq}`** (e.g.
+   `AC-counter.1.1`). The AC inherits the package tier; `proof_kind` defaults to
+   the tier's canonical kind — set it explicitly only when different, and it MUST
+   satisfy the tier→proof matrix (LP/PL may never be `exact`).
+
+4. **Structural guarantees → `invariants`, NOT `roadmap`.** interface==`__all__`,
+   converges-by-role, layer purity, "passes its own gate" carry no tier and are
+   not matrix-constrained. (Keeping them out of `roadmap` is what lets an LP/PL
+   package's structural `exact` tests stay valid — see counter's 7 invariants.)
+
+5. **Anchor every `test` to a real test.** Each `roadmap[].test` /
+   `invariants[].test` is a `"path::func"` the gate resolves; add
+   `@ac_proof(ac_ids=[...])` on the critical-proof tests.
+
+6. **Delete the AC's old EPIC-table rows.** The AC id now lives in the roadmap;
+   leaving the EPIC row makes `check_epic_package_dual` fail. This is a
+   **re-home, not a deletion** — the id is preserved, so protection-floor / the
+   raise-only proof floors stay green (never net-delete an AC id).
+
+7. **Register & classify.** Add any new `docs/ssot/` files to
+   [`MANIFEST.yaml`](../../docs/ssot/MANIFEST.yaml) (with `family`+`kind`);
+   classify tooling tests in
+   [`traceability-exceptions.md`](../../docs/analysis/traceability-exceptions.md).
+
+8. **Run the gates locally before pushing:** `check_package_contract`,
+   `generate_ac_registry --check`, `check_ac_proof_kind`, `check_tier_ast_literal`,
+   `check_epic_package_dual`, `check_draft_packages`, `check_tier_imports`, and
+   `lint_doc_consistency`. The untagged-debt ratchet shrinks automatically as the
+   moved ACs leave the EPIC source.
