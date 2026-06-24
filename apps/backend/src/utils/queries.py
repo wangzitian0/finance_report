@@ -61,8 +61,13 @@ async def paginate(
     ``total`` is the count of the full filtered set (before paging), computed via a
     ``func.count`` subquery so it is independent of ``limit``/``offset``. Eager-load
     ``options`` and ``order_by`` are applied before slicing.
+
+    Any ``ORDER BY`` / ``LIMIT`` / ``OFFSET`` already on the incoming ``query`` is
+    stripped before counting, so a pre-sliced or pre-ordered query still yields the
+    true total rather than a clamped/paged count.
     """
-    total = (await db.execute(select(func.count()).select_from(query.subquery()))).scalar() or 0
+    count_source = query.order_by(None).limit(None).offset(None).subquery()
+    total = (await db.execute(select(func.count()).select_from(count_source))).scalar() or 0
     paged = query
     if options:
         paged = paged.options(*options)
