@@ -1,4 +1,4 @@
-"""get_count verb — per-user vs global (EPIC-025 AC25.6.4)."""
+"""get_count verb — per-user vs global (EPIC-025 AC-counter.1.4)."""
 
 from uuid import uuid4
 
@@ -14,9 +14,9 @@ pytestmark = pytest.mark.no_db
 KEY = CounterKey("report.generated")
 
 
-@ac_proof(proof_id="test_global_vs_per_user", ac_ids=["AC25.6.4"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_global_vs_per_user", ac_ids=["AC-counter.1.4"], ci_tier="pr_ci")
 def test_global_vs_per_user_count():
-    """AC25.6.4: user_id=None yields the global sum; a user_id yields that user's."""
+    """AC-counter.1.4: user_id=None yields the global sum; a user_id yields that user's."""
     repo = InMemoryCounterRepository()
     u1, u2 = uuid4(), uuid4()
     # u1 increments twice, u2 once
@@ -31,9 +31,9 @@ def test_global_vs_per_user_count():
     assert get_count(repo, key=KEY, user_id=None) == Count(3)
 
 
-@ac_proof(proof_id="test_unknown_count_is_zero", ac_ids=["AC25.6.4"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_unknown_count_is_zero", ac_ids=["AC-counter.1.4"], ci_tier="pr_ci")
 def test_unknown_key_or_user_is_zero():
-    """AC25.6.4: never-incremented (user, key) reads as Count(0), not an error."""
+    """AC-counter.1.4: never-incremented (user, key) reads as Count(0), not an error."""
     repo = InMemoryCounterRepository()
     assert get_count(repo, key=KEY) == Count(0)
     assert get_count(repo, key=KEY, user_id=uuid4()) == Count(0)

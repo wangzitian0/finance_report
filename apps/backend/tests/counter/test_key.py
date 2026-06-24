@@ -1,4 +1,4 @@
-"""CounterKey validation — the package's self-owned SSOT term (EPIC-025 AC25.6.1)."""
+"""CounterKey validation — the package's self-owned SSOT term (EPIC-025 AC-counter.1.1)."""
 
 import pytest
 from common.testing.ac_proof import ac_proof
@@ -8,16 +8,16 @@ from src.counter import CounterKey, InvalidCounterKeyError
 pytestmark = pytest.mark.no_db
 
 
-@ac_proof(proof_id="test_counter_key_valid", ac_ids=["AC25.6.1"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_counter_key_valid", ac_ids=["AC-counter.1.1"], ci_tier="pr_ci")
 def test_counter_key_accepts_valid():
-    """AC25.6.1: valid lowercase dotted 'domain.action' keys construct."""
+    """AC-counter.1.1: valid lowercase dotted 'domain.action' keys construct."""
     for value in ("report.generated", "statement.uploaded", "a.b.c", "user.signed_in"):
         assert str(CounterKey(value)) == value
 
 
-@ac_proof(proof_id="test_counter_key_invalid", ac_ids=["AC25.6.1"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_counter_key_invalid", ac_ids=["AC-counter.1.1"], ci_tier="pr_ci")
 def test_counter_key_rejects_invalid():
-    """AC25.6.1: malformed keys are unrepresentable (InvalidCounterKeyError)."""
+    """AC-counter.1.1: malformed keys are unrepresentable (InvalidCounterKeyError)."""
     invalid = [
         "",  # empty
         "report",  # not dotted (no namespace)
@@ -34,9 +34,9 @@ def test_counter_key_rejects_invalid():
             CounterKey(value)
 
 
-@ac_proof(proof_id="test_counter_key_value_object", ac_ids=["AC25.6.1"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_counter_key_value_object", ac_ids=["AC-counter.1.1"], ci_tier="pr_ci")
 def test_counter_key_is_frozen_value_object():
-    """AC25.6.1: keys are equal/hashable by value and immutable."""
+    """AC-counter.1.1: keys are equal/hashable by value and immutable."""
     a, b = CounterKey("report.generated"), CounterKey("report.generated")
     assert a == b
     assert hash(a) == hash(b)

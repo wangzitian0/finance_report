@@ -8302,6 +8302,70 @@
         "title": "ResolveConflictsRequest",
         "type": "object"
       },
+      "ResolveCurrencyRequest": {
+        "description": "Reviewer-specified currency for a ``currency_unresolved`` transaction (AC12.40.3).",
+        "properties": {
+          "currency": {
+            "description": "ISO-4217 alphabetic currency code, e.g. 'USD'",
+            "title": "Currency",
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency"
+        ],
+        "title": "ResolveCurrencyRequest",
+        "type": "object"
+      },
+      "ResolveCurrencyResponse": {
+        "description": "Result of resolving a transaction's currency.",
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "currency_unresolved": {
+            "title": "Currency Unresolved",
+            "type": "boolean"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "resolved_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved By"
+          },
+          "transaction_id": {
+            "format": "uuid",
+            "title": "Transaction Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transaction_id",
+          "currency",
+          "currency_unresolved"
+        ],
+        "title": "ResolveCurrencyResponse",
+        "type": "object"
+      },
       "RestrictedHoldingResponse": {
         "description": "Restricted equity or locked holding surfaced for dashboard visibility.",
         "properties": {
@@ -23332,6 +23396,135 @@
           }
         ],
         "summary": "Resolve Review Conflicts",
+        "tags": [
+          "review"
+        ]
+      }
+    },
+    "/review/transactions/{transaction_id}/currency": {
+      "post": {
+        "description": "Reviewer specifies the currency for a ``currency_unresolved`` transaction (AC12.40.3).\n\nValidates the chosen code as ISO-4217 (``src.money.Currency``), clears the\nunresolved flag, and records the resolution audit (who/when). Only after this\ncan the transaction be promoted to a journal entry (AC12.40.4).",
+        "operationId": "resolve_transaction_currency_endpoint_review_transactions__transaction_id__currency_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "transaction_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Transaction Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveCurrencyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolveCurrencyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Resolve Transaction Currency Endpoint",
         "tags": [
           "review"
         ]

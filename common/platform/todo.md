@@ -14,7 +14,7 @@ The package-local worklist. Cross-package migration lives in
 - [x] Shared `outbox` table + migration `0049_add_outbox`.
 - [x] `counter` emits `counter.Incremented` through the outbox, atomic with the
       tally bump (`counter.api.record_increment`).
-- [x] ACs `AC25.7.1`–`AC25.7.5` sourced directly from the contract `roadmap`.
+- [x] ACs `AC-platform.1.1`–`AC-platform.1.5` sourced directly from the contract `roadmap`.
 
 ## Next
 

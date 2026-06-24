@@ -1890,6 +1890,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/review/transactions/{transaction_id}/currency": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve Transaction Currency Endpoint
+         * @description Reviewer specifies the currency for a ``currency_unresolved`` transaction (AC12.40.3).
+         *
+         *     Validates the chosen code as ISO-4217 (``src.money.Currency``), clears the
+         *     unresolved flag, and records the resolution audit (who/when). Only after this
+         *     can the transaction be promoted to a journal entry (AC12.40.4).
+         */
+        post: operations["resolve_transaction_currency_endpoint_review_transactions__transaction_id__currency_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/statements": {
         parameters: {
             query?: never;
@@ -6113,6 +6137,36 @@ export interface components {
             action: "confirm_distinct" | "link_transfer";
             /** Note */
             note?: string | null;
+        };
+        /**
+         * ResolveCurrencyRequest
+         * @description Reviewer-specified currency for a ``currency_unresolved`` transaction (AC12.40.3).
+         */
+        ResolveCurrencyRequest: {
+            /**
+             * Currency
+             * @description ISO-4217 alphabetic currency code, e.g. 'USD'
+             */
+            currency: string;
+        };
+        /**
+         * ResolveCurrencyResponse
+         * @description Result of resolving a transaction's currency.
+         */
+        ResolveCurrencyResponse: {
+            /** Currency */
+            currency: string;
+            /** Currency Unresolved */
+            currency_unresolved: boolean;
+            /** Resolved At */
+            resolved_at?: string | null;
+            /** Resolved By */
+            resolved_by?: string | null;
+            /**
+             * Transaction Id
+             * Format: uuid
+             */
+            transaction_id: string;
         };
         /**
          * RestrictedHoldingResponse
@@ -16359,6 +16413,104 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReviewConflictsResolveResponse"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    resolve_transaction_currency_endpoint_review_transactions__transaction_id__currency_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                transaction_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveCurrencyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolveCurrencyResponse"];
                 };
             };
             /** @description Bad request */

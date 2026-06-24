@@ -26,6 +26,7 @@ from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.layer3 import ClassificationStatus, TransactionClassification
 from src.models.statement_summary import StatementSummary
 from src.services.accounting import ValidationError, validate_journal_balance, validate_journal_posting_invariants
+from src.services.currency_resolution import CurrencyUnresolvedError
 from src.services.fx import FxRateError, get_exchange_rate
 from src.services.reconciliation import entry_total_amount, sync_reconciliation_match_journal_entry_links
 from src.services.source_type_priority import (
@@ -343,6 +344,16 @@ async def create_entry_from_txn(
     if txn.user_id != user_id:
         raise ValueError("Transaction does not belong to user")
 
+    # Promotion-gate (EPIC-012 AC12.40.4): a transaction whose currency could not be
+    # established at the ingest boundary is non-authoritative. It cannot become a
+    # JournalLine until a reviewer specifies the currency (see resolve_transaction_currency).
+    # This is the load-bearing guard that makes JournalLine.currency human-confirmed.
+    if getattr(txn, "currency_unresolved", False):
+        raise CurrencyUnresolvedError(
+            f"Transaction {txn.id} has an unresolved currency and cannot be promoted to a "
+            "journal entry. A reviewer must specify its currency first."
+        )
+
     statement = preloaded_statement
     if statement is not None:
         # Caller must preload statement under the same authenticated user context.
@@ -351,7 +362,10 @@ async def create_entry_from_txn(
     else:
         statement = await _resolve_statement_summary(db, txn, user_id=user_id)
 
-    currency = ((statement.currency if statement else None) or txn.currency or "SGD").upper()
+    # The transaction's own (human-confirmed at this point) currency is authoritative
+    # per AC12.40; the statement currency is only a fallback, then the base SSOT. This
+    # preserves a transaction-specific currency in multi-currency statements.
+    currency = (txn.currency or (statement.currency if statement else None) or settings.base_currency).upper()
     base_currency = settings.base_currency.upper()
     line_fx_rate: Decimal | None = None
     if currency != base_currency:

@@ -125,6 +125,22 @@ class ResolveCheckRequest(BaseModel):
     note: str | None = None
 
 
+class ResolveCurrencyRequest(BaseModel):
+    """Reviewer-specified currency for a ``currency_unresolved`` transaction (AC12.40.3)."""
+
+    currency: str = Field(..., description="ISO-4217 alphabetic currency code, e.g. 'USD'")
+
+
+class ResolveCurrencyResponse(BaseModel):
+    """Result of resolving a transaction's currency."""
+
+    transaction_id: UUID
+    currency: str
+    currency_unresolved: bool
+    resolved_by: UUID | None = None
+    resolved_at: datetime | None = None
+
+
 class BatchApproveRequest(BaseModel):
     match_ids: list[UUID] = Field(default_factory=list)
     run_id: str | None = None

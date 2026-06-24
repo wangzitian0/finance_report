@@ -7,7 +7,9 @@ import re
 from pathlib import Path
 from typing import Literal
 
-AC_PATTERN = re.compile(r"\bAC\d+\.\d+\.\d+\b")
+# Matches both id grammars: legacy ``AC{epic}.{n}.{n}`` and package-scoped
+# ``AC-{package}.{n}.{n}``.
+AC_PATTERN = re.compile(r"\bAC(?:\d+|-[a-z][a-z0-9_]*)\.\d+\.\d+\b")
 
 ReferenceKind = Literal["real", "stub", "placeholder"]
 

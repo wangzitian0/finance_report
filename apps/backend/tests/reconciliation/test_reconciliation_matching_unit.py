@@ -1769,8 +1769,10 @@ def test_build_many_to_one_groups_empty_description():
     assert groups == []
 
 
-async def test_execute_matching_4_layer_read(db: AsyncSession):
-    """Cover enable_4_layer_read branches: lines 617, 642, 726-728, 760-762, 849-850, 864-879, 966-967, 981-993."""
+async def test_execute_matching_layer2_atomic_txn(db: AsyncSession):
+    """L2 read path: execute_matching reads pending AtomicTransactions and keys the
+    match on atomic_txn_id. The enable_4_layer_read flag was removed when the read
+    cutover completed (EPIC-011 Stage 3); this path is now unconditional."""
     from src.models.layer2 import AtomicTransaction
 
     user_id = uuid4()
@@ -1836,17 +1838,15 @@ async def test_execute_matching_4_layer_read(db: AsyncSession):
     db.add(l2_txn)
     await db.commit()
 
-    with patch("src.services.reconciliation.settings") as mock_settings:
-        mock_settings.enable_4_layer_read = True
-        matches = await execute_matching(db, user_id=user_id)
-        # Should find and match the L2 transaction
-        assert len(matches) == 1
-        # Should use atomic_txn_id
-        assert matches[0].atomic_txn_id == l2_txn.id
+    matches = await execute_matching(db, user_id=user_id)
+    # Should find and match the L2 transaction, keyed on atomic_txn_id.
+    assert len(matches) == 1
+    assert matches[0].atomic_txn_id == l2_txn.id
 
 
-async def test_execute_matching_4_layer_read_no_candidates(db: AsyncSession):
-    """Cover enable_4_layer_read unmatched branch: line 879."""
+async def test_execute_matching_layer2_no_candidates(db: AsyncSession):
+    """L2 read path: a pending AtomicTransaction with no candidate entries yields no
+    matches (match status lives on ReconciliationMatch, not the txn)."""
     from src.models.layer2 import AtomicTransaction
 
     user_id = uuid4()
@@ -1868,56 +1868,14 @@ async def test_execute_matching_4_layer_read_no_candidates(db: AsyncSession):
     db.add(l2_txn)
     await db.commit()
 
-    with patch("src.services.reconciliation.settings") as mock_settings:
-        mock_settings.enable_4_layer_read = True
-        matches = await execute_matching(db, user_id=user_id)
-        # No candidates → no matches; match status lives on ReconciliationMatch, not the txn
-        assert len(matches) == 0
+    matches = await execute_matching(db, user_id=user_id)
+    # No candidates → no matches.
+    assert len(matches) == 0
 
 
-async def test_execute_matching_4_layer_read_transfer(db: AsyncSession):
-    """Cover enable_4_layer_read transfer branches: lines 717, 726-728, 750-751, 760-762."""
-
-    user_id = uuid4()
-    user = User(id=user_id, email=f"layer4-xfer-{uuid4()}@example.com", hashed_password="hashed")
-    db.add(user)
-    await db.flush()
-
-    src_account = Account(
-        id=uuid4(),
-        name="Checking",
-        type=AccountType.ASSET,
-        user_id=user_id,
-        currency="SGD",
-    )
-    db.add(src_account)
-    await db.flush()
-
-    statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
-    statement.account_id = src_account.id
-    db.add(statement)
-    await db.flush()
-
-    # Create a transfer-looking L2 atomic txn.
-    # _get_pending_layer2_transactions returns AtomicTransactions.
-    # AtomicTransaction doesn't have statement_id or status fields needed for transfer detection
-    # So we need to test that the 4_layer_read path in the transfer match creation uses atomic_txn_id
-
-    # Actually, looking at the code more carefully:
-    # When enable_4_layer_read=True, line 617 fetches AtomicTransactions.
-    # AtomicTransaction doesn't have .statement_id, so transfer detection at line 691 would fail.
-    # The coverage gap is that the code tries `txn.statement_id` on an AtomicTransaction.
-    # This means the `if settings.enable_4_layer_read` branches inside the transfer loop
-    # are effectively dead code in current usage - they'd only be reached if AtomicTransaction
-    # had a statement_id attribute.
-
-    # For coverage: test the 4_layer_read branch in M2O and normal matching instead.
-    # The transfer branch is covered by the test above (test_execute_matching_4_layer_read).
-    assert True  # transfer branch covered by test_execute_matching_4_layer_read above
-
-
-async def test_execute_matching_4_layer_read_pending_review(db: AsyncSession):
-    """Cover enable_4_layer_read pending_review branch: line 992."""
+async def test_execute_matching_layer2_pending_review(db: AsyncSession):
+    """L2 read path: a medium-confidence AtomicTransaction match lands in
+    PENDING_REVIEW and is keyed on atomic_txn_id."""
     from src.models.layer2 import AtomicTransaction
 
     user_id = uuid4()
@@ -1975,25 +1933,21 @@ async def test_execute_matching_4_layer_read_pending_review(db: AsyncSession):
     db.add(l2_txn)
     await db.commit()
 
-    with (
-        patch("src.services.reconciliation.settings") as mock_settings,
-        patch(
-            "src.services.reconciliation.load_reconciliation_config",
-            return_value=ReconciliationConfig(
-                weight_amount=Decimal("0.40"),
-                weight_date=Decimal("0.25"),
-                weight_description=Decimal("0.20"),
-                weight_business=Decimal("0.10"),
-                weight_history=Decimal("0.05"),
-                auto_accept=99,
-                pending_review=40,
-                amount_percent=Decimal("0.005"),
-                amount_absolute=Decimal("0.10"),
-                date_days=7,
-            ),
+    with patch(
+        "src.services.reconciliation.load_reconciliation_config",
+        return_value=ReconciliationConfig(
+            weight_amount=Decimal("0.40"),
+            weight_date=Decimal("0.25"),
+            weight_description=Decimal("0.20"),
+            weight_business=Decimal("0.10"),
+            weight_history=Decimal("0.05"),
+            auto_accept=99,
+            pending_review=40,
+            amount_percent=Decimal("0.005"),
+            amount_absolute=Decimal("0.10"),
+            date_days=7,
         ),
     ):
-        mock_settings.enable_4_layer_read = True
         matches = await execute_matching(db, user_id=user_id)
         assert len(matches) == 1
         assert matches[0].status == ReconciliationStatus.PENDING_REVIEW

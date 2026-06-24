@@ -1,4 +1,4 @@
-"""counter emits ``counter.Incremented`` through the outbox (AC25.7.5).
+"""counter emits ``counter.Incremented`` through the outbox (AC-platform.1.5).
 
 Proves the package wiring end to end against a real Postgres session: the async
 ``record_increment`` boundary bumps the per-(user, key) tally AND writes the
@@ -25,10 +25,10 @@ async def _outbox_rows(db):
     return (await db.execute(sa.select(Outbox).order_by(Outbox.id))).scalars().all()
 
 
-@ac_proof(proof_id="test_counter_emits_to_outbox", ac_ids=["AC25.7.5"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_counter_emits_to_outbox", ac_ids=["AC-platform.1.5"], ci_tier="pr_ci")
 @pytest.mark.asyncio
 async def test_record_increment_writes_incremented_atomically(db):
-    """AC25.7.5: record_increment bumps the tally and enqueues counter.Incremented."""
+    """AC-platform.1.5: record_increment bumps the tally and enqueues counter.Incremented."""
     user_id = uuid4()
 
     count = await record_increment(db, user_id=user_id, key=KEY)
@@ -48,10 +48,10 @@ async def test_record_increment_writes_incremented_atomically(db):
     assert row.payload["count"] == 1
 
 
-@ac_proof(proof_id="test_counter_emit_rolls_back_with_tally", ac_ids=["AC25.7.5"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_counter_emit_rolls_back_with_tally", ac_ids=["AC-platform.1.5"], ci_tier="pr_ci")
 @pytest.mark.asyncio
 async def test_rollback_leaves_neither_tally_nor_event(db):
-    """AC25.7.5: rollback ⇒ no tally bump AND no outbox row (one transaction)."""
+    """AC-platform.1.5: rollback ⇒ no tally bump AND no outbox row (one transaction)."""
     user_id = uuid4()
 
     await record_increment(db, user_id=user_id, key=KEY)
@@ -62,9 +62,9 @@ async def test_rollback_leaves_neither_tally_nor_event(db):
     assert len(await _outbox_rows(db)) == 0
 
 
-@ac_proof(proof_id="test_counter_increment_op_publishes_via_bus", ac_ids=["AC25.7.5"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_counter_increment_op_publishes_via_bus", ac_ids=["AC-platform.1.5"], ci_tier="pr_ci")
 def test_increment_op_publishes_through_bus_fake():
-    """AC25.7.5: the pure increment verb publishes Incremented through any EventBus."""
+    """AC-platform.1.5: the pure increment verb publishes Incremented through any EventBus."""
     from tests.counter._fake import InMemoryCounterRepository
 
     repo = InMemoryCounterRepository()

@@ -93,7 +93,7 @@ edit: a new package is governed the moment it ships a `common/<pkg>/contract.py`
   tallies for insight reports. `CounterKey`/`Count` value objects (`types`),
   `increment`/`get_count` verbs (`ops`) over a `CounterRepository` port (`store`),
   a thin async `read_count` boundary (`api`), and a `PackageContract` whose
-  `roadmap` owns `AC25.6.1`–`AC25.6.4`. See its
+  `roadmap` owns `AC-counter.1.1`–`AC-counter.1.4`. See its
   [`readme.md`](../counter/readme.md) and
   [`contract.py`](../counter/contract.py).
 - **`ledger`** (`core`) — the prototype vertical slice that introduced the

@@ -200,7 +200,12 @@ class TestHelpers:
         assert bat._ac_sort_key("AC1.2.10") > bat._ac_sort_key("AC1.2.9")
 
     def test_ac_sort_key_basic(self):
-        assert bat._ac_sort_key("AC1.1.1") == (1, 1, 1)
+        # Delegates to the shared sort_key, which prefixes a grammar discriminant
+        # (0 = legacy numeric) so package-scoped ids can share one total order.
+        assert bat._ac_sort_key("AC1.1.1") == (0, "", 1, 1, 1)
+
+    def test_ac_sort_key_orders_package_ids_after_legacy(self):
+        assert bat._ac_sort_key("AC-counter.1.1") > bat._ac_sort_key("AC9.9.9")
 
     def test_is_manual_manual_verification(self):
         ac = bat.AC("AC1.1.1", 1, "x", "manual verification needed", True)

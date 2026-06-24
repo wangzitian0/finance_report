@@ -10,14 +10,34 @@ from typing import Any, Iterable
 import yaml
 
 
+# Legacy EPIC-scoped id: ``AC{epic}.{scenario}.{case}`` (all numeric).
 AC_PATTERN = re.compile(r"^AC(?P<epic>\d+)\.(?P<scenario>\d+)\.(?P<case>\d+)$")
 
+# Package-scoped id: ``AC-{package}.{group}.{seq}`` — the package model's scheme,
+# where the key self-describes its owning package instead of an EPIC number.
+PKG_AC_PATTERN = re.compile(
+    r"^AC-(?P<package>[a-z][a-z0-9_]*)\.(?P<group>\d+)\.(?P<seq>\d+)$"
+)
 
-def sort_key(ac_id: str) -> list[int]:
-    return [int(p) for p in ac_id[2:].split(".")]
+
+def sort_key(ac_id: str) -> tuple:
+    """Total order over BOTH id grammars.
+
+    Legacy numeric ids sort first (leading ``0``) by (epic, scenario, case);
+    package ids sort after (leading ``1``) by (package, group, seq). The leading
+    discriminant means an ``int`` field is never compared against a ``str`` one.
+    """
+    pkg = PKG_AC_PATTERN.fullmatch(ac_id)
+    if pkg:
+        return (1, pkg.group("package"), int(pkg.group("group")), int(pkg.group("seq")))
+    return (0, "", *(int(p) for p in ac_id[2:].split(".")))
 
 
 def epic_group_key(ac_id: str) -> str:
+    """Top-level registry group: ``AC{epic}`` (legacy) or ``AC-{package}``."""
+    pkg = PKG_AC_PATTERN.fullmatch(ac_id)
+    if pkg:
+        return f"AC-{pkg.group('package')}"
     match = AC_PATTERN.fullmatch(ac_id)
     if not match:
         raise ValueError(f"Invalid AC ID: {ac_id}")
@@ -25,6 +45,10 @@ def epic_group_key(ac_id: str) -> str:
 
 
 def scenario_group_key(ac_id: str) -> str:
+    """Second-level group: ``AC{epic}.{scenario}`` or ``AC-{package}.{group}``."""
+    pkg = PKG_AC_PATTERN.fullmatch(ac_id)
+    if pkg:
+        return f"AC-{pkg.group('package')}.{pkg.group('group')}"
     match = AC_PATTERN.fullmatch(ac_id)
     if not match:
         raise ValueError(f"Invalid AC ID: {ac_id}")
