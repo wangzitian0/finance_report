@@ -1,5 +1,6 @@
 """Base schema classes and generic types."""
 
+from decimal import Decimal
 from typing import Annotated, Any, Generic, TypeVar, overload
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
@@ -33,6 +34,20 @@ def normalize_currency_code(value: Any) -> Any:
 # Normalization runs *before* the length constraints so surrounding whitespace
 # is stripped prior to the 3-character length check.
 CurrencyCode = Annotated[str, BeforeValidator(normalize_currency_code), Field(min_length=3, max_length=3)]
+
+
+# Reusable monetary/quantity/percent field annotations — the single source of truth
+# for the decimal-place policy that was previously re-declared inline at every schema
+# field. ``MoneyAmount`` is the canonical 2-dp money quantum; ``NonNegativeMoneyAmount``
+# adds the ``>= 0`` floor (replacing the drifting ``ge=0`` / ``ge=Decimal("0")``
+# variants); ``Quantity`` is the 6-dp quantum for share quantities; ``Percent`` is a
+# 2-dp percentage (e.g. a P&L ratio rendered via ``Ratio.to_percent()``) — same
+# precision as money but a distinct semantic so the OpenAPI/client type is not
+# mislabelled as a monetary amount.
+MoneyAmount = Annotated[Decimal, Field(decimal_places=2)]
+NonNegativeMoneyAmount = Annotated[Decimal, Field(decimal_places=2, ge=Decimal("0"))]
+Quantity = Annotated[Decimal, Field(decimal_places=6)]
+Percent = Annotated[Decimal, Field(decimal_places=2)]
 
 
 class BaseResponse(BaseModel):
