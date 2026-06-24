@@ -5,6 +5,8 @@ import { useCallback, useEffect, useState } from "react";
 import JournalEntryForm from "@/components/journal/JournalEntryForm";
 import JournalEntryDetailsModal from "@/components/journal/JournalEntryDetailsModal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
+import { FilterTabs } from "@/components/ui/FilterTabs";
 import ConfidenceBadge from "@/components/ui/ConfidenceBadge";
 import { EmptyState, LoadingState } from "@/components/ui";
 import { useToast } from "@/components/ui/Toast";
@@ -23,14 +25,6 @@ export default function JournalPage() {
     const [activeFilter, setActiveFilter] = useState<string>("All");
     const [isFormOpen, setIsFormOpen] = useState(false);
     
-    // Void dialog state
-    const [voidDialogOpen, setVoidDialogOpen] = useState(false);
-    const [voidingEntryId, setVoidingEntryId] = useState<string | null>(null);
-    const [voidLoading, setVoidLoading] = useState(false);
-    // Delete dialog state
-    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-    const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
-    const [deleteLoading, setDeleteLoading] = useState(false);
     const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
 
     const fetchEntries = useCallback(async () => {
@@ -68,67 +62,34 @@ export default function JournalPage() {
         }
     };
 
-    const openDeleteDialog = (entryId: string) => {
-        setDeletingEntryId(entryId);
-        setDeleteDialogOpen(true);
-    };
-
-    const handleDeleteConfirm = async () => {
-        if (!deletingEntryId) return;
-        setDeleteLoading(true);
+    const deleteDialog = useConfirmDialog(async (entryId) => {
         try {
-            await apiFetch(`/api/journal-entries/${deletingEntryId}`, { method: "DELETE" });
+            await apiFetch(`/api/journal-entries/${entryId}`, { method: "DELETE" });
             showToast("Draft entry deleted successfully", "success");
-            setDeleteDialogOpen(false);
-            setDeletingEntryId(null);
             fetchEntries();
         } catch (err) {
             const message = err instanceof Error ? err.message : "Failed to delete entry";
             showToast(message, "error");
             setError(message);
-        } finally {
-            setDeleteLoading(false);
+            throw err;
         }
-    };
+    });
 
-    const handleDeleteCancel = () => {
-        if (deleteLoading) return;
-        setDeleteDialogOpen(false);
-        setDeletingEntryId(null);
-    };
-
-    const openVoidDialog = (entryId: string) => {
-        setVoidingEntryId(entryId);
-        setVoidDialogOpen(true);
-    };
-
-    const handleVoidConfirm = async (reason: string) => {
-        if (!voidingEntryId) return;
-        
-        setVoidLoading(true);
+    const voidDialog = useConfirmDialog<[string]>(async (entryId, reason) => {
         try {
-            await apiFetch(`/api/journal-entries/${voidingEntryId}/voidings`, {
+            await apiFetch(`/api/journal-entries/${entryId}/voidings`, {
                 method: "POST",
                 body: JSON.stringify({ reason }),
             });
             showToast("Entry voided successfully. Reversal entry created.", "success");
-            setVoidDialogOpen(false);
-            setVoidingEntryId(null);
             fetchEntries();
         } catch (err) {
             const message = err instanceof Error ? err.message : "Failed to void entry";
             showToast(message, "error");
             setError(message);
-        } finally {
-            setVoidLoading(false);
+            throw err;
         }
-    };
-
-    const handleVoidCancel = () => {
-        if (voidLoading) return;
-        setVoidDialogOpen(false);
-        setVoidingEntryId(null);
-    };
+    });
 
     return (
         <div className="p-6">
@@ -147,20 +108,13 @@ export default function JournalPage() {
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-1 mb-6 bg-[var(--background-muted)] p-1 rounded-lg w-fit">
-                {STATUS_FILTERS.map((status) => (
-                    <button
-                        key={status}
-                        onClick={() => setActiveFilter(status)}
-                        className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors capitalize ${activeFilter === status
-                            ? "bg-[var(--background-card)] text-[var(--foreground)]"
-                            : "text-muted hover:text-[var(--foreground)]"
-                            }`}
-                    >
-                        {status}
-                    </button>
-                ))}
-            </div>
+            <FilterTabs
+                options={STATUS_FILTERS}
+                value={activeFilter}
+                onChange={setActiveFilter}
+                capitalize
+                className="flex gap-1 mb-6 bg-[var(--background-muted)] p-1 rounded-lg w-fit"
+            />
 
             {/* Error */}
             {error && (
@@ -239,7 +193,7 @@ export default function JournalPage() {
                                             {entry.status === "draft" && (
                                                 <div className="flex gap-2">
                                                     <button
-                                                        onClick={(e) => { e.stopPropagation(); openDeleteDialog(entry.id); }}
+                                                        onClick={(e) => { e.stopPropagation(); deleteDialog.open(entry.id); }}
                                                         className="btn-secondary text-xs py-1 px-2 text-[var(--error)] border-[var(--error)]/30 hover:bg-[var(--error-muted)]"
                                                     >
                                                         Delete
@@ -254,7 +208,7 @@ export default function JournalPage() {
                                             )}
                                             {(entry.status === "posted" || entry.status === "reconciled") && (
                                                 <button 
-                                                    onClick={(e) => { e.stopPropagation(); openVoidDialog(entry.id); }} 
+                                                    onClick={(e) => { e.stopPropagation(); voidDialog.open(entry.id); }} 
                                                     className="btn-secondary text-xs py-1 px-2 text-[var(--error)] border-[var(--error)]/30 hover:bg-[var(--error-muted)]"
                                                 >
                                                     Void
@@ -273,9 +227,9 @@ export default function JournalPage() {
             <JournalEntryForm isOpen={isFormOpen} onClose={() => setIsFormOpen(false)} onSuccess={fetchEntries} />
             
             <ConfirmDialog
-                isOpen={voidDialogOpen}
-                onCancel={handleVoidCancel}
-                onConfirm={(reason) => handleVoidConfirm(reason!)}
+                isOpen={voidDialog.isOpen}
+                onCancel={voidDialog.cancel}
+                onConfirm={(reason) => voidDialog.confirm(reason!)}
                 title="Void Journal Entry"
                 message="Are you sure you want to void this journal entry? A reversal entry will be created automatically."
                 confirmLabel="Void Entry"
@@ -284,18 +238,18 @@ export default function JournalPage() {
                 inputLabel="Void Reason"
                 inputPlaceholder="Enter reason for voiding this entry..."
                 inputRequired
-                loading={voidLoading}
+                loading={voidDialog.isLoading}
             />
 
             <ConfirmDialog
-                isOpen={deleteDialogOpen}
-                onCancel={handleDeleteCancel}
-                onConfirm={() => handleDeleteConfirm()}
+                isOpen={deleteDialog.isOpen}
+                onCancel={deleteDialog.cancel}
+                onConfirm={() => deleteDialog.confirm()}
                 title="Delete Journal Entry"
                 message="Are you sure you want to delete this journal entry? This action cannot be undone."
                 confirmLabel="Delete Entry"
                 confirmVariant="danger"
-                loading={deleteLoading}
+                loading={deleteDialog.isLoading}
             />
 
             <JournalEntryDetailsModal

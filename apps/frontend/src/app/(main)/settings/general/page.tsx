@@ -1,56 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-
 import { useToast } from "@/components/ui/Toast";
 import { fetchBaseCurrency, updateBaseCurrency } from "@/lib/api";
+import { useSettingsForm } from "@/hooks/useSettingsForm";
 
 // EPIC-012 AC12.39 / #1340: edit the effective base reporting currency.
 // The backend validates the ISO 4217 code (HTTP 422 on invalid), so this
 // control stays minimal — a text input normalized to upper-case.
 export default function GeneralSettingsPage() {
   const { showToast } = useToast();
-  const [saved, setSaved] = useState<string | null>(null);
-  const [draft, setDraft] = useState<string>("");
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadBaseCurrency = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await fetchBaseCurrency();
-      setSaved(data.base_currency);
-      setDraft(data.base_currency);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load base currency");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadBaseCurrency();
-  }, [loadBaseCurrency]);
-
-  const isDirty = useMemo(() => saved !== null && draft !== saved, [saved, draft]);
+  const { draft, setDraft, loading, submitting, error, isDirty, submit, reset } = useSettingsForm<string>({
+    load: async () => (await fetchBaseCurrency()).base_currency,
+    save: async (next) => (await updateBaseCurrency(next)).base_currency,
+    loadErrorMessage: "Failed to load base currency",
+    saveErrorMessage: "Failed to save base currency",
+  });
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (submitting || !isDirty) return;
-    setSubmitting(true);
-    setError(null);
-    try {
-      const updated = await updateBaseCurrency(draft);
-      setSaved(updated.base_currency);
-      setDraft(updated.base_currency);
-      showToast("Base currency saved", "success");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save base currency");
-    } finally {
-      setSubmitting(false);
-    }
+    const updated = await submit();
+    if (updated !== null) showToast("Base currency saved", "success");
   };
 
   if (loading) {
@@ -86,7 +55,7 @@ export default function GeneralSettingsPage() {
             id="base-currency"
             aria-label="Base currency"
             type="text"
-            value={draft}
+            value={draft ?? ""}
             disabled={submitting}
             maxLength={3}
             onChange={(event) => setDraft(event.target.value.toUpperCase())}
@@ -101,10 +70,7 @@ export default function GeneralSettingsPage() {
           <button
             type="button"
             className="btn-secondary"
-            onClick={() => {
-              if (saved !== null) setDraft(saved);
-              setError(null);
-            }}
+            onClick={reset}
             disabled={!isDirty || submitting}
           >
             Reset
