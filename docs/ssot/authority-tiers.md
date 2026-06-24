@@ -184,6 +184,35 @@ debt ratchet**, mirroring the protection-floor / AC-score baselines:
 - The baseline may only **shrink** (`--update` drops newly-tagged ACs and refuses
   to launder fresh debt), so the untagged count is monotonically non-increasing.
 
+## CODE/LLM bit (counted view)
+
+The five tiers above collapse, for measurement, into **one bit per AC plus a
+per-package ratio** — and the bit is **detected from the AC's test shape**, not
+declared:
+
+- `LLM` — the AC's test exercises the record/replay (cassette) harness.
+- `CODE` — a structured-input deterministic test, no LLM in the loop.
+
+Mapping from the five tiers: `PC`,`CP` → `CODE`; `LP`,`PL` → `LLM`; `HU` stays an
+orthogonal human-decision tag, not part of the ratio.
+
+Each package (currently an EPIC) gets an `LLM-share = #LLM / (#CODE + #LLM)` placed
+into four bands:
+
+| Band | LLM-share | Meaning |
+|------|-----------|---------|
+| `CODE-ONLY` | 0 | enforceable: no LLM permitted (money math, ledger) |
+| `CODE-LED` | 0–50 | measured; ratchet caps drift |
+| `LLM-LED` | 50–100 | measured; ratchet caps drift |
+| `LLM-ONLY` | 100 | enforceable: no hardcode permitted (narrative) |
+
+Because the bit is detected, the band is **computed, not argued**. The base
+library is `common/ssot/authority_classifier.py` and the runnable counter is
+`tools/authority_counter.py` (snapshot: `authority-distribution.json`). Two
+orthogonal rules still apply: an `LLM` value entering financial truth must pass a
+code check (cross-tier rule 2), and an `LLM` AC must have a cassette. Migrating
+the existing `{tier:XX}` markers onto this counted view is a follow-up.
+
 ## Follow-ups (out of scope here)
 
 - Full backfill of the remaining untagged ACs (ratcheted over time).
