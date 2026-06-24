@@ -8,7 +8,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from src.models.layer3 import CostBasisMethod, PositionStatus
-from src.schemas.base import BaseResponse, ListResponse
+from src.schemas.base import BaseResponse, ListResponse, MoneyAmount, NonNegativeMoneyAmount, Quantity
 from src.schemas.provenance import DataProvenance
 
 
@@ -19,11 +19,11 @@ class HoldingResponse(BaseResponse):
     user_id: UUID
     account_id: UUID
     asset_identifier: str
-    quantity: Annotated[Decimal, Field(decimal_places=6)]
-    cost_basis: Annotated[Decimal, Field(decimal_places=2)]
-    market_value: Annotated[Decimal, Field(decimal_places=2)]
-    unrealized_pnl: Annotated[Decimal, Field(decimal_places=2)]
-    unrealized_pnl_percent: Annotated[Decimal, Field(decimal_places=2)]
+    quantity: Quantity
+    cost_basis: MoneyAmount
+    market_value: MoneyAmount
+    unrealized_pnl: MoneyAmount
+    unrealized_pnl_percent: MoneyAmount
     currency: Annotated[str, Field(min_length=3, max_length=3)]
     acquisition_date: date
     disposal_date: date | None = None
@@ -50,8 +50,8 @@ class RealizedPnLResponse(BaseModel):
 
     period_start: date
     period_end: date
-    total_realized_pnl: Annotated[Decimal, Field(decimal_places=2)]
-    total_realized_pnl_percent: Annotated[Decimal, Field(decimal_places=2)]
+    total_realized_pnl: MoneyAmount
+    total_realized_pnl_percent: MoneyAmount
     positions_count: int
     details: list[dict]
 
@@ -60,10 +60,10 @@ class UnrealizedPnLResponse(BaseModel):
     """Schema for unrealized P&L response."""
 
     as_of_date: date
-    total_unrealized_pnl: Annotated[Decimal, Field(decimal_places=2)]
-    total_unrealized_pnl_percent: Annotated[Decimal, Field(decimal_places=2)]
-    total_market_value: Annotated[Decimal, Field(decimal_places=2)]
-    total_cost_basis: Annotated[Decimal, Field(decimal_places=2)]
+    total_unrealized_pnl: MoneyAmount
+    total_unrealized_pnl_percent: MoneyAmount
+    total_market_value: MoneyAmount
+    total_cost_basis: MoneyAmount
     holdings_count: int
     details: list[dict]
 
@@ -73,7 +73,7 @@ class PriceUpdateRequest(BaseModel):
 
     asset_identifier: Annotated[str, Field(min_length=1, max_length=100)]
     price_date: Annotated[date, Field(description="Date of the price (default: today)")]
-    price: Annotated[Decimal, Field(decimal_places=2, ge=0)]
+    price: NonNegativeMoneyAmount
     currency: Annotated[str, Field(min_length=3, max_length=3)]
 
 
@@ -84,7 +84,7 @@ class PriceUpdateResponse(BaseModel):
     message: str
     asset_identifier: str
     price_date: date
-    price: Annotated[Decimal, Field(decimal_places=2)]
+    price: MoneyAmount
     currency: str
     source: str
     created_at: datetime | None = None
@@ -111,14 +111,14 @@ class CostBasisMethodUpdateResponse(BaseModel):
 class PortfolioSummaryResponse(BaseModel):
     """Schema for overall portfolio summary."""
 
-    total_market_value: Annotated[Decimal, Field(decimal_places=2)]
-    total_cost_basis: Annotated[Decimal, Field(decimal_places=2)]
-    total_unrealized_pnl: Annotated[Decimal, Field(decimal_places=2)]
-    total_unrealized_pnl_percent: Annotated[Decimal, Field(decimal_places=2)]
-    total_realized_pnl: Annotated[Decimal, Field(decimal_places=2)]
-    total_realized_pnl_percent: Annotated[Decimal, Field(decimal_places=2)]
-    net_pnl: Annotated[Decimal, Field(decimal_places=2)]
-    net_pnl_percent: Annotated[Decimal, Field(decimal_places=2)]
+    total_market_value: MoneyAmount
+    total_cost_basis: MoneyAmount
+    total_unrealized_pnl: MoneyAmount
+    total_unrealized_pnl_percent: MoneyAmount
+    total_realized_pnl: MoneyAmount
+    total_realized_pnl_percent: MoneyAmount
+    net_pnl: MoneyAmount
+    net_pnl_percent: MoneyAmount
     holdings_count: int
     active_positions_count: int
     disposed_positions_count: int
@@ -128,20 +128,20 @@ class PortfolioSummaryResponse(BaseModel):
 class PortfolioSummaryDashboardResponse(PortfolioSummaryResponse):
     """Dashboard portfolio summary including YTD income figures."""
 
-    realized_pnl_ytd: Annotated[Decimal, Field(decimal_places=2)]
-    dividend_income_ytd: Annotated[Decimal, Field(decimal_places=2)]
+    realized_pnl_ytd: MoneyAmount
+    dividend_income_ytd: MoneyAmount
 
 
 class InvestmentPerformanceHoldingRow(BaseModel):
     """Per-holding row for the investment performance report schedule."""
 
     asset_identifier: str
-    quantity: Annotated[Decimal, Field(decimal_places=6)]
-    cost_basis: Annotated[Decimal, Field(decimal_places=2)]
-    market_value: Annotated[Decimal, Field(decimal_places=2)]
-    unrealized_pnl: Annotated[Decimal, Field(decimal_places=2)]
-    realized_pnl: Annotated[Decimal, Field(decimal_places=2)]
-    dividend_income: Annotated[Decimal, Field(decimal_places=2)]
+    quantity: Quantity
+    cost_basis: MoneyAmount
+    market_value: MoneyAmount
+    unrealized_pnl: MoneyAmount
+    realized_pnl: MoneyAmount
+    dividend_income: MoneyAmount
     currency: Annotated[str, Field(min_length=3, max_length=3)]
 
 
@@ -150,8 +150,8 @@ class InvestmentPerformanceAllocationRow(BaseModel):
 
     dimension: str
     category: str
-    value: Annotated[Decimal, Field(decimal_places=2)]
-    percentage: Annotated[Decimal, Field(decimal_places=2)]
+    value: MoneyAmount
+    percentage: MoneyAmount
     count: int
 
 
@@ -175,9 +175,9 @@ class InvestmentPerformanceReportScheduleResponse(BaseModel):
     xirr: Annotated[Decimal | None, Field(decimal_places=2)]
     time_weighted_return: Annotated[Decimal | None, Field(decimal_places=2)]
     money_weighted_return: Annotated[Decimal | None, Field(decimal_places=2)]
-    realized_pnl: Annotated[Decimal, Field(decimal_places=2)]
-    unrealized_pnl: Annotated[Decimal, Field(decimal_places=2)]
-    dividend_income: Annotated[Decimal, Field(decimal_places=2)]
+    realized_pnl: MoneyAmount
+    unrealized_pnl: MoneyAmount
+    dividend_income: MoneyAmount
     dividend_yield: Annotated[Decimal | None, Field(decimal_places=2)]
     holdings: list[InvestmentPerformanceHoldingRow]
     allocation: list[InvestmentPerformanceAllocationRow]
@@ -192,7 +192,7 @@ class DividendEventResponse(BaseModel):
     id: UUID
     ex_date: date
     pay_date: date
-    amount: Annotated[Decimal, Field(decimal_places=2)]
+    amount: MoneyAmount
     currency: Annotated[str, Field(min_length=3, max_length=3)]
     reinvested: bool = False
 
@@ -203,10 +203,10 @@ class RealizedLotResponse(BaseModel):
     lot_id: UUID
     acquired_date: date | None = None
     sold_date: date
-    quantity: Annotated[Decimal, Field(decimal_places=6)]
-    basis: Annotated[Decimal, Field(decimal_places=2)]
-    proceeds: Annotated[Decimal, Field(decimal_places=2)]
-    gain_loss: Annotated[Decimal, Field(decimal_places=2)]
+    quantity: Quantity
+    basis: MoneyAmount
+    proceeds: MoneyAmount
+    gain_loss: MoneyAmount
     holding_period: int | None = None
     currency: Annotated[str, Field(min_length=3, max_length=3)]
 

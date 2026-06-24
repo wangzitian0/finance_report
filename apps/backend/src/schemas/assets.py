@@ -1,7 +1,6 @@
 """Pydantic schemas for asset management."""
 
 from datetime import date, datetime
-from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
 
@@ -13,7 +12,7 @@ from src.models.layer3 import (
     ManualValuationLiquidityClass,
     PositionStatus,
 )
-from src.schemas.base import BaseResponse, ListResponse
+from src.schemas.base import BaseResponse, ListResponse, MoneyAmount, NonNegativeMoneyAmount, Quantity
 from src.schemas.provenance import DataProvenance
 
 
@@ -24,8 +23,8 @@ class ManagedPositionResponse(BaseResponse):
     user_id: UUID
     account_id: UUID
     asset_identifier: str
-    quantity: Annotated[Decimal, Field(decimal_places=6)]
-    cost_basis: Annotated[Decimal, Field(decimal_places=2)]
+    quantity: Quantity
+    cost_basis: MoneyAmount
     acquisition_date: date
     disposal_date: date | None = None
     status: PositionStatus
@@ -54,12 +53,12 @@ class DepreciationResponse(BaseModel):
 
     position_id: UUID
     asset_identifier: str
-    period_depreciation: Annotated[Decimal, Field(decimal_places=2)]
-    accumulated_depreciation: Annotated[Decimal, Field(decimal_places=2)]
-    book_value: Annotated[Decimal, Field(decimal_places=2)]
+    period_depreciation: MoneyAmount
+    accumulated_depreciation: MoneyAmount
+    book_value: MoneyAmount
     method: str
     useful_life_years: int
-    salvage_value: Annotated[Decimal, Field(decimal_places=2)]
+    salvage_value: MoneyAmount
 
 
 class ManualValuationSnapshotCreate(BaseModel):
@@ -67,7 +66,7 @@ class ManualValuationSnapshotCreate(BaseModel):
 
     component_type: ManualValuationComponentType
     as_of_date: date
-    value: Annotated[Decimal, Field(decimal_places=2, ge=Decimal("0"))]
+    value: NonNegativeMoneyAmount
     currency: Annotated[str, Field(min_length=3, max_length=3)]
     source: Annotated[str, Field(min_length=1, max_length=120)]
     valuation_basis: ManualValuationBasis | None = None
@@ -87,7 +86,7 @@ class ManualValuationSnapshotUpdate(BaseModel):
 
     component_type: ManualValuationComponentType | None = None
     as_of_date: date | None = None
-    value: Annotated[Decimal, Field(decimal_places=2, ge=Decimal("0"))] | None = None
+    value: NonNegativeMoneyAmount | None = None
     currency: Annotated[str, Field(min_length=3, max_length=3)] | None = None
     source: Annotated[str, Field(min_length=1, max_length=120)] | None = None
     valuation_basis: ManualValuationBasis | None = None
@@ -110,7 +109,7 @@ class ManualValuationSnapshotResponse(BaseResponse):
     component_type: ManualValuationComponentType
     liquidity_class: ManualValuationLiquidityClass
     as_of_date: date
-    value: Annotated[Decimal, Field(decimal_places=2)]
+    value: MoneyAmount
     currency: Annotated[str, Field(min_length=3, max_length=3)]
     source: str
     valuation_basis: ManualValuationBasis | None = None
@@ -129,7 +128,7 @@ class ValuationComponentResponse(BaseModel):
     component_type: ManualValuationComponentType
     liquidity_class: ManualValuationLiquidityClass
     as_of_date: date
-    value: Annotated[Decimal, Field(decimal_places=2)]
+    value: MoneyAmount
     currency: Annotated[str, Field(min_length=3, max_length=3)]
     source: str
     provenance: DataProvenance = "manual"
@@ -139,19 +138,19 @@ class ValuationComponentsResponse(BaseModel):
     """Aggregated latest manual valuation components."""
 
     items: list[ValuationComponentResponse]
-    total_assets: Annotated[Decimal, Field(decimal_places=2)]
-    total_liabilities: Annotated[Decimal, Field(decimal_places=2)]
-    net_worth_delta: Annotated[Decimal, Field(decimal_places=2)]
+    total_assets: MoneyAmount
+    total_liabilities: MoneyAmount
+    net_worth_delta: MoneyAmount
 
 
 class RestrictedHoldingResponse(BaseModel):
     """Restricted equity or locked holding surfaced for dashboard visibility."""
 
     ticker: str
-    quantity: Annotated[Decimal, Field(decimal_places=6)]
+    quantity: Quantity
     vesting_schedule: str | None = None
     unlock_date: date | None = None
-    fair_value: Annotated[Decimal, Field(decimal_places=2)]
+    fair_value: MoneyAmount
     currency: Annotated[str, Field(min_length=3, max_length=3)]
 
 
