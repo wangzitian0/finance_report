@@ -3227,22 +3227,12 @@ export interface components {
          */
         BankStatementStatus: "uploaded" | "parsing" | "parsed" | "approved" | "rejected";
         /**
-         * BankStatementTransactionStatusEnum
-         * @description Legacy per-transaction reconciliation status (API backward-compat only).
-         *
-         *     Layer-2 ``AtomicTransaction`` carries no per-transaction status; the match
-         *     status on ``ReconciliationMatch`` is the source of truth. These values are
-         *     kept solely to preserve the shape of existing API responses.
-         * @enum {string}
-         */
-        BankStatementTransactionStatusEnum: "pending" | "matched" | "unmatched";
-        /**
          * BankTransactionSummary
          * @description Summary of a transaction for reconciliation.
          *
          *     Mapped from Layer-2 ``AtomicTransaction`` (EPIC-011 Stage 3). ``statement_id``
-         *     and ``status`` are retained as optional fields for backward compatibility with
-         *     API consumers; atomic transactions do not carry a per-transaction status.
+         *     is retained as an optional field for backward compatibility with API
+         *     consumers; atomic transactions do not carry a per-transaction status.
          */
         BankTransactionSummary: {
             /** Amount */
@@ -3265,7 +3255,6 @@ export interface components {
             reference: string | null;
             /** Statement Id */
             statement_id?: string | null;
-            status?: components["schemas"]["BankStatementTransactionStatusEnum"] | null;
             /**
              * Txn Date
              * Format: date

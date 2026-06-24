@@ -67,7 +67,6 @@ jobs:
       triggering_ci_conclusion: ${{ steps.info.outputs.triggering_ci_conclusion }}
       internal_domain: ${{ steps.info.outputs.internal_domain }}
       preview_app_url: ${{ steps.info.outputs.preview_app_url }}
-      preview_commit_app_url: ${{ steps.info.outputs.preview_commit_app_url }}
       preview_commit_slug: ${{ steps.info.outputs.preview_commit_slug }}
       pr_preview_required: ${{ steps.preview_gate.outputs.pr_preview_required }}
       pr_preview_reason: ${{ steps.preview_gate.outputs.pr_preview_reason }}
@@ -129,11 +128,6 @@ jobs:
           preview_app_url = (
               f"https://report-pr-{pr_number}.{internal_domain}" if pr_number else ""
           )
-          preview_commit_app_url = (
-              f"https://report-pr-{pr_number}-{commit_slug}.{internal_domain}"
-              if pr_number
-              else ""
-          )
 
           outputs = {
               "internal_domain": internal_domain,
@@ -146,7 +140,6 @@ jobs:
               "triggering_ci_conclusion": triggering_ci_conclusion,
               "preview_commit_slug": commit_slug,
               "preview_app_url": preview_app_url,
-              "preview_commit_app_url": preview_commit_app_url,
           }
           for key, value in outputs.items():
               print(f"{key}={value}")

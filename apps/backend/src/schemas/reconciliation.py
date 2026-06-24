@@ -8,7 +8,6 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from src.schemas.base import ListResponse
-from src.schemas.extraction import BankStatementTransactionStatusEnum
 
 
 class ReconciliationStatusEnum(str, Enum):
@@ -25,8 +24,8 @@ class BankTransactionSummary(BaseModel):
     """Summary of a transaction for reconciliation.
 
     Mapped from Layer-2 ``AtomicTransaction`` (EPIC-011 Stage 3). ``statement_id``
-    and ``status`` are retained as optional fields for backward compatibility with
-    API consumers; atomic transactions do not carry a per-transaction status.
+    is retained as an optional field for backward compatibility with API
+    consumers; atomic transactions do not carry a per-transaction status.
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -38,7 +37,6 @@ class BankTransactionSummary(BaseModel):
     amount: Decimal
     direction: str
     reference: str | None
-    status: BankStatementTransactionStatusEnum | None = None
     confidence_tier: str = "LOW"
 
 

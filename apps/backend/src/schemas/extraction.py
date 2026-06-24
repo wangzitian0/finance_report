@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
-from enum import Enum
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -20,19 +19,6 @@ if TYPE_CHECKING:
 
 # Re-export the statement lifecycle status enum with a schema-friendly name.
 BankStatementStatusEnum = BankStatementStatus
-
-
-class BankStatementTransactionStatusEnum(str, Enum):
-    """Legacy per-transaction reconciliation status (API backward-compat only).
-
-    Layer-2 ``AtomicTransaction`` carries no per-transaction status; the match
-    status on ``ReconciliationMatch`` is the source of truth. These values are
-    kept solely to preserve the shape of existing API responses.
-    """
-
-    PENDING = "pending"
-    MATCHED = "matched"
-    UNMATCHED = "unmatched"
 
 
 class CurrencyBalance(BaseModel):

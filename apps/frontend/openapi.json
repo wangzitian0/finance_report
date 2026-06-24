@@ -1735,18 +1735,8 @@
         "title": "BankStatementStatus",
         "type": "string"
       },
-      "BankStatementTransactionStatusEnum": {
-        "description": "Legacy per-transaction reconciliation status (API backward-compat only).\n\nLayer-2 ``AtomicTransaction`` carries no per-transaction status; the match\nstatus on ``ReconciliationMatch`` is the source of truth. These values are\nkept solely to preserve the shape of existing API responses.",
-        "enum": [
-          "pending",
-          "matched",
-          "unmatched"
-        ],
-        "title": "BankStatementTransactionStatusEnum",
-        "type": "string"
-      },
       "BankTransactionSummary": {
-        "description": "Summary of a transaction for reconciliation.\n\nMapped from Layer-2 ``AtomicTransaction`` (EPIC-011 Stage 3). ``statement_id``\nand ``status`` are retained as optional fields for backward compatibility with\nAPI consumers; atomic transactions do not carry a per-transaction status.",
+        "description": "Summary of a transaction for reconciliation.\n\nMapped from Layer-2 ``AtomicTransaction`` (EPIC-011 Stage 3). ``statement_id``\nis retained as an optional field for backward compatibility with API\nconsumers; atomic transactions do not carry a per-transaction status.",
         "properties": {
           "amount": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -1793,16 +1783,6 @@
               }
             ],
             "title": "Statement Id"
-          },
-          "status": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BankStatementTransactionStatusEnum"
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "txn_date": {
             "format": "date",
