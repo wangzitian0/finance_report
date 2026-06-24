@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useToast } from "@/components/ui/Toast";
 import { fetchUserSettings, patchUserSettings } from "@/lib/api";
+import { useSettingsForm } from "@/hooks/useSettingsForm";
 import type { UserAiSettings } from "@/lib/types";
 
 const DEFAULT_SETTINGS: UserAiSettings = {
@@ -16,62 +16,24 @@ export default function AiSettingsPage() {
   const { showToast } = useToast();
   // `saved` is the last value persisted by the backend; `draft` is the
   // in-progress edit. A dirty form is any divergence between the two.
-  const [saved, setSaved] = useState<UserAiSettings | null>(null);
-  const [draft, setDraft] = useState<UserAiSettings | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadSettings = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await fetchUserSettings();
-      setSaved(data);
-      setDraft(data);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load AI settings");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
-
-  const isDirty = useMemo(() => {
-    if (!saved || !draft) return false;
-    return (
-      saved.enable_ai_reconciliation !== draft.enable_ai_reconciliation ||
-      saved.enable_ai_classification !== draft.enable_ai_classification
-    );
-  }, [saved, draft]);
+  const { draft, setDraft, loading, submitting, error, isDirty, submit, reset } = useSettingsForm<UserAiSettings>({
+    load: fetchUserSettings,
+    save: patchUserSettings,
+    isEqual: (a, b) =>
+      a.enable_ai_reconciliation === b.enable_ai_reconciliation &&
+      a.enable_ai_classification === b.enable_ai_classification,
+    loadErrorMessage: "Failed to load AI settings",
+    saveErrorMessage: "Failed to save AI settings",
+  });
 
   const setField = (key: keyof UserAiSettings, value: boolean) => {
     setDraft((prev) => ({ ...(prev ?? DEFAULT_SETTINGS), [key]: value }));
   };
 
-  const handleReset = () => {
-    if (saved) setDraft(saved);
-    setError(null);
-  };
-
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!draft || submitting) return;
-    setSubmitting(true);
-    setError(null);
-    try {
-      const updated = await patchUserSettings(draft);
-      setSaved(updated);
-      setDraft(updated);
-      showToast("AI settings saved", "success");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save AI settings");
-    } finally {
-      setSubmitting(false);
-    }
+    const updated = await submit();
+    if (updated !== null) showToast("AI settings saved", "success");
   };
 
   if (loading) {
@@ -150,7 +112,7 @@ export default function AiSettingsPage() {
           <button
             type="button"
             className="btn-secondary"
-            onClick={handleReset}
+            onClick={reset}
             disabled={!isDirty || submitting}
           >
             Reset
