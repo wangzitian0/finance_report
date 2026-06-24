@@ -21,6 +21,7 @@ from pathlib import Path
 
 import pytest
 
+from common.ssot import check_authority_reconcile as g_reconcile
 from common.ssot import check_draft_packages as g_draft
 from common.ssot import check_epic_package_dual as g_dual
 from common.ssot import check_tier_ast_literal as g_tier
@@ -185,6 +186,48 @@ def test_1e_load_baseline_rejects_malformed(tmp_path: Path) -> None:
     bad.write_text('["wip"]', encoding="utf-8")  # a list, not an object
     with pytest.raises(ValueError):
         g_draft.load_baseline(bad)
+
+
+def _ac_pointing_at(test_file: str) -> str:
+    return (
+        f'ACRecord(id="AC-p.1.1", statement="s", test="{test_file}::t", '
+        'priority="P0", status="done"),'
+    )
+
+
+def test_reconcile_flags_llm_test_under_code_only(tmp_path: Path) -> None:
+    # A CODE-ONLY package whose AC test drives the cassette harness = a real
+    # declared-vs-detected contradiction.
+    (tmp_path / "cass_test.py").write_text(
+        "def t():\n    cassette.replay()  # cassette marker\n", encoding="utf-8"
+    )
+    _write_contract(
+        tmp_path, "p", _active("p", tier='"CODE-ONLY"', roadmap=_ac_pointing_at("cass_test.py"))
+    )
+    violations, _ = g_reconcile.reconcile(tmp_path)
+    assert any("declared CODE-ONLY but" in v for v in violations)
+
+
+def test_reconcile_passes_code_only_with_deterministic_test(tmp_path: Path) -> None:
+    (tmp_path / "det_test.py").write_text(
+        "def t():\n    assert 1 == 1\n", encoding="utf-8"
+    )
+    _write_contract(
+        tmp_path, "p", _active("p", tier='"CODE-ONLY"', roadmap=_ac_pointing_at("det_test.py"))
+    )
+    violations, _ = g_reconcile.reconcile(tmp_path)
+    assert violations == []
+
+
+def test_reconcile_flags_code_test_under_llm_only(tmp_path: Path) -> None:
+    (tmp_path / "det_test.py").write_text(
+        "def t():\n    assert 1 == 1\n", encoding="utf-8"
+    )
+    _write_contract(
+        tmp_path, "p", _active("p", tier='"LLM-ONLY"', roadmap=_ac_pointing_at("det_test.py"))
+    )
+    violations, _ = g_reconcile.reconcile(tmp_path)
+    assert any("declared LLM-ONLY but" in v for v in violations)
 
 
 def test_1e_passes_for_registered_draft_without_done(tmp_path: Path) -> None:

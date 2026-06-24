@@ -215,7 +215,11 @@ jobs:
           uv run --with pyyaml python tools/check_epic_package_dual.py
           # 1e: a draft package must carry no done ACs and must be registered.
           uv run --with pyyaml python tools/check_draft_packages.py
-      - name: Tier Import Guard (PC must not import the LLM layer)
+          # reconcile: a package's DECLARED tier must agree with its DETECTED
+          # CODE/LLM band at the enforceable ends (CODE-ONLY ⟹ no LLM test;
+          # LLM-ONLY ⟹ no deterministic test). Makes the declared tier checkable.
+          uv run --with pyyaml python tools/check_authority_reconcile.py
+      - name: Tier Import Guard (CODE-ONLY must not import the LLM layer)
         run: |
           # EPIC-026 phase 3: enforce the cross-tier STRUCTURAL MUST rule
           # (docs/ssot/authority-tiers.md, rule 2 "PC stays pure"). AST-based,

@@ -710,6 +710,8 @@ concepts:
       - common/ssot/check_tier_ast_literal.py
       - common/ssot/check_epic_package_dual.py
       - common/ssot/check_draft_packages.py
+      - common/ssot/authority_classifier.py
+      - common/ssot/check_authority_reconcile.py
 
   ac_tier_baseline:
     owner: docs/ssot/ac-tier-baseline.json
