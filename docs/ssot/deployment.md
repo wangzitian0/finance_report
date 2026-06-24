@@ -142,12 +142,18 @@ jobs: `Deploy Staging` and `Staging Provider Gate` must succeed for the exact
 records full-provider regression evidence but does not block production after
 deploy health, non-LLM E2E, and provider connectivity have passed.
 
-### deploy.yml
+### release.yml
+
+The production release line is its own manual-dispatch workflow (split out of
+`deploy.yml`, #1354). It runs under a `production-release-<version_ref>`
+concurrency group with `cancel-in-progress: false` so two production releases
+never mutate production concurrently. `deploy.yml` keeps staging deploy and the
+tag-push image promotion.
 
 ```yaml
 Triggers:
   - Manual dispatch: Deploy existing release version_ref to production
-  - Manual dry-run:  Validate release prerequisites without deploy
+  - Manual dry-run:  Validate release prerequisites without deploy (dry_run=true)
 
 Dry-run:    Manual -> Resolve release coordinate -> Verify release evidence -> Release lint -> Verify release image digests -> Skip production mutation
 Deploy job: Manual -> Resolve release coordinate -> Verify release evidence -> Verify release image digests -> deploy_v2 -> Health -> Smoke/E2E
@@ -170,10 +176,10 @@ git push origin v1.2.3
 # -> Actions -> Deploy Staging -> Run workflow -> version_ref=v1.2.3
 
 # Deploy to production (manual, after staging passes)
-# -> Actions -> Production Release -> Run workflow -> version_ref=v1.2.3
+# -> Actions -> Release -> Run workflow -> version_ref=v1.2.3
 
 # Dry-run production release proof (manual, no production mutation)
-# -> Actions -> Production Release -> Run workflow -> version_ref=v1.2.3, dry_run=true
+# -> Actions -> Release -> Run workflow -> version_ref=v1.2.3, dry_run=true
 ```
 
 Production app deploys must keep the image tag, Dokploy runtime

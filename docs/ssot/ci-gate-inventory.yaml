@@ -464,7 +464,7 @@ gates:
   - id: production_release.dry_run
     stage: prod.release_integrity
     task_category: release_integrity
-    workflow: .github/workflows/deploy.yml
+    workflow: .github/workflows/release.yml
     job: dry-run
     owner: production release workflow
     triggers: [workflow_dispatch]
@@ -477,7 +477,7 @@ gates:
   - id: production_release.deploy
     stage: prod.release_integrity
     task_category: release_integrity
-    workflow: .github/workflows/deploy.yml
+    workflow: .github/workflows/release.yml
     job: deploy
     owner: production release workflow
     triggers: [workflow_dispatch]
@@ -492,13 +492,13 @@ gates:
     task_category: provider_gate
     workflow: .github/workflows/deploy.yml
     job: manual-ai-ocr-gate
-    owner: tests/e2e provider-backed OCR corpus
+    owner: reusable staging-ai-ocr-gate.yml (fail-fast caller, blocking=true)
     triggers: [workflow_dispatch]
     blocks_workflow: true
     inputs: [staging_environment, provider_credentials, llm_e2e_corpus]
     outputs: [ai_ocr_gate_summary]
-    artifacts: [staging-ai-ocr-test-context]
-    failure_semantics: Manual staging AI/OCR provider gate failed or could not summarize evidence.
+    artifacts: []
+    failure_semantics: Manual staging AI/OCR provider gate failed; the gate body and its artifact are owned by the reusable staging-ai-ocr-gate.yml run job.
     action: keep
   - id: staging_deploy.build_and_deploy
     stage: staging.release_validation
@@ -531,13 +531,26 @@ gates:
     task_category: provider_gate
     workflow: .github/workflows/deploy.yml
     job: ai-ocr-gate
-    owner: staging provider-backed OCR corpus
+    owner: reusable staging-ai-ocr-gate.yml (record-only caller, blocking=false)
     triggers: [workflow_dispatch]
     blocks_workflow: false
     inputs: [staging_environment, provider_credentials, llm_e2e_corpus]
     outputs: [ai_ocr_gate_summary, ai_ocr_status]
+    artifacts: []
+    failure_semantics: Automatic staging AI/OCR corpus regression failed after release-critical deploy validation; record and triage, but do not block production eligibility. Gate body and artifact are owned by the reusable staging-ai-ocr-gate.yml run job.
+    action: keep
+  - id: staging_ai_ocr_gate.reusable_run
+    stage: staging.provider_regression
+    task_category: provider_gate
+    workflow: .github/workflows/staging-ai-ocr-gate.yml
+    job: run
+    owner: tests/e2e provider-backed OCR corpus (single owner for both entrances)
+    triggers: [workflow_call]
+    blocks_workflow: true
+    inputs: [commit_ref, expected_sha, blocking]
+    outputs: [ai_ocr_status, ai_ocr_exit_code]
     artifacts: [staging-ai-ocr-test-context]
-    failure_semantics: Automatic staging AI/OCR corpus regression failed after release-critical deploy validation; record and triage, but do not block production eligibility.
+    failure_semantics: Shared staging AI/OCR gate body failed; blocking=true (manual) fails the run, blocking=false (inline) records the regression status and does not block release-critical delivery.
     action: keep
   - id: staging_deploy.post_merge_delivery
     stage: staging.release_validation
@@ -580,8 +593,25 @@ resolved_duplicate_cleanups:
     same_failure_semantics: true
     same_artifact_dependency: true
     same_trigger: true
+  - id: staging_ai_ocr_gate_duplicate
+    status: removed
+    gates: [staging_deploy.ai_ocr_gate, staging_ai_ocr_gate.manual_ai_ocr_gate]
+    command: pytest "${STAGING_AI_OCR_TESTS[@]}" -m "llm"
+    retained_owner: staging_ai_ocr_gate.reusable_run
+    removed_from: [staging_deploy.ai_ocr_gate, staging_ai_ocr_gate.manual_ai_ocr_gate]
+    final_state: The ~120-line staging AI/OCR corpus gate body lives once in the reusable staging-ai-ocr-gate.yml run job; the inline (deploy.yml ai-ocr-gate, blocking=false) and manual (deploy.yml manual-ai-ocr-gate, blocking=true) jobs are uses; callers that differ only by the blocking input and checkout/expected_sha values (AC8.13.153).
+    same_owner: true
+    same_input: false
+    same_command_family: true
+    same_failure_semantics: false
+    same_artifact_dependency: true
+    same_trigger: false
 
 deferred_candidates:
+  - id: pr_preview_cleanup_event_vs_scheduled
+    gates: [preview.cleanup, pr_preview_cleanup.cleanup]
+    status: keep_separate
+    reason: Same tools/pr_preview_lifecycle.py owner, but intentionally split by trigger — preview.yml#cleanup is event-driven on PR close, maintenance.yml#cleanup is the scheduled fallback that reclaims leaked or abandoned previews a close event missed. Merging would drop the fallback and is a protection regression, not a simplification (AC8.13.155).
   - id: backend_pytest_parameters
     gates: [ci.backend, ci.backend_integration, ci.backend_e2e_tier1]
     status: observe_only

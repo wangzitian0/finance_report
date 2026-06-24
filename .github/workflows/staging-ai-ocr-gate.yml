@@ -1,0 +1,255 @@
+# Staging AI/OCR Gate (reusable)
+#
+# Single owner of the provider-backed staging AI/OCR corpus replay. Both the
+# inline staging deploy chain (`deploy.yml#ai-ocr-gate`, record-only) and the
+# on-demand manual dispatch (`deploy.yml#manual-ai-ocr-gate`, fail-fast) call
+# this reusable workflow so the gate body cannot drift between two copies
+# (EPIC-008 AC8.13.153). The `blocking` input is the ONLY behavioral difference:
+#   - blocking=false -> record the regression as a right-shifted, non-blocking
+#     status output and always exit 0 (post-merge delivery reads the status).
+#   - blocking=true  -> fail the job when the gate fails (manual diagnostic).
+name: Staging AI/OCR Gate (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      commit_ref:
+        description: "Git ref to check out for the gate run"
+        required: true
+        type: string
+      expected_sha:
+        description: "Expected deployed version_ref or commit SHA (40-hex SHAs are shortened to 7)"
+        required: true
+        type: string
+      blocking:
+        description: "true = fail the job on gate failure; false = record-only and exit 0"
+        required: false
+        default: false
+        type: boolean
+    outputs:
+      ai_ocr_status:
+        description: "passed | regression-failed | version-check-failed | not-run"
+        value: ${{ jobs.run.outputs.ai_ocr_status }}
+      ai_ocr_exit_code:
+        description: "Exit code observed by the gate (0 when passed)"
+        value: ${{ jobs.run.outputs.ai_ocr_exit_code }}
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/finance_report
+  STAGING_E2E_PRIMARY_MODEL: glm-5.1
+  STAGING_E2E_OCR_MODEL: glm-4.6v
+  STAGING_E2E_VISION_MODEL: glm-4.6v
+  APP_URL: https://report-staging.zitian.party
+  TEST_ENV: staging
+  SKIP_UI_TESTS: false
+  STRICT_E2E_GATES: true
+  PARSING_TIMEOUT_MS: 480000
+
+jobs:
+  run:
+    name: Staging AI/OCR Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      ai_ocr_status: ${{ steps.staging_ai_ocr_tests.outputs.ai_ocr_status || 'not-run' }}
+      ai_ocr_exit_code: ${{ steps.staging_ai_ocr_tests.outputs.ai_ocr_exit_code || '0' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.commit_ref }}
+
+      - name: Setup E2E Tests
+        uses: ./.github/actions/setup-e2e-tests
+
+      - name: Run Staging AI/OCR Gate
+        id: staging_ai_ocr_tests
+        timeout-minutes: 22
+        env:
+          EXPECTED_SHA_RAW: ${{ inputs.expected_sha }}
+          BLOCKING: ${{ inputs.blocking }}
+        run: |
+          # Normalize a full 40-hex commit SHA down to the 7-char tag used by the
+          # published images; leave a vX.Y.Z release version_ref untouched.
+          if [[ "$EXPECTED_SHA_RAW" =~ ^[0-9a-f]{40}$ ]]; then
+            EXPECTED_SHA="${EXPECTED_SHA_RAW:0:7}"
+          else
+            EXPECTED_SHA="$EXPECTED_SHA_RAW"
+          fi
+
+          run_timed_phase() {
+            local phase_name="$1"
+            shift
+            local start
+            local end
+            local duration
+            local status
+
+            start=$(date +%s)
+            echo "::group::${phase_name}"
+            printf '[phase:start] %s at %s\n' "$phase_name" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            set +e
+            "$@"
+            status=$?
+            set -e
+            end=$(date +%s)
+            duration=$((end - start))
+            printf '[phase:end] %s status=%s duration=%ss\n' "$phase_name" "$status" "$duration"
+            echo "::endgroup::"
+            return "$status"
+          }
+
+          write_staging_audit_inventory() {
+            {
+              echo "## Staging Audit Replay Inputs"
+              echo ""
+              echo "- Environment: staging"
+              echo "- GitHub run ID: ${{ github.run_id }}"
+              echo "- Expected version: ${EXPECTED_SHA}"
+              echo "- Backend image tag: ${REGISTRY}/${IMAGE_PREFIX}-backend:${EXPECTED_SHA}"
+              echo "- Frontend image tag: ${REGISTRY}/${IMAGE_PREFIX}-frontend:${EXPECTED_SHA}"
+              echo "- App URL: ${APP_URL}"
+              echo "- Models: primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL}"
+              echo "- Fixture tests:"
+              for fixture_test in "${STAGING_AI_OCR_TESTS[@]}"; do
+                echo "  - ${fixture_test}"
+              done
+              echo "- Expected uploads: ${STAGING_AI_OCR_EXPECTED_UPLOADS}"
+              echo "- Expected parse completions: ${STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS}"
+              echo "- Expected brokerage imports: ${STAGING_AI_OCR_EXPECTED_BROKERAGE_IMPORTS}"
+              echo "- Expected report verifications: ${STAGING_AI_OCR_EXPECTED_REPORT_VERIFICATIONS}"
+              echo "- Expected failures: 0"
+            } | tee -a "$GITHUB_STEP_SUMMARY"
+          }
+
+          write_staging_audit_result() {
+            local status="$1"
+            local verified_uploads="unknown"
+            local verified_parse_completions="unknown"
+            local verified_brokerage_imports="unknown"
+            local verified_report_verifications="unknown"
+            local verified_failures="1+"
+            if [ "$status" = "0" ]; then
+              verified_uploads="${STAGING_AI_OCR_EXPECTED_UPLOADS}"
+              verified_parse_completions="${STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS}"
+              verified_brokerage_imports="${STAGING_AI_OCR_EXPECTED_BROKERAGE_IMPORTS}"
+              verified_report_verifications="${STAGING_AI_OCR_EXPECTED_REPORT_VERIFICATIONS}"
+              verified_failures="0"
+            fi
+            {
+              echo "## Staging Audit Replay Summary"
+              echo ""
+              echo "- Environment: staging"
+              echo "- GitHub run ID: ${{ github.run_id }}"
+              echo "- Expected version: ${EXPECTED_SHA}"
+              echo "- Gate status: ${status}"
+              echo "- Expected uploads: ${STAGING_AI_OCR_EXPECTED_UPLOADS}"
+              echo "- Expected parse completions: ${STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS}"
+              echo "- Expected brokerage imports: ${STAGING_AI_OCR_EXPECTED_BROKERAGE_IMPORTS}"
+              echo "- Expected report verifications: ${STAGING_AI_OCR_EXPECTED_REPORT_VERIFICATIONS}"
+              echo "- Expected failures: 0"
+              echo "- Uploads verified: ${verified_uploads}"
+              echo "- Parse completions verified: ${verified_parse_completions}"
+              echo "- Brokerage imports verified: ${verified_brokerage_imports}"
+              echo "- Report verifications verified: ${verified_report_verifications}"
+              echo "- Failures observed: ${verified_failures}"
+              echo "- Audit filter: attributes.audit_event EXISTS"
+            } | tee -a "$GITHUB_STEP_SUMMARY"
+            # #1089: surface which corpus docs actually failed (and real counts)
+            # from the JUnit output instead of a binary "unknown / 1+".
+            if [ -f test-results/staging-ai-ocr-gate.xml ]; then
+              echo "" | tee -a "$GITHUB_STEP_SUMMARY"
+              .venv/bin/python tools/staging_ai_ocr_gate_contract.py \
+                --summarize-junit test-results/staging-ai-ocr-gate.xml \
+                | tee -a "$GITHUB_STEP_SUMMARY" || true
+            fi
+          }
+
+          record_and_finish() {
+            # Record the gate outcome as job outputs, then honor the blocking mode.
+            #   blocking=true  -> fail the job with the gate status (manual diagnostic).
+            #   blocking=false -> right-shift: record the status output and exit 0 so
+            #                     the job stays green (replaces the old inline
+            #                     continue-on-error: true). post-merge delivery reads
+            #                     ai_ocr_status, not the job result.
+            local status="$1"
+            local ai_ocr_status="$2"
+            echo "ai_ocr_status=${ai_ocr_status}" >> "$GITHUB_OUTPUT"
+            echo "ai_ocr_exit_code=${status}" >> "$GITHUB_OUTPUT"
+            if [ "$status" -ne 0 ] && [ "$BLOCKING" = "true" ]; then
+              exit "$status"
+            fi
+            if [ "$status" -ne 0 ]; then
+              echo "::warning::Staging AI/OCR gate '${ai_ocr_status}' recorded as right-shifted regression; not blocking release-critical delivery."
+            fi
+            exit 0
+          }
+
+          echo "Starting Staging AI/OCR Gate for $APP_URL"
+          echo "Models: primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL}"
+          echo "Blocking mode: ${BLOCKING}"
+          eval "$(.venv/bin/python tools/staging_ai_ocr_gate_contract.py --shell)"
+          mkdir -p test-results
+          write_staging_audit_inventory
+
+          version_status=0
+          run_timed_phase "Staging AI/OCR Version Check" \
+            pytest tests/e2e/test_version_check.py -v -m "smoke" --junit-xml=test-results/staging-ai-ocr-version.xml || version_status=$?
+          if [ "$version_status" -ne 0 ]; then
+            write_staging_audit_result "$version_status"
+            record_and_finish "$version_status" "version-check-failed"
+          fi
+
+          gate_status=0
+          run_timed_phase "Staging AI/OCR Gate (primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL})" \
+            pytest "${STAGING_AI_OCR_TESTS[@]}" \
+              -v -m "llm" --junit-xml=test-results/staging-ai-ocr-gate.xml || gate_status=$?
+          write_staging_audit_result "$gate_status"
+          if [ "$gate_status" -ne 0 ]; then
+            record_and_finish "$gate_status" "regression-failed"
+          fi
+
+          echo "ai_ocr_status=passed" >> "$GITHUB_OUTPUT"
+          echo "ai_ocr_exit_code=0" >> "$GITHUB_OUTPUT"
+          echo "Staging AI/OCR Gate passed."
+
+      - name: Write staging AI/OCR context
+        if: ${{ always() }}
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          mkdir -p ci-context
+          {
+            echo "Staging AI/OCR Context"
+            echo "======================"
+            echo "repository=${{ github.repository }}"
+            echo "event_name=${{ github.event_name }}"
+            echo "ref=${{ github.ref }}"
+            echo "sha=${{ github.sha }}"
+            echo "run_id=${{ github.run_id }}"
+            echo "run_attempt=${{ github.run_attempt }}"
+            echo "expected_version=${EXPECTED_SHA}"
+            echo "app_url=${APP_URL}"
+            echo "primary_model=${STAGING_E2E_PRIMARY_MODEL}"
+            echo "ocr_model=${STAGING_E2E_OCR_MODEL}"
+            echo "vision_model=${STAGING_E2E_VISION_MODEL}"
+            echo "ai_ocr_outcome=${{ steps.staging_ai_ocr_tests.outcome }}"
+            echo "blocking=${{ inputs.blocking }}"
+            echo "provider_resource_boundary=isolated-users-provider-gate-only"
+            echo "provider_replay_cleanup_contract=gate tests must not use shared mutable user fixtures; retries remain scoped to staging AI/OCR relevance"
+            echo "strict_e2e_gates=true"
+            echo "marker=llm"
+          } > ci-context/staging-ai-ocr-context.txt
+
+      - name: Upload staging AI/OCR test context
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: staging-ai-ocr-test-context
+          path: |
+            test-results/
+            ci-context/staging-ai-ocr-context.txt
+          retention-days: 14

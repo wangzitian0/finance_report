@@ -595,9 +595,10 @@ def test_AC8_13_13_main_ci_keeps_each_merge_commit_run() -> None:
 def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
     """AC8.13.14: Provider-backed AI/OCR gate runs outside deploy health."""
     deploy_workflow = read(".github/workflows/deploy.yml")
-    ai_workflow = read(".github/workflows/deploy.yml")
+    reusable = read(".github/workflows/staging-ai-ocr-gate.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
+    # Inline caller in deploy.yml delegates to the reusable gate (AC8.13.153).
     assert "ai-ocr-gate:" in deploy_workflow
     assert "needs: [build-and-deploy, provider-gate]" in deploy_workflow
     assert (
@@ -607,96 +608,102 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
     assert "name: Staging AI/OCR Gate" in deploy_workflow
     assert "commit_full_sha: ${{ steps.release.outputs.full_sha }}" in deploy_workflow
     assert "deployed_version_ref: ${{ steps.release.outputs.version_ref }}" in deploy_workflow
+    assert "uses: ./.github/workflows/staging-ai-ocr-gate.yml" in deploy_workflow
     assert (
-        "ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}" in deploy_workflow
-    )
-    assert "PARSING_TIMEOUT_MS: 480000" in deploy_workflow
-    assert (
-        "EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.deployed_version_ref }}"
+        "commit_ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}"
         in deploy_workflow
     )
-    assert 'run_timed_phase "Staging AI/OCR Gate' in deploy_workflow
-    assert "tools/staging_ai_ocr_gate_contract.py --shell" in deploy_workflow
-    assert 'pytest "${STAGING_AI_OCR_TESTS[@]}"' in deploy_workflow
-    assert '-v -m "llm"' in deploy_workflow
+    assert (
+        "expected_sha: ${{ needs.build-and-deploy.outputs.deployed_version_ref }}"
+        in deploy_workflow
+    )
+    assert "blocking: false" in deploy_workflow
+
+    # The gate body (corpus replay, contract shell, version check) lives once in
+    # the reusable workflow.
+    assert "PARSING_TIMEOUT_MS: 480000" in reusable
+    assert 'run_timed_phase "Staging AI/OCR Gate' in reusable
+    assert "tools/staging_ai_ocr_gate_contract.py --shell" in reusable
+    assert 'pytest "${STAGING_AI_OCR_TESTS[@]}"' in reusable
+    assert '-v -m "llm"' in reusable
+    assert "test_version_check.py" in reusable
+    assert "STRICT_E2E_GATES: true" in reusable
+
+    # The deploy-health E2E stage in build-and-deploy must not run the llm corpus.
     deploy_e2e_block = deploy_workflow.split("name: End-to-End Tests", 1)[1].split(
         "name: AI Provider Connectivity Smoke", 1
     )[0]
     assert '-v -m "llm"' not in deploy_e2e_block
-    assert "name: Staging AI/OCR Gate" in ai_workflow
-    assert 'workflows: ["Deploy Staging"]' not in ai_workflow
-    assert "workflow_dispatch:" in ai_workflow
-    assert "inputs.target == 'staging-ai-ocr-gate' && format('staging-manual-ai-ocr-{0}', github.ref)" in ai_workflow
-    assert "cancel-in-progress: false" in ai_workflow
-    assert "timeout-minutes: 22" in ai_workflow
-    assert "STRICT_E2E_GATES: true" in ai_workflow
-    assert "PARSING_TIMEOUT_MS: 480000" in ai_workflow
-    assert "EXPECTED_SHA: ${{ steps.expected_sha.outputs.short_sha }}" in ai_workflow
-    assert "test_version_check.py" in ai_workflow
-    assert "tools/staging_ai_ocr_gate_contract.py --shell" in ai_workflow
-    assert 'pytest "${STAGING_AI_OCR_TESTS[@]}"' in ai_workflow
-    assert '-v -m "llm"' in ai_workflow
+
+    # Manual entrance is the same reusable gate, fail-fast (blocking=true).
+    assert "manual-ai-ocr-gate:" in deploy_workflow
+    assert 'workflows: ["Deploy Staging"]' not in deploy_workflow
+    assert "workflow_dispatch:" in deploy_workflow
+    assert (
+        "inputs.target == 'staging-ai-ocr-gate' && format('staging-manual-ai-ocr-{0}', github.ref)"
+        in deploy_workflow
+    )
+    assert "cancel-in-progress: false" in deploy_workflow
+    assert "blocking: true" in deploy_workflow
+    assert "expected_sha: ${{ github.sha }}" in deploy_workflow
     assert "same serialized post-merge workflow unit" in ci_cd
     assert "manual recovery entry point" in ci_cd
 
 
 def test_AC8_13_49_staging_ai_ocr_gate_publishes_audit_inventory_and_summary() -> None:
     """AC8.13.49: Staging AI/OCR gates publish replay inputs and summary fields."""
-    deploy_workflow = read(".github/workflows/deploy.yml")
-    ai_workflow = read(".github/workflows/deploy.yml")
+    # The gate body — and therefore its audit replay inventory/summary — lives
+    # once in the reusable workflow shared by both entrances (AC8.13.153).
+    workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
     observability = read("docs/ssot/observability-logging.md")
 
-    for workflow in (deploy_workflow, ai_workflow):
-        assert "write_staging_audit_inventory()" in workflow
-        assert "write_staging_audit_result()" in workflow
-        assert "## Staging Audit Replay Inputs" in workflow
-        assert "## Staging Audit Replay Summary" in workflow
-        assert "- Environment: staging" in workflow
-        assert "- GitHub run ID: ${{ github.run_id }}" in workflow
-        assert (
-            "- Expected SHA: ${EXPECTED_SHA}" in workflow
-            or "- Expected version: ${EXPECTED_SHA}" in workflow
-        )
-        assert "- Backend image tag:" in workflow
-        assert "- Frontend image tag:" in workflow
-        assert (
-            "- Models: primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL}"
-            in workflow
-        )
-        assert "- Expected uploads: ${STAGING_AI_OCR_EXPECTED_UPLOADS}" in workflow
-        assert (
-            "- Expected parse completions: ${STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS}"
-            in workflow
-        )
-        assert (
-            "- Expected brokerage imports: ${STAGING_AI_OCR_EXPECTED_BROKERAGE_IMPORTS}"
-            in workflow
-        )
-        assert (
-            "- Expected report verifications: ${STAGING_AI_OCR_EXPECTED_REPORT_VERIFICATIONS}"
-            in workflow
-        )
-        assert "- Expected failures: 0" in workflow
-        assert "- Uploads verified: ${verified_uploads}" in workflow
-        assert "- Parse completions verified: ${verified_parse_completions}" in workflow
-        assert "- Brokerage imports verified: ${verified_brokerage_imports}" in workflow
-        assert (
-            "- Report verifications verified: ${verified_report_verifications}"
-            in workflow
-        )
-        assert "- Failures observed: ${verified_failures}" in workflow
-        assert "for fixture_test in" in workflow
-        assert "${STAGING_AI_OCR_TESTS[@]}" in workflow
-        assert "GITHUB_STEP_SUMMARY" in workflow
-        assert "- Expected uploads: 7" not in workflow
-        assert "- Expected parse completions: 7" not in workflow
-        assert "- Expected brokerage imports: 3" not in workflow
-        assert "- Expected report verifications: 1" not in workflow
+    assert "write_staging_audit_inventory()" in workflow
+    assert "write_staging_audit_result()" in workflow
+    assert "## Staging Audit Replay Inputs" in workflow
+    assert "## Staging Audit Replay Summary" in workflow
+    assert "- Environment: staging" in workflow
+    assert "- GitHub run ID: ${{ github.run_id }}" in workflow
+    assert (
+        "- Expected SHA: ${EXPECTED_SHA}" in workflow
+        or "- Expected version: ${EXPECTED_SHA}" in workflow
+    )
+    assert "- Backend image tag:" in workflow
+    assert "- Frontend image tag:" in workflow
+    assert (
+        "- Models: primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL}"
+        in workflow
+    )
+    assert "- Expected uploads: ${STAGING_AI_OCR_EXPECTED_UPLOADS}" in workflow
+    assert (
+        "- Expected parse completions: ${STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS}"
+        in workflow
+    )
+    assert (
+        "- Expected brokerage imports: ${STAGING_AI_OCR_EXPECTED_BROKERAGE_IMPORTS}"
+        in workflow
+    )
+    assert (
+        "- Expected report verifications: ${STAGING_AI_OCR_EXPECTED_REPORT_VERIFICATIONS}"
+        in workflow
+    )
+    assert "- Expected failures: 0" in workflow
+    assert "- Uploads verified: ${verified_uploads}" in workflow
+    assert "- Parse completions verified: ${verified_parse_completions}" in workflow
+    assert "- Brokerage imports verified: ${verified_brokerage_imports}" in workflow
+    assert (
+        "- Report verifications verified: ${verified_report_verifications}"
+        in workflow
+    )
+    assert "- Failures observed: ${verified_failures}" in workflow
+    assert "for fixture_test in" in workflow
+    assert "${STAGING_AI_OCR_TESTS[@]}" in workflow
+    assert "GITHUB_STEP_SUMMARY" in workflow
+    assert "- Expected uploads: 7" not in workflow
+    assert "- Expected parse completions: 7" not in workflow
+    assert "- Expected brokerage imports: 3" not in workflow
+    assert "- Expected report verifications: 1" not in workflow
 
-    assert deploy_workflow.index(
-        "write_staging_audit_inventory"
-    ) < deploy_workflow.index('run_timed_phase "Staging AI/OCR Version Check"')
-    assert ai_workflow.index("write_staging_audit_inventory") < ai_workflow.index(
+    assert workflow.index("write_staging_audit_inventory") < workflow.index(
         'run_timed_phase "Staging AI/OCR Version Check"'
     )
     assert "Staging Audit Replay Contract" in observability
@@ -737,13 +744,10 @@ def test_AC8_13_50_critical_llm_post_merge_proofs_are_in_ai_ocr_gates() -> None:
         "tests/e2e/test_statement_full_journey.py",
     ]
 
-    for workflow_path in (
-        ".github/workflows/deploy.yml",
-        ".github/workflows/deploy.yml",
-    ):
-        workflow = read(workflow_path)
-        assert "tools/staging_ai_ocr_gate_contract.py --shell" in workflow
-        assert 'pytest "${STAGING_AI_OCR_TESTS[@]}"' in workflow
+    # Both entrances (inline + manual) share the reusable gate body.
+    workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
+    assert "tools/staging_ai_ocr_gate_contract.py --shell" in workflow
+    assert 'pytest "${STAGING_AI_OCR_TESTS[@]}"' in workflow
 
     missing = [proof_file for proof_file in proof_files if proof_file not in shell]
     assert missing == []
@@ -754,8 +758,8 @@ def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
     ci = read(".github/workflows/ci.yml")
     pr_preview = read(".github/workflows/preview.yml")
     staging = read(".github/workflows/deploy.yml")
-    manual_ai = read(".github/workflows/deploy.yml")
-    production = read(".github/workflows/deploy.yml")
+    ai_gate = read(".github/workflows/staging-ai-ocr-gate.yml")
+    production = read(".github/workflows/release.yml")
     cleanup = read(".github/workflows/maintenance.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
@@ -809,15 +813,15 @@ def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
         in staging
     )
     assert "github.run_id=${{ github.run_id }}" in staging
-    assert "staging-ai-ocr-test-context" in staging
-    assert "test-results/staging-ai-ocr-version.xml" in staging
-    assert "test-results/staging-ai-ocr-gate.xml" in staging
-    assert "primary_model=${STAGING_E2E_PRIMARY_MODEL}" in staging
 
-    assert "staging-ai-ocr-test-context" in manual_ai
-    assert "ci-context/staging-ai-ocr-context.txt" in manual_ai
-    assert "test-results/staging-ai-ocr-gate.xml" in manual_ai
+    # The AI/OCR gate context/artifacts are owned by the reusable workflow.
+    assert "staging-ai-ocr-test-context" in ai_gate
+    assert "test-results/staging-ai-ocr-version.xml" in ai_gate
+    assert "test-results/staging-ai-ocr-gate.xml" in ai_gate
+    assert "ci-context/staging-ai-ocr-context.txt" in ai_gate
+    assert "primary_model=${STAGING_E2E_PRIMARY_MODEL}" in ai_gate
 
+    # Production release context lives in release.yml.
     assert "production-dry-run-context" in production
     assert "production-deploy-test-context" in production
     assert "test-results/production-readonly-e2e.xml" in production
@@ -905,8 +909,10 @@ def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates()
     assert 'failure_reason="provider connectivity gate failed"' in workflow
     assert 'failure_reason="staging AI/OCR gate failed"' not in workflow
     assert "Post-merge delivery failed: staging AI/OCR gate failed" not in workflow
+    # The inline AI/OCR caller stays non-blocking via the reusable gate's
+    # blocking=false input (a uses: caller cannot set continue-on-error).
     assert (
-        "continue-on-error: true"
+        "blocking: false"
         in workflow.split("ai-ocr-gate:", 1)[1].split("post-merge-delivery:", 1)[0]
     )
     assert 'delivery_status="degraded-provider"' in workflow
@@ -998,7 +1004,7 @@ def test_AC8_13_60_deploy_workflows_have_no_nonblocking_noop_gates() -> None:
 
 def test_AC8_13_52_production_release_dry_run_does_not_mutate_production() -> None:
     """AC8.13.52 AC8.13.65: Production dry-run validates without deploying."""
-    workflow = read(".github/workflows/deploy.yml")
+    workflow = read(".github/workflows/release.yml")
     release_evidence = read("common/ci/release_evidence.py")
     release_images = read("common/ci/release_images.py")
     ci_cd = read("docs/ssot/ci-cd.md")
@@ -1009,10 +1015,7 @@ def test_AC8_13_52_production_release_dry_run_does_not_mutate_production() -> No
     assert "leave empty for latest" not in workflow
     assert "Validate release prerequisites without deploying production" in workflow
     assert "dry-run:" in workflow
-    assert (
-        "github.event_name == 'workflow_dispatch' && inputs.target == 'production' && inputs.dry_run"
-        in workflow
-    )
+    assert "if: ${{ inputs.dry_run }}" in workflow
     assert "moon run :lint" in workflow
     assert "moon run :test" not in workflow
     assert "Resolve release coordinate" in workflow
@@ -1028,10 +1031,8 @@ def test_AC8_13_52_production_release_dry_run_does_not_mutate_production() -> No
     assert "Verify staging passed" in workflow
     assert "Verify Release Images Dry Run" in workflow
     assert '"docker", "buildx", "imagetools", "inspect"' in release_images
-    production_jobs = workflow.split("  # Production release jobs", 1)[1].split(
-        "  # On-demand staging AI/OCR diagnostic jobs", 1
-    )[0]
-    assert "gh run list" not in production_jobs
+    # release.yml is the production release line; the whole file is the prod jobs.
+    assert "gh run list" not in workflow
     assert "gh run view" not in workflow
     assert "Production mutation skipped" in workflow
     dry_run_section = workflow.split("dry-run:", 1)[1].split("\n  deploy:", 1)[0]
@@ -1045,7 +1046,7 @@ def test_AC8_13_52_production_release_dry_run_does_not_mutate_production() -> No
 
 def test_AC8_13_52_production_release_checks_use_pinned_python() -> None:
     """AC8.13.52: Production release checks run after setup-python."""
-    workflow = read(".github/workflows/deploy.yml")
+    workflow = read(".github/workflows/release.yml")
     dry_run_section = workflow.split("  dry-run:", 1)[1].split("\n  deploy:", 1)[0]
     deploy_section = workflow.split("\n  deploy:", 1)[1]
 
@@ -1766,7 +1767,7 @@ def test_AC8_13_70_ci_documents_closed_e2e_traceability_system() -> None:
 
 def test_AC8_13_9_production_release_runs_prod_safe_e2e_smoke() -> None:
     """AC8.13.9: Production release runs prod-safe read-only E2E smoke."""
-    workflow = read(".github/workflows/deploy.yml")
+    workflow = read(".github/workflows/release.yml")
     prod_smoke = read("tests/e2e/test_production_readonly_smoke.py")
 
     assert 'NODE_VERSION: "20.19.0"' in workflow
@@ -1799,7 +1800,7 @@ def test_AC8_13_144_production_release_rolls_back_with_deploy_v2_after_post_depl
     None
 ):
     """AC8.13.144: production rollback uses deploy_v2 and confirms previous health."""
-    workflow = read(".github/workflows/deploy.yml")
+    workflow = read(".github/workflows/release.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     inventory = read("docs/ssot/ci-gate-inventory.yaml")
 
@@ -1864,7 +1865,8 @@ def test_AC8_13_144_production_release_rolls_back_with_deploy_v2_after_post_depl
 
 def test_AC8_13_67_production_release_preserves_version_metadata() -> None:
     """AC8.13.67: Production release preserves deployed version metadata."""
-    workflow = read(".github/workflows/deploy.yml")
+    workflow = read(".github/workflows/release.yml")
+    # Tag promotion (imagetools create x2) stays in deploy.yml's promote job.
     release_images = read(".github/workflows/deploy.yml")
     primitive = read("repo/tools/deploy_primitive.py")
     app_compose = read("repo/finance_report/finance_report/10.app/compose.yaml")
@@ -1906,7 +1908,9 @@ def test_AC8_13_67_production_release_preserves_version_metadata() -> None:
 
 def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
     """AC7.10.1 - AC7.10.5: Production release promotes staging-validated SHA image and fails closed on drift."""
-    workflow = read(".github/workflows/deploy.yml")
+    workflow = read(".github/workflows/release.yml")
+    # Tag promotion stays in deploy.yml's promote job; the release line moved to
+    # release.yml (#1354 / AC8.13.154).
     release_images = read(".github/workflows/deploy.yml")
     resolver = read("common/ci/release_coordinate.py")
     release_image_tool = read("common/ci/release_images.py")
@@ -1920,7 +1924,13 @@ def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
     assert "docker/build-push-action" not in release_images
     assert "docker buildx imagetools create --tag" not in workflow
     assert '"short_sha": full_sha[:7]' in resolver
-    assert workflow.count("tools/resolve_release_coordinate.py") == 3
+    # build-and-deploy (deploy.yml) + dry-run + deploy (release.yml) each resolve
+    # the release coordinate once.
+    assert (
+        release_images.count("tools/resolve_release_coordinate.py")
+        + workflow.count("tools/resolve_release_coordinate.py")
+        == 3
+    )
 
     # AC7.10.2: fails closed if no staging-validated SHA image exists or digests differ
     assert "Verify staging passed" in workflow
@@ -1949,7 +1959,7 @@ def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
 def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     """AC8.13.7: Post-merge AI/OCR E2E is a single-provider-access gate."""
     workflow = read(".github/workflows/deploy.yml")
-    ai_workflow = read(".github/workflows/deploy.yml")
+    ai_workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
     pr_workflow = read(".github/workflows/preview.yml")
     journey = read("tests/e2e/test_statement_full_journey.py")
     brokerage = read("tests/e2e/test_brokerage_upload_to_portfolio_value.py")
@@ -1988,7 +1998,7 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     contract = staging_ai_ocr_contract_shell()
     assert "test_brokerage_upload_to_portfolio_value.py" in contract
     assert "test_four_asset_net_worth_golden_path.py" in contract
-    assert "tools/staging_ai_ocr_gate_contract.py --shell" in workflow
+    assert "tools/staging_ai_ocr_gate_contract.py --shell" in ai_workflow
     assert '-v -m "llm"' in workflow
     assert "PARSING_TIMEOUT_MS: 480000" in ai_workflow
     assert "@pytest.mark.llm" in journey
@@ -2010,6 +2020,7 @@ def test_AC8_13_21_staging_ai_ocr_gate_runs_under_manual_dispatch() -> None:
     """AC8.13.21: Provider-backed staging AI/OCR runs inside a manual dispatch, not auto-after-CI."""
     workflow = read(".github/workflows/deploy.yml")
     on_demand_gate = read(".github/workflows/deploy.yml")
+    reusable = read(".github/workflows/staging-ai-ocr-gate.yml")
 
     parsed = yaml.safe_load(workflow)
     # PyYAML parses the bare `on:` key as the boolean True.
@@ -2020,11 +2031,13 @@ def test_AC8_13_21_staging_ai_ocr_gate_runs_under_manual_dispatch() -> None:
     )
     assert "workflow_run" not in triggers, "staging deploy must NOT auto-follow CI"
 
-    # The AI/OCR gate still exists in the staging deploy workflow and inherits its
-    # `workflow_dispatch` trigger rather than auto-following a CI `workflow_run`.
+    # The AI/OCR gate still exists in the staging deploy workflow (as a reusable
+    # caller) and inherits its `workflow_dispatch` trigger rather than
+    # auto-following a CI `workflow_run`. The gate body lives in the reusable.
     assert "ai-ocr-gate:" in workflow
     assert "name: Staging AI/OCR Gate" in workflow
-    assert "Run Staging AI/OCR Gate" in workflow
+    assert "uses: ./.github/workflows/staging-ai-ocr-gate.yml" in workflow
+    assert "Run Staging AI/OCR Gate" in reusable
     assert set(triggers) == {"push", "workflow_dispatch"}
     assert triggers["push"] == {"tags": ["v[0-9]+.[0-9]+.[0-9]+"]}
     assert "if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'staging' }}" in workflow
@@ -3341,8 +3354,8 @@ def test_AC8_13_119_delivery_resource_leak_hardening_is_contracted() -> None:
     recommendation = read("docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md")
     preview_cleanup = read(".github/workflows/maintenance.yml")
     pr_preview = read(".github/workflows/preview.yml")
-    staging = read(".github/workflows/deploy.yml")
-    production = read(".github/workflows/deploy.yml")
+    staging = read(".github/workflows/staging-ai-ocr-gate.yml")
+    production = read(".github/workflows/release.yml")
     hygiene = read("tools/_lib/dev/vps_host_hygiene.py")
 
     for token in (
@@ -3423,12 +3436,13 @@ def test_AC8_13_119_delivery_resource_leak_hardening_is_contracted() -> None:
 def test_AC8_13_10_multi_brokerage_upload_to_portfolio_value_gate() -> None:
     """AC8.13.10: Staging proves multi-brokerage upload through latest value."""
     workflow = read(".github/workflows/deploy.yml")
+    reusable = read(".github/workflows/staging-ai-ocr-gate.yml")
     brokerage = read("tests/e2e/test_brokerage_upload_to_portfolio_value.py")
     statements_router = read("apps/backend/src/routers/statements.py")
     brokerage_payload = read("apps/backend/src/services/brokerage_statement_payload.py")
     generator = read("tools/_lib/pdf_fixtures/generate_pdf_fixtures.py")
 
-    assert "tools/staging_ai_ocr_gate_contract.py --shell" in workflow
+    assert "tools/staging_ai_ocr_gate_contract.py --shell" in reusable
     assert (
         "test_brokerage_upload_to_portfolio_value.py" in staging_ai_ocr_contract_shell()
     )
@@ -3567,7 +3581,7 @@ def test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical() -> 
     """AC8.13.42: four-asset as-of net worth proof is wired into the post-merge hard gate."""
     gate = read("tests/e2e/test_four_asset_net_worth_golden_path.py")
     deploy_workflow = read(".github/workflows/deploy.yml")
-    ai_workflow = read(".github/workflows/deploy.yml")
+    ai_workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
     matrix = critical_matrix_text()
     epic = read("docs/project/EPIC-008.testing-strategy.md")
     ci_cd = read("docs/ssot/ci-cd.md")
@@ -3597,9 +3611,11 @@ def test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical() -> 
     ):
         assert token in gate
 
-    for workflow in (deploy_workflow, ai_workflow):
-        assert "tools/staging_ai_ocr_gate_contract.py --shell" in workflow
-        assert '-v -m "llm"' in workflow
+    # The gate body (contract shell + llm marker) lives in the reusable workflow.
+    assert "tools/staging_ai_ocr_gate_contract.py --shell" in ai_workflow
+    assert '-v -m "llm"' in ai_workflow
+    # deploy.yml still runs the provider connectivity smoke under the llm marker.
+    assert '-v -m "llm"' in deploy_workflow
     assert "test_four_asset_net_worth_golden_path.py" in staging_ai_ocr_contract_shell()
 
     assert "four-asset-as-of-net-worth" in matrix

@@ -80,7 +80,7 @@ gates:
       race image publication.
 
   - id: production-release
-    workflow: .github/workflows/deploy.yml
+    workflow: .github/workflows/release.yml
     job: deploy
     trigger: workflow_dispatch
     blocking: false
