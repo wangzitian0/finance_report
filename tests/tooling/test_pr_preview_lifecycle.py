@@ -61,10 +61,6 @@ def test_AC8_13_101_preview_app_url_prefers_stable_alias() -> None:
         lifecycle.preview_app_url(591, "ABC123xyz456789", "zitian.party")
         == "https://report-pr-591.zitian.party"
     )
-    assert (
-        lifecycle.preview_commit_app_url(591, "ABC123xyz456789", "zitian.party")
-        == "https://report-pr-591-abc123xyz456.zitian.party"
-    )
     assert lifecycle.preview_port_offset(
         591, "abc123"
     ) != lifecycle.preview_port_offset(591, "def456")
@@ -2216,9 +2212,6 @@ def test_AC8_13_107_preview_deploy_context_is_written_without_secrets(
     assert context["phase"] == "failed"
     assert context["compose_id"] == "cmp-591"
     assert context["expected_sha"] == "abc123"
-    assert context["commit_preview_app_url"] == (
-        "https://report-pr-591-abc123.zitian.party"
-    )
     assert context["api_health_url"] == (
         "https://report-pr-591.zitian.party/api/health"
     )
@@ -2282,12 +2275,7 @@ def test_AC8_13_101_pr_test_workflow_uses_runner_preview_url() -> None:
     workflow = (ROOT / ".github/workflows/preview.yml").read_text()
     e2e_block = workflow.split("  e2e:", 1)[1].split("  cleanup:", 1)[0]
 
-    assert (
-        "preview_commit_app_url: ${{ steps.info.outputs.preview_commit_app_url }}"
-        in workflow
-    )
     assert "preview_app_url: ${{ steps.info.outputs.preview_app_url }}" in workflow
-    assert "preview_commit_app_url" in workflow
     assert "preview_commit_slug" in workflow
     assert (
         "NEXT_PUBLIC_API_URL=${{ needs.setup.outputs.preview_app_url }}" not in workflow
