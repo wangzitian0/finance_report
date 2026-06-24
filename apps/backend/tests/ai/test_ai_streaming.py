@@ -215,6 +215,9 @@ async def test_AC10_10_4_ai_provider_call_metric_emitted_on_success(litellm_stub
     assert calls[0]["outcome"] == "success"
     assert calls[0]["model"] == "glm-4.6v"
     assert calls[0]["duration_ms"] >= 0
+    # Label is the bounded protocol family (StrEnum), never the user-editable
+    # free-text provider.label — no PII / no unbounded cardinality.
+    assert calls[0]["provider"] in {"openai-compatible", "anthropic-compatible", "openrouter-compatible"}
 
 
 async def test_AC10_10_4_ai_provider_call_metric_emitted_on_error(monkeypatch):

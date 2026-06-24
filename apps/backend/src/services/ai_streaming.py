@@ -169,7 +169,9 @@ async def _stream_ai_base(
             yield content
     except LLMError as exc:
         record_ai_provider_call(
-            provider=provider.label,
+            # `provider.label` is user-editable free text (PII + unbounded
+            # cardinality); the protocol family is a bounded StrEnum — safe label.
+            provider=provider.protocol.value,
             model=model,
             outcome="error",
             duration_ms=round((time.perf_counter() - provider_call_start) * 1000, 2),
@@ -186,7 +188,9 @@ async def _stream_ai_base(
         raise AIStreamError(str(exc), retryable=exc.retryable) from exc
     else:
         record_ai_provider_call(
-            provider=provider.label,
+            # Bounded protocol-family label (see error path above) — never the
+            # user-editable provider.label.
+            provider=provider.protocol.value,
             model=model,
             outcome="success",
             duration_ms=round((time.perf_counter() - provider_call_start) * 1000, 2),
