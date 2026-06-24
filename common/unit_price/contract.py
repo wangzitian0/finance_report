@@ -20,7 +20,7 @@ CONTRACT = PackageContract(
     # is money-per-unit), so it sits above both in the dependency DAG.
     klass="core",
     status="active",
-    tier="PC",
+    tier="CODE-ONLY",
     depends_on=["money", "quantity"],
     roles=["types", "ops"],
     implementations={"be": "apps/backend/src/unit_price", "fe": "apps/frontend/src/lib/unit_price"},

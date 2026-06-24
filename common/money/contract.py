@@ -23,8 +23,8 @@ CONTRACT = PackageContract(
     # is a Ratio), so it sits one layer above ratio in the dependency DAG.
     klass="platform",
     status="active",
-    # Pure-Decimal value type, no LLM: a pure-code (PC) package.
-    tier="PC",
+    # Pure-Decimal value type, no LLM in the package: CODE-ONLY (0% LLM).
+    tier="CODE-ONLY",
     depends_on=["ratio"],
     roles=["types", "ops"],
     implementations={"be": "apps/backend/src/money", "fe": "apps/frontend/src/lib/money"},

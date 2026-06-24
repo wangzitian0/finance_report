@@ -20,7 +20,7 @@ CONTRACT = PackageContract(
     # scale a Quantity), so it sits one layer above ratio in the dependency DAG.
     klass="platform",
     status="active",
-    tier="PC",
+    tier="CODE-ONLY",
     depends_on=["ratio"],
     roles=["types", "ops"],
     implementations={"be": "apps/backend/src/quantity", "fe": "apps/frontend/src/lib/quantity"},
