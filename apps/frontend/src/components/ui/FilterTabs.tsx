@@ -35,6 +35,7 @@ export function FilterTabs({
       {options.map((option) => (
         <button
           key={option}
+          type="button"
           {...(ariaLabel ? { role: "tab", "aria-selected": value === option } : {})}
           onClick={() => onChange(option)}
           className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${capitalize ? "capitalize " : ""}${
