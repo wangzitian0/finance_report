@@ -27,7 +27,8 @@ import {
 
 interface BalanceValidationResult {
     opening_balance: string;
-    closing_balance: string;
+    // null when the statement has no declared closing balance (#1390).
+    closing_balance: string | null;
     calculated_closing: string;
     opening_delta: string;
     closing_delta: string;
