@@ -26,6 +26,11 @@ on:
         required: false
         default: false
         type: boolean
+      corpus:
+        description: "Which AI/OCR corpus to run: canary (minimal blocking liveness), audit_replay (comprehensive nightly journeys), or all"
+        required: false
+        default: canary
+        type: string
     outputs:
       ai_ocr_status:
         description: "passed | regression-failed | version-check-failed | not-run"
@@ -71,6 +76,7 @@ jobs:
         env:
           EXPECTED_SHA_RAW: ${{ inputs.expected_sha }}
           BLOCKING: ${{ inputs.blocking }}
+          CORPUS: ${{ inputs.corpus }}
         run: |
           # Normalize a full 40-hex commit SHA down to the 7-char tag used by the
           # published images; leave a vX.Y.Z release version_ref untouched.
@@ -191,7 +197,8 @@ jobs:
           echo "Starting Staging AI/OCR Gate for $APP_URL"
           echo "Models: primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL}"
           echo "Blocking mode: ${BLOCKING}"
-          eval "$(.venv/bin/python tools/staging_ai_ocr_gate_contract.py --shell)"
+          echo "Corpus: ${CORPUS:-canary}"
+          eval "$(.venv/bin/python tools/staging_ai_ocr_gate_contract.py --shell --corpus "${CORPUS:-canary}")"
           mkdir -p test-results
           write_staging_audit_inventory
 
@@ -238,6 +245,7 @@ jobs:
             echo "vision_model=${STAGING_E2E_VISION_MODEL}"
             echo "ai_ocr_outcome=${{ steps.staging_ai_ocr_tests.outcome }}"
             echo "blocking=${{ inputs.blocking }}"
+            echo "corpus=${{ inputs.corpus }}"
             echo "provider_resource_boundary=isolated-users-provider-gate-only"
             echo "provider_replay_cleanup_contract=gate tests must not use shared mutable user fixtures; retries remain scoped to staging AI/OCR relevance"
             echo "strict_e2e_gates=true"

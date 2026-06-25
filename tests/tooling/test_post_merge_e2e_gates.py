@@ -592,6 +592,89 @@ def test_AC8_13_13_main_ci_keeps_each_merge_commit_run() -> None:
     assert "do not cancel or replace a pending main CI" in ci_cd
 
 
+def test_AC8_13_157_audit_replay_workflow_is_nightly_and_nonblocking() -> None:
+    """AC8.13.157: heavy LLM journeys run as a separate nightly/manual, non-blocking
+    audit-replay job that does not block production promotion by default."""
+    audit = yaml.safe_load(read(".github/workflows/audit-replay.yml"))
+    deploy = yaml.safe_load(read(".github/workflows/deploy.yml"))
+
+    # Scheduled (nightly) + manual dispatch, NOT on push / workflow_run / pull_request.
+    triggers = audit.get("on", audit.get(True))
+    assert isinstance(triggers, dict)
+    assert "schedule" in triggers
+    assert "workflow_dispatch" in triggers
+    assert "push" not in triggers
+    assert "workflow_run" not in triggers
+    assert "pull_request" not in triggers
+    schedule = triggers["schedule"]
+    assert isinstance(schedule, list) and schedule and "cron" in schedule[0]
+
+    # The audit-replay job calls the SAME reusable gate body, selecting the heavy
+    # audit corpus, and is non-blocking (blocking=false) so it never blocks
+    # production promotion.
+    jobs = audit["jobs"]
+    callers = [
+        job
+        for job in jobs.values()
+        if job.get("uses") == "./.github/workflows/staging-ai-ocr-gate.yml"
+    ]
+    assert callers, "audit-replay.yml must call the reusable AI/OCR gate"
+    for job in callers:
+        assert job["with"]["corpus"] == "audit_replay"
+        assert job["with"]["blocking"] is False
+        assert job.get("secrets") == "inherit"
+
+    # The production-promotion (deploy) blocking path keeps the heavy corpus OUT:
+    # its inline ai-ocr-gate runs only the canary corpus.
+    assert deploy["jobs"]["ai-ocr-gate"]["with"]["corpus"] == "canary"
+
+    # SSOT names the audit-replay job as separate and non-blocking.
+    ci_cd = read("docs/ssot/ci-cd.md")
+    assert "audit-replay.yml" in ci_cd
+
+
+def test_AC8_13_158_canary_transient_classification_owned_by_provider_gate() -> None:
+    """AC8.13.158: provider transient (5xx/timeout)=degraded, 4xx/config=block; the
+    canary delegates this classification to the Staging Provider Gate."""
+    deploy = read(".github/workflows/deploy.yml")
+
+    # The canary only runs after the provider gate passes, so transient/config
+    # classification gates the canary path.
+    assert (
+        "needs.provider-gate.outputs.provider_status == 'pass'" in deploy
+    )
+
+    # The provider gate keeps the 4xx-block / 5xx-degrade classifier.
+    provider_block = deploy.split("provider-gate:", 1)[1].split("ai-ocr-gate:", 1)[0]
+    assert 'provider_status=config-failure' in provider_block
+    assert "client/config error" in provider_block
+    assert 'provider_status=degraded' in provider_block
+    assert "transient" in provider_block
+    # 4xx blocks (exit 1), transient degrades without blocking (exit 0).
+    assert '"$status_code" -ge 400 ] && [ "$status_code" -lt 500 ]' in provider_block
+
+
+def test_AC8_13_160_ci_cd_distinguishes_canary_from_audit_replay() -> None:
+    """AC8.13.160: SSOT distinguishes the blocking minimal AI/OCR Canary from the
+    nightly comprehensive Audit Replay, and the split is a recorded decision."""
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    assert "AI/OCR Canary" in ci_cd
+    assert "Audit Replay" in ci_cd
+    assert "audit-replay.yml" in ci_cd
+    # The canary is the minimal blocking-path liveness check.
+    assert "test_brokerage_upload_to_portfolio_value.py" in ci_cd
+    # The split is recorded as an intentional keep_separate decision in the
+    # gate inventory.
+    inventory = yaml.safe_load(read("docs/ssot/ci-gate-inventory.yaml"))
+    candidate = next(
+        item
+        for item in inventory["deferred_candidates"]
+        if item["id"] == "ai_ocr_canary_vs_audit_replay"
+    )
+    assert candidate["status"] == "keep_separate"
+
+
 def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
     """AC8.13.14: Provider-backed AI/OCR gate runs outside deploy health."""
     deploy_workflow = read(".github/workflows/deploy.yml")

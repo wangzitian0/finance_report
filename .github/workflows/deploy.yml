@@ -675,6 +675,10 @@ jobs:
       commit_ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}
       expected_sha: ${{ needs.build-and-deploy.outputs.deployed_version_ref }}
       blocking: false
+      # Production-promotion blocking path runs only the minimal AI/OCR canary
+      # (issue #1232, AC8.13.156); the heavy audit journeys run nightly via
+      # audit-replay.yml (AC8.13.157), never on the deploy path (AC8.13.159).
+      corpus: canary
     secrets: inherit
 
   post-merge-delivery:
@@ -899,4 +903,7 @@ jobs:
       commit_ref: ${{ github.sha }}
       expected_sha: ${{ github.sha }}
       blocking: true
+      # On-demand recovery diagnostic runs the FULL corpus (canary + audit
+      # journeys) fail-fast, so a human can reproduce the whole regression.
+      corpus: all
     secrets: inherit
