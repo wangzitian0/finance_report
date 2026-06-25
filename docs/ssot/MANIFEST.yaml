@@ -502,11 +502,12 @@ concepts:
   # ── CI / CD ────────────────────────────────────────────────────────────
   ci_workflow:
     owner: docs/ssot/ci-cd.md#ci-job-structure
-    description: CI job structure (lint → backend shards → frontend → coverage).
+    description: CI job structure (lint → backend shards → frontend → coverage) and the local guardrail tiers (pre-commit → pre-push → CI) that left-move its cheap drift gates.
     cross_refs:
       - docs/ssot/development.md
       - docs/ssot/coverage.md
       - .github/workflows/ci.yml
+      - .pre-commit-config.yaml
 
   pr_review_thread_merge_gate:
     owner: docs/ssot/ci-cd.md#pr-review-thread-merge-gate

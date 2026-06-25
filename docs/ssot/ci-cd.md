@@ -179,6 +179,52 @@ Valid proof task categories:
 | `critical_behavioral` | Co-located critical product proof edge. |
 | `manual_evidence` | Manual gate evidence record. |
 
+### Local Guardrail Tiers and Latency Budget
+
+Pre-merge protection is layered by latency budget. Each tier is bounded so that it
+stays fast enough that contributors never learn to bypass it, and the cheapest tier
+that can catch a class of failure should also run it for the earliest feedback
+(left-move). Cost rises with each tier. **The local tiers are advisory
+(`local.advisory` proof stage); only CI is merge authority.**
+`.pre-commit-config.yaml` is the source of truth for the two local tiers, but every
+check a local tier runs is independently re-run by CI — the table's checks are a
+strict *mirror subset* of CI, never a delegation of it.
+
+| Tier | Trigger | Budget | Scope | Runs (all re-run by CI) | Must NOT do |
+|---|---|---|---|---|---|
+| `pre-commit` | every `git commit`, staged files | ≤ ~2s | file-scoped fast static + auto-fix | ruff lint/format, gitleaks (staged content), mypy (staged backend), env-key / Pydantic-schema sync, file hygiene | run repo-wide suites or import the app graph; auto-fixers stay commit-only (`stages: [pre-commit]`) so they never mutate the tree mid-push |
+| `pre-push` | every `git push`, whole repo | ≤ ~10s | cheap repo-wide contract / drift gates mirroring the CI `lint` job | SSOT manifest, governance-exceptions registry, workflow contract, generated API-reference freshness — the drift classes behind most CI `lint` / `tooling-coverage` failures | run full pytest, backend shards, coverage, or browser tests (minutes-scale → CI only) |
+| `CI` (`lint` + `changes` first) | PR / push on the GitHub runner | minutes; first gate ~1 min | full deterministic merge authority | everything in [Job Details](#job-details), re-run from a clean checkout with no assumption that any local tier ran | omit or weaken a check because a local tier also runs it |
+
+Tier rules:
+
+- **Local results are never trusted; they raise the hit rate, they do not gate
+  merge.** A hook can be uninstalled, bypassed with `--no-verify`, skipped under a
+  set `core.hooksPath`, or simply never have existed on the submitter's machine, so
+  CI assumes nothing local ran and re-runs every check independently from a clean
+  checkout. A check is therefore **never removed from or weakened in CI because a
+  local tier also performs it** — `pre-push` is a strict mirror-subset of CI gates
+  for early, cheap feedback, not an authority CI may lean on. The payoff of the
+  local tiers is fewer wasted CI cycles and faster author feedback, not a smaller CI.
+- **The budget is a contract, not a target.** A `pre-commit` hook that creeps past
+  ~2s, or a `pre-push` gate past ~10s, trains `--no-verify`, which silently disables
+  every gate behind it. When a check outgrows its budget, move it down a tier
+  (commit → push, or push → CI) rather than letting the tier slow down.
+- **CI parity is one-directional: local mirrors CI, not the reverse.** `pre-push`
+  gate commands are copied verbatim from `.github/workflows/ci.yml` so a local pass
+  predicts the CI result, but CI never shrinks to match local. The hosted
+  pre-commit.ci runner has no `uv`/backend and `ci.skip`s those gates; GitHub
+  Actions stays authoritative.
+- **No coverage or behavior proof at push.** Coverage, the AC behavioral ratchet,
+  and full test suites need artifacts and minutes; they stay in CI (see
+  [Stage Matrix and Left-Move Guidance](#stage-matrix-and-left-move-guidance)).
+  `pre-push` proves only cheap, deterministic contracts. A repo-wide pytest pre-push
+  hook is explicitly out of budget and is not the project guardrail.
+- **One install path.** `tools/bootstrap.sh` runs `pre-commit install`;
+  `default_install_hook_types: [pre-commit, pre-push]` wires both stages with no
+  extra step, so the two local tiers are managed by one framework rather than a
+  hand-placed native hook.
+
 ### Path Risk to Local Gate Matrix
 
 Default local verification starts with affected fast tests such as
