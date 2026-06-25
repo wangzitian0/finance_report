@@ -106,6 +106,7 @@ sync. Use **only** for a cross-runtime leaf value language (needed by BE *and* F
 ```
 common/<pkg>/
   __init__.py  contract.py  readme.md  todo.md
+  contract/<pkg>.contract.md          language-neutral interface spec (the cross-runtime contract)
   conformance/vectors.json            shared BE/FE parity vectors (the consistency guarantee)
   base/                               canonical pure value types + ops
   extension/                          wire/db serialization edges
