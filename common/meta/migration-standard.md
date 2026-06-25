@@ -75,6 +75,69 @@ FE is **not** a separate package tree. Each package's contract owns **one
 consistent by the shared vectors. **The FE decides its own implementation**;
 consistency is the vectors' job. Backend-only packages set `fe=None`.
 
+## Directory structure (where files go)
+
+Every package uses the same layers (`base` / `extension` / `data`); only **where
+the code lives** differs. Pick **one** of three layouts — do not invent others.
+
+### 1. Domain / capability package (default — counter, ledger, reporting, …)
+
+Spec in `common/`, code in `apps/`. `data` is metadata in `contract.py`, not a dir.
+
+```
+common/<pkg>/                         spec + review surface
+  __init__.py                         re-exports CONTRACT
+  contract.py                         interface · roles=[base,extension] · invariants · roadmap(ACs)
+  readme.md  todo.md                  prose (absorbs the package's SSOT) + worklist
+apps/backend/src/<pkg>/               BE implementation  (implementations["be"])
+  __init__.py                         __all__ == contract.interface
+  base/        types/ ops/ ports      pure core — downward DAG, no I/O
+  extension/   sql.py  api/           impure edges — ORM / transport / cross-package
+apps/frontend/src/lib/<pkg>/          FE implementation (optional; implementations["fe"])
+apps/backend/tests/<pkg>/             behavior tests
+tests/tooling/test_<pkg>_package.py   contract / invariant tests
+```
+
+### 2. Value-type narrow-waist package (the audit value language)
+
+Canonical code in `common/`, BE + FE mirrors, conformance vectors keep them in
+sync. Use **only** for a cross-runtime leaf value language (needed by BE *and* FE).
+
+```
+common/<pkg>/
+  __init__.py  contract.py  readme.md  todo.md
+  contract/<pkg>.contract.md          language-neutral interface spec (the cross-runtime contract)
+  conformance/vectors.json            shared BE/FE parity vectors (the consistency guarantee)
+  base/                               canonical pure value types + ops
+  extension/                          wire/db serialization edges
+apps/backend/src/<pkg>/               BE mirror — conforms to interface + vectors
+apps/frontend/src/lib/<pkg>/          FE mirror — conforms to interface + vectors
+```
+
+### 3. The governing package: `meta` (common-only)
+
+`meta` is its own implementation; everything lives under `common/meta/`. Its
+`data/` is the one physical data layer — the computed index that replaces the
+hand-maintained MANIFEST / registry.
+
+```
+common/meta/
+  __init__.py  contract.py  readme.md  todo.md  migration-standard.md
+  base/                               the model — PackageContract, tiers, proof matrix
+  extension/                          the gate — check_package_contract (governs every package)
+  data/                               the computed meta-index (registry · AC index · coverage)
+```
+
+### Choosing the layout
+
+- BE-only domain / capability → **layout 1** (code in `apps/`).
+- cross-runtime leaf value language (BE + FE + conformance vectors) → **layout 2**.
+- the governing `meta` package → **layout 3** (common-only).
+
+Layout 1 is live in `counter`; the value types already use layout 2; `meta` is
+still flat and adopts layout 3 as it is refactored. New packages MUST match one
+of these — the gate (`check_package_contract`) owns the `base↓ / extension↑` rule.
+
 ## Completion state (Definition of Done) — the migration unit is the AC
 
 An EPIC is horizontal and a package is vertical, so they do not map 1:1. The
