@@ -1,5 +1,5 @@
-import sys
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -42,6 +42,59 @@ def test_AC8_13_20_docs_and_docs_workflow_are_lightweight() -> None:
     assert result.staging_ai_ocr_required is False
     assert result.staging_ai_ocr_files == ()
     assert result.staging_ai_ocr_reason == "no-staging-ai-ocr-paths-changed"
+    assert result.image_build_required is False
+    assert result.image_build_files == ()
+
+
+def test_AC8_13_20_image_build_required_tracks_build_context_only() -> None:
+    """AC8.13.20: container-images is right-moved to build-context changes.
+
+    Pure app-source changes are proven by frontend-build and the backend test
+    jobs, so they must not trigger a fresh image build; Dockerfile / dependency /
+    lockfile / build-config / entrypoint changes must. An unknown (empty) diff
+    fails closed and rebuilds.
+    """
+    # Source-only heavy change: heavy CI runs, but no image rebuild.
+    src_only = classify_changed_paths(
+        ["apps/backend/src/main.py", "apps/frontend/src/app/page.tsx"]
+    )
+    assert src_only.heavy_required is True
+    assert src_only.image_build_required is False
+    assert src_only.image_build_files == ()
+
+    # Build-context changes must rebuild images.
+    for build_context_path in (
+        "apps/backend/Dockerfile",
+        "apps/backend/uv.lock",
+        "apps/backend/pyproject.toml",
+        "apps/frontend/Dockerfile",
+        "apps/frontend/package-lock.json",
+        "apps/frontend/tsconfig.json",
+        "apps/backend/scripts/entrypoint.sh",
+    ):
+        result = classify_changed_paths([build_context_path])
+        assert result.image_build_required is True, build_context_path
+        assert result.image_build_files == (build_context_path,)
+
+    # Docs-only: neither heavy nor image build.
+    assert classify_changed_paths(["README.md"]).image_build_required is False
+    # Unknown diff fails closed.
+    assert classify_changed_paths([]).image_build_required is True
+
+
+def test_AC8_13_20_image_build_required_emitted_to_github_output(tmp_path) -> None:
+    """AC8.13.20: the image_build_required scalar is written for ci.yml to consume."""
+    out = tmp_path / "gh_output"
+    classifier.write_github_outputs(
+        classify_changed_paths(["apps/backend/src/main.py"]), out
+    )
+    body = out.read_text(encoding="utf-8")
+    assert "image_build_required=false\n" in body
+    out.unlink()
+    classifier.write_github_outputs(
+        classify_changed_paths(["apps/backend/uv.lock"]), out
+    )
+    assert "image_build_required=true\n" in out.read_text(encoding="utf-8")
 
 
 def test_AC8_13_20_multi_commit_runtime_path_requires_heavy_ci() -> None:

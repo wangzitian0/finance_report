@@ -29,6 +29,10 @@ jobs:
     outputs:
       pr_required: ${{ steps.gates.outputs.pr_required }}
       pr_reason: ${{ steps.gates.outputs.pr_reason }}
+      # True only when the Docker build context changed (Dockerfile/deps/lockfiles/
+      # build config/entrypoint). Pure app-source changes are proven by frontend-build
+      # and the backend test jobs, so container-images is right-moved off them.
+      image_build_required: ${{ steps.classify.outputs.image_build_required }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -909,7 +913,7 @@ jobs:
     name: Build Staging Images
     runs-on: ubuntu-latest
     needs: [changes]
-    if: needs.changes.outputs.pr_required == 'true'
+    if: needs.changes.outputs.pr_required == 'true' && needs.changes.outputs.image_build_required == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -1521,7 +1525,9 @@ jobs:
               echo "::error::AC behavioral-score ratchet failed"
               exit 1
             fi
-            if [[ "${{ needs.container-images.result }}" != "success" ]]; then
+            # container-images is right-moved: it is skipped when the build context
+            # did not change (image_build_required=false), which is a pass, not a gap.
+            if [[ "${{ needs.container-images.result }}" != "success" && "${{ needs.container-images.result }}" != "skipped" ]]; then
               echo "::error::Container image validation failed"
               exit 1
             fi
