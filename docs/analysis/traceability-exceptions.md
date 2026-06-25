@@ -160,6 +160,15 @@ router, or generated-fixture flows.
 | `tools/_lib/pdf_fixtures/generators/base_generator.py` | EPIC-009 fixture infrastructure covered by `tests/tooling/test_pdf_fixture_epic009_behavior.py` |
 | `tools/_lib/pdf_fixtures/generators/font_utils.py` | EPIC-009 fixture infrastructure covered by `tests/tooling/test_pdf_fixture_tooling_coverage.py` |
 
+### Staging Bug Regression Repros
+
+Regression guards for production bugs found during real-machine testing. They
+pin a specific fix rather than owning an EPIC acceptance criterion.
+
+| Path | Owner |
+|---|---|
+| `apps/backend/tests/repro/test_reports_500_market_data.py` | Issue #1388 (reports must not 500 on best-effort market-data sync failure) |
+
 ## Rule
 
 New tests for user-visible behavior must include an AC reference. New helper,
