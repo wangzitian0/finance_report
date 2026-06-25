@@ -3,7 +3,6 @@
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -11,8 +10,10 @@ from sqlalchemy import select
 
 from src.database import create_session_maker_from_db
 from src.models import BankStatementStatus
+from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition
+from src.models.statement_enums import Stage1Status
 from src.models.statement_summary import StatementSummary
 from src.services import statement_parsing
 from src.services.brokerage_positions import looks_like_brokerage_payload, parse_brokerage_positions
@@ -20,8 +21,8 @@ from src.services.extraction import ExtractionService
 from src.services.statement_parsing import (
     _count_brokerage_positions,
     _filter_failure_handler_kwargs,
-    import_brokerage_payload_if_present,
     parse_statement_background,
+    route_brokerage_for_review_if_present,
 )
 from tests.factories import StatementSummaryFactory
 
@@ -79,6 +80,13 @@ def _brokerage_payload() -> dict:
             }
         ],
     }
+
+
+def _brokerage_payload_json_safe() -> dict:
+    """JSON-serializable variant for persisting to extraction_metadata (string snapshot_date)."""
+    payload = _brokerage_payload()
+    payload["positions"][0]["snapshot_date"] = "2026-05-18"
+    return payload
 
 
 def test_looks_like_brokerage_payload_detection_paths():
@@ -344,16 +352,12 @@ async def test_parse_document_routes_brokerage_balance_mismatch_to_parsed():
     assert statement._extracted_payload["positions"][0]["market_value"] == "1250.50"
 
 
-async def test_import_brokerage_payload_if_present_ignores_bank_payload(db, test_user, monkeypatch):
-    """AC17.4.7: Bank statement payloads do not call brokerage import."""
+async def test_route_brokerage_for_review_ignores_bank_payload(db, test_user):
+    """AC17.4.7/#1408: Bank statement payloads are not routed for brokerage review."""
     statement = _parsed_statement(test_user.id, "bank-hash")
+    statement.stage1_status = None
 
-    async def fail_if_called(*args, **kwargs):
-        raise AssertionError("brokerage import should not be called for bank payloads")
-
-    monkeypatch.setattr("src.services.statement_parsing._brokerage_import_service.import_positions", fail_if_called)
-
-    await import_brokerage_payload_if_present(
+    await route_brokerage_for_review_if_present(
         summary=statement,
         db=db,
         user_id=test_user.id,
@@ -363,22 +367,25 @@ async def test_import_brokerage_payload_if_present_ignores_bank_payload(db, test
     )
 
     assert statement.validation_error is None
+    # A bank payload must not be moved into the brokerage review queue.
+    assert statement.stage1_status is None
 
 
-async def test_import_brokerage_payload_if_present_records_zero_position_payload(db, test_user):
-    """AC17.4.7: Recognized brokerage payloads with no positions remain visible."""
+async def test_route_brokerage_for_review_records_zero_position_payload(db, test_user):
+    """AC17.4.7/#1408: Recognized brokerage payloads with no positions stay visible and route to review."""
     statement_id = uuid4()
     statement = StatementSummaryFactory.build(
         id=statement_id,
         user_id=test_user.id,
         status=BankStatementStatus.PARSED,
+        stage1_status=None,
         file_hash="futu-empty-hash",
         institution="Futu",
     )
     db.add(statement)
     await db.commit()
 
-    await import_brokerage_payload_if_present(
+    await route_brokerage_for_review_if_present(
         summary=statement,
         db=db,
         user_id=test_user.id,
@@ -393,31 +400,23 @@ async def test_import_brokerage_payload_if_present_records_zero_position_payload
     assert refreshed is not None
     assert refreshed.validation_error is not None
     assert "no positions detected" in refreshed.validation_error
+    # #1408: surfaced as a Stage-1 review flag, not auto-settled.
+    assert refreshed.stage1_status == Stage1Status.PENDING_REVIEW
 
 
-async def test_import_brokerage_payload_if_present_uses_nested_statement_institution(db, test_user, monkeypatch):
-    """AC17.4.7: Brokerage import reads broker identity from nested statement metadata."""
+async def test_route_brokerage_for_review_uses_nested_statement_institution(db, test_user, monkeypatch):
+    """AC17.4.7/#1408: Review routing reads broker identity from nested statement metadata."""
     statement = _parsed_statement(test_user.id, "nested-broker-hash")
+    db.add(statement)
+    await db.commit()
     info_events = []
-
-    async def fake_import_positions(*_args, **_kwargs):
-        return SimpleNamespace(
-            broker="Interactive Brokers",
-            parsed_positions=1,
-            created_atomic_positions=0,
-            existing_atomic_positions=0,
-            reconcile_created=0,
-            reconcile_updated=0,
-            reconcile_disposed=0,
-        )
 
     def capture_info(event_name, **kwargs):
         info_events.append((event_name, kwargs))
 
-    monkeypatch.setattr(statement_parsing._brokerage_import_service, "import_positions", fake_import_positions)
     monkeypatch.setattr(statement_parsing.logger, "info", capture_info)
 
-    await import_brokerage_payload_if_present(
+    await route_brokerage_for_review_if_present(
         summary=statement,
         db=db,
         user_id=test_user.id,
@@ -432,13 +431,19 @@ async def test_import_brokerage_payload_if_present_uses_nested_statement_institu
     )
 
     started_events = [
-        kwargs for event_name, kwargs in info_events if event_name == "statement.brokerage_import.started"
+        kwargs for event_name, kwargs in info_events if event_name == "statement.brokerage_review_routing.started"
     ]
     assert started_events[0]["broker"] == "Interactive Brokers"
+    # #1408: routing surfaces the statement for review without importing positions.
+    assert statement.stage1_status == Stage1Status.PENDING_REVIEW
 
 
-async def test_import_brokerage_payload_if_present_stops_when_failed_statement_is_missing(monkeypatch):
-    """AC17.4.7: Brokerage import failure handling tolerates deleted statements."""
+async def test_route_brokerage_for_review_stops_when_failed_statement_is_missing():
+    """AC17.4.7/#1408: Review-routing failure handling tolerates deleted statements.
+
+    If the routing commit raises, the function rolls back and tries to attach a
+    validation note to a re-fetched row; when that row is gone it must exit cleanly.
+    """
     statement_id = uuid4()
     statement = StatementSummaryFactory.build(
         id=statement_id,
@@ -452,6 +457,14 @@ async def test_import_brokerage_payload_if_present_stops_when_failed_statement_i
         def __init__(self):
             self.rolled_back = False
             self.lookup = None
+            self._commits = 0
+
+        async def commit(self):
+            # First commit (the routing write) fails; a second commit (post-rollback
+            # note) would only run if the re-fetched row exists, which it does not.
+            self._commits += 1
+            if self._commits == 1:
+                raise RuntimeError("forced commit failure")
 
         async def rollback(self):
             self.rolled_back = True
@@ -460,13 +473,9 @@ async def test_import_brokerage_payload_if_present_stops_when_failed_statement_i
             self.lookup = (model, lookup_id)
             return None
 
-    async def fail_import_positions(*_args, **_kwargs):
-        raise RuntimeError("forced import failure")
-
     db = MissingStatementDb()
-    monkeypatch.setattr(statement_parsing._brokerage_import_service, "import_positions", fail_import_positions)
 
-    await import_brokerage_payload_if_present(
+    await route_brokerage_for_review_if_present(
         summary=statement,
         db=db,
         user_id=statement.user_id,
@@ -498,6 +507,20 @@ async def test_parse_statement_background_imports_brokerage_positions(client, db
         session = kwargs["db"]
         summary = await session.get(StatementSummary, statement_id)
         _apply_parsed_envelope(summary)
+        # The real parse_document persists the OCR payload here; the explicit import
+        # endpoint (#1408) recovers positions from extraction_metadata.
+        summary.extraction_metadata = {"extraction_payload": _brokerage_payload_json_safe()}
+        # Link an ODS document so the explicit import resolves a source filename.
+        doc = UploadedDocument(
+            user_id=user_id,
+            file_path="statements/moomoo.pdf",
+            file_hash=file_hash,
+            original_filename="moomoo-positions.pdf",
+            document_type=DocumentType.BANK_STATEMENT,
+        )
+        session.add(doc)
+        await session.flush()
+        summary.uploaded_document_id = doc.id
         await session.flush()
         summary._extracted_payload = _brokerage_payload()
         return summary, []
@@ -531,9 +554,25 @@ async def test_parse_statement_background_imports_brokerage_positions(client, db
     assert refreshed.confidence_score == 90
     assert refreshed.balance_validated is True
     assert refreshed.validation_error is None
+    # #1408: parse does NOT auto-import positions; the statement is only routed to review.
+    assert refreshed.stage1_status == Stage1Status.PENDING_REVIEW
+    assert len(atomic_rows) == 0
+    assert len(managed_rows) == 0
+
+    # Holdings stay empty until the user triggers the explicit import endpoint.
+    pre_import_holdings = await client.get("/portfolio/holdings", params={"as_of_date": "2026-05-18"})
+    assert pre_import_holdings.status_code == 200
+    assert pre_import_holdings.json() == []
+
+    # #1408: the explicit, user-initiated endpoint is the only path that creates positions.
+    import_response = await client.post(f"/statements/{statement_id}/brokerage/import")
+    assert import_response.status_code == 200, import_response.text
+
+    db.expire_all()
+    atomic_rows = (await db.execute(select(AtomicPosition).where(AtomicPosition.user_id == user_id))).scalars().all()
+    managed_rows = (await db.execute(select(ManagedPosition).where(ManagedPosition.user_id == user_id))).scalars().all()
     assert len(atomic_rows) == 1
     assert atomic_rows[0].asset_identifier == _BRIDGE_ASSET_IDENTIFIER
-    assert atomic_rows[0].source_documents["documents"][0]["doc_id"] == str(statement_id)
     assert len(managed_rows) == 1
     assert managed_rows[0].asset_identifier == _BRIDGE_ASSET_IDENTIFIER
     assert managed_rows[0].quantity == Decimal("10")
@@ -570,11 +609,12 @@ async def test_parse_statement_background_imports_brokerage_positions(client, db
     )
 
 
-async def test_parse_statement_background_persists_brokerage_import_failure(db, test_user, monkeypatch):
-    """AC17.4.7: Brokerage import failures are visible on the parsed statement."""
+async def test_parse_statement_background_routes_brokerage_to_review_without_importing(db, test_user, monkeypatch):
+    """#1408: parse routes a brokerage statement to Stage-1 review and imports no positions,
+    preserving any existing parser validation note."""
     statement_id = uuid4()
     user_id = test_user.id
-    file_hash = "brokerage-failure-hash"
+    file_hash = "brokerage-review-routing-hash"
     statement = StatementSummaryFactory.build(
         id=statement_id,
         user_id=user_id,
@@ -593,24 +633,20 @@ async def test_parse_statement_background_persists_brokerage_import_failure(db, 
         summary._extracted_payload = _brokerage_payload()
         return summary, []
 
-    async def fail_import(*args, **kwargs):
-        raise RuntimeError("forced import failure")
-
     monkeypatch.setattr("src.services.statement_parsing.ExtractionService.parse_document", fake_parse_document)
     monkeypatch.setattr(
         "src.services.statement_parsing.StorageService.generate_presigned_url",
-        lambda *args, **kwargs: "https://example.com/moomoo-fail.pdf",
+        lambda *args, **kwargs: "https://example.com/moomoo-review.pdf",
     )
-    monkeypatch.setattr("src.services.statement_parsing._brokerage_import_service.import_positions", fail_import)
 
     await parse_statement_background(
         statement_id=statement_id,
-        filename="moomoo-fail.pdf",
+        filename="moomoo-review.pdf",
         institution="Moomoo",
         user_id=user_id,
         account_id=None,
         file_hash=file_hash,
-        storage_key="statements/moomoo-fail.pdf",
+        storage_key="statements/moomoo-review.pdf",
         content=b"%PDF-1.7",
         model=None,
         session_maker=create_session_maker_from_db(db),
@@ -618,10 +654,11 @@ async def test_parse_statement_background_persists_brokerage_import_failure(db, 
 
     db.expire_all()
     refreshed = await db.get(StatementSummary, statement_id)
+    atomic_rows = (await db.execute(select(AtomicPosition).where(AtomicPosition.user_id == user_id))).scalars().all()
 
     assert refreshed is not None
     assert refreshed.status == BankStatementStatus.PARSED
-    assert refreshed.validation_error is not None
-    assert refreshed.validation_error.startswith("existing parser note; ")
-    assert "Brokerage import failed" in refreshed.validation_error
-    assert "forced import failure" not in refreshed.validation_error
+    # #1408: routed to review, no positions imported, existing parser note preserved.
+    assert refreshed.stage1_status == Stage1Status.PENDING_REVIEW
+    assert refreshed.validation_error == "existing parser note"
+    assert len(atomic_rows) == 0

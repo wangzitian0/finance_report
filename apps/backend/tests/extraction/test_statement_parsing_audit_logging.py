@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
-from types import SimpleNamespace
 from unittest.mock import MagicMock
 from uuid import uuid4
 
@@ -13,7 +12,7 @@ from src.models import BankStatementStatus
 from src.models.statement_summary import StatementSummary
 from src.services import statement_parsing
 from src.services.extraction import ExtractionError
-from src.services.statement_parsing import import_brokerage_payload_if_present, parse_statement_background
+from src.services.statement_parsing import parse_statement_background, route_brokerage_for_review_if_present
 from tests.factories import StatementSummaryFactory
 
 
@@ -136,33 +135,26 @@ async def test_AC10_8_2_parse_checkpoints_and_failure_logs_are_structured(db, te
     assert "secret source bytes" not in failed["safe_error_message"]
 
 
-async def test_AC10_8_3_brokerage_import_audit_checkpoints(db, test_user, monkeypatch):
-    """AC10.8.3: Brokerage import logs start/completion/failure replay context."""
+async def test_AC10_8_3_brokerage_review_routing_audit_checkpoints(db, test_user, monkeypatch):
+    """AC10.8.3/#1408: Brokerage review-routing logs start/completion/failure replay context.
+
+    Parse no longer imports positions (#1408); it routes a detected brokerage statement to
+    Stage-1 review, so the replay events are the routing start/complete/failure events.
+    """
     statement = await _create_statement(db, test_user.id, file_hash="brokerage-audit-hash")
+    statement.status = BankStatementStatus.PARSED
+    await db.commit()
     payload = {
         "institution": "Moomoo",
         "positions": [{"symbol": "AAPL", "quantity": "10"}],
     }
-    result = SimpleNamespace(
-        broker="Moomoo",
-        parsed_positions=1,
-        created_atomic_positions=1,
-        existing_atomic_positions=0,
-        reconcile_created=1,
-        reconcile_updated=0,
-        reconcile_disposed=0,
-    )
     mock_info = MagicMock()
     mock_exception = MagicMock()
 
-    async def fake_import_positions(*_args, **_kwargs):
-        return result
-
     monkeypatch.setattr(statement_parsing.logger, "info", mock_info)
     monkeypatch.setattr(statement_parsing.logger, "exception", mock_exception)
-    monkeypatch.setattr(statement_parsing._brokerage_import_service, "import_positions", fake_import_positions)
 
-    await import_brokerage_payload_if_present(
+    await route_brokerage_for_review_if_present(
         summary=statement,
         db=db,
         user_id=test_user.id,
@@ -174,34 +166,46 @@ async def test_AC10_8_3_brokerage_import_audit_checkpoints(db, test_user, monkey
     )
 
     calls = [(call.args[0], call.kwargs) for call in mock_info.call_args_list]
-    started = next(kwargs for event, kwargs in calls if event == "statement.brokerage_import.started")
-    completed = next(kwargs for event, kwargs in calls if event == "statement.brokerage_import.completed")
+    started = next(kwargs for event, kwargs in calls if event == "statement.brokerage_review_routing.started")
+    completed = next(kwargs for event, kwargs in calls if event == "statement.brokerage_review_routing.completed")
 
-    assert started["audit_event"] == "statement.brokerage_import.started"
+    assert started["audit_event"] == "statement.brokerage_review_routing.started"
     assert started["statement_id"] == str(statement.id)
     assert started["request_id"] == "req-brokerage"
-    assert started["phase"] == "brokerage_import_started"
+    assert started["phase"] == "brokerage_review_routing_started"
     assert started["model_to_use"] == "glm-5.1"
     assert started["broker"] == "Moomoo"
     assert started["parsed_positions"] == 1
 
-    assert completed["audit_event"] == "statement.brokerage_import.completed"
+    assert completed["audit_event"] == "statement.brokerage_review_routing.completed"
     assert completed["statement_id"] == str(statement.id)
-    assert completed["phase"] == "brokerage_import_completed"
+    assert completed["phase"] == "brokerage_review_routing_completed"
     assert completed["model_to_use"] == "glm-5.1"
     assert completed["broker"] == "Moomoo"
-    assert completed["created_atomic_positions"] == 1
-    assert completed["existing_atomic_positions"] == 0
-    assert completed["reconcile_created"] == 1
+    assert completed["parsed_positions"] == 1
 
+    # Failure path: the routing commit raises -> a replayable failure event is emitted.
     failure_statement = await _create_statement(db, test_user.id, file_hash="brokerage-failure-audit-hash")
+    failure_statement.status = BankStatementStatus.PARSED
+    await db.commit()
 
-    async def fail_import_positions(*_args, **_kwargs):
-        raise RuntimeError("provider payload had no positions and raw text is omitted")
+    commit_calls = {"count": 0}
+    real_commit = db.commit
 
-    monkeypatch.setattr(statement_parsing._brokerage_import_service, "import_positions", fail_import_positions)
+    async def flaky_commit(*args, **kwargs):
+        commit_calls["count"] += 1
+        if commit_calls["count"] == 1:
+            raise RuntimeError("forced routing commit failure")
+        return await real_commit(*args, **kwargs)
 
-    await import_brokerage_payload_if_present(
+    async def missing_statement(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(db, "commit", flaky_commit)
+    monkeypatch.setattr(db, "rollback", missing_statement)
+    monkeypatch.setattr(db, "get", missing_statement)
+
+    await route_brokerage_for_review_if_present(
         summary=failure_statement,
         db=db,
         user_id=test_user.id,
@@ -213,15 +217,17 @@ async def test_AC10_8_3_brokerage_import_audit_checkpoints(db, test_user, monkey
     )
 
     failed = next(
-        call.kwargs for call in mock_exception.call_args_list if call.args[0] == "statement.brokerage_import.failed"
+        call.kwargs
+        for call in mock_exception.call_args_list
+        if call.args[0] == "statement.brokerage_review_routing.failed"
     )
-    assert failed["audit_event"] == "statement.brokerage_import.failed"
+    assert failed["audit_event"] == "statement.brokerage_review_routing.failed"
     assert failed["statement_id"] == str(failure_statement.id)
     assert failed["request_id"] == "req-brokerage-failed"
-    assert failed["phase"] == "brokerage_import_failed"
+    assert failed["phase"] == "brokerage_review_routing_failed"
     assert failed["model_to_use"] == "glm-5.1"
     assert failed["error_type"] == "RuntimeError"
-    assert failed["safe_error_message"] == "provider payload had no positions and raw text is omitted"
+    assert failed["safe_error_message"] == "forced routing commit failure"
 
 
 async def test_AC10_10_4_parse_outcome_metric_emitted(db, test_user, monkeypatch):

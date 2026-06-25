@@ -171,6 +171,7 @@ pin a specific fix rather than owning an EPIC acceptance criterion.
 | `apps/backend/tests/repro/test_brokerage_identifier.py` | Issue #1389 (brokerage position identifier must prefer ticker over company name) |
 | `apps/backend/tests/repro/test_balance_validation_vacuous.py` | Issue #1390 (balance validation must not pass vacuously with no closing balance) |
 | `apps/backend/tests/repro/test_review_document_url.py` | Issue #1391 (Stage-1 review PDF URL must use the public endpoint) |
+| `apps/backend/tests/portfolio/test_brokerage_import_gated_on_review.py` | Issue #1408 (brokerage positions must not count toward holdings/net-worth before review) |
 
 ## Rule
 
