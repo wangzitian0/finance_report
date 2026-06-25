@@ -18,7 +18,7 @@ is to delete the mirror: **the contract is the single source**, governance is
 Two cross-cutting governors (parallel peers, not super-packages) + the value
 foundation + the financial data flow + the technical substrate:
 
-| package | base 依赖 | extension 依赖 | 自有信息 (base) | 治理域 (extension) |
+| package | base deps | extension deps | own info (base) | governance domain (extension) |
 |---|---|---|---|---|
 | **meta** | — | (reads every contract) | DDD domain/package structure, interfaces, tooling | every package is well-formed: structure / deps / acyclic / migration progress |
 | **audit** | — | ledger, extraction, portfolio, reporting | financial base types (Money/Ratio/Quantity/UnitPrice/FX) + invariants + confidence/provenance + trace records | global numeric correctness + accounting consistency + end-to-end traceability |
@@ -31,7 +31,7 @@ foundation + the financial data flow + the technical substrate:
 | **reporting** | audit | ledger, portfolio | reports (ReportPackage/FrameworkPolicy/Snapshot/Readiness) | report lines reconcile, framework 1:1 |
 | **advisor** | audit | middleware, llm, reporting, portfolio | AI advisor (Session/Suggestion/AnnualizedIncome) | advice never becomes a ledger number unchecked |
 
-**Financial data flow:** `(extraction 自动 + portfolio 手动) → reconciliation → ledger → reporting → advisor`.
+**Financial data flow:** `(extraction [auto] + portfolio [manual]) → reconciliation → ledger → reporting → advisor`.
 
 **meta / audit symmetry** — both are foundational *and* governing, one for **form**,
 one for **number**: everyone's `base` depends on `meta.base` (the package model)
@@ -112,7 +112,7 @@ extension is visible, not hidden.
 3. **ledger** (the prototype core cutover, already has a legacy `.contract.md`).
 4. **extraction / portfolio / reconciliation / reporting** (the flow).
 5. **advisor / llm / middleware / identity**.
-6. **audit** consistency収口 (global invariants + cross-package ACs).
+6. **audit** consistency closeout (global invariants + cross-package ACs).
 7. **Cleanup** — delete residual EPIC tables / SSOT, retire the central
    MANIFEST/registry gates once `meta`'s data layer is the computed index.
 
