@@ -18,9 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.mark.asyncio
-async def test_review_pdf_url_requests_public_endpoint(
-    client: AsyncClient, db: AsyncSession, test_user, monkeypatch
-):
+async def test_review_pdf_url_requests_public_endpoint(client: AsyncClient, db: AsyncSession, test_user, monkeypatch):
     from src.models.layer1 import DocumentType, UploadedDocument
     from src.models.statement_enums import BankStatementStatus
     from src.models.statement_summary import StatementSummary

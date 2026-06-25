@@ -15,9 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.mark.asyncio
-async def test_validation_does_not_pass_vacuously_when_closing_balance_missing(
-    db: AsyncSession, test_user
-):
+async def test_validation_does_not_pass_vacuously_when_closing_balance_missing(db: AsyncSession, test_user):
     from src.models.statement_enums import BankStatementStatus
     from src.models.statement_summary import StatementSummary
     from src.services.statement_validation import validate_balance_chain
@@ -44,6 +42,5 @@ async def test_validation_does_not_pass_vacuously_when_closing_balance_missing(
     )
     # None must not be stringified into the JSON result as the literal "None".
     assert result["closing_balance"] != "None", (
-        "closing_balance serialized as the string 'None' (str(None)); "
-        "should be JSON null or omitted"
+        "closing_balance serialized as the string 'None' (str(None)); should be JSON null or omitted"
     )
