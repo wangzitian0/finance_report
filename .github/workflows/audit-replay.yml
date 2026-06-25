@@ -1,0 +1,98 @@
+# AI/OCR Audit Replay (nightly + manual)
+#
+# Issue #1232 (AC8.13.157): the heavy provider-backed LLM audit journeys (full
+# statement journey, four-asset net-worth golden path, personal financial report
+# package, CSV/traceability) are NOT part of the production-promotion blocking
+# path. The blocking deploy path runs only the minimal AI/OCR canary
+# (deploy.yml#ai-ocr-gate, corpus: canary). This workflow gives the heavy
+# journeys a separate, non-blocking home: a nightly schedule plus on-demand
+# manual dispatch.
+#
+# It calls the SAME reusable gate body (staging-ai-ocr-gate.yml) as the deploy
+# path and the manual recovery gate (single owner, AC8.13.153), selecting the
+# audit_replay corpus and running record-only (blocking=false) so a heavy
+# regression is captured as evidence without blocking any release.
+name: AI/OCR Audit Replay
+
+on:
+  schedule:
+    # Nightly at 04:23 UTC — off-peak, after any same-day staging deploys and
+    # clear of the 03:17 maintenance window.
+    - cron: "23 4 * * *"
+  workflow_dispatch:
+    inputs:
+      version_ref:
+        description: "Optional deployed version_ref / SHA to replay against (defaults to the live staging /api/health git_sha)"
+        required: false
+        type: string
+
+concurrency:
+  # One audit replay at a time; never cancel an in-flight provider-backed run.
+  group: ai-ocr-audit-replay
+  cancel-in-progress: false
+
+jobs:
+  resolve-target:
+    name: Resolve staging replay target
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      commit_ref: ${{ steps.target.outputs.commit_ref }}
+      expected_sha: ${{ steps.target.outputs.expected_sha }}
+    steps:
+      - name: Resolve replay target from staging health
+        id: target
+        env:
+          STAGING_HEALTH_URL: https://report-staging.zitian.party/api/health
+          INPUT_VERSION_REF: ${{ inputs.version_ref }}
+        run: |
+          set -euo pipefail
+          # Manual dispatch may pin a version_ref; otherwise replay against the
+          # version currently live on staging (read from /api/health git_sha).
+          expected_sha="${INPUT_VERSION_REF:-}"
+          if [ -z "$expected_sha" ]; then
+            response="$(curl -fsS --max-time 15 "$STAGING_HEALTH_URL" || true)"
+            expected_sha="$(
+              RESPONSE="$response" python3 - <<'PY'
+          import json
+          import os
+
+          payload = os.environ.get("RESPONSE", "")
+          try:
+              data = json.loads(payload) if payload else {}
+          except json.JSONDecodeError:
+              data = {}
+          print(data.get("git_sha") or data.get("version") or "")
+          PY
+            )"
+          fi
+          # commit_ref selects the corpus code to run; checking out the deployed
+          # SHA keeps the audit tests aligned with the live staging code. Fall
+          # back to the workflow ref when staging health is unreachable.
+          commit_ref="${expected_sha:-${{ github.sha }}}"
+          {
+            echo "commit_ref=${commit_ref}"
+            echo "expected_sha=${expected_sha}"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "## AI/OCR Audit Replay Target"
+            echo ""
+            echo "- Health URL: ${STAGING_HEALTH_URL}"
+            echo "- Resolved expected_sha: \`${expected_sha:-unknown}\`"
+            echo "- Checkout commit_ref: \`${commit_ref}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  audit-replay:
+    name: AI/OCR Audit Replay
+    needs: [resolve-target]
+    # Comprehensive audit corpus, record-only: it must never block production
+    # promotion (AC8.13.157). The single gate body lives in the reusable
+    # workflow (AC8.13.153).
+    uses: ./.github/workflows/staging-ai-ocr-gate.yml
+    with:
+      commit_ref: ${{ needs.resolve-target.outputs.commit_ref }}
+      expected_sha: ${{ needs.resolve-target.outputs.expected_sha }}
+      blocking: false
+      corpus: audit_replay
+    secrets: inherit

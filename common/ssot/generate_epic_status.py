@@ -9,7 +9,7 @@ Sources (read-if-present; tolerate absence gracefully):
 - ``docs/ac_registry.yaml`` / ``docs/infra_registry.yaml`` — the AC registries,
   consumed through :func:`common.ssot.analyze_test_ac_coverage.analyze_repo` so
   the coverage accounting matches the AC coverage report exactly.
-- ``docs/analysis/test-ac-coverage-report.md`` — the generated AC coverage
+- ``tmp/test-ac-coverage-report.md`` — the generated AC coverage
   snapshot (referenced for provenance; counts are recomputed live, not parsed).
 - ``unified-coverage.json`` — the committed unified line-coverage baseline
   (repaired by #414). Used only for an optional code-coverage column; absence is
@@ -53,7 +53,7 @@ from common.ssot.analyze_test_ac_coverage import (
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT = REPO_ROOT / "README.md"
 DEFAULT_COVERAGE_JSON = REPO_ROOT / "unified-coverage.json"
-COVERAGE_REPORT = "docs/analysis/test-ac-coverage-report.md"
+COVERAGE_REPORT = "tmp/test-ac-coverage-report.md"
 
 BEGIN_MARKER = "<!-- BEGIN GENERATED: epic-status -->"
 END_MARKER = "<!-- END GENERATED: epic-status -->"

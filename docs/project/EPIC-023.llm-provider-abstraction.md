@@ -176,3 +176,30 @@ parallel once PR1 merges.
 | AC23.6.4 | `off` mode is an EXACT passthrough of the live (mocked) stream — deltas arrive unchanged (not collapsed), no cassette is written, and a provider failure is normalised to `LLMError` exactly as before — so prod/staging keep running the live `-m llm` path real {tier:CODE-ONLY}{proof:property} | `apps/backend/tests/unit/llm/test_streaming_cassette.py` | P1 |
 | AC23.6.5 | The fingerprint role is derived from the messages (any image part → `vision`, else `text`), so text and vision get **different** keys, while the same semantic request under a different model id resolves the **same** cassette (model-id-agnostic) {tier:CODE-ONLY}{proof:property} | `apps/backend/tests/unit/llm/test_streaming_cassette.py` | P1 |
 | AC23.7.1 | The LLM cassette integrity gate (`tools/check_llm_cassettes.py`, lint job) fails when any committed statement-extraction cassette breaks the balance-chain invariant `opening + Σ amounts ≈ closing` (Decimal) — detectable drift for a re-recorded/inconsistent cassette; pure Python, no key/network/DB, so it never perturbs the AC behavioral-score aggregator {tier:CODE-ONLY}{proof:property} | `tests/tooling/test_llm_cassette_integrity.py` | P1 |
+
+### AC23.8 — Cassette GRADED field-accuracy eval + drift ratchet
+> AC23.7 gates cassette *consistency* (the balance chain reconciles), not
+> *accuracy*: an LLM that misreads `50` as `150` still passes as long as the chain
+> still balances. This slice adds a GRADED field-accuracy eval over the committed
+> statement cassettes — each case is scored per-field (exact/normalised match:
+> amounts as `Decimal`, dates ISO, descriptions normalised) against a sibling
+> SYNTHETIC ground-truth artifact (`*.truth.json`, anonymised; no real financial
+> data). A per-case score FLOOR is persisted as a ratcheted JSONL baseline
+> (`docs/ssot/cassette-eval-baseline.jsonl`, `merge=union`, floor only goes UP),
+> and the lint-job gate FAILS when a refreshed cassette regresses a case below its
+> floor — catching "invariant passes but a field is now wrong", which AC23.7 cannot
+> see. Pure Python, no key/network/DB, deterministic on committed cassettes;
+> refresh is the local `make llm-record` path. **Scope (anti-overclaim):**
+> drift-detection power is bounded by the eval-set breadth documented in the
+> coverage matrix — CI green ≠ accurate on an unseen statement (that remains the
+> staging `-m llm` gate's job). {tier:LLM-LED}{proof:eval}
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC23.8.1 | The eval set covers a documented **modality × institution-class × edge-condition** matrix (text & vision modalities; generic & named-institution classes; happy-path & duplicate-row/#1254 edge conditions) to a stated minimum case count, and the doc explicitly states drift-detection power is bounded by that breadth (no overclaiming) {tier:LLM-LED}{proof:eval} | `tests/tooling/test_cassette_graded_eval.py` | P1 |
+| AC23.8.2 | Each case scores **per-field accuracy** (exact/normalised match: amounts as `Decimal`, dates ISO-normalised, descriptions case/space-normalised) against the case's known-correct ground-truth values, producing a numeric `[0,1]` score {tier:LLM-LED}{proof:eval} | `tests/tooling/test_cassette_graded_eval.py` | P1 |
+| AC23.8.3 | A per-case score floor is persisted in a ratcheted JSONL baseline and may only go **UP** (`--update` raises, never lowers; refuses to cement a regressed run); the gate FAILS when any case scores below its floor {tier:LLM-LED}{proof:eval} | `tests/tooling/test_cassette_graded_eval.py` | P1 |
+| AC23.8.4 | A deliberately-regressed cassette (a field flipped so its score drops below floor) is CAUGHT and fails the gate — proven by a test that injects the regression and asserts the gate returns a violation {tier:LLM-LED}{proof:eval} | `tests/tooling/test_cassette_graded_eval.py` | P1 |
+| AC23.8.5 | The graded eval distinguishes "balance invariant passes but field-accuracy regressed" from "invariant fails": a cassette whose chain still reconciles but whose amount no longer matches ground truth is flagged by the graded gate while the AC23.7 balance gate stays green {tier:LLM-LED}{proof:eval} | `tests/tooling/test_cassette_graded_eval.py` | P1 |
+| AC23.8.6 | The eval runs deterministically in CI on committed cassettes with **NO network and NO API key**; the refresh path is the local `make llm-record` target (documented), never CI {tier:LLM-LED}{proof:eval} | `tests/tooling/test_cassette_graded_eval.py` | P1 |
+| AC23.8.7 | Reliability scoring aggregates over **N≥2 samples** per case when multiple recordings of the same case exist (mean score), and the single-sample limitation (one recording ⇒ point estimate, not a reliability measure) is documented {tier:LLM-LED}{proof:eval} | `tests/tooling/test_cassette_graded_eval.py` | P1 |

@@ -21,6 +21,19 @@ SUPPLEMENTAL_LLM_FILES = [
     "tests/e2e/test_statement_upload_e2e.py",
 ]
 
+# The minimal production-promotion AI/OCR canary corpus (issue #1232, AC8.13.156).
+# This is a hand-curated SUBSET of the derived llm post-merge corpus (gate_files):
+# the smallest set that proves the real-provider upload -> parse -> import -> value
+# liveness path users need in production, with NO broad audit assertions. The
+# brokerage journey is the only single test that exercises `import`
+# (report_verifications == 0), so it is the canary on its own. Everything else in
+# the derived corpus is audit-replay (audit_replay_files = gate_files - canary),
+# so a newly-added heavy `@ac_proof` journey defaults to audit-replay and can
+# never silently creep into the blocking path (AC8.13.159).
+CANARY_FILES = [
+    "tests/e2e/test_brokerage_upload_to_portfolio_value.py",
+]
+
 REPLAY_COUNTERS = {
     "tests/e2e/test_statement_full_journey.py": {
         "uploads": 1,
@@ -88,13 +101,62 @@ def gate_files() -> list[str]:
     return files
 
 
+def canary_files() -> list[str]:
+    """The minimal blocking-path AI/OCR canary corpus (AC8.13.156).
+
+    A hand-curated subset of ``gate_files()``; fail-closed against both the
+    derived corpus (every canary file must be a real llm post-merge proof or a
+    supplemental) and the replay-counter source.
+    """
+    derived = set(gate_files())
+    canary = sorted(CANARY_FILES)
+    missing_from_corpus = [path for path in canary if path not in derived]
+    if missing_from_corpus:
+        raise SystemExit(
+            "Canary files are not in the derived AI/OCR corpus: "
+            + ", ".join(sorted(missing_from_corpus))
+        )
+    missing_counters = [path for path in canary if path not in REPLAY_COUNTERS]
+    if missing_counters:
+        raise SystemExit(
+            "Missing staging AI/OCR replay counters for: "
+            + ", ".join(sorted(missing_counters))
+        )
+    return canary
+
+
+def audit_replay_files() -> list[str]:
+    """The comprehensive nightly/manual audit-replay corpus (AC8.13.157).
+
+    Derived by subtraction (``gate_files() - canary_files()``) so a newly-added
+    heavy llm post-merge proof lands here automatically and never in the blocking
+    canary (AC8.13.159).
+    """
+    canary = set(canary_files())
+    return [path for path in gate_files() if path not in canary]
+
+
+def corpus_files(corpus: str) -> list[str]:
+    selectors = {
+        "all": gate_files,
+        "canary": canary_files,
+        "audit_replay": audit_replay_files,
+    }
+    if corpus not in selectors:
+        raise SystemExit(
+            f"Unknown corpus {corpus!r}; expected one of {sorted(selectors)}"
+        )
+    return selectors[corpus]()
+
+
 def totals(files: list[str]) -> dict[str, int]:
     keys = ("uploads", "parse_completions", "brokerage_imports", "report_verifications")
     return {key: sum(REPLAY_COUNTERS[path][key] for path in files) for key in keys}
 
 
-def emit_shell() -> str:
-    files = gate_files()
+def emit_shell(files: list[str] | None = None) -> str:
+    if files is None:
+        files = gate_files()
     counts = totals(files)
     quoted_files = " ".join(shlex.quote(path) for path in files)
     lines = [
@@ -167,6 +229,16 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--shell", action="store_true", help="Emit bash assignments.")
     parser.add_argument(
+        "--corpus",
+        choices=("all", "canary", "audit_replay"),
+        default="all",
+        help=(
+            "Which corpus to emit: 'all' (default, full derived corpus), "
+            "'canary' (minimal blocking liveness), or 'audit_replay' "
+            "(comprehensive nightly journeys)."
+        ),
+    )
+    parser.add_argument(
         "--summarize-junit",
         nargs="+",
         type=Path,
@@ -179,14 +251,14 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     if args.shell:
-        print(emit_shell())
+        print(emit_shell(corpus_files(args.corpus)))
         return 0
 
     if args.summarize_junit:
         print(render_junit_summary(summarize_junit(args.summarize_junit)))
         return 0
 
-    files = gate_files()
+    files = corpus_files(args.corpus)
     counts = totals(files)
     print("Staging AI/OCR gate files:")
     for path in files:

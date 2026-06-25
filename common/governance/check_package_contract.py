@@ -39,11 +39,13 @@ from common.governance.package_contract import PackageContract
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PACKAGE_GLOB = "common/*/contract.py"
 
-# Layer rank for the DAG rule: a package may only import packages of a STRICTLY
-# LOWER class (dependencies point strictly downward; same-rank edges are
-# rejected by ``_check_no_forbidden_edge``'s ``target_rank >= my_rank`` guard).
-# ``core`` (vertical slice) may use ``platform`` + ``kernel``; ``platform`` may
-# use ``kernel``; ``kernel`` is a leaf.
+# Layer rank for the DAG rule: a package may never import a HIGHER class (no
+# upward edges), and same-class (sideways) edges are allowed only when declared in
+# ``depends_on`` AND acyclic — "never up, never sideways-cyclic". The upward guard
+# is ``_check_no_forbidden_edge``'s ``target_rank > my_rank``; acyclicity is
+# enforced globally by ``_check_no_dependency_cycle``. So a cohesive family (e.g.
+# the value types money/ratio/quantity/unit_price) can share one ``kernel`` layer
+# and depend on each other acyclically, instead of being spread up the ladder.
 _CLASS_RANK = {"kernel": 0, "platform": 1, "core": 2}
 
 # Packages a given class is forbidden to import, by the import prefix
@@ -217,9 +219,9 @@ def _check_no_forbidden_edge(
                     continue
                 target_rank = _CLASS_RANK[registered[target]]
                 rel = py.relative_to(REPO_ROOT)
-                if target_rank >= my_rank:
+                if target_rank > my_rank:
                     offenders.append(
-                        f"{rel}: upward/sideways import of '{target}' "
+                        f"{rel}: upward import of '{target}' "
                         f"(class {registered[target]}) from '{pkg.name}' "
                         f"(class {pkg.contract.klass})"
                     )
@@ -229,6 +231,35 @@ def _check_no_forbidden_edge(
                         f"depends_on={sorted(allowed)}"
                     )
     return offenders
+
+
+def _check_no_dependency_cycle(packages: list[DiscoveredPackage]) -> list[str]:
+    """Detect any cycle in the declared ``depends_on`` graph.
+
+    Same-class (sideways) edges are allowed when declared, so the no-cycle rule is
+    enforced globally here rather than by a strict rank ordering ("never up, never
+    sideways-cyclic"). A cycle in ``depends_on`` is a hard error.
+    """
+    graph = {p.name: list(p.contract.depends_on) for p in packages}
+    color = dict.fromkeys(graph, 0)  # 0=unvisited, 1=on-stack, 2=done
+    offenders: list[str] = []
+
+    def visit(node: str, path: list[str]) -> None:
+        color[node] = 1
+        for dep in graph.get(node, []):
+            if dep not in graph:
+                continue  # unregistered dep; the edge rule handles declared-ness
+            if color[dep] == 1:
+                cycle = path[path.index(dep):] + [dep] if dep in path else [node, dep]
+                offenders.append("dependency cycle: " + " -> ".join(cycle))
+            elif color[dep] == 0:
+                visit(dep, path + [dep])
+        color[node] = 2
+
+    for name in sorted(graph):
+        if color[name] == 0:
+            visit(name, [name])
+    return sorted(set(offenders))
 
 
 def check_package(
@@ -294,6 +325,7 @@ def run(repo_root: Path = REPO_ROOT) -> tuple[bool, list[str]]:
                 f"{len(pkg.contract.invariants)} invariant(s), "
                 f"{len(pkg.contract.roadmap)} roadmap AC(s) — OK"
             )
+    all_errors.extend(_check_no_dependency_cycle(packages))
     if not packages:
         all_errors.append("no packages discovered (expected at least 'counter')")
     return (not all_errors, messages + all_errors)

@@ -1,0 +1,3 @@
+{"case_id": "cb5dd1f714784190dab3356c17d635a0e09b8f9fca78abb6023218ca29efcbab", "score": 1.0, "metric": "field-accuracy", "provenance": "text/generic/duplicate_rows"}
+{"case_id": "d2bef919d2918989d2a6dbc8bbf019bd6bd2107d97f2e1bd85c91185c36e4fd0", "score": 1.0, "metric": "field-accuracy", "provenance": "vision/named_bank/happy_path"}
+{"case_id": "d69fbafcecb481e614651b1178a5fb9d9e3724718ef7bf623502120bcd27db30", "score": 1.0, "metric": "field-accuracy", "provenance": "text/generic/happy_path"}

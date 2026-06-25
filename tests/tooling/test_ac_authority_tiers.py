@@ -1,10 +1,10 @@
 """Tests for EPIC-026 AC authority tiers (vocabulary, schema, ratchet, backfill).
 
 Covers:
-- AC26.1.1 — the SSOT vocabulary + proof matrix + manifest ownership.
-- AC26.2.1 — a {tier:XX} marker flows into the generated registry value.
-- AC26.3.1 — the shrink-only untagged-debt ratchet gate.
-- AC26.4.1 — the first-batch EPICs are fully tagged and off the baseline.
+- AC-authority.1.1 — the SSOT vocabulary + proof matrix + manifest ownership.
+- AC-authority.2.1 — a {tier:XX} marker flows into the generated registry value.
+- AC-authority.3.1 — the shrink-only untagged-debt ratchet gate.
+- AC-authority.4.1 — the first-batch EPICs are fully tagged and off the baseline.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ def _write_epic(epic_dir: Path, fname: str, content: str) -> None:
 
 
 def test_AC26_1_1_ssot_defines_five_tiers_and_proof_matrix() -> None:
-    """AC26.1.1: The five tiers, MUST rules, and proof matrix live in one SSOT owner."""
+    """AC-authority.1.1: The five tiers, MUST rules, and proof matrix live in one SSOT owner."""
     doc = (ROOT / "docs/ssot/authority-tiers.md").read_text(encoding="utf-8")
     manifest = yaml.safe_load(
         (ROOT / "docs/ssot/MANIFEST.yaml").read_text(encoding="utf-8")
@@ -53,7 +53,7 @@ def test_AC26_1_1_ssot_defines_five_tiers_and_proof_matrix() -> None:
 
 
 def test_AC26_2_1_tier_marker_flows_into_registry_value(tmp_path, monkeypatch) -> None:
-    """AC26.2.1: {tier:XX} flows into the value; bad/absent markers are ignored."""
+    """AC-authority.2.1: {tier:XX} flows into the value; bad/absent markers are ignored."""
     epic_dir = tmp_path / "docs" / "project"
     overrides = tmp_path / "docs" / "ac_registry_overrides.yaml"
     overrides.parent.mkdir(parents=True, exist_ok=True)
@@ -84,7 +84,7 @@ def test_AC26_2_1_tier_marker_flows_into_registry_value(tmp_path, monkeypatch) -
 
 
 def test_AC26_3_1_tier_ratchet_is_shrink_only_and_blocks_new_debt(tmp_path) -> None:
-    """AC26.3.1: New untagged debt fails; baseline only shrinks via --update."""
+    """AC-authority.3.1: New untagged debt fails; baseline only shrinks via --update."""
     baseline_path = tmp_path / "ac-tier-baseline.json"
 
     # Baseline tolerates one known-untagged AC; a second untagged AC is new debt.
@@ -113,7 +113,7 @@ def test_AC26_3_1_tier_ratchet_is_shrink_only_and_blocks_new_debt(tmp_path) -> N
 
 
 def test_AC26_4_1_first_batch_epics_fully_tagged_and_off_baseline() -> None:
-    """AC26.4.1: First-batch EPIC ACs all carry a valid tier and are off the baseline."""
+    """AC-authority.4.1: First-batch EPIC ACs all carry a valid tier and are off the baseline."""
     entries = gar.build_registry_entries(epic_source=ROOT / "docs" / "project")
     baseline = tier_gate.load_baseline(ROOT / "docs/ssot/ac-tier-baseline.json")
 
@@ -129,7 +129,3 @@ def test_AC26_4_1_first_batch_epics_fully_tagged_and_off_baseline() -> None:
         assert ac_id not in baseline, (
             f"{ac_id} is tagged but still in the debt baseline"
         )
-
-    # EPIC-026's own governance ACs are tagged too (and live in infra_registry).
-    assert entries["AC26.1.1"]["tier"] == "CODE-ONLY"
-    assert gar.classify_ac("AC26.1.1", entries["AC26.1.1"]) == "infra"

@@ -167,6 +167,7 @@ pin a specific fix rather than owning an EPIC acceptance criterion.
 
 | Path | Owner |
 |---|---|
+| `apps/backend/tests/repro/test_reports_500_market_data.py` | Issue #1388 (reports must not 500 on best-effort market-data sync failure) |
 | `apps/backend/tests/repro/test_brokerage_identifier.py` | Issue #1389 (brokerage position identifier must prefer ticker over company name) |
 | `apps/backend/tests/repro/test_balance_validation_vacuous.py` | Issue #1390 (balance validation must not pass vacuously with no closing balance) |
 | `apps/backend/tests/repro/test_review_document_url.py` | Issue #1391 (Stage-1 review PDF URL must use the public endpoint) |

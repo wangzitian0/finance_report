@@ -114,6 +114,70 @@ def test_AC8_13_49_main_supports_shell_and_human_output(monkeypatch, capsys) -> 
     assert "- uploads: 1" in output
 
 
+CANARY_FILE = "tests/e2e/test_brokerage_upload_to_portfolio_value.py"
+
+HEAVY_AUDIT_JOURNEYS = (
+    "tests/e2e/test_statement_full_journey.py",
+    "tests/e2e/test_four_asset_net_worth_golden_path.py",
+    "tests/e2e/test_personal_financial_report_package.py",
+)
+
+
+def test_AC8_13_156_canary_corpus_is_minimal_liveness() -> None:
+    """AC8.13.156: The blocking canary is one minimal upload/parse/import liveness
+    check that makes no broad audit assertions."""
+    canary = contract.canary_files()
+
+    # Exactly one representative liveness journey — the brokerage upload→parse→
+    # import→value path is the only single test that exercises `import`.
+    assert canary == [CANARY_FILE]
+
+    # The canary is a subset of the full derived llm post-merge corpus and every
+    # canary file is fail-closed against the replay-counter source.
+    assert set(canary) <= set(contract.gate_files())
+    assert all(path in contract.REPLAY_COUNTERS for path in canary)
+
+    # No broad audit assertions: the canary verifies liveness, not report output.
+    assert contract.totals(canary)["report_verifications"] == 0
+
+    # The selectable corpus shell honors the canary selection.
+    shell = contract.emit_shell(contract.canary_files())
+    assert f"STAGING_AI_OCR_TESTS=({CANARY_FILE})" in shell
+
+
+def test_AC8_13_159_blocking_path_excludes_heavy_audit_journeys() -> None:
+    """AC8.13.159: heavy audit journeys live only in the audit-replay corpus and
+    cannot creep into the blocking canary path."""
+    canary = set(contract.canary_files())
+    audit_replay = set(contract.audit_replay_files())
+
+    # The two corpora partition the full derived corpus with no overlap.
+    assert canary & audit_replay == set()
+    assert canary | audit_replay == set(contract.gate_files())
+
+    # Every heavy audit journey is in audit-replay, never in the blocking canary.
+    for heavy in HEAVY_AUDIT_JOURNEYS:
+        assert heavy in audit_replay
+        assert heavy not in canary
+
+    # A hypothetical newly-added llm post-merge proof defaults to audit-replay
+    # (subtraction), so a new heavy journey can never silently block production.
+    import tools.staging_ai_ocr_gate_contract as live
+
+    original_gate_files = live.gate_files
+    try:
+        live.gate_files = lambda: sorted(  # type: ignore[assignment]
+            set(original_gate_files()) | {CANARY_FILE}
+        )
+        assert CANARY_FILE not in set(live.audit_replay_files())
+        # A brand-new heavy file (not in CANARY_FILES) lands in audit-replay.
+        new_heavy = "tests/e2e/test_statement_full_journey.py"
+        assert new_heavy in set(live.audit_replay_files())
+        assert new_heavy not in set(live.canary_files())
+    finally:
+        live.gate_files = original_gate_files  # type: ignore[assignment]
+
+
 def test_AC8_13_109_ai_ocr_gate_tests_use_isolated_users() -> None:
     """AC8.13.109: Post-merge AI/OCR gate tests must not share mutable users."""
     shared_user_fixtures = {"authenticated_page", "shared_auth_state"}

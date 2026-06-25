@@ -104,7 +104,7 @@ owning source instead of copying:
 | [AUDITS.md](./AUDITS.md) | Audit index |
 | [AC-AUDIT-2026-05-04.md](./AC-AUDIT-2026-05-04.md) | Historical vision -> EPIC -> AC consistency audit |
 | [DELIVERY_ENGINE_RECOMMENDATIONS.md](./DELIVERY_ENGINE_RECOMMENDATIONS.md) | Remaining CI/post-merge delivery-engine optimization recommendations |
-| [../analysis/traceability-exceptions.md](../analysis/traceability-exceptions.md) | Classified helper/SSOT tests and source surfaces that are not AC proof |
+| [traceability-exceptions.md](traceability-exceptions.md) | Classified helper/SSOT tests and source surfaces that are not AC proof |
 
 ## Active Non-EPIC Documentation Ownership
 

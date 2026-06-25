@@ -1,0 +1,16 @@
+{
+  "synthetic": true,
+  "modality": "vision",
+  "institution_class": "named_bank",
+  "edge_condition": "happy_path",
+  "note": "SYNTHETIC anonymised statement — no real financial data. Vision/OCR cassette (glm-4.6v) reads magnitude amounts plus an IN/OUT direction. Known-correct field values for the matching vision cassette.",
+  "expected": {
+    "opening_balance": "100.00",
+    "closing_balance": "130.00",
+    "transactions": [
+      {"date": "2026-01-02", "description": "Coffee shop", "amount": "5.00"},
+      {"date": "2026-01-05", "description": "Salary credit", "amount": "50.00"},
+      {"date": "2026-01-09", "description": "Groceries", "amount": "15.00"}
+    ]
+  }
+}

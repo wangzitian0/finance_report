@@ -19,9 +19,10 @@ from common.governance.package_contract import Invariant, PackageContract
 
 CONTRACT = PackageContract(
     name="money",
-    # platform, not kernel: money imports the ratio kernel package (MoneyTolerance
-    # is a Ratio), so it sits one layer above ratio in the dependency DAG.
-    klass="platform",
+    # kernel: a member of the value-type family. money imports ratio (MoneyTolerance
+    # is a Ratio) — a declared, acyclic same-class edge, allowed by the package model
+    # ("never up, never sideways-cyclic").
+    klass="kernel",
     status="active",
     # Pure-Decimal value type, no LLM in the package: CODE-ONLY (0% LLM).
     tier="CODE-ONLY",

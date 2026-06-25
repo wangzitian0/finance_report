@@ -1,0 +1,16 @@
+{
+  "synthetic": true,
+  "modality": "text",
+  "institution_class": "generic",
+  "edge_condition": "happy_path",
+  "note": "SYNTHETIC anonymised statement — no real financial data. Known-correct field values for the matching text cassette (glm-5.2). Amounts signed (debit negative).",
+  "expected": {
+    "opening_balance": "100.00",
+    "closing_balance": "130.00",
+    "transactions": [
+      {"date": "2026-01-02", "description": "Coffee shop", "amount": "-5.00"},
+      {"date": "2026-01-05", "description": "Salary credit", "amount": "50.00"},
+      {"date": "2026-01-09", "description": "Groceries", "amount": "-15.00"}
+    ]
+  }
+}

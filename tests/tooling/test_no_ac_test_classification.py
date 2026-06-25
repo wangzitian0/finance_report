@@ -1,6 +1,6 @@
 """Contract: every no-AC test/support file stays classified (issue #511).
 
-The classification registry is ``docs/analysis/traceability-exceptions.md`` and
+The classification registry is ``docs/project/traceability-exceptions.md`` and
 is enforced at runtime by ``tools/lint_doc_consistency.py`` (checks #8 and #9).
 This test pins the guarantee so a newly added unclassified no-AC test fails fast.
 """
@@ -12,7 +12,7 @@ from pathlib import Path
 from common.ssot import lint_doc_consistency as ldc
 
 ROOT = Path(__file__).resolve().parents[2]
-EXCEPTIONS = ROOT / "docs" / "analysis" / "traceability-exceptions.md"
+EXCEPTIONS = ROOT / "docs" / "project" / "traceability-exceptions.md"
 
 
 def test_AC8_13_132_no_unclassified_no_ac_test_files() -> None:

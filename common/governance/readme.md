@@ -49,14 +49,18 @@ So `common/<pkg>/` is the **spec + high-level review surface**;
 
 ## Three package classes
 
-A package declares one `klass`; the class fixes its place in the dependency DAG
-(dependencies point **down only**, never up, never sideways-cyclic):
+A package declares one `klass`; the class fixes its place in the dependency DAG.
+The rule is **never up, never sideways-cyclic**: a package may never import a
+*higher* class, and may import a *same-class* package only when it declares it in
+`depends_on` **and** the overall `depends_on` graph stays acyclic. (Enforced by
+`check_package_contract`: the upward guard + a global cycle check.) So a cohesive
+family can share one layer and depend on each other acyclically.
 
 | class | what it is | may depend on |
 |-------|-----------|---------------|
-| `kernel` | a leaf value language reused everywhere (e.g. `money`, `ratio`, `quantity`) | nothing in the app |
-| `platform` | a reusable horizontal capability (e.g. `counter`) | `kernel` only |
-| `core` | a vertical domain slice (e.g. `ledger`) | `platform` + `kernel` |
+| `kernel` | the value-language layer reused everywhere (e.g. `money`, `ratio`, `quantity`, `unit_price`) | other `kernel` packages it declares (acyclic) |
+| `platform` | a reusable horizontal capability (e.g. `counter`) | `kernel` + same-class declared (acyclic) |
+| `core` | a vertical domain slice (e.g. `ledger`) | `platform` + `kernel` + same-class declared (acyclic) |
 
 ## Governance is computed, not authored
 
@@ -140,18 +144,33 @@ The recipe for moving a module (and its EPIC-table ACs) into the package model.
    via `invariants[].test`, not the AC critical-proof matrix (a structural test
    tagged with a domain AC id is a stale anchor — see counter's cleanup).
 
-6. **Delete the AC's old EPIC-table rows.** The AC id now lives in the roadmap;
-   leaving the EPIC row makes `check_epic_package_dual` fail. This is a
-   **re-home, not a deletion** — the id is preserved, so protection-floor / the
-   raise-only proof floors stay green (never net-delete an AC id).
+6. **Renumber the migrated AC to the package-scoped `AC-<pkg>.x.y`** — that id
+   form is the target (the package owns its ACs). Renumbering is a cross-repo
+   rename, so REPOINT every reference to the old numeric id in the SAME change,
+   or the lint cross-checks fire:
+   - **floor baselines** — if the old id is in `ac-score-baseline.jsonl` /
+     `protection-floor.json` (raise-only), migrate that entry too, else Gate B
+     reds on the net-deleted id. (Grep both first; most legacy ids are tracked.)
+   - **other EPIC docs** — repoint cross-references (`lint_doc_consistency`
+     check4 `epic_to_registry`; e.g. EPIC-008's e2e map pointed at `AC26.x`).
+   - **test references** — update the id in the test docstrings/`@ac_proof`
+     (check5 `registry_to_tests` scans test-file text for the dotted id).
 
-7. **Register & classify.** Add any new `docs/ssot/` files to
+7. **Delete the EPIC table ROW, but keep the EPIC REFERENCING the new ids.**
+   Remove the `| ACx.y.z | … |` definition row (else `check_epic_package_dual`
+   fails — no AC defined in two places), and replace the section with a
+   disclaimer that **lists every homed `AC-<pkg>.x.y` id** — a registry AC must
+   still be *referenced* by an EPIC doc (`lint_doc_consistency` check3
+   `registry_to_epic`); a prose mention satisfies it, a table row would re-trip
+   `check_epic_package_dual`. (See EPIC-025/EPIC-026 for the pattern.)
+
+8. **Register & classify.** Add any new `docs/ssot/` files to
    [`MANIFEST.yaml`](../../docs/ssot/MANIFEST.yaml) (with `family`+`kind`);
    classify tooling tests in
-   [`traceability-exceptions.md`](../../docs/analysis/traceability-exceptions.md).
+   [`traceability-exceptions.md`](../../docs/project/traceability-exceptions.md).
 
-8. **Run the gates locally before pushing:** `check_package_contract`,
+9. **Run the gates locally before pushing:** `check_package_contract`,
    `generate_ac_registry --check`, `check_ac_proof_kind`, `check_tier_ast_literal`,
-   `check_epic_package_dual`, `check_draft_packages`, `check_tier_imports`, and
-   `lint_doc_consistency`. The untagged-debt ratchet shrinks automatically as the
-   moved ACs leave the EPIC source.
+   `check_epic_package_dual`, `check_draft_packages`, `check_tier_imports`,
+   `check_authority_reconcile`, and `lint_doc_consistency`. The untagged-debt
+   ratchet shrinks automatically as the moved ACs leave the EPIC source.

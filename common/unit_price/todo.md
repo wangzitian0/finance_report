@@ -10,7 +10,8 @@ The package-local worklist. Cross-package migration lives in
 - [x] Backend parity (`common/` canonical + BE mirror) enforced by
       `conformance/vectors.json`.
 - [x] Migrated to the package model: ships `contract.py`, governed by
-      `check_package_contract`. Classed `core` (imports `money` + `quantity`).
+      `check_package_contract`. Classed `kernel` (imports `money` + `quantity` as
+      declared, acyclic same-class edges).
 
 ## Next
 

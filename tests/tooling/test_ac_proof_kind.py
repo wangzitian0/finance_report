@@ -1,10 +1,10 @@
 """Tests for EPIC-026 phase 2: tier->proof-kind marker + enforcement gate.
 
 Covers:
-- AC26.5.1 — the {proof:KIND} marker flows into the registry value (with the
+- AC-authority.5.1 — the {proof:KIND} marker flows into the registry value (with the
   tier-aware default) and the gate enforces the tier->proof matrix for
   tier-tagged ACs only (LLM-LED cannot be exact; HU must be evidence; LLM-ONLY not exact).
-- AC26.6.1 — the first-batch LLM-LED ACs carry an invariant/property proof (the
+- AC-authority.6.1 — the first-batch LLM-LED ACs carry an invariant/property proof (the
   #1254 balance-chain + dedup-conservation regression).
 """
 
@@ -26,7 +26,7 @@ def _write_epic(epic_dir: Path, fname: str, content: str) -> None:
 def test_AC26_5_1_proof_kind_marker_flows_and_gate_enforces_matrix(
     tmp_path, monkeypatch
 ) -> None:
-    """AC26.5.1: {proof:KIND} flows into the value; gate enforces the matrix."""
+    """AC-authority.5.1: {proof:KIND} flows into the value; gate enforces the matrix."""
     epic_dir = tmp_path / "docs" / "project"
     overrides = tmp_path / "docs" / "ac_registry_overrides.yaml"
     overrides.parent.mkdir(parents=True, exist_ok=True)
@@ -94,7 +94,7 @@ def test_AC26_5_1_proof_kind_marker_flows_and_gate_enforces_matrix(
 
 
 def test_AC26_5_1_matrix_mirrors_ssot_and_real_repo_passes() -> None:
-    """AC26.5.1: the live repo passes the gate (every tier-tagged AC is valid)."""
+    """AC-authority.5.1: the live repo passes the gate (every tier-tagged AC is valid)."""
     assert proof_gate.proof_kind_violations(ROOT) == []
     # The matrix mirror is the five tiers, and LLM-LED/LLM-ONLY never accept exact.
     assert set(proof_gate.VALID_PROOF_KINDS) == set(gar.AC_TIERS)
@@ -104,7 +104,7 @@ def test_AC26_5_1_matrix_mirrors_ssot_and_real_repo_passes() -> None:
 
 
 def test_AC26_6_1_first_batch_lp_acs_carry_invariant_proof() -> None:
-    """AC26.6.1: the retrofitted first-batch LLM-LED/HU/LLM-ONLY ACs declare valid kinds."""
+    """AC-authority.6.1: the retrofitted first-batch LLM-LED/HU/LLM-ONLY ACs declare valid kinds."""
     entries = gar.build_registry_entries(epic_source=ROOT / "docs" / "project")
 
     # The LLM-LED extraction ACs carry an invariant/property proof (#1254 regression).
@@ -122,8 +122,3 @@ def test_AC26_6_1_first_batch_lp_acs_carry_invariant_proof() -> None:
     for ac_id in ("AC3.1.1", "AC3.5.7", "AC3.5.19"):
         assert entries[ac_id]["tier"] == "LLM-LED"
         assert entries[ac_id]["proof_kind"] != "exact"
-
-    # The new EPIC-026 governance ACs are themselves tagged + valid.
-    assert entries["AC26.5.1"]["tier"] == "CODE-ONLY"
-    assert entries["AC26.6.1"]["tier"] == "CODE-ONLY"
-    assert proof_gate.proof_kind_violations(ROOT) == []

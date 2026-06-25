@@ -16,9 +16,9 @@ from common.governance.package_contract import Invariant, PackageContract
 
 CONTRACT = PackageContract(
     name="quantity",
-    # platform, not kernel: quantity imports the ratio kernel package (a Ratio can
-    # scale a Quantity), so it sits one layer above ratio in the dependency DAG.
-    klass="platform",
+    # kernel: a member of the value-type family. quantity imports ratio (a Ratio can
+    # scale a Quantity) — a declared, acyclic same-class edge.
+    klass="kernel",
     status="active",
     tier="CODE-ONLY",
     depends_on=["ratio"],
