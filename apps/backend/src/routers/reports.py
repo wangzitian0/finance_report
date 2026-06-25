@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import csv
 import json
 from copy import deepcopy
@@ -117,18 +118,24 @@ async def _ensure_report_market_data_fresh(
             include_default_fx=False,
             extra_fx_pairs=_target_currency_pair(currency) if has_report_subjects is not None else [],
         )
+    except asyncio.CancelledError:
+        # Never swallow cancellation (request disconnect / shutdown): let it
+        # propagate so FastAPI can unwind the request properly.
+        raise
     except Exception as exc:  # noqa: BLE001 - freshness is best-effort enrichment
         # #1388: a failed market-data/FX refresh (provider error, unresolvable
         # symbol, malformed FX pair, network blip) must not turn report
         # generation into a 500. The report endpoints only catch ReportError, so
         # any other exception escaping here surfaced as an unhandled 500 the
         # moment an account held a position. Fall back to already-stored data
-        # (possibly stale) and let the report render.
+        # (possibly stale) and let the report render. Keep the traceback
+        # (exc_info) since these failures can be hard to reproduce.
         logger.warning(
             "Market-data freshness sync failed; rendering report with stored data",
             error=str(exc),
             user_id=str(user_id),
             end_date=str(end_date),
+            exc_info=True,
         )
 
 

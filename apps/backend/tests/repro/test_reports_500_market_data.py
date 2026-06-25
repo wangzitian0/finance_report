@@ -55,8 +55,8 @@ async def test_reports_do_not_500_when_market_data_sync_raises(
     monkeypatch.setattr(reports_router, "ensure_market_data_fresh", _raise)
 
     resp = await client.get(url)
-    assert resp.status_code != 500, (
-        f"{url} returned 500 when the market-data freshness sync raised a "
-        "non-ReportError exception; freshness is best-effort and must not crash "
-        "report generation"
+    assert resp.status_code < 500, (
+        f"{url} returned {resp.status_code} when the market-data freshness sync "
+        "raised a non-ReportError exception; freshness is best-effort and must "
+        "not crash report generation with any 5xx"
     )
