@@ -11,7 +11,7 @@ into package roadmaps:
   be registered.
 
 These are SSOT/tooling-hardening tests (they protect the migration gates) and are
-classified, not AC-owned, in docs/analysis/traceability-exceptions.md.
+classified, not AC-owned, in docs/project/traceability-exceptions.md.
 """
 
 from __future__ import annotations

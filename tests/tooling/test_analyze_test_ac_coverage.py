@@ -273,7 +273,7 @@ class TestMain:
         backend.mkdir(parents=True, exist_ok=True)
         (backend / "test_demo.py").write_text("# AC1.1.1\n", encoding="utf-8")
 
-        output = tmp_path / "docs" / "analysis" / "out.md"
+        output = tmp_path / "tmp" / "out.md"
 
         monkeypatch.setattr(
             sys,
@@ -315,7 +315,7 @@ class TestMain:
         backend.mkdir(parents=True, exist_ok=True)
         (backend / "test_demo.py").write_text("# AC1.1.1\n", encoding="utf-8")
 
-        output = tmp_path / "docs" / "analysis" / "out.md"
+        output = tmp_path / "tmp" / "out.md"
 
         monkeypatch.setattr(
             sys,
@@ -352,7 +352,7 @@ class TestMain:
         backend = tmp_path / "apps" / "backend" / "tests"
         backend.mkdir(parents=True, exist_ok=True)
         (backend / "test_demo.py").write_text("# AC1.1.1\n", encoding="utf-8")
-        output = tmp_path / "docs" / "analysis" / "out.md"
+        output = tmp_path / "tmp" / "out.md"
 
         monkeypatch.setattr(
             sys,
@@ -388,7 +388,7 @@ class TestMain:
         backend = tmp_path / "apps" / "backend" / "tests"
         backend.mkdir(parents=True, exist_ok=True)
         (backend / "test_demo.py").write_text("# AC1.1.1\n", encoding="utf-8")
-        output = tmp_path / "docs" / "analysis" / "out.md"
+        output = tmp_path / "tmp" / "out.md"
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text("stale report\n", encoding="utf-8")
 
