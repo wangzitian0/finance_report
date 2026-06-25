@@ -237,6 +237,16 @@ jobs:
           # extraction fails here. Pure Python (no key/network/DB), so it runs in
           # lint without touching the AC behavioral-score aggregator.
           python tools/check_llm_cassettes.py
+      - name: LLM Cassette Graded Eval (field-accuracy drift ratchet)
+        run: |
+          # EPIC-023 AC23.8 / #1307: GRADED field-accuracy eval over committed
+          # cassettes. AC23.7 above gates CONSISTENCY (the chain reconciles); this
+          # gates ACCURACY — each cassette is scored per-field against a synthetic
+          # ground truth and ratcheted against a per-case floor that only goes UP.
+          # Fails when a refreshed cassette regresses below floor (incl. "balance
+          # passes but a field is wrong"). Pure Python (no key/network/DB), so it
+          # runs in lint without touching the AC behavioral-score aggregator.
+          python tools/check_cassette_graded_eval.py
       - name: SSOT Ownership Lint
         run: |
           python tools/check_ssot_ownership.py --verbose

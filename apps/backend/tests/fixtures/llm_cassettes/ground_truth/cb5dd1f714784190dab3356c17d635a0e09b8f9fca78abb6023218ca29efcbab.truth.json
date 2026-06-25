@@ -1,0 +1,16 @@
+{
+  "synthetic": true,
+  "modality": "text",
+  "institution_class": "generic",
+  "edge_condition": "duplicate_rows",
+  "note": "SYNTHETIC anonymised statement — no real financial data. #1254-class case: two genuine same-date same-amount deposits must BOTH be present. Known-correct field values for the matching text cassette (glm-5.2).",
+  "expected": {
+    "opening_balance": "1000.00",
+    "closing_balance": "1490.00",
+    "transactions": [
+      {"date": "2026-02-01", "description": "Deposit ABC", "amount": "250.00"},
+      {"date": "2026-02-01", "description": "Deposit ABC", "amount": "250.00"},
+      {"date": "2026-02-03", "description": "Service fee", "amount": "-10.00"}
+    ]
+  }
+}

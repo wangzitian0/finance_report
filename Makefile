@@ -74,6 +74,11 @@ test:
 #   make llm-record ARGS='tests/extraction/test_extraction_cassette_replay.py -m needs_real_cassette'
 # then remove the `needs_real_cassette` module skip so the dedicated replay CI
 # step runs them with no key.
+#
+# After re-recording a statement cassette, raise the GRADED field-accuracy floor
+# (EPIC-023 AC23.8) so the ratchet adopts the new (>=) scores; commit cassettes +
+# baseline together:
+#   python tools/check_cassette_graded_eval.py --update
 llm-record:
 	cd apps/backend && LLM_CASSETTE_MODE=record uv run pytest tests/unit/llm/test_cassette.py tests/unit/llm/test_streaming_cassette.py --llm-record $(ARGS)
 
