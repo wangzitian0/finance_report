@@ -125,7 +125,7 @@ verifiable.
 > The package model (a package = a DDD bounded context: `readme.md` +
 > `PackageContract` + `types/ops/store/api` roles + `__all__` published language,
 > governance computed from contracts) is specified by the meta package itself in
-> [../../common/governance/readme.md](../../common/governance/readme.md). The
+> [../../common/meta/readme.md](../../common/meta/readme.md). The
 > `counter` platform package is its first worked example.
 >
 > **`AC-counter.1.1`, `AC-counter.1.2`, `AC-counter.1.3`, and `AC-counter.1.4` are NOT defined here.**

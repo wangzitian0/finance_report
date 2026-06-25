@@ -1,13 +1,13 @@
-# `governance` — todo
+# `meta` — todo
 
 The meta package's own worklist. Cross-package migration lives in
-[`../todo.md`](../todo.md); this is scoped to the governance machinery itself.
+[`../todo.md`](../todo.md); this is scoped to the meta package's machinery itself.
 
 ## Now
 
 - [x] Self-host the package-model spec here (`readme.md`) instead of a special
       `docs/ssot/` doc.
-- [x] Ship a `PackageContract` for the governance package (`contract.py`), checked
+- [x] Ship a `PackageContract` for the meta package (`contract.py`), checked
       by its own gate.
 - [x] Extend `PackageContract` with `status`, `roles`, `implementations`; discover
       contracts at `common/*/contract.py`; resolve `interface` against
@@ -16,7 +16,7 @@ The meta package's own worklist. Cross-package migration lives in
 
 ## Next
 
-- [ ] Add a `roadmap` to the governance contract once the model-evolution ACs are
+- [ ] Add a `roadmap` to the meta contract once the model-evolution ACs are
       framed (currently invariants-only).
 - [ ] Teach the gate to also validate `implementations["fe"]`'s published surface
       when a package ships a frontend implementation.

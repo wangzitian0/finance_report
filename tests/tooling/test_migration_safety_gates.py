@@ -35,7 +35,7 @@ def _write_contract(repo: Path, name: str, body: str) -> None:
 
 def _active(name: str, *, tier: str = '"CODE-ONLY"', roadmap: str = "") -> str:
     return f"""
-    from common.governance.package_contract import PackageContract, ACRecord
+    from common.meta.package_contract import PackageContract, ACRecord
     CONTRACT = PackageContract(
         name="{name}", klass="kernel", status="active", tier={tier},
         depends_on=[], interface=[], events=[], invariants=[], roadmap=[{roadmap}])
@@ -55,7 +55,7 @@ def test_1b_flags_non_literal_tier_on_shipped_package(tmp_path: Path) -> None:
         tmp_path,
         "bad",
         """
-        from common.governance.package_contract import PackageContract
+        from common.meta.package_contract import PackageContract
         T = "CODE-ONLY"
         CONTRACT = PackageContract(
             name="bad", klass="kernel", status="active", tier=T,
@@ -71,7 +71,7 @@ def test_1b_allows_undecided_tier_only_for_draft(tmp_path: Path) -> None:
         tmp_path,
         "wip",
         """
-        from common.governance.package_contract import PackageContract
+        from common.meta.package_contract import PackageContract
         CONTRACT = PackageContract(
             name="wip", klass="kernel", status="draft",
             depends_on=[], interface=[], events=[], invariants=[], roadmap=[])
@@ -129,7 +129,7 @@ def test_1e_flags_done_ac_in_draft(tmp_path: Path) -> None:
         tmp_path,
         "wip",
         """
-        from common.governance.package_contract import PackageContract, ACRecord
+        from common.meta.package_contract import PackageContract, ACRecord
         CONTRACT = PackageContract(
             name="wip", klass="kernel", status="draft",
             depends_on=[], interface=[], events=[], invariants=[], roadmap=[
@@ -148,7 +148,7 @@ def test_1e_flags_unregistered_draft(tmp_path: Path) -> None:
         tmp_path,
         "wip",
         """
-        from common.governance.package_contract import PackageContract
+        from common.meta.package_contract import PackageContract
         CONTRACT = PackageContract(
             name="wip", klass="kernel", status="draft",
             depends_on=[], interface=[], events=[], invariants=[], roadmap=[])
@@ -166,7 +166,7 @@ def test_1e_flags_unreadable_status_in_draft(tmp_path: Path) -> None:
         tmp_path,
         "wip",
         """
-        from common.governance.package_contract import PackageContract, ACRecord
+        from common.meta.package_contract import PackageContract, ACRecord
         S = "done"
         CONTRACT = PackageContract(
             name="wip", klass="kernel", status="draft",
@@ -235,7 +235,7 @@ def test_1e_passes_for_registered_draft_without_done(tmp_path: Path) -> None:
         tmp_path,
         "wip",
         """
-        from common.governance.package_contract import PackageContract, ACRecord
+        from common.meta.package_contract import PackageContract, ACRecord
         CONTRACT = PackageContract(
             name="wip", klass="kernel", status="draft",
             depends_on=[], interface=[], events=[], invariants=[], roadmap=[

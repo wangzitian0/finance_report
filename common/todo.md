@@ -30,7 +30,7 @@ template; everything else copies its shape (`readme.md` + `contract.py` +
 ## Now / next
 
 - [x] `counter` becomes the `common/`-centric template (this change).
-- [x] `governance` self-hosts (`common/governance/readme.md` + `contract.py`).
+- [x] `governance` self-hosts (`common/meta/readme.md` + `contract.py`).
 - [ ] Phase 1: give each kernel package a `common/<pkg>/contract.py` + `readme.md`.
 - [ ] Decide the `core` package boundaries (portfolio vs ledger vs reporting) and
       sequence their contract adoption.

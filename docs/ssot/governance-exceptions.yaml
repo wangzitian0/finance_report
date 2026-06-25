@@ -64,15 +64,15 @@ exceptions:
       exception once the deletion is merged.
 
   # Package model self-hosts: the package-model spec moved out of docs/ssot/
-  # into the meta package that owns it (common/governance/readme.md). The
+  # into the meta package that owns it (common/meta/readme.md). The
   # MANIFEST `package_model` concept now points there, so docs/ssot/package-model.md
   # is deleted; its deletion shows up as a changed SSOT file with no owner. This
   # temporary exception covers only the deletion churn in this PR.
   - target: finance_report:docs/ssot/package-model.md
     issue: https://github.com/wangzitian0/finance_report/issues/1313
     reason: >-
-      package-model.md moved to common/governance/readme.md (the package model
-      self-hosts in the common/governance meta package); the MANIFEST
+      package-model.md moved to common/meta/readme.md (the package model
+      self-hosts in the common/meta meta package); the MANIFEST
       package_model owner now points there. Remove this exception once the
       deletion is merged.
 

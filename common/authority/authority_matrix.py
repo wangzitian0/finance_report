@@ -5,7 +5,7 @@ This is the canonical machine mirror of ``docs/ssot/authority-tiers.md``. It is
 tooling — the registry generator (``generate_ac_registry``), the proof-kind gate
 (``check_ac_proof_kind``), and the CODE/LLM classifier (``authority_classifier``)
 — WITHOUT pulling ``pydantic``, so the CI lint env (``uv run --with pyyaml …``)
-keeps working. ``common.governance``'s pydantic ``PackageContract`` model re-uses
+keeps working. ``common.meta``'s pydantic ``PackageContract`` model re-uses
 these same definitions for its construction-time validation.
 
 **One vocabulary, two views.** The four tier names are a single ordered

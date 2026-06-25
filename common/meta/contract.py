@@ -1,4 +1,4 @@
-"""The ``governance`` meta-package's own :class:`PackageContract`.
+"""The ``meta`` package's own :class:`PackageContract`.
 
 The package model self-hosts: the meta package that *defines* what a package is
 (``PackageContract`` / ``ACRecord`` / ``Invariant`` and the
@@ -6,21 +6,21 @@ The package model self-hosts: the meta package that *defines* what a package is
 package-model spec), this ``contract.py``, and a ``todo.md``. It is discovered
 and validated by the very gate it ships, so the model proves itself.
 
-Its BE implementation is ``common/governance`` (the same directory): the
-published language is ``common/governance/__init__.py``'s ``__all__``. The gate
+Its BE implementation is ``common/meta`` (the same directory): the
+published language is ``common/meta/__init__.py``'s ``__all__``. The gate
 resolves ``interface`` against that, and pins each invariant/roadmap AC to a real
 governance test.
 """
 
 from __future__ import annotations
 
-from common.governance.package_contract import (
+from common.meta.package_contract import (
     Invariant,
     PackageContract,
 )
 
 CONTRACT = PackageContract(
-    name="governance",
+    name="meta",
     klass="platform",
     status="active",
     # The package-model gate is deterministic code (AST + set comparison), no
@@ -28,7 +28,7 @@ CONTRACT = PackageContract(
     tier="CODE-ONLY",
     depends_on=["authority"],
     roles=["package_contract", "check_package_contract"],
-    implementations={"be": "common/governance", "fe": None},
+    implementations={"be": "common/meta", "fe": None},
     interface=[
         "ACRecord",
         "Invariant",
