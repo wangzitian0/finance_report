@@ -2257,10 +2257,16 @@ def test_AC8_13_22_staging_deploys_manually_dispatched_version_ref() -> None:
     assert "_RELEASE_VERSION_REF_RE" in resolver
     assert "version_ref must be a release tag" in resolver
     assert "version_ref.strip()" not in resolver
+    # The superproject release-tag fetch stays narrow (no --force, only the
+    # requested tag, --no-tags so it does not pull every app tag).
     assert '"--force"' not in resolver
-    assert '"--tags"' not in resolver
+    assert '"--no-tags"' in resolver
     assert '"refs/tags/*:refs/tags/*"' not in resolver
     assert 'f"refs/tags/{version_ref}:refs/tags/{version_ref}"' in resolver
+    # iac_ref is the infra2 submodule's RELEASE TAG (deploy_v2 rejects a sha):
+    # resolved by `git -C repo describe --exact-match`, fail-closed if not a tag.
+    assert "resolve_infra2_release_tag" in resolver
+    assert '"--exact-match"' in resolver
     # The shared resolver checks out the dispatched release tag before deploy_v2
     # consumes the already-published release images.
     assert "VERSION_REF: ${{ inputs.version_ref }}" in workflow
@@ -2308,9 +2314,17 @@ def test_AC8_13_22_release_coordinate_fetches_only_requested_tag(
         "_run",
         lambda *args: commands.append(args),
     )
-    monkeypatch.setattr(release_coordinate, "_out", lambda *_args: "a" * 40)
+    # iac_ref resolution does `describe --exact-match` → return a valid release tag
+    # for that call, a fake sha otherwise; and stub the best-effort submodule
+    # tag-fetch so the test stays offline.
+    monkeypatch.setattr(
+        release_coordinate,
+        "_out",
+        lambda *args: "v1.2.3" if "describe" in args else "a" * 40,
+    )
+    monkeypatch.setattr(release_coordinate.subprocess, "run", lambda *a, **k: None)
 
-    release_coordinate.resolve("v1.2.3")
+    coord = release_coordinate.resolve("v1.2.3")
 
     assert commands[0] == (
         "git",
@@ -2320,6 +2334,8 @@ def test_AC8_13_22_release_coordinate_fetches_only_requested_tag(
         "refs/tags/v1.2.3:refs/tags/v1.2.3",
     )
     assert not any("--force" in command for command in commands)
+    # iac_ref is the infra2 release tag, not a sha.
+    assert coord["iac_ref"] == "v1.2.3"
 
 
 def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:

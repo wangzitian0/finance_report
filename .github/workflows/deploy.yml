@@ -263,8 +263,10 @@ jobs:
           # Staging deploys the release tag through the infra2 deploy_v2 front door
           # (deploy_primitive -> Dokploy compose). The :<tag> images were published by
           # deploy.yml on the tag push; deploy_v2 pulls them (promote-not-rebuild).
-          # --iac-ref is the pinned infra2 submodule sha so staging uses the same IaC the
-          # app was tested against (and that prod will promote on the same tag).
+          # --iac-ref is the pinned infra2 submodule's RELEASE TAG (resolved by
+          # release_coordinate.py via `git -C repo describe --exact-match`): deploy_v2
+          # requires a vX.Y.Z iac_ref for staging/prod, and pinning the submodule at a
+          # tagged infra2 commit makes staging use the same released IaC prod promotes.
           version_ref="${{ steps.release.outputs.version_ref }}"
           iac_ref="${{ steps.release.outputs.iac_ref }}"
           echo "Deploying staging via deploy_v2: type=staging version-ref=$version_ref iac-ref=$iac_ref"
