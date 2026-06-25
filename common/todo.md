@@ -1,36 +1,61 @@
 # `common/` — cross-package / migration worklist
 
-The horizontal worklist for rolling the package model across `common/`. Each
-package also keeps its own `common/<pkg>/todo.md` for package-local work; this
-file tracks the migration *between* packages and the phase order.
+The horizontal worklist for migrating to the target architecture in
+[`meta/migration-standard.md`](./meta/migration-standard.md). Each package also
+keeps its own `common/<pkg>/todo.md`; this file tracks the migration *between*
+packages and the phase order. Umbrella issue: **#1416**.
 
-## Migration phases
+## Target: 10 packages
 
-The model lands one tier at a time, lowest-risk first. `counter` is the proven
-template; everything else copies its shape (`readme.md` + `contract.py` +
-`todo.md`, implementation under `apps/`).
+Two governors + middleware + the financial flow (see the standard for each
+package's base/extension/data + entities + governance domain):
 
-| phase | packages | klass | status |
-|-------|----------|-------|--------|
-| 0 — template | `counter` | platform | ✅ canonical template (`readme`+`contract`+`todo`, AC from contract) |
-| 0 — meta | `meta` | platform | ✅ self-hosts the model |
-| 1 — kernel | `money`, `ratio`, `quantity`, `unit_price` | kernel | ⬜ adopt `PackageContract` (leaf value language) |
-| 2 — platform | `ci`, `observability`, `shell`, `testing`, `coverage` | platform | ⬜ delivery / environments / observability capabilities |
-| 3 — core | portfolio, ledger, reconciliation, reporting | core | ⬜ vertical domain slices adopt contracts (ledger already prototypes roles/DAG) |
+- **meta** — governs *form* (structure/deps/acyclic/progress).
+- **audit** — governs *number* (= the old `value` folded in: financial base types
+  + accounting consistency + traceability).
+- **middleware** — event bus / outbox / workflow / pipeline / counter / identity.
+- **llm** — provider abstraction / cassette / stream.
+- financial flow: `(extraction [auto] + portfolio [manual]) → reconciliation → ledger → reporting → advisor`.
+
+Internal layering is **base↓ / extension↑ / data** (replaces kernel/platform/core
+and types/ops/store/api). ACs are `AC-<pkg>.<entity>.<seq>` in each contract's
+`roadmap`. **The migration unit is the AC.**
+
+## Phases (each package cutover = one atomic PR, by the standard's DoD)
+
+| phase | scope | issue · status |
+|-------|-------|----------------|
+| 0a | standard doc + `governance→meta` rename | #1414 ✅ |
+| 0b | `counter` → base/extension/data template + gate three-layer rule (additive) | #1418 ⬜ |
+| 1 | `value → audit` fold | #1419 ⬜ |
+| 2 | `ledger` | #1420 ⬜ |
+| 3 | `extraction` #1421 · `portfolio` #1422 · `reconciliation` #1423 · `reporting` #1424 | ⬜ |
+| 4 | `advisor` #1425 · `llm` #1426 · `middleware` #1427 · `identity` #1428 | ⬜ |
+| 5 | `audit` consistency closeout (global invariants + cross-package ACs) | #1429 ⬜ |
+| 6 | cleanup — delete residual EPIC tables / SSOT; retire the central `docs/ssot/MANIFEST.yaml`/registry gates once meta's data layer is the computed index | #1430 ⬜ |
+
+All tracked under umbrella **#1416**.
+
+## Definition of Done per package (from the standard)
+
+A package cutover is one atomic PR that:
+1. moves each AC to the package `roadmap` as `AC-<pkg>.<entity>.<seq>` (removed from the EPIC table);
+2. deletes the EPIC only once **all** its ACs are distributed;
+3. internalizes the package's owned SSOT (into readme/contract; removed from `docs/ssot/` + `docs/ssot/MANIFEST.yaml`);
+4. migrates its tests (every `invariants[].test` / `roadmap[].test` resolves);
+5. repoints consumers to the published `interface` (`__all__`), not submodules;
+6. is green (`check_package_contract` + the package's own invariants).
+
+Different packages may be old-or-new during the migration; a single package is
+never left half in both an EPIC and a roadmap.
 
 ## Conventions every migration must keep
 
 - A package's ACs live in its `contract.py` `roadmap`, **never** mirrored into an
-  EPIC table (the AC registry sources them additively).
-- `contract.interface` must equal the BE implementation's `__init__.__all__`.
-- `implementations` points at the real code dirs; `roles` lists the role folders.
+  EPIC table.
+- `contract.interface` must equal the BE implementation's `__init__.__all__`;
+  FE conforms to the same interface + conformance vectors (FE picks its own impl).
+- `base` imports only `base` (downward DAG); `extension` is a separate import
+  surface (no cycle); `data` is metadata only. Rule: *never up, never sideways-cyclic*.
 - Adding a package adds no central index edit — shipping `common/<pkg>/contract.py`
-  is what registers it with the governance gate.
-
-## Now / next
-
-- [x] `counter` becomes the `common/`-centric template (this change).
-- [x] `meta` self-hosts (`common/meta/readme.md` + `contract.py`).
-- [ ] Phase 1: give each kernel package a `common/<pkg>/contract.py` + `readme.md`.
-- [ ] Decide the `core` package boundaries (portfolio vs ledger vs reporting) and
-      sequence their contract adoption.
+  registers it with the governance gate.
