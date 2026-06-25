@@ -35,7 +35,9 @@ DEFAULT_REGISTRY_PATHS = (
     REPO_ROOT / "docs" / "ac_registry.yaml",
     REPO_ROOT / "docs" / "infra_registry.yaml",
 )
-DEFAULT_OUTPUT = REPO_ROOT / "docs" / "analysis" / "test-ac-coverage-report.md"
+# Generated coverage report: a transient artifact, not committed (AC14.1.7). It
+# is written to the gitignored tmp/ dir for local/CI use, never under docs/.
+DEFAULT_OUTPUT = REPO_ROOT / "tmp" / "test-ac-coverage-report.md"
 
 SCAN_TARGETS: tuple[tuple[str, Path, tuple[str, ...]], ...] = (
     ("backend", REPO_ROOT / "apps" / "backend" / "tests", ("**/*.py",)),

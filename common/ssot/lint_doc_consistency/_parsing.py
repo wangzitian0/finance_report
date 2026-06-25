@@ -104,8 +104,8 @@ MARKDOWN_CODE_SPAN_PATTERN = re.compile(r"`([^`]+)`")
 RAW_FETCH_PATTERN = re.compile(r"\bfetch\s*\(")
 
 GENERATED_ANALYSIS_SNAPSHOTS = (
-    _base.REPO_ROOT / "docs" / "analysis" / "ac-epic-mismatch-report.md",
-    _base.REPO_ROOT / "docs" / "analysis" / "test-ac-coverage-report.md",
+    _base.REPO_ROOT / "docs" / "project" / "ac-epic-mismatch-report.md",
+    _base.REPO_ROOT / "docs" / "project" / "test-ac-coverage-report.md",
 )
 
 FRONTEND_RAW_FETCH_ALLOWED_FILES = {

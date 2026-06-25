@@ -46,7 +46,7 @@ def check_no_ac_test_exceptions(
     """Check #8: no-AC test files must be explicitly classified."""
     if exception_path is None:
         exception_path = (
-            _base.REPO_ROOT / "docs" / "analysis" / "traceability-exceptions.md"
+            _base.REPO_ROOT / "docs" / "project" / "traceability-exceptions.md"
         )
     if no_ac_files is None:
         no_ac_files = discover_no_ac_test_files()
@@ -61,7 +61,7 @@ def check_no_ac_test_exceptions(
                     check="check8_no_ac_test_exceptions",
                     message=(
                         f"{rel}: test/support file has no AC reference and is "
-                        "not classified in docs/analysis/traceability-exceptions.md"
+                        "not classified in docs/project/traceability-exceptions.md"
                     ),
                 )
             )
@@ -74,7 +74,7 @@ def check_no_e2e_product_test_exceptions(
     """Check #9: product E2E tests must be owned by AC IDs, not exceptions."""
     if exception_path is None:
         exception_path = (
-            _base.REPO_ROOT / "docs" / "analysis" / "traceability-exceptions.md"
+            _base.REPO_ROOT / "docs" / "project" / "traceability-exceptions.md"
         )
 
     violations: list[Violation] = []

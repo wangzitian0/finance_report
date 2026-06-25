@@ -167,7 +167,7 @@ The recipe for moving a module (and its EPIC-table ACs) into the package model.
 8. **Register & classify.** Add any new `docs/ssot/` files to
    [`MANIFEST.yaml`](../../docs/ssot/MANIFEST.yaml) (with `family`+`kind`);
    classify tooling tests in
-   [`traceability-exceptions.md`](../../docs/analysis/traceability-exceptions.md).
+   [`traceability-exceptions.md`](../../docs/project/traceability-exceptions.md).
 
 9. **Run the gates locally before pushing:** `check_package_contract`,
    `generate_ac_registry --check`, `check_ac_proof_kind`, `check_tier_ast_literal`,

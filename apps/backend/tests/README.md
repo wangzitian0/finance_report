@@ -1,7 +1,7 @@
 # Backend Tests
 
 Backend tests are organized by SSOT domain and must reference owning AC IDs
-unless they are listed in `docs/analysis/traceability-exceptions.md`.
+unless they are listed in `docs/project/traceability-exceptions.md`.
 
 ## Commands
 
@@ -20,4 +20,4 @@ uv run pytest tests/ --cov=src --cov-report=term-missing
 | Test execution stages | [test-execution-matrix.yaml](../../../docs/ssot/test-execution-matrix.yaml) |
 | Coverage semantics | [coverage.md](../../../docs/ssot/coverage.md) |
 | SSOT domain index | [README.md](../../../docs/ssot/README.md) |
-| Traceability exceptions | [traceability-exceptions.md](../../../docs/analysis/traceability-exceptions.md) |
+| Traceability exceptions | [traceability-exceptions.md](../../../docs/project/traceability-exceptions.md) |

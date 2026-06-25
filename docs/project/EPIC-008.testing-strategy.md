@@ -404,7 +404,7 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.129 | Testing SSOT distinguishes fast `create_all()` fixtures, PR Alembic schema proof, and the production-faithful backend business persistence lane | `test_AC8_13_129_schema_docs_distinguish_fast_fixture_and_production_faithful_lane` | `tests/tooling/test_detached_owner_guard.py` | P0 |
 | AC8.13.130 | The detached-owner guard counts only persisted (`db.add`/`db.add_all`) `user_id=uuid4()` rows — the real foreign-key risk — excluding transient in-memory and service-argument uses, collapsing the historically-inflated budget to the persisted rows | `test_AC8_13_130_counts_only_persisted_detached_owners` | `tests/tooling/test_detached_owner_guard.py` | P1 |
 | AC8.13.131 | Bottom-up proof exceptions and code-owned surfaces are classified in `docs/ssot/governance-exceptions.yaml` with a typed `proof_exceptions`/`code_owned_surfaces` entry (id, owner, reason, issue), validated by `tools/check_governance_exceptions.py`, leaving the legacy SSOT governance `exceptions` list intact (#524) | `test_AC8_13_131_*` | `tests/tooling/test_governance_exceptions_registry.py` | P1 |
-| AC8.13.132 | Every test/support file with no AC reference stays classified in `docs/analysis/traceability-exceptions.md`, with no unclassified drift and no product E2E test parked on the allow-list (#511) | `test_AC8_13_132_*` | `tests/tooling/test_no_ac_test_classification.py` | P1 |
+| AC8.13.132 | Every test/support file with no AC reference stays classified in `docs/project/traceability-exceptions.md`, with no unclassified drift and no product E2E test parked on the allow-list (#511) | `test_AC8_13_132_*` | `tests/tooling/test_no_ac_test_classification.py` | P1 |
 | AC8.13.133 | Cross-document SSOT concepts (reconciliation thresholds, reconciliation/confirmation state machines, extraction confidence tiers, confidence-tier rollup) are registered in `docs/ssot/MANIFEST.yaml` with anchored owners backed by explicit `<a id>` anchors (#340) | `test_AC8_13_133_*` | `tests/tooling/test_ssot_cross_document_anchors.py` | P1 |
 | AC8.13.134 | Consolidated/archived stale docs stay absent and every mkdocs `nav` markdown target resolves (no dangling internal links after the consolidation) (#350) | `test_AC8_13_134_*` | `tests/tooling/test_stale_docs_consolidation.py` | P1 |
 | AC8.13.135 | The AC-index gate's PROTECTION dashboard reports mandatory-AC coverage as per-type counts (`has_real_ref` / `has_proof` / `has_score` / `has_mirror`), never conflating L1 reference presence with behavioral proof, so a passing gate cannot be read as misleading behavioral assurance (re-anchored from the retired standalone traceability report) | `test_AC8_13_135_protection_dashboard_separates_reference_from_behavioral` | `tests/tooling/test_ac_index_consistency.py` | P0 |
@@ -660,7 +660,7 @@ Product E2E ownership index:
 
 Product E2E files under `tests/e2e/test_*.py` and
 `apps/backend/tests/e2e/test_*.py` must carry AC references directly. They are
-not eligible for `docs/analysis/traceability-exceptions.md`; only fixtures and
+not eligible for `docs/project/traceability-exceptions.md`; only fixtures and
 shared harness files may use that exception path. The `repo/e2e_regressions/`
 tree belongs to the `repo/` infra2 submodule and is managed by the infrastructure
 submodule sync process.

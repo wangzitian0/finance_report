@@ -102,8 +102,8 @@ def test_module_readmes_are_thin_reports_duplicate_sections(tmp_path) -> None:
 
 
 def test_AC14_1_7_generated_analysis_snapshots_are_absent(tmp_path) -> None:
-    """AC14.1.7: Generated analysis snapshots are not checked into docs/analysis."""
-    snapshot = tmp_path / "docs" / "analysis" / "test-ac-coverage-report.md"
+    """AC14.1.7: Generated analysis snapshots are not checked into docs/project."""
+    snapshot = tmp_path / "docs" / "project" / "test-ac-coverage-report.md"
     snapshot.parent.mkdir(parents=True)
     snapshot.write_text("# generated\n", encoding="utf-8")
 
@@ -115,7 +115,7 @@ def test_AC14_1_7_generated_analysis_snapshots_are_absent(tmp_path) -> None:
 
 def test_AC14_1_7_generated_analysis_snapshots_absent_passes(tmp_path) -> None:
     """AC14.1.7: Missing generated snapshots are the expected repository state."""
-    snapshot = tmp_path / "docs" / "analysis" / "test-ac-coverage-report.md"
+    snapshot = tmp_path / "docs" / "project" / "test-ac-coverage-report.md"
 
     assert ldc.check_generated_analysis_snapshots_absent((snapshot,)) == []
 
@@ -496,7 +496,7 @@ class TestNoAcTestExceptions:
         test_file = tmp_path / "tests" / "conftest.py"
         test_file.parent.mkdir(parents=True)
         test_file.write_text("import pytest\n")
-        exceptions = tmp_path / "docs" / "analysis" / "traceability-exceptions.md"
+        exceptions = tmp_path / "docs" / "project" / "traceability-exceptions.md"
         exceptions.parent.mkdir(parents=True)
         exceptions.write_text("| `tests/conftest.py` | Shared fixtures |\n")
 
@@ -509,7 +509,7 @@ class TestNoAcTestExceptions:
         test_file = tmp_path / "tests" / "test_legacy.py"
         test_file.parent.mkdir(parents=True)
         test_file.write_text("def test_legacy():\n    assert True\n")
-        exceptions = tmp_path / "docs" / "analysis" / "traceability-exceptions.md"
+        exceptions = tmp_path / "docs" / "project" / "traceability-exceptions.md"
         exceptions.parent.mkdir(parents=True)
         exceptions.write_text("| `tests/other.py` | Other |\n")
 
@@ -521,7 +521,7 @@ class TestNoAcTestExceptions:
         assert "tests/test_legacy.py" in violations[0].message
 
     def test_e2e_product_test_exception_fails(self, tmp_path):
-        exceptions = tmp_path / "docs" / "analysis" / "traceability-exceptions.md"
+        exceptions = tmp_path / "docs" / "project" / "traceability-exceptions.md"
         exceptions.parent.mkdir(parents=True)
         exceptions.write_text(
             "| `tests/e2e/test_legacy_flow.py` | EPIC-008 |\n"
@@ -542,7 +542,7 @@ class TestNoAcTestExceptions:
         assert all("conftest.py" not in v.message for v in violations)
 
     def test_e2e_product_exception_policy_glob_is_not_a_file(self, tmp_path):
-        exceptions = tmp_path / "docs" / "analysis" / "traceability-exceptions.md"
+        exceptions = tmp_path / "docs" / "project" / "traceability-exceptions.md"
         exceptions.parent.mkdir(parents=True)
         exceptions.write_text(
             "Policy applies to `tests/e2e/test_*.py` files.\n",

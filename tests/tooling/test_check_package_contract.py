@@ -9,7 +9,7 @@ proven to fail loudly when a contract is violated.
 
 These are SSOT/code-contract hardening tests (they protect the package-model
 governance gate). They are classified, not AC-owned, in
-``docs/analysis/traceability-exceptions.md``.
+``docs/project/traceability-exceptions.md``.
 """
 
 from __future__ import annotations
