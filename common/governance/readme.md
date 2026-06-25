@@ -140,18 +140,29 @@ The recipe for moving a module (and its EPIC-table ACs) into the package model.
    via `invariants[].test`, not the AC critical-proof matrix (a structural test
    tagged with a domain AC id is a stale anchor — see counter's cleanup).
 
-6. **Delete the AC's old EPIC-table rows.** The AC id now lives in the roadmap;
-   leaving the EPIC row makes `check_epic_package_dual` fail. This is a
-   **re-home, not a deletion** — the id is preserved, so protection-floor / the
-   raise-only proof floors stay green (never net-delete an AC id).
+6. **Migrating an EXISTING AC keeps its numeric id.** When homing an AC that
+   already lives in an EPIC table, put it in the `roadmap` under its **current
+   numeric id** (`AC26.5.1`, not a renumbered `AC-<pkg>...`). Renumbering would
+   net-delete a floor-tracked id (`ac-score-baseline.jsonl` / protection-floor
+   are raise-only) and red Gate B. The `AC-<pkg>.x.y` scheme is for **net-new**
+   ACs only.
 
-7. **Register & classify.** Add any new `docs/ssot/` files to
+7. **Delete the EPIC table ROW, but keep the EPIC REFERENCING the ids.** Remove
+   the `| ACx.y.z | … |` definition row (else `check_epic_package_dual` fails —
+   no AC defined in two places), and replace the section with a disclaimer that
+   **lists every homed id** (e.g. "`AC26.1.1`, …, `AC26.9.1` are NOT defined
+   here — owned by `common/<pkg>/contract.py`"). The list matters: a numeric AC
+   in the registry must still be *referenced* by an EPIC doc (`lint_doc_consistency`
+   check3 `registry_to_epic`); a prose mention satisfies it, a table row would
+   re-trip `check_epic_package_dual`. (See EPIC-025/EPIC-026 for the pattern.)
+
+8. **Register & classify.** Add any new `docs/ssot/` files to
    [`MANIFEST.yaml`](../../docs/ssot/MANIFEST.yaml) (with `family`+`kind`);
    classify tooling tests in
    [`traceability-exceptions.md`](../../docs/analysis/traceability-exceptions.md).
 
-8. **Run the gates locally before pushing:** `check_package_contract`,
+9. **Run the gates locally before pushing:** `check_package_contract`,
    `generate_ac_registry --check`, `check_ac_proof_kind`, `check_tier_ast_literal`,
-   `check_epic_package_dual`, `check_draft_packages`, `check_tier_imports`, and
-   `lint_doc_consistency`. The untagged-debt ratchet shrinks automatically as the
-   moved ACs leave the EPIC source.
+   `check_epic_package_dual`, `check_draft_packages`, `check_tier_imports`,
+   `check_authority_reconcile`, and `lint_doc_consistency`. The untagged-debt
+   ratchet shrinks automatically as the moved ACs leave the EPIC source.
