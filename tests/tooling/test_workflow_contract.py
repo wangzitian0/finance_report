@@ -62,6 +62,39 @@ def test_AC7_15_1_real_repo_passes_the_workflow_contract() -> None:
     assert contract.run_contract(ROOT) == 0
 
 
+def test_AC7_15_1_container_images_publishes_on_every_main_release_push() -> None:
+    """AC7.15.1: container-images must build+push :<sha> images on EVERY main/release
+    push, not only when image_build_required is true.
+
+    Regression guard for #1411 -> #1433. main/release push CI is the only path that
+    publishes :<sha> images to GHCR, and deploy_v2 is promote-not-rebuild (it pulls
+    images by exact SHA). #1411 right-moved container-images onto image_build_required
+    for ALL events, so source-only main pushes skipped the build and downstream
+    auto-deploy failed on a missing image. Right-moving for PR events is fine, but the
+    job `if` must keep an unconditional main/release-push (plus workflow_dispatch)
+    clause that does NOT depend on image_build_required.
+    """
+    import yaml
+
+    workflow = yaml.safe_load(
+        (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    )
+    condition = workflow["jobs"]["container-images"]["if"]
+
+    # The publish-on-main/release clause and the dispatch clause must be present.
+    assert "github.event_name == 'push'" in condition, condition
+    assert "refs/heads/main" in condition, condition
+    assert "refs/heads/release/" in condition, condition
+    assert "workflow_dispatch" in condition, condition
+
+    # And that publish clause must sit BEFORE the image_build_required right-move, so
+    # the right-move can only narrow PR runs, never gate the main/release publish.
+    if "image_build_required" in condition:
+        assert condition.index("refs/heads/main") < condition.index(
+            "image_build_required"
+        ), condition
+
+
 def test_AC7_15_3_stale_ci_classifier_job_name_fails(tmp_path) -> None:
     """AC7.15.3: A stale `classify-changes` reference in ci-cd.md fails."""
     _copy_inputs(tmp_path)
