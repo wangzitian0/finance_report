@@ -378,6 +378,22 @@ def test_run_fails_for_dirty_package(synthetic_repo: Path) -> None:
     assert any("interface != __all__" in m for m in messages)
 
 
+def test_run_reports_dependency_cycle(synthetic_repo: Path) -> None:
+    # Integration: two same-class packages depending on each other -> run() (not
+    # just the helper) must surface the cycle, proving run() wires the check in.
+    _write_package(
+        _src(synthetic_repo), "cycX", klass="kernel", all_names=["X"],
+        interface=["X"], depends_on=["cycY"],
+    )
+    _write_package(
+        _src(synthetic_repo), "cycY", klass="kernel", all_names=["Y"],
+        interface=["Y"], depends_on=["cycX"],
+    )
+    ok, messages = run(synthetic_repo)
+    assert ok is False
+    assert any("dependency cycle" in m for m in messages)
+
+
 # --- main CLI -----------------------------------------------------------------
 
 
