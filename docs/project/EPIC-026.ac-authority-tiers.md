@@ -104,13 +104,28 @@ contract rather than restating it.
 
 > **Test Organization**: Tests organized by feature blocks using ACx.y.z numbering.
 
-> **`AC26.1.1`, `AC26.2.1`, `AC26.3.1`, `AC26.4.1`, `AC26.5.1`, `AC26.6.1`,
-> `AC26.7.1`, `AC26.8.1`, and `AC26.9.1` are NOT defined here.** They are owned by
-> the `authority` package's `roadmap` in
-> [`common/authority/contract.py`](../../common/authority/contract.py) — the
-> contract is the single definition source (resolved by `check_package_contract`),
-> exactly as `counter`/`platform` ACs are. This EPIC stays the horizontal
-> narrative; the package owns the ACs.
+> **`AC26.1.1`, `AC26.2.1`, `AC26.3.1`, `AC26.4.1`, `AC26.5.1`, `AC26.6.1`, and
+> `AC26.7.1` are NOT defined here.** The authority-tier *system* ACs (phases 1–3)
+> are homed in [`common/authority/contract.py`](../../common/authority/contract.py)'s
+> `roadmap` — the contract is now their single definition source (resolved by
+> `check_package_contract`). They keep their numeric ids (renumbering would orphan
+> the EPIC-008 cross-references + test refs to them). This EPIC stays the
+> horizontal narrative. The phase 4–5 ACs below **remain here**: `AC26.8.1` is an
+> extraction-domain observability behaviour (not the authority vocabulary), and
+> `AC26.9.1`'s proof test is itself marker-laden (it tests cassette detection), so
+> homing it would make the CODE-ONLY `authority` package read as CODE-LED.
+
+### AC26.8 — Financial-invariant violations are detectable, not silent (phase 4)
+
+| ID | Requirement | Test Function | File | Priority |
+|----|-------------|---------------|------|----------|
+| AC26.8.1 | Financial-invariant violations emit structured, queryable metrics so a slipped violation is never silent. During a statement parse, a balance mismatch, a per-currency NAV self-check failure, a running-balance chain break, and a within-document dedup collapse each emit a WARNING-level structured log plus a `finance.invariant.violation` counter (via `telemetry_metrics`) labelled by `kind` and an anonymized `institution_class`. Within-document dedup collapse is a deterministic conservation property over a single parse's freshly-built rows (catches the #1254 silent row-loss class) while legitimate cross-document dedup never trips it. Detection/observability only: routing, status, confidence, approval gates, and persistence are UNCHANGED. {tier:CODE-ONLY} {proof:property} | `test_AC26_8_1_balance_invalid_parse_keeps_routing_and_emits_metric` | `apps/backend/tests/extraction/test_invariant_observability.py` | P0 |
+
+### AC26.9 — CODE/LLM authority is counted from test shape (phase 5)
+
+| ID | Requirement | Test Function | File | Priority |
+|----|-------------|---------------|------|----------|
+| AC26.9.1 | A base library classifies every AC as `CODE` or `LLM` **detected from its test shape** (a record/replay cassette test ⇒ `LLM`; a structured-input deterministic test ⇒ `CODE`), and a counter aggregates each package into an `LLM-share` mapped to one of four bands — `CODE-ONLY` (`s = 0`), `CODE-LED` (`0 < s < 50`), `LLM-LED` (`50 ≤ s < 100`), `LLM-ONLY` (`s = 100`). Classification is detected, never declared, so the band is computed not argued. See `docs/ssot/authority-tiers.md` §CODE/LLM bit. {tier:CODE-ONLY} {proof:property} | `test_AC26_9_1_band_boundaries`, `test_AC26_9_1_test_shape_classifies_code_vs_llm` | `tests/tooling/test_authority_classifier.py` | P0 |
 
 ---
 

@@ -140,12 +140,14 @@ The recipe for moving a module (and its EPIC-table ACs) into the package model.
    via `invariants[].test`, not the AC critical-proof matrix (a structural test
    tagged with a domain AC id is a stale anchor — see counter's cleanup).
 
-6. **Migrating an EXISTING AC keeps its numeric id.** When homing an AC that
-   already lives in an EPIC table, put it in the `roadmap` under its **current
-   numeric id** (`AC26.5.1`, not a renumbered `AC-<pkg>...`). Renumbering would
-   net-delete a floor-tracked id (`ac-score-baseline.jsonl` / protection-floor
-   are raise-only) and red Gate B. The `AC-<pkg>.x.y` scheme is for **net-new**
-   ACs only.
+6. **Migrating an EXISTING AC KEEPS its numeric id.** Home it into the `roadmap`
+   under its current `ACx.y.z`. The `AC-<pkg>.x.y` scheme is for **net-new** ACs
+   (like counter/platform, which had no prior references) — NOT for re-homing.
+   Renumbering an established AC is a cross-repo rename that orphans everything
+   pointing at the old id: floor baselines (`ac-score-baseline.jsonl` /
+   protection-floor, raise-only → Gate B red), cross-references from OTHER EPIC
+   docs (`lint_doc_consistency` check4 `epic_to_registry`), and test references
+   (check5 `registry_to_tests`). Keeping the id makes all of those stay valid.
 
 7. **Delete the EPIC table ROW, but keep the EPIC REFERENCING the ids.** Remove
    the `| ACx.y.z | … |` definition row (else `check_epic_package_dual` fails —

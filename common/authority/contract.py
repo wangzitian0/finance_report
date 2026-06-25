@@ -61,9 +61,14 @@ CONTRACT = PackageContract(
             ),
         ),
     ],
-    # The authority-tier ACs (EPIC-026), homed here from the EPIC table. Numeric
-    # ids are kept (not renumbered to AC-authority.*) so floor-tracked ids never
-    # net-delete; they inherit the package's CODE-ONLY tier.
+    # The authority-tier-SYSTEM ACs (EPIC-026 phases 1-3), homed here from the EPIC
+    # table. They KEEP their numeric ids (AC26.x): renumbering to AC-authority.*
+    # would orphan the cross-references EPIC-008 makes to them and the test refs —
+    # the AC-<pkg> scheme is for net-new ACs, not for re-homing cross-referenced
+    # ones. They inherit the package's CODE-ONLY tier.
+    # NOT homed: AC26.8.1 (financial-invariant observability — extraction domain)
+    # and AC26.9.1 (the CODE/LLM classifier — its proof test is marker-laden, so
+    # the reconcile gate would read authority as CODE-LED); both stay in EPIC-026.
     roadmap=[
         ACRecord(
             id="AC26.1.1",
@@ -160,37 +165,6 @@ CONTRACT = PackageContract(
             test=(
                 "tests/tooling/test_tier_imports.py"
                 "::test_AC26_7_1_real_tree_has_no_llm_imports_in_protected_modules"
-            ),
-            priority="P0",
-            status="done",
-            proof_kind="property",
-        ),
-        ACRecord(
-            id="AC26.8.1",
-            statement=(
-                "Financial-invariant violations (balance / NAV self-check / "
-                "running-balance chain / within-document dedup collapse) emit a "
-                "structured log + finance.invariant.violation counter, without "
-                "changing statement routing, status, confidence, or persistence."
-            ),
-            test=(
-                "apps/backend/tests/extraction/test_invariant_observability.py"
-                "::test_AC26_8_1_balance_invalid_parse_keeps_routing_and_emits_metric"
-            ),
-            priority="P0",
-            status="done",
-            proof_kind="property",
-        ),
-        ACRecord(
-            id="AC26.9.1",
-            statement=(
-                "Every AC is classified CODE/LLM from its test shape (cassette ⇒ "
-                "LLM, deterministic ⇒ CODE); the counter aggregates per package "
-                "into the four bands — computed, not declared."
-            ),
-            test=(
-                "tests/tooling/test_authority_classifier.py"
-                "::test_AC26_9_1_band_boundaries"
             ),
             priority="P0",
             status="done",

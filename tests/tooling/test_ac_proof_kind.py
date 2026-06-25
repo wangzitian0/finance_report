@@ -123,7 +123,7 @@ def test_AC26_6_1_first_batch_lp_acs_carry_invariant_proof() -> None:
         assert entries[ac_id]["tier"] == "LLM-LED"
         assert entries[ac_id]["proof_kind"] != "exact"
 
-    # The new EPIC-026 governance ACs are themselves tagged + valid.
+    # The authority-tier-system ACs (homed in the authority package) are valid.
     assert entries["AC26.5.1"]["tier"] == "CODE-ONLY"
     assert entries["AC26.6.1"]["tier"] == "CODE-ONLY"
     assert proof_gate.proof_kind_violations(ROOT) == []
