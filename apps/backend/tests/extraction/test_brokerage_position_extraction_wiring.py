@@ -25,6 +25,7 @@ from sqlalchemy import select
 
 from src.database import create_session_maker_from_db
 from src.models import BankStatementStatus
+from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AtomicPosition
 from src.models.statement_enums import Stage1Status
 from src.models.statement_summary import StatementSummary
@@ -36,7 +37,7 @@ from src.services.brokerage_positions import (
     parse_brokerage_positions,
 )
 from src.services.extraction import ExtractionService
-from src.services.statement_parsing import import_brokerage_payload_if_present, parse_statement_background
+from src.services.statement_parsing import parse_statement_background, route_brokerage_for_review_if_present
 from tests.factories import StatementSummaryFactory
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
@@ -166,7 +167,7 @@ async def test_AC_B5_zero_position_brokerage_doc_raises_visible_review_flag(db, 
     db.add(statement)
     await db.commit()
 
-    await import_brokerage_payload_if_present(
+    await route_brokerage_for_review_if_present(
         summary=statement,
         db=db,
         user_id=test_user.id,
@@ -220,6 +221,19 @@ async def test_AC_B4_AC_B6_moomoo_positions_table_extracts_and_imports(client, d
         summary.status = BankStatementStatus.PARSED
         summary.confidence_score = 90
         summary.balance_validated = True
+        # The real parse_document persists the OCR payload; the explicit import endpoint
+        # (#1408) recovers positions from extraction_metadata.
+        summary.extraction_metadata = {"extraction_payload": fixture}
+        doc = UploadedDocument(
+            user_id=user_id,
+            file_path="statements/moomoo-positions.pdf",
+            file_hash=file_hash,
+            original_filename="moomoo-positions-2506.pdf",
+            document_type=DocumentType.BANK_STATEMENT,
+        )
+        session.add(doc)
+        await session.flush()
+        summary.uploaded_document_id = doc.id
         await session.flush()
         summary._extracted_payload = fixture
         return summary, []
@@ -244,6 +258,21 @@ async def test_AC_B4_AC_B6_moomoo_positions_table_extracts_and_imports(client, d
     )
 
     db.expire_all()
+    # #1408: parse routes the brokerage statement to review WITHOUT importing positions.
+    atomic_rows = (await db.execute(select(AtomicPosition).where(AtomicPosition.user_id == user_id))).scalars().all()
+    assert len(atomic_rows) == 0
+    refreshed = await db.get(StatementSummary, statement_id)
+    assert refreshed is not None
+    assert refreshed.status == BankStatementStatus.PARSED
+    assert refreshed.stage1_status == Stage1Status.PENDING_REVIEW
+    # Positions exist (no zero-position review flag), so no validation note is added.
+    assert refreshed.validation_error is None
+
+    # #1408: the explicit import endpoint is the only path that creates positions.
+    import_response = await client.post(f"/statements/{statement_id}/brokerage/import")
+    assert import_response.status_code == 200, import_response.text
+
+    db.expire_all()
     atomic_rows = (await db.execute(select(AtomicPosition).where(AtomicPosition.user_id == user_id))).scalars().all()
 
     # AtomicPosition rows == holdings-table rows.
@@ -259,12 +288,6 @@ async def test_AC_B4_AC_B6_moomoo_positions_table_extracts_and_imports(client, d
         assert row.quantity == Decimal(spec["quantity"])
         assert row.currency == spec["currency"]
         assert row.snapshot_date == date(2026, 6, 30)
-
-    refreshed = await db.get(StatementSummary, statement_id)
-    assert refreshed is not None
-    assert refreshed.status == BankStatementStatus.PARSED
-    # Positions were imported, so no zero-position review flag.
-    assert refreshed.validation_error is None
 
 
 async def test_AC_B6_positions_payload_imports_via_service(db, test_user):

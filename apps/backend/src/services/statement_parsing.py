@@ -18,7 +18,7 @@ from src.models.layer1 import DocumentStatus, DocumentType, UploadedDocument
 from src.models.statement_enums import Stage1Status
 from src.models.statement_summary import StatementSummary
 from src.services import ExtractionError, ExtractionService, StorageError, StorageService
-from src.services.brokerage_positions import BrokeragePositionImportService, looks_like_brokerage_payload
+from src.services.brokerage_positions import looks_like_brokerage_payload
 from src.services.statement_posting import try_auto_approve_high_confidence_statement
 from src.telemetry_metrics import record_statement_parse_outcome
 
@@ -26,7 +26,6 @@ if TYPE_CHECKING:
     pass
 
 logger = get_logger(__name__)
-_brokerage_import_service = BrokeragePositionImportService()
 
 
 def _safe_error_message(message: str | None) -> str | None:
@@ -55,7 +54,7 @@ def _append_validation_note(existing: str | None, note: str) -> str:
     return combined[:500]
 
 
-async def import_brokerage_payload_if_present(
+async def route_brokerage_for_review_if_present(
     *,
     summary: StatementSummary,
     db: AsyncSession,
@@ -66,7 +65,19 @@ async def import_brokerage_payload_if_present(
     request_id: str | None = None,
     model_to_use: str | None = None,
 ) -> None:
-    """Import parsed brokerage positions after statement parsing succeeds."""
+    """Route a detected brokerage statement to Stage-1 review WITHOUT importing positions (#1408).
+
+    Brokerage positions used to be auto-imported into AtomicPosition (L2) + ManagedPosition
+    (L3) during parse, before any human review, so a still-``pending_review`` brokerage
+    statement immediately inflated ``/portfolio/holdings``, ``/portfolio/summary``, and
+    ``/reports/net-worth/*`` (#1408). Positions must instead be created only by the explicit,
+    user-initiated ``POST /statements/{statement_id}/brokerage/import`` endpoint.
+
+    So at parse we ONLY surface the statement for review: a detected brokerage payload moves the
+    statement into ``Stage1Status.PENDING_REVIEW`` (when ``PARSED`` and not already approved) so a
+    human can trigger the explicit import. No ``AtomicPosition`` / ``ManagedPosition`` rows are
+    created here. ``user_id`` is retained for signature parity with the explicit import path.
+    """
     if not looks_like_brokerage_payload(payload, filename=filename, institution=institution or summary.institution):
         return
 
@@ -78,61 +89,49 @@ async def import_brokerage_payload_if_present(
             broker = payload["statement"].get("institution")
     broker = broker or institution or summary.institution
     parsed_positions = _count_brokerage_positions(payload)
-    source_document_id = str(summary.uploaded_document_id or summary.id)
     logger.info(
-        "statement.brokerage_import.started",
-        audit_event="statement.brokerage_import.started",
+        "statement.brokerage_review_routing.started",
+        audit_event="statement.brokerage_review_routing.started",
         request_id=request_id,
         statement_id=str(summary.id),
-        phase="brokerage_import_started",
+        phase="brokerage_review_routing_started",
         model_to_use=model_to_use,
         broker=broker,
         parsed_positions=parsed_positions,
     )
 
     try:
-        result = await _brokerage_import_service.import_positions(
-            db,
-            user_id=user_id,
-            payload=payload or {},
-            filename=filename,
-            source_document_id=source_document_id,
-        )
-        if result.parsed_positions == 0:
-            # AC-B5 (#1139): a brokerage document that yields zero positions is a
-            # surfaced REVIEW FLAG, not a buried string. Routing it to the Stage-1
-            # pending-review queue (in addition to the validation_error note) makes
-            # the empty-holdings case visible to a human instead of letting a
-            # brokerage upload silently auto-settle with no imported holdings.
+        if parsed_positions == 0:
+            # AC6 (#1408, formerly AC-B5/#1139): a brokerage document that yields zero
+            # positions is a surfaced REVIEW FLAG, not a buried string — keep the
+            # human-readable validation note in addition to the pending-review routing.
             summary.validation_error = _append_validation_note(
                 summary.validation_error,
                 "Brokerage import skipped: no positions detected in parsed brokerage payload",
             )
-            if summary.status == BankStatementStatus.PARSED:
-                summary.stage1_status = Stage1Status.PENDING_REVIEW
+        # #1408: do NOT import positions at parse. Only surface the brokerage statement in
+        # the Stage-1 review queue so the user can trigger the explicit import endpoint,
+        # which remains the sole path that creates AtomicPosition/ManagedPosition rows.
+        if summary.status == BankStatementStatus.PARSED and summary.stage1_status != Stage1Status.APPROVED:
+            summary.stage1_status = Stage1Status.PENDING_REVIEW
         await db.commit()
         logger.info(
-            "statement.brokerage_import.completed",
-            audit_event="statement.brokerage_import.completed",
+            "statement.brokerage_review_routing.completed",
+            audit_event="statement.brokerage_review_routing.completed",
             request_id=request_id,
             statement_id=str(summary.id),
-            phase="brokerage_import_completed",
+            phase="brokerage_review_routing_completed",
             model_to_use=model_to_use,
-            broker=result.broker,
-            parsed_positions=result.parsed_positions,
-            created_atomic_positions=result.created_atomic_positions,
-            existing_atomic_positions=result.existing_atomic_positions,
-            reconcile_created=result.reconcile_created,
-            reconcile_updated=result.reconcile_updated,
-            reconcile_disposed=result.reconcile_disposed,
+            broker=broker,
+            parsed_positions=parsed_positions,
         )
     except Exception as exc:
         logger.exception(
-            "statement.brokerage_import.failed",
-            audit_event="statement.brokerage_import.failed",
+            "statement.brokerage_review_routing.failed",
+            audit_event="statement.brokerage_review_routing.failed",
             request_id=request_id,
             statement_id=str(summary.id),
-            phase="brokerage_import_failed",
+            phase="brokerage_review_routing_failed",
             model_to_use=model_to_use,
             error_type=type(exc).__name__,
             safe_error_message=_safe_error_message(str(exc)),
@@ -143,7 +142,7 @@ async def import_brokerage_payload_if_present(
             return
         refreshed.validation_error = _append_validation_note(
             refreshed.validation_error,
-            "Brokerage import failed: parsed statement was saved but positions were not imported",
+            "Brokerage review routing failed: parsed statement was saved but was not routed for review",
         )
         await db.commit()
 
@@ -561,7 +560,11 @@ async def parse_statement_background(
             checkpoint("statement_persisted")
             auto_posted_count = await try_auto_approve_high_confidence_statement(session, statement.id, user_id)
             await session.commit()
-            await import_brokerage_payload_if_present(
+            # #1408: detect a brokerage statement and route it to Stage-1 review WITHOUT
+            # importing positions. Positions are created only by the explicit, user-initiated
+            # POST /statements/{id}/brokerage/import endpoint, so a pending-review brokerage
+            # statement never inflates holdings/summary/net-worth before human review.
+            await route_brokerage_for_review_if_present(
                 summary=statement,
                 db=session,
                 user_id=user_id,
