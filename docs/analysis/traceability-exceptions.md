@@ -160,6 +160,17 @@ router, or generated-fixture flows.
 | `tools/_lib/pdf_fixtures/generators/base_generator.py` | EPIC-009 fixture infrastructure covered by `tests/tooling/test_pdf_fixture_epic009_behavior.py` |
 | `tools/_lib/pdf_fixtures/generators/font_utils.py` | EPIC-009 fixture infrastructure covered by `tests/tooling/test_pdf_fixture_tooling_coverage.py` |
 
+### Staging Bug Regression Repros
+
+Regression guards for production bugs found during real-machine testing. They
+pin a specific fix rather than owning an EPIC acceptance criterion.
+
+| Path | Owner |
+|---|---|
+| `apps/backend/tests/repro/test_brokerage_identifier.py` | Issue #1389 (brokerage position identifier must prefer ticker over company name) |
+| `apps/backend/tests/repro/test_balance_validation_vacuous.py` | Issue #1390 (balance validation must not pass vacuously with no closing balance) |
+| `apps/backend/tests/repro/test_review_document_url.py` | Issue #1391 (Stage-1 review PDF URL must use the public endpoint) |
+
 ## Rule
 
 New tests for user-visible behavior must include an AC reference. New helper,
