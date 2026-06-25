@@ -352,17 +352,18 @@ def test_AC10_9_4_observability_docs_declare_shared_alerting_pipeline() -> None:
     """AC10.9.4: Finance Report owns app contract docs, infra2 owns shared alert automation."""
     observability = _read(REPO_ROOT / "docs" / "ssot" / "observability.md")
     epic = _read(REPO_ROOT / "docs" / "project" / "EPIC-010.signoz-logging.md")
-    infra_alerting = _read(REPO_ROOT / "repo" / "docs" / "ssot" / "ops.alerting.md")
+    # infra2 consolidated alerting into a single observability owner (infra2 #425/#426):
+    # ops.alerting.md is now a MOVED redirect stub and the shared alert automation lives
+    # in ops.observability.md.
+    infra_alerting = _read(REPO_ROOT / "repo" / "docs" / "ssot" / "ops.observability.md")
 
     for text in (observability, epic):
         assert "component -> OTEL -> SigNoz -> Lark" in text
         assert "FinanceReportBackendErrorLogs" in text
         assert "finance-report-backend" in text
 
-    assert "alerting.shared.ensure-log-error-rule" in infra_alerting
-    # The FR backend error-log alert is now defined-as-code and applied via the shared
-    # pipeline (infra2 #378), superseding the earlier "first live instance via shared rule
-    # automation" wording.
+    # The FR backend error-log alert is defined-as-code and applied via the shared
+    # pipeline (infra2 #378): infra2 owns the shared alert automation.
     assert "fr-observability.shared.apply-alerts" in infra_alerting
 
 
