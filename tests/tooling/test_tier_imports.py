@@ -1,6 +1,6 @@
 """Tests for EPIC-026 phase 3: the cross-tier LLM-import structural gate.
 
-Covers AC26.7.1 — CODE-ONLY/financial-truth modules are statically proven free of
+Covers AC-authority.7.1 — CODE-ONLY/financial-truth modules are statically proven free of
 LLM-layer imports (the cross-tier structural MUST rule, ``authority-tiers.md``
 rule 2, made deterministic):
 
@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_AC26_7_1_real_tree_has_no_llm_imports_in_protected_modules() -> None:
-    """AC26.7.1 (a): the real protected set is clean and fully resolved."""
+    """AC-authority.7.1 (a): the real protected set is clean and fully resolved."""
     # The curated globs must all resolve — a glob matching nothing would let the
     # guard silently shrink.
     assert gate.missing_protected_globs(ROOT) == []
@@ -34,7 +34,7 @@ def test_AC26_7_1_real_tree_has_no_llm_imports_in_protected_modules() -> None:
 
 
 def test_AC26_7_1_synthetic_llm_import_is_detected() -> None:
-    """AC26.7.1 (b): a synthetic CODE-ONLY-style module importing the LLM layer fails."""
+    """AC-authority.7.1 (b): a synthetic CODE-ONLY-style module importing the LLM layer fails."""
     # from-import of the project LLM layer
     src_from = "from src.llm.client import LLMClient\n\ndef calc():\n    return 1\n"
     assert gate.forbidden_imports_in_source(src_from) == [("src.llm.client", "src.llm")]
@@ -60,7 +60,7 @@ def test_AC26_7_1_synthetic_llm_import_is_detected() -> None:
 
 
 def test_AC26_7_1_clean_and_lookalike_sources_are_not_flagged() -> None:
-    """AC26.7.1 (b): clean / look-alike imports are false-positive-free."""
+    """AC-authority.7.1 (b): clean / look-alike imports are false-positive-free."""
     clean = (
         "from decimal import Decimal\n"
         "from src.money.money import Money\n"
@@ -75,7 +75,7 @@ def test_AC26_7_1_clean_and_lookalike_sources_are_not_flagged() -> None:
 
 
 def test_AC26_7_1_gate_fails_on_synthetic_violating_tree(tmp_path: Path) -> None:
-    """AC26.7.1 (b): main() exits 1 when a protected-style module imports src.llm.
+    """AC-authority.7.1 (b): main() exits 1 when a protected-style module imports src.llm.
 
     Build a temp repo whose tree mirrors one protected glob and plant a violating
     import there, then point the gate at it — the real codebase is untouched.
@@ -104,7 +104,7 @@ def test_AC26_7_1_gate_fails_on_synthetic_violating_tree(tmp_path: Path) -> None
 def test_AC26_7_1_gate_fails_when_protected_glob_resolves_to_nothing(
     tmp_path: Path,
 ) -> None:
-    """AC26.7.1: the curated set cannot silently shrink — an empty tree fails.
+    """AC-authority.7.1: the curated set cannot silently shrink — an empty tree fails.
 
     Pointing the gate at a repo with none of the protected files present must be
     reported as curation drift (every glob matches nothing), so a refactor that

@@ -144,23 +144,25 @@ The recipe for moving a module (and its EPIC-table ACs) into the package model.
    via `invariants[].test`, not the AC critical-proof matrix (a structural test
    tagged with a domain AC id is a stale anchor — see counter's cleanup).
 
-6. **Migrating an EXISTING AC KEEPS its numeric id.** Home it into the `roadmap`
-   under its current `ACx.y.z`. The `AC-<pkg>.x.y` scheme is for **net-new** ACs
-   (like counter/platform, which had no prior references) — NOT for re-homing.
-   Renumbering an established AC is a cross-repo rename that orphans everything
-   pointing at the old id: floor baselines (`ac-score-baseline.jsonl` /
-   protection-floor, raise-only → Gate B red), cross-references from OTHER EPIC
-   docs (`lint_doc_consistency` check4 `epic_to_registry`), and test references
-   (check5 `registry_to_tests`). Keeping the id makes all of those stay valid.
+6. **Renumber the migrated AC to the package-scoped `AC-<pkg>.x.y`** — that id
+   form is the target (the package owns its ACs). Renumbering is a cross-repo
+   rename, so REPOINT every reference to the old numeric id in the SAME change,
+   or the lint cross-checks fire:
+   - **floor baselines** — if the old id is in `ac-score-baseline.jsonl` /
+     `protection-floor.json` (raise-only), migrate that entry too, else Gate B
+     reds on the net-deleted id. (Grep both first; most legacy ids are tracked.)
+   - **other EPIC docs** — repoint cross-references (`lint_doc_consistency`
+     check4 `epic_to_registry`; e.g. EPIC-008's e2e map pointed at `AC26.x`).
+   - **test references** — update the id in the test docstrings/`@ac_proof`
+     (check5 `registry_to_tests` scans test-file text for the dotted id).
 
-7. **Delete the EPIC table ROW, but keep the EPIC REFERENCING the ids.** Remove
-   the `| ACx.y.z | … |` definition row (else `check_epic_package_dual` fails —
-   no AC defined in two places), and replace the section with a disclaimer that
-   **lists every homed id** (e.g. "`AC26.1.1`, …, `AC26.9.1` are NOT defined
-   here — owned by `common/<pkg>/contract.py`"). The list matters: a numeric AC
-   in the registry must still be *referenced* by an EPIC doc (`lint_doc_consistency`
-   check3 `registry_to_epic`); a prose mention satisfies it, a table row would
-   re-trip `check_epic_package_dual`. (See EPIC-025/EPIC-026 for the pattern.)
+7. **Delete the EPIC table ROW, but keep the EPIC REFERENCING the new ids.**
+   Remove the `| ACx.y.z | … |` definition row (else `check_epic_package_dual`
+   fails — no AC defined in two places), and replace the section with a
+   disclaimer that **lists every homed `AC-<pkg>.x.y` id** — a registry AC must
+   still be *referenced* by an EPIC doc (`lint_doc_consistency` check3
+   `registry_to_epic`); a prose mention satisfies it, a table row would re-trip
+   `check_epic_package_dual`. (See EPIC-025/EPIC-026 for the pattern.)
 
 8. **Register & classify.** Add any new `docs/ssot/` files to
    [`MANIFEST.yaml`](../../docs/ssot/MANIFEST.yaml) (with `family`+`kind`);

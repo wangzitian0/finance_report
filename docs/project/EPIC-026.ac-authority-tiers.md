@@ -104,12 +104,12 @@ contract rather than restating it.
 
 > **Test Organization**: Tests organized by feature blocks using ACx.y.z numbering.
 
-> **`AC26.1.1`, `AC26.2.1`, `AC26.3.1`, `AC26.4.1`, `AC26.5.1`, `AC26.6.1`, and
-> `AC26.7.1` are NOT defined here.** The authority-tier *system* ACs (phases 1–3)
-> are homed in [`common/authority/contract.py`](../../common/authority/contract.py)'s
-> `roadmap` — the contract is now their single definition source (resolved by
-> `check_package_contract`). They keep their numeric ids (renumbering would orphan
-> the EPIC-008 cross-references + test refs to them). This EPIC stays the
+> **`AC-authority.1.1`, `AC-authority.2.1`, `AC-authority.3.1`, `AC-authority.4.1`,
+> `AC-authority.5.1`, `AC-authority.6.1`, and `AC-authority.7.1` are defined in the
+> `authority` package, not here.** The authority-tier *system* ACs (phases 1–3) are
+> homed in [`common/authority/contract.py`](../../common/authority/contract.py)'s
+> `roadmap` under the package-scoped id scheme — the contract is their single
+> definition source (resolved by `check_package_contract`). This EPIC stays the
 > horizontal narrative. The phase 4–5 ACs below **remain here**: `AC26.8.1` is an
 > extraction-domain observability behaviour (not the authority vocabulary), and
 > `AC26.9.1`'s proof test is itself marker-laden (it tests cassette detection), so

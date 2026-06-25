@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 @pytest.mark.e2e
 def test_authority_tier_pipeline_end_to_end_epic026() -> None:
-    """EPIC-026 / AC26.2.1 + AC26.3.1 + AC26.4.1: the real tier pipeline holds.
+    """EPIC-026 / AC-authority.2.1 + AC-authority.3.1 + AC-authority.4.1: the real tier pipeline holds.
 
     GIVEN the actual EPIC docs and the committed untagged-debt baseline
     WHEN building the registry and running the ratchet against the live repo
