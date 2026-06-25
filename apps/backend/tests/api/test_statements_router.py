@@ -1678,6 +1678,8 @@ async def test_AC16_33_4_get_statement_for_review_uses_short_presign_ttl(db, tes
     mock_storage.generate_presigned_url.assert_called_once_with(
         key=document.file_path,
         expires_in=statements_router.settings.statement_review_presign_expiry_seconds,
+        # #1391: the review URL is browser-facing, so it must use the public endpoint.
+        public=True,
     )
 
 

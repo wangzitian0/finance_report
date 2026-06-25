@@ -220,7 +220,12 @@ def _parse_structured_positions(
     snapshots: list[BrokeragePositionSnapshot] = []
     default_currency = _payload_currency(payload)
     for item in _iter_structured_positions(payload):
-        identifier = item.get("asset_identifier") or item.get("symbol") or item.get("ticker") or item.get("isin")
+        # #1389: prefer a ticker/symbol over a free-text asset_identifier. When the
+        # model emits a company name in asset_identifier but the real ticker in
+        # symbol/ticker, the name used to win and became the market-data lookup
+        # scope (which never resolves a price). A symbol/ticker is the canonical
+        # market key; fall back to asset_identifier/isin only when absent.
+        identifier = item.get("symbol") or item.get("ticker") or item.get("asset_identifier") or item.get("isin")
         quantity = _clean_decimal(item.get("quantity") or item.get("qty") or item.get("position"))
         market_value = _clean_decimal(item.get("market_value") or item.get("value") or item.get("marketValue"))
         if not identifier or quantity is None or market_value is None:
