@@ -501,8 +501,11 @@ def test_AC8_13_11_deploy_preflights_vault_token_before_redeploy() -> None:
     assert "min_ttl_hours: int = 48" in primitive
     assert "remove it from the service's Dokploy env" in primitive
 
-    assert '_env_value(env_text, "VAULT_ROLE_ID")' in primitive
-    assert '_env_value(env_text, "VAULT_SECRET_ID")' in primitive
+    # AppRole services (both VAULT_ROLE_ID and VAULT_SECRET_ID present) are skipped.
+    # Assert the env-var references rather than an exact `_env_value(...)` call form,
+    # which infra2 line-wraps (robust to formatting).
+    assert '"VAULT_ROLE_ID"' in primitive
+    assert '"VAULT_SECRET_ID"' in primitive
     assert "AppRole auth -> any leftover VAULT_APP_TOKEN is unused" in primitive
     assert primitive.index("preflight_vault_token(client") < primitive.index(
         "client.update_compose_env"
@@ -640,15 +643,13 @@ def test_AC8_13_158_canary_transient_classification_owned_by_provider_gate() -> 
 
     # The canary only runs after the provider gate passes, so transient/config
     # classification gates the canary path.
-    assert (
-        "needs.provider-gate.outputs.provider_status == 'pass'" in deploy
-    )
+    assert "needs.provider-gate.outputs.provider_status == 'pass'" in deploy
 
     # The provider gate keeps the 4xx-block / 5xx-degrade classifier.
     provider_block = deploy.split("provider-gate:", 1)[1].split("ai-ocr-gate:", 1)[0]
-    assert 'provider_status=config-failure' in provider_block
+    assert "provider_status=config-failure" in provider_block
     assert "client/config error" in provider_block
-    assert 'provider_status=degraded' in provider_block
+    assert "provider_status=degraded" in provider_block
     assert "transient" in provider_block
     # 4xx blocks (exit 1), transient degrades without blocking (exit 0).
     assert '"$status_code" -ge 400 ] && [ "$status_code" -lt 500 ]' in provider_block
@@ -690,7 +691,10 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
     )
     assert "name: Staging AI/OCR Gate" in deploy_workflow
     assert "commit_full_sha: ${{ steps.release.outputs.full_sha }}" in deploy_workflow
-    assert "deployed_version_ref: ${{ steps.release.outputs.version_ref }}" in deploy_workflow
+    assert (
+        "deployed_version_ref: ${{ steps.release.outputs.version_ref }}"
+        in deploy_workflow
+    )
     assert "uses: ./.github/workflows/staging-ai-ocr-gate.yml" in deploy_workflow
     assert (
         "commit_ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}"
@@ -774,8 +778,7 @@ def test_AC8_13_49_staging_ai_ocr_gate_publishes_audit_inventory_and_summary() -
     assert "- Parse completions verified: ${verified_parse_completions}" in workflow
     assert "- Brokerage imports verified: ${verified_brokerage_imports}" in workflow
     assert (
-        "- Report verifications verified: ${verified_report_verifications}"
-        in workflow
+        "- Report verifications verified: ${verified_report_verifications}" in workflow
     )
     assert "- Failures observed: ${verified_failures}" in workflow
     assert "for fixture_test in" in workflow
@@ -935,7 +938,9 @@ def test_AC8_13_51_staging_deploy_is_manual_dispatch_only() -> None:
     assert "version_ref" in inputs, (
         "manual dispatch must accept a deploy_v2-aligned `version_ref` input"
     )
-    assert "tag" not in inputs, "staging deploy must not expose a second release-ref name"
+    assert "tag" not in inputs, (
+        "staging deploy must not expose a second release-ref name"
+    )
     assert inputs["version_ref"].get("required") is False, (
         "version_ref is validated by the staging/production target jobs because "
         "deploy.yml also hosts the on-demand AI/OCR diagnostic target"
@@ -1153,7 +1158,9 @@ def test_AC8_13_52_production_release_checks_use_pinned_python() -> None:
         setup_python = step_index(section, "Set up Python")
         resolve_coordinate = step_index(section, "Resolve release coordinate")
         source_ci = step_index(section, "Verify source CI passed")
-        release_images_run = step_index(section, "Verify release images workflow passed")
+        release_images_run = step_index(
+            section, "Verify release images workflow passed"
+        )
         staging = step_index(section, "Verify staging passed")
         verify_images = step_index(
             section,
@@ -1430,9 +1437,7 @@ def test_AC8_13_16_workflows_opt_into_node24_actions_runtime() -> None:
     assert workflow_paths
     for workflow_path in workflow_paths:
         workflow = workflow_path.read_text(encoding="utf-8")
-        assert "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24" not in workflow, (
-            workflow_path.name
-        )
+        assert "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24" not in workflow, workflow_path.name
 
     ci_cd = read("docs/ssot/ci-cd.md")
     inventory = yaml.safe_load(read("docs/ssot/github-action-runtime.yaml"))
@@ -1444,9 +1449,7 @@ def test_AC8_13_16_workflows_opt_into_node24_actions_runtime() -> None:
     exceptions = {exception["uses"] for exception in inventory["exceptions"]}
     assert inventory["forced_node20_metadata_count_must_be"] == 0
     assert "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24" in ci_cd
-    assert (
-        "GitHub JavaScript action runtime debt is closed" in ci_cd
-    )
+    assert "GitHub JavaScript action runtime debt is closed" in ci_cd
     assert "docs/ssot/github-action-runtime.yaml" in ci_cd
     assert not forced_actions
     assert set(forced_actions) == exceptions
@@ -1703,10 +1706,16 @@ def test_AC8_13_148_backend_shards_use_seeded_5_way_split() -> None:
     assert "--splitting-algorithm=least_duration" in backend_commands
     assert "--durations-path ci/backend-test-durations.json" in backend_commands
     assert "--store-durations" not in backend_commands
-    assert "test-results/backend-shard-${{ matrix.shard }}-durations.json" not in workflow_text
+    assert (
+        "test-results/backend-shard-${{ matrix.shard }}-durations.json"
+        not in workflow_text
+    )
 
     upload_context = workflow_text.split("Upload backend shard test context", 1)[1]
-    assert "apps/backend/test-results/backend-shard-${{ matrix.shard }}.xml" in upload_context
+    assert (
+        "apps/backend/test-results/backend-shard-${{ matrix.shard }}.xml"
+        in upload_context
+    )
     assert "apps/backend/ci/backend-test-durations.json" not in upload_context
     assert "workflow job name `Backend Tests (Shard ${{ matrix.shard }}/5)`" in ci_cd
     assert "5-way parallel test sharding via `pytest-split`" in ci_cd
@@ -1754,7 +1763,10 @@ def test_AC8_13_149_fan_in_jobs_download_only_required_artifacts() -> None:
     assert "name: backend-integration-test-context" in ratchet_block
     assert "name: backend-tier1-e2e-test-context" in ratchet_block
     assert "name: frontend-vitest-test-context" in ratchet_block
-    assert "uv run --with pyyaml python tools/aggregate_ac_evidence.py" not in ratchet_block
+    assert (
+        "uv run --with pyyaml python tools/aggregate_ac_evidence.py"
+        not in ratchet_block
+    )
     assert "python tools/aggregate_ac_evidence.py" in ratchet_block
     assert "python tools/check_ac_score_baseline.py" in ratchet_block
 
@@ -1975,8 +1987,8 @@ def test_AC8_13_67_production_release_preserves_version_metadata() -> None:
     assert primitive.index("client.update_compose_env") < primitive.index(
         "client.deploy_compose"
     )
-    assert primitive.index("client.deploy_compose") < primitive.index(
-        "verify_effective_config_hash(\n            client"
+    assert primitive.index("client.deploy_compose") < primitive.rindex(
+        "verify_effective_config_hash("
     )
     assert "models-${IMAGE_TAG}" not in primitive
 
@@ -2123,7 +2135,10 @@ def test_AC8_13_21_staging_ai_ocr_gate_runs_under_manual_dispatch() -> None:
     assert "Run Staging AI/OCR Gate" in reusable
     assert set(triggers) == {"push", "workflow_dispatch"}
     assert triggers["push"] == {"tags": ["v[0-9]+.[0-9]+.[0-9]+"]}
-    assert "if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'staging' }}" in workflow
+    assert (
+        "if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'staging' }}"
+        in workflow
+    )
     assert "workflow_run" not in triggers
 
     # An on-demand recovery entry point also runs the gate via workflow_dispatch.
@@ -2228,7 +2243,10 @@ def test_AC8_13_22_staging_deploys_manually_dispatched_version_ref() -> None:
     assert "packages: read" in workflow
     assert set(triggers) == {"push", "workflow_dispatch"}
     assert triggers["push"] == {"tags": ["v[0-9]+.[0-9]+.[0-9]+"]}
-    assert "if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'staging' }}" in workflow
+    assert (
+        "if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'staging' }}"
+        in workflow
+    )
     assert "Wait for matching CI success" not in workflow
     inputs = triggers["workflow_dispatch"].get("inputs") or {}
     assert "version_ref" in inputs
@@ -2524,7 +2542,10 @@ def test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit() -> None:
         in deploy_workflow
     )
     assert "commit_full_sha: ${{ steps.release.outputs.full_sha }}" in deploy_workflow
-    assert "deployed_version_ref: ${{ steps.release.outputs.version_ref }}" in deploy_workflow
+    assert (
+        "deployed_version_ref: ${{ steps.release.outputs.version_ref }}"
+        in deploy_workflow
+    )
     assert (
         "ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}" in deploy_workflow
     )
@@ -3373,9 +3394,7 @@ def test_AC8_13_152_workflow_consumers_keep_classification_single_owned() -> Non
         "ENV_STAGE_REQUIRED": "${{ steps.preview.outputs.env_stage_required }}",
         "ENV_STAGE_REASONS": "${{ steps.preview.outputs.env_stage_reasons }}",
     }
-    assert 'json.loads(os.environ["ENV_STAGE_REQUIRED"])' in str(
-        preview_gate["run"]
-    )
+    assert 'json.loads(os.environ["ENV_STAGE_REQUIRED"])' in str(preview_gate["run"])
     assert "required['pr-preview']" in str(preview_gate["run"])
 
     for job_name in ("deploy-preview", "e2e"):
@@ -3389,9 +3408,7 @@ def test_AC8_13_152_workflow_consumers_keep_classification_single_owned() -> Non
         "Workflow YAML remains explicit; it is not generated from SSOT or the "
         "classifier at runtime."
     ) in ci_cd
-    assert (
-        "changed-path classification stays owned by the classifier step"
-    ) in ci_cd
+    assert ("changed-path classification stays owned by the classifier step") in ci_cd
 
 
 def test_AC8_13_113_sparse_matrix_evidence_and_resource_leak_audit_are_recorded() -> (

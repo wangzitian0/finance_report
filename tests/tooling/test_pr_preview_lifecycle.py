@@ -826,7 +826,9 @@ def test_AC8_13_71_create_compose_requires_compose_id(
 ) -> None:
     lifecycle = lifecycle_module()
 
-    monkeypatch.setattr(lifecycle._dokploy, "dokploy_api_call", lambda *args, **kwargs: "{}")
+    monkeypatch.setattr(
+        lifecycle._dokploy, "dokploy_api_call", lambda *args, **kwargs: "{}"
+    )
 
     with pytest.raises(RuntimeError, match="composeId"):
         lifecycle.create_compose(
@@ -978,7 +980,9 @@ def test_AC8_13_71_cleanup_action_deletes_compose_without_ssh(
 
     monkeypatch.setattr(lifecycle._util, "run_command", fake_run_command)
     monkeypatch.setattr(
-        lifecycle._dokploy, "wait_for_dokploy_deployment_rollout", lambda *args, **kwargs: None
+        lifecycle._dokploy,
+        "wait_for_dokploy_deployment_rollout",
+        lambda *args, **kwargs: None,
     )
     args = SimpleNamespace(
         action="cleanup",
@@ -1114,7 +1118,9 @@ def test_AC8_13_72_deploy_action_reads_effective_env_before_deploy(
 
     monkeypatch.setattr(lifecycle._util, "run_command", fake_run_command)
     monkeypatch.setattr(
-        lifecycle._dokploy, "wait_for_dokploy_deployment_rollout", lambda *args, **kwargs: None
+        lifecycle._dokploy,
+        "wait_for_dokploy_deployment_rollout",
+        lambda *args, **kwargs: None,
     )
     args = SimpleNamespace(
         action="deploy",
@@ -1300,7 +1306,9 @@ def test_AC8_13_102_existing_preview_without_deployments_is_recreated(
 
     monkeypatch.setattr(lifecycle._util, "run_command", fake_run_command)
     monkeypatch.setattr(
-        lifecycle._dokploy, "wait_for_dokploy_deployment_rollout", lambda *args, **kwargs: None
+        lifecycle._dokploy,
+        "wait_for_dokploy_deployment_rollout",
+        lambda *args, **kwargs: None,
     )
     args = SimpleNamespace(
         action="deploy",
@@ -1992,7 +2000,9 @@ def test_AC8_13_98_existing_preview_compose_is_redeployed_without_pre_stop(
 
     monkeypatch.setattr(lifecycle._util, "run_command", fake_run_command)
     monkeypatch.setattr(
-        lifecycle._dokploy, "wait_for_dokploy_deployment_rollout", lambda *args, **kwargs: None
+        lifecycle._dokploy,
+        "wait_for_dokploy_deployment_rollout",
+        lambda *args, **kwargs: None,
     )
     args = SimpleNamespace(
         action="deploy",
@@ -2057,9 +2067,11 @@ def test_AC8_13_100_infra2_route_canary_is_available() -> None:
 
     assert canary_tool.exists()
     assert canary_tests.exists()
+    # infra2 consolidated alerting/observability into one owner (infra2 #425/#426):
+    # the route-canary SOP now lives in ops.observability.md (ops.alerting.md is a stub).
     assert (
-        "Dokploy dynamic route canary"
-        in (ROOT / "repo/docs/ssot/ops.alerting.md").read_text()
+        "Dokploy route canary"
+        in (ROOT / "repo/docs/ssot/ops.observability.md").read_text()
     )
 
 
@@ -2079,14 +2091,22 @@ def test_AC8_13_71_deploy_action_writes_github_output(
     monkeypatch.setattr(
         lifecycle._dokploy, "update_compose_source", lambda *args, **kwargs: None
     )
-    monkeypatch.setattr(lifecycle._dokploy, "update_compose_env", lambda *args, **kwargs: None)
-    monkeypatch.setattr(lifecycle._dokploy, "deploy_compose", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        lifecycle._dokploy, "update_compose_env", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        lifecycle._dokploy, "deploy_compose", lambda *args, **kwargs: None
+    )
     monkeypatch.setattr(
         lifecycle._dokploy, "print_compose_summary", lambda *args, **kwargs: None
     )
-    monkeypatch.setattr(lifecycle._dokploy, "get_compose_data", lambda *args, **kwargs: {})
     monkeypatch.setattr(
-        lifecycle._dokploy, "wait_for_dokploy_deployment_rollout", lambda *args, **kwargs: None
+        lifecycle._dokploy, "get_compose_data", lambda *args, **kwargs: {}
+    )
+    monkeypatch.setattr(
+        lifecycle._dokploy,
+        "wait_for_dokploy_deployment_rollout",
+        lambda *args, **kwargs: None,
     )
     args = SimpleNamespace(
         pr_number=591,
@@ -2494,7 +2514,9 @@ def test_AC8_13_102_cleanup_and_delete_actions_ignore_api_exceptions(
     def fake_find_compose_id(*args: object, **kwargs: object) -> str:
         raise lifecycle.DokployRequestError("Transient API connection failure")
 
-    monkeypatch.setattr(lifecycle._dokploy, "find_compose_id_by_name", fake_find_compose_id)
+    monkeypatch.setattr(
+        lifecycle._dokploy, "find_compose_id_by_name", fake_find_compose_id
+    )
 
     # Both actions should catch the exception and return 0
     cleanup_res = lifecycle.cleanup_action(
@@ -2604,7 +2626,9 @@ def test_AC8_13_102_cleanup_and_delete_actions_do_not_swallow_non_api_exceptions
     def fake_find_compose_id(*args: object, **kwargs: object) -> str:
         raise RuntimeError("Unexpected lifecycle bug")
 
-    monkeypatch.setattr(lifecycle._dokploy, "find_compose_id_by_name", fake_find_compose_id)
+    monkeypatch.setattr(
+        lifecycle._dokploy, "find_compose_id_by_name", fake_find_compose_id
+    )
 
     with pytest.raises(RuntimeError):
         lifecycle.cleanup_action(
@@ -2638,12 +2662,16 @@ def test_get_running_deployments_count(monkeypatch: pytest.MonkeyPatch) -> None:
         '  {"compose": [{"composeStatus": "running"}, {"composeStatus": "deploying"}, {"composeStatus": "error"}]}'
         "]}"
     )
-    monkeypatch.setattr(lifecycle._dokploy, "dokploy_api_call", lambda *a, **k: fake_body)
+    monkeypatch.setattr(
+        lifecycle._dokploy, "dokploy_api_call", lambda *a, **k: fake_body
+    )
     config = lifecycle.DokployConfig("https://cloud.example/api", "secret-key")
     assert lifecycle.get_running_deployments_count(config, "proj-123") == 2
 
     # Test exception handling (e.g. invalid JSON)
-    monkeypatch.setattr(lifecycle._dokploy, "dokploy_api_call", lambda *a, **k: "invalid json")
+    monkeypatch.setattr(
+        lifecycle._dokploy, "dokploy_api_call", lambda *a, **k: "invalid json"
+    )
     assert lifecycle.get_running_deployments_count(config, "proj-123") == 0
 
 
@@ -2709,7 +2737,9 @@ def test_wait_for_dokploy_deployment_rollout_extends_deadline(
     monkeypatch.setattr(lifecycle._dokploy, "get_compose_data", fake_get_compose_data)
 
     # Mock get_running_deployments_count to return 1 (busy)
-    monkeypatch.setattr(lifecycle._dokploy, "get_running_deployments_count", lambda *a, **k: 1)
+    monkeypatch.setattr(
+        lifecycle._dokploy, "get_running_deployments_count", lambda *a, **k: 1
+    )
 
     lifecycle.wait_for_dokploy_deployment_rollout(
         lifecycle.DokployConfig("https://cloud.example/api", "secret-key"),
@@ -2749,7 +2779,9 @@ def test_AC8_13_125_busy_dokploy_queue_cannot_extend_past_rollout_deadline(
     monkeypatch.setattr(lifecycle.time, "monotonic", fake_time)
     monkeypatch.setattr(lifecycle.time, "sleep", fake_sleep)
     monkeypatch.setattr(lifecycle._dokploy, "get_compose_data", fake_get_compose_data)
-    monkeypatch.setattr(lifecycle._dokploy, "get_running_deployments_count", lambda *a, **k: 1)
+    monkeypatch.setattr(
+        lifecycle._dokploy, "get_running_deployments_count", lambda *a, **k: 1
+    )
 
     with pytest.raises(lifecycle.DokployDeploymentDidNotStart):
         lifecycle.wait_for_dokploy_deployment_rollout(
@@ -2886,7 +2918,9 @@ def test_AC7_13_3_update_compose_env_fails_fast_on_stale_keys(
     effective = lifecycle.render_env(requested) + "ORPHAN_LEFTOVER=stale\n"
 
     monkeypatch.setattr(lifecycle._dokploy, "dokploy_api_call", lambda *a, **k: "{}")
-    monkeypatch.setattr(lifecycle._dokploy, "get_compose_env", lambda *a, **k: effective)
+    monkeypatch.setattr(
+        lifecycle._dokploy, "get_compose_env", lambda *a, **k: effective
+    )
 
     with pytest.raises(RuntimeError, match="did not match requested deploy env"):
         lifecycle.update_compose_env(
@@ -2955,13 +2989,17 @@ def test_AC7_13_4_mutate_then_fail_marks_state_and_records_step(
 
     # Make the mutation steps no-ops so we exercise the rollout-failure path.
     monkeypatch.setattr(lifecycle._dokploy, "update_compose_env", lambda *a, **k: None)
-    monkeypatch.setattr(lifecycle._dokploy, "update_compose_source", lambda *a, **k: None)
+    monkeypatch.setattr(
+        lifecycle._dokploy, "update_compose_source", lambda *a, **k: None
+    )
     monkeypatch.setattr(lifecycle._util, "run_command", fake_run_command)
 
     def fake_wait(*args: object, **kwargs: object) -> None:
         raise lifecycle.DokployDeploymentFailed("rollout never went healthy")
 
-    monkeypatch.setattr(lifecycle._dokploy, "wait_for_dokploy_deployment_rollout", fake_wait)
+    monkeypatch.setattr(
+        lifecycle._dokploy, "wait_for_dokploy_deployment_rollout", fake_wait
+    )
 
     assert lifecycle.main_from_args(_deploy_args()) == 1
 
@@ -3030,7 +3068,9 @@ def test_AC7_13_4_existing_compose_rolls_back_to_last_known_good_on_env_drift(
         return subprocess.CompletedProcess(cmd, 0, stdout='{"ok":true}', stderr="")
 
     monkeypatch.setattr(lifecycle._util, "run_command", fake_run_command)
-    monkeypatch.setattr(lifecycle._dokploy, "update_compose_source", lambda *a, **k: None)
+    monkeypatch.setattr(
+        lifecycle._dokploy, "update_compose_source", lambda *a, **k: None
+    )
 
     # Capture the rollback compose.update payload directly.
     original_api_call = lifecycle.dokploy_api_call

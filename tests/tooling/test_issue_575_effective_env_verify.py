@@ -30,8 +30,11 @@ def test_AC7_14_1_verify_runs_after_rollout_and_before_health() -> None:
     assert '"IAC_CONFIG_HASH"' in primitive
     assert "verify_config: bool = False" in primitive
     assert "verify_effective_config_hash(" in primitive
-    assert primitive.index("client.deploy_compose(cfg.compose_id)") < primitive.index(
-        "verify_effective_config_hash(\n            client"
+    # deploy must happen before the post-deploy config verification. Use rindex
+    # for the verify call so the assertion targets the call site, not the earlier
+    # `def verify_effective_config_hash(` (robust to the call's arg indentation).
+    assert primitive.index("client.deploy_compose(cfg.compose_id)") < primitive.rindex(
+        "verify_effective_config_hash("
     )
 
     assert "python -m tools.deploy_v2" in staging
@@ -46,8 +49,12 @@ def test_AC7_14_1_verify_runs_after_rollout_and_before_health() -> None:
     )
 
     assert "test_verify_effective_config_hash_returns_on_match" in primitive_tests
-    assert "test_verify_effective_config_hash_raises_if_never_advances" in primitive_tests
-    assert "test_deploy_verify_config_confirms_pushed_hash_rolled_out" in primitive_tests
+    assert (
+        "test_verify_effective_config_hash_raises_if_never_advances" in primitive_tests
+    )
+    assert (
+        "test_deploy_verify_config_confirms_pushed_hash_rolled_out" in primitive_tests
+    )
 
 
 def test_AC7_14_2_stale_effective_config_fails_fast_without_secret_echo() -> None:
@@ -68,8 +75,10 @@ def test_AC7_14_2_stale_effective_config_fails_fast_without_secret_echo() -> Non
     assert "DATABASE_URL" not in verify_block
 
     assert "get_compose_env(self, compose_id: str) -> str" in dokploy_client
-    assert "return compose.get(\"env\") or \"\"" in dokploy_client
-    assert "test_verify_effective_config_hash_raises_if_never_advances" in primitive_tests
+    assert 'return compose.get("env") or ""' in dokploy_client
+    assert (
+        "test_verify_effective_config_hash_raises_if_never_advances" in primitive_tests
+    )
 
 
 def test_AC7_14_3_no_force_recreate_escape_hatch_remains() -> None:
@@ -106,11 +115,18 @@ def test_AC7_14_6_rollout_baseline_is_snapshotted_before_mutation() -> None:
     assert primitive.index(deploy) < primitive.index(wait)
 
     assert "test_wait_for_rollout_ignores_pre_existing_records" in primitive_tests
-    assert "test_wait_for_rollout_returns_when_a_new_record_reaches_done" in primitive_tests
-    assert "test_wait_for_rollout_times_out_if_no_new_record_finishes" in primitive_tests
+    assert (
+        "test_wait_for_rollout_returns_when_a_new_record_reaches_done"
+        in primitive_tests
+    )
+    assert (
+        "test_wait_for_rollout_times_out_if_no_new_record_finishes" in primitive_tests
+    )
 
 
-def test_AC7_14_5_deployment_doc_describes_effective_config_failure_and_recovery() -> None:
+def test_AC7_14_5_deployment_doc_describes_effective_config_failure_and_recovery() -> (
+    None
+):
     """AC7.14.5: deployment SSOT documents stale effective-config failure + recovery."""
     doc = read("docs/ssot/deployment.md")
     lowered = doc.lower()
