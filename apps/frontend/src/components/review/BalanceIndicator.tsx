@@ -5,7 +5,8 @@ import type { MoneyValue } from "@/lib/types";
 
 interface BalanceValidationResult {
     opening_balance: string;
-    closing_balance: string;
+    // null when the statement has no declared closing balance (#1390).
+    closing_balance: string | null;
     calculated_closing: string;
     opening_delta: string;
     closing_delta: string;
@@ -29,6 +30,9 @@ export function BalanceIndicator({
 }: BalanceIndicatorProps) {
     const openingValid = validationResult?.opening_match ?? false;
     const closingValid = validationResult?.closing_match ?? false;
+    // #1390: a missing closing balance is "unknown", not a mismatch. Only treat
+    // it as a mismatch when a closing balance was actually declared.
+    const closingKnown = (validationResult?.closing_balance ?? null) !== null;
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-4">
@@ -61,8 +65,8 @@ export function BalanceIndicator({
                         <span className="text-xs text-muted">Opening Δ: {validationResult?.opening_delta || "?"}</span>
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                        <span className={`text-sm font-medium ${closingValid ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
-                            Closing {closingValid ? "Valid" : "Mismatch"}
+                        <span className={`text-sm font-medium ${!closingKnown ? "text-muted" : closingValid ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
+                            Closing {!closingKnown ? "Unknown" : closingValid ? "Valid" : "Mismatch"}
                         </span>
                         <span className="text-xs text-muted">Closing Δ: {validationResult?.closing_delta || "?"}</span>
                     </div>

@@ -1498,8 +1498,15 @@
             "type": "string"
           },
           "closing_balance": {
-            "title": "Closing Balance",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closing Balance"
           },
           "closing_delta": {
             "title": "Closing Delta",

@@ -3146,7 +3146,7 @@ export interface components {
             /** Calculated Closing */
             calculated_closing: string;
             /** Closing Balance */
-            closing_balance: string;
+            closing_balance: string | null;
             /** Closing Delta */
             closing_delta: string;
             /** Closing Match */

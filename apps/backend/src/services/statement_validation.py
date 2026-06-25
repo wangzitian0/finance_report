@@ -80,16 +80,23 @@ async def validate_balance_chain(
 
     calculated_closing = opening_balance + txn_sum
 
+    closing_known = statement.closing_balance is not None
     closing_delta = abs((statement.closing_balance or Decimal("0")) - calculated_closing)
 
     return {
         "opening_balance": str(opening_balance),
-        "closing_balance": str(statement.closing_balance),
+        # #1390: a missing closing balance is unknown, not "matched". Report it as
+        # null (not the literal string "None"), and don't claim a chain match when
+        # there is no declared closing balance to compare against. The approval
+        # gate (`_raise_if_balance_chain_invalid`) keys off `closing_known` so its
+        # behavior for unverifiable statements is unchanged.
+        "closing_balance": str(statement.closing_balance) if closing_known else None,
         "calculated_closing": str(calculated_closing),
         "opening_delta": str(opening_delta),
         "closing_delta": str(closing_delta),
         "opening_match": opening_delta <= BALANCE_TOLERANCE,
-        "closing_match": closing_delta <= BALANCE_TOLERANCE,
+        "closing_known": closing_known,
+        "closing_match": closing_known and closing_delta <= BALANCE_TOLERANCE,
         "validated_at": datetime.now(UTC).isoformat(),
     }
 
@@ -153,7 +160,11 @@ def _raise_if_balance_chain_invalid(validation_result: dict, *, after_edits: boo
             ),
             InvariantResult(
                 name="closing_balance_chain",
-                passed=validation_result["closing_match"],
+                # Preserve prior gate behavior: an unverifiable (no declared
+                # closing balance) statement is non-blocking, exactly as the old
+                # vacuous closing_match=True allowed. Only a *known* mismatch
+                # blocks approval.
+                passed=(not validation_result.get("closing_known", True)) or validation_result["closing_match"],
                 delta=Decimal(validation_result["closing_delta"]),
                 tolerance=BALANCE_TOLERANCE,
             ),

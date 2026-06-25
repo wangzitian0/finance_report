@@ -731,6 +731,10 @@ async def get_statement_for_review(
                 storage.generate_presigned_url,
                 key=uploaded_document.file_path,
                 expires_in=settings.statement_review_presign_expiry_seconds,
+                # #1391: the review URL is consumed by a browser, so it must use
+                # the public endpoint. Without this the presigned URL points at the
+                # internal object-storage host and the preview cannot load.
+                public=True,
             )
         except StorageError as exc:
             logger.warning(
