@@ -25,6 +25,11 @@ class HoldingResponse(BaseResponse):
     unrealized_pnl: MoneyAmount
     unrealized_pnl_percent: Percent
     currency: Annotated[str, Field(min_length=3, max_length=3)]
+    # #1098: pre-conversion native cost basis + currency, so a holding's base view
+    # (cost_basis/currency) reconciles with the native view returned by
+    # /assets/positions. These are the raw position values before convert_money.
+    native_cost_basis: MoneyAmount
+    native_currency: Annotated[str, Field(min_length=3, max_length=3)]
     acquisition_date: date
     disposal_date: date | None = None
     status: PositionStatus

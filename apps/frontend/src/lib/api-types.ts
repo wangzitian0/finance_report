@@ -4174,6 +4174,10 @@ export interface components {
             id: string;
             /** Market Value */
             market_value: string;
+            /** Native Cost Basis */
+            native_cost_basis: string;
+            /** Native Currency */
+            native_currency: string;
             /**
              * Provenance
              * @description Normalized source provenance when known; null when not safely derivable.
@@ -4821,6 +4825,10 @@ export interface components {
             } | null;
             /** Quantity */
             quantity: string;
+            /** Reporting Cost Basis */
+            reporting_cost_basis?: string | null;
+            /** Reporting Currency */
+            reporting_currency?: string | null;
             status: components["schemas"]["PositionStatus"];
             /**
              * Updated At
