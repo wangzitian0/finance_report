@@ -328,6 +328,41 @@ def test_dependency_cycle_is_forbidden(synthetic_repo: Path) -> None:
     assert any("dependency cycle" in e for e in offenders), offenders
 
 
+def test_base_layer_must_not_import_own_extension(synthetic_repo: Path) -> None:
+    # a package split into base/ + extension/ where base reaches into its own
+    # extension/ -> rejected (base must stay pure; edges live in extension).
+    pkg = _write_package(
+        _src(synthetic_repo), "layered", klass="kernel", all_names=["L"], interface=["L"]
+    )
+    impl = pkg.impl_dir
+    (impl / "base").mkdir()
+    (impl / "extension").mkdir()
+    (impl / "extension" / "sql.py").write_text("X = 1\n", encoding="utf-8")
+    # cover all the import forms that reach the package's own extension/:
+    (impl / "base" / "abs_dotted.py").write_text(
+        "from src.layered.extension.sql import X  # noqa\n", encoding="utf-8"
+    )
+    (impl / "base" / "abs_pkg.py").write_text(
+        "from src.layered import extension  # noqa\n", encoding="utf-8"
+    )
+    (impl / "base" / "abs_import.py").write_text(
+        "import src.layered.extension.sql  # noqa\n", encoding="utf-8"
+    )
+    (impl / "base" / "rel.py").write_text(
+        "from ..extension import sql  # noqa\n", encoding="utf-8"
+    )
+    offenders = cpc._check_layer_purity(pkg)
+    # each offender is "<path>: <message>"; take the path part, then its basename
+    # (the message itself contains "extension/", so split on ":" before "/").
+    flagged = {o.split(":")[0].split("/")[-1] for o in offenders}
+    assert {"abs_dotted.py", "abs_pkg.py", "abs_import.py", "rel.py"} <= flagged, offenders
+    # a package without the two-layer split is skipped (additive).
+    plain = _write_package(
+        _src(synthetic_repo), "plain", klass="kernel", all_names=["P"], interface=["P"]
+    )
+    assert cpc._check_layer_purity(plain) == []
+
+
 # --- discover_packages / run / _package_all ----------------------------------
 
 

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from src.counter.types.errors import NegativeCountError
+from src.counter.base.types.errors import NegativeCountError
 
 
 @dataclass(frozen=True, order=True)

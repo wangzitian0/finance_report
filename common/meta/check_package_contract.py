@@ -262,6 +262,54 @@ def _check_no_dependency_cycle(packages: list[DiscoveredPackage]) -> list[str]:
     return sorted(set(offenders))
 
 
+def _check_layer_purity(pkg: DiscoveredPackage) -> list[str]:
+    """If a package's implementation uses ``base/`` + ``extension/`` layers, the
+    ``base/`` layer must not import the package's own ``extension/`` — base is the
+    pure, downward-only core; the edges live in extension (base↓ / extension↑).
+
+    Additive: a package that does not use the two-layer split is skipped, so the
+    role-folder packages keep passing unchanged.
+    """
+    offenders: list[str] = []
+    if pkg.impl_dir is None or not pkg.impl_dir.exists():
+        return offenders
+    base_dir, ext_dir = pkg.impl_dir / "base", pkg.impl_dir / "extension"
+    if not (base_dir.exists() and ext_dir.exists()):
+        return offenders
+    own_extension = f"src.{pkg.name}.extension"
+    own_pkg = f"src.{pkg.name}"
+    for py in sorted(base_dir.rglob("*.py")):
+        tree = ast.parse(py.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            hit: str | None = None
+            if isinstance(node, ast.ImportFrom):
+                mod = node.module or ""
+                if node.level and (
+                    mod.split(".")[0] == "extension"
+                    or any(a.name == "extension" or a.name.startswith("extension.") for a in node.names)
+                ):
+                    # relative: from ..extension import X / from .. import extension
+                    hit = f"(relative level {node.level}) {mod or '.'.join(a.name for a in node.names)}"
+                elif mod.startswith(own_extension):
+                    # absolute: from src.<pkg>.extension... import X
+                    hit = mod
+                elif mod == own_pkg and any(
+                    a.name == "extension" or a.name.startswith("extension.") for a in node.names
+                ):
+                    # absolute: from src.<pkg> import extension
+                    hit = f"{mod}.extension"
+            elif isinstance(node, ast.Import):
+                for a in node.names:
+                    if a.name.startswith(own_extension):
+                        hit = a.name
+            if hit:
+                offenders.append(
+                    f"{py.relative_to(REPO_ROOT)}: base/ imports the package's own "
+                    f"extension/ ('{hit}') — base must stay pure"
+                )
+    return offenders
+
+
 def check_package(
     pkg: DiscoveredPackage, registered: dict[str, str], repo_root: Path = REPO_ROOT
 ) -> list[str]:
@@ -304,6 +352,9 @@ def check_package(
     errors.extend(
         f"[{pkg.name}] {e}" for e in _check_no_forbidden_edge(pkg, registered)
     )
+
+    # (d) layer purity: base/ must not import the package's own extension/ (additive)
+    errors.extend(f"[{pkg.name}] {e}" for e in _check_layer_purity(pkg))
 
     return errors
 

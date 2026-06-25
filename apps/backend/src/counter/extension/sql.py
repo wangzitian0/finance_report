@@ -21,7 +21,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID, insert as postgresql_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.counter.types.key import CounterKey
+from src.counter.base.types.key import CounterKey
 from src.database import Base
 
 

@@ -9,7 +9,7 @@ bus; it stays minimal by design (no HTTP route until a transport need is real).
 
 from __future__ import annotations
 
-from src.counter.api.insight import read_count
-from src.counter.api.write import record_increment
+from src.counter.extension.api.insight import read_count
+from src.counter.extension.api.write import record_increment
 
 __all__ = ["read_count", "record_increment"]

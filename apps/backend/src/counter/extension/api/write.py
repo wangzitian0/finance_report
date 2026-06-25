@@ -20,10 +20,10 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.counter.store.sql import SqlCounterRepository
-from src.counter.types.count import Count
-from src.counter.types.events import Incremented
-from src.counter.types.key import CounterKey
+from src.counter.base.types.count import Count
+from src.counter.base.types.events import Incremented
+from src.counter.base.types.key import CounterKey
+from src.counter.extension.sql import SqlCounterRepository
 from src.platform.events.bus import OutboxEventBus
 
 #: The ``source_pkg`` tag every counter event carries in the shared outbox.

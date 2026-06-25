@@ -5,7 +5,7 @@ testable without a database (an in-memory fake satisfies the port). The SQL
 adapter lives in ``store/sql.py``; the session/ORM never leaks above this line.
 
 The port speaks raw ``int`` (the storage shape); ops narrow those ints to
-:class:`~src.counter.types.count.Count` value objects at the package boundary.
+:class:`~src.counter.base.types.count.Count` value objects at the package boundary.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import Protocol
 from uuid import UUID
 
-from src.counter.types.key import CounterKey
+from src.counter.base.types.key import CounterKey
 
 
 class CounterRepository(Protocol):
