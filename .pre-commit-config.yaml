@@ -5,6 +5,15 @@
 # 1. Ruff lint errors (auto-fixed locally)
 # 2. Environment variable sync issues (caught before push)
 # 3. Trailing whitespace / merge conflicts
+# 4. SSOT/contract/generated-doc drift (caught at push, see pre-push block below)
+
+# Wire both git hook types so `pre-commit install` (run by tools/bootstrap.sh)
+# also installs the pre-push hook. `default_stages: [pre-commit]` keeps every
+# existing hook commit-only -- adding the pre-push hook type does NOT pull ruff,
+# mypy, gitleaks, etc. into `git push`; only hooks that opt in with
+# `stages: [pre-push]` run there.
+default_install_hook_types: [pre-commit, pre-push]
+default_stages: [pre-commit]
 
 repos:
   # Ruff - Fast Python linter & formatter (replaces flake8, isort, black)
@@ -50,16 +59,22 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
+      # These three declare push in their upstream stages, so default_stages does
+      # not hold them to commit; pin them explicitly. Auto-fixers must not mutate
+      # the tree mid-`git push`. Commit behavior is unchanged.
       - id: trailing-whitespace
         exclude: ^(.*\.md|.*\.snap)$
+        stages: [pre-commit]
       - id: end-of-file-fixer
         exclude: ^(.*\.md|.*\.snap)$
+        stages: [pre-commit]
       - id: check-yaml
         args: [--unsafe]  # Allow custom tags in GitHub Actions
       - id: check-json
       - id: check-merge-conflict
       - id: check-added-large-files
         args: [--maxkb=1000]
+        stages: [pre-commit]
       - id: no-commit-to-branch
         args: [--branch, main]
 
@@ -104,7 +119,65 @@ repos:
         language: system
         pass_filenames: false
         always_run: true  # Check on every commit
+
+  # ---------------------------------------------------------------------------
+  # Pre-push drift gates (local==CI parity).
+  #
+  # These mirror the CI `lint` job's SSOT/contract/generated-doc checks, which
+  # account for the bulk of recent CI failures: a refactor moves a symbol/file
+  # but the coupled manifest, workflow contract, or generated reference is not
+  # synced. Each is a fast standalone script (~0.1s, except the API-reference
+  # check which imports the FastAPI app, ~4s), so they run at PUSH (infrequent)
+  # rather than on every commit. They are always-run because they assert global
+  # contracts that many different file changes can break -- file-scoping them
+  # would let a triggering edit slip through. Commands are copied verbatim from
+  # .github/workflows/ci.yml so local and CI cannot diverge.
+  - repo: local
+    hooks:
+      - id: ssot-manifest-check
+        name: SSOT manifest check (CI parity)
+        entry: uv run --with pyyaml python tools/check_manifest.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+
+      - id: governance-exceptions-check
+        name: SSOT governance exceptions registry check (CI parity)
+        entry: uv run --with pyyaml python tools/check_governance_exceptions.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+
+      - id: workflow-contract-check
+        name: Workflow contract check (CI parity)
+        entry: uv run --with pyyaml python tools/check_workflow_contract.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+
+      - id: generated-api-reference-check
+        name: Generated API reference freshness (CI parity)
+        # Mirrors CI exactly: the generator imports the FastAPI app, so `uv run`
+        # must resolve the backend project -- hence the cd into apps/backend.
+        entry: bash -c 'cd apps/backend && uv run python ../../tools/generate_api_reference.py --check'
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+
 ci:
   autofix_prs: true
   autofix_commit_msg: "style: auto-fix from pre-commit hooks"
   autoupdate_schedule: monthly
+  # The pre-push drift gates need `uv` and the backend project, which the hosted
+  # pre-commit.ci runner does not provide. They are pre-push stage so pre-commit.ci
+  # (pre-commit stage) skips them anyway; listed here to make that explicit. The
+  # same checks run authoritatively in the GitHub Actions `lint` job.
+  skip:
+    - ssot-manifest-check
+    - governance-exceptions-check
+    - workflow-contract-check
+    - generated-api-reference-check
