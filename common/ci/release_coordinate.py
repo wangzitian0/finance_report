@@ -42,11 +42,19 @@ def resolve_infra2_release_tag(repo_dir: str = "repo") -> str:
     """
     if not Path(repo_dir).exists():
         raise RuntimeError(f"{repo_dir} submodule is required to resolve iac_ref")
-    iac_sha = _out("git", "-C", repo_dir, "rev-parse", "HEAD")
-    # Tags are not always present after a submodule checkout; fetch them best-effort.
+    try:
+        iac_sha = _out("git", "-C", repo_dir, "rev-parse", "HEAD")
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(
+            f"{repo_dir} is not a readable git repository (cannot resolve iac_ref)"
+        ) from exc
+    # Tags are not always present after a submodule checkout; fetch them best-effort
+    # (silenced — a repo with no `origin` remote, e.g. in tests, is fine here).
     subprocess.run(
         ["git", "-C", repo_dir, "fetch", "--tags", "--quiet", "origin"],
         check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
     try:
         iac_ref = _out(
@@ -56,7 +64,7 @@ def resolve_infra2_release_tag(repo_dir: str = "repo") -> str:
         raise RuntimeError(
             f"infra2 submodule is pinned at {iac_sha[:12]}, which is NOT a release "
             "tag — deploy_v2 staging/prod require a vX.Y.Z iac_ref. Pin the submodule "
-            "at an infra2 release tag (git -C repo checkout vX.Y.Z)."
+            f"at an infra2 release tag (git -C {repo_dir} checkout vX.Y.Z)."
         ) from None
     if not _RELEASE_VERSION_REF_RE.fullmatch(iac_ref):
         raise RuntimeError(
