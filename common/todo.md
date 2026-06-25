@@ -23,16 +23,18 @@ and types/ops/store/api). ACs are `AC-<pkg>.<entity>.<seq>` in each contract's
 
 ## Phases (each package cutover = one atomic PR, by the standard's DoD)
 
-| phase | scope | status |
-|-------|-------|--------|
-| 0a | standard doc + `governance→meta` rename | ✅ #1414 |
-| 0b | `counter` → base/extension/data template + gate three-layer rule (additive) | ⬜ |
-| 1 | `value → audit` fold | ⬜ |
-| 2 | `ledger` | ⬜ |
-| 3 | `extraction` · `portfolio` · `reconciliation` · `reporting` | ⬜ |
-| 4 | `advisor` · `llm` · `middleware` · `identity` | ⬜ |
-| 5 | `audit` consistency closeout (global invariants + cross-package ACs) | ⬜ |
-| 6 | cleanup — delete residual EPIC tables / SSOT; retire central MANIFEST/registry gates once meta's data layer is the computed index | ⬜ |
+| phase | scope | issue · status |
+|-------|-------|----------------|
+| 0a | standard doc + `governance→meta` rename | #1414 ✅ |
+| 0b | `counter` → base/extension/data template + gate three-layer rule (additive) | #1418 ⬜ |
+| 1 | `value → audit` fold | #1419 ⬜ |
+| 2 | `ledger` | #1420 ⬜ |
+| 3 | `extraction` #1421 · `portfolio` #1422 · `reconciliation` #1423 · `reporting` #1424 | ⬜ |
+| 4 | `advisor` #1425 · `llm` #1426 · `middleware` #1427 · `identity` #1428 | ⬜ |
+| 5 | `audit` consistency closeout (global invariants + cross-package ACs) | #1429 ⬜ |
+| 6 | cleanup — delete residual EPIC tables / SSOT; retire central MANIFEST/registry gates once meta's data layer is the computed index | #1430 ⬜ |
+
+All tracked under umbrella **#1416**.
 
 ## Definition of Done per package (from the standard)
 
