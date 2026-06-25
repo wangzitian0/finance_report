@@ -62,16 +62,16 @@ CONTRACT = PackageContract(
         ),
     ],
     # The authority-tier-SYSTEM ACs (EPIC-026 phases 1-3), homed here from the EPIC
-    # table. They KEEP their numeric ids (AC26.x): renumbering to AC-authority.*
-    # would orphan the cross-references EPIC-008 makes to them and the test refs —
-    # the AC-<pkg> scheme is for net-new ACs, not for re-homing cross-referenced
-    # ones. They inherit the package's CODE-ONLY tier.
+    # table and renumbered to the package-scoped scheme AC-authority.* (the target
+    # id form — the package owns its ACs). The cross-references that pointed at the
+    # old numeric ids (EPIC-008's e2e map + the test docstrings) were repointed in
+    # the same change. They inherit the package's CODE-ONLY tier.
     # NOT homed: AC26.8.1 (financial-invariant observability — extraction domain)
     # and AC26.9.1 (the CODE/LLM classifier — its proof test is marker-laden, so
     # the reconcile gate would read authority as CODE-LED); both stay in EPIC-026.
     roadmap=[
         ACRecord(
-            id="AC26.1.1",
+            id="AC-authority.1.1",
             statement=(
                 "authority-tiers.md is the single registered owner of the tier "
                 "vocabulary, the cross-tier MUST rules, and the tier->proof matrix."
@@ -84,7 +84,7 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
-            id="AC26.2.1",
+            id="AC-authority.2.1",
             statement=(
                 "A {tier:XX} marker at an AC's definition site flows tier into its "
                 "registry value (stripped from the description); an undeclared or "
@@ -98,7 +98,7 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
-            id="AC26.3.1",
+            id="AC-authority.3.1",
             statement=(
                 "The tier ratchet is shrink-only: a new/changed AC absent from the "
                 "untagged-debt baseline must declare a tier, and --update never "
@@ -112,7 +112,7 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
-            id="AC26.4.1",
+            id="AC-authority.4.1",
             statement=(
                 "The first-batch EPICs (003/006/021/023) are fully tier-tagged and "
                 "off the untagged-debt baseline."
@@ -125,7 +125,7 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
-            id="AC26.5.1",
+            id="AC-authority.5.1",
             statement=(
                 "A {proof:KIND} marker flows into the registry as proof_kind "
                 "(defaulting to the tier's canonical kind); the gate enforces the "
@@ -141,7 +141,7 @@ CONTRACT = PackageContract(
             proof_kind="property",
         ),
         ACRecord(
-            id="AC26.6.1",
+            id="AC-authority.6.1",
             statement=(
                 "The first-batch LLM-LED/HU/LLM-ONLY ACs each declare a matrix-valid "
                 "proof_kind; the LLM-LED ones carry invariant/property proofs (the "
@@ -156,7 +156,7 @@ CONTRACT = PackageContract(
             proof_kind="property",
         ),
         ACRecord(
-            id="AC26.7.1",
+            id="AC-authority.7.1",
             statement=(
                 "CODE-ONLY / financial-truth modules are statically proven free of "
                 "LLM-layer imports (check_tier_imports, AST, direct-imports-only); "
