@@ -129,6 +129,51 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+      # Fast-fail (left-move): these SSOT/contract gates are app-independent
+      # (`uv run --with pyyaml`, no backend sync / npm) and are the drift classes
+      # behind most CI failures. Running them BEFORE the expensive `uv sync` +
+      # `npm ci` means a drift fails in ~20s instead of after ~50s of setup. Same
+      # checks, no coverage change; ordering only.
+      - name: SSOT Manifest Check
+        run: |
+          uv run --with pyyaml python tools/check_manifest.py
+      - name: SSOT Governance Exceptions Check
+        run: |
+          uv run --with pyyaml python tools/check_governance_exceptions.py
+      - name: SSOT Governance Report
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+
+          base_sha="${BASE_SHA:-}"
+          head_sha="${HEAD_SHA:-}"
+
+          if [ -z "$base_sha" ] || [[ "$base_sha" =~ ^0+$ ]]; then
+            base_sha="$(git rev-parse "${head_sha}^" 2>/dev/null || git rev-parse HEAD^)"
+          fi
+
+          if ! git diff --name-only "$base_sha...$head_sha" > "$RUNNER_TEMP/ssot-changed-files.txt"; then
+            git diff --name-only "$base_sha" "$head_sha" > "$RUNNER_TEMP/ssot-changed-files.txt"
+          fi
+
+          uv run --with pyyaml python tools/report_ssot_governance.py \
+            --changed-files "$RUNNER_TEMP/ssot-changed-files.txt" \
+            --base-ref "$base_sha" \
+            --fail-on-gate \
+            --json-out "$RUNNER_TEMP/ssot-governance-report.json" \
+            --markdown-out "$RUNNER_TEMP/SSOT-GOVERNANCE-REPORT.md"
+          cat "$RUNNER_TEMP/SSOT-GOVERNANCE-REPORT.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Migration Risk Contract Check
+        run: |
+          uv run --with pyyaml python tools/check_migration_risk.py
+      - name: CI Metrics Contract Check
+        run: |
+          uv run --with pyyaml python tools/check_ci_metrics_contract.py
+      - name: Workflow Contract Check
+        run: |
+          uv run --with pyyaml python tools/check_workflow_contract.py
       - name: Cache Python venv
         uses: actions/cache@v5
         with:
@@ -254,46 +299,6 @@ jobs:
       - name: SSOT Ownership Lint
         run: |
           python tools/check_ssot_ownership.py --verbose
-      - name: SSOT Manifest Check
-        run: |
-          uv run --with pyyaml python tools/check_manifest.py
-      - name: SSOT Governance Exceptions Check
-        run: |
-          uv run --with pyyaml python tools/check_governance_exceptions.py
-      - name: SSOT Governance Report
-        env:
-          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
-          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-        run: |
-          set -euo pipefail
-
-          base_sha="${BASE_SHA:-}"
-          head_sha="${HEAD_SHA:-}"
-
-          if [ -z "$base_sha" ] || [[ "$base_sha" =~ ^0+$ ]]; then
-            base_sha="$(git rev-parse "${head_sha}^" 2>/dev/null || git rev-parse HEAD^)"
-          fi
-
-          if ! git diff --name-only "$base_sha...$head_sha" > "$RUNNER_TEMP/ssot-changed-files.txt"; then
-            git diff --name-only "$base_sha" "$head_sha" > "$RUNNER_TEMP/ssot-changed-files.txt"
-          fi
-
-          uv run --with pyyaml python tools/report_ssot_governance.py \
-            --changed-files "$RUNNER_TEMP/ssot-changed-files.txt" \
-            --base-ref "$base_sha" \
-            --fail-on-gate \
-            --json-out "$RUNNER_TEMP/ssot-governance-report.json" \
-            --markdown-out "$RUNNER_TEMP/SSOT-GOVERNANCE-REPORT.md"
-          cat "$RUNNER_TEMP/SSOT-GOVERNANCE-REPORT.md" >> "$GITHUB_STEP_SUMMARY"
-      - name: Migration Risk Contract Check
-        run: |
-          uv run --with pyyaml python tools/check_migration_risk.py
-      - name: CI Metrics Contract Check
-        run: |
-          uv run python tools/check_ci_metrics_contract.py
-      - name: Workflow Contract Check
-        run: |
-          uv run --with pyyaml python tools/check_workflow_contract.py
       - name: PR Review Thread Merge Gate
         # Issue #755 (scope 2a): block merge while an unresolved P0/P1 (or
         # unresolved Copilot-authored) review thread is open. Skips cleanly on
