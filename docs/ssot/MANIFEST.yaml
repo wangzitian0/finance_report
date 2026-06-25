@@ -829,3 +829,17 @@ concepts:
       - apps/backend/tests/unit/llm/test_secrets.py
       - apps/backend/tests/unit/llm/test_types.py
       - apps/backend/tests/unit/llm/test_cassette.py
+
+  cassette_graded_eval:
+    owner: docs/ssot/cassette-graded-eval.md
+    family: llm
+    kind: concept
+    description: Graded per-field accuracy eval over committed cassettes with a ratcheted per-case score floor (EPIC-023 AC23.8) — the accuracy oracle complementing the AC23.7 balance-chain consistency gate.
+    cross_refs:
+      - docs/ssot/llm.md
+      - docs/project/EPIC-023.llm-provider-abstraction.md
+      - common/ssot/cassette_graded_eval.py
+      - common/ssot/check_cassette_graded_eval.py
+      - docs/ssot/cassette-eval-baseline.jsonl
+    proofs:
+      - tests/tooling/test_cassette_graded_eval.py
