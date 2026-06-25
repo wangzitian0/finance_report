@@ -553,7 +553,10 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                     "LP invariant gate quarantined extraction (blocked from trusted truth)",
                     reason=lp_gate.reason.value,
                     is_brokerage=is_brokerage_payload,
-                    statement_file=original_filename or (file_path.name if file_path else "unknown"),
+                    # Log the non-PII content hash, never the real statement filename
+                    # or local path (red-lines.md): the hash is enough to correlate
+                    # the quarantine with the upload without leaking PII.
+                    file_hash=resolved_file_hash,
                 )
 
             # A statement that lands in review must carry an explicit pending_review marker so the
