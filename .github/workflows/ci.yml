@@ -913,7 +913,17 @@ jobs:
     name: Build Staging Images
     runs-on: ubuntu-latest
     needs: [changes]
-    if: needs.changes.outputs.pr_required == 'true' && needs.changes.outputs.image_build_required == 'true'
+    # Main/release push (and manual dispatch) ALWAYS build + push the immutable
+    # per-commit :<sha> image: the Dockerfiles COPY app source into the image, so
+    # every commit's image content differs, and promote-not-rebuild (deploy_v2
+    # release) requires a :<sha> artifact for any releasable commit. A build-context
+    # gate alone (image_build_required) leaves source-only / submodule-only commits
+    # with no :<sha> image to promote. PR keeps the narrow build-context-only
+    # dry-run for speed (no push happens on PRs anyway).
+    if: >-
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')))
+      || github.event_name == 'workflow_dispatch'
+      || (needs.changes.outputs.pr_required == 'true' && needs.changes.outputs.image_build_required == 'true')
     strategy:
       fail-fast: false
       matrix:
