@@ -277,20 +277,36 @@ def _check_layer_purity(pkg: DiscoveredPackage) -> list[str]:
     if not (base_dir.exists() and ext_dir.exists()):
         return offenders
     own_extension = f"src.{pkg.name}.extension"
+    own_pkg = f"src.{pkg.name}"
     for py in sorted(base_dir.rglob("*.py")):
         tree = ast.parse(py.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
-            mods: list[str] = []
-            if isinstance(node, ast.ImportFrom) and node.module:
-                mods = [node.module]
+            hit: str | None = None
+            if isinstance(node, ast.ImportFrom):
+                mod = node.module or ""
+                if node.level and (
+                    mod.split(".")[0] == "extension"
+                    or any(a.name == "extension" or a.name.startswith("extension.") for a in node.names)
+                ):
+                    # relative: from ..extension import X / from .. import extension
+                    hit = f"(relative level {node.level}) {mod or '.'.join(a.name for a in node.names)}"
+                elif mod.startswith(own_extension):
+                    # absolute: from src.<pkg>.extension... import X
+                    hit = mod
+                elif mod == own_pkg and any(
+                    a.name == "extension" or a.name.startswith("extension.") for a in node.names
+                ):
+                    # absolute: from src.<pkg> import extension
+                    hit = f"{mod}.extension"
             elif isinstance(node, ast.Import):
-                mods = [a.name for a in node.names]
-            for mod in mods:
-                if mod and mod.startswith(own_extension):
-                    offenders.append(
-                        f"{py.relative_to(REPO_ROOT)}: base/ imports the package's own "
-                        f"extension/ ('{mod}') — base must stay pure"
-                    )
+                for a in node.names:
+                    if a.name.startswith(own_extension):
+                        hit = a.name
+            if hit:
+                offenders.append(
+                    f"{py.relative_to(REPO_ROOT)}: base/ imports the package's own "
+                    f"extension/ ('{hit}') — base must stay pure"
+                )
     return offenders
 
 

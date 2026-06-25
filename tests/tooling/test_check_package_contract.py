@@ -338,11 +338,22 @@ def test_base_layer_must_not_import_own_extension(synthetic_repo: Path) -> None:
     (impl / "base").mkdir()
     (impl / "extension").mkdir()
     (impl / "extension" / "sql.py").write_text("X = 1\n", encoding="utf-8")
-    (impl / "base" / "core.py").write_text(
+    # cover all the import forms that reach the package's own extension/:
+    (impl / "base" / "abs_dotted.py").write_text(
         "from src.layered.extension.sql import X  # noqa\n", encoding="utf-8"
     )
+    (impl / "base" / "abs_pkg.py").write_text(
+        "from src.layered import extension  # noqa\n", encoding="utf-8"
+    )
+    (impl / "base" / "abs_import.py").write_text(
+        "import src.layered.extension.sql  # noqa\n", encoding="utf-8"
+    )
+    (impl / "base" / "rel.py").write_text(
+        "from ..extension import sql  # noqa\n", encoding="utf-8"
+    )
     offenders = cpc._check_layer_purity(pkg)
-    assert any("base/ imports the package's own extension" in o for o in offenders), offenders
+    flagged = {o.split("/")[-1].split(":")[0] for o in offenders}
+    assert {"abs_dotted.py", "abs_pkg.py", "abs_import.py", "rel.py"} <= flagged, offenders
     # a package without the two-layer split is skipped (additive).
     plain = _write_package(
         _src(synthetic_repo), "plain", klass="kernel", all_names=["P"], interface=["P"]
