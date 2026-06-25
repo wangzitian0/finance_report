@@ -16,7 +16,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from src.counter.types.errors import InvalidCounterKeyError
+from src.counter.base.types.errors import InvalidCounterKeyError
 
 #: A key is one-or-more lowercase ``[a-z0-9_]`` segments joined by dots, each
 #: segment starting with a letter. Non-empty by construction (``+`` on segments).

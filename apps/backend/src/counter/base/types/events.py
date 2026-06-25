@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
-from src.counter.types.key import CounterKey
+from src.counter.base.types.key import CounterKey
 from src.platform.events.event import DomainEvent
 
 #: The stable, namespaced routing key the bus/relay dispatch this event on.

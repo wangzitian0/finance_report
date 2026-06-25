@@ -1,31 +1,24 @@
-"""``counter`` — the backend implementation of the ``counter`` package.
+"""``counter`` — per-(user, key) tallies (platform package).
 
-This is ``PackageContract.implementations["be"]``; the package's authoritative
-spec (ubiquitous language, contract, roles, storage, governance) lives in
-``common/counter/`` (``readme.md`` + ``contract.py``). See
-``common/meta/readme.md`` for the package model.
-
-Files converge by role — ``types`` (nouns + events), ``ops`` (verbs over the
-store port), ``store`` (the ``CounterRepository`` port + SQL adapter), ``api``
-(the thin async ``read_count`` read + ``record_increment`` atomic write) — with
-the DAG ``api → ops → {types, store}``. The names re-exported below are the
-*entire* public surface (``__all__`` must equal ``contract.interface``);
-everything else is internal.
+Layers (see common/meta/migration-standard.md): ``base`` (pure types/ops + the
+store port) and ``extension`` (the ORM adapter + async outbox boundary). The
+published language below (``__all__``) must equal ``contract.interface``.
 """
 
 from __future__ import annotations
 
-from src.counter.api import read_count, record_increment
-from src.counter.ops import get_count, increment
-from src.counter.store import CounterRepository
-from src.counter.types import (
+from src.counter.base import (
     Count,
     CounterError,
     CounterKey,
+    CounterRepository,
     Incremented,
     InvalidCounterKeyError,
     NegativeCountError,
+    get_count,
+    increment,
 )
+from src.counter.extension import read_count, record_increment
 
 __all__ = [
     "Count",

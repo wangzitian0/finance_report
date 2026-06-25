@@ -7,14 +7,14 @@ published domain event (``Incremented``) and the typed errors.
 
 from __future__ import annotations
 
-from src.counter.types.count import Count
-from src.counter.types.errors import (
+from src.counter.base.types.count import Count
+from src.counter.base.types.errors import (
     CounterError,
     InvalidCounterKeyError,
     NegativeCountError,
 )
-from src.counter.types.events import Incremented
-from src.counter.types.key import CounterKey
+from src.counter.base.types.events import Incremented
+from src.counter.base.types.key import CounterKey
 
 __all__ = [
     "Count",

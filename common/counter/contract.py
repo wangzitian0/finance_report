@@ -29,7 +29,7 @@ CONTRACT = PackageContract(
     # Every AC in the roadmap inherits this tier.
     tier="CODE-ONLY",
     depends_on=["platform"],
-    roles=["types", "ops", "store", "api"],
+    roles=["base", "extension"],
     implementations={"be": "apps/backend/src/counter", "fe": None},
     interface=[
         "Count",
@@ -68,11 +68,11 @@ CONTRACT = PackageContract(
         # below holds only the package's DOMAIN behavior, which inherits the
         # package tier.
         Invariant(
-            id="converges-by-role",
-            statement="The package's files converge by role (types/ops/store/api).",
+            id="converges-by-layer",
+            statement="The package converges into base/ (pure core) + extension/ (edges).",
             test=(
                 "tests/tooling/test_counter_package.py"
-                "::test_AC_counter_1_1_counter_converges_by_role"
+                "::test_AC_counter_1_1_counter_converges_by_layer"
             ),
         ),
         Invariant(
@@ -86,19 +86,11 @@ CONTRACT = PackageContract(
             ),
         ),
         Invariant(
-            id="types-layer-pure",
-            statement="Domain types never import the store / api / ORM.",
+            id="base-layer-pure",
+            statement="The base/ layer never imports the package's own extension/ or the ORM.",
             test=(
                 "tests/tooling/test_counter_package.py"
-                "::test_AC_counter_1_2_types_never_import_store_api_or_orm"
-            ),
-        ),
-        Invariant(
-            id="ops-layer-pure",
-            statement="Ops depend only on the repository/bus ports, never the ORM.",
-            test=(
-                "tests/tooling/test_counter_package.py"
-                "::test_AC_counter_1_3_ops_never_import_the_orm_session_or_api"
+                "::test_AC_counter_1_2_base_layer_is_pure"
             ),
         ),
         Invariant(
