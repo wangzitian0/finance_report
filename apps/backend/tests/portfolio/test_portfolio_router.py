@@ -639,6 +639,8 @@ async def test_AC19_8_8_investment_schedule_fallback_holding_cost_basis_converts
                 unrealized_pnl=Decimal("800.00"),
                 unrealized_pnl_percent=Decimal("80.00"),
                 currency="USD",
+                native_cost_basis=Decimal("1000.00"),
+                native_currency="USD",
                 acquisition_date=period_start,
                 status=PositionStatus.ACTIVE,
             )

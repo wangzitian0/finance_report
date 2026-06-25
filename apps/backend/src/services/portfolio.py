@@ -214,6 +214,10 @@ class PortfolioService:
                 unrealized_pnl=unrealized_pnl.amount,
                 unrealized_pnl_percent=unrealized_pnl_ratio.to_percent(),
                 currency=currency,
+                # #1098: native (pre-conversion) cost basis so callers can
+                # reconcile against /assets/positions' native values.
+                native_cost_basis=position.cost_basis_money.amount,
+                native_currency=position.cost_basis_money.currency.code,
                 acquisition_date=position.acquisition_date,
                 disposal_date=position.disposal_date,
                 status=position.status,
@@ -321,6 +325,9 @@ class PortfolioService:
                     unrealized_pnl=unrealized_pnl.amount,
                     unrealized_pnl_percent=unrealized_pnl_ratio.to_percent(),
                     currency=currency,
+                    # #1098: native (pre-conversion) cost basis + currency.
+                    native_cost_basis=cost_money.amount,
+                    native_currency=cost_money.currency.code,
                     acquisition_date=position.acquisition_date,
                     disposal_date=snapshot.snapshot_date if status == PositionStatus.DISPOSED else None,
                     status=status,

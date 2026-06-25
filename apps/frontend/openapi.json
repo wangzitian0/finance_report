@@ -3784,6 +3784,17 @@
             "title": "Market Value",
             "type": "string"
           },
+          "native_cost_basis": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$",
+            "title": "Native Cost Basis",
+            "type": "string"
+          },
+          "native_currency": {
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Native Currency",
+            "type": "string"
+          },
           "provenance": {
             "anyOf": [
               {
@@ -3847,6 +3858,8 @@
           "unrealized_pnl",
           "unrealized_pnl_percent",
           "currency",
+          "native_cost_basis",
+          "native_currency",
           "acquisition_date",
           "status"
         ],
@@ -5306,6 +5319,31 @@
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,6}0*$",
             "title": "Quantity",
             "type": "string"
+          },
+          "reporting_cost_basis": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reporting Cost Basis"
+          },
+          "reporting_currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reporting Currency"
           },
           "status": {
             "$ref": "#/components/schemas/PositionStatus"

@@ -33,6 +33,14 @@ class ManagedPositionResponse(BaseResponse):
     created_at: datetime
     updated_at: datetime
 
+    # #1098: expose the base/reporting-currency view alongside the native one so
+    # /assets/positions reconciles with /portfolio/holdings (which returns base).
+    # Both are derived from the single convert_money authority, converted once.
+    # Null when no FX rate is available — an FX failure must never 500 a read
+    # (the #1388 lesson), so the reporting view degrades to null instead.
+    reporting_cost_basis: MoneyAmount | None = None
+    reporting_currency: Annotated[str, Field(min_length=3, max_length=3)] | None = None
+
     # Denormalized fields from related Account (optional)
     account_name: str | None = None
 

@@ -8,15 +8,17 @@ from uuid import UUID
 from fastapi import APIRouter, Query, status
 from sqlalchemy import select
 
+from src.config import settings
 from src.deps import CurrentUserId, DbSession, Pagination
 from src.logger import get_logger
 from src.models.layer3 import (
+    ManagedPosition,
     ManualValuationComponentType,
     ManualValuationLiquidityClass,
     ManualValuationSnapshot,
     PositionStatus,
 )
-from src.money import to_money
+from src.money import Money, to_money
 from src.schemas.assets import (
     DepreciationResponse,
     ManagedPositionListResponse,
@@ -30,6 +32,7 @@ from src.schemas.assets import (
     ValuationComponentResponse,
     ValuationComponentsResponse,
 )
+from src.services import fx
 from src.services.assets import AssetService, AssetServiceError
 from src.utils import raise_bad_request, raise_internal_error, raise_not_found
 
@@ -37,6 +40,42 @@ router = APIRouter(prefix="/assets", tags=["assets"])
 logger = get_logger(__name__)
 
 _service = AssetService()
+
+
+async def _apply_reporting_valuation(
+    db: DbSession,
+    position: ManagedPosition,
+    response: ManagedPositionResponse,
+) -> None:
+    """#1098: attach the base/reporting-currency cost basis to a position response.
+
+    Mirrors how services/portfolio.py converts cost via the single convert_money
+    authority (converted once, at the position's acquisition-date FX boundary).
+    On any FX failure the reporting view degrades to null rather than raising —
+    an FX error must never 500 a read (the #1388 lesson).
+    """
+    try:
+        converted = await fx.convert_money(
+            db,
+            Money(position.cost_basis, position.currency),
+            settings.base_currency,
+            rate_date=position.acquisition_date,
+            lazy_load=True,
+        )
+    except fx.FxRateError as exc:
+        logger.warning(
+            "Reporting-currency conversion unavailable for position; returning native only",
+            position_id=str(position.id),
+            native_currency=position.currency,
+            base_currency=settings.base_currency,
+            error=str(exc),
+        )
+        response.reporting_cost_basis = None
+        response.reporting_currency = None
+        return
+
+    response.reporting_cost_basis = converted.amount
+    response.reporting_currency = converted.currency.code
 
 
 @router.get("/positions", response_model=ManagedPositionListResponse)
@@ -65,6 +104,7 @@ async def list_positions(
         response = ManagedPositionResponse.model_validate(pos)
         if pos.account:
             response.account_name = pos.account.name
+        await _apply_reporting_valuation(db, pos, response)
         items.append(response)
 
     logger.info("Listed positions", count=len(items), total=total)
@@ -287,6 +327,7 @@ async def get_position(
     response = ManagedPositionResponse.model_validate(position)
     if position.account:
         response.account_name = position.account.name
+    await _apply_reporting_valuation(db, position, response)
     return response
 
 
