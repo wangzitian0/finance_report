@@ -100,6 +100,37 @@ COMMON_DEPLOY_RUNTIME_PREFIXES = (
     "tests/e2e/",
 )
 
+# Files whose change can alter a Docker IMAGE build result: Dockerfiles, dependency
+# manifests/locks, build/runtime config copied into the image, and entrypoint/build
+# scripts. A pure app-source change is COPY'd into the image and is already proven
+# by frontend-build (tsc + next build) and the backend test jobs, so it does not
+# need a fresh image build. Used to right-move the container-images CI job so it
+# runs only when the build context actually changed (see ci-cd.md Key CI Property).
+IMAGE_BUILD_EXACT = frozenset(
+    {
+        "apps/backend/Dockerfile",
+        "apps/backend/alembic.ini",
+        "apps/backend/pyproject.toml",
+        "apps/backend/uv.lock",
+        "apps/frontend/Dockerfile",
+        "apps/frontend/next.config.mjs",
+        "apps/frontend/package-lock.json",
+        "apps/frontend/package.json",
+        "apps/frontend/postcss.config.mjs",
+        "apps/frontend/tailwind.config.ts",
+        "apps/frontend/tsconfig.json",
+    }
+)
+IMAGE_BUILD_PREFIXES = ("apps/backend/scripts/",)
+
+
+def is_image_build_relevant(path: str) -> bool:
+    normalized = normalize_path(path)
+    return normalized in IMAGE_BUILD_EXACT or normalized.startswith(
+        IMAGE_BUILD_PREFIXES
+    )
+
+
 PR_PREVIEW_ONLY_EXACT = frozenset(
     {
         ".github/workflows/maintenance.yml",
@@ -214,14 +245,14 @@ def _json_output(value: object) -> str:
     return json.dumps(value, separators=(",", ":"), sort_keys=True)
 
 
-def _env_stage_required(classification: "ChangeClassification") -> dict[str, bool]:
+def _env_stage_required(classification: ChangeClassification) -> dict[str, bool]:
     return {
         environment.value: env_result.required
         for environment, env_result in classification.envs.items()
     }
 
 
-def _env_stage_reasons(classification: "ChangeClassification") -> dict[str, str]:
+def _env_stage_reasons(classification: ChangeClassification) -> dict[str, str]:
     return {
         environment.value: env_result.reason
         for environment, env_result in classification.envs.items()
@@ -229,7 +260,7 @@ def _env_stage_reasons(classification: "ChangeClassification") -> dict[str, str]
 
 
 def _env_stage_stages(
-    classification: "ChangeClassification",
+    classification: ChangeClassification,
 ) -> dict[str, list[str]]:
     return {
         environment.value: [stage.value for stage in env_result.stages]
@@ -237,7 +268,7 @@ def _env_stage_stages(
     }
 
 
-def _env_stage_files(classification: "ChangeClassification") -> dict[str, list[str]]:
+def _env_stage_files(classification: ChangeClassification) -> dict[str, list[str]]:
     return {
         environment.value: list(env_result.files)
         for environment, env_result in classification.envs.items()
@@ -245,7 +276,7 @@ def _env_stage_files(classification: "ChangeClassification") -> dict[str, list[s
 
 
 def _provider_gate_required(
-    classification: "ChangeClassification",
+    classification: ChangeClassification,
 ) -> dict[str, bool]:
     return {
         environment.value: env_result.provider_gate.required
@@ -254,7 +285,7 @@ def _provider_gate_required(
     }
 
 
-def _provider_gate_reasons(classification: "ChangeClassification") -> dict[str, str]:
+def _provider_gate_reasons(classification: ChangeClassification) -> dict[str, str]:
     return {
         environment.value: env_result.provider_gate.reason
         for environment, env_result in classification.envs.items()
@@ -263,7 +294,7 @@ def _provider_gate_reasons(classification: "ChangeClassification") -> dict[str, 
 
 
 def _provider_gate_files(
-    classification: "ChangeClassification",
+    classification: ChangeClassification,
 ) -> dict[str, list[str]]:
     return {
         environment.value: list(env_result.provider_gate.files)
@@ -278,7 +309,9 @@ class ChangeClassification:
     heavy_files: tuple[str, ...]
     heavy_required: bool
     reason: str
-    envs: Mapping[Environment, "EnvStageClassification"]
+    envs: Mapping[Environment, EnvStageClassification]
+    image_build_files: tuple[str, ...]
+    image_build_required: bool
 
     @property
     def pr_preview_files(self) -> tuple[str, ...]:
@@ -323,7 +356,7 @@ class EnvStageClassification:
     required: bool
     reason: str
     stages: tuple[PipelineStage, ...]
-    provider_gate: "ProviderGateClassification"
+    provider_gate: ProviderGateClassification
 
 
 @dataclass(frozen=True)
@@ -489,6 +522,9 @@ def classify_changed_paths(paths: Iterable[str]) -> ChangeClassification:
     files = tuple(path for raw in paths if (path := normalize_path(raw)))
     heavy_files = tuple(path for path in files if not is_lightweight(path))
     heavy_required = bool(heavy_files or not files)
+    image_build_files = tuple(path for path in files if is_image_build_relevant(path))
+    # Fail closed when the diff is unknown (no files detected).
+    image_build_required = bool(image_build_files or not files)
     reason = (
         "runtime-or-ci-paths-changed"
         if heavy_files
@@ -509,6 +545,8 @@ def classify_changed_paths(paths: Iterable[str]) -> ChangeClassification:
         heavy_required=heavy_required,
         reason=reason,
         envs=envs,
+        image_build_files=image_build_files,
+        image_build_required=image_build_required,
     )
 
 
@@ -517,6 +555,9 @@ def write_github_outputs(
 ) -> None:
     with output_path.open("a", encoding="utf-8") as fh:
         fh.write(f"heavy_required={str(classification.heavy_required).lower()}\n")
+        fh.write(
+            f"image_build_required={str(classification.image_build_required).lower()}\n"
+        )
         fh.write(f"reason={classification.reason}\n")
         fh.write(
             f"env_stage_required={_json_output(_env_stage_required(classification))}\n"

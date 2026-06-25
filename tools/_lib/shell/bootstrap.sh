@@ -199,8 +199,39 @@ install_project_dependencies() {
   moon run :setup
 }
 
+retire_legacy_pre_push_hook() {
+  # Make the pre-commit framework the single owner of git hooks. Two things on a
+  # developer machine can shadow it: (1) a hand-placed native pre-push hook (e.g.
+  # an old full-pytest script) that pre-commit preserves and keeps running as
+  # `.legacy`; (2) a redundant `core.hooksPath` override, which makes
+  # `pre-commit install` "cowardly refuse". Both are retired here so the managed
+  # pre-commit + pre-push drift gates (`.pre-commit-config.yaml`) actually run.
+  local git_dir hooks_path default_hooks pre_push
+  git_dir="$(git rev-parse --git-dir 2>/dev/null || printf '.git')"
+  default_hooks="$(cd "$git_dir" 2>/dev/null && pwd)/hooks"
+
+  hooks_path="$(git config --local --get core.hooksPath 2>/dev/null || true)"
+  if [ -n "$hooks_path" ]; then
+    local resolved
+    resolved="$(cd "$hooks_path" 2>/dev/null && pwd || printf '%s' "$hooks_path")"
+    if [ "$resolved" = "$default_hooks" ]; then
+      log "Unsetting redundant core.hooksPath ($hooks_path) so pre-commit can install"
+      git config --local --unset core.hooksPath || true
+    else
+      warn "core.hooksPath points outside the repo ($hooks_path); leaving it. If pre-commit refuses to install, unset it manually."
+    fi
+  fi
+
+  pre_push="${git_dir}/hooks/pre-push"
+  if [ -f "$pre_push" ] && ! grep -q "pre-commit" "$pre_push" 2>/dev/null; then
+    log "Retiring orphan native pre-push hook -> ${pre_push}.legacy.bak"
+    mv "$pre_push" "${pre_push}.legacy.bak"
+  fi
+}
+
 install_pre_commit() {
   log "Installing pre-commit hooks"
+  retire_legacy_pre_push_hook
   uvx pre-commit install
 }
 
