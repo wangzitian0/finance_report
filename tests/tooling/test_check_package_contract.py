@@ -352,7 +352,9 @@ def test_base_layer_must_not_import_own_extension(synthetic_repo: Path) -> None:
         "from ..extension import sql  # noqa\n", encoding="utf-8"
     )
     offenders = cpc._check_layer_purity(pkg)
-    flagged = {o.split("/")[-1].split(":")[0] for o in offenders}
+    # each offender is "<path>: <message>"; take the path part, then its basename
+    # (the message itself contains "extension/", so split on ":" before "/").
+    flagged = {o.split(":")[0].split("/")[-1] for o in offenders}
     assert {"abs_dotted.py", "abs_pkg.py", "abs_import.py", "rel.py"} <= flagged, offenders
     # a package without the two-layer split is skipped (additive).
     plain = _write_package(
