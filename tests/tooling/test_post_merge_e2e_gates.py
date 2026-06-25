@@ -2414,7 +2414,12 @@ def test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge() -> None:
         1
     ].split("- name: Set up Docker Buildx", 1)[0]
 
-    assert "if: needs.changes.outputs.pr_required == 'true'" in container_block
+    # PR path still gates the dry-run on pr_required + image_build_required; a
+    # main/release push always builds (immutable :<sha> for promote-not-rebuild).
+    assert (
+        "needs.changes.outputs.pr_required == 'true' && needs.changes.outputs.image_build_required == 'true'"
+        in container_block
+    )
     assert (
         "if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/'))) || github.event_name == 'workflow_dispatch'"
         in login_block
@@ -3827,11 +3832,20 @@ def test_AC8_13_116_skip_heavy_ci_on_main_push() -> None:
         job_block = workflow.split(job, 1)[1].split("\n\n", 1)[0]
         assert "if: needs.changes.outputs.pr_required == 'true'" in job_block
 
-    # Check container-images has pr_required gate
+    # container-images: PR path still gates on pr_required (narrow dry-run), but a
+    # main/release push always builds + pushes the immutable :<sha> image so
+    # promote-not-rebuild always has an artifact to promote.
     container_images_block = workflow.split("  container-images:", 1)[1].split(
         "\n\n", 1
     )[0]
-    assert "if: needs.changes.outputs.pr_required == 'true'" in container_images_block
+    assert (
+        "needs.changes.outputs.pr_required == 'true' && needs.changes.outputs.image_build_required == 'true'"
+        in container_images_block
+    )
+    assert (
+        "github.event_name == 'push' && (github.ref == 'refs/heads/main'"
+        in container_images_block
+    )
 
     # Check finish job handles skipped tests on push via pr_required output
     finish_block = workflow.split("  finish:", 1)[1]
