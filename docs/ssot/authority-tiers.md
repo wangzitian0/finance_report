@@ -101,8 +101,8 @@ the convention so it is a correct template to copy for LLM-LED/LLM-ONLY packages
 ## tier -> valid proof type
 
 This matrix is the operative contract: which proof shape is *valid* evidence for
-an AC under a package at each tier. Its single machine mirror is
-`TIER_VALID_PROOF_KINDS` in `common/governance/package_contract.py` (the same
+an AC under a package at each tier. Its single machine source is
+`TIER_VALID_PROOF_KINDS` in `common/authority/authority_matrix.py` (the same
 matrix `PackageContract` and `check_ac_proof_kind` both enforce).
 
 | Tier | Valid proof | NOT valid |
@@ -285,4 +285,4 @@ financial truth crosses a CODE-ONLY oracle; an `LLM` AC must have a cassette).
 - [tdd.md](./tdd.md) — EPIC -> AC -> Test workflow that this attribute extends.
 - [EPIC-026](../project/EPIC-026.ac-authority-tiers.md) — the EPIC that introduces tiers.
 - [ai.md](./ai.md), [extraction.md](./extraction.md) — domains where LLM-LED/LLM-ONLY behaviors concentrate.
-- [`common/governance/package_contract.py`](../../common/governance/package_contract.py) — the machine source of `PackageTier` and the proof matrix.
+- [`common/authority/authority_matrix.py`](../../common/authority/authority_matrix.py) — the machine source of `PackageTier` and the proof matrix (`PackageContract` imports it).
