@@ -1,4 +1,4 @@
-# `money` — Decimal money value language (platform package)
+# `money` — Decimal money value language (kernel package)
 
 > The money/currency/FX value type. Model spec:
 > [`../governance/readme.md`](../governance/readme.md). Machine contract:
@@ -7,9 +7,9 @@
 > [`conformance/vectors.json`](./conformance/vectors.json). Worklist:
 > [`todo.md`](./todo.md).
 >
-> A **kernel-style value language**, but classed **`platform`** because it imports
-> the `ratio` kernel package (`MoneyTolerance` is a `Ratio`) — so it sits one
-> layer above `ratio` in the dependency DAG.
+> A **`kernel` value language**. It imports the `ratio` kernel package
+> (`MoneyTolerance` is a `Ratio`) — a declared, acyclic **same-class** edge, which
+> the package model allows ("never up, never sideways-cyclic").
 
 ## Why
 

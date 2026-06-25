@@ -1,4 +1,4 @@
-# `quantity` — Decimal quantity + unit value language (platform package)
+# `quantity` — Decimal quantity + unit value language (kernel package)
 
 > The quantity/unit value type. Model spec:
 > [`../governance/readme.md`](../governance/readme.md). Machine contract:
@@ -7,8 +7,8 @@
 > [`conformance/vectors.json`](./conformance/vectors.json). Worklist:
 > [`todo.md`](./todo.md).
 >
-> Classed **`platform`** because it imports the `ratio` kernel package (a `Ratio`
-> can scale a `Quantity`), so it sits one layer above `ratio`.
+> A **`kernel`** value language. It imports `ratio` (a `Ratio` can scale a
+> `Quantity`) — a declared, acyclic same-class edge, which the package model allows.
 
 ## Why
 

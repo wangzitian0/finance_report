@@ -255,7 +255,7 @@ def test_upward_edge_is_forbidden(synthetic_repo: Path) -> None:
     errors = check_package(
         pkg, {"platlow": "platform", "corehigh": "core"}, synthetic_repo
     )
-    assert any("upward/sideways import of 'corehigh'" in e for e in errors)
+    assert any("upward import of 'corehigh'" in e for e in errors)
 
 
 def test_undeclared_sideways_edge_is_forbidden(synthetic_repo: Path) -> None:
@@ -294,6 +294,38 @@ def test_declared_downward_edge_is_allowed(synthetic_repo: Path) -> None:
         pkg, {"coreok": "core", "kerneldep": "kernel"}, synthetic_repo
     )
     assert errors == []
+
+
+def test_same_class_declared_edge_is_allowed(synthetic_repo: Path) -> None:
+    src = _src(synthetic_repo)
+    # a kernel package importing another kernel package it declares -> allowed
+    # (sideways + acyclic). "never up, never sideways-cyclic".
+    pkg = _write_package(
+        src,
+        "kernA",
+        klass="kernel",
+        all_names=["A"],
+        interface=["A"],
+        depends_on=["kernB"],
+        extra_module=("uses.py", "from src.kernB import thing  # noqa\n"),
+    )
+    errors = check_package(
+        pkg, {"kernA": "kernel", "kernB": "kernel"}, synthetic_repo
+    )
+    assert errors == [], errors
+
+
+def test_dependency_cycle_is_forbidden(synthetic_repo: Path) -> None:
+    src = _src(synthetic_repo)
+    # two same-class packages depending on each other -> a cycle, rejected globally.
+    a = _write_package(
+        src, "cycA", klass="kernel", all_names=["A"], interface=["A"], depends_on=["cycB"]
+    )
+    b = _write_package(
+        src, "cycB", klass="kernel", all_names=["B"], interface=["B"], depends_on=["cycA"]
+    )
+    offenders = cpc._check_no_dependency_cycle([a, b])
+    assert any("dependency cycle" in e for e in offenders), offenders
 
 
 # --- discover_packages / run / _package_all ----------------------------------

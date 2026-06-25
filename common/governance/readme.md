@@ -49,14 +49,18 @@ So `common/<pkg>/` is the **spec + high-level review surface**;
 
 ## Three package classes
 
-A package declares one `klass`; the class fixes its place in the dependency DAG
-(dependencies point **down only**, never up, never sideways-cyclic):
+A package declares one `klass`; the class fixes its place in the dependency DAG.
+The rule is **never up, never sideways-cyclic**: a package may never import a
+*higher* class, and may import a *same-class* package only when it declares it in
+`depends_on` **and** the overall `depends_on` graph stays acyclic. (Enforced by
+`check_package_contract`: the upward guard + a global cycle check.) So a cohesive
+family can share one layer and depend on each other acyclically.
 
 | class | what it is | may depend on |
 |-------|-----------|---------------|
-| `kernel` | a leaf value language reused everywhere (e.g. `money`, `ratio`, `quantity`) | nothing in the app |
-| `platform` | a reusable horizontal capability (e.g. `counter`) | `kernel` only |
-| `core` | a vertical domain slice (e.g. `ledger`) | `platform` + `kernel` |
+| `kernel` | the value-language layer reused everywhere (e.g. `money`, `ratio`, `quantity`, `unit_price`) | other `kernel` packages it declares (acyclic) |
+| `platform` | a reusable horizontal capability (e.g. `counter`) | `kernel` + same-class declared (acyclic) |
+| `core` | a vertical domain slice (e.g. `ledger`) | `platform` + `kernel` + same-class declared (acyclic) |
 
 ## Governance is computed, not authored
 
