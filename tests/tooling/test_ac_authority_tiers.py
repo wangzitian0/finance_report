@@ -130,6 +130,7 @@ def test_AC26_4_1_first_batch_epics_fully_tagged_and_off_baseline() -> None:
             f"{ac_id} is tagged but still in the debt baseline"
         )
 
-    # EPIC-026's own governance ACs are tagged too (and live in infra_registry).
+    # The authority-tier-system ACs are homed in the authority package's roadmap
+    # (keeping their numeric ids); EPIC-026 is infra, so they route to infra_registry.
     assert entries["AC26.1.1"]["tier"] == "CODE-ONLY"
     assert gar.classify_ac("AC26.1.1", entries["AC26.1.1"]) == "infra"

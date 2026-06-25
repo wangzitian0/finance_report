@@ -104,59 +104,28 @@ contract rather than restating it.
 
 > **Test Organization**: Tests organized by feature blocks using ACx.y.z numbering.
 
-### AC26.1 — Tier vocabulary & proof matrix in SSOT
-
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC26.1.1 | The SSOT `authority-tiers.md` defines exactly the five tiers (CODE-ONLY/CODE-LED/HU/LLM-LED/LLM-ONLY), the cross-tier MUST rules, and the tier→valid-proof matrix, and is registered as the single owner of `authority_tiers` in the manifest {tier:CODE-ONLY} | `test_AC26_1_1_ssot_defines_five_tiers_and_proof_matrix` | `tests/tooling/test_ac_authority_tiers.py` | P0 |
-
-### AC26.2 — AC schema carries the tier
-
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC26.2.1 | An AC declaring a `{tier:XX}` marker at its definition site flows `tier: XX` into its generated registry value, with the marker stripped from the description; an undeclared tier and an invalid code are both ignored, not errors {tier:CODE-ONLY} | `test_AC26_2_1_tier_marker_flows_into_registry_value` | `tests/tooling/test_ac_authority_tiers.py` | P0 |
-
-### AC26.3 — Non-breaking ratchet gate
-
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC26.3.1 | The tier ratchet fails when an AC absent from the untagged-debt baseline lacks a tier (new/changed debt), passes when every untagged AC is in the baseline, and `--update` only shrinks the baseline (never launders fresh untagged debt) {tier:CODE-ONLY} | `test_AC26_3_1_tier_ratchet_is_shrink_only_and_blocks_new_debt` | `tests/tooling/test_ac_authority_tiers.py` | P0 |
-
-### AC26.4 — First-batch backfill
-
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC26.4.1 | Every AC in the first-batch EPICs (003, 006, 021, 023) declares a valid tier, and none of those ACs remains in the untagged-debt baseline {tier:CODE-ONLY} | `test_AC26_4_1_first_batch_epics_fully_tagged_and_off_baseline` | `tests/tooling/test_ac_authority_tiers.py` | P0 |
-
-### AC26.5 — Tier→proof-kind matrix is enforced (phase 2)
-
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC26.5.1 | An AC declares the KIND of its proof via a `{proof:KIND}` marker (KIND ∈ property/invariant/eval/exact/evidence/smoke), parsed alongside `{tier:XX}`, stripped from the description, and lifted into the registry as `proof_kind` (defaulting to the tier's canonical valid kind when unmarked); the enforcement gate then asserts, **for tier-tagged ACs only** (untagged ACs ignored, so it is non-breaking), that the declared kind matches the tier→proof matrix — in particular an **LLM-LED AC's proof_kind MUST NOT be `exact`**, HU must be `evidence`, and LLM-ONLY must not be exact. The gate asserts the *declared* kind; verifying the referenced test's runtime shape is a documented follow-up. {tier:CODE-ONLY} {proof:property} | `test_AC26_5_1_proof_kind_marker_flows_and_gate_enforces_matrix` | `tests/tooling/test_ac_proof_kind.py` | P0 |
-
-### AC26.6 — First-batch LLM-LED/CODE-LED ACs carry a valid-kind proof
-
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC26.6.1 | The first-batch LLM-LED/HU/LLM-ONLY ACs retrofitted in this phase (the LLM-LED extraction ACs AC3.1.1/AC3.5.7/AC3.5.19, the HU review ACs AC3.3.2/AC3.5.10/AC3.6.4, the LLM-ONLY suggestion ACs AC6.2.3/AC6.2.4) each declare a matrix-valid `proof_kind`; the LLM-LED ACs carry an invariant/property proof (the balance-chain `opening + ΣIN − ΣOUT ≈ closing` detector and the #1254 dedup conservation property), so the whole tier-tagged set passes the proof-kind gate. {tier:CODE-ONLY} {proof:property} | `test_AC26_6_1_first_batch_lp_acs_carry_invariant_proof` | `tests/tooling/test_ac_proof_kind.py` | P0 |
-
-### AC26.7 — Cross-tier structural rule enforced (phase 3)
-
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC26.7.1 | CODE-ONLY/financial-truth modules are statically proven free of LLM-layer imports — the cross-tier structural MUST rule ("CODE-ONLY stays pure", `authority-tiers.md` rule 2) made deterministic. `tools/check_tier_imports.py` (impl `common/authority/check_tier_imports.py`) AST-parses a curated protected set (`money/**`, `ledger/**`, the journal model, and the deterministic dedup/accounting/posting/reporting/validation/fx/portfolio/performance/allocation services) and fails on any direct import of the LLM layer (`src.llm` / `apps.backend.src.llm`) or a raw provider SDK (`litellm`/`openrouter`/`anthropic`/`openai`), including submodules (dotted-prefix match). The real tree passes today (guard against regression); a synthetic protected-style module importing `src.llm` is detected; a glob that resolves to no file also fails so the protected set cannot silently shrink. Direct imports only for v1 (transitive following is a follow-up). {tier:CODE-ONLY} {proof:property} | `test_AC26_7_1_real_tree_has_no_llm_imports_in_protected_modules` | `tests/tooling/test_tier_imports.py` | P0 |
+> **`AC26.1.1`, `AC26.2.1`, `AC26.3.1`, `AC26.4.1`, `AC26.5.1`, `AC26.6.1`, and
+> `AC26.7.1` are NOT defined here.** The authority-tier *system* ACs (phases 1–3)
+> are homed in [`common/authority/contract.py`](../../common/authority/contract.py)'s
+> `roadmap` — the contract is now their single definition source (resolved by
+> `check_package_contract`). They keep their numeric ids (renumbering would orphan
+> the EPIC-008 cross-references + test refs to them). This EPIC stays the
+> horizontal narrative. The phase 4–5 ACs below **remain here**: `AC26.8.1` is an
+> extraction-domain observability behaviour (not the authority vocabulary), and
+> `AC26.9.1`'s proof test is itself marker-laden (it tests cassette detection), so
+> homing it would make the CODE-ONLY `authority` package read as CODE-LED.
 
 ### AC26.8 — Financial-invariant violations are detectable, not silent (phase 4)
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC26.8.1 | Financial-invariant violations emit structured, queryable metrics so a slipped violation is never silent — closing the original retrospective's observability gap. During a statement parse, a balance mismatch, a per-currency NAV self-check failure, a running-balance chain break, and a within-document dedup collapse each emit a WARNING-level structured log plus a `finance.invariant.violation` counter (via the existing `telemetry_metrics` mechanism) labelled by `kind` and an anonymized `institution_class` (`bank`/`brokerage`, never a real institution name or account id). Within-document dedup collapse is detected as a deterministic conservation property — `extracted-rows − distinct dedup hashes` over a SINGLE parse's freshly-built rows, computed BEFORE any DB upsert — so it catches the #1254 silent row-loss class (defense-in-depth, since #1254 is fixed) while legitimate CROSS-document dedup (a re-uploaded statement collapsing against already-persisted rows) can never trip it. This is purely detection/observability plus a non-blocking metadata flag: statement routing, status, confidence, approval gates, and persistence outcomes are UNCHANGED — a balance-invalid bank statement still routes to `PARSED`/review. {tier:CODE-ONLY} {proof:property} | `test_AC26_8_1_balance_invalid_parse_keeps_routing_and_emits_metric` | `apps/backend/tests/extraction/test_invariant_observability.py` | P0 |
+| AC26.8.1 | Financial-invariant violations emit structured, queryable metrics so a slipped violation is never silent. During a statement parse, a balance mismatch, a per-currency NAV self-check failure, a running-balance chain break, and a within-document dedup collapse each emit a WARNING-level structured log plus a `finance.invariant.violation` counter (via `telemetry_metrics`) labelled by `kind` and an anonymized `institution_class`. Within-document dedup collapse is a deterministic conservation property over a single parse's freshly-built rows (catches the #1254 silent row-loss class) while legitimate cross-document dedup never trips it. Detection/observability only: routing, status, confidence, approval gates, and persistence are UNCHANGED. {tier:CODE-ONLY} {proof:property} | `test_AC26_8_1_balance_invalid_parse_keeps_routing_and_emits_metric` | `apps/backend/tests/extraction/test_invariant_observability.py` | P0 |
 
 ### AC26.9 — CODE/LLM authority is counted from test shape (phase 5)
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC26.9.1 | A base library classifies every AC as `CODE` or `LLM` **detected from its test shape** (a record/replay cassette test ⇒ `LLM`; a structured-input deterministic test ⇒ `CODE`), and a counter aggregates each package (EPIC) into an `LLM-share = #LLM / (#CODE + #LLM)` mapped to one of four bands — `CODE-ONLY` (`s = 0`), `CODE-LED` (`0 < s < 50`), `LLM-LED` (`50 ≤ s < 100`), `LLM-ONLY` (`s = 100`). Classification is detected, never declared, so the band is computed not argued; the counter writes a deterministic snapshot and reports the unresolved-test rate. See `docs/ssot/authority-tiers.md` §CODE/LLM bit. {tier:CODE-ONLY} {proof:property} | `test_AC26_9_1_band_boundaries`, `test_AC26_9_1_test_shape_classifies_code_vs_llm`, `test_AC26_9_1_counter_runs_over_repo_and_is_well_formed` | `tests/tooling/test_authority_classifier.py` | P0 |
+| AC26.9.1 | A base library classifies every AC as `CODE` or `LLM` **detected from its test shape** (a record/replay cassette test ⇒ `LLM`; a structured-input deterministic test ⇒ `CODE`), and a counter aggregates each package into an `LLM-share` mapped to one of four bands — `CODE-ONLY` (`s = 0`), `CODE-LED` (`0 < s < 50`), `LLM-LED` (`50 ≤ s < 100`), `LLM-ONLY` (`s = 100`). Classification is detected, never declared, so the band is computed not argued. See `docs/ssot/authority-tiers.md` §CODE/LLM bit. {tier:CODE-ONLY} {proof:property} | `test_AC26_9_1_band_boundaries`, `test_AC26_9_1_test_shape_classifies_code_vs_llm` | `tests/tooling/test_authority_classifier.py` | P0 |
 
 ---
 
