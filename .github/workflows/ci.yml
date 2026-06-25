@@ -1400,8 +1400,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # The finish job's merge authority is the "Check job status" step alone. The
+      # three summary steps below are non-gating reporting and all carry
+      # continue-on-error so a step-summary write can never fail the merge gate.
       - name: Write Coverage-Effect Stage Summary
         if: ${{ always() }}
+        continue-on-error: true
         run: |
           cat << "EOF" >> "$GITHUB_STEP_SUMMARY"
           ## CI Stage Coverage Effects
