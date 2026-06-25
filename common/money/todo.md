@@ -17,7 +17,9 @@ The package-local worklist. Cross-package migration lives in
 - [ ] Move the money ACs (`AC2.19.x` / `AC2.20.x`) out of the EPIC-002 table into
       the contract `roadmap`, so the contract is the single AC source (the model
       forbids mirroring an AC into both an EPIC and a roadmap).
-- [ ] Resolve the class question with the package-model owners: `money` is classed
-      `platform` because it imports `ratio`; either accept that or remove the
-      `ratio` dependency to make it a true `kernel` leaf (and fix the
-      `governance/readme.md` "kernel: money, ratio, quantity" example).
+
+## Done (class)
+
+- [x] Classed `kernel` (the value-language layer). It imports `ratio` as a
+      declared, acyclic same-class edge — allowed by the package model's
+      "never up, never sideways-cyclic" rule (no longer forced to `platform`).

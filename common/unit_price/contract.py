@@ -16,9 +16,9 @@ from common.governance.package_contract import Invariant, PackageContract
 
 CONTRACT = PackageContract(
     name="unit_price",
-    # core: unit_price imports the money + quantity platform packages (a UnitPrice
-    # is money-per-unit), so it sits above both in the dependency DAG.
-    klass="core",
+    # kernel: a member of the value-type family. Imports money + quantity (a
+    # UnitPrice is money-per-unit) — declared, acyclic same-class edges.
+    klass="kernel",
     status="active",
     tier="CODE-ONLY",
     depends_on=["money", "quantity"],
