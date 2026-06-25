@@ -126,9 +126,13 @@ def test_AC26_8_1_recorder_is_safe_noop_without_instrument(monkeypatch) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_AC26_8_1_balance_invalid_parse_keeps_routing_and_emits_metric(monkeypatch) -> None:
-    """AC26.8.1: a balance-invalid bank parse still routes to PARSED/review (unchanged)
-    AND emits the balance_mismatch invariant metric — detection added, behavior intact.
+async def test_AC26_8_1_balance_invalid_parse_quarantines_and_emits_metric(monkeypatch) -> None:
+    """AC26.8.1 (+AC20.9.2 #1352): a balance-invalid bank parse emits the detection metric.
+
+    The AC26.8.1 detection counter (`balance_mismatch`) still fires at detection time.
+    Since #1352 the routing is no longer "PARSED/review": the LP blocking gate quarantines
+    the extraction to REJECTED (AC20.9.2). The detection observability and the blocking
+    gate are independent — this asserts both: the metric fires AND the status is REJECTED.
     """
     service = ExtractionService()
 
@@ -168,11 +172,13 @@ async def test_AC26_8_1_balance_invalid_parse_keeps_routing_and_emits_metric(mon
         db=None,  # no persistence; we only assert routing + metric
     )
 
-    # Behavior UNCHANGED: balance-invalid bank statement -> PARSED/review, not approved.
-    assert statement.status == BankStatementStatus.PARSED
+    # BLOCKING (AC20.9.2): balance-invalid bank statement -> REJECTED quarantine.
+    assert statement.status == BankStatementStatus.REJECTED
     assert statement.balance_validated is False
     assert statement.validation_error is not None
     assert len(transactions) == 1
 
-    # Detection ADDED: the balance-mismatch invariant violation is now queryable.
+    # Detection (AC26.8.1) still fires: the balance-mismatch counter is queryable,
+    # and the blocking gate adds its own distinct quarantine counter (AC20.9.7).
     assert ("balance_mismatch", "bank") in recorded
+    assert ("lp_gate_quarantine_balance", "bank") in recorded
