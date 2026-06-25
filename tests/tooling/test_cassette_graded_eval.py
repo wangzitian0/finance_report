@@ -115,6 +115,20 @@ def test_AC23_8_3_committed_cassettes_meet_their_floors() -> None:
     assert findings["missing"] == [], findings["missing"]
 
 
+def test_AC23_8_3_unbaselined_case_blocks_the_gate(tmp_path: Path) -> None:
+    """AC23.8.3: an eval case with NO persisted floor blocks the gate (so a deleted
+    floor or an unguarded new case cannot silently disable the ratchet)."""
+    from common.ssot.check_cassette_graded_eval import main as gate_main
+
+    empty_baseline = tmp_path / "empty.jsonl"
+    empty_baseline.write_text("", encoding="utf-8")
+    # Every committed case is now "new" (no floor) -> gate must FAIL.
+    assert gate_main(["--baseline", str(empty_baseline)]) == 1
+    # But --update is the sanctioned adopt path -> succeeds and writes floors.
+    assert gate_main(["--baseline", str(empty_baseline), "--update"]) == 0
+    assert load_jsonl(empty_baseline)["cases"], "expected floors adopted by --update"
+
+
 def test_AC23_8_3_baseline_is_raise_only() -> None:
     """AC23.8.3: ratcheted_baseline keeps the higher floor and never lowers it."""
     baseline = {"version": 1, "cases": {"c1": {"score": 0.9, "metric": "x", "provenance": "y"}}}

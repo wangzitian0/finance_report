@@ -66,9 +66,13 @@ established AC behavioural-score ratchet (`docs/ssot/ac-score-baseline.jsonl`,
 `common/ssot/check_ac_score_baseline.py`):
 
 - **Gate:** `tools/check_cassette_graded_eval.py` fails if any case scores below
-  its floor (minus a tiny epsilon).
+  its floor (minus a tiny epsilon), if a baselined case lost its floor, **or if a
+  committed case has no floor at all** — so adding a case (or accidentally
+  deleting its baseline line) cannot silently disable the ratchet while CI stays
+  green.
 - **Raise only:** `--update` raises the floor to the current scores and never
-  lowers it; it refuses to cement a run that has a regression or missing case.
+  lowers it; it adopts new cases (the sanctioned way to baseline a freshly added
+  case) but refuses to cement a run that has a regression or missing case.
 - The baseline is a **persisted** floor — it is never regenerated from current
   scores (that would erase the floor).
 

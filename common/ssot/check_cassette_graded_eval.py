@@ -32,7 +32,7 @@ def render(findings: dict[str, list[str]]) -> str:
     for title, key in (
         ("Regressions", "regressions"),
         ("Missing ground truth", "missing"),
-        ("New (informational)", "new"),
+        ("Unbaselined cases (need a floor)", "new"),
     ):
         items = findings.get(key, [])
         lines.append(f"  {title}: {len(items)}")
@@ -59,11 +59,17 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     findings = evaluate(baseline_path=args.baseline)
-    blocking = findings["regressions"] + findings["missing"]
+    # A regressed score or a vanished baseline line blocks BOTH paths. An
+    # unbaselined ("new") case blocks the GATE path too — otherwise adding a case
+    # (or accidentally deleting its floor) would leave the ratchet silently
+    # disabled for that case while CI stays green. `--update` is the sanctioned way
+    # to adopt new cases, so it does NOT treat "new" as blocking.
+    blocking_update = findings["regressions"] + findings["missing"]
+    blocking_gate = blocking_update + findings["new"]
 
     if args.update:
-        if blocking:
-            for item in blocking:
+        if blocking_update:
+            for item in blocking_update:
                 print(
                     f"::error title=Cassette graded eval::refusing --update: {item}",
                     file=sys.stderr,
@@ -86,17 +92,22 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     print(render(findings))
-    if blocking:
-        for item in blocking:
+    if blocking_gate:
+        for item in blocking_gate:
             print(f"::error title=Cassette graded eval::{item}", file=sys.stderr)
         print(
             "[CASSETTE-EVAL] FAILED: a committed cassette regressed below its "
-            "field-accuracy floor (re-record correctly via make llm-record, or fix "
-            "the ground truth if the statement legitimately changed).",
+            "field-accuracy floor, lost its baselined floor, or has no floor yet. "
+            "Re-record correctly via `make llm-record`, fix the ground truth if the "
+            "statement legitimately changed, or adopt a new case's floor with "
+            "`python tools/check_cassette_graded_eval.py --update`.",
             file=sys.stderr,
         )
         return 1
-    print("[CASSETTE-EVAL] PASSED: every committed cassette meets its field-accuracy floor.")
+    print(
+        "[CASSETTE-EVAL] PASSED: every committed cassette is baselined and meets "
+        "its field-accuracy floor."
+    )
     return 0
 
 

@@ -29,7 +29,6 @@ from typing import Any
 from common.ssot.cassette_eval_baseline import DEFAULT_BASELINE, load_jsonl
 from common.ssot.check_llm_cassettes import CASSETTE_DIR, _response_text
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 GROUND_TRUTH_DIR = CASSETTE_DIR / "ground_truth"
 
 # Floating-point slack so an identical re-measurement never trips the ratchet.
