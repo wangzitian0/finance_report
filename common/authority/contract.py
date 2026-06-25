@@ -9,7 +9,7 @@ its ``check_*`` siblings extend.
 
 from __future__ import annotations
 
-from common.governance.package_contract import ACRecord, Invariant, PackageContract
+from common.meta.package_contract import ACRecord, Invariant, PackageContract
 
 CONTRACT = PackageContract(
     name="authority",

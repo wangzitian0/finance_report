@@ -64,9 +64,11 @@ def test_AC8_13_20_image_build_required_tracks_build_context_only() -> None:
 
     # Build-context changes must rebuild images.
     for build_context_path in (
+        "apps/backend/.dockerignore",
         "apps/backend/Dockerfile",
         "apps/backend/uv.lock",
         "apps/backend/pyproject.toml",
+        "apps/frontend/.dockerignore",
         "apps/frontend/Dockerfile",
         "apps/frontend/package-lock.json",
         "apps/frontend/tsconfig.json",

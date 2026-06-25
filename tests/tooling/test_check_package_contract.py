@@ -1,4 +1,4 @@
-"""Failure-path coverage for ``common.governance.check_package_contract``.
+"""Failure-path coverage for ``common.meta.check_package_contract``.
 
 ``test_counter_package.py`` proves the gate is GREEN for the live ``counter``
 package (the happy path). This module drives the gate's *negative* branches —
@@ -19,8 +19,8 @@ from pathlib import Path
 
 import pytest
 
-import common.governance.check_package_contract as cpc
-from common.governance.check_package_contract import (
+import common.meta.check_package_contract as cpc
+from common.meta.check_package_contract import (
     DiscoveredPackage,
     _package_all,
     _resolve_test,
@@ -31,7 +31,7 @@ from common.governance.check_package_contract import (
 )
 from pydantic import ValidationError
 
-from common.governance.package_contract import (
+from common.meta.package_contract import (
     TIER_DEFAULT_PROOF_KIND,
     TIER_VALID_PROOF_KINDS,
     ACRecord,
@@ -87,7 +87,7 @@ def _write_package(
     (spec_dir / "contract.py").write_text(
         textwrap.dedent(
             f"""
-            from common.governance.package_contract import PackageContract
+            from common.meta.package_contract import PackageContract
             CONTRACT = PackageContract.model_validate({contract.model_dump()!r})
             """
         ),
@@ -127,7 +127,7 @@ def test_contained_impl_dir_accepts_repo_relative(tmp_path: Path) -> None:
 
 
 def test_contained_impl_dir_allows_repo_root_itself(tmp_path: Path) -> None:
-    # The meta package points its BE implementation at common/governance, a
+    # The meta package points its BE implementation at common/meta, a
     # normal repo-relative path; the root itself is also accepted.
     assert cpc._contained_impl_dir(".", tmp_path) == tmp_path.resolve()
 

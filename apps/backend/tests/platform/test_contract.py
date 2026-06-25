@@ -7,7 +7,7 @@ heavy gate runs in CI over every package; this anchors the AC to an executable
 proof in the backend suite.
 """
 
-from common.governance.check_package_contract import (
+from common.meta.check_package_contract import (
     REPO_ROOT,
     check_package,
     discover_packages,

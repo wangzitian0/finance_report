@@ -100,7 +100,8 @@ COMMON_DEPLOY_RUNTIME_PREFIXES = (
     "tests/e2e/",
 )
 
-# Files whose change can alter a Docker IMAGE build result: Dockerfiles, dependency
+# Files whose change can alter a Docker IMAGE build result: Dockerfiles,
+# .dockerignore (changes what is sent in the build context), dependency
 # manifests/locks, build/runtime config copied into the image, and entrypoint/build
 # scripts. A pure app-source change is COPY'd into the image and is already proven
 # by frontend-build (tsc + next build) and the backend test jobs, so it does not
@@ -108,10 +109,12 @@ COMMON_DEPLOY_RUNTIME_PREFIXES = (
 # runs only when the build context actually changed (see ci-cd.md Key CI Property).
 IMAGE_BUILD_EXACT = frozenset(
     {
+        "apps/backend/.dockerignore",
         "apps/backend/Dockerfile",
         "apps/backend/alembic.ini",
         "apps/backend/pyproject.toml",
         "apps/backend/uv.lock",
+        "apps/frontend/.dockerignore",
         "apps/frontend/Dockerfile",
         "apps/frontend/next.config.mjs",
         "apps/frontend/package-lock.json",

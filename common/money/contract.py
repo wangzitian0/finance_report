@@ -15,7 +15,7 @@ and an EPIC. Moving that AC ownership into the roadmap is a tracked follow-up.
 
 from __future__ import annotations
 
-from common.governance.package_contract import Invariant, PackageContract
+from common.meta.package_contract import Invariant, PackageContract
 
 CONTRACT = PackageContract(
     name="money",

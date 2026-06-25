@@ -15,7 +15,7 @@ the contract is the single source.
 
 from __future__ import annotations
 
-from common.governance.package_contract import (
+from common.meta.package_contract import (
     ACRecord,
     Invariant,
     PackageContract,

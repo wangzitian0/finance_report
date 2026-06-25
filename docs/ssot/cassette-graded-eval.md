@@ -42,6 +42,36 @@ Each scored cassette `<fingerprint>.json` has a sibling ground-truth manifest
 - `expected` carries the known-correct field values; the matching cassette
   supplies the LLM's frozen extraction to score against it.
 
+### 2.1 Independently-labelled corpus (HF oracle)
+
+Hand-authored truth fixtures prove the scorer; they do not exercise the real
+failure mode (a messy **scanned** statement). The HF oracle supplies an
+*independent* label that we did not write:
+[`Akashved/Indian-Bank-Statements`](https://huggingface.co/datasets/Akashved/Indian-Bank-Statements)
+(Apache-2.0, tagged `synthetic` — synthetic Indian business current-account
+statements, no real PII), in **Digital** (clean render) and **Scanned** (degraded
+image) layouts.
+
+Build pipeline (the source PDFs stay git-ignored under `tmp/input/hf_oracle/`;
+only the recorded cassette + truth are committed):
+
+1. `tools/_lib/pdf_fixtures/fetch_hf_oracle.py` — fetch a **scanned-weighted**
+   sample (default ~10 pairs; `--per-dir 25` for the full 100).
+2. `tools/_lib/pdf_fixtures/record_hf_oracle.py` — **operator-only, keyed**: runs
+   the production extractor in `record` mode (real provider call) → cassette;
+   writes `ground_truth/<fingerprint>.truth.json` from the HF label via
+   `hf_oracle_truth.py` (HF debit/credit columns → one signed Decimal `amount`;
+   Scanned → `vision`, Digital → `text`). No anonymisation: the source is already
+   synthetic, and the scored fields must match the document the LLM reads.
+3. `tools/check_cassette_graded_eval.py --update` — adopt the new cases' floor.
+
+**Honest boundary.** The HF label is a *per-file consolidated* table, so it
+proves **field accuracy** (did we read each amount/date/description right),
+**not** page assembly (multi-page stitching, carried-forward balances, in-doc
+dedup) — those stay the job of the deterministic downstream gates and a future
+benchmark. The **Scanned** cases carry the real accuracy signal; the Digital
+cases are clean renders (weak signal), kept only for modality coverage.
+
 ## 3. Scoring & normalisation
 
 A case score is the fraction of **scored fields** that match ground truth:

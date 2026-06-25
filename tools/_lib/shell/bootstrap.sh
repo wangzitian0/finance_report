@@ -224,8 +224,17 @@ retire_legacy_pre_push_hook() {
 
   pre_push="${git_dir}/hooks/pre-push"
   if [ -f "$pre_push" ] && ! grep -q "pre-commit" "$pre_push" 2>/dev/null; then
-    log "Retiring orphan native pre-push hook -> ${pre_push}.legacy.bak"
-    mv "$pre_push" "${pre_push}.legacy.bak"
+    # Choose a backup name that does not clobber an earlier retired hook.
+    local backup="${pre_push}.legacy.bak"
+    if [ -e "$backup" ]; then
+      local n=1
+      while [ -e "${pre_push}.legacy.bak.${n}" ]; do
+        n=$((n + 1))
+      done
+      backup="${pre_push}.legacy.bak.${n}"
+    fi
+    log "Retiring orphan native pre-push hook -> ${backup}"
+    mv "$pre_push" "$backup"
   fi
 }
 

@@ -3,7 +3,7 @@
 # Package model — a package is a DDD bounded context
 
 > SSOT for **what a package is** and **how packages are governed**. This is the
-> prose of the `governance` *meta package* — the model self-hosts: the package
+> prose of the `meta` package (the meta-package about packages) — the model self-hosts: the package
 > that defines what a package is is itself a package
 > ([`contract.py`](./contract.py), [`todo.md`](./todo.md)), discovered and checked
 > by the very gate it ships. This owns the *term* "package" and the contract every
@@ -89,7 +89,7 @@ edit: a new package is governed the moment it ships a `common/<pkg>/contract.py`
 
 ## Examples
 
-- **`governance`** (`platform`, the meta package) — self-hosts the model. Its
+- **`meta`** (`platform`, the meta-package) — self-hosts the model. Its
   [`contract.py`](./contract.py) publishes `PackageContract` / `ACRecord` /
   `Invariant`, and its invariants pin to the governance-gate failure-path tests,
   so the model proves itself.

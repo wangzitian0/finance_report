@@ -20,12 +20,12 @@ discovers every `common/*/contract.py`, checks the implementation against it
 dependency edge), and the AC registry sources each package's ACs straight from
 its `roadmap` — so a package's ACs are never mirrored into an EPIC table. The
 model **self-hosts**: the meta package that defines all of this is
-[`common/governance/`](./governance/readme.md), checked by the very gate it
+[`common/meta/`](./meta/readme.md), checked by the very gate it
 ships.
 
 ## Map
 
-- [`common/governance/`](./governance/readme.md) — the meta package: the
+- [`common/meta/`](./meta/readme.md) — the meta package: the
   package-model spec, `PackageContract`, and the governance gate.
 - [`common/counter/`](./counter/readme.md) — the first worked example
   (`platform`): the canonical minimal template every new package copies
