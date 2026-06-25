@@ -12,8 +12,8 @@ import pytest
 from common.testing.ac_proof import ac_proof
 
 from src.counter import CounterKey, get_count, increment
-from src.counter.api import read_count
-from src.counter.store.sql import SqlCounterRepository
+from src.counter.extension.api import read_count
+from src.counter.extension.sql import SqlCounterRepository
 
 KEY = CounterKey("report.generated")
 
