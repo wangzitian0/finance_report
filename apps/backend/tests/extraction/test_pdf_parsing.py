@@ -198,7 +198,8 @@ class TestInvalidParseNotPersisted:
 
     async def test_parse_document_bank_balance_mismatch_records_validation_error(self, service, tmp_path):
         """
-        AC3.2.4: Bank statement balance mismatches preserve validation_error details.
+        AC3.2.4 (+AC20.9.2 #1352): Bank statement balance mismatches preserve a typed
+        validation_error and are quarantined to REJECTED by the LLM-LED blocking gate.
         """
         pdf_file = tmp_path / "test.pdf"
         pdf_file.write_bytes(b"dummy")
@@ -228,11 +229,16 @@ class TestInvalidParseNotPersisted:
                 file_content=pdf_file.read_bytes(),
             )
 
-            # Should not be auto-accepted due to balance mismatch
-            # The status should NOT be APPROVED/PARSED for auto-accept path
-            # Low score should route to manual review
-            assert stmt.balance_validated is False or stmt.confidence_score < 85
-            assert stmt.validation_error == "Balance mismatch: expected 1100.00, got 2000.00"
+            # An unreconciled balance chain is now BLOCKING: the extraction cannot
+            # persist as trusted truth, so it is quarantined to REJECTED with a typed
+            # reason code preserved in validation_error (AC20.9.2 supersedes the prior
+            # PARSED/review resting state).
+            from src.models.statement_enums import BankStatementStatus
+
+            assert stmt.status == BankStatementStatus.REJECTED
+            assert stmt.balance_validated is False
+            assert stmt.validation_error is not None
+            assert "llm_led_balance_chain_unreconciled" in stmt.validation_error
 
     def test_validate_balance_returns_invalid_on_mismatch(self):
         """

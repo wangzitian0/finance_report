@@ -356,6 +356,12 @@ INVARIANT_VIOLATION_KINDS = (
     "per_currency_nav",
     "chain_break",
     "dedup_within_doc_collapse",
+    # Blocking LLM-LED gate quarantine outcomes (EPIC-020 AC20.9.7, #1352). Distinct
+    # from the detection-only kinds above: these fire only when an extraction is
+    # actually BLOCKED from becoming trusted truth, one per failure mode.
+    "llm_led_gate_quarantine_balance",
+    "llm_led_gate_quarantine_dedup",
+    "llm_led_gate_quarantine_unevaluable",
 )
 
 # Closed, anonymized institution-class vocabulary. Anything outside this set is

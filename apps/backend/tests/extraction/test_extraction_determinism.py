@@ -196,17 +196,20 @@ class TestRepeatedParseDeterminism:
     @pytest.mark.parametrize(
         "payload,expected_status",
         [
-            (_BANK_BALANCE_INVALID, BankStatementStatus.PARSED),
+            # AC20.9.2 (#1352) supersedes the #1141 "balance-invalid -> PARSED/review"
+            # resting state: a bank statement whose chain does not reconcile is now a
+            # BLOCKING-gate quarantine to REJECTED. Brokerage still rests in PARSED.
+            (_BANK_BALANCE_INVALID, BankStatementStatus.REJECTED),
             (_BROKERAGE, BankStatementStatus.PARSED),
         ],
-        ids=["bank_balance_invalid->parsed", "brokerage->parsed"],
+        ids=["bank_balance_invalid->rejected", "brokerage->parsed"],
     )
     async def test_routing_is_consistent_per_payload_class(self, db, test_user, payload, expected_status):
-        """AC13.13.3 / AC13.21.5: each payload class routes to one stable status across N parses.
+        """AC13.13.3 / AC13.21.5 / AC20.9.2: each payload class routes to one stable status across N parses.
 
-        Post-#1141 a balance-invalid bank statement rests in PARSED (review), the
-        same deterministic resting state as a brokerage statement — never the
-        UPLOADED dead-end.
+        Post-#1352 a balance-invalid bank statement is deterministically quarantined
+        to REJECTED on every parse (the LLM-LED blocking gate); a brokerage statement still
+        rests in PARSED (it reconciles via Layer-2 positions, not a balance chain).
         """
         statuses = []
         for i in range(RUNS):
@@ -217,21 +220,21 @@ class TestRepeatedParseDeterminism:
             f"Routing drifted across {RUNS} parses: {set(statuses)} (expected always {expected_status})"
         )
 
-    async def test_AC13_21_2_balance_invalid_parse_is_pending_review(self, db, test_user):
-        """AC13.21.2 (#1141): a balance-invalid bank parse lands in PARSED review.
+    async def test_AC20_9_2_balance_invalid_parse_is_quarantined(self, db, test_user):
+        """AC20.9.2 (#1352, supersedes AC13.21.2): a balance-invalid bank parse is quarantined.
 
-        The statement must carry the reviewable resting state (`PARSED` +
-        `stage1_status=PENDING_REVIEW`) and a `validation_error` describing the
-        mismatch — not the `uploaded` dead-end that the retry endpoint rejects and
-        report readiness ignores.
+        The prior #1141 reviewable resting state (`PARSED` + `pending_review`) is gone:
+        an extraction whose balance chain does not reconcile cannot persist as trusted
+        truth, so it lands in the `REJECTED` terminal state with a typed reason code and
+        is flagged balance-invalid.
         """
         from src.models.statement_enums import Stage1Status
 
-        statement, _ = await self._parse_once(db, test_user.id, _BANK_BALANCE_INVALID, "ac13-18-2")
+        statement, _ = await self._parse_once(db, test_user.id, _BANK_BALANCE_INVALID, "ac20-9-2")
 
-        assert statement.status == BankStatementStatus.PARSED
-        assert statement.status != BankStatementStatus.UPLOADED
-        assert statement.stage1_status == Stage1Status.PENDING_REVIEW
+        assert statement.status == BankStatementStatus.REJECTED
+        assert statement.status != BankStatementStatus.PARSED
+        assert statement.stage1_status == Stage1Status.REJECTED
         assert statement.balance_validated is False
         assert statement.validation_error
-        assert "mismatch" in statement.validation_error.lower()
+        assert "llm_led_balance_chain_unreconciled" in statement.validation_error
