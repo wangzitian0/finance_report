@@ -5,7 +5,7 @@ authoritative spec for each package lives in ``common/<pkg>/`` (its ``readme.md`
 + ``contract.py``); the running code lives in the *implementations* the contract
 points at. ``implementations["be"]`` is a **repo-relative** path — usually
 ``apps/backend/src/<pkg>``, but not required (the meta package ``governance``
-points its BE implementation at ``common/governance`` itself). For every
+points its BE implementation at ``common/meta`` itself). For every
 registered package this gate asserts:
 
   (a) ``contract.interface`` equals the BE implementation's ``__init__.__all__``
@@ -19,7 +19,7 @@ registered package this gate asserts:
 Packages are discovered by scanning ``common/*/contract.py`` for a module-level
 ``CONTRACT = PackageContract(...)``; that single registry keeps the gate additive
 — a new package is governed the moment it ships a ``common/<pkg>/contract.py``.
-The meta package ``common/governance`` self-hosts: it ships its own contract and
+The meta package ``common/meta`` self-hosts: it ships its own contract and
 is validated by this very gate.
 
 stdlib + pydantic only (no app/framework imports) so the gate runs anywhere.
@@ -34,7 +34,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from common.governance.package_contract import PackageContract
+from common.meta.package_contract import PackageContract
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PACKAGE_GLOB = "common/*/contract.py"
@@ -123,7 +123,7 @@ def _load_contract(
     """Import ``contract.py`` and return its module-level ``CONTRACT``, if any.
 
     ``repo_root`` and ``repo_root/apps/backend`` are placed on ``sys.path`` so a
-    ``contract.py``'s ``from common.governance...`` import and any BE-package
+    ``contract.py``'s ``from common.meta...`` import and any BE-package
     import (``src.*``) it needs both resolve.
     """
     backend_root = repo_root / "apps" / "backend"
@@ -132,7 +132,7 @@ def _load_contract(
             sys.path.insert(0, path)
 
     rel = contract_path.relative_to(repo_root)
-    # e.g. common.counter.contract / common.governance.contract
+    # e.g. common.counter.contract / common.meta.contract
     module_name = ".".join(rel.with_suffix("").parts)
     spec = importlib.util.spec_from_file_location(module_name, contract_path)
     if spec is None or spec.loader is None:

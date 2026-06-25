@@ -9,7 +9,7 @@ CODE/LLM band classifier, ``authority_classifier``), and the **enforcement**
 run via their ``tools/`` wrappers).
 
 stdlib-only by design (no pydantic): importable by the lightweight CI lint env
-and by ``common.governance``'s ``PackageContract`` model alike, so the declared
+and by ``common.meta``'s ``PackageContract`` model alike, so the declared
 tier and the detected band share one vocabulary that cannot drift.
 """
 

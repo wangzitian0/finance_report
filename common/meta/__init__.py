@@ -1,4 +1,4 @@
-"""``common.governance`` — the package-model meta-scaffolding (a self-hosting package).
+"""``common.meta`` — the package-model meta-scaffolding (a self-hosting package).
 
 A *package* in this repo is a DDD bounded context: a ``readme.md`` (prose /
 ubiquitous language) + a :class:`PackageContract` (the machine-checkable
@@ -12,14 +12,14 @@ declares a :class:`PackageContract` in ``common/<pkg>/contract.py`` and
 model self-hosts — this package ships its own ``contract.py`` and is checked by
 the very gate it provides.
 
-See ``common/governance/readme.md`` for the package-model spec and
+See ``common/meta/readme.md`` for the package-model spec and
 ``common/counter`` (spec) + ``apps/backend/src/counter`` (implementation) for the
 first worked example.
 """
 
 from __future__ import annotations
 
-from common.governance.package_contract import (
+from common.meta.package_contract import (
     ACRecord,
     Invariant,
     PackageContract,

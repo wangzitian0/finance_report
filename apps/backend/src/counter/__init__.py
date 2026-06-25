@@ -3,7 +3,7 @@
 This is ``PackageContract.implementations["be"]``; the package's authoritative
 spec (ubiquitous language, contract, roles, storage, governance) lives in
 ``common/counter/`` (``readme.md`` + ``contract.py``). See
-``common/governance/readme.md`` for the package model.
+``common/meta/readme.md`` for the package model.
 
 Files converge by role — ``types`` (nouns + events), ``ops`` (verbs over the
 store port), ``store`` (the ``CounterRepository`` port + SQL adapter), ``api``

@@ -13,7 +13,7 @@ mirrored into both a roadmap and an EPIC).
 
 from __future__ import annotations
 
-from common.governance.package_contract import Invariant, PackageContract
+from common.meta.package_contract import Invariant, PackageContract
 
 CONTRACT = PackageContract(
     name="ratio",

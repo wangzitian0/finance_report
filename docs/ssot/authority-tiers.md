@@ -5,7 +5,7 @@
 This document owns the **authority-tier** vocabulary: the attribute that records
 **how a module is built along one axis — who produces its result and how tightly
 code constrains the LLM**. The tier is a **module-design property**, declared once
-on a package's [`PackageContract`](../../common/governance/package_contract.py);
+on a package's [`PackageContract`](../../common/meta/package_contract.py);
 every AC the package owns *inherits* it.
 
 > **A tier is NOT a per-record confidence.** "How confident are we in *this one*

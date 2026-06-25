@@ -3,7 +3,7 @@
 This is ``PackageContract.implementations["be"]`` for the ``platform`` package;
 the authoritative spec (ubiquitous language, contract, roadmap) lives in
 ``common/platform/`` (``readme.md`` + ``contract.py``). See
-``common/governance/readme.md`` for the package model.
+``common/meta/readme.md`` for the package model.
 
 ``platform`` is the meta layer's first *runtime* capability: a domain
 **EventBus implemented via the transactional outbox pattern**. A producer
