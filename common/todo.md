@@ -32,7 +32,7 @@ and types/ops/store/api). ACs are `AC-<pkg>.<entity>.<seq>` in each contract's
 | 3 | `extraction` #1421 · `portfolio` #1422 · `reconciliation` #1423 · `reporting` #1424 | ⬜ |
 | 4 | `advisor` #1425 · `llm` #1426 · `middleware` #1427 · `identity` #1428 | ⬜ |
 | 5 | `audit` consistency closeout (global invariants + cross-package ACs) | #1429 ⬜ |
-| 6 | cleanup — delete residual EPIC tables / SSOT; retire central MANIFEST/registry gates once meta's data layer is the computed index | #1430 ⬜ |
+| 6 | cleanup — delete residual EPIC tables / SSOT; retire the central `docs/ssot/MANIFEST.yaml`/registry gates once meta's data layer is the computed index | #1430 ⬜ |
 
 All tracked under umbrella **#1416**.
 
@@ -41,7 +41,7 @@ All tracked under umbrella **#1416**.
 A package cutover is one atomic PR that:
 1. moves each AC to the package `roadmap` as `AC-<pkg>.<entity>.<seq>` (removed from the EPIC table);
 2. deletes the EPIC only once **all** its ACs are distributed;
-3. internalizes the package's owned SSOT (into readme/contract; removed from `docs/ssot/` + `MANIFEST.yaml`);
+3. internalizes the package's owned SSOT (into readme/contract; removed from `docs/ssot/` + `docs/ssot/MANIFEST.yaml`);
 4. migrates its tests (every `invariants[].test` / `roadmap[].test` resolves);
 5. repoints consumers to the published `interface` (`__all__`), not submodules;
 6. is green (`check_package_contract` + the package's own invariants).
