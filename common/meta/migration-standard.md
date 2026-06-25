@@ -27,7 +27,7 @@ foundation + the financial data flow + the technical substrate:
 | **extraction** | audit | middleware, llm | auto-extracted types (Statement/Transaction/Confidence/Dedup) | source→fact balance chain, dedup conservation |
 | **portfolio** | audit | middleware | manually-entered types + UI (Position/ManualValuation/ESOP/Dividend) | manual data clearly labeled, valuation traceable |
 | **reconciliation** | audit, extraction, portfolio | middleware, ledger | matching/review (Match/Review/Correction/ProcessingAccount) | record↔evidence consistency, two-stage review, in-transit visibility |
-| **ledger** | audit | reconciliation | double-entry (Account/JournalEntry/Line/Balance) | debits=credits, only reconciled facts post |
+| **ledger** | audit | reconciliation | double-entry (Account/JournalEntry/Line/Balance) | debits = credits (See: docs/ssot/accounting.md#entry-balance), only reconciled facts post |
 | **reporting** | audit | ledger, portfolio | reports (ReportPackage/FrameworkPolicy/Snapshot/Readiness) | report lines reconcile, framework 1:1 |
 | **advisor** | audit | middleware, llm, reporting, portfolio | AI advisor (Session/Suggestion/AnnualizedIncome) | advice never becomes a ledger number unchecked |
 
