@@ -164,14 +164,20 @@ def test_AC8_13_159_blocking_path_excludes_heavy_audit_journeys() -> None:
     # (subtraction), so a new heavy journey can never silently block production.
     import tools.staging_ai_ocr_gate_contract as live
 
+    # Use a genuinely NEW path (absent from both the real gate corpus and the
+    # canary list) so the subtraction is actually exercised — unioning in an
+    # existing CANARY_FILE would be a no-op and assert nothing.
+    new_heavy = "tests/e2e/test_hypothetical_new_heavy_proof.py"
+    assert new_heavy not in set(live.gate_files())
+    assert new_heavy not in set(live.canary_files())
+
     original_gate_files = live.gate_files
     try:
         live.gate_files = lambda: sorted(  # type: ignore[assignment]
-            set(original_gate_files()) | {CANARY_FILE}
+            set(original_gate_files()) | {new_heavy}
         )
-        assert CANARY_FILE not in set(live.audit_replay_files())
-        # A brand-new heavy file (not in CANARY_FILES) lands in audit-replay.
-        new_heavy = "tests/e2e/test_statement_full_journey.py"
+        # Derived by subtraction (gate_files - canary), so the brand-new heavy
+        # file lands in audit-replay and never in the blocking canary.
         assert new_heavy in set(live.audit_replay_files())
         assert new_heavy not in set(live.canary_files())
     finally:
