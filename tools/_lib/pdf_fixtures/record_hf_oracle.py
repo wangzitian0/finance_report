@@ -36,33 +36,49 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CORPUS_DIR = REPO_ROOT / "tmp" / "input" / "hf_oracle"
 
-# Importable both as the HF label mapper (this dir) and the backend src tree.
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+# Resolve imports regardless of CWD: this dir (hf_oracle_truth), the backend src
+# tree (src.*), and the repo root (common.*).
+sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "apps" / "backend"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from hf_oracle_truth import build_truth  # noqa: E402
 
 
-async def _record_pair(pdf: Path, dirname: str, cassette_dir: Path, truth_dir: Path) -> list[str]:
-    """Record one statement; write truth for each new cassette. Returns fingerprints."""
-    from src.services.extraction.service import ExtractionService
+def _is_statement_cassette(path: Path) -> bool:
+    """True only for an extraction cassette whose response parses to a statement
+    dict (``transactions``). A single extract may also record non-statement
+    intermediate cassettes; writing truth for those would create unscorable
+    ground truth that breaks the graded-eval gate."""
+    from common.ssot.check_llm_cassettes import _response_text
 
+    try:
+        text = _response_text(json.loads(path.read_text(encoding="utf-8"))).strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[-1].rsplit("```", 1)[0]
+        obj = json.loads(text)
+    except (ValueError, KeyError, OSError):
+        return False
+    return isinstance(obj, dict) and "transactions" in obj
+
+
+async def _record_pair(
+    pdf: Path, dirname: str, service: object, cassette_dir: Path, truth_dir: Path
+) -> list[str]:
+    """Record one statement; write truth ONLY for new statement-shaped cassettes."""
     hf_label = json.loads(pdf.with_suffix(".json").read_text(encoding="utf-8"))
     truth = build_truth(hf_label, dirname=dirname)
 
     before = {p.name for p in cassette_dir.glob("*.json")}
-    service = ExtractionService()
-    service.api_key = service.api_key or "replay"  # record uses the real env key
-    await service.extract_financial_data(
-        file_content=pdf.read_bytes(),
-        institution="HF-IN",
-        file_type="pdf",
-        filename=pdf.name,
+    await service.extract_financial_data(  # type: ignore[attr-defined]
+        file_content=pdf.read_bytes(), institution="HF-IN", file_type="pdf", filename=pdf.name
     )
     new = sorted({p.name for p in cassette_dir.glob("*.json")} - before)
 
     fingerprints = []
     for name in new:
+        if not _is_statement_cassette(cassette_dir / name):
+            continue  # skip non-statement intermediate cassettes
         fp = name[: -len(".json")]
         (truth_dir / f"{fp}.truth.json").write_text(
             json.dumps(truth, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
@@ -73,11 +89,23 @@ async def _record_pair(pdf: Path, dirname: str, cassette_dir: Path, truth_dir: P
 
 def main(argv: list[str] | None = None) -> int:
     from src.llm.cassette import CassetteMode, current_mode
+    from src.services.extraction.service import ExtractionService
 
-    if current_mode() is CassetteMode.OFF:
+    # Keyed RECORD step: require record mode explicitly (replay/off would miss or
+    # silently no-op, masking operator error).
+    if current_mode() is not CassetteMode.RECORD:
         print(
-            "LLM_CASSETTE_MODE is off — this is the keyed record step. "
-            "Set LLM_CASSETTE_MODE=record + a provider key (see module docstring)."
+            "This is the keyed RECORD step — set LLM_CASSETTE_MODE=record + a "
+            "provider key (see module docstring). Refusing to run in "
+            f"{current_mode().value!r} mode."
+        )
+        return 1
+
+    service = ExtractionService()
+    if not service.api_key:
+        print(
+            "No provider key configured (AI_API_KEY). Record mode does a REAL call; "
+            "set the provider env (see module docstring) and retry."
         )
         return 1
 
@@ -93,10 +121,10 @@ def main(argv: list[str] | None = None) -> int:
 
     total = 0
     for pdf in pdfs:
-        fps = asyncio.run(_record_pair(pdf, pdf.parent.name, CASSETTE_DIR, truth_dir))
+        fps = asyncio.run(_record_pair(pdf, pdf.parent.name, service, CASSETTE_DIR, truth_dir))
         total += len(fps)
         rel = pdf.relative_to(CORPUS_DIR)
-        print(f"  {rel}: {', '.join(f[:12] + '…' for f in fps) or 'no new cassette'}")
+        print(f"  {rel}: {', '.join(f[:12] + '…' for f in fps) or 'no statement cassette'}")
     print(f"Recorded {total} cassette(s) + truth. Now: python tools/check_cassette_graded_eval.py --update")
     return 0
 
