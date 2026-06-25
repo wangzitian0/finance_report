@@ -199,7 +199,7 @@ class TestInvalidParseNotPersisted:
     async def test_parse_document_bank_balance_mismatch_records_validation_error(self, service, tmp_path):
         """
         AC3.2.4 (+AC20.9.2 #1352): Bank statement balance mismatches preserve a typed
-        validation_error and are quarantined to REJECTED by the LP blocking gate.
+        validation_error and are quarantined to REJECTED by the LLM-LED blocking gate.
         """
         pdf_file = tmp_path / "test.pdf"
         pdf_file.write_bytes(b"dummy")
@@ -238,7 +238,7 @@ class TestInvalidParseNotPersisted:
             assert stmt.status == BankStatementStatus.REJECTED
             assert stmt.balance_validated is False
             assert stmt.validation_error is not None
-            assert "lp_balance_chain_unreconciled" in stmt.validation_error
+            assert "llm_led_balance_chain_unreconciled" in stmt.validation_error
 
     def test_validate_balance_returns_invalid_on_mismatch(self):
         """

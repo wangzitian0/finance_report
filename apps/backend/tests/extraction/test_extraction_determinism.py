@@ -208,7 +208,7 @@ class TestRepeatedParseDeterminism:
         """AC13.13.3 / AC13.21.5 / AC20.9.2: each payload class routes to one stable status across N parses.
 
         Post-#1352 a balance-invalid bank statement is deterministically quarantined
-        to REJECTED on every parse (the LP blocking gate); a brokerage statement still
+        to REJECTED on every parse (the LLM-LED blocking gate); a brokerage statement still
         rests in PARSED (it reconciles via Layer-2 positions, not a balance chain).
         """
         statuses = []
@@ -237,4 +237,4 @@ class TestRepeatedParseDeterminism:
         assert statement.stage1_status == Stage1Status.REJECTED
         assert statement.balance_validated is False
         assert statement.validation_error
-        assert "lp_balance_chain_unreconciled" in statement.validation_error
+        assert "llm_led_balance_chain_unreconciled" in statement.validation_error

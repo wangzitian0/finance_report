@@ -130,7 +130,7 @@ async def test_AC26_8_1_balance_invalid_parse_quarantines_and_emits_metric(monke
     """AC26.8.1 (+AC20.9.2 #1352): a balance-invalid bank parse emits the detection metric.
 
     The AC26.8.1 detection counter (`balance_mismatch`) still fires at detection time.
-    Since #1352 the routing is no longer "PARSED/review": the LP blocking gate quarantines
+    Since #1352 the routing is no longer "PARSED/review": the LLM-LED blocking gate quarantines
     the extraction to REJECTED (AC20.9.2). The detection observability and the blocking
     gate are independent — this asserts both: the metric fires AND the status is REJECTED.
     """
@@ -181,4 +181,4 @@ async def test_AC26_8_1_balance_invalid_parse_quarantines_and_emits_metric(monke
     # Detection (AC26.8.1) still fires: the balance-mismatch counter is queryable,
     # and the blocking gate adds its own distinct quarantine counter (AC20.9.7).
     assert ("balance_mismatch", "bank") in recorded
-    assert ("lp_gate_quarantine_balance", "bank") in recorded
+    assert ("llm_led_gate_quarantine_balance", "bank") in recorded

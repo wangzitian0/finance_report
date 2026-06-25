@@ -1,4 +1,4 @@
-"""LP-layer (event→L2) blocking invariant gate (EPIC-020 AC20.9.2-.7, #1352).
+"""LLM-LED tier (event→L2) blocking invariant gate (EPIC-020 AC20.9.2-.7, #1352).
 
 EPIC-020 AC20.9.1 locks the ``event → L2`` layer to the **LLM-LED** tier: the LLM
 emits the parsed statement and deterministic CODE does enum + balance/dedup sanity
@@ -30,43 +30,43 @@ from src.services.promotion_gate import (
 )
 
 
-class LpQuarantineReason(str, Enum):
-    """Typed, queryable reason an LP extraction was quarantined.
+class LlmLedQuarantineReason(str, Enum):
+    """Typed, queryable reason an LLM-LED extraction was quarantined.
 
     Each value is a distinct reason code (AC20.9.7) carrying NO institution name or
     account identifier (PII-free) — only the invariant class that failed.
     """
 
-    BALANCE_CHAIN_UNRECONCILED = "lp_balance_chain_unreconciled"
-    DEDUP_CONSERVATION_VIOLATION = "lp_dedup_conservation_violation"
-    BALANCE_INVARIANT_UNEVALUABLE = "lp_balance_invariant_unevaluable"
+    BALANCE_CHAIN_UNRECONCILED = "llm_led_balance_chain_unreconciled"
+    DEDUP_CONSERVATION_VIOLATION = "llm_led_dedup_conservation_violation"
+    BALANCE_INVARIANT_UNEVALUABLE = "llm_led_balance_invariant_unevaluable"
 
 
 # Map each quarantine reason to its distinct, bounded metric kind (AC20.9.7). These
 # are the *blocking-gate* counters, deliberately distinct from the pre-existing
 # detection-only kinds ("balance_mismatch", "chain_break", "dedup_within_doc_collapse")
 # so a quarantine (truth blocked) is queryable apart from a logged-only detection.
-QUARANTINE_METRIC_KIND: dict[LpQuarantineReason, str] = {
-    LpQuarantineReason.BALANCE_CHAIN_UNRECONCILED: "lp_gate_quarantine_balance",
-    LpQuarantineReason.DEDUP_CONSERVATION_VIOLATION: "lp_gate_quarantine_dedup",
-    LpQuarantineReason.BALANCE_INVARIANT_UNEVALUABLE: "lp_gate_quarantine_unevaluable",
+QUARANTINE_METRIC_KIND: dict[LlmLedQuarantineReason, str] = {
+    LlmLedQuarantineReason.BALANCE_CHAIN_UNRECONCILED: "llm_led_gate_quarantine_balance",
+    LlmLedQuarantineReason.DEDUP_CONSERVATION_VIOLATION: "llm_led_gate_quarantine_dedup",
+    LlmLedQuarantineReason.BALANCE_INVARIANT_UNEVALUABLE: "llm_led_gate_quarantine_unevaluable",
 }
 
 # Human-readable, PII-free validation_error text per reason. Kept terminal-state
 # specific so the review surface shows *why* an extraction was blocked, not a raw
 # enum value.
-QUARANTINE_MESSAGE: dict[LpQuarantineReason, str] = {
-    LpQuarantineReason.BALANCE_CHAIN_UNRECONCILED: (
+QUARANTINE_MESSAGE: dict[LlmLedQuarantineReason, str] = {
+    LlmLedQuarantineReason.BALANCE_CHAIN_UNRECONCILED: (
         "Extraction blocked: the running-balance chain does not reconcile "
         "(opening + inflows - outflows != closing). The parsed figures are internally "
         "inconsistent and cannot be trusted; re-upload a clearer source."
     ),
-    LpQuarantineReason.DEDUP_CONSERVATION_VIOLATION: (
+    LlmLedQuarantineReason.DEDUP_CONSERVATION_VIOLATION: (
         "Extraction blocked: within-document dedup conservation failed (two distinct rows "
         "collapsed into one). The transaction set is incomplete and cannot be trusted; "
         "re-upload a clearer source."
     ),
-    LpQuarantineReason.BALANCE_INVARIANT_UNEVALUABLE: (
+    LlmLedQuarantineReason.BALANCE_INVARIANT_UNEVALUABLE: (
         "Extraction blocked: the balance invariant could not be evaluated because an "
         "opening or closing balance is missing. Fail-closed: the extraction cannot be "
         "trusted without a verifiable balance chain."
@@ -76,14 +76,14 @@ QUARANTINE_MESSAGE: dict[LpQuarantineReason, str] = {
 
 @dataclass(frozen=True)
 class LpGateVerdict:
-    """The LP gate's decision for one extraction.
+    """The LLM-LED gate's decision for one extraction.
 
     ``quarantined`` is the single load-bearing flag; ``reason`` / ``message`` /
     ``metric_kind`` are populated only when quarantined.
     """
 
     quarantined: bool
-    reason: LpQuarantineReason | None = None
+    reason: LlmLedQuarantineReason | None = None
 
     @property
     def message(self) -> str | None:
@@ -98,7 +98,7 @@ class LpGateVerdict:
 _PASS = LpGateVerdict(quarantined=False)
 
 
-def evaluate_lp_extraction_gate(
+def evaluate_llm_led_extraction_gate(
     *,
     is_brokerage: bool,
     balance_evaluable: bool,
@@ -106,7 +106,7 @@ def evaluate_lp_extraction_gate(
     within_doc_collapse: int,
     balance_gate_exempt: bool = False,
 ) -> LpGateVerdict:
-    """Decide whether an LP (event→L2) extraction must be quarantined.
+    """Decide whether an LLM-LED (event→L2) extraction must be quarantined.
 
     Pure, deterministic, Decimal-safe (it consumes already-computed boolean/int
     signals). Returns a quarantine verdict with a typed reason, or the pass-through
@@ -142,7 +142,7 @@ def evaluate_lp_extraction_gate(
     if within_doc_collapse > 0:
         return LpGateVerdict(
             quarantined=True,
-            reason=LpQuarantineReason.DEDUP_CONSERVATION_VIOLATION,
+            reason=LlmLedQuarantineReason.DEDUP_CONSERVATION_VIOLATION,
         )
 
     # Balance-chain gate (AC20.9.2 / .4) — bank statements only, and never for an
@@ -151,14 +151,14 @@ def evaluate_lp_extraction_gate(
         if not balance_evaluable:
             return LpGateVerdict(
                 quarantined=True,
-                reason=LpQuarantineReason.BALANCE_INVARIANT_UNEVALUABLE,
+                reason=LlmLedQuarantineReason.BALANCE_INVARIANT_UNEVALUABLE,
             )
         # Route the decision through the promotion gate so the deterministic trust
         # boundary (#930) is the single disposer: a failed invariant => REJECTED.
         verdict = evaluate_promotion(
             [
                 InvariantResult(
-                    name="lp_balance_chain",
+                    name="llm_led_balance_chain",
                     passed=balance_valid,
                     tolerance=STATEMENT_BALANCE_TOLERANCE,
                 ),
@@ -169,7 +169,7 @@ def evaluate_lp_extraction_gate(
         if verdict.decision is PromotionDecision.REJECTED:
             return LpGateVerdict(
                 quarantined=True,
-                reason=LpQuarantineReason.BALANCE_CHAIN_UNRECONCILED,
+                reason=LlmLedQuarantineReason.BALANCE_CHAIN_UNRECONCILED,
             )
 
     return _PASS

@@ -1,4 +1,4 @@
-"""LP-layer blocking invariant gate (EPIC-020 AC20.9.2-.7, #1352).
+"""LLM-LED tier blocking invariant gate (EPIC-020 AC20.9.2-.7, #1352).
 
 EPIC-020 AC20.9.1 locks the ``event → L2`` layer to the **LLM-LED** tier: code may
 reject the LLM's extraction, never author it. These tests prove the balance-chain
@@ -23,9 +23,9 @@ import pytest
 
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.services.extraction import ExtractionService
-from src.services.extraction._lp_gate import (
-    LpQuarantineReason,
-    evaluate_lp_extraction_gate,
+from src.services.extraction._llm_led_gate import (
+    LlmLedQuarantineReason,
+    evaluate_llm_led_extraction_gate,
 )
 
 
@@ -73,7 +73,7 @@ class TestBalanceChainBlockingGate:
         assert stmt.balance_validated is False
         # Terminal stage1 marker, not pending review.
         assert stmt.stage1_status == Stage1Status.REJECTED
-        assert LpQuarantineReason.BALANCE_CHAIN_UNRECONCILED.value in (stmt.validation_error or "")
+        assert LlmLedQuarantineReason.BALANCE_CHAIN_UNRECONCILED.value in (stmt.validation_error or "")
 
     async def test_AC20_9_2_quarantined_extraction_absent_from_trusted_report_input(self, service, tmp_path):
         """[AC20.9.2] The quarantine status is excluded from trusted report input.
@@ -132,18 +132,18 @@ class TestDedupConservationBlockingGate:
             )
 
         assert stmt.status == BankStatementStatus.REJECTED
-        assert LpQuarantineReason.DEDUP_CONSERVATION_VIOLATION.value in (stmt.validation_error or "")
+        assert LlmLedQuarantineReason.DEDUP_CONSERVATION_VIOLATION.value in (stmt.validation_error or "")
 
     def test_AC20_9_3_dedup_reason_code_distinct_from_balance(self):
         """[AC20.9.3] The dedup reason code is DISTINCT from the balance reason code."""
-        dedup = evaluate_lp_extraction_gate(
+        dedup = evaluate_llm_led_extraction_gate(
             is_brokerage=False, balance_evaluable=True, balance_valid=True, within_doc_collapse=1
         )
-        balance = evaluate_lp_extraction_gate(
+        balance = evaluate_llm_led_extraction_gate(
             is_brokerage=False, balance_evaluable=True, balance_valid=False, within_doc_collapse=0
         )
-        assert dedup.reason == LpQuarantineReason.DEDUP_CONSERVATION_VIOLATION
-        assert balance.reason == LpQuarantineReason.BALANCE_CHAIN_UNRECONCILED
+        assert dedup.reason == LlmLedQuarantineReason.DEDUP_CONSERVATION_VIOLATION
+        assert balance.reason == LlmLedQuarantineReason.BALANCE_CHAIN_UNRECONCILED
         assert dedup.reason != balance.reason
 
 
@@ -173,11 +173,11 @@ class TestFailClosedGate:
 
     def test_AC20_9_4_unevaluable_is_pure_gate_decision(self):
         """[AC20.9.4] The pure gate quarantines on balance_evaluable=False (bank)."""
-        verdict = evaluate_lp_extraction_gate(
+        verdict = evaluate_llm_led_extraction_gate(
             is_brokerage=False, balance_evaluable=False, balance_valid=False, within_doc_collapse=0
         )
         assert verdict.quarantined is True
-        assert verdict.reason == LpQuarantineReason.BALANCE_INVARIANT_UNEVALUABLE
+        assert verdict.reason == LlmLedQuarantineReason.BALANCE_INVARIANT_UNEVALUABLE
 
 
 # --- AC20.9.5: the old "imbalanced -> parsed/review" path is gone ------------------
@@ -217,7 +217,7 @@ class TestNoFalseReject:
 
     def test_AC20_9_6_valid_pure_gate_passes(self):
         """[AC20.9.6] The pure gate passes a valid, evaluable, conserved extraction."""
-        verdict = evaluate_lp_extraction_gate(
+        verdict = evaluate_llm_led_extraction_gate(
             is_brokerage=False, balance_evaluable=True, balance_valid=True, within_doc_collapse=0
         )
         assert verdict.quarantined is False
@@ -225,7 +225,7 @@ class TestNoFalseReject:
 
     def test_AC20_9_6_brokerage_balance_not_gated(self):
         """[AC20.9.6] Brokerage payloads are exempt from the balance gate (#981)."""
-        verdict = evaluate_lp_extraction_gate(
+        verdict = evaluate_llm_led_extraction_gate(
             is_brokerage=True, balance_evaluable=False, balance_valid=False, within_doc_collapse=0
         )
         assert verdict.quarantined is False
@@ -237,7 +237,7 @@ class TestNoFalseReject:
         marker, not a true balance mismatch, so the balance gate exempts it — but the
         dedup gate still applies.
         """
-        passes = evaluate_lp_extraction_gate(
+        passes = evaluate_llm_led_extraction_gate(
             is_brokerage=False,
             balance_evaluable=True,
             balance_valid=False,
@@ -246,14 +246,14 @@ class TestNoFalseReject:
         )
         assert passes.quarantined is False
         # The dedup gate is NOT exempted.
-        dedup = evaluate_lp_extraction_gate(
+        dedup = evaluate_llm_led_extraction_gate(
             is_brokerage=False,
             balance_evaluable=True,
             balance_valid=False,
             within_doc_collapse=1,
             balance_gate_exempt=True,
         )
-        assert dedup.reason == LpQuarantineReason.DEDUP_CONSERVATION_VIOLATION
+        assert dedup.reason == LlmLedQuarantineReason.DEDUP_CONSERVATION_VIOLATION
 
 
 # --- AC20.9.7: distinct observable reason + metric, no PII -------------------------
@@ -265,13 +265,13 @@ class TestObservability:
         from src.telemetry_metrics import INVARIANT_VIOLATION_KINDS
 
         verdicts = [
-            evaluate_lp_extraction_gate(
+            evaluate_llm_led_extraction_gate(
                 is_brokerage=False, balance_evaluable=True, balance_valid=False, within_doc_collapse=0
             ),
-            evaluate_lp_extraction_gate(
+            evaluate_llm_led_extraction_gate(
                 is_brokerage=False, balance_evaluable=True, balance_valid=True, within_doc_collapse=2
             ),
-            evaluate_lp_extraction_gate(
+            evaluate_llm_led_extraction_gate(
                 is_brokerage=False, balance_evaluable=False, balance_valid=True, within_doc_collapse=0
             ),
         ]
@@ -286,12 +286,12 @@ class TestObservability:
     def test_AC20_9_7_gate_reason_codes_carry_no_pii(self):
         """[AC20.9.7] Reason codes / messages carry no institution name or account id."""
         forbidden = ("UOB", "6789", "SGD", "DBS")
-        for reason in LpQuarantineReason:
-            verdict = evaluate_lp_extraction_gate(
+        for reason in LlmLedQuarantineReason:
+            verdict = evaluate_llm_led_extraction_gate(
                 is_brokerage=False,
-                balance_evaluable=(reason is not LpQuarantineReason.BALANCE_INVARIANT_UNEVALUABLE),
-                balance_valid=(reason is not LpQuarantineReason.BALANCE_CHAIN_UNRECONCILED),
-                within_doc_collapse=(1 if reason is LpQuarantineReason.DEDUP_CONSERVATION_VIOLATION else 0),
+                balance_evaluable=(reason is not LlmLedQuarantineReason.BALANCE_INVARIANT_UNEVALUABLE),
+                balance_valid=(reason is not LlmLedQuarantineReason.BALANCE_CHAIN_UNRECONCILED),
+                within_doc_collapse=(1 if reason is LlmLedQuarantineReason.DEDUP_CONSERVATION_VIOLATION else 0),
             )
             blob = f"{verdict.reason.value} {verdict.message} {verdict.metric_kind}"
             for token in forbidden:

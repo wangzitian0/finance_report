@@ -38,7 +38,7 @@ from src.services.extraction._base import (
 from src.services.extraction._brokerage import _BrokerageMixin
 from src.services.extraction._coerce import _CoerceMixin
 from src.services.extraction._csv import _CsvMixin
-from src.services.extraction._lp_gate import evaluate_lp_extraction_gate
+from src.services.extraction._llm_led_gate import evaluate_llm_led_extraction_gate
 from src.services.extraction._media import _MediaMixin
 from src.services.extraction._ocr import _OcrMixin
 from src.services.validation import (
@@ -394,7 +394,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             # upsert, so legitimate cross-document dedup (a re-uploaded statement
             # collapsing against an already-persisted row) can never trip it. The
             # detection log + metric below are pure observability; the value also
-            # feeds the BLOCKING LP gate (AC20.9.3, #1352) further down, where a
+            # feeds the BLOCKING LLM-LED gate (AC20.9.3, #1352) further down, where a
             # positive count quarantines the extraction.
             within_doc_collapse = count_within_document_dedup_collapse([t.dedup_hash for t in transactions])
             if within_doc_collapse > 0:
@@ -424,7 +424,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             )
             is_valid = balance_result["balance_valid"]
             has_inferred_csv_balances = extracted.get("balance_source") == "inferred_from_csv_transactions"
-            # Fail-closed input for the LP gate (AC20.9.4): the balance chain is only
+            # Fail-closed input for the LLM-LED gate (AC20.9.4): the balance chain is only
             # *evaluable* when the bank statement actually carries both an opening and a
             # closing balance. Without them ``validate_balance_explicit`` silently
             # substitutes ``0.00`` and a zero-chain "passes" — exactly the silent pass
@@ -519,7 +519,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                         institution_class=institution_class,
                     )
 
-            # Blocking LP-layer invariant gate (EPIC-020 AC20.9.1/.2/.3/.4, #1352).
+            # Blocking LLM-LED tier invariant gate (EPIC-020 AC20.9.1/.2/.3/.4, #1352).
             # The ``event → L2`` layer is LLM-LED: code may reject the LLM's
             # extraction, never author it. Before #1352 a balance-chain failure or a
             # within-document dedup collapse only *flagged* the statement and routed
@@ -530,28 +530,28 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             # from trusted report input by report_readiness) with a typed reason, and
             # its Layer-2 rows are NOT written. The inferred-CSV review marker keeps
             # its own routing; the balance gate exempts brokerage payloads (#981).
-            lp_gate = evaluate_lp_extraction_gate(
+            llm_led_gate = evaluate_llm_led_extraction_gate(
                 is_brokerage=is_brokerage_payload,
                 balance_evaluable=balance_evaluable,
                 balance_valid=is_valid,
                 within_doc_collapse=within_doc_collapse,
                 balance_gate_exempt=has_inferred_csv_balances,
             )
-            if lp_gate.quarantined:
+            if llm_led_gate.quarantined:
                 status = BankStatementStatus.REJECTED
                 statement.status = status
                 statement.balance_validated = False
                 statement.stage1_status = Stage1Status.REJECTED
                 # The reason CODE is included verbatim so the terminal state is
                 # queryable by failure mode; the human message follows it.
-                statement.validation_error = f"{lp_gate.reason.value}: {lp_gate.message}"
+                statement.validation_error = f"{llm_led_gate.reason.value}: {llm_led_gate.message}"
                 record_financial_invariant_violation(
-                    kind=lp_gate.metric_kind,
+                    kind=llm_led_gate.metric_kind,
                     institution_class=institution_class,
                 )
                 logger.warning(
-                    "LP invariant gate quarantined extraction (blocked from trusted truth)",
-                    reason=lp_gate.reason.value,
+                    "LLM-LED invariant gate quarantined extraction (blocked from trusted truth)",
+                    reason=llm_led_gate.reason.value,
                     is_brokerage=is_brokerage_payload,
                     # Log the non-PII content hash, never the real statement filename
                     # or local path (red-lines.md): the hash is enough to correlate
@@ -575,7 +575,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
 
             # A quarantined extraction must never persist its Layer-2 rows: those rows
             # are precisely the untrusted financial truth the gate exists to block.
-            if db and not lp_gate.quarantined:
+            if db and not llm_led_gate.quarantined:
                 await dual_write_layer2(
                     db=db,
                     user_id=user_id,
