@@ -19,7 +19,30 @@ asserts:
       ``base/extension/`` split — base stays pure (mechanism A), each declared
       ``unit`` sits in the layer its ``kind`` dictates (``KIND_LAYER``), a
       ``repository`` unit splits into a base port + an extension adapter
-      (mechanism B), and ``data`` is a sink nothing else imports (the read-model).
+      (mechanism B), and ``data`` is a sink nothing else imports (the read-model);
+  (e) one transaction belongs to exactly one domain (issue #1460, Decision B): a
+      cross-domain reference goes through the *published* interface or by id + a
+      domain event — never a shared cross-domain transaction. Two static edges are
+      enforced. The **import edge** (``_check_cross_domain_deep_import``,
+      AC-meta.txn.1/.2): an impl module may reach another registered package only
+      via its published root (``from src.<other> import X`` / ``import
+      src.<other>``) or a symbol in that package's ``__all__``; a deep import of an
+      *unpublished* internal (another aggregate's object, or another domain's
+      ORM/models written in-transaction) is rejected. The **FK edge**
+      (``_check_cross_domain_fk``, AC-meta.txn.3): a ``ForeignKey`` /
+      ``relationship`` whose target table/model is owned by another registered
+      package is rejected — the reference must be an id column resolved via the
+      interface/event. The runtime atomicity of the outbox (AC-meta.event.1) is a
+      behavioural property proven by the platform package's own tests, not by this
+      structural gate.
+
+      *Port-exception decision (counter):* counter imports the platform bus port
+      ``from src.platform.events.bus import OutboxEventBus`` — a deep path, but
+      ``OutboxEventBus`` is in ``platform.__all__``, so the import resolves to a
+      *published* symbol and is allowed (the same exception lets ``unit_price``
+      import the published ``Money`` / ``Quantity`` value types from their defining
+      modules). The rule rejects deep imports of *unpublished* internals, not deep
+      paths to published symbols — so no current package regresses.
 
 This module is the meta package's ``extension`` layer (the impure edge: it walks
 the filesystem and parses ASTs). It imports the ``base`` model
@@ -265,6 +288,205 @@ def _check_no_forbidden_edge(
     return offenders
 
 
+def _check_cross_domain_deep_import(
+    pkg: DiscoveredPackage,
+    registered: dict[str, str],
+    published: dict[str, list[str]],
+) -> list[str]:
+    """One-transaction-per-domain, the import edge (AC-meta.txn.1 / .2).
+
+    A package's implementation may reference another *registered* package only
+    through that package's **published interface** — either its package root
+    (``from src.<other> import X`` / ``import src.<other>``) or a symbol the target
+    publishes in its ``__all__`` (``published[<other>]``). A deep import that
+    reaches an **unpublished internal** of another domain is rejected: cross-domain
+    references go through the published language (or by id + a domain event), never
+    by reaching into another aggregate's internals (txn.1) or writing another
+    domain's ORM/models in the same transaction (txn.2).
+
+    The *port-exception* that keeps the live packages green: a deep import is
+    allowed when the imported name IS in the target's ``__all__`` (the symbol is
+    published; only its physical defining module is deep). This is how ``counter``
+    imports the platform bus port (``from src.platform.events.bus import
+    OutboxEventBus`` — ``OutboxEventBus`` ∈ ``platform.__all__``) and how
+    ``unit_price`` imports the published ``Money`` / ``Quantity`` value types from
+    their defining modules. A plain ``import src.<other>.<sub>`` names no symbol and
+    so can never be a published reference — it is always rejected.
+
+    ``published`` maps package name -> its ``__all__`` (computed once by
+    :func:`run`). Imports of *unregistered* modules (shared infra such as
+    ``src.database``) are out of scope — only edges between registered packages are
+    governed.
+    """
+    offenders: list[str] = []
+    if pkg.impl_dir is None or not pkg.impl_dir.exists():
+        return offenders
+    for py in sorted(pkg.impl_dir.rglob("*.py")):
+        tree = ast.parse(py.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module:
+                parts = node.module.split(".")
+                if len(parts) < 2 or parts[0] != "src":
+                    continue
+                target = parts[1]
+                if target == pkg.name or target not in registered:
+                    continue
+                if len(parts) == 2:
+                    continue  # published root: `from src.<other> import X` — allowed
+                pub = set(published.get(target, []))
+                rel = py.relative_to(REPO_ROOT)
+                for alias in node.names:
+                    if alias.name == "*" or alias.name not in pub:
+                        offenders.append(
+                            f"{rel}: deep cross-domain import "
+                            f"'from {node.module} import {alias.name}' reaches an "
+                            f"unpublished internal of package '{target}'. A "
+                            f"cross-domain reference must go through the published "
+                            f"interface ('from src.{target} import ...' / a symbol "
+                            f"in its __all__) or by id + a domain event."
+                        )
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    parts = alias.name.split(".")
+                    if len(parts) < 2 or parts[0] != "src":
+                        continue
+                    target = parts[1]
+                    if target == pkg.name or target not in registered:
+                        continue
+                    if len(parts) > 2:
+                        rel = py.relative_to(REPO_ROOT)
+                        offenders.append(
+                            f"{rel}: deep cross-domain import 'import {alias.name}' "
+                            f"targets a submodule of package '{target}'. Import the "
+                            f"package root ('import src.{target}') and use its "
+                            f"published interface, or reference by id + a domain event."
+                        )
+    return offenders
+
+
+def _classdef_tablename(node: ast.ClassDef) -> str | None:
+    """The ``__tablename__`` string literal a SQLAlchemy model class declares, if any."""
+    for stmt in node.body:
+        targets: list[ast.expr] = []
+        value: ast.expr | None = None
+        if isinstance(stmt, ast.Assign):
+            targets, value = stmt.targets, stmt.value
+        elif isinstance(stmt, ast.AnnAssign) and stmt.value is not None:
+            targets, value = [stmt.target], stmt.value
+        for t in targets:
+            if (
+                isinstance(t, ast.Name)
+                and t.id == "__tablename__"
+                and isinstance(value, ast.Constant)
+                and isinstance(value.value, str)
+            ):
+                return value.value
+    return None
+
+
+def _collect_orm_ownership(
+    packages: list[DiscoveredPackage],
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Map every ORM table name and model class name to its owning package.
+
+    A package owns a table/model when one of its implementation modules declares a
+    class with ``__tablename__ = "<table>"``. The two maps (table name -> package,
+    model class name -> package) let :func:`_check_cross_domain_fk` decide whether a
+    ``ForeignKey`` string or a ``relationship`` target crosses a domain boundary.
+    First declaration wins (``setdefault``) so the maps are deterministic.
+    """
+    table_owner: dict[str, str] = {}
+    model_owner: dict[str, str] = {}
+    for pkg in packages:
+        if pkg.impl_dir is None or not pkg.impl_dir.exists():
+            continue
+        for py in sorted(pkg.impl_dir.rglob("*.py")):
+            tree = ast.parse(py.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ClassDef):
+                    table = _classdef_tablename(node)
+                    if table is not None:
+                        table_owner.setdefault(table, pkg.name)
+                        model_owner.setdefault(node.name, pkg.name)
+    return table_owner, model_owner
+
+
+def _call_func_name(func: ast.expr) -> str | None:
+    """The bare callable name of a call target (``ForeignKey`` / ``sa.ForeignKey``)."""
+    if isinstance(func, ast.Name):
+        return func.id
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    return None
+
+
+def _check_cross_domain_fk(
+    pkg: DiscoveredPackage,
+    registered: dict[str, str],
+    table_owner: dict[str, str],
+    model_owner: dict[str, str],
+) -> list[str]:
+    """One-transaction-per-domain, the FK edge (AC-meta.txn.3).
+
+    A SQLAlchemy ``ForeignKey("<table>.<col>")`` or ``relationship(...)`` whose
+    target table/model belongs to **another** registered package is rejected — a
+    cross-domain reference must become an id column resolved via the interface/event,
+    never a database-enforced FK that ties two domains into one transaction.
+
+    Detection is **AST-only and best-effort**, scoped to the reliably-decidable
+    forms:
+      * ``ForeignKey("<table>.<col>")`` — the target table is read from the string
+        literal's first segment (the load-bearing, reliable case).
+      * ``relationship("<ClassName>")`` / ``relationship(<ClassName>)`` — the target
+        model class name is read from a string or bare ``Name`` argument.
+
+    It deliberately does NOT resolve dynamic targets (a ``ForeignKey`` whose table
+    comes from a variable/callable, or a ``relationship`` given an imported alias or
+    an expression) — those are left to runtime/migration review rather than flagged
+    here, to avoid false positives. ``table_owner`` / ``model_owner`` come from
+    :func:`_collect_orm_ownership`.
+    """
+    offenders: list[str] = []
+    if pkg.impl_dir is None or not pkg.impl_dir.exists():
+        return offenders
+    for py in sorted(pkg.impl_dir.rglob("*.py")):
+        tree = ast.parse(py.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            name = _call_func_name(node.func)
+            if name == "ForeignKey" and node.args:
+                arg = node.args[0]
+                if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                    table = arg.value.split(".")[0]
+                    owner = table_owner.get(table)
+                    if owner and owner in registered and owner != pkg.name:
+                        rel = py.relative_to(REPO_ROOT)
+                        offenders.append(
+                            f"{rel}: cross-domain ForeignKey('{arg.value}') targets "
+                            f"table '{table}' owned by package '{owner}'. A "
+                            f"cross-domain reference must be an id column resolved "
+                            f"via the interface/event, not a database FK."
+                        )
+            elif name == "relationship" and node.args:
+                arg = node.args[0]
+                cls: str | None = None
+                if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                    cls = arg.value
+                elif isinstance(arg, ast.Name):
+                    cls = arg.id
+                owner = model_owner.get(cls) if cls else None
+                if owner and owner in registered and owner != pkg.name:
+                    rel = py.relative_to(REPO_ROOT)
+                    offenders.append(
+                        f"{rel}: cross-domain relationship('{cls}') targets a model "
+                        f"owned by package '{owner}'. A cross-domain reference must "
+                        f"be an id column resolved via the interface/event, not an "
+                        f"ORM relationship."
+                    )
+    return offenders
+
+
 def _check_no_dependency_cycle(packages: list[DiscoveredPackage]) -> list[str]:
     """Detect any cycle in the declared ``depends_on`` graph.
 
@@ -461,9 +683,21 @@ def _check_kind_placement(pkg: DiscoveredPackage) -> list[str]:
 
 
 def check_package(
-    pkg: DiscoveredPackage, registered: dict[str, str], repo_root: Path = REPO_ROOT
+    pkg: DiscoveredPackage,
+    registered: dict[str, str],
+    repo_root: Path = REPO_ROOT,
+    *,
+    published: dict[str, list[str]] | None = None,
+    table_owner: dict[str, str] | None = None,
+    model_owner: dict[str, str] | None = None,
 ) -> list[str]:
-    """Return the list of contract violations for one package (empty == OK)."""
+    """Return the list of contract violations for one package (empty == OK).
+
+    The one-transaction-per-domain checks (e) need cross-package maps and so are
+    additive on their inputs: they run only when :func:`run` supplies ``published``
+    (the import edge) / ``table_owner`` (the FK edge). A direct ``check_package``
+    call without them skips those checks, exactly as before.
+    """
     errors: list[str] = []
 
     # (a) interface == the BE implementation's __init__.__all__
@@ -510,6 +744,23 @@ def check_package(
     errors.extend(f"[{pkg.name}] {e}" for e in _check_kind_placement(pkg))
     errors.extend(f"[{pkg.name}] {e}" for e in _check_data_is_sink(pkg))
 
+    # (e) one-transaction-per-domain (issue #1460): a cross-domain reference goes
+    #     through the published interface or by id + event — never a deep reach
+    #     into another domain's internals (txn.1/.2) or a cross-domain FK (txn.3).
+    #     Additive: each sub-check runs only when run() supplies its cross-package map.
+    if published is not None:
+        errors.extend(
+            f"[{pkg.name}] {e}"
+            for e in _check_cross_domain_deep_import(pkg, registered, published)
+        )
+    if table_owner is not None:
+        errors.extend(
+            f"[{pkg.name}] {e}"
+            for e in _check_cross_domain_fk(
+                pkg, registered, table_owner, model_owner or {}
+            )
+        )
+
     return errors
 
 
@@ -517,10 +768,26 @@ def run(repo_root: Path = REPO_ROOT) -> tuple[bool, list[str]]:
     """Validate every discovered package; return (ok, messages)."""
     packages = discover_packages(repo_root)
     registered = {p.name: p.contract.klass for p in packages}
+    # Cross-package maps for the one-transaction-per-domain checks (issue #1460):
+    # each package's published __all__ (the import edge) and the ORM table/model
+    # ownership (the FK edge).
+    published = {
+        p.name: _package_all(p.impl_dir)
+        for p in packages
+        if p.impl_dir is not None and (p.impl_dir / "__init__.py").exists()
+    }
+    table_owner, model_owner = _collect_orm_ownership(packages)
     messages: list[str] = []
     all_errors: list[str] = []
     for pkg in packages:
-        errs = check_package(pkg, registered, repo_root)
+        errs = check_package(
+            pkg,
+            registered,
+            repo_root,
+            published=published,
+            table_owner=table_owner,
+            model_owner=model_owner,
+        )
         if errs:
             all_errors.extend(errs)
         else:

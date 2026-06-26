@@ -229,5 +229,59 @@ CONTRACT = PackageContract(
             priority="P2",
             status="done",
         ),
+        # One-transaction-per-domain (issue #1460, Decision B made executable):
+        # one DB transaction belongs to exactly one domain; cross-domain changes
+        # go through a published interface or an id + a domain event — never a
+        # shared cross-domain transaction or a cross-domain FK. AC-meta.event.1
+        # (outbox atomicity) is a runtime property left to the platform package's
+        # own tests, not this structural gate, so it is intentionally not listed.
+        ACRecord(
+            id="AC-meta.txn.1",
+            statement=(
+                "A base unit reaching into another registered domain's unpublished "
+                "object (an internal entity/aggregate, not a symbol in that "
+                "package's __all__) is rejected; a cross-domain reference goes "
+                "through the published interface (root import or a published "
+                "symbol) or by id."
+            ),
+            test=(
+                "tests/tooling/test_meta_layering.py"
+                "::test_AC_meta_txn_1_base_deep_import_of_other_domain_object_is_rejected"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.txn.2",
+            statement=(
+                "A domain's extension reaching into another domain's ORM/models (an "
+                "unpublished internal) is rejected: a cross-domain effect must be a "
+                "published domain event, not another domain's tables written in the "
+                "same transaction. A plain deep 'import src.<other>.<sub>' is "
+                "rejected too (it names no published symbol)."
+            ),
+            test=(
+                "tests/tooling/test_meta_layering.py"
+                "::test_AC_meta_txn_2_extension_writing_other_domain_orm_is_rejected"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.txn.3",
+            statement=(
+                "A SQLAlchemy ForeignKey/relationship whose target table or model "
+                "belongs to another registered domain is rejected; a cross-domain "
+                "reference must be an id column resolved via the interface/event, "
+                "not a database FK. Detection is AST-only/best-effort on the "
+                "string-target forms (documented in the gate)."
+            ),
+            test=(
+                "tests/tooling/test_meta_layering.py"
+                "::test_AC_meta_txn_3_cross_domain_fk_is_rejected"
+            ),
+            priority="P1",
+            status="done",
+        ),
     ],
 )

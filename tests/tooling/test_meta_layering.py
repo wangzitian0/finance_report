@@ -270,3 +270,206 @@ def test_AC_meta_kind_4_value_type_packages_pass(
     # no base/extension dirs -> placement is skipped, not failed.
     assert cpc._check_kind_placement(pkg) == []
     assert cpc.check_package(pkg, {"valpkg": "kernel"}, tmp_path) == []
+
+
+# --- one-transaction-per-domain (Stage 0, issue #1460) ------------------------
+#
+# Decision B made executable: one DB transaction belongs to exactly one domain;
+# cross-domain references go through the *published* interface (a symbol in the
+# target's __all__) or by id + an event — never a deep reach into another
+# domain's internals, and never a cross-domain FK. The gate enforces the static,
+# checkable edges (AC-meta.txn.1/.2 = the import edge, AC-meta.txn.3 = the FK
+# edge); the runtime atomicity of the outbox (AC-meta.event.1) is proven by the
+# platform package's own tests, not by this structural gate.
+
+
+def test_AC_meta_txn_1_base_deep_import_of_other_domain_object_is_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """AC-meta.txn.1: a base unit reaching into another domain's *unpublished*
+    object (an internal entity/aggregate, not a published value-object/id) is
+    rejected; the published interface — root import or a published symbol — is
+    allowed (the cross-domain reference goes through the contract, or by id)."""
+    monkeypatch.setattr(cpc, "REPO_ROOT", tmp_path)
+    published = {"domainx": ["PubVO"]}  # 'Account' is an internal, not published
+
+    bad = _make_pkg(
+        tmp_path,
+        "consumer",
+        units=[],
+        extra_files={
+            "base/use.py": "from src.domainx.base.aggregate import Account  # noqa\n"
+        },
+    )
+    offenders = cpc._check_cross_domain_deep_import(
+        bad, {"consumer": "core", "domainx": "core"}, published
+    )
+    assert any("unpublished internal" in o and "domainx" in o for o in offenders), (
+        offenders
+    )
+
+    # a published symbol reached via its defining module is allowed (port-exception).
+    ok_deep = _make_pkg(
+        tmp_path,
+        "consumer_deep_ok",
+        units=[],
+        extra_files={"base/use.py": "from src.domainx.base.vo import PubVO  # noqa\n"},
+    )
+    assert (
+        cpc._check_cross_domain_deep_import(
+            ok_deep, {"consumer_deep_ok": "core", "domainx": "core"}, published
+        )
+        == []
+    )
+
+    # importing via the published root is always allowed.
+    ok_root = _make_pkg(
+        tmp_path,
+        "consumer_root_ok",
+        units=[],
+        extra_files={"base/use.py": "from src.domainx import PubVO  # noqa\n"},
+    )
+    assert (
+        cpc._check_cross_domain_deep_import(
+            ok_root, {"consumer_root_ok": "core", "domainx": "core"}, published
+        )
+        == []
+    )
+
+    # an import of an UNregistered module (e.g. shared infra) is out of scope.
+    infra = _make_pkg(
+        tmp_path,
+        "consumer_infra_ok",
+        units=[],
+        extra_files={"base/use.py": "from src.database import Base  # noqa\n"},
+    )
+    assert (
+        cpc._check_cross_domain_deep_import(
+            infra, {"consumer_infra_ok": "core", "domainx": "core"}, published
+        )
+        == []
+    )
+
+
+def test_AC_meta_txn_2_extension_writing_other_domain_orm_is_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """AC-meta.txn.2: a domain's extension reaching into another domain's
+    ORM/models (an unpublished internal) is rejected — a cross-domain effect must
+    be emitted as a published domain event, not by writing another domain's
+    tables in the same transaction. A plain deep ``import`` is rejected too."""
+    monkeypatch.setattr(cpc, "REPO_ROOT", tmp_path)
+    published = {"domainy": ["LedgerEvent"]}  # the ORM row is internal
+
+    bad = _make_pkg(
+        tmp_path,
+        "writer",
+        units=[],
+        extra_files={
+            "extension/effect.py": (
+                "from src.domainy.extension.models import LedgerRow  # noqa\n"
+            )
+        },
+    )
+    offenders = cpc._check_cross_domain_deep_import(
+        bad, {"writer": "core", "domainy": "core"}, published
+    )
+    assert any("unpublished internal" in o and "domainy" in o for o in offenders), (
+        offenders
+    )
+
+    # a plain deep `import src.<other>.<sub>` cannot reference a published symbol.
+    bad_plain = _make_pkg(
+        tmp_path,
+        "writer_plain",
+        units=[],
+        extra_files={"extension/effect.py": "import src.domainy.extension.models\n"},
+    )
+    assert any(
+        "deep cross-domain import" in o
+        for o in cpc._check_cross_domain_deep_import(
+            bad_plain, {"writer_plain": "core", "domainy": "core"}, published
+        )
+    )
+
+    # emitting the published event type instead is allowed.
+    via_event = _make_pkg(
+        tmp_path,
+        "writer_ok",
+        units=[],
+        extra_files={
+            "extension/effect.py": (
+                "from src.domainy.base.events import LedgerEvent  # noqa\n"
+            )
+        },
+    )
+    assert (
+        cpc._check_cross_domain_deep_import(
+            via_event, {"writer_ok": "core", "domainy": "core"}, published
+        )
+        == []
+    )
+
+
+def test_AC_meta_txn_3_cross_domain_fk_is_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """AC-meta.txn.3: a SQLAlchemy ForeignKey/relationship whose target belongs to
+    another registered domain's tables is rejected; a cross-domain reference must
+    be an id column resolved via the interface/event. A FK to the package's own
+    table is fine."""
+    monkeypatch.setattr(cpc, "REPO_ROOT", tmp_path)
+    owner = _make_pkg(
+        tmp_path,
+        "ownerdom",
+        units=[],
+        extra_files={
+            "extension/models.py": ("class Account:\n    __tablename__ = 'accounts'\n")
+        },
+    )
+    consumer = _make_pkg(
+        tmp_path,
+        "consumerdom",
+        units=[],
+        extra_files={
+            "extension/models.py": (
+                "from sqlalchemy import ForeignKey\n"
+                "from sqlalchemy.orm import mapped_column, relationship\n"
+                "class Entry:\n"
+                "    __tablename__ = 'entries'\n"
+                "    account_id = mapped_column(ForeignKey('accounts.id'))\n"
+                "    account = relationship('Account')\n"
+            )
+        },
+    )
+    table_owner, model_owner = cpc._collect_orm_ownership([owner, consumer])
+    assert table_owner.get("accounts") == "ownerdom"
+    assert model_owner.get("Account") == "ownerdom"
+
+    registered = {"ownerdom": "core", "consumerdom": "core"}
+    offenders = cpc._check_cross_domain_fk(
+        consumer, registered, table_owner, model_owner
+    )
+    assert any("ForeignKey" in o and "accounts" in o for o in offenders), offenders
+    assert any("relationship" in o and "Account" in o for o in offenders), offenders
+
+    # a FK to the package's OWN table is allowed.
+    selfdom = _make_pkg(
+        tmp_path,
+        "selfdom",
+        units=[],
+        extra_files={
+            "extension/models.py": (
+                "from sqlalchemy import ForeignKey\n"
+                "from sqlalchemy.orm import mapped_column\n"
+                "class A:\n    __tablename__ = 'a_tbl'\n"
+                "class B:\n"
+                "    __tablename__ = 'b_tbl'\n"
+                "    a_id = mapped_column(ForeignKey('a_tbl.id'))\n"
+            )
+        },
+    )
+    to_self, mo_self = cpc._collect_orm_ownership([selfdom])
+    assert (
+        cpc._check_cross_domain_fk(selfdom, {"selfdom": "core"}, to_self, mo_self) == []
+    )
