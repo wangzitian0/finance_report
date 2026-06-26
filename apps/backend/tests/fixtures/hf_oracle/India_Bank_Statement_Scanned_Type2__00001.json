@@ -1,0 +1,1149 @@
+{
+  "source": "India_Bank_Statement_Scanned_Type2/00001.pdf",
+  "model": "glm-4.6v",
+  "prompt": "Extract this bank-statement page as strict JSON only (no prose, no markdown fence): {opening_balance, closing_balance, transactions:[{date, description, amount, direction, balance_after}]}. amount = absolute value; direction = \"IN\" for credits / \"OUT\" for debits; balance_after = the running balance printed on that row. Omit opening_balance/closing_balance if not on this page.",
+  "synthetic": true,
+  "modality": "vision",
+  "pages": 6,
+  "raw_pages": [
+    "{\"opening_balance\": 1279072.17, \"closing_balance\": 110110.37, \"transactions\": [{\"date\": \"01/01/2024\", \"description\": \"RTGS-ICICR510742914335-Lakshmi Naidu\", \"amount\": 475617.41, \"direction\": \"OUT\", \"balance_after\": 803454.76}, {\"date\": \"02/01/2024\", \"description\": \"IMPS-212190484533-HEALTHCARE PRODUCTS LTD\", \"amount\": 101795.99, \"direction\": \"IN\", \"balance_after\": 905250.75}, {\"date\": \"02/01/2024\", \"description\": \"IMPS-597987779248-DATABRIDGE INFOTECH\", \"amount\": 60198.25, \"direction\": \"IN\", \"balance_after\": 965449.00}, {\"date\": \"02/01/2024\", \"description\": \"UPI/CR/586134526249/Priya Krishnan/6788808567@pay\", \"amount\": 46334.23, \"direction\": \"IN\", \"balance_after\": 1011783.23}, {\"date\": \"02/01/2024\", \"description\": \"UPI/DR/700203118416/Ramesh Reddy/7124029087@pay\", \"amount\": 9371.77, \"direction\": \"OUT\", \"balance_after\": 1002411.46}, {\"date\": \"04/01/2024\", \"description\": \"SERVICE CHARGES-Foreign Currency Markup\", \"amount\": 139.96, \"direction\": \"OUT\", \"balance_after\": 1002271.50}, {\"date\": \"04/01/2024\", \"description\": \"NEFT-403681166106-Ganesh Pillai\", \"amount\": 266844.11, \"direction\": \"OUT\", \"balance_after\": 735427.39}, {\"date\": \"05/01/2024\", \"description\": \"IMPS-414202795937-DAILY NEEDS LIMITED\", \"amount\": 125251.78, \"direction\": \"IN\", \"balance_after\": 860679.17}, {\"date\": \"05/01/2024\", \"description\": \"NEFT-524813805872-GST PAYMENT-GSTIN\", \"amount\": 81089.25, \"direction\": \"OUT\", \"balance_after\": 779589.92}, {\"date\": \"06/01/2024\", \"description\": \"NEFT-644951640158-DIGITAL SOLUTIONS INDIA\", \"amount\": 313988.86, \"direction\": \"IN\", \"balance_after\": 1093578.78}, {\"date\": \"06/01/2024\", \"description\": \"NEFT-727523724896-HEALTHPLUS PHARMA LTD\", \"amount\": 111752.00, \"direction\": \"IN\", \"balance_after\": 1205330.78}, {\"date\": \"06/01/2024\", \"description\": \"ATM WDL-84393\", \"amount\": 13657.59, \"direction\": \"OUT\", \"balance_after\": 1191673.19}, {\"date\": \"06/01/2024\", \"description\": \"IMPS-290319105487-HEALTHCARE PRODUCTS LTD\", \"amount\": 108535.03, \"direction\": \"IN\", \"balance_after\": 1300208.22}, {\"date\": \"08/01/2024\", \"description\": \"RTGS-ICICR419518253429-Venkatesh Rao\", \"amount\": 849452.05, \"direction\": \"OUT\", \"balance_after\": 450756.17}, {\"date\": \"08/01/2024\", \"description\": \"CHQ PAID-Subramaniam Rao-MICR\", \"amount\": 217613.90, \"direction\": \"OUT\", \"balance_after\": 233142.27}]}",
+    "{\"transactions\":[{\"date\":\"09/01/2024\",\"description\":\"NEFT-287837415387-PRECISION ENGINEERING WORKS\",\"amount\":104999.07,\"direction\":\"IN\",\"balance_after\":338141.34},{\"date\":\"10/01/2024\",\"description\":\"UPI/CR/725664555690/Srinivas Reddy/8497226062@pay\",\"amount\":1301.27,\"direction\":\"IN\",\"balance_after\":339442.61},{\"date\":\"10/01/2024\",\"description\":\"NEFT-618421866089-PERSONAL CARE LTD\",\"amount\":57376.44,\"direction\":\"IN\",\"balance_after\":396819.05},{\"date\":\"10/01/2024\",\"description\":\"CASH DEPOSIT-Srinivas Nair\",\"amount\":11484.19,\"direction\":\"IN\",\"balance_after\":408303.24},{\"date\":\"11/01/2024\",\"description\":\"SERVICE CHARGES-Cheque Book Charges\",\"amount\":333.31,\"direction\":\"OUT\",\"balance_after\":407969.93},{\"date\":\"11/01/2024\",\"description\":\"RTGS-ICICR297944257075-APEX HEAVY INDUSTRIES\",\"amount\":252626.61,\"direction\":\"IN\",\"balance_after\":660596.54},{\"date\":\"11/01/2024\",\"description\":\"IMPS-815957436362-DAILY NEEDS LIMITED\",\"amount\":94672.33,\"direction\":\"IN\",\"balance_after\":755268.87},{\"date\":\"12/01/2024\",\"description\":\"REVERSAL-RTGS-ICICR297944257075-A PEX HEAVY INDUSTRIES\",\"amount\":252626.61,\"direction\":\"OUT\",\"balance_after\":549436.79},{\"date\":\"13/01/2024\",\"description\":\"IMPS-569297862727-URBAN ESTATES INDIA\",\"amount\":97998.35,\"direction\":\"IN\",\"balance_after\":853267.22},{\"date\":\"13/01/2024\",\"description\":\"UPI/DR/338919637684/Anitha Nair/9635953174@pay\",\"amount\":24552.36,\"direction\":\"OUT\",\"balance_after\":828714.86},{\"date\":\"13/01/2024\",\"description\":\"IMPS-697830964902-Karthik Iyer\",\"amount\":62367.24,\"direction\":\"OUT\",\"balance_after\":766347.62},{\"date\":\"13/01/2024\",\"description\":\"IMPS-992983448493-Venkatesh Rao\",\"amount\":86410.98,\"direction\":\"OUT\",\"balance_after\":679936.64},{\"date\":\"15/01/2024\",\"description\":\"CHQ PAID-Srinivas Menon-MICR\",\"amount\":163924.72,\"direction\":\"OUT\",\"balance_after\":516011.92},{\"date\":\"16/01/2024\",\"description\":\"UPI/CR/612430383276/Subramaniam Krishnan/7232360624@pay\",\"amount\":23080.18,\"direction\":\"IN\",\"balance_after\":539092.1},{\"date\":\"16/01/2024\",\"description\":\"NEFT-889583341413-PRECISION ENGINEERING WORKS\",\"amount\":230424.72,\"direction\":\"IN\",\"balance_after\":769516.82},{\"date\":\"18/01/2024\",\"description\":\"NEFT-519719438810-Priya Menon\",\"amount\":201434.6,\"direction\":\"OUT\",\"balance_after\":568082.22},{\"date\":\"19/01/2024\",\"description\":\"UPI/DR/857223273927/Ganesh Pillai/7683434104@pay\",\"amount\":16841.22,\"direction\":\"OUT\",\"balance_after\":551241.0},{\"date\":\"19/01/2024\",\"description\":\"CHQ PAID-Venkatesh Pillai-MICR\",\"amount\":251230.73,\"direction\":\"OUT\",\"balance_after\":300010.27},{\"date\":\"19/01/2024\",\"description\":\"RTGS-ICICR182066605377-NETFORGE TECHNOLOGIES\",\"amount\":465711.54,\"direction\":\"IN\",\"balance_after\":765721.81},{\"date\":\"19/01/2024\",\"description\":\"UPI/DR/279751944022/Srinivas Murthy/7758605812@pay\",\"amount\":10024.28,\"direction\":\"OUT\",\"balance_after\":755697.53},{\"date\":\"19/01/2024\",\"description\":\"CASH DEPOSIT-Lakshmi Naidu\",\"amount\":8896.84,\"direction\":\"IN\",\"balance_after\":764594.37},{\"date\":\"20/01/2024\",\"description\":\"CHQ PAID-Subramaniam Nair-MICR\",\"amount\":172001.87,\"direction\":\"OUT\",\"balance_after\":592592.5},{\"date\":\"20/01/2024\",\"description\":\"NEFT Dr-894100359246-GST PAYMENT-GSTIN 28C8742\",\"amount\":119321.88,\"direction\":\"OUT\",\"balance_after\":430114.91},{\"date\":\"22/01/2024\",\"description\":\"CHQ PAID-Anitha Naidu-MICR\",\"amount\":164067.25,\"direction\":\"OUT\",\"balance_after\":428525.25},{\"date\":\"22/01/2024\",\"description\":\"CLG-FINANCE SOLUTIONS INDIA\",\"amount\":106531.19,\"direction\":\"IN\",\"balance_after\":535056.44},{\"date\":\"22/01/2024\",\"description\":\"IMPS-198513905699-THERMAL SYSTEMS LTD\",\"amount\":85227.86,\"direction\":\"IN\",\"balance_after\":620284.3},{\"date\":\"22/01/2024\",\"description\":\"IMPS-376925559056-Priya Naidu\",\"amount\":84875.78,\"direction\":\"OUT\",\"balance_after\":535408.52},{\"date\":\"23/01/2024\",\"description\":\"ATM WDL-78867\",\"amount\":10606.39,\"direction\":\"OUT\",\"balance_after\":524802.13},{\"date\":\"23/01/2024\",\"description\":\"UPI/CR/671379523877/Subramaniam Menon/7451082689@pay\",\"amount\":13462.86,\"direction\":\"IN\",\"balance_after\":538264.99},{\"date\":\"24/01/2024\",\"description\":\"ATM WDL-69028\",\"amount\":15351.04,\"direction\":\"OUT\",\"balance_after\":522913.95},{\"date\":\"25/01/2024\",\"description\":\"NEFT-856429560970-MEDCARE LABORATORIES\",\"amount\":192586.16,\"direction\":\"IN\",\"balance_after\":715500.11},{\"date\":\"29/01/2024\",\"description\":\"CASH DEPOSIT-Venkatesh Murthy\",\"amount\":32456.03,\"direction\":\"IN\",\"balance_after\":747956.14},{\"date\":\"29/01/2024\",\"description\":\"NEFT-384430462240-Subramaniam Rao\",\"amount\":209997.66,\"direction\":\"OUT\",\"balance_after\":537958.48},{\"date\":\"29/01/2024\",\"description\":\"UPI/CR/323017461830/Ramesh Reddy/8241426919@pay\",\"amount\":2899.67,\"direction\":\"IN\",\"balance_after\":540858.15}]}",
+    "{\"transactions\":[{\"date\":\"29/01/2024\",\"description\":\"ATM WDL-88835\",\"amount\":4336.12,\"direction\":\"OUT\",\"balance_after\":536522.03},{\"date\":\"30/01/2024\",\"description\":\"NEFT-378435985055-CARGO SOLUTIONS LTD\",\"amount\":82409.13,\"direction\":\"IN\",\"balance_after\":618931.16},{\"date\":\"30/01/2024\",\"description\":\"NEFT-704756068064-GATEWAY PROJECTS LTD\",\"amount\":89402.31,\"direction\":\"IN\",\"balance_after\":708333.47},{\"date\":\"31/01/2024\",\"description\":\"NEFT-514556788419-DAILY NEEDS LIMITED\",\"amount\":185770.02,\"direction\":\"IN\",\"balance_after\":894103.49},{\"date\":\"31/01/2024\",\"description\":\"CLG-LIFELINE PHARMACEUTICAL\",\"amount\":211854.07,\"direction\":\"IN\",\"balance_after\":1105957.56},{\"date\":\"01/02/2024\",\"description\":\"NEFT-442611102554-CYBERCRAFT SYSTEMS\",\"amount\":282784.18,\"direction\":\"IN\",\"balance_after\":1388741.74},{\"date\":\"02/02/2024\",\"description\":\"RTGS-ICICR923815251247-CONSTRUCTION SOLUTIONS LTD\",\"amount\":2038434.65,\"direction\":\"IN\",\"balance_after\":3427176.39},{\"date\":\"05/02/2024\",\"description\":\"CLG-GATEWAY PROJECTS LTD\",\"amount\":562315.15,\"direction\":\"IN\",\"balance_after\":3989491.54},{\"date\":\"05/02/2024\",\"description\":\"UPI/CR/319177823601/Subramaniam Murthy/8974815900@pay\",\"amount\":88371.45,\"direction\":\"IN\",\"balance_after\":4077862.99},{\"date\":\"06/02/2024\",\"description\":\"ATM WDL-33865\",\"amount\":4246.28,\"direction\":\"OUT\",\"balance_after\":4073616.71},{\"date\":\"07/02/2024\",\"description\":\"NEFT-644348138246-Lakshmi Reddy\",\"amount\":279052.83,\"direction\":\"OUT\",\"balance_after\":3794563.88},{\"date\":\"07/02/2024\",\"description\":\"NEFT-686611365349-Karthik Naidu\",\"amount\":367866.95,\"direction\":\"OUT\",\"balance_after\":3426969.93},{\"date\":\"08/02/2024\",\"description\":\"IMPS-915898137500-Ramesh Iyer\",\"amount\":408515.58,\"direction\":\"OUT\",\"balance_after\":3018181.35},{\"date\":\"08/02/2024\",\"description\":\"IMPS-483565397419-CAPITAL VENTURES INDIA\",\"amount\":94704.24,\"direction\":\"IN\",\"balance_after\":3112885.59},{\"date\":\"08/02/2024\",\"description\":\"FAILED-INSUFFICIENT FUNDS-CASH WITHDRAWAL-Karthik Menon\",\"amount\":0,\"direction\":\"OUT\",\"balance_after\":3112885.59},{\"date\":\"08/02/2024\",\"description\":\"NEFT-269717509281-Subramaniam Naidu\",\"amount\":902370.06,\"direction\":\"OUT\",\"balance_after\":2210515.53},{\"date\":\"09/02/2024\",\"description\":\"CLG-NETPULSE SYSTEMS\",\"amount\":443328.71,\"direction\":\"IN\",\"balance_after\":2653844.24},{\"date\":\"10/02/2024\",\"description\":\"ATM WDL-24242\",\"amount\":10322.49,\"direction\":\"OUT\",\"balance_after\":2643521.75},{\"date\":\"10/02/2024\",\"description\":\"IMPS-573077013494-HEALTHCARE PRODUCTS LTD\",\"amount\":171184.22,\"direction\":\"IN\",\"balance_after\":2814705.97},{\"date\":\"10/02/2024\",\"description\":\"CLG-CONSUMER PRODUCTS INDIA\",\"amount\":164290.39,\"direction\":\"IN\",\"balance_after\":2978996.36},{\"date\":\"12/02/2024\",\"description\":\"CASH WITHDRAWAL-Ramesh Menon\",\"amount\":136618.45,\"direction\":\"OUT\",\"balance_after\":2842377.91},{\"date\":\"12/02/2024\",\"description\":\"NEFT-122697498898-Srinivas Nair\",\"amount\":724777.73,\"direction\":\"OUT\",\"balance_after\":2117600.18},{\"date\":\"12/02/2024\",\"description\":\"SERVICE CHARGES-Foreign Currency Markup\",\"amount\":142.09,\"direction\":\"OUT\",\"balance_after\":2117458.09},{\"date\":\"13/02/2024\",\"description\":\"UPI/CR/614495410263/Venkatesh Reddy/7054374447@pay\",\"amount\":16601.42,\"direction\":\"IN\",\"balance_after\":2134059.51},{\"date\":\"13/02/2024\",\"description\":\"CLG-PRECISION ENGINEERING WORKS\",\"amount\":273267.77,\"direction\":\"IN\",\"balance_after\":2407327.28},{\"date\":\"14/02/2024\",\"description\":\"UPI/CR/486813495244/Venkatesh Reddy/8072645452@pay\",\"amount\":74802.82,\"direction\":\"IN\",\"balance_after\":2482130.1},{\"date\":\"14/02/2024\",\"description\":\"CHQ PAID-Ganesh Murthy-MICR\",\"amount\":218474.18,\"direction\":\"OUT\",\"balance_after\":2263655.92},{\"date\":\"15/02/2024\",\"description\":\"CHQ PAID-Subramaniam Reddy-MICR\",\"amount\":924596.53,\"direction\":\"OUT\",\"balance_after\":1339059.39},{\"date\":\"15/02/2024\",\"description\":\"IMPS-358436224492-CYBERCRAFT SYSTEMS\",\"amount\":30226.83,\"direction\":\"IN\",\"balance_after\":1369286.22},{\"date\":\"16/02/2024\",\"description\":\"CLG-URBAN CONSTRUCTIONS\",\"amount\":323842.44,\"direction\":\"IN\",\"balance_after\":1693128.66},{\"date\":\"16/02/2024\",\"description\":\"UPI/DR/357054274902/Venkatesh Reddy/9510290650@pay\",\"amount\":6789.58,\"direction\":\"OUT\",\"balance_after\":1686339.08},{\"date\":\"16/02/2024\",\"description\":\"NEFT-103474729499-Subramaniam Menon\",\"amount\":657104.35,\"direction\":\"OUT\",\"balance_after\":1029234.73},{\"date\":\"17/02/2024\",\"description\":\"UPI/CR/753016976960/Ganesh Pillai/6800851015@pay\",\"amount\":23158.94,\"direction\":\"IN\",\"balance_after\":1052393.67},{\"date\":\"19/02/2024\",\"description\":\"CASH DEPOSIT-Ramesh Rao\",\"amount\":84290.99,\"direction\":\"IN\",\"balance_after\":1136684.66},{\"date\":\"19/02/2024\",\"description\":\"IMPS-660367155471-CODEBASE SOLUTIONS\",\"amount\":163939.15,\"direction\":\"IN\",\"balance_after\":1300623.81}]}",
+    "{\"transactions\":[{\"date\":\"20/02/2024\",\"description\":\"NEFT-666763858122-DIGITAL SOLUTIONS INDIA\",\"amount\":456429.85,\"direction\":\"IN\",\"balance_after\":1757053.66},{\"date\":\"20/02/2024\",\"description\":\"CASH WITHDRAWAL-Karthik Nair\",\"amount\":82556.53,\"direction\":\"OUT\",\"balance_after\":1674497.13},{\"date\":\"20/02/2024\",\"description\":\"NEFT Dr-771669702522-GST PAYMENT-GSTIN 76A7387\",\"amount\":170450.39,\"direction\":\"OUT\",\"balance_after\":259664.52},{\"date\":\"21/02/2024\",\"description\":\"ATM WDL-27889\",\"amount\":14051.51,\"direction\":\"OUT\",\"balance_after\":1660445.62},{\"date\":\"21/02/2024\",\"description\":\"RTGS-ICICR315191603794-CONSTRUCTI ON SOLUTIONS LTD\",\"amount\":1447999.43,\"direction\":\"IN\",\"balance_after\":3108445.05},{\"date\":\"22/02/2024\",\"description\":\"IMPS-920714945814-CARGO SOLUTIONS LTD\",\"amount\":435369.14,\"direction\":\"IN\",\"balance_after\":3543814.19},{\"date\":\"24/02/2024\",\"description\":\"NEFT-782537817783-LIFELINE PHARMACEUTICAL\",\"amount\":287912.27,\"direction\":\"IN\",\"balance_after\":3831726.46},{\"date\":\"24/02/2024\",\"description\":\"CLG-DIGITAL SOLUTIONS INDIA\",\"amount\":992992.44,\"direction\":\"IN\",\"balance_after\":4824718.90},{\"date\":\"24/02/2024\",\"description\":\"ATM WDL-29978\",\"amount\":8041.84,\"direction\":\"OUT\",\"balance_after\":4816677.06},{\"date\":\"26/02/2024\",\"description\":\"IMPS-941817641209-FOOD INDUSTRIES CORP\",\"amount\":252924.01,\"direction\":\"IN\",\"balance_after\":5069601.07},{\"date\":\"26/02/2024\",\"description\":\"RTGS-ICICR488557855256-Karthik Menon\",\"amount\":1328679.63,\"direction\":\"OUT\",\"balance_after\":3740921.44},{\"date\":\"26/02/2024\",\"description\":\"NEFT-143632038001-Ganesh Pillai\",\"amount\":237872.29,\"direction\":\"OUT\",\"balance_after\":3503049.15},{\"date\":\"27/02/2024\",\"description\":\"NEFT-873415776261-PREMIUM INFRASTRUCTURE\",\"amount\":1059971.57,\"direction\":\"IN\",\"balance_after\":4563020.72},{\"date\":\"28/02/2024\",\"description\":\"UPI/CR/867703494263/Srinivas Iyer/7352098555@pay\",\"amount\":225484.01,\"direction\":\"IN\",\"balance_after\":4788504.73},{\"date\":\"28/02/2024\",\"description\":\"NEFT-559266103550-Kavitha Rao\",\"amount\":1538995.13,\"direction\":\"OUT\",\"balance_after\":3249509.60},{\"date\":\"28/02/2024\",\"description\":\"NEFT-541542497892-GST PAYMENT-GSTIN\",\"amount\":351150.76,\"direction\":\"OUT\",\"balance_after\":2898358.84},{\"date\":\"28/02/2024\",\"description\":\"Service Charges-Online Banking Charges\",\"amount\":159.60,\"direction\":\"OUT\",\"balance_after\":259430.12},{\"date\":\"28/02/2024\",\"description\":\"Service Charges-SMS Alert Charges\",\"amount\":74.80,\"direction\":\"OUT\",\"balance_after\":259589.72},{\"date\":\"28/02/2024\",\"description\":\"Service Charges-Demat Account AMC\",\"amount\":374.21,\"direction\":\"OUT\",\"balance_after\":259055.91},{\"date\":\"29/02/2024\",\"description\":\"IMPS-169315319731-CREDIT SERVICES LTD\",\"amount\":73863.21,\"direction\":\"IN\",\"balance_after\":2972222.05},{\"date\":\"29/02/2024\",\"description\":\"IMPS-662944833911-CONSTRUCTION SOLUTIONS LTD\",\"amount\":430157.81,\"direction\":\"IN\",\"balance_after\":3402379.86},{\"date\":\"29/02/2024\",\"description\":\"CLG-CAPITAL VENTURES INDIA\",\"amount\":942328.27,\"direction\":\"IN\",\"balance_after\":4344708.13},{\"date\":\"01/03/2024\",\"description\":\"ATM WDL-35072\",\"amount\":18486.39,\"direction\":\"OUT\",\"balance_after\":4326221.74},{\"date\":\"02/03/2024\",\"description\":\"NEFT-622296553551-FASHION TEXTILES LTD\",\"amount\":574203.65,\"direction\":\"IN\",\"balance_after\":4900425.39},{\"date\":\"02/03/2024\",\"description\":\"CASH WITHDRAWAL-Ramesh Pillai\",\"amount\":235387.97,\"direction\":\"OUT\",\"balance_after\":4665037.42},{\"date\":\"02/03/2024\",\"description\":\"NEFT-744561237829-GST PAYMENT-GSTIN\",\"amount\":447177.84,\"direction\":\"OUT\",\"balance_after\":4217859.58},{\"date\":\"02/03/2024\",\"description\":\"ATM WDL-73339\",\"amount\":10619.65,\"direction\":\"OUT\",\"balance_after\":4207239.93},{\"date\":\"04/03/2024\",\"description\":\"REVERSAL-IMPS-169315319731-CREDIT SERVICES LTD\",\"amount\":73863.21,\"direction\":\"OUT\",\"balance_after\":802063.40},{\"date\":\"04/03/2024\",\"description\":\"ATM WDL-46274\",\"amount\":6849.91,\"direction\":\"OUT\",\"balance_after\":4200390.02},{\"date\":\"04/03/2024\",\"description\":\"IMPS-329944215729-HOUSING DEVELOPERS CORP\",\"amount\":553635.66,\"direction\":\"IN\",\"balance_after\":4754025.68},{\"date\":\"05/03/2024\",\"description\":\"NEFT-622432549701-Subramaniam Naidu\",\"amount\":453510.13,\"direction\":\"OUT\",\"balance_after\":4300515.55},{\"date\":\"05/03/2024\",\"description\":\"IMPS-634649383399-WELLNESS BRANDS INDIA\",\"amount\":632004.20,\"direction\":\"IN\",\"balance_after\":4932519.75},{\"date\":\"05/03/2024\",\"description\":\"ATM WDL-28536\",\"amount\":17977.69,\"direction\":\"OUT\",\"balance_after\":4914542.06},{\"date\":\"05/03/2024\",\"description\":\"NEFT-524687515636-Lakshmi Naidu\",\"amount\":1931369.10,\"direction\":\"OUT\",\"balance_after\":2983172.96},{\"date\":\"05/03/2024\",\"description\":\"CHQ PAID-Venkatesh Menon-MICR\",\"amount\":1122810.81,\"direction\":\"OUT\",\"balance_after\":1860362.15}]}",
+    "{\"transactions\":[{\"date\":\"06/03/2024\",\"description\":\"NEFT-817429369883-FASHION TEXTILES LTD\",\"amount\":598741.62,\"direction\":\"IN\",\"balance_after\":2459103.77},{\"date\":\"06/03/2024\",\"description\":\"NEFT-959233854874-URBAN CONSTRUCTIONS\",\"amount\":188619.16,\"direction\":\"IN\",\"balance_after\":2647722.93},{\"date\":\"06/03/2024\",\"description\":\"NEFT-568955747384-Venkatesh Nair\",\"amount\":434962.1,\"direction\":\"OUT\",\"balance_after\":2212760.83},{\"date\":\"07/03/2024\",\"description\":\"NEFT-140033896962-Ganesh Rao\",\"amount\":489299.24,\"direction\":\"OUT\",\"balance_after\":1723461.59},{\"date\":\"09/03/2024\",\"description\":\"NEFT-719460649751-APEX HEAVY INDUSTRIES\",\"amount\":474006.27,\"direction\":\"IN\",\"balance_after\":2197467.86},{\"date\":\"11/03/2024\",\"description\":\"NEFT-900078848401-Subramaniam Menon\",\"amount\":598865.76,\"direction\":\"OUT\",\"balance_after\":1598602.1},{\"date\":\"11/03/2024\",\"description\":\"IMPS-517854169377-APEX HEAVY INDUSTRIES\",\"amount\":131448.68,\"direction\":\"IN\",\"balance_after\":1730050.78},{\"date\":\"12/03/2024\",\"description\":\"RTGS-ICICR908705654981-FASHION TEXTILES LTD\",\"amount\":3105234.88,\"direction\":\"IN\",\"balance_after\":4835285.66},{\"date\":\"12/03/2024\",\"description\":\"RTGS-ICICR803745188189-Venkatesh Naidu\",\"amount\":1701379.66,\"direction\":\"OUT\",\"balance_after\":3133906.0},{\"date\":\"13/03/2024\",\"description\":\"ATM WDL-83870\",\"amount\":14637.19,\"direction\":\"OUT\",\"balance_after\":3119268.81},{\"date\":\"13/03/2024\",\"description\":\"SERVICE CHARGES-SMS Alert Charges\",\"amount\":291.19,\"direction\":\"OUT\",\"balance_after\":3118977.62},{\"date\":\"13/03/2024\",\"description\":\"RTGS-ICICR539516527079-EXPRESS LOGISTICS INDIA\",\"amount\":4045927.09,\"direction\":\"IN\",\"balance_after\":7164904.71},{\"date\":\"13/03/2024\",\"description\":\"CLG-REALTY VENTURES LTD\",\"amount\":420527.16,\"direction\":\"IN\",\"balance_after\":7585431.87},{\"date\":\"14/03/2024\",\"description\":\"NEFT-628242640309-Anitha Reddy\",\"amount\":2194293.83,\"direction\":\"OUT\",\"balance_after\":5391138.04},{\"date\":\"14/03/2024\",\"description\":\"NEFT-321947659087-FABRIC INDUSTRIES INDIA\",\"amount\":2049286.83,\"direction\":\"IN\",\"balance_after\":7440424.87},{\"date\":\"15/03/2024\",\"description\":\"NEFT-829567684854-DATABRIDGE INFOTECH\",\"amount\":3667970.18,\"direction\":\"IN\",\"balance_after\":11108395.05},{\"date\":\"15/03/2024\",\"description\":\"CASH WITHDRAWAL-Ganesh Pillai\",\"amount\":177643.99,\"direction\":\"OUT\",\"balance_after\":10930751.06},{\"date\":\"16/03/2024\",\"description\":\"ATM WDL-20035\",\"amount\":9151.54,\"direction\":\"OUT\",\"balance_after\":10921599.52},{\"date\":\"16/03/2024\",\"description\":\"CASH WITHDRAWAL-Karthik Rao\",\"amount\":169960.47,\"direction\":\"OUT\",\"balance_after\":10751639.05},{\"date\":\"18/03/2024\",\"description\":\"CHQ PAID-Venkatesh Krishnan-MICR\",\"amount\":731999.84,\"direction\":\"OUT\",\"balance_after\":10019639.21},{\"date\":\"20/03/2024\",\"description\":\"RTGS-ICICR644959518406-Srinivas Krishnan\",\"amount\":2136377.76,\"direction\":\"OUT\",\"balance_after\":7883261.45},{\"date\":\"20/03/2024\",\"description\":\"CHQ PAID-Karthik Reddy-MICR\",\"amount\":2064242.22,\"direction\":\"OUT\",\"balance_after\":5819019.23},{\"date\":\"20/03/2024\",\"description\":\"NEFT Dr-424861610036-GST PAYMENT-GSTIN 54B9990\",\"amount\":148805.74,\"direction\":\"OUT\",\"balance_after\":110250.17},{\"date\":\"20/03/2024\",\"description\":\"CHQ PAID-Anitha Menon-MICR\",\"amount\":968184.51,\"direction\":\"OUT\",\"balance_after\":4850834.72},{\"date\":\"21/03/2024\",\"description\":\"CASH WITHDRAWAL-Kavitha Rao\",\"amount\":100799.67,\"direction\":\"OUT\",\"balance_after\":4750035.05},{\"date\":\"22/03/2024\",\"description\":\"IMPS-575296122794-Ramesh Nair\",\"amount\":332737.59,\"direction\":\"OUT\",\"balance_after\":4417297.46},{\"date\":\"23/03/2024\",\"description\":\"CLG-URBAN CONSTRUCTIONS\",\"amount\":1213013.24,\"direction\":\"IN\",\"balance_after\":5630310.7},{\"date\":\"23/03/2024\",\"description\":\"RTGS-ICICR740133104054-Karthik Murthy\",\"amount\":4286494.5,\"direction\":\"OUT\",\"balance_after\":1343816.2},{\"date\":\"26/03/2024\",\"description\":\"NEFT-457658204692-REALTY VENTURES LTD\",\"amount\":635006.27,\"direction\":\"IN\",\"balance_after\":1978822.47},{\"date\":\"26/03/2024\",\"description\":\"NEFT-638268505310-CODEBASE SOLUTIONS\",\"amount\":912366.57,\"direction\":\"IN\",\"balance_after\":2891189.04},{\"date\":\"26/03/2024\",\"description\":\"ATM WDL-19152\",\"amount\":10873.96,\"direction\":\"OUT\",\"balance_after\":2880315.08},{\"date\":\"27/03/2024\",\"description\":\"SERVICE CHARGES-Demat Account AMC\",\"amount\":68.61,\"direction\":\"OUT\",\"balance_after\":2880246.47},{\"date\":\"27/03/2024\",\"description\":\"RTGS-ICICR450592146984-Subramaniam Murthy\",\"amount\":1679704.76,\"direction\":\"OUT\",\"balance_after\":1200541.71},{\"date\":\"27/03/2024\",\"description\":\"IMPS-435521586165-CREDIT SERVICES LTD\",\"amount\":20923.38,\"direction\":\"IN\",\"balance_after\":1221465.09},{\"date\":\"28/03/2024\",\"description\":\"ATM WDL-54345\",\"amount\":12542.36,\"direction\":\"OUT\",\"balance_after\":1208922.73}]}",
+    "{\"transactions\":[{\"date\":\"28/03/2024\",\"description\":\"Dividend Cr-INVESTMENT SERVICES INDIA-EQUITY SHARES\",\"amount\":12062.90,\"direction\":\"IN\",\"balance_after\":1220985.63},{\"date\":\"28/03/2024\",\"description\":\"SERVICE CHARGES-SMS Alert Charges\",\"amount\":150.79,\"direction\":\"OUT\",\"balance_after\":1220834.84},{\"date\":\"28/03/2024\",\"description\":\"CLG-MOTOR INDUSTRIES LTD\",\"amount\":278543.39,\"direction\":\"IN\",\"balance_after\":1499378.23},{\"date\":\"28/03/2024\",\"description\":\"CHQ PAID-Anitha Krishnan-MICR\",\"amount\":623451.62,\"direction\":\"OUT\",\"balance_after\":875926.61},{\"date\":\"28/03/2024\",\"description\":\"Service Charges-Demat Account AMC\",\"amount\":582.41,\"direction\":\"OUT\",\"balance_after\":109527.96},{\"date\":\"28/03/2024\",\"description\":\"Service Charges-Online Banking Charges\",\"amount\":233.88,\"direction\":\"OUT\",\"balance_after\":109294.08},{\"date\":\"28/03/2024\",\"description\":\"Service Charges-Statement Charges\",\"amount\":139.80,\"direction\":\"OUT\",\"balance_after\":110110.37}]}"
+  ],
+  "truth": {
+    "opening_balance": "1279072.17",
+    "closing_balance": "110110.37",
+    "transactions": [
+      {
+        "date": "01/01/2024",
+        "description": "RTGS-ICICR510742914335-Lakshmi Naidu",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "02/01/2024",
+        "description": "IMPS-212190484533-HEALTHCARE PRODUCTS LTD",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "02/01/2024",
+        "description": "IMPS-597987779248-DATABRIDGE INFOTECH",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "02/01/2024",
+        "description": "UPI/CR/586134526249/Priya Krishnan/6788808567@pay",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "02/01/2024",
+        "description": "UPI/DR/700203118416/Ramesh Reddy/7124029087@pay",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "04/01/2024",
+        "description": "SERVICE CHARGES-Foreign Currency Markup",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "04/01/2024",
+        "description": "NEFT-403681166106-Ganesh Pillai",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "05/01/2024",
+        "description": "IMPS-414202795937-DAILY NEEDS LIMITED",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "05/01/2024",
+        "description": "NEFT-524813805872-GST PAYMENT-GSTIN",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "06/01/2024",
+        "description": "NEFT-644951640158-DIGITAL SOLUTIONS INDIA",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "06/01/2024",
+        "description": "NEFT-727523724896-HEALTHPLUS PHARMA LTD",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "06/01/2024",
+        "description": "ATM WDL-84393",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "06/01/2024",
+        "description": "IMPS-290319105487-HEALTHCARE PRODUCTS LTD",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "08/01/2024",
+        "description": "RTGS-ICICR419518253429-Venkatesh Rao",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "08/01/2024",
+        "description": "CHQ PAID-Subramaniam Rao-MICR",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "09/01/2024",
+        "description": "NEFT-287837415387-PRECISION ENGINEERING WORKS",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "10/01/2024",
+        "description": "UPI/CR/725664555690/Srinivas Reddy/8497226062@pay",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "10/01/2024",
+        "description": "NEFT-618421866089-PERSONAL CARE LTD",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "10/01/2024",
+        "description": "CASH DEPOSIT-Srinivas Nair",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "11/01/2024",
+        "description": "SERVICE CHARGES-Cheque Book Charges",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "11/01/2024",
+        "description": "RTGS-ICICR297944257075-APEX HEAVY INDUSTRIES",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "11/01/2024",
+        "description": "IMPS-815957436362-DAILY NEEDS LIMITED",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "12/01/2024",
+        "description": "REVERSAL-RTGS-ICICR297944257075-APEX HEAVY INDUSTRIES",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "13/01/2024",
+        "description": "IMPS-569297862727-URBAN ESTATES INDIA",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "13/01/2024",
+        "description": "UPI/DR/338919637684/Anitha Nair/9635953174@pay",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "13/01/2024",
+        "description": "IMPS-697830964902-Karthik Iyer",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "13/01/2024",
+        "description": "IMPS-992983448493-Venkatesh Rao",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "15/01/2024",
+        "description": "CHQ PAID-Srinivas Menon-MICR",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "16/01/2024",
+        "description": "UPI/CR/612430383276/Subramaniam Krishnan/7232360624@pay",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "16/01/2024",
+        "description": "NEFT-889583341413-PRECISION ENGINEERING WORKS",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "18/01/2024",
+        "description": "NEFT-519719438810-Priya Menon",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "19/01/2024",
+        "description": "UPI/DR/857223273927/Ganesh Pillai/7683434104@pay",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "19/01/2024",
+        "description": "CHQ PAID-Venkatesh Pillai-MICR",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "19/01/2024",
+        "description": "RTGS-ICICR182066605377-NETFORGE TECHNOLOGIES",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "19/01/2024",
+        "description": "UPI/DR/279751944022/Srinivas Murthy/7758605812@pay",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "19/01/2024",
+        "description": "CASH DEPOSIT-Lakshmi Naidu",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "20/01/2024",
+        "description": "CHQ PAID-Subramaniam Nair-MICR",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "20/01/2024",
+        "description": "NEFT Dr-894100359246-GST PAYMENT-GSTIN 28C8742",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "22/01/2024",
+        "description": "CHQ PAID-Anitha Naidu-MICR",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "22/01/2024",
+        "description": "CLG-FINANCE SOLUTIONS INDIA",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "22/01/2024",
+        "description": "IMPS-198513905699-THERMAL SYSTEMS LTD",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "22/01/2024",
+        "description": "IMPS-376925559056-Priya Naidu",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "23/01/2024",
+        "description": "ATM WDL-78867",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "23/01/2024",
+        "description": "UPI/CR/671379523877/Subramaniam Menon/7451082689@pay",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "24/01/2024",
+        "description": "ATM WDL-69028",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "25/01/2024",
+        "description": "NEFT-856429560970-MEDCARE LABORATORIES",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "29/01/2024",
+        "description": "CASH DEPOSIT-Venkatesh Murthy",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "29/01/2024",
+        "description": "NEFT-384430462240-Subramaniam Rao",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "29/01/2024",
+        "description": "UPI/CR/323017461830/Ramesh Reddy/8241426919@pay",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "29/01/2024",
+        "description": "ATM WDL-88835",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "30/01/2024",
+        "description": "NEFT-378435985055-CARGO SOLUTIONS LTD",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "30/01/2024",
+        "description": "NEFT-704756068064-GATEWAY PROJECTS LTD",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "31/01/2024",
+        "description": "NEFT-514556788419-DAILY NEEDS LIMITED",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "31/01/2024",
+        "description": "CLG-LIFELINE PHARMACEUTICAL",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "01/02/2024",
+        "description": "NEFT-442611102554-CYBERCRAFT SYSTEMS",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "02/02/2024",
+        "description": "RTGS-ICICR923815251247-CONSTRUCTION SOLUTIONS LTD",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "05/02/2024",
+        "description": "CLG-GATEWAY PROJECTS LTD",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "05/02/2024",
+        "description": "UPI/CR/319177823601/Subramaniam Murthy/8974815900@pay",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "06/02/2024",
+        "description": "ATM WDL-33865",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "07/02/2024",
+        "description": "NEFT-644348138246-Lakshmi Reddy",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "07/02/2024",
+        "description": "NEFT-686611365349-Karthik Naidu",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "08/02/2024",
+        "description": "IMPS-915898137500-Ramesh Iyer",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "08/02/2024",
+        "description": "IMPS-483565397419-CAPITAL VENTURES INDIA",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "08/02/2024",
+        "description": "FAILED-INSUFFICIENT FUNDS-CASH WITHDRAWAL-Karthik Menon",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "08/02/2024",
+        "description": "NEFT-269717509281-Subramaniam Naidu",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "09/02/2024",
+        "description": "CLG-NETPULSE SYSTEMS",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "10/02/2024",
+        "description": "ATM WDL-24242",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "10/02/2024",
+        "description": "IMPS-573077013494-HEALTHCARE PRODUCTS LTD",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "10/02/2024",
+        "description": "CLG-CONSUMER PRODUCTS INDIA",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "12/02/2024",
+        "description": "CASH WITHDRAWAL-Ramesh Menon",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "12/02/2024",
+        "description": "NEFT-122697498898-Srinivas Nair",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "12/02/2024",
+        "description": "SERVICE CHARGES-Foreign Currency Markup",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "13/02/2024",
+        "description": "UPI/CR/614495410263/Venkatesh Reddy/7054374447@pay",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "13/02/2024",
+        "description": "CLG-PRECISION ENGINEERING WORKS",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "14/02/2024",
+        "description": "UPI/CR/486813495244/Venkatesh Reddy/8072645452@pay",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "14/02/2024",
+        "description": "CHQ PAID-Ganesh Murthy-MICR",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "15/02/2024",
+        "description": "CHQ PAID-Subramaniam Reddy-MICR",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "15/02/2024",
+        "description": "IMPS-358436224492-CYBERCRAFT SYSTEMS",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "16/02/2024",
+        "description": "CLG-URBAN CONSTRUCTIONS",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "16/02/2024",
+        "description": "UPI/DR/357054274902/Venkatesh Reddy/9510290650@pay",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "16/02/2024",
+        "description": "NEFT-103474729499-Subramaniam Menon",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "17/02/2024",
+        "description": "UPI/CR/753016976960/Ganesh Pillai/6800851015@pay",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "19/02/2024",
+        "description": "CASH DEPOSIT-Ramesh Rao",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "19/02/2024",
+        "description": "IMPS-660367155471-CODEBASE SOLUTIONS",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "20/02/2024",
+        "description": "NEFT-666763858122-DIGITAL SOLUTIONS INDIA",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "20/02/2024",
+        "description": "CASH WITHDRAWAL-Karthik Nair",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "20/02/2024",
+        "description": "NEFT Dr-771669702522-GST PAYMENT-GSTIN 76A7387",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "21/02/2024",
+        "description": "ATM WDL-27889",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "21/02/2024",
+        "description": "RTGS-ICICR315191603794-CONSTRUCTION SOLUTIONS LTD",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "22/02/2024",
+        "description": "IMPS-920714945814-CARGO SOLUTIONS LTD",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "24/02/2024",
+        "description": "NEFT-782537817783-LIFELINE PHARMACEUTICAL",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "24/02/2024",
+        "description": "CLG-DIGITAL SOLUTIONS INDIA",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "24/02/2024",
+        "description": "ATM WDL-29978",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "26/02/2024",
+        "description": "IMPS-941817641209-FOOD INDUSTRIES CORP",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "26/02/2024",
+        "description": "RTGS-ICICR488557855256-Karthik Menon",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "26/02/2024",
+        "description": "NEFT-143632038001-Ganesh Pillai",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "27/02/2024",
+        "description": "NEFT-873415776261-PREMIUM INFRASTRUCTURE",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "28/02/2024",
+        "description": "UPI/CR/867703494263/Srinivas Iyer/7352098555@pay",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "28/02/2024",
+        "description": "NEFT-559266103550-Kavitha Rao",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "28/02/2024",
+        "description": "NEFT-541542497892-GST PAYMENT-GSTIN",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "28/02/2024",
+        "description": "Service Charges-Online Banking Charges",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "28/02/2024",
+        "description": "Service Charges-SMS Alert Charges",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "28/02/2024",
+        "description": "Service Charges-Demat Account AMC",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "29/02/2024",
+        "description": "IMPS-169315319731-CREDIT SERVICES LTD",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "29/02/2024",
+        "description": "IMPS-662944833911-CONSTRUCTION SOLUTIONS LTD",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "29/02/2024",
+        "description": "CLG-CAPITAL VENTURES INDIA",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "01/03/2024",
+        "description": "ATM WDL-35072",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "02/03/2024",
+        "description": "NEFT-622296553551-FASHION TEXTILES LTD",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "02/03/2024",
+        "description": "CASH WITHDRAWAL-Ramesh Pillai",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "02/03/2024",
+        "description": "NEFT-744561237829-GST PAYMENT-GSTIN",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "02/03/2024",
+        "description": "ATM WDL-73339",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "04/03/2024",
+        "description": "REVERSAL-IMPS-169315319731-CREDIT SERVICES LTD",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "04/03/2024",
+        "description": "ATM WDL-46274",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "04/03/2024",
+        "description": "IMPS-329944215729-HOUSING DEVELOPERS CORP",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "05/03/2024",
+        "description": "NEFT-622432549701-Subramaniam Naidu",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "05/03/2024",
+        "description": "IMPS-634649383399-WELLNESS BRANDS INDIA",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "05/03/2024",
+        "description": "ATM WDL-28536",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "05/03/2024",
+        "description": "NEFT-524687515636-Lakshmi Naidu",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "05/03/2024",
+        "description": "CHQ PAID-Venkatesh Menon-MICR",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "06/03/2024",
+        "description": "NEFT-817429369883-FASHION TEXTILES LTD",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "06/03/2024",
+        "description": "NEFT-959233854874-URBAN CONSTRUCTIONS",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "06/03/2024",
+        "description": "NEFT-568955747384-Venkatesh Nair",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "07/03/2024",
+        "description": "NEFT-140033896962-Ganesh Rao",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "09/03/2024",
+        "description": "NEFT-719460649751-APEX HEAVY INDUSTRIES",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "11/03/2024",
+        "description": "NEFT-900078848401-Subramaniam Menon",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "11/03/2024",
+        "description": "IMPS-517854169377-APEX HEAVY INDUSTRIES",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "12/03/2024",
+        "description": "RTGS-ICICR908705654981-FASHION TEXTILES LTD",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "12/03/2024",
+        "description": "RTGS-ICICR803745188189-Venkatesh Naidu",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "13/03/2024",
+        "description": "ATM WDL-83870",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "13/03/2024",
+        "description": "SERVICE CHARGES-SMS Alert Charges",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "13/03/2024",
+        "description": "RTGS-ICICR539516527079-EXPRESS LOGISTICS INDIA",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "13/03/2024",
+        "description": "CLG-REALTY VENTURES LTD",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "14/03/2024",
+        "description": "NEFT-628242640309-Anitha Reddy",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "14/03/2024",
+        "description": "NEFT-321947659087-FABRIC INDUSTRIES INDIA",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "15/03/2024",
+        "description": "NEFT-829567684854-DATABRIDGE INFOTECH",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "15/03/2024",
+        "description": "CASH WITHDRAWAL-Ganesh Pillai",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "16/03/2024",
+        "description": "ATM WDL-20035",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "16/03/2024",
+        "description": "CASH WITHDRAWAL-Karthik Rao",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "18/03/2024",
+        "description": "CHQ PAID-Venkatesh Krishnan-MICR",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "20/03/2024",
+        "description": "RTGS-ICICR644959518406-Srinivas Krishnan",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "20/03/2024",
+        "description": "CHQ PAID-Karthik Reddy-MICR",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "20/03/2024",
+        "description": "NEFT Dr-424861610036-GST PAYMENT-GSTIN 54B9990",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "20/03/2024",
+        "description": "CHQ PAID-Anitha Menon-MICR",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "21/03/2024",
+        "description": "CASH WITHDRAWAL-Kavitha Rao",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "22/03/2024",
+        "description": "IMPS-575296122794-Ramesh Nair",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "23/03/2024",
+        "description": "CLG-URBAN CONSTRUCTIONS",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "23/03/2024",
+        "description": "RTGS-ICICR740133104054-Karthik Murthy",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "26/03/2024",
+        "description": "NEFT-457658204692-REALTY VENTURES LTD",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "26/03/2024",
+        "description": "NEFT-638268505310-CODEBASE SOLUTIONS",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "26/03/2024",
+        "description": "ATM WDL-19152",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "27/03/2024",
+        "description": "SERVICE CHARGES-Demat Account AMC",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "27/03/2024",
+        "description": "RTGS-ICICR450592146984-Subramaniam Murthy",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "27/03/2024",
+        "description": "IMPS-435521586165-CREDIT SERVICES LTD",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "28/03/2024",
+        "description": "ATM WDL-54345",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "28/03/2024",
+        "description": "Dividend Cr-INVESTMENT SERVICES INDIA-EQUITY SHARES",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "28/03/2024",
+        "description": "SERVICE CHARGES-SMS Alert Charges",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "28/03/2024",
+        "description": "CLG-MOTOR INDUSTRIES LTD",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "28/03/2024",
+        "description": "CHQ PAID-Anitha Krishnan-MICR",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "28/03/2024",
+        "description": "Service Charges-Demat Account AMC",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "28/03/2024",
+        "description": "Service Charges-Online Banking Charges",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      },
+      {
+        "date": "28/03/2024",
+        "description": "Service Charges-Statement Charges",
+        "amount": "0",
+        "direction": "OUT",
+        "balance_after": null
+      }
+    ]
+  }
+}
