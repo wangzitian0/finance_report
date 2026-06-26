@@ -450,6 +450,7 @@ Closing gate for the **Usable** milestone (G2∩G3, [#950](https://github.com/wa
 | AC ID | Test Case | Test Function | File | Priority |
 |---|---|---|---|---|
 | AC8.15.1 | Multi-month CSV statements parse, approve under the balance-chain guard, auto-post to the ledger, and the assembled period reports tie out end-to-end (income, expenses, net income, ending cash, total assets, and the accounting equation) | `test_AC8_15_1_full_year_statement_to_report_ties_out` | `apps/backend/tests/integration/test_full_year_statement_to_report_e2e.py` | P0 |
+| AC8.15.2 | A high-confidence, balance-validated bank statement with no pre-selected account auto-creates+links its physical asset account (by institution + account_last4 + currency), reaches APPROVED, and auto-posts to the ledger — the everyday-user upload→report path no longer dead-ends in review (#1444) {tier:CODE-ONLY} | `test_AC8_15_2_bank_statement_auto_creates_account_and_posts_without_manual_mapping` | `apps/backend/tests/integration/test_bank_statement_auto_account_post.py` | P1 |
 
 ### AC8.16: Augmentation-Layer Report Integrity
 
