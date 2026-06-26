@@ -113,14 +113,42 @@ FE is **not** a separate package tree. Each package's contract owns **one
 consistent by the shared vectors. **The FE decides its own implementation**;
 consistency is the vectors' job. Backend-only packages set `fe=None`.
 
-## Directory structure (where files go)
+## Where files go — contract vs implementation (there is no "layout")
 
-Every package uses the same layers (`base` / `extension` / `data`); only **where
-the code lives** differs. Pick **one** of three layouts — do not invent others.
+There are **two levels of contract**, and **one uniform package shape**; physical
+placement *falls out* of them — it is not a separate choice.
 
-### 1. Domain / capability package (default — counter, ledger, reporting, …)
+- **Project-level contract** — `meta` owns it: the `PackageContract` schema, the
+  dependency DAG, the composition rules (what a package *is*). The project's shared
+  *ubiquitous language* is the **Shared Kernel** (the value packages
+  `money`/`ratio`/`quantity`/`unit_price`) + cross-cutting policy
+  (`authority`/`coverage`/`config`/`observability`).
+- **Package-level contract** — each package's `contract.py` (`interface == __all__`,
+  invariants, `units`), which *conforms to* meta's project-level schema. `meta`
+  self-hosts: it is a package whose package-level contract conforms to the schema it
+  defines at the project level.
 
-Spec in `common/`, code in `apps/`. `data` is metadata in `contract.py`, not a dir.
+**One uniform package shape** (every package, no exceptions): a language-neutral
+**contract** + one-or-more per-runtime **implementations**, each converging into
+`base / extension / data` carrying `units` (`kind → layer`).
+
+**Placement falls out of one rule:**
+- the **contract** is language-neutral → `common/<pkg>/` (`contract.py`, `readme`,
+  and when cross-runtime: `contract/<pkg>.contract.md` + `conformance/vectors.json`);
+- each **implementation** lives where it runs → `apps/<runtime>/<pkg>/`, named by
+  `implementations` (`be`/`fe`); a package may have one or two.
+
+A package whose **strategic role is project-wide shared** — the **Shared Kernel**
+(value language) and the **meta-model + policy** (`meta`/`authority`/`coverage`/
+`config`/`observability`) — *is* shared code, so its implementation lives in
+`common/`. That is what `common/` means; it is **not** a special "layout", just a
+DDD package whose role is "shared by everyone". The two example shapes below are
+illustrations of the one rule, not choices to pick.
+
+### Example shape A — a domain / supporting package (counter, ledger, reporting, …)
+
+Contract in `common/`, implementation in `apps/<runtime>/`. `data` is metadata in
+`contract.py` until the package has real projection code.
 
 ```
 common/<pkg>/                         spec + review surface
@@ -136,10 +164,11 @@ apps/backend/tests/<pkg>/             behavior tests
 tests/tooling/test_<pkg>_package.py   contract / invariant tests
 ```
 
-### 2. Value-type narrow-waist package (the audit value language)
+### Example shape B — a project-level shared package (Shared Kernel `money`/…; meta-model `meta`)
 
-Canonical code in `common/`, BE + FE mirrors, conformance vectors keep them in
-sync. Use **only** for a cross-runtime leaf value language (needed by BE *and* FE).
+Its role is project-wide shared, so its **implementation lives in `common/`** (not a
+special case — that is what `common/` is for). A cross-runtime Shared-Kernel value
+additionally keeps BE/FE mirrors honest via `conformance/vectors.json`.
 
 ```
 common/<pkg>/
@@ -152,11 +181,9 @@ apps/backend/src/<pkg>/               BE mirror — conforms to interface + vect
 apps/frontend/src/lib/<pkg>/          FE mirror — conforms to interface + vectors
 ```
 
-### 3. The governing package: `meta` (common-only)
-
-`meta` is its own implementation; everything lives under `common/meta/`. Its
-`data/` is the one physical data layer — the computed index that replaces the
-hand-maintained MANIFEST / registry.
+`meta` (the meta-model package) is an instance of shape B — everything under
+`common/meta/`; its `data/` is the computed index that replaces the hand-maintained
+MANIFEST / registry:
 
 ```
 common/meta/
@@ -166,19 +193,18 @@ common/meta/
   data/                               the computed meta-index (registry · AC index · coverage)
 ```
 
-### Choosing the layout
+### Deployment note (packaging, not a domain rule)
 
-- BE-only domain / capability → **layout 1** (code in `apps/`).
-- cross-runtime leaf value language (BE + FE + conformance vectors) → **layout 2**.
-- the governing `meta` package → **layout 3** (common-only).
+The backend image does not ship `common/`, so a Shared-Kernel value package
+additionally keeps a self-contained **mirror** at `apps/backend/src/<pkg>` (and the
+FE its own at `apps/frontend/src/lib/<pkg>`), kept honest by the conformance vectors.
+That mirror is a **packaging artifact**, not a different kind of package — do not
+mistake it for structure.
 
-Layout 1 is live in `counter`; the value types already use layout 2; `meta` is the
-live **layout-3 exemplar** — it converges into `base/` (the `PackageContract`
-aggregate + its value objects), `extension/` (the gate, a domain service), and
-`data/` (`contract_index`, the projection), and declares its own `units`. New
-packages MUST match one of these — the gate (`check_package_contract`) owns the
-`base↓ / extension↑` rule, the `kind → layer` placement, the repository port/adapter
-split, and the data-sink rule.
+Live examples: `counter` (shape A) and `meta` (shape B). The gate
+(`check_package_contract`) owns the `base↓ / extension↑` rule, the `kind → layer`
+placement, the repository port/adapter split, and the data-sink rule — uniformly,
+for every package.
 
 ## Completion state (Definition of Done) — the migration unit is the AC
 

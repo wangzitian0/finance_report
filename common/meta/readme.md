@@ -103,7 +103,8 @@ edit: a new package is governed the moment it ships a `common/<pkg>/contract.py`
 ## Examples
 
 - **`meta`** (`platform`, the meta-package) — self-hosts the model **and** is the
-  live layout-3 exemplar of the building-block layering it governs. Its
+  live example of a project-level shared (meta-model) package — the building-block
+  layering it governs, applied to itself. Its
   [`contract.py`](./contract.py) publishes `PackageContract` / `ACRecord` /
   `Invariant` / `Kind` / `Unit` / `contract_index`, declares its `units` (the
   `PackageContract` aggregate + value objects in `base/`, the gate as a
