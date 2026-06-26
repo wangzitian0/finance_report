@@ -42,6 +42,14 @@ def contract_index(contracts: list[PackageContract]) -> dict[str, dict]:
     ac_index: dict[str, str] = {}
     for c in contracts:
         for ac in c.roadmap:
+            owner = ac_index.get(ac.id)
+            if owner is not None and owner != c.name:
+                # No AC is owned twice. A duplicate id across packages is a
+                # contract-integrity violation; surface it instead of silently
+                # overwriting the owner mapping.
+                raise ValueError(
+                    f"AC {ac.id!r} is claimed by two packages: {owner!r} and {c.name!r}"
+                )
             ac_index[ac.id] = c.name
 
     consumers: dict[str, list[str]] = {name: [] for name in by_name}

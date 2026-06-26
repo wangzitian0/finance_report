@@ -244,6 +244,17 @@ def test_AC_meta_projection_1_contract_index_is_pure(tmp_path: Path):
     assert contract_index([a, b]) == idx
 
 
+def test_contract_index_rejects_duplicate_ac_id():
+    """contract_index surfaces an AC id claimed by two packages, never overwrites."""
+    dup = ACRecord(
+        id="AC-dup.1.1", statement="s", test="t::f", priority="P0", status="done"
+    )
+    a = _contract("a", roadmap=[dup])
+    b = _contract("b", roadmap=[dup])
+    with pytest.raises(ValueError, match="claimed by two packages"):
+        contract_index([a, b])
+
+
 def test_AC_meta_kind_4_value_type_packages_pass(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
