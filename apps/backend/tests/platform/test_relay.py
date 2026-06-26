@@ -19,7 +19,7 @@ from src.platform import (
     OutboxRelay,
     SubscriberRegistry,
 )
-from src.platform.extension.sql import STATUS_PUBLISHED
+from src.platform.extension import STATUS_PUBLISHED
 
 
 def _event(name="counter.Incremented", count=1):
@@ -92,7 +92,7 @@ async def test_redelivery_of_pending_is_idempotent_safe(db):
 
     # Dispatch the same pending rows twice WITHOUT marking published in between
     # (simulating a crash-before-mark redelivery), by reading pending directly.
-    from src.platform.extension.sql import SqlOutboxRepository
+    from src.platform.extension import SqlOutboxRepository
 
     repo = SqlOutboxRepository(db)
     for _ in range(2):

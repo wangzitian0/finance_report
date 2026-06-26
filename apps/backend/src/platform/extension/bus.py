@@ -10,6 +10,8 @@ adapter in ``extension/sql.py``.
 
 from __future__ import annotations
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.platform.base.bus import EventHandler, SubscriberRegistry
 from src.platform.base.event import DomainEvent
 from src.platform.extension.sql import SqlOutboxRepository
@@ -26,7 +28,9 @@ class OutboxEventBus:
     producing package so the relay/operators can attribute events.
     """
 
-    def __init__(self, session, *, source_pkg: str, registry: SubscriberRegistry | None = None) -> None:
+    def __init__(
+        self, session: AsyncSession, *, source_pkg: str, registry: SubscriberRegistry | None = None
+    ) -> None:
         self._repo = SqlOutboxRepository(session)
         self._source_pkg = source_pkg
         self._registry = registry or SubscriberRegistry()

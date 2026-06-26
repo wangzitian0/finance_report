@@ -15,6 +15,12 @@ The package-local worklist. Cross-package migration lives in
 - [x] `counter` emits `counter.Incremented` through the outbox, atomic with the
       tally bump (`counter.api.record_increment`).
 - [x] ACs `AC-platform.1.1`–`AC-platform.1.5` sourced directly from the contract `roadmap`.
+- [x] Cut over to the building-block layering (#1427, Stage 1): `base/` (the
+      `DomainEvent` record + the `EventBus`/`OutboxRepository` **ports** +
+      `SubscriberRegistry`) + `extension/` (the `OutboxEventBus`/`RecordingEventBus`
+      adapters, the `OutboxRelay`, and the SQL `Outbox` table + `SqlOutboxRepository`
+      adapter). The retired `events/` + `store/` role dirs are deleted (single home);
+      `units` declared by kind with the bus + outbox-repo port/adapter split.
 
 ## Next
 

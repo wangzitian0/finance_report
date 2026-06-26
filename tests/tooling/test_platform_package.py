@@ -83,7 +83,11 @@ def test_platform_base_layer_is_pure():
         bad = {
             m
             for m in _imported_modules(path)
-            if m.startswith("src.platform.extension")  # base must not reach its own extension
+            # base must not reach its own extension — neither directly nor via the
+            # package root (``import src.platform`` / ``from src.platform import …``
+            # re-exports the extension layer), nor the ORM.
+            if m.startswith("src.platform.extension")
+            or m == "src.platform"
             or "sqlalchemy" in m
             or m == "src.database"
         }

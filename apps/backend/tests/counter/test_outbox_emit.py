@@ -16,7 +16,7 @@ from common.testing.ac_proof import ac_proof
 from src.counter import CounterKey, increment, read_count, record_increment
 from src.counter.base.types.events import EVENT_TYPE
 from src.platform import Outbox, RecordingEventBus
-from src.platform.extension.sql import STATUS_PENDING
+from src.platform.extension import STATUS_PENDING
 
 KEY = CounterKey("report.generated")
 

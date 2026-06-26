@@ -14,7 +14,7 @@ import sqlalchemy as sa
 from common.testing.ac_proof import ac_proof
 
 from src.platform import DomainEvent, Outbox, OutboxEventBus
-from src.platform.extension.sql import STATUS_PENDING
+from src.platform.extension import STATUS_PENDING
 
 
 def _event(name: str = "test.Thing") -> DomainEvent:
