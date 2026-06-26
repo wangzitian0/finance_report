@@ -53,7 +53,7 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `OPENPANEL_API_URL` |  |  |  | Observability | OpenPanel API base URL (e.g. https://openpanel.zitian.party/api). |
 | `OPENPANEL_CLIENT_ID` |  |  |  | Observability | Per-env OpenPanel project client-id for server-side events (empty = analytics off). |
 | `OPENPANEL_ENVIRONMENT` |  |  |  | Observability | Canonical OpenPanel environment label (falls back to `environment`). |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` |  | `http://platform-otel-collector:4318` | yes | Observability | OTLP exporter endpoint. Optional: set in production to ship telemetry to the OTLP collector (infra2-owned). |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` |  | `http://platform-signoz-otel-collector:4318` | yes | Observability | OTLP exporter endpoint. Optional: set in production to ship telemetry to the OTLP collector (infra2-owned). |
 | `OTEL_RESOURCE_ATTRIBUTES` |  | `deployment.environment=development` | yes | Observability | OpenTelemetry resource attributes (comma-separated key=value pairs). |
 | `OTEL_SERVICE_NAME` | `finance-report-backend` |  | yes | Observability | OpenTelemetry service name. |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `1440` |  |  | Security | Access token lifetime in minutes. |

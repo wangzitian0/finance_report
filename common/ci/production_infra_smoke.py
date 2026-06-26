@@ -151,11 +151,9 @@ def _fetch_until_ready(
     *,
     timeout: float,
     fetcher: Fetcher,
-    attempts: int,
-    interval: float,
     sleeper: Callable[[float], None],
 ) -> HttpResponse:
-    """Fetch a URL, retrying transient not-ready responses.
+    """Fetch a URL, retrying transient not-ready responses over a bounded window.
 
     The deploy gate runs immediately after deploy_v2, but the frontend container and
     its Traefik route can still be rolling over a few seconds after the backend is
@@ -164,7 +162,7 @@ def _fetch_until_ready(
     the bounded window is exhausted; the final failure carries the last status.
     """
     last: HttpResponse | None = None
-    for attempt in range(max(1, attempts)):
+    for attempt in range(DEFAULT_READY_ATTEMPTS):
         try:
             response = fetcher(url, timeout)
         except SmokeFailure as exc:
@@ -174,8 +172,8 @@ def _fetch_until_ready(
             last = response
             if 200 <= response.status < 400:
                 return response
-        if attempt + 1 < max(1, attempts):
-            sleeper(interval)
+        if attempt + 1 < DEFAULT_READY_ATTEMPTS:
+            sleeper(DEFAULT_READY_INTERVAL)
     _require_success(name, last if last is not None else HttpResponse(0, "no response"))
     return last  # pragma: no cover - _require_success raises on a non-2xx/3xx last
 
@@ -185,8 +183,6 @@ def verify_public_runtime(
     *,
     timeout: float,
     fetcher: Fetcher = fetch_url,
-    ready_attempts: int = DEFAULT_READY_ATTEMPTS,
-    ready_interval: float = DEFAULT_READY_INTERVAL,
     sleeper: Callable[[float], None] = time.sleep,
 ) -> list[str]:
     """Verify production public runtime endpoints without mutating data.
@@ -199,8 +195,6 @@ def verify_public_runtime(
         _join_url(base_url, "/api/ping"),
         timeout=timeout,
         fetcher=fetcher,
-        attempts=ready_attempts,
-        interval=ready_interval,
         sleeper=sleeper,
     )
     ping = _parse_json("Production ping", ping_response)
@@ -212,8 +206,6 @@ def verify_public_runtime(
         base_url.rstrip("/") + "/",
         timeout=timeout,
         fetcher=fetcher,
-        attempts=ready_attempts,
-        interval=ready_interval,
         sleeper=sleeper,
     )
     return ["ping API read-only check", "frontend shell reachable"]
@@ -225,8 +217,6 @@ def run_checks(
     expected_sha: str | None,
     timeout: float,
     fetcher: Fetcher = fetch_url,
-    ready_attempts: int = DEFAULT_READY_ATTEMPTS,
-    ready_interval: float = DEFAULT_READY_INTERVAL,
     sleeper: Callable[[float], None] = time.sleep,
 ) -> list[str]:
     """Run production infrastructure smoke checks and return passed check labels.
@@ -250,8 +240,6 @@ def run_checks(
             base_url,
             timeout=timeout,
             fetcher=fetcher,
-            ready_attempts=ready_attempts,
-            ready_interval=ready_interval,
             sleeper=sleeper,
         )
     )

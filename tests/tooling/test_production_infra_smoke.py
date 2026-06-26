@@ -193,7 +193,6 @@ def test_AC8_13_64_production_infra_smoke_rejects_bad_runtime_responses(
             expected_sha="v0.1.3",
             timeout=5,
             fetcher=fetcher,
-            ready_attempts=2,
             sleeper=lambda _seconds: None,
         )
 
@@ -223,7 +222,6 @@ def test_AC8_13_64_production_infra_smoke_retries_frontend_cold_start() -> None:
         expected_sha="v0.1.3",
         timeout=5,
         fetcher=fetcher,
-        ready_attempts=5,
         sleeper=lambda _seconds: None,
     )
 
