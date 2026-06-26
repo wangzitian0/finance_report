@@ -203,3 +203,11 @@ parallel once PR1 merges.
 | AC23.8.5 | The graded eval distinguishes "balance invariant passes but field-accuracy regressed" from "invariant fails": a cassette whose chain still reconciles but whose amount no longer matches ground truth is flagged by the graded gate while the AC23.7 balance gate stays green {tier:LLM-LED}{proof:eval} | `tests/tooling/test_cassette_graded_eval.py` | P1 |
 | AC23.8.6 | The eval runs deterministically in CI on committed cassettes with **NO network and NO API key**; the refresh path is the local `make llm-record` target (documented), never CI {tier:LLM-LED}{proof:eval} | `tests/tooling/test_cassette_graded_eval.py` | P1 |
 | AC23.8.7 | Reliability scoring aggregates over **N≥2 samples** per case when multiple recordings of the same case exist (mean score), and the single-sample limitation (one recording ⇒ point estimate, not a reliability measure) is documented {tier:LLM-LED}{proof:eval} | `tests/tooling/test_cassette_graded_eval.py` | P1 |
+
+### AC23.9 — litellm transport hygiene ([#1442](https://github.com/wangzitian0/finance_report/issues/1442))
+
+litellm's default aiohttp transport lazily creates an `aiohttp.ClientSession` per request handler and never closes it (no shared `litellm.aclient_session`), leaking an ERROR-level "Unclosed client session" on every `acompletion` — a real socket/fd leak that accumulates under sustained parsing. The single litellm chokepoint (`src/llm/client.py`) disables the aiohttp transport so litellm uses the httpx transport it manages itself.
+
+| AC ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC23.9.1 | Importing the litellm client disables litellm's aiohttp transport (so no per-`acompletion` unclosed-session leak); the transport resolver returns httpx {tier:CODE-ONLY} | `test_AC23_9_1_litellm_aiohttp_transport_disabled_prevents_session_leak` | `unit/llm/test_client.py` | P1 |

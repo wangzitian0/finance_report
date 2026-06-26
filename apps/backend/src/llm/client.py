@@ -53,7 +53,23 @@ def _harden_litellm_logging() -> None:
             pass
 
 
+def _disable_litellm_aiohttp_transport() -> None:
+    """Route litellm through its httpx transport instead of the default aiohttp one.
+
+    litellm's aiohttp transport lazily creates an ``aiohttp.ClientSession`` per
+    request handler and never closes it (no shared ``litellm.aclient_session``),
+    so every ``acompletion`` leaks an "Unclosed client session" — an ERROR-level
+    log plus a real socket/fd leak that accumulates under sustained parsing
+    (#1442). The httpx transport litellm manages itself does not leak. Guarded so
+    a future litellm rename can never break import."""
+    try:
+        litellm.disable_aiohttp_transport = True
+    except Exception:  # noqa: BLE001 - transport hardening is never fatal
+        pass
+
+
 _harden_litellm_logging()
+_disable_litellm_aiohttp_transport()
 
 # litellm exception names that represent transient conditions worth retrying.
 _RETRYABLE_EXC = frozenset(

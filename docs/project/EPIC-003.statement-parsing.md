@@ -247,6 +247,14 @@ The model occasionally omits `period_start` (or `period_end`) for a bank stateme
 | AC3.11.2 | With no period bounds, the statement period is derived from the transaction-date range {tier:CODE-ONLY} | `test_AC3_11_2_period_derived_from_transaction_dates` | `extraction/test_extraction.py` | P1 |
 | AC3.11.3 | A statement with no period and no transaction dates still rejects (no silent zero-date) {tier:CODE-ONLY} | `test_AC3_11_3_no_resolvable_date_still_raises` | `extraction/test_extraction.py` | P1 |
 
+### AC3.12: Balance verdict is not-applicable when unevaluable ([#1443](https://github.com/wangzitian0/finance_report/issues/1443))
+
+When a statement carries no opening+closing balance to check (e.g. a brokerage holdings statement with zero transactions), `validate_balance_explicit` substitutes `0.00` and a zero-chain vacuously "passes", so the persisted `balance_validated` became `true` and the UI showed a green "validated" badge for something that was never validated. The verdict is now `None` (not-applicable) when the balance chain is not evaluable; a real failure signal (per-currency NAV mismatch) still records `false`.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC3.12.1 | A brokerage holdings statement with no opening/closing balances persists `balance_validated=None` (not a vacuous `0==0` true) {tier:CODE-ONLY} | `test_AC3_12_1_brokerage_without_balances_reports_balance_validated_none_not_vacuous_true` | `extraction/test_statement_brokerage_import_bridge.py` | P1 |
+
 ## 📏 Acceptance Criteria
 
 ### 🟢 Must Have
