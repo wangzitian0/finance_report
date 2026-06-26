@@ -73,6 +73,7 @@ from src.services.market_data._util import (
     _date_to_epoch,
     _default_start_date,
     _fx_scope,
+    _hk_numeric_code,
     _incremental_start,
     _iter_dates,
     _looks_like_ticker,
@@ -91,6 +92,7 @@ from src.services.market_data._util import (
     _stock_scope,
     _stooq_fx_symbol,
     _stooq_stock_symbol,
+    _yahoo_stock_symbol,
 )
 from src.services.market_data.service import (
     _sync_market_observation_series,
@@ -138,6 +140,7 @@ __all__ = [
     "_fetch_yahoo_stock_price",
     "_fetch_yahoo_stock_price_series",
     "_fx_scope",
+    "_hk_numeric_code",
     "_incremental_start",
     "_is_sync_scope_fresh",
     "_iter_dates",
@@ -185,6 +188,7 @@ __all__ = [
     "_sync_scope_status",
     "_upsert_sync_state",
     "_yahoo_chart_params",
+    "_yahoo_stock_symbol",
     "ensure_market_data_fresh",
     "get_market_data_status",
     "resolve_missing_fx_rate",

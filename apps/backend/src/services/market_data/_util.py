@@ -123,10 +123,44 @@ def _normalize_utc(value: datetime) -> datetime:
     return value.astimezone(UTC)
 
 
+def _hk_numeric_code(symbol: str) -> str | None:
+    """Return the zero-padded 4-digit Hong Kong board-lot code, or ``None``.
+
+    Brokerages store Hong Kong equities by their numeric exchange code (e.g.
+    Xiaomi ``"01810"``, Tencent ``"00700"``). Market-data providers expect the
+    ``"<4-digit>.HK"`` form, so callers must translate before issuing a request;
+    sent verbatim, the numeric code 404s. US tickers are alphabetic and never
+    match here, so they are left untouched.
+    """
+    candidate = symbol.strip()
+    if candidate.isdigit() and 1 <= len(candidate) <= 5:
+        return f"{int(candidate):04d}"
+    return None
+
+
+def _yahoo_stock_symbol(symbol: str) -> str:
+    """Map a stored asset identifier to the symbol Yahoo Finance expects.
+
+    Storage keeps the raw identifier (see ``_normalize_symbol``); only the
+    outbound provider symbol is exchange-qualified, so the stored scope and
+    dedup keys are unaffected.
+    """
+    normalized = _normalize_symbol(symbol)
+    if "." in normalized:
+        return normalized
+    hk_code = _hk_numeric_code(normalized)
+    if hk_code is not None:
+        return f"{hk_code}.HK"
+    return normalized
+
+
 def _stooq_stock_symbol(symbol: str) -> str:
     normalized = _normalize_symbol(symbol)
     if "." in normalized:
         return normalized.lower()
+    hk_code = _hk_numeric_code(normalized)
+    if hk_code is not None:
+        return f"{hk_code}.hk"
     return f"{normalized.lower()}.us"
 
 

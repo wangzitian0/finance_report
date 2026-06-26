@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.models import BankStatementStatus
+from src.models.account import Account, AccountType
 from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AssetType, AtomicPosition, AtomicTransaction, TransactionDirection
 from src.models.layer3 import ManagedPosition
@@ -412,6 +413,33 @@ async def test_import_interactive_brokers_positions_idempotently_reconciles(db, 
     assert len(managed_rows) == 1
     assert managed_rows[0].asset_identifier == "AAPL"
     assert managed_rows[0].quantity == Decimal("10")
+
+
+async def test_AC17_33_3_broker_account_uses_snapshot_currency_not_hardcoded_usd(db, test_user):
+    """AC17.33.3: an auto-created broker account adopts the holding's currency, not a hardcoded USD."""
+    service = BrokeragePositionImportService()
+    payload = {
+        "institution": "Futu",
+        "statement": {"period_end": "2026-05-18", "currency": "HKD"},
+        "positions": [
+            {
+                "symbol": "01810",
+                "quantity": "100",
+                "market_value": "5500.00",
+                "currency": "HKD",
+                "asset_type": "stock",
+                "geography": "HK",
+            }
+        ],
+    }
+
+    await service.import_positions(db, user_id=test_user.id, payload=payload, source_document_id="doc-futu-hkd")
+    await db.commit()
+
+    account = (
+        await db.execute(select(Account).where(Account.user_id == test_user.id, Account.type == AccountType.ASSET))
+    ).scalar_one()
+    assert account.currency == "HKD"
 
 
 async def test_AC17_4_8_brokerage_import_survives_concurrent_auto_and_manual_import(db_engine, test_user):

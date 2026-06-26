@@ -535,7 +535,7 @@ class AssetService:
                     asset=snap.asset_identifier,
                 )
 
-            account = await self._get_or_create_broker_account(db, user_id, broker_name)
+            account = await self._get_or_create_broker_account(db, user_id, broker_name, snap.currency)
 
             pos_query = (
                 select(ManagedPosition)
@@ -609,8 +609,17 @@ class AssetService:
         )
         return result
 
-    async def _get_or_create_broker_account(self, db: AsyncSession, user_id: UUID, broker_name: str) -> Account:
-        """Find or create an asset account for the broker."""
+    async def _get_or_create_broker_account(
+        self, db: AsyncSession, user_id: UUID, broker_name: str, currency: str | None = None
+    ) -> Account:
+        """Find or create an asset account for the broker.
+
+        A newly created account adopts the currency of the holding that triggered
+        it (``currency``) rather than a hardcoded ``USD`` — a Hong Kong (HKD) or
+        Singapore (SGD) brokerage must not be stamped as a USD account. Existing
+        accounts keep their currency; ``USD`` remains the fallback when no
+        snapshot currency is available.
+        """
         query = (
             select(Account)
             .where(Account.user_id == user_id)
@@ -625,7 +634,7 @@ class AssetService:
                 user_id=user_id,
                 name=broker_name,
                 type=AccountType.ASSET,
-                currency="USD",
+                currency=(currency or "USD").strip().upper(),
                 code="AUTO-ASSET",
             )
             db.add(account)

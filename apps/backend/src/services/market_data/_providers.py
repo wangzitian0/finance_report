@@ -48,6 +48,7 @@ from src.services.market_data._util import (
     _stock_scope,
     _stooq_fx_symbol,
     _stooq_stock_symbol,
+    _yahoo_stock_symbol,
 )
 
 
@@ -407,7 +408,7 @@ async def _fetch_yahoo_stock_price_series(
             end_date=end_date.isoformat(),
         )
         return None
-    url = _YAHOO_STOCK_CHART_URL.format(symbol=quote(normalized, safe=".-"))
+    url = _YAHOO_STOCK_CHART_URL.format(symbol=quote(_yahoo_stock_symbol(normalized), safe=".-"))
     response = await _fetch_provider_response(
         url,
         _yahoo_chart_params(start_date, end_date),

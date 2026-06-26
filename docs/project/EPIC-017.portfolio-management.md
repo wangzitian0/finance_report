@@ -455,3 +455,20 @@ unchanged for non-brokerage schemas.
 | AC17.32.1 | Brokerage positions CSV is mapped into a `positions` payload (not a bank parse failure) so it reaches the brokerage import path | `test_AC17_32_1_brokerage_positions_csv_produces_positions_payload` | `extraction/test_brokerage_csv_routing.py` | P1 |
 | AC17.32.2 | Brokerage trade-history CSV raises an actionable unsupported-document error, not the generic bank "No valid transactions" failure | `test_AC17_32_2_brokerage_trade_history_csv_raises_actionable_error` | `extraction/test_brokerage_csv_routing.py` | P1 |
 | AC17.32.3 | Bank transaction CSV parsing is unaffected by brokerage CSV detection (no regression) | `test_AC17_32_3_bank_csv_unaffected_by_brokerage_detection` | `extraction/test_brokerage_csv_routing.py` | P1 |
+
+### AC17.33: Non-US / multi-currency correctness ([#1441](https://github.com/wangzitian0/finance_report/issues/1441))
+
+The system implicitly assumed a US-market / USD world. Hong Kong equities are
+stored by their numeric exchange code (e.g. "01810"); sent verbatim to Yahoo /
+Stooq they 404, so non-US holdings got no live or historical price and the
+net-worth trend flat-lined at cost basis. Separately, an auto-created brokerage
+account was stamped with a hardcoded `USD` currency regardless of the holding's
+actual currency. The outbound provider symbol is now exchange-qualified
+(`<4-digit>.HK`) without changing the stored symbol scope, and a new broker
+account adopts the currency of the holding that created it.
+
+| AC ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC17.33.1 | HK numeric exchange codes map to the Yahoo `<4-digit>.HK` symbol while US tickers and already-suffixed symbols pass through unchanged | `test_AC17_33_1_yahoo_stock_symbol_maps_hk_numeric_codes` | `market_data/test_provider_parsers.py` | P1 |
+| AC17.33.2 | HK numeric codes resolve to the Stooq `<4-digit>.hk` symbol while US tickers stay `.us` | `test_AC17_33_2_stooq_stock_symbol_maps_hk_numeric_codes` | `market_data/test_provider_parsers.py` | P1 |
+| AC17.33.3 | An auto-created broker account adopts the holding's currency instead of a hardcoded USD | `test_AC17_33_3_broker_account_uses_snapshot_currency_not_hardcoded_usd` | `portfolio/test_brokerage_position_parsing.py` | P1 |
