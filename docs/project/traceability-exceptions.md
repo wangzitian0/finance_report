@@ -40,6 +40,8 @@ These files are test infrastructure, not behavior proof.
 | `apps/backend/tests/reconciliation/__init__.py` | Package marker |
 | `apps/backend/tests/reporting/__init__.py` | Package marker |
 | `apps/backend/tests/reporting/_report_fixtures.py` | Shared reporting chart-of-accounts test builder |
+| `apps/backend/tests/tooling/__init__.py` | Package marker |
+| `apps/backend/tests/tooling/test_no_models_facade.py` | Code-contract lint: forbids the src.models re-export hub (issue #1461) |
 | `tests/tooling/__init__.py` | Package marker |
 | `tests/tooling/conftest.py` | Shared tooling-test fixtures |
 | `tests/e2e/conftest.py` | Shared top-level E2E fixtures |
