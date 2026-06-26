@@ -13,7 +13,7 @@ mirrored into both a roadmap and an EPIC).
 
 from __future__ import annotations
 
-from common.meta.package_contract import Invariant, PackageContract
+from common.meta.package_contract import Invariant, Kind, PackageContract, Unit
 
 CONTRACT = PackageContract(
     name="ratio",
@@ -22,8 +22,24 @@ CONTRACT = PackageContract(
     tier="CODE-ONLY",
     depends_on=[],
     roles=["types", "ops"],
-    implementations={"be": "apps/backend/src/ratio", "fe": "apps/frontend/src/lib/ratio"},
-    interface=["PERCENT_DP", "PERCENT_ROUNDING", "FloatNotAllowedError", "InvalidRatioPayloadError", "Ratio", "RatioError", "UndefinedRatioError", "ratio_from_db_value", "ratio_from_wire", "ratio_to_db_value", "ratio_to_wire"],
+    units=[Unit(name="Ratio", kind=Kind.VALUE_OBJECT)],
+    implementations={
+        "be": "apps/backend/src/ratio",
+        "fe": "apps/frontend/src/lib/ratio",
+    },
+    interface=[
+        "PERCENT_DP",
+        "PERCENT_ROUNDING",
+        "FloatNotAllowedError",
+        "InvalidRatioPayloadError",
+        "Ratio",
+        "RatioError",
+        "UndefinedRatioError",
+        "ratio_from_db_value",
+        "ratio_from_wire",
+        "ratio_to_db_value",
+        "ratio_to_wire",
+    ],
     events=[],
     invariants=[
         Invariant(

@@ -15,7 +15,7 @@ and an EPIC. Moving that AC ownership into the roadmap is a tracked follow-up.
 
 from __future__ import annotations
 
-from common.meta.package_contract import Invariant, PackageContract
+from common.meta.package_contract import Invariant, Kind, PackageContract, Unit
 
 CONTRACT = PackageContract(
     name="money",
@@ -28,8 +28,46 @@ CONTRACT = PackageContract(
     tier="CODE-ONLY",
     depends_on=["ratio"],
     roles=["types", "ops"],
-    implementations={"be": "apps/backend/src/money", "fe": "apps/frontend/src/lib/money"},
-    interface=["ISO_4217_CODES", "MONEY_QUANTUM", "Currency", "CurrencyBalance", "CurrencyBalances", "CurrencyMismatchError", "ExchangeRate", "FloatNotAllowedError", "InvalidExchangeRateError", "InvalidCurrencyError", "InvalidMoneyPayloadError", "Money", "MoneyError", "MoneyTolerance", "convert", "exchange_rate_from_db_fields", "exchange_rate_from_wire", "exchange_rate_to_db_fields", "exchange_rate_to_wire", "money_from_db_fields", "money_from_wire", "money_to_db_fields", "money_to_wire", "to_money"],
+    # The package's domain value objects (kind for the taxonomy; no module path —
+    # money still uses the types/ops layout, so the gate skips placement here).
+    units=[
+        Unit(name="Money", kind=Kind.VALUE_OBJECT),
+        Unit(name="Currency", kind=Kind.VALUE_OBJECT),
+        Unit(name="ExchangeRate", kind=Kind.VALUE_OBJECT),
+        Unit(name="MoneyTolerance", kind=Kind.VALUE_OBJECT),
+        Unit(name="CurrencyBalance", kind=Kind.VALUE_OBJECT),
+        Unit(name="CurrencyBalances", kind=Kind.VALUE_OBJECT),
+    ],
+    implementations={
+        "be": "apps/backend/src/money",
+        "fe": "apps/frontend/src/lib/money",
+    },
+    interface=[
+        "ISO_4217_CODES",
+        "MONEY_QUANTUM",
+        "Currency",
+        "CurrencyBalance",
+        "CurrencyBalances",
+        "CurrencyMismatchError",
+        "ExchangeRate",
+        "FloatNotAllowedError",
+        "InvalidExchangeRateError",
+        "InvalidCurrencyError",
+        "InvalidMoneyPayloadError",
+        "Money",
+        "MoneyError",
+        "MoneyTolerance",
+        "convert",
+        "exchange_rate_from_db_fields",
+        "exchange_rate_from_wire",
+        "exchange_rate_to_db_fields",
+        "exchange_rate_to_wire",
+        "money_from_db_fields",
+        "money_from_wire",
+        "money_to_db_fields",
+        "money_to_wire",
+        "to_money",
+    ],
     events=[],
     invariants=[
         Invariant(

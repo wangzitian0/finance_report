@@ -4,9 +4,9 @@ Governance in the package model is *computed from contracts*, not hand-kept. The
 authoritative spec for each package lives in ``common/<pkg>/`` (its ``readme.md``
 + ``contract.py``); the running code lives in the *implementations* the contract
 points at. ``implementations["be"]`` is a **repo-relative** path — usually
-``apps/backend/src/<pkg>``, but not required (the meta package ``governance``
-points its BE implementation at ``common/meta`` itself). For every
-registered package this gate asserts:
+``apps/backend/src/<pkg>``, but not required (the meta package points its BE
+implementation at ``common/meta`` itself). For every registered package this gate
+asserts:
 
   (a) ``contract.interface`` equals the BE implementation's ``__init__.__all__``
       (the published language and the contract agree);
@@ -14,7 +14,16 @@ registered package this gate asserts:
       resolves to a real test function in the repo;
   (c) ``depends_on`` introduces no forbidden edge — a ``platform``/``kernel``
       package's implementation modules must not import a higher layer (mirrors
-      the spirit of ``tests/tooling/test_ledger_module.py``: down only).
+      the spirit of ``tests/tooling/test_ledger_module.py``: down only);
+  (d) the building-block layering holds for any package that adopts the
+      ``base/extension/`` split — base stays pure (mechanism A), each declared
+      ``unit`` sits in the layer its ``kind`` dictates (``KIND_LAYER``), a
+      ``repository`` unit splits into a base port + an extension adapter
+      (mechanism B), and ``data`` is a sink nothing else imports (the read-model).
+
+This module is the meta package's ``extension`` layer (the impure edge: it walks
+the filesystem and parses ASTs). It imports the ``base`` model
+(:mod:`common.meta.base.package_contract`) — never ``data``.
 
 Packages are discovered by scanning ``common/*/contract.py`` for a module-level
 ``CONTRACT = PackageContract(...)``; that single registry keeps the gate additive
@@ -34,9 +43,11 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from common.meta.package_contract import PackageContract
+from common.meta.base.package_contract import KIND_LAYER, SPLIT, PackageContract, Unit
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# This module lives at common/meta/extension/check_package_contract.py, so the
+# repo root is four parents up (extension -> meta -> common -> repo).
+REPO_ROOT = Path(__file__).resolve().parents[3]
 PACKAGE_GLOB = "common/*/contract.py"
 
 # Layer rank for the DAG rule: a package may never import a HIGHER class (no
@@ -95,6 +106,27 @@ def _contained_impl_dir(be_rel: str | None, repo_root: Path) -> Path | None:
     if resolved != root and root not in resolved.parents:
         return None
     return resolved
+
+
+def _impl_module_prefix(impl_dir: Path, repo_root: Path) -> str:
+    """The dotted import prefix the implementation dir is importable under.
+
+    The gate's layering checks need to recognise a package's *own* layer imports
+    (``...extension`` / ``...data``) by their absolute module path. That path
+    depends on which ``sys.path`` root contains the implementation:
+    ``apps/backend/src/counter`` is importable as ``src.counter`` (``apps/backend``
+    is on the path), while ``common/meta`` is importable as ``common.meta`` (the
+    repo root is on the path). We derive the prefix from the dir location instead
+    of assuming ``src.<name>``, so meta self-hosts correctly.
+    """
+    backend = (repo_root / "apps" / "backend").resolve()
+    impl = impl_dir.resolve()
+    root = repo_root.resolve()
+    if impl == backend or backend in impl.parents:
+        rel = impl.relative_to(backend)
+    else:
+        rel = impl.relative_to(root)
+    return ".".join(rel.parts)
 
 
 def discover_packages(repo_root: Path = REPO_ROOT) -> list[DiscoveredPackage]:
@@ -250,7 +282,7 @@ def _check_no_dependency_cycle(packages: list[DiscoveredPackage]) -> list[str]:
             if dep not in graph:
                 continue  # unregistered dep; the edge rule handles declared-ness
             if color[dep] == 1:
-                cycle = path[path.index(dep):] + [dep] if dep in path else [node, dep]
+                cycle = path[path.index(dep) :] + [dep] if dep in path else [node, dep]
                 offenders.append("dependency cycle: " + " -> ".join(cycle))
             elif color[dep] == 0:
                 visit(dep, path + [dep])
@@ -262,10 +294,60 @@ def _check_no_dependency_cycle(packages: list[DiscoveredPackage]) -> list[str]:
     return sorted(set(offenders))
 
 
+def _sibling_import_hit(node: ast.AST, prefix: str, sibling: str) -> str | None:
+    """If ``node`` imports the package's own ``<sibling>`` layer, describe it.
+
+    Recognises the package's own sibling-layer import in every form — relative
+    (``from ..<sibling> import x`` / ``from .. import <sibling>``) and absolute
+    (``from <prefix>.<sibling>... import x`` / ``from <prefix> import <sibling>`` /
+    ``import <prefix>.<sibling>...``). ``prefix`` is the implementation's dotted
+    import path (see :func:`_impl_module_prefix`). Returns ``None`` when the node
+    does not reach the sibling layer.
+    """
+    own = f"{prefix}.{sibling}"
+    if isinstance(node, ast.ImportFrom):
+        mod = node.module or ""
+        names = node.names
+        if node.level and (
+            mod.split(".")[0] == sibling
+            or any(a.name == sibling or a.name.startswith(f"{sibling}.") for a in names)
+        ):
+            return (
+                f"(relative level {node.level}) "
+                f"{mod or '.'.join(a.name for a in names)}"
+            )
+        if mod.startswith(own):
+            return mod
+        if mod == prefix and any(
+            a.name == sibling or a.name.startswith(f"{sibling}.") for a in names
+        ):
+            return f"{mod}.{sibling}"
+    elif isinstance(node, ast.Import):
+        for a in node.names:
+            if a.name.startswith(own):
+                return a.name
+    return None
+
+
+def _layer_imports(
+    layer_dir: Path, prefix: str, sibling: str
+) -> list[tuple[Path, str]]:
+    """Every ``.py`` under ``layer_dir`` that imports the own ``<sibling>`` layer."""
+    hits: list[tuple[Path, str]] = []
+    for py in sorted(layer_dir.rglob("*.py")):
+        tree = ast.parse(py.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            hit = _sibling_import_hit(node, prefix, sibling)
+            if hit:
+                hits.append((py, hit))
+    return hits
+
+
 def _check_layer_purity(pkg: DiscoveredPackage) -> list[str]:
     """If a package's implementation uses ``base/`` + ``extension/`` layers, the
     ``base/`` layer must not import the package's own ``extension/`` — base is the
-    pure, downward-only core; the edges live in extension (base↓ / extension↑).
+    pure, downward-only core; the edges live in extension (base down / extension
+    up). This is mechanism A applied within the package.
 
     Additive: a package that does not use the two-layer split is skipped, so the
     role-folder packages keep passing unchanged.
@@ -276,37 +358,105 @@ def _check_layer_purity(pkg: DiscoveredPackage) -> list[str]:
     base_dir, ext_dir = pkg.impl_dir / "base", pkg.impl_dir / "extension"
     if not (base_dir.exists() and ext_dir.exists()):
         return offenders
-    own_extension = f"src.{pkg.name}.extension"
-    own_pkg = f"src.{pkg.name}"
-    for py in sorted(base_dir.rglob("*.py")):
-        tree = ast.parse(py.read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            hit: str | None = None
-            if isinstance(node, ast.ImportFrom):
-                mod = node.module or ""
-                if node.level and (
-                    mod.split(".")[0] == "extension"
-                    or any(a.name == "extension" or a.name.startswith("extension.") for a in node.names)
-                ):
-                    # relative: from ..extension import X / from .. import extension
-                    hit = f"(relative level {node.level}) {mod or '.'.join(a.name for a in node.names)}"
-                elif mod.startswith(own_extension):
-                    # absolute: from src.<pkg>.extension... import X
-                    hit = mod
-                elif mod == own_pkg and any(
-                    a.name == "extension" or a.name.startswith("extension.") for a in node.names
-                ):
-                    # absolute: from src.<pkg> import extension
-                    hit = f"{mod}.extension"
-            elif isinstance(node, ast.Import):
-                for a in node.names:
-                    if a.name.startswith(own_extension):
-                        hit = a.name
-            if hit:
-                offenders.append(
-                    f"{py.relative_to(REPO_ROOT)}: base/ imports the package's own "
-                    f"extension/ ('{hit}') — base must stay pure"
-                )
+    prefix = _impl_module_prefix(pkg.impl_dir, REPO_ROOT)
+    for py, hit in _layer_imports(base_dir, prefix, "extension"):
+        offenders.append(
+            f"{py.relative_to(REPO_ROOT)}: base/ imports the package's own "
+            f"extension/ ('{hit}') — base must stay pure"
+        )
+    return offenders
+
+
+def _check_data_is_sink(pkg: DiscoveredPackage) -> list[str]:
+    """If a package has a ``data/`` layer, nothing in ``base/`` or ``extension/``
+    may import it — ``data`` is the read-model / projection, a leaf sink computed
+    FROM the write side. Keeping it a sink is what makes the projection safe: the
+    write side never depends on its own read model.
+
+    Additive: a package without a ``data/`` layer is skipped.
+    """
+    offenders: list[str] = []
+    if pkg.impl_dir is None or not pkg.impl_dir.exists():
+        return offenders
+    if not (pkg.impl_dir / "data").exists():
+        return offenders
+    prefix = _impl_module_prefix(pkg.impl_dir, REPO_ROOT)
+    for layer in ("base", "extension"):
+        layer_dir = pkg.impl_dir / layer
+        if not layer_dir.exists():
+            continue
+        for py, hit in _layer_imports(layer_dir, prefix, "data"):
+            offenders.append(
+                f"{py.relative_to(REPO_ROOT)}: {layer}/ imports the package's own "
+                f"data/ ('{hit}') — data is a read-model sink; nothing may import it"
+            )
+    return offenders
+
+
+def _check_repository_unit(pkg: DiscoveredPackage, unit: Unit) -> list[str]:
+    """A ``repository`` unit must split: port in ``base/``, adapter in ``extension/``.
+
+    This is mechanism B (dependency inversion) made checkable: the abstract port
+    the pure core depends on lives in ``base``; the concrete adapter that touches
+    I/O lives in ``extension`` and depends back on the port.
+    """
+    offenders: list[str] = []
+    port, impl = unit.module, unit.impl
+    if port is not None and port.split("/")[0] != "base":
+        offenders.append(
+            f"repository unit {unit.name!r}: port {port!r} must live in 'base/' "
+            "(the abstract port the pure core depends on)"
+        )
+    if impl is not None and impl.split("/")[0] != "extension":
+        offenders.append(
+            f"repository unit {unit.name!r}: adapter {impl!r} must live in "
+            "'extension/' (the concrete I/O adapter — dependency inversion)"
+        )
+    for path in (port, impl):
+        if path is not None and not (pkg.impl_dir / path).exists():
+            offenders.append(
+                f"repository unit {unit.name!r}: declared path {path!r} does not exist"
+            )
+    return offenders
+
+
+def _check_kind_placement(pkg: DiscoveredPackage) -> list[str]:
+    """Each declared ``unit`` must live in the layer its ``kind`` dictates.
+
+    The building-block table is :data:`KIND_LAYER`; this check enforces it. A
+    value-object/entity/aggregate/factory/domain-event belongs in ``base``, a
+    domain-service/event-bus in ``extension``, a projection in ``data``, and a
+    repository splits across ``base`` + ``extension`` (see
+    :func:`_check_repository_unit`).
+
+    Additive on two axes: a package that has not adopted the physical
+    ``base/extension/`` split is skipped entirely, and within an adopted package a
+    unit with no ``module`` path (kind declared for the taxonomy only) is skipped.
+    """
+    offenders: list[str] = []
+    if pkg.impl_dir is None or not pkg.impl_dir.exists():
+        return offenders
+    base_dir, ext_dir = pkg.impl_dir / "base", pkg.impl_dir / "extension"
+    if not (base_dir.exists() and ext_dir.exists()):
+        return offenders
+    for unit in pkg.contract.units:
+        expected = KIND_LAYER[unit.kind]
+        if expected == SPLIT:
+            offenders.extend(_check_repository_unit(pkg, unit))
+            continue
+        if unit.module is None:
+            continue
+        top = unit.module.split("/")[0]
+        if top != expected:
+            offenders.append(
+                f"unit {unit.name!r} (kind {unit.kind.value!r}) declares module "
+                f"{unit.module!r} but its kind belongs in '{expected}/'"
+            )
+            continue
+        if not (pkg.impl_dir / unit.module).exists():
+            offenders.append(
+                f"unit {unit.name!r}: declared module {unit.module!r} does not exist"
+            )
     return offenders
 
 
@@ -353,8 +503,12 @@ def check_package(
         f"[{pkg.name}] {e}" for e in _check_no_forbidden_edge(pkg, registered)
     )
 
-    # (d) layer purity: base/ must not import the package's own extension/ (additive)
+    # (d) building-block layering (additive — only for packages using the split):
+    #     base stays pure (A), each unit sits in its kind's layer + repository
+    #     splits (B), and data is a read-model sink nothing imports.
     errors.extend(f"[{pkg.name}] {e}" for e in _check_layer_purity(pkg))
+    errors.extend(f"[{pkg.name}] {e}" for e in _check_kind_placement(pkg))
+    errors.extend(f"[{pkg.name}] {e}" for e in _check_data_is_sink(pkg))
 
     return errors
 

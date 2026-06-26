@@ -27,8 +27,9 @@ these parts:
    review surface.)
 2. **`contract.py`** (`common/<pkg>/contract.py`) — a machine-checkable
    `PackageContract` (a pydantic model): the package's `status`, `klass`,
-   `roles`, `implementations`, published `interface`, emitted `events`, the
-   `invariants` it guarantees, and its `roadmap` (the ACs it owns).
+   `units` (its DDD building blocks, each carrying its `kind` → layer; `roles` is
+   the legacy form), `implementations`, published `interface`, emitted `events`,
+   the `invariants` it guarantees, and its `roadmap` (the ACs it owns).
 3. **`todo.md`** (`common/<pkg>/todo.md`) — the package's own worklist.
 4. **Implementations** — the conforming code under `apps/backend/src/<pkg>`
    (`implementations["be"]`) and/or `apps/frontend/src/lib/<pkg>`
@@ -42,6 +43,14 @@ these parts:
 5. **Published language** — the implementation's `__init__.__all__` is the
    *entire* public surface; everything else is internal. `contract.interface`
    must equal that `__all__`.
+
+The role folders above are the legacy convergence. The forward model converges by
+the **DDD building block → layer** table (`base` / `extension` / `data`): each
+`unit`'s `kind` decides its layer (`KIND_LAYER`), a repository splits into a base
+port + an extension adapter, and `data` is the read-model sink. See
+[`migration-standard.md`](./migration-standard.md#internal-layering-replaces-kernelplatformcore-and-typesopsstoreapi)
+for the full table and the three cycle-breaking mechanisms; `meta` itself is the
+live exemplar.
 
 So `common/<pkg>/` is the **spec + high-level review surface**;
 `apps/backend/src/<pkg>` and `apps/frontend/src/lib/<pkg>` are conforming
@@ -68,8 +77,8 @@ The only **authored horizontal doc is `vision.md`** (the "why"). Everything else
 about a package is *derived from its contract*:
 
 - `tools/check_package_contract.py` (logic in
-  [`check_package_contract.py`](./check_package_contract.py)) discovers every
-  package by scanning `common/*/contract.py` for a
+  [`extension/check_package_contract.py`](./extension/check_package_contract.py))
+  discovers every package by scanning `common/*/contract.py` for a
   `CONTRACT = PackageContract(...)` and asserts, per package:
   - **(a)** `contract.interface == __init__.__all__` of the BE implementation
     (`implementations["be"]`) — contract and published language agree;
@@ -78,7 +87,11 @@ about a package is *derived from its contract*:
     invariant);
   - **(c)** no implementation module imports a **higher-class** registered
     package or an undeclared dependency (the DAG rule, mirroring
-    `tests/tooling/test_ledger_module.py`).
+    `tests/tooling/test_ledger_module.py`);
+  - **(d)** for a package that adopts the `base/extension/` split: `base` stays
+    pure (A), each declared `unit` sits in its `kind`'s layer + a repository splits
+    port/adapter (B), and `data` is a sink nothing imports — additive, so legacy
+    role-folder packages keep passing.
 - The AC registry sources a package's ACs **directly from its `roadmap`**:
   `common/ssot/generate_ac_registry.py` reads `common/*/contract.py` roadmaps
   additively (alongside the EPIC tables), so a package's ACs live in its contract
@@ -89,10 +102,14 @@ edit: a new package is governed the moment it ships a `common/<pkg>/contract.py`
 
 ## Examples
 
-- **`meta`** (`platform`, the meta-package) — self-hosts the model. Its
+- **`meta`** (`platform`, the meta-package) — self-hosts the model **and** is the
+  live layout-3 exemplar of the building-block layering it governs. Its
   [`contract.py`](./contract.py) publishes `PackageContract` / `ACRecord` /
-  `Invariant`, and its invariants pin to the governance-gate failure-path tests,
-  so the model proves itself.
+  `Invariant` / `Kind` / `Unit` / `contract_index`, declares its `units` (the
+  `PackageContract` aggregate + value objects in `base/`, the gate as a
+  `domain-service` in `extension/`, `contract_index` as a `projection` in
+  `data/`), and its invariants + `AC-meta.*` roadmap pin to the governance-gate
+  tests, so the model proves itself.
 - **`counter`** (`platform`) — the first full worked example: per-(user, key)
   tallies for insight reports. `CounterKey`/`Count` value objects (`types`),
   `increment`/`get_count` verbs (`ops`) over a `CounterRepository` port (`store`),
@@ -121,10 +138,10 @@ The recipe for moving a module (and its EPIC-table ACs) into the package model.
    behavior is two packages.
 
 2. **Write `contract.py`.** One `PackageContract(...)` with `name`, `klass`,
-   `status`, `tier`, `depends_on` (down-only edges), `roles`
-   (`types`/`ops`/`store`/`api`), `implementations` (`be`/`fe` paths),
-   `interface` (must equal the BE `__init__.__all__`), `events`, `invariants`,
-   `roadmap`.
+   `status`, `tier`, `depends_on` (down-only edges), `units` (the DDD building
+   blocks, each `Unit(kind=…, module=…)`; `roles` is the legacy form),
+   `implementations` (`be`/`fe` paths), `interface` (must equal the BE
+   `__init__.__all__`), `events`, `invariants`, `roadmap`.
 
 3. **Domain ACs → `roadmap`.** Each `ACRecord(id, statement, test, priority,
    status)` with a **package-scoped id `AC-{package}.{group}.{seq}`** (e.g.

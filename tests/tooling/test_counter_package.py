@@ -14,7 +14,7 @@ import ast
 import sys
 from pathlib import Path
 
-from common.meta.check_package_contract import discover_packages, run
+from common.meta.extension.check_package_contract import discover_packages, run
 
 REPO = Path(__file__).resolve().parents[2]
 COUNTER = REPO / "apps/backend/src/counter"
