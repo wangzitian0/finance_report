@@ -442,14 +442,13 @@ async def test_AC17_33_3_broker_account_uses_snapshot_currency_not_hardcoded_usd
     assert account.currency == "HKD"
 
 
-async def test_AC17_34_1_brokerage_import_skips_short_positions_without_500(db, test_user):
-    """AC17.34.1: a short (negative market value) position is skipped, not crashed on.
+async def test_AC17_34_1_brokerage_import_persists_short_positions_with_negative_market_value(db, test_user):
+    """AC17.34.1: short positions import as signed positions, not skipped or crashed (#1448).
 
-    A margin/options account holding a sold option has a negative market value,
-    which violates the atomic_positions non-negative-market-value CHECK constraint
-    and previously raised an unhandled 500 that aborted the whole import (#1448).
-    The import must now succeed: the long position imports and the short is
-    reported via ``skipped`` instead of crashing.
+    A margin/options account can hold short positions — a directly-shorted stock or a
+    sold option — with negative quantity AND negative market value. The non-negative
+    market-value / cost-basis CHECK constraints are gone, so a short persists (reducing
+    portfolio value) instead of violating a constraint (500) or being silently dropped.
     """
     service = BrokeragePositionImportService()
     payload = {
@@ -477,15 +476,23 @@ async def test_AC17_34_1_brokerage_import_skips_short_positions_without_500(db, 
     await db.commit()
 
     assert result.parsed_positions == 2
-    assert result.created_atomic_positions == 1
-    assert result.skipped >= 1
+    assert result.created_atomic_positions == 2
+    assert result.skipped == 0
 
     atomic_rows = (
         (await db.execute(select(AtomicPosition).where(AtomicPosition.user_id == test_user.id))).scalars().all()
     )
-    assert len(atomic_rows) == 1
-    assert atomic_rows[0].asset_identifier == "AAPL"
-    assert all(row.market_value >= 0 for row in atomic_rows)
+    assert {row.asset_identifier for row in atomic_rows} == {"AAPL", "NIO270115P7000"}
+    short_atomic = next(row for row in atomic_rows if row.asset_identifier == "NIO270115P7000")
+    assert short_atomic.quantity < 0
+    assert short_atomic.market_value < 0
+
+    managed_rows = (
+        (await db.execute(select(ManagedPosition).where(ManagedPosition.user_id == test_user.id))).scalars().all()
+    )
+    short_managed = next(p for p in managed_rows if p.asset_identifier == "NIO270115P7000")
+    assert short_managed.quantity < 0
+    assert short_managed.cost_basis < 0
 
 
 async def test_AC17_4_8_brokerage_import_survives_concurrent_auto_and_manual_import(db_engine, test_user):

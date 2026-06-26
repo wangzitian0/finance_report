@@ -161,10 +161,10 @@ class AtomicPosition(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """
 
     __tablename__ = "atomic_positions"
-    __table_args__ = (
-        UniqueConstraint("user_id", "dedup_hash", name="uq_atomic_positions_user_dedup_hash"),
-        CheckConstraint("market_value >= 0", name="ck_atomic_positions_market_value_non_negative"),
-    )
+    # No market_value sign constraint: short positions (a margin short or a sold
+    # option) are signed — negative quantity AND negative market value — and are
+    # first-class (#1448). ``quantity`` is likewise unconstrained.
+    __table_args__ = (UniqueConstraint("user_id", "dedup_hash", name="uq_atomic_positions_user_dedup_hash"),)
 
     snapshot_date: Mapped[date] = mapped_column(Date, nullable=False)
     asset_identifier: Mapped[str] = mapped_column(
