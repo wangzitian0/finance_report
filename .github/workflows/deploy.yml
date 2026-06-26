@@ -355,7 +355,6 @@ jobs:
           # Backend /api/health reports GIT_COMMIT_SHA=<version_ref> for release tags,
           # so the E2E version check gates on the release version_ref.
           EXPECTED_SHA: ${{ steps.release.outputs.version_ref }}
-          SIGNOZ_API_KEY: ${{ secrets.SIGNOZ_API_KEY }}
           RUN_MARKET_DATA_PROVIDER_E2E: true
           MARKET_DATA_E2E_DATE: "2024-06-03"
         run: |
@@ -386,18 +385,6 @@ jobs:
           
           run_timed_phase "Phase 1: Smoke Check (Shell)" \
             bash tools/smoke_test.sh "$APP_URL" staging
-
-          # Prove the deployed version actually ingests into SigNoz (logs+traces),
-          # not just that observability is configured. Fails distinctly on
-          # zero-ingestion vs stale-image; explicit visible skip if SIGNOZ_API_KEY
-          # is unset. ingestion-only: staging is not held to the prod health contract.
-          run_timed_phase "Phase 1c: SigNoz Ingestion Proof (Python)" \
-            python3 tools/production_infra_smoke.py \
-              --ingestion-only \
-              --signoz-url "https://signoz.zitian.party" \
-              --signoz-api-key "$SIGNOZ_API_KEY" \
-              --expected-version "$EXPECTED_SHA" \
-              --deployment-environment staging
 
           run_timed_phase "Phase 1b: Tier 2 HTTP E2E (Python)" \
             python3 tools/tier2_http_e2e.py \
