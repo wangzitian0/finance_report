@@ -662,3 +662,31 @@ async def test_parse_statement_background_routes_brokerage_to_review_without_imp
     assert refreshed.stage1_status == Stage1Status.PENDING_REVIEW
     assert refreshed.validation_error == "existing parser note"
     assert len(atomic_rows) == 0
+
+
+async def test_AC3_12_1_brokerage_without_balances_reports_balance_validated_none_not_vacuous_true():
+    """AC3.12.1: a brokerage holdings statement with no opening/closing balances reports
+    balance_validated=None (not-applicable), not a vacuous 0==0 True (#1443)."""
+    service = ExtractionService()
+    service.extract_financial_data = AsyncMock(
+        return_value={
+            "institution": "Futu",
+            "currency": "HKD",
+            "positions": [
+                {"symbol": "01810", "quantity": "100", "market_value": "5500.00", "currency": "HKD"},
+            ],
+        }
+    )
+
+    statement, _txns = await service.parse_document(
+        file_path=Path("futu-positions.pdf"),
+        institution="Futu",
+        user_id=uuid4(),
+        file_content=b"%PDF-1.7",
+        file_hash="ac-3-12-1-no-balances",
+        original_filename="futu-positions.pdf",
+    )
+
+    assert statement.opening_balance is None
+    assert statement.closing_balance is None
+    assert statement.balance_validated is None

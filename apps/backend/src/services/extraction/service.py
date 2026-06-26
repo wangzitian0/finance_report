@@ -480,7 +480,16 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             # the array is the authoritative multi-currency evidence (#1160 CR1).
             if per_currency_invalid_note is not None:
                 is_valid = False
-            statement.balance_validated = is_valid
+            # Only assert a balance verdict when the chain was actually evaluable.
+            # A brokerage/no-balance statement has no opening+closing to check, so
+            # `validate_balance_explicit` returns a vacuous `0 == 0` True — report
+            # `None` (not-applicable) instead, so the UI never shows a green
+            # "validated" badge for something that was never validated (#1443). A
+            # real failure signal (per-currency NAV mismatch) still records False.
+            if not balance_evaluable and per_currency_invalid_note is None:
+                statement.balance_validated = None
+            else:
+                statement.balance_validated = is_valid
             if has_inferred_csv_balances:
                 statement.validation_error = CSV_INFERRED_BALANCE_REVIEW_NOTE
             elif per_currency_invalid_note is not None:

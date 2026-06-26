@@ -356,3 +356,20 @@ async def test_AC23_5_4_cassette_completion_passes_through_llmerror(monkeypatch,
             recorder=CassetteRecorder(store, mode=CassetteMode.RECORD),
         )
     assert ei.value.retryable is True
+
+
+def test_AC23_9_1_litellm_aiohttp_transport_disabled_prevents_session_leak():
+    """AC23.9.1: importing the litellm client disables litellm's aiohttp transport.
+
+    litellm's aiohttp transport lazily creates an aiohttp ClientSession per
+    request handler and never closes it, leaking an "Unclosed client session"
+    on every acompletion (#1442). Routing through the httpx transport litellm
+    manages itself avoids the leak. ``src.llm.client`` is imported at module top,
+    so the hardening has already run.
+    """
+    import litellm
+    from litellm.llms.custom_httpx.http_handler import AsyncHTTPHandler
+
+    assert client_mod.litellm.disable_aiohttp_transport is True
+    assert litellm.disable_aiohttp_transport is True
+    assert AsyncHTTPHandler._should_use_aiohttp_transport() is False
