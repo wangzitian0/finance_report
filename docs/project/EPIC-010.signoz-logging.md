@@ -196,6 +196,20 @@ Enable production-grade log observability via SigNoz (OTLP), while keeping local
 | AC10.12.2 | In-process fallback and Prefect flow wrappers pass statement/request context into async parse tracking | `test_AC10_12_2_async_parse_tracking_receives_statement_context()` | `infra/test_telemetry_metrics.py` | P0 |
 | AC10.12.3 | Parse failure handling still marks statements rejected and emits the existing safe `statement.parse.failed` contract | `test_AC10_12_3_parse_failure_state_and_log_contract_are_preserved()` | `infra/test_telemetry_metrics.py` | P0 |
 
+### AC10.13: Deployed-Version Ingestion Smoke Proof
+
+Closes the ingestion proof gap (#621): the deploy gate must prove the **deployed version** actually ingests into SigNoz, not merely that observability is configured. The config-only health check (AC10.9.3) and SigNoz control-plane reachability prove configuration; this AC proves the running container's telemetry is queryable, and distinguishes the runtime failure modes without SSH.
+
+| ID | Requirement | Test Function | File | Priority |
+|----|-------------|---------------|------|----------|
+| AC10.13.1 | Post-deploy ingestion proof passes when the deployed-version logs **and** traces are queryable in SigNoz within a bounded window {tier:CODE-ONLY} | `test_AC10_13_1_ingestion_proof_passes_when_deployed_version_is_queryable()` | `tests/tooling/test_production_infra_smoke.py` | P0 |
+| AC10.13.2 | Zero ingestion (no telemetry for the service/env at all) fails the gate with a distinct, no-SSH cause {tier:CODE-ONLY} | `test_AC10_13_2_ingestion_proof_fails_distinctly_on_zero_ingestion()` | `tests/tooling/test_production_infra_smoke.py` | P0 |
+| AC10.13.3 | Stale image (telemetry present for the env but none tagged with the deployed `service.version`) fails the gate with a distinct cause {tier:CODE-ONLY} | `test_AC10_13_3_ingestion_proof_fails_distinctly_on_stale_image()` | `tests/tooling/test_production_infra_smoke.py` | P0 |
+| AC10.13.4 | Logs present but traces absent fails the gate with a distinct zero-traces cause {tier:CODE-ONLY} | `test_AC10_13_4_ingestion_proof_fails_distinctly_on_absent_traces()` | `tests/tooling/test_production_infra_smoke.py` | P0 |
+| AC10.13.5 | The proof queries the SigNoz v4 query_range API with service/environment/version resource filters and parses the scalar count (empty result → zero, not error) {tier:CODE-ONLY} | `test_AC10_13_5_telemetry_count_builds_v4_query_and_parses_count()`, `test_AC10_13_5_telemetry_count_treats_empty_result_as_zero()` | `tests/tooling/test_production_infra_smoke.py` | P0 |
+| AC10.13.6 | The smoke CLI threads the SigNoz API key, deployed version, and environment; absent an API key the proof is explicitly skipped (visible), never silently passed {tier:CODE-ONLY} | `test_AC10_13_6_run_checks_skips_ingestion_proof_without_api_key()`, `test_AC10_13_6_cli_wires_ingestion_arguments()` | `tests/tooling/test_production_infra_smoke.py` | P0 |
+| AC10.13.7 | Ingestion-only mode runs the proof for a non-production environment without the production-shaped health/public-runtime/control-plane checks {tier:CODE-ONLY} | `test_AC10_13_7_ingestion_only_runs_proof_without_prod_health_checks()` | `tests/tooling/test_production_infra_smoke.py` | P0 |
+
 ## 📏 Acceptance Criteria
 
 > ℹ️ **Non-contiguous AC numbering**: Gaps in `AC10.x.y` numbers reflect deprecated or merged ACs preserved through generated registry indexes plus explicit overrides. Do **not** renumber. New ACs append to the next available index in this EPIC.
