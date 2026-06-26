@@ -102,6 +102,7 @@ APP_WORKFLOW_FILES = (
 
 INFRA2_WORKFLOW_FILES = (
     ".github/workflows/apply-observability.yml",
+    ".github/workflows/config-drift-report.yml",
     ".github/workflows/deploy-report-main.yml",
     ".github/workflows/deploy.yml",
     ".github/workflows/dns-drift-report.yml",
