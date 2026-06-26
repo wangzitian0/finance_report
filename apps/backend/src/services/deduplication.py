@@ -466,6 +466,7 @@ async def dual_write_layer2(
     original_filename: str | None = None,
     document_type: DocumentType | None = None,
     extraction_metadata: dict[str, Any] | None = None,
+    envelope_only: bool = False,
 ) -> None:
     """Persist the DWD ingestion result: ODS document, Layer-2 facts, conform summary.
 
@@ -519,7 +520,12 @@ async def dual_write_layer2(
             uploaded_doc.original_filename = original_filename or uploaded_doc.original_filename
             if extraction_metadata is not None:
                 uploaded_doc.extraction_metadata = extraction_metadata
-            await _detach_document_from_atomic_transactions(db, user_id, uploaded_doc.id)
+            # ``envelope_only`` persists just the terminal envelope status (a
+            # quarantined/rejected re-parse, #1452): it must NOT detach the
+            # document's previously-ingested Layer-2 facts, or a re-parse that
+            # ends in quarantine would delete a prior good parse's transactions.
+            if not envelope_only:
+                await _detach_document_from_atomic_transactions(db, user_id, uploaded_doc.id)
         else:
             uploaded_doc = await dedup_service.create_uploaded_document(
                 db=db,

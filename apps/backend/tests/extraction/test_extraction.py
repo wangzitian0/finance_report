@@ -1,6 +1,7 @@
 """Tests for the document extraction service."""
 
 import json
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
@@ -743,3 +744,51 @@ class TestUnderExtractionPenalty:
         not_capped = compute_confidence_score(extracted, balance_result, is_brokerage=True)
         capped = compute_confidence_score(extracted, balance_result, is_brokerage=True, effective_txn_count=1)
         assert capped <= 60 < not_capped
+
+
+class TestBankPeriodResolution:
+    """AC3.11: tolerant resolution of a bank statement's required period (#1449)."""
+
+    def setup_method(self):
+        self.service = ExtractionService()
+
+    def test_AC3_11_1_period_start_falls_back_to_period_end(self):
+        """AC3.11.1: a missing period_start falls back to period_end instead of hard-failing."""
+        start, end = self.service._resolve_required_period({"period_end": "2025-03-31", "transactions": []})
+        assert start == date(2025, 3, 31)
+        assert end == date(2025, 3, 31)
+
+    def test_AC3_11_2_period_derived_from_transaction_dates(self):
+        """AC3.11.2: with no period bounds, the period spans the transaction-date range."""
+        start, end = self.service._resolve_required_period(
+            {
+                "transactions": [
+                    {"date": "2025-03-05", "amount": "1.00", "direction": "IN"},
+                    {"date": "2025-03-28", "amount": "2.00", "direction": "OUT"},
+                    {"date": "2025-03-12", "amount": "3.00", "direction": "IN"},
+                ]
+            }
+        )
+        assert start == date(2025, 3, 5)
+        assert end == date(2025, 3, 28)
+
+    def test_AC3_11_3_no_resolvable_date_still_raises(self):
+        """AC3.11.3: a statement with no period and no transaction dates still rejects."""
+        with pytest.raises(ValueError, match="Date is required"):
+            self.service._resolve_required_period({"transactions": []})
+
+    def test_AC3_11_2_missing_end_prefers_transaction_range_over_other_bound(self):
+        """AC3.11.2: a present period_start with a missing period_end resolves the end to
+        the last transaction date (a meaningful period), not back to period_start
+        (which would collapse to a zero-length range)."""
+        start, end = self.service._resolve_required_period(
+            {
+                "period_start": "2025-03-01",
+                "transactions": [
+                    {"date": "2025-03-10", "amount": "1.00", "direction": "IN"},
+                    {"date": "2025-03-27", "amount": "2.00", "direction": "OUT"},
+                ],
+            }
+        )
+        assert start == date(2025, 3, 1)
+        assert end == date(2025, 3, 27)

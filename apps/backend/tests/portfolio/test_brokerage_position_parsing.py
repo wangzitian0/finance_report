@@ -442,6 +442,52 @@ async def test_AC17_33_3_broker_account_uses_snapshot_currency_not_hardcoded_usd
     assert account.currency == "HKD"
 
 
+async def test_AC17_34_1_brokerage_import_skips_short_positions_without_500(db, test_user):
+    """AC17.34.1: a short (negative market value) position is skipped, not crashed on.
+
+    A margin/options account holding a sold option has a negative market value,
+    which violates the atomic_positions non-negative-market-value CHECK constraint
+    and previously raised an unhandled 500 that aborted the whole import (#1448).
+    The import must now succeed: the long position imports and the short is
+    reported via ``skipped`` instead of crashing.
+    """
+    service = BrokeragePositionImportService()
+    payload = {
+        "institution": "Interactive Brokers",
+        "statement": {"period_end": "2026-05-18", "currency": "USD"},
+        "positions": [
+            {
+                "symbol": "AAPL",
+                "quantity": "10",
+                "market_value": "1900.25",
+                "currency": "USD",
+                "asset_type": "stock",
+            },
+            {
+                "symbol": "NIO270115P7000",
+                "quantity": "-100",
+                "market_value": "-27069.00",
+                "currency": "USD",
+                "asset_type": "stock",
+            },
+        ],
+    }
+
+    result = await service.import_positions(db, user_id=test_user.id, payload=payload, source_document_id="doc-short")
+    await db.commit()
+
+    assert result.parsed_positions == 2
+    assert result.created_atomic_positions == 1
+    assert result.skipped >= 1
+
+    atomic_rows = (
+        (await db.execute(select(AtomicPosition).where(AtomicPosition.user_id == test_user.id))).scalars().all()
+    )
+    assert len(atomic_rows) == 1
+    assert atomic_rows[0].asset_identifier == "AAPL"
+    assert all(row.market_value >= 0 for row in atomic_rows)
+
+
 async def test_AC17_4_8_brokerage_import_survives_concurrent_auto_and_manual_import(db_engine, test_user):
     """AC17.4.8: Auto parse import and manual statement import race without duplicate-position 500s."""
     service = BrokeragePositionImportService()
