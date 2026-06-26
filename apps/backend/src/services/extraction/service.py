@@ -9,9 +9,10 @@ from typing import Any
 from uuid import UUID
 
 import httpx
+from sqlalchemy import select
 
 from src.config import settings
-from src.models import DocumentType
+from src.models import Account, AccountType, DocumentType
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
@@ -84,6 +85,45 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
         # deterministic chain-break detector still runs and logs, but no live model
         # is called. A real LLM-backed backend is wired separately.
         self.region_reextractor: RegionReExtractor | None = None
+
+    async def _get_or_create_bank_account(
+        self,
+        db: Any,
+        *,
+        user_id: UUID,
+        institution: str,
+        account_last4: str,
+        currency: str,
+    ) -> Account:
+        """Get-or-create the physical asset account for a bank statement (#1444).
+
+        Keyed on (user_id, institution, account_last4, currency) via a stable
+        display name so re-uploaded statements for the same account reuse one
+        account. The account is a fact (the money lives here); category
+        classification of each transaction is a separate, user-adjustable layer.
+        """
+        name = f"{institution} ••{account_last4}"
+        existing = (
+            await db.execute(
+                select(Account)
+                .where(Account.user_id == user_id)
+                .where(Account.name == name)
+                .where(Account.type == AccountType.ASSET)
+                .where(Account.currency == currency)
+            )
+        ).scalar_one_or_none()
+        if existing is not None:
+            return existing
+        account = Account(
+            user_id=user_id,
+            name=name,
+            type=AccountType.ASSET,
+            currency=currency,
+            code="AUTO-BANK",
+        )
+        db.add(account)
+        await db.flush()
+        return account
 
     async def parse_document(
         self,
@@ -170,12 +210,39 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 resolved_period_end = self._safe_optional_date(extracted.get("period_end"))
             else:
                 resolved_period_start, resolved_period_end = self._resolve_required_period(extracted)
+
+            sanitized_account_last4 = self._sanitize_account_last4(extracted.get("account_last4"))
+            # Auto-create and link the physical bank account so a high-confidence,
+            # balance-validated statement can reach APPROVED and auto-post without
+            # the everyday user having to map an account first (#1444). The account
+            # is a *factual* asset account keyed on institution + last4 + currency
+            # (mirrors the brokerage auto-account path); category (counter-account)
+            # classification stays a separate, user-adjustable layer. Skipped for
+            # brokerage payloads (they own a broker account at import) and when no
+            # db, real institution, or last4 is available to key a stable account.
+            if (
+                account_id is None
+                and db is not None
+                and not is_brokerage_payload
+                and final_institution
+                and final_institution != "Unknown"
+                and sanitized_account_last4
+            ):
+                bank_account = await self._get_or_create_bank_account(
+                    db,
+                    user_id=user_id,
+                    institution=final_institution,
+                    account_last4=sanitized_account_last4,
+                    currency=statement_currency,
+                )
+                account_id = bank_account.id
+
             statement = StatementSummary(
                 user_id=user_id,
                 account_id=account_id,
                 file_hash=resolved_file_hash,
                 institution=final_institution,
-                account_last4=self._sanitize_account_last4(extracted.get("account_last4")),
+                account_last4=sanitized_account_last4,
                 currency=statement_currency,
                 period_start=resolved_period_start,
                 period_end=resolved_period_end,
