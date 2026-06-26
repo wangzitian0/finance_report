@@ -193,7 +193,42 @@ def test_AC8_13_64_production_infra_smoke_rejects_bad_runtime_responses(
             expected_sha="v0.1.3",
             timeout=5,
             fetcher=fetcher,
+            ready_attempts=2,
+            sleeper=lambda _seconds: None,
         )
+
+
+def test_AC8_13_64_production_infra_smoke_retries_frontend_cold_start() -> None:
+    """AC8.13.64: a transient post-deploy frontend 404/route-rollover is retried, not failed.
+
+    Regression guard for the v0.1.21 prod release: the frontend `/` returned 404
+    during the Traefik/container rollover and rolled back a good deploy. The gate
+    must poll until the route is ready instead of failing on the first miss.
+    """
+    calls = {"frontend": 0}
+
+    def fetcher(url: str, timeout: float) -> HttpResponse:
+        if url.endswith("/api/health"):
+            return HttpResponse(200, VALID_HEALTH_BODY)
+        if url.endswith("/api/ping"):
+            return HttpResponse(200, '{"state":"ping","toggle_count":1}')
+        # frontend root: 404 twice (cold start), then 200 once routable.
+        calls["frontend"] += 1
+        if calls["frontend"] < 3:
+            return HttpResponse(404, "404 page not found")
+        return HttpResponse(200, "<html></html>")
+
+    passed = run_checks(
+        base_url="https://report.zitian.party",
+        expected_sha="v0.1.3",
+        timeout=5,
+        fetcher=fetcher,
+        ready_attempts=5,
+        sleeper=lambda _seconds: None,
+    )
+
+    assert "frontend shell reachable" in passed
+    assert calls["frontend"] == 3
 
 
 def test_AC8_13_64_production_infra_smoke_writes_github_summary(

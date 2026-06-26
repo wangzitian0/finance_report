@@ -7,11 +7,18 @@ import argparse
 import json
 import os
 import sys
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+
+# The public-runtime checks run right after deploy_v2, while the frontend container
+# and its Traefik route may still be rolling over. Poll the route until it is ready
+# instead of failing the gate (and rolling back a good deploy) on a cold-start race.
+DEFAULT_READY_ATTEMPTS = 12
+DEFAULT_READY_INTERVAL = 5.0
 
 
 class SmokeFailure(AssertionError):
@@ -138,21 +145,76 @@ def verify_health(
     ]
 
 
+def _fetch_until_ready(
+    name: str,
+    url: str,
+    *,
+    timeout: float,
+    fetcher: Fetcher,
+    attempts: int,
+    interval: float,
+    sleeper: Callable[[float], None],
+) -> HttpResponse:
+    """Fetch a URL, retrying transient not-ready responses.
+
+    The deploy gate runs immediately after deploy_v2, but the frontend container and
+    its Traefik route can still be rolling over a few seconds after the backend is
+    healthy. A single immediate GET then races that window and a transient 404/5xx
+    rolls back a perfectly good deploy. Retry until the route is ready (2xx/3xx) or
+    the bounded window is exhausted; the final failure carries the last status.
+    """
+    last: HttpResponse | None = None
+    for attempt in range(max(1, attempts)):
+        try:
+            response = fetcher(url, timeout)
+        except SmokeFailure as exc:
+            # URLError (host/route not up yet) surfaces as SmokeFailure from fetch_url.
+            last = HttpResponse(0, str(exc))
+        else:
+            last = response
+            if 200 <= response.status < 400:
+                return response
+        if attempt + 1 < max(1, attempts):
+            sleeper(interval)
+    _require_success(name, last if last is not None else HttpResponse(0, "no response"))
+    return last  # pragma: no cover - _require_success raises on a non-2xx/3xx last
+
+
 def verify_public_runtime(
     base_url: str,
     *,
     timeout: float,
     fetcher: Fetcher = fetch_url,
+    ready_attempts: int = DEFAULT_READY_ATTEMPTS,
+    ready_interval: float = DEFAULT_READY_INTERVAL,
+    sleeper: Callable[[float], None] = time.sleep,
 ) -> list[str]:
-    """Verify production public runtime endpoints without mutating data."""
-    ping = _parse_json(
-        "Production ping", fetcher(_join_url(base_url, "/api/ping"), timeout)
+    """Verify production public runtime endpoints without mutating data.
+
+    The frontend shell and ping route are polled until the post-deploy route
+    rollover settles, so a cold-start race no longer fails the gate.
+    """
+    ping_response = _fetch_until_ready(
+        "Production ping",
+        _join_url(base_url, "/api/ping"),
+        timeout=timeout,
+        fetcher=fetcher,
+        attempts=ready_attempts,
+        interval=ready_interval,
+        sleeper=sleeper,
     )
+    ping = _parse_json("Production ping", ping_response)
     if "state" not in ping or "toggle_count" not in ping:
         raise SmokeFailure(f"Production ping payload is incomplete: {ping}")
 
-    _require_success(
-        "Production frontend", fetcher(base_url.rstrip("/") + "/", timeout)
+    _fetch_until_ready(
+        "Production frontend",
+        base_url.rstrip("/") + "/",
+        timeout=timeout,
+        fetcher=fetcher,
+        attempts=ready_attempts,
+        interval=ready_interval,
+        sleeper=sleeper,
     )
     return ["ping API read-only check", "frontend shell reachable"]
 
@@ -163,6 +225,9 @@ def run_checks(
     expected_sha: str | None,
     timeout: float,
     fetcher: Fetcher = fetch_url,
+    ready_attempts: int = DEFAULT_READY_ATTEMPTS,
+    ready_interval: float = DEFAULT_READY_INTERVAL,
+    sleeper: Callable[[float], None] = time.sleep,
 ) -> list[str]:
     """Run production infrastructure smoke checks and return passed check labels.
 
@@ -180,7 +245,16 @@ def run_checks(
             fetcher=fetcher,
         )
     )
-    passed.extend(verify_public_runtime(base_url, timeout=timeout, fetcher=fetcher))
+    passed.extend(
+        verify_public_runtime(
+            base_url,
+            timeout=timeout,
+            fetcher=fetcher,
+            ready_attempts=ready_attempts,
+            ready_interval=ready_interval,
+            sleeper=sleeper,
+        )
+    )
     return passed
 
 
