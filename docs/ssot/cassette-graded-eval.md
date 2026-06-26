@@ -72,6 +72,33 @@ dedup) — those stay the job of the deterministic downstream gates and a future
 benchmark. The **Scanned** cases carry the real accuracy signal; the Digital
 cases are clean renders (weak signal), kept only for modality coverage.
 
+### 2.2 Recorded HF dataset (separate from the balance-gated cassettes)
+
+The recorded HF data lives in its OWN dataset,
+`apps/backend/tests/fixtures/hf_oracle/*.json` — **not** the `llm_cassettes` dir —
+because real OCR has errors that do **not** satisfy the balance-chain invariant
+(`opening + Σ ≈ closing`, AC23.7); forcing them through that gate would reject the
+very imperfection an accuracy oracle exists to measure.
+
+**Axiom-D split — persist the LLM's RAW output; code guarantees the rest.** Each
+record holds only the model artifact: `{source, model, prompt, synthetic,
+modality, raw_pages, truth}`, where `raw_pages` is the **verbatim per-page model
+output** and `truth` is the independent HF label (production schema
+`{date, description, amount, direction, balance_after}`). Everything downstream —
+parse, normalise, merge pages, validate — is the deterministic CODE layer
+`apps/backend/tests/extraction/hf_oracle_codec.py`, which **reuses the production
+validators** (`validate_balance`, `detect_balance_chain_break`) so it exercises
+real code, and `field_score`/`self_checks` (incl. the running-balance chain: each
+row validates the previous). `test_hf_oracle_codec.py` replays the raw examples
+through the codec with **no key** (CI-safe); `test_hf_oracle_truth.py` gates the
+mapper.
+
+The recorder is `tools/_lib/pdf_fixtures/record_hf_oracle_raw.py` — per-page,
+parallel, non-streaming raw z.ai (the production streaming path is ~2× slower, the
+single all-pages call is output-token-bound, scanned pages need a render
+dimension cap, and the coding plan rate-limits hard). Source PDFs stay git-ignored
+under `tmp/input/hf_oracle/`; only the synthetic dataset is committed.
+
 ## 3. Scoring & normalisation
 
 A case score is the fraction of **scored fields** that match ground truth:

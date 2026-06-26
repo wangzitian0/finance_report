@@ -30,6 +30,7 @@ These files are test infrastructure, not behavior proof.
 | `apps/backend/tests/reconciliation/conftest.py` | EPIC-011 PR-B Layer-2 read bridge fixture |
 | `apps/backend/tests/e2e/conftest.py` | Shared E2E fixtures |
 | `apps/backend/tests/extraction/__init__.py` | Package marker |
+| `apps/backend/tests/extraction/hf_oracle_codec.py` | HF accuracy-oracle code layer (parse/normalise/merge/validate support; reuses production validators) |
 | `apps/backend/tests/factories.py` | Shared backend test factories |
 | `apps/backend/tests/infra/__init__.py` | Package marker |
 | `apps/backend/tests/locustfile.py` | Load-test harness, not AC proof |
@@ -61,6 +62,7 @@ explicit AC IDs for the behavior.
 | `apps/backend/tests/auth/test_auth_router_unit.py` | `docs/ssot/auth.md` |
 | `apps/backend/tests/extraction/test_account_last4_defense.py` | `docs/ssot/extraction.md` |
 | `apps/backend/tests/extraction/test_classification_service.py` | `docs/ssot/extraction.md` |
+| `apps/backend/tests/extraction/test_hf_oracle_codec.py` | `docs/ssot/cassette-graded-eval.md` |
 | `apps/backend/tests/extraction/test_extraction_cassette_replay.py` | `docs/ssot/llm.md` (EPIC-023 AC23.6 streaming-bridge scaffold; skipped via `needs_real_cassette` until real cassettes are recorded with `make llm-record`, then it becomes AC proof) |
 | `apps/backend/tests/extraction/test_dual_write_layer2.py` | `docs/ssot/extraction.md` |
 | `apps/backend/tests/extraction/test_extraction_logging.py` | `docs/ssot/extraction.md` |
@@ -138,6 +140,7 @@ explicit AC IDs for the behavior.
 | `tests/tooling/test_env_contract_boundary.py` | `docs/ssot/observability.md`, `docs/ssot/environments.md` |
 | `tests/tooling/test_generate_fixtures.py` | `docs/ssot/extraction.md` |
 | `tests/tooling/test_github_workflow_timing_summary.py` | `docs/ssot/ci-cd.md` |
+| `tests/tooling/test_hf_oracle_truth.py` | `docs/ssot/cassette-graded-eval.md` |
 | `tests/tooling/test_infra2_pin_is_release_tag.py` | `docs/ssot/deployment.md` |
 | `tests/tooling/test_merge_lcov.py` | `docs/ssot/coverage.md` |
 | `tests/tooling/test_preflight.py` | `docs/ssot/ci-cd.md` |
