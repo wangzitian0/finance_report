@@ -202,6 +202,86 @@ def test_AC10_13_5_telemetry_count_treats_empty_result_as_zero() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("body", "message"),
+    [
+        (
+            '{"status":"error","error":"query failed"}',
+            "did not succeed",
+        ),
+        (
+            '{"status":"success","data":{"result":[{"series":[{"values":'
+            '[{"timestamp":0,"value":"NaN"}]}]}]}}',
+            "non-numeric count",
+        ),
+    ],
+)
+def test_AC10_13_5_telemetry_count_surfaces_query_failures(
+    body: str, message: str
+) -> None:
+    """AC10.13.5: logical query errors and non-numeric counts fail loudly, not as zero."""
+
+    def poster(url: str, data: bytes, headers: dict[str, str], timeout: float):
+        return HttpResponse(200, body)
+
+    with pytest.raises(SmokeFailure, match=message):
+        signoz_telemetry_count(
+            "https://signoz.zitian.party",
+            "tok",
+            data_source="logs",
+            environment="production",
+            service_name="finance-report-backend",
+            version=None,
+            window_minutes=15,
+            timeout=5,
+            now=1_000_000.0,
+            poster=poster,
+        )
+
+
+def test_AC10_13_3_version_filtered_query_is_polled_before_stale_image() -> None:
+    """AC10.13.3: a lagging version-tagged count is polled, not flagged stale on first miss."""
+    sequence = {
+        ("logs", None): [200],
+        ("logs", "v0.1.20"): [0, 0, 42],  # appears only on the third poll
+        ("traces", None): [200],
+        ("traces", "v0.1.20"): [200],
+    }
+    calls: dict[tuple[str, str | None], int] = {}
+
+    def counter(
+        signoz_url: str,
+        api_key: str,
+        *,
+        data_source: str,
+        environment: str,
+        service_name: str,
+        version: str | None,
+        window_minutes: int,
+        timeout: float,
+    ) -> int:
+        key = (data_source, version)
+        idx = calls.get(key, 0)
+        calls[key] = idx + 1
+        values = sequence[key]
+        return values[min(idx, len(values) - 1)]
+
+    passed = verify_ingestion(
+        "https://signoz.zitian.party",
+        "tok",
+        environment="production",
+        expected_version="v0.1.20",
+        window_minutes=15,
+        timeout=5,
+        counter=counter,
+        poll_attempts=4,
+        sleeper=lambda _seconds: None,
+    )
+
+    assert any("logs ingested" in label and "v0.1.20" in label for label in passed)
+    assert calls[("logs", "v0.1.20")] == 3
+
+
 def test_AC10_13_6_run_checks_skips_ingestion_proof_without_api_key() -> None:
     """AC10.13.6: without an API key the ingestion proof is explicitly skipped, not silent."""
 

@@ -263,7 +263,15 @@ def _signoz_query_body(
 
 
 def _extract_count(payload: dict[str, Any]) -> int:
-    """Pull the scalar count out of a SigNoz table response; missing data means zero."""
+    """Pull the scalar count out of a SigNoz table response; missing data means zero.
+
+    A logical query error (``{"status": "error"}`` with HTTP 200) or a non-numeric
+    value is surfaced as a ``SmokeFailure`` rather than silently collapsing to zero,
+    which would misreport a real query failure as "zero ingestion".
+    """
+    status = payload.get("status")
+    if status is not None and status != "success":
+        raise SmokeFailure(f"SigNoz query did not succeed: {payload}")
     result = (payload.get("data") or {}).get("result") or []
     if not result:
         return 0
@@ -273,7 +281,13 @@ def _extract_count(payload: dict[str, Any]) -> int:
     values = series[0].get("values") or []
     if not values:
         return 0
-    return int(float(values[-1].get("value", 0)))
+    raw = values[-1].get("value", 0)
+    try:
+        return int(float(raw))
+    except (TypeError, ValueError) as exc:
+        raise SmokeFailure(
+            f"SigNoz query returned a non-numeric count: {raw!r}"
+        ) from exc
 
 
 def signoz_telemetry_count(
@@ -365,7 +379,11 @@ def verify_ingestion(
             )
             continue
 
-        versioned = counter(
+        # Poll the version-filtered query with the same retry settings: right after a
+        # deploy the version-tagged telemetry can lag the first (unfiltered) hits by a
+        # few seconds, which would otherwise look like a false stale-image failure.
+        versioned = _poll_for_telemetry(
+            counter,
             signoz_url,
             api_key,
             data_source=data_source,
@@ -374,6 +392,9 @@ def verify_ingestion(
             version=expected_version,
             window_minutes=window_minutes,
             timeout=timeout,
+            poll_attempts=poll_attempts,
+            poll_interval=poll_interval,
+            sleeper=sleeper,
         )
         if versioned == 0:
             raise SmokeFailure(
