@@ -1,10 +1,8 @@
 """Tests for brokerage position parsing into AtomicPosition."""
 
 import asyncio
-import json
 from datetime import date
 from decimal import Decimal
-from pathlib import Path
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -28,13 +26,6 @@ from src.services.brokerage_positions import (
     parse_brokerage_positions,
 )
 from src.services.brokerage_statement_payload import _brokerage_payload_from_statement
-
-FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
-
-
-def _load_fixture(name: str) -> dict:
-    with (FIXTURES / name).open() as fh:
-        return json.load(fh)
 
 
 async def _seed_statement(
@@ -150,23 +141,40 @@ def test_brokerage_import_schemas_accept_zero_count_responses():
 
 
 def test_parse_moomoo_fixture_subscription_positions():
-    """AC17.4.1: Moomoo parsed fixtures produce AtomicPosition-ready snapshots."""
-    payload = _load_fixture("moomoo-2504_parsed.json")
+    """AC17.4.1: Moomoo subscription payloads produce AtomicPosition-ready snapshots."""
+    # Synthetic Moomoo money-market subscription payload (no real account data): the
+    # subscription fallback turns a "Money Market Fund" cash event into a 1-unit
+    # MUTUAL_FUND snapshot valued at the event amount.
+    payload = {
+        "institution": "Moomoo",
+        "statement": {"period_end": "2025-04-30", "currency": "SGD"},
+        "events": [
+            {"description": "ACME Money Market Fund", "amount": "100.00"},
+        ],
+    }
 
     snapshots = parse_brokerage_positions(payload, filename="moomoo-2504.pdf")
 
-    csop = next(item for item in snapshots if item.asset_identifier == "CSOP USD Money Market Fund")
-    assert csop.broker == "Moomoo"
-    assert csop.snapshot_date.isoformat() == "2025-04-30"
-    assert csop.quantity == Decimal("1")
-    assert csop.market_value == Decimal("80.27")
-    assert csop.currency == "SGD"
-    assert csop.asset_type == AssetType.MUTUAL_FUND
+    fund = next(item for item in snapshots if item.asset_identifier == "ACME Money Market Fund")
+    assert fund.broker == "Moomoo"
+    assert fund.snapshot_date.isoformat() == "2025-04-30"
+    assert fund.quantity == Decimal("1")
+    assert fund.market_value == Decimal("100.00")
+    assert fund.currency == "SGD"
+    assert fund.asset_type == AssetType.MUTUAL_FUND
 
 
 def test_parse_futu_fixture_aggregate_position():
-    """AC17.4.2: Futu parsed fixtures preserve aggregate securities valuation."""
-    payload = _load_fixture("futu-2506_parsed.json")
+    """AC17.4.2: Futu parsed payloads preserve aggregate securities valuation."""
+    # Synthetic Futu payload (no real account data): the aggregate fallback collapses
+    # the best non-cash valuation event into a single FUTU_STOCK_AND_OPTIONS snapshot.
+    payload = {
+        "institution": "Futu",
+        "statement": {"period_end": "2025-06-30", "currency": "HKD"},
+        "events": [
+            {"description": "Stock and options valuation", "amount": "100.00"},
+        ],
+    }
 
     snapshots = parse_brokerage_positions(payload, filename="futu-2506.pdf")
 
@@ -175,7 +183,7 @@ def test_parse_futu_fixture_aggregate_position():
     assert snapshots[0].asset_identifier == "FUTU_STOCK_AND_OPTIONS"
     assert snapshots[0].snapshot_date.isoformat() == "2025-06-30"
     assert snapshots[0].quantity == Decimal("1")
-    assert snapshots[0].market_value == Decimal("323730.00")
+    assert snapshots[0].market_value == Decimal("100.00")
     assert snapshots[0].currency == "HKD"
 
 

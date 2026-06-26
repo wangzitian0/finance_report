@@ -12,11 +12,9 @@ These tests cover the Critical and High priority gaps identified in the test aud
 - #12 Gemini retry on timeout
 """
 
-import json
 from datetime import date
 from decimal import Decimal
 from io import BytesIO
-from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -30,8 +28,6 @@ from src.services.validation import (
     validate_completeness,
 )
 
-FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
-
 
 def make_upload_file(name: str, content: bytes) -> UploadFile:
     """Create an UploadFile for testing."""
@@ -39,127 +35,6 @@ def make_upload_file(name: str, content: bytes) -> UploadFile:
         filename=name,
         file=BytesIO(content),
     )
-
-
-# =============================================================================
-# Critical #3: Real PDF Parsing Tests (using fixtures as ground truth)
-# =============================================================================
-
-
-class TestFixtureValidation:
-    """Validate that fixture data represents valid parsed outputs."""
-
-    @pytest.fixture
-    def dbs_fixture(self):
-        """Load DBS fixture data."""
-        fixture_path = FIXTURES_DIR / "2025_parsed.json"
-        with open(fixture_path) as f:
-            return json.load(f)
-
-    @pytest.fixture
-    def cmb_fixture(self):
-        """Load CMB fixture data."""
-        fixture_path = FIXTURES_DIR / "2024-2025_parsed.json"
-        with open(fixture_path) as f:
-            return json.load(f)
-
-    @pytest.fixture
-    def maribank_fixture(self):
-        """Load MariBank fixture data."""
-        fixture_path = FIXTURES_DIR / "Apr2025_MariBank_e-Statement_parsed.json"
-        with open(fixture_path) as f:
-            return json.load(f)
-
-    @pytest.fixture
-    def gxs_fixture(self):
-        """Load GXS fixture data."""
-        fixture_path = FIXTURES_DIR / "gxs-2506_parsed.json"
-        with open(fixture_path) as f:
-            return json.load(f)
-
-    def test_cmb_fixture_balance_validates(self, cmb_fixture):
-        """
-        CRITICAL #3: CMB fixture should pass balance validation.
-
-        This validates that our fixture represents correctly parsed data.
-        Note: We rely on the fixture's balance_validated flag since the events
-        list may be a sample rather than complete transaction history.
-        """
-        assert cmb_fixture["success"] is True
-        statement = cmb_fixture["statement"]
-
-        # Verify structure
-        assert statement["balance_validated"] is True
-        assert statement["confidence_score"] >= 85  # Should be auto-accept
-
-        # Verify fixture has required fields
-        assert "opening_balance" in statement
-        assert "closing_balance" in statement
-        assert "currency" in statement
-        assert len(cmb_fixture["events"]) > 0
-
-    def test_dbs_fixture_has_valid_structure(self, dbs_fixture):
-        """
-        [AC3.1.1] CRITICAL #3: DBS fixture should have all required fields.
-        """
-        statement = dbs_fixture["statement"]
-
-        # Required fields
-        assert "period_start" in statement
-        assert "period_end" in statement
-        assert "opening_balance" in statement
-        assert "closing_balance" in statement
-        assert "currency" in statement
-
-        # Events should have required fields
-        assert len(dbs_fixture["events"]) > 0
-        for event in dbs_fixture["events"]:
-            assert "date" in event
-            assert "amount" in event
-            assert "direction" in event
-
-    def test_maribank_fixture_balance_validates(self, maribank_fixture):
-        """
-        CRITICAL #3: MariBank fixture should pass balance validation.
-        """
-        assert maribank_fixture["success"] is True
-        statement = maribank_fixture["statement"]
-        assert statement["balance_validated"] is True
-
-    def test_gxs_fixture_daily_interest_pattern(self, gxs_fixture):
-        """
-        CRITICAL #3: GXS fixture should handle daily interest entries.
-        """
-        assert gxs_fixture["success"] is True
-        events = gxs_fixture["events"]
-
-        # GXS typically has many small interest entries
-        interest_events = [e for e in events if "interest" in (e.get("description") or "").lower()]
-        # Should have some interest events (daily interest is a pattern for GXS)
-        # This validates the parsing captures this pattern
-        assert len(interest_events) >= 0  # GXS may or may not have interest in sample
-
-    def test_all_fixtures_have_high_confidence(self):
-        """
-        CRITICAL #3: All production fixtures should have confidence >= 85.
-
-        This ensures our parsing quality meets the acceptance criteria.
-        """
-        fixture_files = [
-            "2024-2025_parsed.json",
-            "2025_parsed.json",
-            "Apr2025_MariBank_e-Statement_parsed.json",
-            "gxs-2506_parsed.json",
-        ]
-
-        for filename in fixture_files:
-            fixture_path = FIXTURES_DIR / filename
-            if fixture_path.exists():
-                with open(fixture_path) as f:
-                    data = json.load(f)
-                    if data.get("success"):
-                        score = data["statement"].get("confidence_score", 0)
-                        assert score >= 85, f"{filename} has confidence {score} < 85"
 
 
 # =============================================================================
