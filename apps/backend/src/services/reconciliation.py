@@ -14,16 +14,9 @@ from sqlalchemy.orm import selectinload
 
 from src.config import settings
 from src.logger import get_logger
-from src.models import (
-    AtomicTransaction,
-    JournalEntry,
-    JournalEntrySourceType,
-    JournalEntryStatus,
-    JournalLine,
-    ReconciliationMatch,
-    ReconciliationMatchJournalEntry,
-    ReconciliationStatus,
-)
+from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
+from src.models.layer2 import AtomicTransaction
+from src.models.reconciliation import ReconciliationMatch, ReconciliationMatchJournalEntry, ReconciliationStatus
 from src.services.processing_account import (
     create_transfer_in_entry,
     create_transfer_out_entry,

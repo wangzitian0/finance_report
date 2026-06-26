@@ -10,16 +10,8 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import (
-    Account,
-    AccountType,
-    Direction,
-    FxRate,
-    JournalEntry,
-    JournalEntrySourceType,
-    JournalEntryStatus,
-    JournalLine,
-)
+from src.models.account import Account, AccountType
+from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 from src.models.layer2 import AssetType, AtomicPosition, AtomicTransaction, TransactionDirection
 from src.models.layer3 import (
     ClassificationRule,
@@ -33,6 +25,7 @@ from src.models.layer3 import (
     RuleType,
     TransactionClassification,
 )
+from src.models.market_data import FxRate
 from src.services.assets import AssetService
 from src.services.reporting import (
     ReportError,

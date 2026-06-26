@@ -1,0 +1,52 @@
+"""Eager model discovery — import every model module for its registration side effect.
+
+Importing a model module runs its class definitions, which register the mapped
+classes on ``src.database.Base.metadata``. SQLAlchemy needs *all* models loaded
+before ``Base.metadata.create_all`` (test schema build) or Alembic autogenerate
+can see the full schema, and before cross-module string relationships can be
+configured.
+
+This module replaces the former implicit discovery side effect of importing the
+``src.models`` re-export hub (issue #1461, AC-meta.facade.*). The hub is now
+empty; discovery sites import this module explicitly instead:
+
+* ``migrations/env.py``      — Alembic autogenerate target metadata
+* ``tests/conftest.py``      — per-worker ``create_all`` schema build
+* ``src/main.py``            — eager mapper registration at app startup
+* ``common/ssot/generate_db_schema_reference.py`` — schema reference generation
+
+This is NOT a re-export facade: it publishes no symbols (``__all__`` is empty).
+Other code must import each model from its owning module
+(``from src.models.journal import JournalEntry``), never from here or the hub.
+"""
+
+from __future__ import annotations
+
+# Imported purely for the metadata-registration side effect; ordering is
+# irrelevant because SQLAlchemy resolves relationships after all are loaded.
+from . import (  # noqa: F401
+    account,
+    app_config,
+    chat,
+    consistency_check,
+    correction,
+    evidence,
+    fx_conversion,
+    journal,
+    layer1,
+    layer2,
+    layer3,
+    layer4,
+    llm_config,
+    market_data,
+    metrics,
+    ping_state,
+    portfolio,
+    reconciliation,
+    statement_enums,
+    statement_summary,
+    user,
+    workflow,
+)
+
+__all__: list[str] = []

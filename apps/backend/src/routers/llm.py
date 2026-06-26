@@ -23,7 +23,7 @@ from src.llm.common.errors import LLMConfigError
 from src.llm.common.secrets import build_cipher
 from src.llm.factory import get_config_source
 from src.logger import get_logger
-from src.models import LlmProvider, LlmSceneBinding
+from src.models.llm_config import LlmProvider, LlmSceneBinding
 from src.schemas.llm import (
     LlmCatalogResponse,
     LlmConfigStatusResponse,

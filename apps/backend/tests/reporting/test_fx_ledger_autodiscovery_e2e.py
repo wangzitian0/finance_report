@@ -22,17 +22,10 @@ from common.testing.ac_proof import ac_proof
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import (
-    Account,
-    AccountType,
-    Direction,
-    FxRate,
-    JournalEntry,
-    JournalEntrySourceType,
-    JournalEntryStatus,
-    JournalLine,
-)
+from src.models.account import Account, AccountType
 from src.models.fx_conversion import FxConversion
+from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
+from src.models.market_data import FxRate
 from src.services.fx import clear_fx_cache
 from src.services.reporting import generate_balance_sheet, generate_income_statement
 

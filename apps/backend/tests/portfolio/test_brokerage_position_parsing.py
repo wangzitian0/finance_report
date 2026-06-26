@@ -10,11 +10,11 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.models import BankStatementStatus
 from src.models.account import Account, AccountType
 from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AssetType, AtomicPosition, AtomicTransaction, TransactionDirection
 from src.models.layer3 import ManagedPosition
+from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
 from src.schemas.portfolio import BrokerageImportRequest, BrokerageImportResponse
 from src.services.brokerage_positions import (

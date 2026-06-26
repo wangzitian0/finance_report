@@ -12,14 +12,9 @@ from uuid import uuid4
 
 import pytest
 
-from src.models import (
-    Account,
-    AccountType,
-    AtomicTransaction,
-    ReconciliationMatch,
-    ReconciliationStatus,
-    TransactionDirection,
-)
+from src.models.account import Account, AccountType
+from src.models.layer2 import AtomicTransaction, TransactionDirection
+from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.services.reconciliation import get_reconciliation_stats
 
 

@@ -11,9 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants.error_ids import ErrorIds
 from src.logger import get_logger
-from src.models import (
-    AccountType,
-)
+from src.models.account import AccountType
 from src.schemas.provenance import DataProvenance
 from src.services.fx import (
     FxWarning,

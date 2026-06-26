@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 
-from src.models import AtomicTransaction, TransactionDirection
+from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.services.anomaly import detect_anomalies
 
 

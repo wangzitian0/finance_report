@@ -5,8 +5,8 @@ from uuid import UUID
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import AtomicTransaction, TransactionDirection
 from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
+from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.services.anomaly import detect_anomalies
 
 TRANSFER_TOLERANCE = Decimal("0.001")

@@ -7,7 +7,7 @@ from fastapi import HTTPException, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
 
-from src.models import User
+from src.models.user import User
 from src.rate_limit import RateLimitConfig, RateLimiter
 from src.routers.auth import (
     _check_rate_limit,

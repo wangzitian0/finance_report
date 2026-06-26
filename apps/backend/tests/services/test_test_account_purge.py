@@ -13,8 +13,9 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
 
-from src.models import Account, AtomicTransaction, User
-from src.models.layer2 import TransactionDirection
+from src.models.account import Account
+from src.models.layer2 import AtomicTransaction, TransactionDirection
+from src.models.user import User
 from src.services.test_account_purge import (
     DEFAULT_TEST_EMAIL_PATTERN,
     is_safe_purge_environment,

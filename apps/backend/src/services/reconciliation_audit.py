@@ -15,17 +15,9 @@ from decimal import Decimal
 from pathlib import Path
 from uuid import UUID
 
-from src.models import (
-    Account,
-    AccountType,
-    AtomicTransaction,
-    Direction,
-    JournalEntry,
-    JournalEntrySourceType,
-    JournalEntryStatus,
-    JournalLine,
-    TransactionDirection,
-)
+from src.models.account import Account, AccountType
+from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
+from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.services.processing_account import detect_transfer_pattern
 from src.services.reconciliation import (
     DEFAULT_CONFIG,

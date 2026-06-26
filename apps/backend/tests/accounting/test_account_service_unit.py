@@ -10,7 +10,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import Account, AccountType
+from src.models.account import Account, AccountType
 from src.schemas.account import AccountCreate, AccountUpdate
 from src.services import account_service
 from src.services.account_service import AccountNotFoundError

@@ -13,12 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants.error_ids import ErrorIds
 from src.logger import get_logger
-from src.models import (
-    Account,
-    AccountType,
-    JournalEntry,
-    JournalLine,
-)
+from src.models.account import Account, AccountType
+from src.models.journal import JournalEntry, JournalLine
 from src.services.fx import (
     FxRateError,
     PrefetchedFxRates,

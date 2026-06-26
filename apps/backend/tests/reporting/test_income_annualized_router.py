@@ -6,8 +6,10 @@ from decimal import Decimal
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import Account, AccountType, Direction, FxRate, JournalEntry, JournalEntryStatus, JournalLine
+from src.models.account import Account, AccountType
+from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.models.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass, ManualValuationSnapshot
+from src.models.market_data import FxRate
 
 
 async def test_annualized_income_endpoint_groups_last_12_month_income(

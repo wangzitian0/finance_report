@@ -12,7 +12,7 @@ from fastapi import HTTPException
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import User
+from src.models.user import User
 from src.routers.users import get_user, update_user
 from src.schemas.user import UserCreate, UserUpdate
 

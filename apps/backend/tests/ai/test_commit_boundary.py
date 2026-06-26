@@ -5,7 +5,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
+from src.models.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 
 
 async def test_get_or_create_session_uses_flush_not_commit(db: AsyncSession, test_user) -> None:

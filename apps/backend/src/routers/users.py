@@ -7,9 +7,9 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from src.deps import CurrentUserId, DbSession
-from src.models import User
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
+from src.models.user import User
 from src.schemas import UserCreate, UserListResponse, UserResponse, UserUpdate
 from src.utils import raise_bad_request, raise_conflict, raise_not_found
 

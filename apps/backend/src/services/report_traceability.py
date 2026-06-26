@@ -16,14 +16,8 @@ from sqlalchemy import select
 
 from src.constants.report_package import PERSONAL_REPORT_PACKAGE_TRACEABILITY
 from src.deps import CurrentUserId, DbSession
-from src.models import (
-    Account,
-    AccountType,
-    JournalEntry,
-    JournalEntrySourceType,
-    JournalEntryStatus,
-    JournalLine,
-)
+from src.models.account import Account, AccountType
+from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 from src.models.layer2 import AtomicPosition, AtomicTransaction
 from src.models.layer3 import ManualValuationLiquidityClass, ManualValuationSnapshot
 from src.models.portfolio import DividendIncome, MarketDataOverride

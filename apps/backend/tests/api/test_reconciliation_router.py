@@ -28,18 +28,14 @@ from fastapi import status
 from httpx import AsyncClient
 from sqlalchemy import select
 
-from src.models import (
-    Account,
-    AccountType,
-    JournalEntry,
-    ReconciliationMatch,
-    ReconciliationStatus,
-    User,
-)
+from src.models.account import Account, AccountType
+from src.models.journal import JournalEntry
 from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AtomicTransaction, TransactionDirection
+from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
+from src.models.user import User
 from src.schemas.reconciliation import ReconciliationStatusEnum
 from src.services.source_type_priority import STATEMENT_SOURCE_TYPES
 
@@ -588,7 +584,8 @@ class TestReconciliationEndpoints:
 
     async def test_list_matches_with_entry_summaries(self, client: AsyncClient, db, test_user: User):
         """AC4.3.14: Test listing matches with journal entry summaries."""
-        from src.models import Account, AccountType, JournalEntryStatus, JournalLine
+        from src.models.account import Account, AccountType
+        from src.models.journal import JournalEntryStatus, JournalLine
 
         # GIVEN account for journal entry
         account = Account(
@@ -613,7 +610,7 @@ class TestReconciliationEndpoints:
         await db.flush()
 
         # GIVEN journal lines
-        from src.models import Direction
+        from src.models.journal import Direction
 
         line1 = JournalLine(
             id=uuid4(),

@@ -23,10 +23,10 @@ import structlog
 from sqlalchemy import delete, select
 from sqlalchemy.exc import PendingRollbackError
 
-from src.models import User
 from src.models.layer1 import UploadedDocument
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
+from src.models.user import User
 from src.services.statement_parsing import _ensure_failed_document_lineage, handle_parse_failure
 from tests.factories import StatementSummaryFactory
 

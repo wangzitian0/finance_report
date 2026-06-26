@@ -22,10 +22,11 @@ from fastapi import status
 from httpx import AsyncClient
 from sqlalchemy import select
 
-from src.models import Account, AccountType, ClassificationRule, User
-from src.models.layer3 import RuleType
+from src.models.account import Account, AccountType
+from src.models.layer3 import ClassificationRule, RuleType
 from src.models.layer4 import ReportSnapshot, ReportType
 from src.models.metrics import ConfidenceMetricSnapshot
+from src.models.user import User
 
 
 class TestReportsEndpoints:
@@ -210,7 +211,7 @@ class TestReportsEndpoints:
     async def test_category_breakdown_success(self, mock_service: AsyncMock, client: AsyncClient, db, test_user: User):
         """AC5.3.4: Test getting category breakdown."""
         # GIVEN mocked service
-        from src.models import AccountType
+        from src.models.account import AccountType
 
         mock_service.return_value = {
             "type": AccountType.INCOME,

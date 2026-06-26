@@ -8,11 +8,8 @@ from decimal import Decimal
 from pathlib import Path
 
 from src.logger import get_logger
-from src.models import (
-    AccountType,
-    Direction,
-    JournalEntry,
-)
+from src.models.account import AccountType
+from src.models.journal import Direction, JournalEntry
 from src.money import Money
 from src.services.accounting import ValidationError, validate_journal_balance
 from src.services.promotion_gate import RECONCILIATION_AUTO_ACCEPT_SCORE, RECONCILIATION_REVIEW_SCORE

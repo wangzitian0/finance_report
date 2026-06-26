@@ -20,12 +20,9 @@ from src.deps import CurrentUserId, DbSession
 from src.llm.catalog import LitellmCatalog
 from src.llm.common import Modality
 from src.logger import get_logger
-from src.models import (
-    Account,
-    AccountType,
-    BankStatementStatus,
-    UploadedDocument,
-)
+from src.models.account import Account, AccountType
+from src.models.layer1 import UploadedDocument
+from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
 from src.schemas import (
     AtomicTransactionResponse,

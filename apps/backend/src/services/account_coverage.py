@@ -10,7 +10,9 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import Account, BankStatementStatus, StatementSummary
+from src.models.account import Account
+from src.models.statement_enums import BankStatementStatus
+from src.models.statement_summary import StatementSummary
 from src.schemas.account import (
     AccountCoverageCadence,
     AccountCoverageIssue,

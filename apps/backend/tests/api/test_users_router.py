@@ -9,8 +9,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import User
 from src.models.statement_enums import BankStatementStatus
+from src.models.user import User
 from src.security import create_access_token
 from tests.factories import StatementSummaryFactory
 

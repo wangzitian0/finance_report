@@ -17,6 +17,11 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
+# Eagerly register every ORM model on Base.metadata at collection time so any
+# test session — including isolated single-file or ``no_db`` runs — has all
+# mappers configured (replaces the former ``from src.models import ...`` hub
+# side effect; issue #1461).
+import src.models._registry  # noqa: F401
 from src.config import settings
 from src.logger import get_logger
 from src.services.fx import clear_fx_cache
@@ -289,26 +294,16 @@ async def _schema_engine(test_database_url):
     """
     await ensure_database(test_database_url)
 
-    # Register the role packages' ORM tables on Base.metadata before create_all
-    # so every per-worker schema includes them (counter_tally + the shared
-    # outbox), independent of which test module imported them first.
+    # Register every ORM table on Base.metadata before create_all so each
+    # per-worker schema is complete regardless of which test module imported
+    # what first. ``src.models._registry`` eagerly imports all model modules
+    # (replacing the former ``from src.models import ...`` hub side effect); the
+    # role packages (counter_tally + the shared outbox) live outside that
+    # package, so they are imported explicitly here.
     import src.counter.extension.sql  # noqa: F401
+    import src.models._registry  # noqa: F401
     import src.platform.store.outbox  # noqa: F401
     from src.database import Base
-    from src.models import (  # noqa: F401
-        Account,
-        AiFeedback,
-        ChatMessage,
-        ChatSession,
-        ConsistencyCheck,
-        FxRate,
-        JournalAuditLog,
-        JournalEntry,
-        JournalLine,
-        PingState,
-        ReconciliationMatch,
-        User,
-    )
 
     engine = create_async_engine(
         test_database_url,  # Use worker-specific URL
@@ -404,7 +399,7 @@ async def db(db_engine):
 @pytest_asyncio.fixture(scope="function")
 async def test_user(db: AsyncSession):
     """Create a test user for authenticated requests."""
-    from src.models import User
+    from src.models.user import User
 
     user = User(
         email=f"test-{uuid4()}@example.com",

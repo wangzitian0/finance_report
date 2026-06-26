@@ -6,10 +6,7 @@ from uuid import uuid4
 import pytest
 from common.testing.ac_proof import ac_proof
 
-from src.models import (
-    Direction,
-    JournalLine,
-)
+from src.models.journal import Direction, JournalLine
 from src.services.accounting import (
     ValidationError,
     validate_fx_rates,

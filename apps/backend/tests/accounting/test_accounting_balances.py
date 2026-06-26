@@ -7,14 +7,8 @@ with proper handling of journal entries and ledger aggregation.
 from datetime import date
 from decimal import Decimal
 
-from src.models import (
-    Account,
-    AccountType,
-    Direction,
-    JournalEntry,
-    JournalEntryStatus,
-    JournalLine,
-)
+from src.models.account import Account, AccountType
+from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.services.accounting import calculate_account_balances
 
 

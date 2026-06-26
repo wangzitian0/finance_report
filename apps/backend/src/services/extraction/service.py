@@ -12,7 +12,8 @@ import httpx
 from sqlalchemy import select
 
 from src.config import settings
-from src.models import Account, AccountType, DocumentType
+from src.models.account import Account, AccountType
+from src.models.layer1 import DocumentType
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary

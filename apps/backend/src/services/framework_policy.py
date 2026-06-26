@@ -11,16 +11,11 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import (
-    Account,
-    AccountType,
-    DividendIncome,
-    ManualValuationComponentType,
-    ManualValuationSnapshot,
-    MarketDataOverride,
-    StockPrice,
-)
+from src.models.account import Account, AccountType
 from src.models.layer2 import AssetType, AtomicPosition
+from src.models.layer3 import ManualValuationComponentType, ManualValuationSnapshot
+from src.models.market_data import StockPrice
+from src.models.portfolio import DividendIncome, MarketDataOverride
 from src.schemas.reporting import (
     FrameworkPolicyDecision,
     FrameworkPolicyEvidenceAnchor,

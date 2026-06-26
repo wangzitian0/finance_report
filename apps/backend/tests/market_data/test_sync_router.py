@@ -9,7 +9,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.models import FxRate, MarketDataSyncState, StockPrice
+from src.models.market_data import FxRate, MarketDataSyncState, StockPrice
 from src.routers import market_data as market_data_router, reports as reports_router
 from src.services import market_data
 

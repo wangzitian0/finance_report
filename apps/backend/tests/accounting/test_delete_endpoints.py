@@ -14,15 +14,9 @@ from decimal import Decimal
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import (
-    Account,
-    AccountType,
-    BankStatementStatus,
-    Direction,
-    JournalEntry,
-    JournalEntryStatus,
-    JournalLine,
-)
+from src.models.account import Account, AccountType
+from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
 from tests.accounting._ledger_helpers import create_valid_posted_entry
 

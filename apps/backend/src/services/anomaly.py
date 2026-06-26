@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import AtomicTransaction
+from src.models.layer2 import AtomicTransaction
 from src.services.reconciliation import extract_merchant_tokens
 
 

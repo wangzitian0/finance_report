@@ -8,8 +8,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from src.models import BankStatementStatus, Stage1Status, StatementSummary
 from src.models.layer1 import UploadedDocument
+from src.models.statement_enums import BankStatementStatus, Stage1Status
+from src.models.statement_summary import StatementSummary
 from src.models.workflow import (
     WorkflowEvent,
     WorkflowEventFamily,

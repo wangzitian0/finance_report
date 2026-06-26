@@ -18,11 +18,15 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+# Eagerly register every ORM model on Base.metadata at app startup so SQLAlchemy
+# can resolve cross-module string relationships (replaces the former
+# ``from src.models import ...`` hub side effect; issue #1461).
+import src.models._registry  # noqa: E402, F401
 from src.boot import Bootloader, BootMode
 from src.config import settings
 from src.database import engine, get_db, init_db
 from src.logger import configure_logging, get_logger
-from src.models import PingState
+from src.models.ping_state import PingState
 from src.observability import (
     get_observability_status,
     log_observability_startup,

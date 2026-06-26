@@ -46,7 +46,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import Base
 from src.logger import get_logger
-from src.models import User
+from src.models.user import User
 
 logger = get_logger(__name__)
 

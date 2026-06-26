@@ -11,7 +11,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import Account, AccountType
+from src.models.account import Account, AccountType
 
 # The standard 5-account SGD chart used across reporting tests, in a stable
 # order: (Cash ASSET, Credit Card LIABILITY, Owner Equity EQUITY, Salary INCOME,

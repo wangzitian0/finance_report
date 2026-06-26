@@ -14,7 +14,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.llm.common import FernetCipher, Scene
-from src.models import User
+from src.models.user import User
 
 pytestmark = pytest.mark.asyncio
 
@@ -64,7 +64,7 @@ async def test_AC23_4_2_provider_create_encrypts_and_never_returns_key(
 
     from sqlalchemy import select
 
-    from src.models import LlmProvider
+    from src.models.llm_config import LlmProvider
 
     row = (await db.execute(select(LlmProvider).where(LlmProvider.id == created["id"]))).scalar_one()
     assert "sk-secret-123" not in row.api_key_ciphertext

@@ -25,15 +25,8 @@ from src.ledger.store.posting import (  # noqa: E402
     validate_line_account_ownership,
     void_journal_entry,
 )
-from src.models import (
-    Account,
-    AccountType,
-    Direction,
-    JournalEntry,
-    JournalEntrySourceType,
-    JournalEntryStatus,
-    JournalLine,
-)
+from src.models.account import Account, AccountType
+from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 
 __all__ = [
     "AccountingError",

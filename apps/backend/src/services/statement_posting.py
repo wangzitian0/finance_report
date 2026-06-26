@@ -12,15 +12,9 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import (
-    Account,
-    AccountType,
-    JournalEntry,
-    JournalEntrySourceType,
-    JournalEntryStatus,
-    ReconciliationMatch,
-    ReconciliationStatus,
-)
+from src.models.account import Account, AccountType
+from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus
+from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
 from src.money.currency import normalize_currency_code

@@ -9,9 +9,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.logger import get_logger
-from src.models import (
-    AccountType,
-)
+from src.models.account import AccountType
 from src.models.layer3 import (
     ManualValuationComponentType,
     ManualValuationLiquidityClass,

@@ -9,8 +9,9 @@ layer; behavior unchanged.
 
 from __future__ import annotations
 
-from src.models import BankStatementStatus, UploadedDocument
+from src.models.layer1 import UploadedDocument
 from src.models.layer2 import AtomicTransaction
+from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
 
 

@@ -10,22 +10,12 @@ from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.deps import PaginationParams
-from src.models import (
-    Account,
-    AccountType,
-    AtomicTransaction,
-    Direction,
-    DocumentType,
-    JournalEntry,
-    JournalEntrySourceType,
-    JournalEntryStatus,
-    JournalLine,
-    ReconciliationMatch,
-    ReconciliationStatus,
-    StatementSummary,
-    TransactionDirection,
-    UploadedDocument,
-)
+from src.models.account import Account, AccountType
+from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
+from src.models.layer1 import DocumentType, UploadedDocument
+from src.models.layer2 import AtomicTransaction, TransactionDirection
+from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
+from src.models.statement_summary import StatementSummary
 from src.routers import reconciliation as reconciliation_router
 from src.schemas.reconciliation import (
     BatchAcceptRequest,
@@ -326,7 +316,7 @@ async def test_load_entry_summaries_empty(db: AsyncSession, test_user) -> None:
 
 async def test_load_entry_summaries_invalid_uuid(db: AsyncSession, test_user) -> None:
     """Test _load_entry_summaries with invalid UUID strings."""
-    from src.models import ReconciliationMatch
+    from src.models.reconciliation import ReconciliationMatch
     from src.routers.reconciliation import _load_entry_summaries
 
     match = ReconciliationMatch(

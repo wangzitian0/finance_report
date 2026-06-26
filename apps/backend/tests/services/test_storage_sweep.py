@@ -13,8 +13,7 @@ from botocore.exceptions import ClientError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
-from src.models import UploadedDocument
-from src.models.layer1 import DocumentType
+from src.models.layer1 import DocumentType, UploadedDocument
 from src.services import StorageError
 from src.services.storage_sweep import (
     _list_storage_keys,

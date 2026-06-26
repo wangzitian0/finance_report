@@ -7,7 +7,9 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import Account, AccountType, BankStatementStatus, StatementSummary
+from src.models.account import Account, AccountType
+from src.models.statement_enums import BankStatementStatus
+from src.models.statement_summary import StatementSummary
 
 pytestmark = pytest.mark.asyncio
 

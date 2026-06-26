@@ -20,13 +20,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config import settings
 from src.llm.common import ReasoningEffort, Scene, SceneBinding
 from src.llm.factory import get_config_source
-from src.models import (
-    AccountType,
-    ChatMessage,
-    ChatMessageRole,
-    ChatSession,
-    ChatSessionStatus,
-)
+from src.models.account import AccountType
+from src.models.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 from src.money import to_money
 from src.prompts.ai_advisor import get_ai_advisor_prompt
 from src.schemas.chat import AdvisorSuggestion, ChatActionChip, ChatCitation, ChatResponseMetadata

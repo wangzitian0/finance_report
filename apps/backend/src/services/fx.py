@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
 from src.logger import get_logger
-from src.models import FxRate
+from src.models.market_data import FxRate
 from src.money import ExchangeRate, Money, MoneyError, convert as _money_convert
 from src.money.currency import normalize_currency_code
 

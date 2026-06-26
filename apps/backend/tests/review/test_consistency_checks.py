@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 
-from src.models import Account, AccountType
+from src.models.account import Account, AccountType
 from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AtomicTransaction, TransactionDirection

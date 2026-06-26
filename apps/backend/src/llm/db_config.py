@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from src.database import async_session_maker, get_test_session_maker
 from src.llm.common import Encrypted, ProviderRef, Scene, SceneBinding
 from src.llm.common.secrets import SecretCipher, build_cipher
-from src.models import LlmProvider, LlmSceneBinding
+from src.models.llm_config import LlmProvider, LlmSceneBinding
 
 
 class DbConfigSource:
