@@ -25,10 +25,11 @@ asserts:
       domain event — never a shared cross-domain transaction. Two static edges are
       enforced. The **import edge** (``_check_cross_domain_deep_import``,
       AC-meta.txn.1/.2): an impl module may reach another registered package only
-      via its published root (``from src.<other> import X`` / ``import
-      src.<other>``) or a symbol in that package's ``__all__``; a deep import of an
-      *unpublished* internal (another aggregate's object, or another domain's
-      ORM/models written in-transaction) is rejected. The **FK edge**
+      via its bare published root (``import src.<other>``) or a symbol in that
+      package's ``__all__`` (``from src.<other>... import <published name>``); an
+      import of an *unpublished* internal (a submodule, another aggregate's object,
+      or another domain's ORM/models written in-transaction) is rejected — whether
+      the module path is the package root or a deep submodule. The **FK edge**
       (``_check_cross_domain_fk``, AC-meta.txn.3): a ``ForeignKey`` /
       ``relationship`` whose target table/model is owned by another registered
       package is rejected — the reference must be an id column resolved via the
@@ -41,8 +42,10 @@ asserts:
       ``OutboxEventBus`` is in ``platform.__all__``, so the import resolves to a
       *published* symbol and is allowed (the same exception lets ``unit_price``
       import the published ``Money`` / ``Quantity`` value types from their defining
-      modules). The rule rejects deep imports of *unpublished* internals, not deep
-      paths to published symbols — so no current package regresses.
+      modules, and how ``money`` / ``quantity`` import the published ``Ratio`` via
+      its root ``from src.ratio import Ratio``). The rule rejects imports of
+      *unpublished* internals (including a root import of a submodule), not paths to
+      published symbols — so no current package regresses.
 
 This module is the meta package's ``extension`` layer (the impure edge: it walks
 the filesystem and parses ASTs). It imports the ``base`` model
@@ -296,22 +299,25 @@ def _check_cross_domain_deep_import(
     """One-transaction-per-domain, the import edge (AC-meta.txn.1 / .2).
 
     A package's implementation may reference another *registered* package only
-    through that package's **published interface** — either its package root
-    (``from src.<other> import X`` / ``import src.<other>``) or a symbol the target
-    publishes in its ``__all__`` (``published[<other>]``). A deep import that
-    reaches an **unpublished internal** of another domain is rejected: cross-domain
-    references go through the published language (or by id + a domain event), never
-    by reaching into another aggregate's internals (txn.1) or writing another
-    domain's ORM/models in the same transaction (txn.2).
+    through that package's **published interface** — either the bare package root
+    (``import src.<other>``) or a symbol the target publishes in its ``__all__``
+    (``published[<other>]``). Every name in a ``from src.<other>... import N1,
+    N2, ...`` must itself be in the target's ``__all__``; an import that reaches an
+    **unpublished internal** of another domain is rejected: cross-domain references
+    go through the published language (or by id + a domain event), never by reaching
+    into another aggregate's internals (txn.1) or writing another domain's
+    ORM/models in the same transaction (txn.2).
 
-    The *port-exception* that keeps the live packages green: a deep import is
-    allowed when the imported name IS in the target's ``__all__`` (the symbol is
-    published; only its physical defining module is deep). This is how ``counter``
-    imports the platform bus port (``from src.platform.events.bus import
-    OutboxEventBus`` — ``OutboxEventBus`` ∈ ``platform.__all__``) and how
-    ``unit_price`` imports the published ``Money`` / ``Quantity`` value types from
-    their defining modules. A plain ``import src.<other>.<sub>`` names no symbol and
-    so can never be a published reference — it is always rejected.
+    The published-symbol rule is uniform across the module path: a ``from`` import
+    is allowed iff each imported name is in the target's ``__all__``, whether the
+    module is the package root or a deep submodule. This is how ``counter`` imports
+    the platform bus port (``from src.platform.events.bus import OutboxEventBus`` —
+    ``OutboxEventBus`` ∈ ``platform.__all__``) and how ``unit_price`` imports the
+    published ``Money`` / ``Quantity`` value types from their defining modules — and
+    why a *root* import of an unpublished name (``from src.<other> import
+    <submodule>``) is rejected just like a deep reach. A plain ``import
+    src.<other>.<sub>`` names no symbol and so can never be a published reference —
+    it is always rejected; only the bare ``import src.<other>`` root is allowed.
 
     ``published`` maps package name -> its ``__all__`` (computed once by
     :func:`run`). Imports of *unregistered* modules (shared infra such as
@@ -331,19 +337,24 @@ def _check_cross_domain_deep_import(
                 target = parts[1]
                 if target == pkg.name or target not in registered:
                     continue
-                if len(parts) == 2:
-                    continue  # published root: `from src.<other> import X` — allowed
+                # Every name in a `from src.<other> import N1, N2, ...` must be a
+                # symbol the target publishes in its __all__ — whether the module is
+                # the package root (`from src.<other> import N`) or a deep path
+                # (`from src.<other>.<mod> import N`). A root import is NOT waved
+                # through: `from src.<other> import <submodule>` or an unpublished
+                # name bypasses the published interface just as a deep reach does.
                 pub = set(published.get(target, []))
                 rel = py.relative_to(REPO_ROOT)
                 for alias in node.names:
                     if alias.name == "*" or alias.name not in pub:
                         offenders.append(
-                            f"{rel}: deep cross-domain import "
+                            f"{rel}: cross-domain import "
                             f"'from {node.module} import {alias.name}' reaches an "
-                            f"unpublished internal of package '{target}'. A "
-                            f"cross-domain reference must go through the published "
-                            f"interface ('from src.{target} import ...' / a symbol "
-                            f"in its __all__) or by id + a domain event."
+                            f"unpublished internal of package '{target}' (a name not "
+                            f"in its __all__ — a submodule or another aggregate's "
+                            f"object). A cross-domain reference must go through the "
+                            f"published interface ('from src.{target} import <symbol "
+                            f"in __all__>') or by id + a domain event."
                         )
             elif isinstance(node, ast.Import):
                 for alias in node.names:

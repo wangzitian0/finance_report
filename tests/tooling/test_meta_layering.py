@@ -322,7 +322,7 @@ def test_AC_meta_txn_1_base_deep_import_of_other_domain_object_is_rejected(
         == []
     )
 
-    # importing via the published root is always allowed.
+    # importing a *published* symbol via the package root is allowed (PubVO ∈ __all__).
     ok_root = _make_pkg(
         tmp_path,
         "consumer_root_ok",
@@ -336,7 +336,23 @@ def test_AC_meta_txn_1_base_deep_import_of_other_domain_object_is_rejected(
         == []
     )
 
-    # an import of an UNregistered module (e.g. shared infra) is out of scope.
+    # a ROOT import of an *unpublished* name (a submodule or unexported internal)
+    # bypasses the published interface just like a deep reach — it must be rejected.
+    # 'extension' is a submodule of domainx, not a symbol in its __all__.
+    bad_root = _make_pkg(
+        tmp_path,
+        "consumer_root_bad",
+        units=[],
+        extra_files={"base/use.py": "from src.domainx import extension  # noqa\n"},
+    )
+    offenders = cpc._check_cross_domain_deep_import(
+        bad_root, {"consumer_root_bad": "core", "domainx": "core"}, published
+    )
+    assert any("unpublished internal" in o and "domainx" in o for o in offenders), (
+        offenders
+    )
+
+    # an import of an unregistered module (e.g. shared infra) is out of scope.
     infra = _make_pkg(
         tmp_path,
         "consumer_infra_ok",
