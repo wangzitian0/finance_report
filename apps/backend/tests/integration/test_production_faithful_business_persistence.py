@@ -17,7 +17,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from src.models import Account, AccountType, Direction, User
+from src.models.account import Account, AccountType
+from src.models.journal import Direction
+from src.models.user import User
 from src.services.accounting import calculate_account_balance, create_journal_entry, post_journal_entry
 
 pytestmark = [pytest.mark.integration, pytest.mark.no_db, pytest.mark.asyncio]

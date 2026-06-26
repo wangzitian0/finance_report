@@ -12,10 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.logger import get_logger
-from src.models import (
-    Account,
-    AccountType,
-)
+from src.models.account import Account, AccountType
 from src.models.layer3 import (
     ManagedPosition,
     ManualValuationLiquidityClass,

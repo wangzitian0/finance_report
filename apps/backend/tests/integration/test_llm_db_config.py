@@ -17,7 +17,7 @@ from src.llm.common import FernetCipher, ProtocolFamily, ReasoningEffort, Scene
 from src.llm.db_config import DbConfigSource
 from src.llm.env_config import EnvConfigSource
 from src.llm.factory import LayeredConfigSource
-from src.models import LlmProvider, LlmSceneBinding
+from src.models.llm_config import LlmProvider, LlmSceneBinding
 
 
 @pytest.fixture
@@ -84,7 +84,7 @@ async def test_AC23_4_8_get_provider_is_user_scoped_no_cross_tenant_key_disclosu
     """AC23.4.8: get_provider must not resolve — or decrypt — another user's provider by id."""
     from uuid import uuid4
 
-    from src.models import User
+    from src.models.user import User
 
     user_a = User(email=f"a-{uuid4()}@example.com", hashed_password="x")
     user_b = User(email=f"b-{uuid4()}@example.com", hashed_password="x")

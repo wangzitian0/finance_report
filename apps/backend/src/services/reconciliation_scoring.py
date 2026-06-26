@@ -13,13 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
 from src.logger import get_logger
-from src.models import (
-    AccountType,
-    AtomicTransaction,
-    JournalEntry,
-    ReconciliationMatch,
-    ReconciliationStatus,
-)
+from src.models.account import AccountType
+from src.models.journal import JournalEntry
+from src.models.layer2 import AtomicTransaction
+from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.services.reconciliation_config import ReconciliationConfig
 
 logger = get_logger(__name__)

@@ -352,7 +352,7 @@ async def test_delete_session_success() -> None:
     """AC6.4.5: Delete session marks session as deleted."""
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from src.models import ChatSession, ChatSessionStatus
+    from src.models.chat import ChatSession, ChatSessionStatus
     from src.routers.chat import delete_session
 
     mock_session = MagicMock(spec=ChatSession)
@@ -369,7 +369,7 @@ async def test_delete_session_success() -> None:
 
 async def test_chat_history_with_session_id() -> None:
     """AC6.4.3: Chat history returns messages for specific session."""
-    from src.models import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
+    from src.models.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
     from src.routers.chat import chat_history
 
     mock_session = MagicMock(spec=ChatSession)
@@ -419,7 +419,7 @@ async def test_chat_history_empty() -> None:
 
 async def test_chat_history_lists_sessions() -> None:
     """AC6.4.3: Chat history lists active sessions with message counts."""
-    from src.models import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
+    from src.models.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
     from src.routers.chat import chat_history
 
     mock_session = MagicMock(spec=ChatSession)

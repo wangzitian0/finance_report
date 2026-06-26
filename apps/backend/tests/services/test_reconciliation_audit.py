@@ -6,7 +6,7 @@ from datetime import date
 
 import pytest
 
-from src.models import AccountType
+from src.models.account import AccountType
 from src.services import reconciliation_audit as audit
 
 

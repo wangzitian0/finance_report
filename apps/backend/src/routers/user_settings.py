@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
-from src.models import User
+from src.models.user import User
 from src.schemas.user import UserAiSettingsResponse, UserAiSettingsUpdate
 from src.utils import raise_not_found
 

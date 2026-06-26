@@ -7,14 +7,11 @@ from sqlalchemy import select
 
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
-from src.models import (
-    JournalEntry,
-    JournalEntryStatus,
-    StatementSummary,
-)
 from src.models.consistency_check import CheckStatus, CheckType
+from src.models.journal import JournalEntry, JournalEntryStatus
 from src.models.layer2 import AtomicTransaction
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
+from src.models.statement_summary import StatementSummary
 from src.money import InvalidCurrencyError
 from src.schemas.review import (
     BatchApproveRequest,

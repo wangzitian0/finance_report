@@ -18,22 +18,11 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import (
-    Account,
-    AccountType,
-    ChatMessage,
-    ChatMessageRole,
-    ChatSession,
-    ChatSessionStatus,
-    Direction,
-    JournalEntry,
-    JournalEntrySourceType,
-    JournalEntryStatus,
-    JournalLine,
-    ReconciliationMatch,
-    ReconciliationStatus,
-)
+from src.models.account import Account, AccountType
+from src.models.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
+from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 from src.models.layer2 import AtomicTransaction, TransactionDirection
+from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.prompts.ai_advisor import DISCLAIMER_EN, get_ai_advisor_prompt
 from src.schemas.workflow import (
     WorkflowEventCountsResponse,

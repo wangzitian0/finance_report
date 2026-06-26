@@ -28,8 +28,10 @@ from uuid import UUID
 from common.testing.ac_proof import ac_proof
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import Account, AccountType, JournalEntrySourceType, User
+from src.models.account import Account, AccountType
+from src.models.journal import JournalEntrySourceType
 from src.models.layer3 import ManualValuationComponentType
+from src.models.user import User
 from src.services.accounting import create_journal_entry, post_journal_entry
 from src.services.assets import AssetService
 from src.services.reporting import generate_balance_sheet

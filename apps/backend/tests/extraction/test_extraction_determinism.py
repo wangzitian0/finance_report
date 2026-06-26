@@ -26,7 +26,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.models import BankStatementStatus
+from src.models.statement_enums import BankStatementStatus
 from src.services.extraction import ExtractionService
 from src.services.validation import (
     compute_confidence_score,

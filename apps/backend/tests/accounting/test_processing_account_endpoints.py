@@ -6,7 +6,7 @@ from decimal import Decimal
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import Account, AccountType
+from src.models.account import Account, AccountType
 from src.services.processing_account import (
     create_transfer_in_entry,
     create_transfer_out_entry,

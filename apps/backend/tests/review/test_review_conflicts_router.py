@@ -7,7 +7,7 @@ from uuid import uuid4
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import Account, AccountType
+from src.models.account import Account, AccountType
 from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.statement_enums import BankStatementStatus

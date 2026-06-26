@@ -14,7 +14,8 @@ from sqlalchemy import select
 
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
-from src.models import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.models.account import Account, AccountType
+from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.models.layer3 import (
     ManualValuationComponentType,
     ManualValuationLiquidityClass,

@@ -137,7 +137,7 @@ async def test_AC2_15_6_account_currency_mismatch_is_rejected(client: AsyncClien
 async def test_AC2_15_7_system_account_target_is_rejected(client: AsyncClient, db, test_user) -> None:
     """AC2.15.7: opening balances may only target user-managed accounts; a system
     account (e.g. Processing) cannot be set via this endpoint."""
-    from src.models import Account, AccountType
+    from src.models.account import Account, AccountType
 
     system_account = Account(
         user_id=test_user.id,

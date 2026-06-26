@@ -9,11 +9,11 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import FxRate
 from src.models.account import Account, AccountType
 from src.models.journal import JournalEntrySourceType
 from src.models.layer2 import AtomicPosition, AtomicTransaction, TransactionDirection
 from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
+from src.models.market_data import FxRate
 from src.models.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
 from src.routers import portfolio as portfolio_router
 from src.schemas.portfolio import HoldingResponse

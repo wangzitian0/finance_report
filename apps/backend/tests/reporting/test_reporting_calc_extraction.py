@@ -3,7 +3,8 @@
 from datetime import date
 from decimal import Decimal
 
-from src.models import AccountType, Direction
+from src.models.account import AccountType
+from src.models.journal import Direction
 from src.services import reporting as reporting_service, reporting_calc
 
 

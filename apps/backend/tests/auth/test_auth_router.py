@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import User
+from src.models.user import User
 from src.routers.auth import hash_password
 
 

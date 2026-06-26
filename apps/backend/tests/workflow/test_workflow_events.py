@@ -13,8 +13,10 @@ from pydantic import ValidationError
 from sqlalchemy import func, inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.models import BankStatementStatus, Stage1Status, StatementSummary, User
 from src.models.layer1 import DocumentType, UploadedDocument
+from src.models.statement_enums import BankStatementStatus, Stage1Status
+from src.models.statement_summary import StatementSummary
+from src.models.user import User
 from src.models.workflow import (
     WorkflowEvent,
     WorkflowEventFamily,

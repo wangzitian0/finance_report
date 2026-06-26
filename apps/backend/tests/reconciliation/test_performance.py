@@ -16,17 +16,9 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import (
-    Account,
-    AccountType,
-    AtomicTransaction,
-    Direction,
-    JournalEntry,
-    JournalEntrySourceType,
-    JournalEntryStatus,
-    JournalLine,
-    TransactionDirection,
-)
+from src.models.account import Account, AccountType
+from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
+from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.services.reconciliation import (
     DEFAULT_CONFIG,
     calculate_match_score,

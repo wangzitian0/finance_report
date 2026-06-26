@@ -13,7 +13,7 @@ from sqlalchemy import func, select
 from src.deps import CurrentUserId, DbSession
 from src.llm.catalog import LitellmCatalog
 from src.logger import get_logger
-from src.models import ChatMessage, ChatSession, ChatSessionStatus
+from src.models.chat import ChatMessage, ChatSession, ChatSessionStatus
 from src.schemas.chat import (
     ChatHistoryResponse,
     ChatMessagePreview,

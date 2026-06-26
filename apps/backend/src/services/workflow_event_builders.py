@@ -7,7 +7,7 @@ into WorkflowEventCreate payloads. No DB or session logic.
 from datetime import UTC, datetime
 from uuid import NAMESPACE_URL, UUID, uuid5
 
-from src.models import StatementSummary
+from src.models.statement_summary import StatementSummary
 from src.models.workflow import WorkflowEventFamily, WorkflowEventSeverity, WorkflowReportImpact
 from src.schemas.workflow import WorkflowEventCreate
 

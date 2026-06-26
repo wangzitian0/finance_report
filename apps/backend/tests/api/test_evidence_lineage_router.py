@@ -8,12 +8,12 @@ from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import User
 from src.models.account import Account, AccountType
 from src.models.evidence import EvidenceEdge, EvidenceNode
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 from src.models.layer1 import DocumentStatus, DocumentType, UploadedDocument
 from src.models.layer2 import AtomicTransaction, TransactionDirection
+from src.models.user import User
 from src.routers.evidence import _materialization_failure_status, _should_attempt_lazy_materialization
 from src.schemas.evidence import (
     EvidenceLineageBlocker,

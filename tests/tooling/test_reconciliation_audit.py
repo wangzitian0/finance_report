@@ -13,7 +13,8 @@ for path in (ROOT, BACKEND):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-from src.models import AccountType  # noqa: E402
+import src.models._registry  # noqa: E402, F401  -- register all ORM mappers before relationship config
+from src.models.account import AccountType  # noqa: E402
 from src.services.reconciliation_audit import (  # noqa: E402
     AUTO_ACCEPT,
     UNMATCHED,
@@ -109,8 +110,8 @@ def test_AC4_10_3_ci_gates_reconciliation_audit_thresholds() -> None:
 
 def test_AC4_10_1_reconciliation_audit_tool_wrapper_delegates_to_backend_service() -> None:
     """AC4.10.1: The root tool delegates to the backend audit implementation."""
-    import tools.reconciliation_audit as tool
-
     from src.services import reconciliation_audit as implementation
+
+    import tools.reconciliation_audit as tool
 
     assert tool.main is implementation.main

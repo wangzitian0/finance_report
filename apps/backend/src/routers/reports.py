@@ -24,12 +24,9 @@ from src.constants.report_package import (
 )
 from src.deps import CurrentUserId, DbSession, Pagination
 from src.logger import get_logger
-from src.models import (
-    Account,
-    AccountType,
-    FxRate,
-)
+from src.models.account import Account, AccountType
 from src.models.layer4 import ReportSnapshot, ReportType as SnapshotReportType
+from src.models.market_data import FxRate
 from src.schemas import (
     AccountLineageResponse,
     AccountTrendResponse,

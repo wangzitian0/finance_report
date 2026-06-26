@@ -12,7 +12,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import FxRate, StockPrice
+from src.models.market_data import FxRate, StockPrice
 from src.services import market_data
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]

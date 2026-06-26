@@ -11,9 +11,9 @@ from sqlalchemy.orm import selectinload
 
 from src.config import settings
 from src.logger import get_logger
-from src.models import StockPrice
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
+from src.models.market_data import StockPrice
 from src.models.portfolio import (
     DividendIncome,
     InvestmentTransaction,

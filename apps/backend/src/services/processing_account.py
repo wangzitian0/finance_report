@@ -25,14 +25,8 @@ from sqlalchemy.orm import selectinload
 
 from src.config import settings
 from src.ledger import Entry
-from src.models import (
-    Direction,
-    JournalEntry,
-    JournalEntrySourceType,
-    JournalEntryStatus,
-    JournalLine,
-)
 from src.models.account import Account
+from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 from src.models.layer2 import AtomicTransaction
 from src.money import Money
 from src.services.account_service import get_or_create_processing_account

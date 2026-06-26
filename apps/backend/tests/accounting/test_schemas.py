@@ -12,7 +12,8 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from src.models import AccountType, Direction
+from src.models.account import AccountType
+from src.models.journal import Direction
 from src.schemas import (
     AccountCreate,
     AccountUpdate,

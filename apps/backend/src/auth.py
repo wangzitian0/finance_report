@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_db
 from src.logger import get_logger
-from src.models import User
+from src.models.user import User
 from src.observability_events import (
     bind_authenticated_user_context,
     log_security_warning,

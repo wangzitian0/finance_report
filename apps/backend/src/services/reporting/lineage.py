@@ -11,11 +11,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.logger import get_logger
-from src.models import (
-    Account,
-    JournalEntry,
-    JournalLine,
-)
+from src.models.account import Account
+from src.models.journal import JournalEntry, JournalLine
 from src.services.reporting._core import _REPORT_STATUSES, _get_fx_rates_map
 from src.services.reporting_calc import (
     ReportError,

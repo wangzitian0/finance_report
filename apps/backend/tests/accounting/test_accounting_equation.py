@@ -20,15 +20,8 @@ from common.testing.ac_proof import ac_proof
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import (
-    Account,
-    AccountType,
-    Direction,
-    JournalEntry,
-    JournalEntrySourceType,
-    JournalEntryStatus,
-    JournalLine,
-)
+from src.models.account import Account, AccountType
+from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 from src.services.accounting import (
     ValidationError,
     calculate_account_balance,

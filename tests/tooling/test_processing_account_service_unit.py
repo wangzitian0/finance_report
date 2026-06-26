@@ -16,9 +16,9 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "apps" / "backend"))
 
-from src.models import (  # noqa: E402
-    Account,
-    AccountType,
+import src.models._registry  # noqa: E402, F401  -- register all ORM mappers before relationship config
+from src.models.account import Account, AccountType  # noqa: E402
+from src.models.journal import (  # noqa: E402
     Direction,
     JournalEntry,
     JournalEntrySourceType,

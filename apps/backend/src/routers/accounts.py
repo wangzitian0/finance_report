@@ -10,7 +10,8 @@ from sqlalchemy import select
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
-from src.models import AccountType, JournalLine
+from src.models.account import AccountType
+from src.models.journal import JournalLine
 from src.money import to_money
 from src.schemas import (
     AccountCoverageListResponse,

@@ -4,15 +4,9 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
-from src.models import (
-    Account,
-    AccountType,
-    AtomicTransaction,
-    Direction,
-    JournalEntry,
-    JournalLine,
-    TransactionDirection,
-)
+from src.models.account import Account, AccountType
+from src.models.journal import Direction, JournalEntry, JournalLine
+from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.services.reconciliation import DEFAULT_CONFIG, calculate_match_score
 
 

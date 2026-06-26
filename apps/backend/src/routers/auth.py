@@ -11,7 +11,7 @@ from src.auth import AUTH_COOKIE_NAME, oauth2_scheme
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
-from src.models import User
+from src.models.user import User
 from src.observability_events import bind_authenticated_user_context, log_security_warning
 from src.rate_limit import RateLimiter, auth_rate_limiter, register_rate_limiter
 from src.schemas.auth import AuthResponse, LoginRequest, RegisterRequest

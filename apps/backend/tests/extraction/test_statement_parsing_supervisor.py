@@ -4,7 +4,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 from src.database import create_session_maker_from_db
-from src.models import BankStatementStatus
+from src.models.statement_enums import BankStatementStatus
 from src.services.statement_parsing_supervisor import (
     PARSING_STALE_THRESHOLD,
     reset_stale_parsing_jobs,

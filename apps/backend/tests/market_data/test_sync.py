@@ -8,10 +8,10 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import FxRate, MarketDataSyncState, StockPrice
 from src.models.account import Account, AccountType
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
+from src.models.market_data import FxRate, MarketDataSyncState, StockPrice
 from src.services import market_data
 from src.services.portfolio import PortfolioService
 

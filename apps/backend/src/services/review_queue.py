@@ -10,20 +10,12 @@ from sqlalchemy.orm import selectinload
 
 from src.config import settings
 from src.logger import get_logger
-from src.models import (
-    Account,
-    AccountType,
-    Direction,
-    JournalEntry,
-    JournalEntrySourceType,
-    JournalEntryStatus,
-    JournalLine,
-    ReconciliationMatch,
-    ReconciliationStatus,
-)
+from src.models.account import Account, AccountType
+from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.layer3 import ClassificationStatus, TransactionClassification
+from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_summary import StatementSummary
 from src.services.accounting import ValidationError, validate_journal_balance, validate_journal_posting_invariants
 from src.services.currency_resolution import CurrencyUnresolvedError

@@ -8,14 +8,8 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import (
-    AccountType,
-    Direction,
-    JournalEntry,
-    JournalEntrySourceType,
-    JournalEntryStatus,
-    JournalLine,
-)
+from src.models.account import AccountType
+from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 from src.models.layer3 import (
     ManualValuationComponentType,
     ManualValuationLiquidityClass,
@@ -1481,7 +1475,7 @@ async def test_income_statement_combined_filters(db: AsyncSession, chart_of_acco
 
 async def test_income_statement_fallback_rate(db: AsyncSession, chart_of_accounts, test_user_id, monkeypatch):
     """Test fallback to convert_amount when PrefetchedFxRates returns None."""
-    from src.models import FxRate as FxRateModel
+    from src.models.market_data import FxRate as FxRateModel
     from src.services.fx import PrefetchedFxRates
 
     cash, _liability, _equity, income, _expense = chart_of_accounts

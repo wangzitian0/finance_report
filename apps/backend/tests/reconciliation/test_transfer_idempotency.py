@@ -17,18 +17,12 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import (
-    Account,
-    AccountType,
-    AtomicTransaction,
-    BankStatementStatus,
-    DocumentType,
-    ReconciliationMatch,
-    ReconciliationStatus,
-    StatementSummary,
-    TransactionDirection,
-    UploadedDocument,
-)
+from src.models.account import Account, AccountType
+from src.models.layer1 import DocumentType, UploadedDocument
+from src.models.layer2 import AtomicTransaction, TransactionDirection
+from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
+from src.models.statement_enums import BankStatementStatus
+from src.models.statement_summary import StatementSummary
 from src.services.reconciliation import execute_matching
 
 
