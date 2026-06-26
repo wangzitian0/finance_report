@@ -30,8 +30,12 @@ The same four-tier scale is used by both views, which is why they cannot drift:
 
 ## Structure (layers)
 
-Like every package, the implementation converges by **layer** (base / extension /
-data), not by role:
+The **target** model — like every migrated package — is to converge by **layer**
+(base / extension / data) rather than by role. `authority` is **not there yet**:
+its `contract.py` still declares legacy `roles=["matrix", "classifier", "gates"]`
+and the files are physically flat under `common/authority/`. The base/extension
+split below is therefore the **conceptual/intended** layering each file maps onto;
+the role-to-layer migration is still pending.
 
 - **base** — the value language: `authority_matrix.py` (tier Literals, the
   tier→proof matrix, the canonical tuples; stdlib-only, no pydantic) and

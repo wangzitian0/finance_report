@@ -88,7 +88,9 @@ behavior is anchored to a goal and proven by a test). The **mechanism** for
    cover the stated goal; name dependencies and out-of-scope work before
    implementation.
 1. **AC home — the package `roadmap`**: For a **migrated** package, define the
-   acceptance criterion as `AC-<pkg>.<entity>.<seq>` in that package's
+   acceptance criterion as `AC-<pkg>.<group>.<seq>` (the `<group>` segment is an
+   entity name **or** a numeric group, e.g. `AC-ledger.journal-entry.3` or
+   `AC-counter.1.1`) in that package's
    `contract.py` `roadmap`, conforming to `meta`'s schema
    ([`common/meta/migration-standard.md`](../../common/meta/migration-standard.md)).
    `meta`'s data layer aggregates these; **never mirror a package AC back into an

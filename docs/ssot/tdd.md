@@ -26,7 +26,9 @@ prove with a test). The **mechanism** for *where an AC lives* depends on whether
 the owning module has migrated onto the package model:
 
 - **Migrated package** — the AC home is the package's `contract.py` `roadmap`,
-  keyed `AC-<pkg>.<entity>.<seq>` and conforming to `meta`'s schema (see
+  keyed `AC-<pkg>.<group>.<seq>` (the `<group>` segment is an entity name **or** a
+  numeric group, e.g. `AC-ledger.journal-entry.3` or `AC-counter.1.1`) and
+  conforming to `meta`'s schema (see
   [`common/meta/migration-standard.md`](../../common/meta/migration-standard.md)).
   `meta`'s data layer aggregates these into the computed index; a package AC is
   **never** mirrored into an EPIC table.
@@ -36,8 +38,10 @@ the owning module has migrated onto the package model:
 
 ## Acceptance Criteria
 
-Package-`roadmap` ACs use `AC-<pkg>.<entity>.<seq>` (e.g. `AC-ledger.journal-entry.3`)
-and hang off the package's **entities**, owned by `contract.py` and validated by
+Package-`roadmap` ACs use `AC-<pkg>.<group>.<seq>`, where the `<group>` segment is
+an **entity name** (e.g. `AC-ledger.journal-entry.3`) **or** a numeric group
+(e.g. `AC-counter.1.1`, `AC-authority.1.1`). They hang off the package's
+entities/groups, are owned by `contract.py`, and are validated by
 `check_package_contract`.
 
 Legacy EPIC-sourced AC IDs use `ACx.y.z`:
