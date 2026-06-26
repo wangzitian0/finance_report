@@ -22,7 +22,6 @@ CONTRACT = PackageContract(
     status="active",
     tier="CODE-ONLY",
     depends_on=["ratio"],
-    roles=["types", "ops"],
     units=[
         Unit(name="Quantity", kind=Kind.VALUE_OBJECT),
         Unit(name="Unit", kind=Kind.VALUE_OBJECT),

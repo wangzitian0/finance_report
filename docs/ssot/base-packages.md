@@ -10,6 +10,15 @@ across every end (backend Python + frontend TypeScript). `money` (#1167) is the
 reference instance; this doc generalises it so the family stays uniform and
 bounded.
 
+In the package model this value family **is** the project's **Shared Kernel** —
+the canonical ubiquitous language (`money`/`ratio`/`quantity`/`unit_price`) that
+every package reuses, whose strategic role is "shared by everyone" and whose
+implementation therefore lives in `common/`. The family's structure, layering,
+and how each package migrates onto the model are owned by the package migration
+standard: [`common/meta/migration-standard.md`](../../common/meta/migration-standard.md)
+(see "Where files go" and "Completion state"). This doc owns the *membership rule*
+(what earns a Shared-Kernel value package) and the per-package value contract.
+
 ## 1. What qualifies (all five must hold)
 
 A domain earns a base package only if it is **all** of:
