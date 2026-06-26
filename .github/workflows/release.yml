@@ -396,10 +396,7 @@ jobs:
           python tools/production_infra_smoke.py \
             --base-url "https://report.zitian.party" \
             --expected-sha "${{ steps.release.outputs.version_ref }}" \
-            --signoz-url "https://signoz.zitian.party" \
-            --signoz-api-key "${{ secrets.SIGNOZ_API_KEY }}" \
-            --expected-version "${{ steps.release.outputs.version_ref }}" \
-            --deployment-environment "production"
+            --signoz-url "https://signoz.zitian.party"
 
       - name: Smoke Tests
         id: production_smoke

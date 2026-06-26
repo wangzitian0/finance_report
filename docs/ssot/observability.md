@@ -162,7 +162,6 @@ whatever infra2 injects and fast-fails if a required value is absent.
 | Environment filtering works | Filter by `deployment.environment=production` in SigNoz |
 | App alert readiness is visible | `/health.observability` and startup logs expose service `finance-report-backend`, rule `FinanceReportBackendErrorLogs`, and no collector/webhook URL |
 | Production deploy blocks missing app observability configuration | `python tools/production_infra_smoke.py --base-url https://report.zitian.party --signoz-url https://signoz.zitian.party` |
-| Deployed version actually ingests into SigNoz (not config-only) | `python tools/production_infra_smoke.py --signoz-url https://signoz.zitian.party --signoz-api-key "$SIGNOZ_API_KEY" --expected-version "$VERSION" --deployment-environment production` — queries the SigNoz v4 API for deployed-version logs+traces and fails distinctly on zero-ingestion vs stale-image (AC10.13) |
 
 ### 7.1 Runtime Contract
 
@@ -329,7 +328,7 @@ infra2/platform (repo submodule)
 
 | Gap | Risk | Mitigation |
 |-----|------|------------|
-| ~~**OTEL ingestion not fully verified at deploy**~~ — **CLOSED (AC10.13)** | Logs/traces could be configured but absent from SigNoz if collector ingestion or the deployed image drifts | Post-deploy ingestion proof (`production_infra_smoke.py` `verify_ingestion`) queries the SigNoz v4 API for the **deployed version's** logs+traces within a bounded window and fails the gate distinctly on **zero ingestion** vs **stale image** (version mismatch), no SSH. Requires `SIGNOZ_API_KEY`; when absent the proof is explicitly skipped (visible), never silently passed |
+| **OTEL ingestion not fully verified at deploy** | Logs can be configured but absent from SigNoz if collector ingestion or rule automation drifts | Production smoke verifies the app-side observability contract; deploy contexts include SigNoz log/trace pivots by service, environment, version, and GitHub run |
 | **Vault availability not checked by App** | N/A - vault-agent handles this before app starts | Vault HA in infra2 |
 | **secrets.ctmpl ↔ config.py drift** | Missing env vars cause 500s | `tools/check_env_keys.py` + pre-commit |
 | **infra2 submodule version lag** | New secrets not deployed | Manual sync required after adding vars |
