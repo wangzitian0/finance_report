@@ -37,9 +37,9 @@
 |-----------|-------------------|-------------|
 | Logging configuration | `apps/backend/src/logger.py` | Structlog setup + optional OTLP log export |
 | Runtime contract | `apps/backend/src/observability.py` | Redacted observability status for health checks, startup logs, and alert triage |
-| Env settings | `apps/backend/src/config.py` | OTEL/SigNoz environment variables |
+| Env settings | `apps/backend/src/config.py` | OTEL/the observability backend environment variables |
 | Env documentation | `.env.example` | Developer guidance for OTEL variables |
-| Infra reference | `repo/docs/ssot/ops.observability.md`, `repo/docs/ssot/ops.alerting.md` | SigNoz platform, collector, alert rule, and Lark delivery details |
+| Infra reference | `repo/docs/ssot/ops.observability.md`, `repo/docs/ssot/ops.alerting.md` | the observability backend platform, collector, alert rule, and Lark delivery details |
 
 ---
 
@@ -47,10 +47,10 @@
 
 ```mermaid
 flowchart LR
-    Backend[Backend Logs] -->|OTLP HTTP| Collector[SigNoz OTEL Collector]
+    Backend[Backend Logs] -->|OTLP HTTP| Collector[OTLP collector]
     Collector --> ClickHouse[(ClickHouse)]
-    UI[SigNoz UI] --> Collector
-    Collector --> Alerts[SigNoz Alert Rule]
+    UI[observability backend UI] --> Collector
+    Collector --> Alerts[Alert Rule]
     Alerts --> Bridge[infra2 platform/12.alerting]
     Bridge --> Lark[Lark Group]
 ```
@@ -59,13 +59,13 @@ flowchart LR
 - **Logs**: Structured JSON logs emitted by structlog and exported via OTLP.
 - **Traces**: FastAPI, SQLAlchemy, and HTTPX spans are exported when the OTLP endpoint is configured.
 - **Metrics**: Not configured here unless explicitly enabled later.
-- **Alerts**: Backend error logs follow `component -> OTEL -> SigNoz -> Lark`; the app owns the service name and safe runtime contract, while infra2 owns shared SigNoz/Lark automation.
+- **Alerts**: Backend error logs follow `component -> OTLP -> observability backend -> Lark`; the app owns the service name and safe runtime contract, while infra2 owns shared observability-backend/Lark automation.
 
 ---
 
-## 3. SigNoz Access (infra2-owned)
+## 3. Observability Backend Access (infra2-owned)
 
-SigNoz access, the single global instance model, environment **attribute-based
+the observability backend access, the single global instance model, environment **attribute-based
 filtering**, and the allowed `deployment.environment` values are part of the
 **infra2-owned contract**. Do not restate the endpoints or per-env values here.
 
@@ -75,8 +75,8 @@ filtering**, and the allowed `deployment.environment` values are part of the
   `service.version`) →
   [`repo/docs/ssot/core.environments.md#telemetry-identity`](../../repo/docs/ssot/core.environments.md#telemetry-identity).
 
-Credentials for the SigNoz UI are stored in 1Password (`Infra2` vault), item
-`platform/signoz/admin`. To view App logs, filter the SigNoz UI by the
+Credentials for the observability backend UI are stored in 1Password (`Infra2` vault), item
+`platform/signoz/admin`. To view App logs, filter the observability backend UI by the
 `deployment.environment` value that infra2 assigned to the target environment.
 
 ---
@@ -86,15 +86,15 @@ Credentials for the SigNoz UI are stored in 1Password (`Infra2` vault), item
 ### 4.1 Must Do
 - **Structured logs only**: JSON in non-debug modes for parsing/ingestion.
 - **Optional OTLP export**: Logs export only when OTEL endpoint is configured.
-- **Safe fallback**: Local/dev runs without SigNoz by default.
+- **Safe fallback**: Local/dev runs without the observability backend by default.
 - **No sensitive data**: Tokens, passwords, PII must never be logged.
 - **Tag environment**: Always include `deployment.environment` in resource attributes.
 
 ### 4.2 Must Not Do
-- Do not hard-fail startup when SigNoz is unavailable.
+- Do not hard-fail startup when the observability backend is unavailable.
 - Do not bypass the OTEL collector with custom protocols.
 - Do not log raw request bodies or credentials.
-- Do not deploy separate SigNoz instances per environment (use attribute filtering).
+- Do not deploy separate the observability backend instances per environment (use attribute filtering).
 
 ---
 
@@ -155,13 +155,13 @@ whatever infra2 injects and fast-fails if a required value is absent.
 
 | Behavior | Verification |
 |----------|--------------|
-| App starts without SigNoz | Run backend with no OTEL vars; logs appear in stdout |
-| Logs export to SigNoz | Set OTEL vars; confirm logs appear in SigNoz UI |
-| Metrics export to SigNoz | Set OTEL vars; RED, saturation, and business metrics use the OTLP metrics exporter |
+| App starts without the observability backend | Run backend with no OTEL vars; logs appear in stdout |
+| Logs export to the observability backend | Set OTEL vars; confirm logs appear in observability backend UI |
+| Metrics export to the observability backend | Set OTEL vars; RED, saturation, and business metrics use the OTLP metrics exporter |
 | Sensitive data excluded | Review log payloads for keys like `password`, `token` |
-| Environment filtering works | Filter by `deployment.environment=production` in SigNoz |
-| App alert readiness is visible | `/health.observability` and startup logs expose service `finance-report-backend`, rule `FinanceReportBackendErrorLogs`, and no collector/webhook URL |
-| Production deploy blocks missing app observability configuration | `python tools/production_infra_smoke.py --base-url https://report.zitian.party --signoz-url https://signoz.zitian.party` |
+| Environment filtering works | Filter by `deployment.environment=production` in the observability backend |
+| App OTEL readiness is visible | `/health.observability` and startup logs expose service `finance-report-backend` and exporter flags, and no collector/webhook URL or backend-specific alert metadata |
+| Production deploy blocks missing app observability configuration | `python tools/production_infra_smoke.py --base-url https://report.zitian.party` |
 
 ### 7.1 Runtime Contract
 
@@ -174,20 +174,22 @@ Required fields:
 | Field | Meaning |
 |-------|---------|
 | `otel_exporter_configured` | Whether OTLP export is configured at runtime |
-| `logs_export_enabled` | Whether structured logs should be exported to SigNoz |
-| `traces_export_enabled` | Whether traces should be exported to SigNoz |
+| `logs_export_enabled` | Whether structured logs should be exported to the observability backend |
+| `traces_export_enabled` | Whether traces should be exported to the observability backend |
 | `metrics_export_enabled` | Whether the OTEL metrics provider/exporter was actually initialized |
 | `service_name` | OTEL service name; production value is `finance-report-backend` |
 | `deployment_environment` | Effective environment from `deployment.environment` or app environment fallback |
 | `resource_attributes` | Parsed non-secret OTEL resource attributes |
-| `alert_rule_name` | Shared SigNoz rule name, `FinanceReportBackendErrorLogs` |
-| `alert_rule_service_name` | Service matched by the shared rule, `finance-report-backend` |
-| `alerting_pipeline` | Literal app path, `component->otel->signoz->lark` |
+
+The contract is deliberately vendor-neutral: the app exposes only its own OTEL
+readiness and declares **no** backend-specific alert metadata (rule names,
+alerting pipeline). Choosing the observability backend and wiring alert rules
+(e.g. error-log alerts → Lark) is infra2's concern behind the OTLP endpoint.
 
 Forbidden fields:
 - OTLP collector endpoint URLs
-- SigNoz API keys
-- SigNoz webhook channel URLs
+- observability backend API keys
+- the observability backend webhook channel URLs
 - Feishu/Lark bot webhook URLs
 - Feishu/Lark app secrets
 
@@ -202,7 +204,7 @@ uv run python -m invoke alerting.shared.ensure-log-error-rule \
   --service-name=finance-report-backend
 ```
 
-The shared owner for SigNoz channels, bridge deployment, and Lark delivery is
+The shared owner for the observability backend channels, bridge deployment, and Lark delivery is
 `repo/docs/ssot/ops.alerting.md`. This application must not duplicate that
 automation; it only declares the service metadata and emits structured logs that
 the shared rule can query.
@@ -222,13 +224,13 @@ the shared rule can query.
 
 Runtime failure triage is owned by
 [runtime-incident-response.md](./runtime-incident-response.md). This document
-owns the observability contract only: structured log shape, OTEL/SigNoz
+owns the observability contract only: structured log shape, OTEL/the observability backend
 configuration, the redacted `/health.observability` fields, and app service
 metadata used by the shared alert rule.
 
 Use the runtime incident SSOT for missing logs, wrong environment labels,
 502/503 responses, route failures, stale deployed versions, and flapping
-recovery proof. Use `repo/docs/ssot/ops.alerting.md` for shared SigNoz alert
+recovery proof. Use `repo/docs/ssot/ops.alerting.md` for shared the observability backend alert
 automation, bridge delivery, and Lark channel behavior.
 
 ---
@@ -237,7 +239,7 @@ automation, bridge delivery, and Lark channel behavior.
 
 ### 9.1 Automation via Invoke
 
-SigNoz API keys for programmatic access can be created using the infra2 automation:
+observability backend API keys for programmatic access can be created using the infra2 automation:
 
 ```bash
 cd repo  # infra2 directory
@@ -261,7 +263,7 @@ API keys are stored in Vault at `secret/platform/{env}/signoz`:
 | `api_key` | The API token for authentication |
 | `api_key_name` | Human-readable name |
 | `api_key_id` | UUID for key management |
-| `url` | SigNoz base URL |
+| `url` | the observability backend base URL |
 
 Read API key from Vault:
 ```bash
@@ -274,7 +276,7 @@ op run --env-file=<(echo 'VAULT_ROOT_TOKEN="op://Infra2/dexluuvzg5paff3cltmtnlno
 
 ### 9.3 API Key Usage
 
-Use the API key for SigNoz API calls:
+Use the API key for observability backend API calls:
 
 ```bash
 # Replace <api_key> with the value from the Vault query above
@@ -295,7 +297,7 @@ To rotate an API key:
 
 1. Create new key: `uv run invoke signoz.shared.create-api-key --name=infra-automation-v2`
 2. Update dependent systems to use new key
-3. Revoke old key via SigNoz UI: Settings → API Keys → Revoke
+3. Revoke old key via observability backend UI: Settings → API Keys → Revoke
 
 ---
 
@@ -310,7 +312,7 @@ finance_report (this repo)
     ↓ runtime depends on
 infra2/platform (repo submodule)
     ├── Vault (secrets injection)
-    ├── SigNoz OTEL Collector (log shipping)
+    ├── OTLP collector (log shipping)
     └── MinIO (file storage)
 ```
 
@@ -319,7 +321,7 @@ infra2/platform (repo submodule)
 | Dependency | Health Check Location | Failure Mode |
 |------------|----------------------|--------------|
 | **Vault** | infra2: `invoke vault.status` | Container fails to start (no secrets) |
-| **SigNoz Collector** | infra2: `invoke signoz.shared.status` | Silent degradation (logs lost) |
+| **the observability backend Collector** | infra2: `invoke signoz.shared.status` | Silent degradation (logs lost) |
 | **MinIO** | App: `/health` endpoint | 503 returned, uploads fail |
 | **PostgreSQL** | App: `/health` + Bootloader | Container won't start |
 | **Redis** | App: `/health` endpoint | 503 returned, rate limiting disabled |
@@ -328,7 +330,7 @@ infra2/platform (repo submodule)
 
 | Gap | Risk | Mitigation |
 |-----|------|------------|
-| **OTEL ingestion not fully verified at deploy** | Logs can be configured but absent from SigNoz if collector ingestion or rule automation drifts | Production smoke verifies the app-side observability contract; deploy contexts include SigNoz log/trace pivots by service, environment, version, and GitHub run |
+| **OTEL ingestion not fully verified at deploy** | Logs can be configured but absent from the observability backend if collector ingestion or rule automation drifts | Production smoke verifies the app-side observability contract; deploy contexts include the observability backend log/trace pivots by service, environment, version, and GitHub run |
 | **Vault availability not checked by App** | N/A - vault-agent handles this before app starts | Vault HA in infra2 |
 | **secrets.ctmpl ↔ config.py drift** | Missing env vars cause 500s | `tools/check_env_keys.py` + pre-commit |
 | **infra2 submodule version lag** | New secrets not deployed | Manual sync required after adding vars |
@@ -339,9 +341,9 @@ After staging or production deploys, keep observability verification narrow:
 
 1. Confirm `/health.observability` exposes the expected service name, deployment
    environment, alert rule, and alerting pipeline without secret URLs or keys.
-2. Confirm SigNoz has recent `finance-report-backend` logs for the target
+2. Confirm the observability backend has recent `finance-report-backend` logs for the target
    `deployment.environment`.
-   Deploy contexts and failure summaries include pre-built SigNoz log/trace
+   Deploy contexts and failure summaries include pre-built the observability backend log/trace
    query links carrying `service.name`, `deployment.environment`,
    `service.version`, and `github.run_id`.
 3. If logs or alerts are missing during an incident, route through

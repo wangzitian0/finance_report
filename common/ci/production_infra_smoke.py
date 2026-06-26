@@ -31,9 +31,6 @@ Fetcher = Callable[[str, float], HttpResponse]
 EXPECTED_OBSERVABILITY = {
     "service_name": "finance-report-backend",
     "deployment_environment": "production",
-    "alert_rule_name": "FinanceReportBackendErrorLogs",
-    "alert_rule_service_name": "finance-report-backend",
-    "alerting_pipeline": "component->otel->signoz->lark",
 }
 
 
@@ -160,37 +157,20 @@ def verify_public_runtime(
     return ["ping API read-only check", "frontend shell reachable"]
 
 
-def verify_signoz(
-    signoz_url: str,
-    *,
-    timeout: float,
-    fetcher: Fetcher = fetch_url,
-) -> list[str]:
-    """Verify the shared SigNoz control plane is reachable."""
-    health = _parse_json(
-        "SigNoz health", fetcher(_join_url(signoz_url, "/api/v1/health"), timeout)
-    )
-    if health.get("status") != "ok":
-        raise SmokeFailure(f"SigNoz health is not ok: {health}")
-
-    version = _parse_json(
-        "SigNoz version", fetcher(_join_url(signoz_url, "/api/v1/version"), timeout)
-    )
-    if version.get("setupCompleted") is not True:
-        raise SmokeFailure(f"SigNoz setup is not complete: {version}")
-
-    return [f"signoz health ok ({version.get('version', 'unknown version')})"]
-
-
 def run_checks(
     *,
     base_url: str,
     expected_sha: str | None,
-    signoz_url: str | None,
     timeout: float,
     fetcher: Fetcher = fetch_url,
 ) -> list[str]:
-    """Run production infrastructure smoke checks and return passed check labels."""
+    """Run production infrastructure smoke checks and return passed check labels.
+
+    Scope is deliberately app-side and vendor-neutral: app health, version, DB/S3
+    dependencies, public runtime, and OTEL exporter readiness. Proving the
+    observability *backend* is reachable and actually ingesting is infra2's job,
+    not the app's deploy gate.
+    """
     passed: list[str] = []
     passed.extend(
         verify_health(
@@ -201,8 +181,6 @@ def run_checks(
         )
     )
     passed.extend(verify_public_runtime(base_url, timeout=timeout, fetcher=fetcher))
-    if signoz_url:
-        passed.extend(verify_signoz(signoz_url, timeout=timeout, fetcher=fetcher))
     return passed
 
 
@@ -222,7 +200,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", required=True)
     parser.add_argument("--expected-sha", default=None)
-    parser.add_argument("--signoz-url", default=None)
     parser.add_argument("--timeout", type=float, default=15.0)
     return parser
 
@@ -233,7 +210,6 @@ def main(argv: list[str] | None = None) -> int:
         passed = run_checks(
             base_url=args.base_url,
             expected_sha=args.expected_sha,
-            signoz_url=args.signoz_url,
             timeout=args.timeout,
         )
     except SmokeFailure as exc:

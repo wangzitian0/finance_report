@@ -370,7 +370,7 @@ concepts:
   # ── Observability ──────────────────────────────────────────────────────
   observability_logging:
     owner: docs/ssot/observability.md
-    description: Structured logging, SigNoz OTLP export configuration.
+    description: Structured logging, OTLP export configuration.
     cross_refs:
       - docs/ssot/development.md
 
@@ -385,7 +385,7 @@ concepts:
       - docs/ssot/observability.md
       - docs/ssot/extraction.md
       - docs/ssot/ai.md
-      - docs/project/EPIC-010.signoz-logging.md
+      - docs/project/EPIC-010.observability-logging.md
       - apps/backend/tests/api/test_statements_router.py
       - apps/backend/tests/extraction/test_statement_parsing_audit_logging.py
       - apps/backend/tests/reconciliation/test_reconciliation_router_additional.py

@@ -133,7 +133,7 @@ PR validation is split into two independent things (issue #839):
   images to that retained release tag, then staging deploys it via `deploy_v2`.
 - Deployed to Dokploy **manually** via `deploy.yml` (`workflow_dispatch`); it does **not** auto-follow push to main. CI is the development quality gate, not a staging deploy trigger.
 - Persistent data, stable environment for QA
-- Uses dedicated DB/Redis + shared Platform (SigNoz, MinIO with bucket isolation)
+- Uses dedicated DB/Redis + shared Platform (the observability backend, MinIO with bucket isolation)
 
 **Production** — Manual release process:
 - **Image deployment**: Built from version tags (`v1.2.3`)
@@ -184,16 +184,16 @@ PR validation is split into two independent things (issue #839):
 
 ## Shared Platform Resources
 
-The production Platform layer (SigNoz, MinIO, Traefik) runs as **Singleton** services.  Staging and PR environments use **logical isolation**:
+The production Platform layer (the observability backend, MinIO, Traefik) runs as **Singleton** services.  Staging and PR environments use **logical isolation**:
 
 | Service | Scope | Isolation Method | Example |
 |---------|-------|------------------|---------|
-| **SigNoz** | Singleton | infra2-owned telemetry identity (see below) | — |
+| **the observability backend** | Singleton | infra2-owned telemetry identity (see below) | — |
 | **MinIO** (Prod) | Singleton | Separate buckets | `finance-report-staging`, `finance-report-production` |
 | **Postgres** | Dedicated | Separate containers/instances | One per environment |
 | **Redis** | Dedicated | Separate containers/instances | One per environment |
 
-SigNoz is a single global instance shared across environments; how App logs are
+the observability backend is a single global instance shared across environments; how App logs are
 separated (the `deployment.environment` surface alias and its allowed values) is
 part of the **infra2-owned** observability contract —
 [`repo/docs/ssot/ops.observability.md`](../../repo/docs/ssot/ops.observability.md)
@@ -201,7 +201,7 @@ and
 [`repo/docs/ssot/core.environments.md#telemetry-identity`](../../repo/docs/ssot/core.environments.md#telemetry-identity).
 This App doc does not enumerate those values.
 
-**Note**: PR Previews have **dedicated MinIO/DB/Redis** to allow destructive testing, but send logs to shared SigNoz.
+**Note**: PR Previews have **dedicated MinIO/DB/Redis** to allow destructive testing, but send logs to shared the observability backend.
 
 ---
 

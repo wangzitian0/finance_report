@@ -257,7 +257,7 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 | AC16.11.22 | `debug` — `view_remote_logs_docker` exits on invalid VPS hostnames | ⏳ |
 | AC16.11.23 | `debug` — `view_remote_logs_docker` exits on invalid VPS usernames | ⏳ |
 | AC16.11.24 | `debug` — `view_local_logs` builds docker logs command with tail and follow | ⏳ |
-| AC16.11.25 | `debug` — `main` routes `logs` command to signoz handler when `method=signoz` | ⏳ |
+| AC16.11.25 | `debug` — `main` routes `logs` command to the observability handler when `method=observability` | ⏳ |
 | AC16.11.26 | `debug` — `main` routes `status` command to local log view with status tail | ⏳ |
 | AC16.11.27 | `debug` — `main` routes `containers` command to `list_containers` | ⏳ |
 | AC16.11.28 | `dev_backend` — `check_database_ready` returns `true` when migration subprocess succeeds | ⏳ |

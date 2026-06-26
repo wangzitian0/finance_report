@@ -33,7 +33,7 @@ This EPIC addresses technical debt in the foundational libraries that all module
 ### Should Have (P1)
 - [x] Unified `BaseAppException` with error IDs
 - [x] API-wide rate limiting (not just auth endpoints)
-- [~] Metrics endpoint — deferred: project uses SigNoz OTLP, not Prometheus pull scraping (see EPIC-010)
+- [~] Metrics endpoint — deferred: project uses OTLP, not Prometheus pull scraping (see EPIC-010)
 
 ### Nice to Have (P2)
 - [ ] UUID auto-serialization structlog processor (P2 backlog, AC12.25.1)
@@ -48,7 +48,7 @@ This EPIC addresses technical debt in the foundational libraries that all module
 | Database | `src/database.py`, `src/config.py` | Pool config, transaction patterns |
 | Exceptions | `src/utils/exceptions.py` | BaseAppException class |
 | Rate Limiting | `src/rate_limit.py` | Global API limiter |
-| Debugging | `tools/debug.py` | SigNoz API integration |
+| Debugging | `tools/debug.py` | observability backend API integration |
 | Schemas | `src/schemas/*.py` | Consistent BaseResponse inheritance |
 
 ---
@@ -56,7 +56,7 @@ This EPIC addresses technical debt in the foundational libraries that all module
 ## 🔴 High Priority Issues
 
 ### H1: Distributed Tracing Missing
-**Problem**: No `opentelemetry-instrumentation-*` packages installed. Logs lack `trace_id`/`span_id`, making it impossible to correlate logs with traces in SigNoz.
+**Problem**: No `opentelemetry-instrumentation-*` packages installed. Logs lack `trace_id`/`span_id`, making it impossible to correlate logs with traces in the observability backend.
 
 **Solution**:
 1. Add OTEL instrumentation packages to `pyproject.toml`
@@ -271,14 +271,14 @@ diverging across the codebase and across ends.
 **Tracking**: [#186](https://github.com/wangzitian0/finance_report/issues/186)
 
 ### M4: Metrics Endpoint
-**Problem**: ~~No `/metrics` endpoint for Prometheus.~~ → Architecture uses SigNoz OTLP, not Prometheus pull.
+**Problem**: ~~No `/metrics` endpoint for Prometheus.~~ → Architecture uses OTLP, not Prometheus pull.
 
-**Solution**: ~~Add prometheus-fastapi-instrumentator~~ → **Deferred** (SigNoz OTLP is the observability path)
+**Solution**: ~~Add prometheus-fastapi-instrumentator~~ → **Deferred** (OTLP is the observability path)
 
 **Tracking**: [#187](https://github.com/wangzitian0/finance_report/issues/187)
-> ⚠️ **Deferred**: This project uses SigNoz via OTLP (see EPIC-010) for observability.
+> ⚠️ **Deferred**: This project uses the observability backend via OTLP (see EPIC-010) for observability.
 > Prometheus pull-based `/metrics` has zero consumers in this architecture.
-> Metrics via OTLP to SigNoz is a future task tracked separately.
+> Metrics via OTLP to the observability backend is a future task tracked separately.
 
 ---
 
@@ -316,9 +316,9 @@ diverging across the codebase and across ends.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC12.24.1 | ~~`/metrics` endpoint returns 200 OK~~ | Removed | Deferred: SigNoz OTLP path, no Prometheus scrape config | P1 |
-| AC12.24.2 | ~~`/metrics` endpoint returns text/plain~~ | Removed | Deferred: SigNoz OTLP path | P1 |
-| AC12.24.3 | ~~`/metrics` response contains Prometheus data~~ | Removed | Deferred: SigNoz OTLP path | P1 |
+| AC12.24.1 | ~~`/metrics` endpoint returns 200 OK~~ | Removed | Deferred: OTLP path, no Prometheus scrape config | P1 |
+| AC12.24.2 | ~~`/metrics` endpoint returns text/plain~~ | Removed | Deferred: OTLP path | P1 |
+| AC12.24.3 | ~~`/metrics` response contains Prometheus data~~ | Removed | Deferred: OTLP path | P1 |
 
 ### AC12.25: Logging Developer Experience - UUID Serialization
 
@@ -344,7 +344,7 @@ diverging across the codebase and across ends.
 | 3 | Connection Pool Config (M1) | ✅ Complete | This PR |
 | 4 | Exception Hierarchy (M2) | ✅ Complete | This PR |
 | 5 | Rate Limiting (M3) | ✅ Complete | This PR |
-| 6 | Metrics Endpoint (M4) | ❌ Deferred | Removed — SigNoz OTLP used instead of Prometheus pull |
+| 6 | Metrics Endpoint (M4) | ❌ Deferred | Removed — OTLP used instead of Prometheus pull |
 | 7 | UUID Logging Serialization (L3) | ⏳ P2 Backlog | AC12.25.1 |
 
 ---
@@ -353,7 +353,7 @@ diverging across the codebase and across ends.
 
 - [Observability SSOT](../ssot/observability.md)
 - [Development Guide](../ssot/development.md)
-- [EPIC-010: SigNoz Logging](./EPIC-010.signoz-logging.md)
+- [EPIC-010: Observability Logging](./EPIC-010.observability-logging.md)
 
 ---
 
@@ -374,7 +374,7 @@ consolidated here. The removed inventory is retained in
   guardrails, and Decimal safety are current guardrail topics owned by tests and
   SSOT references, not standalone QA reports.
 - Prometheus-style `/metrics` was reviewed and deferred because current
-  observability flows through SigNoz OTLP.
+  observability flows through OTLP.
 - UUID auto-serialization for structlog is retained as EPIC-012 P2 backlog
   under AC12.25.1, not as archive-only prose.
 
@@ -393,7 +393,7 @@ consolidated here. The removed inventory is retained in
 | Rate Limit | `src/rate_limit.py` | ⚠️ Auth-only |
 | Dependencies | `src/deps.py` | ✅ DbSession, CurrentUserId |
 | Boot | `src/boot.py` | ✅ Health checks |
-| Debug | `tools/debug.py` | ⚠️ Needs SigNoz API |
+| Debug | `tools/debug.py` | ⚠️ Needs observability backend API |
 | Error IDs | `src/constants/error_ids.py` | ✅ Centralized constants |
 
 ### Frontend Foundation

@@ -24,7 +24,6 @@ import json
 import os
 import sys
 import urllib.error
-import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -76,29 +75,6 @@ def _classify(compose_status: str, deployments: list[dict]) -> str:
     return "dokploy-rollout-incomplete"
 
 
-def build_signoz_query_links(
-    *,
-    signoz_url: str,
-    service_name: str,
-    deployment_environment: str,
-    service_version: str,
-    github_run_id: str,
-) -> dict[str, str]:
-    """Build stable SigNoz pivot links for the deployed version/run."""
-    base = signoz_url.rstrip("/")
-    filters = {
-        "service.name": service_name,
-        "deployment.environment": deployment_environment,
-        "service.version": service_version,
-        "github.run_id": github_run_id,
-    }
-    encoded = urllib.parse.urlencode(filters)
-    return {
-        "signoz_logs_query_url": f"{base}/logs?{encoded}",
-        "signoz_traces_query_url": f"{base}/traces?{encoded}",
-    }
-
-
 def load_platform_health(raw_json: str | None) -> dict[str, object]:
     """Return only the non-secret platform health fields the deploy summary needs."""
     if not raw_json:
@@ -118,7 +94,6 @@ def build_snapshot(
     compose_id: str,
     *,
     platform_health: dict[str, object] | None = None,
-    signoz_links: dict[str, str] | None = None,
 ) -> dict:
     try:
         data = _api_get(api_url, api_key, f"compose.one?composeId={compose_id}")
@@ -128,7 +103,6 @@ def build_snapshot(
             "error": f"could not read Dokploy compose: {type(exc).__name__}",
             "platform_failure_domain": "dokploy-api-unreachable",
             **(platform_health or {}),
-            **(signoz_links or {}),
         }
 
     deployments = [d for d in (data.get("deployments") or []) if isinstance(d, dict)]
@@ -149,7 +123,6 @@ def build_snapshot(
         "latest_deployment_error": str(latest.get("errorMessage") or "")[:500],
         "platform_failure_domain": _classify(compose_status, deployments),
         **(platform_health or {}),
-        **(signoz_links or {}),
     }
 
 
@@ -173,8 +146,6 @@ def render_markdown(snapshot: dict) -> str:
         "host_load_1m",
         "host_memory_used_pct",
         "vault_agent_error_loop",
-        "signoz_logs_query_url",
-        "signoz_traces_query_url",
         "error",
         "platform_health_error",
     ):
@@ -189,30 +160,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--api-url", default=os.getenv("DOKPLOY_API_URL", ""))
     parser.add_argument("--api-key", default=os.getenv("DOKPLOY_API_KEY", ""))
     parser.add_argument("--platform-health-json", default="")
-    parser.add_argument("--signoz-url", default="")
-    parser.add_argument("--service-name", default="finance-report-backend")
-    parser.add_argument("--deployment-environment", default="")
-    parser.add_argument("--service-version", default="")
-    parser.add_argument("--github-run-id", default=os.getenv("GITHUB_RUN_ID", ""))
     parser.add_argument(
         "--markdown", action="store_true", help="Also print a Markdown table"
     )
     args = parser.parse_args(argv)
     platform_health = load_platform_health(args.platform_health_json)
-    signoz_links = (
-        build_signoz_query_links(
-            signoz_url=args.signoz_url,
-            service_name=args.service_name,
-            deployment_environment=args.deployment_environment,
-            service_version=args.service_version,
-            github_run_id=args.github_run_id,
-        )
-        if args.signoz_url
-        and args.deployment_environment
-        and args.service_version
-        and args.github_run_id
-        else {}
-    )
 
     if not args.compose_id or not args.api_url or not args.api_key:
         # Missing inputs must not fail the calling job; emit a clear marker.
@@ -222,7 +174,6 @@ def main(argv: list[str] | None = None) -> int:
                     "platform_failure_domain": "snapshot-skipped-missing-inputs",
                     "compose_id": args.compose_id or "",
                     **platform_health,
-                    **signoz_links,
                 }
             )
         )
@@ -233,7 +184,6 @@ def main(argv: list[str] | None = None) -> int:
         args.api_key,
         args.compose_id,
         platform_health=platform_health,
-        signoz_links=signoz_links,
     )
     print(json.dumps(snapshot, indent=2, sort_keys=True))
     if args.markdown:

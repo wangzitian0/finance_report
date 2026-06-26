@@ -51,7 +51,7 @@ EPIC_NAMES: dict[int, str] = {
     7: "deployment",
     8: "testing-strategy",
     9: "pdf-fixture-generation",
-    10: "signoz-logging",
+    10: "observability-logging",
     11: "asset-lifecycle",
     12: "foundation-libs",
     13: "statement-parsing-v2",

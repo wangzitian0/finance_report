@@ -4,7 +4,7 @@ Unified debugging tool for Finance Report
 
 Automatically detects environment and uses appropriate log viewing method:
 - Local/CI: Docker logs (fast, direct)
-- Staging/Production: SigNoz logs (centralized, searchable)
+- Staging/Production: the observability backend (centralized, searchable; owned by infra2)
 
 Usage:
     # View logs
@@ -192,24 +192,20 @@ def view_remote_logs_docker(
         sys.exit(1)
 
 
-def view_remote_logs_signoz(service: Service, env: Environment) -> None:
-    """View logs via SigNoz (placeholder for future implementation)"""
-    print(f"📊 SigNoz logs for {service.value} in {env.value}")
-    print()
-    print("🔗 Open SigNoz UI:")
+def view_remote_logs_observability(service: Service, env: Environment) -> None:
+    """Print the vendor-neutral OTEL query for finding this service's logs.
 
-    internal_domain = os.getenv("INTERNAL_DOMAIN", "zitian.party")
-    # All environments use the same SigNoz instance
-    signoz_url = f"https://signoz.{internal_domain}"
-
-    print(f"   {signoz_url}")
+    The app emits OTLP; which observability backend/UI those logs land in (and its
+    URL) is infra2's concern. This prints the resource filter to use there.
+    """
+    print(f"📊 Observability-backend logs for {service.value} in {env.value}")
     print()
-    print("📝 Query:")
-    print(f'   service_name = "finance-report-{service.value}"')
+    print("🔗 Open the observability backend UI (URL owned by infra2 ops docs)")
+    print()
+    print("📝 Query (vendor-neutral OTEL resource attributes):")
+    print(f'   service.name = "finance-report-{service.value}"')
     if env != Environment.PRODUCTION:
         print(f'   deployment.environment = "{env.value}"')
-    print()
-    print("💡 Future: Direct SigNoz API integration")
 
 
 def restart_service(service: Service, env: Environment) -> None:
@@ -228,7 +224,7 @@ def restart_service(service: Service, env: Environment) -> None:
 
     # Note: Dokploy API doesn't have direct log endpoints
     # This requires SSH access or using Dokploy UI
-    print(f"⚠️  Dokploy API doesn't support direct container restart")
+    print("⚠️  Dokploy API doesn't support direct container restart")
     print(f"💡 Use: ssh root@$VPS_HOST docker restart {container}")
 
 
@@ -289,7 +285,7 @@ Examples:
     logs_parser.add_argument(
         "--method",
         type=str,
-        choices=["docker", "signoz"],
+        choices=["docker", "observability"],
         default="docker",
         help="Log viewing method (default: docker)",
     )
@@ -328,8 +324,8 @@ Examples:
         service = Service(args.service)
         env = Environment(args.env) if args.env else detect_environment()
 
-        if args.method == "signoz":
-            view_remote_logs_signoz(service, env)
+        if args.method == "observability":
+            view_remote_logs_observability(service, env)
         elif env in (Environment.LOCAL, Environment.CI):
             view_local_logs(service, tail=args.tail, follow=args.follow)
         else:

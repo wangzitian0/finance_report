@@ -73,7 +73,7 @@ cleanup that backfills `family` / `kind` and binds child clauses.
 | [ci-gate-inventory.yaml](./ci-gate-inventory.yaml) | `ci_gate_inventory` | Transitional stage/task_category job inventory and duplicate-cleanup candidate registry |
 | [github-action-runtime.yaml](./github-action-runtime.yaml) | `github_action_runtime` | GitHub JavaScript action runtime inventory and Node20 metadata exceptions |
 | [deployment.md](./deployment.md) | `deployment` | Deployment model and release rationale |
-| [observability.md](./observability.md) | `observability` | Structured logging and SigNoz OTLP rationale |
+| [observability.md](./observability.md) | `observability` | Structured logging and OTLP rationale |
 | [runtime-incident-response.md](./runtime-incident-response.md) | `runtime_incident_response` | Runtime incident triage and stability-proof routing |
 | [tdd.md](./tdd.md) | `tdd-transformation` | EPIC -> AC -> test workflow |
 | [authority-tiers.md](./authority-tiers.md) | `authority_tiers` | AC authority tiers (CODE-ONLY/CODE-LED/HU/LLM-LED/LLM-ONLY) and the tier->valid-proof matrix |

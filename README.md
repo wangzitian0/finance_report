@@ -93,7 +93,7 @@ registries, and generated reports rather than duplicated here.
 | [EPIC-007](docs/project/EPIC-007.deployment.md) | Deployment |
 | [EPIC-008](docs/project/EPIC-008.testing-strategy.md) | Testing strategy & E2E gates |
 | [EPIC-009](docs/project/EPIC-009.pdf-fixture-generation.md) | PDF fixture generation |
-| [EPIC-010](docs/project/EPIC-010.signoz-logging.md) | SigNoz logging |
+| [EPIC-010](docs/project/EPIC-010.observability-logging.md) | observability logging |
 | [EPIC-011](docs/project/EPIC-011.asset-lifecycle.md) | Asset lifecycle |
 | [EPIC-012](docs/project/EPIC-012.foundation-libs.md) | Foundation libraries |
 | [EPIC-013](docs/project/EPIC-013.statement-parsing-v2.md) | Statement parsing v2 |

@@ -53,15 +53,12 @@ def test_render_markdown_includes_failure_domain() -> None:
     assert "dokploy-deployment-error" in md
 
 
-def test_AC10_9_5_snapshot_includes_platform_health_and_signoz_links() -> None:
-    """AC10.9.5: deploy failure snapshots carry platform health and SigNoz pivots."""
-    links = snapshot.build_signoz_query_links(
-        signoz_url="https://signoz.zitian.party",
-        service_name="finance-report-backend",
-        deployment_environment="staging",
-        service_version="v0.1.3",
-        github_run_id="12345",
-    )
+def test_AC10_9_5_snapshot_includes_platform_health() -> None:
+    """AC10.9.5: deploy failure snapshots carry non-secret platform health fields.
+
+    Observability-backend pivot links are deliberately NOT built by the app — the
+    app emits OTLP and infra2 owns linking to whatever backend it runs.
+    """
     platform_health = snapshot.load_platform_health(
         '{"target_container_status":"restarting",'
         '"target_container_restart_count":7,'
@@ -76,7 +73,6 @@ def test_AC10_9_5_snapshot_includes_platform_health_and_signoz_links() -> None:
         "k",
         "cid",
         platform_health=platform_health,
-        signoz_links=links,
     )
 
     assert snap["target_container_status"] == "restarting"
@@ -84,8 +80,7 @@ def test_AC10_9_5_snapshot_includes_platform_health_and_signoz_links() -> None:
     assert snap["host_load_1m"] == 25.5
     assert snap["vault_agent_error_loop"] is True
     assert "secret_should_not_pass" not in snap
-    assert "deployment.environment=staging" in snap["signoz_logs_query_url"]
-    assert "github.run_id=12345" in snap["signoz_traces_query_url"]
+    assert not any(key.startswith("signoz") for key in snap)
 
 
 class _FakeResponse:
@@ -172,8 +167,13 @@ def test_main_happy_path_prints_snapshot(monkeypatch, capsys) -> None:
     assert "dokploy-deployment-error" in out
 
 
-def test_AC10_9_5_main_missing_inputs_still_prints_signoz_links(capsys) -> None:
-    """AC10.9.5: missing Dokploy inputs do not suppress run-to-SigNoz pivots."""
+def test_AC10_9_5_main_missing_inputs_emits_skip_marker_with_platform_health(
+    capsys,
+) -> None:
+    """AC10.9.5: missing Dokploy inputs emit a clear skip marker + platform health, never failing the job.
+
+    The app no longer builds observability-backend pivot links (that is infra2's job).
+    """
     rc = snapshot.main(
         [
             "--compose-id",
@@ -182,50 +182,16 @@ def test_AC10_9_5_main_missing_inputs_still_prints_signoz_links(capsys) -> None:
             "",
             "--api-key",
             "",
-            "--signoz-url",
-            "https://signoz.zitian.party",
-            "--deployment-environment",
-            "production",
-            "--service-version",
-            "v0.1.3",
-            "--github-run-id",
-            "456",
+            "--platform-health-json",
+            '{"target_container_status":"restarting"}',
         ]
     )
 
     out = capsys.readouterr().out
     assert rc == 0
     assert "snapshot-skipped-missing-inputs" in out
-    assert "signoz_logs_query_url" in out
-    assert "github.run_id=456" in out
-
-
-def test_AC10_9_5_main_does_not_emit_empty_github_run_filter(capsys) -> None:
-    """AC10.9.5: SigNoz pivots require a concrete GitHub run id."""
-    rc = snapshot.main(
-        [
-            "--compose-id",
-            "",
-            "--api-url",
-            "",
-            "--api-key",
-            "",
-            "--signoz-url",
-            "https://signoz.zitian.party",
-            "--deployment-environment",
-            "production",
-            "--service-version",
-            "v0.1.3",
-            "--github-run-id",
-            "",
-        ]
-    )
-
-    out = capsys.readouterr().out
-    assert rc == 0
-    assert "snapshot-skipped-missing-inputs" in out
-    assert "signoz_logs_query_url" not in out
-    assert "github.run_id=" not in out
+    assert "restarting" in out
+    assert "signoz" not in out
 
 
 def test_build_snapshot_no_deployments(monkeypatch) -> None:

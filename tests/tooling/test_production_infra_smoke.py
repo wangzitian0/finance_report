@@ -13,7 +13,6 @@ from common.ci.production_infra_smoke import (
     fetch_url,
     main,
     run_checks,
-    verify_signoz,
     write_summary,
 )
 
@@ -25,16 +24,13 @@ VALID_HEALTH_BODY = (
     '"logs_export_enabled":true,'
     '"traces_export_enabled":true,'
     '"service_name":"finance-report-backend",'
-    '"deployment_environment":"production",'
-    '"alert_rule_name":"FinanceReportBackendErrorLogs",'
-    '"alert_rule_service_name":"finance-report-backend",'
-    '"alerting_pipeline":"component->otel->signoz->lark"'
+    '"deployment_environment":"production"'
     "}}"
 )
 
 
-def test_AC8_13_64_production_infra_smoke_requires_db_s3_and_signoz() -> None:
-    """AC8.13.64: Production infra smoke proves app dependencies, observability, and SigNoz health."""
+def test_AC8_13_64_production_infra_smoke_requires_db_s3_and_observability() -> None:
+    """AC8.13.64: Production infra smoke proves app dependencies and vendor-neutral OTEL readiness."""
 
     def fetcher(url: str, timeout: float) -> HttpResponse:
         assert timeout == 5
@@ -42,27 +38,20 @@ def test_AC8_13_64_production_infra_smoke_requires_db_s3_and_signoz() -> None:
             return HttpResponse(200, VALID_HEALTH_BODY)
         if url.endswith("/api/ping"):
             return HttpResponse(200, '{"state":"ping","toggle_count":1}')
-        if url.endswith("/api/v1/health"):
-            return HttpResponse(200, '{"status":"ok"}')
-        if url.endswith("/api/v1/version"):
-            return HttpResponse(
-                200,
-                '{"version":"v0.105.1","setupCompleted":true}',
-            )
         return HttpResponse(200, "<html></html>")
 
     passed = run_checks(
         base_url="https://report.zitian.party",
         expected_sha="v0.1.3",
-        signoz_url="https://signoz.zitian.party",
         timeout=5,
         fetcher=fetcher,
     )
 
     assert "database check true" in passed
     assert "s3 check true" in passed
-    assert "observability contract enabled (finance-report-backend production)" in passed
-    assert "signoz health ok (v0.105.1)" in passed
+    assert (
+        "observability contract enabled (finance-report-backend production)" in passed
+    )
 
 
 def test_AC8_13_64_production_infra_smoke_fails_when_db_is_down() -> None:
@@ -77,10 +66,7 @@ def test_AC8_13_64_production_infra_smoke_fails_when_db_is_down() -> None:
                 '"observability":{"otel_exporter_configured":true,'
                 '"logs_export_enabled":true,"traces_export_enabled":true,'
                 '"service_name":"finance-report-backend",'
-                '"deployment_environment":"production",'
-                '"alert_rule_name":"FinanceReportBackendErrorLogs",'
-                '"alert_rule_service_name":"finance-report-backend",'
-                '"alerting_pipeline":"component->otel->signoz->lark"}}',
+                '"deployment_environment":"production"}}',
             )
         return HttpResponse(200, "{}")
 
@@ -88,29 +74,6 @@ def test_AC8_13_64_production_infra_smoke_fails_when_db_is_down() -> None:
         run_checks(
             base_url="https://report.zitian.party",
             expected_sha="v0.1.3",
-            signoz_url=None,
-            timeout=5,
-            fetcher=fetcher,
-        )
-
-
-def test_AC8_13_64_production_infra_smoke_fails_when_signoz_is_down() -> None:
-    """AC8.13.64: Production infra smoke fails when SigNoz health is not ok."""
-
-    def fetcher(url: str, timeout: float) -> HttpResponse:
-        if url.endswith("/api/health"):
-            return HttpResponse(200, VALID_HEALTH_BODY)
-        if url.endswith("/api/ping"):
-            return HttpResponse(200, '{"state":"ping","toggle_count":1}')
-        if url.endswith("/api/v1/health"):
-            return HttpResponse(503, '{"status":"error"}')
-        return HttpResponse(200, "<html></html>")
-
-    with pytest.raises(SmokeFailure, match="SigNoz health"):
-        run_checks(
-            base_url="https://report.zitian.party",
-            expected_sha="v0.1.3",
-            signoz_url="https://signoz.zitian.party",
             timeout=5,
             fetcher=fetcher,
         )
@@ -159,10 +122,7 @@ def test_AC8_13_64_production_infra_smoke_fails_when_signoz_is_down() -> None:
             '"observability":{"otel_exporter_configured":false,'
             '"logs_export_enabled":true,"traces_export_enabled":true,'
             '"service_name":"finance-report-backend",'
-            '"deployment_environment":"production",'
-            '"alert_rule_name":"FinanceReportBackendErrorLogs",'
-            '"alert_rule_service_name":"finance-report-backend",'
-            '"alerting_pipeline":"component->otel->signoz->lark"}}',
+            '"deployment_environment":"production"}}',
             "v0.1.3",
             "OTEL exporter is not configured",
         ),
@@ -172,25 +132,9 @@ def test_AC8_13_64_production_infra_smoke_fails_when_signoz_is_down() -> None:
             '"observability":{"otel_exporter_configured":true,'
             '"logs_export_enabled":true,"traces_export_enabled":true,'
             '"service_name":"wrong-service",'
-            '"deployment_environment":"production",'
-            '"alert_rule_name":"FinanceReportBackendErrorLogs",'
-            '"alert_rule_service_name":"finance-report-backend",'
-            '"alerting_pipeline":"component->otel->signoz->lark"}}',
+            '"deployment_environment":"production"}}',
             "v0.1.3",
             "service_name",
-        ),
-        (
-            '{"status":"healthy","git_sha":"v0.1.3",'
-            '"checks":{"database":true,"s3":true},'
-            '"observability":{"otel_exporter_configured":true,'
-            '"logs_export_enabled":true,"traces_export_enabled":true,'
-            '"service_name":"finance-report-backend",'
-            '"deployment_environment":"production",'
-            '"alert_rule_name":"WrongRule",'
-            '"alert_rule_service_name":"finance-report-backend",'
-            '"alerting_pipeline":"component->otel->signoz->lark"}}',
-            "v0.1.3",
-            "alert_rule_name",
         ),
     ],
 )
@@ -209,7 +153,6 @@ def test_AC8_13_64_production_infra_smoke_rejects_bad_health_payloads(
         run_checks(
             base_url="https://report.zitian.party",
             expected_sha=expected_sha,
-            signoz_url=None,
             timeout=5,
             fetcher=fetcher,
         )
@@ -248,42 +191,6 @@ def test_AC8_13_64_production_infra_smoke_rejects_bad_runtime_responses(
         run_checks(
             base_url="https://report.zitian.party",
             expected_sha="v0.1.3",
-            signoz_url=None,
-            timeout=5,
-            fetcher=fetcher,
-        )
-
-
-@pytest.mark.parametrize(
-    ("health_response", "version_response", "message"),
-    [
-        (
-            HttpResponse(200, '{"status":"bad"}'),
-            HttpResponse(200, '{"version":"v0.105.1","setupCompleted":true}'),
-            "SigNoz health is not ok",
-        ),
-        (
-            HttpResponse(200, '{"status":"ok"}'),
-            HttpResponse(200, '{"version":"v0.105.1","setupCompleted":false}'),
-            "SigNoz setup is not complete",
-        ),
-    ],
-)
-def test_AC8_13_64_production_infra_smoke_rejects_bad_signoz_payloads(
-    health_response: HttpResponse,
-    version_response: HttpResponse,
-    message: str,
-) -> None:
-    """AC8.13.64: Production infra smoke rejects incomplete SigNoz proofs."""
-
-    def fetcher(url: str, timeout: float) -> HttpResponse:
-        if url.endswith("/api/v1/health"):
-            return health_response
-        return version_response
-
-    with pytest.raises(SmokeFailure, match=message):
-        verify_signoz(
-            "https://signoz.zitian.party",
             timeout=5,
             fetcher=fetcher,
         )
@@ -316,7 +223,6 @@ def test_AC8_13_64_production_infra_smoke_cli_reports_success(
     def run_checks_stub(**kwargs: object) -> list[str]:
         assert kwargs["base_url"] == "https://report.zitian.party"
         assert kwargs["expected_sha"] == "v0.1.3"
-        assert kwargs["signoz_url"] == "https://signoz.zitian.party"
         assert kwargs["timeout"] == 3.0
         return ["database check true"]
 
@@ -330,8 +236,6 @@ def test_AC8_13_64_production_infra_smoke_cli_reports_success(
                 "https://report.zitian.party",
                 "--expected-sha",
                 "v0.1.3",
-                "--signoz-url",
-                "https://signoz.zitian.party",
                 "--timeout",
                 "3",
             ]

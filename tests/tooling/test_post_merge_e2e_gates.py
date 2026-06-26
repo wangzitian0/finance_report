@@ -894,11 +894,9 @@ def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
         "failure_summary=${{ steps.deploy_failure_context.outputs.failure_summary }}"
         in staging
     )
-    assert (
-        "signoz_logs_query_url=https://signoz.zitian.party/logs?service.name=finance-report-backend&deployment.environment=staging"
-        in staging
-    )
-    assert "github.run_id=${{ github.run_id }}" in staging
+    # Observability-backend pivot links are intentionally NOT emitted by the app
+    # workflow; the app emits OTLP and infra2 owns linking to its backend.
+    assert "signoz" not in staging.lower()
 
     # The AI/OCR gate context/artifacts are owned by the reusable workflow.
     assert "staging-ai-ocr-test-context" in ai_gate
@@ -1877,7 +1875,6 @@ def test_AC8_13_9_production_release_runs_prod_safe_e2e_smoke() -> None:
     assert "Setup E2E Tests" in workflow
     assert "Production Infrastructure Smoke" in workflow
     assert "tools/production_infra_smoke.py" in workflow
-    assert "--signoz-url" in workflow
     assert "test_production_readonly_smoke.py" in workflow
     assert "TEST_ENV: production" in workflow
     assert "@pytest.mark.prod_safe" in prod_smoke

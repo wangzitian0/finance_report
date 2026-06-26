@@ -75,7 +75,7 @@ python tools/debug.py status backend --env staging
 
 **Log retention**:
 - Docker logs: 50MB per container (size-based rotation, short-term only)
-- SigNoz: Long-term retention (centralized, queryable at `https://signoz.zitian.party`)
+- the observability backend: Long-term retention (centralized, queryable at `https://signoz.zitian.party`)
 
 Query logs by service:
 ```

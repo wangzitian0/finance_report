@@ -390,5 +390,5 @@ If a change requires new environment variables or changes to `docker-compose.yml
 - [environments.md](./environments.md) — Six environment overview and naming
 - [development.md](./development.md) — Local development and Moon commands
 - [ci-cd.md](./ci-cd.md) — CI job structure and test strategy
-- [observability.md](./observability.md) — App observability runtime contract and SigNoz OTLP setup
+- [observability.md](./observability.md) — App observability runtime contract and OTLP setup
 - [runtime-incident-response.md](./runtime-incident-response.md) — Runtime failure triage and stability proof routing

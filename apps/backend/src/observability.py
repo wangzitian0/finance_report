@@ -1,14 +1,17 @@
-"""Runtime observability contract for logs, traces, and alert routing."""
+"""Runtime observability contract for vendor-neutral OpenTelemetry logs and traces.
+
+The app emits OTLP and reports its own OTEL runtime readiness; it deliberately
+knows nothing about the observability *backend* (which collector/UI/alerting is
+behind the OTLP endpoint). Choosing the backend, wiring alert rules, and proving
+ingestion are infra2's concern, reached only through the vendor-neutral OTLP
+endpoint.
+"""
 
 from __future__ import annotations
 
 from typing import Any
 
 from src.config import parse_key_value_pairs, settings
-
-ERROR_LOG_ALERT_RULE_NAME = "FinanceReportBackendErrorLogs"
-ERROR_LOG_ALERT_SERVICE_NAME = "finance-report-backend"
-ALERTING_PIPELINE = "component->otel->signoz->lark"
 
 # Runtime flag set by the app once FastAPI request instrumentation is actually
 # applied to the app instance. This is real init state, not configuration: a
@@ -59,12 +62,9 @@ def get_observability_status() -> dict[str, Any]:
         "service_version": settings.git_commit_sha,
         "deployment_environment": _deployment_environment(resource_attributes),
         "resource_attributes": resource_attributes,
-        "alert_rule_name": ERROR_LOG_ALERT_RULE_NAME,
-        "alert_rule_service_name": ERROR_LOG_ALERT_SERVICE_NAME,
-        "alerting_pipeline": ALERTING_PIPELINE,
     }
 
 
 def log_observability_startup(logger: Any) -> None:
-    """Emit one structured startup event for SigNoz/Lark alert triage."""
+    """Emit one structured startup event capturing OTEL runtime readiness."""
     logger.info("Observability runtime configured", **get_observability_status())

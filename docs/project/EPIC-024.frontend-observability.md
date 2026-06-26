@@ -4,18 +4,18 @@
 > **Vision Anchor**: `decision-7-tech-stack`
 > **Owner**: Frontend / Platform
 > **Phase**: Hardening
-> **Dependencies**: EPIC-010 (SigNoz Logging), EPIC-022 (Everyday-User IA)
+> **Dependencies**: EPIC-010 (Observability Logging), EPIC-022 (Everyday-User IA)
 
 ---
 
 ## 🎯 Objective
 
-Give the browser the same SigNoz observability the backend already has
+Give the browser the same the observability backend observability the backend already has
 (EPIC-010), so frontend latency, web-vitals, and uncaught errors are traceable
 per environment — while keeping local / preview-without-config runs completely
 inert and never letting telemetry break the app.
 
-Browser tracing ships via OTLP/HTTP to SigNoz, mirroring the
+Browser tracing ships via OTLP/HTTP to the observability backend, mirroring the
 "config-gated, non-blocking, never breaks the app" contract of the existing
 OpenPanel product-analytics wrapper (`components/Analytics.tsx`). A companion
 OpenPanel query CLI lets us pull frontend product-analytics events/funnels when
@@ -26,9 +26,9 @@ triaging issues.
 ## 🧭 Plan (STAR)
 
 ### Situation
-- **Anchor**: Platform observability (EPIC-010 backend → SigNoz) and the
+- **Anchor**: Platform observability (EPIC-010 backend → the observability backend) and the
   everyday-user IA (EPIC-022) shipping real frontend traffic.
-- **Gap**: The backend exports traces/logs to SigNoz; the browser does not, so
+- **Gap**: The backend exports traces/logs to the observability backend; the browser does not, so
   client-side latency, web-vitals, and JS errors are invisible.
 
 ### Tasks
@@ -80,7 +80,7 @@ triaging issues.
 
 ## 🌟 Nice to Have
 
-- A SigNoz dashboard / saved view for frontend traces and web-vitals.
+- A the observability backend dashboard / saved view for frontend traces and web-vitals.
 - Session/route correlation between OpenPanel analytics and OTel traces.
 
 ---
@@ -135,7 +135,7 @@ gap with an end-to-end emission proof: when telemetry is configured, the
 browser OTel exporter actually POSTs an OTLP payload to the `/v1/traces`
 endpoint, and the analytics layer actually dispatches an OpenPanel
 event/page-view — both asserted hermetically (collector + OpenPanel stubbed, no
-real SigNoz/OpenPanel contacted).
+real the observability backend/OpenPanel contacted).
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
@@ -166,5 +166,5 @@ real SigNoz/OpenPanel contacted).
 ## 🔗 References
 
 - SSOT Observability: [../ssot/observability.md](../ssot/observability.md)
-- Backend SigNoz logging: [EPIC-010.signoz-logging.md](EPIC-010.signoz-logging.md)
+- Backend observability logging: [EPIC-010.observability-logging.md](EPIC-010.observability-logging.md)
 - Product analytics wrapper: `apps/frontend/src/components/Analytics.tsx`

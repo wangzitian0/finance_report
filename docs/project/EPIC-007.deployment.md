@@ -357,7 +357,7 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 | Standard | Verification | Status |
 |------|----------|------|
 | Database backup automation | Scheduled pg_dump | ⏳ |
-| Monitoring integration | SigNoz traces | ⏳ |
+| Monitoring integration | OTLP traces (backend infra2-owned) | ⏳ |
 | Auto-scaling | Resource limits tuning | ⏳ |
 
 ### 🚫 Not Acceptable Signals

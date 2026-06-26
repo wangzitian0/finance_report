@@ -459,9 +459,9 @@ class Settings(BaseSettings):
         In staging/production, if OTEL export is enabled, the resource MUST carry a
         ``deployment.environment`` tag (issued by infra2 at deploy — see
         repo/docs/ssot/core.environments.md#telemetry-identity). This catches the
-        "untagged production telemetry" class before it reaches SigNoz. Non-deployed
-        environments (local/CI/preview) and telemetry-off deploys are exempt, so
-        this never trips local, tests, or a SigNoz-less deploy.
+        "untagged production telemetry" class before it reaches the OTLP collector.
+        Non-deployed environments (local/CI/preview) and telemetry-off deploys are
+        exempt, so this never trips local, tests, or a telemetry-off deploy.
         """
         if self.environment.strip().lower() not in PROTECTED_ENVIRONMENTS:
             return self
@@ -501,11 +501,11 @@ class Settings(BaseSettings):
     otel_exporter_otlp_endpoint: str | None = Field(
         default=None,
         validation_alias="OTEL_EXPORTER_OTLP_ENDPOINT",
-        description="OTLP exporter endpoint. Optional: set in production to ship logs to SigNoz.",
+        description="OTLP exporter endpoint. Optional: set in production to ship telemetry to the OTLP collector (infra2-owned).",
         json_schema_extra={
             "group": "Observability",
             "vault": True,
-            "example": "http://platform-signoz-otel-collector:4318",
+            "example": "http://platform-otel-collector:4318",
         },
     )
     otel_service_name: str = Field(

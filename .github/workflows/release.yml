@@ -395,8 +395,7 @@ jobs:
         run: |
           python tools/production_infra_smoke.py \
             --base-url "https://report.zitian.party" \
-            --expected-sha "${{ steps.release.outputs.version_ref }}" \
-            --signoz-url "https://signoz.zitian.party"
+            --expected-sha "${{ steps.release.outputs.version_ref }}"
 
       - name: Smoke Tests
         id: production_smoke
@@ -536,8 +535,6 @@ jobs:
             echo "failure_domain=${failure_domain}"
             echo "failed_step=${failed_step}"
             echo "failure_summary=${failure_summary}"
-            echo "signoz_logs_query_url=https://signoz.zitian.party/logs?service.name=finance-report-backend&deployment.environment=production&service.version=${{ steps.release.outputs.version_ref }}&github.run_id=${{ github.run_id }}"
-            echo "signoz_traces_query_url=https://signoz.zitian.party/traces?service.name=finance-report-backend&deployment.environment=production&service.version=${{ steps.release.outputs.version_ref }}&github.run_id=${{ github.run_id }}"
             echo "marker=prod_safe"
           } > ci-context/production-deploy-context.txt
 
