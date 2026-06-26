@@ -14,12 +14,9 @@ from uuid import UUID
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.logger import get_logger
 from src.models.layer2 import AssetType, AtomicPosition
 from src.money import to_money
 from src.services.assets import AssetService
-
-logger = get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -781,23 +778,12 @@ class BrokeragePositionImportService:
         source_document_id: str | None = None,
         reconcile: bool = True,
     ) -> BrokerageImportResult:
-        parsed_snapshots = parse_brokerage_positions(payload, filename=filename)
-        # #1448: short positions (sold options / margin shorts) carry a negative
-        # market value, which violates the ``atomic_positions`` non-negative
-        # market-value CHECK constraint and previously crashed the entire import
-        # with an unhandled 500. Skip them (reported via ``skipped``) so the rest
-        # of the account still imports. We skip rather than relax the constraint
-        # because a negative market value silently corrupts NAV, allocation, and
-        # cost-basis math downstream; modelling shorts properly is tracked
-        # separately (#1448).
-        snapshots = [s for s in parsed_snapshots if s.market_value is None or s.market_value >= 0]
-        short_skipped = len(parsed_snapshots) - len(snapshots)
-        if short_skipped:
-            logger.warning(
-                "Skipping unsupported short/negative-market-value positions in brokerage import",
-                skipped=short_skipped,
-                parsed=len(parsed_snapshots),
-            )
+        # #1448: short positions (a margin short or a sold option) are signed — negative
+        # quantity AND negative market value — and import as first-class positions. The
+        # non-negative market-value / cost-basis CHECK constraints have been dropped, so a
+        # short reduces portfolio value instead of being skipped (which dropped real data)
+        # or crashing the import (constraint violation → 500).
+        snapshots = parse_brokerage_positions(payload, filename=filename)
         created = 0
         existing = 0
         broker = (
@@ -844,11 +830,11 @@ class BrokeragePositionImportService:
 
         return BrokerageImportResult(
             broker=broker,
-            parsed_positions=len(parsed_snapshots),
+            parsed_positions=len(snapshots),
             created_atomic_positions=created,
             existing_atomic_positions=existing,
             reconcile_created=reconcile_result.created if reconcile_result else 0,
             reconcile_updated=reconcile_result.updated if reconcile_result else 0,
             reconcile_disposed=reconcile_result.disposed if reconcile_result else 0,
-            skipped=(reconcile_result.skipped if reconcile_result else 0) + short_skipped,
+            skipped=reconcile_result.skipped if reconcile_result else 0,
         )
