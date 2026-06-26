@@ -634,7 +634,7 @@ class AssetService:
                 user_id=user_id,
                 name=broker_name,
                 type=AccountType.ASSET,
-                currency=(currency or "USD").strip().upper(),
+                currency=(currency or "").strip().upper() or "USD",
                 code="AUTO-ASSET",
             )
             db.add(account)

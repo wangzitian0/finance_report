@@ -124,16 +124,17 @@ def _normalize_utc(value: datetime) -> datetime:
 
 
 def _hk_numeric_code(symbol: str) -> str | None:
-    """Return the zero-padded 4-digit Hong Kong board-lot code, or ``None``.
+    """Return the Hong Kong board-lot code (left-zero-padded to ≥4 digits), or ``None``.
 
     Brokerages store Hong Kong equities by their numeric exchange code (e.g.
-    Xiaomi ``"01810"``, Tencent ``"00700"``). Market-data providers expect the
-    ``"<4-digit>.HK"`` form, so callers must translate before issuing a request;
-    sent verbatim, the numeric code 404s. US tickers are alphabetic and never
-    match here, so they are left untouched.
+    Xiaomi ``"01810"`` → ``"1810"``, Tencent ``"00700"`` → ``"0700"``). HKEX codes
+    are 4–5 digits, so a 5-digit code is preserved (``"10000"`` → ``"10000"``).
+    Market-data providers expect the ``"<code>.HK"`` form; sent verbatim the raw
+    numeric 404s. An all-zero / zero-valued code is not a real ticker and returns
+    ``None`` (CR on #1453); US tickers are alphabetic and never match here.
     """
     candidate = symbol.strip()
-    if candidate.isdigit() and 1 <= len(candidate) <= 5:
+    if candidate.isdigit() and 1 <= len(candidate) <= 5 and int(candidate) != 0:
         return f"{int(candidate):04d}"
     return None
 

@@ -30,6 +30,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # Precondition: no short positions exist. Re-imposing these CHECK constraints
+    # fails if any atomic_positions.market_value or managed_positions.cost_basis is
+    # already negative (CR on #1448) — which is expected, since you cannot downgrade
+    # a database that has used the feature this migration enables. Purge/clamp those
+    # rows out-of-band before downgrading; we do NOT delete financial data here.
     op.create_check_constraint(
         "ck_atomic_positions_market_value_non_negative",
         "atomic_positions",

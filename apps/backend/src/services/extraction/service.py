@@ -103,6 +103,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
         account. The account is a fact (the money lives here); category
         classification of each transaction is a separate, user-adjustable layer.
         """
+        currency = (currency or "").strip().upper() or "SGD"
         name = f"{institution} ••{account_last4}"
         existing = (
             await db.execute(
@@ -199,7 +200,12 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             # ingest-boundary resolution (AC12.40) so a genuinely-missing currency is
             # flagged for review rather than masked by the StatementSummary default.
             raw_statement_currency = extracted.get("currency")
-            statement_currency = raw_statement_currency or "SGD"
+            # Normalize the envelope currency (strip/upper) so the StatementSummary,
+            # the auto-created bank account, and the posting-account currency check all
+            # agree on a canonical ISO code. A non-normalized extraction ("sgd"/"SGD ")
+            # would otherwise mismatch `normalize_currency_code(statement.currency)` in
+            # the posting path and silently block auto-post (CR on #1467).
+            statement_currency = (raw_statement_currency or "SGD").strip().upper() or "SGD"
             # A bank statement requires a period; resolve it tolerantly (a missing
             # bound falls back to the transaction-date range, then the other bound)
             # so a single missing ``period_start`` no longer hard-fails an

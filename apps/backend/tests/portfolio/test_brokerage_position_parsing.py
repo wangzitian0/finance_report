@@ -17,6 +17,7 @@ from src.models.layer3 import ManagedPosition
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
 from src.schemas.portfolio import BrokerageImportRequest, BrokerageImportResponse
+from src.services.assets import AssetService
 from src.services.brokerage_positions import (
     BrokeragePositionImportService,
     _asset_type,
@@ -895,3 +896,16 @@ def test_brokerage_payload_from_statement_preserves_outflows_and_empty_metadata(
             "raw_text": "Platform fee",
         }
     ]
+
+
+async def test_AC17_33_3_broker_account_currency_is_normalized_with_usd_fallback(db, test_user):
+    """AC17.33.3 (CR on #1453): an auto-created broker account normalizes the snapshot
+    currency (strip/upper) and falls back to USD for a blank one — never persisting a
+    non-canonical or empty currency code."""
+    service = AssetService()
+    lower = await service._get_or_create_broker_account(db, test_user.id, "Lower Broker", "hkd ")
+    blank = await service._get_or_create_broker_account(db, test_user.id, "Blank Broker", "   ")
+    await db.commit()
+
+    assert lower.currency == "HKD"
+    assert blank.currency == "USD"
