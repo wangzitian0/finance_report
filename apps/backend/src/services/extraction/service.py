@@ -159,9 +159,10 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             # flagged for review rather than masked by the StatementSummary default.
             raw_statement_currency = extracted.get("currency")
             statement_currency = raw_statement_currency or "SGD"
-            # A bank statement requires a period; resolve it tolerantly (fall back
-            # to the other bound or the transaction-date range) so a single missing
-            # ``period_start`` no longer hard-fails an otherwise-good parse (#1449).
+            # A bank statement requires a period; resolve it tolerantly (a missing
+            # bound falls back to the transaction-date range, then the other bound)
+            # so a single missing ``period_start`` no longer hard-fails an
+            # otherwise-good parse (#1449).
             # Brokerage payloads import via Layer-2 positions and carry no required
             # period, so they keep the optional treatment.
             if is_brokerage_payload:
@@ -597,6 +598,10 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                         DocumentType.BROKERAGE_STATEMENT if is_brokerage_payload else DocumentType.BANK_STATEMENT
                     ),
                     extraction_metadata={"extraction_payload": extracted} if is_brokerage_payload else None,
+                    # A quarantined extraction persists only its terminal rejected
+                    # envelope: no new Layer-2 rows, and (on re-parse) no detaching
+                    # of a prior good parse's existing Layer-2 facts (#1452 CR).
+                    envelope_only=llm_led_gate.quarantined,
                 )
 
             return statement, transactions

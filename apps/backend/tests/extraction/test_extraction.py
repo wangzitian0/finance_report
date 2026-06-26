@@ -776,3 +776,19 @@ class TestBankPeriodResolution:
         """AC3.11.3: a statement with no period and no transaction dates still rejects."""
         with pytest.raises(ValueError, match="Date is required"):
             self.service._resolve_required_period({"transactions": []})
+
+    def test_AC3_11_2_missing_end_prefers_transaction_range_over_other_bound(self):
+        """AC3.11.2: a present period_start with a missing period_end resolves the end to
+        the last transaction date (a meaningful period), not back to period_start
+        (which would collapse to a zero-length range)."""
+        start, end = self.service._resolve_required_period(
+            {
+                "period_start": "2025-03-01",
+                "transactions": [
+                    {"date": "2025-03-10", "amount": "1.00", "direction": "IN"},
+                    {"date": "2025-03-27", "amount": "2.00", "direction": "OUT"},
+                ],
+            }
+        )
+        assert start == date(2025, 3, 1)
+        assert end == date(2025, 3, 27)

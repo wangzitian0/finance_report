@@ -239,7 +239,7 @@ or HK-like report classification, measurement, presentation, or disclosure.
 
 ### AC3.11: Tolerant Statement-Period Resolution ([#1449](https://github.com/wangzitian0/finance_report/issues/1449))
 
-The model occasionally omits `period_start` (or `period_end`) for a bank statement that plainly has a period and transactions. Passing the missing field straight to `_safe_date` hard-failed the whole parse with "Date is required" — non-deterministically, for the same statement format. The period is now resolved tolerantly: fall back to the other bound, then to the transaction-date range, and only reject when no date can be recovered at all.
+The model occasionally omits `period_start` (or `period_end`) for a bank statement that plainly has a period and transactions. Passing the missing field straight to `_safe_date` hard-failed the whole parse with "Date is required" — non-deterministically, for the same statement format. The period is now resolved tolerantly: a missing bound falls back to the transaction-date range (which yields a meaningful period), then to the other explicit bound, and only rejects when no date can be recovered at all.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
