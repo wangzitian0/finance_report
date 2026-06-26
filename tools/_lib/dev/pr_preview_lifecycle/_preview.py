@@ -213,7 +213,7 @@ def build_preview_env(
         "MINIO_ROOT_PASSWORD": "minio_local_secret",
         "S3_ACCESS_KEY": "minio",
         "S3_SECRET_KEY": "minio_local_secret",
-        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://platform-otel-collector:4318",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://platform-signoz-otel-collector:4318",
         "OTEL_SERVICE_NAME": "finance-report-backend",
         "OTEL_RESOURCE_ATTRIBUTES": f"deployment.environment=pr-{pr_number}",
         "API_RATE_LIMIT_REQUESTS": "10000",

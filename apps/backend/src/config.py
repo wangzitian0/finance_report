@@ -505,7 +505,7 @@ class Settings(BaseSettings):
         json_schema_extra={
             "group": "Observability",
             "vault": True,
-            "example": "http://platform-otel-collector:4318",
+            "example": "http://platform-signoz-otel-collector:4318",
         },
     )
     otel_service_name: str = Field(
