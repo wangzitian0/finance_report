@@ -21,7 +21,6 @@ CONTRACT = PackageContract(
     status="active",
     tier="CODE-ONLY",
     depends_on=[],
-    roles=["types", "ops"],
     units=[Unit(name="Ratio", kind=Kind.VALUE_OBJECT)],
     implementations={
         "be": "apps/backend/src/ratio",

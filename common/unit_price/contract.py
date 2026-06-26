@@ -22,7 +22,6 @@ CONTRACT = PackageContract(
     status="active",
     tier="CODE-ONLY",
     depends_on=["money", "quantity"],
-    roles=["types", "ops"],
     units=[Unit(name="UnitPrice", kind=Kind.VALUE_OBJECT)],
     implementations={"be": "apps/backend/src/unit_price", "fe": None},
     interface=[

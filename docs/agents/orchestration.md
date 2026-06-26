@@ -78,32 +78,48 @@ Use this cascade **before processing any task**:
 
 ## Development Work Order (TDD-First)
 
-**Mandatory sequence: MECE → EPIC → ACx.y.z → Test → Code → Doc**
+**The culture is `EPIC → AC → test`** (vision's north-star discipline: every
+behavior is anchored to a goal and proven by a test). The **mechanism** for
+*where an AC lives* is the **package contract**, not an EPIC table:
+
+**Mandatory sequence: MECE → AC (package `roadmap`) → Test → Code → Doc**
 
 0. **MECE**: Split the work into non-overlapping slices that collectively
    cover the stated goal; name dependencies and out-of-scope work before
    implementation.
-1. **EPIC**: Anchor task to a project EPIC in `docs/project/`
-2. **ACx.y.z**: Define acceptance criteria before writing code:
-   - Active feature ACs live in the owning EPIC and materialize through
-     `docs/ac_registry.yaml`
-   - Active infrastructure/tooling ACs live in the owning EPIC and materialize
-     through `docs/infra_registry.yaml`
-   - Historical, deprecated, or non-derived metadata is explicit in
-     `docs/ac_registry_overrides.yaml`
-3. **Test**: Write failing tests that reference the AC IDs (red phase).
+1. **AC home — the package `roadmap`**: For a **migrated** package, define the
+   acceptance criterion as `AC-<pkg>.<group>.<seq>` (the `<group>` segment is an
+   entity name **or** a numeric group, e.g. `AC-ledger.journal-entry.3` or
+   `AC-counter.1.1`) in that package's
+   `contract.py` `roadmap`, conforming to `meta`'s schema
+   ([`common/meta/migration-standard.md`](../../common/meta/migration-standard.md)).
+   `meta`'s data layer aggregates these; **never mirror a package AC back into an
+   EPIC table.** Anchor the slice to a project EPIC in `docs/project/` as its
+   horizontal goal — but the AC is owned by the package once that package is
+   migrated.
+   - **Legacy (not-yet-migrated) modules only**: the AC still lives in the
+     owning EPIC and materializes through `docs/ac_registry.yaml` (feature) or
+     `docs/infra_registry.yaml` (infra), with historical/non-derived metadata in
+     `docs/ac_registry_overrides.yaml`. This EPIC-table source is being phased
+     out package by package; once a module becomes a package its ACs move into
+     the `roadmap`.
+2. **Test**: Write failing tests that reference the AC IDs (red phase).
    Regression fixtures and test data MUST be generated/anonymized, never
    derived from real user uploads or real statements — see the financial-data
    red line in [red-lines.md](./red-lines.md).
-4. **Code**: Write minimal code to make the tests pass (green phase)
-5. **Doc**: Update SSOT docs and README
+3. **Code**: Write minimal code to make the tests pass (green phase)
+4. **Doc**: Update the package `readme`/contract (or, for legacy modules, SSOT
+   docs and README)
 
 **Hard constraints**:
 - ❌ **NEVER** write code before the test exists
-- ❌ **NEVER** write a test without a registered AC number
-- ❌ **NEVER** ship without updating SSOT docs
+- ❌ **NEVER** write a test without a registered AC number (a package `roadmap`
+  AC for migrated packages; an EPIC/registry AC for legacy modules)
+- ❌ **NEVER** ship without updating the owning package's contract/readme (or
+  SSOT docs for legacy modules)
 
-Reference: [docs/ssot/tdd.md](../ssot/tdd.md)
+Reference: [docs/ssot/tdd.md](../ssot/tdd.md) ·
+[package migration standard](../../common/meta/migration-standard.md)
 
 ---
 

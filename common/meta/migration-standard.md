@@ -221,11 +221,18 @@ An EPIC is horizontal and a package is vertical, so they do not map 1:1. The
    `roadmap[].test` resolves.
 5. **Consumers repointed** — importers use the package's published `interface`
    (`__all__`), not its submodules/internals.
-6. **Green** — `check_package_contract` + the package's own invariants pass.
+6. **Original removed** — the pre-migration modules / god-files are **deleted, not copied**: no leftover code, re-export shim, test, or import of the old path remains. The package is the **single home** (zero duplication). Enforced like `counter` (its package test asserts the retired modules are gone) + the no-old-path-import lint (#1461 generalized). **A lingering original means the package is NOT migrated.**
+7. **Green** — `check_package_contract` + the package's own invariants pass.
 
 Each package cutover is **one atomic PR** (never leave a single package half in
 both an EPIC and a roadmap). Different packages may be old-or-new during the
-overall migration; a single package is never half-migrated.
+overall migration; a single package is never half-migrated — and "migrated" means
+the old code is gone, not merely that a new copy exists.
+
+A cutover that spans more than one domain still obeys **one transaction per
+domain**: each domain's interface/event change lands as its own atomic step, never
+a single edit reaching across domain boundaries. The enforcement is owned by the
+cross-domain gate (issue #1460); this standard only states the rule.
 
 ## Anti-mud-ball guard
 

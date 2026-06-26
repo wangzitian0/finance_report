@@ -28,14 +28,23 @@ The same four-tier scale is used by both views, which is why they cannot drift:
 - **detected** — the band `authority_classifier` measures from the shapes of the
   tests that prove a package's ACs (`BANDS` *is* `PACKAGE_TIERS`).
 
-## Layout (roles)
+## Structure (layers)
 
-- **matrix** (`authority_matrix.py`) — the value language: tier Literals, the
-  tier→proof matrix, the canonical tuples. stdlib-only (no pydantic).
-- **classifier** (`authority_classifier.py`) — the detected CODE/LLM band.
-- **gates** (run via `tools/<name>.py`): `check_ac_proof_kind` (tier→proof matrix),
-  `check_tier_ast_literal`, `check_tier_imports`, `check_ac_tier_baseline`,
-  `check_authority_reconcile` (declared vs detected at the enforceable ends).
+The **target** model — like every migrated package — is to converge by **layer**
+(base / extension / data) rather than by role. `authority` is **not there yet**:
+its `contract.py` still declares legacy `roles=["matrix", "classifier", "gates"]`
+and the files are physically flat under `common/authority/`. The base/extension
+split below is therefore the **conceptual/intended** layering each file maps onto;
+the role-to-layer migration is still pending.
+
+- **base** — the value language: `authority_matrix.py` (tier Literals, the
+  tier→proof matrix, the canonical tuples; stdlib-only, no pydantic) and
+  `authority_classifier.py` (the detected CODE/LLM band). Self-contained pure
+  definitions + logic, no I/O.
+- **extension** — the gates (run via `tools/<name>.py`): `check_ac_proof_kind`
+  (tier→proof matrix), `check_tier_ast_literal`, `check_tier_imports`,
+  `check_ac_tier_baseline`, `check_authority_reconcile` (declared vs detected at
+  the enforceable ends). The impure edges that read the repo and fail CI.
 
 ## Published language
 

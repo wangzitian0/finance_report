@@ -76,8 +76,8 @@ AC:
 ### Structural assertions go in `invariants`, not `roadmap`
 
 A package's **structural / governance guarantees** — interface == `__all__`,
-"converges by role", layer-purity (types/ops never import the store/ORM),
-"passes its own `check_package_contract`" — are NOT domain ACs. They are
+"converges by **layer**" (base/extension/data), layer-purity (`base` never imports
+`extension`/`data`), "passes its own `check_package_contract`" — are NOT domain ACs. They are
 deterministic properties of *how the package is assembled*, so they belong in
 `PackageContract.invariants` (which carry no tier and are not constrained by the
 tier→proof matrix), and the `roadmap` holds only the package's **domain** ACs,
@@ -93,7 +93,7 @@ bespoke lint needed).
 
 `common/counter` is the worked example: its `roadmap` is pure domain (key
 validation, count, increment, query) while its structural guarantees
-(`converges-by-role`, `types-layer-pure`, `ops-layer-pure`,
+(`converges-by-layer`, `base-layer-pure`, `interface-equals-published-language`,
 `passes-own-governance-gate`) are `invariants`. A CODE-ONLY package like `counter` would
 not *fail* with structural ACs in its roadmap (CODE-ONLY permits `exact`), but it follows
 the convention so it is a correct template to copy for LLM-LED/LLM-ONLY packages.

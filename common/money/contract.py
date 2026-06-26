@@ -27,9 +27,10 @@ CONTRACT = PackageContract(
     # Pure-Decimal value type, no LLM in the package: CODE-ONLY (0% LLM).
     tier="CODE-ONLY",
     depends_on=["ratio"],
-    roles=["types", "ops"],
     # The package's domain value objects (kind for the taxonomy; no module path —
-    # money still uses the types/ops layout, so the gate skips placement here).
+    # the BE implementation has not yet split into base/extension/data, so the gate
+    # skips placement here). `units` is the layer-converging taxonomy; the legacy
+    # `roles` kwarg is dropped (it defaults to empty and the gate accepts its absence).
     units=[
         Unit(name="Money", kind=Kind.VALUE_OBJECT),
         Unit(name="Currency", kind=Kind.VALUE_OBJECT),
