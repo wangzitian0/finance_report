@@ -469,6 +469,6 @@ account adopts the currency of the holding that created it.
 
 | AC ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC17.33.1 | HK numeric exchange codes map to the Yahoo `<4-digit>.HK` symbol while US tickers and already-suffixed symbols pass through unchanged | `test_AC17_33_1_yahoo_stock_symbol_maps_hk_numeric_codes` | `market_data/test_provider_parsers.py` | P1 |
-| AC17.33.2 | HK numeric codes resolve to the Stooq `<4-digit>.hk` symbol while US tickers stay `.us` | `test_AC17_33_2_stooq_stock_symbol_maps_hk_numeric_codes` | `market_data/test_provider_parsers.py` | P1 |
-| AC17.33.3 | An auto-created broker account adopts the holding's currency instead of a hardcoded USD | `test_AC17_33_3_broker_account_uses_snapshot_currency_not_hardcoded_usd` | `portfolio/test_brokerage_position_parsing.py` | P1 |
+| AC17.33.1 | HK numeric exchange codes map to the Yahoo `<4-digit>.HK` symbol while US tickers and already-suffixed symbols pass through unchanged {tier:CODE-ONLY} | `test_AC17_33_1_yahoo_stock_symbol_maps_hk_numeric_codes` | `market_data/test_provider_parsers.py` | P1 |
+| AC17.33.2 | HK numeric codes resolve to the Stooq `<4-digit>.hk` symbol while US tickers stay `.us` {tier:CODE-ONLY} | `test_AC17_33_2_stooq_stock_symbol_maps_hk_numeric_codes` | `market_data/test_provider_parsers.py` | P1 |
+| AC17.33.3 | An auto-created broker account adopts the holding's currency instead of a hardcoded USD {tier:CODE-ONLY} | `test_AC17_33_3_broker_account_uses_snapshot_currency_not_hardcoded_usd` | `portfolio/test_brokerage_position_parsing.py` | P1 |
