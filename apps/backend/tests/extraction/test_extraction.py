@@ -204,14 +204,19 @@ class TestFixtureData:
         # Allow some tolerance due to potential rounding
         assert diff < Decimal("1.00"), f"Balance mismatch: {diff}"
 
-    def test_maribank_fixture_merchants_sanitized(self, maribank_fixture):
-        """AC13.3.3: Test MariBank payload has sanitized merchant names."""
-        events = maribank_fixture["events"]
-        for event in events:
+    def test_maribank_fixture_descriptions_carry_no_pii(self, maribank_fixture):
+        """AC13.3.3: every event description is free of detectable PII.
+
+        A deterministic safety property (not a frozen merchant-name denylist):
+        any description committed as a test fixture must pass the production PII
+        detector, so a future fixture that smuggles in an account/NRIC/phone/email
+        fails here.
+        """
+        from src.services.pii_redaction import detect_pii
+
+        for event in maribank_fixture["events"]:
             desc = event.get("description", "")
-            # Should not contain full merchant names
-            assert "HAWKERLAB" not in desc, "Merchant name not sanitized"
-            assert "DELICIOUS LITTLE LEAVES" not in desc, "Merchant name not sanitized"
+            assert detect_pii(desc) == [], f"PII leaked into fixture description: {desc!r}"
 
     def test_gxs_fixture_daily_interest(self, gxs_fixture):
         """AC13.3.4: Test GXS payload has daily interest entries."""
