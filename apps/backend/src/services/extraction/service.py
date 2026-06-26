@@ -159,6 +159,16 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             # flagged for review rather than masked by the StatementSummary default.
             raw_statement_currency = extracted.get("currency")
             statement_currency = raw_statement_currency or "SGD"
+            # A bank statement requires a period; resolve it tolerantly (fall back
+            # to the other bound or the transaction-date range) so a single missing
+            # ``period_start`` no longer hard-fails an otherwise-good parse (#1449).
+            # Brokerage payloads import via Layer-2 positions and carry no required
+            # period, so they keep the optional treatment.
+            if is_brokerage_payload:
+                resolved_period_start = self._safe_optional_date(extracted.get("period_start"))
+                resolved_period_end = self._safe_optional_date(extracted.get("period_end"))
+            else:
+                resolved_period_start, resolved_period_end = self._resolve_required_period(extracted)
             statement = StatementSummary(
                 user_id=user_id,
                 account_id=account_id,
@@ -166,16 +176,8 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 institution=final_institution,
                 account_last4=self._sanitize_account_last4(extracted.get("account_last4")),
                 currency=statement_currency,
-                period_start=(
-                    self._safe_optional_date(extracted.get("period_start"))
-                    if is_brokerage_payload
-                    else self._safe_date(extracted.get("period_start"))
-                ),
-                period_end=(
-                    self._safe_optional_date(extracted.get("period_end"))
-                    if is_brokerage_payload
-                    else self._safe_date(extracted.get("period_end"))
-                ),
+                period_start=resolved_period_start,
+                period_end=resolved_period_end,
                 opening_balance=self._safe_decimal(
                     extracted.get("opening_balance"),
                     required=not is_brokerage_payload,
@@ -573,14 +575,22 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 tx_count=len(transactions),
             )
 
-            # A quarantined extraction must never persist its Layer-2 rows: those rows
-            # are precisely the untrusted financial truth the gate exists to block.
-            if db and not llm_led_gate.quarantined:
+            # A quarantined extraction must never persist its Layer-2 rows: those
+            # rows are precisely the untrusted financial truth the gate exists to
+            # block. The statement *envelope* must still be persisted, though — its
+            # terminal ``rejected`` status and reason are exactly what the user and
+            # the review queue need. Skipping the write entirely (the prior
+            # behavior) left the row stuck in ``parsing`` forever even though the
+            # verdict was computed (#1452): ``dual_write_layer2`` is the only path
+            # that updates the API-visible row's status. So always write the
+            # envelope when ``db`` is present, but pass no transactions when
+            # quarantined so no Layer-2 financial rows are created.
+            if db:
                 await dual_write_layer2(
                     db=db,
                     user_id=user_id,
                     statement=statement,
-                    transactions=transactions,
+                    transactions=[] if llm_led_gate.quarantined else transactions,
                     file_path=file_path,
                     original_filename=original_filename or (file_path.name if file_path else "unknown"),
                     document_type=(

@@ -20,8 +20,11 @@ from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 
+from src.models.layer2 import AtomicTransaction
 from src.models.statement_enums import BankStatementStatus, Stage1Status
+from src.models.statement_summary import StatementSummary
 from src.services.extraction import ExtractionService
 from src.services.extraction._llm_led_gate import (
     LlmLedQuarantineReason,
@@ -296,3 +299,59 @@ class TestObservability:
             blob = f"{verdict.reason.value} {verdict.message} {verdict.metric_kind}"
             for token in forbidden:
                 assert token not in blob
+
+
+# --- AC20.9.8: quarantine persists the terminal status (no stuck "parsing") -------
+
+
+class TestQuarantinePersistsStatus:
+    async def test_AC20_9_8_quarantined_statement_persists_rejected_not_stuck_parsing(
+        self, service, tmp_path, db, test_user
+    ):
+        """[AC20.9.8] A db-backed quarantine writes status=rejected to the row (#1452).
+
+        The chain-break / LLM-LED quarantine path previously skipped the
+        persistence write entirely, so the pre-created upload row stayed in
+        `parsing` forever even though the reject verdict was computed. The
+        envelope must now persist as REJECTED while still writing no Layer-2
+        financial rows.
+        """
+        file_hash = "qa1452" + uuid4().hex
+        envelope = StatementSummary(
+            user_id=test_user.id,
+            file_hash=file_hash,
+            institution="UOB",
+            currency="SGD",
+            status=BankStatementStatus.PARSING,
+        )
+        db.add(envelope)
+        await db.flush()
+        envelope_id = envelope.id
+
+        payload = _bank_payload(
+            opening="1000.00",
+            closing="9999.00",
+            txns=[{"date": "2025-01-15", "description": "Salary", "amount": "100.00", "direction": "IN"}],
+        )
+        pdf = tmp_path / "stmt.pdf"
+        pdf.write_bytes(b"dummy")
+        with patch.object(service, "extract_financial_data", new=AsyncMock(return_value=payload)):
+            await service.parse_document(
+                pdf,
+                institution="UOB",
+                user_id=test_user.id,
+                file_content=pdf.read_bytes(),
+                file_hash=file_hash,
+                db=db,
+            )
+        await db.commit()
+
+        persisted = await db.get(StatementSummary, envelope_id)
+        assert persisted.status == BankStatementStatus.REJECTED
+        # A quarantined extraction must not persist any Layer-2 financial rows.
+        txns = (
+            (await db.execute(select(AtomicTransaction).where(AtomicTransaction.user_id == test_user.id)))
+            .scalars()
+            .all()
+        )
+        assert txns == []

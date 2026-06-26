@@ -28,6 +28,37 @@ class _CoerceMixin:
             return None
         return self._safe_date(value)
 
+    def _resolve_required_period(self, extracted: dict) -> tuple[date, date]:
+        """Resolve a bank statement's required (period_start, period_end).
+
+        The model occasionally omits ``period_start`` (or ``period_end``) even
+        when the statement clearly has a period and transactions — sending it
+        verbatim to ``_safe_date`` then hard-fails the whole parse with
+        "Date is required" (#1449), and the failure is non-deterministic for the
+        same statement format. Degrade gracefully instead: fall back to the other
+        bound, then to the transaction-date range. Only raise when no date can be
+        recovered at all, so a genuinely date-less document still rejects.
+        """
+        start = self._safe_optional_date(extracted.get("period_start"))
+        end = self._safe_optional_date(extracted.get("period_end"))
+        if start is not None and end is not None:
+            return start, end
+
+        txn_dates = sorted(
+            parsed
+            for txn in (extracted.get("transactions") or [])
+            if (raw := txn.get("date")) not in (None, "", "None", "null")
+            and (parsed := _tolerant_parse_date(str(raw))) is not None
+        )
+        first_txn = txn_dates[0] if txn_dates else None
+        last_txn = txn_dates[-1] if txn_dates else None
+        resolved_start = start or end or first_txn
+        resolved_end = end or last_txn or start
+        if resolved_start is None or resolved_end is None:
+            logger.error("Statement period could not be resolved from dates or transactions")
+            raise ValueError("Date is required")
+        return resolved_start, resolved_end
+
     def _safe_decimal(self, value: str | None, default: str | None = None, *, required: bool = False) -> Decimal | None:
         """Safely convert string to Decimal."""
         if value is None:

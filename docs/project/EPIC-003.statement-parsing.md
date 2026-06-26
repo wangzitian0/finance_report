@@ -237,6 +237,16 @@ or HK-like report classification, measurement, presentation, or disclosure.
 |----|-----------|---------------|------|----------|
 | AC3.10.1 | Statement parsing owns fact-forward settlement evidence capture and must preserve source metadata needed by framework readiness while leaving US/HK policy decisions to EPIC-020 {tier:CODE-ONLY} | `test_AC3_10_1_statement_parsing_is_source_capture_not_framework_policy` | `tests/tooling/test_framework_reporting_epic_contract.py` | P0 |
 
+### AC3.11: Tolerant Statement-Period Resolution ([#1449](https://github.com/wangzitian0/finance_report/issues/1449))
+
+The model occasionally omits `period_start` (or `period_end`) for a bank statement that plainly has a period and transactions. Passing the missing field straight to `_safe_date` hard-failed the whole parse with "Date is required" — non-deterministically, for the same statement format. The period is now resolved tolerantly: fall back to the other bound, then to the transaction-date range, and only reject when no date can be recovered at all.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC3.11.1 | A missing `period_start` falls back to `period_end` instead of hard-failing the parse {tier:CODE-ONLY} | `test_AC3_11_1_period_start_falls_back_to_period_end` | `extraction/test_extraction.py` | P1 |
+| AC3.11.2 | With no period bounds, the statement period is derived from the transaction-date range {tier:CODE-ONLY} | `test_AC3_11_2_period_derived_from_transaction_dates` | `extraction/test_extraction.py` | P1 |
+| AC3.11.3 | A statement with no period and no transaction dates still rejects (no silent zero-date) {tier:CODE-ONLY} | `test_AC3_11_3_no_resolvable_date_still_raises` | `extraction/test_extraction.py` | P1 |
+
 ## 📏 Acceptance Criteria
 
 ### 🟢 Must Have

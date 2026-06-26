@@ -472,3 +472,11 @@ account adopts the currency of the holding that created it.
 | AC17.33.1 | HK numeric exchange codes map to the Yahoo `<4-digit>.HK` symbol while US tickers and already-suffixed symbols pass through unchanged {tier:CODE-ONLY} | `test_AC17_33_1_yahoo_stock_symbol_maps_hk_numeric_codes` | `market_data/test_provider_parsers.py` | P1 |
 | AC17.33.2 | HK numeric codes resolve to the Stooq `<4-digit>.hk` symbol while US tickers stay `.us` {tier:CODE-ONLY} | `test_AC17_33_2_stooq_stock_symbol_maps_hk_numeric_codes` | `market_data/test_provider_parsers.py` | P1 |
 | AC17.33.3 | An auto-created broker account adopts the holding's currency instead of a hardcoded USD {tier:CODE-ONLY} | `test_AC17_33_3_broker_account_uses_snapshot_currency_not_hardcoded_usd` | `portfolio/test_brokerage_position_parsing.py` | P1 |
+
+### AC17.34: Short-Position Import Safety ([#1448](https://github.com/wangzitian0/finance_report/issues/1448))
+
+A margin/options account can hold short positions (negative quantity and negative market value, e.g. sold puts). The `atomic_positions` non-negative-market-value CHECK constraint rejected those rows, and the unhandled `IntegrityError` crashed the whole brokerage import with a 500 — dropping every position, not just the short. Short positions are now skipped (reported via `skipped`) so the rest of the account imports cleanly; modelling shorts as first-class (signed valuation across NAV/allocation/cost-basis) is tracked as follow-up.
+
+| AC ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC17.34.1 | A short (negative market value) position is skipped and reported via `skipped`, so the import succeeds (no 500) and the long positions still persist {tier:CODE-ONLY} | `test_AC17_34_1_brokerage_import_skips_short_positions_without_500` | `portfolio/test_brokerage_position_parsing.py` | P1 |
