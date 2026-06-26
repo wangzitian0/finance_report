@@ -15,7 +15,7 @@ import { expect, test, type Request } from "@playwright/test";
  *    event POST reaches the OpenPanel API).
  *
  * Hermetic: every telemetry destination is intercepted with `page.route` and
- * fulfilled locally — no real SigNoz collector, no real OpenPanel cloud, and the
+ * fulfilled locally — no real OTLP collector, no real OpenPanel cloud, and the
  * `op1.js` SDK script is replaced by a tiny stub that honors the documented
  * `window.op` queue contract. No assertion depends on a real backend being up.
  */
@@ -67,7 +67,7 @@ test.describe("AC24.2 FE telemetry + analytics emission (#1169)", () => {
     const openpanelEventRequests: Request[] = [];
 
     // Intercept the OTLP collector: capture each export POST, then 200 it so the
-    // exporter sees success (no real SigNoz contacted).
+    // exporter sees success (no real OTLP collector contacted).
     await page.route(`**${OTLP_TRACES_PATH}`, async (route) => {
       if (route.request().method() === "POST") {
         otlpRequests.push(route.request());

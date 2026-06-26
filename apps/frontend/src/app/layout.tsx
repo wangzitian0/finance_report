@@ -50,7 +50,7 @@ export const dynamic = "force-dynamic";
 
 // `force-dynamic` runs RootLayout per request, so log the misconfig at most once
 // per server process (mirrors the module-level guard in lib/api.ts) to avoid
-// flooding container logs / SigNoz on every request.
+// flooding container logs / the observability backend on every request.
 let analyticsMisconfigWarned = false;
 
 export default function RootLayout({
@@ -84,7 +84,7 @@ export default function RootLayout({
             environment={process.env.OPENPANEL_ENVIRONMENT}
           />
         ) : null}
-        {/* Browser OTel → SigNoz. Config is read HERE (server, at request time)
+        {/* Browser OTel → OTLP collector. Config is read HERE (server, at request time)
             and passed as props — same runtime-injection pattern as <Analytics>
             above — so one promoted image serves every env via its container
             `environment:` block (NEXT_PUBLIC_* would otherwise inline at build

@@ -1,4 +1,4 @@
-# EPIC-010: SigNoz Logging Integration
+# EPIC-010: Observability Logging (vendor-neutral OTEL)
 
 > **Status**: ✅ Complete
 > **Vision Anchor**: `decision-7-tech-stack`
@@ -11,7 +11,7 @@
 
 ## 🎯 Objective
 
-Enable production-grade log observability via SigNoz (OTLP), while keeping local/development runs functional without a SigNoz deployment.
+Enable production-grade log observability via OpenTelemetry/OTLP, while keeping local/development runs functional without any observability backend. The app emits OTLP and is agnostic to which backend infra2 runs behind the collector.
 
 ---
 
@@ -19,7 +19,7 @@ Enable production-grade log observability via SigNoz (OTLP), while keeping local
 
 ### Situation
 - **Anchor**: Deployment readiness (EPIC-007) and platform observability SSOT.
-- **Gap**: Production should ship logs to SigNoz, but local/dev must remain simple.
+- **Gap**: Production should ship logs to the OTLP collector, but local/dev must remain simple.
 
 ### Tasks
 - **Backend**: Add optional OTLP log export gated by config.
@@ -41,7 +41,7 @@ Enable production-grade log observability via SigNoz (OTLP), while keeping local
 - Infra templates updated with safe quoting.
 - Production containers restarted successfully.
 - Log ingestion still requires a backend image rebuild.
-- Finance Report app alerting follows `component -> OTEL -> SigNoz -> Lark`; shared SigNoz/Lark automation remains owned by infra2.
+- The app emits OTLP only; alert routing (e.g. error-log alerts → Lark) is wired by infra2 behind the OTLP endpoint and is not declared by the app.
 
 ---
 
@@ -50,14 +50,14 @@ Enable production-grade log observability via SigNoz (OTLP), while keeping local
 - **Backend log shipping** via OTLP HTTP when configured.
 - **Optional by default** in local/dev environments.
 - **Vault-managed configuration** for staging/production.
-- **App-owned runtime contract** for the `FinanceReportBackendErrorLogs` shared alert rule on `finance-report-backend`.
+- **App-owned vendor-neutral OTEL runtime contract** (exporter readiness on `/health` + startup log); alert rules and the observability backend are infra2's, behind the OTLP endpoint.
 
 ---
 
 ## ✅ Must Have
 
 - Logs remain structured JSON in non-debug modes.
-- OTEL export is **opt-in** and does not break app startup if SigNoz is unavailable.
+- OTEL export is **opt-in** and does not break app startup if the OTLP collector is unavailable.
 - OTEL configuration is documented in SSOT and `.env.example`.
 - Vault templates include OTEL keys for production.
 
@@ -65,7 +65,7 @@ Enable production-grade log observability via SigNoz (OTLP), while keeping local
 
 ## 🌟 Nice to Have
 
-- Dashboard or saved view in SigNoz for backend logs.
+- Dashboard or saved view in the observability backend (infra2-owned) for backend logs.
 - Additional domain-specific alerts beyond backend error logs.
 
 ---
@@ -144,8 +144,8 @@ Enable production-grade log observability via SigNoz (OTLP), while keeping local
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC10.7.1 | Backend starts without SigNoz | `test_backend_otel_absence_is_startup_safe()` | `infra/test_observability_contract.py` | P0 |
-| AC10.7.2 | Logs export to SigNoz | `test_configure_otel_logging_with_fake_exporter()` | `infra/test_logger.py` | P0 |
+| AC10.7.1 | Backend starts without an observability backend | `test_backend_otel_absence_is_startup_safe()` | `infra/test_observability_contract.py` | P0 |
+| AC10.7.2 | Logs export over OTLP | `test_configure_otel_logging_with_fake_exporter()` | `infra/test_logger.py` | P0 |
 | AC10.7.3 | No sensitive data in logs | `test_external_api_logging_omits_sensitive_arguments_by_default()` | `infra/test_observability_contract.py` | P0 |
 | AC10.7.4 | OTLP optional by default | `test_backend_otel_absence_is_startup_safe()` | `infra/test_observability_contract.py` | P0 |
 | AC10.7.5 | OTEL config documented | `test_observability_ssot_and_env_docs_are_linked()` | `infra/test_observability_contract.py` | P0 |
@@ -161,15 +161,19 @@ Enable production-grade log observability via SigNoz (OTLP), while keeping local
 | AC10.8.3 | Brokerage import and reconciliation emit start/complete/failure audit checkpoints with result counts | `test_AC10_8_3_statement_scoped_brokerage_import_audit_logs()`, `test_AC10_8_3_brokerage_import_audit_checkpoints()`, `test_AC10_8_3_reconciliation_run_audit_checkpoints()` | `api/test_statements_router.py`, `extraction/test_statement_parsing_audit_logging.py`, `reconciliation/test_reconciliation_router_additional.py` | P0 |
 | AC10.8.4 | High-volume staging audit noise is reduced for SQL echo and repeated FX/portfolio valuation detail logs | `test_AC10_8_4_high_volume_fx_audit_noise_uses_debug_level()` | `infra/test_observability_contract.py` | P1 |
 
-### AC10.9: Production Alerting Runtime Contract
+### AC10.9: Production Observability Runtime Contract
+
+> The app exposes only its own vendor-neutral OTEL runtime readiness. Choosing the
+> observability backend and wiring alert rules (e.g. error-log alerts → Lark) are
+> infra2's concern, reached through the OTLP endpoint — the app declares no
+> backend-specific alert routing.
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC10.9.1 | Backend exposes a stable redacted observability status with service name, deployment environment, resource attributes, and shared alert metadata, without exposing OTLP endpoint or webhook secrets | `test_AC10_9_1_observability_status_is_redacted_and_alert_ready()` | `infra/test_observability_contract.py` | P0 |
-| AC10.9.2 | Startup logs emit one structured observability runtime event for SigNoz/Lark alert triage | `test_AC10_9_2_observability_startup_log_uses_runtime_contract()` | `infra/test_observability_contract.py` | P0 |
-| AC10.9.3 | `/health` includes the same redacted observability status so deploy checks can prove app-side alert readiness | `test_AC10_9_3_health_response_includes_redacted_observability_status()` | `infra/test_observability_contract.py` | P0 |
-| AC10.9.4 | Finance Report docs declare the app-owned alerting contract while infra2 remains the shared SigNoz/Lark automation owner | `test_AC10_9_4_observability_docs_declare_shared_alerting_pipeline()` | `infra/test_observability_contract.py` | P0 |
-| AC10.9.5 | Deploy failure snapshots and deploy contexts include non-secret platform health fields plus run-to-SigNoz log/trace query links | `test_AC10_9_5_snapshot_includes_platform_health_and_signoz_links()`, `test_AC10_9_5_main_missing_inputs_still_prints_signoz_links()` | `tests/tooling/test_dokploy_failure_snapshot.py` | P0 |
+| AC10.9.1 | Backend exposes a stable redacted, vendor-neutral OTEL observability status (service name, deployment environment, resource attributes, exporter flags) without exposing the OTLP endpoint or any backend-specific alert metadata | `test_AC10_9_1_observability_status_is_redacted_and_vendor_neutral()` | `infra/test_observability_contract.py` | P0 |
+| AC10.9.2 | Startup logs emit one structured observability runtime event capturing OTEL runtime readiness | `test_AC10_9_2_observability_startup_log_uses_runtime_contract()` | `infra/test_observability_contract.py` | P0 |
+| AC10.9.3 | `/health` includes the same redacted observability status so deploy checks can prove app-side OTEL readiness | `test_AC10_9_3_health_response_includes_redacted_observability_status()` | `infra/test_observability_contract.py` | P0 |
+| AC10.9.5 | Deploy failure snapshots include non-secret platform health fields; the app does **not** build observability-backend pivot links (infra2 owns linking to its backend) | `test_AC10_9_5_snapshot_includes_platform_health()`, `test_AC10_9_5_main_missing_inputs_emits_skip_marker_with_platform_health()` | `tests/tooling/test_dokploy_failure_snapshot.py` | P0 |
 
 ### AC10.10: Backend OTEL Metrics Pillar
 
@@ -204,17 +208,17 @@ Enable production-grade log observability via SigNoz (OTLP), while keeping local
 
 | Standard | Verification | Status |
 |----------|--------------|--------|
-| Backend starts without SigNoz | Run app with no OTEL vars | ✅ |
-| Logs export to SigNoz | Set OTEL vars, logs visible in UI | ✅ |
+| Backend starts without an observability backend | Run app with no OTEL vars | ✅ |
+| Logs export over OTLP | Set OTEL vars, logs visible in the backend UI | ✅ |
 | No sensitive data in logs | Review log payloads | ✅ |
-| App alert path is declared | `component -> OTEL -> SigNoz -> Lark`, rule `FinanceReportBackendErrorLogs`, service `finance-report-backend` | ✅ |
+| App emits OTLP only | alert routing is wired by infra2 behind the OTLP endpoint, not declared by the app | ✅ |
 
 ### 🚫 Not Acceptable
 
-- App fails to start when SigNoz is down.
+- App fails to start when the OTLP collector is down.
 - Logs contain secrets or PII.
 - OTEL config is undocumented or not in Vault templates.
-- App health exposes collector URLs, webhook URLs, bot secrets, or SigNoz API keys.
+- App health exposes collector URLs, webhook URLs, bot secrets, or observability-backend API keys.
 
 ---
 
@@ -222,8 +226,8 @@ Enable production-grade log observability via SigNoz (OTLP), while keeping local
 
 - `moon run :test`
 - `python tools/check_env_keys.py`
-- `uv run invoke signoz.status`
-- `uv run invoke signoz.shared.test-trace --service-name=finance-report-backend`
+- (infra2-owned) observability backend status check
+- (infra2-owned) observability backend test-trace for `service.name=finance-report-backend`
 - `docker exec finance_report-backend python -c 'import opentelemetry'` (missing in prod image)
 
 ---

@@ -2,7 +2,7 @@
 
 This module provides:
 - Structured logging via structlog with JSON output for production
-- OpenTelemetry (OTEL) export to SigNoz for centralized logging
+- OpenTelemetry (OTEL) OTLP export for centralized logging (backend chosen by infra2)
 - Timing utilities for performance tracking
 - Exception logging helpers with full context
 """
@@ -44,7 +44,7 @@ def _add_trace_context(
 
     Extracts trace_id and span_id from the current OTEL span context
     and adds them to the log event. This enables correlation between
-    logs and traces in SigNoz.
+    logs and traces in the observability backend.
     """
     try:
         from opentelemetry import trace
@@ -65,7 +65,7 @@ def _select_renderer() -> Processor:
     if settings.debug:
         # Human-readable logs for development
         return structlog.dev.ConsoleRenderer()
-    # JSON logs for production/staging (easy ingestion by SigNoz/ELK)
+    # JSON logs for production/staging (easy ingestion by any OTLP/log backend)
     return structlog.processors.JSONRenderer()
 
 
@@ -83,7 +83,7 @@ def _build_otel_resource() -> Any:
     resource_attributes = {
         "service.name": settings.otel_service_name,
         # Version correlation: every span/log carries the deployed commit so a
-        # CI/CD run can pivot directly to this version's traces in SigNoz.
+        # CI/CD run can pivot directly to this version's traces in the observability backend.
         "service.version": settings.git_commit_sha,
         "git.commit": settings.git_commit_sha,
     }
@@ -94,7 +94,7 @@ def _build_otel_resource() -> Any:
 def _configure_otel_tracing() -> None:
     """Configure OpenTelemetry tracing with OTLP export.
 
-    Sets up TracerProvider with OTLP exporter to send traces to SigNoz.
+    Sets up TracerProvider with a vendor-neutral OTLP exporter for traces.
     This enables distributed tracing correlation with logs.
     """
     if not settings.otel_exporter_otlp_endpoint:

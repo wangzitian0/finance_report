@@ -1,7 +1,7 @@
 /**
  * C5 (Infra-014): page-view analytics must be configured in deployed, non-preview
  * environments (staging/production). A missing client id there means analytics is
- * silently off — a misconfiguration the app surfaces (server log → SigNoz) instead
+ * silently off — a misconfiguration the app surfaces (server log → observability backend) instead
  * of failing silently, but never by throwing (that would break SSR). Preview
  * (report-pr-N) and local intentionally have no OpenPanel, so they stay silent.
  *

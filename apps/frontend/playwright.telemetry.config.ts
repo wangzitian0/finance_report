@@ -8,7 +8,7 @@ import { defineConfig, devices } from '@playwright/test';
  * telemetry on for every other E2E in the default `playwright.config.ts`.
  *
  * Hermetic: the configured OTLP collector + OpenPanel endpoints/script are
- * fakes intercepted in-test (no real SigNoz/OpenPanel is contacted). The values
+ * fakes intercepted in-test (no real OTLP collector/OpenPanel is contacted). The values
  * below are read at REQUEST time by the `force-dynamic` server layout, so
  * passing them through `webServer.env` (rather than baking them into the build)
  * is sufficient.

@@ -24,7 +24,7 @@
 ### Configuration
 - **Logger**: Structured logging via `src/logger.py` with OTEL integration
 - **Frontend**: Browser console logging with structured JSON
-- **Backend**: SigNoz OTLP export for distributed tracing
+- **Backend**: OTLP export for distributed tracing
 
 ---
 
@@ -236,7 +236,7 @@ approval gates.
 
 5. **Extract HTTP Status Codes**
    - Parse error messages: `"HTTP 400"` → `status_code=400`
-   - Enable filtering by status code in SigNoz
+   - Enable filtering by status code in the observability backend
 
 ### DON'T ❌
 
@@ -272,7 +272,7 @@ approval gates.
    statement_id="<UUID>"
    ```
 
-2. **Query SigNoz for Complete Trace**
+2. **Query the observability backend for Complete Trace**
    ```
    attributes.statement_id = "<UUID>"
    ```
@@ -319,7 +319,7 @@ approval gates.
    }
    ```
 
-3. **Check Backend Logs in SigNoz**
+3. **Check Backend Logs in the observability backend**
    ```
    # Filter by user_id or filename
    attributes.user_id = "<UUID>"
@@ -335,7 +335,7 @@ approval gates.
 
 **Steps**:
 
-1. **Find HTTP Errors in SigNoz**
+1. **Find HTTP Errors in the observability backend**
    ```
    attributes.http_status EXISTS
    attributes.http_status >= 400
@@ -385,7 +385,7 @@ approval gates.
 2. ✅ **Upload with Custom Model**
    - [ ] Upload PDF with selected model
    - [ ] Verify `[StatementUploader] Uploading statement` log includes `selectedModel`
-   - [ ] Check SigNoz: `attributes.model_requested` matches frontend selection
+   - [ ] Check the observability backend: `attributes.model_requested` matches frontend selection
 
 3. ✅ **Force Model vs Primary Model**
    - [ ] Upload with custom model → Check `force_model` used in logs
@@ -393,7 +393,7 @@ approval gates.
 
 4. ✅ **HTTP Error Logging**
    - [ ] Trigger HTTP 400 error (use invalid model)
-   - [ ] Check SigNoz: `attributes.http_status = 400`
+   - [ ] Check the observability backend: `attributes.http_status = 400`
    - [ ] Verify error body and headers are logged
 
 5. ✅ **Cache Behavior**
@@ -401,7 +401,7 @@ approval gates.
    - [ ] Second load: Check `logger.debug("Using cached model catalog")`
    - [ ] Verify TTL remaining is logged
 
-### SigNoz Query Examples
+### Observability Backend Query Examples
 
 ```
 # Find all logs for a specific statement upload

@@ -116,7 +116,7 @@ def test_AC16_11_24_view_local_logs_builds_docker_command(monkeypatch):
     ]
 
 
-def test_AC16_11_25_main_logs_signoz_path(monkeypatch):
+def test_AC16_11_25_main_logs_observability_path(monkeypatch):
     monkeypatch.setattr(
         debug.argparse.ArgumentParser,
         "parse_args",
@@ -126,17 +126,17 @@ def test_AC16_11_25_main_logs_signoz_path(monkeypatch):
             tail=10,
             follow=False,
             env="production",
-            method="signoz",
+            method="observability",
         ),
     )
-    called = {"signoz": False}
+    called = {"observability": False}
     monkeypatch.setattr(
         debug,
-        "view_remote_logs_signoz",
-        lambda service, env: called.__setitem__("signoz", True),
+        "view_remote_logs_observability",
+        lambda service, env: called.__setitem__("observability", True),
     )
     debug.main()
-    assert called["signoz"] is True
+    assert called["observability"] is True
 
 
 def test_AC16_11_26_main_status_local_path(monkeypatch):
@@ -251,24 +251,29 @@ def test_view_remote_logs_docker_called_process_error(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Coverage gap: view_remote_logs_signoz (lines 202-217)
+# Coverage: view_remote_logs_observability (vendor-neutral OTEL query pointer)
 # ---------------------------------------------------------------------------
 
 
-def test_view_remote_logs_signoz(capsys):
-    """view_remote_logs_signoz prints SigNoz info (lines 200-217)."""
-    debug.view_remote_logs_signoz(debug.Service.BACKEND, debug.Environment.STAGING)
+def test_view_remote_logs_observability(capsys):
+    """view_remote_logs_observability prints the vendor-neutral OTEL query."""
+    debug.view_remote_logs_observability(
+        debug.Service.BACKEND, debug.Environment.STAGING
+    )
     captured = capsys.readouterr()
-    assert "SigNoz" in captured.out
-    assert "finance-report-backend" in captured.out
+    assert "observability backend" in captured.out
+    assert "signoz" not in captured.out.lower()
+    assert 'service.name = "finance-report-backend"' in captured.out
     assert "staging" in captured.out
 
 
-def test_view_remote_logs_signoz_production(capsys):
-    """view_remote_logs_signoz skips deployment.environment for production (line 214)."""
-    debug.view_remote_logs_signoz(debug.Service.BACKEND, debug.Environment.PRODUCTION)
+def test_view_remote_logs_observability_production(capsys):
+    """view_remote_logs_observability skips deployment.environment for production."""
+    debug.view_remote_logs_observability(
+        debug.Service.BACKEND, debug.Environment.PRODUCTION
+    )
     captured = capsys.readouterr()
-    assert "SigNoz" in captured.out
+    assert "observability backend" in captured.out
     assert 'deployment.environment = "production"' not in captured.out
 
 

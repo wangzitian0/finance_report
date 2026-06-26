@@ -147,7 +147,7 @@ class TestExtractAcs:
         )
         self._write_epic(tmp_path, "EPIC-009.pdf-fixture-generation.md", content)
         self._write_epic(
-            tmp_path, "EPIC-010.signoz-logging.md", ""
+            tmp_path, "EPIC-010.observability-logging.md", ""
         )  # empty placeholder
         monkeypatch.setattr(gar, "EPIC_DIR", str(tmp_path / "docs" / "project"))
         result = gar.extract_acs()
@@ -229,7 +229,7 @@ class TestWriteRegistry:
         acs = {
             "AC10.1.1": {
                 "epic": 10,
-                "epic_name": "signoz-logging",
+                "epic_name": "observability-logging",
                 "description": "Logging",
             },
             "AC2.1.1": {

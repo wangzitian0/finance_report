@@ -139,7 +139,7 @@ while (( attempt <= MAX_ATTEMPTS )); do
       echo "1. Check DNS resolution: nslookup $DOMAIN"
       echo "2. Check TLS certificate: curl -v $HEALTH_URL"
       echo "3. Check container status via Dokploy"
-      echo "4. Check SigNoz: https://signoz.zitian.party"
+      echo "4. Check the observability backend (infra2): https://signoz.zitian.party"
       echo "   Filter: deployment.environment=$ENVIRONMENT service_name=finance-report-backend"
       echo "========================================="
       exit 1
@@ -169,7 +169,7 @@ while (( attempt <= MAX_ATTEMPTS )); do
       if [[ "$http_code" == "404" ]]; then
         print_404_route_diagnostics
       fi
-      echo "Troubleshooting: Check SigNoz for application logs"
+      echo "Troubleshooting: Check the observability backend for application logs"
       echo "========================================="
       exit 1
     fi
@@ -233,7 +233,7 @@ while (( attempt <= MAX_ATTEMPTS )); do
     echo "URL: ${HEALTH_URL%/api/health}"
     echo "Response: $health_response"
     echo ""
-    echo "Logs: https://signoz.zitian.party"
+    echo "Logs (observability backend): https://signoz.zitian.party"
     echo "Filter: deployment.environment=$ENVIRONMENT service_name=finance-report-backend"
     echo "========================================="
     exit 0
@@ -253,7 +253,7 @@ while (( attempt <= MAX_ATTEMPTS )); do
     echo ""
     echo "Troubleshooting:"
     echo "1. Check which dependency failed in response above"
-    echo "2. Check SigNoz: https://signoz.zitian.party"
+    echo "2. Check the observability backend: https://signoz.zitian.party"
     echo "   Filter: deployment.environment=$ENVIRONMENT service_name=finance-report-backend"
     echo "3. Look for CHECKPOINT markers in logs:"
     echo "   - [CHECKPOINT-1] Vault secrets not ready"

@@ -38,7 +38,7 @@ Finance Report owns:
   the expected smoke gates.
 
 Infra2 owns:
-- Vault, Traefik, Dokploy host scheduling, SigNoz platform health, Lark bridge
+- Vault, Traefik, Dokploy host scheduling, the observability backend platform health, Lark bridge
   delivery, watchdog implementation, availability-ledger storage, and backup
   recovery.
 - Platform evidence such as restart counts, watchdog samples, route materialized
@@ -56,7 +56,7 @@ rewriting docs or rerunning broad test suites.
 | `502 Bad Gateway` | Backend container state, startup checkpoint logs, and `/api/ping` reachability | `crash` | App startup/deploy |
 | `/api/health` returns `503` | Health payload `checks` object and Bootloader mode | `dependency` | App dependency config, then infra service |
 | App is healthy but `git_sha` or `version` is old | `/api/health.git_sha`, release image tag, Dokploy effective env diff | `stale-version` | Deploy workflow/Dokploy/image routing |
-| Logs or alerts missing while app serves traffic | `/health.observability`, service name, alert rule, SigNoz health | `observability` | App observability contract + infra alerting |
+| Logs or alerts missing while app serves traffic | `/health.observability` service name + OTEL exporter flags, observability backend health (infra2) | `observability` | App OTEL contract + infra2 backend/alerting |
 | Startup waits for secrets or exits before CHECKPOINT-2 | Vault sidecar output, rendered secret freshness, Bootloader protected-runtime checks | `secrets` | Infra2 Vault + app boot validation |
 | Alternating healthy/unhealthy samples, repeat restarts, or repeated alerts | Watchdog samples, restart counts, availability ledger | `flapping` | Infra watchdog + app incident owner |
 
@@ -69,7 +69,7 @@ specific proof gap.
 |---|---|---|---|
 | `route` | Public route cannot reach the intended app endpoint | Health script route probes, Traefik/Dokploy route state | The backend is healthy internally but public routes fail |
 | `dependency` | App is reachable but a required dependency is unhealthy | `/api/health.checks`, Bootloader logs, smoke output | The dependency container/service itself is unavailable |
-| `observability` | App serves but logs, traces, alert rule, or SigNoz/Lark delivery is broken | `/health.observability`, SigNoz health/version, alert rule metadata | SigNoz or Lark platform health is degraded |
+| `observability` | App serves but logs/traces export or observability-backend/Lark delivery is broken | `/health.observability` OTEL exporter flags + resource attributes, observability backend health (infra2) | the observability backend or Lark platform health is degraded |
 | `secrets` | Protected runtime lacks usable runtime secrets | Vault sidecar render, secret file freshness, Bootloader config failure | Vault token or template state must be repaired in infra2 |
 | `stale-version` | Public app answers but not with the requested SHA/version | `/api/health.git_sha`, `IMAGE_TAG`, `GIT_COMMIT_SHA`, Dokploy env diff | Dokploy materialized a previous image/env after a successful trigger |
 | `flapping` | Recovered service does not stay recovered | Availability ledger, watchdog samples, restart counts | The app passes one smoke check but fails the stability window |
@@ -131,7 +131,7 @@ instead of duplicating the procedure in app docs.
 
 1. Check `/health.observability` or `/api/health.observability` for the redacted
    app contract.
-2. Confirm SigNoz health/version through production smoke or the SigNoz UI.
+2. Confirm observability backend health/version through production smoke or the observability backend UI.
 3. Use `repo/docs/ssot/ops.alerting.md` for shared alert rule, bridge, and Lark
    delivery automation. The app doc owns only service metadata and log shape.
 
@@ -155,7 +155,7 @@ instead of duplicating the procedure in app docs.
 Other docs should link here instead of copying these playbooks:
 - `docs/ssot/deployment.md` owns deployment architecture, release flow, Vault
   token boundaries, and Dokploy safety rules.
-- `docs/ssot/observability.md` owns structured logging, OTEL/SigNoz config, and
+- `docs/ssot/observability.md` owns structured logging, OTEL config, and
   redacted app observability fields.
 - `docs/ssot/ci-cd.md` owns gate placement, workflow semantics, and required
   checks.

@@ -13,7 +13,7 @@ observability contract**.
 ## infra2 owns + issues (do not restate or hardcode here)
 
 - the environment **taxonomy** (names, suffixes, domains);
-- the single **no-suffix OTLP collector** endpoint (SigNoz is a single global
+- the single **no-suffix OTLP collector** endpoint (the observability backend is a single global
   `prod_only` instance — there is no per-env collector);
 - the layered **telemetry identity** — underlying short-commit-SHA
   `service.version` + surface `deployment.environment` alias (`production` /

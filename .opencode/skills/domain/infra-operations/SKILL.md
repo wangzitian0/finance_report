@@ -47,8 +47,8 @@ python tools/debug.py status backend --env production
 # List containers
 python tools/debug.py containers --env production
 
-# SigNoz (historical)
-python tools/debug.py logs backend --env production --method signoz
+# point at the observability backend (infra2-owned) for the OTEL query
+python tools/debug.py logs backend --env production --method observability
 ```
 
 ### Container Naming
@@ -313,7 +313,7 @@ docker exec -it vault vault operator unseal <KEY>  # Repeat 3x
 
 ## Observability
 
-### SigNoz
+### the observability backend
 
 - Staging: `https://signoz-staging.zitian.party`
 - Production: `https://signoz.zitian.party`

@@ -17,7 +17,7 @@
  *    driven against a recording `window.op` stub (the global the OpenPanel SDK
  *    installs), and we assert the event is actually dispatched.
  *
- * Hermetic by construction: no real SigNoz collector and no real OpenPanel SDK
+ * Hermetic by construction: no real OTLP collector and no real OpenPanel SDK
  * script are contacted.
  */
 import { afterEach, describe, expect, it, vi } from "vitest"

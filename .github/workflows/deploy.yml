@@ -498,8 +498,6 @@ jobs:
             echo "- Failure domain: ${failure_domain}"
             echo "- Failed step: ${failed_step}"
             echo "- Failure summary: ${failure_summary}"
-            echo "- SigNoz logs: https://signoz.zitian.party/logs?service.name=finance-report-backend&deployment.environment=staging&service.version=${{ steps.release.outputs.version_ref }}&github.run_id=${{ github.run_id }}"
-            echo "- SigNoz traces: https://signoz.zitian.party/traces?service.name=finance-report-backend&deployment.environment=staging&service.version=${{ steps.release.outputs.version_ref }}&github.run_id=${{ github.run_id }}"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Write staging deploy context
@@ -531,8 +529,6 @@ jobs:
             echo "failure_domain=${{ steps.deploy_failure_context.outputs.failure_domain }}"
             echo "failed_step=${{ steps.deploy_failure_context.outputs.failed_step }}"
             echo "failure_summary=${{ steps.deploy_failure_context.outputs.failure_summary }}"
-            echo "signoz_logs_query_url=https://signoz.zitian.party/logs?service.name=finance-report-backend&deployment.environment=staging&service.version=${{ steps.release.outputs.version_ref }}&github.run_id=${{ github.run_id }}"
-            echo "signoz_traces_query_url=https://signoz.zitian.party/traces?service.name=finance-report-backend&deployment.environment=staging&service.version=${{ steps.release.outputs.version_ref }}&github.run_id=${{ github.run_id }}"
             echo "strict_e2e_gates=true"
             echo "marker=(smoke or e2e) and not llm"
           } > ci-context/staging-deploy-context.txt

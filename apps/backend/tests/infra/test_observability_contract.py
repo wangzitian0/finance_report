@@ -122,7 +122,7 @@ def test_app_readme_and_compose_document_observability_rollout() -> None:
     ):
         assert f"| `{key}` |" in readme
 
-    assert "SigNoz OTLP HTTP endpoint" in readme
+    assert "OTLP HTTP endpoint" in readme
     assert "IAC_CONFIG_HASH: ${IAC_CONFIG_HASH:-}" in compose
     assert compose.count("IAC_CONFIG_HASH: ${IAC_CONFIG_HASH:-}") >= 2
 
@@ -138,16 +138,16 @@ def test_backend_otel_absence_is_startup_safe(monkeypatch) -> None:
 def test_external_api_logging_omits_sensitive_arguments_by_default(caplog) -> None:
     """AC10.7.3: External API logging omits credentials unless explicitly requested."""
 
-    @logger_module.log_external_api("signoz")
-    def call_signoz(password: str, *, token: str) -> str:
+    @logger_module.log_external_api("example-provider")
+    def call_provider(password: str, *, token: str) -> str:
         assert password
         assert token
         return "ok"
 
     with caplog.at_level(logging.INFO):
-        assert call_signoz("super-secret-password", token="bearer-token") == "ok"
+        assert call_provider("super-secret-password", token="bearer-token") == "ok"
 
-    assert "External API call to signoz" in caplog.text
+    assert "External API call to example-provider" in caplog.text
     assert "super-secret-password" not in caplog.text
     assert "bearer-token" not in caplog.text
     assert "kwargs_keys" not in caplog.text
@@ -175,12 +175,12 @@ def test_AC10_8_4_high_volume_fx_audit_noise_uses_debug_level() -> None:
     assert 'logger.debug(\n                "Skipping portfolio valuation without market price"' in reporting
 
 
-def test_AC10_9_1_observability_status_is_redacted_and_alert_ready(monkeypatch) -> None:
-    """AC10.9.1: Runtime observability status is stable, redacted, and alert-aware."""
+def test_AC10_9_1_observability_status_is_redacted_and_vendor_neutral(monkeypatch) -> None:
+    """AC10.9.1: Runtime observability status is stable, redacted, and vendor-neutral OTEL."""
     monkeypatch.setattr(
         observability_module.settings,
         "otel_exporter_otlp_endpoint",
-        "http://platform-signoz-otel-collector:4318",
+        "http://platform-otel-collector:4318",
     )
     monkeypatch.setattr(observability_module.settings, "otel_service_name", "finance-report-backend")
     monkeypatch.setattr(
@@ -203,11 +203,13 @@ def test_AC10_9_1_observability_status_is_redacted_and_alert_ready(monkeypatch) 
         "deployment.environment": "production",
         "team": "finance-report",
     }
-    assert status["alert_rule_name"] == "FinanceReportBackendErrorLogs"
-    assert status["alert_rule_service_name"] == "finance-report-backend"
-    assert status["alerting_pipeline"] == "component->otel->signoz->lark"
+    # The app no longer declares any backend-specific alert routing; choosing the
+    # backend and wiring alert rules is infra2's concern behind the OTLP endpoint.
+    assert "alert_rule_name" not in status
+    assert "alert_rule_service_name" not in status
+    assert "alerting_pipeline" not in status
     assert "otel_exporter_otlp_endpoint" not in status
-    assert "platform-signoz-otel-collector" not in json.dumps(status)
+    assert "platform-otel-collector" not in json.dumps(status)
 
 
 def test_AC10_9_2_observability_startup_log_uses_runtime_contract(monkeypatch) -> None:
@@ -228,7 +230,7 @@ def test_AC10_9_2_observability_startup_log_uses_runtime_contract(monkeypatch) -
     assert fields["otel_exporter_configured"] is False
     assert fields["metrics_export_enabled"] is False
     assert fields["deployment_environment"] == "staging"
-    assert fields["alert_rule_name"] == "FinanceReportBackendErrorLogs"
+    assert "alert_rule_name" not in fields
     assert "otel_exporter_otlp_endpoint" not in fields
 
 
@@ -343,28 +345,9 @@ async def test_AC10_9_3_health_response_includes_redacted_observability_status(m
     assert payload["checks"] == {"database": True, "s3": True}
     assert payload["observability"]["service_name"] == "finance-report-backend"
     assert payload["observability"]["deployment_environment"] == "production"
-    assert payload["observability"]["alert_rule_name"] == "FinanceReportBackendErrorLogs"
+    assert "alert_rule_name" not in payload["observability"]
     assert "otel_exporter_otlp_endpoint" not in payload["observability"]
     assert "collector:4318" not in json.dumps(payload)
-
-
-def test_AC10_9_4_observability_docs_declare_shared_alerting_pipeline() -> None:
-    """AC10.9.4: Finance Report owns app contract docs, infra2 owns shared alert automation."""
-    observability = _read(REPO_ROOT / "docs" / "ssot" / "observability.md")
-    epic = _read(REPO_ROOT / "docs" / "project" / "EPIC-010.signoz-logging.md")
-    # infra2 consolidated alerting into a single observability owner (infra2 #425/#426):
-    # ops.alerting.md is now a MOVED redirect stub and the shared alert automation lives
-    # in ops.observability.md.
-    infra_alerting = _read(REPO_ROOT / "repo" / "docs" / "ssot" / "ops.observability.md")
-
-    for text in (observability, epic):
-        assert "component -> OTEL -> SigNoz -> Lark" in text
-        assert "FinanceReportBackendErrorLogs" in text
-        assert "finance-report-backend" in text
-
-    # The FR backend error-log alert is defined-as-code and applied via the shared
-    # pipeline (infra2 #378): infra2 owns the shared alert automation.
-    assert "fr-observability.shared.apply-alerts" in infra_alerting
 
 
 def test_AC10_4_3_main_instruments_fastapi_app_instance() -> None:

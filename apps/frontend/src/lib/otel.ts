@@ -1,5 +1,5 @@
 /**
- * Browser OpenTelemetry tracing → SigNoz (OTLP/HTTP).
+ * Browser OpenTelemetry tracing → OTLP/HTTP collector (backend infra2-owned).
  *
  * Design contract (mirrors `components/Analytics.tsx`): config-gated,
  * non-blocking, and "never breaks the app". The whole module is a complete
