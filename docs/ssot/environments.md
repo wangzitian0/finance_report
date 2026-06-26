@@ -193,7 +193,7 @@ The production Platform layer (the observability backend, MinIO, Traefik) runs a
 | **Postgres** | Dedicated | Separate containers/instances | One per environment |
 | **Redis** | Dedicated | Separate containers/instances | One per environment |
 
-the observability backend is a single global instance shared across environments; how App logs are
+The observability backend is a single global instance shared across environments; how App logs are
 separated (the `deployment.environment` surface alias and its allowed values) is
 part of the **infra2-owned** observability contract —
 [`repo/docs/ssot/ops.observability.md`](../../repo/docs/ssot/ops.observability.md)

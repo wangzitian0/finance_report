@@ -401,7 +401,7 @@ approval gates.
    - [ ] Second load: Check `logger.debug("Using cached model catalog")`
    - [ ] Verify TTL remaining is logged
 
-### the observability backend Query Examples
+### Observability Backend Query Examples
 
 ```
 # Find all logs for a specific statement upload

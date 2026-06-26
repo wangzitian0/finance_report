@@ -10,7 +10,7 @@
 
 ## 🎯 Objective
 
-Give the browser the same the observability backend observability the backend already has
+Give the browser the same OTEL observability the backend already has
 (EPIC-010), so frontend latency, web-vitals, and uncaught errors are traceable
 per environment — while keeping local / preview-without-config runs completely
 inert and never letting telemetry break the app.
@@ -80,7 +80,7 @@ triaging issues.
 
 ## 🌟 Nice to Have
 
-- A the observability backend dashboard / saved view for frontend traces and web-vitals.
+- An observability-backend dashboard / saved view for frontend traces and web-vitals.
 - Session/route correlation between OpenPanel analytics and OTel traces.
 
 ---

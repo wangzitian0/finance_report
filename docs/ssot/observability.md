@@ -37,7 +37,7 @@
 |-----------|-------------------|-------------|
 | Logging configuration | `apps/backend/src/logger.py` | Structlog setup + optional OTLP log export |
 | Runtime contract | `apps/backend/src/observability.py` | Redacted observability status for health checks, startup logs, and alert triage |
-| Env settings | `apps/backend/src/config.py` | OTEL/the observability backend environment variables |
+| Env settings | `apps/backend/src/config.py` | OTEL environment variables |
 | Env documentation | `.env.example` | Developer guidance for OTEL variables |
 | Infra reference | `repo/docs/ssot/ops.observability.md`, `repo/docs/ssot/ops.alerting.md` | the observability backend platform, collector, alert rule, and Lark delivery details |
 
@@ -65,7 +65,7 @@ flowchart LR
 
 ## 3. Observability Backend Access (infra2-owned)
 
-the observability backend access, the single global instance model, environment **attribute-based
+Observability backend access, the single global instance model, environment **attribute-based
 filtering**, and the allowed `deployment.environment` values are part of the
 **infra2-owned contract**. Do not restate the endpoints or per-env values here.
 
@@ -94,7 +94,7 @@ Credentials for the observability backend UI are stored in 1Password (`Infra2` v
 - Do not hard-fail startup when the observability backend is unavailable.
 - Do not bypass the OTEL collector with custom protocols.
 - Do not log raw request bodies or credentials.
-- Do not deploy separate the observability backend instances per environment (use attribute filtering).
+- Do not deploy separate observability-backend instances per environment (use attribute filtering).
 
 ---
 
@@ -224,7 +224,7 @@ the shared rule can query.
 
 Runtime failure triage is owned by
 [runtime-incident-response.md](./runtime-incident-response.md). This document
-owns the observability contract only: structured log shape, OTEL/the observability backend
+owns the observability contract only: structured log shape, OTEL
 configuration, the redacted `/health.observability` fields, and app service
 metadata used by the shared alert rule.
 
@@ -330,7 +330,7 @@ infra2/platform (repo submodule)
 
 | Gap | Risk | Mitigation |
 |-----|------|------------|
-| **OTEL ingestion not fully verified at deploy** | Logs can be configured but absent from the observability backend if collector ingestion or rule automation drifts | Production smoke verifies the app-side observability contract; deploy contexts include the observability backend log/trace pivots by service, environment, version, and GitHub run |
+| **OTEL ingestion not fully verified at deploy** | Logs can be configured but absent from the observability backend if collector ingestion or rule automation drifts | Closed app-side: the app emits OTLP and no longer claims to verify ingestion. Proving the deployed version actually ingested (and linking to the backend) is infra2's job — see the deploy-time ingestion smoke in infra2 |
 | **Vault availability not checked by App** | N/A - vault-agent handles this before app starts | Vault HA in infra2 |
 | **secrets.ctmpl ↔ config.py drift** | Missing env vars cause 500s | `tools/check_env_keys.py` + pre-commit |
 | **infra2 submodule version lag** | New secrets not deployed | Manual sync required after adding vars |
@@ -340,12 +340,11 @@ infra2/platform (repo submodule)
 After staging or production deploys, keep observability verification narrow:
 
 1. Confirm `/health.observability` exposes the expected service name, deployment
-   environment, alert rule, and alerting pipeline without secret URLs or keys.
+   environment, and OTEL exporter flags without secret URLs or keys (the contract
+   is vendor-neutral and carries no backend-specific alert metadata).
 2. Confirm the observability backend has recent `finance-report-backend` logs for the target
-   `deployment.environment`.
-   Deploy contexts and failure summaries include pre-built the observability backend log/trace
-   query links carrying `service.name`, `deployment.environment`,
-   `service.version`, and `github.run_id`.
+   `deployment.environment` (query it directly in the backend UI; the app no
+   longer emits pre-built pivot links — infra2 owns linking to its backend).
 3. If logs or alerts are missing during an incident, route through
    [runtime-incident-response.md](./runtime-incident-response.md) instead of
    adding environment-specific debugging steps here.

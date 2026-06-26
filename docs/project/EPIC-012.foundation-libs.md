@@ -48,7 +48,7 @@ This EPIC addresses technical debt in the foundational libraries that all module
 | Database | `src/database.py`, `src/config.py` | Pool config, transaction patterns |
 | Exceptions | `src/utils/exceptions.py` | BaseAppException class |
 | Rate Limiting | `src/rate_limit.py` | Global API limiter |
-| Debugging | `tools/debug.py` | observability backend API integration |
+| Debugging | `tools/debug.py` | vendor-neutral OTEL resource-filter pointer |
 | Schemas | `src/schemas/*.py` | Consistent BaseResponse inheritance |
 
 ---
@@ -393,7 +393,7 @@ consolidated here. The removed inventory is retained in
 | Rate Limit | `src/rate_limit.py` | ⚠️ Auth-only |
 | Dependencies | `src/deps.py` | ✅ DbSession, CurrentUserId |
 | Boot | `src/boot.py` | ✅ Health checks |
-| Debug | `tools/debug.py` | ⚠️ Needs observability backend API |
+| Debug | `tools/debug.py` | prints OTEL attribute filters (no backend API) |
 | Error IDs | `src/constants/error_ids.py` | ✅ Centralized constants |
 
 ### Frontend Foundation
