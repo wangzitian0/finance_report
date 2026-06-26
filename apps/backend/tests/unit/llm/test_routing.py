@@ -34,6 +34,18 @@ def test_AC23_2_1_anthropic_is_native_without_api_base():
     assert call.api_base is None
 
 
+def test_AC23_2_1_gemini_is_native_and_drops_inherited_api_base():
+    """AC23.2.1: google-gemini -> gemini/ prefix on litellm's native endpoint; any
+    inherited OpenAI-style api_base (e.g. the default Z.AI base url) is dropped so
+    litellm does not point Gemini at the wrong host."""
+    call = build_call(
+        _provider(ProtocolFamily.GOOGLE_GEMINI, "https://api.z.ai/api/coding/paas/v4"),
+        "gemini-3-flash-preview",
+    )
+    assert call.model == "gemini/gemini-3-flash-preview"
+    assert call.api_base is None
+
+
 def test_AC23_2_1_avoids_double_family_prefix():
     """AC23.2.1: a model already carrying the litellm family token is not double-prefixed."""
     call = build_call(_provider(ProtocolFamily.OPENAI_COMPATIBLE, "https://x"), "openai/glm-5.1")

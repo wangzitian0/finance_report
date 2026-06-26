@@ -368,6 +368,33 @@ def test_build_vision_media_payloads_rejects_non_url_pdf_input(monkeypatch):
             )
 
 
+def test_build_vision_media_payloads_gemini_sends_native_pdf_not_rendered_images(monkeypatch):
+    """Gemini extracts the whole PDF natively: a PDF with file content yields a single
+    `file` payload (base64 PDF), NOT per-page rendered `image_url` images. This is what
+    lets Gemini handle large/scanned statements the z.ai image-render path truncates."""
+    from src.config import settings
+
+    monkeypatch.setattr(settings, "ai_provider", "gemini")
+    service = ExtractionService()
+
+    # If this path ever tried to render images for Gemini, the test would catch it.
+    with patch.object(
+        service,
+        "_render_pdf_pages_as_image_payloads",
+        side_effect=AssertionError("Gemini must not render PDF pages to images"),
+    ):
+        payloads = service._build_vision_media_payloads(
+            file_content=b"%PDF-1.4 fake pdf bytes",
+            file_url=None,
+            file_type="pdf",
+            mime_type="application/pdf",
+        )
+
+    assert len(payloads) == 1
+    assert payloads[0]["type"] == "file"
+    assert payloads[0]["file"]["file_data"].startswith("data:application/pdf;base64,")
+
+
 def test_build_vision_media_payloads_reraises_render_error_without_external_url(monkeypatch):
     """AC8.12.6: Render failures without a safe external URL do not silently continue."""
     from src.config import settings

@@ -198,16 +198,18 @@ class Settings(BaseSettings):
     )
     ai_api_key: str = Field(
         default="",
-        validation_alias=AliasChoices("ZAI_API_KEY", "GLM_API_KEY", "AI_API_KEY", "OPENROUTER_API_KEY"),
+        validation_alias=AliasChoices(
+            "ZAI_API_KEY", "GLM_API_KEY", "AI_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY"
+        ),
         description=(
             "AI provider API key (empty key = AI features disabled). ZAI_API_KEY is "
-            "preferred for the default Z.AI provider; AI_API_KEY is a provider-neutral "
-            "alias."
+            "preferred for the default Z.AI provider; GEMINI_API_KEY for AI_PROVIDER=gemini; "
+            "AI_API_KEY is a provider-neutral alias."
         ),
         json_schema_extra={
             "group": "AI Provider",
             "vault": True,
-            "extra_keys": ["AI_API_KEY"],
+            "extra_keys": ["AI_API_KEY", "GEMINI_API_KEY"],
         },
     )
 
