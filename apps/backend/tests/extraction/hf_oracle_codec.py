@@ -39,9 +39,7 @@ def parse_page(raw_text: str) -> dict[str, Any]:
 
 def _normalize_txn(txn: dict[str, Any]) -> dict[str, Any]:
     try:
-        amount, direction = normalize_amount_direction(
-            Decimal(str(txn.get("amount", "0"))), txn.get("direction")
-        )
+        amount, direction = normalize_amount_direction(Decimal(str(txn.get("amount", "0"))), txn.get("direction"))
     except (InvalidOperation, ValueError, TypeError):
         amount, direction = Decimal("0"), "OUT"
     bal = txn.get("balance_after")

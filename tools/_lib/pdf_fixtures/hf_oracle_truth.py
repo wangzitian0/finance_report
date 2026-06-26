@@ -47,13 +47,15 @@ def label_to_expected(hf: dict[str, Any]) -> dict[str, Any]:
     for txn in hf.get("transactions", []):
         amount, direction = amount_direction(txn)
         bal = txn.get("balance")
-        transactions.append({
-            "date": str(txn.get("date", "")).split(" ")[0],  # datetime -> ISO date
-            "description": str(txn.get("description", "")).strip(),
-            "amount": amount,
-            "direction": direction,
-            "balance_after": _decimal_str(bal) if bal not in (None, "") else None,
-        })
+        transactions.append(
+            {
+                "date": str(txn.get("date", "")).split(" ")[0],  # datetime -> ISO date
+                "description": str(txn.get("description", "")).strip(),
+                "amount": amount,
+                "direction": direction,
+                "balance_after": _decimal_str(bal) if bal not in (None, "") else None,
+            }
+        )
     return {
         "opening_balance": _decimal_str(hf["opening_balance"]),
         "closing_balance": _decimal_str(hf["closing_balance"]),

@@ -15,15 +15,38 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools" / "_lib" / "pdf_fixtures"))
 
-from hf_oracle_truth import amount_direction, build_truth, label_to_expected, modality_for_dir  # noqa: E402
+from hf_oracle_truth import (  # noqa: E402
+    amount_direction,
+    build_truth,
+    label_to_expected,
+    modality_for_dir,
+)
 
 _HF = {
     "opening_balance": 100.0,
     "closing_balance": 130.0,
     "transactions": [
-        {"date": "2026-01-02 11:30:55", "description": " Coffee  shop ", "debit": 5.0, "credit": None, "balance": 95.0},
-        {"date": "2026-01-05 09:00:00", "description": "Salary", "debit": None, "credit": 50.0, "balance": 145.0},
-        {"date": "2026-01-09 18:00:00", "description": "Groceries", "debit": 15.0, "credit": None, "balance": 130.0},
+        {
+            "date": "2026-01-02 11:30:55",
+            "description": " Coffee  shop ",
+            "debit": 5.0,
+            "credit": None,
+            "balance": 95.0,
+        },
+        {
+            "date": "2026-01-05 09:00:00",
+            "description": "Salary",
+            "debit": None,
+            "credit": 50.0,
+            "balance": 145.0,
+        },
+        {
+            "date": "2026-01-09 18:00:00",
+            "description": "Groceries",
+            "debit": 15.0,
+            "credit": None,
+            "balance": 130.0,
+        },
     ],
 }
 
@@ -45,9 +68,13 @@ def test_label_to_expected_production_schema() -> None:
     assert Decimal(exp["opening_balance"]) == Decimal("100")
     first, second = exp["transactions"][0], exp["transactions"][1]
     assert first["date"] == "2026-01-02"  # datetime -> ISO date
-    assert Decimal(first["amount"]) == Decimal("5") and first["direction"] == "OUT"  # debit
+    assert (
+        Decimal(first["amount"]) == Decimal("5") and first["direction"] == "OUT"
+    )  # debit
     assert Decimal(first["balance_after"]) == Decimal("95")  # running balance preserved
-    assert Decimal(second["amount"]) == Decimal("50") and second["direction"] == "IN"  # credit
+    assert (
+        Decimal(second["amount"]) == Decimal("50") and second["direction"] == "IN"
+    )  # credit
 
 
 def test_build_truth_is_synthetic() -> None:

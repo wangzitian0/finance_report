@@ -47,27 +47,36 @@ def test_reconstruct_merges_pages_into_production_schema() -> None:
 
 
 def test_self_checks_pass_a_balanced_chain_and_flag_a_break() -> None:
-    good = reconstruct([
-        '{"opening_balance":"100","closing_balance":"145","transactions":['
-        '{"date":"d","description":"a","amount":"5","direction":"OUT","balance_after":"95"},'
-        '{"date":"d","description":"b","amount":"50","direction":"IN","balance_after":"145"}]}'
-    ])
+    good = reconstruct(
+        [
+            '{"opening_balance":"100","closing_balance":"145","transactions":['
+            '{"date":"d","description":"a","amount":"5","direction":"OUT","balance_after":"95"},'
+            '{"date":"d","description":"b","amount":"50","direction":"IN","balance_after":"145"}]}'
+        ]
+    )
     checks = self_checks(good)
     assert checks["balance_valid"] is True and checks["chain_break_index"] is None
 
-    broken = reconstruct([
-        '{"opening_balance":"100","closing_balance":"145","transactions":['
-        '{"date":"d","description":"a","amount":"5","direction":"OUT","balance_after":"999"}]}'
-    ])
+    broken = reconstruct(
+        [
+            '{"opening_balance":"100","closing_balance":"145","transactions":['
+            '{"date":"d","description":"a","amount":"5","direction":"OUT","balance_after":"999"}]}'
+        ]
+    )
     assert self_checks(broken)["chain_break_index"] == 0  # row's running balance is impossible
 
 
 def test_mapped_truth_chain_validates() -> None:
     """The mapped truth is internally consistent under the production validator —
     a free quality check that the label's running-balance chain holds."""
-    hf = {"opening_balance": 100.0, "closing_balance": 145.0, "transactions": [
-        {"date": "d", "description": "a", "debit": 5.0, "credit": None, "balance": 95.0},
-        {"date": "d", "description": "b", "debit": None, "credit": 50.0, "balance": 145.0}]}
+    hf = {
+        "opening_balance": 100.0,
+        "closing_balance": 145.0,
+        "transactions": [
+            {"date": "d", "description": "a", "debit": 5.0, "credit": None, "balance": 95.0},
+            {"date": "d", "description": "b", "debit": None, "credit": 50.0, "balance": 145.0},
+        ],
+    }
     truth = build_truth(hf, dirname="India_Bank_Statement_Scanned_Type1")["expected"]
     assert self_checks(truth)["chain_break_index"] is None
 
