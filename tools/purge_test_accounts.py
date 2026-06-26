@@ -35,6 +35,7 @@ for _path in (ROOT_DIR, BACKEND_DIR):
     if str(_path) not in sys.path:
         sys.path.insert(0, str(_path))
 
+import src.models._registry  # noqa: E402, F401  -- register every ORM mapper before relationship config
 from src.config import settings  # noqa: E402
 from src.database import async_session_maker  # noqa: E402
 from src.services.test_account_purge import (  # noqa: E402
