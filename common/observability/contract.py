@@ -1,10 +1,18 @@
 """The ``observability`` package's machine-checkable :class:`PackageContract`.
 
-``observability`` is internal tooling — the OpenPanel query CLI
-(``openpanel_query``) — not a domain bounded context, so it publishes no curated
-symbol language (``interface=[]``); callers invoke its module/CLI directly.
-The contract still governs it: a ``kernel`` leaf (`depends_on=[]`) with an invariant pinned to its test. A curated published-language
-surface is a future cleanup.
+``observability`` owns two cohesive surfaces. Its **BE implementation**
+(``apps/backend/src/observability``) publishes the backend's observability
+language: the vendor-neutral OpenTelemetry runtime contract plus the shared
+structured audit/security logging helpers (PII + secret redaction) — this is the
+home #1428 relocates the shared logging helpers into. The stdlib OpenPanel query
+CLI (``openpanel_query``) stays here in ``common/observability`` as a triage tool
+run via ``tools/`` wrappers (its invariant is pinned below).
+
+``depends_on=["config"]``: the OTEL runtime reads the backend config singleton via
+its bare published root (``import src.config``), the one registered-package edge it
+declares (a same-class ``kernel`` -> ``kernel`` edge, acyclic). Its other imports
+(``src.services.pii_redaction``, ``src.telemetry_metrics``) are unregistered backend
+infrastructure, so they are not governed cross-package edges.
 """
 
 from __future__ import annotations
@@ -16,10 +24,19 @@ CONTRACT = PackageContract(
     klass="kernel",
     status="active",
     tier="CODE-ONLY",
-    depends_on=[],
-    roles=["openpanel_query"],
-    implementations={"be": "common/observability", "fe": None},
-    interface=[],
+    depends_on=["config"],
+    implementations={"be": "apps/backend/src/observability", "fe": None},
+    interface=[
+        "current_request_id",
+        "get_observability_status",
+        "is_fastapi_instrumentation_active",
+        "log_financial_mutation",
+        "log_observability_startup",
+        "log_security_warning",
+        "mark_fastapi_instrumentation_active",
+        "safe_error_message",
+        "safe_log_fields",
+    ],
     events=[],
     invariants=[
         Invariant(

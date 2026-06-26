@@ -15,7 +15,7 @@ from src.models.journal import Direction, JournalEntry
 from src.models.layer2 import AtomicTransaction
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_summary import StatementSummary
-from src.observability_events import log_financial_mutation
+from src.observability import log_financial_mutation
 from src.schemas.reconciliation import (
     AnomalyResponse,
     BatchAcceptRequest,

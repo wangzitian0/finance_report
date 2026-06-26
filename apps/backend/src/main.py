@@ -30,9 +30,9 @@ from src.models.ping_state import PingState
 from src.observability import (
     get_observability_status,
     log_observability_startup,
+    log_security_warning,
     mark_fastapi_instrumentation_active,
 )
-from src.observability_events import log_security_warning
 from src.rate_limit import api_rate_limiter
 from src.routers import (
     accounts,

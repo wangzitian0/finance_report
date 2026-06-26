@@ -14,7 +14,6 @@ from pydantic import ValidationError
 from src import (
     logger as logger_module,
     observability as observability_module,
-    observability_events,
     telemetry_metrics as telemetry_metrics_module,
 )
 from src.config import Settings
@@ -238,7 +237,7 @@ def test_AC10_11_1_security_warning_redacts_credentials() -> None:
     """AC10.11.1: Security warning helper never emits raw credentials."""
     mock_logger = Mock()
 
-    observability_events.log_security_warning(
+    observability_module.log_security_warning(
         mock_logger,
         "auth.failure",
         reason="invalid_token",
@@ -264,7 +263,7 @@ def test_AC10_11_2_financial_mutation_audit_helpers_and_callsites() -> None:
     user_id = uuid4()
     entry_id = uuid4()
 
-    observability_events.log_financial_mutation(
+    observability_module.log_financial_mutation(
         mock_logger,
         "journal.entry.posted",
         user_id=user_id,
@@ -294,7 +293,7 @@ def test_AC10_11_2_financial_mutation_audit_helpers_and_callsites() -> None:
 
 def test_AC10_11_3_provider_error_body_logging_is_redacted() -> None:
     """AC10.11.3: Raw provider bodies are redacted or summarized before logging."""
-    safe = observability_events.safe_log_fields(
+    safe = observability_module.safe_log_fields(
         {
             "error_body": "provider raw response with prompt and account 123456789",
             "nested": {"provider_response": "raw JSON"},
@@ -304,10 +303,10 @@ def test_AC10_11_3_provider_error_body_logging_is_redacted() -> None:
     assert safe["nested"]["provider_response"] == "[REDACTED]"
 
     long_message = "x" * 500
-    assert observability_events.safe_error_message(long_message).endswith("...")
-    assert len(observability_events.safe_error_message(long_message)) <= 300
+    assert observability_module.safe_error_message(long_message).endswith("...")
+    assert len(observability_module.safe_error_message(long_message)) <= 300
 
-    pii_message = observability_events.safe_error_message("provider failed for alice@example.com and account 123456789")
+    pii_message = observability_module.safe_error_message("provider failed for alice@example.com and account 123456789")
     assert "alice@example.com" not in pii_message
     assert "123456789" not in pii_message
     assert "[EMAIL]" in pii_message
