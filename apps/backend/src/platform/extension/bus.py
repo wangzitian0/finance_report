@@ -28,9 +28,7 @@ class OutboxEventBus:
     producing package so the relay/operators can attribute events.
     """
 
-    def __init__(
-        self, session: AsyncSession, *, source_pkg: str, registry: SubscriberRegistry | None = None
-    ) -> None:
+    def __init__(self, session: AsyncSession, *, source_pkg: str, registry: SubscriberRegistry | None = None) -> None:
         self._repo = SqlOutboxRepository(session)
         self._source_pkg = source_pkg
         self._registry = registry or SubscriberRegistry()
