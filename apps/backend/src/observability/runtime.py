@@ -37,10 +37,7 @@ def is_fastapi_instrumentation_active() -> bool:
 
 
 def _deployment_environment(resource_attributes: dict[str, str]) -> str:
-    return (
-        resource_attributes.get("deployment.environment")
-        or src.config.settings.environment
-    )
+    return resource_attributes.get("deployment.environment") or src.config.settings.environment
 
 
 def get_observability_status() -> dict[str, Any]:
@@ -50,9 +47,7 @@ def get_observability_status() -> dict[str, Any]:
     expose collector URLs, webhook URLs, API keys, or bot secrets.
     """
     settings = src.config.settings
-    resource_attributes = src.config.parse_key_value_pairs(
-        settings.otel_resource_attributes
-    )
+    resource_attributes = src.config.parse_key_value_pairs(settings.otel_resource_attributes)
     exporter_configured = bool(settings.otel_exporter_otlp_endpoint)
     try:
         from src.telemetry_metrics import is_metrics_export_active
