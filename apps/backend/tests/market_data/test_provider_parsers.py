@@ -32,6 +32,29 @@ def test_market_data_helper_boundaries() -> None:
     assert market_data._normalize_utc(datetime(2026, 1, 5)).tzinfo == UTC
 
 
+def test_AC17_33_1_yahoo_stock_symbol_maps_hk_numeric_codes() -> None:
+    """AC17.33.1: HK numeric exchange codes map to the Yahoo `<4-digit>.HK` symbol.
+
+    Brokerages store Hong Kong equities by their numeric board-lot code (e.g.
+    Xiaomi "01810"). Sent verbatim, Yahoo 404s; it expects "1810.HK". US
+    alphabetic tickers and already-suffixed symbols must pass through unchanged.
+    """
+    assert market_data._yahoo_stock_symbol("01810") == "1810.HK"
+    assert market_data._yahoo_stock_symbol("00700") == "0700.HK"
+    assert market_data._yahoo_stock_symbol("700") == "0700.HK"
+    assert market_data._yahoo_stock_symbol("AAPL") == "AAPL"
+    assert market_data._yahoo_stock_symbol("brk.b") == "BRK.B"
+    assert market_data._yahoo_stock_symbol("1810.HK") == "1810.HK"
+
+
+def test_AC17_33_2_stooq_stock_symbol_maps_hk_numeric_codes() -> None:
+    """AC17.33.2: HK numeric codes resolve to Stooq `<4-digit>.hk`; US tickers stay `.us`."""
+    assert market_data._stooq_stock_symbol("01810") == "1810.hk"
+    assert market_data._stooq_stock_symbol("00700") == "0700.hk"
+    assert market_data._stooq_stock_symbol("AAPL") == "aapl.us"
+    assert market_data._stooq_stock_symbol("0700.HK") == "0700.hk"
+
+
 def test_select_validated_observation_paths() -> None:
     """AC11.10.4: Provider selection accepts fallback data and blocks disagreements."""
     observed_date = date(2026, 1, 5)
