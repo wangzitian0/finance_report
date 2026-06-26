@@ -12,7 +12,7 @@ table; moving that ownership into the roadmap is a tracked follow-up.
 
 from __future__ import annotations
 
-from common.meta.package_contract import Invariant, PackageContract
+from common.meta.package_contract import Invariant, Kind, PackageContract, Unit
 
 CONTRACT = PackageContract(
     name="quantity",
@@ -23,8 +23,30 @@ CONTRACT = PackageContract(
     tier="CODE-ONLY",
     depends_on=["ratio"],
     roles=["types", "ops"],
-    implementations={"be": "apps/backend/src/quantity", "fe": "apps/frontend/src/lib/quantity"},
-    interface=["QUANTITY_DP", "QUANTITY_QUANTUM", "QUANTITY_ROUNDING", "FloatNotAllowedError", "InvalidQuantityPayloadError", "InvalidUnitError", "Quantity", "QuantityError", "Unit", "UnitMismatchError", "quantity_from_db_fields", "quantity_from_wire", "quantity_to_db_fields", "quantity_to_wire"],
+    units=[
+        Unit(name="Quantity", kind=Kind.VALUE_OBJECT),
+        Unit(name="Unit", kind=Kind.VALUE_OBJECT),
+    ],
+    implementations={
+        "be": "apps/backend/src/quantity",
+        "fe": "apps/frontend/src/lib/quantity",
+    },
+    interface=[
+        "QUANTITY_DP",
+        "QUANTITY_QUANTUM",
+        "QUANTITY_ROUNDING",
+        "FloatNotAllowedError",
+        "InvalidQuantityPayloadError",
+        "InvalidUnitError",
+        "Quantity",
+        "QuantityError",
+        "Unit",
+        "UnitMismatchError",
+        "quantity_from_db_fields",
+        "quantity_from_wire",
+        "quantity_to_db_fields",
+        "quantity_to_wire",
+    ],
     events=[],
     invariants=[
         Invariant(

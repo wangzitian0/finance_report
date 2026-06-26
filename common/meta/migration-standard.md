@@ -51,14 +51,52 @@ Every package is, in implementation, three sub-layers — a **menu**, not a mand
   bus, transport/LLM adapters. Its own import surface; forms its own DAG (typically
   the **transpose/upward** direction). Separate from base, so `A.base → B.base`
   and `B.extension → A.extension` coexist **without a cycle**.
-- **data** — metadata only: consumers (reverse deps) + governance tasks (roadmap
-  ACs, invariants). Free (no code-import constraint), because declarations can't
-  form import cycles.
+- **data** — the **read-model / projection** (CQRS sense): the computed view over
+  the write side — consumers (reverse deps) + governance tasks (roadmap ACs,
+  invariants) + the meta-index. A **leaf sink**: it imports `base`, and nothing in
+  `base`/`extension` imports it, so the write side never depends on its own read
+  model.
+
+### The DDD building blocks → layer (the `units` taxonomy)
+
+The layer is the **universal purity axis** (every package, domain or tooling). For
+a *domain* package, each unit is additionally one of the eight DDD tactical
+building blocks, and its `kind` decides its layer. That mapping is **code**
+(`common/meta/base/package_contract.py` → `KIND_LAYER`), so the table can never
+drift from what the gate checks:
+
+| Building block | Layer | Cycle-breaking mechanism |
+|---|---|---|
+| Value Object | base | A — leaf, only depended-on |
+| Entity | base | A — composes VOs, one-way |
+| Aggregate Root | base | A + C — refer to other aggregates **by id** |
+| Factory (pure) | base | A |
+| Domain Event (record) | base | C — publisher & subscriber depend only on the event type |
+| **Repository** | **port=base / impl=extension** | **B** — dependency inversion |
+| Domain Service (cross-aggregate) | extension | A — `extension → base`, one-way |
+| Event publish / Bus | extension | C — runtime registry, no compile edge |
+| Projection | data | read-model, leaf sink |
+
+The acyclicity is held by three mechanisms (the gate enforces A and B statically;
+C is a convention with a partial static guard):
+
+- **A — layer split / transpose.** No import of a higher layer; `base` never
+  imports `extension`/`data`; cross-package edges flip to the transpose direction
+  (`A.base → B.base` with `B.extension → A.extension`).
+- **B — dependency inversion (repository).** A repository's abstract **port** lives
+  in `base` (what the pure core depends on); its concrete **adapter** lives in
+  `extension`. The gate requires the split.
+- **C — id-reference + events.** Aggregates reference each other **by id**, not by
+  object, and cross-aggregate effects go through a **Domain Event** on the bus
+  (a runtime registry) — so there is no compile-time edge between aggregates or
+  between publisher and subscriber. (Convention; the gate guards the data-sink and
+  layer-purity halves of it, not the id-reference itself.)
 
 Rule enforced by `check_package_contract`: **never up, never sideways-cyclic** —
 no import of a higher layer; same-layer edges allowed when declared **and** the
-graph stays acyclic (a global cycle check, per layer). "10 packages" is really
-~30 governed units (10 × 3 layers).
+graph stays acyclic (a global cycle check, per layer); each declared `unit` sits in
+its kind's layer; a repository splits port/adapter; `data` stays a sink. "10
+packages" is really ~30 governed units (10 × 3 layers).
 
 ## Acceptance criteria: `AC-<package>.<entity>.<seq>`
 
@@ -87,7 +125,7 @@ Spec in `common/`, code in `apps/`. `data` is metadata in `contract.py`, not a d
 ```
 common/<pkg>/                         spec + review surface
   __init__.py                         re-exports CONTRACT
-  contract.py                         interface · roles=[base,extension] · invariants · roadmap(ACs)
+  contract.py                         interface · units=[Unit(kind=…)] · invariants · roadmap(ACs)
   readme.md  todo.md                  prose (absorbs the package's SSOT) + worklist
 apps/backend/src/<pkg>/               BE implementation  (implementations["be"])
   __init__.py                         __all__ == contract.interface
@@ -134,9 +172,13 @@ common/meta/
 - cross-runtime leaf value language (BE + FE + conformance vectors) → **layout 2**.
 - the governing `meta` package → **layout 3** (common-only).
 
-Layout 1 is live in `counter`; the value types already use layout 2; `meta` is
-still flat and adopts layout 3 as it is refactored. New packages MUST match one
-of these — the gate (`check_package_contract`) owns the `base↓ / extension↑` rule.
+Layout 1 is live in `counter`; the value types already use layout 2; `meta` is the
+live **layout-3 exemplar** — it converges into `base/` (the `PackageContract`
+aggregate + its value objects), `extension/` (the gate, a domain service), and
+`data/` (`contract_index`, the projection), and declares its own `units`. New
+packages MUST match one of these — the gate (`check_package_contract`) owns the
+`base↓ / extension↑` rule, the `kind → layer` placement, the repository port/adapter
+split, and the data-sink rule.
 
 ## Completion state (Definition of Done) — the migration unit is the AC
 

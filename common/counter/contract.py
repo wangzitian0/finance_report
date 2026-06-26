@@ -18,7 +18,9 @@ from __future__ import annotations
 from common.meta.package_contract import (
     ACRecord,
     Invariant,
+    Kind,
     PackageContract,
+    Unit,
 )
 
 CONTRACT = PackageContract(
@@ -30,6 +32,20 @@ CONTRACT = PackageContract(
     tier="CODE-ONLY",
     depends_on=["platform"],
     roles=["base", "extension"],
+    units=[
+        # base — pure value objects + the domain event type.
+        Unit(name="CounterKey", kind=Kind.VALUE_OBJECT, module="base/types/key.py"),
+        Unit(name="Count", kind=Kind.VALUE_OBJECT, module="base/types/count.py"),
+        Unit(name="Incremented", kind=Kind.DOMAIN_EVENT, module="base/types/events.py"),
+        # repository — the one split block: the abstract port lives in base/, the
+        # SQL adapter in extension/ (dependency inversion, mechanism B).
+        Unit(
+            name="CounterRepository",
+            kind=Kind.REPOSITORY,
+            module="base/repository.py",
+            impl="extension/sql.py",
+        ),
+    ],
     implementations={"be": "apps/backend/src/counter", "fe": None},
     interface=[
         "Count",

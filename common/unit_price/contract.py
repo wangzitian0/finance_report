@@ -12,7 +12,7 @@ EPIC-012 table; moving that ownership into the roadmap is a tracked follow-up.
 
 from __future__ import annotations
 
-from common.meta.package_contract import Invariant, PackageContract
+from common.meta.package_contract import Invariant, Kind, PackageContract, Unit
 
 CONTRACT = PackageContract(
     name="unit_price",
@@ -23,8 +23,24 @@ CONTRACT = PackageContract(
     tier="CODE-ONLY",
     depends_on=["money", "quantity"],
     roles=["types", "ops"],
+    units=[Unit(name="UnitPrice", kind=Kind.VALUE_OBJECT)],
     implementations={"be": "apps/backend/src/unit_price", "fe": None},
-    interface=["UNIT_PRICE_DP", "UNIT_PRICE_QUANTUM", "UNIT_PRICE_ROUNDING", "CurrencyMismatchError", "FloatNotAllowedError", "InvalidUnitPricePayloadError", "UndefinedUnitPriceError", "UnitMismatchError", "UnitPrice", "UnitPriceError", "unit_price_from_db_fields", "unit_price_from_wire", "unit_price_to_db_fields", "unit_price_to_wire"],
+    interface=[
+        "UNIT_PRICE_DP",
+        "UNIT_PRICE_QUANTUM",
+        "UNIT_PRICE_ROUNDING",
+        "CurrencyMismatchError",
+        "FloatNotAllowedError",
+        "InvalidUnitPricePayloadError",
+        "UndefinedUnitPriceError",
+        "UnitMismatchError",
+        "UnitPrice",
+        "UnitPriceError",
+        "unit_price_from_db_fields",
+        "unit_price_from_wire",
+        "unit_price_to_db_fields",
+        "unit_price_to_wire",
+    ],
     events=[],
     invariants=[
         Invariant(

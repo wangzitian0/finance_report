@@ -1,4 +1,4 @@
-"""Failure-path coverage for ``common.meta.check_package_contract``.
+"""Failure-path coverage for ``common.meta.extension.check_package_contract``.
 
 ``test_counter_package.py`` proves the gate is GREEN for the live ``counter``
 package (the happy path). This module drives the gate's *negative* branches —
@@ -19,8 +19,8 @@ from pathlib import Path
 
 import pytest
 
-import common.meta.check_package_contract as cpc
-from common.meta.check_package_contract import (
+import common.meta.extension.check_package_contract as cpc
+from common.meta.extension.check_package_contract import (
     DiscoveredPackage,
     _package_all,
     _resolve_test,
