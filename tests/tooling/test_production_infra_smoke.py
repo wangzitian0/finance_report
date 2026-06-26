@@ -302,6 +302,7 @@ def test_AC10_13_6_cli_wires_ingestion_arguments(
         == 0
     )
 
+
 VALID_HEALTH_BODY = (
     '{"status":"healthy","git_sha":"v0.1.3",'
     '"checks":{"database":true,"s3":true},'
@@ -346,7 +347,9 @@ def test_AC8_13_64_production_infra_smoke_requires_db_s3_and_signoz() -> None:
 
     assert "database check true" in passed
     assert "s3 check true" in passed
-    assert "observability contract enabled (finance-report-backend production)" in passed
+    assert (
+        "observability contract enabled (finance-report-backend production)" in passed
+    )
     assert "signoz health ok (v0.105.1)" in passed
 
 

@@ -530,9 +530,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--base-url", default=None)
     parser.add_argument("--expected-sha", default=None)
     parser.add_argument("--signoz-url", default=None)
-    parser.add_argument(
-        "--signoz-api-key", default=os.getenv("SIGNOZ_API_KEY") or None
-    )
+    parser.add_argument("--signoz-api-key", default=os.getenv("SIGNOZ_API_KEY") or None)
     parser.add_argument("--expected-version", default=None)
     parser.add_argument("--deployment-environment", default="production")
     parser.add_argument(
