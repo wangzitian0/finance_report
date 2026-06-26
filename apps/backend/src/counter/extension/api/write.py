@@ -24,7 +24,7 @@ from src.counter.base.types.count import Count
 from src.counter.base.types.events import Incremented
 from src.counter.base.types.key import CounterKey
 from src.counter.extension.sql import SqlCounterRepository
-from src.platform.events.bus import OutboxEventBus
+from src.platform import OutboxEventBus
 
 #: The ``source_pkg`` tag every counter event carries in the shared outbox.
 SOURCE_PKG = "counter"

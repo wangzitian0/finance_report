@@ -1,9 +1,10 @@
 """``platform`` — the backend implementation of the ``platform`` package.
 
-This is ``PackageContract.implementations["be"]`` for the ``platform`` package;
-the authoritative spec (ubiquitous language, contract, roadmap) lives in
-``common/platform/`` (``readme.md`` + ``contract.py``). See
-``common/meta/readme.md`` for the package model.
+This is ``PackageContract.implementations["be"]`` for the ``platform`` package
+(the technical substrate logically labelled *middleware*); the authoritative spec
+(ubiquitous language, contract, roadmap) lives in ``common/platform/``
+(``readme.md`` + ``contract.py``). See ``common/meta/readme.md`` for the package
+model.
 
 ``platform`` is the meta layer's first *runtime* capability: a domain
 **EventBus implemented via the transactional outbox pattern**. A producer
@@ -14,22 +15,30 @@ separate :class:`OutboxRelay` later reads committed ``pending`` rows and
 dispatches them to subscribed handlers (at-least-once; handlers must be
 idempotent), making dispatch inherently post-commit.
 
-Files converge by role — ``events`` (``DomainEvent``, the bus, the relay) and
-``store`` (the shared ``Outbox`` table + repository). The names re-exported below
-are the *entire* public surface (``__all__`` must equal ``contract.interface``).
+Files converge by layer (see common/meta/migration-standard.md): ``base`` (the
+:class:`DomainEvent` record + the :class:`EventBus`/:class:`OutboxRepository`
+*ports* + :class:`SubscriberRegistry`) and ``extension`` (the
+:class:`OutboxEventBus`/:class:`RecordingEventBus` bus adapters, the
+:class:`OutboxRelay`, and the SQL :class:`Outbox` table + adapter — the only role
+that touches the ORM). The names re-exported below are the *entire* public surface
+(``__all__`` must equal ``contract.interface``); the concrete ``Sql*`` adapter is
+internal (reached only through its port).
 """
 
 from __future__ import annotations
 
-from src.platform.events import (
+from src.platform.base import (
     DomainEvent,
     EventBus,
+    OutboxRepository,
+    SubscriberRegistry,
+)
+from src.platform.extension import (
+    Outbox,
     OutboxEventBus,
     OutboxRelay,
     RecordingEventBus,
-    SubscriberRegistry,
 )
-from src.platform.store import Outbox, OutboxRepository
 
 __all__ = [
     "DomainEvent",

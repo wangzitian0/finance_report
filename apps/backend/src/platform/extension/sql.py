@@ -1,4 +1,9 @@
-"""The shared outbox table — ORM model + a thin session-bound repository.
+"""The shared outbox table — ORM model + the SQL repository adapter.
+
+This is the ``extension`` (impure) half of the persistence split: the concrete
+:class:`SqlOutboxRepository` adapter that satisfies the
+:class:`~src.platform.base.outbox.OutboxRepository` port, backed by the shared
+:class:`Outbox` ORM table. The only role that touches the ORM/session.
 
 The transactional-outbox pattern hangs on ONE invariant: a domain event row is
 INSERTed in the *same* DB transaction as the domain state change that produced
@@ -8,7 +13,7 @@ one persists without the other.
 
 ``Outbox`` is the single shared table (owned by the ``platform`` package); every
 package that emits through the bus writes its events here, tagged with
-``source_pkg``/``event_type``. The relay (``events/relay.py``) later reads
+``source_pkg``/``event_type``. The relay (``extension/relay.py``) later reads
 committed ``pending`` rows in id order and dispatches them, so dispatch is
 inherently post-commit. Status moves ``pending -> published`` exactly once the
 relay has delivered the row to every subscribed handler.
@@ -53,8 +58,8 @@ class Outbox(Base):
     published_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True), nullable=True)
 
 
-class OutboxRepository:
-    """Thin async data access over :class:`Outbox`, bound to one session.
+class SqlOutboxRepository:
+    """Async SQL adapter for :class:`~src.platform.base.outbox.OutboxRepository`.
 
     Every method operates on the session it was constructed with — so an
     ``enqueue`` shares the caller's transaction (atomic with the domain write),
