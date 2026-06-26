@@ -147,9 +147,7 @@ def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
             "tools.generate_pdf_fixtures",
             "tools._lib.pdf_fixtures.generate_pdf_fixtures",
         ),
-        ("tools.generate_fixtures", "tools._lib.fixtures.generate_fixtures"),
         ("tools.generate_test_pdfs", "tools._lib.fixtures.generate_test_pdfs"),
-        ("tools.sanitize_fixtures", "tools._lib.fixtures.sanitize_fixtures"),
         ("tools.seed_fx_rates", "tools._lib.market_data.seed_fx_rates"),
         ("tools.cleanup_orphaned_dbs", "tools._lib.dev.cleanup_orphaned_dbs"),
         ("tools.pr_preview_lifecycle", "tools._lib.dev.pr_preview_lifecycle"),
@@ -277,7 +275,6 @@ def test_AC8_13_56_python_tool_wrappers_bootstrap_repo_root_when_run_directly():
     """AC8.13.56: Python tool wrappers are executable without preset PYTHONPATH."""
     optional_dependency_wrappers = {
         "analyze_pdf_fixture.py": "pdfplumber",
-        "generate_fixtures.py": "dotenv",
         "generate_db_schema_reference.py": "sqlalchemy",
         "generate_pdf_fixtures.py": "reportlab",
         "generate_test_pdfs.py": "reportlab",
