@@ -532,8 +532,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      issues: write
-      pull-requests: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -579,30 +577,6 @@ jobs:
           name: pr-preview-cleanup-context
           path: ci-context/pr-preview-cleanup-context.txt
           retention-days: 14
-
-      - name: Comment cleanup notice
-        if: ${{ always() }}
-        uses: actions/github-script@v9
-        env:
-          PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
-          ACTION_REASON: ${{ needs.setup.outputs.action_reason }}
-          CLEANUP_OUTCOME: ${{ steps.cleanup.outcome }}
-        with:
-          script: |
-            const body = `## PR Preview Resources Released
-
-            Temporary resources for this PR have been released or reconciled:
-
-            - Persistent Dokploy preview: \`${{ needs.setup.outputs.compose_name }}\` removed via \`compose.delete\` (${process.env.CLEANUP_OUTCOME || 'skipped'})
-            - PR preview images: not created by the preview workflow (built from source on the host, never pushed)
-            - Trigger: \`${process.env.ACTION_REASON}\`
-            - Host Docker leftovers: managed by the Dokploy host hygiene schedule
-
-            Cleanup is idempotent; an already-missing stack is treated as released.`;
-
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: Number(process.env.PR_NUMBER),
-              body,
-            });
+      # No PR comment: orphan reclaim is guaranteed by infra2's preview GC
+      # reconciler (ops-checks cron), so a per-PR "resources released" receipt is
+      # noise. The compose.delete above remains a best-effort prompt fast path.
