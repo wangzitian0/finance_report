@@ -22,7 +22,6 @@ _FAMILY_BY_PROVIDER: dict[str, ProtocolFamily] = {
     "anthropic": ProtocolFamily.ANTHROPIC_COMPATIBLE,
     "claude": ProtocolFamily.ANTHROPIC_COMPATIBLE,
     "gemini": ProtocolFamily.GOOGLE_GEMINI,
-    "google": ProtocolFamily.GOOGLE_GEMINI,
 }
 
 

@@ -199,7 +199,7 @@ class Settings(BaseSettings):
     ai_api_key: str = Field(
         default="",
         validation_alias=AliasChoices(
-            "ZAI_API_KEY", "GLM_API_KEY", "AI_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY"
+            "ZAI_API_KEY", "GLM_API_KEY", "AI_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY"
         ),
         description=(
             "AI provider API key (empty key = AI features disabled). ZAI_API_KEY is "
