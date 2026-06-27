@@ -22,12 +22,17 @@ class ProtocolFamily(StrEnum):
     """Axis 1 — the wire protocol a provider speaks.
 
     Concrete vendors map onto exactly one family; e.g. Z.AI/GLM and DeepSeek are
-    ``OPENAI_COMPATIBLE`` (custom ``api_base``), Claude is ``ANTHROPIC_COMPATIBLE``.
+    ``OPENAI_COMPATIBLE`` (custom ``api_base``), Claude is ``ANTHROPIC_COMPATIBLE``,
+    and Google Gemini (AI Studio / Vertex) is ``GOOGLE_GEMINI`` — its native API
+    accepts a whole PDF as one ``file`` part (no per-page image rendering) and has
+    a high output ceiling, which is why it is the provider of choice for extracting
+    large or scanned statements.
     """
 
     OPENAI_COMPATIBLE = "openai-compatible"
     ANTHROPIC_COMPATIBLE = "anthropic-compatible"
     OPENROUTER_COMPATIBLE = "openrouter-compatible"
+    GOOGLE_GEMINI = "google-gemini"
 
 
 class Scene(StrEnum):

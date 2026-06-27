@@ -15,12 +15,13 @@ from src.llm.common import ProtocolFamily, ProviderRef, Scene, SceneBinding
 _PROVIDER_ENV_ID = "env"
 
 # Map the loosely-typed AI_PROVIDER value onto a protocol family. Anything that
-# is not OpenRouter or Anthropic is treated as OpenAI-compatible (Z.AI/GLM,
+# is not OpenRouter, Anthropic or Gemini is treated as OpenAI-compatible (Z.AI/GLM,
 # DeepSeek, a local vLLM, …) — they all ride the OpenAI wire format.
 _FAMILY_BY_PROVIDER: dict[str, ProtocolFamily] = {
     "openrouter": ProtocolFamily.OPENROUTER_COMPATIBLE,
     "anthropic": ProtocolFamily.ANTHROPIC_COMPATIBLE,
     "claude": ProtocolFamily.ANTHROPIC_COMPATIBLE,
+    "gemini": ProtocolFamily.GOOGLE_GEMINI,
 }
 
 

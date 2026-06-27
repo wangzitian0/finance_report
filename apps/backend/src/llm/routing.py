@@ -19,7 +19,12 @@ _FAMILY_PREFIX: dict[ProtocolFamily, str] = {
     ProtocolFamily.OPENAI_COMPATIBLE: "openai",
     ProtocolFamily.ANTHROPIC_COMPATIBLE: "anthropic",
     ProtocolFamily.OPENROUTER_COMPATIBLE: "openrouter",
+    ProtocolFamily.GOOGLE_GEMINI: "gemini",
 }
+
+# Families whose litellm route is the vendor's native endpoint — they must NOT be
+# given a custom OpenAI-style ``api_base`` (it would point litellm at the wrong host).
+_NATIVE_ENDPOINT_FAMILIES = frozenset({ProtocolFamily.ANTHROPIC_COMPATIBLE, ProtocolFamily.GOOGLE_GEMINI})
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,9 +68,9 @@ def build_call(provider: ProviderRef, model_id: str) -> LitellmCall:
             "X-Title": "Finance Report Backend",
         }
 
-    # Anthropic native uses its own endpoint; only custom OpenAI-compatible and
-    # OpenRouter endpoints need an explicit api_base.
-    api_base = provider.api_base if provider.protocol is not ProtocolFamily.ANTHROPIC_COMPATIBLE else None
+    # Native-endpoint families (Anthropic, Gemini) use the vendor's own host; only
+    # custom OpenAI-compatible and OpenRouter endpoints need an explicit api_base.
+    api_base = None if provider.protocol in _NATIVE_ENDPOINT_FAMILIES else provider.api_base
 
     return LitellmCall(
         model=litellm_model,

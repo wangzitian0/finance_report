@@ -40,6 +40,7 @@ protocols. Every concrete vendor maps onto one of them:
 | `openai-compatible` | OpenAI, Z.AI/GLM, DeepSeek, a local vLLM (custom `api_base`) |
 | `anthropic-compatible` | Claude (native Messages API) |
 | `openrouter-compatible` | OpenRouter (adds `:free` tier, provider routing, extra headers) |
+| `google-gemini` | Google Gemini (AI Studio / Vertex; native endpoint, accepts a whole PDF as one `file` part — no per-page image rendering — and a high output ceiling, so it extracts large/scanned statements that the image-render path truncates). Enable with `AI_PROVIDER=gemini` + `GEMINI_API_KEY`. DB-stored Gemini providers need an `llm_protocol_family_enum` migration; the env path works today. |
 
 A *provider instance* is `(protocol_family, api_base?, api_key, label)`. The
 litellm client turns it into a `provider/model` call string.

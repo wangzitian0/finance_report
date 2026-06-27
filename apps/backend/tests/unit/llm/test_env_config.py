@@ -47,6 +47,8 @@ async def test_AC23_2_4_openrouter_and_anthropic_families(monkeypatch):
     assert (await EnvConfigSource().list_providers())[0].protocol is ProtocolFamily.OPENROUTER_COMPATIBLE
     monkeypatch.setattr(settings, "ai_provider", "anthropic", raising=False)
     assert (await EnvConfigSource().list_providers())[0].protocol is ProtocolFamily.ANTHROPIC_COMPATIBLE
+    monkeypatch.setattr(settings, "ai_provider", "gemini", raising=False)
+    assert (await EnvConfigSource().list_providers())[0].protocol is ProtocolFamily.GOOGLE_GEMINI
 
 
 async def test_AC23_2_4_get_provider_by_id(configured):

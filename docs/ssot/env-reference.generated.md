@@ -37,8 +37,9 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `PRIMARY_MODEL` | `glm-5.1` |  |  | AI Provider | Primary AI model id. |
 | `VISION_FALLBACK_MODELS` |  | `glm-4.5v` |  | AI Provider | Comma-separated fallback AI model ids for the vision/OCR path. These must be vision-capable because the vision request carries image content; the text-only FALLBACK_MODELS are not reused here (#1034). |
 | `VISION_MODEL` | `glm-4.6v` |  |  | AI Provider | Vision AI model id. |
-| `ZAI_API_KEY` |  |  | yes | AI Provider | AI provider API key (empty key = AI features disabled). ZAI_API_KEY is preferred for the default Z.AI provider; AI_API_KEY is a provider-neutral alias. |
+| `ZAI_API_KEY` |  |  | yes | AI Provider | AI provider API key (empty key = AI features disabled). ZAI_API_KEY is preferred for the default Z.AI provider; GEMINI_API_KEY for AI_PROVIDER=gemini; AI_API_KEY is a provider-neutral alias. |
 | `AI_API_KEY` |  |  | yes | AI Provider | Alias of `ZAI_API_KEY`. |
+| `GEMINI_API_KEY` |  |  | yes | AI Provider | Alias of `ZAI_API_KEY`. |
 | `S3_ACCESS_KEY` | `minio` |  | yes | S3 / MinIO Storage | S3 / MinIO access key. |
 | `S3_BUCKET` | `statements` |  | yes | S3 / MinIO Storage | S3 / MinIO bucket name for uploaded statements. |
 | `S3_ENDPOINT` | `http://127.0.0.1:9000` | `http://localhost:9000` | yes | S3 / MinIO Storage | S3 / MinIO endpoint used for storing uploaded statement files. |

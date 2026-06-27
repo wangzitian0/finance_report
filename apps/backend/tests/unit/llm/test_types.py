@@ -16,12 +16,15 @@ from src.llm.common import (
 )
 
 
-def test_AC23_1_1_protocol_family_enumerates_exactly_three_universal_families():
-    """AC23.1.1: axis 1 is exactly the three universally-compatible protocol families."""
+def test_AC23_1_1_protocol_family_enumerates_the_supported_families():
+    """AC23.1.1: axis 1 is the fixed set of supported wire protocols. Google Gemini
+    is its own family (native endpoint + whole-PDF ``file`` input) rather than an
+    openai-compatible base-url variant."""
     assert {f.value for f in ProtocolFamily} == {
         "openai-compatible",
         "anthropic-compatible",
         "openrouter-compatible",
+        "google-gemini",
     }
 
 
