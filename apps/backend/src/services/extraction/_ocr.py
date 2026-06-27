@@ -3,7 +3,7 @@
 import httpx
 
 from src.config import settings
-from src.observability_events import safe_error_message
+from src.observability import safe_error_message
 from src.services.extraction._base import (
     ExtractionError,
     logger,

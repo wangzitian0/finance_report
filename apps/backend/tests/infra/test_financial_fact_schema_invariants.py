@@ -80,7 +80,8 @@ def _source_documents() -> dict[str, list[dict[str, str]]]:
 
 
 async def test_AC11_18_1_positive_source_fact_constraints(db: AsyncSession, test_user) -> None:
-    """AC11.18.1: Source financial facts reject non-positive values where positive is required."""
+    """AC11.18.1: Source facts reject non-positive values where positive is required (transaction
+    amount, manual-valuation value); positions are signed and may be negative (short, #1448)."""
     user_id = test_user.id
     await _expect_integrity_error(
         db,
@@ -96,29 +97,15 @@ async def test_AC11_18_1_positive_source_fact_constraints(db: AsyncSession, test
         ),
     )
 
-    await _expect_integrity_error(
-        db,
-        AtomicPosition(
-            user_id=user_id,
-            snapshot_date=date(2026, 1, 2),
-            asset_identifier="AAPL",
-            broker="Moomoo",
-            quantity=Decimal("1.000000"),
-            market_value=Decimal("-1.00"),
-            currency="USD",
-            asset_type=AssetType.STOCK,
-            dedup_hash=uuid4().hex + uuid4().hex,
-            source_documents=_source_documents(),
-        ),
-    )
-
+    # #1448: a short position is signed — negative quantity AND negative market
+    # value — and is a valid first-class position (no non-negative constraint).
     short_position = AtomicPosition(
         user_id=user_id,
         snapshot_date=date(2026, 1, 3),
         asset_identifier="AAPL",
         broker="Moomoo",
         quantity=Decimal("-5.000000"),
-        market_value=Decimal("500.00"),
+        market_value=Decimal("-500.00"),
         currency="USD",
         asset_type=AssetType.STOCK,
         dedup_hash=uuid4().hex + uuid4().hex,
@@ -126,6 +113,7 @@ async def test_AC11_18_1_positive_source_fact_constraints(db: AsyncSession, test
     )
     db.add(short_position)
     await db.commit()
+    assert short_position.market_value == Decimal("-500.00")
 
     await _expect_integrity_error(
         db,
@@ -246,16 +234,19 @@ async def test_AC11_18_3_portfolio_fact_constraints_and_managed_position_uniquen
     db: AsyncSession,
     test_user,
 ) -> None:
-    """AC11.18.3: Portfolio facts enforce deterministic uniqueness and cost/quantity relationships."""
+    """AC11.18.3: Portfolio facts enforce deterministic uniqueness and disposal/acquisition
+    ordering; positions are signed and may carry negative quantity/cost basis (short, #1448)."""
     user_id = test_user.id
     account = await _make_account(db, user_id)
     account_id = account.id
+    # #1448: a short managed position is signed — negative quantity AND negative
+    # cost_basis — and persists (no non-negative cost_basis constraint).
     position = ManagedPosition(
         user_id=user_id,
         account_id=account_id,
         asset_identifier="AAPL",
         quantity=Decimal("-5.000000"),
-        cost_basis=Decimal("500.00"),
+        cost_basis=Decimal("-500.00"),
         cost_basis_method=CostBasisMethod.FIFO,
         acquisition_date=date(2026, 1, 2),
         status=PositionStatus.ACTIVE,
@@ -264,6 +255,7 @@ async def test_AC11_18_3_portfolio_fact_constraints_and_managed_position_uniquen
     db.add(position)
     await db.commit()
     position_id = position.id
+    assert position.cost_basis == Decimal("-500.00")
 
     await _expect_integrity_error(
         db,
@@ -273,19 +265,6 @@ async def test_AC11_18_3_portfolio_fact_constraints_and_managed_position_uniquen
             asset_identifier="AAPL",
             quantity=Decimal("1.000000"),
             cost_basis=Decimal("100.00"),
-            acquisition_date=date(2026, 1, 3),
-            status=PositionStatus.ACTIVE,
-            currency="USD",
-        ),
-    )
-    await _expect_integrity_error(
-        db,
-        ManagedPosition(
-            user_id=user_id,
-            account_id=account_id,
-            asset_identifier="MSFT",
-            quantity=Decimal("1.000000"),
-            cost_basis=Decimal("-1.00"),
             acquisition_date=date(2026, 1, 3),
             status=PositionStatus.ACTIVE,
             currency="USD",

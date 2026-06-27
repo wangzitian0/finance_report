@@ -5,13 +5,18 @@ knows nothing about the observability *backend* (which collector/UI/alerting is
 behind the OTLP endpoint). Choosing the backend, wiring alert rules, and proving
 ingestion are infra2's concern, reached only through the vendor-neutral OTLP
 endpoint.
+
+``src.config`` is imported by its bare published root (the package-model
+cross-domain rule: reach another registered package only via ``import src.<pkg>``
+or a symbol in its ``__all__``); the config singleton is read at call time so a
+monkeypatched ``src.config.settings`` is always reflected.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from src.config import parse_key_value_pairs, settings
+import src.config
 
 # Runtime flag set by the app once FastAPI request instrumentation is actually
 # applied to the app instance. This is real init state, not configuration: a
@@ -32,7 +37,7 @@ def is_fastapi_instrumentation_active() -> bool:
 
 
 def _deployment_environment(resource_attributes: dict[str, str]) -> str:
-    return resource_attributes.get("deployment.environment") or settings.environment
+    return resource_attributes.get("deployment.environment") or src.config.settings.environment
 
 
 def get_observability_status() -> dict[str, Any]:
@@ -41,7 +46,8 @@ def get_observability_status() -> dict[str, Any]:
     The payload is safe for `/health` and startup logs: it intentionally does not
     expose collector URLs, webhook URLs, API keys, or bot secrets.
     """
-    resource_attributes = parse_key_value_pairs(settings.otel_resource_attributes)
+    settings = src.config.settings
+    resource_attributes = src.config.parse_key_value_pairs(settings.otel_resource_attributes)
     exporter_configured = bool(settings.otel_exporter_otlp_endpoint)
     try:
         from src.telemetry_metrics import is_metrics_export_active

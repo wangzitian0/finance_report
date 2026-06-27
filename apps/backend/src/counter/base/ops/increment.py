@@ -25,7 +25,7 @@ from src.counter.base.repository import CounterRepository
 from src.counter.base.types.count import Count
 from src.counter.base.types.events import Incremented
 from src.counter.base.types.key import CounterKey
-from src.platform.events.bus import EventBus
+from src.platform.base import EventBus
 
 
 def increment(

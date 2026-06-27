@@ -5,7 +5,7 @@ to ``Incremented`` (e.g. insight-report generation) without importing the
 counter store or ops. The event is an immutable record of a fact that already
 happened — a per-(user, key) tally was bumped to ``count`` at ``occurred_at``.
 
-``Incremented`` is a :class:`~src.platform.events.event.DomainEvent`: it carries
+``Incremented`` is a :class:`~src.platform.base.event.DomainEvent`: it carries
 the universal ``event_type`` (``"counter.Incremented"``) and ``occurred_at``, and
 exposes its fields via :meth:`payload` so the platform outbox can persist it as
 JSON and the relay can rehydrate it for subscribers. This is the one place the
@@ -19,7 +19,7 @@ from datetime import datetime
 from uuid import UUID
 
 from src.counter.base.types.key import CounterKey
-from src.platform.events.event import DomainEvent
+from src.platform.base import DomainEvent
 
 #: The stable, namespaced routing key the bus/relay dispatch this event on.
 EVENT_TYPE = "counter.Incremented"

@@ -177,9 +177,11 @@ class ManagedPosition(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """
 
     __tablename__ = "managed_positions"
+    # No cost_basis sign constraint: a short position (margin short or sold option)
+    # carries negative quantity AND negative cost_basis/market value, reducing
+    # portfolio value rather than being rejected (#1448).
     __table_args__ = (
         UniqueConstraint("user_id", "account_id", "asset_identifier", name="uq_managed_positions_user_account_asset"),
-        CheckConstraint("cost_basis >= 0", name="ck_managed_positions_cost_basis_non_negative"),
         CheckConstraint(
             "disposal_date IS NULL OR disposal_date >= acquisition_date",
             name="ck_managed_positions_disposal_after_acquisition",

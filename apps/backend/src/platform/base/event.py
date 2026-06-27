@@ -13,9 +13,10 @@ Subclasses add their own fields and override :meth:`payload` to expose them as a
 JSON-serializable mapping (the shape persisted into the outbox ``payload`` jsonb
 column). The base is frozen: an event is a fact, not a mutable record.
 
-This module is the leaf of the ``platform`` package — it imports nothing from the
-app, so every layer above (``kernel`` value types, ``platform`` capabilities,
-``core`` slices) may build events on top of it.
+This module is the leaf of the ``platform`` package's ``base`` layer — it imports
+nothing from the app (no ORM, no session), so every layer above (the ``base``
+ports, the ``extension`` adapters, and every consumer package) may build events
+on top of it.
 """
 
 from __future__ import annotations

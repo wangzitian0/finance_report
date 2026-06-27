@@ -83,12 +83,23 @@ app-startup `asyncio` task, a cron/`schedule`d job, or — later — a Prefect f
 That durable worker, plus a `LISTEN/NOTIFY` fast-path, is explicitly future work
 ([`todo.md`](./todo.md)).
 
-## Roles (files converge by role)
+## Layers (files converge by layer — `base` / `extension`)
 
-| role | what lives here |
+The package follows the building-block layering (see
+[`../meta/migration-standard.md`](../meta/migration-standard.md)), mirroring
+`counter`:
+
+| layer | what lives here |
 |------|-----------------|
-| `events/` | `DomainEvent` (event base), `EventBus` port + `OutboxEventBus`/`RecordingEventBus`, `SubscriberRegistry`, `OutboxRelay` |
-| `store/` | the shared `Outbox` ORM table + `OutboxRepository` (the only role that touches the ORM/session) |
+| `base/` | the pure core: `DomainEvent` (`event.py`), the `EventBus` **port** + `SubscriberRegistry` (`bus.py`), and the `OutboxRepository` **port** (`outbox.py`) — no I/O, no ORM |
+| `extension/` | the impure edges: `OutboxEventBus`/`RecordingEventBus` bus adapters (`bus.py`), the `OutboxRelay` (`relay.py`), and the shared `Outbox` ORM table + `SqlOutboxRepository` adapter (`sql.py`, the only role that touches the ORM/session) |
+
+The **headline** is the port/adapter split (dependency inversion, mechanism B):
+the `EventBus` and `OutboxRepository` ports live in `base` so the pure core and
+consumer packages depend only on abstractions, while their concrete adapters live
+in `extension`. Consumers reach them through the published interface — the base
+ports via `from src.platform.base import EventBus, DomainEvent`, the adapters via
+`from src.platform import OutboxEventBus`.
 
 Dependency rule (DAG, down only): the package imports nothing registered — only
 the unregistered `src.database` (Base/`AsyncSession`). That is why its `klass` is
@@ -99,9 +110,10 @@ strictly downward edge. See [`contract.py`](./contract.py) for the full rational
 
 **Public** (`__all__`, == `contract.interface`): `DomainEvent`, `EventBus`,
 `OutboxEventBus`, `RecordingEventBus`, `SubscriberRegistry`, `OutboxRelay`,
-`Outbox`, `OutboxRepository`.
+`Outbox`, `OutboxRepository` (the port).
 
-**Internal**: the rehydration helper in `relay.py` and module internals.
+**Internal**: the `SqlOutboxRepository` adapter (reached only through its port),
+the rehydration helper in `extension/relay.py`, and module internals.
 
 ## Storage
 
