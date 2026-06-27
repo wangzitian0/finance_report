@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
 from src.models.journal import JournalEntry, JournalEntryStatus
-from src.observability_events import log_financial_mutation
+from src.observability import log_financial_mutation
 from src.schemas import (
     JournalEntryCreate,
     JournalEntryListResponse,

@@ -1,22 +1,31 @@
-# `observability` — OpenPanel query CLI (kernel tooling package)
+# `observability` — OTEL runtime contract, audit logging + OpenPanel CLI (kernel)
 
-> Internal tooling, not a domain bounded context. Model spec:
-> [`../governance/readme.md`](../governance/readme.md). Machine contract:
-> [`contract.py`](./contract.py). Worklist: [`todo.md`](./todo.md).
+> Model spec: [`../governance/readme.md`](../governance/readme.md). Machine
+> contract: [`contract.py`](./contract.py). Worklist: [`todo.md`](./todo.md).
 
 ## What
 
-A thin CLI to query the OpenPanel analytics API (funnels/filters), reading credentials from the environment.
+Two cohesive surfaces under one `kernel` package:
+
+1. **Backend observability language** (BE implementation:
+   `apps/backend/src/observability`) — the vendor-neutral OpenTelemetry runtime
+   contract (`runtime.py`: status + startup readiness, FastAPI instrumentation
+   state) and the shared structured audit/security logging helpers (`audit.py`:
+   bounded safe error summaries, risky-field redaction, financial-mutation and
+   security-warning emitters). This is the home #1428 relocates the shared
+   logging helpers into (identity's `bind_authenticated_user_context` is folded
+   in later).
+2. **OpenPanel query CLI** (`openpanel_query.py`, here in `common/observability`)
+   — a stdlib-only triage wrapper over the OpenPanel analytics export API, run
+   via `tools/openpanel_query.py`, reading credentials from the environment.
 
 ## Shape
 
-A `kernel` leaf: no declared dependencies (`depends_on=[]`) and `tier=CODE-ONLY`
-(pure Python, no LLM). It is a **collection of modules** invoked directly (and via
-`tools/` wrappers), so it publishes **no curated symbol language** —
-`contract.interface` is `[]`. Its [`contract.py`](./contract.py) is validated by
-`tools/check_package_contract.py` (invariants pinned to tests (the DAG import-scan only inspects `src.<pkg>` imports, so for a `common/`-implemented package leaf-purity is a declared, not a scanned, property)).
-
-## Follow-up
-
-Curating a published `__all__` surface (so consumers import the package root, not
-its submodules) is deferred — see [`todo.md`](./todo.md).
+A `kernel` package, `tier=CODE-ONLY` (pure Python, no LLM). `depends_on=["config"]`:
+the OTEL runtime reads the backend config singleton via its bare published root
+(`import src.config`) — a same-class, acyclic `kernel` -> `kernel` edge. Its other
+imports (`src.services.pii_redaction`, `src.telemetry_metrics`) are unregistered
+backend infrastructure, not governed cross-package edges. Its published language —
+`contract.interface` — equals `apps/backend/src/observability/__init__.__all__`,
+validated by `tools/check_package_contract.py` (which also resolves the OpenPanel
+api-key invariant to its test).

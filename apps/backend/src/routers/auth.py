@@ -12,7 +12,8 @@ from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
 from src.models.user import User
-from src.observability_events import bind_authenticated_user_context, log_security_warning
+from src.observability import log_security_warning
+from src.observability_events import bind_authenticated_user_context
 from src.rate_limit import RateLimiter, auth_rate_limiter, register_rate_limiter
 from src.schemas.auth import AuthResponse, LoginRequest, RegisterRequest
 from src.security import create_access_token
