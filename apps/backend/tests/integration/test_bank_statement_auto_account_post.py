@@ -23,10 +23,13 @@ from src.services.statement_posting import try_auto_approve_high_confidence_stat
 
 
 def _balanced_bank_payload() -> dict:
+    # CR on #1467: a non-normalized extraction currency ("sgd") must still produce a
+    # canonical account currency so the posting-account currency check matches and
+    # auto-post is not silently blocked.
     return {
         "institution": "MariBank",
         "account_last4": "8497",
-        "currency": "SGD",
+        "currency": "sgd",
         "period_start": "2026-05-01",
         "period_end": "2026-05-31",
         "opening_balance": "1000.00",
@@ -37,7 +40,7 @@ def _balanced_bank_payload() -> dict:
                 "description": "Interest",
                 "amount": "90.00",
                 "direction": "IN",
-                "currency": "SGD",
+                "currency": "sgd",
                 "balance_after": "1090.00",
             },
         ],
@@ -65,6 +68,7 @@ async def test_AC8_15_2_bank_statement_auto_creates_account_and_posts_without_ma
     assert account is not None
     assert account.type == AccountType.ASSET
     assert account.is_active is True
+    assert account.currency == "SGD"  # normalized from the lowercase extraction currency
     assert statement.status == BankStatementStatus.APPROVED
 
     # And it auto-posts to the ledger (so reports would reflect it).

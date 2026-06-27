@@ -45,6 +45,13 @@ def test_AC17_33_1_yahoo_stock_symbol_maps_hk_numeric_codes() -> None:
     assert market_data._yahoo_stock_symbol("AAPL") == "AAPL"
     assert market_data._yahoo_stock_symbol("brk.b") == "BRK.B"
     assert market_data._yahoo_stock_symbol("1810.HK") == "1810.HK"
+    # CR on #1453: a 5-digit HKEX code is preserved (not truncated to 4)...
+    assert market_data._yahoo_stock_symbol("10000") == "10000.HK"
+    assert market_data._hk_numeric_code("10000") == "10000"
+    # ...and an all-zero / zero-valued "code" is not a real ticker (no "0000.HK").
+    assert market_data._hk_numeric_code("0") is None
+    assert market_data._hk_numeric_code("00000") is None
+    assert market_data._yahoo_stock_symbol("00000") == "00000"
 
 
 def test_AC17_33_2_stooq_stock_symbol_maps_hk_numeric_codes() -> None:

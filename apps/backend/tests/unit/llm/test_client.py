@@ -366,10 +366,12 @@ def test_AC23_9_1_litellm_aiohttp_transport_disabled_prevents_session_leak():
     on every acompletion (#1442). Routing through the httpx transport litellm
     manages itself avoids the leak. ``src.llm.client`` is imported at module top,
     so the hardening has already run.
+
+    Asserts only the public, documented ``litellm.disable_aiohttp_transport`` flag
+    (litellm's opt-out contract) — not any private transport-selection internal,
+    which is brittle across litellm versions (CR on #1462).
     """
     import litellm
-    from litellm.llms.custom_httpx.http_handler import AsyncHTTPHandler
 
     assert client_mod.litellm.disable_aiohttp_transport is True
     assert litellm.disable_aiohttp_transport is True
-    assert AsyncHTTPHandler._should_use_aiohttp_transport() is False
