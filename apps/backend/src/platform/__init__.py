@@ -43,7 +43,6 @@ from src.platform.extension import (
     RateLimiter,
     RateLimitState,
     RecordingEventBus,
-    api_rate_limiter,
 )
 
 __all__ = [
@@ -58,5 +57,4 @@ __all__ = [
     "RateLimiter",
     "RecordingEventBus",
     "SubscriberRegistry",
-    "api_rate_limiter",
 ]

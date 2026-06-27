@@ -18,24 +18,20 @@ critical section is very short (dict operations only). This is acceptable for
 FastAPI/uvicorn as the lock is held for microseconds and won't block the event
 loop meaningfully.
 
-The app-wide ``api_rate_limiter`` instance (the global API throttle used by the
-request middleware) is constructed here and published through the package's root
-interface. Identity's auth-specific limiters stay in ``src.rate_limit`` (handled
-by #1428); they import :class:`RateLimiter` / :class:`RateLimitConfig` from this
-package's published root.
+The app-wide ``api_rate_limiter`` instance (the global API throttle) is config-
+bound, so it is wired at the composition root (``src.main``) from this package's
+:class:`RateLimiter` / :class:`RateLimitConfig` — this package stays config-free.
+Identity's auth-specific limiters stay in ``src.rate_limit`` (handled by #1428);
+they import :class:`RateLimiter` / :class:`RateLimitConfig` from the published root.
 """
 
 from __future__ import annotations
 
+import math
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from threading import Lock
-
-import src.config
-from src.logger import get_logger
-
-logger = get_logger(__name__)
 
 
 @dataclass
@@ -72,7 +68,7 @@ class RateLimiter:
         with self._lock:
             state = self._local_state[key]
             if state.blocked_until > now:
-                return False, int(state.blocked_until - now)
+                return False, max(1, math.ceil(state.blocked_until - now))
 
             window_start = now - self.config.window_seconds
             state.requests = [ts for ts in state.requests if ts >= window_start]
@@ -94,13 +90,3 @@ class RateLimiter:
         """Drop all rate-limit state (every key). Used for test isolation."""
         with self._lock:
             self._local_state.clear()
-
-
-# Global rate limiter for all API endpoints (excluding health/docs/metrics).
-api_rate_limiter = RateLimiter(
-    RateLimitConfig(
-        max_requests=src.config.settings.api_rate_limit_requests,  # default: 100 req
-        window_seconds=src.config.settings.api_rate_limit_window,  # default: per 60s
-        block_seconds=60,  # 1 minute block
-    )
-)

@@ -39,10 +39,9 @@ target of **equal or higher** rank. ``counter`` (a ``platform`` package) must
 import this package's :class:`DomainEvent` (its ``Incremented`` is a
 ``DomainEvent``) and write through its bus — a strictly *downward* edge only if
 ``platform`` (the package) ranks **below** ``counter``. So this foundational
-event/outbox + middleware substrate — whose only registered edge is the
-same-class ``kernel`` -> ``kernel`` ``depends_on=["config"]`` (the rate limiter
-reads the config singleton via its bare published root; otherwise it imports only
-the unregistered ``src.database`` Base/session and ``src.logger``) — is classed
+event/outbox + middleware substrate — which declares no governed edges (it
+imports only the unregistered ``src.database`` Base/session and ``src.logger``;
+the config-bound ``api_rate_limiter`` instance is wired in ``src.main``) — is classed
 ``kernel``: a leaf the whole app builds events on. "Meta layer" describes its
 *role* (the runtime middleware capabilities of the platform substrate);
 ``kernel`` is its honest DAG rank.
@@ -65,12 +64,11 @@ CONTRACT = PackageContract(
     # Deterministic event/outbox substrate, no LLM: a pure-code (CODE-ONLY) package.
     # Every AC in the roadmap inherits this tier.
     tier="CODE-ONLY",
-    # The request rate-limiter middleware reads the backend config singleton via
-    # its bare published root (``import src.config``), the one registered-package
-    # edge this package declares (a same-class kernel -> kernel edge, acyclic;
-    # config has depends_on=[]). All other imports it makes (src.logger, the shared
-    # ORM Base/session) are unregistered backend infra, not governed edges.
-    depends_on=["config"],
+    # No governed edges: this package imports only unregistered backend infra
+    # (``src.logger`` and the shared ORM Base/session). The config-bound
+    # ``api_rate_limiter`` instance is wired at the composition root (src.main),
+    # so the substrate stays config-free.
+    depends_on=[],
     roles=["base", "extension"],
     units=[
         # base — the domain-event record (the textbook mechanism-C type).
@@ -102,10 +100,9 @@ CONTRACT = PackageContract(
         # extension — the cross-cutting request rate-limiter. It is an impure,
         # process-global middleware service (throttles inbound requests per key),
         # so it is a domain-service, which KIND_LAYER places in extension/. Its
-        # RateLimitConfig/RateLimitState data records and the app-wide
-        # api_rate_limiter instance live with it in the same module and are
-        # published (interface) without separate unit declarations — exactly as
-        # SubscriberRegistry is published without a unit.
+        # RateLimitConfig/RateLimitState data records are published (interface)
+        # without separate unit declarations — like SubscriberRegistry. The
+        # config-bound api_rate_limiter instance is built in src.main.
         Unit(
             name="RateLimiter",
             kind=Kind.DOMAIN_SERVICE,
@@ -125,7 +122,6 @@ CONTRACT = PackageContract(
         "RateLimiter",
         "RecordingEventBus",
         "SubscriberRegistry",
-        "api_rate_limiter",
     ],
     events=[],
     invariants=[

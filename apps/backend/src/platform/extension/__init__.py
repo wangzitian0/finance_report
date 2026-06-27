@@ -16,7 +16,6 @@ from src.platform.extension.rate_limit import (
     RateLimitConfig,
     RateLimiter,
     RateLimitState,
-    api_rate_limiter,
 )
 from src.platform.extension.relay import OutboxRelay
 from src.platform.extension.sql import (
@@ -37,5 +36,4 @@ __all__ = [
     "RateLimiter",
     "RecordingEventBus",
     "SqlOutboxRepository",
-    "api_rate_limiter",
 ]

@@ -33,7 +33,7 @@ from src.observability import (
     log_security_warning,
     mark_fastapi_instrumentation_active,
 )
-from src.platform import api_rate_limiter
+from src.platform import RateLimitConfig, RateLimiter
 from src.routers import (
     accounts,
     ai_feedback,
@@ -243,6 +243,17 @@ _RATE_LIMIT_EXEMPT_PATHS = frozenset(
         "/openapi.json",
         "/redoc",
     }
+)
+
+
+# Composition root owns the config-bound app-wide rate limiter; the platform
+# package stays config-free (only the RateLimiter class lives there).
+api_rate_limiter = RateLimiter(
+    RateLimitConfig(
+        max_requests=settings.api_rate_limit_requests,
+        window_seconds=settings.api_rate_limit_window,
+        block_seconds=60,
+    )
 )
 
 
