@@ -490,7 +490,7 @@ def test_AC8_13_11_health_check_diagnoses_staging_api_route_404() -> None:
 
 def test_AC8_13_11_deploy_preflights_vault_token_before_redeploy() -> None:
     """AC8.13.11: deploy_v2 fails before rollout on invalid legacy Vault tokens."""
-    primitive = read("repo/tools/deploy_primitive.py")
+    primitive = read("repo/libs/deploy/promote.py")
     deploy_v2 = read("repo/tools/deploy_v2.py")
     staging_workflow = read(".github/workflows/deploy.yml")
     production_workflow = read(".github/workflows/deploy.yml")
@@ -1960,7 +1960,7 @@ def test_AC8_13_67_production_release_preserves_version_metadata() -> None:
     workflow = read(".github/workflows/release.yml")
     # Tag promotion (imagetools create x2) stays in deploy.yml's promote job.
     release_images = read(".github/workflows/deploy.yml")
-    primitive = read("repo/tools/deploy_primitive.py")
+    primitive = read("repo/libs/deploy/promote.py")
     app_compose = read("repo/finance_report/finance_report/10.app/compose.yaml")
 
     # In the promote-not-rebuild pattern, deploy.yml promotes the retained tag once.
@@ -2057,7 +2057,7 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     brokerage = read("tests/e2e/test_brokerage_upload_to_portfolio_value.py")
     four_asset = read("tests/e2e/test_four_asset_net_worth_golden_path.py")
     upload = read("tests/e2e/test_statement_upload_e2e.py")
-    primitive = read("repo/tools/deploy_primitive.py")
+    primitive = read("repo/libs/deploy/promote.py")
     preview_lifecycle = read("tools/_lib/dev/pr_preview_lifecycle")
 
     assert "post-merge-train-turn:" not in workflow
@@ -3072,7 +3072,7 @@ def test_AC8_13_72_staging_deploy_proves_health_sha_after_dokploy_trigger() -> N
     """AC8.13.72 AC8.13.106: staging proof checks health git_sha, not just Dokploy trigger."""
     workflow = read(".github/workflows/deploy.yml")
     deploy_v2 = read("repo/tools/deploy_v2.py")
-    primitive = read("repo/tools/deploy_primitive.py")
+    primitive = read("repo/libs/deploy/promote.py")
     health_check = read("tools/_lib/shell/health_check.sh")
 
     deploy_block = workflow.split("- name: Deploy to Staging", 1)[1].split(
@@ -3123,7 +3123,7 @@ def test_AC8_13_72_staging_deploy_proves_health_sha_after_dokploy_trigger() -> N
 def test_AC8_13_72_staging_dokploy_rollout_parsing_is_typed_and_fail_fast() -> None:
     """AC8.13.72: staging rollout parsing handles Dokploy shape drift clearly."""
     dokploy_client = read("repo/libs/dokploy.py")
-    primitive = read("repo/tools/deploy_primitive.py")
+    primitive = read("repo/libs/deploy/promote.py")
 
     assert (
         "def get_compose_deployments(self, compose_id: str) -> list[dict]"
@@ -3153,7 +3153,7 @@ def test_AC8_13_72_staging_dokploy_rollout_parsing_is_typed_and_fail_fast() -> N
 
 def test_AC8_13_72_staging_dokploy_noop_after_redeploy_fails_before_health() -> None:
     """AC8.13.72: staging fails when Dokploy accepts deploys without rollout records."""
-    primitive = read("repo/tools/deploy_primitive.py")
+    primitive = read("repo/libs/deploy/promote.py")
     workflow = read(".github/workflows/deploy.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 

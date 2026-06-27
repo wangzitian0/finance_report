@@ -19,7 +19,7 @@ def run_bash(script: str) -> subprocess.CompletedProcess[str]:
 
 
 def test_AC8_13_72_common_dokploy_call_redacts_non_200_body() -> None:
-    script = r'''
+    script = r"""
       source common/shell/common.sh
       DOKPLOY_API_URL="https://dokploy.example/api"
       DOKPLOY_API_KEY="api-secret"
@@ -40,7 +40,7 @@ JSON
       }
       output_file="$(mktemp)"
       dokploy_api_call "POST" "compose.update" '{"composeId":"cmp"}' "$output_file" "Environment update"
-    '''
+    """
 
     result = run_bash(script)
 
@@ -57,7 +57,7 @@ JSON
 
 
 def test_AC8_13_72_deploy_v2_updates_allowlisted_env_only() -> None:
-    primitive = (ROOT / "repo/tools/deploy_primitive.py").read_text()
+    primitive = (ROOT / "repo/libs/deploy/promote.py").read_text()
     common_shell = (ROOT / "common/shell/common.sh").read_text()
 
     assert "env_vars = {" in primitive
@@ -79,13 +79,13 @@ def test_AC8_13_72_deploy_v2_updates_allowlisted_env_only() -> None:
     assert '-d "$data"' not in common_shell
     assert "--connect-timeout" in common_shell
     assert "--max-time" in common_shell
-    assert "--config \"$curl_config_file\"" in common_shell
-    assert "--data-binary \"@$data_file\"" in common_shell
+    assert '--config "$curl_config_file"' in common_shell
+    assert '--data-binary "@$data_file"' in common_shell
 
 
 def test_AC8_13_72_deploy_v2_dokploy_client_does_not_log_raw_response_bodies() -> None:
     dokploy_client = (ROOT / "repo/libs/dokploy.py").read_text()
-    primitive = (ROOT / "repo/tools/deploy_primitive.py").read_text()
+    primitive = (ROOT / "repo/libs/deploy/promote.py").read_text()
 
     request_block = dokploy_client.split("def _request(", 1)[1].split(
         "    # Project endpoints", 1
