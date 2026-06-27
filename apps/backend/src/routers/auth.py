@@ -14,7 +14,8 @@ from src.logger import get_logger
 from src.models.user import User
 from src.observability import log_security_warning
 from src.observability_events import bind_authenticated_user_context
-from src.rate_limit import RateLimiter, auth_rate_limiter, register_rate_limiter
+from src.platform import RateLimiter
+from src.rate_limit import auth_rate_limiter, register_rate_limiter
 from src.schemas.auth import AuthResponse, LoginRequest, RegisterRequest
 from src.security import create_access_token
 from src.telemetry_metrics import record_rate_limit_rejected

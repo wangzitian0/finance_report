@@ -19,10 +19,12 @@ Files converge by layer (see common/meta/migration-standard.md): ``base`` (the
 :class:`DomainEvent` record + the :class:`EventBus`/:class:`OutboxRepository`
 *ports* + :class:`SubscriberRegistry`) and ``extension`` (the
 :class:`OutboxEventBus`/:class:`RecordingEventBus` bus adapters, the
-:class:`OutboxRelay`, and the SQL :class:`Outbox` table + adapter — the only role
-that touches the ORM). The names re-exported below are the *entire* public surface
-(``__all__`` must equal ``contract.interface``); the concrete ``Sql*`` adapter is
-internal (reached only through its port).
+:class:`OutboxRelay`, the SQL :class:`Outbox` table + adapter — the only role
+that touches the ORM — and the cross-cutting request :class:`RateLimiter`
+middleware service plus its app-wide ``api_rate_limiter`` instance). The names
+re-exported below are the *entire* public surface (``__all__`` must equal
+``contract.interface``); the concrete ``Sql*`` adapter is internal (reached only
+through its port).
 """
 
 from __future__ import annotations
@@ -37,7 +39,11 @@ from src.platform.extension import (
     Outbox,
     OutboxEventBus,
     OutboxRelay,
+    RateLimitConfig,
+    RateLimiter,
+    RateLimitState,
     RecordingEventBus,
+    api_rate_limiter,
 )
 
 __all__ = [
@@ -47,6 +53,10 @@ __all__ = [
     "OutboxEventBus",
     "OutboxRelay",
     "OutboxRepository",
+    "RateLimitConfig",
+    "RateLimitState",
+    "RateLimiter",
     "RecordingEventBus",
     "SubscriberRegistry",
+    "api_rate_limiter",
 ]

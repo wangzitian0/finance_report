@@ -1,10 +1,12 @@
 """The ``platform`` package's machine-checkable :class:`PackageContract`.
 
-``platform`` is the meta layer's first *runtime* capability: a domain
-**EventBus implemented via the transactional outbox pattern**. It is the
-technical substrate logically labelled *middleware* (issue #1427); the package
-keeps the name ``platform`` (the existing contract + ACs use it) and treats
-*middleware* as the umbrella label. The governance gate
+``platform`` is the meta layer's *runtime middleware* substrate. Its first
+capability is a domain **EventBus implemented via the transactional outbox
+pattern**; it also hosts the cross-cutting request **rate limiter** (a
+process-global throttle that is request middleware too). It is the technical
+substrate logically labelled *middleware* (issue #1427); the package keeps the
+name ``platform`` (the existing contract + ACs use it) and treats *middleware* as
+the umbrella label. The governance gate
 (``tools/check_package_contract.py``) validates the BE implementation
 (``apps/backend/src/platform``) against this contract: ``interface`` must equal
 the implementation's ``__all__``; every ``invariants[].test`` /
@@ -37,10 +39,13 @@ target of **equal or higher** rank. ``counter`` (a ``platform`` package) must
 import this package's :class:`DomainEvent` (its ``Incremented`` is a
 ``DomainEvent``) and write through its bus — a strictly *downward* edge only if
 ``platform`` (the package) ranks **below** ``counter``. So this foundational
-event/outbox substrate — which itself imports nothing registered (only the
-unregistered ``src.database`` Base/session) — is classed ``kernel``: a leaf the
-whole app builds events on. "Meta layer" describes its *role* (the first runtime
-capability of the platform substrate); ``kernel`` is its honest DAG rank.
+event/outbox + middleware substrate — whose only registered edge is the
+same-class ``kernel`` -> ``kernel`` ``depends_on=["config"]`` (the rate limiter
+reads the config singleton via its bare published root; otherwise it imports only
+the unregistered ``src.database`` Base/session and ``src.logger``) — is classed
+``kernel``: a leaf the whole app builds events on. "Meta layer" describes its
+*role* (the runtime middleware capabilities of the platform substrate);
+``kernel`` is its honest DAG rank.
 """
 
 from __future__ import annotations
@@ -60,7 +65,12 @@ CONTRACT = PackageContract(
     # Deterministic event/outbox substrate, no LLM: a pure-code (CODE-ONLY) package.
     # Every AC in the roadmap inherits this tier.
     tier="CODE-ONLY",
-    depends_on=[],
+    # The request rate-limiter middleware reads the backend config singleton via
+    # its bare published root (``import src.config``), the one registered-package
+    # edge this package declares (a same-class kernel -> kernel edge, acyclic;
+    # config has depends_on=[]). All other imports it makes (src.logger, the shared
+    # ORM Base/session) are unregistered backend infra, not governed edges.
+    depends_on=["config"],
     roles=["base", "extension"],
     units=[
         # base — the domain-event record (the textbook mechanism-C type).
@@ -89,6 +99,18 @@ CONTRACT = PackageContract(
         Unit(name="OutboxEventBus", kind=Kind.EVENT_BUS, module="extension/bus.py"),
         Unit(name="RecordingEventBus", kind=Kind.EVENT_BUS, module="extension/bus.py"),
         Unit(name="OutboxRelay", kind=Kind.EVENT_BUS, module="extension/relay.py"),
+        # extension — the cross-cutting request rate-limiter. It is an impure,
+        # process-global middleware service (throttles inbound requests per key),
+        # so it is a domain-service, which KIND_LAYER places in extension/. Its
+        # RateLimitConfig/RateLimitState data records and the app-wide
+        # api_rate_limiter instance live with it in the same module and are
+        # published (interface) without separate unit declarations — exactly as
+        # SubscriberRegistry is published without a unit.
+        Unit(
+            name="RateLimiter",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/rate_limit.py",
+        ),
     ],
     implementations={"be": "apps/backend/src/platform", "fe": None},
     interface=[
@@ -98,8 +120,12 @@ CONTRACT = PackageContract(
         "OutboxEventBus",
         "OutboxRelay",
         "OutboxRepository",
+        "RateLimitConfig",
+        "RateLimitState",
+        "RateLimiter",
         "RecordingEventBus",
         "SubscriberRegistry",
+        "api_rate_limiter",
     ],
     events=[],
     invariants=[
@@ -121,8 +147,7 @@ CONTRACT = PackageContract(
                 "port + an extension adapter (dependency inversion, mechanism B)."
             ),
             test=(
-                "tests/tooling/test_platform_package.py"
-                "::test_platform_repository_split"
+                "tests/tooling/test_platform_package.py::test_platform_repository_split"
             ),
         ),
         Invariant(

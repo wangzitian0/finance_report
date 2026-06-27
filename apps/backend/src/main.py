@@ -33,7 +33,7 @@ from src.observability import (
     log_security_warning,
     mark_fastapi_instrumentation_active,
 )
-from src.rate_limit import api_rate_limiter
+from src.platform import api_rate_limiter
 from src.routers import (
     accounts,
     ai_feedback,
