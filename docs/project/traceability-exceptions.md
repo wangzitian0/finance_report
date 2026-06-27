@@ -139,12 +139,10 @@ explicit AC IDs for the behavior.
 | `tests/tooling/test_delivery_gates_contract.py` | `docs/ssot/delivery-gates.yaml` |
 | `tests/tooling/test_dokploy_failure_snapshot.py` | `docs/ssot/ci-cd.md` |
 | `tests/tooling/test_env_contract_boundary.py` | `docs/ssot/observability.md`, `docs/ssot/environments.md` |
-| `tests/tooling/test_generate_fixtures.py` | `docs/ssot/extraction.md` |
 | `tests/tooling/test_github_workflow_timing_summary.py` | `docs/ssot/ci-cd.md` |
 | `tests/tooling/test_infra2_pin_is_release_tag.py` | `docs/ssot/deployment.md` |
 | `tests/tooling/test_merge_lcov.py` | `docs/ssot/coverage.md` |
 | `tests/tooling/test_preflight.py` | `docs/ssot/ci-cd.md` |
-| `tests/tooling/test_sanitize_fixtures.py` | `docs/agents/red-lines.md` |
 | `tests/tooling/test_seed_fx_rates.py` | `docs/ssot/market_data.md` |
 | `tests/tooling/test_validate_schemas.py` | `docs/ssot/schema.md` |
 

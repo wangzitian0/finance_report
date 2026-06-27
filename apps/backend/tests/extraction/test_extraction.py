@@ -1,6 +1,5 @@
 """Tests for the document extraction service."""
 
-import json
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -10,9 +9,6 @@ import pytest
 
 from src.services.extraction import ExtractionError, ExtractionService
 from src.services.validation import compute_confidence_score, validate_balance
-
-# Get fixtures directory
-FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 
 
 class TestBalanceValidation:
@@ -116,36 +112,76 @@ class TestConfidenceScoring:
 
 
 class TestFixtureData:
-    """Tests using real parsed fixture data."""
+    """Tests using synthetic parsed payloads (no real account data).
+
+    These exercise the parsed-statement payload contract (structure, balance
+    reconciliation, merchant sanitization, daily-interest pattern, date format)
+    against obviously-fake inline data rather than recorded real-statement fixtures.
+    """
 
     @pytest.fixture
     def dbs_fixture(self):
-        fixture_path = FIXTURES_DIR / "2504_parsed.json"
-        if fixture_path.exists():
-            with open(fixture_path) as f:
-                return json.load(f)
-        return None  # Pass but no data
+        """Synthetic DBS parsed payload whose events reconcile the balance chain."""
+        return {
+            "success": True,
+            "institution": "DBS",
+            "statement": {
+                "period_start": "2025-01-01",
+                "period_end": "2025-01-31",
+                "opening_balance": "100.00",
+                "closing_balance": "250.00",
+                "currency": "SGD",
+                "balance_validated": True,
+                "confidence_score": 95,
+            },
+            "events": [
+                {"date": "2025-01-05", "description": "Card payment", "amount": "50.00", "direction": "OUT"},
+                {"date": "2025-01-10", "description": "Salary credit", "amount": "200.00", "direction": "IN"},
+            ],
+        }
 
     @pytest.fixture
     def maribank_fixture(self):
-        fixture_path = FIXTURES_DIR / "Apr2025_MariBank_e-Statement_parsed.json"
-        if fixture_path.exists():
-            with open(fixture_path) as f:
-                return json.load(f)
-        return None  # Pass but no data
+        """Synthetic MariBank parsed payload with sanitized merchant descriptions."""
+        return {
+            "success": True,
+            "institution": "MariBank",
+            "statement": {
+                "period_start": "2025-04-01",
+                "period_end": "2025-04-30",
+                "opening_balance": "0.00",
+                "closing_balance": "18.00",
+                "currency": "SGD",
+                "balance_validated": True,
+            },
+            "events": [
+                {"date": "2025-04-03", "description": "Card payment", "amount": "12.00", "direction": "OUT"},
+                {"date": "2025-04-15", "description": "Transfer in", "amount": "30.00", "direction": "IN"},
+            ],
+        }
 
     @pytest.fixture
     def gxs_fixture(self):
-        fixture_path = FIXTURES_DIR / "gxs-2506_parsed.json"
-        if fixture_path.exists():
-            with open(fixture_path) as f:
-                return json.load(f)
-        return None  # Pass but no data
+        """Synthetic GXS parsed payload with a daily-interest pattern (25 entries)."""
+        return {
+            "success": True,
+            "institution": "GXS",
+            "statement": {
+                "period_start": "2025-06-01",
+                "period_end": "2025-06-30",
+                "opening_balance": "0.00",
+                "closing_balance": "0.25",
+                "currency": "SGD",
+                "balance_validated": True,
+            },
+            "events": [
+                {"date": f"2025-06-{day:02d}", "description": "Interest", "amount": "0.01", "direction": "IN"}
+                for day in range(1, 26)
+            ],
+        }
 
     def test_dbs_fixture_structure(self, dbs_fixture):
-        """AC13.3.1: Test DBS fixture has correct structure."""
-        if dbs_fixture is None:
-            return
+        """AC13.3.1: Test DBS payload has correct structure."""
         assert dbs_fixture["success"] is True
         assert dbs_fixture["institution"] == "DBS"
         assert "statement" in dbs_fixture
@@ -153,9 +189,7 @@ class TestFixtureData:
         assert len(dbs_fixture["events"]) > 0
 
     def test_dbs_balance_reconciliation(self, dbs_fixture):
-        """AC13.3.2: Test DBS fixture balances reconcile."""
-        if dbs_fixture is None:
-            return
+        """AC13.3.2: Test DBS payload balances reconcile."""
         stmt = dbs_fixture["statement"]
         events = dbs_fixture["events"]
 
@@ -170,30 +204,29 @@ class TestFixtureData:
         # Allow some tolerance due to potential rounding
         assert diff < Decimal("1.00"), f"Balance mismatch: {diff}"
 
-    def test_maribank_fixture_merchants_sanitized(self, maribank_fixture):
-        """AC13.3.3: Test MariBank fixture has sanitized merchant names."""
-        if maribank_fixture is None:
-            return
-        events = maribank_fixture["events"]
-        for event in events:
+    def test_maribank_fixture_descriptions_carry_no_pii(self, maribank_fixture):
+        """AC13.3.3: every event description is free of detectable PII.
+
+        A deterministic safety property (not a frozen merchant-name denylist):
+        any description committed as a test fixture must pass the production PII
+        detector, so a future fixture that smuggles in an account/NRIC/phone/email
+        fails here.
+        """
+        from src.services.pii_redaction import detect_pii
+
+        for event in maribank_fixture["events"]:
             desc = event.get("description", "")
-            # Should not contain full merchant names
-            assert "HAWKERLAB" not in desc, "Merchant name not sanitized"
-            assert "DELICIOUS LITTLE LEAVES" not in desc, "Merchant name not sanitized"
+            assert detect_pii(desc) == [], f"PII leaked into fixture description: {desc!r}"
 
     def test_gxs_fixture_daily_interest(self, gxs_fixture):
-        """AC13.3.4: Test GXS fixture has daily interest entries."""
-        if gxs_fixture is None:
-            return
+        """AC13.3.4: Test GXS payload has daily interest entries."""
         events = gxs_fixture["events"]
         interest_events = [e for e in events if "Interest" in e.get("description", "")]
         assert len(interest_events) > 20, "GXS should have daily interest entries"
 
     def test_all_fixtures_have_dates(self, dbs_fixture, maribank_fixture, gxs_fixture):
-        """AC13.3.5: Test all fixture events have valid dates."""
+        """AC13.3.5: Test all payload events have valid dates."""
         for fixture in [dbs_fixture, maribank_fixture, gxs_fixture]:
-            if fixture is None:
-                continue
             for event in fixture["events"]:
                 assert event.get("date"), "Event missing date"
                 # Check date format

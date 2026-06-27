@@ -15,7 +15,6 @@ loading a recorded payload fixture, so routing + import + flag logic is asserted
 deterministically without a live model.
 """
 
-import json
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -39,12 +38,54 @@ from src.services.extraction import ExtractionService
 from src.services.statement_parsing import parse_statement_background, route_brokerage_for_review_if_present
 from tests.factories import StatementSummaryFactory
 
-FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
+
+def _synthetic_moomoo_positions_payload() -> dict:
+    """Synthetic Moomoo holdings-table payload (no real account data).
+
+    Mirrors the structured ``positions[]`` envelope a brokerage OCR pass emits: a
+    month-end snapshot date plus one row per holding with an exact Decimal-safe
+    market value. Two obviously-fake tickers drive the multi-row import assertions.
+    """
+    return {
+        "institution": "Moomoo",
+        "snapshot_date": "2026-06-30",
+        "currency": "USD",
+        "positions": [
+            {
+                "symbol": "ACME",
+                "quantity": "10",
+                "market_value": "100.00",
+                "currency": "USD",
+                "asset_type": "stock",
+            },
+            {
+                "symbol": "GLOBEX",
+                "quantity": "5",
+                "market_value": "250.00",
+                "currency": "USD",
+                "asset_type": "stock",
+            },
+        ],
+    }
 
 
-def _load_fixture(name: str) -> dict:
-    with (FIXTURES / name).open() as fh:
-        return json.load(fh)
+def _synthetic_ibkr_multicurrency_payload() -> dict:
+    """Synthetic multi-currency IBKR positions payload (no real account data).
+
+    Two USD rows (2124 + 2276 = 4400), one HKD row (80500) and one SGD row (3810)
+    exercise the per-currency NAV buckets without ever cross-summing into the
+    meaningless 88710 scalar.
+    """
+    return {
+        "institution": "Interactive Brokers",
+        "snapshot_date": "2026-06-30",
+        "positions": [
+            {"symbol": "ACME", "quantity": "10", "market_value": "2124.00", "currency": "USD"},
+            {"symbol": "GLOBEX", "quantity": "5", "market_value": "2276.00", "currency": "USD"},
+            {"symbol": "INITECH", "quantity": "100", "market_value": "80500.00", "currency": "HKD"},
+            {"symbol": "UMBRELLA", "quantity": "3", "market_value": "3810.00", "currency": "SGD"},
+        ],
+    }
 
 
 # --------------------------------------------------------------------------- AC-B1
@@ -196,7 +237,7 @@ async def test_AC_B4_AC_B6_moomoo_positions_table_extracts_and_imports(client, d
     The parsed payload is loaded from a recorded fixture and injected via the extraction seam,
     so the producer routing + import are asserted deterministically without a live model.
     """
-    fixture = _load_fixture("moomoo-positions-table_parsed.json")
+    fixture = _synthetic_moomoo_positions_payload()
     expected_rows = fixture["positions"]
 
     statement_id = uuid4()
@@ -292,7 +333,7 @@ async def test_AC_B4_AC_B6_moomoo_positions_table_extracts_and_imports(client, d
 async def test_AC_B6_positions_payload_imports_via_service(db, test_user):
     """AC17.4.12 (AC-B6): The recorded moomoo positions fixture imports the full table via the service."""
     service = BrokeragePositionImportService()
-    fixture = _load_fixture("moomoo-positions-table_parsed.json")
+    fixture = _synthetic_moomoo_positions_payload()
 
     result = await service.import_positions(
         db,
@@ -325,7 +366,7 @@ def test_AC_B3_multi_currency_brokerage_emits_per_currency_balances():
     cross-summed into a single scalar (88710) — each currency is an independent
     closed loop whose opening == closing == its own position NAV.
     """
-    fixture = _load_fixture("ibkr-multicurrency-positions_parsed.json")
+    fixture = _synthetic_ibkr_multicurrency_payload()
 
     balances = brokerage_currency_balances(fixture, filename="ibkr-multicurrency-2506.pdf")
 
@@ -355,7 +396,7 @@ async def test_AC_B3_parse_document_persists_currency_balances_without_cross_sum
     from unittest.mock import AsyncMock
 
     service = ExtractionService()
-    payload = _load_fixture("ibkr-multicurrency-positions_parsed.json")
+    payload = _synthetic_ibkr_multicurrency_payload()
     service.extract_financial_data = AsyncMock(return_value=payload)
 
     statement, transactions = await service.parse_document(
@@ -394,7 +435,7 @@ async def test_per_currency_nav_self_check_failure_marks_statement_invalid(test_
     from unittest.mock import AsyncMock
 
     service = ExtractionService()
-    payload = _load_fixture("ibkr-multicurrency-positions_parsed.json")
+    payload = _synthetic_ibkr_multicurrency_payload()
     service.extract_financial_data = AsyncMock(return_value=payload)
 
     # Force the per-currency self-check to fail for one currency.

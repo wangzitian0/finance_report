@@ -477,6 +477,4 @@ Coverage checks compare monthly statement periods within each account/currency:
 | `src/services/chain_repair.py` | Under-extraction repair-pass hook (`repair_under_extraction`, injectable `RegionReExtractor`) |
 | `src/services/storage.py` | Object storage uploads + presigned URLs |
 | `src/prompts/statement.py` | Parsing prompt templates |
-| `tests/fixtures/*.json` | Parsed test data |
-| `tools/generate_fixtures.py` | Parse docs with caching |
-| `tools/sanitize_fixtures.py` | Mask PII |
+| `apps/backend/tests/fixtures/llm_cassettes/*.json` | Frozen LLM responses for cassette replay (synthetic; the single retained extraction-test mechanism) |
