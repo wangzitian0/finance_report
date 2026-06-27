@@ -114,11 +114,8 @@ def reset_rate_limiters():
     the per-IP counters accumulate across the whole session and trip a 429
     cascade once the global API limit is exceeded (tests share one client IP).
     """
-    from src.rate_limit import (
-        api_rate_limiter,
-        auth_rate_limiter,
-        register_rate_limiter,
-    )
+    from src.main import api_rate_limiter
+    from src.rate_limit import auth_rate_limiter, register_rate_limiter
 
     for limiter in (api_rate_limiter, auth_rate_limiter, register_rate_limiter):
         limiter.clear()

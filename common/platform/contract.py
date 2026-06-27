@@ -1,10 +1,12 @@
 """The ``platform`` package's machine-checkable :class:`PackageContract`.
 
-``platform`` is the meta layer's first *runtime* capability: a domain
-**EventBus implemented via the transactional outbox pattern**. It is the
-technical substrate logically labelled *middleware* (issue #1427); the package
-keeps the name ``platform`` (the existing contract + ACs use it) and treats
-*middleware* as the umbrella label. The governance gate
+``platform`` is the meta layer's *runtime middleware* substrate. Its first
+capability is a domain **EventBus implemented via the transactional outbox
+pattern**; it also hosts the cross-cutting request **rate limiter** (a
+process-global throttle that is request middleware too). It is the technical
+substrate logically labelled *middleware* (issue #1427); the package keeps the
+name ``platform`` (the existing contract + ACs use it) and treats *middleware* as
+the umbrella label. The governance gate
 (``tools/check_package_contract.py``) validates the BE implementation
 (``apps/backend/src/platform``) against this contract: ``interface`` must equal
 the implementation's ``__all__``; every ``invariants[].test`` /
@@ -37,10 +39,12 @@ target of **equal or higher** rank. ``counter`` (a ``platform`` package) must
 import this package's :class:`DomainEvent` (its ``Incremented`` is a
 ``DomainEvent``) and write through its bus — a strictly *downward* edge only if
 ``platform`` (the package) ranks **below** ``counter``. So this foundational
-event/outbox substrate — which itself imports nothing registered (only the
-unregistered ``src.database`` Base/session) — is classed ``kernel``: a leaf the
-whole app builds events on. "Meta layer" describes its *role* (the first runtime
-capability of the platform substrate); ``kernel`` is its honest DAG rank.
+event/outbox + middleware substrate — which declares no governed edges (it
+imports only the unregistered ``src.database`` Base/session and ``src.logger``;
+the config-bound ``api_rate_limiter`` instance is wired in ``src.main``) — is classed
+``kernel``: a leaf the whole app builds events on. "Meta layer" describes its
+*role* (the runtime middleware capabilities of the platform substrate);
+``kernel`` is its honest DAG rank.
 """
 
 from __future__ import annotations
@@ -60,6 +64,10 @@ CONTRACT = PackageContract(
     # Deterministic event/outbox substrate, no LLM: a pure-code (CODE-ONLY) package.
     # Every AC in the roadmap inherits this tier.
     tier="CODE-ONLY",
+    # No governed edges: this package imports only unregistered backend infra
+    # (``src.logger`` and the shared ORM Base/session). The config-bound
+    # ``api_rate_limiter`` instance is wired at the composition root (src.main),
+    # so the substrate stays config-free.
     depends_on=[],
     roles=["base", "extension"],
     units=[
@@ -89,6 +97,17 @@ CONTRACT = PackageContract(
         Unit(name="OutboxEventBus", kind=Kind.EVENT_BUS, module="extension/bus.py"),
         Unit(name="RecordingEventBus", kind=Kind.EVENT_BUS, module="extension/bus.py"),
         Unit(name="OutboxRelay", kind=Kind.EVENT_BUS, module="extension/relay.py"),
+        # extension — the cross-cutting request rate-limiter. It is an impure,
+        # process-global middleware service (throttles inbound requests per key),
+        # so it is a domain-service, which KIND_LAYER places in extension/. Its
+        # RateLimitConfig/RateLimitState data records are published (interface)
+        # without separate unit declarations — like SubscriberRegistry. The
+        # config-bound api_rate_limiter instance is built in src.main.
+        Unit(
+            name="RateLimiter",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/rate_limit.py",
+        ),
     ],
     implementations={"be": "apps/backend/src/platform", "fe": None},
     interface=[
@@ -98,6 +117,9 @@ CONTRACT = PackageContract(
         "OutboxEventBus",
         "OutboxRelay",
         "OutboxRepository",
+        "RateLimitConfig",
+        "RateLimitState",
+        "RateLimiter",
         "RecordingEventBus",
         "SubscriberRegistry",
     ],
@@ -121,8 +143,7 @@ CONTRACT = PackageContract(
                 "port + an extension adapter (dependency inversion, mechanism B)."
             ),
             test=(
-                "tests/tooling/test_platform_package.py"
-                "::test_platform_repository_split"
+                "tests/tooling/test_platform_package.py::test_platform_repository_split"
             ),
         ),
         Invariant(
