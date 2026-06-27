@@ -12,10 +12,14 @@ import pytest
 import sqlalchemy as sa
 from common.testing.ac_proof import ac_proof
 
-from src.platform.events.bus import OutboxEventBus, SubscriberRegistry
-from src.platform.events.event import DomainEvent
-from src.platform.events.relay import OutboxRelay
-from src.platform.store.outbox import STATUS_PUBLISHED, Outbox
+from src.platform import (
+    DomainEvent,
+    Outbox,
+    OutboxEventBus,
+    OutboxRelay,
+    SubscriberRegistry,
+)
+from src.platform.extension import STATUS_PUBLISHED
 
 
 def _event(name="counter.Incremented", count=1):
@@ -88,9 +92,9 @@ async def test_redelivery_of_pending_is_idempotent_safe(db):
 
     # Dispatch the same pending rows twice WITHOUT marking published in between
     # (simulating a crash-before-mark redelivery), by reading pending directly.
-    from src.platform.store.outbox import OutboxRepository
+    from src.platform.extension import SqlOutboxRepository
 
-    repo = OutboxRepository(db)
+    repo = SqlOutboxRepository(db)
     for _ in range(2):
         for row in await repo.fetch_pending(limit=10):
             for handler in registry.handlers_for(row.event_type):

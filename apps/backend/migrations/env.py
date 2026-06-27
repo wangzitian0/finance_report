@@ -9,7 +9,7 @@ from sqlalchemy import engine_from_config, pool
 
 import src.counter.extension.sql  # noqa: F401  -- registers CounterTally on Base.metadata
 import src.models._registry  # noqa: F401  -- eager-imports every model module onto Base.metadata
-import src.platform.store.outbox  # noqa: F401  -- registers Outbox on Base.metadata
+import src.platform.extension.sql  # noqa: F401  -- registers Outbox on Base.metadata
 from src.config import settings
 from src.database import Base
 

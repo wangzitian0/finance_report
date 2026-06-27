@@ -302,7 +302,7 @@ async def _schema_engine(test_database_url):
     # package, so they are imported explicitly here.
     import src.counter.extension.sql  # noqa: F401
     import src.models._registry  # noqa: F401
-    import src.platform.store.outbox  # noqa: F401
+    import src.platform.extension.sql  # noqa: F401
     from src.database import Base
 
     engine = create_async_engine(

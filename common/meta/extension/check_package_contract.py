@@ -38,14 +38,15 @@ asserts:
       structural gate.
 
       *Port-exception decision (counter):* counter imports the platform bus port
-      ``from src.platform.events.bus import OutboxEventBus`` — a deep path, but
-      ``OutboxEventBus`` is in ``platform.__all__``, so the import resolves to a
-      *published* symbol and is allowed (the same exception lets ``unit_price``
-      import the published ``Money`` / ``Quantity`` value types from their defining
-      modules, and how ``money`` / ``quantity`` import the published ``Ratio`` via
-      its root ``from src.ratio import Ratio``). The rule rejects imports of
-      *unpublished* internals (including a root import of a submodule), not paths to
-      published symbols — so no current package regresses.
+      ``from src.platform import OutboxEventBus`` and the base ports
+      ``from src.platform.base import EventBus`` / ``DomainEvent`` — each name is in
+      ``platform.__all__``, so the imports resolve to *published* symbols and are
+      allowed (the same exception lets ``unit_price`` import the published ``Money``
+      / ``Quantity`` value types from their defining modules, and how ``money`` /
+      ``quantity`` import the published ``Ratio`` via its root ``from src.ratio
+      import Ratio``). The rule rejects imports of *unpublished* internals (including
+      a root import of a submodule), not paths to published symbols — so no current
+      package regresses.
 
 This module is the meta package's ``extension`` layer (the impure edge: it walks
 the filesystem and parses ASTs). It imports the ``base`` model
@@ -311,8 +312,8 @@ def _check_cross_domain_deep_import(
     The published-symbol rule is uniform across the module path: a ``from`` import
     is allowed iff each imported name is in the target's ``__all__``, whether the
     module is the package root or a deep submodule. This is how ``counter`` imports
-    the platform bus port (``from src.platform.events.bus import OutboxEventBus`` —
-    ``OutboxEventBus`` ∈ ``platform.__all__``) and how ``unit_price`` imports the
+    the platform base ports (``from src.platform.base import EventBus`` —
+    ``EventBus`` ∈ ``platform.__all__``) and how ``unit_price`` imports the
     published ``Money`` / ``Quantity`` value types from their defining modules — and
     why a *root* import of an unpublished name (``from src.<other> import
     <submodule>``) is rejected just like a deep reach. A plain ``import

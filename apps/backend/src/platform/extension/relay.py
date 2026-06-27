@@ -1,11 +1,11 @@
 """``OutboxRelay`` — drains committed outbox rows and dispatches to handlers.
 
-The relay is the *post-commit* half of the transactional outbox. It reads
-``pending`` rows in enqueue (id) order, reconstructs each into a
-:class:`DomainEvent`, invokes every handler subscribed to that ``event_type``,
-then marks the row ``published``. Because it only ever reads rows that another
-transaction already committed, dispatch is guaranteed to happen *after* the
-domain state change is durable.
+The relay is the *post-commit* half of the transactional outbox (an ``extension``
+adapter). It reads ``pending`` rows in enqueue (id) order through the SQL outbox
+adapter, reconstructs each into a :class:`DomainEvent`, invokes every handler
+subscribed to that ``event_type``, then marks the row ``published``. Because it
+only ever reads rows that another transaction already committed, dispatch is
+guaranteed to happen *after* the domain state change is durable.
 
 Delivery is **at-least-once**: if the process dies after a handler runs but
 before ``mark_published`` commits, the row stays ``pending`` and is redelivered
@@ -24,9 +24,9 @@ from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.platform.events.bus import SubscriberRegistry
-from src.platform.events.event import DomainEvent
-from src.platform.store.outbox import Outbox, OutboxRepository
+from src.platform.base.bus import SubscriberRegistry
+from src.platform.base.event import DomainEvent
+from src.platform.extension.sql import Outbox, SqlOutboxRepository
 
 
 class _StoredEvent(DomainEvent):
@@ -73,7 +73,7 @@ class OutboxRelay:
         redelivered forever. The marking commit is what makes a second
         ``run_once`` skip already-published rows.
         """
-        repo = OutboxRepository(session)
+        repo = SqlOutboxRepository(session)
         rows = await repo.fetch_pending(limit=self._batch_size)
         published = 0
         try:
