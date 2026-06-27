@@ -23,6 +23,7 @@ from src.models.layer3 import (
     PositionStatus,
 )
 from src.money import Money, to_money
+from src.money.currency import normalize_currency_code
 from src.quantity import Quantity
 from src.schemas.provenance import DataProvenance
 
@@ -634,7 +635,7 @@ class AssetService:
                 user_id=user_id,
                 name=broker_name,
                 type=AccountType.ASSET,
-                currency=(currency or "").strip().upper() or "USD",
+                currency=normalize_currency_code(currency) or "USD",
                 code="AUTO-ASSET",
             )
             db.add(account)

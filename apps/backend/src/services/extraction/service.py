@@ -17,6 +17,7 @@ from src.models.layer1 import DocumentType
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
+from src.money.currency import normalize_currency_code
 from src.prompts import get_parsing_prompt
 from src.services.ai_streaming import (
     AIStreamError,
@@ -103,7 +104,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
         account. The account is a fact (the money lives here); category
         classification of each transaction is a separate, user-adjustable layer.
         """
-        currency = (currency or "").strip().upper() or "SGD"
+        currency = normalize_currency_code(currency) or settings.base_currency
         name = f"{institution} ••{account_last4}"
         existing = (
             await db.execute(
@@ -205,7 +206,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             # agree on a canonical ISO code. A non-normalized extraction ("sgd"/"SGD ")
             # would otherwise mismatch `normalize_currency_code(statement.currency)` in
             # the posting path and silently block auto-post (CR on #1467).
-            statement_currency = (raw_statement_currency or "SGD").strip().upper() or "SGD"
+            statement_currency = normalize_currency_code(raw_statement_currency) or settings.base_currency
             # A bank statement requires a period; resolve it tolerantly (a missing
             # bound falls back to the transaction-date range, then the other bound)
             # so a single missing ``period_start`` no longer hard-fails an
