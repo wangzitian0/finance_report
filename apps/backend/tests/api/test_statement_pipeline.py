@@ -118,3 +118,50 @@ async def test_AC19_13_2_dispatch_submits_serializable_params_to_prefect(monkeyp
     assert "session_maker" not in params
     assert params["statement_id"] == str(kwargs["statement_id"])
     assert params["storage_key"] == "uploads/stmt.pdf"
+
+
+async def test_AC19_13_1_dispatch_falls_back_when_prefect_client_absent(monkeypatch):
+    """AC19.13.1 (fail-soft): PREFECT_API_URL set but the prefect client isn't installed
+    (base image) → degrade to in-process. An upload must NEVER 500 on Prefect absence."""
+    monkeypatch.setattr(statement_pipeline.settings, "prefect_api_url", "http://prefect:4200/api")
+    # Force `from prefect.deployments import run_deployment` to raise ImportError.
+    monkeypatch.setitem(sys.modules, "prefect.deployments", None)
+    seen: dict = {}
+
+    async def fake_background(**kwargs):
+        seen.update(kwargs)
+
+    monkeypatch.setattr(statement_pipeline, "parse_statement_background", fake_background)
+    monkeypatch.setattr(statement_pipeline, "create_session_maker_from_db", lambda db: "session-maker")
+
+    task = await statement_pipeline.submit_parse_pipeline(**_dispatch_kwargs())
+
+    assert isinstance(task, asyncio.Task)  # degraded to in-process, no raise
+    await task
+    assert seen["content"] == b"file-bytes"  # in-process keeps the raw content
+    assert seen["session_maker"] == "session-maker"
+
+
+async def test_AC19_13_1_dispatch_falls_back_when_prefect_submit_fails(monkeypatch):
+    """AC19.13.1 (fail-soft): Prefect installed but the submit fails (server unreachable)
+    → degrade to in-process rather than failing the upload."""
+    monkeypatch.setattr(statement_pipeline.settings, "prefect_api_url", "http://prefect:4200/api")
+    run_deployment = AsyncMock(side_effect=ConnectionError("prefect server unreachable"))
+    fake_deployments = types.ModuleType("prefect.deployments")
+    fake_deployments.run_deployment = run_deployment
+    monkeypatch.setitem(sys.modules, "prefect", types.ModuleType("prefect"))
+    monkeypatch.setitem(sys.modules, "prefect.deployments", fake_deployments)
+    seen: dict = {}
+
+    async def fake_background(**kwargs):
+        seen.update(kwargs)
+
+    monkeypatch.setattr(statement_pipeline, "parse_statement_background", fake_background)
+    monkeypatch.setattr(statement_pipeline, "create_session_maker_from_db", lambda db: "session-maker")
+
+    task = await statement_pipeline.submit_parse_pipeline(**_dispatch_kwargs())
+
+    assert isinstance(task, asyncio.Task)  # degraded after the submit raised
+    await task
+    run_deployment.assert_awaited_once()  # it tried Prefect first, then fell back
+    assert seen["content"] == b"file-bytes"

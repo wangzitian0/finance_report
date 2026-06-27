@@ -68,53 +68,71 @@ async def submit_parse_pipeline(
     P1 optimization deferred until the worker lands; in P0 (fallback only) the
     content is needed in-process anyway.
     """
+
+    def _run_in_process() -> asyncio.Task[None]:
+        task = asyncio.create_task(
+            run_with_async_parse_tracking(
+                parse_statement_background(
+                    statement_id=statement_id,
+                    filename=filename,
+                    institution=institution,
+                    user_id=user_id,
+                    account_id=account_id,
+                    file_hash=file_hash,
+                    storage_key=storage_key,
+                    content=content,
+                    model=model,
+                    session_maker=create_session_maker_from_db(db),
+                    request_id=request_id,
+                ),
+                statement_id=statement_id,
+                request_id=request_id,
+            )
+        )
+        task.add_done_callback(_consume_background_task_exception)
+        return task
+
     if settings.prefect_api_url:
         # Remote durable execution. Only serializable params cross the boundary
         # (no raw bytes, no session maker): the worker re-fetches ``content``
         # from storage and builds its own DB session.
-        from prefect.deployments import run_deployment  # lazy: fallback never imports prefect
+        try:
+            from prefect.deployments import run_deployment  # lazy: fallback never imports prefect
 
-        await run_deployment(
-            name=PARSE_DEPLOYMENT,
-            parameters={
-                "statement_id": str(statement_id),
-                "filename": filename,
-                "institution": institution,
-                "user_id": str(user_id),
-                "account_id": str(account_id) if account_id is not None else None,
-                "file_hash": file_hash,
-                "storage_key": storage_key,
-                "model": model,
-                "request_id": request_id,
-            },
-            timeout=0,  # fire-and-submit: do not block the upload request on completion
-        )
-        logger.info(
-            "statement.parse.submitted_to_prefect",
-            statement_id=str(statement_id),
-            deployment=PARSE_DEPLOYMENT,
-            request_id=request_id,
-        )
-        return None
-
-    task = asyncio.create_task(
-        run_with_async_parse_tracking(
-            parse_statement_background(
-                statement_id=statement_id,
-                filename=filename,
-                institution=institution,
-                user_id=user_id,
-                account_id=account_id,
-                file_hash=file_hash,
-                storage_key=storage_key,
-                content=content,
-                model=model,
-                session_maker=create_session_maker_from_db(db),
+            await run_deployment(
+                name=PARSE_DEPLOYMENT,
+                parameters={
+                    "statement_id": str(statement_id),
+                    "filename": filename,
+                    "institution": institution,
+                    "user_id": str(user_id),
+                    "account_id": str(account_id) if account_id is not None else None,
+                    "file_hash": file_hash,
+                    "storage_key": storage_key,
+                    "model": model,
+                    "request_id": request_id,
+                },
+                timeout=0,  # fire-and-submit: do not block the upload request on completion
+            )
+            logger.info(
+                "statement.parse.submitted_to_prefect",
+                statement_id=str(statement_id),
+                deployment=PARSE_DEPLOYMENT,
                 request_id=request_id,
-            ),
-            statement_id=statement_id,
-            request_id=request_id,
-        )
-    )
-    task.add_done_callback(_consume_background_task_exception)
-    return task
+            )
+            return None
+        except Exception as exc:  # noqa: BLE001
+            # Fail-soft: the managed Prefect is opt-in durability, never a hard
+            # dependency. If the client isn't installed (ImportError on the base
+            # image) or the server is unreachable / the submit fails, degrade to
+            # in-process so an upload NEVER 500s on a Prefect issue. The work still
+            # runs; only the durable-handoff is skipped (logged loudly for ops).
+            logger.warning(
+                "statement.parse.prefect_unavailable_fallback_in_process",
+                statement_id=str(statement_id),
+                error=str(exc),
+                request_id=request_id,
+            )
+            return _run_in_process()
+
+    return _run_in_process()
