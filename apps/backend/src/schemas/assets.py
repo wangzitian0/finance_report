@@ -4,7 +4,7 @@ from datetime import date, datetime
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, computed_field, field_validator
 
 from src.models.layer3 import (
     ManualValuationBasis,
@@ -43,6 +43,24 @@ class ManagedPositionResponse(BaseResponse):
 
     # Denormalized fields from related Account (optional)
     account_name: str | None = None
+
+    # #1482: the bare `currency`/`cost_basis` are this endpoint's NATIVE view,
+    # but /portfolio/holdings uses the same names for its REPORTING view — so a
+    # client reading `currency` gets a different meaning per endpoint. Expose the
+    # native view under the same explicit names both endpoints share
+    # (`native_currency`/`native_cost_basis`), so clients never depend on the
+    # endpoint-local meaning of the bare field. Pure aliases of the native fields.
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def native_currency(self) -> str:
+        """Explicit native-currency alias of `currency` (identical across endpoints)."""
+        return self.currency
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def native_cost_basis(self) -> MoneyAmount:
+        """Explicit native cost-basis alias of `cost_basis`."""
+        return self.cost_basis
 
 
 class ReconcilePositionsResponse(BaseModel):
