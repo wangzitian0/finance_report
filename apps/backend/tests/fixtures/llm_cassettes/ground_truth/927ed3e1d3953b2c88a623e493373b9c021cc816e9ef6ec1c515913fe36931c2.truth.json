@@ -1,0 +1,824 @@
+{
+  "synthetic": true,
+  "modality": "vision",
+  "institution_class": "generic_hf",
+  "edge_condition": "large_statement",
+  "balance_reconciles": false,
+  "note": "SYNTHETIC statement (Akashved/Indian-Bank-Statements; generated, no real data). Source not committed — see the cassette's source.url. Balance NOT asserted (dataset balance column is internally inconsistent); field accuracy is graded. PII-masked uniformly (meta -> **, description -> first3***last3).",
+  "expected": {
+    "opening_balance": "65218.35",
+    "closing_balance": "21661.82",
+    "transactions": [
+      {
+        "date": "2024-01-01",
+        "description": "NEF***D--",
+        "amount": "6086.63"
+      },
+      {
+        "date": "2024-01-02",
+        "description": "Chq***TD.",
+        "amount": "23702.04"
+      },
+      {
+        "date": "2024-01-03",
+        "description": "RTG***ONE",
+        "amount": "9055.89"
+      },
+      {
+        "date": "2024-01-04",
+        "description": "IMP***PTA",
+        "amount": "2177.93"
+      },
+      {
+        "date": "2024-01-04",
+        "description": "CAS***AHA",
+        "amount": "661.06"
+      },
+      {
+        "date": "2024-01-04",
+        "description": "CAS***RTY",
+        "amount": "1789.08"
+      },
+      {
+        "date": "2024-01-05",
+        "description": "IMP***LTD",
+        "amount": "4795.06"
+      },
+      {
+        "date": "2024-01-05",
+        "description": "UPI***564",
+        "amount": "652.28"
+      },
+      {
+        "date": "2024-01-05",
+        "description": "IMP***LTD",
+        "amount": "1212.22"
+      },
+      {
+        "date": "2024-01-05",
+        "description": "IMP***OSE",
+        "amount": "407.72"
+      },
+      {
+        "date": "2024-01-06",
+        "description": "RTG***ONE",
+        "amount": "20253.8"
+      },
+      {
+        "date": "2024-01-06",
+        "description": "IMP***LTD",
+        "amount": "2574.63"
+      },
+      {
+        "date": "2024-01-06",
+        "description": "UPI***915",
+        "amount": "571.24"
+      },
+      {
+        "date": "2024-01-08",
+        "description": "UPI***363",
+        "amount": "513.47"
+      },
+      {
+        "date": "2024-01-08",
+        "description": "IMP***ULY",
+        "amount": "2287.52"
+      },
+      {
+        "date": "2024-01-08",
+        "description": "NEF***S--",
+        "amount": "7675.95"
+      },
+      {
+        "date": "2024-01-08",
+        "description": "NEF***D--",
+        "amount": "3180.55"
+      },
+      {
+        "date": "2024-01-08",
+        "description": "By ***EMS",
+        "amount": "3206.08"
+      },
+      {
+        "date": "2024-01-08",
+        "description": "Cas***TTA",
+        "amount": "742.4"
+      },
+      {
+        "date": "2024-01-09",
+        "description": "NEF***ENT",
+        "amount": "1347.6"
+      },
+      {
+        "date": "2024-01-11",
+        "description": "NEF***A--",
+        "amount": "3103.69"
+      },
+      {
+        "date": "2024-01-11",
+        "description": "CAS***RYA",
+        "amount": "1376.45"
+      },
+      {
+        "date": "2024-01-11",
+        "description": "NEF***PTA",
+        "amount": "5267.64"
+      },
+      {
+        "date": "2024-01-12",
+        "description": "NEF***SEN",
+        "amount": "6725.28"
+      },
+      {
+        "date": "2024-01-12",
+        "description": "Chq***TD.",
+        "amount": "6233.58"
+      },
+      {
+        "date": "2024-01-12",
+        "description": "Chq***TD.",
+        "amount": "6513.72"
+      },
+      {
+        "date": "2024-01-12",
+        "description": "NEF***OSE",
+        "amount": "3329.88"
+      },
+      {
+        "date": "2024-01-13",
+        "description": "IMP***RTY",
+        "amount": "523.74"
+      },
+      {
+        "date": "2024-01-13",
+        "description": "By ***LTD",
+        "amount": "312.87"
+      },
+      {
+        "date": "2024-01-13",
+        "description": "NEF***S--",
+        "amount": "1554.17"
+      },
+      {
+        "date": "2024-01-15",
+        "description": "By ***DIA",
+        "amount": "1828.18"
+      },
+      {
+        "date": "2024-01-16",
+        "description": "NEF***A--",
+        "amount": "4328.08"
+      },
+      {
+        "date": "2024-01-17",
+        "description": "CAS***KAR",
+        "amount": "1152.35"
+      },
+      {
+        "date": "2024-01-17",
+        "description": "CAS***WAS",
+        "amount": "1279.23"
+      },
+      {
+        "date": "2024-01-18",
+        "description": "IMP***LTD",
+        "amount": "2864.65"
+      },
+      {
+        "date": "2024-01-18",
+        "description": "RTG***ONE",
+        "amount": "8256.49"
+      },
+      {
+        "date": "2024-01-18",
+        "description": "CAS***AUL",
+        "amount": "216.21"
+      },
+      {
+        "date": "2024-01-19",
+        "description": "Chq***TD.",
+        "amount": "2677.73"
+      },
+      {
+        "date": "2024-01-19",
+        "description": "NEF***PTA",
+        "amount": "866.79"
+      },
+      {
+        "date": "2024-01-20",
+        "description": "NEF***OSH",
+        "amount": "1087.71"
+      },
+      {
+        "date": "2024-01-20",
+        "description": "RTG***ONE",
+        "amount": "5009.85"
+      },
+      {
+        "date": "2024-01-20",
+        "description": "NEF***955",
+        "amount": "10476.71"
+      },
+      {
+        "date": "2024-01-20",
+        "description": "NEF***S--",
+        "amount": "979.59"
+      },
+      {
+        "date": "2024-01-22",
+        "description": "IMP***ECH",
+        "amount": "785.55"
+      },
+      {
+        "date": "2024-01-23",
+        "description": "By ***DIA",
+        "amount": "326.25"
+      },
+      {
+        "date": "2024-01-24",
+        "description": "IMP***ONS",
+        "amount": "712.07"
+      },
+      {
+        "date": "2024-01-24",
+        "description": "NEF***O--",
+        "amount": "935.48"
+      },
+      {
+        "date": "2024-01-24",
+        "description": "By ***ORP",
+        "amount": "487.33"
+      },
+      {
+        "date": "2024-01-24",
+        "description": "RTG***NT/",
+        "amount": "7836.93"
+      },
+      {
+        "date": "2024-01-24",
+        "description": "NEF***PTA",
+        "amount": "2731.48"
+      },
+      {
+        "date": "2024-01-25",
+        "description": "IMP***EMS",
+        "amount": "161.94"
+      },
+      {
+        "date": "2024-01-25",
+        "description": "By ***ORP",
+        "amount": "1083.23"
+      },
+      {
+        "date": "2024-01-25",
+        "description": "RTG***ONE",
+        "amount": "4231.14"
+      },
+      {
+        "date": "2024-01-25",
+        "description": "UPI***469",
+        "amount": "297.82"
+      },
+      {
+        "date": "2024-01-27",
+        "description": "NEF***D--",
+        "amount": "2947.62"
+      },
+      {
+        "date": "2024-01-29",
+        "description": "UPI***710",
+        "amount": "353.7"
+      },
+      {
+        "date": "2024-01-29",
+        "description": "NEF***A--",
+        "amount": "3226.77"
+      },
+      {
+        "date": "2024-01-30",
+        "description": "IMP***DIA",
+        "amount": "2056.48"
+      },
+      {
+        "date": "2024-01-30",
+        "description": "UPI***656",
+        "amount": "401.24"
+      },
+      {
+        "date": "2024-01-30",
+        "description": "CAS***JEE",
+        "amount": "819.21"
+      },
+      {
+        "date": "2024-01-31",
+        "description": "REV***FRO",
+        "amount": "353.7"
+      },
+      {
+        "date": "2024-01-31",
+        "description": "UPI***869",
+        "amount": "396.36"
+      },
+      {
+        "date": "2024-01-31",
+        "description": "IMP***ONS",
+        "amount": "2246.64"
+      },
+      {
+        "date": "2024-02-01",
+        "description": "IMP***ULY",
+        "amount": "1288.87"
+      },
+      {
+        "date": "2024-02-02",
+        "description": "ATM***498",
+        "amount": "9482.92"
+      },
+      {
+        "date": "2024-02-03",
+        "description": "By ***DIA",
+        "amount": "1520.04"
+      },
+      {
+        "date": "2024-02-03",
+        "description": "RTG***NT/",
+        "amount": "20416.63"
+      },
+      {
+        "date": "2024-02-03",
+        "description": "ATM***619",
+        "amount": "12427.35"
+      },
+      {
+        "date": "2024-02-05",
+        "description": "UPI***544",
+        "amount": "378.91"
+      },
+      {
+        "date": "2024-02-05",
+        "description": "IMP***JEE",
+        "amount": "2523.73"
+      },
+      {
+        "date": "2024-02-05",
+        "description": "Chq***TD.",
+        "amount": "7465.74"
+      },
+      {
+        "date": "2024-02-05",
+        "description": "By ***DIA",
+        "amount": "583.89"
+      },
+      {
+        "date": "2024-02-07",
+        "description": "RTG***ONE",
+        "amount": "6944.61"
+      },
+      {
+        "date": "2024-02-08",
+        "description": "NEF***A--",
+        "amount": "302.74"
+      },
+      {
+        "date": "2024-02-09",
+        "description": "NEF***ENT",
+        "amount": "3352.68"
+      },
+      {
+        "date": "2024-02-09",
+        "description": "By ***LTD",
+        "amount": "432.09"
+      },
+      {
+        "date": "2024-02-10",
+        "description": "By ***LTD",
+        "amount": "853.56"
+      },
+      {
+        "date": "2024-02-10",
+        "description": "By ***IES",
+        "amount": "451.25"
+      },
+      {
+        "date": "2024-02-10",
+        "description": "NEF***D--",
+        "amount": "1785.19"
+      },
+      {
+        "date": "2024-02-10",
+        "description": "UPI***983",
+        "amount": "929.96"
+      },
+      {
+        "date": "2024-02-13",
+        "description": "By ***DIA",
+        "amount": "712.98"
+      },
+      {
+        "date": "2024-02-13",
+        "description": "REV***OM ",
+        "amount": "929.96"
+      },
+      {
+        "date": "2024-02-14",
+        "description": "NEF***PTA",
+        "amount": "1830.56"
+      },
+      {
+        "date": "2024-02-14",
+        "description": "RTG***ONE",
+        "amount": "1310.51"
+      },
+      {
+        "date": "2024-02-15",
+        "description": "RTG***NT/",
+        "amount": "6440.36"
+      },
+      {
+        "date": "2024-02-15",
+        "description": "NEF***S--",
+        "amount": "5451.92"
+      },
+      {
+        "date": "2024-02-15",
+        "description": "CAS***RYA",
+        "amount": "962.42"
+      },
+      {
+        "date": "2024-02-17",
+        "description": "RTG***NT/",
+        "amount": "19038.22"
+      },
+      {
+        "date": "2024-02-17",
+        "description": "Cas***TTA",
+        "amount": "1832.42"
+      },
+      {
+        "date": "2024-02-17",
+        "description": "NEF***P--",
+        "amount": "2325.53"
+      },
+      {
+        "date": "2024-02-17",
+        "description": "RTG***NT/",
+        "amount": "43436.34"
+      },
+      {
+        "date": "2024-02-17",
+        "description": "NEF***P--",
+        "amount": "14590.37"
+      },
+      {
+        "date": "2024-02-19",
+        "description": "IMP***SEN",
+        "amount": "8657.44"
+      },
+      {
+        "date": "2024-02-19",
+        "description": "NEF***OSH",
+        "amount": "5067.47"
+      },
+      {
+        "date": "2024-02-20",
+        "description": "NEF***P--",
+        "amount": "22264.98"
+      },
+      {
+        "date": "2024-02-20",
+        "description": "NEF***171",
+        "amount": "10476.71"
+      },
+      {
+        "date": "2024-02-21",
+        "description": "UPI***879",
+        "amount": "106.68"
+      },
+      {
+        "date": "2024-02-22",
+        "description": "Cas***TRA",
+        "amount": "5170.28"
+      },
+      {
+        "date": "2024-02-22",
+        "description": "By ***ING",
+        "amount": "14081.58"
+      },
+      {
+        "date": "2024-02-23",
+        "description": "By ***LTD",
+        "amount": "14029.17"
+      },
+      {
+        "date": "2024-02-24",
+        "description": "NEF***A--",
+        "amount": "49027.87"
+      },
+      {
+        "date": "2024-02-24",
+        "description": "Chq***TD.",
+        "amount": "71993.52"
+      },
+      {
+        "date": "2024-02-24",
+        "description": "RTG***NT/",
+        "amount": "37177.04"
+      },
+      {
+        "date": "2024-02-24",
+        "description": "NEF***A--",
+        "amount": "33889.33"
+      },
+      {
+        "date": "2024-02-24",
+        "description": "By ***DIA",
+        "amount": "51788.93"
+      },
+      {
+        "date": "2024-02-26",
+        "description": "NEF***ION",
+        "amount": "1759.58"
+      },
+      {
+        "date": "2024-02-26",
+        "description": "RTG***ONE",
+        "amount": "61198.68"
+      },
+      {
+        "date": "2024-02-27",
+        "description": "UPI***902",
+        "amount": "1622.9"
+      },
+      {
+        "date": "2024-02-27",
+        "description": "IMP***LTD",
+        "amount": "9271.67"
+      },
+      {
+        "date": "2024-02-27",
+        "description": "IMP***LTD",
+        "amount": "25697.34"
+      },
+      {
+        "date": "2024-02-27",
+        "description": "Chq***TD.",
+        "amount": "99036.48"
+      },
+      {
+        "date": "2024-02-27",
+        "description": "NEF***TTA",
+        "amount": "33492.48"
+      },
+      {
+        "date": "2024-02-27",
+        "description": "RTG***ONE",
+        "amount": "14033.52"
+      },
+      {
+        "date": "2024-02-28",
+        "description": "UPI***596",
+        "amount": "2163.29"
+      },
+      {
+        "date": "2024-02-28",
+        "description": "By ***ECH",
+        "amount": "6835.45"
+      },
+      {
+        "date": "2024-02-28",
+        "description": "Ser***AMC",
+        "amount": "337.27"
+      },
+      {
+        "date": "2024-02-28",
+        "description": "Ser***ges",
+        "amount": "206.83"
+      },
+      {
+        "date": "2024-02-28",
+        "description": "Ser***ges",
+        "amount": "90.75"
+      },
+      {
+        "date": "2024-02-29",
+        "description": "Chq***TD.",
+        "amount": "26979.32"
+      },
+      {
+        "date": "2024-02-29",
+        "description": "RTG***ONE",
+        "amount": "22061.03"
+      },
+      {
+        "date": "2024-03-01",
+        "description": "Chq***TD.",
+        "amount": "6091.77"
+      },
+      {
+        "date": "2024-03-01",
+        "description": "Cas***OSE",
+        "amount": "823.12"
+      },
+      {
+        "date": "2024-03-02",
+        "description": "RTG***NT/",
+        "amount": "6595.41"
+      },
+      {
+        "date": "2024-03-04",
+        "description": "IMP***DIA",
+        "amount": "503.0"
+      },
+      {
+        "date": "2024-03-05",
+        "description": "IMP***JEE",
+        "amount": "1097.33"
+      },
+      {
+        "date": "2024-03-05",
+        "description": "IMP***TTA",
+        "amount": "1560.02"
+      },
+      {
+        "date": "2024-03-06",
+        "description": "By ***LTD",
+        "amount": "787.87"
+      },
+      {
+        "date": "2024-03-06",
+        "description": "By ***DIA",
+        "amount": "1935.68"
+      },
+      {
+        "date": "2024-03-06",
+        "description": "RTG***NT/",
+        "amount": "17289.4"
+      },
+      {
+        "date": "2024-03-06",
+        "description": "NEF***S--",
+        "amount": "14338.29"
+      },
+      {
+        "date": "2024-03-07",
+        "description": "NEF***S--",
+        "amount": "3170.94"
+      },
+      {
+        "date": "2024-03-12",
+        "description": "NEF***PTA",
+        "amount": "3236.48"
+      },
+      {
+        "date": "2024-03-13",
+        "description": "NEF***D--",
+        "amount": "20750.49"
+      },
+      {
+        "date": "2024-03-14",
+        "description": "RTG***ONE",
+        "amount": "41602.44"
+      },
+      {
+        "date": "2024-03-14",
+        "description": "NEF***P--",
+        "amount": "5733.73"
+      },
+      {
+        "date": "2024-03-15",
+        "description": "Div***RES",
+        "amount": "1356.03"
+      },
+      {
+        "date": "2024-03-15",
+        "description": "UPI***124",
+        "amount": "743.12"
+      },
+      {
+        "date": "2024-03-15",
+        "description": "UPI***918",
+        "amount": "361.52"
+      },
+      {
+        "date": "2024-03-16",
+        "description": "NEF***A--",
+        "amount": "11491.98"
+      },
+      {
+        "date": "2024-03-18",
+        "description": "Chq***TD.",
+        "amount": "10836.25"
+      },
+      {
+        "date": "2024-03-18",
+        "description": "CAS***TTA",
+        "amount": "745.26"
+      },
+      {
+        "date": "2024-03-18",
+        "description": "By ***ERS",
+        "amount": "5003.83"
+      },
+      {
+        "date": "2024-03-19",
+        "description": "Chq***TD.",
+        "amount": "13018.88"
+      },
+      {
+        "date": "2024-03-20",
+        "description": "Chq***TD.",
+        "amount": "10937.03"
+      },
+      {
+        "date": "2024-03-20",
+        "description": "IMP***LTD",
+        "amount": "1873.07"
+      },
+      {
+        "date": "2024-03-21",
+        "description": "Chq***TD.",
+        "amount": "2868.01"
+      },
+      {
+        "date": "2024-03-21",
+        "description": "Cas***RYA",
+        "amount": "147.31"
+      },
+      {
+        "date": "2024-03-22",
+        "description": "NEF***D--",
+        "amount": "3664.61"
+      },
+      {
+        "date": "2024-03-22",
+        "description": "UPI***180",
+        "amount": "585.87"
+      },
+      {
+        "date": "2024-03-23",
+        "description": "Chq***TD.",
+        "amount": "6836.9"
+      },
+      {
+        "date": "2024-03-26",
+        "description": "NEF***A--",
+        "amount": "775.81"
+      },
+      {
+        "date": "2024-03-26",
+        "description": "NEF***D--",
+        "amount": "3255.94"
+      },
+      {
+        "date": "2024-03-26",
+        "description": "NEF***JEE",
+        "amount": "885.56"
+      },
+      {
+        "date": "2024-03-27",
+        "description": "NEF***D--",
+        "amount": "4367.43"
+      },
+      {
+        "date": "2024-03-27",
+        "description": "IMP***LTD",
+        "amount": "365.78"
+      },
+      {
+        "date": "2024-03-28",
+        "description": "By ***ORP",
+        "amount": "1134.45"
+      },
+      {
+        "date": "2024-03-28",
+        "description": "RTG***NT/",
+        "amount": "22753.12"
+      },
+      {
+        "date": "2024-03-28",
+        "description": "NEF***A--",
+        "amount": "16031.1"
+      },
+      {
+        "date": "2024-03-28",
+        "description": "Ser***ges",
+        "amount": "11.97"
+      },
+      {
+        "date": "2024-03-30",
+        "description": "NEF***JEE",
+        "amount": "21205.89"
+      },
+      {
+        "date": "2024-03-30",
+        "description": "NEF***RTY",
+        "amount": "13771.73"
+      },
+      {
+        "date": "2024-03-30",
+        "description": "UPI***174",
+        "amount": "748.95"
+      }
+    ]
+  }
+}
