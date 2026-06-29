@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { CalendarDays, X } from "lucide-react";
 
 import { apiFetch } from "@/lib/api";
+import { useBaseCurrency } from "@/hooks/useBaseCurrency";
 import { PortfolioHolding, PortfolioSummaryResponse } from "@/lib/types";
 import { PerformanceCard } from "@/components/portfolio/PerformanceCard";
 import { LoadingState } from "@/components/ui";
@@ -26,8 +27,6 @@ import type {
   NetWorthAllocationResponse,
   NetWorthAllocationRow,
 } from "@/lib/types";
-
-const REPORT_CURRENCY = "SGD";
 
 function allocationBarWidth(percentage: string | null): string {
   return clampPercentWidthFromPercentValue(percentage);
@@ -56,6 +55,8 @@ function allocationBarClass(row: NetWorthAllocationRow): string {
 }
 
 export default function PortfolioPage() {
+  // #1487: derive the reporting currency from app config instead of hardcoding it.
+  const { baseCurrency: reportCurrency } = useBaseCurrency();
   const [showDisposed, setShowDisposed] = useState(false);
   const [asOfDate, setAsOfDate] = useState("");
   const [includeRestrictedAllocation, setIncludeRestrictedAllocation] =
@@ -63,14 +64,14 @@ export default function PortfolioPage() {
 
   const netWorthAllocationQueryString = useMemo(() => {
     const params = new URLSearchParams({
-      currency: REPORT_CURRENCY,
+      currency: reportCurrency,
       include_restricted: includeRestrictedAllocation ? "true" : "false",
     });
     if (asOfDate) {
       params.set("as_of_date", asOfDate);
     }
     return params.toString();
-  }, [asOfDate, includeRestrictedAllocation]);
+  }, [asOfDate, includeRestrictedAllocation, reportCurrency]);
 
   const {
     data: holdings,
@@ -140,7 +141,7 @@ export default function PortfolioPage() {
   const totalPortfolioValue = sumAmounts(
     activeHoldings.map((holding) => holding.market_value),
   );
-  const primaryCurrency = activeHoldings[0]?.currency ?? "USD";
+  const primaryCurrency = activeHoldings[0]?.currency ?? reportCurrency;
   const allocationRows = netWorthAllocation?.rows ?? [];
 
   return (
@@ -247,7 +248,7 @@ export default function PortfolioPage() {
             <div className="text-xs text-muted md:text-right">
               <p>
                 Report currency:{" "}
-                {netWorthAllocation?.currency ?? REPORT_CURRENCY}
+                {netWorthAllocation?.currency ?? reportCurrency}
               </p>
               <p>
                 As of {netWorthAllocation?.as_of_date ?? (asOfDate || "latest")}
@@ -351,7 +352,7 @@ export default function PortfolioPage() {
                 >
                   {formatCurrencyLocale(
                     row.value,
-                    netWorthAllocation?.currency ?? REPORT_CURRENCY,
+                    netWorthAllocation?.currency ?? reportCurrency,
                   )}
                 </p>
                 <p className="text-sm text-muted md:text-right">

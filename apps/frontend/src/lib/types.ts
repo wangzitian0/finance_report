@@ -145,6 +145,10 @@ export interface BalanceSheetResponse {
   unrealized_fx_gain_loss?: MoneyValue;
   net_worth_adjustment_gain_loss?: MoneyValue;
   fx_warnings?: FxWarning[];
+  // #1481/#1486: aggregate confidence tier (degraded to LOW while an opening
+  // balance is missing) and the matching opening-balance warning(s).
+  confidence_tier?: "TRUSTED" | "HIGH" | "MEDIUM" | "LOW" | null;
+  opening_balance_warnings?: FxWarning[];
   equation_delta: MoneyValue;
   is_balanced: boolean;
 }
@@ -474,6 +478,9 @@ export interface NetWorthAllocationResponse {
   total_liabilities: MoneyValue;
   net_worth: MoneyValue;
   rows: NetWorthAllocationRow[];
+  // #1481/#1486: same opening-balance gate as the balance sheet.
+  confidence_tier?: "TRUSTED" | "HIGH" | "MEDIUM" | "LOW" | null;
+  opening_balance_warnings?: FxWarning[];
 }
 
 export interface ReconciliationMatchResponse {
@@ -599,7 +606,15 @@ export interface PortfolioHolding {
   market_value: string;
   unrealized_pnl: string;
   unrealized_pnl_percent: string;
+  /** Reporting/base-currency view (same as `reporting_currency`). */
   currency: string;
+  // #1482/#1487: native vs reporting are identically-named on both
+  // /portfolio/holdings and /assets/positions, so the UI can show the native
+  // denomination instead of depending on the endpoint-local `currency`.
+  native_currency?: string;
+  reporting_currency?: string;
+  native_cost_basis?: string;
+  reporting_cost_basis?: string;
   acquisition_date: string;
   disposal_date?: string | null;
   status: "active" | "disposed";

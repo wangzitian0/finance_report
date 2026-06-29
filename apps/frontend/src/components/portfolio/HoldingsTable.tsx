@@ -112,6 +112,14 @@ export function HoldingsTable({
                       <div className="text-xs text-muted mt-0.5">
                         {formatDateDisplay(h.acquisition_date)}
                         {h.sector && ` · ${h.sector}`}
+                        {/* #1487: a foreign holding's values below are shown in
+                            the reporting currency — surface its native currency
+                            so the denomination is never hidden. */}
+                        {h.native_currency && h.native_currency !== h.currency && (
+                          <span title={`Denominated in ${h.native_currency}; values shown in ${h.currency}`}>
+                            {` · ${h.native_currency}-denominated`}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-2 text-right font-mono">
