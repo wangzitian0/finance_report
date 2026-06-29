@@ -13,7 +13,7 @@
 > The machine-readable audit-failed case registry is a sibling data file:
 > [`audit-failed-cases.yaml`](./audit-failed-cases.yaml). The conforming backend
 > implementation lives at
-> [`apps/backend/src/services/extraction.py`](../../apps/backend/src/services/extraction.py)
+> [`apps/backend/src/services/extraction/`](../../apps/backend/src/services/extraction)
 > and its siblings (the code cutover #1421 homes them under the package shape).
 
 This document defines the Single Source of Truth for the document extraction feature.
@@ -493,7 +493,7 @@ Coverage checks compare monthly statement periods within each account/currency:
 |------|---------|
 | `src/models/statement_enums.py`, `src/models/statement_summary.py` | SQLAlchemy models and enums |
 | `src/schemas/extraction.py` | Pydantic schemas |
-| `src/services/extraction.py` | Core extraction logic |
+| `src/services/extraction/` (`service.py`, `_ocr.py`, `_llm_led_gate.py`, …) | Core extraction logic |
 | `src/services/validation.py` | Validation, confidence scoring, running-balance chain-break detector (`detect_balance_chain_break`) |
 | `src/services/chain_repair.py` | Under-extraction repair-pass hook (`repair_under_extraction`, injectable `RegionReExtractor`) |
 | `src/services/storage.py` | Object storage uploads + presigned URLs |
