@@ -645,6 +645,11 @@ async def import_brokerage_statement_positions(
             filename=source_filename,
             source_document_id=source_document_id,
         )
+        # #1484: anchor the statement to the broker account the import reconciled
+        # into, closing the source→account traceability gap (a bank statement is
+        # linked the same way during posting). Only set it when not already linked.
+        if statement.account_id is None and import_result.account_id is not None:
+            statement.account_id = import_result.account_id
         await db.commit()
     except Exception as exc:
         logger.exception(
@@ -674,7 +679,12 @@ async def import_brokerage_statement_positions(
         reconcile_updated=import_result.reconcile_updated,
         reconcile_disposed=import_result.reconcile_disposed,
     )
-    return BrokerageImportResponse(**import_result.__dict__)
+    # Report the statement's effective anchor: prefer the (possibly pre-existing)
+    # statement.account_id over the import's freshly-resolved one, so the response
+    # never says null while the statement is in fact linked (#1484).
+    return BrokerageImportResponse(
+        **{**import_result.__dict__, "account_id": statement.account_id or import_result.account_id}
+    )
 
 
 @router.delete("/{statement_id}", status_code=status.HTTP_204_NO_CONTENT)
