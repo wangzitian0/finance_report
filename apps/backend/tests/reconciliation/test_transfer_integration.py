@@ -147,7 +147,7 @@ class TestTransferDetectionDuringReconciliation:
         await db.refresh(txn)
 
     async def test_transfer_detection_skips_when_no_account_linked(self, db: AsyncSession, test_user):
-        """AC-ledger.76.2 · Transfer detection logs warning and skips when statement has no linked account."""
+        """AC-ledger.76.2 · Transfer detection skips (no Processing entry, no match) when statement has no linked account."""
         user_id = test_user.id
 
         doc = await _seed_statement(db, user_id, account_id=None, file_hash="test_hash_no_account")
