@@ -1105,17 +1105,23 @@ def test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof() ->
         "tools/check_source_coverage_matrix.py",
     ]
 
+    # The extraction SSOT is internalized into the `extraction` package
+    # (common/extraction/{readme,audit-failed-cases.yaml}); docs/ssot/ pages now
+    # link the moved registry via its GitHub blob URL (the docs/ -> common/
+    # cross-tree convention), and the package readme links its sibling registry
+    # via a relative path.
+    blob = "https://github.com/wangzitian0/finance_report/blob/main/common/extraction/audit-failed-cases.yaml"
     inbound_refs = {
         "docs/ssot/README.md": [
-            "[`extraction_failed_case_registry`](./extraction-audit-failed-cases.yaml)",
+            f"[`extraction_failed_case_registry`]({blob})",
             "[`source_coverage_matrix`](./source-coverage-matrix.yaml)",
         ],
-        "docs/ssot/extraction.md": [
-            "[`extraction_failed_case_registry`](./extraction-audit-failed-cases.yaml)",
-            "[`source_coverage_matrix`](./source-coverage-matrix.yaml)",
+        "common/extraction/readme.md": [
+            "[`extraction_failed_case_registry`](./audit-failed-cases.yaml)",
+            "[`source_coverage_matrix`](../../docs/ssot/source-coverage-matrix.yaml)",
         ],
         "docs/project/EPIC-003.statement-parsing.md": [
-            "[`extraction_failed_case_registry`](../ssot/extraction-audit-failed-cases.yaml)",
+            f"[`extraction_failed_case_registry`]({blob})",
         ],
         "docs/project/EPIC-013.statement-parsing-v2.md": [
             "[`source_coverage_matrix`](../ssot/source-coverage-matrix.yaml)",
@@ -1124,7 +1130,7 @@ def test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof() ->
             "[`source_coverage_matrix`](docs/ssot/source-coverage-matrix.yaml)",
         ],
         "docs/ssot/tdd.md": [
-            "[`extraction_failed_case_registry`](./extraction-audit-failed-cases.yaml)",
+            f"[`extraction_failed_case_registry`]({blob})",
             "[`source_coverage_matrix`](./source-coverage-matrix.yaml)",
         ],
     }

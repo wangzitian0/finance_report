@@ -1,4 +1,20 @@
-# Document Extraction SSOT
+# `extraction` — statement parsing bounded context
+
+> One package owning the whole document-extraction concept: the **prose SSOT for
+> the extraction pipeline** (this file) **and**, after the code cutover (#1421),
+> the conforming implementation. This readme is the single registered owner of
+> the extraction-pipeline rationale, the confidence-scoring tiers
+> ([§Confidence Scoring](#confidence-scoring)), and the audit-failed case
+> registry policy — internalized here from the retired `docs/ssot/extraction.md`
+> per the package-migration standard
+> ([`../meta/migration-standard.md`](../meta/migration-standard.md), step 3 "SSOT
+> internalized").
+>
+> The machine-readable audit-failed case registry is a sibling data file:
+> [`audit-failed-cases.yaml`](./audit-failed-cases.yaml). The conforming backend
+> implementation lives at
+> [`apps/backend/src/services/extraction/`](../../apps/backend/src/services/extraction)
+> and its siblings (the code cutover #1421 homes them under the package shape).
 
 This document defines the Single Source of Truth for the document extraction feature.
 
@@ -25,7 +41,7 @@ weaken extraction confidence or balance-validation rules.
 
 Supported source classes, proof levels, review requirements, and traceability
 targets are owned by
-[`source_coverage_matrix`](./source-coverage-matrix.yaml). This document
+[`source_coverage_matrix`](../../docs/ssot/source-coverage-matrix.yaml). This document
 explains extraction behavior; source-class changes must land through the matrix
 and its EPIC -> AC -> test anchors.
 
@@ -99,7 +115,7 @@ write path and no dual-write flag.
   `opening_balance` / `closing_balance` stay populated for the single-currency
   case, and reconciliation runs **per currency** (never summing across
   currencies). See
-  [reconciliation.md#per-currency-balance-reconciliation](reconciliation.md#per-currency-balance-reconciliation).
+  [reconciliation.md#per-currency-balance-reconciliation](../../docs/ssot/reconciliation.md#per-currency-balance-reconciliation).
   (#1123 AC1; FX pairing / transfer net-worth / FX P&L deferred as #1123
   AC2/AC3/AC4.)
 - A multi-currency **brokerage** statement populates `currency_balances` from its
@@ -383,7 +399,7 @@ S3_PRESIGN_EXPIRY_SECONDS=300
 LLM/OCR is the polymorphic extraction layer for statement formats. The system
 does not expand deterministic parser rules just because one provider output or
 source layout fails audit. Instead, failed cases are captured in
-[`extraction_failed_case_registry`](./extraction-audit-failed-cases.yaml) with
+[`extraction_failed_case_registry`](./audit-failed-cases.yaml) with
 sanitized evidence and one of the approved failure categories:
 
 - `parse_schema_failure`
@@ -411,6 +427,11 @@ slice is registered.
 - **Fallback models (vision path)**: `VISION_FALLBACK_MODELS` (default `glm-4.5v`) are appended after the primary OCR/vision model on the vision/image path, deduplicated and order-preserving. Because the vision request carries image content, these fallbacks must be vision-capable; the text-only `FALLBACK_MODELS` are intentionally **not** reused here. A non-retryable failure of the primary vision model (e.g. a provider `400`) therefore falls through to a secondary vision model before the upload is rejected with `ERR_EXT_003` (#1034). Set `VISION_FALLBACK_MODELS` empty to keep the prior single-model behavior.
 
 ## Data Integrity & Typing
+
+The monetary-Decimal rule (never `float` for amounts) is owned by
+[accounting.md#decimal-rule](../../docs/ssot/accounting.md#decimal-rule);
+extraction restates it for its parse boundary. See:
+docs/ssot/accounting.md#decimal-rule.
 
 To prevent floating-point errors (e.g. `0.1 + 0.2 != 0.3`), the system enforces strict typing:
 
@@ -472,7 +493,7 @@ Coverage checks compare monthly statement periods within each account/currency:
 |------|---------|
 | `src/models/statement_enums.py`, `src/models/statement_summary.py` | SQLAlchemy models and enums |
 | `src/schemas/extraction.py` | Pydantic schemas |
-| `src/services/extraction.py` | Core extraction logic |
+| `src/services/extraction/` (`service.py`, `_ocr.py`, `_llm_led_gate.py`, …) | Core extraction logic |
 | `src/services/validation.py` | Validation, confidence scoring, running-balance chain-break detector (`detect_balance_chain_break`) |
 | `src/services/chain_repair.py` | Under-extraction repair-pass hook (`repair_under_extraction`, injectable `RegionReExtractor`) |
 | `src/services/storage.py` | Object storage uploads + presigned URLs |

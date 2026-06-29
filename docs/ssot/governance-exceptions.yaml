@@ -105,6 +105,33 @@ exceptions:
       the auth_flow MANIFEST concept is retired. Remove this exception once the
       deletion is merged.
 
+  # Extraction package self-hosts: the extraction SSOT moved out of docs/ssot/
+  # into the extraction package that owns it (Stage-2 precursor to the code
+  # cutover #1421), per the package-migration standard
+  # (common/meta/migration-standard.md, step 3 "SSOT internalized"). The prose
+  # folded into common/extraction/readme.md (incl. its #confidence-scoring
+  # section) and the audit-failed case registry into
+  # common/extraction/audit-failed-cases.yaml; the MANIFEST extraction_pipeline /
+  # extraction_confidence_tiers / extraction_failed_case_registry owners now
+  # point there, so docs/ssot/extraction.md and
+  # docs/ssot/extraction-audit-failed-cases.yaml are deleted. Each deletion shows
+  # up as a changed SSOT file with no owner; these temporary exceptions cover only
+  # that deletion churn in this PR.
+  - target: finance_report:docs/ssot/extraction.md
+    issue: https://github.com/wangzitian0/finance_report/issues/1421
+    reason: >-
+      extraction.md internalized into common/extraction/readme.md (the extraction
+      package owns the pipeline rationale + the #confidence-scoring tiers); the
+      MANIFEST extraction_pipeline / extraction_confidence_tiers owners now point
+      there. Remove this exception once the deletion is merged.
+  - target: finance_report:docs/ssot/extraction-audit-failed-cases.yaml
+    issue: https://github.com/wangzitian0/finance_report/issues/1421
+    reason: >-
+      extraction-audit-failed-cases.yaml moved into the extraction package
+      (common/extraction/audit-failed-cases.yaml) as extraction-owned data; the
+      MANIFEST extraction_failed_case_registry owner now points there. Remove this
+      exception once the deletion is merged.
+
 # ---------------------------------------------------------------------------
 # Temporary SSOT governance gate exceptions live in `exceptions` above.
 # Each exception must target a single gate finding and link a GitHub issue.

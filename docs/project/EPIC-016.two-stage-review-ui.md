@@ -72,7 +72,7 @@ state rather than a duplicated phase checklist.
 | `pending_review` state machine and 0.001 USD Stage 1 tolerance | [confirmation-workflow.md](../ssot/confirmation-workflow.md) |
 | Reconciliation thresholds, Stage 2 checks, and match lifecycle | [reconciliation.md](../ssot/reconciliation.md) |
 | Statement, transaction, and match models | [schema.md](../ssot/schema.md) |
-| Parsing input contract for Stage 1 review | [extraction.md](../ssot/extraction.md) |
+| Parsing input contract for Stage 1 review | [common/extraction/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md) |
 | Journal entry creation from accepted matches | [accounting.md](../ssot/accounting.md) |
 | Backend behavior proof | `apps/backend/tests/review/`, `apps/backend/tests/api/` |
 | Frontend and responsive workflow proof | `apps/frontend/src/__tests__/`, `apps/frontend/playwright/` |
@@ -119,7 +119,7 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 - [schema.md](../ssot/schema.md) — data-layer and migration guardrails
 - [Generated DB Schema Reference](../reference/db-schema.md) — current statement, match, consistency-check, and atomic fact inventory
 - [accounting.md](../ssot/accounting.md) — Journal entry creation from approved matches
-- [extraction.md](../ssot/extraction.md) — Statement parsing logic (Stage 1 input)
+- [common/extraction/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md) — Statement parsing logic (Stage 1 input)
 
 ---
 

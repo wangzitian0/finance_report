@@ -210,7 +210,7 @@ Generated from `docs/ssot/` - the Single Source of Truth for this project.
 | Accounting | `domain/accounting` | [docs/ssot/accounting.md](../docs/ssot/accounting.md) |
 | Reconciliation | `domain/reconciliation` | [docs/ssot/reconciliation.md](../docs/ssot/reconciliation.md) |
 | Reporting | `domain/reporting` | [docs/ssot/reporting.md](../docs/ssot/reporting.md) |
-| Extraction | `domain/extraction` | [docs/ssot/extraction.md](../docs/ssot/extraction.md) |
+| Extraction | `domain/extraction` | [common/extraction/readme.md](../common/extraction/readme.md) |
 | Schema | `domain/schema` | [docs/ssot/schema.md](../docs/ssot/schema.md) |
 | Development | `domain/development` | [docs/ssot/development.md](../docs/ssot/development.md) |
 | Infra Operations | `domain/infra-operations` | Infrastructure deployment, operations, debugging, and monitoring |

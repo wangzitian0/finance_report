@@ -64,6 +64,13 @@ MUST_BE_ABSENT: list[Path] = [
     # authority-tiers.md internalized into the authority package
     # (common/authority/readme.md) per migration-standard step 3 "SSOT internalized".
     REPO_ROOT / "docs" / "ssot" / "authority-tiers.md",
+    # extraction.md internalized into the extraction package
+    # (common/extraction/readme.md) per migration-standard step 3 "SSOT internalized"
+    # (Stage-2 precursor to the code cutover #1421).
+    REPO_ROOT / "docs" / "ssot" / "extraction.md",
+    # extraction-audit-failed-cases.yaml moved into the extraction package
+    # (common/extraction/audit-failed-cases.yaml) as extraction-owned data.
+    REPO_ROOT / "docs" / "ssot" / "extraction-audit-failed-cases.yaml",
 ]
 
 # ---------------------------------------------------------------------------

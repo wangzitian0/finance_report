@@ -61,15 +61,15 @@ explicit AC IDs for the behavior.
 | `apps/backend/tests/api/test_ai_feedback_router_extra.py` | `docs/ssot/ai.md` |
 | `apps/backend/tests/assets/test_assets_positions_and_depreciation.py` | `docs/ssot/assets.md` |
 | `apps/backend/tests/identity/test_auth_router_unit.py` | `common/identity/readme.md` |
-| `apps/backend/tests/extraction/test_account_last4_defense.py` | `docs/ssot/extraction.md` |
-| `apps/backend/tests/extraction/test_classification_service.py` | `docs/ssot/extraction.md` |
+| `apps/backend/tests/extraction/test_account_last4_defense.py` | `common/extraction/readme.md` |
+| `apps/backend/tests/extraction/test_classification_service.py` | `common/extraction/readme.md` |
 | `apps/backend/tests/extraction/test_extraction_cassette_replay.py` | `docs/ssot/llm.md` (EPIC-023 AC23.6 streaming-bridge scaffold; skipped via `needs_real_cassette` until real cassettes are recorded with `make llm-record`, then it becomes AC proof) |
-| `apps/backend/tests/extraction/test_dual_write_layer2.py` | `docs/ssot/extraction.md` |
-| `apps/backend/tests/extraction/test_extraction_logging.py` | `docs/ssot/extraction.md` |
-| `apps/backend/tests/extraction/test_pdf_fixtures.py` | `docs/ssot/extraction.md` |
+| `apps/backend/tests/extraction/test_dual_write_layer2.py` | `common/extraction/readme.md` |
+| `apps/backend/tests/extraction/test_extraction_logging.py` | `common/extraction/readme.md` |
+| `apps/backend/tests/extraction/test_pdf_fixtures.py` | `common/extraction/readme.md` |
 | `apps/backend/tests/extraction/test_pii_redaction.py` | `docs/agents/red-lines.md` |
-| `apps/backend/tests/extraction/test_statement_parsing_supervisor.py` | `docs/ssot/extraction.md` |
-| `apps/backend/tests/extraction/test_statements_supervisor_errors.py` | `docs/ssot/extraction.md` |
+| `apps/backend/tests/extraction/test_statement_parsing_supervisor.py` | `common/extraction/readme.md` |
+| `apps/backend/tests/extraction/test_statements_supervisor_errors.py` | `common/extraction/readme.md` |
 | `apps/backend/tests/infra/test_boot.py` | `docs/ssot/development.md` |
 | `apps/backend/tests/infra/test_config.py` | `docs/ssot/development.md` |
 | `apps/backend/tests/infra/test_database.py` | `docs/ssot/development.md` |
@@ -129,7 +129,7 @@ explicit AC IDs for the behavior.
 | `apps/frontend/src/hooks/__tests__/useFocusTrap.test.tsx` | `docs/ssot/frontend-patterns.md` |
 | `tests/tooling/test_agent_runtime_symlinks.py` | `docs/agents/orchestration.md` |
 | `tests/tooling/test_audit_router_contracts.py` | `docs/reference/router-contract-maturity.md` |
-| `tests/tooling/test_brokerage_prompt_contract.py` | `docs/ssot/extraction.md` |
+| `tests/tooling/test_brokerage_prompt_contract.py` | `common/extraction/readme.md` |
 | `tests/tooling/test_check_env_keys.py` | `docs/ssot/development.md` |
 | `tests/tooling/test_check_manifest.py` | `docs/ssot/MANIFEST.yaml` |
 | `tests/tooling/test_check_package_contract.py` | `common/meta/readme.md` |

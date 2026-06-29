@@ -337,5 +337,5 @@ matrix + the classifier's `band` / `classify_repo` / `BANDS`.
   introduced tiers (now references the homed `AC-authority.*` ids).
 - [`authority_matrix.py`](./authority_matrix.py) — the machine source of
   `PackageTier` and the proof matrix (`PackageContract` imports it).
-- [`../../docs/ssot/extraction.md`](../../docs/ssot/extraction.md) — a domain
+- [`../extraction/readme.md`](../extraction/readme.md) — a domain
   where LLM-LED/LLM-ONLY behaviors concentrate.

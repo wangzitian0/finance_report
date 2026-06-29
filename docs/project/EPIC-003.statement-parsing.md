@@ -284,7 +284,7 @@ Audit-failed parsing cases are not parser expansion requirements by default.
 LLM/OCR remains the polymorphic extraction layer. Cases that fail schema,
 balance, confidence, account-mapping, provider-shape, or user-review audit are
 tracked in
-[`extraction_failed_case_registry`](../ssot/extraction-audit-failed-cases.yaml)
+[`extraction_failed_case_registry`](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/audit-failed-cases.yaml)
 with sanitized evidence only; follow-up work may tune prompts, models, review
 workflow, or parser rules after separate EPIC -> AC registration.
 
@@ -302,7 +302,7 @@ workflow, or parser rules after separate EPIC -> AC registration.
 
 - [schema.md](../ssot/schema.md) - data-layer and migration guardrails
 - [Generated DB Schema Reference](../reference/db-schema.md) - current uploaded document, statement summary, and atomic fact tables
-- [extraction.md](../ssot/extraction.md) - Parsing rules and Prompt design
+- [common/extraction/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md) - Parsing rules and Prompt design (internalized into the `extraction` package)
 
 ---
 

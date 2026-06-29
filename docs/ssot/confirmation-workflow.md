@@ -2,7 +2,7 @@
 
 > **SSOT Key**: `confirmation-workflow`
 > **Authority**: This document defines the `pending_review` state machine used across both Stage 1 (statement import) and Stage 2 (reconciliation) of the review pipeline.
-> **Cross-references**: [reconciliation.md](./reconciliation.md) §7 (Stage 1 & Stage 2 state machines), [schema.md](./schema.md), [extraction.md](./extraction.md)
+> **Cross-references**: [reconciliation.md](./reconciliation.md) §7 (Stage 1 & Stage 2 state machines), [schema.md](./schema.md), [common/extraction/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md)
 
 ---
 
@@ -230,5 +230,5 @@ corpus, and the dispatch runtime are follow-ups.
 - [reconciliation.md §7](./reconciliation.md) — Stage 1 and Stage 2 detailed state machines
 - [schema.md](./schema.md) — data-layer and migration guardrails
 - [Generated DB Schema Reference](../reference/db-schema.md) — current `StatementSummary`, `ReconciliationMatch`, and `ConsistencyCheck` table inventory
-- [extraction.md](./extraction.md) — How parsed statements enter `pending_review` (Stage 1 entry point)
+- [common/extraction/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md) — How parsed statements enter `pending_review` (Stage 1 entry point)
 - [source-type-priority.md](./source-type-priority.md) — How `source_type` is promoted through the confirmation lifecycle
