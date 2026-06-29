@@ -823,8 +823,13 @@ concepts:
       - tests/tooling/test_runtime_incident_response_ssot.py
 
   # ── LLM provider abstraction (EPIC-023) ───────────────────────────────
+  # The LLM SSOT is internalized into the `llm` package (common/llm/readme.md)
+  # per the package-migration standard (common/meta/migration-standard.md, step 3
+  # "SSOT internalized"; Stage-2 precursor to the code cutover #1426); the central
+  # docs/ssot/llm.md is retired. The package readme is the single owner and keeps
+  # the #axes / #cassettes anchors.
   llm_provider_abstraction:
-    owner: docs/ssot/llm.md#axes
+    owner: common/llm/readme.md#axes
     family: llm
     kind: concept
     description: LLM layer's three orthogonal axes (protocol family x model x scene), scene->model binding, and at-rest provider-secret encryption.
@@ -835,9 +840,9 @@ concepts:
       - apps/backend/src/llm/common/secrets.py
       - apps/backend/src/llm/cassette.py
     proofs:
-      - apps/backend/tests/unit/llm/test_secrets.py
-      - apps/backend/tests/unit/llm/test_types.py
-      - apps/backend/tests/unit/llm/test_cassette.py
+      - apps/backend/tests/llm/test_secrets.py
+      - apps/backend/tests/llm/test_types.py
+      - apps/backend/tests/llm/test_cassette.py
 
   cassette_graded_eval:
     owner: docs/ssot/cassette-graded-eval.md
@@ -845,7 +850,7 @@ concepts:
     kind: concept
     description: Graded per-field accuracy eval over committed cassettes with a ratcheted per-case score floor (EPIC-023 AC23.8) — the accuracy oracle complementing the AC23.7 balance-chain consistency gate.
     cross_refs:
-      - docs/ssot/llm.md
+      - common/llm/readme.md
       - docs/project/EPIC-023.llm-provider-abstraction.md
       - common/ssot/cassette_graded_eval.py
       - common/ssot/check_cassette_graded_eval.py

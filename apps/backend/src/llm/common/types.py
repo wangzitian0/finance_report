@@ -39,7 +39,7 @@ class Scene(StrEnum):
     """Axis 3 — a code-defined call site. Adding one is a contract change.
 
     The value is the stable identifier persisted in bindings; keep it in sync
-    with ``docs/ssot/llm.md``.
+    with ``common/llm/readme.md``.
     """
 
     EXTRACTION_OCR = "extraction.ocr"

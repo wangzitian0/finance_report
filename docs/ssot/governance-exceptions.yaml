@@ -131,6 +131,22 @@ exceptions:
       (common/extraction/audit-failed-cases.yaml) as extraction-owned data; the
       MANIFEST extraction_failed_case_registry owner now points there. Remove this
       exception once the deletion is merged.
+  # LLM package self-hosts: the LLM SSOT moved out of docs/ssot/ into the `llm`
+  # package that owns it (Stage-2 precursor to the code cutover #1426), per the
+  # package-migration standard (common/meta/migration-standard.md, step 3 "SSOT
+  # internalized"). The full prose folded into common/llm/readme.md (incl. its
+  # #axes and #cassettes anchors); the MANIFEST llm_provider_abstraction owner
+  # (and the cassette_graded_eval cross_ref) now point there, so docs/ssot/llm.md
+  # is deleted. The deletion shows up as a changed SSOT file with no owner; this
+  # temporary exception covers only that deletion churn in this PR.
+  - target: finance_report:docs/ssot/llm.md
+    issue: https://github.com/wangzitian0/finance_report/issues/1426
+    reason: >-
+      llm.md internalized into common/llm/readme.md (the llm package owns the
+      provider-abstraction vocabulary + the #axes / #cassettes anchors); the
+      MANIFEST llm_provider_abstraction owner and the cassette_graded_eval
+      cross_ref now point there. Remove this exception once the deletion is
+      merged.
 
 # ---------------------------------------------------------------------------
 # Temporary SSOT governance gate exceptions live in `exceptions` above.

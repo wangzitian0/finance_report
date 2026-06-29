@@ -63,7 +63,7 @@ explicit AC IDs for the behavior.
 | `apps/backend/tests/identity/test_auth_router_unit.py` | `common/identity/readme.md` |
 | `apps/backend/tests/extraction/test_account_last4_defense.py` | `common/extraction/readme.md` |
 | `apps/backend/tests/extraction/test_classification_service.py` | `common/extraction/readme.md` |
-| `apps/backend/tests/extraction/test_extraction_cassette_replay.py` | `docs/ssot/llm.md` (EPIC-023 AC23.6 streaming-bridge scaffold; skipped via `needs_real_cassette` until real cassettes are recorded with `make llm-record`, then it becomes AC proof) |
+| `apps/backend/tests/extraction/test_extraction_cassette_replay.py` | `common/llm/readme.md` (EPIC-023 AC23.6 streaming-bridge scaffold; skipped via `needs_real_cassette` until real cassettes are recorded with `make llm-record`, then it becomes AC proof) |
 | `apps/backend/tests/extraction/test_dual_write_layer2.py` | `common/extraction/readme.md` |
 | `apps/backend/tests/extraction/test_extraction_logging.py` | `common/extraction/readme.md` |
 | `apps/backend/tests/extraction/test_pdf_fixtures.py` | `common/extraction/readme.md` |
@@ -107,10 +107,10 @@ explicit AC IDs for the behavior.
 | `apps/frontend/src/__tests__/api.test.ts` | `docs/ssot/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/auth_ssr.test.ts` | `docs/ssot/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/detailViewComponents.test.tsx` | `docs/ssot/frontend-patterns.md` |
-| `apps/frontend/src/__tests__/firstRunModal.test.tsx` | `docs/ssot/llm.md` |
+| `apps/frontend/src/__tests__/firstRunModal.test.tsx` | `common/llm/readme.md` |
 | `apps/frontend/src/__tests__/holdingsTable.test.tsx` | `docs/ssot/assets.md` |
-| `apps/frontend/src/__tests__/llmApiFunctions.test.ts` | `docs/ssot/llm.md` |
-| `apps/frontend/src/__tests__/llmSettingsPage.test.tsx` | `docs/ssot/llm.md` |
+| `apps/frontend/src/__tests__/llmApiFunctions.test.ts` | `common/llm/readme.md` |
+| `apps/frontend/src/__tests__/llmSettingsPage.test.tsx` | `common/llm/readme.md` |
 | `apps/frontend/src/__tests__/performanceCard.test.tsx` | `docs/ssot/assets.md` |
 | `apps/frontend/src/__tests__/portfolioPricesPage.test.tsx` | `docs/ssot/assets.md` |
 | `apps/frontend/src/__tests__/reviewPages.test.tsx` | `docs/ssot/confirmation-workflow.md` |
@@ -122,7 +122,7 @@ explicit AC IDs for the behavior.
 | `apps/frontend/src/__tests__/types.test.ts` | `docs/ssot/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/openingBalanceWarningBanner.test.tsx` | `docs/ssot/frontend-patterns.md` (#1486 opening-balance warning surface) |
 | `apps/frontend/src/__tests__/useBaseCurrency.test.tsx` | `docs/ssot/frontend-patterns.md` (#1487 base-currency hook) |
-| `apps/frontend/src/__tests__/useLlmConfigStatus.test.ts` | `docs/ssot/llm.md` |
+| `apps/frontend/src/__tests__/useLlmConfigStatus.test.ts` | `common/llm/readme.md` |
 | `apps/frontend/src/components/__tests__/ProcessingSummaryCard.test.tsx` | `docs/ssot/processing_account.md` |
 | `apps/frontend/src/components/review/__tests__/ConflictResolutionDialog.keydown.test.tsx` | `docs/ssot/frontend-patterns.md` |
 | `apps/frontend/src/components/review/__tests__/TransactionTable.keyEvents.test.tsx` | `docs/ssot/frontend-patterns.md` |

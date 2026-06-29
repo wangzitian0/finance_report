@@ -104,7 +104,6 @@ nav:
       - Market Data: ssot/market_data.md
       - Source Type Priority: ssot/source-type-priority.md
       - Workflow Events: ssot/workflow-events.md
-      - LLM Provider Abstraction: ssot/llm.md
       - Cassette Graded Eval: ssot/cassette-graded-eval.md
       - Evidence Lineage: ssot/evidence-lineage.md
       - Database Schema: ssot/schema.md

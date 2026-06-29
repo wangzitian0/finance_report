@@ -8556,7 +8556,7 @@
         "type": "object"
       },
       "Scene": {
-        "description": "Axis 3 — a code-defined call site. Adding one is a contract change.\n\nThe value is the stable identifier persisted in bindings; keep it in sync\nwith ``docs/ssot/llm.md``.",
+        "description": "Axis 3 — a code-defined call site. Adding one is a contract change.\n\nThe value is the stable identifier persisted in bindings; keep it in sync\nwith ``common/llm/readme.md``.",
         "enum": [
           "extraction.ocr",
           "extraction.vision",

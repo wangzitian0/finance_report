@@ -16,7 +16,7 @@ Scope (anti-false-confidence): record/replay is regression protection for KNOWN
 inputs only. It does NOT discover new real-world document shapes (that stays the
 staging real-doc audit loop), and **CI green != a real unknown statement works**.
 Provider-specific correctness is the staging ``-m llm`` gate's job, not the
-cassette tests'. See ``docs/ssot/llm.md#cassettes``.
+cassette tests'. See ``common/llm/readme.md#cassettes``.
 
 The fingerprint is computed on the *semantic request and modality role* —
 ``sha256(normalize(role + messages + decode params + image-bytes hash))`` — and

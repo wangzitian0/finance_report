@@ -1,7 +1,7 @@
 """DB-backed LLM provider configuration (EPIC-023 EPIC B / PR4).
 
 These tables hold the *operational* LLM config the SSOT vocabulary
-(``docs/ssot/llm.md``) describes: provider instances (with their API key
+(``common/llm/readme.md``) describes: provider instances (with their API key
 encrypted at rest) and the scene→model bindings. The Python enums are reused
 from ``src/llm/common`` so the DB and the runtime contract can never drift.
 

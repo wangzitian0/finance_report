@@ -2,8 +2,8 @@
 
 > SSOT owner for the **graded LLM extraction eval** over committed cassettes
 > (EPIC-023 AC23.8, issue #1307). The balance-chain integrity gate
-> (`docs/ssot/llm.md#cassettes`, AC23.7) is the *consistency* oracle; this is the
-> *accuracy* oracle.
+> ([`common/llm/readme.md#cassettes`](https://github.com/wangzitian0/finance_report/blob/main/common/llm/readme.md#cassettes),
+> AC23.7) is the *consistency* oracle; this is the *accuracy* oracle.
 
 ## 1. Why a graded eval (what the balance gate cannot see)
 
@@ -96,7 +96,7 @@ only detects regressions on the modality / institution-class / edge-condition
 combinations present in the matrix above. **CI green is NOT a correctness
 guarantee on an UNSEEN statement** — a layout, institution, or edge condition not
 represented here is invisible to this gate. Live correctness on unseen documents
-remains the staging `-m llm` gate's job (`docs/ssot/llm.md`). Grow the matrix by
+remains the staging `-m llm` gate's job ([`common/llm/readme.md`](https://github.com/wangzitian0/finance_report/blob/main/common/llm/readme.md)). Grow the matrix by
 recording new cassettes + ground truth and adopting their floors via `--update`.
 
 ## 6. Reliability over N samples

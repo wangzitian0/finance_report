@@ -1,3 +1,20 @@
+# `llm` — provider-abstraction bounded context
+
+> One package owning the whole LLM concept: the **prose SSOT for the LLM
+> provider abstraction** (this file) **and**, after the code cutover (#1426), the
+> conforming implementation. This readme is the single registered owner of the
+> LLM-layer vocabulary and contracts — the three orthogonal axes
+> ([§The Three Orthogonal Axes](#axes)), the scene→model binding, the at-rest
+> encryption of provider secrets, and the record/replay cassette layer
+> ([§Record/Replay Cassettes](#cassettes)) — internalized here from the retired
+> `docs/ssot/llm.md` per the package-migration standard
+> ([`../meta/migration-standard.md`](../meta/migration-standard.md), step 3 "SSOT
+> internalized").
+>
+> The conforming backend implementation lives at
+> [`apps/backend/src/llm/`](../../apps/backend/src/llm/) (the code cutover #1426
+> homes it under the package shape).
+
 # LLM Provider Abstraction SSOT
 
 > **SSOT Key**: `llm_provider_abstraction`

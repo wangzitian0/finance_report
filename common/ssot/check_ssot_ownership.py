@@ -71,6 +71,10 @@ MUST_BE_ABSENT: list[Path] = [
     # extraction-audit-failed-cases.yaml moved into the extraction package
     # (common/extraction/audit-failed-cases.yaml) as extraction-owned data.
     REPO_ROOT / "docs" / "ssot" / "extraction-audit-failed-cases.yaml",
+    # llm.md internalized into the llm package (common/llm/readme.md) per
+    # migration-standard step 3 "SSOT internalized" (Stage-2 precursor to the
+    # code cutover #1426).
+    REPO_ROOT / "docs" / "ssot" / "llm.md",
 ]
 
 # ---------------------------------------------------------------------------
