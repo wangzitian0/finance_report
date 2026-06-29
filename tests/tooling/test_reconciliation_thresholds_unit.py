@@ -42,15 +42,22 @@ def _load_reconciliation_module():
     previous_source_type_priority = sys.modules.get("src.services.source_type_priority")
     previous_statement_summary = sys.modules.get("src.services.statement_summary")
 
+    # A dedicated stub exception (not bare ValueError) so production
+    # ``except ValidationError`` blocks catch only this type — an unrelated
+    # ValueError must still surface, exactly as it would against the real
+    # ``src.ledger.ValidationError``.
+    class _StubValidationError(Exception):
+        pass
+
     services_package = ModuleType("src.services")
     services_package.__path__ = []  # type: ignore[attr-defined]
     accounting_module = ModuleType("src.services.accounting")
-    accounting_module.ValidationError = ValueError
+    accounting_module.ValidationError = _StubValidationError
     accounting_module.validate_journal_balance = Mock()
     logger_module = ModuleType("src.logger")
     logger_module.get_logger = Mock(return_value=Mock())
     ledger_module = ModuleType("src.ledger")
-    ledger_module.ValidationError = ValueError
+    ledger_module.ValidationError = _StubValidationError
     ledger_module.validate_journal_balance = Mock()
     ledger_module.create_transfer_in_entry = AsyncMock()
     ledger_module.create_transfer_out_entry = AsyncMock()
