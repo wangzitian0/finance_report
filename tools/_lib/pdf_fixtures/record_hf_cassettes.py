@@ -49,7 +49,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools/_lib/fixtures"))
 
 from extraction_pii_mask import mask_extraction, source_ref  # noqa: E402
-from src.llm.cassette import _canonical_request, fingerprint  # noqa: E402
+from src.llm.cassette import fingerprint  # noqa: E402
 from src.prompts.statement import SYSTEM_PROMPT  # noqa: E402
 
 CASSETTE_DIR = ROOT / "apps/backend/tests/fixtures/llm_cassettes"
@@ -136,6 +136,29 @@ def build_messages(image_urls: list[str]) -> list[dict[str, Any]]:
     content: list[dict[str, Any]] = [{"type": "text", "text": "Extract this bank statement (all pages)."}]
     content += [{"type": "image_url", "image_url": {"url": u}} for u in image_urls]
     return [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": content}]
+
+
+def strip_request_images(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return a copy of ``messages`` with every image data-URL replaced by a content
+    hash. The committed cassette must NEVER carry raw page-image bytes (repo bloat, and
+    real PII for own statements); the hash is enough to identify the request shape, and
+    full replay re-renders from the referenced source anyway."""
+    out: list[dict[str, Any]] = []
+    for m in messages:
+        content = m.get("content")
+        if not isinstance(content, list):
+            out.append(m)
+            continue
+        parts: list[Any] = []
+        for part in content:
+            if isinstance(part, dict) and part.get("type") == "image_url":
+                url = str((part.get("image_url") or {}).get("url", ""))
+                digest = hashlib.sha256(url.encode("utf-8")).hexdigest()
+                parts.append({"type": "image_url", "image_bytes_sha256": digest})
+            else:
+                parts.append(part)
+        out.append({**m, "content": parts})
+    return out
 
 
 def glm_extract(messages: list[dict[str, Any]], token: str) -> str:  # pragma: no cover
@@ -268,9 +291,13 @@ def main() -> int:  # pragma: no cover
             "role": "vision",
             "tag": "flow-only",
             "source": source_ref(hf_url=hf_url(key)),
-            # Request stored in NORMALIZED form (images reduced to a content hash) so no
-            # raw page image is committed; replay rebuilds it from the referenced source.
-            "request": _canonical_request(role="vision", messages=messages, decode_params=decode_params),
+            # Request stored with images reduced to a content hash — NO raw page-image
+            # bytes are committed (repo bloat / PII); replay rebuilds from the source ref.
+            "request": {
+                "role": "vision",
+                "messages": strip_request_images(messages),
+                "decode_params": decode_params,
+            },
             "response": {"stream_text": json.dumps(masked, ensure_ascii=False)},
         }
         (CASSETTE_DIR / f"{fp}.json").write_text(json.dumps(cassette, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

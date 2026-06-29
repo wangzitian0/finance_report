@@ -47,6 +47,33 @@ def test_description_mask_is_idempotent() -> None:
     assert mask_description(once) == once  # markers don't re-trigger
 
 
+def test_raw_text_and_reference_are_masked() -> None:
+    """The biggest residual PII surface: the audit-trail `raw_text` (whole original
+    line — counterparty names, branch/reference numbers) and `reference` must be masked,
+    not just `description`."""
+    masked = mask_extraction(
+        {
+            "transactions": [
+                {
+                    "description": "By CITI BANK",
+                    "amount": "165870.21",
+                    "reference": "210968206613",
+                    "cheque_no": "712481",
+                    "branch_code": "3421",
+                    "raw_text": "01-01-2024 By CITI BANK N.A., PHARMACY PRODUCTS LTD Rs. 165,870.21",
+                }
+            ]
+        }
+    )
+    txn = masked["transactions"][0]
+    assert txn["raw_text"] == "**"
+    assert txn["reference"] == "**"
+    assert txn["cheque_no"] == "**"
+    assert txn["branch_code"] == "**"
+    assert txn["amount"] == "165870.21"  # flow value kept
+    assert "CITI BANK" not in str(txn)  # no counterparty name survives anywhere in the row
+
+
 def test_flow_values_are_kept() -> None:
     """date / amount / direction / balance carry no identity PII and are preserved."""
     masked = mask_extraction(

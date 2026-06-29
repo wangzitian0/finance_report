@@ -42,6 +42,12 @@ _META_PII_KEYS = frozenset(
         "iban",
         "holder",
         "name",
+        # Free-text audit fields that echo the WHOLE original line (counterparty names,
+        # branch/reference numbers, account ids) — the biggest residual PII surface.
+        "raw_text",
+        "reference",
+        "cheque_no",
+        "branch_code",
     }
 )
 # Per-transaction free-text keys whose value may carry a counterparty name.
