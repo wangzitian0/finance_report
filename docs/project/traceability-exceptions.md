@@ -60,6 +60,7 @@ explicit AC IDs for the behavior.
 
 | Path | Owner |
 |---|---|
+| `tests/tooling/test_smoke_min_checks.py` | `docs/ssot/env_smoke_test.md` |
 | `apps/backend/tests/money/test_money.py` | `common/ledger/readme.md` |
 | `apps/backend/tests/accounting/test_processing_account_endpoints.py` | `common/ledger/readme.md` |
 | `apps/backend/tests/api/test_ai_feedback_router_extra.py` | `docs/ssot/ai.md` |
