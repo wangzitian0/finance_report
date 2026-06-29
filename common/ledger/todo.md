@@ -17,12 +17,18 @@ The package-local worklist. Cross-package migration lives in
       moved to `apps/backend/tests/ledger/`; `_ledger_helpers` is published as the
       ledger test factory; the god-file balance-query surface in
       `services/accounting.py` was deleted (zero residue, no re-export shim).
+- [x] **`processing_account` cutover (slice 3b of #1420)**: the in-transit Processing
+      account folded into the package — the pure `ProcessingAccount` identity +
+      `TransferPair` + `detect_transfer_pattern` scoring policy in `base/processing.py`,
+      the impure verbs (`get_or_create_processing_account` / `find_transfer_pairs` /
+      `create_transfer_*` / `get_processing_balance` / `get_unpaired_transfers` /
+      `list_processing_transfer_legs`) in `extension/processing.py`. Consumers
+      (`routers/accounts`, `services/reconciliation`, `services/reconciliation_audit`)
+      repointed to the published `src.ledger` interface; reconciliation references
+      Processing cross-domain by id (Decision B). `src/services/processing_account.py`
+      deleted (zero residue, no shim); tests moved to `apps/backend/tests/ledger/`.
 
 ## Next
-
-- [ ] **slice 3b — `processing_account`**: fold the `ProcessingAccount` aggregate
-      (`src/services/processing_account.py` + its tests, EPIC-015) into the package
-      as a `base` aggregate referenced cross-domain by id (Decision B).
 - [ ] **slice 3c — AC migration**: move the EPIC-002 / EPIC-012 (AC12.34) /
       EPIC-015 double-entry ACs into the contract `roadmap` as
       `AC-ledger.<entity>.<seq>`, removed from the EPIC tables (atomic), and delete

@@ -1,252 +1,77 @@
-"""Processing account service for transfer detection and pairing.
+"""``processing`` — the Processing account's impure verbs (extension layer).
 
-This module implements the Processing virtual account logic from common/ledger/readme.md.
-The Processing account (code "1199") is a system-managed Asset account that tracks in-transit
-transfers between user accounts.
+The I/O half of the in-transit (Processing) account. Depends on ``AsyncSession`` +
+the ORM and on the pure policy in ``ledger.base.processing``:
 
-Key Concepts:
-- Transfer OUT: DEBIT Processing, CREDIT source account
-- Transfer IN: DEBIT destination, CREDIT Processing
-- Paired transfers result in Processing balance = 0
-- Unpaired transfers remain visible in Processing balance for review
+- ``get_or_create_processing_account`` — acquire (or first-time create) the per-user
+  Processing ``Account`` row (the aggregate's persistence / repository edge);
+- ``create_transfer_out_entry`` / ``create_transfer_in_entry`` — post a transfer leg
+  (Dr Processing / Cr source, resp. Dr destination / Cr Processing), guarding balance
+  through :class:`~src.ledger.base.types.entry.Entry` before persisting;
+- ``find_transfer_pairs`` — the pairing domain service: scores persisted Processing
+  entries pairwise and returns matches above the confidence threshold;
+- ``get_processing_balance`` / ``get_unpaired_transfers`` /
+  ``list_processing_transfer_legs`` — read projections over the persisted entries.
+
+Reconciliation / reporting consume these through the published ``src.ledger``
+interface (by id/event), never via a shared cross-domain transaction or FK.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
-from difflib import SequenceMatcher
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.config import settings
-from src.ledger import Entry
+import src.config
+from src.ledger.base.processing import (
+    AUTO_PAIR_THRESHOLD,
+    MAX_DATE_DIFF_DAYS,
+    PROCESSING_ACCOUNT_CODE,
+    PROCESSING_ACCOUNT_DESCRIPTION,
+    PROCESSING_ACCOUNT_NAME,
+    PROCESSING_ACCOUNT_TYPE,
+    TransferPair,
+    _calculate_pair_confidence,
+    _validate_transfer_params,
+)
+from src.ledger.base.types.entry import Entry
 from src.models.account import Account
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
-from src.models.layer2 import AtomicTransaction
 from src.money import Money
-from src.services.account_service import get_or_create_processing_account
-
-# Transfer detection keywords from SSOT SOP-001
-TRANSFER_KEYWORDS = [
-    "transfer",
-    "payment to",
-    "fund transfer",
-    "withdrawal",
-    "paynow",
-    "fast",
-    "giro",
-]
-
-# Confidence thresholds from reconciliation.md
-AUTO_PAIR_THRESHOLD = 85
-PENDING_REVIEW_THRESHOLD = 60
-
-# Scoring weights from reconciliation.md
-AMOUNT_WEIGHT = Decimal("0.40")
-DESCRIPTION_WEIGHT = Decimal("0.30")
-DATE_WEIGHT = Decimal("0.20")
-HISTORY_WEIGHT = Decimal("0.10")
-
-# Date tolerance for transfer pairing (from common/ledger/readme.md)
-MAX_DATE_DIFF_DAYS = 7
 
 
-def _validate_transfer_params(amount: Decimal, description: str) -> None:
-    """Validate shared inputs for Transfer IN/OUT journal entries."""
-    if amount <= Decimal("0"):
-        raise ValueError("Transfer amount must be positive")
-    if not description or not description.strip():
-        raise ValueError("Transfer description must not be empty")
-
-
-@dataclass
-class TransferPair:
-    """Represents a matched pair of transfer transactions."""
-
-    out_entry: JournalEntry
-    in_entry: JournalEntry
-    confidence: int
-    score_breakdown: dict[str, float]
-
-
-def detect_transfer_pattern(txn: AtomicTransaction) -> bool:
-    """Detect if transaction matches transfer pattern.
-
-    Args:
-        txn: Atomic transaction to check
-
-    Returns:
-        True if transaction description contains transfer keywords
-    """
-    if not txn.description:
-        return False
-
-    description_lower = txn.description.lower()
-    return any(kw in description_lower for kw in TRANSFER_KEYWORDS)
-
-
-def _score_amount_match(amount1: Decimal, amount2: Decimal) -> float:
-    """Score amount similarity (0-100).
-
-    Args:
-        amount1: First amount
-        amount2: Second amount
-
-    Returns:
-        Score from 0-100 based on amount difference
-    """
-    diff = abs(amount1 - amount2)
-
-    # Exact match (within 1 cent)
-    if diff <= Decimal("0.01"):
-        return 100.0
-
-    # Very close match (within 10 cents)
-    if diff <= Decimal("0.10"):
-        return 95.0
-
-    # Close match (within 1 SGD)
-    if diff <= Decimal("1.00"):
-        return 85.0
-
-    # Moderate match (within 5 SGD)
-    if diff <= Decimal("5.00"):
-        return 70.0
-
-    # Calculate proportional score for larger differences
-    if amount1 == Decimal("0"):
-        return 0.0
-
-    ratio = max(Decimal("0"), Decimal("100") - (diff / amount1) * Decimal("100"))
-    return float(round(ratio, 2))
-
-
-def _score_description_match(desc1: str | None, desc2: str | None) -> float:
-    """Score description similarity (0-100).
-
-    Args:
-        desc1: First description
-        desc2: Second description
-
-    Returns:
-        Score from 0-100 based on text similarity
-    """
-    if not desc1 or not desc2:
-        return 0.0
-
-    # Normalize: lowercase and strip whitespace
-    norm1 = desc1.lower().strip()
-    norm2 = desc2.lower().strip()
-
-    if not norm1 or not norm2:
-        return 0.0
-
-    # Use SequenceMatcher for fuzzy matching
-    ratio = SequenceMatcher(None, norm1, norm2).ratio()
-
-    # Token overlap score
-    tokens1 = set(norm1.split())
-    tokens2 = set(norm2.split())
-    token_overlap = len(tokens1 & tokens2) / len(tokens1 | tokens2) if tokens1 | tokens2 else 0
-
-    # Combined score (60% sequence ratio, 40% token overlap)
-    return round(100 * (0.6 * ratio + 0.4 * token_overlap), 2)
-
-
-def _score_date_proximity(date1: date, date2: date) -> float:
-    """Score date proximity (0-100).
-
-    Args:
-        date1: First date
-        date2: Second date
-
-    Returns:
-        Score from 0-100 based on date difference
-    """
-    diff_days = abs((date1 - date2).days)
-
-    # Same day
-    if diff_days == 0:
-        return 100.0
-
-    # Within 1 day
-    if diff_days == 1:
-        return 95.0
-
-    # Within 3 days
-    if diff_days <= 3:
-        return 85.0
-
-    # Within acceptable window (7 days)
-    if diff_days <= MAX_DATE_DIFF_DAYS:
-        return 70.0
-
-    # Beyond acceptable window - rapidly decreasing score
-    return float(max(0, 100 - diff_days * 10))
-
-
-def _calculate_pair_confidence(
-    out_entry: JournalEntry,
-    in_entry: JournalEntry,
-    processing_account_id: UUID | None = None,
-) -> tuple[int, dict[str, float]]:
-    """Calculate confidence score for transfer pair matching.
-    Args:
-        out_entry: Transfer OUT journal entry
-        in_entry: Transfer IN journal entry
-        processing_account_id: Processing account ID for precise amount extraction.
-            If None, falls back to finding the first DEBIT line (legacy behavior).
-    Returns:
-        Tuple of (total_score, breakdown_dict)
-    """
-    # Extract amounts from the Processing account line in each entry.
-    # Use explicit processing_account_id when available for precision;
-    # fallback to first DEBIT line for backward compatibility.
-    if processing_account_id is None:
-        for line in out_entry.lines:
-            if line.direction == Direction.DEBIT:
-                processing_account_id = line.account_id
-                break
-    out_amount = Decimal("0")
-    in_amount = Decimal("0")
-    for line in out_entry.lines:
-        if line.account_id == processing_account_id and line.direction == Direction.DEBIT:
-            out_amount = line.amount
-            break
-    for line in in_entry.lines:
-        if line.account_id == processing_account_id and line.direction == Direction.CREDIT:
-            in_amount = line.amount
-            break
-
-    # Score individual components
-    amount_score = _score_amount_match(out_amount, in_amount)
-    description_score = _score_description_match(out_entry.memo, in_entry.memo)
-    date_score = _score_date_proximity(out_entry.entry_date, in_entry.entry_date)
-
-    # History score: 0 for now (can be enhanced with ML)
-    history_score = 0.0
-
-    # Calculate weighted total
-    total = (
-        Decimal(str(amount_score)) * AMOUNT_WEIGHT
-        + Decimal(str(description_score)) * DESCRIPTION_WEIGHT
-        + Decimal(str(date_score)) * DATE_WEIGHT
-        + Decimal(str(history_score)) * HISTORY_WEIGHT
+async def get_or_create_processing_account(db: AsyncSession, user_id: UUID, currency: str = "SGD") -> Account:
+    """Get or create the Processing virtual account for a user."""
+    result = await db.execute(
+        select(Account).where(
+            Account.user_id == user_id,
+            Account.is_system == True,  # noqa: E712
+            Account.code == PROCESSING_ACCOUNT_CODE,
+        )
     )
+    account = result.scalar_one_or_none()
 
-    breakdown = {
-        "amount": amount_score,
-        "description": description_score,
-        "date": date_score,
-        "history": history_score,
-    }
+    if not account:
+        # Create Processing account
+        account = Account(
+            user_id=user_id,
+            name=PROCESSING_ACCOUNT_NAME,
+            code=PROCESSING_ACCOUNT_CODE,
+            type=PROCESSING_ACCOUNT_TYPE,
+            currency=currency,
+            is_system=True,
+            description=PROCESSING_ACCOUNT_DESCRIPTION,
+        )
+        db.add(account)
+        await db.flush()
+        await db.refresh(account)
 
-    return int(round(total, 0)), breakdown
+    return account
 
 
 async def find_transfer_pairs(
@@ -366,7 +191,7 @@ async def create_transfer_out_entry(
     )
 
     # Dr Processing / Cr source — guarantee the balance as a type before persisting.
-    _ccy = settings.base_currency
+    _ccy = src.config.settings.base_currency
     Entry.transfer(debit=processing_account.id, credit=source_account_id, money=Money(amount, _ccy))
 
     lines = [
@@ -428,7 +253,7 @@ async def create_transfer_in_entry(
     )
 
     # Dr destination / Cr Processing — guarantee the balance as a type before persisting.
-    _ccy = settings.base_currency
+    _ccy = src.config.settings.base_currency
     Entry.transfer(debit=dest_account_id, credit=processing_account.id, money=Money(amount, _ccy))
 
     lines = [

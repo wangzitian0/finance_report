@@ -9,6 +9,11 @@ The :class:`JournalRepository` is a *port* (a Protocol) satisfied by the
 
 from __future__ import annotations
 
+from src.ledger.base.processing import (
+    ProcessingAccount,
+    TransferPair,
+    detect_transfer_pattern,
+)
 from src.ledger.base.repository import JournalRepository
 from src.ledger.base.types import (
     DegenerateEntryError,
@@ -32,8 +37,11 @@ __all__ = [
     "JournalRepository",
     "LedgerError",
     "Leg",
+    "ProcessingAccount",
+    "TransferPair",
     "UnbalancedEntryError",
     "ValidationError",
+    "detect_transfer_pattern",
     "validate_fx_rates",
     "validate_journal_balance",
     "validate_journal_posting_invariants",

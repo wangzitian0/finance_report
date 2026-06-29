@@ -33,35 +33,6 @@ async def create_account(db: AsyncSession, user_id: UUID, account_data: AccountC
     return account
 
 
-async def get_or_create_processing_account(db: AsyncSession, user_id: UUID, currency: str = "SGD") -> Account:
-    """Get or create the Processing virtual account for a user."""
-    result = await db.execute(
-        select(Account).where(
-            Account.user_id == user_id,
-            Account.is_system == True,  # noqa: E712
-            Account.code == "1199",
-        )
-    )
-    account = result.scalar_one_or_none()
-
-    if not account:
-        # Create Processing account
-        account = Account(
-            user_id=user_id,
-            name="Processing",
-            code="1199",
-            type=AccountType.ASSET,
-            currency=currency,
-            is_system=True,
-            description="System-managed virtual account for tracking in-transit transfers",
-        )
-        db.add(account)
-        await db.flush()
-        await db.refresh(account)
-
-    return account
-
-
 async def get_or_create_opening_balance_equity_account(
     db: AsyncSession, user_id: UUID, currency: str = "SGD"
 ) -> Account:

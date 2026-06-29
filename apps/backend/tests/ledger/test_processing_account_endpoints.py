@@ -6,11 +6,11 @@ from decimal import Decimal
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.account import Account, AccountType
-from src.services.processing_account import (
+from src.ledger import (
     create_transfer_in_entry,
     create_transfer_out_entry,
 )
+from src.models.account import Account, AccountType
 
 
 async def _seed_account(db: AsyncSession, user_id, name: str, code: str) -> Account:

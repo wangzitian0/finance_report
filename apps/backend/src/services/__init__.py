@@ -33,7 +33,6 @@ _SUBMODULES = {
     "performance",
     "pii_redaction",
     "portfolio",
-    "processing_account",
     "reconciliation",
     "reconciliation_audit",
     "report_readiness",
