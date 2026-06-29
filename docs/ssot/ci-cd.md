@@ -68,7 +68,7 @@ main-only: unified-coverage ─→ unified-coverage-baseline-pr (not required by
 13a. **Workflow Contract**: `tools/check_workflow_contract.py` runs in lint and is the mechanical guard against CI/deploy prose drift (#531). It parses `.github/workflows/*.yml` and fails when the documented job ids (e.g. the classifier job id `changes`, `lint`, `unified-coverage`, `finish`) or trigger events drift from this SSOT, when `deploy.yml` gains a branch `push`/`pull_request` path for staging (release-image tag push is allowed), or when an issue template uses a label outside the live repository taxonomy (e.g. the stale `infra`/`feature` instead of `infrastructure`/`enhancement`). It checks live job ids/triggers/labels, not mutable run status (run ids, timing, conclusions), which stay in CI artifacts.
 13b. **Gate Inventory During Simplification**: `docs/ssot/ci-gate-inventory.yaml` is a transitional workflow-job inventory for cleanup. Every workflow job has exactly one proof `stage` and one `task_category`; these fields are placement metadata, not AC coverage keys. The top-level stage/category vocabulary is shared with `common/ssot/ac_proof_execution.py`, so runtime proof metadata and inventory contracts cannot drift independently. `finish` remains the only branch-required status context, and resolved duplicate cleanups stay recorded after deletion. `tests/tooling/test_ci_gate_inventory.py` validates that the inventory matches live workflow jobs and `finish.needs`, so a cleanup PR cannot add a replacement entrance while leaving the old one untracked.
 
-13c. **Deploy/Release Workflow Decomposition** (#1354): The deploy/release workflows are split for single-responsibility, not for new protection — the gate set is unchanged. (AC8.13.153) The staging AI/OCR corpus gate body lives once in the reusable `staging-ai-ocr-gate.yml` (`workflow_call`); both the inline staging chain (`deploy.yml#ai-ocr-gate`, record-only) and the manual recovery entry point (`deploy.yml#manual-ai-ocr-gate`, fail-fast) are `uses:` callers that differ only by a `blocking` input, so the two entrances cannot drift. The inline caller stays non-blocking through `blocking: false` (a `uses:` caller cannot set `continue-on-error`), and `post-merge-delivery` still reads its `ai_ocr_status` output. (AC8.13.154) The production release line (`dry-run`, `deploy`) moved out of `deploy.yml` into a manual-dispatch-only `release.yml` with a `production-release-<version_ref>` concurrency group (`cancel-in-progress: false`) so two production releases never run concurrently; `deploy.yml` keeps staging deploy and tag-push promote, and `verify_release_evidence.py` still verifies the `deploy.yml` promote run as the release-images proof. (AC8.13.155) PR preview cleanup is intentionally split across the event-driven `preview.yml#cleanup` (PR close) and the scheduled `maintenance.yml#cleanup` fallback, both owned by `tools/pr_preview_lifecycle.py`; this is a recorded `keep_separate` decision because merging it would drop the scheduled fallback that reclaims previews a close event missed.
+13c. **Deploy/Release Workflow Decomposition** (#1354): The deploy/release workflows are split for single-responsibility, not for new protection — the gate set is unchanged. (AC8.13.153) The staging AI/OCR corpus gate body lives once in the reusable `staging-ai-ocr-gate.yml` (`workflow_call`); both the inline staging chain (`deploy.yml#ai-ocr-gate`, record-only) and the manual recovery entry point (`deploy.yml#manual-ai-ocr-gate`, fail-fast) are `uses:` callers that differ only by a `blocking` input, so the two entrances cannot drift. The inline caller stays non-blocking through `blocking: false` (a `uses:` caller cannot set `continue-on-error`), and `post-merge-delivery` still reads its `ai_ocr_status` output. (AC8.13.154) The production release line (`dry-run`, `deploy`) moved out of `deploy.yml` into a manual-dispatch-only `release.yml` with a `production-release-<version_ref>` concurrency group (`cancel-in-progress: false`) so two production releases never run concurrently; `deploy.yml` keeps staging deploy and tag-push promote, and `verify_release_evidence.py` still verifies the `deploy.yml` promote run as the release-images proof. (AC8.13.155) PR-preview reclaim is owned by infra2: `preview.yml#cleanup` dispatches a vendor-neutral `preview-teardown` signal to infra2 on PR close (infra2's `preview-teardown.yml` performs the 1:1 teardown via `deploy_v2 --down`; the hourly `preview-leak-check` is the detection fallback), and `maintenance.yml#cleanup` is GHCR-image pruning only — the former app-side `keep_separate` reclaim split is retired.
 14. **PR Image Build Validation**: PR CI dry-runs staging image builds before merge with the same Dockerfiles, contexts, and build arguments used by `main`, **when the build context changed** (Key CI Property 20). Main push CI is the only path that pushes SHA-tagged images to GHCR.
 15. **Coverage Policy Audit**: `tools/check_coverage_policy.py` fails CI if backend, frontend, common, or tools source files drift from their LCOV report.
 16. **No-regression gate**: Zero-tolerance; if ANY component is below baseline, CI fails immediately.
@@ -616,10 +616,11 @@ The provider-backed AI/OCR corpus is split into two distinct gates that share on
   and is not a required check, so a preview failure never blocks the PR; the
   in-runner E2E is the merge authority. The persistent URL is
   `https://report-pr-<N>.<domain>`.
-- `tools/pr_preview_lifecycle.py` is the single owner for preview deploy,
-  cleanup, and scheduled reconciliation. The workflow does not hand-roll
-  separate Dokploy shell blocks because deploy, cleanup, and reconciliation must
-  share the same naming, metadata, logging, and redaction contract.
+- `tools/pr_preview_lifecycle.py` is the single owner for preview **deploy**
+  (standing previews up). The workflow does not hand-roll separate Dokploy shell
+  blocks, so the deploy keeps one naming, metadata, logging, and redaction
+  contract. Reclaim (teardown/reconcile) is not app-owned — it is dispatched to
+  infra2 on PR close (see the reclaim bullets above).
 - PR preview Dokploy API responses are parsed for required fields only.
   Workflows must not print raw Dokploy response JSON because compose responses
   can include environment data and refresh tokens.
@@ -629,10 +630,11 @@ The provider-backed AI/OCR corpus is split into two distinct gates that share on
   `registry_image_push=false`, and
   `dokploy_deploy=after-e2e-non-blocking-build-from-source`. The persistent
   preview URL is posted as a separate non-blocking comment.
-- Persistent preview cleanup runs on PR close/merge, failed CI, cancelled CI,
-  and timed-out CI via `tools/pr_preview_lifecycle.py --action cleanup` (native
-  Dokploy `compose.delete`) by PR number/compose name rather than broad volume
-  pruning. The deploy path is get-or-create + redeploy, so it updates the
+- Persistent preview reclaim is infra2-owned: on PR close `preview.yml#cleanup`
+  dispatches a vendor-neutral `preview-teardown` signal (`repository_dispatch`,
+  `INFRA2_PAT`) to infra2, which performs the authoritative idempotent 1:1
+  teardown by PR number — the app never calls the Dokploy API *for reclaim*. The
+  deploy path is still app-side (get-or-create + redeploy), so it updates the
   preview in place across commits without a pre-deploy delete.
 - PR preview rollout proof fails fast on a missing deployment record. When
   Dokploy reports `composeStatus=done` but never exposes a **new** deployment
@@ -664,22 +666,20 @@ The provider-backed AI/OCR corpus is split into two distinct gates that share on
 - PR preview E2E explicitly excludes tests marked `llm`. The post-merge `Staging AI/OCR Gate` workflow is the single automated CI entry point that may spend provider quota.
 - PR preview non-LLM E2E is a strict preview-relevant subset: `STRICT_E2E_GATES=true`, marker `(smoke or e2e) and not llm`, `-n 4` parallelism, and explicit paths limited to `tests/e2e/test_core_journeys.py` plus `tests/e2e/test_e2e_flows.py::test_full_navigation`. Broader business regression paths, provider-sensitive paths, and state-sensitive registration or statement workflows remain staging/post-merge responsibilities.
 - The shared `.github/actions/setup-e2e-tests` action owns E2E Python import setup. It must export the repository root through `PYTHONPATH` via `$GITHUB_ENV` before preview, staging, AI/OCR, or production E2E pytest commands run, because `tests/e2e/conftest.py` imports shared helpers through the `tests.e2e.*` package path while pytest may choose `tests/e2e` as its root directory.
-- PR preview cleanup has two lifecycle paths: PR-driven cleanup removes legacy
-  Dokploy stacks for closed/merged/interrupted PRs; the scheduled `PR Preview
-  Cleanup` fallback runs Dokploy compose reconciliation for closed or missing
-  historical previews and prunes legacy closed-PR backend/frontend GHCR tags
-  matching `pr-<number>-<sha>` after the 14-day retention window while
-  preserving tags for open PRs. GitHub workflows must not SSH to the VPS for PR
-  cleanup. Scheduled reconciliation must not own generic host hygiene, global
-  Docker volume pruning, `docker system prune --volumes`, build-cache pruning,
-  image pruning, or journal vacuuming.
+- PR-preview reclaim is infra2-owned and event-driven: on PR close the app
+  dispatches a `preview-teardown` signal and infra2 performs the idempotent 1:1
+  Dokploy teardown; infra2's hourly `preview-leak-check` detects + alerts on
+  anything a close event missed. The app's scheduled `PR Preview Cleanup` job only
+  prunes legacy closed-PR backend/frontend GHCR tags matching `pr-<number>-<sha>`
+  after the 14-day retention window while preserving tags for open PRs. GitHub
+  workflows must not SSH to the VPS or call the Dokploy API for PR reclaim.
 - The scheduled `GHCR SHA Retention` workflow owns post-merge backend/frontend
   `:<sha>` package retention only. It collects live staging and production
   health refs, resolves release tags back to commit SHAs when needed, and uses
   `tools/ghcr_retention.py` to delete stale SHA package versions older than 28
   days. It never owns PR preview `pr-<number>-<sha>` cleanup and never deletes a
   package version carrying a `vX.Y.Z` release tag.
-- The retired `tools/cleanup_pr_preview_resources.py` compatibility entry point is removed. Closed-PR leftovers use `tools/pr_preview_lifecycle.py --action reconcile`; host hygiene uses the Dokploy `dokploy-server` schedule managed by `tools/vps_host_hygiene.py --ensure-dokploy-schedule`.
+- The retired `tools/cleanup_pr_preview_resources.py` compatibility entry point is removed. Closed-PR Dokploy reclaim is infra2-owned (event-driven `preview-teardown` + the hourly `preview-leak-check`); host hygiene uses the Dokploy `dokploy-server` schedule managed by `tools/vps_host_hygiene.py --ensure-dokploy-schedule`.
 - PR preview containers created from `docker-compose.yml` use the `json-file` logging driver with bounded `max-size` and `max-file` options so Docker container logs cannot grow without limit between scheduled cleanup runs.
 - Generic VPS host hygiene runs as a Dokploy `dokploy-server` Schedule Job. The `dokploy-server` type is mandatory: the legacy `server` type with a null `serverId` is accepted by `schedule.create` but never executes the command — a silent no-op that previously let orphaned resources accumulate. It prunes old stopped non-preview containers, old build cache, old unused images, all unused Docker networks, oversized Docker json logs, and systemd journal retention. Unused Docker networks are not age-gated because Docker's predefined address pools can be exhausted by orphan networks before disk age thresholds are reached; Docker will not remove networks attached to running containers. Host hygiene is **generic-only**: it does not fetch open PRs or remove PR preview containers/volumes. PR preview environments are reaped natively by Dokploy `compose.delete` (reliable since Dokploy v0.29.x); the `PR_PREVIEW_CONTAINER_PATTERN` is retained solely to *exclude* Dokploy-owned preview containers from generic stopped-container pruning. This keeps host disk policy independent from GitHub Actions SSH access while using Dokploy as the operational scheduler.
 - GLM/OCR CI traffic uses `AI_BASE_URL=https://api.z.ai/api/coding/paas/v4`; the URL remains an env override so the base provider can be replaced without code changes.
