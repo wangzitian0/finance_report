@@ -268,9 +268,10 @@ cross-domain transaction or foreign key.
 
 | Dimension | Physical Location (SSOT) | Description |
 |-----------|--------------------------|-------------|
-| **Processing Logic** | `apps/backend/src/services/processing_account.py` | Core business |
-| **Account Creation** | `apps/backend/src/services/account_service.py` | System account init |
-| **Transfer Detection** | `apps/backend/src/services/reconciliation.py` | Transfer pair matching |
+| **Processing Logic (verbs)** | `apps/backend/src/ledger/extension/processing.py` | Core business — acquire/post/project/pair (impure edge) |
+| **Processing Policy (pure)** | `apps/backend/src/ledger/base/processing.py` | Account identity + transfer detection/scoring (pure core) |
+| **Published Interface** | `apps/backend/src/ledger` (`from src.ledger import ...`) | The only surface consumers (reconciliation/reporting) import |
+| **Transfer Detection** | `apps/backend/src/services/reconciliation.py` | Calls the ledger published interface (by id/event) |
 
 ---
 

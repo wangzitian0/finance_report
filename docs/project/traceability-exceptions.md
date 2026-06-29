@@ -62,7 +62,7 @@ explicit AC IDs for the behavior.
 | Path | Owner |
 |---|---|
 | `apps/backend/tests/money/test_money.py` | `common/ledger/readme.md` |
-| `apps/backend/tests/accounting/test_processing_account_endpoints.py` | `common/ledger/readme.md` |
+| `apps/backend/tests/ledger/test_processing_account_endpoints.py` | `common/ledger/readme.md` |
 | `apps/backend/tests/api/test_ai_feedback_router_extra.py` | `docs/ssot/ai.md` |
 | `apps/backend/tests/assets/test_assets_positions_and_depreciation.py` | `docs/ssot/assets.md` |
 | `apps/backend/tests/identity/test_auth_router_unit.py` | `common/identity/readme.md` |

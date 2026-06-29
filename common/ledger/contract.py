@@ -11,11 +11,20 @@ into a base port + extension adapter, the account-balance projection a ``data``
 sink).
 
 ``ledger`` is the first ``core`` domain on the package model (the double-entry
-bounded context). Its ACs (the EPIC-002/012/015 double-entry + processing-account
-ACs) migrate into ``roadmap`` in a later slice of the cutover (#1420 slice 3c); for
-now the contract declares only the **structural invariants** of the cutover, each
-pinned to a real test. ``roadmap=[]`` is standard-preserving (Decision A — deferring
-the AC migration lowers no bar).
+bounded context). Slice 3b (#1420) folds the **processing (in-transit) account**
+into the package: its pure identity + transfer detection/scoring policy live in
+``base/processing.py`` (the :class:`ProcessingAccount` aggregate + ``TransferPair``
+value object + ``detect_transfer_pattern``) and its impure verbs (acquire / post /
+project / ``find_transfer_pairs``) in ``extension/processing.py`` — the original
+``services/processing_account.py`` is deleted (zero residue). Reconciliation/
+reporting consume it only through the published ``src.ledger`` interface, by id/
+event (Decision B — one transaction per domain).
+
+Its ACs (the EPIC-002/012/015 double-entry + processing-account ACs) migrate into
+``roadmap`` in a later slice of the cutover (#1420 slice 3c); for now the contract
+declares only the **structural invariants** of the cutover, each pinned to a real
+test. ``roadmap=[]`` is standard-preserving (Decision A — deferring the AC
+migration lowers no bar).
 """
 
 from __future__ import annotations
@@ -56,6 +65,22 @@ CONTRACT = PackageContract(
         Unit(name="post_entry", kind=Kind.DOMAIN_SERVICE, module="extension/post.py"),
         # data — the account-balance projection (read-model / leaf sink).
         Unit(name="AccountBalance", kind=Kind.PROJECTION, module="data/balance.py"),
+        # processing — the in-transit (Processing) virtual account (#1420 slice 3b).
+        # base: the account-identity value object + the transfer detection/scoring
+        # policy + the TransferPair value object (all pure).
+        Unit(
+            name="ProcessingAccount",
+            kind=Kind.AGGREGATE_ROOT,
+            module="base/processing.py",
+        ),
+        Unit(name="TransferPair", kind=Kind.VALUE_OBJECT, module="base/processing.py"),
+        # extension: the pairing domain service over persisted Processing entries
+        # (the acquire/post/project verbs are its repository + read edges).
+        Unit(
+            name="find_transfer_pairs",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/processing.py",
+        ),
     ],
     implementations={"be": "apps/backend/src/ledger", "fe": None},
     interface=[
@@ -65,12 +90,22 @@ CONTRACT = PackageContract(
         "JournalRepository",
         "LedgerError",
         "Leg",
+        "ProcessingAccount",
         "SqlJournalRepository",
+        "TransferPair",
         "UnbalancedEntryError",
         "ValidationError",
         "calculate_account_balance",
         "calculate_account_balances",
         "create_journal_entry",
+        "create_transfer_in_entry",
+        "create_transfer_out_entry",
+        "detect_transfer_pattern",
+        "find_transfer_pairs",
+        "get_or_create_processing_account",
+        "get_processing_balance",
+        "get_unpaired_transfers",
+        "list_processing_transfer_legs",
         "post_entry",
         "post_journal_entry",
         "validate_fx_rates",
@@ -102,6 +137,19 @@ CONTRACT = PackageContract(
             ),
             test=(
                 "tests/tooling/test_ledger_package.py::test_ledger_converges_by_layer"
+            ),
+        ),
+        Invariant(
+            id="processing-converges-by-layer",
+            statement=(
+                "The processing (in-transit) account folded into the package "
+                "(#1420 slice 3b): pure identity/policy in base/processing.py, impure "
+                "verbs in extension/processing.py, and services/processing_account.py "
+                "deleted (zero residue, no re-export shim)."
+            ),
+            test=(
+                "tests/tooling/test_ledger_package.py"
+                "::test_ledger_processing_converges_by_layer"
             ),
         ),
         Invariant(

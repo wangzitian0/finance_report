@@ -65,6 +65,42 @@ def test_ledger_converges_by_layer():
         assert name in exports, f"ledger must export {name}"
 
 
+def test_ledger_processing_converges_by_layer():
+    """Invariant processing-converges-by-layer: the processing (in-transit) account
+    folded into the package (#1420 slice 3b) splits into a pure base half + an impure
+    extension half, and the original ``services/processing_account.py`` is gone (zero
+    residue). The pure identity/policy lives in ``base/processing.py``; the DB verbs
+    (acquire/post/project/pair) in ``extension/processing.py``.
+    """
+    base = LEDGER / "base/processing.py"
+    ext = LEDGER / "extension/processing.py"
+    assert base.exists(), "processing pure core must live in base/processing.py"
+    assert ext.exists(), "processing verbs must live in extension/processing.py"
+
+    base_src = base.read_text(encoding="utf-8")
+    for name in (
+        "class ProcessingAccount",
+        "class TransferPair",
+        "def detect_transfer_pattern",
+    ):
+        assert name in base_src, f"base/processing.py must define {name}"
+
+    ext_src = ext.read_text(encoding="utf-8")
+    for name in (
+        "def get_or_create_processing_account",
+        "def find_transfer_pairs",
+        "def create_transfer_out_entry",
+        "def create_transfer_in_entry",
+        "def get_processing_balance",
+    ):
+        assert name in ext_src, f"extension/processing.py must define {name}"
+
+    # zero residue: the retired service module is deleted, not re-exported.
+    assert not (REPO / "apps/backend/src/services/processing_account.py").exists(), (
+        "services/processing_account.py must be deleted (folded into ledger, no shim)"
+    )
+
+
 def test_ledger_base_layer_is_pure():
     """Invariant base-layer-pure: base/ never imports the package's own extension/ or
     data/, the ORM session, or the FastAPI/transport edge — base is the downward-only core.

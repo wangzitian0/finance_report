@@ -35,7 +35,10 @@ def _load_reconciliation_module():
     previous_services = sys.modules.get("src.services")
     previous_accounting = sys.modules.get("src.services.accounting")
     previous_logger = sys.modules.get("src.logger")
-    previous_processing = sys.modules.get("src.services.processing_account")
+    # The processing-account transfer verbs were folded into the ledger package
+    # (#1420 slice 3b): reconciliation now imports them from ``src.ledger`` instead
+    # of ``src.services.processing_account``, so we stub ``src.ledger`` here.
+    previous_ledger = sys.modules.get("src.ledger")
     previous_source_type_priority = sys.modules.get("src.services.source_type_priority")
     previous_statement_summary = sys.modules.get("src.services.statement_summary")
 
@@ -46,11 +49,13 @@ def _load_reconciliation_module():
     accounting_module.validate_journal_balance = Mock()
     logger_module = ModuleType("src.logger")
     logger_module.get_logger = Mock(return_value=Mock())
-    processing_module = ModuleType("src.services.processing_account")
-    processing_module.create_transfer_in_entry = AsyncMock()
-    processing_module.create_transfer_out_entry = AsyncMock()
-    processing_module.detect_transfer_pattern = Mock(return_value=False)
-    processing_module.find_transfer_pairs = AsyncMock(return_value=[])
+    ledger_module = ModuleType("src.ledger")
+    ledger_module.ValidationError = ValueError
+    ledger_module.validate_journal_balance = Mock()
+    ledger_module.create_transfer_in_entry = AsyncMock()
+    ledger_module.create_transfer_out_entry = AsyncMock()
+    ledger_module.detect_transfer_pattern = Mock(return_value=False)
+    ledger_module.find_transfer_pairs = AsyncMock(return_value=[])
     source_type_priority_module = ModuleType("src.services.source_type_priority")
     source_type_priority_module.promote_entry_source_type = Mock(return_value=False)
     source_type_priority_module.source_type_rank = Mock(return_value=0)
@@ -60,14 +65,18 @@ def _load_reconciliation_module():
     sys.modules["src.services"] = services_package
     sys.modules["src.services.accounting"] = accounting_module
     sys.modules["src.logger"] = logger_module
-    sys.modules["src.services.processing_account"] = processing_module
+    sys.modules["src.ledger"] = ledger_module
     sys.modules["src.services.source_type_priority"] = source_type_priority_module
     sys.modules["src.services.statement_summary"] = statement_summary_module
 
     # reconciliation.py was split into focused submodules; load them (in dependency
     # order: config -> scoring -> stats) under their real names so reconciliation's
     # re-export imports resolve inside this isolated environment.
-    split_submodules = ("reconciliation_config", "reconciliation_scoring", "reconciliation_stats")
+    split_submodules = (
+        "reconciliation_config",
+        "reconciliation_scoring",
+        "reconciliation_stats",
+    )
     services_dir = REPO_ROOT / "apps" / "backend" / "src" / "services"
     previous_submodules = {
         name: sys.modules.get(f"src.services.{name}") for name in split_submodules
@@ -111,10 +120,10 @@ def _load_reconciliation_module():
             sys.modules.pop("src.logger", None)
         else:
             sys.modules["src.logger"] = previous_logger
-        if previous_processing is None:
-            sys.modules.pop("src.services.processing_account", None)
+        if previous_ledger is None:
+            sys.modules.pop("src.ledger", None)
         else:
-            sys.modules["src.services.processing_account"] = previous_processing
+            sys.modules["src.ledger"] = previous_ledger
         if previous_source_type_priority is None:
             sys.modules.pop("src.services.source_type_priority", None)
         else:

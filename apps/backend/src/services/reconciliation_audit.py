@@ -15,10 +15,10 @@ from decimal import Decimal
 from pathlib import Path
 from uuid import UUID
 
+from src.ledger import detect_transfer_pattern
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.services.processing_account import detect_transfer_pattern
 from src.services.reconciliation import (
     DEFAULT_CONFIG,
     ReconciliationConfig,
@@ -377,7 +377,7 @@ def _evaluate_scenario(scenario: AuditScenario, config: ReconciliationConfig) ->
 
     for txn in scenario.transactions:
         ref = _transaction_ref(txn)
-        if detect_transfer_pattern(txn):
+        if detect_transfer_pattern(txn.description):
             actual_by_txn[ref] = {
                 "route": AUTO_ACCEPT,
                 "score": 100,

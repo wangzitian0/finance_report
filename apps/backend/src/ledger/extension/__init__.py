@@ -9,6 +9,15 @@ the :class:`~src.ledger.base.repository.JournalRepository` port this layer satis
 from __future__ import annotations
 
 from src.ledger.extension.post import post_entry
+from src.ledger.extension.processing import (
+    create_transfer_in_entry,
+    create_transfer_out_entry,
+    find_transfer_pairs,
+    get_or_create_processing_account,
+    get_processing_balance,
+    get_unpaired_transfers,
+    list_processing_transfer_legs,
+)
 from src.ledger.extension.repository import (
     SqlJournalRepository,
     create_journal_entry,
@@ -20,6 +29,13 @@ from src.ledger.extension.repository import (
 __all__ = [
     "SqlJournalRepository",
     "create_journal_entry",
+    "create_transfer_in_entry",
+    "create_transfer_out_entry",
+    "find_transfer_pairs",
+    "get_or_create_processing_account",
+    "get_processing_balance",
+    "get_unpaired_transfers",
+    "list_processing_transfer_legs",
     "post_entry",
     "post_journal_entry",
     "validate_line_account_ownership",

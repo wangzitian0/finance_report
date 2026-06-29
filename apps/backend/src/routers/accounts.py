@@ -13,6 +13,10 @@ from src.ledger import (
     ValidationError,
     calculate_account_balance,
     calculate_account_balances,
+    find_transfer_pairs,
+    get_processing_balance,
+    get_unpaired_transfers,
+    list_processing_transfer_legs,
 )
 from src.logger import get_logger
 from src.models.account import AccountType
@@ -38,12 +42,6 @@ from src.services.account_coverage import DEFAULT_STALE_AFTER_DAYS, get_account_
 from src.services.accounting import (
     get_opening_balance_readiness,
     post_opening_balance_entry,
-)
-from src.services.processing_account import (
-    find_transfer_pairs,
-    get_processing_balance,
-    get_unpaired_transfers,
-    list_processing_transfer_legs,
 )
 from src.utils import raise_bad_request, raise_not_found
 

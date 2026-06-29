@@ -13,16 +13,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.config import settings
-from src.logger import get_logger
-from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
-from src.models.layer2 import AtomicTransaction
-from src.models.reconciliation import ReconciliationMatch, ReconciliationMatchJournalEntry, ReconciliationStatus
-from src.services.processing_account import (
+from src.ledger import (
     create_transfer_in_entry,
     create_transfer_out_entry,
     detect_transfer_pattern,
     find_transfer_pairs,
 )
+from src.logger import get_logger
+from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
+from src.models.layer2 import AtomicTransaction
+from src.models.reconciliation import ReconciliationMatch, ReconciliationMatchJournalEntry, ReconciliationStatus
 from src.services.reconciliation_config import (  # noqa: F401
     DEFAULT_CONFIG,
     MAX_COMBINATION_CANDIDATES,
@@ -269,7 +269,7 @@ def _find_transfer_candidates(
     """
     results: list[tuple[AtomicTransaction, MatchCandidate, AtomicTransaction | None]] = []
     for txn in pending_txns:
-        if not detect_transfer_pattern(txn):
+        if not detect_transfer_pattern(txn.description):
             continue
         direction_key = "transfer_out" if txn.direction == "OUT" else "transfer_in"
         candidate = MatchCandidate(
@@ -528,7 +528,7 @@ async def execute_matching(
             continue
 
         # Detect transfer pattern (keywords-based detection)
-        if detect_transfer_pattern(txn):
+        if detect_transfer_pattern(txn.description):
             try:
                 # Idempotency check: skip if this transaction already has an active match
                 existing_transfer_match = await _get_existing_active_match(db, txn.id)

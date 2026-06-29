@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import importlib.util
 import sys
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
@@ -28,48 +27,14 @@ from src.models.journal import (  # noqa: E402
 from src.money import Money  # noqa: E402
 
 
-def _load_processing_account_module():
-    """Load the target module without importing src.services package exports."""
-    previous_services = sys.modules.get("src.services")
-    previous_account_service = sys.modules.get("src.services.account_service")
+# The processing-account verbs were folded into the ledger package (#1420 slice 3b):
+# the pure scoring policy lives in ``src.ledger.base.processing`` and the impure
+# DB verbs in ``src.ledger.extension.processing``. ``processing_account_module`` is
+# the extension module so ``patch.object(..., "get_or_create_processing_account")``
+# intercepts the in-module acquisition the verbs call.
+import src.ledger.extension.processing as processing_account_module  # noqa: E402
+from src.ledger.base.processing import _calculate_pair_confidence  # noqa: E402
 
-    services_package = ModuleType("src.services")
-    services_package.__path__ = []  # type: ignore[attr-defined]
-    account_service_module = ModuleType("src.services.account_service")
-    account_service_module.get_or_create_processing_account = AsyncMock()
-
-    sys.modules["src.services"] = services_package
-    sys.modules["src.services.account_service"] = account_service_module
-
-    try:
-        spec = importlib.util.spec_from_file_location(
-            "_processing_account_under_test",
-            REPO_ROOT
-            / "apps"
-            / "backend"
-            / "src"
-            / "services"
-            / "processing_account.py",
-        )
-        assert spec is not None
-        assert spec.loader is not None
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[spec.name] = module
-        spec.loader.exec_module(module)
-        return module
-    finally:
-        if previous_services is None:
-            sys.modules.pop("src.services", None)
-        else:
-            sys.modules["src.services"] = previous_services
-        if previous_account_service is None:
-            sys.modules.pop("src.services.account_service", None)
-        else:
-            sys.modules["src.services.account_service"] = previous_account_service
-
-
-processing_account_module = _load_processing_account_module()
-_calculate_pair_confidence = processing_account_module._calculate_pair_confidence
 find_transfer_pairs = processing_account_module.find_transfer_pairs
 get_processing_balance = processing_account_module.get_processing_balance
 list_processing_transfer_legs = processing_account_module.list_processing_transfer_legs
