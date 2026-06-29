@@ -76,10 +76,10 @@ enforces:
 - **AC8.16.1** (augmentation seam excludes superseded valuations) emits the
   corrected-only net-worth match in
   `apps/backend/tests/integration/test_augmentation_seam_e2e.py`.
-- **AC2.6.4** (double-entry posting balances debits == credits) emits the
+- **AC-ledger.6.4** (double-entry posting balances debits == credits) emits the
   measured debit/credit imbalance of a multi-line salary entry posted through the
   real `post_journal_entry` path in
-  `apps/backend/tests/accounting/test_accounting_equation.py`. This is the
+  `apps/backend/tests/ledger/test_accounting_equation.py`. This is the
   reference pattern for anchoring a flagship money journey to L2 + L3.
 
 Seeded baseline: `docs/ssot/ac-score-baseline.jsonl` (sorted, line-oriented JSONL

@@ -1,8 +1,8 @@
 """AC2.3 - AC2.7: Journal router coverage boost tests.
 
 These tests target specific uncovered lines from EPIC-002:
-- AC2.3.7: create_entry ValidationError catch (unbalanced, single-line)
-- AC2.7.5: DELETE /{entry_id} endpoint (success, not-found, non-draft)
+- AC-ledger.3.7: create_entry ValidationError catch (unbalanced, single-line)
+- AC-ledger.7.5: DELETE /{entry_id} endpoint (success, not-found, non-draft)
 """
 
 from datetime import date

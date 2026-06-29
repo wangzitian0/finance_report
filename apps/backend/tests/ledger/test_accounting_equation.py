@@ -1,14 +1,14 @@
 """AC2.3 - AC2.6: Accounting equation validation and boundary tests.
 These tests cover Critical and High priority gaps from EPIC-002:
- AC2.3.5: Posted entry cannot be re-posted
- AC2.3.6: Posted entry status immutability
- AC2.5.1: Accounting equation violation detection
- AC2.5.2: Accounting equation holds with all 5 account types
- AC2.5.3: Accounting equation holds after transactions
- AC2.6.1: Maximum amount boundary (999,999,999.99)
- AC2.6.2: Minimum amount boundary (0.01)
- AC2.6.3: Amount precision tolerance boundary
- AC2.6.4: Multi-line complex entry (6+ lines)
+ AC-ledger.3.5: Posted entry cannot be re-posted
+ AC-ledger.3.6: Posted entry status immutability
+ AC-ledger.5.1: Accounting equation violation detection
+ AC-ledger.5.2: Accounting equation holds with all 5 account types
+ AC-ledger.5.3: Accounting equation holds after transactions
+ AC-ledger.6.1: Maximum amount boundary (999,999,999.99)
+ AC-ledger.6.2: Minimum amount boundary (0.01)
+ AC-ledger.6.3: Amount precision tolerance boundary
+ AC-ledger.6.4: Multi-line complex entry (6+ lines)
 """
 
 from datetime import date
@@ -513,11 +513,11 @@ async def test_amount_precision_loss_detection():
     trust_mode="deterministic_pr",
     source_classes=["manual_record"],
     issue="#896",
-    ac_ids=["AC2.6.4"],
+    ac_ids=["AC-ledger.6.4"],
 )
 async def test_many_lines_complex_salary_correct(db: AsyncSession, test_user_id, ac_evidence):
     """
-    AC2.6.4: Multi-line complex entry (salary breakdown) - CORRECT version.
+    AC-ledger.6.4: Multi-line complex entry (salary breakdown) - CORRECT version.
 
     Flagship "money" journey for the L2 + L3 anchor: a 6-line salary entry is
     posted through the real ``post_journal_entry`` path, which enforces the core
@@ -637,7 +637,7 @@ async def test_many_lines_complex_salary_correct(db: AsyncSession, test_user_id,
     # so a passing run measures a genuine 1.0 rather than asserting it.
     score = 1.0 - min(1.0, float(imbalance) / float(total_debit or Decimal("1")))
     ac_evidence(
-        ac_id="AC2.6.4",
+        ac_id="AC-ledger.6.4",
         score=score,
         metric="posted_debit_credit_imbalance_is_zero",
         comment=(

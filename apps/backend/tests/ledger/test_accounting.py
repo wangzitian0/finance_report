@@ -21,10 +21,10 @@ from src.models.journal import Direction, JournalLine
     trust_mode="deterministic_pr",
     source_classes=["manual_record"],
     issue="#1103",
-    ac_ids=["AC2.2.1"],
+    ac_ids=["AC-ledger.2.1"],
 )
 async def test_balanced_entry_passes(ac_evidence):
-    """AC2.2.1: Balanced debit/credit entries should pass validation.
+    """AC-ledger.2.1: Balanced debit/credit entries should pass validation.
 
     Core "money" truth for the L2 + L3 anchor: a balanced double-entry
     transaction (SUM(DEBIT) == SUM(CREDIT)) is accepted by the production
@@ -82,7 +82,7 @@ async def test_balanced_entry_passes(ac_evidence):
     # ac_evidence's JSON payload types ``score`` as a float; convert only here, at
     # the serialization boundary, after all money arithmetic is done in Decimal.
     ac_evidence(
-        ac_id="AC2.2.1",
+        ac_id="AC-ledger.2.1",
         score=float(score_decimal),
         metric="balanced_entry_debit_credit_imbalance_is_zero",
         comment=(
@@ -95,7 +95,7 @@ async def test_balanced_entry_passes(ac_evidence):
 
 
 async def test_unbalanced_entry_fails():
-    """AC2.2.2: Unbalanced entries should be rejected.
+    """AC-ledger.2.2: Unbalanced entries should be rejected.
 
     Verify that journal entries with unequal debits and credits
     raise ValidationError with appropriate message.
@@ -124,7 +124,7 @@ async def test_unbalanced_entry_fails():
 
 
 async def test_single_line_entry_fails():
-    """AC2.2.3: Single-line entries should be rejected.
+    """AC-ledger.2.3: Single-line entries should be rejected.
 
     Verify that journal entries with fewer than 2 lines
     raise ValidationError (minimum requirement for double-entry).
@@ -145,7 +145,7 @@ async def test_single_line_entry_fails():
 
 
 async def test_decimal_precision():
-    """AC2.2.4: Decimal calculations should not lose precision.
+    """AC-ledger.2.4: Decimal calculations should not lose precision.
 
     Verify that monetary calculations using Decimal type
     maintain exact precision without floating-point errors.
@@ -159,7 +159,7 @@ async def test_decimal_precision():
 
 
 async def test_fx_rate_required_for_non_base_currency():
-    """AC2.2.5: Non-base currency lines require fx_rate.
+    """AC-ledger.2.5: Non-base currency lines require fx_rate.
 
     Verify that journal lines with currency != base currency
     must have a non-null fx_rate value.
@@ -181,7 +181,7 @@ async def test_fx_rate_required_for_non_base_currency():
 
 
 async def test_missing_currency_is_treated_as_base_currency_for_fx_validation():
-    """AC2.2.6: Legacy lines without currency are treated as base currency.
+    """AC-ledger.2.6: Legacy lines without currency are treated as base currency.
 
     Older records may omit currency. They must not require fx_rate because the
     accounting base currency is SGD.
@@ -202,7 +202,7 @@ async def test_missing_currency_is_treated_as_base_currency_for_fx_validation():
 
 
 async def test_missing_currency_balances_as_base_currency():
-    """AC2.2.7: Balance validation treats omitted currency as base currency."""
+    """AC-ledger.2.7: Balance validation treats omitted currency as base currency."""
     lines = [
         JournalLine(
             id=uuid4(),
@@ -228,7 +228,7 @@ async def test_missing_currency_balances_as_base_currency():
 
 
 async def test_balance_validation_requires_fx_rate_for_foreign_currency_conversion():
-    """AC2.2.5: Balance conversion rejects non-base currency lines without fx_rate."""
+    """AC-ledger.2.5: Balance conversion rejects non-base currency lines without fx_rate."""
     lines = [
         JournalLine(
             id=uuid4(),

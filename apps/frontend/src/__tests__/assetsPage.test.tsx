@@ -339,7 +339,7 @@ describe("AssetsPage", () => {
     })
   })
 
-  it("AC2.8.2 formats fractional quantities without JS Number precision loss", async () => {
+  it("AC-ledger.8.2 formats fractional quantities without JS Number precision loss", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
       if (path.startsWith("/api/assets/valuation-snapshots")) {
         return Promise.resolve(emptyValuations)

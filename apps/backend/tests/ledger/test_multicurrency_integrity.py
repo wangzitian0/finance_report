@@ -13,7 +13,7 @@ from src.models.journal import Direction, JournalEntry, JournalEntryStatus, Jour
 
 
 def test_AC2_12_1_multicurrency_entry_balances_in_base_currency(ac_evidence):
-    """AC2.12.1: Multi-currency journal validation balances converted base amounts."""
+    """AC-ledger.12.1: Multi-currency journal validation balances converted base amounts."""
     bank_usd = JournalLine(
         account_id=uuid4(),
         direction=Direction.DEBIT,
@@ -45,7 +45,7 @@ def test_AC2_12_1_multicurrency_entry_balances_in_base_currency(ac_evidence):
     # Behavioral evidence: the converted base amount equals the golden 135.00 SGD;
     # a wrong fx multiply or a missing conversion would not land on this number.
     ac_evidence(
-        ac_id="AC2.12.1",
+        ac_id="AC-ledger.12.1",
         score=1.0,
         metric="usd_to_sgd_converted_base_amount_match",
         comment="100.00 USD @ 1.35 == 135.00 SGD converted base amount (deterministic)",
@@ -54,7 +54,7 @@ def test_AC2_12_1_multicurrency_entry_balances_in_base_currency(ac_evidence):
 
 
 async def test_AC2_12_2_accounting_equation_uses_base_currency_balances(db: AsyncSession, test_user):
-    """AC2.12.2: Accounting equation verification uses base-currency converted balances."""
+    """AC-ledger.12.2: Accounting equation verification uses base-currency converted balances."""
     user_id = test_user.id
     usd_asset = Account(user_id=user_id, name="USD Bank", type=AccountType.ASSET, currency="USD")
     equity = Account(user_id=user_id, name="Opening Equity", type=AccountType.EQUITY, currency="SGD")

@@ -90,75 +90,57 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 
 ## 🧪 Test Cases
 
-> **Test Organization**: Tests organized by feature blocks using ACx.y.z numbering.
-> **Coverage**: See test files in `apps/backend/tests/accounting/`
-
-### AC2.1: Account Management
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC2.1.1 | Create account with valid data | `test_create_account()` | `accounting/test_account_service_unit.py` | P0 |
-| AC2.1.2 | Get account by ID | `test_get_account_success()` | `accounting/test_account_service_unit.py` | P0 |
-| AC2.1.3 | Get non-existent account fails | `test_get_account_not_found()` | `accounting/test_account_service_unit.py` | P0 |
-| AC2.1.4 | Update account successfully | `test_update_account_success()` | `accounting/test_account_service_unit.py` | P0 |
-| AC2.1.5 | Update non-existent account fails | `test_update_account_not_found()` | `accounting/test_account_service_unit.py` | P0 |
-| AC2.1.6 | List accounts with filters | `test_list_accounts_with_filters()` | `accounting/test_account_service_unit.py` | P1 |
-
-### AC2.2: Journal Entry Creation & Validation
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC2.2.1 | Balanced entry passes validation | `test_balanced_entry_passes()` | `accounting/test_accounting.py` | P0 |
-| AC2.2.2 | Unbalanced entry fails validation | `test_unbalanced_entry_fails()` | `accounting/test_accounting.py` | P0 |
-| AC2.2.3 | Single-line entry fails (minimum 2 lines) | `test_single_line_entry_fails()` | `accounting/test_accounting.py` | P0 |
-| AC2.2.4 | Decimal precision maintained | `test_decimal_precision()` | `accounting/test_accounting.py` | P0 |
-| AC2.2.5 | FX rate required for non-base currency | `test_fx_rate_required_for_non_base_currency()` | `accounting/test_accounting.py` | P0 |
-| AC2.2.6 | Unbalanced post attempt fails | `test_post_unbalanced_entry_rejected()` | `accounting/test_accounting_integration.py` | P0 |
-| AC2.2.7 | Balance validation treats omitted currency as base currency | `test_missing_currency_balances_as_base_currency()` | `accounting/test_accounting.py` | P0 |
-
-### AC2.3: Journal Entry Posting & Voiding
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC2.3.1 | Post draft entry successfully | `test_post_journal_entry_success()` | `accounting/test_accounting_integration.py` | P0 |
-| AC2.3.2 | Post already-posted entry fails | `test_post_journal_entry_already_posted_fails()` | `accounting/test_accounting_integration.py` | P0 |
-| AC2.3.3 | Posted entry cannot be reposted | `test_posted_entry_cannot_be_reposted()` | `accounting/test_accounting_equation.py` | P0 |
-| AC2.3.4 | Posted entry status immutable | `test_posted_entry_status_immutable_via_direct_update()` | `accounting/test_accounting_equation.py` | P0 |
-| AC2.3.5 | Void entry creates reversal | `test_void_journal_entry_creates_reversal()` | `accounting/test_accounting_integration.py` | P0 |
-| AC2.3.6 | Error handling for non-existent entries | `test_journal_service` | `accounting/test_journal_service.py` | P1 |
-| AC2.3.7 | create_entry ValidationError catch (unbalanced, single-line) | `test_journal_delete_and_validation` | `accounting/test_journal_delete_and_validation.py` | P1 |
-| AC2.3.8 | post_journal_entry error handling (not found, wrong user, inactive account) | `test_accounting_service_errors` | `accounting/test_accounting_service_errors.py` | P1 |
-| AC2.3.9 | void_journal_entry error handling (not found, wrong user, non-posted) | `test_accounting_service_errors` | `accounting/test_accounting_service_errors.py` | P1 |
-| AC2.3.10 | post_journal_entry success path | `test_accounting_service_errors` | `accounting/test_accounting_service_errors.py` | P1 |
-| AC2.3.11 | void_journal_entry success path with reversal | `test_accounting_service_errors` | `accounting/test_accounting_service_errors.py` | P1 |
-
-### AC2.4: Balance Calculation
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC2.4.1 | Calculate balance for asset account | `test_calculate_balance_for_asset_account()` | `accounting/test_accounting_integration.py` | P0 |
-| AC2.4.2 | Calculate balance for income account | `test_calculate_balance_for_income_account()` | `accounting/test_accounting_integration.py` | P0 |
-| AC2.4.3 | Draft entries excluded from balance | `test_draft_entries_not_included_in_balance()` | `accounting/test_accounting_integration.py` | P0 |
-| AC2.4.4 | Calculate balances by account type | `test_calculate_account_balances_by_type()` | `accounting/test_accounting_balances.py` | P1 |
-| AC2.4.5 | Empty account list returns empty balances | `test_calculate_account_balances_empty_list()` | `accounting/test_accounting_balances.py` | P1 |
-| AC2.4.6 | Account Balance Calculation Tests | `test_accounting_balances` | `accounting/test_accounting_balances.py` | P1 |
-
-### AC2.5: Accounting Equation Validation
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC2.5.1 | Accounting equation holds with all types | `test_accounting_equation_holds_with_all_account_types()` | `accounting/test_accounting_equation.py` | P0 |
-| AC2.5.2 | Equation violation detected | `test_accounting_equation_violation_detected()` | `accounting/test_accounting_equation.py` | P0 |
-| AC2.5.3 | Accounting equation holds after transactions | `test_accounting_equation_holds()` | `accounting/test_accounting_integration.py` | P0 |
-
-### AC2.6: Boundary & Edge Cases
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC2.6.1 | Maximum amount (999,999,999.99) | `test_max_amount_boundary()` | `accounting/test_accounting_equation.py` | P1 |
-| AC2.6.2 | Minimum amount (0.01) | `test_min_amount_boundary()` | `accounting/test_accounting_equation.py` | P1 |
-| AC2.6.3 | Decimal precision loss detection | `test_amount_precision_loss_detection()` | `accounting/test_accounting_equation.py` | P1 |
-| AC2.6.4 | Many-line complex entry (salary breakdown) | `test_many_lines_complex_salary_correct()` | `accounting/test_accounting_equation.py` | P1 |
+> **The EPIC-002 double-entry backend ACs in groups AC2.1–AC2.12 are no longer
+> defined here.** They migrated into the `ledger` package (#1420 slice 3c-ii) and
+> are owned by, and sourced directly from,
+> [`common/ledger/contract.py`](../../common/ledger/contract.py)'s `roadmap` under
+> the package-scoped numeric `AC-ledger.<group>.<seq>` id scheme (the leading "2"
+> is dropped and the sequence preserved, so `AC2.<g>.<s>` becomes
+> `AC-ledger.<g>.<s>`; groups 1–12 are this slice, 71–76 are the EPIC-015
+> processing block from slice 3c-i).
+> `common/ssot/generate_ac_registry.py` reads package-contract roadmaps additively,
+> so the AC index counts them without an EPIC-table mirror. This note references
+> the new ids (keeping the registry↔EPIC link intact) but defines none of them —
+> the contract is the single definition source. The remaining double-entry groups
+> AC2.13–AC2.23 (user-scoped integrity, DB invariant floor, opening balances,
+> framework boundary, and the Money value-type extension) **remain defined below**;
+> the AC2.13–AC2.23 backend core lands in slice 3c-iii.
+>
+> **Account management** (was AC2.1.*):
+> `AC-ledger.1.1` · `AC-ledger.1.2` · `AC-ledger.1.3` · `AC-ledger.1.4` · `AC-ledger.1.5` · `AC-ledger.1.6`
+>
+> **Journal entry creation & validation** (was AC2.2.*):
+> `AC-ledger.2.1` · `AC-ledger.2.2` · `AC-ledger.2.3` · `AC-ledger.2.4` · `AC-ledger.2.5` · `AC-ledger.2.6` · `AC-ledger.2.7`
+>
+> **Journal entry posting & voiding** (was AC2.3.*):
+> `AC-ledger.3.1` · `AC-ledger.3.2` · `AC-ledger.3.3` · `AC-ledger.3.4` · `AC-ledger.3.5` · `AC-ledger.3.6` · `AC-ledger.3.7` · `AC-ledger.3.8` · `AC-ledger.3.9` · `AC-ledger.3.10` · `AC-ledger.3.11`
+>
+> **Balance calculation** (was AC2.4.*):
+> `AC-ledger.4.1` · `AC-ledger.4.2` · `AC-ledger.4.3` · `AC-ledger.4.4` · `AC-ledger.4.5` · `AC-ledger.4.6`
+>
+> **Accounting equation validation** (was AC2.5.*):
+> `AC-ledger.5.1` · `AC-ledger.5.2` · `AC-ledger.5.3`
+>
+> **Boundary & edge cases** (was AC2.6.*):
+> `AC-ledger.6.1` · `AC-ledger.6.2` · `AC-ledger.6.3` · `AC-ledger.6.4`
+>
+> **API router & error handling** (was AC2.7.*):
+> `AC-ledger.7.1` · `AC-ledger.7.2` · `AC-ledger.7.3` · `AC-ledger.7.4` · `AC-ledger.7.5` · `AC-ledger.7.6` · `AC-ledger.7.7`
+>
+> **Decimal safety** (was AC2.8.*):
+> `AC-ledger.8.1` · `AC-ledger.8.2` · `AC-ledger.8.3`
+>
+> **Data model checklist coverage** (was AC2.9.*):
+> `AC-ledger.9.1` · `AC-ledger.9.2` · `AC-ledger.9.3` · `AC-ledger.9.4`
+>
+> **API endpoint checklist coverage** (was AC2.10.*):
+> `AC-ledger.10.1` · `AC-ledger.10.2` · `AC-ledger.10.3` · `AC-ledger.10.4` · `AC-ledger.10.5`
+>
+> **Must-have traceability** (was AC2.11.*):
+> `AC-ledger.11.4`
+>
+> **Multi-currency ledger integrity** (was AC2.12.*):
+> `AC-ledger.12.1` · `AC-ledger.12.2` · `AC-ledger.12.5` · `AC-ledger.12.6`
 
 ### AC2.17: Account Management UI Responsiveness
 
@@ -169,58 +151,12 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 |----|-----------|---------------|------|----------|
 | AC2.17.1 | Accounts page mobile filters and account rows avoid document-level horizontal scroll and content overlap | `AC2.17.1 mobile accounts avoids document horizontal scroll and overlapping row controls` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
 
-### AC2.7: API Router & Error Handling
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC2.7.1 | Router uses flush not commit | `test_create_journal_entry_uses_flush_not_commit()` | `accounting/test_accounting_integration.py` | P0 |
-| AC2.7.2 | Journal router error paths | Multiple tests | `accounting/test_journal_router_errors.py` | P1 |
-| AC2.7.3 | Journal router additional scenarios | Multiple tests | `accounting/test_journal_router_additional.py` | P1 |
-| AC2.7.4 | Validation error (422) for malformed request | `test_journal_router_additional` | `accounting/test_journal_router_additional.py` | P1 |
-| AC2.7.5 | DELETE /{entry_id} endpoint (success, not-found, non-draft) | `test_journal_delete_and_validation` | `accounting/test_journal_delete_and_validation.py` | P1 |
-| AC2.7.6 | Test voiding a journal entry. | `test_void_journal_entry` | `api/test_journal_router.py` | P1 |
-| AC2.7.7 | Test deleting a journal entry (only drafts can be deleted). | `test_delete_journal_entry` | `api/test_journal_router.py` | P1 |
-
-### AC2.8: Decimal Safety
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC2.8.1 | Never use float for monetary amounts | `test_float_injection_safety()` | `accounting/test_decimal_safety.py` | P0 |
-| AC2.8.2 | Decimal precision maintained in arithmetic | `test_decimal_precision()`, `test_amount_precision_loss_detection()` | `accounting/test_accounting.py`, `accounting/test_accounting_equation.py` | P0 |
-| AC2.8.3 | Scientific notation handling | `test_decimal_safety` | `accounting/test_decimal_safety.py` | P1 |
-
-### AC2.9: Data Model Checklist Coverage
-
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC2.9.1 | Account model supports required fields and types | `test_create_account()`, `test_update_account_success()` | `accounting/test_account_service_unit.py` | P0 |
-| AC2.9.2 | JournalEntry model supports required fields and status flow | `test_posted_entry_cannot_be_reposted()`, `test_void_journal_entry_creates_reversal()` | `accounting/test_accounting_equation.py`, `accounting/test_accounting_integration.py` | P0 |
-| AC2.9.3 | JournalLine enforces debit/credit + amount rules | `test_single_line_entry_fails()`, `test_unbalanced_entry_fails()`, `test_journal_line_amount_must_be_positive()` | `accounting/test_accounting.py`, `api/test_schemas.py` | P0 |
-| AC2.9.4 | Pydantic account/journal schemas validated | `TestAccountSchemas`, `TestJournalLineSchemas`, `TestJournalEntrySchemas` | `api/test_schemas.py` | P1 |
-
-### AC2.10: API Endpoint Checklist Coverage
-
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC2.10.1 | `POST /accounts`, `GET /accounts`, `GET /accounts/{id}`, `PUT /accounts/{id}` | `test_accounts_endpoints()` | `api/test_api_endpoints.py` | P0 |
-| AC2.10.2 | `POST /journal-entries`, `GET /journal-entries`, `GET /journal-entries/{id}` | `test_journal_entry_endpoints()` | `api/test_api_endpoints.py` | P0 |
-| AC2.10.3 | `POST /journal-entries/{id}/postings`, `POST /journal-entries/{id}/voidings` | `test_journal_entry_endpoints()` | `api/test_api_endpoints.py` | P0 |
-| AC2.10.4 | API error behavior for missing/invalid resources | `test_journal_router_errors.py` suite | `accounting/test_journal_router_errors.py` | P1 |
-| AC2.10.5 | DELETE /statements/{id} success | `test_delete_endpoints` | `accounting/test_delete_endpoints.py` | P1 |
-
-### AC2.11: Must-Have Acceptance Criteria Traceability
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC2.11.4 | Multi-currency requires fx_rate | `test_fx_rate_required_for_non_base_currency()` | `accounting/test_accounting.py` | P0 |
-
-### AC2.12: Multi-Currency Ledger Integrity
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC2.12.1 | Journal entry balance validation uses base-currency converted amounts when line currencies differ | `test_AC2_12_1_multicurrency_entry_balances_in_base_currency()` | `accounting/test_multicurrency_integrity.py` | P0 |
-| AC2.12.2 | Accounting equation verification uses base-currency converted account balances | `test_AC2_12_2_accounting_equation_uses_base_currency_balances()` | `accounting/test_multicurrency_integrity.py` | P0 |
-| AC2.12.6 | Statement validation logic rejects invalid statement balance and transaction states | `test_validation.py` suite | `accounting/test_validation.py` | P0 |
-| AC2.12.5 | Stream redactor accumulates small chunks in buffer | `test_stream_redactor_small_chunks` | `infra/test_infra_edge_cases.py` | P1 |
+> The groups AC2.7–AC2.12 (API router & error handling, decimal safety, the data
+> model + endpoint checklists, must-have traceability, and multi-currency ledger
+> integrity) are part of the same EPIC-002 first-half migration into the `ledger`
+> package (#1420 slice 3c-ii); their new `AC-ledger.7.*`–`AC-ledger.12.*` ids are
+> listed in the disclaimer above and defined in
+> [`common/ledger/contract.py`](../../common/ledger/contract.py)'s `roadmap`.
 
 ### AC2.13: User-Scoped Ledger Integrity
 

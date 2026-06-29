@@ -142,7 +142,7 @@ async def test_create_journal_entry(
     test_user: User,
     test_accounts: list[Account],
 ):
-    """AC2.7.1: Test creating a journal entry."""
+    """AC-ledger.7.1: Test creating a journal entry."""
     # GIVEN: Valid balanced journal entry data
     entry_data = {
         "entry_date": "2023-01-15",
@@ -191,7 +191,7 @@ async def test_create_unbalanced_entry(
     test_user: User,
     test_accounts: list[Account],
 ):
-    """AC2.7.2: Test creating an unbalanced entry fails."""
+    """AC-ledger.7.2: Test creating an unbalanced entry fails."""
     # GIVEN: Unbalanced entry data (missing credit side)
     invalid_data = {
         "entry_date": "2023-01-15",
@@ -220,7 +220,7 @@ async def test_list_journal_entries(
     test_user: User,
     test_entries: list[JournalEntry],
 ):
-    """AC2.7.3: Test listing journal entries with filters."""
+    """AC-ledger.7.3: Test listing journal entries with filters."""
     # GIVEN: Test entries exist
 
     # WHEN: List all entries
@@ -260,7 +260,7 @@ async def test_get_journal_entry(
     test_user: User,
     test_entries: list[JournalEntry],
 ):
-    """AC2.7.4: Test getting a specific journal entry."""
+    """AC-ledger.7.4: Test getting a specific journal entry."""
     # GIVEN: Test entry exists
     entry = test_entries[0]
 
@@ -285,7 +285,7 @@ async def test_post_journal_entry(
     test_user: User,
     test_entries: list[JournalEntry],
 ):
-    """AC2.7.5: Test posting a journal entry (changing status from DRAFT to POSTED)."""
+    """AC-ledger.7.5: Test posting a journal entry (changing status from DRAFT to POSTED)."""
     # GIVEN: Draft entry exists
     draft_entry = next((e for e in test_entries if e.status == JournalEntryStatus.DRAFT), None)
     assert draft_entry is not None, "No draft entry found"
@@ -320,7 +320,7 @@ async def test_void_journal_entry(
     test_user: User,
     test_entries: list[JournalEntry],
 ):
-    """AC2.7.6: Test voiding a journal entry."""
+    """AC-ledger.7.6: Test voiding a journal entry."""
     # GIVEN: Posted entry exists
     posted_entry = next((e for e in test_entries if e.status == JournalEntryStatus.POSTED), None)
     assert posted_entry is not None, "No posted entry found"
@@ -368,7 +368,7 @@ async def test_delete_journal_entry(
     test_user: User,
     test_accounts: list[Account],
 ):
-    """AC2.7.7: Test deleting a journal entry (only drafts can be deleted)."""
+    """AC-ledger.7.7: Test deleting a journal entry (only drafts can be deleted)."""
     # GIVEN: Create a draft entry to delete
     draft_entry = JournalEntry(
         id=uuid4(),

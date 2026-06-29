@@ -1,11 +1,11 @@
 """AC2.7: Journal router error path coverage.
 
 These tests cover API error handling from EPIC-002:
- AC2.7.1: GET entry returns 404 for non-existent ID
- AC2.7.2: POST entry returns 400 for non-existent ID
- AC2.7.3: VOID entry returns 400 for non-existent ID
- AC2.7.4: Validation error (422) for malformed request
- AC2.7.5: DELETE draft entry success (204)
+ AC-ledger.7.1: GET entry returns 404 for non-existent ID
+ AC-ledger.7.2: POST entry returns 400 for non-existent ID
+ AC-ledger.7.3: VOID entry returns 400 for non-existent ID
+ AC-ledger.7.4: Validation error (422) for malformed request
+ AC-ledger.7.5: DELETE draft entry success (204)
 """
 
 from datetime import date

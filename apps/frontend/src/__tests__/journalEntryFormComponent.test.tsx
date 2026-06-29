@@ -40,7 +40,7 @@ describe("JournalEntryForm", () => {
     expect(screen.getByText("✓ Balanced in SGD")).toBeInTheDocument()
   })
 
-  it("AC2.12.1 balances multi-currency lines using SGD base amounts", async () => {
+  it("AC-ledger.12.1 balances multi-currency lines using SGD base amounts", async () => {
     mockedApiFetch
       .mockResolvedValueOnce({
         items: [

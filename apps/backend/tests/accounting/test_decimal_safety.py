@@ -1,9 +1,9 @@
 """AC2.8: Decimal safety and float injection prevention.
 
 These tests cover data integrity requirements from EPIC-002:
-- AC2.8.1: Decimal parsing from string is exact
-- AC2.8.2: Float injection safety (precision artifacts rejected)
-- AC2.8.3: Scientific notation handling
+- AC-ledger.8.1: Decimal parsing from string is exact
+- AC-ledger.8.2: Float injection safety (precision artifacts rejected)
+- AC-ledger.8.3: Scientific notation handling
 
 Ref: common/ledger/readme.md (Anti-pattern A)
 """

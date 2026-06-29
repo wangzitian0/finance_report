@@ -8,7 +8,7 @@ it("types module loads", () => {
   expect(MONEY_VALUE_CONTRACT).toBe("decimal-string");
 });
 
-it("AC2.8.2 keeps frontend monetary API fields Decimal-serializable instead of bare number", () => {
+it("AC-ledger.8.2 keeps frontend monetary API fields Decimal-serializable instead of bare number", () => {
   const typesSource = readFileSync(resolve(__dirname, "../lib/types.ts"), "utf8");
   const forbiddenBareNumberFields = [
     "balance?: number",
@@ -46,7 +46,7 @@ function sourceFilesUnder(relativePath: string): string[] {
   return files;
 }
 
-it("AC2.8.2 keeps page and component money contracts from widening to number|string", () => {
+it("AC-ledger.8.2 keeps page and component money contracts from widening to number|string", () => {
   const moneyFieldNames = [
     "amount",
     "balance",

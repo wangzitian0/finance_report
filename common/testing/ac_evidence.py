@@ -31,7 +31,12 @@ from typing import Any, Callable
 
 PROPERTY_KEY = "ac_evidence"
 
-AC_ID_PATTERN = re.compile(r"^AC\d+\.\d+\.\d+$")
+# Accepts BOTH id grammars, matching the traceability layer
+# (``common/ssot/ac_traceability_refs.py``): the legacy EPIC-scoped ``ACx.y.z``
+# and the package-scoped ``AC-<pkg>.x.y`` (e.g. ``AC-ledger.2.1``) used once an
+# AC migrates into a package contract's roadmap. Without the second alternative,
+# an ``@ac_proof`` test moved into the package scheme could not emit evidence.
+AC_ID_PATTERN = re.compile(r"^AC(?:\d+|-[a-z][a-z0-9_]*)\.\d+\.\d+$")
 VALID_CODES = ("pass", "fail", "skip", "error")
 # Provenance is either one of these literals, or "golden_fixture@<ref>". The bare
 # "golden_fixture" form is rejected on purpose: a golden-derived score must name

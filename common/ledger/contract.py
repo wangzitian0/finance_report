@@ -21,20 +21,28 @@ reporting consume it only through the published ``src.ledger`` interface, by id/
 event (Decision B — one transaction per domain).
 
 The package's ACs migrate into ``roadmap`` across the slice-3c sub-slices of the
-cutover (#1420). **Slice 3c-i (this change) homes the EPIC-015 processing-account
-ACs** as ``AC-ledger.71.* … AC-ledger.76.*`` — the package now owns them; the
-EPIC-015 backend tables are deleted and replaced with a disclaimer that lists the
-new ids (mirroring how identity emptied EPIC-001). The EPIC-002 double-entry ACs
-(slice 3c-ii/iii) land later under the **lower** group numbers.
+cutover (#1420). **Slice 3c-i homed the EPIC-015 processing-account ACs** as
+``AC-ledger.71.* … AC-ledger.76.*``. **Slice 3c-ii (this change) homes the first
+half of the EPIC-002 double-entry core** — groups ``AC2.1``…``AC2.12`` → groups
+``AC-ledger.1.*``…``AC-ledger.12.*`` (the leading "2" is dropped; seq preserved).
+In each case the package now owns the ACs; the source EPIC backend tables are
+deleted and replaced with a disclaimer that lists the new ids (mirroring how
+identity emptied EPIC-001). The remaining EPIC-002 groups ``AC2.13``…``AC2.23``
+land in slice 3c-iii under groups ``AC-ledger.13.*``…``AC-ledger.23.*``.
 
 **Group-number reservation (ledger-local).** The first dotted segment of an
 ``AC-ledger.<group>.<seq>`` id is a bare uniqueness key (no gate reads semantics
 from it), so the package reserves disjoint blocks to keep the namespace
 collision-free as later slices add ACs without re-reading this file:
 
-- **groups 1–70** — the EPIC-002/012 double-entry core (slices 3c-ii/iii, not yet
-  homed);
-- **groups 71–76** — the EPIC-015 processing (in-transit) account, this slice
+- **groups 1–12** — the EPIC-002 double-entry core, first half, this slice
+  (1=account-mgmt, 2=entry-creation, 3=posting/voiding, 4=balance, 5=equation,
+  6=boundary, 7=router/errors, 8=decimal-safety, 9=data-model, 10=endpoints,
+  11=must-have-traceability, 12=multi-currency), each mirroring its source
+  ``AC2.<g>`` group;
+- **groups 13–70** — the rest of the EPIC-002/012 double-entry core (slice
+  3c-iii, not yet homed);
+- **groups 71–76** — the EPIC-015 processing (in-transit) account, slice 3c-i
   (71=creation, 72=transfer-entry, 73=integrity, 74=detection, 75=scoring,
   76=reconciliation integration), each mirroring its source ``AC15.<g>`` group.
 
@@ -45,9 +53,10 @@ adopted: the live traceability regex in
 identity — already uses.) The EPIC-015 **frontend** UI-gap ACs (``AC15.7.*``)
 stay in EPIC-015: ledger is a backend-only package (``fe=None``), exactly as the
 identity migration left EPIC-001's frontend rows in place. ``roadmap`` carries the
-23 backend ACs; the structural invariants of the cutover stay in ``invariants``
-(no tier, not matrix-constrained). Decision A — standard-preserving move, no bar
-lowered.
+homed backend ACs (the 23 EPIC-015 processing ACs + the 61 EPIC-002 first-half
+ACs of this slice); the structural invariants of the cutover stay in
+``invariants`` (no tier, not matrix-constrained). Decision A — standard-preserving
+move, no bar lowered.
 """
 
 from __future__ import annotations
@@ -210,6 +219,788 @@ CONTRACT = PackageContract(
         ),
     ],
     roadmap=[
+        # ── EPIC-002 double-entry core (slice 3c-ii of #1420): groups 1–12 ──
+        # (was AC2.1.* … AC2.12.*; AC2.13.* … AC2.23.* land in slice 3c-iii.)
+        # ── group 1: Account management (was EPIC-002 AC2.1.*) ──
+        ACRecord(
+            id="AC-ledger.1.1",
+            statement=(
+                "Creating an account with valid data persists it with the correct "
+                "type, code, and ownership. Was EPIC-002 AC2.1.1."
+            ),
+            test=(
+                "apps/backend/tests/accounting/test_account_service_unit.py"
+                "::test_create_account"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.1.2",
+            statement=(
+                "An account is retrievable by id for its owner. Was EPIC-002 AC2.1.2."
+            ),
+            test=(
+                "apps/backend/tests/accounting/test_account_service_unit.py"
+                "::test_get_account_success"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.1.3",
+            statement=(
+                "Fetching a non-existent account raises a not-found error. Was "
+                "EPIC-002 AC2.1.3."
+            ),
+            test=(
+                "apps/backend/tests/accounting/test_account_service_unit.py"
+                "::test_get_account_not_found"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.1.4",
+            statement=(
+                "Updating an existing account applies the new fields. Was EPIC-002 "
+                "AC2.1.4."
+            ),
+            test=(
+                "apps/backend/tests/accounting/test_account_service_unit.py"
+                "::test_update_account_success"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.1.5",
+            statement=(
+                "Updating a non-existent account raises a not-found error. Was "
+                "EPIC-002 AC2.1.5."
+            ),
+            test=(
+                "apps/backend/tests/accounting/test_account_service_unit.py"
+                "::test_update_account_not_found"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.1.6",
+            statement=(
+                "Listing accounts honours type/active filters. Was EPIC-002 AC2.1.6."
+            ),
+            test=(
+                "apps/backend/tests/accounting/test_account_service_unit.py"
+                "::test_list_accounts_with_filters"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group 2: Journal entry creation & validation (was EPIC-002 AC2.2.*) ──
+        ACRecord(
+            id="AC-ledger.2.1",
+            statement=(
+                "A balanced double-entry (SUM(DEBIT) == SUM(CREDIT)) passes "
+                "validation. Was EPIC-002 AC2.2.1."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting.py"
+                "::test_balanced_entry_passes"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.2.2",
+            statement=(
+                "An unbalanced entry is rejected by validation. Was EPIC-002 AC2.2.2."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting.py"
+                "::test_unbalanced_entry_fails"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.2.3",
+            statement=(
+                "A single-line entry is rejected (a journal entry needs at least "
+                "two lines). Was EPIC-002 AC2.2.3."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting.py"
+                "::test_single_line_entry_fails"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.2.4",
+            statement=(
+                "Decimal amounts retain full precision through validation (no float "
+                "drift). Was EPIC-002 AC2.2.4."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting.py::test_decimal_precision"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.2.5",
+            statement=(
+                "A non-base-currency line requires an fx_rate. Was EPIC-002 AC2.2.5."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting.py"
+                "::test_fx_rate_required_for_non_base_currency"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.2.6",
+            statement="Posting an unbalanced entry is rejected. Was EPIC-002 AC2.2.6.",
+            test=(
+                "apps/backend/tests/ledger/test_accounting_integration.py"
+                "::test_post_unbalanced_entry_rejected"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.2.7",
+            statement=(
+                "Balance validation treats an omitted line currency as the base "
+                "currency. Was EPIC-002 AC2.2.7."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting.py"
+                "::test_missing_currency_balances_as_base_currency"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        # ── group 3: Journal entry posting & voiding (was EPIC-002 AC2.3.*) ──
+        ACRecord(
+            id="AC-ledger.3.1",
+            statement=(
+                "A draft entry posts successfully (draft -> posted). Was EPIC-002 "
+                "AC2.3.1."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting_integration.py"
+                "::test_post_journal_entry_success"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.3.2",
+            statement="Posting an already-posted entry is rejected. Was EPIC-002 AC2.3.2.",
+            test=(
+                "apps/backend/tests/ledger/test_accounting_integration.py"
+                "::test_post_journal_entry_already_posted_fails"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.3.3",
+            statement="A posted entry cannot be reposted. Was EPIC-002 AC2.3.3.",
+            test=(
+                "apps/backend/tests/ledger/test_accounting_equation.py"
+                "::test_posted_entry_cannot_be_reposted"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.3.4",
+            statement=(
+                "A posted entry's status is immutable against direct update. Was "
+                "EPIC-002 AC2.3.4."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting_equation.py"
+                "::test_posted_entry_status_immutable_via_direct_update"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.3.5",
+            statement=(
+                "Voiding a posted entry creates a balanced reversal entry. Was "
+                "EPIC-002 AC2.3.5."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting_integration.py"
+                "::test_void_journal_entry_creates_reversal"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.3.6",
+            statement=(
+                "Journal service operations handle non-existent entries cleanly. "
+                "Was EPIC-002 AC2.3.6."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_journal_service.py"
+                "::test_journal_router_direct"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.3.7",
+            statement=(
+                "create_entry surfaces a ValidationError for unbalanced/single-line "
+                "input. Was EPIC-002 AC2.3.7."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_journal_delete_and_validation.py"
+                "::test_create_unbalanced_entry_returns_error"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.3.8",
+            statement=(
+                "post_journal_entry error handling: not-found, wrong-user, and "
+                "inactive-account paths. Was EPIC-002 AC2.3.8."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting_service_errors.py"
+                "::test_post_journal_entry_errors"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.3.9",
+            statement=(
+                "void_journal_entry error handling: not-found, wrong-user, and "
+                "non-posted paths. Was EPIC-002 AC2.3.9."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting_service_errors.py"
+                "::test_void_journal_entry_errors"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.3.10",
+            statement="post_journal_entry success path. Was EPIC-002 AC2.3.10.",
+            test=(
+                "apps/backend/tests/ledger/test_accounting_service_errors.py"
+                "::test_post_journal_entry_success"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.3.11",
+            statement=(
+                "void_journal_entry success path produces a reversal. Was EPIC-002 "
+                "AC2.3.11."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting_service_errors.py"
+                "::test_void_journal_entry_success"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group 4: Balance calculation (was EPIC-002 AC2.4.*) ──
+        ACRecord(
+            id="AC-ledger.4.1",
+            statement=(
+                "Balance calculation for an asset account sums posted lines "
+                "correctly. Was EPIC-002 AC2.4.1."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting_integration.py"
+                "::test_calculate_balance_for_asset_account"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.4.2",
+            statement=(
+                "Balance calculation for an income account sums posted lines "
+                "correctly. Was EPIC-002 AC2.4.2."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting_integration.py"
+                "::test_calculate_balance_for_income_account"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.4.3",
+            statement=(
+                "Draft entries are excluded from balance calculation. Was EPIC-002 "
+                "AC2.4.3."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting_integration.py"
+                "::test_draft_entries_not_included_in_balance"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.4.4",
+            statement=(
+                "Balances aggregate correctly by account type. Was EPIC-002 AC2.4.4."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting_balances.py"
+                "::test_calculate_account_balances_by_type"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.4.5",
+            statement=(
+                "An empty account list returns empty balances. Was EPIC-002 AC2.4.5."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting_balances.py"
+                "::test_calculate_account_balances_empty_list"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.4.6",
+            statement=(
+                "Account-balance calculation across types is covered end to end. "
+                "Was EPIC-002 AC2.4.6."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting_balances.py"
+                "::test_calculate_account_balances_by_type"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group 5: Accounting equation validation (was EPIC-002 AC2.5.*) ──
+        ACRecord(
+            id="AC-ledger.5.1",
+            statement=(
+                "The accounting equation holds across all five account types. Was "
+                "EPIC-002 AC2.5.1."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting_equation.py"
+                "::test_accounting_equation_holds_with_all_account_types"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.5.2",
+            statement=(
+                "An accounting-equation violation is detected. Was EPIC-002 AC2.5.2."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting_equation.py"
+                "::test_accounting_equation_violation_detected"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.5.3",
+            statement=(
+                "The accounting equation holds after a sequence of posted "
+                "transactions. Was EPIC-002 AC2.5.3."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting_integration.py"
+                "::test_accounting_equation_holds"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        # ── group 6: Boundary & edge cases (was EPIC-002 AC2.6.*) ──
+        ACRecord(
+            id="AC-ledger.6.1",
+            statement=(
+                "Maximum amount boundary (999,999,999.99) is handled correctly. Was "
+                "EPIC-002 AC2.6.1."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting_equation.py"
+                "::test_max_amount_boundary"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.6.2",
+            statement=(
+                "Minimum amount boundary (0.01) is handled correctly. Was EPIC-002 "
+                "AC2.6.2."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting_equation.py"
+                "::test_min_amount_boundary"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.6.3",
+            statement="Decimal precision loss is detected. Was EPIC-002 AC2.6.3.",
+            test=(
+                "apps/backend/tests/ledger/test_accounting_equation.py"
+                "::test_amount_precision_loss_detection"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.6.4",
+            statement=(
+                "A many-line complex entry (salary breakdown) posts balanced "
+                "through the real posting path. Was EPIC-002 AC2.6.4."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting_equation.py"
+                "::test_many_lines_complex_salary_correct"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group 7: API router & error handling (was EPIC-002 AC2.7.*) ──
+        ACRecord(
+            id="AC-ledger.7.1",
+            statement=(
+                "The journal router uses flush, not commit, so the request owns the "
+                "transaction. Was EPIC-002 AC2.7.1."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting_integration.py"
+                "::test_create_journal_entry_uses_flush_not_commit"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.7.2",
+            statement=(
+                "Journal router error paths return clean errors (validation error "
+                "path). Was EPIC-002 AC2.7.2."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_journal_router_errors.py"
+                "::test_create_entry_validation_error"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.7.3",
+            statement=(
+                "Journal router additional scenarios: a missing entry returns "
+                "not-found. Was EPIC-002 AC2.7.3."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_journal_router_additional.py"
+                "::test_get_entry_not_found"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.7.4",
+            statement=(
+                "A malformed request yields a validation error (422), not a 500. "
+                "Was EPIC-002 AC2.7.4."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_journal_router_additional.py"
+                "::test_create_entry_validation_error"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.7.5",
+            statement=(
+                "DELETE /{entry_id} deletes a draft entry successfully. Was "
+                "EPIC-002 AC2.7.5."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_journal_delete_and_validation.py"
+                "::test_delete_draft_entry_success"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.7.6",
+            statement=(
+                "Voiding a journal entry via the API behaves correctly. Was "
+                "EPIC-002 AC2.7.6."
+            ),
+            test=(
+                "apps/backend/tests/api/test_journal_router.py::test_void_journal_entry"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.7.7",
+            statement=(
+                "Deleting a journal entry via the API is allowed only for drafts. "
+                "Was EPIC-002 AC2.7.7."
+            ),
+            test=(
+                "apps/backend/tests/api/test_journal_router.py"
+                "::test_delete_journal_entry"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group 8: Decimal safety (was EPIC-002 AC2.8.*) ──
+        ACRecord(
+            id="AC-ledger.8.1",
+            statement=(
+                "Monetary amounts never use float (float injection is rejected). "
+                "Was EPIC-002 AC2.8.1."
+            ),
+            test=(
+                "apps/backend/tests/accounting/test_decimal_safety.py"
+                "::test_float_injection_safety"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.8.2",
+            statement=(
+                "Decimal precision is maintained through arithmetic. Was EPIC-002 "
+                "AC2.8.2."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting.py::test_decimal_precision"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.8.3",
+            statement=(
+                "Scientific-notation monetary input is handled/rejected safely. Was "
+                "EPIC-002 AC2.8.3."
+            ),
+            test=(
+                "apps/backend/tests/accounting/test_decimal_safety.py"
+                "::test_scientific_notation_rejection"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group 9: Data model checklist coverage (was EPIC-002 AC2.9.*) ──
+        ACRecord(
+            id="AC-ledger.9.1",
+            statement=(
+                "The Account model supports the required fields and types. Was "
+                "EPIC-002 AC2.9.1."
+            ),
+            test=(
+                "apps/backend/tests/accounting/test_account_service_unit.py"
+                "::test_create_account"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.9.2",
+            statement=(
+                "The JournalEntry model supports the required fields and status "
+                "flow. Was EPIC-002 AC2.9.2."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting_equation.py"
+                "::test_posted_entry_cannot_be_reposted"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.9.3",
+            statement=(
+                "JournalLine enforces debit/credit direction and positive-amount "
+                "rules. Was EPIC-002 AC2.9.3."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting.py"
+                "::test_single_line_entry_fails"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.9.4",
+            statement=(
+                "Pydantic account/journal schemas validate their inputs. Was "
+                "EPIC-002 AC2.9.4."
+            ),
+            test=(
+                "apps/backend/tests/accounting/test_schemas.py"
+                "::test_account_create_valid"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group 10: API endpoint checklist coverage (was EPIC-002 AC2.10.*) ──
+        ACRecord(
+            id="AC-ledger.10.1",
+            statement=(
+                "The account endpoints (POST/GET/GET-by-id/PUT /accounts) behave "
+                "correctly. Was EPIC-002 AC2.10.1."
+            ),
+            test=(
+                "apps/backend/tests/accounting/test_accounts_endpoints.py"
+                "::test_accounts_endpoints"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.10.2",
+            statement=(
+                "The journal-entry endpoints (POST/GET/GET-by-id) behave correctly. "
+                "Was EPIC-002 AC2.10.2."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_journal_endpoints.py"
+                "::test_journal_entry_endpoints"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.10.3",
+            statement=(
+                "The posting/voiding endpoints behave correctly. Was EPIC-002 AC2.10.3."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_journal_endpoints.py"
+                "::test_journal_entry_endpoints"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.10.4",
+            statement=(
+                "API error behaviour for missing/invalid resources is correct. Was "
+                "EPIC-002 AC2.10.4."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_journal_router_errors.py"
+                "::test_create_entry_validation_error"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.10.5",
+            statement=(
+                "DELETE /statements/{id} succeeds for a valid owner. Was EPIC-002 "
+                "AC2.10.5."
+            ),
+            test=(
+                "apps/backend/tests/accounting/test_delete_endpoints.py"
+                "::test_delete_statement"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group 11: Must-have traceability (was EPIC-002 AC2.11.*) ──
+        ACRecord(
+            id="AC-ledger.11.4",
+            statement=(
+                "Multi-currency entries require an fx_rate on non-base lines. Was "
+                "EPIC-002 AC2.11.4."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting.py"
+                "::test_fx_rate_required_for_non_base_currency"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        # ── group 12: Multi-currency ledger integrity (was EPIC-002 AC2.12.*) ──
+        ACRecord(
+            id="AC-ledger.12.1",
+            statement=(
+                "Journal-entry balance validation uses base-currency converted "
+                "amounts when line currencies differ. Was EPIC-002 AC2.12.1."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_multicurrency_integrity.py"
+                "::test_AC2_12_1_multicurrency_entry_balances_in_base_currency"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.12.2",
+            statement=(
+                "Accounting-equation verification uses base-currency converted "
+                "account balances. Was EPIC-002 AC2.12.2."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_multicurrency_integrity.py"
+                "::test_AC2_12_2_accounting_equation_uses_base_currency_balances"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.12.5",
+            statement=(
+                "The stream redactor accumulates small chunks in its buffer "
+                "(multi-currency ledger-integrity edge support). Was EPIC-002 "
+                "AC2.12.5."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_infra_edge_cases.py"
+                "::test_stream_redactor_small_chunks"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.12.6",
+            statement=(
+                "Statement validation rejects invalid statement balance and "
+                "transaction states. Was EPIC-002 AC2.12.6."
+            ),
+            test=(
+                "apps/backend/tests/accounting/test_validation.py"
+                "::test_validate_balance_mismatch"
+            ),
+            priority="P0",
+            status="done",
+        ),
         # ── group 71: Processing account creation (was EPIC-015 AC15.1.*) ──
         ACRecord(
             id="AC-ledger.71.1",

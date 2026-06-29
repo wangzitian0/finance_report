@@ -83,7 +83,7 @@ Good:
 
 ```python
 def test_balanced_entry_is_rejected_when_debits_do_not_equal_credits():
-    """AC2.2.2: Unbalanced entry fails validation."""
+    """AC-ledger.2.2: Unbalanced entry fails validation."""
     ...
 ```
 

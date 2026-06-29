@@ -1,4 +1,4 @@
-"""AC2.1.1 - AC2.1.1: Account Service Unit Tests
+"""AC-ledger.1.1 - AC-ledger.1.1: Account Service Unit Tests
 
 These tests validate account service CRUD operations (create, get, update, list)
 with comprehensive error handling and database interaction testing.

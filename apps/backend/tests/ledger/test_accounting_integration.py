@@ -1,10 +1,10 @@
-"""AC2.2.6 AC2.3.1 AC2.4.3 AC2.5.3: Integration tests for accounting service with database.
+"""AC-ledger.2.6 AC-ledger.3.1 AC-ledger.4.3 AC-ledger.5.3: Integration tests for accounting service with database.
 
 These tests cover:
  AC2.3.x: Journal entry posting and voiding
  AC2.4.x: Balance calculation
  AC2.5.x: Accounting equation verification
- AC2.7.1: Transaction boundary handling (flush vs commit)
+ AC-ledger.7.1: Transaction boundary handling (flush vs commit)
 """
 
 from datetime import date
@@ -702,7 +702,7 @@ async def test_create_journal_entry_default_currency_sgd(db: AsyncSession, bank_
 async def test_create_journal_entry_default_currency_uses_configured_base_currency(
     db: AsyncSession, bank_account, salary_account, test_user_id, monkeypatch: pytest.MonkeyPatch
 ):
-    """AC2.2.2: Missing line currency defaults to the configured base currency."""
+    """AC-ledger.2.2: Missing line currency defaults to the configured base currency."""
     monkeypatch.setattr(settings, "base_currency", "usd")
     lines_data = [
         {"account_id": bank_account.id, "direction": Direction.DEBIT, "amount": Decimal("500.00")},
@@ -724,7 +724,7 @@ async def test_create_journal_entry_default_currency_uses_configured_base_curren
 async def test_create_journal_entry_rejects_unbalanced_draft(
     db: AsyncSession, bank_account, salary_account, test_user_id
 ):
-    """AC2.2.2: Service-layer draft creation rejects unbalanced debit/credit lines."""
+    """AC-ledger.2.2: Service-layer draft creation rejects unbalanced debit/credit lines."""
     lines_data = [
         {"account_id": bank_account.id, "direction": Direction.DEBIT, "amount": Decimal("100.00")},
         {"account_id": salary_account.id, "direction": Direction.CREDIT, "amount": Decimal("90.00")},
