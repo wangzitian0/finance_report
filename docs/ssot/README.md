@@ -89,7 +89,7 @@ cleanup that backfills `family` / `kind` and binds child clauses.
 
 | Document | Key | Current owner role |
 |---|---|---|
-| [extraction.md](./extraction.md) | `extraction` | Statement parsing rationale and code/test links |
+| [common/extraction/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md) | `extraction` | Statement parsing rationale and code/test links — internalized into the `extraction` package (migration-standard step 3) |
 | [pdf-fixtures.md](./pdf-fixtures.md) | `pdf_fixtures` | Synthetic PDF fixture commands, local-only input policy, and font fallback |
 | [reconciliation.md](./reconciliation.md) | `reconciliation` | Matching rationale; thresholds should migrate to code/common |
 | [reporting.md](./reporting.md) | `reporting` | Report calculation rationale and proof links |
@@ -101,7 +101,7 @@ cleanup that backfills `family` / `kind` and binds child clauses.
 | [confirmation-workflow.md](./confirmation-workflow.md) | `confirmation-workflow` | Review lifecycle rationale; state machine should migrate to code/common |
 | [processing_account.md](./processing_account.md) | `processing_account` | In-transit funds model and proof references |
 | [workflow-events.md](./workflow-events.md) | `workflow-events` | User-facing upload-to-report workflow event read model |
-| [extraction-audit-failed-cases.yaml](./extraction-audit-failed-cases.yaml) | [`extraction_failed_case_registry`](./extraction-audit-failed-cases.yaml) | Machine-readable audit-failed parsing case registry and parser-expansion boundary |
+| [common/extraction/audit-failed-cases.yaml](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/audit-failed-cases.yaml) | [`extraction_failed_case_registry`](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/audit-failed-cases.yaml) | Machine-readable audit-failed parsing case registry and parser-expansion boundary — internalized into the `extraction` package |
 | [source-coverage-matrix.yaml](./source-coverage-matrix.yaml) | [`source_coverage_matrix`](./source-coverage-matrix.yaml) | Machine-readable source-class coverage, proof levels, review requirements, and traceability targets |
 
 ## Proof Reports

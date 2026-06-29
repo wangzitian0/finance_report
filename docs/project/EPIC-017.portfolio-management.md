@@ -74,7 +74,7 @@ now better managed by code, SSOT files, and generated proof.
 | Scope area | Owner |
 |---|---|
 | Holdings, cost basis, P&L, allocation, dividends | `apps/backend/src/services/portfolio.py`, `apps/backend/src/services/performance.py`, portfolio tests |
-| Brokerage statement parsing and import bridge | [extraction.md](../ssot/extraction.md), extraction/portfolio tests |
+| Brokerage statement parsing and import bridge | [common/extraction/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md), extraction/portfolio tests |
 | Asset and atomic-position model rationale | [assets.md](../ssot/assets.md), [schema.md](../ssot/schema.md) |
 | Portfolio API surface | `apps/backend/src/routers/portfolio.py`, API contract tests |
 | Portfolio UI surfaces | `apps/frontend/src/app/(main)/portfolio`, frontend tests |

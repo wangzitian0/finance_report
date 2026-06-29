@@ -145,7 +145,7 @@ concepts:
     owner: docs/ssot/schema.md#data-layering
     description: ODS/DWD/DWM/DWS/ADS/DIM classification of every data table and cross-layer rules.
     cross_refs:
-      - docs/ssot/extraction.md
+      - common/extraction/readme.md
       - docs/ssot/reconciliation.md
       - docs/project/EPIC-011.asset-lifecycle.md
 
@@ -198,15 +198,19 @@ concepts:
       - apps/frontend/src/lib/api.ts
 
   # ── AI / Extraction domain ─────────────────────────────────────────────
+  # The extraction SSOT is internalized into the `extraction` package
+  # (common/extraction/readme.md) per the package-migration standard
+  # (common/meta/migration-standard.md, step 3 "SSOT internalized"); the central
+  # docs/ssot/extraction.md is retired. The package readme is the single owner.
   extraction_pipeline:
-    owner: docs/ssot/extraction.md
+    owner: common/extraction/readme.md
     description: Gemini Vision document parsing and validation pipeline.
     cross_refs:
       - docs/ssot/reconciliation.md
       - apps/backend/tests/extraction/test_dual_write_layer2.py
 
   extraction_confidence_tiers:
-    owner: docs/ssot/extraction.md#confidence-scoring
+    owner: common/extraction/readme.md#confidence-scoring
     family: extraction
     kind: concept
     description: Extraction confidence score weighting and ≥85 / 60-84 / <60 routing tiers.
@@ -215,14 +219,14 @@ concepts:
       - docs/ssot/confirmation-workflow.md#confidence-tier-rollup
 
   extraction_failed_case_registry:
-    owner: docs/ssot/extraction-audit-failed-cases.yaml
+    owner: common/extraction/audit-failed-cases.yaml
     family: extraction
     kind: registry
     description: Sanitized registry for parsing cases that fail audit without expanding deterministic parser scope.
     proofs:
       - tests/tooling/test_extraction_failed_case_registry.py
     cross_refs:
-      - docs/ssot/extraction.md
+      - common/extraction/readme.md
       - docs/project/EPIC-003.statement-parsing.md
 
   source_coverage_matrix:
@@ -235,7 +239,7 @@ concepts:
       - tools/check_source_coverage_matrix.py
     cross_refs:
       - vision.md
-      - docs/ssot/extraction.md
+      - common/extraction/readme.md
       - docs/project/EPIC-013.statement-parsing-v2.md
 
   ac_graph:
@@ -352,7 +356,7 @@ concepts:
     kind: concept
     description: Confidence-tier rollup that makes extraction confidence load-bearing for promotion.
     cross_refs:
-      - docs/ssot/extraction.md#confidence-scoring
+      - common/extraction/readme.md#confidence-scoring
 
   workflow_events:
     owner: docs/ssot/workflow-events.md
@@ -387,7 +391,7 @@ concepts:
     authority: documented_contract
     cross_refs:
       - docs/ssot/observability.md
-      - docs/ssot/extraction.md
+      - common/extraction/readme.md
       - docs/ssot/ai.md
       - docs/project/EPIC-010.observability-logging.md
       - apps/backend/tests/api/test_statements_router.py
@@ -708,7 +712,7 @@ concepts:
     cross_refs:
       - docs/ssot/tdd.md
       - docs/ssot/ai.md
-      - docs/ssot/extraction.md
+      - common/extraction/readme.md
       - docs/project/EPIC-026.ac-authority-tiers.md
       - docs/ssot/ac-tier-baseline.json
       - common/ssot/generate_ac_registry.py
@@ -807,7 +811,7 @@ concepts:
     description: Data trust hierarchy and source_type enum conflict resolution.
     cross_refs:
       - docs/ssot/reconciliation.md
-      - docs/ssot/extraction.md
+      - common/extraction/readme.md
 
   # ── Environment smoke test ────────────────────────────────────────────
   env_smoke_test:
@@ -825,7 +829,7 @@ concepts:
     kind: concept
     description: LLM layer's three orthogonal axes (protocol family x model x scene), scene->model binding, and at-rest provider-secret encryption.
     cross_refs:
-      - docs/ssot/extraction.md
+      - common/extraction/readme.md
       - docs/project/EPIC-023.llm-provider-abstraction.md
       - apps/backend/src/llm/common/types.py
       - apps/backend/src/llm/common/secrets.py

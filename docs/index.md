@@ -131,7 +131,7 @@ Rationale docs with links to code owners, generated contracts, and proof tests:
 - [Architecture Overview](ssot/README.md) — System architecture and design principles
 - [Accounting Model](ssot/accounting.md) — Double-entry bookkeeping rules
 - [Reconciliation Engine](ssot/reconciliation.md) — Matching algorithms
-- [Statement Extraction](ssot/extraction.md) — AI parsing pipeline
+- [Statement Extraction](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md) — AI parsing pipeline
 - [Reporting](ssot/reporting.md) — Report generation logic
 - [AI Advisor](ssot/ai.md) — AI advisor implementation
 - [Database Schema](ssot/schema.md) — Data-layer rules and migration guardrails

@@ -184,7 +184,7 @@ STAGING_AI_OCR_EXACT = frozenset(
         # edits its OWN e2e test file, and every such file is already a staging
         # trigger below, so the staging gate still fires on the real change.
         "docs/ssot/critical-proof-outcomes.yaml",
-        "docs/ssot/extraction.md",
+        "common/extraction/readme.md",
         "tests/e2e/test_brokerage_upload_to_portfolio_value.py",
         "tests/e2e/test_four_asset_net_worth_golden_path.py",
         "tests/e2e/test_personal_financial_report_package.py",

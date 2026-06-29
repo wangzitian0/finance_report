@@ -96,7 +96,6 @@ nav:
       - Reconciliation Engine: ssot/reconciliation.md
       - Confirmation Workflow: ssot/confirmation-workflow.md
       - Processing Account: ssot/processing_account.md
-      - Statement Extraction: ssot/extraction.md
       - PDF Fixtures: ssot/pdf-fixtures.md
       - Reporting: ssot/reporting.md
       - Framework Reporting: ssot/framework-reporting.md
