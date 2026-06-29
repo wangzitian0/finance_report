@@ -203,7 +203,11 @@ def test_AC23_8_5_balance_passes_but_field_accuracy_regresses(tmp_path: Path) ->
         return None
 
     cases = load_cases()
-    target, pair = next((c, p) for c in cases if (p := _pick_pair(c)) is not None)
+    # Demonstrate the gap on a case that ALREADY reconciles — skip balance-exempt
+    # (non-reconciling-by-construction) corpora like the HF statements.
+    target, pair = next(
+        (c, p) for c in cases if balance_violation(c.extracted) is None and (p := _pick_pair(c)) is not None
+    )
     i, j = pair
 
     # Plausible-but-wrong: shift +1 onto txn i and −1 off txn j (same direction), so

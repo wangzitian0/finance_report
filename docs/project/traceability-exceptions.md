@@ -152,6 +152,8 @@ explicit AC IDs for the behavior.
 | `tests/tooling/test_preflight.py` | `docs/ssot/ci-cd.md` |
 | `tests/tooling/test_seed_fx_rates.py` | `docs/ssot/market_data.md` |
 | `tests/tooling/test_validate_schemas.py` | `docs/ssot/schema.md` |
+| `tests/tooling/test_extraction_pii_mask.py` | `docs/ssot/cassette-graded-eval.md` |
+| `tests/tooling/test_record_hf_cassettes.py` | `docs/ssot/cassette-graded-eval.md` |
 
 ## Source Direct-Test Heuristic Exceptions
 

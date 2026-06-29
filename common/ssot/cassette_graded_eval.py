@@ -87,13 +87,49 @@ def _field_matches(field_name: str, got: object, want: object) -> bool:
         return False
 
 
+def _pair_transactions(truth_txns: list[dict], got_txns: list[dict]) -> tuple[dict[int, int], set[int]]:
+    """Pair each truth row to an extracted row by CONTENT, in two passes:
+
+    1. exact (date AND amount) — re-ordered rows still pair regardless of position;
+    2. date-only, for the still-unpaired — a row with a wrong amount/description still
+       pairs (so that single field is what's wrong, not the whole row).
+
+    A truth row that finds no date match is genuinely missing. Returns
+    ``{truth_index: got_index}`` and the set of used got indices."""
+    pairs: dict[int, int] = {}
+    used: set[int] = set()
+
+    def _match(want: dict, *, exact: bool) -> int | None:
+        for j, got in enumerate(got_txns):
+            if j in used or not isinstance(got, dict) or "date" not in got:
+                continue
+            if not _field_matches("date", got["date"], want.get("date")):
+                continue
+            if exact and not ("amount" in got and _field_matches("amount", got["amount"], want.get("amount"))):
+                continue
+            return j
+        return None
+
+    for exact in (True, False):
+        for i, want in enumerate(truth_txns):
+            if i in pairs:
+                continue
+            j = _match(want, exact=exact)
+            if j is not None:
+                pairs[i] = j
+                used.add(j)
+    return pairs, used
+
+
 def case_score(extracted: dict[str, Any], truth: dict[str, Any]) -> tuple[float, dict[str, int]]:
     """Score one extraction against ground truth: fraction of fields matched.
 
     Scored fields: ``opening_balance``, ``closing_balance``, and per transaction
-    its ``date`` / ``description`` / ``amount``. A missing or extra transaction
-    row counts against the score (each expected row contributes its fields; an
-    extracted row beyond the truth length is penalised as fully wrong).
+    its ``date`` / ``description`` / ``amount``. Rows are paired by CONTENT (date +
+    amount), not by position, so a single missing/extra/re-ordered row costs only its
+    own fields instead of cascading every following row to a mismatch — the same-second
+    ordering and ±1-row completeness that real extractions exhibit. An unpaired truth
+    row scores 0 for its fields; an unpaired extracted row is penalised as invented.
     """
     matched = 0
     total = 0
@@ -108,17 +144,16 @@ def case_score(extracted: dict[str, Any], truth: dict[str, Any]) -> tuple[float,
 
     truth_txns = truth.get("transactions", []) or []
     got_txns = extracted.get("transactions", []) or []
+    pairs, used = _pair_transactions(truth_txns, got_txns)
     for i, want in enumerate(truth_txns):
-        got = got_txns[i] if i < len(got_txns) else {}
+        got = got_txns[pairs[i]] if i in pairs else {}
         for fname in _TXN_FIELDS:
             if fname in want:
                 total += 1
-                if isinstance(got, dict) and fname in got and _field_matches(
-                    fname, got[fname], want[fname]
-                ):
+                if isinstance(got, dict) and fname in got and _field_matches(fname, got[fname], want[fname]):
                     matched += 1
-    # Penalise invented extra rows: each extra extracted row beyond truth is wrong.
-    extra = max(0, len(got_txns) - len(truth_txns))
+    # Penalise invented rows: each extracted row that paired with no truth row is wrong.
+    extra = max(0, len(got_txns) - len(used))
     total += extra * len(_TXN_FIELDS)
 
     score = (matched / total) if total else 1.0

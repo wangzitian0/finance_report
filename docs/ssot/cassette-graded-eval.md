@@ -123,3 +123,20 @@ python tools/check_cassette_graded_eval.py --update   # raise the per-case floor
 ```
 
 Commit the refreshed cassettes and the raised baseline together.
+
+## Real-statement corpus (source-referenced, PII-masked)
+
+Large/scanned statements are recorded as cassettes by
+`tools/_lib/pdf_fixtures/record_hf_cassettes.py` (engine: GLM-4.6V, thinking disabled,
+pages rendered as compressed JPEG so even scanned docs fit context). To avoid repo
+bloat and PII, **the source document is never committed** — the cassette stores a
+`source` reference (an HF dataset URL, or a sha256 for a local/own statement) and the
+request keeps only the image content-hash, not raw bytes.
+
+The committed response and its ground truth are PII-masked by
+`tools/_lib/fixtures/extraction_pii_mask.py` (identity meta → `**`; descriptions →
+`first3***last3`; flow values kept). Synthetic-source statements whose balance column
+is internally inconsistent set `balance_reconciles: false` in their truth, which
+exempts them from the AC23.7 balance-chain assertion while still being field-scored by
+the graded eval (which pairs rows by content, not position, so a missing/re-ordered
+row costs only itself).

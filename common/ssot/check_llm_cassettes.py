@@ -79,6 +79,23 @@ def balance_violation(payload: dict) -> str | None:
     return None
 
 
+def _balance_exempt(cassette_dir: Path, fingerprint: str) -> bool:
+    """A cassette is balance-exempt when its sibling ground truth declares the SOURCE
+    statement does not reconcile by construction (``balance_reconciles: false``).
+
+    Real statements always reconcile, so this never excuses a real-statement drift; it
+    only covers test corpora whose source data has an internally inconsistent balance
+    column (e.g. some generated/synthetic statement datasets), where asserting
+    ``opening + Σ ≈ closing`` would assert a property the source itself fails. Such
+    cassettes are still scored on field accuracy by the graded-eval gate (AC23.8)."""
+    truth_path = cassette_dir / "ground_truth" / f"{fingerprint}.truth.json"
+    try:
+        truth = json.loads(truth_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return False
+    return isinstance(truth, dict) and truth.get("balance_reconciles") is False
+
+
 def check(cassette_dir: Path = CASSETTE_DIR) -> list[str]:
     """Return one message per statement cassette that violates the invariant."""
     violations: list[str] = []
@@ -97,10 +114,22 @@ def check(cassette_dir: Path = CASSETTE_DIR) -> list[str]:
             continue  # not a JSON extraction response — out of scope here
         if not (isinstance(payload, dict) and all(k in payload for k in _STATEMENT_KEYS)):
             continue  # not a statement-shaped extraction
+        if _balance_exempt(cassette_dir, path.stem):
+            continue  # non-reconciling source by construction — field-graded only (AC23.8)
         problem = balance_violation(payload)
         if problem is not None:
             violations.append(f"{path.name}: {problem}")
     return violations
+
+
+def exempt_count(cassette_dir: Path = CASSETTE_DIR) -> int:
+    """Count statement cassettes skipped via ``balance_reconciles: false`` (for an
+    auditable log line — the exemption is never silent)."""
+    return sum(
+        1
+        for path in cassette_dir.glob("*.json")
+        if _balance_exempt(cassette_dir, path.stem)
+    )
 
 
 def statement_cassette_count(cassette_dir: Path = CASSETTE_DIR) -> int:
@@ -133,7 +162,16 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
-    print(f"[CASSETTE] PASSED: {statement_count} statement cassette(s) satisfy the balance-chain invariant.")
+    exempt = exempt_count()
+    suffix = (
+        f" ({exempt} balance-exempt via balance_reconciles=false — non-reconciling source, field-graded only)"
+        if exempt
+        else ""
+    )
+    print(
+        f"[CASSETTE] PASSED: {statement_count - exempt} statement cassette(s) satisfy the "
+        f"balance-chain invariant{suffix}."
+    )
     return 0
 
 
