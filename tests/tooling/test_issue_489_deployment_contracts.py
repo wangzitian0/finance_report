@@ -277,7 +277,10 @@ def test_pr_preview_gate_exercises_health_smoke_e2e_and_storage_paths() -> None:
     assert 'action_reason = "pull-request-sync"' in workflow
     assert "name: In-runner Preview E2E" in workflow
     assert "python tools/pr_preview_lifecycle.py" in workflow
-    assert "--action cleanup" in workflow
+    # Reclaim moved to infra2: the app dispatches a teardown signal on PR close
+    # instead of running its own cleanup.
+    assert "--action cleanup" not in workflow
+    assert "preview-teardown" in workflow
     # Persistent preview deploys (non-blocking) after the in-runner E2E gate,
     # building from source on the Dokploy host; the gate itself never polls the
     # deployed URL for readiness.
@@ -336,9 +339,13 @@ def test_pr_preview_follows_successful_ci_without_dokploy_deploy() -> None:
     assert "test_core_journeys" in e2e_blob
     assert "pr_preview_lifecycle" not in e2e_blob
 
+    # On PR close the app dispatches a vendor-neutral teardown to infra2 (which
+    # owns the reclaim); it runs no Dokploy cleanup itself.
     cleanup_blob = yaml.safe_dump(jobs["cleanup"])
-    assert "pr_preview_lifecycle.py" in cleanup_blob
-    assert "--action cleanup" in cleanup_blob
+    assert "pr_preview_lifecycle.py" not in cleanup_blob
+    assert "--action cleanup" not in cleanup_blob
+    assert "preview-teardown" in cleanup_blob
+    assert "infra2/dispatches" in cleanup_blob
 
     env_doc = read("docs/ssot/environments.md")
     assert "pull_request" in env_doc

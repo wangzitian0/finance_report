@@ -526,28 +526,44 @@ jobs:
             }
 
   cleanup:
-    name: Cleanup Test Environment
+    name: Dispatch preview teardown to infra2
     if: needs.setup.outputs.action == 'cleanup' && needs.setup.outputs.pr_number != ''
     needs: setup
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-
-      - name: Cleanup preview lifecycle
-        id: cleanup
+      # The app does NOT tear its own preview down (it must not touch the Dokploy
+      # API — that boundary is infra2's). On PR close it emits a vendor-neutral
+      # signal; infra2's preview-teardown.yml performs the authoritative,
+      # idempotent 1:1 teardown through the deploy_v2 front door. infra2's hourly
+      # preview-leak-check is the detection fallback for a missed signal.
+      - name: Dispatch preview teardown to infra2
         env:
-          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          INFRA2_PAT: ${{ secrets.INFRA2_PAT }}
+          PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
         run: |
-          python tools/pr_preview_lifecycle.py \
-            --action cleanup \
-            --pr-number "${{ needs.setup.outputs.pr_number }}" \
-            --compose-name "${{ needs.setup.outputs.compose_name }}" \
-            --environment-id="${{ env.TEST_ENV_ID }}" \
-            --api-url "${{ env.DOKPLOY_API_URL }}" \
-            --api-key "$DOKPLOY_API_KEY"
+          set -euo pipefail
+          if [[ -z "${INFRA2_PAT:-}" ]]; then
+            echo "::error::INFRA2_PAT is required to dispatch the preview teardown to infra2."
+            exit 1
+          fi
+          payload="$(jq -nc --arg pr "$PR_NUMBER" \
+            '{event_type: "preview-teardown", client_payload: {pr_number: $pr}}')"
+          http_status="$(curl -sS -o /tmp/infra2_teardown_resp -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer ${INFRA2_PAT}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            --connect-timeout 10 --max-time 30 \
+            https://api.github.com/repos/wangzitian0/infra2/dispatches \
+            -d "$payload")"
+          echo "infra2 preview-teardown dispatch -> HTTP $http_status (pr=$PR_NUMBER)"
+          # GitHub returns 204 No Content on a successful dispatch.
+          if [[ "$http_status" != "204" ]]; then
+            sed 's/^/  /' /tmp/infra2_teardown_resp 2>/dev/null || true
+            echo "::error::infra2 preview-teardown dispatch failed (expected HTTP 204). Check INFRA2_PAT scope/expiry."
+            exit 1
+          fi
 
       - name: Write PR preview cleanup context
         if: ${{ always() }}
@@ -566,7 +582,7 @@ jobs:
             echo "compose_name=${{ needs.setup.outputs.compose_name }}"
             echo "action_reason=${{ needs.setup.outputs.action_reason }}"
             echo "triggering_ci_conclusion=${{ needs.setup.outputs.triggering_ci_conclusion }}"
-            echo "cleanup_action=dokploy-preview-compose-delete"
+            echo "cleanup_action=dispatch-infra2-preview-teardown"
             echo "pr_preview_images=not-created"
           } > ci-context/pr-preview-cleanup-context.txt
 
@@ -577,6 +593,3 @@ jobs:
           name: pr-preview-cleanup-context
           path: ci-context/pr-preview-cleanup-context.txt
           retention-days: 14
-      # No PR comment: orphan reclaim is guaranteed by infra2's preview GC
-      # reconciler (ops-checks cron), so a per-PR "resources released" receipt is
-      # noise. The compose.delete above remains a best-effort prompt fast path.

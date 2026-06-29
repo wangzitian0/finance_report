@@ -1,4 +1,5 @@
-"""AC8.13.38 AC8.13.74: legacy cleanup entrypoint is fully retired."""
+"""AC8.13.38 AC8.13.74: app-side Dokploy preview reclaim is fully retired (owned by
+infra2); the app keeps no cleanup/reconcile entrypoints or host-hygiene commands."""
 
 from __future__ import annotations
 
@@ -27,13 +28,16 @@ def test_AC8_13_38_pr_preview_lifecycle_has_no_host_hygiene_commands() -> None:
     assert "DOKPLOY_API_KEY" not in module
 
 
-def test_AC8_13_74_workflow_runs_lifecycle_reconciliation_only() -> None:
+def test_AC8_13_74_maintenance_cleanup_is_ghcr_pruning_only() -> None:
     workflow = (ROOT / ".github/workflows/maintenance.yml").read_text()
 
     assert 'cron: "37 */6 * * *"' in workflow
     assert "workflow_dispatch:" in workflow
-    assert "tools/pr_preview_lifecycle.py" in workflow
-    assert "--action reconcile" in workflow
+    # Dokploy preview reclaim moved to infra2: no reconcile, no lifecycle tool here.
+    assert "--action reconcile" not in workflow
+    assert "tools/pr_preview_lifecycle.py" not in workflow
+    # The scheduled job only prunes the app's own stale GHCR PR-preview image tags.
+    assert "Prune stale PR preview GHCR tags" in workflow
     assert "tools/cleanup_pr_preview_resources.py" not in workflow
     assert "docker builder prune" not in workflow
     assert "docker image prune" not in workflow

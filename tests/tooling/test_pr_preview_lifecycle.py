@@ -954,112 +954,10 @@ def test_AC8_13_72_update_compose_env_fails_when_effective_env_differs(
         )
 
 
-def test_AC8_13_71_cleanup_action_deletes_compose_without_ssh(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    lifecycle = lifecycle_module()
-    calls: list[list[str]] = []
-
-    def fake_run_command(
-        cmd: list[str],
-        *,
-        input_text: str | None = None,
-        check: bool = True,
-    ) -> subprocess.CompletedProcess[str]:
-        calls.append(cmd)
-        assert input_text is None
-        if "environment.one" in " ".join(cmd):
-            return subprocess.CompletedProcess(
-                cmd,
-                0,
-                stdout='{"compose":[{"name":"pr-591","composeId":"cmp-591"}]}',
-                stderr="",
-            )
-        return subprocess.CompletedProcess(cmd, 0, stdout='{"ok":true}', stderr="")
-
-    monkeypatch.setattr(lifecycle._util, "run_command", fake_run_command)
-    monkeypatch.setattr(
-        lifecycle._dokploy,
-        "wait_for_dokploy_deployment_rollout",
-        lambda *args, **kwargs: None,
-    )
-    args = SimpleNamespace(
-        action="cleanup",
-        pr_number=591,
-        compose_name="pr-591",
-        compose_id="",
-        environment_id="env-test",
-        api_url="https://cloud.example/api",
-        api_key="secret-key",
-        github_integration_id="ghid",
-        branch="feature",
-        commit_sha="abc123",
-        registry="ghcr.io",
-        image_prefix="owner/finance_report",
-        internal_domain="zitian.party",
-        dry_run=True,
-    )
-
-    assert lifecycle.main_from_args(args) == 0
-
-    rendered_calls = "\n".join(" ".join(call) for call in calls)
-    assert "environment.one" in rendered_calls
-    assert "compose.delete" in rendered_calls
-    assert "compose.stop" not in rendered_calls
-    assert "ssh" not in rendered_calls
-    out = capsys.readouterr().out
-    assert "Raw Dokploy response" not in out
-    assert "secret-key" not in out
 
 
-def test_AC8_13_71_cleanup_action_is_idempotent_when_compose_missing(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    lifecycle = lifecycle_module()
-
-    monkeypatch.setattr(
-        lifecycle._dokploy, "find_compose_id_by_name", lambda *args, **kwargs: None
-    )
-    args = SimpleNamespace(
-        action="cleanup",
-        pr_number=591,
-        compose_name="pr-591",
-        compose_id="",
-        environment_id="env-test",
-        api_url="https://cloud.example/api",
-        api_key="secret-key",
-        dry_run=True,
-    )
-
-    assert lifecycle.cleanup_action(args) == 0
-
-    assert "Compose not found: pr-591" in capsys.readouterr().out
 
 
-def test_AC8_13_71_delete_action_is_idempotent_when_compose_missing(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    lifecycle = lifecycle_module()
-
-    monkeypatch.setattr(
-        lifecycle._dokploy, "find_compose_id_by_name", lambda *args, **kwargs: None
-    )
-    args = SimpleNamespace(
-        action="delete",
-        pr_number=591,
-        compose_name="pr-591",
-        compose_id="",
-        environment_id="env-test",
-        api_url="https://cloud.example/api",
-        api_key="secret-key",
-    )
-
-    assert lifecycle.main_from_args(args) == 0
-
-    assert "Compose not found: pr-591" in capsys.readouterr().out
 
 
 def test_AC8_13_72_deploy_action_reads_effective_env_before_deploy(
@@ -2316,89 +2214,10 @@ def test_AC8_13_101_pr_test_workflow_uses_runner_preview_url() -> None:
     assert "APP_URL: ${{ steps.deploy.outputs.app_url }}" not in workflow
 
 
-def test_AC8_13_74_reconcile_deletes_only_stale_dokploy_composes(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    lifecycle = lifecycle_module()
-    deleted: list[str] = []
-
-    monkeypatch.setattr(lifecycle.cli, "list_open_pr_numbers", lambda: {591})
-    monkeypatch.setattr(
-        lifecycle._dokploy,
-        "list_preview_composes",
-        lambda config, environment_id: {591: "cmp-591", 592: "cmp-592"},
-    )
-    monkeypatch.setattr(
-        lifecycle._dokploy,
-        "delete_compose",
-        lambda config, *, compose_id: deleted.append(compose_id),
-    )
-    args = SimpleNamespace(
-        action="reconcile",
-        pr_number=0,
-        compose_name="",
-        compose_id="",
-        environment_id="env-test",
-        api_url="https://cloud.example/api",
-        api_key="secret-key",
-        dry_run=False,
-    )
-
-    assert lifecycle.main_from_args(args) == 0
-
-    assert deleted == ["cmp-592"]
 
 
-def test_AC8_13_74_pr_number_listing_and_dokploy_compose_parsers(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    lifecycle = lifecycle_module()
-    calls: list[list[str]] = []
-
-    assert lifecycle.parse_open_pr_numbers("591\n\n592\n") == {591, 592}
-
-    def fake_run_command(
-        cmd: list[str],
-        *,
-        input_text: str | None = None,
-        check: bool = True,
-    ) -> subprocess.CompletedProcess[str]:
-        calls.append(cmd)
-        return subprocess.CompletedProcess(cmd, 0, stdout="591\n592\n", stderr="")
-
-    monkeypatch.setattr(lifecycle._util, "run_command", fake_run_command)
-
-    assert lifecycle.list_open_pr_numbers() == {591, 592}
-    assert lifecycle.parse_preview_pr_from_compose_name("pr-591") == 591
-    assert lifecycle.parse_preview_pr_from_compose_name("not-pr-591") is None
-
-    rendered = "\n".join(" ".join(call) for call in calls)
-    assert "gh pr list" in rendered
 
 
-def test_AC8_13_74_list_preview_composes_reads_dokploy_environment(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    lifecycle = lifecycle_module()
-
-    monkeypatch.setattr(
-        lifecycle._dokploy,
-        "dokploy_api_call",
-        lambda *args, **kwargs: json.dumps(
-            {
-                "compose": [
-                    {"name": "pr-591", "composeId": "cmp-591"},
-                    {"name": "pr-592", "composeId": "cmp-592"},
-                    {"name": "staging", "composeId": "cmp-staging"},
-                ]
-            }
-        ),
-    )
-
-    assert lifecycle.list_preview_composes(
-        lifecycle.DokployConfig("https://cloud.example/api", "secret"),
-        "env-test",
-    ) == {591: "cmp-591", 592: "cmp-592"}
 
 
 def test_AC8_13_71_main_rejects_unsupported_action() -> None:
@@ -2408,35 +2227,29 @@ def test_AC8_13_71_main_rejects_unsupported_action() -> None:
         lifecycle.main_from_args(SimpleNamespace(action="unsupported"))
 
 
-def test_AC8_13_74_scheduled_cleanup_only_reconciles_closed_prs() -> None:
-    workflow = (ROOT / ".github/workflows/maintenance.yml").read_text()
-
-    assert "tools/pr_preview_lifecycle.py" in workflow
-    assert "--action reconcile" in workflow
-    assert "tools/cleanup_pr_preview_resources.py" not in workflow
-    assert "docker builder prune" not in workflow
-    assert "docker image prune" not in workflow
-    assert "journalctl" not in workflow
-    assert "VPS_SSH_KEY" not in workflow
-    assert "ssh-keyscan" not in workflow
 
 
-def test_AC8_13_71_pr_test_workflow_uses_lifecycle_for_cleanup() -> None:
+def test_AC8_13_71_deploy_still_uses_lifecycle_tool() -> None:
     workflow = (ROOT / ".github/workflows/preview.yml").read_text()
 
-    assert "--action cleanup" in workflow
+    # The tool still stands PR previews UP; only reclaim moved to infra2.
+    assert "--action deploy" in workflow
+    # No app-side Dokploy reclaim action survives.
+    assert "--action cleanup" not in workflow
     assert "--action delete" not in workflow
+    assert "--action reconcile" not in workflow
     assert "compose.stop" not in workflow
 
 
-def test_AC8_13_71_close_cleanup_checks_out_lifecycle_tool() -> None:
+def test_AC8_13_71_close_dispatches_preview_teardown_to_infra2() -> None:
     workflow = (ROOT / ".github/workflows/preview.yml").read_text()
 
     cleanup_block = workflow.split("  cleanup:", 1)[1]
-    assert "uses: actions/checkout@v7" in cleanup_block
-    assert cleanup_block.index("uses: actions/checkout@v7") < cleanup_block.index(
-        "python tools/pr_preview_lifecycle.py"
-    )
+    # On PR close the app emits a vendor-neutral teardown signal; infra2 owns the
+    # actual 1:1 teardown. The app never touches the Dokploy API or the host here.
+    assert "preview-teardown" in cleanup_block
+    assert "repos/wangzitian0/infra2/dispatches" in cleanup_block
+    assert "DOKPLOY_API_KEY" not in cleanup_block
     assert "VPS_SSH_KEY" not in cleanup_block
     assert "ssh-keyscan" not in cleanup_block
 
@@ -2495,41 +2308,6 @@ def test_AC8_13_102_api_call_retries_transient_failures_on_get(
     assert calls == 1
 
 
-def test_AC8_13_102_cleanup_and_delete_actions_ignore_api_exceptions(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """AC8.13.102: cleanup_action and delete_action ignore Dokploy API exceptions."""
-    lifecycle = lifecycle_module()
-
-    def fake_find_compose_id(*args: object, **kwargs: object) -> str:
-        raise lifecycle.DokployRequestError("Transient API connection failure")
-
-    monkeypatch.setattr(
-        lifecycle._dokploy, "find_compose_id_by_name", fake_find_compose_id
-    )
-
-    # Both actions should catch the exception and return 0
-    cleanup_res = lifecycle.cleanup_action(
-        SimpleNamespace(
-            api_url="https://cloud.example/api",
-            api_key="secret",
-            compose_id=None,
-            environment_id="env-1",
-            compose_name="pr-123",
-        )
-    )
-    assert cleanup_res == 0
-
-    delete_res = lifecycle.delete_action(
-        SimpleNamespace(
-            api_url="https://cloud.example/api",
-            api_key="secret",
-            compose_id=None,
-            environment_id="env-1",
-            compose_name="pr-123",
-        )
-    )
-    assert delete_res == 0
 
 
 def test_AC8_13_102_dokploy_api_call_invalid_retry_delay_fallback(
@@ -2607,40 +2385,6 @@ def test_AC8_13_102_dokploy_api_call_non_transient_curl_error_does_not_retry(
     assert calls == 1
 
 
-def test_AC8_13_102_cleanup_and_delete_actions_do_not_swallow_non_api_exceptions(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """AC8.13.102: Non-Dokploy exceptions are not swallowed by cleanup/delete."""
-    lifecycle = lifecycle_module()
-
-    def fake_find_compose_id(*args: object, **kwargs: object) -> str:
-        raise RuntimeError("Unexpected lifecycle bug")
-
-    monkeypatch.setattr(
-        lifecycle._dokploy, "find_compose_id_by_name", fake_find_compose_id
-    )
-
-    with pytest.raises(RuntimeError):
-        lifecycle.cleanup_action(
-            SimpleNamespace(
-                api_url="https://cloud.example/api",
-                api_key="secret",
-                compose_id=None,
-                environment_id="env-1",
-                compose_name="pr-123",
-            )
-        )
-
-    with pytest.raises(RuntimeError):
-        lifecycle.delete_action(
-            SimpleNamespace(
-                api_url="https://cloud.example/api",
-                api_key="secret",
-                compose_id=None,
-                environment_id="env-1",
-                compose_name="pr-123",
-            )
-        )
 
 
 def test_get_running_deployments_count(monkeypatch: pytest.MonkeyPatch) -> None:

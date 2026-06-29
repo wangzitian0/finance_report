@@ -212,28 +212,32 @@ def test_AC8_13_154_production_release_line_lives_in_release_yml() -> None:
     assert "dry-run" not in WORKFLOW_CONTRACT[".github/workflows/deploy.yml"]["jobs"]
 
 
-def test_AC8_13_155_pr_preview_cleanup_split_is_intentional_fallback() -> None:
-    """AC8.13.155: event-driven + scheduled PR-preview cleanup are both kept on purpose."""
-    preview = _load_yaml(WORKFLOWS / "preview.yml")
-    maintenance = _load_yaml(WORKFLOWS / "maintenance.yml")
+def test_AC8_13_155_pr_preview_reclaim_is_dispatched_to_infra2() -> None:
+    """AC8.13.155: the app-side reclaim split is retired — preview.yml#cleanup only
+    dispatches a teardown signal to infra2, maintenance.yml#cleanup is GHCR-only."""
+    preview = (WORKFLOWS / "preview.yml").read_text(encoding="utf-8")
+    maintenance = (WORKFLOWS / "maintenance.yml").read_text(encoding="utf-8")
 
-    # Event-driven cleanup runs on PR close; the scheduled one is a fallback.
-    preview_on = preview.get("on", preview.get(True))
-    assert "pull_request" in preview_on
-    assert "cleanup" in preview["jobs"]
-    maintenance_on = maintenance.get("on", maintenance.get(True))
-    assert "schedule" in maintenance_on
-    assert "cleanup" in maintenance["jobs"]
+    # On PR close the app dispatches a vendor-neutral teardown to infra2; it runs
+    # no Dokploy reclaim itself.
+    cleanup_block = preview.split("  cleanup:", 1)[1]
+    assert "preview-teardown" in cleanup_block
+    assert "infra2/dispatches" in cleanup_block
+    assert "--action cleanup" not in preview
+    # The scheduled maintenance job no longer reconciles Dokploy previews; it only
+    # prunes the app's own GHCR PR image tags.
+    assert "--action reconcile" not in maintenance
+    assert "Prune stale PR preview GHCR tags" in maintenance
 
-    # The split is recorded as a deliberate keep_separate decision, not drift.
+    # The former keep_separate reclaim split is recorded as retired, not drift.
     inventory = _load_yaml(INVENTORY)
     candidate = next(
         item
         for item in inventory["deferred_candidates"]
         if item["id"] == "pr_preview_cleanup_event_vs_scheduled"
     )
-    assert candidate["status"] == "keep_separate"
-    assert set(candidate["gates"]) == {"preview.cleanup", "pr_preview_cleanup.cleanup"}
+    assert candidate["status"] == "removed"
+    assert candidate["retained_owner"] == "infra2:preview-teardown.yml"
 
 
 def test_AC8_13_142_duplicate_cleanup_is_explicit_not_implicit() -> None:

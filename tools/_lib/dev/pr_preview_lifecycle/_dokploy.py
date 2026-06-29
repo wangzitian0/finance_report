@@ -7,13 +7,11 @@ from tools._lib.dev.pr_preview_lifecycle import _util
 import argparse
 import json
 import os
-import re
 import sys
 import tempfile
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from urllib.parse import quote
 
 try:
     sys.stdout.reconfigure(line_buffering=True)
@@ -695,25 +693,3 @@ def delete_compose(config: DokployConfig, *, compose_id: str) -> None:
         payload={"composeId": compose_id},
     )
     print(f"Compose deleted: {compose_id}")
-
-
-def parse_preview_pr_from_compose_name(name: str) -> int | None:
-    match = re.fullmatch(r"pr-([1-9][0-9]*)", name)
-    return int(match.group(1)) if match else None
-
-
-def list_preview_composes(config: DokployConfig, environment_id: str) -> dict[int, str]:
-    body = dokploy_api_call(
-        config,
-        "GET",
-        f"environment.one?environmentId={quote(environment_id, safe='')}",
-    )
-    data = json.loads(body or "{}")
-    previews: dict[int, str] = {}
-    for compose in data.get("compose", []):
-        name = str(compose.get("name") or "")
-        pr_number = parse_preview_pr_from_compose_name(name)
-        compose_id = compose.get("composeId")
-        if pr_number is not None and compose_id:
-            previews[pr_number] = str(compose_id)
-    return previews
