@@ -362,7 +362,7 @@ gates:
     task_category: cleanup_retention
     workflow: .github/workflows/maintenance.yml
     job: cleanup
-    owner: tools/ghcr_retention.py
+    owner: .github/workflows/maintenance.yml#cleanup
     triggers: [schedule, workflow_dispatch]
     blocks_workflow: true
     inputs: [ghcr_pr_preview_tags]
@@ -440,7 +440,7 @@ gates:
     task_category: cleanup_retention
     workflow: .github/workflows/preview.yml
     job: cleanup
-    owner: .github/workflows/preview.yml
+    owner: .github/workflows/preview.yml#cleanup
     triggers: [pull_request, workflow_dispatch]
     blocks_workflow: true
     inputs: [closed_pr_number]

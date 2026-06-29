@@ -120,10 +120,12 @@ PR validation is split into two independent things (issue #839):
 - It currently uses the app-side `tools/pr_preview_lifecycle.py` path:
   Dokploy clones the PR branch and builds from source on the host. It does not
   pull a GHCR PR image and it is not the infra2 `deploy_v2 preview/*` path.
-- Cleanup uses `tools/pr_preview_lifecycle.py --action cleanup`, is idempotent,
-  and removes the persistent Dokploy compose on PR close/manual cleanup. Scheduled
-  `PR Preview Cleanup` remains as bounded reconciliation for stale Dokploy
-  resources.
+- Reclaim is **infra2-owned**: the app does not touch the Dokploy API. On PR close
+  `preview.yml#cleanup` dispatches a vendor-neutral `preview-teardown` signal to
+  infra2, which performs the authoritative idempotent 1:1 teardown
+  (`preview-teardown.yml` → `deploy_v2 --type preview/pr --down`); infra2's hourly
+  `preview-leak-check` is the detection fallback for a missed signal. The app's
+  scheduled `PR Preview Cleanup` job is GHCR PR-image-tag pruning only.
 
 ### Production Environments (Staging + Production)
 
