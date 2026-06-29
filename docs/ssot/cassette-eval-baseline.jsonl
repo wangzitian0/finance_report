@@ -1,4 +1,5 @@
 {"case_id": "119769ccda7a7b5452b82b46362d9797bf7de577e2834de572b7c9e9d563369e", "score": 0.982869, "metric": "field-accuracy", "provenance": "text/generic_hf/large_statement"}
+{"case_id": "14f1005a5eedffa6c60e5ac4c1f273e2c40edfb86c56eb55e2a4c10a547dab48", "score": 0.968685, "metric": "field-accuracy", "provenance": "vision/generic_hf/large_statement"}
 {"case_id": "29654dc3656b470eecb8820991bf186120c4d1ea5c706005286e6e3e8201e800", "score": 0.974468, "metric": "field-accuracy", "provenance": "text/generic_hf/large_statement"}
 {"case_id": "4ebea0da8fdc988efddec7b783e6356b214c9ef68e70d4b248847ddee90fee38", "score": 0.921162, "metric": "field-accuracy", "provenance": "vision/generic_hf/large_statement"}
 {"case_id": "4ec965fd2615a4b285964aab735b385feae08fc754282629b39101ae12083efe", "score": 0.973843, "metric": "field-accuracy", "provenance": "text/generic_hf/large_statement"}
