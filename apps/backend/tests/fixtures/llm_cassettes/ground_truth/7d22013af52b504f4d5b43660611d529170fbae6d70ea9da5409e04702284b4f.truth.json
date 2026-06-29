@@ -1,0 +1,849 @@
+{
+  "synthetic": true,
+  "modality": "text",
+  "institution_class": "generic_hf",
+  "edge_condition": "large_statement",
+  "balance_reconciles": false,
+  "note": "SYNTHETIC statement (Akashved/Indian-Bank-Statements; generated, no real data). Source not committed — see the cassette's source.url. Balance NOT asserted (dataset balance column is internally inconsistent); field accuracy is graded. PII-masked uniformly (meta -> **, description -> first3***last3).",
+  "expected": {
+    "opening_balance": "3067536.01",
+    "closing_balance": "7889260.24",
+    "transactions": [
+      {
+        "date": "2024-01-01",
+        "description": "CLG***LTD",
+        "amount": "486285.76"
+      },
+      {
+        "date": "2024-01-02",
+        "description": "IMP***LTD",
+        "amount": "591422.08"
+      },
+      {
+        "date": "2024-01-03",
+        "description": "CLG***DIA",
+        "amount": "1050190.83"
+      },
+      {
+        "date": "2024-01-04",
+        "description": "NEF***sai",
+        "amount": "522823.65"
+      },
+      {
+        "date": "2024-01-04",
+        "description": "NEF***IES",
+        "amount": "4753862.25"
+      },
+      {
+        "date": "2024-01-05",
+        "description": "NEF***hah",
+        "amount": "2966438.98"
+      },
+      {
+        "date": "2024-01-05",
+        "description": "NEF***ENT",
+        "amount": "188232.03"
+      },
+      {
+        "date": "2024-01-05",
+        "description": "NEF***LTD",
+        "amount": "1241284.27"
+      },
+      {
+        "date": "2024-01-05",
+        "description": "NEF***IES",
+        "amount": "977610.46"
+      },
+      {
+        "date": "2024-01-05",
+        "description": "ATM***652",
+        "amount": "1838.77"
+      },
+      {
+        "date": "2024-01-06",
+        "description": "IMP***ora",
+        "amount": "956655.3"
+      },
+      {
+        "date": "2024-01-06",
+        "description": "CHQ***ICR",
+        "amount": "1520387.43"
+      },
+      {
+        "date": "2024-01-08",
+        "description": "CHQ***ICR",
+        "amount": "1556431.46"
+      },
+      {
+        "date": "2024-01-09",
+        "description": "UPI***pay",
+        "amount": "55776.07"
+      },
+      {
+        "date": "2024-01-09",
+        "description": "IMP***LTD",
+        "amount": "245173.04"
+      },
+      {
+        "date": "2024-01-10",
+        "description": "IMP***DIA",
+        "amount": "688101.32"
+      },
+      {
+        "date": "2024-01-10",
+        "description": "NEF***ENT",
+        "amount": "409452.83"
+      },
+      {
+        "date": "2024-01-10",
+        "description": "IMP***ORP",
+        "amount": "378503.33"
+      },
+      {
+        "date": "2024-01-10",
+        "description": "CAS***sai",
+        "amount": "523178.01"
+      },
+      {
+        "date": "2024-01-11",
+        "description": "RTG***sai",
+        "amount": "3369102.13"
+      },
+      {
+        "date": "2024-01-12",
+        "description": "CLG***LTD",
+        "amount": "695234.98"
+      },
+      {
+        "date": "2024-01-12",
+        "description": "CAS***odi",
+        "amount": "252705.77"
+      },
+      {
+        "date": "2024-01-12",
+        "description": "CAS***ekh",
+        "amount": "339054.44"
+      },
+      {
+        "date": "2024-01-12",
+        "description": "CHQ***ICR",
+        "amount": "520077.5"
+      },
+      {
+        "date": "2024-01-12",
+        "description": "CLG***LTD",
+        "amount": "893587.58"
+      },
+      {
+        "date": "2024-01-13",
+        "description": "UPI***pay",
+        "amount": "158402.67"
+      },
+      {
+        "date": "2024-01-15",
+        "description": "CAS***edi",
+        "amount": "217612.8"
+      },
+      {
+        "date": "2024-01-15",
+        "description": "IMP***DIA",
+        "amount": "502196.15"
+      },
+      {
+        "date": "2024-01-15",
+        "description": "CAS***odi",
+        "amount": "115576.01"
+      },
+      {
+        "date": "2024-01-17",
+        "description": "IMP***LTD",
+        "amount": "844419.33"
+      },
+      {
+        "date": "2024-01-17",
+        "description": "RTG***min",
+        "amount": "1966487.06"
+      },
+      {
+        "date": "2024-01-20",
+        "description": "NEF***edi",
+        "amount": "556555.45"
+      },
+      {
+        "date": "2024-01-20",
+        "description": "NEF***348",
+        "amount": "499279.76"
+      },
+      {
+        "date": "2024-01-22",
+        "description": "IMP***edi",
+        "amount": "328974.65"
+      },
+      {
+        "date": "2024-01-22",
+        "description": "NEF***ora",
+        "amount": "768087.12"
+      },
+      {
+        "date": "2024-01-22",
+        "description": "IMP***odi",
+        "amount": "290726.43"
+      },
+      {
+        "date": "2024-01-23",
+        "description": "CLG***RKS",
+        "amount": "387894.8"
+      },
+      {
+        "date": "2024-01-23",
+        "description": "CAS***odi",
+        "amount": "77577.2"
+      },
+      {
+        "date": "2024-01-25",
+        "description": "CAS***odi",
+        "amount": "86618.56"
+      },
+      {
+        "date": "2024-01-25",
+        "description": "NEF***min",
+        "amount": "321882.37"
+      },
+      {
+        "date": "2024-01-25",
+        "description": "CLG***ONS",
+        "amount": "388633.3"
+      },
+      {
+        "date": "2024-01-25",
+        "description": "IMP***ORP",
+        "amount": "253013.24"
+      },
+      {
+        "date": "2024-01-25",
+        "description": "ATM***901",
+        "amount": "18427.37"
+      },
+      {
+        "date": "2024-01-25",
+        "description": "RTG***EMS",
+        "amount": "2992898.45"
+      },
+      {
+        "date": "2024-01-25",
+        "description": "NEF***DIA",
+        "amount": "486809.86"
+      },
+      {
+        "date": "2024-01-25",
+        "description": "UPI***pay",
+        "amount": "177447.82"
+      },
+      {
+        "date": "2024-01-27",
+        "description": "IMP***DIA",
+        "amount": "68646.69"
+      },
+      {
+        "date": "2024-01-29",
+        "description": "NEF***ora",
+        "amount": "751967.05"
+      },
+      {
+        "date": "2024-01-29",
+        "description": "RTG***ING",
+        "amount": "8937471.92"
+      },
+      {
+        "date": "2024-01-30",
+        "description": "IMP***hah",
+        "amount": "1142936.51"
+      },
+      {
+        "date": "2024-01-31",
+        "description": "IMP***LTD",
+        "amount": "1965636.8"
+      },
+      {
+        "date": "2024-01-31",
+        "description": "CAS***min",
+        "amount": "558754.84"
+      },
+      {
+        "date": "2024-01-31",
+        "description": "CAS***ekh",
+        "amount": "988723.06"
+      },
+      {
+        "date": "2024-01-31",
+        "description": "CAS***tel",
+        "amount": "432055.91"
+      },
+      {
+        "date": "2024-01-31",
+        "description": "SER***ges",
+        "amount": "351.71"
+      },
+      {
+        "date": "2024-01-31",
+        "description": "CAS***hah",
+        "amount": "412764.21"
+      },
+      {
+        "date": "2024-02-02",
+        "description": "CHQ***ICR",
+        "amount": "3398205.32"
+      },
+      {
+        "date": "2024-02-02",
+        "description": "RTG***ora",
+        "amount": "6943417.26"
+      },
+      {
+        "date": "2024-02-02",
+        "description": "CLG***LTD",
+        "amount": "559228.58"
+      },
+      {
+        "date": "2024-02-02",
+        "description": "CLG***LTD",
+        "amount": "716019.08"
+      },
+      {
+        "date": "2024-02-02",
+        "description": "CAS***hah",
+        "amount": "56439.29"
+      },
+      {
+        "date": "2024-02-03",
+        "description": "NEF***DIA",
+        "amount": "1718366.72"
+      },
+      {
+        "date": "2024-02-03",
+        "description": "SER***nce",
+        "amount": "156.15"
+      },
+      {
+        "date": "2024-02-05",
+        "description": "NEF***ENT",
+        "amount": "197836.12"
+      },
+      {
+        "date": "2024-02-05",
+        "description": "UPI***pay",
+        "amount": "251343.82"
+      },
+      {
+        "date": "2024-02-05",
+        "description": "IMP***DIA",
+        "amount": "633846.98"
+      },
+      {
+        "date": "2024-02-05",
+        "description": "ATM***249",
+        "amount": "16137.77"
+      },
+      {
+        "date": "2024-02-06",
+        "description": "FAI***ICR",
+        "amount": "0.0"
+      },
+      {
+        "date": "2024-02-06",
+        "description": "CAS***min",
+        "amount": "130620.97"
+      },
+      {
+        "date": "2024-02-06",
+        "description": "NEF***hah",
+        "amount": "2870115.04"
+      },
+      {
+        "date": "2024-02-06",
+        "description": "CHQ***ICR",
+        "amount": "2038871.64"
+      },
+      {
+        "date": "2024-02-07",
+        "description": "RTG***edi",
+        "amount": "2381840.01"
+      },
+      {
+        "date": "2024-02-07",
+        "description": "NEF***TED",
+        "amount": "41831.77"
+      },
+      {
+        "date": "2024-02-07",
+        "description": "Ser***895",
+        "amount": "438.26"
+      },
+      {
+        "date": "2024-02-08",
+        "description": "CHQ***ICR",
+        "amount": "378135.46"
+      },
+      {
+        "date": "2024-02-08",
+        "description": "CLG***ORP",
+        "amount": "45626.48"
+      },
+      {
+        "date": "2024-02-08",
+        "description": "UPI***pay",
+        "amount": "21763.14"
+      },
+      {
+        "date": "2024-02-10",
+        "description": "NEF***ENT",
+        "amount": "404582.32"
+      },
+      {
+        "date": "2024-02-12",
+        "description": "CAS***edi",
+        "amount": "15950.06"
+      },
+      {
+        "date": "2024-02-13",
+        "description": "CAS***sai",
+        "amount": "48816.02"
+      },
+      {
+        "date": "2024-02-13",
+        "description": "UPI***pay",
+        "amount": "16213.63"
+      },
+      {
+        "date": "2024-02-13",
+        "description": "RTG***min",
+        "amount": "233700.78"
+      },
+      {
+        "date": "2024-02-14",
+        "description": "NEF***LTD",
+        "amount": "118992.36"
+      },
+      {
+        "date": "2024-02-15",
+        "description": "RTG***DIA",
+        "amount": "723066.69"
+      },
+      {
+        "date": "2024-02-15",
+        "description": "CLG***DIA",
+        "amount": "103152.2"
+      },
+      {
+        "date": "2024-02-15",
+        "description": "NEF***min",
+        "amount": "196309.91"
+      },
+      {
+        "date": "2024-02-16",
+        "description": "RTG***hah",
+        "amount": "255035.56"
+      },
+      {
+        "date": "2024-02-16",
+        "description": "REV***LTD",
+        "amount": "118992.36"
+      },
+      {
+        "date": "2024-02-17",
+        "description": "CAS***min",
+        "amount": "77484.03"
+      },
+      {
+        "date": "2024-02-17",
+        "description": "NEF***DIA",
+        "amount": "273171.27"
+      },
+      {
+        "date": "2024-02-17",
+        "description": "CAS***odi",
+        "amount": "64442.86"
+      },
+      {
+        "date": "2024-02-17",
+        "description": "CAS***edi",
+        "amount": "35217.46"
+      },
+      {
+        "date": "2024-02-17",
+        "description": "RTG***edi",
+        "amount": "785103.02"
+      },
+      {
+        "date": "2024-02-19",
+        "description": "IMP***ora",
+        "amount": "51632.15"
+      },
+      {
+        "date": "2024-02-20",
+        "description": "UPI***pay",
+        "amount": "14238.73"
+      },
+      {
+        "date": "2024-02-20",
+        "description": "NEF***786",
+        "amount": "307828.31"
+      },
+      {
+        "date": "2024-02-20",
+        "description": "UPI***pay",
+        "amount": "2887.28"
+      },
+      {
+        "date": "2024-02-20",
+        "description": "RTG***ekh",
+        "amount": "161381.58"
+      },
+      {
+        "date": "2024-02-21",
+        "description": "RTG***DIA",
+        "amount": "255439.3"
+      },
+      {
+        "date": "2024-02-21",
+        "description": "IMP***tel",
+        "amount": "35412.95"
+      },
+      {
+        "date": "2024-02-21",
+        "description": "IMP***IES",
+        "amount": "31628.91"
+      },
+      {
+        "date": "2024-02-22",
+        "description": "NEF***ERS",
+        "amount": "223992.55"
+      },
+      {
+        "date": "2024-02-22",
+        "description": "IMP***tel",
+        "amount": "46042.25"
+      },
+      {
+        "date": "2024-02-22",
+        "description": "UPI***pay",
+        "amount": "9556.5"
+      },
+      {
+        "date": "2024-02-24",
+        "description": "CHQ***ICR",
+        "amount": "82611.78"
+      },
+      {
+        "date": "2024-02-27",
+        "description": "NEF***LTD",
+        "amount": "87566.83"
+      },
+      {
+        "date": "2024-02-27",
+        "description": "CAS***hah",
+        "amount": "51649.44"
+      },
+      {
+        "date": "2024-02-28",
+        "description": "CAS***min",
+        "amount": "33413.36"
+      },
+      {
+        "date": "2024-02-28",
+        "description": "IMP***EMS",
+        "amount": "32789.92"
+      },
+      {
+        "date": "2024-02-28",
+        "description": "Ser***nce",
+        "amount": "235.15"
+      },
+      {
+        "date": "2024-02-28",
+        "description": "Ser***kup",
+        "amount": "224.16"
+      },
+      {
+        "date": "2024-02-28",
+        "description": "Ser***ges",
+        "amount": "245.89"
+      },
+      {
+        "date": "2024-02-29",
+        "description": "UPI***pay",
+        "amount": "17030.44"
+      },
+      {
+        "date": "2024-02-29",
+        "description": "CAS***odi",
+        "amount": "9539.36"
+      },
+      {
+        "date": "2024-03-01",
+        "description": "IMP***DIA",
+        "amount": "45545.71"
+      },
+      {
+        "date": "2024-03-01",
+        "description": "REV***pay",
+        "amount": "17030.44"
+      },
+      {
+        "date": "2024-03-02",
+        "description": "CHQ***ICR",
+        "amount": "239566.97"
+      },
+      {
+        "date": "2024-03-04",
+        "description": "NEF***LTD",
+        "amount": "64582.4"
+      },
+      {
+        "date": "2024-03-04",
+        "description": "CLG***RKS",
+        "amount": "98935.94"
+      },
+      {
+        "date": "2024-03-05",
+        "description": "NEF***ENT",
+        "amount": "160217.67"
+      },
+      {
+        "date": "2024-03-05",
+        "description": "UPI***pay",
+        "amount": "1717.34"
+      },
+      {
+        "date": "2024-03-06",
+        "description": "FAI***pay",
+        "amount": "0.0"
+      },
+      {
+        "date": "2024-03-06",
+        "description": "RTG***IES",
+        "amount": "1308798.29"
+      },
+      {
+        "date": "2024-03-06",
+        "description": "RTG***DIA",
+        "amount": "3686294.35"
+      },
+      {
+        "date": "2024-03-06",
+        "description": "SER***ges",
+        "amount": "304.61"
+      },
+      {
+        "date": "2024-03-09",
+        "description": "CLG***IES",
+        "amount": "328758.82"
+      },
+      {
+        "date": "2024-03-09",
+        "description": "CHQ***ICR",
+        "amount": "1472475.72"
+      },
+      {
+        "date": "2024-03-11",
+        "description": "UPI***pay",
+        "amount": "93823.71"
+      },
+      {
+        "date": "2024-03-11",
+        "description": "NEF***hah",
+        "amount": "1260492.76"
+      },
+      {
+        "date": "2024-03-12",
+        "description": "RTG***LTD",
+        "amount": "4203904.52"
+      },
+      {
+        "date": "2024-03-12",
+        "description": "SER***nce",
+        "amount": "371.38"
+      },
+      {
+        "date": "2024-03-12",
+        "description": "NEF***ORP",
+        "amount": "1393499.33"
+      },
+      {
+        "date": "2024-03-12",
+        "description": "NEF***ora",
+        "amount": "1358372.65"
+      },
+      {
+        "date": "2024-03-12",
+        "description": "IMP***ONS",
+        "amount": "827873.42"
+      },
+      {
+        "date": "2024-03-13",
+        "description": "ATM***952",
+        "amount": "13093.9"
+      },
+      {
+        "date": "2024-03-13",
+        "description": "NEF***ekh",
+        "amount": "2105191.83"
+      },
+      {
+        "date": "2024-03-13",
+        "description": "NEF***ONS",
+        "amount": "993855.33"
+      },
+      {
+        "date": "2024-03-14",
+        "description": "IMP***ORP",
+        "amount": "462057.28"
+      },
+      {
+        "date": "2024-03-15",
+        "description": "NEF***odi",
+        "amount": "781545.21"
+      },
+      {
+        "date": "2024-03-15",
+        "description": "Div***RES",
+        "amount": "112163.04"
+      },
+      {
+        "date": "2024-03-15",
+        "description": "NEF***hah",
+        "amount": "1210947.13"
+      },
+      {
+        "date": "2024-03-16",
+        "description": "RTG***ONS",
+        "amount": "1848862.97"
+      },
+      {
+        "date": "2024-03-16",
+        "description": "CLG***IES",
+        "amount": "1915411.37"
+      },
+      {
+        "date": "2024-03-16",
+        "description": "IMP***tel",
+        "amount": "1271562.84"
+      },
+      {
+        "date": "2024-03-16",
+        "description": "FAI***ICR",
+        "amount": "0.0"
+      },
+      {
+        "date": "2024-03-18",
+        "description": "CHQ***ICR",
+        "amount": "1109323.3"
+      },
+      {
+        "date": "2024-03-18",
+        "description": "CLG***LTD",
+        "amount": "519502.26"
+      },
+      {
+        "date": "2024-03-18",
+        "description": "IMP***EMS",
+        "amount": "293692.04"
+      },
+      {
+        "date": "2024-03-18",
+        "description": "Ser***418",
+        "amount": "602.08"
+      },
+      {
+        "date": "2024-03-19",
+        "description": "NEF***DIA",
+        "amount": "3644222.05"
+      },
+      {
+        "date": "2024-03-19",
+        "description": "UPI***pay",
+        "amount": "317904.3"
+      },
+      {
+        "date": "2024-03-19",
+        "description": "CLG***DIA",
+        "amount": "2265755.74"
+      },
+      {
+        "date": "2024-03-20",
+        "description": "RTG***ekh",
+        "amount": "7396912.63"
+      },
+      {
+        "date": "2024-03-20",
+        "description": "NEF***odi",
+        "amount": "1130779.17"
+      },
+      {
+        "date": "2024-03-20",
+        "description": "NEF***862",
+        "amount": "423831.36"
+      },
+      {
+        "date": "2024-03-20",
+        "description": "CLG***ORP",
+        "amount": "581573.99"
+      },
+      {
+        "date": "2024-03-23",
+        "description": "UPI***pay",
+        "amount": "138395.24"
+      },
+      {
+        "date": "2024-03-23",
+        "description": "NEF***ING",
+        "amount": "7063370.8"
+      },
+      {
+        "date": "2024-03-26",
+        "description": "CAS***ora",
+        "amount": "130221.27"
+      },
+      {
+        "date": "2024-03-26",
+        "description": "IMP***min",
+        "amount": "1129100.21"
+      },
+      {
+        "date": "2024-03-26",
+        "description": "CHQ***ICR",
+        "amount": "835705.75"
+      },
+      {
+        "date": "2024-03-27",
+        "description": "CLG***DIA",
+        "amount": "1512165.51"
+      },
+      {
+        "date": "2024-03-28",
+        "description": "UPI***pay",
+        "amount": "376526.04"
+      },
+      {
+        "date": "2024-03-28",
+        "description": "Ser***ges",
+        "amount": "74.73"
+      },
+      {
+        "date": "2024-03-30",
+        "description": "NEF***ekh",
+        "amount": "1700760.72"
+      },
+      {
+        "date": "2024-03-30",
+        "description": "NEF***min",
+        "amount": "706733.07"
+      },
+      {
+        "date": "2024-03-30",
+        "description": "NEF***ekh",
+        "amount": "2117434.13"
+      }
+    ]
+  }
+}
