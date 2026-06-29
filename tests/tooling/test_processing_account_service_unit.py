@@ -102,7 +102,7 @@ def _make_transfer_entry(
 
 @pytest.mark.asyncio
 async def test_find_transfer_pairs_delayed_transfer_auto_pairs() -> None:
-    """AC15.6.4 · Delayed transfers within three days still auto-pair through Processing."""
+    """AC-ledger.76.4 · Delayed transfers within three days still auto-pair through Processing."""
     user_id = uuid4()
     processing_account = SimpleNamespace(id=uuid4(), currency="SGD")
     out_entry = _make_transfer_entry(
@@ -143,7 +143,7 @@ async def test_find_transfer_pairs_delayed_transfer_auto_pairs() -> None:
 
 @pytest.mark.asyncio
 async def test_find_transfer_pairs_keeps_partial_match_in_review_band() -> None:
-    """AC15.4.3 · Partial transfer matches stay visible for review instead of auto-pairing."""
+    """AC-ledger.74.3 · Partial transfer matches stay visible for review instead of auto-pairing."""
     user_id = uuid4()
     processing_account = SimpleNamespace(id=uuid4(), currency="SGD")
     out_entry = _make_transfer_entry(
@@ -190,7 +190,7 @@ async def test_find_transfer_pairs_keeps_partial_match_in_review_band() -> None:
 
 @pytest.mark.asyncio
 async def test_find_transfer_pairs_rejects_unmatched_pair() -> None:
-    """AC15.6.5 · Clearly unmatched transfers stay unpaired and visible in Processing."""
+    """AC-ledger.76.5 · Clearly unmatched transfers stay unpaired and visible in Processing."""
     user_id = uuid4()
     processing_account = SimpleNamespace(id=uuid4(), currency="SGD")
     out_entry = _make_transfer_entry(
@@ -235,7 +235,7 @@ async def test_find_transfer_pairs_rejects_unmatched_pair() -> None:
 
 @pytest.mark.asyncio
 async def test_processing_balance_uses_decimal_net_balance() -> None:
-    """AC15.3.1 · Processing balance keeps unpaired funds visible as a Decimal net balance."""
+    """AC-ledger.73.1 · Processing balance keeps unpaired funds visible as a Decimal net balance."""
     processing_account = SimpleNamespace(id=uuid4(), currency="SGD")
     # balance now reads the typed `line.money` accessor (Phase C / AC12.38)
     debit_line = SimpleNamespace(

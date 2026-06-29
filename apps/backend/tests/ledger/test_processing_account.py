@@ -19,7 +19,7 @@ class TestProcessingAccountCreation:
     """Test Processing account creation and properties."""
 
     async def test_processing_account_created_on_first_call(self, db: AsyncSession, test_user):
-        """AC15.1.1 · Processing account is auto-created on first get_or_create call."""
+        """AC-ledger.71.1 · Processing account is auto-created on first get_or_create call."""
         user_id = test_user.id
         processing = await get_or_create_processing_account(db, user_id)
 
@@ -31,7 +31,7 @@ class TestProcessingAccountCreation:
         assert processing.user_id == user_id
 
     async def test_processing_account_idempotent(self, db: AsyncSession, test_user):
-        """AC15.1.2 · Multiple calls return the same Processing account."""
+        """AC-ledger.71.2 · Multiple calls return the same Processing account."""
         user_id = test_user.id
         processing1 = await get_or_create_processing_account(db, user_id)
         processing2 = await get_or_create_processing_account(db, user_id)
@@ -39,7 +39,7 @@ class TestProcessingAccountCreation:
         assert processing1.id == processing2.id
 
     async def test_processing_account_hidden_from_list(self, db: AsyncSession, test_user):
-        """AC15.1.3 · Processing account is hidden from list_accounts."""
+        """AC-ledger.71.3 · Processing account is hidden from list_accounts."""
         user_id = test_user.id
         from src.services.account_service import list_accounts
 
@@ -65,7 +65,7 @@ class TestProcessingAccountCreation:
         assert all(not acc.is_system for acc in accounts)
 
     async def test_processing_account_per_user(self, db: AsyncSession):
-        """AC15.1.4 · Each user gets their own Processing account."""
+        """AC-ledger.71.4 · Each user gets their own Processing account."""
         user1 = (await UserFactory.create_async(db)).id
         user2 = (await UserFactory.create_async(db)).id
 
@@ -81,7 +81,7 @@ class TestProcessingAccountTransfers:
     """Test transfer IN/OUT entries to Processing account."""
 
     async def test_transfer_out_to_processing(self, db: AsyncSession, test_user):
-        """AC15.2.1 · Transfer OUT: Debit Processing, Credit source account."""
+        """AC-ledger.72.1 · Transfer OUT: Debit Processing, Credit source account."""
         user_id = test_user.id
         # Setup: Cash account
         cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
@@ -123,7 +123,7 @@ class TestProcessingAccountTransfers:
         assert balance == Decimal("100.00")
 
     async def test_transfer_in_from_processing(self, db: AsyncSession, test_user):
-        """AC15.2.2 · Transfer IN: Debit destination account, Credit Processing."""
+        """AC-ledger.72.2 · Transfer IN: Debit destination account, Credit Processing."""
         user_id = test_user.id
         # Setup: Checking account
         checking = Account(user_id=user_id, name="Checking", code="1002", type=AccountType.ASSET, currency="SGD")
@@ -168,7 +168,7 @@ class TestProcessingAccountTransfers:
         assert balance == Decimal("-100.00")
 
     async def test_paired_transfers_zero_balance(self, db: AsyncSession, test_user):
-        """AC15.2.3 · Paired transfer OUT + IN results in Processing balance = 0."""
+        """AC-ledger.72.3 · Paired transfer OUT + IN results in Processing balance = 0."""
         user_id = test_user.id
         # Setup: Cash and Checking accounts
         cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
@@ -254,7 +254,7 @@ class TestProcessingAccountIntegrity:
     """Test accounting integrity with Processing account."""
 
     async def test_unpaired_transfer_visible_in_processing_balance(self, db: AsyncSession, test_user):
-        """AC15.3.1 · Unpaired transfer OUT shows as non-zero Processing balance."""
+        """AC-ledger.73.1 · Unpaired transfer OUT shows as non-zero Processing balance."""
         user_id = test_user.id
         # Setup: Cash account
         cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
@@ -293,7 +293,7 @@ class TestProcessingAccountIntegrity:
         assert balance != Decimal("0.00")  # Non-zero indicates unpaired transfer
 
     async def test_accounting_equation_holds_with_processing(self, db: AsyncSession, test_user):
-        """AC15.3.2 · Accounting equation holds after transfers involving Processing account."""
+        """AC-ledger.73.2 · Accounting equation holds after transfers involving Processing account."""
         user_id = test_user.id
         # Setup: Cash, Checking accounts
         cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
@@ -403,7 +403,7 @@ class TestProcessingAccountValidation:
     """Test validation rules for Processing account (Anti-pattern A)."""
 
     async def test_reject_manual_processing_entry(self, db: AsyncSession, test_user):
-        """AC15.4.A · Manual journal entries cannot use Processing account (SSOT Anti-pattern A)."""
+        """AC-ledger.74.A · Manual journal entries cannot use Processing account (SSOT Anti-pattern A)."""
         user_id = test_user.id
         processing = await get_or_create_processing_account(db, user_id)
         cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
@@ -440,7 +440,7 @@ class TestProcessingAccountValidation:
             await post_journal_entry(db, entry.id, user_id)
 
     async def test_system_entry_can_use_processing(self, db: AsyncSession, test_user):
-        """AC15.4.A · System-generated entries (source_type=SYSTEM) CAN use Processing account."""
+        """AC-ledger.74.A · System-generated entries (source_type=SYSTEM) CAN use Processing account."""
         user_id = test_user.id
         processing = await get_or_create_processing_account(db, user_id)
         cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
@@ -481,7 +481,7 @@ class TestTransferDetection:
     """Test transfer pattern detection and auto-pairing."""
 
     async def test_detect_transfer_keywords(self, db: AsyncSession, test_user):
-        """AC15.4.1 · detect_transfer_pattern identifies transfer keywords in descriptions."""
+        """AC-ledger.74.1 · detect_transfer_pattern identifies transfer keywords in descriptions."""
         from src.ledger import detect_transfer_pattern
         from tests.factories import AtomicTransactionFactory, UploadedDocumentFactory
 
@@ -534,7 +534,7 @@ class TestTransferDetection:
         assert detect_transfer_pattern(non_transfer.description) is False
 
     async def test_detect_transfer_no_description(self, db: AsyncSession, test_user):
-        """AC15.4.2 · detect_transfer_pattern returns False for None/empty description."""
+        """AC-ledger.74.2 · detect_transfer_pattern returns False for None/empty description."""
         from src.ledger import detect_transfer_pattern
         from tests.factories import AtomicTransactionFactory, UploadedDocumentFactory
 
@@ -555,7 +555,7 @@ class TestTransferDetection:
         assert detect_transfer_pattern(txn_empty.description) is False
 
     async def test_auto_pair_transfers_above_threshold(self, db: AsyncSession, test_user):
-        """AC15.4.3 · find_transfer_pairs auto-pairs transfers with confidence >= 85."""
+        """AC-ledger.74.3 · find_transfer_pairs auto-pairs transfers with confidence >= 85."""
         from src.ledger import (
             create_transfer_in_entry,
             create_transfer_out_entry,
@@ -599,7 +599,7 @@ class TestTransferScoringFunctions:
     """Test scoring functions for transfer pairing."""
 
     def test_amount_exact_match(self):
-        """AC15.5.1 · Exact amount match within 1 cent returns 100."""
+        """AC-ledger.75.1 · Exact amount match within 1 cent returns 100."""
         from src.ledger.base.processing import _score_amount_match
 
         score = _score_amount_match(Decimal("100.00"), Decimal("100.01"))
@@ -609,7 +609,7 @@ class TestTransferScoringFunctions:
         assert score == 100.0
 
     def test_amount_very_close_match(self):
-        """AC15.5.2 · Amount within 10 cents returns 95."""
+        """AC-ledger.75.2 · Amount within 10 cents returns 95."""
         from src.ledger.base.processing import _score_amount_match
 
         score = _score_amount_match(Decimal("100.00"), Decimal("100.05"))
@@ -619,7 +619,7 @@ class TestTransferScoringFunctions:
         assert score == 95.0
 
     def test_amount_close_match(self):
-        """AC15.5.2 · Amount within 1 SGD returns 85."""
+        """AC-ledger.75.2 · Amount within 1 SGD returns 85."""
         from src.ledger.base.processing import _score_amount_match
 
         score = _score_amount_match(Decimal("100.00"), Decimal("100.50"))
@@ -629,7 +629,7 @@ class TestTransferScoringFunctions:
         assert score == 85.0
 
     def test_amount_moderate_match(self):
-        """AC15.5.2 · Amount within 5 SGD returns 70."""
+        """AC-ledger.75.2 · Amount within 5 SGD returns 70."""
         from src.ledger.base.processing import _score_amount_match
 
         score = _score_amount_match(Decimal("100.00"), Decimal("103.00"))
@@ -639,42 +639,42 @@ class TestTransferScoringFunctions:
         assert score == 70.0
 
     def test_amount_zero_base(self):
-        """AC15.5.2 · Zero base amount returns 0."""
+        """AC-ledger.75.2 · Zero base amount returns 0."""
         from src.ledger.base.processing import _score_amount_match
 
         score = _score_amount_match(Decimal("0"), Decimal("100.00"))
         assert score == 0.0
 
     def test_amount_large_diff(self):
-        """AC15.5.2 · Large amount difference returns proportional score."""
+        """AC-ledger.75.2 · Large amount difference returns proportional score."""
         from src.ledger.base.processing import _score_amount_match
 
         score = _score_amount_match(Decimal("100.00"), Decimal("110.00"))
         assert score == 90.0  # 10 SGD diff on 100 = 90% match
 
     def test_description_exact_match(self):
-        """AC15.5.3 · Exact description match returns 100."""
+        """AC-ledger.75.3 · Exact description match returns 100."""
         from src.ledger.base.processing import _score_description_match
 
         score = _score_description_match("Transfer to Bank B", "Transfer to Bank B")
         assert score == 100.0
 
     def test_description_case_insensitive(self):
-        """AC15.5.3 · Description matching is case-insensitive."""
+        """AC-ledger.75.3 · Description matching is case-insensitive."""
         from src.ledger.base.processing import _score_description_match
 
         score = _score_description_match("TRANSFER TO BANK B", "transfer to bank b")
         assert score == 100.0
 
     def test_description_partial_match(self):
-        """AC15.5.3 · Partial description match returns proportional score."""
+        """AC-ledger.75.3 · Partial description match returns proportional score."""
         from src.ledger.base.processing import _score_description_match
 
         score = _score_description_match("Transfer to Bank B", "Transfer to Bank A")
         assert 50 < score < 100
 
     def test_description_none_values(self):
-        """AC15.5.3 · None descriptions return 0 score."""
+        """AC-ledger.75.3 · None descriptions return 0 score."""
         from src.ledger.base.processing import _score_description_match
 
         score = _score_description_match(None, "Transfer")
@@ -687,7 +687,7 @@ class TestTransferScoringFunctions:
         assert score == 0.0
 
     def test_date_same_day(self):
-        """AC15.5.4 · Same day transfer returns 100."""
+        """AC-ledger.75.4 · Same day transfer returns 100."""
         from src.ledger.base.processing import _score_date_proximity
 
         same_date = date(2025, 1, 15)
@@ -695,7 +695,7 @@ class TestTransferScoringFunctions:
         assert score == 100.0
 
     def test_date_one_day_diff(self):
-        """AC15.5.4 · 1 day difference returns 95."""
+        """AC-ledger.75.4 · 1 day difference returns 95."""
         from src.ledger.base.processing import _score_date_proximity
 
         d1 = date(2025, 1, 15)
@@ -704,7 +704,7 @@ class TestTransferScoringFunctions:
         assert score == 95.0
 
     def test_date_three_day_diff(self):
-        """AC15.5.4 · 3 day difference returns 85."""
+        """AC-ledger.75.4 · 3 day difference returns 85."""
         from src.ledger.base.processing import _score_date_proximity
 
         d1 = date(2025, 1, 15)
@@ -713,7 +713,7 @@ class TestTransferScoringFunctions:
         assert score == 85.0
 
     def test_date_seven_day_diff(self):
-        """AC15.5.4 · 7 day difference returns 70."""
+        """AC-ledger.75.4 · 7 day difference returns 70."""
         from src.ledger.base.processing import _score_date_proximity
 
         d1 = date(2025, 1, 15)
@@ -722,7 +722,7 @@ class TestTransferScoringFunctions:
         assert score == 70.0
 
     def test_date_far_apart(self):
-        """AC15.5.4 · Dates >7 days apart return 0."""
+        """AC-ledger.75.4 · Dates >7 days apart return 0."""
         from src.ledger.base.processing import _score_date_proximity
 
         d1 = date(2025, 1, 15)
@@ -735,7 +735,7 @@ class TestUnpairedTransferDetection:
     """Test detection of unpaired transfers."""
 
     async def test_get_unpaired_transfers_empty(self, db: AsyncSession, test_user):
-        """AC15.3.1 · No unpaired transfers when Processing balance is zero."""
+        """AC-ledger.73.1 · No unpaired transfers when Processing balance is zero."""
         from src.ledger import get_unpaired_transfers
 
         user_id = test_user.id
@@ -744,7 +744,7 @@ class TestUnpairedTransferDetection:
         assert unpaired == []
 
     async def test_get_unpaired_transfers_with_balance(self, db: AsyncSession, test_user):
-        """AC15.3.1 · Unpaired transfers detected when Processing balance ≠ 0."""
+        """AC-ledger.73.1 · Unpaired transfers detected when Processing balance ≠ 0."""
         from src.ledger import (
             create_transfer_out_entry,
             get_unpaired_transfers,
@@ -776,7 +776,7 @@ class TestProcessingBalanceQuery:
     """Test Processing account balance query."""
 
     async def test_get_processing_balance_zero(self, db: AsyncSession, test_user):
-        """AC15.3.2 · Processing balance is zero when no transfers exist."""
+        """AC-ledger.73.2 · Processing balance is zero when no transfers exist."""
         from src.ledger import get_processing_balance
 
         user_id = test_user.id
@@ -785,7 +785,7 @@ class TestProcessingBalanceQuery:
         assert balance == Decimal("0")
 
     async def test_get_processing_balance_with_transfers(self, db: AsyncSession, test_user):
-        """AC15.3.2 · Processing balance reflects unpaired transfers."""
+        """AC-ledger.73.2 · Processing balance reflects unpaired transfers."""
         from src.ledger import (
             create_transfer_out_entry,
             get_processing_balance,
@@ -815,7 +815,7 @@ class TestTransferEntryValidation:
     """Test input validation for create_transfer_out_entry and create_transfer_in_entry."""
 
     async def test_transfer_out_rejects_zero_amount(self, db: AsyncSession, test_user):
-        """AC15.2.1 · create_transfer_out_entry rejects amount <= 0."""
+        """AC-ledger.72.1 · create_transfer_out_entry rejects amount <= 0."""
         from src.ledger import create_transfer_out_entry
 
         user_id = test_user.id
@@ -834,7 +834,7 @@ class TestTransferEntryValidation:
             )
 
     async def test_transfer_out_rejects_negative_amount(self, db: AsyncSession, test_user):
-        """AC15.2.1 · create_transfer_out_entry rejects negative amount."""
+        """AC-ledger.72.1 · create_transfer_out_entry rejects negative amount."""
         from src.ledger import create_transfer_out_entry
 
         user_id = test_user.id
@@ -853,7 +853,7 @@ class TestTransferEntryValidation:
             )
 
     async def test_transfer_out_rejects_empty_description(self, db: AsyncSession, test_user):
-        """AC15.2.1 · create_transfer_out_entry rejects empty description."""
+        """AC-ledger.72.1 · create_transfer_out_entry rejects empty description."""
         from src.ledger import create_transfer_out_entry
 
         user_id = test_user.id
@@ -872,7 +872,7 @@ class TestTransferEntryValidation:
             )
 
     async def test_transfer_out_rejects_whitespace_description(self, db: AsyncSession, test_user):
-        """AC15.2.1 · create_transfer_out_entry rejects whitespace-only description."""
+        """AC-ledger.72.1 · create_transfer_out_entry rejects whitespace-only description."""
         from src.ledger import create_transfer_out_entry
 
         user_id = test_user.id
@@ -891,7 +891,7 @@ class TestTransferEntryValidation:
             )
 
     async def test_transfer_in_rejects_zero_amount(self, db: AsyncSession, test_user):
-        """AC15.2.2 · create_transfer_in_entry rejects amount <= 0."""
+        """AC-ledger.72.2 · create_transfer_in_entry rejects amount <= 0."""
         from src.ledger import create_transfer_in_entry
 
         user_id = test_user.id
@@ -910,7 +910,7 @@ class TestTransferEntryValidation:
             )
 
     async def test_transfer_in_rejects_empty_description(self, db: AsyncSession, test_user):
-        """AC15.2.2 · create_transfer_in_entry rejects empty description."""
+        """AC-ledger.72.2 · create_transfer_in_entry rejects empty description."""
         from src.ledger import create_transfer_in_entry
 
         user_id = test_user.id
@@ -933,7 +933,7 @@ class TestDescriptionScoringEdgeCases:
     """Test edge cases in description scoring."""
 
     def test_description_whitespace_only(self):
-        """AC15.5.3 · Whitespace-only descriptions return 0 score."""
+        """AC-ledger.75.3 · Whitespace-only descriptions return 0 score."""
         from src.ledger.base.processing import _score_description_match
 
         score = _score_description_match("   ", "Transfer")

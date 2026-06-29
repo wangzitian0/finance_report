@@ -93,7 +93,7 @@ class TestTransferDetectionDuringReconciliation:
     """Test Phase 1: Transfer detection with Processing account during reconciliation."""
 
     async def test_transfer_detected_creates_processing_entry(self, db: AsyncSession, test_user):
-        """AC15.6.1 · Transfer detection creates Processing account entry with linked account."""
+        """AC-ledger.76.1 · Transfer detection creates Processing account entry with linked account."""
         user_id = test_user.id
 
         cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
@@ -147,7 +147,7 @@ class TestTransferDetectionDuringReconciliation:
         await db.refresh(txn)
 
     async def test_transfer_detection_skips_when_no_account_linked(self, db: AsyncSession, test_user):
-        """AC15.6.2 · Transfer detection logs warning and skips when statement has no linked account."""
+        """AC-ledger.76.2 · Transfer detection logs warning and skips when statement has no linked account."""
         user_id = test_user.id
 
         doc = await _seed_statement(db, user_id, account_id=None, file_hash="test_hash_no_account")
@@ -171,7 +171,7 @@ class TestTransferDetectionDuringReconciliation:
         assert len(lines) == 0
 
     async def test_transfer_in_creates_correct_processing_entry(self, db: AsyncSession, test_user):
-        """AC15.6.3 · Transfer IN creates: DEBIT destination account, CREDIT Processing."""
+        """AC-ledger.76.3 · Transfer IN creates: DEBIT destination account, CREDIT Processing."""
         user_id = test_user.id
 
         checking = Account(user_id=user_id, name="Checking", code="1002", type=AccountType.ASSET, currency="SGD")
@@ -223,7 +223,7 @@ class TestTransferAutoPairingPhase:
     """Test Phase 3: Auto-pairing of transfers after all matching completes."""
 
     async def test_auto_pair_transfers_same_amount_same_date(self, db: AsyncSession, test_user):
-        """AC15.6.4 · Paired transfers (same amount, same date) are auto-paired, Processing balance = 0."""
+        """AC-ledger.76.4 · Paired transfers (same amount, same date) are auto-paired, Processing balance = 0."""
         user_id = test_user.id
 
         cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
@@ -261,7 +261,7 @@ class TestTransferAutoPairingPhase:
         assert balance == Decimal("0.00")
 
     async def test_unpaired_transfer_leaves_processing_nonzero(self, db: AsyncSession, test_user):
-        """AC15.6.5 · Unpaired transfer leaves Processing balance ≠ 0."""
+        """AC-ledger.76.5 · Unpaired transfer leaves Processing balance ≠ 0."""
         user_id = test_user.id
 
         cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
@@ -292,7 +292,7 @@ class TestNormalMatchingPhaseIntegration:
     """Test Phase 2: Normal matching still works when transfers are present."""
 
     async def test_non_transfer_transaction_proceeds_to_normal_matching(self, db: AsyncSession, test_user):
-        """AC15.6.6 · Non-transfer transactions skip Phase 1 and proceed to Phase 2 (normal matching)."""
+        """AC-ledger.76.6 · Non-transfer transactions skip Phase 1 and proceed to Phase 2 (normal matching)."""
         user_id = test_user.id
 
         cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
@@ -351,7 +351,7 @@ class TestNormalMatchingPhaseIntegration:
         assert len(lines) == 0
 
     async def test_mixed_transactions_both_phases_execute(self, db: AsyncSession, test_user):
-        """AC15.6.6 · AC11.17.2 · Mix of transfer and non-transfer transactions: Phase 1 and Phase 2 both execute."""
+        """AC-ledger.76.6 · AC11.17.2 · Mix of transfer and non-transfer transactions: Phase 1 and Phase 2 both execute."""
         user_id = test_user.id
 
         cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")

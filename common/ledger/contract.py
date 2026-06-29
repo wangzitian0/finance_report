@@ -20,16 +20,40 @@ project / ``find_transfer_pairs``) in ``extension/processing.py`` — the origin
 reporting consume it only through the published ``src.ledger`` interface, by id/
 event (Decision B — one transaction per domain).
 
-Its ACs (the EPIC-002/012/015 double-entry + processing-account ACs) migrate into
-``roadmap`` in a later slice of the cutover (#1420 slice 3c); for now the contract
-declares only the **structural invariants** of the cutover, each pinned to a real
-test. ``roadmap=[]`` is standard-preserving (Decision A — deferring the AC
-migration lowers no bar).
+The package's ACs migrate into ``roadmap`` across the slice-3c sub-slices of the
+cutover (#1420). **Slice 3c-i (this change) homes the EPIC-015 processing-account
+ACs** as ``AC-ledger.71.* … AC-ledger.76.*`` — the package now owns them; the
+EPIC-015 backend tables are deleted and replaced with a disclaimer that lists the
+new ids (mirroring how identity emptied EPIC-001). The EPIC-002 double-entry ACs
+(slice 3c-ii/iii) land later under the **lower** group numbers.
+
+**Group-number reservation (ledger-local).** The first dotted segment of an
+``AC-ledger.<group>.<seq>`` id is a bare uniqueness key (no gate reads semantics
+from it), so the package reserves disjoint blocks to keep the namespace
+collision-free as later slices add ACs without re-reading this file:
+
+- **groups 1–70** — the EPIC-002/012 double-entry core (slices 3c-ii/iii, not yet
+  homed);
+- **groups 71–76** — the EPIC-015 processing (in-transit) account, this slice
+  (71=creation, 72=transfer-entry, 73=integrity, 74=detection, 75=scoring,
+  76=reconciliation integration), each mirroring its source ``AC15.<g>`` group.
+
+(The aspirational ``AC-ledger.<entity>.<seq>`` form some docs advertise is not
+adopted: the live traceability regex in
+``common/ssot/ac_traceability_refs.py`` accepts only the numeric
+``AC-<pkg>.<n>.<n>`` grammar that every shipped package — counter/authority/
+identity — already uses.) The EPIC-015 **frontend** UI-gap ACs (``AC15.7.*``)
+stay in EPIC-015: ledger is a backend-only package (``fe=None``), exactly as the
+identity migration left EPIC-001's frontend rows in place. ``roadmap`` carries the
+23 backend ACs; the structural invariants of the cutover stay in ``invariants``
+(no tier, not matrix-constrained). Decision A — standard-preserving move, no bar
+lowered.
 """
 
 from __future__ import annotations
 
 from common.meta.package_contract import (
+    ACRecord,
     Invariant,
     Kind,
     PackageContract,
@@ -185,5 +209,316 @@ CONTRACT = PackageContract(
             ),
         ),
     ],
-    roadmap=[],
+    roadmap=[
+        # ── group 71: Processing account creation (was EPIC-015 AC15.1.*) ──
+        ACRecord(
+            id="AC-ledger.71.1",
+            statement=(
+                "The Processing (in-transit) account is auto-created on the first "
+                "get_or_create call for a user. Was EPIC-015 AC15.1.1."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_processing_account.py"
+                "::test_processing_account_created_on_first_call"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.71.2",
+            statement=(
+                "Processing-account creation is idempotent: repeated get_or_create "
+                "calls return the same account. Was EPIC-015 AC15.1.2."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_processing_account.py"
+                "::test_processing_account_idempotent"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.71.3",
+            statement=(
+                "The Processing account is a system account hidden from "
+                "list_accounts (is_system=true). Was EPIC-015 AC15.1.3."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_processing_account.py"
+                "::test_processing_account_hidden_from_list"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.71.4",
+            statement=(
+                "Each user gets their own isolated Processing account. Was "
+                "EPIC-015 AC15.1.4."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_processing_account.py"
+                "::test_processing_account_per_user"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        # ── group 72: Transfer entry creation (was EPIC-015 AC15.2.*) ──
+        ACRecord(
+            id="AC-ledger.72.1",
+            statement=(
+                "A transfer-OUT entry debits Processing and credits the source "
+                "account (balanced double-entry); non-positive amounts and "
+                "empty/whitespace descriptions are rejected. Was EPIC-015 AC15.2.1."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_processing_account.py"
+                "::test_transfer_out_to_processing"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.72.2",
+            statement=(
+                "A transfer-IN entry debits the destination account and credits "
+                "Processing (balanced double-entry); non-positive amounts and empty "
+                "descriptions are rejected. Was EPIC-015 AC15.2.2."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_processing_account.py"
+                "::test_transfer_in_from_processing"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.72.3",
+            statement=(
+                "A paired transfer OUT + IN nets the Processing balance to zero. "
+                "Was EPIC-015 AC15.2.3."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_processing_account.py"
+                "::test_paired_transfers_zero_balance"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        # ── group 73: Accounting integrity (was EPIC-015 AC15.3.*) ──
+        ACRecord(
+            id="AC-ledger.73.1",
+            statement=(
+                "An unpaired transfer leaves a non-zero Processing balance, keeping "
+                "in-transit funds visible (get_unpaired_transfers + balance query). "
+                "Was EPIC-015 AC15.3.1."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_processing_account.py"
+                "::test_unpaired_transfer_visible_in_processing_balance"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.73.2",
+            statement=(
+                "The accounting equation holds after transfers through Processing "
+                "(sum(accounts) + Processing is conserved). Was EPIC-015 AC15.3.2."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_processing_account.py"
+                "::test_accounting_equation_holds_with_processing"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        # ── group 74: Transfer detection (was EPIC-015 AC15.4.*) ──
+        ACRecord(
+            id="AC-ledger.74.1",
+            statement=(
+                "detect_transfer_pattern identifies transfer keywords in a "
+                "description (SOP-001). Was EPIC-015 AC15.4.1."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_processing_account.py"
+                "::test_detect_transfer_keywords"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.74.2",
+            statement=(
+                "detect_transfer_pattern returns False for a None/empty "
+                "description (no false positive). Was EPIC-015 AC15.4.2."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_processing_account.py"
+                "::test_detect_transfer_no_description"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.74.3",
+            statement=(
+                "find_transfer_pairs auto-pairs transfers whose confidence is at or "
+                "above the threshold (>= 85). Was EPIC-015 AC15.4.3."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_processing_account.py"
+                "::test_auto_pair_transfers_above_threshold"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        # ── group 75: Pairing scoring functions (was EPIC-015 AC15.5.*) ──
+        ACRecord(
+            id="AC-ledger.75.1",
+            statement=(
+                "Amount scoring returns 100 for an exact match within one cent. "
+                "Was EPIC-015 AC15.5.1."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_processing_account.py"
+                "::test_amount_exact_match"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.75.2",
+            statement=(
+                "Amount scoring degrades by tier as the gap widens (exact/close/"
+                "moderate bands), e.g. within 1 SGD scores 85. Was EPIC-015 AC15.5.2."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_processing_account.py"
+                "::test_amount_close_match"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.75.3",
+            statement=(
+                "Description scoring returns a proportional score for a partial "
+                "match (SequenceMatcher + token overlap). Was EPIC-015 AC15.5.3."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_processing_account.py"
+                "::test_description_partial_match"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.75.4",
+            statement=(
+                "Date-proximity scoring degrades over a 7-day window (same day 100, "
+                "3 days 85, >7 days 0). Was EPIC-015 AC15.5.4."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_processing_account.py"
+                "::test_date_three_day_diff"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group 76: Reconciliation integration (was EPIC-015 AC15.6.*) ──
+        ACRecord(
+            id="AC-ledger.76.1",
+            statement=(
+                "During reconciliation, a detected transfer creates a Processing "
+                "entry for the linked account (Phase 1). Was EPIC-015 AC15.6.1."
+            ),
+            test=(
+                "apps/backend/tests/reconciliation/test_transfer_integration.py"
+                "::test_transfer_detected_creates_processing_entry"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.76.2",
+            statement=(
+                "Transfer detection logs a warning and skips when the statement has "
+                "no linked account. Was EPIC-015 AC15.6.2."
+            ),
+            test=(
+                "apps/backend/tests/reconciliation/test_transfer_integration.py"
+                "::test_transfer_detection_skips_when_no_account_linked"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.76.3",
+            statement=(
+                "A detected transfer-IN creates the correct Processing entry "
+                "(debit destination, credit Processing). Was EPIC-015 AC15.6.3."
+            ),
+            test=(
+                "apps/backend/tests/reconciliation/test_transfer_integration.py"
+                "::test_transfer_in_creates_correct_processing_entry"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.76.4",
+            statement=(
+                "The auto-pairing phase pairs transfers with the same amount and "
+                "date, netting the Processing balance to zero (Phase 3). Was "
+                "EPIC-015 AC15.6.4."
+            ),
+            test=(
+                "apps/backend/tests/reconciliation/test_transfer_integration.py"
+                "::test_auto_pair_transfers_same_amount_same_date"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.76.5",
+            statement=(
+                "An unpaired transfer leaves a non-zero Processing balance after "
+                "reconciliation. Was EPIC-015 AC15.6.5."
+            ),
+            test=(
+                "apps/backend/tests/reconciliation/test_transfer_integration.py"
+                "::test_unpaired_transfer_leaves_processing_nonzero"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.76.6",
+            statement=(
+                "Non-transfer transactions skip Phase 1 and proceed to normal "
+                "matching (Phase 2), preserving existing reconciliation. Was "
+                "EPIC-015 AC15.6.6."
+            ),
+            test=(
+                "apps/backend/tests/reconciliation/test_transfer_integration.py"
+                "::test_non_transfer_transaction_proceeds_to_normal_matching"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.76.7",
+            statement=(
+                "Transfer detection is idempotent: re-running matching does not "
+                "create a duplicate Processing entry/match. Was EPIC-015 AC15.6.7."
+            ),
+            test=(
+                "apps/backend/tests/reconciliation/test_transfer_idempotency.py"
+                "::test_transfer_out_duplicate_detection_skipped"
+            ),
+            priority="P0",
+            status="done",
+        ),
+    ],
 )
