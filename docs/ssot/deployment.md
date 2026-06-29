@@ -241,42 +241,24 @@ surface exposes the required operation, then prove correctness by comparing the
 effective runtime state against the requested allowlist; do not log full API
 responses or full environment templates.
 
-VPS disk hygiene is not a GitHub Actions SSH responsibility. Dokploy owns the
-operational schedule through a `dokploy-server` Schedule Job managed by
-`tools/vps_host_hygiene.py --ensure-dokploy-schedule`. The `dokploy-server` type
-is mandatory: the legacy `server` type with a null `serverId` is accepted by
-`schedule.create` but never executes the command — a silent no-op that
-previously let orphaned resources accumulate. The job is **generic-only**: it
-prunes aged stopped non-preview containers, build cache, unused images, all
-unused Docker networks, oversized Docker json logs, and vacuums the systemd
-journal. Unused Docker networks are not age-gated because Docker's predefined
-address pools can be exhausted by orphan networks before disk retention
-thresholds are reached; Docker does not remove networks attached to running
-containers. PR preview environments are reaped natively by Dokploy
-`compose.delete` (reliable since Dokploy v0.29.x), not by host hygiene; the
-preview container-name pattern is retained only to *exclude* Dokploy-owned
-preview containers from generic stopped-container pruning. PR preview workflows
-only create, update, deploy, delete, and reconcile Dokploy compose resources.
+VPS host hygiene is **infra2-owned** (deployment-environment GC belongs to
+infra2). The app does not provision it and contains no host-hygiene tool. Generic
+host GC — aged stopped non-preview containers, build cache, unused images, all
+unused Docker networks, oversized Docker json logs, and systemd journal vacuum —
+runs as a Dokploy `dokploy-server` Schedule Job provisioned by infra2's
+`tools/host_hygiene_schedule.py` and kept ensured by infra2's `ops-checks`
+host-hygiene job. See infra2 `docs/ssot/ops.pipeline.md §11`. PR preview
+environments are reaped by infra2's event-driven teardown (`preview-teardown.yml`)
++ the `preview-leak-check` fallback, never by host hygiene.
 
 PR preview no longer creates PR-scoped GHCR images. Immediate PR-close cleanup
 therefore does not delete image tags. The scheduled cleanup still prunes legacy
 closed-PR `pr-<number>-<sha>` tags older than 14 days while keeping tags for
 currently open PRs.
 
-Install or update the Dokploy host hygiene schedule with:
-
-```bash
-python tools/vps_host_hygiene.py \
-  --ensure-dokploy-schedule \
-  --api-url https://cloud.zitian.party/api \
-  --api-key "$DOKPLOY_API_KEY" \
-  --server-id null
-```
-
-For the local Dokploy host the schedule is `dokploy-server`-scoped and needs no
-real server id; pass `--server-id null` (it normalizes to a null `serverId`).
-Use `--print-dokploy-schedule-payload --server-id null` to inspect the exact
-payload without mutating Dokploy.
+The host hygiene schedule is installed/updated from **infra2** (not here):
+`python -m tools.host_hygiene_schedule --ensure --server-id null` (needs
+`DOKPLOY_API_KEY`); infra2's `ops-checks` re-ensures it daily.
 
 **Hotfix flow**:
 ```bash

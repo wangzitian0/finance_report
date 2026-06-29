@@ -13,6 +13,21 @@ def test_AC8_13_38_legacy_cleanup_entrypoints_are_removed() -> None:
     assert not (ROOT / "tools/_lib/dev/cleanup_pr_preview_resources.py").exists()
 
 
+def test_AC8_13_73_app_owns_no_vps_host_hygiene() -> None:
+    """AC8.13.73: the app owns no VPS host hygiene — host GC is infra2-owned."""
+    # Generic host GC (docker/journald/disk prune) is infra2-owned
+    # (tools/host_hygiene_schedule.py + the ops-checks re-ensure job). The app
+    # ships no host-hygiene module and provisions no Dokploy host schedule.
+    assert not (ROOT / "tools/vps_host_hygiene.py").exists()
+    assert not (ROOT / "tools/_lib/dev/vps_host_hygiene.py").exists()
+    maintenance = (ROOT / ".github/workflows/maintenance.yml").read_text()
+    assert "vps_host_hygiene" not in maintenance
+    assert "finance-report-vps-host-hygiene" not in maintenance
+    assert "ensure-dokploy-schedule" not in maintenance
+    # the scheduled job records that host hygiene is infra2-owned, not app-provisioned
+    assert "host_hygiene=infra2-owned" in maintenance
+
+
 def test_AC8_13_38_pr_preview_lifecycle_has_no_host_hygiene_commands() -> None:
     module = "\n# <<< file-boundary >>>\n".join(
         p.read_text(encoding="utf-8")

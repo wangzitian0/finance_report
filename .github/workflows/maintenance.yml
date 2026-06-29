@@ -311,9 +311,9 @@ jobs:
             echo "run_attempt=${{ github.run_attempt }}"
             echo "environment_id=${{ env.TEST_ENV_ID }}"
             echo "dry_run=${{ github.event_name == 'workflow_dispatch' && inputs.preview_cleanup_dry_run == 'true' }}"
-            echo "cleanup_action=reconcile"
+            echo "cleanup_action=ghcr-pr-tag-prune-only"
             echo "ghcr_cleanup=closed-pr-pr-tags-older-than-14-days"
-            echo "host_hygiene_schedule=finance-report-vps-host-hygiene"
+            echo "host_hygiene=infra2-owned"
           } > ci-context/pr-preview-scheduled-cleanup-context.txt
 
       - name: Upload scheduled preview cleanup context
