@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from tests.tooling._infra2_source import deploy_primitive_source
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -20,7 +22,7 @@ def read(path: str) -> str:
 
 def test_AC7_14_1_verify_runs_after_rollout_and_before_health() -> None:
     """AC7.14.1 AC7.14.4: effective-config verification gates fixed-env deploy success."""
-    primitive = read("repo/tools/deploy_primitive.py")
+    primitive = deploy_primitive_source(ROOT)
     staging = read(".github/workflows/deploy.yml")
     production = read(".github/workflows/release.yml")
     primitive_tests = read("repo/libs/tests/test_deploy_primitive.py")
@@ -59,7 +61,7 @@ def test_AC7_14_1_verify_runs_after_rollout_and_before_health() -> None:
 
 def test_AC7_14_2_stale_effective_config_fails_fast_without_secret_echo() -> None:
     """AC7.14.2: stale effective config raises a named failure, not a late health 404."""
-    primitive = read("repo/tools/deploy_primitive.py")
+    primitive = deploy_primitive_source(ROOT)
     dokploy_client = read("repo/libs/dokploy.py")
     primitive_tests = read("repo/libs/tests/test_deploy_primitive.py")
 
@@ -83,7 +85,7 @@ def test_AC7_14_2_stale_effective_config_fails_fast_without_secret_echo() -> Non
 
 def test_AC7_14_3_no_force_recreate_escape_hatch_remains() -> None:
     """AC7.14.3: stale effective config is fail-closed; reruns use deploy_v2."""
-    primitive = read("repo/tools/deploy_primitive.py")
+    primitive = deploy_primitive_source(ROOT)
     production = read(".github/workflows/deploy.yml")
     deployment_doc = read("docs/ssot/deployment.md")
 
@@ -98,7 +100,7 @@ def test_AC7_14_3_no_force_recreate_escape_hatch_remains() -> None:
 
 def test_AC7_14_6_rollout_baseline_is_snapshotted_before_mutation() -> None:
     """AC7.14.6: rollout wait compares against the pre-mutation deployment ids."""
-    primitive = read("repo/tools/deploy_primitive.py")
+    primitive = deploy_primitive_source(ROOT)
     primitive_tests = read("repo/libs/tests/test_deploy_primitive.py")
 
     baseline = "before_ids = ("

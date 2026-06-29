@@ -5,6 +5,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from tests.tooling._infra2_source import deploy_primitive_source
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -57,7 +59,7 @@ JSON
 
 
 def test_AC8_13_72_deploy_v2_updates_allowlisted_env_only() -> None:
-    primitive = (ROOT / "repo/tools/deploy_primitive.py").read_text()
+    primitive = deploy_primitive_source(ROOT)
     common_shell = (ROOT / "common/shell/common.sh").read_text()
 
     assert "env_vars = {" in primitive
@@ -85,7 +87,7 @@ def test_AC8_13_72_deploy_v2_updates_allowlisted_env_only() -> None:
 
 def test_AC8_13_72_deploy_v2_dokploy_client_does_not_log_raw_response_bodies() -> None:
     dokploy_client = (ROOT / "repo/libs/dokploy.py").read_text()
-    primitive = (ROOT / "repo/tools/deploy_primitive.py").read_text()
+    primitive = deploy_primitive_source(ROOT)
 
     request_block = dokploy_client.split("def _request(", 1)[1].split(
         "    # Project endpoints", 1
