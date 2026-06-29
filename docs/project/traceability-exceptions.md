@@ -26,6 +26,7 @@ These files are test infrastructure, not behavior proof.
 | `apps/backend/tests/unit_price/__init__.py` | Package marker |
 | `apps/backend/tests/ledger/__init__.py` | Package marker |
 | `apps/backend/tests/ledger/_ledger_helpers.py` | Published ledger test factory (shared posted/void entry builders) |
+| `tests/tooling/_infra2_source.py` | Shared helper (not a test): resilient resolver for infra2 deploy-primitive source; see #1519 |
 | `apps/backend/tests/ai/__init__.py` | Package marker |
 | `apps/backend/tests/assets/__init__.py` | Package marker |
 | `apps/backend/tests/identity/__init__.py` | Package marker |
