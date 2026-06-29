@@ -17,7 +17,7 @@ from uuid import UUID
 from src.config import settings
 from src.llm.cassette import CassetteMode, current_mode
 from src.llm.client import litellm_stream, resolve_provider_and_model
-from src.llm.common import LLMConfigError, LLMError, ProviderRef, ReasoningEffort
+from src.llm.common import LLMConfigError, LLMError, ProtocolFamily, ProviderRef, ReasoningEffort
 from src.llm.env_config import _protocol_for
 from src.llm.factory import get_config_source, get_usage_meter
 from src.llm.usage import estimate_tokens, estimate_tokens_from_chars
@@ -141,11 +141,15 @@ async def _stream_ai_base(
     else:
         provider = await _resolve_provider(api_key, base_url, user_id)
 
+    # do_sample/thinking are Z.AI/GLM (OpenAI-compatible) extra_body knobs. Other
+    # families (Gemini, Anthropic) reject unknown request fields with a 400, so
+    # only forward them to OpenAI-compatible providers.
     extra_body: dict[str, Any] = {}
-    if do_sample is not None:
-        extra_body["do_sample"] = do_sample
-    if thinking is not None:
-        extra_body["thinking"] = thinking
+    if provider.protocol is ProtocolFamily.OPENAI_COMPATIBLE:
+        if do_sample is not None:
+            extra_body["do_sample"] = do_sample
+        if thinking is not None:
+            extra_body["thinking"] = thinking
 
     completion_chars = 0
     # AC10.10.4: time the provider call and emit a latency+outcome metric on

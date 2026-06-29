@@ -33,6 +33,7 @@ from src.llm.common import (
     LLMConfigError,
     LLMError,
     Message,
+    ProtocolFamily,
     ProviderRef,
     ReasoningEffort,
 )
@@ -111,6 +112,14 @@ def _base_kwargs(
         kwargs["temperature"] = temperature
     if reasoning is not None and reasoning is not ReasoningEffort.NONE:
         kwargs["reasoning_effort"] = reasoning.value
+    elif provider.protocol is ProtocolFamily.GOOGLE_GEMINI:
+        # Gemini 2.5+ "thinks" by default and those thinking tokens are charged
+        # against max_output_tokens, so a verbose extraction (raw_text + category
+        # per row) hits finish="length" and truncates mid-JSON -> 0 parsed rows.
+        # Disable thinking when no reasoning is requested. Live-call kwarg ONLY —
+        # deliberately NOT mirrored into the cassette fingerprint decode params, so
+        # a Gemini-recorded cassette still replays under any default provider.
+        kwargs["reasoning_effort"] = "disable"
     if seed is not None:
         # Native param so drop_params can strip it for models that reject seed.
         kwargs["seed"] = seed

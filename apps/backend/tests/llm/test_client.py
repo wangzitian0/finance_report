@@ -101,6 +101,30 @@ async def test_AC23_2_4_reasoning_max_tokens_temperature_passthrough(captured):
     assert kw["reasoning_effort"] == "medium"
 
 
+def _gemini_provider() -> ProviderRef:
+    return ProviderRef(id="env", label="gemini", protocol=ProtocolFamily.GOOGLE_GEMINI, api_key="k")
+
+
+async def test_gemini_disables_thinking_when_no_reasoning_requested(captured):
+    """Gemini 2.5+ thinks by default and those thinking tokens are charged against the
+    output budget, truncating a verbose extraction mid-JSON. With no reasoning requested,
+    the live call must carry reasoning_effort="disable" — and only for Gemini."""
+    async for _ in litellm_stream(
+        [{"role": "user", "content": "hi"}], provider=_gemini_provider(), model_id="gemini-3-flash-preview"
+    ):
+        pass
+    assert captured["kwargs"]["reasoning_effort"] == "disable"
+    assert captured["kwargs"]["model"] == "gemini/gemini-3-flash-preview"
+    assert captured["kwargs"].get("api_base") is None
+
+
+async def test_non_gemini_no_reasoning_omits_reasoning_effort(captured):
+    """The disable is Gemini-only: Z.AI/GLM with no reasoning sends no reasoning_effort."""
+    async for _ in litellm_stream([{"role": "user", "content": "hi"}], provider=_provider(), model_id="glm-5.1"):
+        pass
+    assert "reasoning_effort" not in captured["kwargs"]
+
+
 async def test_AC23_2_3_provider_error_is_normalised_to_llmerror(monkeypatch):
     """AC23.2.3: a transient provider failure becomes a retryable LLMError."""
 

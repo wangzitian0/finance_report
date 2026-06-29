@@ -91,6 +91,28 @@ async def test_stream_ai_json_forwards_zai_knobs_and_seed(litellm_stub, monkeypa
     assert kw["temperature"] == 0.0
 
 
+async def test_stream_ai_json_drops_glm_knobs_for_gemini(litellm_stub, monkeypatch):
+    """do_sample/thinking are Z.AI/GLM extra_body knobs; Gemini rejects unknown request
+    fields with HTTP 400. For a Gemini provider they must NOT be forwarded, and the live
+    call instead carries reasoning_effort="disable" (Gemini 2.5+ thinks by default and the
+    thinking tokens otherwise eat the output budget, truncating a verbose extraction)."""
+    monkeypatch.setattr(settings, "ai_provider", "gemini", raising=False)
+    await accumulate_stream(
+        stream_ai_json(
+            [{"role": "user", "content": "x"}],
+            "gemini-3-flash-preview",
+            api_key="k",
+            do_sample=False,
+            thinking={"type": "disabled"},
+            temperature=0.0,
+        )
+    )
+    kw = litellm_stub["kwargs"]
+    assert "extra_body" not in kw  # GLM knobs not forwarded to Gemini
+    assert kw.get("reasoning_effort") == "disable"
+    assert kw["model"] == "gemini/gemini-3-flash-preview"
+
+
 async def test_stream_resolves_default_provider_from_config(litellm_stub, monkeypatch):
     """With no explicit key, the configured default provider is resolved."""
 
