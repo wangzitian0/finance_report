@@ -956,6 +956,8 @@ async def test_AC17_4_14_brokerage_import_links_statement_to_broker_account(clie
     # The statement is now anchored to the broker ASSET account the import created.
     linked = (await db.execute(select(StatementSummary).where(StatementSummary.id == statement_id))).scalar_one()
     assert linked.account_id is not None, "brokerage import must link statement.account_id to its broker account"
+    # The linked account is also surfaced on the HTTP response.
+    assert response.json()["account_id"] == str(linked.account_id)
     account = await db.get(Account, linked.account_id)
     assert account is not None
     assert account.type == AccountType.ASSET

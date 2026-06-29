@@ -840,10 +840,13 @@ class BrokeragePositionImportService:
         account_id: UUID | None = None
         brokers = {snapshot.broker for snapshot in snapshots}
         if reconcile_result is not None and len(brokers) == 1:
+            # Use the one broker actually present (not result.broker, which falls
+            # back to the first snapshot) so the lookup is unambiguous.
+            (single_broker,) = brokers
             account_id = await db.scalar(
                 select(Account.id)
                 .where(Account.user_id == user_id)
-                .where(Account.name == broker)
+                .where(Account.name == single_broker)
                 .where(Account.type == AccountType.ASSET)
             )
 

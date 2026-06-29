@@ -259,8 +259,11 @@ class BrokerageImportResponse(BaseModel):
     reconcile_updated: int = Field(ge=0)
     reconcile_disposed: int = Field(ge=0)
     skipped: int = Field(ge=0)
-    # #1484: the broker ASSET account the statement is now anchored to (null when
-    # no single broker account applies, e.g. zero positions).
+    # #1484: the broker ASSET account these positions reconciled into (null when
+    # no single broker account applies, e.g. zero positions or a mixed-broker
+    # payload). The statements import handler also uses it to anchor the source
+    # statement (statement.account_id); the user-scoped /portfolio import has no
+    # statement context and just reports the reconciled account.
     account_id: UUID | None = None
 
 
