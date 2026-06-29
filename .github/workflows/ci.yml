@@ -327,6 +327,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
+          --mount type=tmpfs,destination=/var/lib/postgresql/data
           --health-cmd "pg_isready -U postgres"
           --health-interval 10s
           --health-timeout 5s
@@ -415,6 +416,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
+          --mount type=tmpfs,destination=/var/lib/postgresql/data
           --health-cmd "pg_isready -U postgres"
           --health-interval 10s
           --health-timeout 5s
@@ -523,6 +525,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
+          --mount type=tmpfs,destination=/var/lib/postgresql/data
           --health-cmd "pg_isready -U postgres"
           --health-interval 10s
           --health-timeout 5s
@@ -607,6 +610,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
+          --mount type=tmpfs,destination=/var/lib/postgresql/data
           --health-cmd "pg_isready -U postgres"
           --health-interval 10s
           --health-timeout 5s
