@@ -23,6 +23,10 @@ Output format (JSON object - NOT an array):
   "period_end": "2025-01-31",
   "opening_balance": "10000.00",
   "closing_balance": "12500.00",
+  "balances": [
+    {"currency": "SGD", "opening": "10000.00", "closing": "12500.00"},
+    {"currency": "USD", "opening": "2000.00", "closing": "3500.00"}
+  ],
   "transactions": [
     {
       "date": "2025-01-15",
@@ -58,6 +62,7 @@ Important Rules:
 13. MULTI-SECTION STATEMENTS: a statement may contain more than one transaction section (e.g. "SAVINGS - TRANSACTION DETAILS" and "INVESTMENTS - TRANSACTION DETAILS"). Extract transactions from EVERY section, but record each cash movement EXACTLY ONCE. A transfer or fund purchase/redemption between the user's own accounts (e.g. "Buy - Mari Invest" / "Sell - Mari Invest") is shown as a cash movement in one section AND mirrored in another - include ONLY the single cash leg that moves THIS statement's balance (a purchase/"Buy" reduces cash -> OUT; a redemption/"Sell" adds cash -> IN), and do NOT also add the mirrored row from the other section as a second transaction. Do NOT skip transfers between the user's own accounts, and do NOT double-count them.
 14. COMPLETENESS SELF-CHECK (do this before returning): reconcile EACH currency separately. For every currency present, opening_balance + sum(IN) - sum(OUT) for that currency MUST equal that currency's closing balance within 0.10. Never add amounts across different currencies. The top-level opening_balance/closing_balance are for the statement's primary currency. If a currency does NOT balance, you have either missed, duplicated, or mis-signed a transaction: use the running balance ("balance_after" / the daily balance column) to locate the day where the balance jumps and correct it using ONLY what the document actually shows. NEVER invent, fabricate, or alter transactions or balances to force a match - if the document genuinely does not reconcile, return exactly what is shown.
 15. FOREIGN-EXCHANGE / CROSS-CURRENCY: if a line converts one currency to another (e.g. "Converted 1,000 SGD to 740 USD"), record the leg in the currency that actually moved on THIS statement and set its "currency" accordingly; preserve the other currency, the exchange rate, and any fee/spread in "raw_text" (and "reference" if shown). List a separately-shown fee as its own transaction.
+16. MULTI-CURRENCY STATEMENTS ("balances" array): if the statement holds balances in MORE THAN ONE currency (e.g. a multi-currency / consolidated account that prints a per-currency or per-account opening & closing, or a "Currency Breakdown"), additionally emit a "balances" array with one {currency, opening, closing} entry PER currency — each currency's own opening and closing as shown, NEVER cross-summed or converted into a single currency. Put each currency's native amounts (do NOT convert to the "base/SGD equivalent" column). The top-level "currency"/"opening_balance"/"closing_balance" remain the PRIMARY currency's values. OMIT "balances" entirely for an ordinary single-currency statement.
 """
 
 # Brokerage POSITIONS output schema (issue #1139 / #1088).

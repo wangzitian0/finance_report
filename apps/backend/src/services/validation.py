@@ -191,6 +191,34 @@ def validate_balance_per_currency(extracted: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def bank_currency_balances(extracted: dict[str, Any]) -> list[dict[str, str]] | None:
+    """Per-currency opening/closing for a *bank* statement, mirroring the brokerage
+    array (#1139) — but only when the statement is genuinely multi-currency.
+
+    A multi-currency bank statement (e.g. a DBS consolidated / multi-currency
+    account) must not collapse its currencies into one scalar opening/closing —
+    cross-summing unrelated currencies yields a meaningless balance. When the
+    payload declares a per-currency ``balances`` array spanning >1 currency, this
+    returns the ``[{currency, opening, closing}]`` shape (string amounts,
+    JSONB-ready) consumed by :func:`validate_balance_per_currency` and persisted on
+    ``StatementSummary.currency_balances``. A single-currency statement returns
+    ``None`` so the existing scalar path is unchanged (backward compatible).
+    """
+    if not extracted.get("balances"):
+        return None
+    buckets = _currency_buckets(extracted)
+    if len({bucket["currency"] for bucket in buckets}) < 2:
+        return None
+    return [
+        {
+            "currency": bucket["currency"],
+            "opening": str(bucket["opening"]),
+            "closing": str(bucket["closing"]),
+        }
+        for bucket in buckets
+    ]
+
+
 def validate_balance_explicit(
     opening: Decimal,
     closing: Decimal,
