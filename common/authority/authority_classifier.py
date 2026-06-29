@@ -1,6 +1,6 @@
 """CODE / LLM authority classifier + per-package counter (EPIC-026 AC26.9).
 
-Model (see docs/ssot/authority-tiers.md):
+Model (see common/authority/readme.md):
 - Every AC is one bit, **detected from its test shape** (not declared):
     * ``LLM``  — the test exercises the record/replay (cassette) harness.
     * ``CODE`` — a structured-input deterministic test, no LLM in the loop.
@@ -45,7 +45,15 @@ _AC_ROW = re.compile(r"\|\s*(AC\d+\.\d+\.\d+)\s*\|")
 _FILE_TOKEN = re.compile(r"([\w./-]+\.(?:py|tsx|ts))")
 # Skip vendored/duplicated trees: worktree copies and the `repo/` submodule each
 # hold a FULL copy of the test tree, which would make every basename ambiguous.
-_SKIP_DIRS = ("node_modules", "/.venv", "/.git/", "/dist/", "/build/", "/.claude/", "/repo/")
+_SKIP_DIRS = (
+    "node_modules",
+    "/.venv",
+    "/.git/",
+    "/dist/",
+    "/build/",
+    "/.claude/",
+    "/repo/",
+)
 
 
 def band(llm_share: float) -> str:
@@ -89,7 +97,9 @@ def resolve_token(token: str, index: dict[str, list[Path]]) -> Path | None:
     return matches[0] if len(matches) == 1 else None
 
 
-def is_llm_test(path: Path | None, _cache: dict[Path, bool] | None = None) -> bool | None:
+def is_llm_test(
+    path: Path | None, _cache: dict[Path, bool] | None = None
+) -> bool | None:
     """True if the test file drives the cassette/replay harness, None if unreadable."""
     if path is None:
         return None
@@ -105,7 +115,9 @@ def is_llm_test(path: Path | None, _cache: dict[Path, bool] | None = None) -> bo
     return verdict
 
 
-def classify_test_files(file_tokens: list[str], index: dict[str, list[Path]], cache: dict[Path, bool]) -> str:
+def classify_test_files(
+    file_tokens: list[str], index: dict[str, list[Path]], cache: dict[Path, bool]
+) -> str:
     """Classify one AC from its test-file tokens: 'LLM' | 'CODE' | 'unknown'."""
     verdict = "unknown"
     for token in file_tokens:
@@ -135,7 +147,9 @@ def classify_repo(root: Path = REPO_ROOT) -> dict:
     cache: dict[Path, bool] = {}
     per_epic: dict[str, dict[str, int]] = {}
     for epic, _ac, tokens in iter_ac_rows(root / "docs" / "project"):
-        bucket = per_epic.setdefault(epic, {"total": 0, "code": 0, "llm": 0, "unknown": 0})
+        bucket = per_epic.setdefault(
+            epic, {"total": 0, "code": 0, "llm": 0, "unknown": 0}
+        )
         verdict = classify_test_files(tokens, index, cache)
         bucket["total"] += 1
         bucket[verdict.lower()] += 1

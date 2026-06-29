@@ -109,7 +109,7 @@ CONTRACT = PackageContract(
             id="active-package-has-a-decided-tier",
             statement=(
                 "Authority tier is a module-design property declared once on the "
-                "PackageContract (docs/ssot/authority-tiers.md). An active/"
+                "PackageContract (common/authority/readme.md). An active/"
                 "deprecated package must have resolved its tier to one of "
                 "CODE-ONLY/CODE-LED/LLM-LED/LLM-ONLY; only a draft package may leave tier undecided (the "
                 "legacy 'HU' state), so a shipped untyped package is "
@@ -136,7 +136,7 @@ CONTRACT = PackageContract(
             ),
         ),
         # Structural guarantees about meta ITSELF as the Layout-3 exemplar (no
-        # authority tier, not matrix-constrained — see docs/ssot/authority-tiers.md).
+        # authority tier, not matrix-constrained — see common/authority/readme.md).
         Invariant(
             id="meta-converges-by-layer",
             statement=(

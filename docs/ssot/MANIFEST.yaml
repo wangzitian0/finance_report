@@ -694,12 +694,12 @@ concepts:
       - tools/generate_critical_proof_matrix.py
 
   authority_tiers:
-    owner: docs/ssot/authority-tiers.md
+    owner: common/authority/readme.md
     family: tdd
     kind: concept
     parent: tdd_workflow
     authority: documented_contract
-    description: The five AC authority tiers (CODE-ONLY/CODE-LED/HU/LLM-LED/LLM-ONLY), the cross-tier MUST rules, and the tier->valid-proof matrix; one AC = one tier, declared via a {tier:XX} marker at the AC definition site and ratcheted by a shrink-only untagged-debt baseline.
+    description: The five AC authority tiers (CODE-ONLY/CODE-LED/HU/LLM-LED/LLM-ONLY), the cross-tier MUST rules, and the tier->valid-proof matrix; one AC = one tier, declared via a {tier:XX} marker at the AC definition site and ratcheted by a shrink-only untagged-debt baseline. Internalized into the authority package (migration-standard step 3); the central docs/ssot/authority-tiers.md is retired.
     proofs:
       - tests/tooling/test_ac_authority_tiers.py
     cross_refs:
@@ -726,7 +726,7 @@ concepts:
     authority: machine_generated
     description: Shrink-only untagged-AC debt baseline for the authority-tier ratchet (tools/check_ac_tier_baseline.py); lists ACs that predate the tier attribute and may stay untagged, so new/changed ACs must declare a tier while legacy debt ratchets down.
     cross_refs:
-      - docs/ssot/authority-tiers.md
+      - common/authority/readme.md
       - common/authority/check_ac_tier_baseline.py
       - tools/check_ac_tier_baseline.py
       - tests/tooling/test_ac_authority_tiers.py
@@ -739,7 +739,7 @@ concepts:
     authority: machine_generated
     description: Registered draft packages for the migration-safety draft gate (tools/check_draft_packages.py); a draft package leaves its authority tier undecided, so listing it here makes adding one a reviewed act and a draft must carry no done ACs.
     cross_refs:
-      - docs/ssot/authority-tiers.md
+      - common/authority/readme.md
       - common/ssot/check_draft_packages.py
       - tools/check_draft_packages.py
       - tests/tooling/test_migration_safety_gates.py

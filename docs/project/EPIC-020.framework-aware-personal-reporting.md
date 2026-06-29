@@ -69,7 +69,7 @@ Not owned here:
 ## Reporting Pipeline Authority Tiers (EPIC-026 applied)
 
 The personal-report pipeline is three layers, each with a distinct authority tier
-from the locked EPIC-026 5-tier set (see `docs/ssot/authority-tiers.md`). The tier
+from the locked EPIC-026 5-tier set (see `common/authority/readme.md`). The tier
 is assigned by *who emits the artifact that is used*, and it dictates the layer's
 valid proof type. This is the deterministic-by-construction spine of the report:
 LLM judgement is confined to the one layer where polymorphism is irreducible, and

@@ -61,6 +61,9 @@ MUST_BE_ABSENT: list[Path] = [
     REPO_ROOT / "docs" / "ssot" / "coverage-verification.md",
     # observability.logging-improvements.md renamed to observability-logging.md
     REPO_ROOT / "docs" / "ssot" / "observability.logging-improvements.md",
+    # authority-tiers.md internalized into the authority package
+    # (common/authority/readme.md) per migration-standard step 3 "SSOT internalized".
+    REPO_ROOT / "docs" / "ssot" / "authority-tiers.md",
 ]
 
 # ---------------------------------------------------------------------------
@@ -135,7 +138,8 @@ SCAN_SUFFIXES: tuple[str, ...] = (".md", ".py")
 CHECK4_EXEMPT_PATHS: set[Path] = {
     REPO_ROOT / "AGENTS.md",  # root policy doc — intentional high-level summaries
     REPO_ROOT / "CLAUDE.md",  # symlink -> AGENTS.md (Claude Code entry point)
-    REPO_ROOT / "GEMINI.md",  # symlink -> AGENTS.md (Gemini/Antigravity CLI entry point)
+    REPO_ROOT
+    / "GEMINI.md",  # symlink -> AGENTS.md (Gemini/Antigravity CLI entry point)
     REPO_ROOT / "README.md",  # project overview — summary mention OK
     REPO_ROOT / "vision.md",  # North Star document
 }
