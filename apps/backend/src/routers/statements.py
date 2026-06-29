@@ -645,6 +645,11 @@ async def import_brokerage_statement_positions(
             filename=source_filename,
             source_document_id=source_document_id,
         )
+        # #1484: anchor the statement to the broker account the import reconciled
+        # into, closing the source→account traceability gap (a bank statement is
+        # linked the same way during posting). Only set it when not already linked.
+        if statement.account_id is None and import_result.account_id is not None:
+            statement.account_id = import_result.account_id
         await db.commit()
     except Exception as exc:
         logger.exception(

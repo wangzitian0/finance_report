@@ -259,6 +259,9 @@ class BrokerageImportResponse(BaseModel):
     reconcile_updated: int = Field(ge=0)
     reconcile_disposed: int = Field(ge=0)
     skipped: int = Field(ge=0)
+    # #1484: the broker ASSET account the statement is now anchored to (null when
+    # no single broker account applies, e.g. zero positions).
+    account_id: UUID | None = None
 
 
 HoldingListResponse = ListResponse[HoldingResponse]

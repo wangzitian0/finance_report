@@ -917,3 +917,46 @@ async def test_AC17_33_3_broker_account_currency_is_normalized_with_usd_fallback
 
     assert lower.currency == "HKD"
     assert blank.currency == "USD"
+
+
+async def test_AC17_4_14_brokerage_import_links_statement_to_broker_account(client, db, test_user):
+    """AC17.4.14 (#1484): importing brokerage positions links the statement to the
+    broker ASSET account it reconciles into, closing the source->account
+    traceability gap (statement.account_id was previously left None)."""
+    statement = await _seed_statement(
+        db,
+        test_user.id,
+        file_hash="issue-1484-moomoo",
+        file_path="statements/moomoo/test.pdf",
+        original_filename="moomoo-2504.pdf",
+        account_last4="1582",
+        period_start=date(2026, 5, 1),
+        period_end=date(2026, 5, 31),
+        opening_balance=Decimal("1000.00"),
+        closing_balance=Decimal("2250.50"),
+        confidence_score=95,
+        balance_validated=True,
+        transactions=[
+            {
+                "txn_date": date(2026, 5, 18),
+                "description": "Fullerton SGD Money Market Fund",
+                "amount": Decimal("1250.50"),
+                "direction": TransactionDirection.IN,
+                "currency": "SGD",
+            }
+        ],
+    )
+    statement_id = statement.id
+    await db.commit()
+    assert statement.account_id is None  # precondition: not yet linked
+
+    response = await client.post(f"/statements/{statement_id}/brokerage/import")
+    assert response.status_code == 200, response.text
+
+    # The statement is now anchored to the broker ASSET account the import created.
+    linked = (await db.execute(select(StatementSummary).where(StatementSummary.id == statement_id))).scalar_one()
+    assert linked.account_id is not None, "brokerage import must link statement.account_id to its broker account"
+    account = await db.get(Account, linked.account_id)
+    assert account is not None
+    assert account.type == AccountType.ASSET
+    assert account.name == "Moomoo"

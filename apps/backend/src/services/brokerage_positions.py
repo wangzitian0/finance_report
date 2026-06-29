@@ -11,9 +11,11 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.models.account import Account, AccountType
 from src.models.layer2 import AssetType, AtomicPosition
 from src.money import to_money
 from src.services.assets import AssetService
@@ -46,6 +48,10 @@ class BrokerageImportResult:
     reconcile_updated: int
     reconcile_disposed: int
     skipped: int
+    # #1484: the broker ASSET account these positions reconciled into, so the
+    # caller can anchor the statement to it. None when no single account applies
+    # (e.g. zero positions, or a mixed-broker payload).
+    account_id: UUID | None = None
 
 
 _BROKER_ALIASES = (
@@ -828,6 +834,19 @@ class BrokeragePositionImportService:
         if reconcile and snapshots:
             reconcile_result = await AssetService().reconcile_positions(db, user_id)
 
+        # #1484: anchor the statement to the broker account these positions
+        # reconciled into. Only resolve when the payload is a single broker (one
+        # account) — a statement spanning multiple brokers has no single anchor.
+        account_id: UUID | None = None
+        brokers = {snapshot.broker for snapshot in snapshots}
+        if reconcile_result is not None and len(brokers) == 1:
+            account_id = await db.scalar(
+                select(Account.id)
+                .where(Account.user_id == user_id)
+                .where(Account.name == broker)
+                .where(Account.type == AccountType.ASSET)
+            )
+
         return BrokerageImportResult(
             broker=broker,
             parsed_positions=len(snapshots),
@@ -837,4 +856,5 @@ class BrokeragePositionImportService:
             reconcile_updated=reconcile_result.updated if reconcile_result else 0,
             reconcile_disposed=reconcile_result.disposed if reconcile_result else 0,
             skipped=reconcile_result.skipped if reconcile_result else 0,
+            account_id=account_id,
         )

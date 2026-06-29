@@ -539,6 +539,7 @@ async def test_AC10_8_3_statement_scoped_brokerage_import_audit_logs(db, test_us
         reconcile_updated=0,
         reconcile_disposed=0,
         skipped=0,
+        account_id=None,
     )
 
     async def fake_import_positions(*_args, **_kwargs):
