@@ -39,9 +39,9 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
-import fitz  # type: ignore[import-untyped]
-import httpx
-from PIL import Image
+# fitz / PIL / httpx are imported lazily inside the live recorder functions so the pure
+# data-shaping helpers (and their tests) import cleanly where those heavy deps aren't
+# installed (e.g. the tooling-coverage CI env).
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "apps/backend"))
@@ -114,6 +114,9 @@ def fetch_sources() -> list[tuple[str, Path, Path]]:  # pragma: no cover
 def render_jpeg_pages(pdf_bytes: bytes) -> list[str]:  # pragma: no cover
     """Render every page to a dim-capped JPEG data URL — small enough that even a
     scanned statement fits the context (raw PNG render is ~22MB → 1261)."""
+    import fitz  # type: ignore[import-untyped]
+    from PIL import Image
+
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     urls: list[str] = []
     try:
@@ -137,6 +140,8 @@ def build_messages(image_urls: list[str]) -> list[dict[str, Any]]:
 
 def glm_extract(messages: list[dict[str, Any]], token: str) -> str:  # pragma: no cover
     """Live GLM-4.6V call (thinking disabled) with transient-error backoff; return raw text."""
+    import httpx
+
     body = {
         "model": MODEL,
         "stream": False,
