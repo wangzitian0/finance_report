@@ -45,6 +45,7 @@ from src.services.extraction._llm_led_gate import evaluate_llm_led_extraction_ga
 from src.services.extraction._media import _MediaMixin
 from src.services.extraction._ocr import _OcrMixin
 from src.services.validation import (
+    bank_currency_balances,
     compute_confidence_score,
     count_within_document_dedup_collapse,
     detect_balance_chain_break,
@@ -332,6 +333,39 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                         for bucket in brokerage_balances
                     ]
 
+            # AC4.13.9 (#1502): bank parity with the brokerage per-currency path.
+            # A multi-currency BANK statement (e.g. a DBS consolidated / multi-
+            # currency account) holds several currencies at once. Collapsing them
+            # into one scalar opening/closing — or worse, cross-summing the per-
+            # currency transaction nets — is meaningless. When the bank payload
+            # declares per-currency ``balances`` for >1 currency, persist the array
+            # and reconcile each currency independently; ``is_valid`` is then
+            # governed by that per-currency self-check below. Single-currency bank
+            # statements keep ``bank_balances=None`` and the unchanged scalar path.
+            bank_balances = None
+            if not is_brokerage_payload:
+                bank_balances = bank_currency_balances(extracted)
+                if bank_balances:
+                    bank_per_currency = validate_balance_per_currency(
+                        {"balances": bank_balances, "transactions": extracted.get("transactions", [])}
+                    )
+                    if not bank_per_currency["balance_valid"]:
+                        failed = [
+                            f"{r['currency']} (expected {r.get('expected_closing')}, got {r.get('actual_closing')})"
+                            for r in bank_per_currency.get("per_currency", [])
+                            if not r.get("balance_valid")
+                        ]
+                        per_currency_invalid_note = (
+                            "Per-currency balance self-check failed: " + ", ".join(failed)
+                            if failed
+                            else "Per-currency balance self-check failed"
+                        )
+                        record_financial_invariant_violation(
+                            kind="per_currency_nav",
+                            institution_class=_institution_class(is_brokerage=is_brokerage_payload),
+                        )
+                    statement.currency_balances = bank_balances
+
             transactions: list[AtomicTransaction] = []
             net_transactions = Decimal("0.00")
             # Per-document occurrence ordinal among rows that would otherwise hash
@@ -555,6 +589,11 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             # the array is the authoritative multi-currency evidence (#1160 CR1).
             if per_currency_invalid_note is not None:
                 is_valid = False
+            elif bank_balances is not None:
+                # AC4.13.9 (#1502): a multi-currency bank statement reconciled each
+                # currency independently above, so the cross-summed scalar verdict
+                # is meaningless — the per-currency self-check governs (valid here).
+                is_valid = True
             # Only assert a balance verdict when the chain was actually evaluable.
             # A brokerage/no-balance statement has no opening+closing to check, so
             # `validate_balance_explicit` returns a vacuous `0 == 0` True — report

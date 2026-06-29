@@ -8,6 +8,7 @@ from decimal import Decimal
 
 from src.models.statement_enums import BankStatementStatus
 from src.services.validation import (
+    bank_currency_balances,
     compute_confidence_score,
     route_by_threshold,
     validate_balance,
@@ -440,3 +441,31 @@ def test_AC1_duplicate_currency_in_balances_is_rejected():
     assert result["balance_computable"] is False
     assert result["per_currency"] == []
     assert "Duplicate currency" in (result["notes"] or "")
+
+
+def test_AC4_13_9_bank_currency_balances_emitted_only_when_multi_currency():
+    """AC4.13.9 (#1502): a bank payload declaring >1 currency yields the per-currency
+    array (JSONB-ready string amounts); a single-currency / scalar-only payload
+    returns None so the existing scalar path is unchanged."""
+    multi = {
+        "currency": "SGD",
+        "balances": [
+            {"currency": "SGD", "opening": "1000.00", "closing": "1500.00"},
+            {"currency": "USD", "opening": "200.00", "closing": "500.00"},
+        ],
+        "transactions": [],
+    }
+    result = bank_currency_balances(multi)
+    assert result is not None
+    by_ccy = {b["currency"]: b for b in result}
+    assert set(by_ccy) == {"SGD", "USD"}
+    assert by_ccy["USD"]["opening"] == "200.00" and by_ccy["USD"]["closing"] == "500.00"
+    assert all(isinstance(b["opening"], str) and isinstance(b["closing"], str) for b in result)
+
+    # Single declared currency -> None (degenerate scalar path).
+    single = {"currency": "SGD", "balances": [{"currency": "SGD", "opening": "1000.00", "closing": "1500.00"}]}
+    assert bank_currency_balances(single) is None
+    # No balances array at all (today's scalar-only bank payload) -> None.
+    assert (
+        bank_currency_balances({"currency": "SGD", "opening_balance": "1000.00", "closing_balance": "1500.00"}) is None
+    )
