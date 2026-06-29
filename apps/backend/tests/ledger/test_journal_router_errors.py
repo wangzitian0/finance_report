@@ -8,10 +8,10 @@ from datetime import date
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
+from src.ledger import ValidationError
 from src.models.account import Account, AccountType
 from src.models.journal import JournalEntry, JournalEntryStatus
-from src.services.accounting import ValidationError
-from tests.accounting._ledger_helpers import create_valid_posted_entry
+from tests.ledger._ledger_helpers import create_valid_posted_entry
 
 
 class TestJournalRouterErrors:

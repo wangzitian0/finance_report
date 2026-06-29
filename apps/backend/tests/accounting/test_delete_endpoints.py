@@ -18,7 +18,7 @@ from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
-from tests.accounting._ledger_helpers import create_valid_posted_entry
+from tests.ledger._ledger_helpers import create_valid_posted_entry
 
 
 async def test_delete_account(client: AsyncClient, db: AsyncSession, test_user):

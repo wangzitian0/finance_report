@@ -20,15 +20,15 @@ from common.testing.ac_proof import ac_proof
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.account import Account, AccountType
-from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
-from src.services.accounting import (
+from src.ledger import (
     ValidationError,
     calculate_account_balance,
     post_journal_entry,
     validate_journal_balance,
     verify_accounting_equation,
 )
+from src.models.account import Account, AccountType
+from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 
 
 @pytest.fixture

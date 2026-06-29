@@ -9,7 +9,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.services.reporting import ReportError
-from tests.accounting._ledger_helpers import create_valid_posted_entry
+from tests.ledger._ledger_helpers import create_valid_posted_entry
 
 
 async def test_reports_router_errors_extended(client: AsyncClient, monkeypatch):

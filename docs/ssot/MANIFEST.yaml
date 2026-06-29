@@ -98,7 +98,7 @@ concepts:
       - common/authority/readme.md
       - common/authority/contract.py
       - common/authority/__init__.py
-      - apps/backend/src/ledger/ledger.contract.md
+      - common/ledger/contract.py
       - docs/project/EPIC-025.dry-ssot-simplification.md
     proofs:
       - tests/tooling/test_counter_package.py
@@ -109,7 +109,7 @@ concepts:
     family: accounting
     cross_refs:
       - docs/agents/red-lines.md
-      - apps/backend/tests/accounting/test_accounting_equation.py
+      - apps/backend/tests/ledger/test_accounting_equation.py
 
   double_entry_bookkeeping:
     owner: common/ledger/readme.md#entry-balance
@@ -117,7 +117,7 @@ concepts:
     family: accounting
     cross_refs:
       - docs/agents/red-lines.md
-      - apps/backend/tests/accounting/test_accounting.py
+      - apps/backend/tests/ledger/test_accounting.py
 
   transaction_boundary:
     owner: common/ledger/readme.md#async-tx-boundary
@@ -125,7 +125,7 @@ concepts:
     family: accounting
     cross_refs:
       - docs/agents/red-lines.md
-      - apps/backend/tests/accounting/test_accounting_integration.py
+      - apps/backend/tests/ledger/test_accounting_integration.py
 
   # ── Schema / Database domain ───────────────────────────────────────────
   database_schema:

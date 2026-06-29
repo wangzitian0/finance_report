@@ -1,19 +1,23 @@
-"""``ledger`` — the double-entry domain module (vertical slice).
+"""``ledger`` — the double-entry bookkeeping bounded context (a ``core`` package).
 
-Roles converge by folder: ``types/`` (nouns: ``Entry``/``Leg`` — the balance
-invariant), ``ops/`` (verbs: ``post_entry``). Persistence (``models.journal`` /
-``services.accounting``) and API (``routers``/``schemas.journal``) are the
-``store``/``api`` roles, kept in place for now (their physical relocation is
-downstream-owned structure, not a proof-quality gain — see vision).
+The conforming implementation of ``common/ledger`` (its ``contract.py`` + ``readme.md``
+own the spec). Layers converge by folder (see ``common/meta/migration-standard.md``):
 
-Dependency rule: ``ops → {types, store} → kernel`` (``src.money`` etc.); never
-upward.
+- ``base/``      — pure core: the ``Entry``/``Leg`` balance invariant, the typed
+                   errors, the three pure posting validators, and the
+                   ``JournalRepository`` *port*. No I/O.
+- ``extension/`` — impure edges: ``post_entry`` (the posting domain service) and the
+                   ``AsyncSession`` adapter (``create``/``post``/``void`` +
+                   ``validate_line_account_ownership``) that satisfies the port.
+- ``data/``      — the account-balance projection (read model / leaf sink): signed
+                   balances + the accounting-equation check.
 
-The public surface is exposed **lazily** via ``__getattr__`` so a module in the
-``store`` layer (e.g. ``services.accounting``, ``services.fx_revaluation``) can
-``from src.ledger import Entry, Leg`` to use the balance invariant **without**
-eagerly pulling in ``ops`` — which imports ``services.accounting`` and would form
-a cycle.
+The published language below (``__all__``) must equal ``contract.interface``.
+
+The surface is exposed **lazily** via ``__getattr__`` so a caller that only needs the
+pure ``Entry``/``Leg`` types (e.g. tooling tests, or ``services.accounting`` building
+an opening-balance entry) does not eagerly pull the ``extension`` ORM/``AsyncSession``
+edge into its import graph.
 """
 
 from __future__ import annotations
@@ -21,43 +25,95 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from src.ledger.ops import post_entry
-    from src.ledger.types import (
+    from src.ledger.base import (
+        AccountingError,
         DegenerateEntryError,
         Entry,
+        JournalRepository,
         LedgerError,
         Leg,
         UnbalancedEntryError,
+        ValidationError,
+        validate_fx_rates,
+        validate_journal_balance,
+        validate_journal_posting_invariants,
+    )
+    from src.ledger.data import (
+        calculate_account_balance,
+        calculate_account_balances,
+        verify_accounting_equation,
+    )
+    from src.ledger.extension import (
+        SqlJournalRepository,
+        create_journal_entry,
+        post_entry,
+        post_journal_entry,
+        validate_line_account_ownership,
+        void_journal_entry,
     )
 
 __all__ = [
-    "Entry",
+    "AccountingError",
     "DegenerateEntryError",
-    "Leg",
+    "Entry",
+    "JournalRepository",
     "LedgerError",
+    "Leg",
+    "SqlJournalRepository",
     "UnbalancedEntryError",
+    "ValidationError",
+    "calculate_account_balance",
+    "calculate_account_balances",
+    "create_journal_entry",
     "post_entry",
+    "post_journal_entry",
+    "validate_fx_rates",
+    "validate_journal_balance",
+    "validate_journal_posting_invariants",
+    "validate_line_account_ownership",
+    "verify_accounting_equation",
+    "void_journal_entry",
 ]
 
-_TYPE_NAMES = {
-    "Entry",
-    "Leg",
-    "LedgerError",
-    "UnbalancedEntryError",
+# Which submodule owns each published name (lazy import map).
+_BASE_NAMES = {
+    "AccountingError",
     "DegenerateEntryError",
+    "Entry",
+    "JournalRepository",
+    "LedgerError",
+    "Leg",
+    "UnbalancedEntryError",
+    "ValidationError",
+    "validate_fx_rates",
+    "validate_journal_balance",
+    "validate_journal_posting_invariants",
+}
+_EXTENSION_NAMES = {
+    "SqlJournalRepository",
+    "create_journal_entry",
+    "post_entry",
+    "post_journal_entry",
+    "validate_line_account_ownership",
+    "void_journal_entry",
+}
+_DATA_NAMES = {
+    "calculate_account_balance",
+    "calculate_account_balances",
+    "verify_accounting_equation",
 }
 
 
 def __getattr__(name: str):
-    if name in _TYPE_NAMES:
-        from . import types
-
-        value = getattr(types, name)
-    elif name == "post_entry":
-        from .ops import post_entry as value
+    if name in _BASE_NAMES:
+        from src.ledger import base as _mod
+    elif name in _EXTENSION_NAMES:
+        from src.ledger import extension as _mod
+    elif name in _DATA_NAMES:
+        from src.ledger import data as _mod
     else:
         raise AttributeError(f"module 'src.ledger' has no attribute {name!r}")
-    # Cache so subsequent attribute access skips the re-import (consistent with
-    # the lazy-__getattr__ pattern in src.services.__init__).
+    value = getattr(_mod, name)
+    # Cache so subsequent attribute access skips the re-import.
     globals()[name] = value
     return value

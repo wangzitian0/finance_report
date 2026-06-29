@@ -6,7 +6,7 @@ from uuid import UUID
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.services.accounting import verify_accounting_equation
+from src.ledger import verify_accounting_equation
 
 
 async def test_AC1_9_1_first_run_registration_account_entry_journey(
