@@ -284,6 +284,10 @@ async def get_net_worth_allocation_schedule(
         "total_liabilities": total_liabilities,
         "net_worth": net_worth,
         "rows": rows,
+        # Carry the balance sheet's trust signals so the dashboard surface shows the
+        # same opening-balance gate as the balance sheet (AC2.16.4 / #1481).
+        "confidence_tier": balance_sheet.get("confidence_tier"),
+        "opening_balance_warnings": balance_sheet.get("opening_balance_warnings", []),
     }
 
 

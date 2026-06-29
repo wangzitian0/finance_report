@@ -204,6 +204,34 @@ async def generate_balance_sheet(
     # when sources mix. Mirrors the per-line provenance so the schema field is
     # populated rather than always None.
     aggregate_provenance = _combine_provenance([line.get("provenance") for line in (*assets, *liabilities, *equity)])
+
+    # Opening-balance gate (AC2.16.4 / #1481): a balance sheet built from activity
+    # with no recorded opening balance reflects only period movement, not the
+    # starting position, so its total is structurally incomplete. We never let
+    # such a total be presented as trusted: degrade the aggregate tier to the
+    # least-trusted level and surface a warning the UI can act on. Gated behind
+    # include_trust_signals so per-point net-worth time series skip the extra scan.
+    opening_balance_warnings: list[FxWarning] = []
+    if include_trust_signals:
+        from src.services.accounting import get_opening_balance_readiness
+
+        readiness = await get_opening_balance_readiness(db, user_id)
+        if readiness.get("needs_opening_balance"):
+            earliest = readiness.get("earliest_activity_date")
+            warning: FxWarning = {
+                "type": "missing_opening_balance",
+                "as_of_date": as_of_date.isoformat(),
+                "message": (
+                    "Activity is recorded without an opening balance, so account totals "
+                    "reflect only period movement, not the starting position. Record "
+                    "opening balances to trust this total."
+                ),
+            }
+            if earliest is not None:
+                warning["earliest_activity_date"] = earliest.isoformat()
+            opening_balance_warnings.append(warning)
+            aggregate_tier = _worst_confidence_tier([aggregate_tier, "LOW"])
+
     response_assets = assets if include_allocation_metadata else _strip_allocation_metadata(assets)
     response_liabilities = liabilities if include_allocation_metadata else _strip_allocation_metadata(liabilities)
     response_equity = equity if include_allocation_metadata else _strip_allocation_metadata(equity)
@@ -223,6 +251,7 @@ async def generate_balance_sheet(
         "unrealized_fx_gain_loss": unrealized_fx,
         "net_worth_adjustment_gain_loss": net_worth_adjustment,
         "fx_warnings": fx_warnings,
+        "opening_balance_warnings": opening_balance_warnings,
         "equation_delta": equation_delta,
         "is_balanced": abs(equation_delta) < Decimal("0.01"),
     }
