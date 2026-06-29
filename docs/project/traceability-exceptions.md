@@ -120,6 +120,8 @@ explicit AC IDs for the behavior.
 | `apps/frontend/src/__tests__/sheetAndDetailDialogComponents.test.tsx` | `docs/ssot/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/theme.coverage.test.ts` | `docs/ssot/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/types.test.ts` | `docs/ssot/frontend-patterns.md` |
+| `apps/frontend/src/__tests__/openingBalanceWarningBanner.test.tsx` | `docs/ssot/frontend-patterns.md` (#1486 opening-balance warning surface) |
+| `apps/frontend/src/__tests__/useBaseCurrency.test.tsx` | `docs/ssot/frontend-patterns.md` (#1487 base-currency hook) |
 | `apps/frontend/src/__tests__/useLlmConfigStatus.test.ts` | `docs/ssot/llm.md` |
 | `apps/frontend/src/components/__tests__/ProcessingSummaryCard.test.tsx` | `docs/ssot/processing_account.md` |
 | `apps/frontend/src/components/review/__tests__/ConflictResolutionDialog.keydown.test.tsx` | `docs/ssot/frontend-patterns.md` |
