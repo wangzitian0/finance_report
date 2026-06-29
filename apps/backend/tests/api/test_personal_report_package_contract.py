@@ -14,6 +14,7 @@ from sqlalchemy.exc import MultipleResultsFound
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.deps import PaginationParams
+from src.identity import User
 from src.models.account import Account, AccountType
 from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
@@ -36,7 +37,6 @@ from src.models.portfolio import DividendIncome, MarketDataOverride, PriceSource
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
-from src.models.user import User
 from src.routers.reports import (
     ExportFormat,
     ExportReportType,

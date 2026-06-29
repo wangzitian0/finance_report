@@ -18,8 +18,16 @@ from uuid import UUID
 from fastapi import Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth import get_current_user_id
 from src.database import get_db
+
+# Import the auth dependency from identity's submodule (not the package root) to
+# avoid an import cycle: the identity router (src.identity.extension.api.auth)
+# imports this module for CurrentUserId/DbSession, so importing the identity
+# package root here would re-enter a partially-initialized package. The auth
+# dependency module (src.identity.extension.auth) does not import src.deps, so
+# this deep import is cycle-free. ``get_current_user_id`` is identity's published
+# language (in its __all__); the deep path is an infra import-order detail.
+from src.identity.extension.auth import get_current_user_id
 
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 CurrentUserId = Annotated[UUID, Depends(get_current_user_id)]

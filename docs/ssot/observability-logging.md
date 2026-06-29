@@ -10,8 +10,8 @@
 - `apps/frontend/src/components/statements/StatementUploader.tsx` - Model selection and upload logging
 - `apps/backend/src/routers/statements.py` - Upload request and background task logging
 - `apps/backend/src/routers/reconciliation.py` - Reconciliation run audit checkpoints
-- `apps/backend/src/observability_events.py` - Shared audit/security event helpers and risky-field redaction
-- `apps/backend/src/auth.py` - Authenticated `user_id` log-context binding and auth failure warnings
+- `apps/backend/src/observability/` - Shared audit/security event helpers and risky-field redaction (the `observability` package)
+- `apps/backend/src/identity/extension/auth.py` + `apps/backend/src/identity/extension/observability.py` - Authenticated `user_id` log-context binding and auth-failure warnings (the `identity` package, #1428)
 - `apps/backend/src/routers/journal.py` - Journal post/void mutation audit events
 - `apps/backend/src/services/statement_parsing.py` - Async parse progress and brokerage import checkpoints
 - `apps/backend/src/routers/llm.py` - LLM config + model catalog request/response logging (EPIC-023; replaced `routers/ai_models.py`)

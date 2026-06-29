@@ -1,23 +1,38 @@
-"""Authentication API router."""
+"""Authentication API router (the identity transport edge).
+
+The ``/auth`` router and its domain operations ``register``/``login``/``get_me``.
+This is the identity package's HTTP boundary (``extension/api/``); the route
+handlers ARE the domain services (registration/login), composing the value
+objects, the security domain services, the auth rate limiters, and the
+``UserRepository`` SQL adapter. Moved verbatim (imports repointed) from the
+pre-migration ``src/routers/auth.py`` into the package's single home.
+"""
+
+from __future__ import annotations
 
 import os
 
-import bcrypt
 from fastapi import APIRouter, Depends, Request, Response, status
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from src.auth import AUTH_COOKIE_NAME, oauth2_scheme
-from src.config import settings
+import src.config
 from src.deps import CurrentUserId, DbSession
+from src.identity.base.types import (
+    AUTH_COOKIE_NAME,
+    AuthResponse,
+    LoginRequest,
+    RegisterRequest,
+    normalize_email,
+)
+from src.identity.extension.auth import oauth2_scheme
+from src.identity.extension.observability import bind_authenticated_user_context
+from src.identity.extension.rate_limit import auth_rate_limiter, register_rate_limiter
+from src.identity.extension.security import create_access_token, hash_password, verify_password
+from src.identity.extension.sql import SqlUserRepository, User
 from src.logger import get_logger
-from src.models.user import User
 from src.observability import log_security_warning
-from src.observability_events import bind_authenticated_user_context
 from src.platform import RateLimiter
-from src.rate_limit import auth_rate_limiter, register_rate_limiter
-from src.schemas.auth import AuthResponse, LoginRequest, RegisterRequest
-from src.security import create_access_token
 from src.telemetry_metrics import record_rate_limit_rejected
 from src.utils import raise_bad_request, raise_not_found, raise_too_many_requests, raise_unauthorized
 
@@ -63,24 +78,9 @@ def _check_rate_limit(request: Request, limiter: RateLimiter, error_msg: str) ->
         raise_too_many_requests(error_msg, retry_after=retry_after)
 
 
-def hash_password(password: str) -> str:
-    """Hash a password using bcrypt."""
-    salt = bcrypt.gensalt()
-    return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
-
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a password against its hash."""
-    return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
-
-
-def normalize_email(email: str) -> str:
-    """Return the canonical identity key used for registration and login."""
-    return email.strip().casefold()
-
-
 def _set_auth_cookie(response: Response, access_token: str) -> None:
     """Set the HttpOnly access token cookie used by browser clients."""
+    settings = src.config.settings
     environment = str(settings.environment).strip().lower()
     response.set_cookie(
         key=AUTH_COOKIE_NAME,
@@ -108,10 +108,11 @@ async def register(
         "Too many registration attempts. Please try again later.",
     )
 
+    repo = SqlUserRepository(db)
+
     # Check if email already exists
     normalized_email = normalize_email(str(data.email))
-    result = await db.execute(select(User).where(func.lower(User.email) == normalized_email))
-    existing = result.scalar_one_or_none()
+    existing = await repo.get_by_normalized_email(normalized_email)
 
     if existing:
         raise_bad_request("Email already registered")
@@ -121,7 +122,7 @@ async def register(
         name=data.name,
         hashed_password=hash_password(data.password),
     )
-    db.add(user)
+    await repo.add(user)
     try:
         await db.commit()
     except IntegrityError as e:
@@ -161,8 +162,7 @@ async def login(
     )
 
     normalized_email = normalize_email(str(data.email))
-    result = await db.execute(select(User).where(func.lower(User.email) == normalized_email))
-    user = result.scalar_one_or_none()
+    user = await SqlUserRepository(db).get_by_normalized_email(normalized_email)
 
     if not user or not verify_password(data.password, user.hashed_password):
         log_security_warning(

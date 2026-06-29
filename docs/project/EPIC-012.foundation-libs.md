@@ -47,7 +47,7 @@ This EPIC addresses technical debt in the foundational libraries that all module
 | Logging | `src/logger.py` | Add tracing, trace_id processor |
 | Database | `src/database.py`, `src/config.py` | Pool config, transaction patterns |
 | Exceptions | `src/utils/exceptions.py` | BaseAppException class |
-| Rate Limiting | `src/rate_limit.py` | Global API limiter |
+| Rate Limiting | `src/platform` (generic limiter) · `src/identity/extension/rate_limit.py` (auth-endpoint limiters) | Generic limiter in the platform package; auth-specific limiters in the identity package (#1428) |
 | Debugging | `tools/debug.py` | vendor-neutral OTEL resource-filter pointer |
 | Schemas | `src/schemas/*.py` | Consistent BaseResponse inheritance |
 
@@ -390,7 +390,7 @@ consolidated here. The removed inventory is retained in
 | Config | `src/config.py` | ✅ Pydantic Settings |
 | Database | `src/database.py` | ⚠️ Needs pool config |
 | Storage | `src/services/storage.py` | ✅ S3/MinIO abstraction |
-| Rate Limit | `src/rate_limit.py` | ⚠️ Auth-only |
+| Rate Limit | `src/identity/extension/rate_limit.py` | ⚠️ Auth-only (identity package, #1428) |
 | Dependencies | `src/deps.py` | ✅ DbSession, CurrentUserId |
 | Boot | `src/boot.py` | ✅ Health checks |
 | Debug | `tools/debug.py` | prints OTEL attribute filters (no backend API) |

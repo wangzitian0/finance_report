@@ -1,21 +1,33 @@
-"""Authentication helpers for request-scoped user context."""
+"""Authentication domain service: resolve request-scoped user identity.
+
+``get_current_user_id`` is the FastAPI dependency that resolves the current user
+from a JWT (bearer token first, then the HttpOnly ``AUTH_COOKIE_NAME`` cookie),
+validates it, verifies the user still exists, and binds the user into the log
+context. ``oauth2_scheme`` is the bearer extractor. These were the pre-migration
+``src/auth.py`` helpers, moved into the package's single home.
+
+KIND_LAYER places domain services in ``extension`` (they touch I/O: the DB and
+structlog). The user-existence check goes through the ``UserRepository`` port's
+SQL adapter (dependency inversion).
+"""
+
+from __future__ import annotations
 
 from typing import cast
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_db
+from src.identity.base.types import AUTH_COOKIE_NAME
+from src.identity.extension.observability import bind_authenticated_user_context
+from src.identity.extension.security import decode_access_token
+from src.identity.extension.sql import SqlUserRepository
 from src.logger import get_logger
-from src.models.user import User
 from src.observability import log_security_warning
-from src.observability_events import bind_authenticated_user_context
-from src.security import decode_access_token
 
-AUTH_COOKIE_NAME = "finance_access_token"
 logger = get_logger(__name__)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
@@ -65,8 +77,7 @@ async def get_current_user_id(
         )
 
     # Performance optimization: verify user existence (optional, but safer)
-    result = await db.execute(select(User.id).where(User.id == user_uuid))
-    if result.scalar_one_or_none() is None:
+    if not await SqlUserRepository(db).exists(user_uuid):
         log_security_warning(logger, "auth.failure", reason="user_not_found", user_id=user_uuid)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

@@ -1,4 +1,4 @@
-"""AC1.8.1: Authenticated user management endpoint tests.
+"""AC-identity.1.3: Authenticated user management endpoint tests.
 
 The public registration surface is /auth/register. The legacy /users router is
 kept only for authenticated current-user operations and must not expose or
@@ -12,15 +12,15 @@ from fastapi import HTTPException
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.user import User
-from src.routers.users import get_user, update_user
+from src.identity import User
+from src.identity.extension.api.users import get_user, update_user
 from src.schemas.user import UserCreate, UserUpdate
 
 pytestmark = pytest.mark.asyncio
 
 
 async def test_AC1_8_1_users_endpoints_require_auth(public_client: AsyncClient, test_user: User) -> None:
-    """AC1.8.1: Legacy /users endpoints reject unauthenticated callers."""
+    """AC-identity.1.3: Legacy /users endpoints reject unauthenticated callers."""
     other_id = uuid4()
 
     responses = [
@@ -34,7 +34,7 @@ async def test_AC1_8_1_users_endpoints_require_auth(public_client: AsyncClient, 
 
 
 async def test_AC1_8_1_create_user_route_no_longer_registers_users(client: AsyncClient) -> None:
-    """AC1.8.1: User registration is constrained to /auth/register."""
+    """AC-identity.1.3: User registration is constrained to /auth/register."""
     response = await client.post(
         "/users",
         json={"email": "legacy-create@example.com", "password": "securepassword123"},
@@ -45,7 +45,7 @@ async def test_AC1_8_1_create_user_route_no_longer_registers_users(client: Async
 
 
 async def test_AC1_8_1_list_users_returns_only_current_user(client: AsyncClient, test_user: User) -> None:
-    """AC1.8.1: Listing users does not disclose other user records."""
+    """AC-identity.1.3: Listing users does not disclose other user records."""
     response = await client.get("/users")
 
     assert response.status_code == 200
@@ -55,7 +55,7 @@ async def test_AC1_8_1_list_users_returns_only_current_user(client: AsyncClient,
 
 
 async def test_AC1_8_1_get_user_by_id_allows_current_user(client: AsyncClient, test_user: User) -> None:
-    """AC1.8.1: Current user can read their own profile through the legacy route."""
+    """AC-identity.1.3: Current user can read their own profile through the legacy route."""
     response = await client.get(f"/users/{test_user.id}")
 
     assert response.status_code == 200
@@ -68,7 +68,7 @@ async def test_AC1_8_1_get_user_by_id_hides_other_users(
     client: AsyncClient,
     db: AsyncSession,
 ) -> None:
-    """AC1.8.1: User lookups do not disclose another user's profile."""
+    """AC-identity.1.3: User lookups do not disclose another user's profile."""
     other = User(email="other-user@example.com", hashed_password="hashed")
     db.add(other)
     await db.commit()
@@ -82,7 +82,7 @@ async def test_AC1_8_1_get_user_by_id_hides_other_users(
 async def test_AC1_8_1_get_user_by_id_returns_not_found_when_current_user_record_is_missing(
     db: AsyncSession,
 ) -> None:
-    """AC1.8.1: A valid token cannot disclose a deleted current-user row."""
+    """AC-identity.1.3: A valid token cannot disclose a deleted current-user row."""
     missing_user_id = uuid4()
 
     with pytest.raises(HTTPException) as exc_info:
@@ -92,7 +92,7 @@ async def test_AC1_8_1_get_user_by_id_returns_not_found_when_current_user_record
 
 
 async def test_AC1_8_1_update_user_email_allows_current_user(client: AsyncClient, test_user: User) -> None:
-    """AC1.8.1: Current user can update their own email."""
+    """AC-identity.1.3: Current user can update their own email."""
     response = await client.put(f"/users/{test_user.id}", json={"email": "updated-current@example.com"})
 
     assert response.status_code == 200
@@ -105,7 +105,7 @@ async def test_AC1_8_1_update_user_email_hides_other_users(
     client: AsyncClient,
     db: AsyncSession,
 ) -> None:
-    """AC1.8.1: Current user cannot mutate another user's email."""
+    """AC-identity.1.3: Current user cannot mutate another user's email."""
     other = User(email="victim@example.com", hashed_password="hashed")
     db.add(other)
     await db.commit()
@@ -121,7 +121,7 @@ async def test_AC1_8_1_update_user_email_hides_other_users(
 async def test_AC1_8_1_update_user_returns_not_found_when_current_user_record_is_missing(
     db: AsyncSession,
 ) -> None:
-    """AC1.8.1: A valid token cannot recreate a deleted current-user row via update."""
+    """AC-identity.1.3: A valid token cannot recreate a deleted current-user row via update."""
     missing_user_id = uuid4()
 
     with pytest.raises(HTTPException) as exc_info:
@@ -140,7 +140,7 @@ async def test_AC1_8_1_update_user_duplicate_email_rejected(
     db: AsyncSession,
     test_user: User,
 ) -> None:
-    """AC1.8.1: Current-user update still enforces email uniqueness."""
+    """AC-identity.1.3: Current-user update still enforces email uniqueness."""
     other = User(email="existing@example.com", hashed_password="hashed")
     db.add(other)
     await db.commit()

@@ -8,6 +8,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.identity import User
 from src.models.account import Account, AccountType
 from src.models.layer2 import AssetType, AtomicPosition
 from src.models.layer3 import (
@@ -22,7 +23,6 @@ from src.models.market_data import StockPrice
 from src.models.portfolio import DividendIncome, MarketDataOverride, PriceSource
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
-from src.models.user import User
 from src.routers.reports import (
     personal_report_package_contract,
     personal_report_package_framework_policy,

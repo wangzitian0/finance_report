@@ -22,6 +22,11 @@ Other code must import each model from its owning module
 
 from __future__ import annotations
 
+# The identity package (User/AiFeedback) registers its ORM models onto
+# Base.metadata via its SQL adapter module, mirroring counter/platform (whose
+# tables are registered the same way, not from this models package).
+import src.identity.extension.sql  # noqa: F401,E402
+
 # Imported purely for the metadata-registration side effect; ordering is
 # irrelevant because SQLAlchemy resolves relationships after all are loaded.
 from . import (  # noqa: F401
@@ -45,7 +50,6 @@ from . import (  # noqa: F401
     reconciliation,
     statement_enums,
     statement_summary,
-    user,
     workflow,
 )
 

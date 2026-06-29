@@ -3,8 +3,8 @@
 The shared, non-identity logging surface of the ``observability`` package: bounded
 one-line error summaries, risky-field redaction, and stable audit-event emitters
 for financial mutations and security warnings. Identity's request-context binding
-(``bind_authenticated_user_context``) deliberately lives elsewhere
-(``src.observability_events``) and is folded in later by #1428.
+(``bind_authenticated_user_context``) lives in the ``identity`` package
+(``src.identity.extension.observability``, #1428).
 """
 
 from __future__ import annotations

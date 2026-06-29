@@ -2,7 +2,7 @@
 
 Kickoff of [#1000](https://github.com/wangzitian0/finance_report/issues/1000). Endpoints below declare no (non-`None`) `response_model`, so their response contract is absent from the OpenAPI schema. Type them (or document why a status-only handler is intentional) and lower the budget (`DEFAULT_MAX_UNTYPED_ENDPOINTS` in `common/ssot/audit_router_contracts.py`).
 
-**Untyped endpoints: 10**
+**Untyped endpoints: 9**
 
 The `Route` column is **router-relative** — it excludes the `APIRouter(prefix=...)` (e.g. `/accounts`), so combine it with the router's prefix to get the full path.
 
@@ -17,4 +17,3 @@ The `Route` column is **router-relative** — it excludes the `APIRouter(prefix=
 | `GET` | `/export` | `export_report` | apps/backend/src/routers/reports.py:789 |
 | `GET` | `/{statement_id}/document` | `get_statement_document` | apps/backend/src/routers/statements.py:543 |
 | `DELETE` | `/{statement_id}` | `delete_statement` | apps/backend/src/routers/statements.py:681 |
-| `DELETE` | `/{user_id}` | `delete_user` | apps/backend/src/routers/users.py:104 |

@@ -114,8 +114,8 @@ def reset_rate_limiters():
     the per-IP counters accumulate across the whole session and trip a 429
     cascade once the global API limit is exceeded (tests share one client IP).
     """
+    from src.identity import auth_rate_limiter, register_rate_limiter
     from src.main import api_rate_limiter
-    from src.rate_limit import auth_rate_limiter, register_rate_limiter
 
     for limiter in (api_rate_limiter, auth_rate_limiter, register_rate_limiter):
         limiter.clear()
@@ -298,6 +298,7 @@ async def _schema_engine(test_database_url):
     # role packages (counter_tally + the shared outbox) live outside that
     # package, so they are imported explicitly here.
     import src.counter.extension.sql  # noqa: F401
+    import src.identity.extension.sql  # noqa: F401  -- User/AiFeedback
     import src.models._registry  # noqa: F401
     import src.platform.extension.sql  # noqa: F401
     from src.database import Base
@@ -396,7 +397,7 @@ async def db(db_engine):
 @pytest_asyncio.fixture(scope="function")
 async def test_user(db: AsyncSession):
     """Create a test user for authenticated requests."""
-    from src.models.user import User
+    from src.identity import User
 
     user = User(
         email=f"test-{uuid4()}@example.com",
@@ -427,8 +428,8 @@ async def client(db_engine, test_user, test_database_url):
     # Database connection is handled by patch_database_connection autouse fixture
 
     # Import app after setting env var
+    from src.identity import create_access_token
     from src.main import app
-    from src.security import create_access_token
 
     token = create_access_token(data={"sub": str(test_user.id)})
     try:

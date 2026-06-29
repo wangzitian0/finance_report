@@ -6,7 +6,7 @@ from unittest.mock import patch
 import jwt
 
 from src.config import settings
-from src.security import create_access_token, decode_access_token
+from src.identity import create_access_token, decode_access_token
 
 
 def test_create_access_token_with_custom_expiry():
@@ -73,7 +73,7 @@ def test_decode_access_token_expired():
     expires_delta = timedelta(seconds=-1)
     token = create_access_token(data, expires_delta)
 
-    with patch("src.security.logger.debug") as mock_debug:
+    with patch("src.identity.extension.security.logger.debug") as mock_debug:
         payload = decode_access_token(token)
 
     assert payload is None
@@ -89,7 +89,7 @@ def test_decode_access_token_invalid_signature():
     data = {"sub": "user999"}
     token = jwt.encode(data, "wrong-secret", algorithm=settings.jwt_algorithm)
 
-    with patch("src.security.logger.warning") as mock_warning:
+    with patch("src.identity.extension.security.logger.warning") as mock_warning:
         payload = decode_access_token(token)
 
     assert payload is None
@@ -101,7 +101,7 @@ def test_decode_access_token_invalid_signature():
 def test_decode_access_token_malformed():
     """AC8.2.3: Verify that malformed tokens return None and log warning."""
     token = "not.a.valid.jwt.token"
-    with patch("src.security.logger.warning") as mock_warning:
+    with patch("src.identity.extension.security.logger.warning") as mock_warning:
         payload = decode_access_token(token)
     assert payload is None
     mock_warning.assert_called_once()

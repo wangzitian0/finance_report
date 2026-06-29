@@ -88,7 +88,7 @@ async def test_export_csv_rows_coverage(client: AsyncClient):
 
 async def test_auth_coverage_errors(client: AsyncClient):
     """Test error paths in auth.py."""
-    from src.security import create_access_token
+    from src.identity import create_access_token
 
     # 1. Token missing subject (sub)
     token_no_sub = create_access_token(data={"not_sub": "val"})

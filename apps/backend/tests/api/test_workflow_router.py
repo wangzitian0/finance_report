@@ -12,7 +12,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth import get_current_user_id
+from src.identity import User, get_current_user_id
 from src.main import app
 from src.models.account import Account, AccountType
 from src.models.layer1 import DocumentType, UploadedDocument
@@ -20,7 +20,6 @@ from src.models.layer3 import ClassificationRule, RuleType
 from src.models.layer4 import ReportSnapshot, ReportType
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
-from src.models.user import User
 from src.models.workflow import (
     WorkflowEvent,
     WorkflowEventFamily,

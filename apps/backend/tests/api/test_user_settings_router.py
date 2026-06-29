@@ -7,7 +7,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
-from src.models.user import User
+from src.identity import User
 
 pytestmark = pytest.mark.asyncio
 
@@ -67,7 +67,7 @@ async def test_ac18_5_5_get_ai_settings_returns_404_for_missing_user(
     Uses dependency_overrides to bypass the auth-layer existence check and exercise the
     router's own 404 branch (defense-in-depth against deleted-mid-session users).
     """
-    from src.auth import get_current_user_id
+    from src.identity import get_current_user_id
     from src.main import app
 
     ghost_id = uuid4()
@@ -84,7 +84,7 @@ async def test_ac18_5_5_patch_ai_settings_returns_404_for_missing_user(
     public_client: AsyncClient,
 ) -> None:
     """AC18.5.5: PATCH /users/me/settings returns 404 when authenticated user row is missing."""
-    from src.auth import get_current_user_id
+    from src.identity import get_current_user_id
     from src.main import app
 
     ghost_id = uuid4()

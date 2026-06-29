@@ -13,8 +13,8 @@ from cryptography.fernet import Fernet
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.identity import User
 from src.llm.common import FernetCipher, Scene
-from src.models.user import User
 
 pytestmark = pytest.mark.asyncio
 

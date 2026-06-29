@@ -10,10 +10,10 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.identity import AiFeedback, User
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
-from src.models.user import AiFeedback, User
 from tests.factories import UserFactory
 
 pytestmark = pytest.mark.asyncio

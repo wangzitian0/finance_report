@@ -8,10 +8,10 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.identity import User
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.layer3 import ClassificationStatus, TransactionClassification
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
-from src.models.user import User
 
 pytestmark = pytest.mark.asyncio
 

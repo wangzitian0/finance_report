@@ -23,7 +23,7 @@ These files are test infrastructure, not behavior proof.
 | `apps/backend/tests/accounting/_ledger_helpers.py` | Shared accounting ledger invariant test helper |
 | `apps/backend/tests/ai/__init__.py` | Package marker |
 | `apps/backend/tests/assets/__init__.py` | Package marker |
-| `apps/backend/tests/auth/__init__.py` | Package marker |
+| `apps/backend/tests/identity/__init__.py` | Package marker |
 | `apps/backend/tests/conftest.py` | Shared backend pytest fixtures |
 | `apps/backend/tests/counter/__init__.py` | Package marker |
 | `apps/backend/tests/counter/_fake.py` | In-memory counter store fake for ops unit tests |
@@ -60,7 +60,7 @@ explicit AC IDs for the behavior.
 | `apps/backend/tests/accounting/test_processing_account_endpoints.py` | `docs/ssot/processing_account.md` |
 | `apps/backend/tests/api/test_ai_feedback_router_extra.py` | `docs/ssot/ai.md` |
 | `apps/backend/tests/assets/test_assets_positions_and_depreciation.py` | `docs/ssot/assets.md` |
-| `apps/backend/tests/auth/test_auth_router_unit.py` | `docs/ssot/auth.md` |
+| `apps/backend/tests/identity/test_auth_router_unit.py` | `common/identity/readme.md` |
 | `apps/backend/tests/extraction/test_account_last4_defense.py` | `docs/ssot/extraction.md` |
 | `apps/backend/tests/extraction/test_classification_service.py` | `docs/ssot/extraction.md` |
 | `apps/backend/tests/extraction/test_extraction_cassette_replay.py` | `docs/ssot/llm.md` (EPIC-023 AC23.6 streaming-bridge scaffold; skipped via `needs_real_cassette` until real cassettes are recorded with `make llm-record`, then it becomes AC proof) |
@@ -90,7 +90,7 @@ explicit AC IDs for the behavior.
 | `apps/backend/tests/reporting/test_reports_router_additional.py` | `docs/ssot/reporting.md` |
 | `apps/backend/tests/schemas/test_ai_feedback_schema.py` | `docs/ssot/ai.md` |
 | `apps/backend/tests/schemas/test_audit_schema.py` | `docs/ssot/schema.md` |
-| `apps/backend/tests/schemas/test_user_schema.py` | `docs/ssot/auth.md` |
+| `apps/backend/tests/schemas/test_user_schema.py` | `common/identity/readme.md` |
 | `apps/backend/tests/services/test_confidence_tier.py` | `docs/ssot/source-type-priority.md` |
 | `apps/backend/tests/unit/schemas/test_schemas.py` | `docs/ssot/schema.md` |
 | `apps/backend/tests/unit/services/test_source_type_priority.py` | `docs/ssot/source-type-priority.md` |
@@ -105,7 +105,7 @@ explicit AC IDs for the behavior.
 | `apps/frontend/src/__tests__/allocationChart.test.tsx` | `docs/ssot/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/api-urls.test.ts` | `docs/ssot/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/api.test.ts` | `docs/ssot/frontend-patterns.md` |
-| `apps/frontend/src/__tests__/auth_ssr.test.ts` | `docs/ssot/auth.md` |
+| `apps/frontend/src/__tests__/auth_ssr.test.ts` | `docs/ssot/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/detailViewComponents.test.tsx` | `docs/ssot/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/firstRunModal.test.tsx` | `docs/ssot/llm.md` |
 | `apps/frontend/src/__tests__/holdingsTable.test.tsx` | `docs/ssot/assets.md` |
@@ -133,6 +133,7 @@ explicit AC IDs for the behavior.
 | `tests/tooling/test_check_package_contract.py` | `common/meta/readme.md` |
 | `tests/tooling/test_check_ssot_ownership.py` | `docs/ssot/MANIFEST.yaml` |
 | `tests/tooling/test_counter_package.py` | `common/meta/readme.md` |
+| `tests/tooling/test_identity_package.py` | `common/meta/readme.md` |
 | `tests/tooling/test_platform_package.py` | `common/meta/readme.md` |
 | `tests/tooling/test_coverage_analyzer.py` | `docs/ssot/coverage.md` |
 | `tests/tooling/test_migration_safety_gates.py` | `common/authority/readme.md` |

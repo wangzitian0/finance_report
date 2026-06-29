@@ -9,8 +9,8 @@ publishes two cohesive surfaces:
 * :mod:`src.observability.audit` — the shared structured audit/security logging
   helpers with PII and secret redaction.
 
-Identity's request-context binding (``bind_authenticated_user_context``) is kept in
-``src.observability_events`` and folded in by #1428.
+Identity's request-context binding (``bind_authenticated_user_context``) lives in
+the ``identity`` package (``src.identity.extension.observability``, #1428).
 """
 
 from __future__ import annotations

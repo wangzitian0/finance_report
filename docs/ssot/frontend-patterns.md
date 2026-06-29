@@ -383,9 +383,44 @@ Root app metadata lives in `app/layout.tsx`.
 
 ## 12. Security & Authentication
 
+> The **backend** identity contract (JWT/bcrypt, registration/login API, the
+> `User` model, email normalization, the `X-User-Id` red line) is owned by the
+> `identity` package — see [`common/identity/readme.md`](../../common/identity/readme.md).
+> This section owns the **frontend / browser-security** half: route protection,
+> session storage, the HttpOnly cookie's browser behavior, and security headers.
+
 - **AuthGuard**: Protects all `(main)` routes. Unauthorized users are redirected to `/login`.
 - **Public Routes**: Only `/login` and `/ping-pong` are exempt from `AuthGuard`.
 - **Injection Protection**: The `apiFetch` wrapper is the primary defense against missing user context.
+
+### Route protection (client-side)
+
+A global `AuthGuard` component in `layout.tsx` guards routes: it checks
+`isAuthenticated()` (from `lib/auth.ts`) and pushes to `/login` when the user is
+unauthenticated, exempting the public paths above. Pages that require
+authentication rely on this global guard rather than each re-implementing the
+redirect.
+
+### Session storage (`lib/auth.ts`)
+
+Browser credentials live in the backend-managed **HttpOnly cookie**
+(`finance_access_token`); frontend storage keeps only **non-secret** user metadata
+(`finance_user_id`, `finance_user_email`) and must **not** persist bearer tokens.
+`getAccessToken()` is legacy/SSR compatibility only.
+
+### Redirect-on-401 (`lib/api.ts`)
+
+`apiFetch` sends same-origin credentials (`credentials: "include"`) so the HttpOnly
+cookie rides along; on a `401` in the browser it redirects to `/login`. Direct API
+clients (curl, tests) may still pass `Authorization: Bearer <token>` for
+compatibility.
+
+### Browser security headers
+
+The frontend must emit a Content Security Policy (including `frame-ancestors
+'none'`) and must forbid `unsafe-eval`; production dependency audits fail CI. A
+strict CSP is required to reduce XSS impact even though browser credentials are in
+an HttpOnly cookie.
 
 ## 13. Shared Types
 

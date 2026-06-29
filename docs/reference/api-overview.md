@@ -33,7 +33,7 @@ Use these owners instead:
 | Static endpoint inventory | [Generated API Reference](api.md) |
 | DB schema inventory | [Generated DB Schema Reference](db-schema.md) |
 | DB model rationale and migration guardrails | [Schema SSOT](../ssot/schema.md) |
-| Auth flow and token policy | [Auth SSOT](../ssot/auth.md) |
+| Auth flow and token policy | [identity package](../../common/identity/readme.md) |
 | Monetary precision rule | [Accounting SSOT](../ssot/accounting.md#decimal-rule) |
 | Database enum naming rule | [Schema SSOT](../ssot/schema.md#enum-naming) |
 

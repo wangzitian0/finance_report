@@ -19,9 +19,9 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.identity import User
 from src.models.account import Account, AccountType
 from src.models.journal import JournalEntry, JournalEntryStatus, JournalLine
-from src.models.user import User
 
 pytestmark = pytest.mark.asyncio
 

@@ -1,4 +1,15 @@
-"""User management API router."""
+"""User management API router (the identity transport edge).
+
+Authenticated current-user compatibility routes for the legacy ``/users`` surface
+(public registration is owned by ``/auth/register``). Moved verbatim (imports
+repointed) from the pre-migration ``src/routers/users.py`` into the package's
+single home. The ``User`` aggregate is now imported from the identity package's
+own SQL adapter; the user-CRUD wire schemas remain general ``src.schemas.user``
+types, and the in-flight-parse guard reads the ``statement_summary`` cross-domain
+read model by id.
+"""
+
+from __future__ import annotations
 
 from uuid import UUID
 
@@ -7,9 +18,9 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from src.deps import CurrentUserId, DbSession
+from src.identity.extension.sql import User
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
-from src.models.user import User
 from src.schemas import UserCreate, UserListResponse, UserResponse, UserUpdate
 from src.utils import raise_bad_request, raise_conflict, raise_not_found
 

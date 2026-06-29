@@ -1,4 +1,12 @@
-"""Schemas for AI suggestion feedback."""
+"""AI-feedback value objects (the ``AiFeedback`` entity's wire language).
+
+Pure Pydantic value objects for the AI suggestion-feedback boundary. The
+``AiFeedback`` entity (a child of the ``User`` aggregate) is persisted by the
+identity package; these request/response shapes are its published language. No
+ORM, no session — just the validated wire types.
+"""
+
+from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Literal
