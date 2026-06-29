@@ -151,3 +151,35 @@ async def test_ac3_missing_fx_rate_does_not_500(client, db, test_user):
     single = single_resp.json()
     assert single["reporting_cost_basis"] is None
     assert single["reporting_currency"] is None
+
+
+async def test_native_and_reporting_currency_fields_are_identically_named_across_endpoints(client, db, test_user):
+    """#1482: both endpoints expose the SAME explicit currency fields
+    (`native_currency`, `reporting_currency`) with identical meaning, so a client
+    never has to read the endpoint-local bare `currency` — which means NATIVE on
+    /assets/positions but REPORTING on /portfolio/holdings."""
+    position = await _seed_position(db, test_user, with_fx_rate=True)
+
+    positions_resp = await client.get("/assets/positions")
+    assert positions_resp.status_code == 200
+    item = next(i for i in positions_resp.json()["items"] if i["id"] == str(position.id))
+
+    holdings_resp = await client.get("/portfolio/holdings")
+    assert holdings_resp.status_code == 200
+    holding = _find_holding(holdings_resp.json(), str(position.id))
+
+    # Both endpoints now carry BOTH explicit, identically-named currency fields.
+    assert item["native_currency"] == holding["native_currency"] == "HKD"
+    assert item["reporting_currency"] == holding["reporting_currency"] == "SGD"
+    # Cost-basis aliases line up the same way.
+    assert Decimal(str(item["native_cost_basis"])) == Decimal(str(holding["native_cost_basis"])) == _NATIVE_COST
+    assert (
+        Decimal(str(item["reporting_cost_basis"]))
+        == Decimal(str(holding["reporting_cost_basis"]))
+        == _EXPECTED_BASE_COST
+    )
+    # The explicit fields are pure aliases of each endpoint's legacy bare field,
+    # not newly-computed values: native on the native endpoint, reporting on the
+    # reporting endpoint.
+    assert item["native_currency"] == item["currency"]
+    assert holding["reporting_currency"] == holding["currency"]

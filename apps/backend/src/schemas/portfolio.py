@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 from src.models.layer3 import CostBasisMethod, PositionStatus
 from src.schemas.base import BaseResponse, ListResponse, MoneyAmount, NonNegativeMoneyAmount, Percent, Quantity
@@ -48,6 +48,24 @@ class HoldingResponse(BaseResponse):
         default=None,
         description="Normalized source provenance when known; null when not safely derivable.",
     )
+
+    # #1482: the bare `currency`/`cost_basis` are this endpoint's REPORTING view,
+    # but /assets/positions uses the same names for its NATIVE view. Expose the
+    # reporting view under the same explicit names both endpoints share
+    # (`reporting_currency`/`reporting_cost_basis`), so native vs reporting is
+    # identically named everywhere and clients never depend on the endpoint-local
+    # meaning of the bare field. Pure aliases of the reporting fields.
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def reporting_currency(self) -> str:
+        """Explicit reporting-currency alias of `currency` (identical across endpoints)."""
+        return self.currency
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def reporting_cost_basis(self) -> MoneyAmount:
+        """Explicit reporting cost-basis alias of `cost_basis`."""
+        return self.cost_basis
 
 
 class RealizedPnLResponse(BaseModel):
