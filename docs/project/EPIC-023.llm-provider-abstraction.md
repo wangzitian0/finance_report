@@ -58,7 +58,7 @@ unreliable across providers to support enforcing a money ceiling.
 
 | Slice | PR | Owns |
 |-------|----|------|
-| **common** | PR1 | `src/llm/common`: value types, `ConfigSource`/`LLMClient`/`CatalogProvider` protocols, `SecretCipher`+`FernetCipher`, `docs/ssot/llm.md`. The frozen contract A and B build against. |
+| **common** | PR1 | `src/llm/common`: value types, `ConfigSource`/`LLMClient`/`CatalogProvider` protocols, `SecretCipher`+`FernetCipher`, [`common/llm/readme.md`](https://github.com/wangzitian0/finance_report/blob/main/common/llm/readme.md) (the LLM SSOT, internalized into the `llm` package). The frozen contract A and B build against. |
 | **EPIC A** | PR2 | litellm `client`/`catalog`/`usage`/`routing` + `EnvConfigSource` — the litellm-backed scene surface. Cutting the legacy `ai_streaming`/`ai_models`/`extraction` call sites onto it is a deliberate follow-up (it requires migrating their transport-coupled unit tests and verifying live extraction through the post-merge AI/OCR gate). |
 | **EPIC B** | PR3 | `llm_provider` + `llm_scene_binding` tables, `DbConfigSource`, `/llm/*` API, first-run modal + scene×model settings page. |
 
@@ -139,7 +139,8 @@ parallel once PR1 merges.
 > discover new real-world document shapes (that stays the staging real-doc audit
 > loop), and **CI green ≠ a real unknown statement works**. Provider-specific
 > correctness is the staging `-m llm` gate's job, not the cassette tests'. See
-> `docs/ssot/llm.md#cassettes`. (Wiring existing extraction/advisor tests onto
+> [`common/llm/readme.md#cassettes`](https://github.com/wangzitian0/finance_report/blob/main/common/llm/readme.md#cassettes).
+> (Wiring existing extraction/advisor tests onto
 > replay and the eval/drift ratchet are separate follow-up issues.)
 
 | AC ID | Description | Verification | Priority |

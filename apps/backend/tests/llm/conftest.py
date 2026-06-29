@@ -16,7 +16,7 @@ import pytest
 
 from src.llm.cassette import CassetteMode, CassetteRecorder, CassetteStore
 
-FIXTURE_CASSETTE_DIR = Path(__file__).resolve().parents[2] / "fixtures" / "llm_cassettes"
+FIXTURE_CASSETTE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "llm_cassettes"
 
 
 @pytest.fixture

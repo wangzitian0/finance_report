@@ -38,7 +38,7 @@ from src.llm.client import litellm_stream
 from src.llm.common import LLMError, ProtocolFamily, ProviderRef
 from src.services.ai_streaming import accumulate_stream
 
-FIXTURE_CASSETTE_DIR = Path(__file__).resolve().parents[2] / "fixtures" / "llm_cassettes"
+FIXTURE_CASSETTE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "llm_cassettes"
 
 # Mirror the committed synthetic cassettes (authored under FIXTURE_CASSETTE_DIR);
 # the fingerprint of these inputs resolves those frozen-text files in replay.

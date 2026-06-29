@@ -27,7 +27,9 @@ def test_llm_provider_abstraction_epic023_product_owner_contract() -> None:
     (b) the secret-rotation contract, so a drift in either surface fails here.
     """
     epic = read("docs/project/EPIC-023.llm-provider-abstraction.md")
-    ssot = read("docs/ssot/llm.md")
+    # The LLM SSOT is internalized into the `llm` package (migration-standard
+    # step 3); the package readme is the single owner of the axes/rotation prose.
+    ssot = read("common/llm/readme.md")
     types_src = read("apps/backend/src/llm/common/types.py")
     secrets_src = read("apps/backend/src/llm/common/secrets.py")
 

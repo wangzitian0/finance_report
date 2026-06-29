@@ -1,7 +1,7 @@
 """LLM provider abstraction (EPIC-023).
 
 ``src/llm`` is the single entry point for talking to language models. It is built
-around three orthogonal axes (see ``docs/ssot/llm.md``):
+around three orthogonal axes (see ``common/llm/readme.md``):
 
 - **Protocol family** — ``openai-compatible`` / ``anthropic-compatible`` /
   ``openrouter-compatible``. Every concrete vendor (Z.AI/GLM, DeepSeek, a local
