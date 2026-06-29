@@ -9,8 +9,26 @@ import pytest
 from src.boot import Bootloader, Bootloader as BootloaderClass, BootMode, ServiceStatus
 
 _ORIGINAL_CHECK_DATABASE = BootloaderClass._check_database
+_ORIGINAL_CHECK_S3 = BootloaderClass._check_s3
 ZAI_CODING_BASE_URL = "https://api.z.ai/api/coding/paas/v4"
 pytestmark = pytest.mark.no_db
+
+
+@pytest.fixture(autouse=True)
+def restore_original_s3_check():
+    """Restore the real _check_s3 for this module.
+
+    conftest autouse-stubs ``Bootloader._check_s3`` so ``/health`` is fast in the
+    rest of the suite; the Bootloader tests here exercise the real implementation,
+    so undo that stub. Tests that want it mocked (e.g. ``mock_minio_check``) re-patch
+    it, which overrides this restore.
+    """
+    if isinstance(_ORIGINAL_CHECK_S3, types.FunctionType):
+        BootloaderClass._check_s3 = staticmethod(_ORIGINAL_CHECK_S3)
+    else:
+        BootloaderClass._check_s3 = _ORIGINAL_CHECK_S3
+    yield
+    BootloaderClass._check_s3 = _ORIGINAL_CHECK_S3
 
 
 @pytest.fixture
