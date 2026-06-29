@@ -62,7 +62,7 @@ Set up a runnable Monorepo development environment, complete user authentication
 ## 🧪 Test Cases
 
 > **Test Organization**: Tests organized by feature blocks using ACx.y.z numbering.
-> **Coverage**: See `apps/backend/tests/auth/`, `apps/backend/tests/infra/`, `apps/backend/tests/api/`
+> **Coverage**: See `apps/backend/tests/identity/`, `apps/backend/tests/infra/`, `apps/backend/tests/api/`
 
 ### AC1.1: Moon Workspace Requirements
 
@@ -78,7 +78,7 @@ Set up a runnable Monorepo development environment, complete user authentication
 | ID | Requirement | Test Function | File |
 |----|-------------|---------------|------|
 | AC1.2.1 | FastAPI project structure exists | `test_epic_001_backend_skeleton_exists()` | `infra/test_epic_001_contracts.py` |
-| AC1.2.2 | Auth integration works (register/login/JWT) | `test_register_success()`, `test_login_success()`, `test_auth_valid_user()` | `auth/test_auth_router.py`, `auth/test_auth.py` |
+| AC1.2.2 | Auth integration works (register/login/JWT) | `test_register_success()`, `test_login_success()`, `test_auth_valid_user()` | `identity/test_auth_router.py`, `identity/test_auth.py` |
 | AC1.2.3 | SQLAlchemy + Alembic config valid | `test_missing_migrations_check()`, `test_single_head()` | `infra/test_schema_drift.py`, `infra/test_migrations.py` |
 | AC1.2.4 | Health endpoint returns success | `test_health_when_all_services_healthy()` | `infra/test_main.py` |
 | AC1.2.5 | structlog logging configured | `test_configure_logging_basic()` | `infra/test_logger.py` |
@@ -109,7 +109,15 @@ Set up a runnable Monorepo development environment, complete user authentication
 | AC1.5.2 | Frontend startup command path is valid | `test_epic_001_frontend_moon_tasks_configured()` | `infra/test_epic_001_contracts.py` |
 | AC1.5.3 | Health endpoint returns 200 | `test_health_when_all_services_healthy()` | `infra/test_main.py` |
 | AC1.5.4 | Backend ping-pong endpoint toggles state correctly | `test_ping_toggle()` | `infra/test_main.py` |
-| AC1.5.5 | User registration/login API available | `test_register_success()`, `test_login_success()` | `auth/test_auth_router.py` |
+
+> **The former "User registration/login API available" criterion (AC1.5.x.5) is
+> no longer defined here.** It migrated into the `identity` package as
+> **`AC-identity.2.1`** / **`AC-identity.2.2`** — owned by, and sourced
+> directly from, [`common/identity/contract.py`](../../common/identity/contract.py)'s
+> `roadmap` (#1428). `common/ssot/generate_ac_registry.py` reads package-contract
+> roadmaps additively, so the AC index counts them without an EPIC-table mirror.
+> This note references the new ids (keeping the registry↔EPIC link intact) but
+> defines none of them — the contract is the single definition source.
 
 ### AC1.6: Deferred Item Tracking (Now Test-Tracked)
 
@@ -120,18 +128,28 @@ Set up a runnable Monorepo development environment, complete user authentication
 
 ### AC1.7: Auth Endpoint Behavioral Coverage
 
-| ID | Requirement | Test Function | File |
-|----|-------------|---------------|------|
-| AC1.7.1 | Register endpoint accepts valid user payload | `test_register_success()` | `auth/test_auth_router.py` |
-| AC1.7.2 | Register endpoint rejects duplicate email | `test_register_duplicate_email()` | `auth/test_auth_router.py` |
-| AC1.7.3 | Login endpoint accepts valid credentials | `test_login_success()` | `auth/test_auth_router.py` |
-| AC1.7.4 | Register endpoint handles IntegrityError race on duplicate email. | `test_register_integrity_error_race_condition` | `auth/test_auth_router.py` | P1 |
+> **The former auth-endpoint behavioral-coverage criteria (the AC1.7 register/login
+> rows) are no longer defined here.** They migrated into the `identity` package
+> (#1428) and are owned by, and sourced directly from,
+> [`common/identity/contract.py`](../../common/identity/contract.py)'s `roadmap`:
+> - register accepts a valid payload → **`AC-identity.2.1`**
+> - register rejects a duplicate email → **`AC-identity.1.1`**
+> - login accepts valid credentials → **`AC-identity.2.2`**
+> - register handles the duplicate-email IntegrityError race → **`AC-identity.2.3`**
+>
+> `common/ssot/generate_ac_registry.py` reads package roadmaps additively, so the
+> index counts them without an EPIC-table mirror. This note references the new ids
+> but defines none of them — the contract is the single definition source.
 
 ### AC1.8: User Management Endpoint Coverage
 
-| ID | Requirement | Test Function | File |
-|----|-------------|---------------|------|
-| AC1.8.1 | User management endpoints expose authenticated user operations without cross-user leakage | `test_users_router.py` suite | `auth/test_users_router.py` |
+> **The former user-management endpoint-coverage criterion (the AC1.8 row) is no
+> longer defined here.** It migrated into the `identity` package (#1428) as
+> **`AC-identity.1.3`** — owned by, and sourced directly from,
+> [`common/identity/contract.py`](../../common/identity/contract.py)'s `roadmap`
+> (user management exposes authenticated current-user operations without
+> cross-user leakage). This note references the new id but defines it elsewhere —
+> the contract is the single definition source.
 
 ### AC1.9: First-Run Ledger Journey Coverage
 
@@ -144,8 +162,15 @@ Set up a runnable Monorepo development environment, complete user authentication
 | ID | Requirement | Test Function | File |
 |----|-------------|---------------|------|
 | AC1.10.1 | Protected runtime startup rejects missing, default, short, or local-development secret/database/storage configuration | `test_AC1_10_1_static_config_*` | `infra/test_boot.py` |
-| AC1.10.2 | Email identity is normalized for registration and login so case variants cannot create duplicate users | `test_AC1_10_2_*` | `auth/test_auth_router.py` |
-| AC1.10.3 | Browser authentication uses an HttpOnly session cookie by default while frontend storage keeps only non-secret user metadata | `test_AC1_10_3_get_me_accepts_httponly_cookie` / `AC1.10.3 sends HttpOnly auth cookies by default` / `auth.test.ts` session tests | `auth/test_auth_router.py`, `src/__tests__/apiFunctions.test.ts`, `src/__tests__/auth.test.ts` |
+| AC1.10.3 | Browser authentication uses an HttpOnly session cookie by default while frontend storage keeps only non-secret user metadata | `test_AC1_10_3_get_me_accepts_httponly_cookie` / `AC1.10.3 sends HttpOnly auth cookies by default` / `auth.test.ts` session tests | `identity/test_auth_router.py`, `src/__tests__/apiFunctions.test.ts`, `src/__tests__/auth.test.ts` |
+
+> **The former email-normalization criterion (the AC1.10 normalize-email row) is
+> no longer defined here.** It migrated into the `identity` package (#1428) as
+> **`AC-identity.1.2`** — owned by, and sourced directly from,
+> [`common/identity/contract.py`](../../common/identity/contract.py)'s `roadmap`.
+> This note references the new id but defines it elsewhere — the contract is the
+> single definition source. (The config-hardening and frontend/browser-security
+> rows above stay — they are cross-cutting, not identity-owned.)
 | AC1.10.4 | Frontend production dependency audits fail CI and CSP forbids `unsafe-eval` in shipped responses | `AC1.10.4 configures browser security headers without unsafe eval` / `npm run audit:prod` | `src/__tests__/api-urls.test.ts`, `.github/workflows/ci.yml` |
 
 ## 📏 Acceptance Criteria
@@ -203,8 +228,8 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 - [Backend README](https://github.com/wangzitian0/finance_report/blob/main/apps/backend/README.md) — backend module entry point.
 - [Frontend README](https://github.com/wangzitian0/finance_report/blob/main/apps/frontend/README.md) — frontend module entry point.
 - [../reference/api-overview.md](../reference/api-overview.md) — API conventions and auth entry point.
-- [../ssot/auth.md](../ssot/auth.md) — authentication architecture rationale.
-- [../ssot/frontend-patterns.md](../ssot/frontend-patterns.md) — frontend integration and API-client patterns.
+- [../../common/identity/readme.md](../../common/identity/readme.md) — backend authentication architecture (the `identity` package, #1428).
+- [../ssot/frontend-patterns.md](../ssot/frontend-patterns.md) — frontend integration, API-client, and browser-auth/session patterns.
 
 ---
 

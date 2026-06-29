@@ -25,6 +25,7 @@ import src.models._registry  # noqa: E402, F401
 from src.boot import Bootloader, BootMode
 from src.config import settings
 from src.database import engine, get_db, init_db
+from src.identity import auth_router, users_router
 from src.logger import configure_logging, get_logger
 from src.models.ping_state import PingState
 from src.observability import (
@@ -40,7 +41,6 @@ from src.routers import (
     app_config,
     assets,
     audit,
-    auth,
     chat,
     corrections,
     evidence,
@@ -54,7 +54,6 @@ from src.routers import (
     review,
     statements,
     user_settings,
-    users,
     workflow,
 )
 from src.routers.reconciliation import router as reconciliation_router
@@ -376,7 +375,7 @@ app.add_middleware(
 # (#1005) so the structured-error shape is visible in the OpenAPI schema and the
 # generated frontend client.
 _router_kwargs = {"responses": COMMON_ERROR_RESPONSES}
-app.include_router(auth.router, **_router_kwargs)
+app.include_router(auth_router, **_router_kwargs)
 app.include_router(accounts.router, **_router_kwargs)
 app.include_router(app_config.router, **_router_kwargs)
 app.include_router(ai_feedback.router, **_router_kwargs)
@@ -394,7 +393,7 @@ app.include_router(statements.router, **_router_kwargs)
 app.include_router(review.router, **_router_kwargs)
 app.include_router(review.conflicts_router, **_router_kwargs)
 app.include_router(reconciliation_router, **_router_kwargs)
-app.include_router(users.router, **_router_kwargs)
+app.include_router(users_router, **_router_kwargs)
 app.include_router(user_settings.router, **_router_kwargs)
 app.include_router(llm.router, **_router_kwargs)
 app.include_router(portfolio.router, **_router_kwargs)

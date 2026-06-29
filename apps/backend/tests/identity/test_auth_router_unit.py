@@ -7,17 +7,9 @@ from fastapi import HTTPException, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
 
-from src.models.user import User
+from src.identity import LoginRequest, RegisterRequest, User, get_me, hash_password, login, register
+from src.identity.extension.api.auth import _check_rate_limit, _get_client_ip
 from src.platform import RateLimitConfig, RateLimiter
-from src.routers.auth import (
-    _check_rate_limit,
-    _get_client_ip,
-    get_me,
-    hash_password,
-    login,
-    register,
-)
-from src.schemas.auth import LoginRequest, RegisterRequest
 
 
 def _mock_request(
@@ -96,7 +88,7 @@ def test_get_client_ip_with_x_forwarded_for_trusted(monkeypatch) -> None:
     # Reload module to pick up env change
     import importlib
 
-    import src.routers.auth as auth_module
+    import src.identity.extension.api.auth as auth_module
 
     importlib.reload(auth_module)
 
@@ -143,7 +135,7 @@ def test_check_rate_limit_blocks_when_exceeded() -> None:
 
 def test_check_rate_limit_logs_route_path(monkeypatch) -> None:
     """Auth route rate-limit logs include the route path for triage."""
-    import src.routers.auth as auth_module
+    import src.identity.extension.api.auth as auth_module
 
     limiter = RateLimiter(RateLimitConfig(max_requests=1, window_seconds=60, block_seconds=300))
     request = _mock_request("10.0.0.101")

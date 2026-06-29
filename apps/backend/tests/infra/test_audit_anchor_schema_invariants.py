@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.identity import User
 from src.models.account import Account, AccountType
 from src.models.evidence import EvidenceEdge, EvidenceNode
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
@@ -28,7 +29,6 @@ from src.models.layer3 import ClassificationRule, ClassificationStatus, RuleType
 from src.models.reconciliation import ReconciliationMatch, ReconciliationMatchJournalEntry, ReconciliationStatus
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
-from src.models.user import User
 from src.services.evidence_graph_materialization import EvidenceGraphMaterializationService
 from src.services.reconciliation import sync_reconciliation_match_journal_entry_links
 

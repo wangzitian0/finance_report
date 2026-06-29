@@ -9,12 +9,12 @@ from uuid import UUID, uuid4
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.identity import User
 from src.models.account import Account, AccountType
 from src.models.evidence import EvidenceEdge, EvidenceNode
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 from src.models.layer1 import DocumentStatus, DocumentType, UploadedDocument
 from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.models.user import User
 from src.services.deduplication import DeduplicationService
 from src.services.evidence_graph_integration import EvidenceGraphIntegrationService
 from src.services.evidence_graph_materialization import EvidenceGraphMaterializationService

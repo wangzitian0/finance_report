@@ -89,6 +89,21 @@ exceptions:
       authority package owns the tier vocabulary + tier->proof matrix); the
       MANIFEST authority_tiers owner now points there. Remove this exception
       once the deletion is merged.
+  # Identity package self-hosts: the auth SSOT moved out of docs/ssot/ into the
+  # identity package that owns it (#1428). The backend half folded into
+  # common/identity/readme.md (referenced from the MANIFEST package_model concept)
+  # and the frontend/browser-security half into docs/ssot/frontend-patterns.md, so
+  # docs/ssot/auth.md is deleted and the `auth_flow` MANIFEST concept retired; its
+  # deletion shows up as a changed SSOT file with no owner. This temporary
+  # exception covers only the deletion churn in this PR.
+  - target: finance_report:docs/ssot/auth.md
+    issue: https://github.com/wangzitian0/finance_report/issues/1428
+    reason: >-
+      auth.md is deleted: the backend auth contract moved into the identity
+      package (common/identity/readme.md, referenced from MANIFEST package_model)
+      and the frontend/browser-security half into docs/ssot/frontend-patterns.md;
+      the auth_flow MANIFEST concept is retired. Remove this exception once the
+      deletion is merged.
 
 # ---------------------------------------------------------------------------
 # Temporary SSOT governance gate exceptions live in `exceptions` above.

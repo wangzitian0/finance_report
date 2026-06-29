@@ -21,8 +21,9 @@ loop meaningfully.
 The app-wide ``api_rate_limiter`` instance (the global API throttle) is config-
 bound, so it is wired at the composition root (``src.main``) from this package's
 :class:`RateLimiter` / :class:`RateLimitConfig` — this package stays config-free.
-Identity's auth-specific limiters stay in ``src.rate_limit`` (handled by #1428);
-they import :class:`RateLimiter` / :class:`RateLimitConfig` from the published root.
+Identity's auth-specific limiters live in the ``identity`` package
+(``src.identity.extension.rate_limit``, #1428); they import :class:`RateLimiter` /
+:class:`RateLimitConfig` from the published root.
 """
 
 from __future__ import annotations

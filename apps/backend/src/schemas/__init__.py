@@ -19,11 +19,6 @@ from src.schemas.assets import (
     ManagedPositionResponse,
     ReconcilePositionsResponse,
 )
-from src.schemas.auth import (
-    AuthResponse,
-    LoginRequest,
-    RegisterRequest,
-)
 from src.schemas.chat import (
     ChatHistoryResponse,
     ChatMessageResponse,
@@ -177,7 +172,6 @@ __all__ = [
     "AnnualizedIncomeScheduleResponse",
     "AnomalyResponse",
     "AtomicTransactionResponse",
-    "AuthResponse",
     "AccountLineageLine",
     "AccountLineageResponse",
     "BalanceSheetResponse",
@@ -218,7 +212,6 @@ __all__ = [
     "JournalEntrySummary",
     "JournalLineCreate",
     "JournalLineResponse",
-    "LoginRequest",
     "ManagedPositionListResponse",
     "ManagedPositionResponse",
     "NetWorthAllocationResponse",
@@ -259,7 +252,6 @@ __all__ = [
     "ReconciliationRunResponse",
     "ReconciliationStatsResponse",
     "ReconciliationStatusEnum",
-    "RegisterRequest",
     "ReportSnapshotSummary",
     "ResolveCheckRequest",
     "RetryParsingRequest",

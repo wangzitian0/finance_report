@@ -3,7 +3,6 @@
 from src.routers import (
     accounts,
     assets,
-    auth,
     chat,
     evidence,
     income,
@@ -13,13 +12,15 @@ from src.routers import (
     reconciliation,
     reports,
     statements,
-    users,
 )
+
+# NOTE: ``auth`` and ``users`` routers moved into the identity package
+# (``src.identity`` — auth_router / users_router) by the #1428 Stage-1 cutover and
+# are no longer re-exported here.
 
 __all__ = [
     "accounts",
     "assets",
-    "auth",
     "chat",
     "evidence",
     "income",
@@ -29,5 +30,4 @@ __all__ = [
     "reconciliation",
     "reports",
     "statements",
-    "users",
 ]

@@ -351,7 +351,7 @@ class TestAssetsRouter:
         A position belonging to another user will not be found even if the ID is known.
         This prevents unauthorized access at the data layer.
         """
-        from src.models.user import User
+        from src.identity import User
 
         # Create user A's position (test_user)
         account = Account(

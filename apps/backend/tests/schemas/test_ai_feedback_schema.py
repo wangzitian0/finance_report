@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from src.schemas.ai_feedback import (
+from src.identity import (
     AiFeedbackRequest,
     AiFeedbackResponse,
     AiSuggestionListResponse,

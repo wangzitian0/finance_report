@@ -8,6 +8,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.identity import User
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 from src.models.layer1 import DocumentType, UploadedDocument
@@ -15,7 +16,6 @@ from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.reconciliation import ReconciliationMatchJournalEntry
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
-from src.models.user import User
 from src.services.reconciliation import execute_matching
 from src.services.source_type_priority import SourceTypeDowngradeError, promote_entry_source_type
 

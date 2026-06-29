@@ -8,11 +8,11 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.identity import User
 from src.models.account import Account, AccountType
 from src.models.journal import JournalEntry, JournalEntrySourceType
 from src.models.layer2 import TransactionDirection
 from src.models.statement_enums import BankStatementStatus
-from src.models.user import User
 from src.routers import statements as statements_router
 from tests.factories import (
     AtomicTransactionFactory,

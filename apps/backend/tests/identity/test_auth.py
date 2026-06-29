@@ -1,4 +1,4 @@
-"""AC1.7.1 - AC1.7.1: Authentication Logic Tests
+"""AC-identity.2.1: Authentication Logic Tests
 
 These tests validate JWT token-based authentication, user existence checks,
 and invalid credential scenarios including token validation and session management.
@@ -11,7 +11,7 @@ import structlog
 from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 
-from src.auth import get_current_user_id
+from src.identity import get_current_user_id
 
 
 async def test_auth_missing_header(db_engine):
@@ -42,8 +42,8 @@ async def test_auth_invalid_token(db_engine):
 
 async def test_auth_non_existent_user(db_engine):
     """AC8.2.4: Test 401 when JWT is valid but user does not exist."""
+    from src.identity import create_access_token
     from src.main import app
-    from src.security import create_access_token
 
     transport = ASGITransport(app=app)
     random_uuid = str(uuid4())
@@ -65,7 +65,7 @@ async def test_auth_valid_user(client, test_user):
 
 async def test_get_current_user_id_direct(db, test_user):
     """Directly resolve a valid user from JWT token payload."""
-    from src.security import create_access_token
+    from src.identity import create_access_token
 
     token = create_access_token(data={"sub": str(test_user.id)})
     user_id = await get_current_user_id(token=token, db=db)
@@ -74,7 +74,7 @@ async def test_get_current_user_id_direct(db, test_user):
 
 async def test_AC10_11_1_get_current_user_id_binds_user_context(db, test_user):
     """AC10.11.1: Auth dependency binds user_id into structured log context."""
-    from src.security import create_access_token
+    from src.identity import create_access_token
 
     structlog.contextvars.clear_contextvars()
     token = create_access_token(data={"sub": str(test_user.id)})
@@ -87,7 +87,7 @@ async def test_AC10_11_1_get_current_user_id_binds_user_context(db, test_user):
 
 async def test_get_current_user_id_invalid_user_db(db):
     """Database-backed invalid user should raise 401."""
-    from src.security import create_access_token
+    from src.identity import create_access_token
 
     token = create_access_token(data={"sub": str(uuid4())})
     with pytest.raises(HTTPException, match="User not found"):

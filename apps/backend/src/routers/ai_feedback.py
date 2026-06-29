@@ -4,16 +4,16 @@ from fastapi import APIRouter, status
 from sqlalchemy import func, select
 
 from src.deps import CurrentUserId, DbSession
-from src.models.layer2 import AtomicTransaction
-from src.models.layer3 import ClassificationStatus, TransactionClassification
-from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
-from src.models.user import AiFeedback
-from src.schemas.ai_feedback import (
+from src.identity import (
+    AiFeedback,
     AiFeedbackRequest,
     AiFeedbackResponse,
     AiSuggestionListResponse,
     AiSuggestionResponse,
 )
+from src.models.layer2 import AtomicTransaction
+from src.models.layer3 import ClassificationStatus, TransactionClassification
+from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 
 router = APIRouter(prefix="/ai", tags=["ai-feedback"])
 

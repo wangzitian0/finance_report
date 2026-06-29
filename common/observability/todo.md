@@ -14,7 +14,10 @@ The package-local worklist. Cross-package migration lives in
       runtime contract + the shared audit/security logging helpers, so consumers
       import the package root (`from src.observability import ...`).
 
+- [x] #1428: identity's `bind_authenticated_user_context` was folded into the
+      `identity` package (`src/identity/extension/observability.py`) and
+      `src.observability_events` deleted with zero residue.
+
 ## Next
 
-- [ ] #1428: fold identity's `bind_authenticated_user_context` out of
-      `src.observability_events` so that module is deleted with zero residue.
+- [ ] (none currently)

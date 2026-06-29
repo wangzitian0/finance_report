@@ -91,6 +91,9 @@ concepts:
       - common/counter/readme.md
       - common/counter/contract.py
       - apps/backend/src/counter/__init__.py
+      - common/identity/readme.md
+      - common/identity/contract.py
+      - apps/backend/src/identity/__init__.py
       - common/authority/readme.md
       - common/authority/contract.py
       - common/authority/__init__.py
@@ -179,11 +182,11 @@ concepts:
       - docs/ssot/confirmation-workflow.md
 
   # ── Auth / Identity ────────────────────────────────────────────────────
-  auth_flow:
-    owner: docs/ssot/auth.md
-    description: JWT/OAuth2 identity system, registration and login flow.
-    cross_refs:
-      - docs/ssot/schema.md
+  # The auth/identity SSOT concept (formerly `auth_flow`, owner docs/ssot/auth.md)
+  # is now owned by the `identity` package (#1428): the backend contract lives in
+  # common/identity/readme.md + contract.py (referenced from `package_model` above),
+  # and the frontend/browser-security half folded into docs/ssot/frontend-patterns.md.
+  # No central SSOT concept mirrors it — the package contract is the single source.
 
   # ── Frontend patterns ──────────────────────────────────────────────────
   api_client_pattern:
