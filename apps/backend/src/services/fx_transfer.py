@@ -21,7 +21,7 @@ Generalized invariant: **net worth changes only via external in/out + market
 moves + FX revaluation; internal transfers cancel (minus fees).**
 
 All money is :class:`~decimal.Decimal` (never ``float`` — see the decimal rule in
-``docs/ssot/accounting.md``). FX rates carry 6 dp; currency amounts quantize to
+``common/ledger/readme.md``). FX rates carry 6 dp; currency amounts quantize to
 2 dp via :func:`src.money.to_money`.
 """
 

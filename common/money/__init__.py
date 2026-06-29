@@ -11,7 +11,7 @@ tooling, tests and the conformance suite. The canonical money rounding
 for its runtime until adoption (#1171), and the conformance suite keeps the two
 in lockstep.
 
-Contract: ``docs/ssot/accounting.md#money-type`` (#1167).
+Contract: ``common/money/readme.md#money-type`` (#1167).
 """
 
 from __future__ import annotations

@@ -5,7 +5,7 @@ construction invariants, same-currency-only arithmetic, the single ``convert``
 FX primitive, and the per-currency ``CurrencyBalances`` container that makes a
 multi-currency statement inexpressible as a scalar.
 
-Contract: ``docs/ssot/accounting.md#money-type``.
+Contract: ``common/money/readme.md#money-type``.
 """
 
 from decimal import ROUND_HALF_EVEN, Decimal

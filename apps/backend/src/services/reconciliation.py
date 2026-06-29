@@ -522,7 +522,7 @@ async def execute_matching(
         return score
 
     # Phase 1: Transfer Detection (BEFORE normal matching)
-    # Detect transfers and create Processing account entries per processing_account.md
+    # Detect transfers and create Processing account entries per common/ledger/readme.md
     for txn in transactions:
         if txn.id in matched_txn_ids:
             continue
@@ -821,7 +821,7 @@ async def execute_matching(
                     _mark_auto_accepted_entry_reconciled(entry)
 
     # Phase 3: Auto-Pair Transfers (AFTER all matching complete)
-    # Find and pair transfers automatically per processing_account.md
+    # Find and pair transfers automatically per common/ledger/readme.md
     try:
         transfer_pairs = await find_transfer_pairs(db, user_id, threshold=85)
         if transfer_pairs:

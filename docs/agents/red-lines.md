@@ -72,6 +72,6 @@ These concepts are **owned** by this document in the SSOT manifest:
 
 Cross-referenced by:
 - [AGENTS.md](https://github.com/wangzitian0/finance_report/blob/main/AGENTS.md)
-- [docs/ssot/accounting.md](../ssot/accounting.md)
+- [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md)
 - [docs/ssot/schema.md](../ssot/schema.md)
 - [docs/ssot/reconciliation.md](../ssot/reconciliation.md)

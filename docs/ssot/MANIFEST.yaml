@@ -24,7 +24,7 @@ concepts:
 
   # ── Accounting domain ──────────────────────────────────────────────────
   decimal_monetary_rule:
-    owner: docs/ssot/accounting.md#decimal-rule
+    owner: common/ledger/readme.md#decimal-rule
     description: All monetary amounts MUST use Python Decimal, never float; money rounds via banker's HALF_EVEN.
     cross_refs:
       - AGENTS.md
@@ -35,7 +35,7 @@ concepts:
       - apps/backend/tests/money/test_money.py
 
   money_value_type:
-    owner: docs/ssot/accounting.md#money-type
+    owner: common/money/readme.md#money-type
     description: Money/Currency/ExchangeRate/convert/CurrencyBalances value types in common/money/ make bad money states unrepresentable (#1167).
     family: accounting
     kind: concept
@@ -103,21 +103,21 @@ concepts:
       - tests/tooling/test_counter_package.py
 
   accounting_equation:
-    owner: docs/ssot/accounting.md#accounting-equation
+    owner: common/ledger/readme.md#accounting-equation
     description: "Assets = Liabilities + Equity + (Income - Expenses) invariant."
     cross_refs:
       - docs/agents/red-lines.md
       - apps/backend/tests/accounting/test_accounting_equation.py
 
   double_entry_bookkeeping:
-    owner: docs/ssot/accounting.md#entry-balance
+    owner: common/ledger/readme.md#entry-balance
     description: Every JournalEntry must have balanced debits and credits.
     cross_refs:
       - docs/agents/red-lines.md
       - apps/backend/tests/accounting/test_accounting.py
 
   transaction_boundary:
-    owner: docs/ssot/accounting.md#async-tx-boundary
+    owner: common/ledger/readme.md#async-tx-boundary
     description: Routers commit(); Services flush() only.
     cross_refs:
       - docs/agents/red-lines.md
@@ -138,7 +138,7 @@ concepts:
       - docs/hooks.py
       - tools/generate_db_schema_reference.py
       - common/ssot/generate_db_schema_reference.py
-      - docs/ssot/accounting.md
+      - common/ledger/readme.md
       - docs/ssot/reconciliation.md
 
   data_layering:
@@ -301,7 +301,7 @@ concepts:
     owner: docs/ssot/reporting.md
     description: Financial reports, multi-currency consolidation, calculations.
     cross_refs:
-      - docs/ssot/accounting.md
+      - common/ledger/readme.md
       - docs/ssot/market_data.md
 
   framework_reporting:
@@ -309,7 +309,7 @@ concepts:
     description: US-like and HK-like target-backward policy layer for personal report packages.
     cross_refs:
       - docs/ssot/reporting.md
-      - docs/ssot/accounting.md
+      - common/ledger/readme.md
       - docs/project/EPIC-020.framework-aware-personal-reporting.md
 
   net_worth_valuation_snapshots:
@@ -328,7 +328,7 @@ concepts:
 
   # ── Processing account ─────────────────────────────────────────────────
   processing_account:
-    owner: docs/ssot/processing_account.md
+    owner: common/ledger/readme.md
     description: Unconfirmed in-transit funds; balance 0 means transfer paired.
     cross_refs:
       - docs/ssot/confirmation-workflow.md
@@ -340,7 +340,7 @@ concepts:
     description: Cross-cutting pending_review state machine (Stage 1 & 2).
     cross_refs:
       - docs/ssot/reconciliation.md
-      - docs/ssot/processing_account.md
+      - common/ledger/readme.md
 
   confirmation_workflow_states:
     owner: docs/ssot/confirmation-workflow.md#state-machine

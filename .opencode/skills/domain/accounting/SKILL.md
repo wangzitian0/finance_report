@@ -6,7 +6,7 @@ description: Double-entry bookkeeping rules, accounting equation validation, ent
 # Double-Entry Bookkeeping Domain Model
 
 > **Core Definition**: Accounting equation, account classification, and entry rules for double-entry bookkeeping.
-> **SSOT**: [`docs/ssot/accounting.md`](../../../../docs/ssot/accounting.md) is authoritative for every rule below.
+> **SSOT**: [`common/ledger/readme.md`](../../../../common/ledger/readme.md) is authoritative for every rule below.
 
 ## Accounting Equation
 

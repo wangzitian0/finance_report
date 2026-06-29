@@ -2,7 +2,7 @@
 
 Currency amounts are quantized to 2 decimal places using banker's rounding
 (``ROUND_HALF_EVEN``). This is the single source of truth for money rounding;
-see ``docs/ssot/accounting.md#decimal-rule``.
+see ``common/ledger/readme.md#decimal-rule``.
 
 This module is the canonical home for the cross-language standard, tooling and
 tests (it lives in ``common/`` so every end shares one definition). The backend

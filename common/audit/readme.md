@@ -47,7 +47,7 @@ See: docs/ssot/base-packages.md
 
 Monetary values are `Decimal`-backed and never use `float`; money rounds with
 banker's `HALF_EVEN`. audit's `no-float-in-money-narrow-waist` invariant pins this
-to the existing narrow-waist guard test. See: docs/ssot/accounting.md#decimal-rule
+to the existing narrow-waist guard test. See: common/ledger/readme.md#decimal-rule
 
 ## Migration state (this fold)
 

@@ -129,7 +129,7 @@ Generated implementation inventories:
 Rationale docs with links to code owners, generated contracts, and proof tests:
 
 - [Architecture Overview](ssot/README.md) — System architecture and design principles
-- [Accounting Model](ssot/accounting.md) — Double-entry bookkeeping rules
+- [Ledger (double-entry) model](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md) — Double-entry bookkeeping rules
 - [Reconciliation Engine](ssot/reconciliation.md) — Matching algorithms
 - [Statement Extraction](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md) — AI parsing pipeline
 - [Reporting](ssot/reporting.md) — Report generation logic

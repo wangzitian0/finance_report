@@ -60,8 +60,8 @@ explicit AC IDs for the behavior.
 
 | Path | Owner |
 |---|---|
-| `apps/backend/tests/money/test_money.py` | `docs/ssot/accounting.md` |
-| `apps/backend/tests/accounting/test_processing_account_endpoints.py` | `docs/ssot/processing_account.md` |
+| `apps/backend/tests/money/test_money.py` | `common/ledger/readme.md` |
+| `apps/backend/tests/accounting/test_processing_account_endpoints.py` | `common/ledger/readme.md` |
 | `apps/backend/tests/api/test_ai_feedback_router_extra.py` | `docs/ssot/ai.md` |
 | `apps/backend/tests/assets/test_assets_positions_and_depreciation.py` | `docs/ssot/assets.md` |
 | `apps/backend/tests/identity/test_auth_router_unit.py` | `common/identity/readme.md` |
@@ -127,7 +127,7 @@ explicit AC IDs for the behavior.
 | `apps/frontend/src/__tests__/openingBalanceWarningBanner.test.tsx` | `docs/ssot/frontend-patterns.md` (#1486 opening-balance warning surface) |
 | `apps/frontend/src/__tests__/useBaseCurrency.test.tsx` | `docs/ssot/frontend-patterns.md` (#1487 base-currency hook) |
 | `apps/frontend/src/__tests__/useLlmConfigStatus.test.ts` | `common/llm/readme.md` |
-| `apps/frontend/src/components/__tests__/ProcessingSummaryCard.test.tsx` | `docs/ssot/processing_account.md` |
+| `apps/frontend/src/components/__tests__/ProcessingSummaryCard.test.tsx` | `common/ledger/readme.md` |
 | `apps/frontend/src/components/review/__tests__/ConflictResolutionDialog.keydown.test.tsx` | `docs/ssot/frontend-patterns.md` |
 | `apps/frontend/src/components/review/__tests__/TransactionTable.keyEvents.test.tsx` | `docs/ssot/frontend-patterns.md` |
 | `apps/frontend/src/hooks/__tests__/useFocusTrap.test.tsx` | `docs/ssot/frontend-patterns.md` |

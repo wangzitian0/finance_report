@@ -30,7 +30,7 @@ it slots straight into the existing ``_internal_transfer_adjustment`` consumer
 alongside any recorded rows.
 
 All money is :class:`~decimal.Decimal` (never ``float`` — see the decimal rule in
-``docs/ssot/accounting.md``).
+``common/ledger/readme.md``).
 """
 
 from __future__ import annotations

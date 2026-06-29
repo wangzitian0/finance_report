@@ -34,7 +34,7 @@ Use these owners instead:
 | DB schema inventory | [Generated DB Schema Reference](db-schema.md) |
 | DB model rationale and migration guardrails | [Schema SSOT](../ssot/schema.md) |
 | Auth flow and token policy | [identity package](../../common/identity/readme.md) |
-| Monetary precision rule | [Accounting SSOT](../ssot/accounting.md#decimal-rule) |
+| Monetary precision rule | [Ledger SSOT](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md#decimal-rule) |
 | Database enum naming rule | [Schema SSOT](../ssot/schema.md#enum-naming) |
 
 ## Authentication

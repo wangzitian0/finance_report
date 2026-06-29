@@ -7,7 +7,7 @@ its own conformant end — exactly like the frontend has ``apps/frontend/src/lib
 vectors (``common/money/conformance/vectors.json``, asserted in
 ``tests/money/test_money_backend_module.py``) and the narrow-waist guard (#1172).
 
-Contract: ``docs/ssot/accounting.md#money-type``.
+Contract: ``common/money/readme.md#money-type``.
 """
 
 from __future__ import annotations

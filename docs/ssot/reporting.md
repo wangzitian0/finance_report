@@ -176,7 +176,7 @@ report (net-worth time-series, cash-flow opening position) reads them through th
 same ledger path — there is no separate "opening balance" report code path.
 
 > Mechanics of the posting (account resolution, equity offset) are owned by
-> [`accounting.md`](accounting.md); this section owns only how the resulting
+> [`common/ledger/readme.md`](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md); this section owns only how the resulting
 > positions present in the balance sheet.
 
 ### 2.2 Income Statement (Profit & Loss)
@@ -854,4 +854,4 @@ both legs net out, and `generate_income_statement` returns zero realized P&L
 ## Used by
 
 - [schema.md](./schema.md)
-- [accounting.md](./accounting.md)
+- [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md)

@@ -295,4 +295,4 @@ ORDER BY base_currency, quote_currency;
 ## Used by
 
 - [reporting.md](./reporting.md)
-- [accounting.md](./accounting.md)
+- [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md)
