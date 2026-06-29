@@ -42,8 +42,6 @@ env:
   IMAGE_PREFIX: ${{ github.repository_owner }}/finance_report
   STAGING_HEALTH_URL: https://report-staging.zitian.party/api/health
   PRODUCTION_HEALTH_URL: https://report.zitian.party/api/health
-  DOKPLOY_API_URL: https://cloud.zitian.party/api
-  TEST_ENV_ID: -fzh5EGJN74I1AjNEpVUr
 
 permissions:
   contents: read
@@ -309,7 +307,6 @@ jobs:
             echo "sha=${{ github.sha }}"
             echo "run_id=${{ github.run_id }}"
             echo "run_attempt=${{ github.run_attempt }}"
-            echo "environment_id=${{ env.TEST_ENV_ID }}"
             echo "dry_run=${{ github.event_name == 'workflow_dispatch' && inputs.preview_cleanup_dry_run == 'true' }}"
             echo "cleanup_action=ghcr-pr-tag-prune-only"
             echo "ghcr_cleanup=closed-pr-pr-tags-older-than-14-days"
