@@ -259,7 +259,7 @@ jobs:
           DEPLOY_OCR_MODEL_OVERRIDE: ${{ env.STAGING_E2E_OCR_MODEL }}
           DEPLOY_VISION_MODEL_OVERRIDE: ${{ env.STAGING_E2E_VISION_MODEL }}
           # Empty PYTHONPATH so `python -m tools.deploy_v2` resolves repo/tools (infra2)
-          # rather than the app's tools/ package, which a later E2E step's
+          # rather than the repo-root tools/ package, which a later E2E step's
           # PYTHONPATH=<repo root> export would otherwise shadow (see release.yml).
           PYTHONPATH: ""
         run: |

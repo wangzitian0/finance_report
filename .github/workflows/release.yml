@@ -366,9 +366,10 @@ jobs:
         env:
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
           # `python -m tools.deploy_v2` MUST resolve to repo/tools (infra2), not the
-          # app's own tools/ package. The E2E setup step exports PYTHONPATH=<repo root>
-          # into GITHUB_ENV, and finance_report/tools/__init__.py makes `tools` a
-          # regular package that shadows repo/tools when that root is on the path —
+          # repo-root (monorepo top-level) tools/ package. The E2E setup step exports
+          # PYTHONPATH=<repo root> into GITHUB_ENV, and the top-level tools/__init__.py
+          # makes `tools` a regular package that shadows repo/tools when that root is
+          # on the path —
           # so an empty PYTHONPATH keeps deploy_v2 importable regardless of step order.
           PYTHONPATH: ""
         run: |
@@ -429,7 +430,7 @@ jobs:
         env:
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
           # Empty PYTHONPATH so `python -m tools.deploy_v2` resolves repo/tools, not
-          # the app's tools/ package. This step runs AFTER the E2E setup exported
+          # the repo-root tools/ package. This step runs AFTER the E2E setup exported
           # PYTHONPATH=<repo root> into GITHUB_ENV, which previously shadowed
           # repo/tools and crashed the rollback with "No module named tools.deploy_v2"
           # — leaving production un-rolled-back on a failed deploy (the safety net).
