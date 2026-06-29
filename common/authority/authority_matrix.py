@@ -1,6 +1,6 @@
 """Single machine source of the authority-tier vocabulary + tier->proof matrix.
 
-This is the canonical machine mirror of ``docs/ssot/authority-tiers.md``. It is
+This is the canonical machine mirror of ``common/authority/readme.md``. It is
 **stdlib-only by design** (``typing`` only): importable by the lightweight SSOT
 tooling — the registry generator (``generate_ac_registry``), the proof-kind gate
 (``check_ac_proof_kind``), and the CODE/LLM classifier (``authority_classifier``)

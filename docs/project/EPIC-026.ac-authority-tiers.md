@@ -19,9 +19,9 @@ behaviors and each AC still carries its own tier.
 
 The crucial payoff: **an AC's tier dictates what KIND of proof is valid for it**,
 tying the testing strategy to intent. The tier vocabulary, the cross-tier MUST
-rules, and the tier→valid-proof matrix are owned by the SSOT
-([authority-tiers.md](../ssot/authority-tiers.md)); this EPIC references that
-contract rather than restating it.
+rules, and the tier→valid-proof matrix are owned by the `authority` package
+([common/authority/readme.md](../../common/authority/readme.md)); this EPIC
+references that contract rather than restating it.
 
 ---
 
@@ -48,7 +48,8 @@ contract rather than restating it.
 - **First batch**: tag the EPICs central to the strict↔LLM design discussion.
 
 ### Actions
-1. Author [authority-tiers.md](../ssot/authority-tiers.md); register it in
+1. Author the tier vocabulary (now internalized into the `authority` package,
+   [common/authority/readme.md](../../common/authority/readme.md)); register it in
    `docs/ssot/MANIFEST.yaml` (`authority_tiers`).
 2. Extend the EPIC AC declaration with a `{tier:XX}` marker and teach
    `tools/generate_ac_registry.py` to lift it into the AC value.
@@ -125,7 +126,7 @@ contract rather than restating it.
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC26.9.1 | A base library classifies every AC as `CODE` or `LLM` **detected from its test shape** (a record/replay cassette test ⇒ `LLM`; a structured-input deterministic test ⇒ `CODE`), and a counter aggregates each package into an `LLM-share` mapped to one of four bands — `CODE-ONLY` (`s = 0`), `CODE-LED` (`0 < s < 50`), `LLM-LED` (`50 ≤ s < 100`), `LLM-ONLY` (`s = 100`). Classification is detected, never declared, so the band is computed not argued. See `docs/ssot/authority-tiers.md` §CODE/LLM bit. {tier:CODE-ONLY} {proof:property} | `test_AC26_9_1_band_boundaries`, `test_AC26_9_1_test_shape_classifies_code_vs_llm` | `tests/tooling/test_authority_classifier.py` | P0 |
+| AC26.9.1 | A base library classifies every AC as `CODE` or `LLM` **detected from its test shape** (a record/replay cassette test ⇒ `LLM`; a structured-input deterministic test ⇒ `CODE`), and a counter aggregates each package into an `LLM-share` mapped to one of four bands — `CODE-ONLY` (`s = 0`), `CODE-LED` (`0 < s < 50`), `LLM-LED` (`50 ≤ s < 100`), `LLM-ONLY` (`s = 100`). Classification is detected, never declared, so the band is computed not argued. See `common/authority/readme.md` §CODE/LLM bit. {tier:CODE-ONLY} {proof:property} | `test_AC26_9_1_band_boundaries`, `test_AC26_9_1_test_shape_classifies_code_vs_llm` | `tests/tooling/test_authority_classifier.py` | P0 |
 
 ---
 
@@ -151,7 +152,8 @@ contract rather than restating it.
 
 ## 🔗 References
 
-- SSOT: [authority-tiers.md](../ssot/authority-tiers.md)
+- SSOT: [common/authority/readme.md](../../common/authority/readme.md) (the tier
+  vocabulary, internalized into the `authority` package)
 - Untagged-debt baseline: [ac-tier-baseline.json](../ssot/ac-tier-baseline.json)
 - Generator: `tools/generate_ac_registry.py` · Gate: `tools/check_ac_tier_baseline.py`
 - Workflow context: [tdd.md](../ssot/tdd.md)

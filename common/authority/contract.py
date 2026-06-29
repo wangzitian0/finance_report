@@ -73,8 +73,9 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-authority.1.1",
             statement=(
-                "authority-tiers.md is the single registered owner of the tier "
-                "vocabulary, the cross-tier MUST rules, and the tier->proof matrix."
+                "common/authority/readme.md is the single registered owner of the "
+                "tier vocabulary, the cross-tier MUST rules, and the tier->proof "
+                "matrix (internalized from the retired docs/ssot/authority-tiers.md)."
             ),
             test=(
                 "tests/tooling/test_ac_authority_tiers.py"

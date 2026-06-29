@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Cross-tier STRUCTURAL gate: CODE-ONLY / financial-truth modules MUST NOT import the LLM layer.
 
-EPIC-026 phase 3. The authority-tier SSOT (``docs/ssot/authority-tiers.md``,
+EPIC-026 phase 3. The authority-tier SSOT (``common/authority/readme.md``,
 "Cross-tier MUST rules", rule 2) states:
 
     **CODE-ONLY stays pure.** A CODE-ONLY AC MUST NOT depend on an LLM client; its outcome is
@@ -31,7 +31,7 @@ Scope (v1, deliberately simple + false-positive-free):
   same letters (``src.llmx`` would not match; ``src.llm_helpers`` would not match).
 
 The protected set and forbidden targets below are the machine-checkable mirror of
-the SSOT rule; ``docs/ssot/authority-tiers.md`` is the single source of truth.
+the SSOT rule; ``common/authority/readme.md`` is the single source of truth.
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# --- The contract (mirror of docs/ssot/authority-tiers.md "Cross-tier MUST
+# --- The contract (mirror of common/authority/readme.md "Cross-tier MUST
 # --- rules", rule 2). Keep these in sync with the SSOT subsection.
 
 # Protected CODE-ONLY / financial-truth modules, as path globs relative to the repo
@@ -196,7 +196,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Cross-tier structural gate: CODE-ONLY/financial-truth modules MUST NOT "
-            "import the LLM layer (docs/ssot/authority-tiers.md)."
+            "import the LLM layer (common/authority/readme.md)."
         )
     )
     parser.add_argument("--repo-root", type=Path, default=REPO_ROOT)
@@ -213,7 +213,7 @@ def main(argv: list[str] | None = None) -> int:
             print(
                 f"::error title=Tier import guard::protected glob {glob!r} matched "
                 "no file — the curated PROTECTED_MODULE_GLOBS set has drifted from "
-                "the tree (see docs/ssot/authority-tiers.md).",
+                "the tree (see common/authority/readme.md).",
                 file=sys.stderr,
             )
         print(
@@ -230,7 +230,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"::error title=Tier import guard::{module_path} imports {imported!r} "
                 f"(forbidden LLM-layer target {matched!r}). A CODE-ONLY/financial-truth "
                 "module MUST NOT depend on the LLM layer "
-                "(docs/ssot/authority-tiers.md, cross-tier MUST rule 2).",
+                "(common/authority/readme.md, cross-tier MUST rule 2).",
                 file=sys.stderr,
             )
         print(

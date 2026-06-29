@@ -28,11 +28,20 @@ def _write_epic(epic_dir: Path, fname: str, content: str) -> None:
 
 
 def test_AC26_1_1_ssot_defines_five_tiers_and_proof_matrix() -> None:
-    """AC-authority.1.1: The five tiers, MUST rules, and proof matrix live in one SSOT owner."""
-    doc = (ROOT / "docs/ssot/authority-tiers.md").read_text(encoding="utf-8")
+    """AC-authority.1.1: The five tiers, MUST rules, and proof matrix live in one SSOT owner.
+
+    The tier vocabulary was internalized from the retired
+    ``docs/ssot/authority-tiers.md`` into the ``authority`` package's readme
+    (migration-standard step 3 "SSOT internalized"), so the single owner is now
+    ``common/authority/readme.md`` and the manifest concept points at the package.
+    """
+    doc = (ROOT / "common/authority/readme.md").read_text(encoding="utf-8")
     manifest = yaml.safe_load(
         (ROOT / "docs/ssot/MANIFEST.yaml").read_text(encoding="utf-8")
     )
+
+    # The retired central SSOT file is gone — the package readme is the owner.
+    assert not (ROOT / "docs/ssot/authority-tiers.md").exists()
 
     # Exactly the five tier codes are the canonical vocabulary.
     assert gar.AC_TIERS == ("CODE-ONLY", "CODE-LED", "LLM-LED", "LLM-ONLY", "HU")
@@ -47,9 +56,9 @@ def test_AC26_1_1_ssot_defines_five_tiers_and_proof_matrix() -> None:
     assert "evidence chain" in doc.lower()  # HU
     assert "golden" in doc.lower()  # LLM-LED: golden assertions are NOT valid
 
-    # Single owner registered in the manifest.
+    # Single owner registered in the manifest now points at the package.
     concept = manifest["concepts"]["authority_tiers"]
-    assert concept["owner"] == "docs/ssot/authority-tiers.md"
+    assert concept["owner"] == "common/authority/readme.md"
 
 
 def test_AC26_2_1_tier_marker_flows_into_registry_value(tmp_path, monkeypatch) -> None:

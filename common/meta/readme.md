@@ -132,7 +132,7 @@ The recipe for moving a module (and its EPIC-table ACs) into the package model.
 1. **Name the bounded context and its axes.** Pick the package `name` (its
    `common/<name>/` dir), the `klass` (`kernel` < `platform` < `core` — its
    position in the import DAG), and the authority **tier**
-   ([`authority-tiers.md`](../../docs/ssot/authority-tiers.md): CODE-ONLY/CODE-LED/LLM-LED/LLM-ONLY — how
+   ([`authority-tiers.md`](../../common/authority/readme.md): CODE-ONLY/CODE-LED/LLM-LED/LLM-ONLY — how
    the module is built). If the tier is genuinely undecided, ship `status="draft"`
    with `tier=None` and resolve it before going `active` (the shipped-package
    rule). **One package = one tier**; a module mixing deterministic + LLM-emitted

@@ -4,7 +4,7 @@
 Every acceptance criterion should eventually declare an authority *tier* (one of
 :data:`common.ssot.generate_ac_registry.AC_TIERS`) — the property that says who
 holds final decision authority over the behavior the AC describes, and therefore
-what KIND of proof is valid for it (SSOT: ``docs/ssot/authority-tiers.md``).
+what KIND of proof is valid for it (SSOT: ``common/authority/readme.md``).
 
 The repo has ~1830 ACs that predate the tier attribute, so a hard "every AC must
 declare a tier" check would fail CI on day one. This gate instead mirrors the
@@ -145,7 +145,7 @@ def main(argv: list[str] | None = None) -> int:
                 "::error title=AC tier ratchet::"
                 f"{ac_id}: new/modified AC has no authority tier. Add a "
                 "{tier:CODE-ONLY|CODE-LED|HU|LLM-LED|LLM-ONLY} marker at its definition site "
-                "(see docs/ssot/authority-tiers.md).",
+                "(see common/authority/readme.md).",
                 file=sys.stderr,
             )
         print(

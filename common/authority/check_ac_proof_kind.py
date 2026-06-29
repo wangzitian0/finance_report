@@ -3,7 +3,7 @@
 
 EPIC-026 phase 1 gave every acceptance criterion (AC) an authority *tier*
 (CODE-ONLY/CODE-LED/HU/LLM-LED/LLM-ONLY) and an SSOT matrix
-(``docs/ssot/authority-tiers.md``) saying which KIND of proof is valid for an AC
+(``common/authority/readme.md``) saying which KIND of proof is valid for an AC
 at each tier. That matrix was descriptive only. This gate makes it ENFORCED —
 but ONLY for ACs that carry a tier, so it is non-breaking for the ~1655 untagged
 legacy ACs (they have no ``proof_kind`` key and are ignored).
@@ -46,7 +46,7 @@ from common.ssot.generate_ac_registry import AC_PROOF_KINDS, build_registry_entr
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # tier -> the set of proof kinds the SSOT matrix accepts for that tier. The prose
-# source of truth is docs/ssot/authority-tiers.md; its single MACHINE mirror is
+# source of truth is common/authority/readme.md; its single MACHINE mirror is
 # common/authority/authority_matrix.TIER_VALID_PROOF_KINDS (which package_contract also
 # re-exports for the PackageContract model). Aliased here so this gate and the
 # contract model enforce one identical matrix — they cannot drift apart.
@@ -124,7 +124,7 @@ def main(argv: list[str] | None = None) -> int:
         for message in violations:
             print(
                 f"::error title=AC proof-kind::{message} "
-                "(see docs/ssot/authority-tiers.md).",
+                "(see common/authority/readme.md).",
                 file=sys.stderr,
             )
         print(
