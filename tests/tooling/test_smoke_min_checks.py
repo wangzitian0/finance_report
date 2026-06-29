@@ -19,15 +19,19 @@ DEFAULT_MIN_CHECKS = 12  # must match the MIN_CHECKS default in smoke_test.sh
 
 def _real_check_calls() -> int:
     text = SMOKE.read_text(encoding="utf-8")
-    return len(re.findall(r'^\s*(?:check_endpoint|wait_for_endpoint)\s+"', text, re.M))
+    # A call is the command name followed by whitespace + an argument (any quote style /
+    # variable). The definition line `name() {` has `(` immediately after the name (no
+    # whitespace), so it's excluded — no dependence on the first arg being double-quoted.
+    return len(re.findall(r'^\s*(?:check_endpoint|wait_for_endpoint)\s+\S', text, re.M))
 
 
 def test_smoke_has_at_least_the_default_minimum_checks() -> None:
     # Guards two things at once: the default MIN_CHECKS can't exceed the real check count
     # (so a healthy smoke never false-positives), and nobody can delete/comment checks down
     # below the floor without this test going red.
-    assert _real_check_calls() >= DEFAULT_MIN_CHECKS, (
-        f"only {_real_check_calls()} real smoke checks; add checks or lower MIN_CHECKS"
+    count = _real_check_calls()
+    assert count >= DEFAULT_MIN_CHECKS, (
+        f"only {count} real smoke checks; add checks or lower MIN_CHECKS"
     )
 
 

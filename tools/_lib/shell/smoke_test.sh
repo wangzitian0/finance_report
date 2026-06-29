@@ -112,6 +112,12 @@ FAILED=0
 # low-water mark, not the exact total — overridable for reproduction (MIN_CHECKS=999 ...).
 CHECK_COUNT=0
 MIN_CHECKS="${MIN_CHECKS:-12}"
+case "$MIN_CHECKS" in
+    ''|*[!0-9]*)
+        echo "✗ MIN_CHECKS must be a non-negative integer, got '$MIN_CHECKS'"
+        exit 2
+        ;;
+esac
 
 # --- Readiness Check ---
 echo "--- Readiness Check ---"
@@ -227,9 +233,9 @@ else
 fi
 
 echo "========================================"
-echo "Ran $CHECK_COUNT checks (minimum $MIN_CHECKS)"
+echo "Ran $CHECK_COUNT endpoint checks (check_endpoint/wait_for_endpoint; minimum $MIN_CHECKS)"
 if [ "$CHECK_COUNT" -lt "$MIN_CHECKS" ]; then
-    echo "✗ smoke ran only $CHECK_COUNT checks (< $MIN_CHECKS) — refusing to report green (silently-empty smoke)"
+    echo "✗ smoke ran only $CHECK_COUNT endpoint checks (< $MIN_CHECKS) — refusing to report green (silently-empty smoke)"
     exit 1
 fi
 if [ "$FAILED" -eq 0 ]; then
