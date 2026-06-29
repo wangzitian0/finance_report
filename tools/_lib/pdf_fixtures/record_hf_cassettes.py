@@ -44,13 +44,12 @@ from typing import Any
 # installed (e.g. the tooling-coverage CI env).
 
 ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(ROOT / "apps/backend"))
-sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "tools/_lib/fixtures"))
+sys.path.insert(0, str(ROOT / "apps/backend"))  # for src.* (the cassette/prompt modules)
+sys.path.insert(0, str(ROOT))  # for the tools.* package
 
-from extraction_pii_mask import mask_extraction, source_ref  # noqa: E402
 from src.llm.cassette import fingerprint  # noqa: E402
 from src.prompts.statement import SYSTEM_PROMPT  # noqa: E402
+from tools._lib.fixtures.extraction_pii_mask import mask_extraction, source_ref  # noqa: E402
 
 CASSETTE_DIR = ROOT / "apps/backend/tests/fixtures/llm_cassettes"
 TRUTH_DIR = CASSETTE_DIR / "ground_truth"
@@ -285,19 +284,21 @@ def main() -> int:  # pragma: no cover
             print(f"WARN   {key}: response not JSON, skipping")
             continue
         masked = mask_extraction(extracted)
-        fp = fingerprint(role="vision", messages=messages, decode_params=decode_params)
+        # Key the cassette on the SAME (image-stripped) request that gets stored, so the
+        # committed file round-trips `fingerprint(stored request) == filename` (AC23.5.2)
+        # and no raw page-image bytes are committed (repo bloat / PII).
+        stored_request = {
+            "role": "vision",
+            "messages": strip_request_images(messages),
+            "decode_params": decode_params,
+        }
+        fp = fingerprint(role="vision", messages=stored_request["messages"], decode_params=decode_params)
         cassette = {
             "fingerprint": fp,
             "role": "vision",
             "tag": "flow-only",
             "source": source_ref(hf_url=hf_url(key)),
-            # Request stored with images reduced to a content hash — NO raw page-image
-            # bytes are committed (repo bloat / PII); replay rebuilds from the source ref.
-            "request": {
-                "role": "vision",
-                "messages": strip_request_images(messages),
-                "decode_params": decode_params,
-            },
+            "request": stored_request,
             "response": {"stream_text": json.dumps(masked, ensure_ascii=False)},
         }
         (CASSETTE_DIR / f"{fp}.json").write_text(json.dumps(cassette, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

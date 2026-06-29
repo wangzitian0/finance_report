@@ -6,10 +6,9 @@ URL or a sha256 of a local file) — the source document itself is never committ
 there is no PDF/image to leak and no repo bloat. This module masks the residual PII
 in that output, uniformly for synthetic (HF) and real (own) statements:
 
-- **Meta / identity fields** (account holder, full account number, address, NRIC,
-  phone, email, customer id) -> masked to a fixed ``**`` marker. The institution
-  name, period and currency are kept (not identity PII). ``account_last4`` keeps its
-  last-4 form (already partial) but is starred.
+- **Meta / identity fields** (account holder, account number, ``account_last4``,
+  address, NRIC, phone, email, customer id) -> masked to a fixed ``**`` marker. The
+  institution name, period and currency are kept (not identity PII).
 - **Transaction descriptions** -> keep first 3 + ``***`` + last 3 chars, so a
   counterparty name like ``"ACME TRADING PTE LTD"`` becomes ``"ACM***LTD"``. Short
   strings (<= 6 chars) are fully starred.

@@ -1,8 +1,8 @@
-{"case_id": "816ca23b84808a2796b41b06d603cb3757d6200919819a7c6a617911f9032aed", "score": 0.982869, "metric": "field-accuracy", "provenance": "text/generic_hf/large_statement"}
-{"case_id": "8379cad244112fe35ef056382ba5269c3a8e1a800bf95f2e77eae330e6e2673e", "score": 0.971311, "metric": "field-accuracy", "provenance": "text/generic_hf/large_statement"}
-{"case_id": "8673adb3d15af87ec8672f7478f5812814111cea24e4cbe80d53e59c98e4734e", "score": 0.944015, "metric": "field-accuracy", "provenance": "text/generic_hf/large_statement"}
+{"case_id": "119769ccda7a7b5452b82b46362d9797bf7de577e2834de572b7c9e9d563369e", "score": 0.982869, "metric": "field-accuracy", "provenance": "text/generic_hf/large_statement"}
+{"case_id": "69e9b2c1b2fb563811851dbd3a33096b68ef8f39261a0951fa3b7a5dcf7d4484", "score": 0.971311, "metric": "field-accuracy", "provenance": "text/generic_hf/large_statement"}
+{"case_id": "a3238a794287b66d6217840c6d21c6b194ab93bbbc61d9b4caea0b48ddfc1ba8", "score": 0.944015, "metric": "field-accuracy", "provenance": "text/generic_hf/large_statement"}
 {"case_id": "cb5dd1f714784190dab3356c17d635a0e09b8f9fca78abb6023218ca29efcbab", "score": 1.0, "metric": "field-accuracy", "provenance": "text/generic/duplicate_rows"}
 {"case_id": "d2bef919d2918989d2a6dbc8bbf019bd6bd2107d97f2e1bd85c91185c36e4fd0", "score": 1.0, "metric": "field-accuracy", "provenance": "vision/named_bank/happy_path"}
 {"case_id": "d69fbafcecb481e614651b1178a5fb9d9e3724718ef7bf623502120bcd27db30", "score": 1.0, "metric": "field-accuracy", "provenance": "text/generic/happy_path"}
-{"case_id": "db717adcf1d3223fb7b108a34421d1df1c746c10956a7f0f971f877e87366a1d", "score": 0.969262, "metric": "field-accuracy", "provenance": "text/generic_hf/large_statement"}
-{"case_id": "e762d90d3df71522e4b8a685b5d5dc7e4844709805270e173967021bed92f1f6", "score": 0.974948, "metric": "field-accuracy", "provenance": "text/generic_hf/large_statement"}
+{"case_id": "ccd2975934705a6e8b0d04ea97879fd4d8ca8f1a093216fb2149ddbba6aafc9a", "score": 0.969262, "metric": "field-accuracy", "provenance": "text/generic_hf/large_statement"}
+{"case_id": "b178f1de82f9147bf22733e85161f35025b5ed5bf6397b74a7dad1126da061df", "score": 0.974948, "metric": "field-accuracy", "provenance": "text/generic_hf/large_statement"}
