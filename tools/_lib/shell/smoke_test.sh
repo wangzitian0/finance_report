@@ -20,6 +20,7 @@ echo "========================================"
 
 # Helper function
 check_endpoint() {
+    CHECK_COUNT=$((CHECK_COUNT + 1))
     local name="$1"
     local url="$2"
     local expected="${3:-}"
@@ -80,6 +81,7 @@ check_endpoint() {
 
 # Wait for app/API to become reachable before running checks
 wait_for_endpoint() {
+    CHECK_COUNT=$((CHECK_COUNT + 1))
     local name="$1"
     local url="$2"
     local max_attempts="${SMOKE_READY_ATTEMPTS:-30}"
@@ -104,6 +106,12 @@ wait_for_endpoint() {
 
 # Run tests
 FAILED=0
+# Meta-guard against a silently-empty smoke (CF-C): count every check_endpoint /
+# wait_for_endpoint call and refuse to report green if fewer than MIN_CHECKS ran (e.g. the
+# check block got short-circuited, BASE_URL was empty, or checks were commented out). A
+# low-water mark, not the exact total — overridable for reproduction (MIN_CHECKS=999 ...).
+CHECK_COUNT=0
+MIN_CHECKS="${MIN_CHECKS:-12}"
 
 # --- Readiness Check ---
 echo "--- Readiness Check ---"
@@ -219,6 +227,11 @@ else
 fi
 
 echo "========================================"
+echo "Ran $CHECK_COUNT checks (minimum $MIN_CHECKS)"
+if [ "$CHECK_COUNT" -lt "$MIN_CHECKS" ]; then
+    echo "✗ smoke ran only $CHECK_COUNT checks (< $MIN_CHECKS) — refusing to report green (silently-empty smoke)"
+    exit 1
+fi
 if [ "$FAILED" -eq 0 ]; then
     echo "All smoke tests passed!"
     exit 0
