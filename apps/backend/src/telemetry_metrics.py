@@ -354,6 +354,10 @@ def record_rate_limit_rejected(*, scope: str) -> None:
 INVARIANT_VIOLATION_KINDS = (
     "balance_mismatch",
     "per_currency_nav",
+    # Bank per-currency balance-chain self-check failure (#1502). Distinct from the
+    # brokerage NAV bucket above so bank and brokerage multi-currency failures stay
+    # separable in metrics.
+    "per_currency_balance",
     "chain_break",
     "dedup_within_doc_collapse",
     # Blocking LLM-LED gate quarantine outcomes (EPIC-020 AC20.9.7, #1352). Distinct

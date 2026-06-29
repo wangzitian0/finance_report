@@ -23,7 +23,7 @@ Output format (JSON object - NOT an array):
   "period_end": "2025-01-31",
   "opening_balance": "10000.00",
   "closing_balance": "12500.00",
-  "balances": [  // OPTIONAL — include ONLY for a multi-currency statement (see rule 16)
+  "balances": [
     {"currency": "SGD", "opening": "10000.00", "closing": "12500.00"},
     {"currency": "USD", "opening": "2000.00", "closing": "3500.00"}
   ],
