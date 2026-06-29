@@ -443,8 +443,9 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-ledger.76.2",
             statement=(
-                "Transfer detection logs a warning and skips when the statement has "
-                "no linked account. Was EPIC-015 AC15.6.2."
+                "Transfer detection skips (creates no Processing entry and yields no "
+                "match) when the statement has no linked account. Was EPIC-015 "
+                "AC15.6.2."
             ),
             test=(
                 "apps/backend/tests/reconciliation/test_transfer_integration.py"

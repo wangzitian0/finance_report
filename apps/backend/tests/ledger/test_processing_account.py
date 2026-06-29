@@ -403,7 +403,7 @@ class TestProcessingAccountValidation:
     """Test validation rules for Processing account (Anti-pattern A)."""
 
     async def test_reject_manual_processing_entry(self, db: AsyncSession, test_user):
-        """AC-ledger.74.A · Manual journal entries cannot use Processing account (SSOT Anti-pattern A)."""
+        """SSOT Anti-pattern A · Manual journal entries cannot use Processing account."""
         user_id = test_user.id
         processing = await get_or_create_processing_account(db, user_id)
         cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
@@ -440,7 +440,7 @@ class TestProcessingAccountValidation:
             await post_journal_entry(db, entry.id, user_id)
 
     async def test_system_entry_can_use_processing(self, db: AsyncSession, test_user):
-        """AC-ledger.74.A · System-generated entries (source_type=SYSTEM) CAN use Processing account."""
+        """SSOT Anti-pattern A · System-generated entries (source_type=SYSTEM) CAN use Processing account."""
         user_id = test_user.id
         processing = await get_or_create_processing_account(db, user_id)
         cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
