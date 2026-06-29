@@ -42,8 +42,12 @@ async def post_entry(
 
     ``repo`` is the persistence port; when omitted it defaults to the
     ``AsyncSession`` adapter over ``db`` (dependency inversion, mechanism B —
-    tests inject a fake, production passes the session).
+    tests inject a fake, production passes the session). The final ``db.refresh``
+    that eager-loads the posted entry's ``lines`` runs only for the default
+    session-backed adapter; an injected port owns the shape of what it returns, so
+    a fake repo + dummy ``db`` is never refreshed.
     """
+    use_default_adapter = repo is None
     repository: JournalRepository = repo if repo is not None else SqlJournalRepository(db)
     lines_data = [
         {
@@ -66,5 +70,6 @@ async def post_entry(
         source_id=source_id,
     )
     posted = await repository.post(created.id, user_id)
-    await db.refresh(posted, ["lines"])
+    if use_default_adapter:
+        await db.refresh(posted, ["lines"])
     return posted

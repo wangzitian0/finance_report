@@ -6,8 +6,7 @@ from uuid import uuid4
 import pytest
 from common.testing.ac_proof import ac_proof
 
-from src.ledger import Entry, Leg, UnbalancedEntryError
-from src.ledger.base.types.errors import DegenerateEntryError
+from src.ledger import DegenerateEntryError, Entry, Leg, UnbalancedEntryError
 from src.models.journal import Direction
 from src.money import Money
 
