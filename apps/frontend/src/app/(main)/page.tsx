@@ -8,6 +8,7 @@ import { UploadToReportHomePanel } from "@/components/workflow/WorkflowNotificat
 import { AdvisorBrief } from "@/components/advisor/AdvisorBrief";
 import { TrustMeter } from "@/components/home/TrustMeter";
 import { InfoHint } from "@/components/ui/InfoHint";
+import { OpeningBalanceWarningBanner } from "@/components/reports/OpeningBalanceWarningBanner";
 
 import { formatDateDisplay, formatMonthLabel } from "@/lib/date";
 import {
@@ -304,6 +305,11 @@ export default function HomePage() {
                 <p className="text-xs text-muted mt-1">Obligations</p>
               </div>
             </div>
+            {/* #1486: surface the opening-balance gate here too — net worth can
+                render negative/incomplete until opening balances are recorded. */}
+            <OpeningBalanceWarningBanner
+              warnings={balanceSheet?.opening_balance_warnings}
+            />
             {/* Hero: Net Worth Banner (C2 + C3) */}
             {balanceSheet && (
               <div className="card p-6 mb-6 bg-gradient-to-r from-[var(--accent-muted)] to-[var(--background-card)] border border-[var(--accent)]/30">

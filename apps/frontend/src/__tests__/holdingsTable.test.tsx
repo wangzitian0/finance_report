@@ -138,4 +138,28 @@ describe("HoldingsTable", () => {
     expect(screen.getByText("Derived")).toHaveClass("badge-muted")
     expect(screen.queryByText("Unknown")).not.toBeInTheDocument()
   })
+
+  it("#1487 surfaces the native currency when it differs from the reporting currency", () => {
+    const foreign: PortfolioHolding = {
+      ...fractional,
+      id: "hk",
+      asset_identifier: "0700",
+      currency: "SGD",
+      native_currency: "HKD",
+    }
+    render(<HoldingsTable holdings={[foreign]} />)
+    expect(screen.getByText(/HKD-denominated/)).toBeInTheDocument()
+  })
+
+  it("#1487 omits the native-currency note when it matches the reporting currency", () => {
+    const local: PortfolioHolding = {
+      ...fractional,
+      id: "sg",
+      asset_identifier: "D05",
+      currency: "SGD",
+      native_currency: "SGD",
+    }
+    render(<HoldingsTable holdings={[local]} />)
+    expect(screen.queryByText(/denominated/)).not.toBeInTheDocument()
+  })
 })

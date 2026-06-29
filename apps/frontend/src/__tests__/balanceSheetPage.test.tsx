@@ -206,4 +206,32 @@ describe("BalanceSheetPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "–" }))
     expect(screen.queryByText("Wallet")).not.toBeInTheDocument()
   })
+
+  it("#1486 surfaces the opening-balance warning and degraded confidence tier", async () => {
+    mockedApiFetch.mockResolvedValue({
+      as_of_date: "2026-02-01",
+      currency: "SGD",
+      assets: [{ account_id: "a-root", name: "Cash", type: "ASSET", parent_id: null, amount: "-500", provenance: "imported" }],
+      liabilities: [],
+      equity: [],
+      total_assets: "-500",
+      total_liabilities: "0",
+      total_equity: "0",
+      confidence_tier: "LOW",
+      opening_balance_warnings: [
+        { type: "missing_opening_balance", message: "Record opening balances to trust this total." },
+      ],
+      equation_delta: "0",
+      is_balanced: true,
+    })
+
+    render(<BalanceSheetPage />)
+
+    await waitFor(() => expect(screen.getByText("Balance Sheet")).toBeInTheDocument())
+    // Warning banner + CTA are shown on the report surface, not just /accounts.
+    expect(screen.getByText("Opening balances not recorded")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /set opening balances/i })).toHaveAttribute("href", "/accounts")
+    // The degraded aggregate tier is visible, so "✓ Balanced" is not the only signal.
+    expect(screen.getByText("LOW")).toBeInTheDocument()
+  })
 })
