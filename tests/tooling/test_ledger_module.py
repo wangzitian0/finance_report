@@ -1,8 +1,12 @@
 """ledger module + project-DAG guards (EPIC-012 AC12.34).
 
-The ledger module is the template vertical slice. These guards keep its shape and
-the project's layer-DAG rule honest: nouns/verbs converge by role, and the model
-layer never depends on a service (no upward edges / import cycles).
+The ledger module is the template vertical slice. After the package-model cutover
+(#1420 slice 3a) it converges into ``base/`` (the pure double-entry core), ``extension/``
+(the posting service + the journal ``Repository`` adapter), and ``data/`` (the
+account-balance projection). These guards keep its shape and the project's layer-DAG
+rule honest: nouns/verbs/projection converge by layer, the model layer never depends
+on a service (no upward edges / import cycles), and the journal write pipeline lives
+in the ledger package (no ``services.accounting`` re-export shim survives).
 """
 
 import ast
@@ -20,9 +24,16 @@ def _read(path: str) -> str:
 
 @ac_proof(proof_id="test_ledger_module_shape", ac_ids=["AC12.34.2"], ci_tier="pr_ci")
 def test_AC12_34_2_ledger_module_converges_by_role():
-    """AC12.34.2: ledger exposes types (nouns) + ops (verbs) as a vertical slice."""
-    assert (SRC / "ledger/types/entry.py").exists()
-    assert (SRC / "ledger/ops/post.py").exists()
+    """AC12.34.2: ledger converges by layer — base/ (the Entry/Leg nouns), extension/
+    (the post_entry verb + the journal Repository adapter), data/ (the balance
+    projection) — and exports Entry/Leg/post_entry/UnbalancedEntryError."""
+    assert (SRC / "ledger/base/types/entry.py").exists()
+    assert (SRC / "ledger/extension/post.py").exists()
+    assert (SRC / "ledger/data/balance.py").exists()
+    # the retired role dirs are gone (single home, zero residue).
+    assert not (SRC / "ledger/types").exists()
+    assert not (SRC / "ledger/ops").exists()
+    assert not (SRC / "ledger/store").exists()
     exports = _read("apps/backend/src/ledger/__init__.py")
     for name in ("Entry", "Leg", "post_entry", "UnbalancedEntryError"):
         assert name in exports, f"ledger must export {name}"
@@ -123,24 +134,24 @@ def test_AC12_34_5_remaining_posting_paths_guard_balance_with_entry():
     ci_tier="pr_ci",
 )
 def test_AC12_34_6_ledger_owns_posting_pipeline_no_upward_edge():
-    """AC12.34.6: the journal write pipeline lives in ledger.store; ledger.ops depends
-    down on it (not up on services.accounting), dissolving the ledger↔accounting cycle.
-
-    services.accounting re-exports the pipeline so external callers are unchanged.
+    """AC12.34.6: the journal write pipeline lives in the ledger package
+    (``ledger/extension/repository.py``); ``ledger.extension.post`` depends down on it
+    (not up on services.accounting), and after the package cutover NO ``services.accounting``
+    re-export shim survives — callers import the pipeline from the published ledger
+    interface (``from src.ledger import ...``), zero residue.
     """
-    assert (SRC / "ledger/store/posting.py").exists()
-    post = _read("apps/backend/src/ledger/ops/post.py")
-    assert (
-        "from src.ledger.store.posting import create_journal_entry, post_journal_entry"
-        in post
-    )
+    assert (SRC / "ledger/extension/repository.py").exists()
+    post = _read("apps/backend/src/ledger/extension/post.py")
+    assert "from src.ledger.extension.repository import" in post
     assert "from src.services.accounting import" not in post, (
-        "ledger.ops must not import upward into services.accounting"
+        "ledger.extension must not import upward into services.accounting"
     )
     acct = _read("apps/backend/src/services/accounting.py")
-    assert "from src.ledger.store.posting import" in acct, (
-        "services.accounting must re-export the pipeline from ledger.store"
-    )
-    # the pipeline defs no longer live in services.accounting
+    # the re-export shim is GONE: accounting no longer re-publishes the pipeline,
+    # and the pipeline defs do not live here.
+    assert "from src.ledger.store.posting import" not in acct
     assert "async def create_journal_entry(" not in acct
     assert "async def post_journal_entry(" not in acct
+    assert "async def void_journal_entry(" not in acct
+    # callers now reach the pipeline through the published ledger interface.
+    assert "from src.ledger import" in acct

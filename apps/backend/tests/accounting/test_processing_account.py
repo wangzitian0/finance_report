@@ -383,7 +383,7 @@ class TestProcessingAccountIntegrity:
         # Equity: $500
         # $500 = $0 + $500 ✓
 
-        from src.services.accounting import calculate_account_balance
+        from src.ledger import calculate_account_balance
 
         cash_balance = await calculate_account_balance(db, cash.id, user_id)
         processing_balance = await calculate_account_balance(db, processing.id, user_id)
@@ -410,7 +410,7 @@ class TestProcessingAccountValidation:
         db.add(cash)
         await db.flush()
 
-        from src.services.accounting import ValidationError, post_journal_entry
+        from src.ledger import ValidationError, post_journal_entry
 
         entry = JournalEntry(
             user_id=user_id,
@@ -447,7 +447,7 @@ class TestProcessingAccountValidation:
         db.add(cash)
         await db.flush()
 
-        from src.services.accounting import post_journal_entry
+        from src.ledger import post_journal_entry
 
         entry = JournalEntry(
             user_id=user_id,

@@ -1,108 +1,36 @@
-"""Journal write pipeline — the ledger's persistence (store) core.
+"""Journal write adapter — the ledger's persistence edge (extension layer).
 
-`create_journal_entry` / `post_journal_entry` / `void_journal_entry` plus the
-balance/fx/ownership validators that gate them. Moved here from
-`services.accounting` so the ledger owns its own posting pipeline: `ledger.ops`
-depends *down* on this module instead of *up* on a service, dissolving the
-`ledger ↔ services.accounting` import cycle. `services.accounting` re-exports
-these names for its existing callers.
+The concrete, ``AsyncSession``-backed implementation of the
+:class:`~src.ledger.base.repository.JournalRepository` port: ``create`` /
+``post`` / ``void`` plus the async account-ownership check that gates them. This
+is mechanism B — the pure core (``base/``) depends on the abstract port; the
+impure I/O lives here and depends back on it.
+
+The module-level ``create_journal_entry`` / ``post_journal_entry`` /
+``void_journal_entry`` functions are the published functional surface (re-exported
+from ``src.ledger``); :class:`SqlJournalRepository` is the port adapter that wraps
+them so ``post_entry`` can depend on the injectable port.
 """
 
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
-from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.config import settings
+import src.config
+from src.ledger.base.validators import (
+    ValidationError,
+    validate_fx_rates,
+    validate_journal_balance,
+    validate_journal_posting_invariants,
+)
 from src.models.account import Account
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
-from src.money import Currency, Money
 from src.services.source_type_priority import normalize_source_type
-
-
-class AccountingError(Exception):
-    """Base exception for accounting errors."""
-
-
-class ValidationError(AccountingError):
-    """Validation error for accounting operations."""
-
-
-def validate_fx_rates(lines: list[JournalLine]) -> None:
-    """
-    Validate FX rate requirements for multi-currency lines.
-
-    Requires fx_rate when line currency differs from base currency.
-    """
-    base_currency = settings.base_currency.upper()
-    for line in lines:
-        line_currency = (line.currency or base_currency).upper()
-        if line_currency != base_currency and line.fx_rate is None:
-            raise ValidationError(f"fx_rate required for currency {line_currency} (base {base_currency})")
-
-
-def _line_base_amount(line: JournalLine) -> Money:
-    """Return the line value converted to the configured base currency, as Money."""
-    base = Currency.of(settings.base_currency)  # canonical, normalization-safe compare
-    line_money = line.money  # currency resolved via the single SSOT (None -> base)
-    if line_money.currency == base:
-        return line_money
-    if line.fx_rate is None:
-        raise ValidationError(f"fx_rate required for currency {line_money.currency.code} (base {base.code})")
-    return Money(line.amount * line.fx_rate, base.code)
-
-
-def validate_journal_balance(lines: list[JournalLine]) -> None:
-    """
-    Validate that journal entry lines are balanced (debit = credit).
-
-    Args:
-        lines: List of journal lines to validate
-
-    Raises:
-        ValidationError: If debits and credits don't balance
-    """
-    if len(lines) < 2:
-        raise ValidationError("Journal entry must have at least 2 lines")
-
-    # All per-line amounts are in base currency here, so Money.sum is single-currency;
-    # a cross-currency mix would raise instead of silently summing.
-    total_debit = Money.sum(
-        (_line_base_amount(line) for line in lines if line.direction == Direction.DEBIT),
-        currency=settings.base_currency,
-    )
-    total_credit = Money.sum(
-        (_line_base_amount(line) for line in lines if line.direction == Direction.CREDIT),
-        currency=settings.base_currency,
-    )
-
-    if abs((total_debit - total_credit).amount) > Decimal("0.01"):
-        raise ValidationError(f"Journal entry not balanced: debit={total_debit.amount}, credit={total_credit.amount}")
-
-
-def validate_journal_posting_invariants(entry: JournalEntry) -> None:
-    """Validate the invariants required before an entry can become posted."""
-    validate_journal_balance(entry.lines)
-    validate_fx_rates(entry.lines)
-
-    for line in entry.lines:
-        account = line.account
-        if account is None:
-            raise ValidationError(f"Account {line.account_id} not found")
-        if account.user_id != entry.user_id:
-            raise ValidationError("Account does not belong to user")
-        if account.is_system and entry.source_type != JournalEntrySourceType.SYSTEM:
-            raise ValidationError(
-                "System accounts can only be used by system-generated entries. "
-                "Manual entries cannot debit/credit system accounts."
-            )
-        if not account.is_active:
-            raise ValidationError(f"Account {account.name} is not active")
 
 
 async def validate_line_account_ownership(
@@ -151,7 +79,7 @@ async def create_journal_entry(
     )
 
     lines: list[JournalLine] = []
-    default_currency = settings.base_currency.upper()
+    default_currency = src.config.settings.base_currency.upper()
     for line_data in lines_data:
         line = JournalLine(
             journal_entry_id=entry.id,
@@ -285,3 +213,41 @@ async def void_journal_entry(db: AsyncSession, entry_id: UUID, reason: str, user
     await db.refresh(reversal_entry, ["lines"])
 
     return reversal_entry
+
+
+class SqlJournalRepository:
+    """``AsyncSession``-backed :class:`~src.ledger.base.repository.JournalRepository`.
+
+    Wraps the module-level write functions so ``post_entry`` can depend on the
+    abstract port (mechanism B) while production wiring stays a thin pass-through
+    over the one ``AsyncSession`` owned by the caller's transaction boundary.
+    """
+
+    def __init__(self, db: AsyncSession) -> None:
+        self._db = db
+
+    async def create(
+        self,
+        *,
+        user_id: UUID,
+        entry_date: date,
+        memo: str,
+        lines_data: list[dict],
+        source_type: JournalEntrySourceType = JournalEntrySourceType.MANUAL,
+        source_id: UUID | None = None,
+    ) -> JournalEntry:
+        return await create_journal_entry(
+            self._db,
+            user_id,
+            entry_date,
+            memo,
+            lines_data,
+            source_type=source_type,
+            source_id=source_id,
+        )
+
+    async def post(self, entry_id: UUID, user_id: UUID) -> JournalEntry:
+        return await post_journal_entry(self._db, entry_id, user_id)
+
+    async def void(self, entry_id: UUID, reason: str, user_id: UUID) -> JournalEntry:
+        return await void_journal_entry(self._db, entry_id, reason, user_id)

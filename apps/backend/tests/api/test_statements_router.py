@@ -61,8 +61,8 @@ from src.services.statement_posting import (
     is_high_confidence_auto_approve_candidate,
     try_auto_approve_high_confidence_statement,
 )
-from tests.accounting._ledger_helpers import create_valid_posted_entry
 from tests.factories import AccountFactory, UserFactory
+from tests.ledger._ledger_helpers import create_valid_posted_entry
 
 pytestmark = pytest.mark.asyncio
 

@@ -18,7 +18,7 @@ from src.models.portfolio import DividendIncome, InvestmentTransaction, Investme
 from src.routers import portfolio as portfolio_router
 from src.schemas.portfolio import HoldingResponse
 from src.services.portfolio import AssetNotFoundError
-from tests.accounting._ledger_helpers import create_valid_posted_entry
+from tests.ledger._ledger_helpers import create_valid_posted_entry
 
 
 @pytest.fixture

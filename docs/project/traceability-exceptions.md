@@ -24,7 +24,8 @@ These files are test infrastructure, not behavior proof.
 | `apps/backend/tests/quantity/__init__.py` | Package marker |
 | `apps/backend/tests/ratio/__init__.py` | Package marker |
 | `apps/backend/tests/unit_price/__init__.py` | Package marker |
-| `apps/backend/tests/accounting/_ledger_helpers.py` | Shared accounting ledger invariant test helper |
+| `apps/backend/tests/ledger/__init__.py` | Package marker |
+| `apps/backend/tests/ledger/_ledger_helpers.py` | Published ledger test factory (shared posted/void entry builders) |
 | `apps/backend/tests/ai/__init__.py` | Package marker |
 | `apps/backend/tests/assets/__init__.py` | Package marker |
 | `apps/backend/tests/identity/__init__.py` | Package marker |
@@ -140,6 +141,7 @@ explicit AC IDs for the behavior.
 | `tests/tooling/test_check_ssot_ownership.py` | `docs/ssot/MANIFEST.yaml` |
 | `tests/tooling/test_counter_package.py` | `common/meta/readme.md` |
 | `tests/tooling/test_identity_package.py` | `common/meta/readme.md` |
+| `tests/tooling/test_ledger_package.py` | `common/meta/readme.md` |
 | `tests/tooling/test_platform_package.py` | `common/meta/readme.md` |
 | `tests/tooling/test_coverage_analyzer.py` | `docs/ssot/coverage.md` |
 | `tests/tooling/test_migration_safety_gates.py` | `common/authority/readme.md` |

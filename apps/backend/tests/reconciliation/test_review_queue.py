@@ -23,13 +23,13 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.ledger import ValidationError
 from src.models.account import Account, AccountType
 from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
 from src.models.reconciliation import ReconciliationStatus
 from src.models.statement_summary import StatementSummary
-from src.services.accounting import ValidationError
 from src.services.review_queue import (
     accept_match,
     batch_accept,
@@ -38,7 +38,6 @@ from src.services.review_queue import (
     get_pending_items,
     reject_match,
 )
-from tests.accounting._ledger_helpers import create_valid_void_entry
 from tests.factories import (
     AccountFactory,
     AtomicTransactionFactory,
@@ -48,6 +47,7 @@ from tests.factories import (
     UploadedDocumentFactory,
     UserFactory,
 )
+from tests.ledger._ledger_helpers import create_valid_void_entry
 
 
 async def _make_statement(db: AsyncSession, user_id, *, account_id=None, currency: str = "SGD"):

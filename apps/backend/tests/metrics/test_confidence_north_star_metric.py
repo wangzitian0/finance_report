@@ -13,7 +13,7 @@ import pytest
 
 from src.models.journal import JournalEntrySourceType
 from src.services.confidence_metric import ConfidenceMetricService
-from tests.accounting._ledger_helpers import create_valid_posted_entry
+from tests.ledger._ledger_helpers import create_valid_posted_entry
 
 
 @pytest.mark.asyncio

@@ -37,7 +37,7 @@ from src.schemas.workflow import (
     WorkflowStatusResponse,
 )
 from src.services.workflow_events import upsert_workflow_event
-from tests.accounting._ledger_helpers import create_valid_posted_entry
+from tests.ledger._ledger_helpers import create_valid_posted_entry
 
 pytestmark = pytest.mark.asyncio
 

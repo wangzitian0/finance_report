@@ -6,12 +6,12 @@ from uuid import uuid4
 import pytest
 from common.testing.ac_proof import ac_proof
 
-from src.models.journal import Direction, JournalLine
-from src.services.accounting import (
+from src.ledger import (
     ValidationError,
     validate_fx_rates,
     validate_journal_balance,
 )
+from src.models.journal import Direction, JournalLine
 
 
 @ac_proof(

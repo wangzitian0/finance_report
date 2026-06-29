@@ -18,9 +18,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.account import Account, AccountType
-from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
-from src.services.accounting import (
+from src.ledger import (
     ValidationError,
     calculate_account_balance,
     calculate_account_balances,
@@ -28,8 +26,10 @@ from src.services.accounting import (
     verify_accounting_equation,
     void_journal_entry,
 )
-from tests.accounting._ledger_helpers import create_valid_posted_entry
+from src.models.account import Account, AccountType
+from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
 from tests.factories import UserFactory
+from tests.ledger._ledger_helpers import create_valid_posted_entry
 
 
 async def test_calculate_account_balance_errors(db: AsyncSession, test_user_id):
@@ -366,18 +366,18 @@ async def test_verify_accounting_equation_success(db: AsyncSession, test_user_id
 
 async def test_accounting_utils_coverage(db: AsyncSession, test_user_id):
     with pytest.raises(ValidationError, match="fx_rate required"):
-        from src.services.accounting import validate_fx_rates
+        from src.ledger import validate_fx_rates
 
         line = JournalLine(currency="USD", fx_rate=None)
         validate_fx_rates([line])
 
-    from src.services.accounting import calculate_account_balances
+    from src.ledger import calculate_account_balances
 
     assert await calculate_account_balances(db, [], test_user_id) == {}
 
 
 async def test_accounting_more_errors(db: AsyncSession, test_user_id):
-    from src.services.accounting import validate_journal_balance
+    from src.ledger import validate_journal_balance
 
     with pytest.raises(ValidationError, match="at least 2 lines"):
         validate_journal_balance([JournalLine(amount=Decimal("100"))])

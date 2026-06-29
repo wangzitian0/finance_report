@@ -14,7 +14,7 @@ from src.models.journal import (
     JournalEntrySourceType,
     JournalEntryStatus,
 )
-from tests.accounting._ledger_helpers import create_valid_posted_entry, create_valid_void_entry
+from tests.ledger._ledger_helpers import create_valid_posted_entry, create_valid_void_entry
 
 
 class TestJournalDeleteEndpoint:

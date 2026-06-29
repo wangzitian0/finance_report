@@ -7,8 +7,9 @@ does not balance *per currency* cannot be constructed — :class:`UnbalancedEntr
 is raised at construction, exactly like :class:`~src.money.Money` rejects ``float``.
 
 This is the *invariant* (a value object), not the *policy*: which account is
-debited/credited for a buy/sell/dividend stays in the domain ``ops`` (and the
-persistence stays in ``store``). ``Entry`` only guarantees the result balances.
+debited/credited for a buy/sell/dividend stays in the domain service
+(``extension/post.py``) and the persistence (``extension/repository.py``).
+``Entry`` only guarantees the result balances.
 
 Balance is checked **per currency** (stronger than the legacy currency-blind sum):
 for every currency, the sum of debit amounts must equal the sum of credit amounts.
@@ -22,7 +23,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from src.ledger.types.errors import DegenerateEntryError, UnbalancedEntryError
+from src.ledger.base.types.errors import DegenerateEntryError, UnbalancedEntryError
 from src.models.journal import Direction
 from src.money import Money
 

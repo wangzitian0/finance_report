@@ -40,7 +40,7 @@ from src.services.reconciliation import (
     score_pattern,
     weighted_total,
 )
-from tests.accounting._ledger_helpers import create_valid_posted_entry
+from tests.ledger._ledger_helpers import create_valid_posted_entry
 
 
 def _make_statement(*, owner_id: UUID | None = None, base_date: date) -> StatementSummary:

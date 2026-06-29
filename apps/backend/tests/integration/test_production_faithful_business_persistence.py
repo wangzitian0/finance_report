@@ -18,9 +18,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import NullPool
 
 from src.identity import User
+from src.ledger import calculate_account_balance, create_journal_entry, post_journal_entry
 from src.models.account import Account, AccountType
 from src.models.journal import Direction
-from src.services.accounting import calculate_account_balance, create_journal_entry, post_journal_entry
 
 pytestmark = [pytest.mark.integration, pytest.mark.no_db, pytest.mark.asyncio]
 

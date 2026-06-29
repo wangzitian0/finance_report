@@ -7,7 +7,7 @@ import pytest
 from common.testing.ac_proof import ac_proof
 
 from src.ledger import Entry, Leg, UnbalancedEntryError
-from src.ledger.types.errors import DegenerateEntryError
+from src.ledger.base.types.errors import DegenerateEntryError
 from src.models.journal import Direction
 from src.money import Money
 

@@ -12,8 +12,9 @@
 >
 > First worked example: [`common/counter`](../counter/readme.md) (spec) +
 > [`apps/backend/src/counter`](../../apps/backend/src/counter) (implementation).
-> The prototype vertical slice is
-> [`apps/backend/src/ledger`](../../apps/backend/src/ledger/ledger.contract.md).
+> The first `core` domain on the model is
+> [`common/ledger`](../ledger/readme.md) (spec) +
+> [`apps/backend/src/ledger`](../../apps/backend/src/ledger) (implementation).
 
 ## What a package is
 
@@ -118,10 +119,11 @@ edit: a new package is governed the moment it ships a `common/<pkg>/contract.py`
   `roadmap` owns `AC-counter.1.1`–`AC-counter.1.4`. See its
   [`readme.md`](../counter/readme.md) and
   [`contract.py`](../counter/contract.py).
-- **`ledger`** (`core`) — the prototype vertical slice that introduced the
-  role/DAG idea (`types`/`ops` with the balance invariant as a type). See
-  [`ledger.contract.md`](../../apps/backend/src/ledger/ledger.contract.md). It
-  predates `PackageContract`; it will adopt one as the model rolls out.
+- **`ledger`** (`core`) — the double-entry bounded context; the first `core`
+  domain cut over to the building-block layering (`base`/`extension`/`data` with
+  the balance invariant as a type, the journal `Repository` split as a base port +
+  extension adapter, and the account-balance projection as a `data` sink). See its
+  [`readme.md`](../ledger/readme.md) and [`contract.py`](../ledger/contract.py).
 
 ## Migrating a module into the package model
 
