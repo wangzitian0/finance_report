@@ -616,10 +616,11 @@ The provider-backed AI/OCR corpus is split into two distinct gates that share on
   and is not a required check, so a preview failure never blocks the PR; the
   in-runner E2E is the merge authority. The persistent URL is
   `https://report-pr-<N>.<domain>`.
-- `tools/pr_preview_lifecycle.py` is the single owner for preview deploy,
-  cleanup, and scheduled reconciliation. The workflow does not hand-roll
-  separate Dokploy shell blocks because deploy, cleanup, and reconciliation must
-  share the same naming, metadata, logging, and redaction contract.
+- `tools/pr_preview_lifecycle.py` is the single owner for preview **deploy**
+  (standing previews up). The workflow does not hand-roll separate Dokploy shell
+  blocks, so the deploy keeps one naming, metadata, logging, and redaction
+  contract. Reclaim (teardown/reconcile) is not app-owned — it is dispatched to
+  infra2 on PR close (see the reclaim bullets above).
 - PR preview Dokploy API responses are parsed for required fields only.
   Workflows must not print raw Dokploy response JSON because compose responses
   can include environment data and refresh tokens.
@@ -632,9 +633,9 @@ The provider-backed AI/OCR corpus is split into two distinct gates that share on
 - Persistent preview reclaim is infra2-owned: on PR close `preview.yml#cleanup`
   dispatches a vendor-neutral `preview-teardown` signal (`repository_dispatch`,
   `INFRA2_PAT`) to infra2, which performs the authoritative idempotent 1:1
-  teardown by PR number — the app never calls the Dokploy API. The deploy path is
-  still get-or-create + redeploy, so it updates the preview in place across
-  commits without a pre-deploy delete.
+  teardown by PR number — the app never calls the Dokploy API *for reclaim*. The
+  deploy path is still app-side (get-or-create + redeploy), so it updates the
+  preview in place across commits without a pre-deploy delete.
 - PR preview rollout proof fails fast on a missing deployment record. When
   Dokploy reports `composeStatus=done` but never exposes a **new** deployment
   record for the requested SHA within the new-record window,

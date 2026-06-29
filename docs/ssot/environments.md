@@ -120,7 +120,8 @@ PR validation is split into two independent things (issue #839):
 - It currently uses the app-side `tools/pr_preview_lifecycle.py` path:
   Dokploy clones the PR branch and builds from source on the host. It does not
   pull a GHCR PR image and it is not the infra2 `deploy_v2 preview/*` path.
-- Reclaim is **infra2-owned**: the app does not touch the Dokploy API. On PR close
+- Reclaim is **infra2-owned**: the app does not touch the Dokploy API *for
+  reclaim/teardown* (the deploy path above is still app-side). On PR close
   `preview.yml#cleanup` dispatches a vendor-neutral `preview-teardown` signal to
   infra2, which performs the authoritative idempotent 1:1 teardown
   (`preview-teardown.yml` → `deploy_v2 --type preview/pr --down`); infra2's hourly
