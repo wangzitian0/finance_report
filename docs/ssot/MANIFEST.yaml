@@ -26,6 +26,7 @@ concepts:
   decimal_monetary_rule:
     owner: common/ledger/readme.md#decimal-rule
     description: All monetary amounts MUST use Python Decimal, never float; money rounds via banker's HALF_EVEN.
+    family: accounting
     cross_refs:
       - AGENTS.md
       - docs/agents/red-lines.md
@@ -105,6 +106,7 @@ concepts:
   accounting_equation:
     owner: common/ledger/readme.md#accounting-equation
     description: "Assets = Liabilities + Equity + (Income - Expenses) invariant."
+    family: accounting
     cross_refs:
       - docs/agents/red-lines.md
       - apps/backend/tests/accounting/test_accounting_equation.py
@@ -112,6 +114,7 @@ concepts:
   double_entry_bookkeeping:
     owner: common/ledger/readme.md#entry-balance
     description: Every JournalEntry must have balanced debits and credits.
+    family: accounting
     cross_refs:
       - docs/agents/red-lines.md
       - apps/backend/tests/accounting/test_accounting.py
@@ -119,6 +122,7 @@ concepts:
   transaction_boundary:
     owner: common/ledger/readme.md#async-tx-boundary
     description: Routers commit(); Services flush() only.
+    family: accounting
     cross_refs:
       - docs/agents/red-lines.md
       - apps/backend/tests/accounting/test_accounting_integration.py
@@ -330,6 +334,7 @@ concepts:
   processing_account:
     owner: common/ledger/readme.md
     description: Unconfirmed in-transit funds; balance 0 means transfer paired.
+    family: accounting
     cross_refs:
       - docs/ssot/confirmation-workflow.md
       - docs/ssot/reconciliation.md
