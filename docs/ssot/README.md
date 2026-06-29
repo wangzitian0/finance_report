@@ -81,7 +81,7 @@ cleanup that backfills `family` / `kind` and binds child clauses.
 | [frontend-patterns.md](./frontend-patterns.md) | `frontend-patterns` | Frontend integration rules and proof references (incl. browser auth/session) |
 | [schema.md](./schema.md) | `schema` | Data-layer rationale and migration guardrails; mutable inventory is generated |
 | [migration-risk.yaml](./migration-risk.yaml) | `migration_risk_classification` | Alembic migration risk levels and required release proof notes |
-| [accounting.md](./accounting.md) | `accounting` | Double-entry rationale and invariant references |
+| [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md) | `accounting` | Double-entry rationale and invariant references — internalized into the `ledger` package (migration-standard step 3) |
 | [../../common/meta/readme.md](../../common/meta/readme.md) | `package_model` | Package = DDD bounded context; PackageContract + role model; governance computed from contracts. Self-hosted in the `common/meta` meta package. |
 | [MANIFEST.yaml](./MANIFEST.yaml) | `manifest` | Machine-readable concept owner registry |
 
@@ -99,7 +99,7 @@ cleanup that backfills `family` / `kind` and binds child clauses.
 | [market_data.md](./market_data.md) | `market_data` | Market data source rationale and fallback policy |
 | [source-type-priority.md](./source-type-priority.md) | `source-type-priority` | Trust hierarchy rationale; priority should migrate to code/common |
 | [confirmation-workflow.md](./confirmation-workflow.md) | `confirmation-workflow` | Review lifecycle rationale; state machine should migrate to code/common |
-| [processing_account.md](./processing_account.md) | `processing_account` | In-transit funds model and proof references |
+| [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md) | `processing_account` | In-transit funds model and proof references — internalized into the `ledger` package (migration-standard step 3) |
 | [workflow-events.md](./workflow-events.md) | `workflow-events` | User-facing upload-to-report workflow event read model |
 | [common/extraction/audit-failed-cases.yaml](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/audit-failed-cases.yaml) | [`extraction_failed_case_registry`](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/audit-failed-cases.yaml) | Machine-readable audit-failed parsing case registry and parser-expansion boundary — internalized into the `extraction` package |
 | [source-coverage-matrix.yaml](./source-coverage-matrix.yaml) | [`source_coverage_matrix`](./source-coverage-matrix.yaml) | Machine-readable source-class coverage, proof levels, review requirements, and traceability targets |

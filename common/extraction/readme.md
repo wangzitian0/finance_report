@@ -429,9 +429,9 @@ slice is registered.
 ## Data Integrity & Typing
 
 The monetary-Decimal rule (never `float` for amounts) is owned by
-[accounting.md#decimal-rule](../../docs/ssot/accounting.md#decimal-rule);
+[ledger readme #decimal-rule](../ledger/readme.md#decimal-rule);
 extraction restates it for its parse boundary. See:
-docs/ssot/accounting.md#decimal-rule.
+common/ledger/readme.md#decimal-rule.
 
 To prevent floating-point errors (e.g. `0.1 + 0.2 != 0.3`), the system enforces strict typing:
 

@@ -246,7 +246,7 @@ manual false-positive audit.
 ## Used by
 
 - [schema.md](./schema.md)
-- [accounting.md](./accounting.md)
+- [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md)
 
 ---
 

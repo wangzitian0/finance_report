@@ -2,7 +2,7 @@
 
 > The **interface** half of the money module's SSOT. The **conformance** half is
 > [`../conformance/vectors.json`](../conformance/vectors.json). Authoritative
-> prose: [`docs/ssot/accounting.md#money-type`](../../../docs/ssot/accounting.md).
+> prose: [`common/money/readme.md#money-type`](../readme.md#money-type).
 >
 > This describes *what every implementation must expose and obey* — independent of
 > language. Each stack (Python `common/money`, TypeScript `apps/frontend/src/lib/money`)

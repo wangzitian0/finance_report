@@ -400,9 +400,9 @@ def render_markdown(matrix: dict[str, Any]) -> str:
             "rule keywords. The rules themselves are owned by their SSOT files:",
             "",
             "- See: docs/ssot/reconciliation.md#thresholds",
-            "- See: docs/ssot/accounting.md#decimal-rule",
-            "- See: docs/ssot/accounting.md#async-tx-boundary",
-            "- See: docs/ssot/accounting.md#entry-balance",
+            "- See: common/ledger/readme.md#decimal-rule",
+            "- See: common/ledger/readme.md#async-tx-boundary",
+            "- See: common/ledger/readme.md#entry-balance",
             "- See: docs/ssot/schema.md#enum-naming",
             "",
         ]

@@ -1,6 +1,6 @@
 """Processing account service for transfer detection and pairing.
 
-This module implements the Processing virtual account logic from docs/ssot/processing_account.md.
+This module implements the Processing virtual account logic from common/ledger/readme.md.
 The Processing account (code "1199") is a system-managed Asset account that tracks in-transit
 transfers between user accounts.
 
@@ -52,7 +52,7 @@ DESCRIPTION_WEIGHT = Decimal("0.30")
 DATE_WEIGHT = Decimal("0.20")
 HISTORY_WEIGHT = Decimal("0.10")
 
-# Date tolerance for transfer pairing (from processing_account.md)
+# Date tolerance for transfer pairing (from common/ledger/readme.md)
 MAX_DATE_DIFF_DAYS = 7
 
 

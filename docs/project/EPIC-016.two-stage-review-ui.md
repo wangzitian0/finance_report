@@ -73,7 +73,7 @@ state rather than a duplicated phase checklist.
 | Reconciliation thresholds, Stage 2 checks, and match lifecycle | [reconciliation.md](../ssot/reconciliation.md) |
 | Statement, transaction, and match models | [schema.md](../ssot/schema.md) |
 | Parsing input contract for Stage 1 review | [common/extraction/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md) |
-| Journal entry creation from accepted matches | [accounting.md](../ssot/accounting.md) |
+| Journal entry creation from accepted matches | [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md) |
 | Backend behavior proof | `apps/backend/tests/review/`, `apps/backend/tests/api/` |
 | Frontend and responsive workflow proof | `apps/frontend/src/__tests__/`, `apps/frontend/playwright/` |
 
@@ -118,7 +118,7 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 - [reconciliation.md](../ssot/reconciliation.md) — Reconciliation workflow, confidence thresholds
 - [schema.md](../ssot/schema.md) — data-layer and migration guardrails
 - [Generated DB Schema Reference](../reference/db-schema.md) — current statement, match, consistency-check, and atomic fact inventory
-- [accounting.md](../ssot/accounting.md) — Journal entry creation from approved matches
+- [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md) — Journal entry creation from approved matches
 - [common/extraction/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md) — Statement parsing logic (Stage 1 input)
 
 ---

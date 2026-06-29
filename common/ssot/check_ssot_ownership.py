@@ -75,6 +75,15 @@ MUST_BE_ABSENT: list[Path] = [
     # migration-standard step 3 "SSOT internalized" (Stage-2 precursor to the
     # code cutover #1426).
     REPO_ROOT / "docs" / "ssot" / "llm.md",
+    # accounting.md internalized into the ledger package (common/ledger/readme.md):
+    # the double-entry sections per migration-standard step 3 "SSOT internalized"
+    # (Stage-2 of the ledger cutover #1420). The #money-type section moved into
+    # common/money/readme.md (the money kernel owns it).
+    REPO_ROOT / "docs" / "ssot" / "accounting.md",
+    # processing_account.md internalized into the ledger package
+    # (common/ledger/readme.md) — the processing (in-transit) account belongs to
+    # ledger (its EPIC-015 too) per migration-standard step 3 (#1420).
+    REPO_ROOT / "docs" / "ssot" / "processing_account.md",
 ]
 
 # ---------------------------------------------------------------------------
@@ -100,7 +109,7 @@ RULE_KEYWORDS: list[tuple[str, re.Pattern[str], str, str]] = [
             r"\bDecimal\b.*\bmonetary\b|\bNEVER\b.*\bfloat\b.*\bamount\b|\bfloat\b.*\bmonetary\b",
             re.IGNORECASE,
         ),
-        "docs/ssot/accounting.md",
+        "common/ledger/readme.md",
         "#decimal-rule",
     ),
     (
@@ -115,7 +124,7 @@ RULE_KEYWORDS: list[tuple[str, re.Pattern[str], str, str]] = [
             r"(?:service-layer.*flush|router.*owns.*commit|db\.flush\(\).*[Ss]ervice|db\.commit\(\).*[Rr]outer|[Ss]ervice.*db\.flush\(\)|[Rr]outer.*db\.commit\(\)|flush\(\).*router.*commit)",
             re.IGNORECASE,
         ),
-        "docs/ssot/accounting.md",
+        "common/ledger/readme.md",
         "#async-tx-boundary",
     ),
     (
@@ -124,7 +133,7 @@ RULE_KEYWORDS: list[tuple[str, re.Pattern[str], str, str]] = [
             r"debits?\s*=\s*credits?|credit.*debit.*balanced|NEVER.*unbalanced",
             re.IGNORECASE,
         ),
-        "docs/ssot/accounting.md",
+        "common/ledger/readme.md",
         "#entry-balance",
     ),
 ]

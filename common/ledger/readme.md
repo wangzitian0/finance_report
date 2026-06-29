@@ -1,11 +1,270 @@
+# `ledger` — double-entry bookkeeping bounded context
+
+> One package owning the whole ledger concept: the **prose SSOT for double-entry
+> bookkeeping and the processing (in-transit) account** (this file) **and**, after
+> the code cutover (#1420), the conforming implementation. This readme is the
+> single registered owner of the double-entry vocabulary and invariants — the
+> accounting equation, account classification, entry structure, multi-currency
+> journal balance, the posted-ledger DB floor, and the `processing_account`
+> in-transit model — internalized here from the retired `docs/ssot/accounting.md`
+> and `docs/ssot/processing_account.md` per the package-migration standard
+> ([`../meta/migration-standard.md`](../meta/migration-standard.md), step 3 "SSOT
+> internalized").
+>
+> The **money/currency/FX value kernel is owned by [`common/money`](../money/readme.md)**,
+> not by ledger; a `Leg` carries a `Money` from that shared kernel. The Money value
+> types (`#money-type`) were internalized into the money package in the same slice.
+>
+> The conforming backend implementation lives at
+> [`apps/backend/src/ledger/`](../../apps/backend/src/ledger/) (the code cutover
+> #1420 homes the double-entry units under the package shape; this readme-only
+> slice does not move code or tests).
+
+---
+
+# Double-Entry Bookkeeping Domain Model SSOT
+
+> **SSOT Key**: `accounting`
+> **Core Definition**: Accounting equation, account classification, and entry rules for double-entry bookkeeping.
+
+---
+
+## 1. Source of Truth
+
+| Dimension | Physical Location (SSOT) | Description |
+|-----------|--------------------------|-------------|
+| **Bookkeeping Logic** | `apps/backend/src/services/accounting.py` | Core business |
+| **Model Definition** | `apps/backend/src/models/journal.py` | ORM |
+| **Validation Rules** | `apps/backend/src/schemas/journal.py` | Pydantic |
+
+---
+
+## 2. Architecture Model
+
+<a id="accounting-equation"></a>
+
+### Accounting Equation
+
+```
+Assets = Liabilities + Equity + (Income - Expenses)
+```
+
+**At any moment, all `posted` entries must satisfy this equation.**
+
+### Account Classification and Debit/Credit Rules
+
+| Type | Debit Increases | Credit Increases | Normal Balance |
+|------|-----------------|------------------|----------------|
+| Asset | ✓ | | Debit |
+| Liability | | ✓ | Credit |
+| Equity | | ✓ | Credit |
+| Income | | ✓ | Credit |
+| Expense | ✓ | | Debit |
+
+### Entry Structure
+
+```mermaid
+flowchart LR
+    JE[JournalEntry<br/>Entry Header] --> JL1[JournalLine<br/>Debit: Bank 1000]
+    JE --> JL2[JournalLine<br/>Credit: Income 1000]
+```
+
+### Multi-Currency Journal Balance
+
+Journal entry balance is measured in the configured base currency (`SGD` by default), not by raw nominal line amounts. A non-base-currency line must carry `fx_rate`, where:
+
+```
+base_amount = line.amount * line.fx_rate
+```
+
+Debit and credit totals are valid only when their converted base amounts differ by no more than `0.01`.
+
+### Posted Ledger Database Floor
+
+Application services validate drafts before posting, but the database is the
+final boundary for posted/reconciled ledger facts. Direct writes that bypass
+services must still be rejected when they would create a posted or reconciled
+entry with fewer than two lines, unbalanced base-currency debit/credit totals,
+or non-base lines without a positive `fx_rate`.
+
+Posted and reconciled entries are immutable ledger facts. They must not be
+updated or deleted directly; the only supported correction is a void transition
+that preserves an immutable reversal relationship. Draft entries remain editable
+and deletable until posting.
+
+Ledger immutability protects accounting facts: entry ownership/date/memo/source
+identity, status correction path, and all journal-line amounts, directions,
+accounts, currencies, and FX rates. The only non-fact metadata update allowed on
+a posted/reconciled entry is the source-type-priority promotion from
+`auto_parsed` or `auto_matched` to `user_confirmed`, with `source_id` and every
+accounting fact unchanged. The same promotion is allowed when the entry moves
+from `posted` to `reconciled`. (The immutability trigger's text guard also
+retains the retired legacy value `bank_statement` — see migration 0040 / #896 —
+so any historical row in that state can still be promoted, though no write path
+produces it anymore.)
+
+---
+
+## 3. Design Constraints (Dos & Don'ts)
+
+> **SSOT**: The rules in this section are the single authoritative definitions.
+> Other files that mention these rules should reference:
+> `See: common/ledger/readme.md#<anchor>`
+
+### ✅ Recommended Patterns
+
+- **Pattern A**: Each entry has at least 2 lines, debit/credit balanced
+- **Pattern B**: Use Decimal for precise calculations, tolerance < 0.01
+- **Pattern C**: Posted entries can only be voided, not directly modified
+- **Pattern D**: Multi-currency entries validate debit/credit balance after base-currency conversion.
+- **Pattern E**: Journal line account authorization is a domain invariant. Accounting services must validate that every `JournalLine.account_id` belongs to the same `user_id` as the `JournalEntry`; HTTP middleware is not sufficient because service calls and background tasks can write ledger records without a request object.
+- **Pattern F**: Posted/reconciled ledger invariants are enforced at both service and database boundaries.
+- **Pattern G**: Posted/reconciled source-type promotion may only increase trust from auto/statement-derived provenance to `user_confirmed`; it must not change source identity or accounting facts.
+
+### ⛔ Prohibited Patterns
+
+<a id="decimal-rule"></a>
+
+- **Anti-pattern A**: **NEVER** use FLOAT to store, calculate, or transfer monetary amounts.
+    -   **Reason**: IEEE 754 floating point arithmetic causes precision errors (e.g., `0.1 + 0.2 != 0.3`).
+    -   **Enforcement**: All Pydantic models use `Decimal`. API clients parse JSON numbers as strings or Decimals, never floats.
+    -   **Guardrail**: `apps/backend/tests/accounting/test_decimal_safety.py` fuzzes models with float inputs to ensure strictness.
+
+- **Rule A2 — Canonical money rounding**: Currency amounts are quantized to **2 decimal places using banker's rounding (`ROUND_HALF_EVEN`)**. This is the single project-wide rounding mode for money.
+    -   **Enforcement**: round money through the one helper `src.money.to_money()` (the backend money module; mirrored from `common/money`). Do not hand-roll `quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)` for currency.
+    -   **Scope**: currency amounts only. Intentionally **out of scope** (they keep their own quantization/rounding): typed `ExchangeRate` values, security prices (6 dp), `Quantity` values (6 dp), and percentages / performance ratios (XIRR, TWR, MWR, allocation %).
+    -   **Guardrail**: `apps/backend/tests/money/test_money.py`.
+
+> The **money value types** (`Money` / `Currency` / `ExchangeRate` / `convert` /
+> `CurrencyBalances`) that make these rules type-enforced are the money Shared
+> Kernel, owned by [`common/money/readme.md#money-type`](../money/readme.md#money-type).
+> A `Leg` carries a `Money` from that kernel; ledger does not redefine money.
+
+<a id="entry-balance"></a>
+
+- **Anti-pattern B**: **NEVER** allow unbalanced debit/credit entries. See: `apps/backend/tests/accounting/test_accounting_integration.py::test_post_unbalanced_entry_rejected`
+- **Anti-pattern C**: **NEVER** skip validation when writing posted status. See: `apps/backend/tests/accounting/test_accounting_integration.py::test_post_journal_entry_already_posted_fails`
+- **Anti-pattern E**: **NEVER** validate a multi-currency journal entry by comparing raw original-currency nominal amounts.
+- **Anti-pattern F**: **NEVER** create, post, or aggregate journal lines across user boundaries. Balance queries must require both `Account.user_id == user_id` and `JournalEntry.user_id == user_id`.
+- **Anti-pattern G**: **NEVER** directly update or delete posted/reconciled/void ledger facts. Use the void/reversal workflow.
+- **Anti-pattern H**: **NEVER** downgrade `source_type` or change `source_id` after posting/reconciliation. Provenance corrections must use the explicit source-type promotion path only.
+
+<a id="async-tx-boundary"></a>
+
+- **Anti-pattern D**: **NEVER** call `db.commit()` in service-layer methods that receive a `db: AsyncSession` from a router.
+    -   **Rule**: Services use `flush()` to assign IDs and validate constraints. Routers call `commit()` to finalize the transaction.
+    -   **Documented Exceptions**:
+        1. **Background tasks** with own sessions (via `session_maker()`/`session_factory()`): These create their own `AsyncSession` and ARE the transaction boundary. Example: `statement_parsing.py::parse_statement_background()`, `statement_parsing_supervisor.py::reset_stale_parsing_jobs()`, `market_data_scheduler.py::run_daily_market_data_sync()`.
+        2. **Streaming generators** that outlive the router response: When a router returns `StreamingResponse`, the async generator runs after the router has returned. The generator must own the final `commit()` for data written during streaming. Example: `ai_advisor.py::_stream_and_store()` commits the assistant message after streaming completes.
+    -   **Enforcement**: `apps/backend/tests/ai/test_commit_boundary.py` verifies flush-only behavior in AI advisor service methods.
+
+---
+
+## 4. Standard Operating Procedures (Playbooks)
+
+### SOP-001: Create Manual Entry
+
+```python
+def create_manual_entry(user_id, date, memo, lines: list[dict]) -> JournalEntry:
+    # 1. Validate debit/credit balance
+    total_debit = sum(l["amount"] for l in lines if l["direction"] == "DEBIT")
+    total_credit = sum(l["amount"] for l in lines if l["direction"] == "CREDIT")
+    if abs(total_debit - total_credit) > Decimal("0.01"):
+        raise ValidationError("Debit/credit not balanced")
+    
+    # 2. Create entry header
+    entry = JournalEntry(
+        user_id=user_id,
+        entry_date=date,
+        memo=memo,
+        source_type="manual",
+        status="draft"
+    )
+    
+    # 3. Create lines
+    for line in lines:
+        entry.lines.append(JournalLine(**line))
+    
+    return entry
+```
+
+### SOP-002: Post Entry
+
+```python
+def post_entry(entry: JournalEntry) -> None:
+    # 1. Re-validate balance
+    validate_balance(entry)
+    
+    # 2. Validate accounts are active
+    for line in entry.lines:
+        if not line.account.is_active:
+            raise ValidationError(f"Account {line.account.name} is disabled")
+    
+    # 3. Update status
+    entry.status = "posted"
+    entry.updated_at = datetime.utcnow()
+```
+
+### SOP-003: Void Entry
+
+```python
+def void_entry(entry: JournalEntry, reason: str) -> JournalEntry:
+    # 1. Can only void posted entries
+    if entry.status != "posted":
+        raise ValidationError("Can only void posted entries")
+    
+    # 2. Create reversal entry
+    reverse_entry = JournalEntry(
+        user_id=entry.user_id,
+        entry_date=date.today(),
+        memo=f"Void: {entry.memo} ({reason})",
+        source_type="system",
+        status="posted"
+    )
+    
+    for line in entry.lines:
+        reverse_entry.lines.append(JournalLine(
+            account_id=line.account_id,
+            direction="CREDIT" if line.direction == "DEBIT" else "DEBIT",
+            amount=line.amount,
+            currency=line.currency
+        ))
+    
+    # 3. Mark original entry
+    entry.status = "void"
+    
+    return reverse_entry
+```
+
+---
+
+## 5. Verification & Testing (The Proof)
+
+| Behavior | Verification Method | Status |
+|----------|---------------------|--------|
+| Entry debit/credit balance | Unit test `test_journal_balance` | ⏳ Pending |
+| Accounting equation | Integration test `test_accounting_equation` | ⏳ Pending |
+| Multi-currency base balance | Unit test `test_AC2_12_1_multicurrency_entry_balances_in_base_currency` | ✅ Implemented |
+| Accounting equation base conversion | Integration test `test_AC2_12_2_accounting_equation_uses_base_currency_balances` | ✅ Implemented |
+| User-scoped line ownership | Integration tests `test_AC2_13_1_*`, `test_AC2_13_2_*`, `test_AC2_13_3_*` | ✅ Implemented |
+| Database ledger invariant floor | Direct DB-bypass tests `test_AC2_14_*` | ✅ Implemented |
+| Void logic | Unit test `test_void_entry` | ⏳ Pending |
+
+---
+
 # Processing Virtual Account SSOT
 
 > **SSOT Key**: `processing_account`
 > **Core Definition**: Virtual clearing account for in-transit funds during inter-account transfers.
 
+The processing (in-transit) account is part of the ledger bounded context: it is a
+system-managed `Account` with special semantics, posted to only through ledger
+entries. Reconciliation/reporting consume it **by id/event**, never via a shared
+cross-domain transaction or foreign key.
+
 ---
 
-## 1. Source of Truth
+## P1. Source of Truth
 
 | Dimension | Physical Location (SSOT) | Description |
 |-----------|--------------------------|-------------|
@@ -15,7 +274,7 @@
 
 ---
 
-## 2. Problem Statement (Vision Context)
+## P2. Problem Statement (Vision Context)
 
 From the `vision.md` `decision-5-processing-account` anchor:
 
@@ -47,7 +306,7 @@ Day 3:
 
 ---
 
-## 3. Architecture Model
+## P3. Architecture Model
 
 ### Account Classification
 
@@ -97,7 +356,7 @@ flowchart TB
 
 ---
 
-## 4. Data Model
+## P4. Data Model
 
 ### Schema Change (Migration)
 
@@ -177,7 +436,7 @@ JournalEntry(
 
 ---
 
-## 5. Design Constraints (Dos & Don'ts)
+## P5. Design Constraints (Dos & Don'ts)
 
 ### ✅ Recommended Patterns
 
@@ -214,7 +473,7 @@ JournalEntry(
 
 ---
 
-## 6. Standard Operating Procedures (Playbooks)
+## P6. Standard Operating Procedures (Playbooks)
 
 ### SOP-001: Auto-Detect and Pair Transfers
 
@@ -313,7 +572,7 @@ ORDER BY je.entry_date DESC;
 
 ---
 
-## 7. Integration Points
+## P7. Integration Points
 
 ### Integration with Reconciliation Engine
 
@@ -363,7 +622,7 @@ def generate_balance_sheet(user_id: UUID, as_of: date) -> BalanceSheet:
 
 ---
 
-## 8. Verification & Testing (The Proof)
+## P8. Verification & Testing (The Proof)
 
 ### Test Cases
 
@@ -406,7 +665,7 @@ def test_accounting_equation_with_processing():
 
 ---
 
-## 9. Migration Strategy
+## P9. Migration Strategy
 
 ### Phase 1: Add `is_system` Column (Week 1)
 
@@ -454,17 +713,16 @@ ENABLE_TRANSFER_DETECTION = env.bool("ENABLE_TRANSFER_DETECTION", default=False)
 
 ---
 
-## 10. Related Documents
+## P10. Related Documents
 
-- **Vision**: [Project Vision](../target.md) decision 5
-- **Accounting**: [accounting.md](./accounting.md) - Double-entry rules
-- **Reconciliation**: [reconciliation.md](./reconciliation.md) - Matching algorithm
-- **Schema rationale**: [schema.md](./schema.md) - data-layer and migration guardrails
-- **Generated schema inventory**: [Generated DB Schema Reference](../reference/db-schema.md) - current account and ledger table structure
+- **Vision**: [Project Vision](../../vision.md) decision 5
+- **Reconciliation**: [reconciliation.md](../../docs/ssot/reconciliation.md) - Matching algorithm
+- **Schema rationale**: [schema.md](../../docs/ssot/schema.md) - data-layer and migration guardrails
+- **Generated schema inventory**: [Generated DB Schema Reference](../../docs/reference/db-schema.md) - current account and ledger table structure
 
 ---
 
-## 11. Open Questions
+## P11. Open Questions
 
 ### Q1: What currency should Processing account use?
 **Answer**: Use base currency from user settings (default SGD). Multi-currency transfers handled via FX conversion at destination account.
@@ -493,3 +751,11 @@ Entry 2 (Fee):
 ---
 
 *Historical FAQ snapshot captured: February 23, 2026*
+
+---
+
+## Used by
+
+- [schema.md](../../docs/ssot/schema.md)
+- [reconciliation.md](../../docs/ssot/reconciliation.md)
+- [confirmation-workflow.md](../../docs/ssot/confirmation-workflow.md)

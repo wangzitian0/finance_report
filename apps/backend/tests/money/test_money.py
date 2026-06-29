@@ -1,4 +1,4 @@
-"""Canonical money rounding policy tests (docs/ssot/accounting.md#decimal-rule)."""
+"""Canonical money rounding policy tests (common/ledger/readme.md#decimal-rule)."""
 
 from decimal import Decimal
 

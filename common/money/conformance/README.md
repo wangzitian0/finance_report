@@ -23,7 +23,7 @@ what makes "consistent across every end" *provable* rather than aspirational.
 The frontend is TypeScript and cannot import the Python `common/money`. So the
 shared artifact is the **standard** (this data + the prose contract in
 [`../contract/money.contract.md`](../contract/money.contract.md) and
-[`docs/ssot/accounting.md#money-type`](../../../docs/ssot/accounting.md)), not a
+[`common/money/readme.md#money-type`](../readme.md#money-type)), not a
 runtime library. Each stack keeps its own idiomatic implementation in its own
 deployable; `common/` stays a dev/test-time toolkit (no `pyproject`, not copied
 into any image).

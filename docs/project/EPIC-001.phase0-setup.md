@@ -207,7 +207,7 @@ Set up a runnable Monorepo development environment, complete user authentication
 ## 📚 SSOT References
 
 - [schema.md](../ssot/schema.md) - Database structure
-- [accounting.md](../ssot/accounting.md) - Accounting model
+- [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md) - Accounting model
 
 ---
 

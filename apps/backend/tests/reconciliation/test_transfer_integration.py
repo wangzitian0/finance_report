@@ -5,7 +5,7 @@ Tests the three-phase reconciliation flow:
 2. Phase 2: Normal Matching (existing logic)
 3. Phase 3: Auto-Pair Transfers (AFTER all matching)
 
-See: docs/ssot/processing_account.md Section 7 (Integration Points)
+See: common/ledger/readme.md Section P7 (Integration Points)
 
 Fixtures are built natively on Layer 2: each "statement" is an
 ``UploadedDocument`` + ``StatementSummary`` carrying the confirmed custody

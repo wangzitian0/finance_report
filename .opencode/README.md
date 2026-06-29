@@ -207,7 +207,7 @@ Generated from `docs/ssot/` - the Single Source of Truth for this project.
 
 | Skill | Path | Source |
 |-------|------|--------|
-| Accounting | `domain/accounting` | [docs/ssot/accounting.md](../docs/ssot/accounting.md) |
+| Accounting | `domain/accounting` | [common/ledger/readme.md](../common/ledger/readme.md) |
 | Reconciliation | `domain/reconciliation` | [docs/ssot/reconciliation.md](../docs/ssot/reconciliation.md) |
 | Reporting | `domain/reporting` | [docs/ssot/reporting.md](../docs/ssot/reporting.md) |
 | Extraction | `domain/extraction` | [common/extraction/readme.md](../common/extraction/readme.md) |

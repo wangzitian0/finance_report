@@ -5,7 +5,7 @@ These tests cover data integrity requirements from EPIC-002:
 - AC2.8.2: Float injection safety (precision artifacts rejected)
 - AC2.8.3: Scientific notation handling
 
-Ref: docs/ssot/accounting.md (Anti-pattern A)
+Ref: common/ledger/readme.md (Anti-pattern A)
 """
 
 from decimal import Decimal
@@ -15,7 +15,7 @@ from src.models.journal import Direction
 from src.schemas.journal import JournalLineCreate
 
 # Tests for Data Integrity (Float vs Decimal)
-# Ref: docs/ssot/accounting.md (Anti-pattern A)
+# Ref: common/ledger/readme.md (Anti-pattern A)
 
 
 def test_decimal_parsing_from_string():

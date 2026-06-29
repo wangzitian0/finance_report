@@ -260,12 +260,12 @@ To prevent connection leaks and transaction-boundary drift:
 | Why does the schema use DIM/ODS/DWD/DWM/DWS/ADS? | This file, [Data Layering Model](#data-layering) |
 | What is the enum naming rule? | This file, [enum naming](#enum-naming) |
 | What migration proof is required? | This file plus [CI/CD SSOT](./ci-cd.md) and [migration-risk.yaml](./migration-risk.yaml) |
-| What are accounting invariants? | [Accounting SSOT](./accounting.md) |
+| What are accounting invariants? | [Ledger SSOT (double-entry)](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md) |
 
 ## Used By
 
 - [AGENTS.md](https://github.com/wangzitian0/finance_report/blob/main/AGENTS.md)
-- [Accounting SSOT](./accounting.md)
+- [Ledger SSOT (double-entry)](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md)
 - [Reconciliation SSOT](./reconciliation.md)
 - [CI/CD SSOT](./ci-cd.md)
 - [Generated DB Schema Reference](../reference/db-schema.md)

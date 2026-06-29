@@ -224,4 +224,4 @@ Entries can be created from different sources:
 
 - [Reconcile with bank statements](reconciliation.md)
 - [View API reference](../reference/api.md)
-- [Understand the accounting model](../ssot/accounting.md)
+- [Understand the accounting model](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md)

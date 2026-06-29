@@ -173,9 +173,9 @@ Balance ≠ 0  → Pending Review ⚠️
 
 ## 📚 SSOT References
 
-- [processing_account.md](../ssot/processing_account.md) - Full specification (485 lines)
+- [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md) - Full specification (processing account folded into ledger)
 - [schema.md](../ssot/schema.md) - Account model with is_system flag
-- [accounting.md](../ssot/accounting.md) - Double-entry rules
+- [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md) - Double-entry rules
 - [reconciliation.md](../ssot/reconciliation.md) - Matching thresholds
 
 ---

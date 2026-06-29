@@ -333,7 +333,7 @@ listed below.
 
 ## 📚 Related Documentation
 
-- [accounting.md](../ssot/accounting.md) — Double-entry rules
+- [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md) — Double-entry rules
 - [schema.md](../ssot/schema.md) — Database models
 - [reporting.md](../ssot/reporting.md) — Financial reports
 - [market_data.md](../ssot/market_data.md) — Market data sources

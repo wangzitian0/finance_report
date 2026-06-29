@@ -192,7 +192,7 @@ the standard; it is dev/test-time only, never shipped into a runtime image.
 
 ## Used by
 
-- `money`: [accounting.md#money-type](accounting.md), `common/money/`, `apps/backend/src/money/`, `apps/frontend/src/lib/money/`
+- `money`: [common/money/readme.md#money-type](https://github.com/wangzitian0/finance_report/blob/main/common/money/readme.md#money-type), `common/money/`, `apps/backend/src/money/`, `apps/frontend/src/lib/money/`
 - `ratio`: [EPIC-012 AC12.9](../project/EPIC-012.foundation-libs.md), `common/ratio/`, `apps/backend/src/ratio/`, `apps/frontend/src/lib/ratio/`
 - `quantity`: [EPIC-012 AC12.30](../project/EPIC-012.foundation-libs.md), `common/quantity/`, `apps/backend/src/quantity/`, `apps/frontend/src/lib/quantity/`
 - `unit_price`: [EPIC-012 AC12.32](../project/EPIC-012.foundation-libs.md), `common/unit_price/`, `apps/backend/src/unit_price/` (frontend `apps/frontend/src/lib/unit_price/` is a P2 follow-up — no frontend call sites today; conformance vectors are already language-neutral so adoption is additive)

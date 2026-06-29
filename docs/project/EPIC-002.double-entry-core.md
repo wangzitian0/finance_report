@@ -283,7 +283,7 @@ that gap before the numbers are trusted.
 | **No float for monetary amounts** | Code review + grep check | 🔴 Critical |
 | **Multi-currency entry support** | `fx_rate` required on non-base currency lines | 🔴 Critical |
 | Auto-validate balance when creating entry | Unbalanced returns 400 error | Must Have |
-| Correct debit/credit direction by account type | Reference `accounting.md` rules | Must Have |
+| Correct debit/credit direction by account type | Reference `common/ledger/readme.md` rules | Must Have |
 | Posted entries cannot be edited | Can only void and recreate | Must Have |
 | API response time p95 < 200ms | Load testing | Must Have |
 
@@ -384,7 +384,7 @@ def test_many_lines_entry():
 ## 📚 SSOT References
 
 - [schema.md](../ssot/schema.md) - Database table structure
-- [accounting.md](../ssot/accounting.md) - Accounting rules
+- [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md) - Accounting rules
 
 ---
 
@@ -423,7 +423,7 @@ retained in [#548](https://github.com/wangzitian0/finance_report/issues/548):
 - [x] `apps/frontend/src/app/(main)/accounts/page.tsx` - Account management
 - [x] `apps/frontend/src/app/(main)/journal/page.tsx` - Journal entries
 
-**Implementation Summary**: Current implementation truth is owned by the code paths listed above, [accounting.md](../ssot/accounting.md), [schema.md](../ssot/schema.md), and the AC2.* tests. Archive implementation notes are historical only and are not part of the active README -> EPIC -> AC -> test chain.
+**Implementation Summary**: Current implementation truth is owned by the code paths listed above, [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md), [schema.md](../ssot/schema.md), and the AC2.* tests. Archive implementation notes are historical only and are not part of the active README -> EPIC -> AC -> test chain.
 
 ## Framework Boundary
 
@@ -457,7 +457,7 @@ extension adds an **application-layer value type** above the DB double-entry
 invariant floor (AC2.14): one authoritative `Money` type, a validated `Currency`,
 a single `convert()` FX primitive, and a per-currency `CurrencyBalances`
 container — so bad money states become *unrepresentable*, not merely
-tested-against. Contract: [accounting.md#money-type](../ssot/accounting.md#money-type).
+tested-against. Contract: [common/money/readme.md#money-type](https://github.com/wangzitian0/finance_report/blob/main/common/money/readme.md#money-type).
 
 The standard is **cross-language**: `common/money/` holds the language-neutral
 **interface** (`contract/money.contract.md`) and **conformance data**

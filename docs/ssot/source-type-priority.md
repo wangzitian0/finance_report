@@ -111,5 +111,5 @@ The field is immutable after creation except via explicit promotion endpoints (S
 ## Used by
 
 - [reconciliation.md](./reconciliation.md) — Conflict resolution during matching
-- [accounting.md](./accounting.md) — Journal entry creation rules
+- [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md) — Journal entry creation rules
 - [schema.md](./schema.md) — `journal_entries.source_type` column

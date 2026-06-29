@@ -197,7 +197,7 @@ Automatically match bank transactions with journal entries, implementing intelli
 Unmatched transaction triage may create ledger entries, so monetary values shown
 in the queue and created-entry confirmation must use the same Decimal-safe
 frontend formatting contract as other accounting surfaces.
-See: docs/ssot/accounting.md#decimal-rule
+See: common/ledger/readme.md#decimal-rule
 
 | AC | Acceptance Criteria | Test(s) | File(s) | Priority |
 |----|--------------------|---------|---------|----------|
