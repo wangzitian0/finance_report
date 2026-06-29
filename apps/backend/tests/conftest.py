@@ -83,16 +83,27 @@ def ac_evidence(record_property):
 
 
 # --- Bootloader Mock ---
-# Prevent Bootloader from creating its own engine (causes event loop conflicts)
+# Prevent Bootloader dependency checks from making real network/engine calls.
+# Covers BOTH checks symmetrically: _check_database (its own engine causes event
+# loop conflicts) and _check_s3 (uses aioboto3 — without a stub it hits a dead S3
+# endpoint and burns ~8s on connect-timeout+retries per /health call, the real
+# cost behind the slow /health tests). Tests that assert specific S3/DB health
+# behaviour monkeypatch these again, which overrides the defaults set here.
 @pytest.fixture(autouse=True)
-def mock_bootloader_db_check():
-    """Mock Bootloader._check_database to avoid event loop conflicts in tests."""
+def mock_bootloader_checks():
+    """Stub Bootloader dependency checks (DB + S3) so /health is fast by default."""
     from src.boot import ServiceStatus
 
-    async def mock_check():
+    async def ok_database():
         return ServiceStatus("database", "ok", "Mocked for tests", 0.0)
 
-    with patch("src.boot.Bootloader._check_database", new=mock_check):
+    async def ok_s3():
+        return ServiceStatus("s3", "ok", "Mocked for tests", 0.0)
+
+    with (
+        patch("src.boot.Bootloader._check_database", new=ok_database),
+        patch("src.boot.Bootloader._check_s3", new=ok_s3),
+    ):
         yield
 
 
@@ -263,7 +274,7 @@ async def ensure_database(db_url: str):
             else:
                 print(f"Test database {db_name} already exists")
     except (SQLAlchemyError, Exception) as e:
-        if isinstance(e, (SQLAlchemyError,)):
+        if isinstance(e, SQLAlchemyError):
             logger.error(
                 f"Test database setup failed: {type(e).__name__}: {e}",
                 extra={"database": db_name, "error_type": type(e).__name__},
