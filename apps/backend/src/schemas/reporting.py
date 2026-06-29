@@ -83,6 +83,10 @@ class BalanceSheetResponse(BaseModel):
     unrealized_fx_gain_loss: Decimal = Decimal("0.00")
     net_worth_adjustment_gain_loss: Decimal = Decimal("0.00")
     fx_warnings: list[dict[str, str]] = Field(default_factory=list)
+    # Opening-balance gate (AC2.16.4 / #1481): non-empty when activity exists with
+    # no recorded opening balance; the total then reflects only period movement and
+    # confidence_tier is degraded to LOW.
+    opening_balance_warnings: list[dict[str, str]] = Field(default_factory=list)
     equation_delta: Decimal
     is_balanced: bool
 
@@ -187,6 +191,13 @@ class NetWorthAllocationResponse(BaseModel):
     total_liabilities: Decimal = Field(description="Balance-sheet total liabilities in the report currency.")
     net_worth: Decimal = Field(description="Total assets minus total liabilities.")
     rows: list[NetWorthAllocationRow] = Field(description="Signed allocation rows that sum to net worth.")
+    # Same opening-balance gate as the balance sheet (AC2.16.4 / #1481).
+    confidence_tier: str | None = Field(
+        default=None, description="Aggregate confidence tier; LOW when an opening balance is missing."
+    )
+    opening_balance_warnings: list[dict[str, str]] = Field(
+        default_factory=list, description="Non-empty when activity exists without a recorded opening balance."
+    )
 
 
 class AccountTrendPoint(BaseModel):
