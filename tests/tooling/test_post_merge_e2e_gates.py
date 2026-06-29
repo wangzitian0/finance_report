@@ -911,7 +911,7 @@ def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
     assert "test-results/production-readonly-e2e.xml" in production
 
     assert "pr-preview-scheduled-cleanup-context" in cleanup
-    assert "cleanup_action=reconcile" in cleanup
+    assert "cleanup_action=ghcr-pr-tag-prune-only" in cleanup
 
     assert "CI observability artifacts" in ci_cd
     assert "Step summaries remain human-readable status pages" in ci_cd
@@ -3478,7 +3478,6 @@ def test_AC8_13_119_delivery_resource_leak_hardening_is_contracted() -> None:
     pr_preview = read(".github/workflows/preview.yml")
     staging = read(".github/workflows/staging-ai-ocr-gate.yml")
     production = read(".github/workflows/release.yml")
-    hygiene = read("tools/_lib/dev/vps_host_hygiene.py")
 
     for token in (
         "AC8.13.119",
@@ -3530,7 +3529,10 @@ def test_AC8_13_119_delivery_resource_leak_hardening_is_contracted() -> None:
     assert 'f"/orgs/{owner}/packages/container' not in preview_cleanup
     assert r"^pr-([1-9][0-9]*)-[0-9a-f]{40}$" in preview_cleanup
     assert "ghcr_cleanup=closed-pr-pr-tags-older-than-14-days" in preview_cleanup
-    assert "host_hygiene_schedule=finance-report-vps-host-hygiene" in preview_cleanup
+    # Host hygiene moved to infra2 (host-GC owner); the app's maintenance job no
+    # longer owns or provisions it.
+    assert "host_hygiene=infra2-owned" in preview_cleanup
+    assert "finance-report-vps-host-hygiene" not in preview_cleanup
     assert "VPS_SSH_KEY" not in preview_cleanup
     assert "ssh-keyscan" not in preview_cleanup
 
@@ -3548,11 +3550,10 @@ def test_AC8_13_119_delivery_resource_leak_hardening_is_contracted() -> None:
     assert "deploy-v2-rollout" in production
     assert "production-route-health" in production
 
-    assert "finance-report-vps-host-hygiene" in hygiene
-    assert "docker builder prune" in hygiene
-    assert "docker image prune" in hygiene
-    assert "docker network prune" in hygiene
-    assert "journalctl --vacuum" in hygiene
+    # Host hygiene (the "Docker build cache and stopped containers" leak path) is
+    # infra2-owned now (tools/host_hygiene_schedule.py); the app ships no
+    # host-hygiene module to assert on here.
+    assert not (ROOT / "tools/_lib/dev/vps_host_hygiene.py").exists()
 
 
 def test_AC8_13_10_multi_brokerage_upload_to_portfolio_value_gate() -> None:

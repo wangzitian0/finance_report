@@ -347,8 +347,8 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.70 | E2E EPIC traceability fails README EPIC map drift and unclassified E2E-like assets outside declared roots | `test_AC8_13_70_*` | `tests/tooling/test_check_e2e_epic_traceability.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.71 | One lifecycle tool stands PR previews UP (deploy) and writes stable preview metadata; on PR close the workflow dispatches a `preview-teardown` signal to infra2 — the app owns no Dokploy reclaim (cleanup/reconcile/delete) | `test_AC8_13_71_*` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
 | AC8.13.72 | Dokploy deploy diagnostics redact raw responses, log only allowlisted effective environment/config details, parse deployment records as typed object records, fail before readiness when fixed deploy_v2 sees rollout error/no terminal new record, and retain redacted rollout diagnostics for legacy preview compatibility | `test_AC8_13_72_*` | `tests/tooling/test_dokploy_redaction.py`, `tests/tooling/test_post_merge_e2e_gates.py`, `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
-| AC8.13.73 | VPS host hygiene is a Dokploy server schedule that prunes generic Docker and journal garbage, prunes unused Docker networks before they exhaust Docker address pools, recognizes commit-scoped PR preview container names, removes preview resources for PRs absent from the GitHub open-PR allowlist, falls back to age/recent retention only when GitHub discovery is unavailable, and removes preview containers stuck in restarting/dead/exited/created/unhealthy states | `test_AC8_13_73_*` | `tests/tooling/test_vps_host_hygiene.py` | P0 |
-| AC8.13.74 | The app's scheduled maintenance performs no Dokploy preview reconcile and no host hygiene — it only prunes the app's own stale GHCR PR image tags (Dokploy preview reclaim is infra2-owned) | `test_AC8_13_74_*` | `tests/tooling/test_cleanup_pr_preview_resources.py`, `tests/tooling/test_vps_host_hygiene.py` | P0 |
+| AC8.13.73 | The app owns no VPS host hygiene — generic host GC (Docker/journald/disk prune) is infra2-owned (`tools/host_hygiene_schedule.py` + the ops-checks re-ensure job); the app ships no `vps_host_hygiene` module and provisions no Dokploy host-schedule | `test_AC8_13_73_*` | `tests/tooling/test_cleanup_pr_preview_resources.py` | P0 |
+| AC8.13.74 | The app's scheduled maintenance performs no Dokploy preview reconcile and no host hygiene — it only prunes the app's own stale GHCR PR image tags (Dokploy preview reclaim is infra2-owned) | `test_AC8_13_74_*` | `tests/tooling/test_cleanup_pr_preview_resources.py` | P0 |
 | AC8.13.75 | Reporting-only coverage gate summary cannot fail the final CI aggregation job if GitHub Step Summary writes fail | `test_AC8_13_75_coverage_gate_summary_is_nonblocking` | `tests/tooling/test_post_merge_e2e_gates.py` | P1 |
 | AC8.13.76 | Playwright mobile UX coverage proves Stage 1 and Stage 2 review workflows avoid document-level horizontal scroll and expose direct completion actions at phone widths | `AC16.26.*` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
 | AC8.13.77 | Registry-to-EPIC consistency fails active stub or orphan AC entries instead of silently excluding them | `test_AC8_13_77_*` | `tests/tooling/test_lint_doc_consistency.py` | P0 |
@@ -755,8 +755,8 @@ The simplification priority remains:
    retries would dominate; provider gate is explicit and runs only on AI/OCR-relevant
    changes.
 6. If stale resources were not captured, next run latency would accumulate;
-   current controls cover PR previews, GHCR tag pruning, host hygiene, and stale
-   version visibility in deployment context.
+   current controls cover PR previews, GHCR tag pruning, host hygiene
+   (infra2-owned), and stale version visibility in deployment context.
 7. The in-runner E2E gate runs synchronously on `pull_request`, not asynchronously
    via `workflow_run`: a `workflow_run` gate fires only after CI, so a fast or auto
    merge could land before it ran — and GitHub counts a skipped required check as
