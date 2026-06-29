@@ -20,8 +20,8 @@ behaviors and each AC still carries its own tier.
 The crucial payoff: **an AC's tier dictates what KIND of proof is valid for it**,
 tying the testing strategy to intent. The tier vocabulary, the cross-tier MUST
 rules, and the tier→valid-proof matrix are owned by the `authority` package
-([common/authority/readme.md](../../common/authority/readme.md)); this EPIC
-references that contract rather than restating it.
+([common/authority/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/authority/readme.md));
+this EPIC references that contract rather than restating it.
 
 ---
 
@@ -49,8 +49,8 @@ references that contract rather than restating it.
 
 ### Actions
 1. Author the tier vocabulary (now internalized into the `authority` package,
-   [common/authority/readme.md](../../common/authority/readme.md)); register it in
-   `docs/ssot/MANIFEST.yaml` (`authority_tiers`).
+   [common/authority/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/authority/readme.md));
+   register it in `docs/ssot/MANIFEST.yaml` (`authority_tiers`).
 2. Extend the EPIC AC declaration with a `{tier:XX}` marker and teach
    `tools/generate_ac_registry.py` to lift it into the AC value.
 3. Add `tools/check_ac_tier_baseline.py` + `docs/ssot/ac-tier-baseline.json`
@@ -152,8 +152,8 @@ references that contract rather than restating it.
 
 ## 🔗 References
 
-- SSOT: [common/authority/readme.md](../../common/authority/readme.md) (the tier
-  vocabulary, internalized into the `authority` package)
+- SSOT: [common/authority/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/authority/readme.md)
+  (the tier vocabulary, internalized into the `authority` package)
 - Untagged-debt baseline: [ac-tier-baseline.json](../ssot/ac-tier-baseline.json)
 - Generator: `tools/generate_ac_registry.py` · Gate: `tools/check_ac_tier_baseline.py`
 - Workflow context: [tdd.md](../ssot/tdd.md)

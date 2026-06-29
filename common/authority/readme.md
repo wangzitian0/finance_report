@@ -43,12 +43,12 @@ code boxes it in. Two binary cuts — *does code or the LLM produce the used
 result* (hard vs soft) × *how strong is the code discipline* — give four
 permanent tiers:
 
-| Code | Name (中文) | Produces the result | Reproducible? | Typical modules |
-|------|-------------|---------------------|---------------|-----------------|
-| **CODE-ONLY** | 纯代码 pure-code | **Code**, no LLM | Bit-level, fully reproducible | money/accounting, dedup, validation, persistence, reporting-calc, **recording a human decision/label** |
-| **CODE-LED** | 代码为主·LLM辅助 code-primary | **Code**; the LLM only assists within strict code constraints on the I/O and decisions | Reproducible once the config/knobs are pinned | model/strategy selection feeding a deterministic parser; LLM-tuned thresholds with deterministic scoring |
-| **LLM-LED** | LLM为主·代码守门 LLM-primary | **The LLM**; code validates its format/invariants and may reject, never produces | Not reproducible but DETECTABLE | extraction, OCR, classification, brokerage CSV→canonical mapping |
-| **LLM-ONLY** | 纯LLM pure-LLM | **The LLM**, with no validation | Not required | advisor narrative, chat answer/suggestion text |
+| Code | Name | Produces the result | Reproducible? | Typical modules |
+|------|------|---------------------|---------------|-----------------|
+| **CODE-ONLY** | pure-code | **Code**, no LLM | Bit-level, fully reproducible | money/accounting, dedup, validation, persistence, reporting-calc, **recording a human decision/label** |
+| **CODE-LED** | code-primary | **Code**; the LLM only assists within strict code constraints on the I/O and decisions | Reproducible once the config/knobs are pinned | model/strategy selection feeding a deterministic parser; LLM-tuned thresholds with deterministic scoring |
+| **LLM-LED** | LLM-primary | **The LLM**; code validates its format/invariants and may reject, never produces | Not reproducible but DETECTABLE | extraction, OCR, classification, brokerage CSV→canonical mapping |
+| **LLM-ONLY** | pure-LLM | **The LLM**, with no validation | Not required | advisor narrative, chat answer/suggestion text |
 
 The **hard/soft** cut (who produces the used artifact) falls between CODE-LED and LLM-LED —
 the same "who emits" test as before: code computes it and the LLM only turned
@@ -56,7 +56,7 @@ knobs → **CODE-LED**; the LLM emits it and code only validates/constrains → 
 
 ### HU is not a permanent tier — it is "undecided"
 
-The legacy vocabulary had a fifth code, **HU** (人来判定). In the module-design
+The legacy vocabulary had a fifth code, **HU** (human-adjudicated). In the module-design
 model it is **not a peer tier**: it means *the module's tier has not been decided
 yet*. It is represented by a `draft` package with `tier=None` and **MUST resolve
 to one of CODE-ONLY/CODE-LED/LLM-LED/LLM-ONLY before the package goes `active`** (see the rule below).
@@ -339,4 +339,3 @@ matrix + the classifier's `band` / `classify_repo` / `BANDS`.
   `PackageTier` and the proof matrix (`PackageContract` imports it).
 - [`../../docs/ssot/extraction.md`](../../docs/ssot/extraction.md) — a domain
   where LLM-LED/LLM-ONLY behaviors concentrate.
-</content>
