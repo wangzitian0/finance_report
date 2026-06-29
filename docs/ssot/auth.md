@@ -183,7 +183,7 @@ Creates a new user with email and password.
   "email": "user@example.com",
   "name": "John Doe",
   "created_at": "2026-01-22T00:00:00Z",
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  "access_token": "<jwt-token-example>"
 }
 ```
 
@@ -211,7 +211,7 @@ Authenticates user with email and password.
   "email": "user@example.com",
   "name": "John Doe",
   "created_at": "2026-01-22T00:00:00Z",
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  "access_token": "<jwt-token-example>"
 }
 ```
 
@@ -252,7 +252,7 @@ Authorization: Bearer <access_token>
   "email": "user@example.com",
   "name": "John Doe",
   "created_at": "2026-01-22T00:00:00Z",
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  "access_token": "<jwt-token-example>"
 }
 ```
 
@@ -483,7 +483,7 @@ curl -X POST http://localhost:8000/api/auth/register \
 #   "email": "test@example.com",
 #   "name": "Test User",
 #   "created_at": "2026-01-22T00:00:00Z",
-#   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1NTBlODQwMC1lMjliLTQxZDQtYTcxNi00NDY2NTU0NDAwMDAiLCJleHAiOjE3MDY5NzYwMDB9.xxx"
+#   "access_token": "<jwt-token-example>"
 # }
 
 # 2. Login with existing user
@@ -498,7 +498,7 @@ curl -X POST http://localhost:8000/api/auth/login \
 # Same structure as registration response with new access_token
 
 # 3. Use the token for authenticated requests
-TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+TOKEN="<jwt-token-example>"
 
 curl -H "Authorization: Bearer $TOKEN" \
   http://localhost:8000/api/accounts
@@ -528,7 +528,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 #   "email": "test@example.com",
 #   "name": "Test User",
 #   "created_at": "2026-01-22T00:00:00Z",
-#   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+#   "access_token": "<jwt-token-example>"
 # }
 
 # 7. Test frontend redirect on 401 (after PR #122 merges)
