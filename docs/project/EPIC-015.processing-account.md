@@ -84,61 +84,47 @@ Balance ≠ 0  → Pending Review ⚠️
 
 ## 🧪 Test Cases
 
-> **Test Organization**: Tests organized by feature blocks using ACx.y.z numbering.
-> **Coverage**: See `apps/backend/tests/accounting/test_processing_account.py` and `apps/backend/tests/reconciliation/test_transfer_integration.py`
-
-### AC15.1: Processing Account Creation
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC15.1.1 | Processing Account Created | `test_create_processing_account_once` | `accounting/test_processing_account.py` | P0 |
-| AC15.1.2 | Idempotent Creation | `test_processing_account_idempotent` | `accounting/test_processing_account.py` | P0 |
-| AC15.1.3 | Hidden from User Accounts | `test_processing_account_hidden_from_list` | `accounting/test_processing_account.py` | P0 |
-| AC15.1.4 | Per-User Isolation | `test_processing_account_per_user` | `accounting/test_processing_account.py` | P0 |
-
-### AC15.2: Transfer Entry Creation
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC15.2.1 | Transfer OUT Entry | `test_transfer_out_debits_processing` | `accounting/test_processing_account.py` | P0 |
-| AC15.2.2 | Transfer IN Entry | `test_transfer_in_credits_processing` | `accounting/test_processing_account.py` | P0 |
-| AC15.2.3 | Paired Transfers Zero Balance | `test_paired_transfers_zero_processing_balance` | `accounting/test_processing_account.py` | P0 |
-
-### AC15.3: Accounting Integrity
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC15.3.1 | Unpaired Transfer Visible | `test_unpaired_transfer_shows_in_balance` | `accounting/test_processing_account.py` | P0 |
-| AC15.3.2 | Accounting Equation Holds | `test_processing_account_maintains_equation` | `accounting/test_processing_account.py` | P0 |
-
-### AC15.4: Transfer Detection
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC15.4.1 | Keyword Detection | `test_detect_transfer_keywords` | `accounting/test_processing_account.py` | P0 |
-| AC15.4.2 | Non-Transfer Detection | `test_detect_no_description` | `accounting/test_processing_account.py` | P0 |
-| AC15.4.3 | Auto-Pairing Above Threshold | `test_find_transfer_pairs_above_threshold` | `accounting/test_processing_account.py` | P0 |
-
-### AC15.5: Scoring Functions
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC15.5.1 | Amount Scoring (Exact) | `test_score_amount_exact_match` | `accounting/test_processing_account.py` | P0 |
-| AC15.5.2 | Amount Scoring (Tiers) | `test_score_amount_*` (9 tests) | `accounting/test_processing_account.py` | P0 |
-| AC15.5.3 | Description Scoring | `test_score_description_*` (4 tests) | `accounting/test_processing_account.py` | P1 |
-| AC15.5.4 | Date Scoring | `test_score_date_*` (5 tests) | `accounting/test_processing_account.py` | P1 |
-
-### AC15.6: Reconciliation Integration
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC15.6.1 | Transfer Detection During Reconciliation | `test_transfer_out_detected_creates_processing_entry` | `reconciliation/test_transfer_integration.py` | P0 |
-| AC15.6.2 | Transfer Detection Skips (No Account) | `test_transfer_detection_skips_when_no_account_linked` | `reconciliation/test_transfer_integration.py` | P0 |
-| AC15.6.3 | Transfer IN Detection | `test_transfer_in_detected_creates_processing_entry` | `reconciliation/test_transfer_integration.py` | P0 |
-| AC15.6.4 | Auto-Pairing Phase | `test_auto_pair_matching_transfer_same_amount` | `reconciliation/test_transfer_integration.py` | P0 |
-| AC15.6.5 | Unpaired Transfer Balance | `test_unpaired_transfer_leaves_nonzero_balance` | `reconciliation/test_transfer_integration.py` | P0 |
-| AC15.6.6 | Normal Matching Preserved | `test_non_transfer_proceeds_to_normal_matching` | `reconciliation/test_transfer_integration.py` | P0 |
-| AC15.6.7 | Idempotent Transfer Detection | `test_transfer_out_duplicate_detection_skipped`, `test_transfer_in_duplicate_detection_skipped` | `reconciliation/test_transfer_idempotency.py` | P0 |
+> **The processing-account backend ACs (the former AC15.1–AC15.6 tables) are no
+> longer defined here.** They migrated into the `ledger` package (#1420 slice 3c-i)
+> and are owned by, and sourced directly from,
+> [`common/ledger/contract.py`](../../common/ledger/contract.py)'s `roadmap` under
+> the package-scoped `AC-ledger.<group>.<seq>` id scheme (groups 71–76 are the
+> reserved processing block; groups 1–70 are held for the EPIC-002/012 double-entry
+> ACs that land in slices 3c-ii/iii). `common/ssot/generate_ac_registry.py` reads
+> package-contract roadmaps additively, so the AC index counts them without an
+> EPIC-table mirror. This note references the new ids (keeping the registry↔EPIC
+> link intact) but defines none of them — the contract is the single definition
+> source.
+>
+> **Processing Account Creation**:
+> `AC-ledger.71.1` · `AC-ledger.71.2` ·
+> `AC-ledger.71.3` · `AC-ledger.71.4`
+>
+> **Transfer Entry Creation**:
+> `AC-ledger.72.1` · `AC-ledger.72.2` ·
+> `AC-ledger.72.3`
+>
+> **Accounting Integrity**:
+> `AC-ledger.73.1` · `AC-ledger.73.2`
+>
+> **Transfer Detection**:
+> `AC-ledger.74.1` · `AC-ledger.74.2` ·
+> `AC-ledger.74.3`
+>
+> **Scoring Functions**:
+> `AC-ledger.75.1` · `AC-ledger.75.2` ·
+> `AC-ledger.75.3` · `AC-ledger.75.4`
+>
+> **Reconciliation Integration**:
+> `AC-ledger.76.1` · `AC-ledger.76.2` ·
+> `AC-ledger.76.3` · `AC-ledger.76.4` ·
+> `AC-ledger.76.5` · `AC-ledger.76.6` ·
+> `AC-ledger.76.7`
+>
+> The **frontend** UI-gap ACs (AC15.7.*, the Processing-visibility surface) remain
+> defined below — `ledger` is a backend-only package, so its roadmap does not home
+> them (mirroring how EPIC-001 kept its frontend rows when the `identity` backend
+> ACs migrated).
 
 ## 📏 Acceptance Criteria
 
