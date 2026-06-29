@@ -3039,7 +3039,8 @@ def test_AC8_13_46_pr_preview_non_llm_gate_matches_staging_strict_parallelism() 
 
 
 def test_AC8_13_38_pr_preview_dokploy_responses_are_not_logged() -> None:
-    """AC8.13.38: PR preview cleanup parses Dokploy responses without raw logs."""
+    """AC8.13.38: preview DEPLOY parses Dokploy responses without raw logs; the app
+    runs no Dokploy reclaim — PR close dispatches a teardown signal to infra2."""
     preview = read(".github/workflows/preview.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     lifecycle = read("tools/_lib/dev/pr_preview_lifecycle")
@@ -3047,12 +3048,15 @@ def test_AC8_13_38_pr_preview_dokploy_responses_are_not_logged() -> None:
     assert (
         "PR preview Dokploy API responses are parsed for required fields only" in ci_cd
     )
-    assert "Cleanup preview lifecycle" in preview
-    # Deploy + cleanup both go through pr_preview_lifecycle.py (no hand-rolled
-    # Dokploy curl), so neither logs raw responses.
+    # Deploy goes through pr_preview_lifecycle.py (no hand-rolled Dokploy curl), so
+    # it logs no raw responses.
     assert "Deploy preview lifecycle" in preview
     assert "--action deploy" in preview
-    assert "--action cleanup" in preview
+    # Reclaim is infra2-owned: no app-side cleanup/reconcile; on PR close the app
+    # only dispatches a vendor-neutral teardown signal to infra2.
+    assert "--action cleanup" not in preview
+    assert "--action reconcile" not in preview
+    assert "preview-teardown" in preview
     assert "Response body" not in lifecycle
     assert "raw_body_printed: false" in lifecycle
     assert "safe_message" in lifecycle

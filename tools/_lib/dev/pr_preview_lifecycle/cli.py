@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from tools._lib.dev.pr_preview_lifecycle import _util
 
 from tools._lib.dev.pr_preview_lifecycle import _dokploy
 
@@ -25,7 +24,6 @@ from tools._lib.dev.pr_preview_lifecycle._dokploy import (
     DokployConfig,
     DokployDeploymentDidNotStart,
     DokployDeploymentFailed,
-    DokployRequestError,
     capture_compose_state,
     configure_preview_compose,
     create_compose,
@@ -299,110 +297,26 @@ def deploy_action(args: argparse.Namespace) -> int:
         return 1
 
 
-def cleanup_action(args: argparse.Namespace) -> int:
-    try:
-        config = DokployConfig(api_url=args.api_url, api_key=args.api_key)
-        compose_id = args.compose_id or _dokploy.find_compose_id_by_name(
-            config,
-            args.environment_id,
-            args.compose_name,
-        )
-        if compose_id:
-            _dokploy.delete_compose(config, compose_id=compose_id)
-        else:
-            print(f"Compose not found: {args.compose_name}")
-    except DokployRequestError as exc:
-        print(
-            f"WARNING: Cleanup action failed for {args.compose_name} (ignoring): {exc}",
-            file=sys.stderr,
-        )
-    return 0
-
-
-def delete_action(args: argparse.Namespace) -> int:
-    try:
-        config = DokployConfig(api_url=args.api_url, api_key=args.api_key)
-        compose_id = args.compose_id or _dokploy.find_compose_id_by_name(
-            config,
-            args.environment_id,
-            args.compose_name,
-        )
-        if not compose_id:
-            print(f"Compose not found: {args.compose_name}")
-            return 0
-        _dokploy.delete_compose(config, compose_id=compose_id)
-    except DokployRequestError as exc:
-        print(
-            f"WARNING: Delete action failed for {args.compose_name} (ignoring): {exc}",
-            file=sys.stderr,
-        )
-    return 0
-
-
-def parse_open_pr_numbers(output: str) -> set[int]:
-    return {int(line.strip()) for line in output.splitlines() if line.strip()}
-
-
-def list_open_pr_numbers() -> set[int]:
-    result = _util.run_command(
-        [
-            "gh",
-            "pr",
-            "list",
-            "--state",
-            "open",
-            "--limit",
-            "1000",
-            "--json",
-            "number",
-            "--jq",
-            ".[].number",
-        ]
-    )
-    return parse_open_pr_numbers(result.stdout)
-
-
-def reconcile_action(args: argparse.Namespace) -> int:
-    open_prs = list_open_pr_numbers()
-    config = DokployConfig(api_url=args.api_url, api_key=args.api_key)
-    preview_composes = _dokploy.list_preview_composes(config, args.environment_id)
-    remote_prs = set(preview_composes)
-    stale_prs = sorted(remote_prs - open_prs)
-    print(f"Open PRs: {sorted(open_prs)}")
-    print(f"Preview PRs in Dokploy: {sorted(remote_prs)}")
-    print(f"Stale preview PRs: {stale_prs}")
-    for pr_number in stale_prs:
-        compose_id = preview_composes[pr_number]
-        if args.dry_run:
-            print(f"[dry-run] Would delete compose for PR #{pr_number}: {compose_id}")
-        else:
-            _dokploy.delete_compose(config, compose_id=compose_id)
-    return 0
-
-
 def main_from_args(args: argparse.Namespace) -> int:
     if args.action == "deploy":
         return deploy_action(args)
-    if args.action == "delete":
-        return delete_action(args)
-    if args.action == "cleanup":
-        return cleanup_action(args)
-    if args.action == "reconcile":
-        return reconcile_action(args)
     raise ValueError(f"Unsupported action: {args.action}")
 
 
 def main(argv: list[str] | None = None) -> int:
+    # This tool only stands PR previews UP (`deploy`). Preview RECLAIM (the former
+    # cleanup/delete/reconcile actions) is owned by infra2 — the app must not touch
+    # the Dokploy API. On PR close the app dispatches a vendor-neutral
+    # `preview-teardown` signal and infra2's preview-teardown.yml performs the
+    # authoritative 1:1 teardown via deploy_v2; infra2's preview-leak-check is the
+    # detection fallback.
     argv = normalize_dash_prefixed_values(
         list(argv) if argv is not None else sys.argv[1:]
     )
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--action", choices=["deploy", "delete", "cleanup", "reconcile"], required=True
-    )
+    parser.add_argument("--action", choices=["deploy"], default="deploy")
     parser.add_argument("--pr-number", type=int, required=True)
     parser.add_argument("--compose-name", required=True)
-    parser.add_argument("--compose-id", default="")
     parser.add_argument("--environment-id", required=True)
     parser.add_argument("--api-url", required=True)
     parser.add_argument("--api-key", required=True)
@@ -412,7 +326,6 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--registry", default="ghcr.io")
     parser.add_argument("--image-prefix", default="")
     parser.add_argument("--internal-domain", default="zitian.party")
-    parser.add_argument("--dry-run", action="store_true")
     return main_from_args(parser.parse_args(argv))
 
 

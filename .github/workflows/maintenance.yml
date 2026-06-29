@@ -163,28 +163,17 @@ jobs:
           path: ci-context/
           retention-days: 14
 
-  # PR preview cleanup jobs
+  # PR preview GHCR image hygiene. Dokploy preview RECLAIM (stale/closed-PR
+  # composes) is NOT done here — it is owned by infra2: event-driven teardown on
+  # PR close (infra2 preview-teardown.yml) + the hourly preview-leak-check
+  # detection fallback. This job only prunes stale PR-preview GHCR image tags
+  # (the app's own images).
   cleanup:
-    name: Cleanup stale PR previews
+    name: Prune stale PR preview GHCR tags
     if: ${{ (github.event_name == 'schedule' && github.event.schedule == '37 */6 * * *') || (github.event_name == 'workflow_dispatch' && (inputs.task == 'pr-preview-cleanup' || inputs.task == 'all')) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-
-      - name: Remove stale preview resources
-        env:
-          GH_TOKEN: ${{ github.token }}
-          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
-          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.preview_cleanup_dry_run == 'true' && '--dry-run' || '' }}
-        run: |
-          python tools/pr_preview_lifecycle.py \
-            --action reconcile \
-            --pr-number 0 \
-            --compose-name reconcile \
-            --environment-id="${{ env.TEST_ENV_ID }}" \
-            --api-url "${{ env.DOKPLOY_API_URL }}" \
-            --api-key "$DOKPLOY_API_KEY" \
-            ${DRY_RUN:+"$DRY_RUN"}
 
       - name: Prune stale PR preview GHCR tags
         continue-on-error: true

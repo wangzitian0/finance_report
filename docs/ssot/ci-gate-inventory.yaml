@@ -362,13 +362,13 @@ gates:
     task_category: cleanup_retention
     workflow: .github/workflows/maintenance.yml
     job: cleanup
-    owner: tools/pr_preview_lifecycle.py
+    owner: tools/ghcr_retention.py
     triggers: [schedule, workflow_dispatch]
     blocks_workflow: true
-    inputs: [dokploy_preview_state]
+    inputs: [ghcr_pr_preview_tags]
     outputs: [cleanup_summary]
     artifacts: [pr-preview-scheduled-cleanup-context]
-    failure_semantics: Scheduled or manual preview cleanup could not classify or remove stale resources.
+    failure_semantics: Scheduled GHCR PR-preview image-tag pruning failed (Dokploy preview reclaim is infra2-owned, not here).
     action: keep
   - id: ghcr_sha_retention.prune_sha_images
     stage: ops.scheduled_cleanup
@@ -440,13 +440,13 @@ gates:
     task_category: cleanup_retention
     workflow: .github/workflows/preview.yml
     job: cleanup
-    owner: tools/pr_preview_lifecycle.py
+    owner: .github/workflows/preview.yml
     triggers: [pull_request, workflow_dispatch]
     blocks_workflow: true
-    inputs: [runner_local_stack, optional_preview_state]
+    inputs: [closed_pr_number]
     outputs: [cleanup_context]
     artifacts: [pr-preview-cleanup-context]
-    failure_semantics: PR preview cleanup failed after runner-local or preview work.
+    failure_semantics: PR-close preview-teardown dispatch to infra2 failed (the app emits the signal; infra2 owns the teardown).
     action: keep
   - id: release_images.promote
     stage: prod.release_integrity
@@ -647,8 +647,15 @@ deferred_candidates:
       the broad audit suite creep into the blocking gate (AC8.13.156/AC8.13.159).
   - id: pr_preview_cleanup_event_vs_scheduled
     gates: [preview.cleanup, pr_preview_cleanup.cleanup]
-    status: keep_separate
-    reason: Same tools/pr_preview_lifecycle.py owner, but intentionally split by trigger — preview.yml#cleanup is event-driven on PR close, maintenance.yml#cleanup is the scheduled fallback that reclaims leaked or abandoned previews a close event missed. Merging would drop the fallback and is a protection regression, not a simplification (AC8.13.155).
+    status: removed
+    retained_owner: infra2:preview-teardown.yml
+    reason: >
+      Retired (AC8.13.155). The app-side reclaim split no longer exists: Dokploy
+      preview reclaim moved to infra2 (event-driven preview-teardown.yml + the
+      hourly preview-leak-check detection fallback). preview.yml#cleanup now only
+      DISPATCHES the vendor-neutral teardown signal to infra2, and
+      maintenance.yml#cleanup is GHCR-image pruning only — two unrelated concerns,
+      not a reclaim fallback split.
   - id: backend_pytest_parameters
     gates: [ci.backend, ci.backend_integration, ci.backend_e2e_tier1]
     status: observe_only
