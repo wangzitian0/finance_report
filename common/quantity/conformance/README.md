@@ -12,7 +12,7 @@ expected value:
 | Stack | Implementation | Conformance test |
 |-------|----------------|------------------|
 | Python reference | `common/quantity` | `tests/tooling/test_quantity_conformance.py` |
-| Backend runtime | `apps/backend/src/quantity` | `apps/backend/tests/accounting/test_quantity_backend.py` |
+| Backend runtime | `apps/backend/src/quantity` | `apps/backend/tests/quantity/test_quantity_backend.py` |
 | Frontend | `apps/frontend/src/lib/quantity` | `apps/frontend/src/lib/quantity/quantity.conformance.test.ts` |
 
 The canonical quantity policy is **6 dp, ROUND_HALF_UP**. Unit strings are

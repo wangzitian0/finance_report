@@ -508,10 +508,10 @@ and there is no regression on currencies outside the active ISO set.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC2.22.1 | `StatementSummary.typed_currency_balances()` reads the per-currency JSONB as a typed `CurrencyBalances` (no scalar collapse) | `test_AC2_22_1_statement_summary_typed_currency_balances` | `apps/backend/tests/accounting/test_money_backend_module.py` | P1 |
-| AC2.22.2 | Reconciliation per-currency balance check routes through same-currency `Money`; per-currency totals are byte-identical to the legacy arithmetic (incl. `"*"`/non-ISO fallback) | `test_AC2_22_2_per_currency_validation_totals_unchanged` (+ `balance_check`) | `apps/backend/tests/accounting/test_money_adopt.py` | P0 |
-| AC2.22.3 | Reporting net-worth restatement routes through the `convert` primitive (`restate`/`restate_unrounded`); restated totals are byte-identical to `to_money(amount*rate)` / `amount*rate` | `test_AC2_22_3_restate_is_byte_identical` (+ `restate_unrounded`) | `apps/backend/tests/accounting/test_money_adopt.py` | P0 |
-| AC2.22.4 | `TransferLeg.money` exposes a leg's value as a typed `Money` (same-currency-only combination) | `test_AC2_22_4_transfer_leg_exposes_typed_money` | `apps/backend/tests/accounting/test_money_backend_module.py` | P1 |
+| AC2.22.1 | `StatementSummary.typed_currency_balances()` reads the per-currency JSONB as a typed `CurrencyBalances` (no scalar collapse) | `test_AC2_22_1_statement_summary_typed_currency_balances` | `apps/backend/tests/money/test_money_backend_module.py` | P1 |
+| AC2.22.2 | Reconciliation per-currency balance check routes through same-currency `Money`; per-currency totals are byte-identical to the legacy arithmetic (incl. `"*"`/non-ISO fallback) | `test_AC2_22_2_per_currency_validation_totals_unchanged` (+ `balance_check`) | `apps/backend/tests/money/test_money_adopt.py` | P0 |
+| AC2.22.3 | Reporting net-worth restatement routes through the `convert` primitive (`restate`/`restate_unrounded`); restated totals are byte-identical to `to_money(amount*rate)` / `amount*rate` | `test_AC2_22_3_restate_is_byte_identical` (+ `restate_unrounded`) | `apps/backend/tests/money/test_money_adopt.py` | P0 |
+| AC2.22.4 | `TransferLeg.money` exposes a leg's value as a typed `Money` (same-currency-only combination) | `test_AC2_22_4_transfer_leg_exposes_typed_money` | `apps/backend/tests/money/test_money_backend_module.py` | P1 |
 
 > The L2/L3 *score-baseline* promotion of the money invariants stays in #1103.
 > The existing reporting net-worth E2E tests (internal-transfer fee / FX ledger)

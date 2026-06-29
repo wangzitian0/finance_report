@@ -41,7 +41,11 @@ def scan_text_for_float(text: str) -> list[str]:
     offending: list[str] = []
     for node in ast.walk(tree):
         # float(...) cast
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "float":
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "float"
+        ):
             offending.append(f"{node.lineno}: float as cast")
         # def / async def f(x: float, *args: float, **kwargs: float) -> float
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -65,11 +69,16 @@ def scan_text_for_float(text: str) -> list[str]:
 
 def python_money_module_paths(repo_root: Path = REPO_ROOT) -> list[Path]:
     """Python files that make up the money narrow waist (the runtime impls)."""
-    roots = [repo_root / "common" / "money", repo_root / "apps" / "backend" / "src" / "money"]
+    roots = [
+        repo_root / "common" / "money",
+        repo_root / "apps" / "backend" / "src" / "money",
+    ]
     files: list[Path] = []
     for root in roots:
         if root.exists():
-            files.extend(sorted(p for p in root.rglob("*.py") if "conformance" not in p.parts))
+            files.extend(
+                sorted(p for p in root.rglob("*.py") if "conformance" not in p.parts)
+            )
     return files
 
 
@@ -85,11 +94,13 @@ def float_violations(repo_root: Path = REPO_ROOT) -> list[str]:
 # One conformance suite per stack that consumes the standard. Absence == drift.
 REQUIRED_CONFORMANCE_SUITES = (
     "tests/tooling/test_money_conformance.py",  # Python reference impl
-    "apps/backend/tests/accounting/test_money_conformance_backend.py",  # shipped backend path
+    "apps/backend/tests/money/test_money_conformance_backend.py",  # shipped backend path
     "apps/frontend/src/lib/money/money.conformance.test.ts",  # frontend impl
 )
 
 
 def missing_conformance_suites(repo_root: Path = REPO_ROOT) -> list[str]:
     """Return required conformance suites that are absent (empty == all present)."""
-    return [rel for rel in REQUIRED_CONFORMANCE_SUITES if not (repo_root / rel).exists()]
+    return [
+        rel for rel in REQUIRED_CONFORMANCE_SUITES if not (repo_root / rel).exists()
+    ]

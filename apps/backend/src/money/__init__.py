@@ -5,7 +5,7 @@ module: the backend image does not ship ``common/``, so the backend is treated a
 its own conformant end — exactly like the frontend has ``apps/frontend/src/lib/money``
 (#1167). It is kept in lockstep with the reference impl by the shared conformance
 vectors (``common/money/conformance/vectors.json``, asserted in
-``tests/accounting/test_money_backend_module.py``) and the narrow-waist guard (#1172).
+``tests/money/test_money_backend_module.py``) and the narrow-waist guard (#1172).
 
 Contract: ``docs/ssot/accounting.md#money-type``.
 """

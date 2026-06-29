@@ -20,6 +20,10 @@ These files are test infrastructure, not behavior proof.
 |---|---|
 | `apps/backend/tests/__init__.py` | Package marker |
 | `apps/backend/tests/accounting/__init__.py` | Package marker |
+| `apps/backend/tests/money/__init__.py` | Package marker |
+| `apps/backend/tests/quantity/__init__.py` | Package marker |
+| `apps/backend/tests/ratio/__init__.py` | Package marker |
+| `apps/backend/tests/unit_price/__init__.py` | Package marker |
 | `apps/backend/tests/accounting/_ledger_helpers.py` | Shared accounting ledger invariant test helper |
 | `apps/backend/tests/ai/__init__.py` | Package marker |
 | `apps/backend/tests/assets/__init__.py` | Package marker |
@@ -56,7 +60,7 @@ explicit AC IDs for the behavior.
 
 | Path | Owner |
 |---|---|
-| `apps/backend/tests/accounting/test_money.py` | `docs/ssot/accounting.md` |
+| `apps/backend/tests/money/test_money.py` | `docs/ssot/accounting.md` |
 | `apps/backend/tests/accounting/test_processing_account_endpoints.py` | `docs/ssot/processing_account.md` |
 | `apps/backend/tests/api/test_ai_feedback_router_extra.py` | `docs/ssot/ai.md` |
 | `apps/backend/tests/assets/test_assets_positions_and_depreciation.py` | `docs/ssot/assets.md` |

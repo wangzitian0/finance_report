@@ -32,7 +32,7 @@ concepts:
       - apps/backend/tests/accounting/test_decimal_safety.py
     proofs:
       - apps/backend/tests/accounting/test_decimal_safety.py
-      - apps/backend/tests/accounting/test_money.py
+      - apps/backend/tests/money/test_money.py
 
   money_value_type:
     owner: docs/ssot/accounting.md#money-type
