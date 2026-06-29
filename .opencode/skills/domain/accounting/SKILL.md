@@ -25,7 +25,7 @@ Assets = Liabilities + Equity + (Income - Expenses)
   Do NOT hand-roll `quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)` for money.
   Out of scope (keep their own quantization): FX rates & security prices (6 dp),
   share quantities (6 dp), percentages/ratios (XIRR, TWR, MWR, allocation %).
-  Guardrail: `apps/backend/tests/accounting/test_money.py`.
+  Guardrail: `apps/backend/tests/money/test_money.py`.
 
 ## Multi-Currency Journal Balance
 

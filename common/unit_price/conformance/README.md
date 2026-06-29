@@ -12,7 +12,7 @@ expected value:
 | Stack | Implementation | Conformance test |
 |-------|----------------|------------------|
 | Python reference | `common/unit_price` | `tests/tooling/test_unit_price_conformance.py` |
-| Backend runtime | `apps/backend/src/unit_price` | `apps/backend/tests/accounting/test_unit_price_backend.py` |
+| Backend runtime | `apps/backend/src/unit_price` | `apps/backend/tests/unit_price/test_unit_price_backend.py` |
 | Frontend | _(P2 follow-up — display helpers, see #1253)_ | _(pending)_ |
 
 The canonical unit-price policy is **6 dp, ROUND_HALF_UP** (the price/unit-rate
