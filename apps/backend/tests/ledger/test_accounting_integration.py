@@ -194,7 +194,7 @@ async def test_AC2_13_1_create_journal_entry_rejects_cross_user_account(
     salary_account,
     test_user_id,
 ):
-    """AC2.13.1: Manual journal creation rejects lines using another user's account."""
+    """AC-ledger.13.1: Manual journal creation rejects lines using another user's account."""
     other_user_id = (await UserFactory.create_async(db)).id
     other_account = Account(
         user_id=other_user_id,
@@ -223,7 +223,7 @@ async def test_AC2_13_1_line_account_ownership_accepts_empty_line_set(
     db: AsyncSession,
     test_user_id,
 ):
-    """AC2.13.1: Empty line account sets short-circuit without a database lookup."""
+    """AC-ledger.13.1: Empty line account sets short-circuit without a database lookup."""
     accounts = await validate_line_account_ownership(db, test_user_id, set())
 
     assert accounts == {}
@@ -233,7 +233,7 @@ async def test_AC2_13_1_line_account_ownership_rejects_missing_account(
     db: AsyncSession,
     test_user_id,
 ):
-    """AC2.13.1: Journal lines cannot reference nonexistent accounts."""
+    """AC-ledger.13.1: Journal lines cannot reference nonexistent accounts."""
     missing_account_id = uuid4()
 
     with pytest.raises(ValidationError, match=f"Account {missing_account_id} not found"):
@@ -246,7 +246,7 @@ async def test_AC2_13_2_journal_lines_reject_cross_user_account_at_db_boundary(
     salary_account,
     test_user_id,
 ):
-    """AC2.13.2: Database invariants reject line accounts outside the entry owner."""
+    """AC-ledger.13.2: Database invariants reject line accounts outside the entry owner."""
     other_user_id = (await UserFactory.create_async(db)).id
     other_account = Account(
         user_id=other_user_id,
@@ -293,7 +293,7 @@ async def test_AC2_13_2_journal_lines_reject_cross_user_account_at_db_boundary(
 async def test_AC2_13_2_posting_invariants_reject_line_with_missing_account_relationship(
     test_user_id,
 ):
-    """AC2.13.2: Posting invariants require every line to resolve to an account."""
+    """AC-ledger.13.2: Posting invariants require every line to resolve to an account."""
     missing_account_id = uuid4()
     entry = JournalEntry(
         user_id=test_user_id,
@@ -329,7 +329,7 @@ async def test_AC2_13_3_balance_queries_ignore_cross_user_entry_headers(
     salary_account,
     test_user_id,
 ):
-    """AC2.13.3: Balance aggregation requires account and entry ownership to match."""
+    """AC-ledger.13.3: Balance aggregation requires account and entry ownership to match."""
     other_user_id = (await UserFactory.create_async(db)).id
     other_account = Account(
         user_id=other_user_id,

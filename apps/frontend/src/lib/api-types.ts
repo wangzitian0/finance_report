@@ -5180,7 +5180,7 @@ export interface components {
         };
         /**
          * OpeningBalanceReadinessResponse
-         * @description Whether the user should be nudged to record opening balances (#949 / AC2.16.1).
+         * @description Whether the user should be nudged to record opening balances (#949 / AC-ledger.16.1).
          *
          *     ``needs_opening_balance`` is true when the user has posted activity but no
          *     opening-balance entry on or before the earliest such activity, so a cumulative

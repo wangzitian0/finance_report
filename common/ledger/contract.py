@@ -22,26 +22,42 @@ event (Decision B — one transaction per domain).
 
 The package's ACs migrate into ``roadmap`` across the slice-3c sub-slices of the
 cutover (#1420). **Slice 3c-i homed the EPIC-015 processing-account ACs** as
-``AC-ledger.71.* … AC-ledger.76.*``. **Slice 3c-ii (this change) homes the first
-half of the EPIC-002 double-entry core** — groups ``AC2.1``…``AC2.12`` → groups
+``AC-ledger.71.* … AC-ledger.76.*``. **Slice 3c-ii homed the first half of the
+EPIC-002 double-entry core** — groups ``AC2.1``…``AC2.12`` → groups
 ``AC-ledger.1.*``…``AC-ledger.12.*`` (the leading "2" is dropped; seq preserved).
-In each case the package now owns the ACs; the source EPIC backend tables are
-deleted and replaced with a disclaimer that lists the new ids (mirroring how
-identity emptied EPIC-001). The remaining EPIC-002 groups ``AC2.13``…``AC2.23``
-land in slice 3c-iii under groups ``AC-ledger.13.*``…``AC-ledger.23.*``.
+**Slice 3c-iii (this change, the final AC batch) homes the genuine double-entry
+ACs of the second half** — ``AC2.13``…``AC2.16`` → groups
+``AC-ledger.13.*``…``AC-ledger.16.*`` (same drop-the-"2", seq-preserved rule). It
+deliberately does **not** drag the non-double-entry rows of that range into the
+ledger roadmap (the #1517 mis-file lesson — validate each AC, never blanket
+rename): the frontend UI ACs ``AC2.15.8``/``AC2.16.3``/``AC2.17.1`` stay in
+EPIC-002 (ledger is ``fe=None``), the reporting tier-degrade ``AC2.16.4`` is a
+report-layer property not a posting one, the framework-boundary contract
+``AC2.18.1`` is a cross-EPIC doc-assertion test (not double-entry behaviour), and
+the entire Money value-type extension ``AC2.19.*``–``AC2.23.*`` belongs to the
+``money`` kernel, not ledger. Those rows remain defined in EPIC-002.
+In each case the package now owns the migrated ACs; the source EPIC backend
+tables are deleted and replaced with a disclaimer that lists the new ids
+(mirroring how identity emptied EPIC-001).
 
 **Group-number reservation (ledger-local).** The first dotted segment of an
 ``AC-ledger.<group>.<seq>`` id is a bare uniqueness key (no gate reads semantics
 from it), so the package reserves disjoint blocks to keep the namespace
 collision-free as later slices add ACs without re-reading this file:
 
-- **groups 1–12** — the EPIC-002 double-entry core, first half, this slice
+- **groups 1–12** — the EPIC-002 double-entry core, first half (slice 3c-ii)
   (1=account-mgmt, 2=entry-creation, 3=posting/voiding, 4=balance, 5=equation,
   6=boundary, 7=router/errors, 8=decimal-safety, 9=data-model, 10=endpoints,
   11=must-have-traceability, 12=multi-currency), each mirroring its source
   ``AC2.<g>`` group;
-- **groups 13–70** — the rest of the EPIC-002/012 double-entry core (slice
-  3c-iii, not yet homed);
+- **groups 13–16** — the genuine double-entry ACs of the EPIC-002 second half
+  (slice 3c-iii, this change): 13=user-scoped ledger integrity,
+  14=database invariant floor, 15=guided opening balances,
+  16=opening-balance readiness, each mirroring its source ``AC2.<g>`` group (only
+  the backend double-entry rows; the frontend/reporting/framework/money rows of
+  ``AC2.15``–``AC2.23`` stay in EPIC-002 as noted above);
+- **groups 17–70** — reserved for any later EPIC-002/012 double-entry ACs (not
+  yet homed);
 - **groups 71–76** — the EPIC-015 processing (in-transit) account, slice 3c-i
   (71=creation, 72=transfer-entry, 73=integrity, 74=detection, 75=scoring,
   76=reconciliation integration), each mirroring its source ``AC15.<g>`` group.
@@ -54,9 +70,9 @@ identity — already uses.) The EPIC-015 **frontend** UI-gap ACs (``AC15.7.*``)
 stay in EPIC-015: ledger is a backend-only package (``fe=None``), exactly as the
 identity migration left EPIC-001's frontend rows in place. ``roadmap`` carries the
 homed backend ACs (the 23 EPIC-015 processing ACs + the 61 EPIC-002 first-half
-ACs of this slice); the structural invariants of the cutover stay in
-``invariants`` (no tier, not matrix-constrained). Decision A — standard-preserving
-move, no bar lowered.
+ACs + the 18 EPIC-002 second-half double-entry ACs of slice 3c-iii); the
+structural invariants of the cutover stay in ``invariants`` (no tier, not
+matrix-constrained). Decision A — standard-preserving move, no bar lowered.
 """
 
 from __future__ import annotations
@@ -985,6 +1001,271 @@ CONTRACT = PackageContract(
                 "::test_validate_balance_mismatch"
             ),
             priority="P0",
+            status="done",
+        ),
+        # ── EPIC-002 double-entry core (slice 3c-iii of #1420): groups 13–16 ──
+        # (the second half of EPIC-002; was AC2.13.* … AC2.16.*, leading "2"
+        # dropped, sequence preserved. The non-double-entry AC2.* rows — the
+        # frontend UI ACs AC2.15.8/2.16.3/2.17.1, the reporting tier-degrade
+        # AC2.16.4, the framework-boundary doc-contract AC2.18.1, and the whole
+        # Money-extension block AC2.19.*–AC2.23.* — are NOT double-entry and stay
+        # defined in EPIC-002.)
+        # ── group 13: User-scoped ledger integrity (was EPIC-002 AC2.13.*) ──
+        ACRecord(
+            id="AC-ledger.13.1",
+            statement=(
+                "Manual journal creation rejects lines using another user's "
+                "account. Was EPIC-002 AC2.13.1."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting_integration.py"
+                "::test_AC2_13_1_create_journal_entry_rejects_cross_user_account"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.13.2",
+            statement=(
+                "Posting validates that every line account belongs to the entry "
+                "owner. Was EPIC-002 AC2.13.2."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting_integration.py"
+                "::test_AC2_13_2_journal_lines_reject_cross_user_account_at_db_boundary"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.13.3",
+            statement=(
+                "Balance aggregation requires account and entry ownership to "
+                "match. Was EPIC-002 AC2.13.3."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting_integration.py"
+                "::test_AC2_13_3_balance_queries_ignore_cross_user_entry_headers"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        # ── group 14: Database ledger invariant floor (was EPIC-002 AC2.14.*) ──
+        ACRecord(
+            id="AC-ledger.14.1",
+            statement=(
+                "PostgreSQL rejects posted/reconciled entries with fewer than two "
+                "lines even when service validation is bypassed. Was EPIC-002 "
+                "AC2.14.1."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_ledger_schema_invariants.py"
+                "::test_AC2_14_1_posted_entry_requires_two_lines_at_database_boundary"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.14.2",
+            statement=(
+                "PostgreSQL rejects posted/reconciled entries whose debits and "
+                "credits do not balance after base-currency conversion. Was "
+                "EPIC-002 AC2.14.2."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_ledger_schema_invariants.py"
+                "::test_AC2_14_2_posted_entry_must_balance_in_base_currency"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.14.3",
+            statement=(
+                "PostgreSQL rejects posted/reconciled non-base-currency lines "
+                "without a positive FX rate. Was EPIC-002 AC2.14.3."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_ledger_schema_invariants.py"
+                "::test_AC2_14_3_non_base_posted_lines_require_positive_fx_rate"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.14.4",
+            statement=(
+                "PostgreSQL blocks direct update/delete of posted/reconciled "
+                "entries and lines while draft entries remain editable. Was "
+                "EPIC-002 AC2.14.4."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_ledger_schema_invariants.py"
+                "::test_AC2_14_4_posted_entries_and_lines_are_immutable_but_drafts_are_editable"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.14.5",
+            statement=(
+                "Voiding a posted entry preserves a non-null immutable reversal "
+                "relationship instead of deleting or editing posted lines. Was "
+                "EPIC-002 AC2.14.5."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_ledger_schema_invariants.py"
+                "::test_AC2_14_5_void_transition_requires_reversal_relationship"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.14.6",
+            statement=(
+                "Account deletion blocked by the immutability invariant "
+                "(posted/reconciled entries) returns a clean HTTP 409, not a "
+                "leaked 500. Was EPIC-002 AC2.14.6."
+            ),
+            test=(
+                "apps/backend/tests/api/test_users_router.py"
+                "::test_delete_user_with_immutable_entries_returns_409"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group 15: Guided opening balances (was EPIC-002 AC2.15.*) ──
+        # (AC2.15.8 is the frontend OpeningBalanceModal test — fe=None, so it
+        # stays defined in EPIC-002, like the EPIC-015 AC15.7.* frontend block.)
+        ACRecord(
+            id="AC-ledger.15.1",
+            statement=(
+                "POST /api/accounts/opening-balances posts one balanced entry that "
+                "increases each account to its opening balance on its normal side "
+                "and offsets the net into a system Opening Balance Equity account; "
+                "the as-of balance sheet reflects the starting position with the "
+                "accounting equation intact. Was EPIC-002 AC2.15.1."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_opening_balance.py"
+                "::test_AC2_15_1_opening_balances_post_balanced_and_reflect_in_balance_sheet"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.15.2",
+            statement=(
+                "A single asset opening balance offsets entirely into Opening "
+                "Balance Equity, keeping the entry balanced. Was EPIC-002 AC2.15.2."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_opening_balance.py"
+                "::test_AC2_15_2_single_asset_opening_balance_offsets_into_equity"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.15.3",
+            statement=(
+                "An opening balance for a non-owned or unknown account is "
+                "rejected. Was EPIC-002 AC2.15.3."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_opening_balance.py"
+                "::test_AC2_15_3_unknown_account_is_rejected"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.15.4",
+            statement=(
+                "An opening balance establishes a starting position, not a delta: "
+                "it is rejected when an affected account already has posted "
+                "activity before the opening date. Was EPIC-002 AC2.15.4."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_opening_balance.py"
+                "::test_AC2_15_4_opening_balance_rejected_when_prior_activity_exists"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.15.5",
+            statement=(
+                "Opening balances are accepted only in the base currency, with a "
+                "clear error rather than a confusing FX-rate failure. Was EPIC-002 "
+                "AC2.15.5."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_opening_balance.py"
+                "::test_AC2_15_5_non_base_currency_is_rejected"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.15.6",
+            statement=(
+                "An opening balance into an account whose currency differs from "
+                "the request currency is rejected, so journal lines cannot be "
+                "mis-stamped. Was EPIC-002 AC2.15.6."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_opening_balance.py"
+                "::test_AC2_15_6_account_currency_mismatch_is_rejected"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.15.7",
+            statement=(
+                "Opening balances may only target user-managed accounts; a system "
+                "account (e.g. Processing) cannot be set via this endpoint even "
+                "though the entry is SYSTEM-typed. Was EPIC-002 AC2.15.7."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_opening_balance.py"
+                "::test_AC2_15_7_system_account_target_is_rejected"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        # ── group 16: Opening-balance readiness nudge (was EPIC-002 AC2.16.*) ──
+        # (Only the backend ledger-activity detection ACs migrate. AC2.16.3 is the
+        # frontend nudge test — fe=None — and AC2.16.4 is a reporting-layer
+        # tier-degrade test, not double-entry posting; both stay in EPIC-002.)
+        ACRecord(
+            id="AC-ledger.16.1",
+            statement=(
+                "get_opening_balance_readiness reports needs_opening_balance=True "
+                "only when the user has posted activity and no opening-balance "
+                "entry on or before its earliest date (no activity, an opening "
+                "entry before activity, or a mis-dated opening entry after "
+                "activity are all distinguished). Was EPIC-002 AC2.16.1."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_opening_balance_readiness.py"
+                "::test_AC2_16_1_activity_without_opening_entry_needs_opening_balance"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.16.2",
+            statement=(
+                "GET /api/accounts/opening-balance-readiness exposes the readiness "
+                "signal to the UI. Was EPIC-002 AC2.16.2."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_opening_balance_readiness.py"
+                "::test_AC2_16_2_readiness_endpoint_returns_status"
+            ),
+            priority="P1",
             status="done",
         ),
         # ── group 71: Processing account creation (was EPIC-015 AC15.1.*) ──

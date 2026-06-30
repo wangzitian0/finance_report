@@ -35,7 +35,7 @@ class OpeningBalanceRequest(BaseModel):
 
 
 class OpeningBalanceReadinessResponse(BaseModel):
-    """Whether the user should be nudged to record opening balances (#949 / AC2.16.1).
+    """Whether the user should be nudged to record opening balances (#949 / AC-ledger.16.1).
 
     ``needs_opening_balance`` is true when the user has posted activity but no
     opening-balance entry on or before the earliest such activity, so a cumulative

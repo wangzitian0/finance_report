@@ -652,11 +652,11 @@ class TestFindAcCollisions:
         epic_dir = self._write_epic(
             tmp_path,
             "EPIC-002.double-entry-core.md",
-            "| AC2.13.1 | User-scoped rule |\n"
-            "| AC2.13.1 | A different framework rule sharing the id |\n",
+            "| AC2.91.1 | User-scoped rule |\n"
+            "| AC2.91.1 | A different framework rule sharing the id |\n",
         )
         dup_defs, _ = gar.find_ac_collisions(epic_dir=epic_dir)
-        assert "AC2.13.1" in dup_defs
+        assert "AC2.91.1" in dup_defs
 
     def test_checklist_bullet_is_not_a_competing_definition(self, tmp_path):
         """A bullet that restates an AC must not be treated as a duplicate row."""
@@ -682,7 +682,7 @@ class TestFindAcCollisions:
         epic_dir = self._write_epic(
             tmp_path,
             "EPIC-002.double-entry-core.md",
-            "| AC2.13.1 | one |\n| AC2.13.1 | two |\n",
+            "| AC2.91.1 | one |\n| AC2.91.1 | two |\n",
         )
         monkeypatch.setattr(gar, "EPIC_DIR", str(epic_dir))
         assert gar.main(["--check"]) == 1
