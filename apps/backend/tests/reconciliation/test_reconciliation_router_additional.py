@@ -197,7 +197,7 @@ async def test_run_reconciliation_filters_unmatched(
 async def test_AC10_8_3_reconciliation_run_audit_checkpoints(
     db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """AC10.8.3: Reconciliation run logs start/completion/failure replay checkpoints."""
+    """AC-observability.8.3: Reconciliation run logs start/completion/failure replay checkpoints."""
     statement = await _create_statement(db, test_user.id)
     statement_id = statement.id
     await _create_transaction(db, statement, amount=Decimal("5.00"), status=None)

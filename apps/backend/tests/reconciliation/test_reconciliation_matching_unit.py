@@ -2171,7 +2171,7 @@ async def test_get_existing_active_match_layer2(db: AsyncSession):
 
 
 async def test_AC10_10_4_reconciliation_match_outcome_metric_emitted(db: AsyncSession, monkeypatch):
-    """AC10.10.4: execute_matching emits one business metric per resolved match,
+    """AC-observability.10.4: execute_matching emits one business metric per resolved match,
     labelled by the match's final disposition (driven through the real path)."""
     from src.models.layer2 import AtomicTransaction
 

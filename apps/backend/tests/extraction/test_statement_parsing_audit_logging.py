@@ -47,7 +47,7 @@ async def _create_statement(db, user_id, *, statement_id=None, file_hash="audit-
 
 
 async def test_AC10_8_2_parse_checkpoints_and_failure_logs_are_structured(db, test_user, monkeypatch):
-    """AC10.8.2: Async parsing emits replay checkpoints and safe failure context."""
+    """AC-observability.8.2: Async parsing emits replay checkpoints and safe failure context."""
     user_id = test_user.id
     success = await _create_statement(db, user_id, file_hash="success-hash")
     mock_info = MagicMock()
@@ -136,7 +136,7 @@ async def test_AC10_8_2_parse_checkpoints_and_failure_logs_are_structured(db, te
 
 
 async def test_AC10_8_3_brokerage_review_routing_audit_checkpoints(db, test_user, monkeypatch):
-    """AC10.8.3/#1408: Brokerage review-routing logs start/completion/failure replay context.
+    """AC-observability.8.3/#1408: Brokerage review-routing logs start/completion/failure replay context.
 
     Parse no longer imports positions (#1408); it routes a detected brokerage statement to
     Stage-1 review, so the replay events are the routing start/complete/failure events.
@@ -231,7 +231,7 @@ async def test_AC10_8_3_brokerage_review_routing_audit_checkpoints(db, test_user
 
 
 async def test_AC10_10_4_parse_outcome_metric_emitted(db, test_user, monkeypatch):
-    """AC10.10.4: parse_statement_background emits the parse-outcome business metric
+    """AC-observability.10.4: parse_statement_background emits the parse-outcome business metric
     on both the success and failure paths, driven through the real code path."""
     user_id = test_user.id
     outcomes: list[str] = []

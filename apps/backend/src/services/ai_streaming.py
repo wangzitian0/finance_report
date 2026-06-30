@@ -152,7 +152,7 @@ async def _stream_ai_base(
             extra_body["thinking"] = thinking
 
     completion_chars = 0
-    # AC10.10.4: time the provider call and emit a latency+outcome metric on
+    # AC-observability.10.4: time the provider call and emit a latency+outcome metric on
     # both the success and error paths. Labels are low-cardinality (provider
     # label, model id, bounded outcome) — never PII or response content.
     provider_call_start = time.perf_counter()

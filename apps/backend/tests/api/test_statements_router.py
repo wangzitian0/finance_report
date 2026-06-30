@@ -428,7 +428,7 @@ async def test_upload_uses_default_ocr_pipeline_for_pdf(db, monkeypatch, storage
 async def test_AC10_8_1_upload_audit_logs_include_statement_input_provenance(
     db, monkeypatch, storage_stub, model_catalog_stub, test_user
 ):
-    """AC10.8.1: Upload audit logs expose safe replay inputs and correlation IDs."""
+    """AC-observability.8.1: Upload audit logs expose safe replay inputs and correlation IDs."""
     content = b"audit-log-input"
     mock_parse = AsyncMock(return_value=None)
     mock_info = MagicMock()
@@ -479,7 +479,7 @@ async def test_AC10_8_1_upload_audit_logs_include_statement_input_provenance(
 
 
 async def test_AC10_8_1_upload_storage_failure_logs_safe_audit_context(db, monkeypatch, model_catalog_stub, test_user):
-    """AC10.8.1: Upload storage failures keep replayable safe failure context."""
+    """AC-observability.8.1: Upload storage failures keep replayable safe failure context."""
     content = b"storage-failure-input"
     mock_error = MagicMock()
     monkeypatch.setattr(statements_router.logger, "error", mock_error)
@@ -522,7 +522,7 @@ async def test_AC10_8_1_upload_storage_failure_logs_safe_audit_context(db, monke
 
 
 async def test_AC10_8_3_statement_scoped_brokerage_import_audit_logs(db, test_user, monkeypatch):
-    """AC10.8.3: Statement-scoped brokerage import logs replay context and counts."""
+    """AC-observability.8.3: Statement-scoped brokerage import logs replay context and counts."""
     statement = build_statement(test_user.id, "manual_brokerage_audit", 95)
     statement.institution = "Moomoo"
     db.add(statement)

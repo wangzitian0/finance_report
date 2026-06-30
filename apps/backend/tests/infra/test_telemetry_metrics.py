@@ -125,7 +125,7 @@ def observation_values(observations: list[object]) -> list[object]:
 
 
 def test_AC10_10_1_configure_metrics_is_noop_without_endpoint(monkeypatch) -> None:
-    """AC10.10.1: metrics export is disabled when OTEL endpoint is absent."""
+    """AC-observability.10.1: metrics export is disabled when OTEL endpoint is absent."""
     monkeypatch.setattr(telemetry_metrics.settings, "otel_exporter_otlp_endpoint", None)
     telemetry_metrics.mark_metrics_export_active(True)
 
@@ -136,7 +136,7 @@ def test_AC10_10_1_configure_metrics_is_noop_without_endpoint(monkeypatch) -> No
 
 
 def test_AC10_10_1_configure_metrics_creates_otlp_provider(monkeypatch) -> None:
-    """AC10.10.1: MeterProvider and OTLP exporter use the shared endpoint."""
+    """AC-observability.10.1: MeterProvider and OTLP exporter use the shared endpoint."""
     meter = install_fake_otel(monkeypatch)
     monkeypatch.setattr(
         telemetry_metrics.settings,
@@ -160,7 +160,7 @@ def test_AC10_10_1_configure_metrics_creates_otlp_provider(monkeypatch) -> None:
 
 
 def test_AC10_10_1_reconfigure_failure_clears_stale_instruments(monkeypatch) -> None:
-    """AC10.10.1: disabled or failed reconfiguration does not keep stale instruments."""
+    """AC-observability.10.1: disabled or failed reconfiguration does not keep stale instruments."""
     meter = install_fake_otel(monkeypatch)
     monkeypatch.setattr(
         telemetry_metrics.settings,
@@ -191,7 +191,7 @@ def test_AC10_10_1_reconfigure_failure_clears_stale_instruments(monkeypatch) -> 
 
 
 def test_AC10_10_1_import_failure_clears_stale_instruments(monkeypatch) -> None:
-    """AC10.10.1: importer failures also clear stale metric instruments."""
+    """AC-observability.10.1: importer failures also clear stale metric instruments."""
     install_fake_otel(monkeypatch)
     monkeypatch.setattr(
         telemetry_metrics.settings,
@@ -216,7 +216,7 @@ def test_AC10_10_1_import_failure_clears_stale_instruments(monkeypatch) -> None:
 
 
 def test_AC10_10_2_red_metrics_record_low_cardinality_labels(monkeypatch) -> None:
-    """AC10.10.2: HTTP RED metrics record route and status class."""
+    """AC-observability.10.2: HTTP RED metrics record route and status class."""
     meter = install_fake_otel(monkeypatch)
     monkeypatch.setattr(
         telemetry_metrics.settings,
@@ -248,7 +248,7 @@ def test_AC10_10_2_red_metrics_record_low_cardinality_labels(monkeypatch) -> Non
 
 
 def test_AC10_10_2_unmatched_routes_use_low_cardinality_fallback() -> None:
-    """AC10.10.2: unmatched request paths do not become raw http.route labels."""
+    """AC-observability.10.2: unmatched request paths do not become raw http.route labels."""
     route = types.SimpleNamespace(path="/api/accounts/{account_id}")
 
     assert telemetry_metrics.http_route_label_from_scope({"route": route}) == "/api/accounts/{account_id}"
@@ -257,7 +257,7 @@ def test_AC10_10_2_unmatched_routes_use_low_cardinality_fallback() -> None:
 
 
 def test_AC10_10_3_saturation_gauges_observe_current_values(monkeypatch) -> None:
-    """AC10.10.3: async and DB pool gauges expose current saturation values."""
+    """AC-observability.10.3: async and DB pool gauges expose current saturation values."""
     install_fake_otel(monkeypatch)
     telemetry_metrics.set_async_parse_in_flight(3)
     telemetry_metrics.set_db_pool_observer(lambda: {"size": 5, "checkedout": 2, "overflow": 1})
@@ -271,7 +271,7 @@ def test_AC10_10_3_saturation_gauges_observe_current_values(monkeypatch) -> None
 
 
 def test_AC10_10_3_db_pool_gauges_bind_to_sqlalchemy_engine() -> None:
-    """AC10.10.3: DB pool gauges read the runtime SQLAlchemy pool."""
+    """AC-observability.10.3: DB pool gauges read the runtime SQLAlchemy pool."""
 
     class Pool:
         def size(self) -> int:
@@ -293,7 +293,7 @@ def test_AC10_10_3_db_pool_gauges_bind_to_sqlalchemy_engine() -> None:
 
 
 async def test_AC10_10_3_async_parse_tracking_increments_until_done() -> None:
-    """AC10.10.3: async parse in-flight gauge follows the task lifecycle."""
+    """AC-observability.10.3: async parse in-flight gauge follows the task lifecycle."""
     observed: list[list[object]] = []
 
     async def parse_work() -> None:
@@ -306,7 +306,7 @@ async def test_AC10_10_3_async_parse_tracking_increments_until_done() -> None:
 
 
 async def test_AC10_12_1_async_parse_tracking_records_failures(monkeypatch) -> None:
-    """AC10.12.1: failed async parse tasks emit a metric and safe log context."""
+    """AC-observability.12.1: failed async parse tasks emit a metric and safe log context."""
     meter = install_fake_otel(monkeypatch)
     monkeypatch.setattr(
         telemetry_metrics.settings,
@@ -355,7 +355,7 @@ async def test_AC10_12_1_async_parse_tracking_records_failures(monkeypatch) -> N
 
 
 def test_AC10_10_3_async_parse_tracking_has_runtime_call_sites() -> None:
-    """AC10.10.3: async parse tracking is wired outside tests."""
+    """AC-observability.10.3: async parse tracking is wired outside tests."""
     pipeline = (REPO_ROOT / "apps" / "backend" / "src" / "services" / "statement_pipeline.py").read_text(
         encoding="utf-8"
     )
@@ -366,7 +366,7 @@ def test_AC10_10_3_async_parse_tracking_has_runtime_call_sites() -> None:
 
 
 def test_AC10_12_2_async_parse_tracking_receives_statement_context() -> None:
-    """AC10.12.2: runtime async parse wrappers carry statement/request context."""
+    """AC-observability.12.2: runtime async parse wrappers carry statement/request context."""
     pipeline = (REPO_ROOT / "apps" / "backend" / "src" / "services" / "statement_pipeline.py").read_text(
         encoding="utf-8"
     )
@@ -379,7 +379,7 @@ def test_AC10_12_2_async_parse_tracking_receives_statement_context() -> None:
 
 
 def test_AC10_12_3_parse_failure_state_and_log_contract_are_preserved() -> None:
-    """AC10.12.3: parse failures still reject statements and emit structured logs."""
+    """AC-observability.12.3: parse failures still reject statements and emit structured logs."""
     source = (REPO_ROOT / "apps" / "backend" / "src" / "services" / "statement_parsing.py").read_text(encoding="utf-8")
 
     assert "refreshed.status = BankStatementStatus.REJECTED" in source
@@ -388,7 +388,7 @@ def test_AC10_12_3_parse_failure_state_and_log_contract_are_preserved() -> None:
 
 
 def test_AC10_10_4_business_metric_helpers_record_outcomes(monkeypatch) -> None:
-    """AC10.10.4: parse, AI, reconciliation, and confidence helpers record metrics."""
+    """AC-observability.10.4: parse, AI, reconciliation, and confidence helpers record metrics."""
     meter = install_fake_otel(monkeypatch)
     monkeypatch.setattr(
         telemetry_metrics.settings,
@@ -419,7 +419,7 @@ def test_AC10_10_4_business_metric_helpers_record_outcomes(monkeypatch) -> None:
 
 
 def test_AC10_11_1_rate_limit_rejections_record_alert_metric(monkeypatch) -> None:
-    """AC10.11.1: rate-limit rejections emit the metric used by saturation alerts."""
+    """AC-observability.11.1: rate-limit rejections emit the metric used by saturation alerts."""
     meter = install_fake_otel(monkeypatch)
     monkeypatch.setattr(
         telemetry_metrics.settings,
