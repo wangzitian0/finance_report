@@ -37,8 +37,10 @@ export default function MorePage() {
         };
     }, []);
 
+    // Gate by the stable route, not the display label, so renaming the label
+    // can never silently change the holdings gating.
     const visibleMoreItems = moreItems.filter(
-        (item) => item.label !== "Portfolio" || hasHoldings,
+        (item) => item.href !== "/portfolio" || hasHoldings,
     );
 
     const renderRow = (item: NavItem) => {

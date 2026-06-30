@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
-import { PageHeader } from "@/components/ui";
 import GeneralSettingsPage from "@/app/(main)/settings/general/page";
 import AiSettingsPage from "@/app/(main)/settings/ai/page";
 import LlmSettingsPage from "@/app/(main)/settings/llm/page";
@@ -23,22 +22,34 @@ function normalizeTab(raw: string | null): SettingsTab {
 // EPIC-022 AC22.21.4: the three formerly-separate Settings pages are merged into
 // one tabbed surface. `/settings/general|ai|llm` redirect here with `?tab=`, so
 // every settings entry point lands on the same page with the right tab active.
+// The active tab stays in sync with `?tab=` so deep links and back/forward work.
 export default function SettingsPage() {
+    const router = useRouter();
     const searchParams = useSearchParams();
-    const [tab, setTab] = useState<SettingsTab>(() => normalizeTab(searchParams.get("tab")));
+    const urlTab = normalizeTab(searchParams.get("tab"));
+    const [tab, setTab] = useState<SettingsTab>(urlTab);
+
+    // Keep local state in sync when the URL query changes (back/forward, or a
+    // direct navigation to /settings?tab=… while this component is mounted).
+    useEffect(() => {
+        setTab(urlTab);
+    }, [urlTab]);
+
+    const selectTab = (id: SettingsTab) => {
+        setTab(id);
+        router.replace(`/settings?tab=${id}`, { scroll: false });
+    };
 
     return (
         <div className="p-6">
-            <PageHeader title="Settings" description="Manage your account, AI behaviour, and language models." />
-
-            <div role="tablist" aria-label="Settings sections" className="mt-4 flex gap-1 border-b border-[var(--border)]">
+            <div role="tablist" aria-label="Settings sections" className="flex gap-1 border-b border-[var(--border)]">
                 {TABS.map((t) => (
                     <button
                         key={t.id}
                         type="button"
                         role="tab"
                         aria-selected={tab === t.id}
-                        onClick={() => setTab(t.id)}
+                        onClick={() => selectTab(t.id)}
                         className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
                             tab === t.id
                                 ? "border-[var(--accent)] text-[var(--accent)]"
