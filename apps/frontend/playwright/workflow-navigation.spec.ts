@@ -113,37 +113,33 @@ test.describe("AC19.6.7 workflow navigation folding", () => {
     await installNavigationMocks(page);
   });
 
-  test("desktop exposes primary workflow nav and advanced drill-downs", async ({ page }) => {
+  test("desktop sidebar exposes the five bottom-tab targets", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto("/", { waitUntil: "networkidle" });
 
     const nav = page.getByRole("navigation", { name: "Sidebar navigation" });
-    await expect(nav.getByRole("link", { name: "Upload", exact: true })).toHaveAttribute("href", "/upload");
-    await expect(nav.getByRole("link", { name: "Reports" })).toHaveAttribute("href", "/reports");
+    await expect(nav.getByRole("link", { name: "Home", exact: true })).toHaveAttribute("href", "/");
     await expect(nav.getByRole("link", { name: "Chat", exact: true })).toHaveAttribute("href", "/chat");
-    await expect(nav.getByRole("button", { name: /Advanced.*3/ })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
+    await expect(nav.getByRole("link", { name: "Audit", exact: true })).toHaveAttribute("href", "/audit");
+    await expect(nav.getByRole("link", { name: "More", exact: true })).toHaveAttribute("href", "/more");
+    await expect(nav.getByRole("button", { name: "Add" })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
 
-    await nav.getByRole("button", { name: /Advanced/ }).click();
-    await expect(nav.getByRole("link", { name: "Portfolio" })).toHaveAttribute("href", "/portfolio");
-    await expect(nav.getByRole("link", { name: "Reconciliation" })).toHaveAttribute("href", "/reconciliation");
-    await expect(nav.getByRole("link", { name: "Processing" })).toHaveAttribute("href", "/processing");
-    await expect(nav.getByRole("link", { name: "AI Settings" })).toHaveAttribute("href", "/settings/ai");
+    // The accounting machinery is folded out of the nav into /audit.
+    await expect(nav.getByRole("button", { name: /Advanced/ })).toHaveCount(0);
+    await expect(nav.getByRole("link", { name: "Reconciliation" })).toHaveCount(0);
     await expectNoDocumentHorizontalScroll(page);
   });
 
-  test("mobile exposes the same primary and advanced route access", async ({ page }) => {
+  test("mobile exposes the bottom tab bar", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/", { waitUntil: "networkidle" });
 
-    await page.getByLabel("Open navigation menu").click();
-    const dialog = page.getByRole("dialog", { name: "Finance Report" });
-    await expect(dialog.getByRole("link", { name: "Upload", exact: true })).toHaveAttribute("href", "/upload");
-    await expect(dialog.getByRole("link", { name: "Reports" })).toHaveAttribute("href", "/reports");
-    await expect(dialog.getByRole("link", { name: "Chat", exact: true })).toHaveAttribute("href", "/chat");
-
-    await dialog.getByRole("button", { name: "Advanced" }).click();
-    await expect(dialog.getByRole("link", { name: "Portfolio" })).toHaveAttribute("href", "/portfolio");
-    await expect(dialog.getByRole("link", { name: "AI Settings" })).toHaveAttribute("href", "/settings/ai");
+    const bar = page.getByRole("navigation", { name: "Primary" });
+    await expect(bar.getByRole("link", { name: "Home", exact: true })).toHaveAttribute("href", "/");
+    await expect(bar.getByRole("link", { name: "Chat", exact: true })).toHaveAttribute("href", "/chat");
+    await expect(bar.getByRole("link", { name: "Audit", exact: true })).toHaveAttribute("href", "/audit");
+    await expect(bar.getByRole("link", { name: "More", exact: true })).toHaveAttribute("href", "/more");
+    await expect(bar.getByRole("button", { name: "Add" })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
     await expectNoDocumentHorizontalScroll(page);
   });
 });

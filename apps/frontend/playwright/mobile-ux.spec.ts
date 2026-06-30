@@ -208,10 +208,9 @@ test("AC16.25.1 mobile review routes avoid document horizontal scrolling", async
   await gotoReady(page, "/review/ai-suggestions");
   await expect(page.getByTestId("ai-suggestions-mobile-list")).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
   await expectNoDocumentHorizontalScroll(page);
-  await page.getByLabel("Open navigation menu").click();
-  await expect(page.getByRole("dialog", { name: "Finance Report" })).toBeVisible();
+  // The mobile bottom tab bar is always present and must not cause overflow.
+  await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
   await expectNoDocumentHorizontalScroll(page);
-  await page.getByRole("button", { name: "Close panel" }).click();
 
   await gotoReady(page, "/journal");
   await page.getByText("Mobile review sample entry").click();

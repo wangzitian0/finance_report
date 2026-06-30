@@ -27,6 +27,7 @@ import type {
 } from "@/lib/types";
 import { TrendChart } from "@/components/charts/TrendChart";
 import { Badge, EmptyState, LoadingState, PageHeader } from "@/components/ui";
+import { AuditBackLink } from "@/components/audit/AuditBackLink";
 
 interface ConfidenceData {
   northStar: ConfidenceNorthStarResponse;
@@ -77,6 +78,9 @@ export default function ConfidenceTrendPage() {
 
   return (
     <div className="p-6">
+      <div className="mb-4">
+        <AuditBackLink />
+      </div>
       <PageHeader
         title="Confidence Trend"
         description="The share of your posted data the system is least sure about — the low-confidence tail Axiom B works to shrink. Lower is better."

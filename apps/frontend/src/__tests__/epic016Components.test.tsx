@@ -4,7 +4,7 @@ import { renderReviewComponent } from "./helpers/renderReviewComponent";
 import { PdfPreviewPane } from "@/components/review/PdfPreviewPane";
 import { TransactionTable } from "@/components/review/TransactionTable";
 import { ConflictResolutionDialog } from "@/components/review/ConflictResolutionDialog";
-import { MobileNav } from "@/components/MobileNav";
+import { BottomTabBar } from "@/components/shell/BottomTabBar";
 
 // Mock next/navigation
 vi.mock("next/navigation", () => ({
@@ -64,8 +64,9 @@ describe("EPIC-016 Componentization Tests", () => {
         expect(screen.getByText("No conflicts detected for this statement.")).toBeInTheDocument();
     });
 
-    it("mounts MobileNav and asserts primary affordance (AC16.23.6)", () => {
-        renderReviewComponent(<MobileNav />);
-        expect(screen.getByLabelText("Open navigation menu")).toBeInTheDocument();
+    it("mounts BottomTabBar and asserts primary affordance (AC16.23.6)", () => {
+        renderReviewComponent(<BottomTabBar />);
+        expect(screen.getByRole("navigation", { name: "Primary" })).toBeInTheDocument();
+        expect(screen.getByText("Home")).toBeInTheDocument();
     });
 });

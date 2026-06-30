@@ -94,12 +94,14 @@ describe("Sidebar and WorkspaceTabs", () => {
     }
   })
 
-  it("AC16.19.3 shows auth-aware sidebar actions and logout behavior", async () => {
+  it("AC16.19.3 AC22.21.2 shows auth-aware sidebar actions mirroring the bottom tabs", async () => {
     render(<Sidebar />)
 
-    await waitFor(() => expect(screen.getByRole("link", { name: /^Upload$/i })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole("link", { name: /^Home$/i })).toBeInTheDocument())
     expect(screen.getByRole("link", { name: /^Chat$/i })).toHaveAttribute("href", "/chat")
-    expect(screen.getByRole("button", { name: /Advanced/i })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /^Audit$/i })).toHaveAttribute("href", "/audit")
+    expect(screen.getByRole("link", { name: /^More$/i })).toHaveAttribute("href", "/more")
+    expect(screen.getByRole("button", { name: "Add" })).toBeInTheDocument()
     expect(screen.getByText("user@example.com")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Logout" })).toBeInTheDocument()
 
@@ -114,26 +116,54 @@ describe("Sidebar and WorkspaceTabs", () => {
     expect(brand).toHaveAttribute("href", "/")
   })
 
-  it("AC19.6.3 exposes advanced accounting surfaces behind the Advanced group", async () => {
+  it("AC15.7.7 AC16.19.12 AC19.6.3 AC19.6.4 AC19.6.5 AC22.21.1 keeps the accounting machinery, sidebar badges and settings out of the sidebar (supersedes the Advanced drawer)", async () => {
     render(<Sidebar />)
 
-    fireEvent.click(await screen.findByRole("button", { name: /Advanced/i }))
-    expect(screen.getByRole("link", { name: /Portfolio/i })).toHaveAttribute("href", "/portfolio")
-    expect(screen.getByRole("link", { name: /Accounts/i })).toHaveAttribute("href", "/accounts")
-    expect(screen.getByRole("link", { name: /Journal/i })).toHaveAttribute("href", "/journal")
-    expect(screen.getByRole("link", { name: /Reconciliation/i })).toHaveAttribute("href", "/reconciliation")
-    const processingLink = screen.getByRole("link", { name: /Processing/i })
-    expect(processingLink).toHaveAttribute("href", "/processing")
-    expect(screen.getByRole("link", { name: /AI Settings/i })).toHaveAttribute("href", "/settings/ai")
+    await screen.findByRole("link", { name: /^Home$/i })
+    expect(screen.queryByRole("button", { name: /Advanced/i })).toBeNull()
+    expect(screen.queryByRole("link", { name: /Journal/i })).toBeNull()
+    expect(screen.queryByRole("link", { name: /^Reconciliation$/i })).toBeNull()
+    expect(screen.queryByRole("link", { name: /^Accounts$/i })).toBeNull()
+    expect(screen.queryByRole("link", { name: /^Upload$/i })).toBeNull()
+    expect(screen.queryByRole("link", { name: /AI Settings/i })).toBeNull()
   })
 
-  it("AC19.6.3 opens Advanced automatically for active advanced routes", async () => {
-    pathnameMock = "/reconciliation/unmatched"
+  it("AC22.21.2 shows only Home and a Login link when unauthenticated", async () => {
+    isAuthenticatedMock.mockReturnValue(false)
+    getUserEmailMock.mockReturnValue(null)
     render(<Sidebar />)
 
-    const advancedButton = await screen.findByRole("button", { name: /Advanced/i })
-    expect(advancedButton).toHaveAttribute("aria-expanded", "true")
-    expect(screen.getByRole("link", { name: /Reconciliation/i })).toHaveAttribute("href", "/reconciliation")
+    await waitFor(() => expect(screen.getByRole("link", { name: /^Home$/i })).toBeInTheDocument())
+    expect(screen.getByRole("link", { name: "Login" })).toHaveAttribute("href", "/login")
+    expect(screen.queryByRole("link", { name: /^Chat$/i })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Add" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Logout" })).toBeNull()
+  })
+
+  it("AC22.21.2 renders a collapsed icon-only rail without text labels", async () => {
+    workspaceMockData = { ...workspaceMockData, isCollapsed: true }
+    render(<Sidebar />)
+
+    await waitFor(() => expect(screen.getByLabelText("Expand sidebar")).toBeInTheDocument())
+    // Collapsed: the Add action is still reachable by its aria-label.
+    expect(screen.getByRole("button", { name: "Add" })).toBeInTheDocument()
+    // The user email row is hidden when collapsed.
+    expect(screen.queryByText("user@example.com")).toBeNull()
+  })
+
+  it("AC22.21.2 toggles collapse and opens the Add sheet", async () => {
+    pathnameMock = "/audit"
+    render(<Sidebar />)
+
+    await waitFor(() => expect(screen.getByRole("link", { name: /^Audit$/i })).toBeInTheDocument())
+    // The active route is marked.
+    expect(screen.getByRole("link", { name: /^Audit$/i })).toHaveAttribute("aria-current", "page")
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }))
+    expect(toggleSidebarMock).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole("button", { name: "Add" }))
+    expect(screen.getByRole("dialog", { name: "Add" })).toBeInTheDocument()
   })
 
   it("AC16.19.4 adds and manages workspace tabs from route changes", async () => {
@@ -169,46 +199,6 @@ describe("Sidebar and WorkspaceTabs", () => {
       label: "Custom Page Name"
     })))
   });
-
-  it("AC16.19.12 sidebar nav shows Portfolio label for /assets route", async () => {
-    render(<Sidebar />)
-    fireEvent.click(await screen.findByRole("button", { name: /Advanced/i }))
-    expect(await screen.findByText("Portfolio")).toBeInTheDocument()
-    expect(screen.queryByText("Assets")).not.toBeInTheDocument()
-  })
-
-  it("AC15.7.6 AC19.6.3 shows Processing between Reconciliation and AI Settings in Advanced", async () => {
-    render(<Sidebar />)
-
-    fireEvent.click(await screen.findByRole("button", { name: /Advanced/i }))
-    await waitFor(() => expect(screen.getByText("Processing")).toBeInTheDocument())
-    const labels = screen.getAllByRole("link").map((link) => link.textContent ?? "")
-    expect(labels.indexOf("Reconciliation")).toBeLessThan(labels.indexOf("Processing"))
-    expect(labels.indexOf("Processing")).toBeLessThan(labels.indexOf("AI Settings"))
-  })
-
-  it("AC15.7.7 AC19.6.5 derives sidebar attention badges from workflow status instead of local processing or review polling", async () => {
-    render(<Sidebar />)
-
-    await waitFor(() => {
-      expect(mockedFetchWorkflowStatus).toHaveBeenCalledTimes(1)
-      expect(screen.getByRole("button", { name: /Advanced 3/i })).toBeInTheDocument()
-    })
-    expect(mockedApiFetch).not.toHaveBeenCalledWith("/api/statements/pending-review")
-    expect(mockedApiFetch).not.toHaveBeenCalledWith("/api/statements/stage2/queue")
-    expect(mockedApiFetch).not.toHaveBeenCalledWith("/api/accounts/processing/summary")
-  })
-
-  it("AC19.6.5 clears sidebar workflow badges when workflow status is unavailable", async () => {
-    mockedFetchWorkflowStatus.mockRejectedValue(new Error("workflow unavailable"))
-
-    render(<Sidebar />)
-
-    await waitFor(() => {
-      expect(mockedFetchWorkflowStatus).toHaveBeenCalledTimes(1)
-    })
-    expect(screen.getByRole("button", { name: /^Advanced$/i })).toBeInTheDocument()
-  })
 
   it("AC16.19.13 WorkspaceTabs labels /assets tab as Portfolio from ROUTE_CONFIG", async () => {
     pathnameMock = "/assets"

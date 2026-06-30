@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { AlertTriangle } from "lucide-react";
-import { BackLink } from "@/components/ui/BackLink";
+import { AuditBackLink } from "@/components/audit/AuditBackLink";
 import { LoadingState } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
-import { ProcessingPendingItem, ProcessingPendingListResponse } from "@/lib/types";
+import { ProcessingPendingListResponse } from "@/lib/types";
 import { formatDateDisplay } from "@/lib/date";
 import { formatCurrencyLocale } from "@/lib/money";
 
@@ -31,7 +31,7 @@ export default function ProcessingPage() {
   return (
     <div className="p-6">
       <div className="mb-4">
-        <BackLink>Back to Notifications</BackLink>
+        <AuditBackLink />
       </div>
 
       <div className="page-header mb-6">

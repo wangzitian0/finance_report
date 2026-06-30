@@ -111,37 +111,39 @@ test.describe("AC22.1.9 everyday-user IA shell smoke", () => {
     await installShellMocks(page);
   });
 
-  test("desktop shows three peers, the Advanced toggle, and the notification bell", async ({ page }) => {
+  test("desktop sidebar mirrors the five bottom-tab targets and the notification bell", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto("/", { waitUntil: "networkidle" });
 
     const nav = page.getByRole("navigation", { name: "Sidebar navigation" });
-    await expect(nav.getByRole("link", { name: "Upload", exact: true })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
-    await expect(nav.getByRole("link", { name: "Reports" })).toBeVisible();
+    await expect(nav.getByRole("link", { name: "Home", exact: true })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
     await expect(nav.getByRole("link", { name: "Chat", exact: true })).toBeVisible();
+    await expect(nav.getByRole("link", { name: "Audit", exact: true })).toBeVisible();
+    await expect(nav.getByRole("link", { name: "More", exact: true })).toBeVisible();
+    await expect(nav.getByRole("button", { name: "Add" })).toBeVisible();
 
     // The notification center lives in the header bell, independent of the nav.
     await expect(page.getByRole("button", { name: /Workflow events/ })).toBeVisible();
 
-    // Internal accounting modules are hidden until Advanced is expanded.
+    // The accounting machinery is no longer a sidebar verb — it lives in /audit.
     await expect(nav.getByRole("link", { name: "Journal" })).toHaveCount(0);
-    await nav.getByRole("button", { name: /Advanced/ }).click();
-    await expect(nav.getByRole("link", { name: "Journal" })).toHaveAttribute("href", "/journal");
+    await expect(nav.getByRole("button", { name: /Advanced/ })).toHaveCount(0);
 
     await expectNoDocumentHorizontalScroll(page);
   });
 
-  test("mobile keeps the three peers and bell reachable without overflow", async ({ page }) => {
+  test("mobile shows the bottom tab bar and the bell without overflow", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/", { waitUntil: "networkidle" });
 
     await expect(page.getByRole("button", { name: /Workflow events/ })).toBeVisible();
 
-    await page.getByLabel("Open navigation menu").click();
-    const dialog = page.getByRole("dialog", { name: "Finance Report" });
-    await expect(dialog.getByRole("link", { name: "Upload", exact: true })).toBeVisible();
-    await expect(dialog.getByRole("link", { name: "Reports" })).toBeVisible();
-    await expect(dialog.getByRole("link", { name: "Chat", exact: true })).toBeVisible();
+    const bar = page.getByRole("navigation", { name: "Primary" });
+    await expect(bar.getByRole("link", { name: "Home", exact: true })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
+    await expect(bar.getByRole("link", { name: "Chat", exact: true })).toBeVisible();
+    await expect(bar.getByRole("link", { name: "Audit", exact: true })).toBeVisible();
+    await expect(bar.getByRole("link", { name: "More", exact: true })).toBeVisible();
+    await expect(bar.getByRole("button", { name: "Add" })).toBeVisible();
 
     await expectNoDocumentHorizontalScroll(page);
   });

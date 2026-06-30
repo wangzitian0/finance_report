@@ -68,6 +68,11 @@ const nextConfig = {
             { source: '/statements', destination: '/upload', permanent: true },
             // EPIC-022 PR2: the standalone Review Queue folds into the notification center.
             { source: '/review', destination: '/notifications', permanent: true },
+            // EPIC-022 AC22.21.4: the three settings pages merge into one tabbed
+            // /settings surface; the old paths resolve to the matching tab.
+            { source: '/settings/general', destination: '/settings?tab=general', permanent: true },
+            { source: '/settings/ai', destination: '/settings?tab=ai', permanent: true },
+            { source: '/settings/llm', destination: '/settings?tab=llm', permanent: true },
         ];
     },
     // Local development without an explicit API URL proxies /api/* to the backend.

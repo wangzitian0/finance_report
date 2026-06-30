@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { AuditBackLink } from "@/components/audit/AuditBackLink";
 import JournalEntryForm from "@/components/journal/JournalEntryForm";
 import JournalEntryDetailsModal from "@/components/journal/JournalEntryDetailsModal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -24,7 +25,7 @@ export default function JournalPage() {
     const [error, setError] = useState<string | null>(null);
     const [activeFilter, setActiveFilter] = useState<string>("All");
     const [isFormOpen, setIsFormOpen] = useState(false);
-    
+
     const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
 
     const fetchEntries = useCallback(async () => {
@@ -93,6 +94,9 @@ export default function JournalPage() {
 
     return (
         <div className="p-6">
+            <div className="mb-4">
+                <AuditBackLink />
+            </div>
             {/* Header */}
             <div className="page-header flex items-center justify-between">
                 <div>
@@ -154,8 +158,8 @@ export default function JournalPage() {
                         {entries.map((entry) => {
                             const debits = calculateDebits(entry.lines);
                             return (
-                                <div 
-                                    key={entry.id} 
+                                <div
+                                    key={entry.id}
                                     className="px-6 py-4 hover:bg-[var(--background-muted)]/50 transition-colors cursor-pointer"
                                     onClick={() => setSelectedEntry(entry)}
                                 >
@@ -204,8 +208,8 @@ export default function JournalPage() {
                                                 </div>
                                             )}
                                             {(entry.status === "posted" || entry.status === "reconciled") && (
-                                                <button 
-                                                    onClick={(e) => { e.stopPropagation(); voidDialog.open(entry.id); }} 
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); voidDialog.open(entry.id); }}
                                                     className="btn-secondary text-xs py-1 px-2 text-[var(--error)] border-[var(--error)]/30 hover:bg-[var(--error-muted)]"
                                                 >
                                                     Void
@@ -222,7 +226,7 @@ export default function JournalPage() {
             )}
 
             <JournalEntryForm isOpen={isFormOpen} onClose={() => setIsFormOpen(false)} onSuccess={fetchEntries} />
-            
+
             <ConfirmDialog
                 isOpen={voidDialog.isOpen}
                 onCancel={voidDialog.cancel}

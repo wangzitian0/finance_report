@@ -144,6 +144,7 @@ nav:
           - "EPIC-020: Framework-Aware Personal Reporting": project/EPIC-020.framework-aware-personal-reporting.md
           - "EPIC-021: Application-Layer AI Advisor": project/EPIC-021.application-ai-advisor.md
           - "EPIC-022: Everyday-User IA": project/EPIC-022.everyday-user-ia.md
+          - "EPIC-022: PWA Bottom-Tab IA (design)": project/EPIC-022.pwa-bottom-tab-ia.design.md
           - "EPIC-023: LLM Provider Abstraction": project/EPIC-023.llm-provider-abstraction.md
           - "EPIC-024: Frontend Browser Observability": project/EPIC-024.frontend-observability.md
           - "EPIC-025: DRY/SSOT Simplification": project/EPIC-025.dry-ssot-simplification.md
