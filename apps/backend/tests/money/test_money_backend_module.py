@@ -8,9 +8,11 @@ behaviour-preserving way:
   JSONB as a typed ``CurrencyBalances`` (no scalar collapse).
 - AC2.22.4 — ``TransferLeg.money`` exposes a leg's value as a typed ``Money``.
 
-(AC2.22.2 reconciliation + AC2.22.3 reporting hot-path arithmetic adoption are a
-tracked follow-up — see EPIC-002 — because routing them through Money's ISO-4217
-validation needs non-ISO-currency-tolerant handling first.)
+(AC2.22.2 reconciliation + AC-money.22.3 reporting hot-path arithmetic adoption
+are proven separately in ``test_money_adopt.py``; AC-money.22.3 has migrated into
+the money package roadmap. Routing them through Money's ISO-4217 validation needs
+non-ISO-currency-tolerant handling, hence the dedicated byte-identical adoption
+helpers there.)
 """
 
 import json

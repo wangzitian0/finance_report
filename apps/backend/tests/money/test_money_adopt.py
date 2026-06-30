@@ -1,7 +1,8 @@
 """Byte-identical proof for the Money adoption helpers + wired hot paths.
 
-EPIC-002 AC2.22.2 (reconciliation per-currency) and AC2.22.3 (reporting net-worth
-restatement), #1167 / #1171. The helpers route through Money/convert for ISO
+EPIC-002 AC2.22.2 (reconciliation per-currency) and AC-money.22.3 (reporting
+net-worth restatement; migrated from EPIC-002 AC2.22.3 into the money package
+roadmap), #1167 / #1171. The helpers route through Money/convert for ISO
 currencies and fall back to the identical Decimal arithmetic for the ``"*"``
 sentinel / non-ISO codes — these tests assert the result is the SAME as the
 legacy arithmetic for every branch, so the totals are byte-identical.
@@ -28,17 +29,17 @@ _RESTATE_CASES = [
 ]
 
 
-@ac_proof(proof_id="test_restate_byte_identical", ac_ids=["AC2.22.3"], ci_tier="pr_ci", issue="#1171")
+@ac_proof(proof_id="test_restate_byte_identical", ac_ids=["AC-money.22.3"], ci_tier="pr_ci", issue="#1171")
 @pytest.mark.parametrize("amount,from_ccy,rate,to_ccy", _RESTATE_CASES)
 def test_AC2_22_3_restate_is_byte_identical(amount, from_ccy, rate, to_ccy):
-    """AC2.22.3: restate equals the legacy to_money(amount * rate) for every input."""
+    """AC-money.22.3: restate equals the legacy to_money(amount * rate) for every input."""
     assert restate(amount, from_ccy, rate, to_ccy) == to_money(amount * Decimal(rate))
 
 
-@ac_proof(proof_id="test_restate_unrounded_byte_identical", ac_ids=["AC2.22.3"], ci_tier="pr_ci", issue="#1171")
+@ac_proof(proof_id="test_restate_unrounded_byte_identical", ac_ids=["AC-money.22.3"], ci_tier="pr_ci", issue="#1171")
 @pytest.mark.parametrize("amount,from_ccy,rate,to_ccy", _RESTATE_CASES)
 def test_AC2_22_3_restate_unrounded_is_byte_identical(amount, from_ccy, rate, to_ccy):
-    """AC2.22.3: restate_unrounded equals the legacy Decimal(str(amount)) * rate."""
+    """AC-money.22.3: restate_unrounded equals the legacy Decimal(str(amount)) * rate."""
     assert restate_unrounded(amount, from_ccy, rate, to_ccy) == Decimal(str(amount)) * rate
 
 
