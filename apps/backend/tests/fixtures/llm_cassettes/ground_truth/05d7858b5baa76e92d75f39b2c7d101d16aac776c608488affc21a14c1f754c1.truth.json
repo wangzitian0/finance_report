@@ -1,0 +1,14 @@
+{
+  "synthetic": false,
+  "modality": "vision",
+  "institution_class": "brokerage",
+  "edge_condition": "happy_path",
+  "source": "own_futu_2506",
+  "note": "Real own statement, agent-extracted, strict-masked (zero PII); local source by sha256.",
+  "balance_reconciles": false,
+  "expected": {
+    "opening_balance": "1238.57",
+    "closing_balance": "1238.57",
+    "transactions": []
+  }
+}

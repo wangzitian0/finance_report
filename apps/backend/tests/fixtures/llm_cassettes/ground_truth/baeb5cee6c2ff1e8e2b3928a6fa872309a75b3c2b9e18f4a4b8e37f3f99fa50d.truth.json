@@ -1,0 +1,205 @@
+{
+  "synthetic": false,
+  "modality": "vision",
+  "institution_class": "bank",
+  "edge_condition": "happy_path",
+  "source": "own_maribank_2506",
+  "note": "Real own statement, agent-extracted, strict-masked (zero PII); local source by sha256.",
+  "balance_reconciles": true,
+  "expected": {
+    "opening_balance": "53011.76",
+    "closing_balance": "52842.53",
+    "transactions": [
+      {
+        "date": "2025-06-02",
+        "description": "**",
+        "amount": "8.50"
+      },
+      {
+        "date": "2025-06-02",
+        "description": "**",
+        "amount": "2.00"
+      },
+      {
+        "date": "2025-06-03",
+        "description": "**",
+        "amount": "9.80"
+      },
+      {
+        "date": "2025-06-03",
+        "description": "**",
+        "amount": "2.00"
+      },
+      {
+        "date": "2025-06-04",
+        "description": "**",
+        "amount": "7.50"
+      },
+      {
+        "date": "2025-06-04",
+        "description": "**",
+        "amount": "2.00"
+      },
+      {
+        "date": "2025-06-05",
+        "description": "**",
+        "amount": "11.60"
+      },
+      {
+        "date": "2025-06-05",
+        "description": "**",
+        "amount": "7.50"
+      },
+      {
+        "date": "2025-06-05",
+        "description": "**",
+        "amount": "2.00"
+      },
+      {
+        "date": "2025-06-06",
+        "description": "**",
+        "amount": "13.50"
+      },
+      {
+        "date": "2025-06-06",
+        "description": "**",
+        "amount": "2.00"
+      },
+      {
+        "date": "2025-06-10",
+        "description": "**",
+        "amount": "10.80"
+      },
+      {
+        "date": "2025-06-10",
+        "description": "**",
+        "amount": "2.00"
+      },
+      {
+        "date": "2025-06-11",
+        "description": "**",
+        "amount": "13.50"
+      },
+      {
+        "date": "2025-06-11",
+        "description": "**",
+        "amount": "2.00"
+      },
+      {
+        "date": "2025-06-12",
+        "description": "**",
+        "amount": "8.50"
+      },
+      {
+        "date": "2025-06-13",
+        "description": "**",
+        "amount": "13.50"
+      },
+      {
+        "date": "2025-06-13",
+        "description": "**",
+        "amount": "2.00"
+      },
+      {
+        "date": "2025-06-16",
+        "description": "**",
+        "amount": "12.50"
+      },
+      {
+        "date": "2025-06-16",
+        "description": "**",
+        "amount": "2.00"
+      },
+      {
+        "date": "2025-06-17",
+        "description": "**",
+        "amount": "8.50"
+      },
+      {
+        "date": "2025-06-17",
+        "description": "**",
+        "amount": "2.00"
+      },
+      {
+        "date": "2025-06-18",
+        "description": "**",
+        "amount": "13.50"
+      },
+      {
+        "date": "2025-06-18",
+        "description": "**",
+        "amount": "3.50"
+      },
+      {
+        "date": "2025-06-19",
+        "description": "**",
+        "amount": "13.50"
+      },
+      {
+        "date": "2025-06-19",
+        "description": "**",
+        "amount": "3.50"
+      },
+      {
+        "date": "2025-06-20",
+        "description": "**",
+        "amount": "3.50"
+      },
+      {
+        "date": "2025-06-23",
+        "description": "**",
+        "amount": "9.80"
+      },
+      {
+        "date": "2025-06-23",
+        "description": "**",
+        "amount": "2.00"
+      },
+      {
+        "date": "2025-06-24",
+        "description": "**",
+        "amount": "8.50"
+      },
+      {
+        "date": "2025-06-25",
+        "description": "**",
+        "amount": "13.50"
+      },
+      {
+        "date": "2025-06-25",
+        "description": "**",
+        "amount": "2.00"
+      },
+      {
+        "date": "2025-06-26",
+        "description": "**",
+        "amount": "9.80"
+      },
+      {
+        "date": "2025-06-26",
+        "description": "**",
+        "amount": "3.50"
+      },
+      {
+        "date": "2025-06-27",
+        "description": "**",
+        "amount": "13.50"
+      },
+      {
+        "date": "2025-06-27",
+        "description": "**",
+        "amount": "2.00"
+      },
+      {
+        "date": "2025-06-30",
+        "description": "**",
+        "amount": "12.50"
+      },
+      {
+        "date": "2025-06-30",
+        "description": "**",
+        "amount": "91.07"
+      }
+    ]
+  }
+}

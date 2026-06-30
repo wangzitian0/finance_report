@@ -64,23 +64,32 @@ def mask_description(value: str) -> str:
     return f"{s[:3]}***{s[-3:]}"
 
 
-def mask_obj(obj: Any, *, _key: str | None = None) -> Any:
-    """Recursively mask identity meta fields (-> ``**``) and descriptions (first3***last3)."""
+def mask_obj(obj: Any, *, _key: str | None = None, strict: bool = False) -> Any:
+    """Recursively mask identity meta fields (-> ``**``) and descriptions.
+
+    ``strict=False`` (synthetic corpora): descriptions keep ``first3***last3`` — safe
+    because the source data is synthetic, and it preserves field-scoring signal.
+    ``strict=True`` (REAL/own statements): descriptions are FULLY redacted to ``**`` —
+    ``first3***last3`` of a real counterparty/person name still leaks its first/last
+    characters, which is residual PII and unacceptable for a committed (git) artifact.
+    Flow values (date/amount/direction/balance/currency) and public security symbols
+    are never PII and are kept either way."""
     if isinstance(obj, dict):
-        return {k: mask_obj(v, _key=k) for k, v in obj.items()}
+        return {k: mask_obj(v, _key=k, strict=strict) for k, v in obj.items()}
     if isinstance(obj, list):
-        return [mask_obj(x, _key=_key) for x in obj]
+        return [mask_obj(x, _key=_key, strict=strict) for x in obj]
     if isinstance(obj, str):
         if _key in _META_PII_KEYS:
             return _META_MARK
         if _key in _DESC_KEYS:
-            return mask_description(obj)
+            return _META_MARK if strict else mask_description(obj)
     return obj
 
 
-def mask_extraction(extracted: dict[str, Any]) -> dict[str, Any]:
-    """Mask an extraction-output dict in place-safe (returns a new masked dict)."""
-    return mask_obj(extracted)
+def mask_extraction(extracted: dict[str, Any], *, strict: bool = False) -> dict[str, Any]:
+    """Mask an extraction-output dict (returns a new masked dict). See ``mask_obj`` for
+    the ``strict`` distinction between synthetic (first3***last3) and real (full ``**``)."""
+    return mask_obj(extracted, strict=strict)
 
 
 def mask_response_text(text: str) -> str:

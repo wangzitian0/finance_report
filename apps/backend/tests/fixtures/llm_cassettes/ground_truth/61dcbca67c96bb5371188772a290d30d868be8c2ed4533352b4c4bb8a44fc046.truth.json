@@ -1,0 +1,360 @@
+{
+  "synthetic": false,
+  "modality": "vision",
+  "institution_class": "bank",
+  "edge_condition": "happy_path",
+  "source": "own_cmb_2501_2506",
+  "note": "Real own statement, agent-extracted, strict-masked (zero PII); local source by sha256.",
+  "balance_reconciles": true,
+  "expected": {
+    "opening_balance": "158468.85",
+    "closing_balance": "145452.40",
+    "transactions": [
+      {
+        "date": "2025-01-02",
+        "description": "**",
+        "amount": "115.01"
+      },
+      {
+        "date": "2025-01-05",
+        "description": "**",
+        "amount": "2000.00"
+      },
+      {
+        "date": "2025-01-05",
+        "description": "**",
+        "amount": "2000.00"
+      },
+      {
+        "date": "2025-01-19",
+        "description": "**",
+        "amount": "106953.82"
+      },
+      {
+        "date": "2025-01-19",
+        "description": "**",
+        "amount": "150000.00"
+      },
+      {
+        "date": "2025-01-23",
+        "description": "**",
+        "amount": "10000.00"
+      },
+      {
+        "date": "2025-01-24",
+        "description": "**",
+        "amount": "2300000.00"
+      },
+      {
+        "date": "2025-01-24",
+        "description": "**",
+        "amount": "1000000.00"
+      },
+      {
+        "date": "2025-01-24",
+        "description": "**",
+        "amount": "999999.00"
+      },
+      {
+        "date": "2025-01-24",
+        "description": "**",
+        "amount": "300000.00"
+      },
+      {
+        "date": "2025-01-29",
+        "description": "**",
+        "amount": "159.16"
+      },
+      {
+        "date": "2025-01-29",
+        "description": "**",
+        "amount": "233.70"
+      },
+      {
+        "date": "2025-01-29",
+        "description": "**",
+        "amount": "2000.00"
+      },
+      {
+        "date": "2025-01-29",
+        "description": "**",
+        "amount": "2000.00"
+      },
+      {
+        "date": "2025-01-30",
+        "description": "**",
+        "amount": "159.16"
+      },
+      {
+        "date": "2025-01-30",
+        "description": "**",
+        "amount": "77.90"
+      },
+      {
+        "date": "2025-01-30",
+        "description": "**",
+        "amount": "500000.00"
+      },
+      {
+        "date": "2025-01-30",
+        "description": "**",
+        "amount": "200000.00"
+      },
+      {
+        "date": "2025-01-31",
+        "description": "**",
+        "amount": "5301.70"
+      },
+      {
+        "date": "2025-01-31",
+        "description": "**",
+        "amount": "53024.00"
+      },
+      {
+        "date": "2025-01-31",
+        "description": "**",
+        "amount": "300000.00"
+      },
+      {
+        "date": "2025-02-01",
+        "description": "**",
+        "amount": "500000.00"
+      },
+      {
+        "date": "2025-02-02",
+        "description": "**",
+        "amount": "324.68"
+      },
+      {
+        "date": "2025-02-02",
+        "description": "**",
+        "amount": "26600.00"
+      },
+      {
+        "date": "2025-02-03",
+        "description": "**",
+        "amount": "40000.00"
+      },
+      {
+        "date": "2025-02-03",
+        "description": "**",
+        "amount": "300000.00"
+      },
+      {
+        "date": "2025-02-03",
+        "description": "**",
+        "amount": "150000.00"
+      },
+      {
+        "date": "2025-02-05",
+        "description": "**",
+        "amount": "50000.00"
+      },
+      {
+        "date": "2025-02-05",
+        "description": "**",
+        "amount": "35881.00"
+      },
+      {
+        "date": "2025-02-05",
+        "description": "**",
+        "amount": "18000.00"
+      },
+      {
+        "date": "2025-02-05",
+        "description": "**",
+        "amount": "110.00"
+      },
+      {
+        "date": "2025-02-05",
+        "description": "**",
+        "amount": "1100000.00"
+      },
+      {
+        "date": "2025-02-10",
+        "description": "**",
+        "amount": "10795.00"
+      },
+      {
+        "date": "2025-02-17",
+        "description": "**",
+        "amount": "5418.00"
+      },
+      {
+        "date": "2025-03-02",
+        "description": "**",
+        "amount": "307.13"
+      },
+      {
+        "date": "2025-03-07",
+        "description": "**",
+        "amount": "54389.00"
+      },
+      {
+        "date": "2025-03-08",
+        "description": "**",
+        "amount": "920.20"
+      },
+      {
+        "date": "2025-03-12",
+        "description": "**",
+        "amount": "16338.00"
+      },
+      {
+        "date": "2025-03-13",
+        "description": "**",
+        "amount": "37500.00"
+      },
+      {
+        "date": "2025-03-15",
+        "description": "**",
+        "amount": "21645.00"
+      },
+      {
+        "date": "2025-03-17",
+        "description": "**",
+        "amount": "27149.00"
+      },
+      {
+        "date": "2025-03-21",
+        "description": "**",
+        "amount": "68.05"
+      },
+      {
+        "date": "2025-03-23",
+        "description": "**",
+        "amount": "140.61"
+      },
+      {
+        "date": "2025-04-02",
+        "description": "**",
+        "amount": "1188.44"
+      },
+      {
+        "date": "2025-05-02",
+        "description": "**",
+        "amount": "59856.62"
+      },
+      {
+        "date": "2025-06-02",
+        "description": "**",
+        "amount": "953.34"
+      },
+      {
+        "date": "2025-06-09",
+        "description": "**",
+        "amount": "250000.00"
+      },
+      {
+        "date": "2025-06-09",
+        "description": "**",
+        "amount": "83832.21"
+      },
+      {
+        "date": "2025-06-10",
+        "description": "**",
+        "amount": "300000.00"
+      },
+      {
+        "date": "2025-06-10",
+        "description": "**",
+        "amount": "150000.00"
+      },
+      {
+        "date": "2025-06-10",
+        "description": "**",
+        "amount": "137228.00"
+      },
+      {
+        "date": "2025-06-10",
+        "description": "**",
+        "amount": "11171.93"
+      },
+      {
+        "date": "2025-06-11",
+        "description": "**",
+        "amount": "9482.45"
+      },
+      {
+        "date": "2025-06-11",
+        "description": "**",
+        "amount": "27941.24"
+      },
+      {
+        "date": "2025-06-11",
+        "description": "**",
+        "amount": "11193.21"
+      },
+      {
+        "date": "2025-06-13",
+        "description": "**",
+        "amount": "55964.83"
+      },
+      {
+        "date": "2025-06-13",
+        "description": "**",
+        "amount": "20.00"
+      },
+      {
+        "date": "2025-06-13",
+        "description": "**",
+        "amount": "200000.00"
+      },
+      {
+        "date": "2025-06-13",
+        "description": "**",
+        "amount": "111929.66"
+      },
+      {
+        "date": "2025-06-13",
+        "description": "**",
+        "amount": "538188.86"
+      },
+      {
+        "date": "2025-06-13",
+        "description": "**",
+        "amount": "50000.00"
+      },
+      {
+        "date": "2025-06-14",
+        "description": "**",
+        "amount": "115.95"
+      },
+      {
+        "date": "2025-06-14",
+        "description": "**",
+        "amount": "56027.46"
+      },
+      {
+        "date": "2025-06-14",
+        "description": "**",
+        "amount": "137267.28"
+      },
+      {
+        "date": "2025-06-15",
+        "description": "**",
+        "amount": "112054.92"
+      },
+      {
+        "date": "2025-06-15",
+        "description": "**",
+        "amount": "112054.91"
+      },
+      {
+        "date": "2025-06-16",
+        "description": "**",
+        "amount": "112054.93"
+      },
+      {
+        "date": "2025-06-18",
+        "description": "**",
+        "amount": "35925.00"
+      },
+      {
+        "date": "2025-06-21",
+        "description": "**",
+        "amount": "15.97"
+      }
+    ]
+  }
+}

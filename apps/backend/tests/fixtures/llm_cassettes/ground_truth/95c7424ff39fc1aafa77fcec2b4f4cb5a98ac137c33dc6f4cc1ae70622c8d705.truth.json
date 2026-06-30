@@ -1,0 +1,120 @@
+{
+  "synthetic": false,
+  "modality": "vision",
+  "institution_class": "bank",
+  "edge_condition": "happy_path",
+  "source": "own_dbs_2505",
+  "note": "Real own statement, agent-extracted, strict-masked (zero PII); local source by sha256.",
+  "balance_reconciles": true,
+  "expected": {
+    "opening_balance": "49629.41",
+    "closing_balance": "58995.46",
+    "transactions": [
+      {
+        "date": "2025-05-02",
+        "description": "**",
+        "amount": "2.04"
+      },
+      {
+        "date": "2025-05-06",
+        "description": "**",
+        "amount": "3028.44"
+      },
+      {
+        "date": "2025-05-06",
+        "description": "**",
+        "amount": "14.37"
+      },
+      {
+        "date": "2025-05-07",
+        "description": "**",
+        "amount": "63.68"
+      },
+      {
+        "date": "2025-05-08",
+        "description": "**",
+        "amount": "2000.00"
+      },
+      {
+        "date": "2025-05-08",
+        "description": "**",
+        "amount": "27.54"
+      },
+      {
+        "date": "2025-05-13",
+        "description": "**",
+        "amount": "512.32"
+      },
+      {
+        "date": "2025-05-16",
+        "description": "**",
+        "amount": "1000.00"
+      },
+      {
+        "date": "2025-05-16",
+        "description": "**",
+        "amount": "100.00"
+      },
+      {
+        "date": "2025-05-16",
+        "description": "**",
+        "amount": "300.00"
+      },
+      {
+        "date": "2025-05-20",
+        "description": "**",
+        "amount": "29.29"
+      },
+      {
+        "date": "2025-05-21",
+        "description": "**",
+        "amount": "190.00"
+      },
+      {
+        "date": "2025-05-22",
+        "description": "**",
+        "amount": "2100.00"
+      },
+      {
+        "date": "2025-05-23",
+        "description": "**",
+        "amount": "19.90"
+      },
+      {
+        "date": "2025-05-24",
+        "description": "**",
+        "amount": "12.80"
+      },
+      {
+        "date": "2025-05-26",
+        "description": "**",
+        "amount": "14.00"
+      },
+      {
+        "date": "2025-05-26",
+        "description": "**",
+        "amount": "5.99"
+      },
+      {
+        "date": "2025-05-27",
+        "description": "**",
+        "amount": "600.00"
+      },
+      {
+        "date": "2025-05-28",
+        "description": "**",
+        "amount": "9.90"
+      },
+      {
+        "date": "2025-05-29",
+        "description": "**",
+        "amount": "18887.00"
+      },
+      {
+        "date": "2025-05-31",
+        "description": "**",
+        "amount": "1.96"
+      }
+    ]
+  }
+}

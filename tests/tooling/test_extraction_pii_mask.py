@@ -74,6 +74,28 @@ def test_raw_text_and_reference_are_masked() -> None:
     assert "CITI BANK" not in str(txn)  # no counterparty name survives anywhere in the row
 
 
+def test_strict_mode_fully_redacts_descriptions_for_real_statements() -> None:
+    """strict=True (real/own statements): descriptions are fully redacted to ``**``, not
+    first3***last3 — because first/last chars of a real name are still residual PII and
+    must never enter git. Flow values + public security symbols are still kept."""
+    masked = mask_extraction(
+        {
+            "institution": "DBS Bank",
+            "transactions": [
+                {"description": "FROM: WANG ZITIAN PAYNOW", "amount": "190.00", "direction": "IN", "balance_after": "42869.09"}
+            ],
+            "positions": [{"symbol": "AAPL", "quantity": "10", "market_value": "1900.25"}],
+        },
+        strict=True,
+    )
+    txn = masked["transactions"][0]
+    assert txn["description"] == "**"  # fully redacted (not "FRO***NOW")
+    assert "WANG" not in str(masked)
+    assert txn["amount"] == "190.00" and txn["balance_after"] == "42869.09"  # flow kept
+    assert masked["positions"][0]["symbol"] == "AAPL"  # public symbol kept
+    assert masked["institution"] == "DBS Bank"  # institution name not PII
+
+
 def test_flow_values_are_kept() -> None:
     """date / amount / direction / balance carry no identity PII and are preserved."""
     masked = mask_extraction(

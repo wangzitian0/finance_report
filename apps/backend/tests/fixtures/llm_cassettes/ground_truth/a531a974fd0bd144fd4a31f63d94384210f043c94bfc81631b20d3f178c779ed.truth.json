@@ -1,0 +1,255 @@
+{
+  "synthetic": false,
+  "modality": "vision",
+  "institution_class": "brokerage",
+  "edge_condition": "happy_path",
+  "source": "own_moomoo_2506",
+  "note": "Real own statement, agent-extracted, strict-masked (zero PII); local source by sha256.",
+  "balance_reconciles": false,
+  "expected": {
+    "opening_balance": "0.00",
+    "closing_balance": "-0.01",
+    "transactions": [
+      {
+        "date": "2025-06-11",
+        "description": "**",
+        "amount": "4354.72"
+      },
+      {
+        "date": "2025-06-11",
+        "description": "**",
+        "amount": "2545.59"
+      },
+      {
+        "date": "2025-06-11",
+        "description": "**",
+        "amount": "9109.69"
+      },
+      {
+        "date": "2025-06-11",
+        "description": "**",
+        "amount": "26350.00"
+      },
+      {
+        "date": "2025-06-19",
+        "description": "**",
+        "amount": "8654.81"
+      },
+      {
+        "date": "2025-06-19",
+        "description": "**",
+        "amount": "2949.77"
+      },
+      {
+        "date": "2025-06-19",
+        "description": "**",
+        "amount": "30539.64"
+      },
+      {
+        "date": "2025-06-19",
+        "description": "**",
+        "amount": "1621.00"
+      },
+      {
+        "date": "2025-06-24",
+        "description": "**",
+        "amount": "54.35"
+      },
+      {
+        "date": "2025-06-24",
+        "description": "**",
+        "amount": "10825.50"
+      },
+      {
+        "date": "2025-06-24",
+        "description": "**",
+        "amount": "2685.84"
+      },
+      {
+        "date": "2025-06-24",
+        "description": "**",
+        "amount": "1646.16"
+      },
+      {
+        "date": "2025-06-24",
+        "description": "**",
+        "amount": "165.90"
+      },
+      {
+        "date": "2025-06-24",
+        "description": "**",
+        "amount": "774.20"
+      },
+      {
+        "date": "2025-06-24",
+        "description": "**",
+        "amount": "2405.55"
+      },
+      {
+        "date": "2025-06-24",
+        "description": "**",
+        "amount": "4949.35"
+      },
+      {
+        "date": "2025-06-25",
+        "description": "**",
+        "amount": "7579.00"
+      },
+      {
+        "date": "2025-06-25",
+        "description": "**",
+        "amount": "3445.00"
+      },
+      {
+        "date": "2025-06-25",
+        "description": "**",
+        "amount": "1378.00"
+      },
+      {
+        "date": "2025-06-25",
+        "description": "**",
+        "amount": "5167.50"
+      },
+      {
+        "date": "2025-06-25",
+        "description": "**",
+        "amount": "7579.00"
+      },
+      {
+        "date": "2025-06-25",
+        "description": "**",
+        "amount": "5512.00"
+      },
+      {
+        "date": "2025-06-25",
+        "description": "**",
+        "amount": "1033.50"
+      },
+      {
+        "date": "2025-06-25",
+        "description": "**",
+        "amount": "689.00"
+      },
+      {
+        "date": "2025-06-25",
+        "description": "**",
+        "amount": "1033.50"
+      },
+      {
+        "date": "2025-06-25",
+        "description": "**",
+        "amount": "1033.50"
+      },
+      {
+        "date": "2025-06-25",
+        "description": "**",
+        "amount": "13432.50"
+      },
+      {
+        "date": "2025-06-25",
+        "description": "**",
+        "amount": "10388.00"
+      },
+      {
+        "date": "2025-06-11",
+        "description": "**",
+        "amount": "2372.12"
+      },
+      {
+        "date": "2025-06-20",
+        "description": "**",
+        "amount": "61907.64"
+      },
+      {
+        "date": "2025-06-24",
+        "description": "**",
+        "amount": "23473.11"
+      },
+      {
+        "date": "2025-06-26",
+        "description": "**",
+        "amount": "31445.00"
+      },
+      {
+        "date": "2025-06-19",
+        "description": "**",
+        "amount": "130000.00"
+      },
+      {
+        "date": "2025-06-19",
+        "description": "**",
+        "amount": "130000.00"
+      },
+      {
+        "date": "2025-06-19",
+        "description": "**",
+        "amount": "100678.41"
+      },
+      {
+        "date": "2025-06-10",
+        "description": "**",
+        "amount": "40000.00"
+      },
+      {
+        "date": "2025-06-19",
+        "description": "**",
+        "amount": "5000.00"
+      },
+      {
+        "date": "2025-06-23",
+        "description": "**",
+        "amount": "59.45"
+      },
+      {
+        "date": "2025-06-23",
+        "description": "**",
+        "amount": "17.83"
+      },
+      {
+        "date": "2025-06-11",
+        "description": "**",
+        "amount": "4.41"
+      },
+      {
+        "date": "2025-06-11",
+        "description": "**",
+        "amount": "7.72"
+      },
+      {
+        "date": "2025-06-19",
+        "description": "**",
+        "amount": "5.55"
+      },
+      {
+        "date": "2025-06-24",
+        "description": "**",
+        "amount": "4.41"
+      },
+      {
+        "date": "2025-06-24",
+        "description": "**",
+        "amount": "1.41"
+      },
+      {
+        "date": "2025-06-24",
+        "description": "**",
+        "amount": "2.07"
+      },
+      {
+        "date": "2025-06-25",
+        "description": "**",
+        "amount": "34.27"
+      },
+      {
+        "date": "2025-06-25",
+        "description": "**",
+        "amount": "2.82"
+      },
+      {
+        "date": "2025-06-25",
+        "description": "**",
+        "amount": "2.41"
+      }
+    ]
+  }
+}

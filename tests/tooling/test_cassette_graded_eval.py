@@ -284,10 +284,42 @@ def test_AC23_8_6_runs_on_committed_cassettes_without_network_or_key() -> None:
 
 
 def test_AC23_8_6_ground_truth_artifacts_are_synthetic() -> None:
-    """AC23.8.6 (data hygiene): every ground-truth artifact is flagged synthetic."""
+    """AC23.8.6 (data hygiene): every committed cassette is EITHER synthetic, OR a real
+    statement that has been STRICTLY PII-masked — and for the real ones the gate proves
+    it structurally (not by trusting the recorder): no CJK character survives (catches
+    names) and every identity/free-text field (descriptions, raw_text, refs, account
+    holder, …) is fully redacted to ``**``. So no PII enters git regardless of provenance.
+    Flow values (date/amount/balance) and public security symbols are not PII and remain."""
+    import re
+
+    from common.ssot.cassette_graded_eval import CASSETTE_DIR, _parse_extraction
+    from tools._lib.fixtures.extraction_pii_mask import _DESC_KEYS, _META_PII_KEYS
+
+    pii_keys = _DESC_KEYS | _META_PII_KEYS
+    cjk = re.compile(r"[一-鿿]")
+
+    def _assert_pii_free(name: str, obj: object) -> None:
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                if isinstance(value, str) and key in pii_keys:
+                    assert value == "**", f"{name}: PII field {key!r} not fully redacted ({value!r})"
+                else:
+                    _assert_pii_free(name, value)
+        elif isinstance(obj, list):
+            for item in obj:
+                _assert_pii_free(name, item)
+
     for path in sorted(GROUND_TRUTH_DIR.glob("*.truth.json")):
         data = json.loads(path.read_text(encoding="utf-8"))
-        assert data.get("synthetic") is True, f"{path.name} not marked synthetic"
+        if data.get("synthetic") is True:
+            continue
+        assert data.get("synthetic") is False, f"{path.name}: 'synthetic' must be set true or false"
+        extraction = _parse_extraction(CASSETTE_DIR / f"{path.name[: -len('.truth.json')]}.json")
+        assert extraction is not None, f"{path.name}: no scorable cassette to verify PII-masking"
+        assert not cjk.search(json.dumps(extraction, ensure_ascii=False)), (
+            f"{path.name}: a CJK character (likely a real name) survives in a committed real cassette"
+        )
+        _assert_pii_free(path.name, extraction)
 
 
 # --------------------------------------------------------------------------- #

@@ -1,0 +1,190 @@
+{
+  "synthetic": false,
+  "modality": "vision",
+  "institution_class": "bank",
+  "edge_condition": "happy_path",
+  "source": "own_gxs_2506",
+  "note": "Real own statement, agent-extracted, strict-masked (zero PII); local source by sha256.",
+  "balance_reconciles": true,
+  "expected": {
+    "opening_balance": "51730.82",
+    "closing_balance": "2953.14",
+    "transactions": [
+      {
+        "date": "2025-06-01",
+        "description": "**",
+        "amount": "2.38"
+      },
+      {
+        "date": "2025-06-02",
+        "description": "**",
+        "amount": "2.38"
+      },
+      {
+        "date": "2025-06-02",
+        "description": "**",
+        "amount": "200.00"
+      },
+      {
+        "date": "2025-06-03",
+        "description": "**",
+        "amount": "2.38"
+      },
+      {
+        "date": "2025-06-04",
+        "description": "**",
+        "amount": "2.37"
+      },
+      {
+        "date": "2025-06-05",
+        "description": "**",
+        "amount": "2.37"
+      },
+      {
+        "date": "2025-06-06",
+        "description": "**",
+        "amount": "2.37"
+      },
+      {
+        "date": "2025-06-07",
+        "description": "**",
+        "amount": "2.38"
+      },
+      {
+        "date": "2025-06-08",
+        "description": "**",
+        "amount": "2.37"
+      },
+      {
+        "date": "2025-06-08",
+        "description": "**",
+        "amount": "48000.00"
+      },
+      {
+        "date": "2025-06-09",
+        "description": "**",
+        "amount": "0.16"
+      },
+      {
+        "date": "2025-06-10",
+        "description": "**",
+        "amount": "0.16"
+      },
+      {
+        "date": "2025-06-11",
+        "description": "**",
+        "amount": "0.17"
+      },
+      {
+        "date": "2025-06-12",
+        "description": "**",
+        "amount": "0.16"
+      },
+      {
+        "date": "2025-06-12",
+        "description": "**",
+        "amount": "200.00"
+      },
+      {
+        "date": "2025-06-13",
+        "description": "**",
+        "amount": "0.16"
+      },
+      {
+        "date": "2025-06-14",
+        "description": "**",
+        "amount": "0.15"
+      },
+      {
+        "date": "2025-06-15",
+        "description": "**",
+        "amount": "0.15"
+      },
+      {
+        "date": "2025-06-16",
+        "description": "**",
+        "amount": "0.16"
+      },
+      {
+        "date": "2025-06-17",
+        "description": "**",
+        "amount": "0.15"
+      },
+      {
+        "date": "2025-06-18",
+        "description": "**",
+        "amount": "0.16"
+      },
+      {
+        "date": "2025-06-19",
+        "description": "**",
+        "amount": "0.15"
+      },
+      {
+        "date": "2025-06-19",
+        "description": "**",
+        "amount": "200.00"
+      },
+      {
+        "date": "2025-06-20",
+        "description": "**",
+        "amount": "0.15"
+      },
+      {
+        "date": "2025-06-21",
+        "description": "**",
+        "amount": "0.14"
+      },
+      {
+        "date": "2025-06-22",
+        "description": "**",
+        "amount": "0.15"
+      },
+      {
+        "date": "2025-06-23",
+        "description": "**",
+        "amount": "0.14"
+      },
+      {
+        "date": "2025-06-24",
+        "description": "**",
+        "amount": "0.15"
+      },
+      {
+        "date": "2025-06-25",
+        "description": "**",
+        "amount": "0.14"
+      },
+      {
+        "date": "2025-06-26",
+        "description": "**",
+        "amount": "0.15"
+      },
+      {
+        "date": "2025-06-27",
+        "description": "**",
+        "amount": "0.14"
+      },
+      {
+        "date": "2025-06-28",
+        "description": "**",
+        "amount": "0.15"
+      },
+      {
+        "date": "2025-06-29",
+        "description": "**",
+        "amount": "0.14"
+      },
+      {
+        "date": "2025-06-29",
+        "description": "**",
+        "amount": "200.00"
+      },
+      {
+        "date": "2025-06-30",
+        "description": "**",
+        "amount": "0.14"
+      }
+    ]
+  }
+}
