@@ -21,7 +21,7 @@
 | Compact status/events API | `apps/backend/src/routers/workflow.py` |
 | Report package readiness fact source | `GET /api/reports/package/readiness` in `apps/backend/src/services/report_readiness.py` |
 | Header badge, Event inbox, Status feed | `apps/frontend/src/components/workflow/WorkflowNotifications.tsx` |
-| Upload-to-Report home | `apps/frontend/src/app/(main)/dashboard/page.tsx` |
+| Upload-to-Report home | `apps/frontend/src/app/(main)/page.tsx` (the `/dashboard` route redirects here) |
 | Events page | `apps/frontend/src/app/(main)/events/page.tsx` advanced session history surface |
 | Workflow navigation IA | `apps/frontend/src/components/navigation.ts` |
 | Desktop workflow navigation | `apps/frontend/src/components/Sidebar.tsx` |

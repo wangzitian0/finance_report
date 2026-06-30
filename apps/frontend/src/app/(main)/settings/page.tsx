@@ -40,13 +40,16 @@ export default function SettingsPage() {
         router.replace(`/settings?tab=${id}`, { scroll: false });
     };
 
-    // WAI-ARIA tabs keyboard pattern: Arrow keys move (and activate) the tab.
+    // WAI-ARIA tabs keyboard pattern: Arrow keys move (and activate) the tab, and
+    // focus follows to the newly active tab (required with roving tabindex).
     const onTablistKeyDown = (e: React.KeyboardEvent) => {
         if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
         e.preventDefault();
         const i = TABS.findIndex((t) => t.id === tab);
         const next = e.key === "ArrowRight" ? (i + 1) % TABS.length : (i - 1 + TABS.length) % TABS.length;
-        selectTab(TABS[next].id);
+        const nextId = TABS[next].id;
+        selectTab(nextId);
+        document.getElementById(`settings-tab-${nextId}`)?.focus();
     };
 
     return (
