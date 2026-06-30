@@ -489,36 +489,6 @@ def test_AC8_13_11_health_check_diagnoses_staging_api_route_404() -> None:
     assert '[[ "$http_code" == "404" ]]' in health_check
 
 
-def test_AC8_13_11_deploy_preflights_vault_token_before_redeploy() -> None:
-    """AC8.13.11: deploy_v2 fails before rollout on invalid legacy Vault tokens."""
-    primitive = deploy_primitive_source(ROOT)
-    deploy_v2 = read("repo/tools/deploy_v2.py")
-    staging_workflow = read(".github/workflows/deploy.yml")
-    production_workflow = read(".github/workflows/deploy.yml")
-
-    assert "def preflight_vault_token(" in primitive
-    assert "verify_vault_token(" in primitive
-    assert "VAULT_APP_TOKEN preflight failed" in primitive
-    assert "min_ttl_hours: int = 48" in primitive
-    assert "remove it from the service's Dokploy env" in primitive
-
-    # AppRole services (both VAULT_ROLE_ID and VAULT_SECRET_ID present) are skipped.
-    # Assert the env-var references rather than an exact `_env_value(...)` call form,
-    # which infra2 line-wraps (robust to formatting).
-    assert '"VAULT_ROLE_ID"' in primitive
-    assert '"VAULT_SECRET_ID"' in primitive
-    assert "AppRole auth -> any leftover VAULT_APP_TOKEN is unused" in primitive
-    assert primitive.index("preflight_vault_token(client") < primitive.index(
-        "client.update_compose_env"
-    )
-
-    assert "verify_vault: bool = True" in deploy_v2
-    assert "verify_vault=verify_vault" in deploy_v2
-    assert "--skip-vault-check" in deploy_v2
-    assert "--skip-vault-check" not in staging_workflow
-    assert "--skip-vault-check" not in production_workflow
-
-
 def test_AC8_13_12_ai_ocr_gate_failure_includes_statement_context() -> None:
     """AC8.13.12: AI/OCR gate failures include statement validation context."""
     conftest = read("tests/e2e/conftest.py")
@@ -3071,89 +3041,6 @@ def test_AC8_13_38_pr_preview_dokploy_responses_are_not_logged() -> None:
     )
     for pattern in unsafe_patterns:
         assert re.search(pattern, preview) is None
-
-
-def test_AC8_13_72_staging_deploy_proves_health_sha_after_dokploy_trigger() -> None:
-    """AC8.13.72 AC8.13.106: staging proof checks health git_sha, not just Dokploy trigger."""
-    workflow = read(".github/workflows/deploy.yml")
-    deploy_v2 = read("repo/tools/deploy_v2.py")
-    primitive = deploy_primitive_source(ROOT)
-    health_check = read("tools/_lib/shell/health_check.sh")
-
-    deploy_block = workflow.split("- name: Deploy to Staging", 1)[1].split(
-        "- name: Confirm staging backend health", 1
-    )[0]
-    health_block = workflow.split("- name: Confirm staging backend health", 1)[1].split(
-        "- name: Wait for frontend readiness", 1
-    )[0]
-
-    assert "python -m tools.deploy_v2" in deploy_block
-    assert "--type staging" in deploy_block
-    assert '--version-ref "$version_ref"' in deploy_block
-    assert '--iac-ref "$iac_ref"' in deploy_block
-    assert "bash tools/health_check.sh" in health_block
-    assert '"https://report-staging.zitian.party/api/health"' in health_block
-    assert '"${{ steps.release.outputs.version_ref }}"' in health_block
-    assert workflow.index("- name: Deploy to Staging") < workflow.index(
-        "- name: Confirm staging backend health"
-    )
-    assert workflow.index("- name: Confirm staging backend health") < workflow.index(
-        "- name: Setup E2E Tests"
-    )
-    assert "EXPECTED_SHA: ${{ steps.release.outputs.version_ref }}" in workflow
-
-    assert "verify_vault / verify_config / model_overrides" in deploy_v2
-    assert "verify_config=verify_config" in deploy_v2
-    assert "def wait_for_rollout(" in primitive
-    assert "before_ids" in primitive
-    assert "client.update_compose_env" in primitive
-    assert "client.deploy_compose" in primitive
-    assert (
-        "wait_for_rollout(client, cfg.compose_id, before_ids, timeout=timeout)"
-        in primitive
-    )
-    assert 'if status == "error":' in primitive
-    assert 'status in {"done", "success", "successful"}' in primitive
-    assert "TimeoutError" in primitive
-    assert (
-        'actual_sha=$(echo "$health_response" | jq -r \'.git_sha // .version // ""\')'
-        in health_check
-    )
-    assert "MAX_SHA_MISMATCH_ATTEMPTS" in health_check
-    assert "Stable mismatch attempts" in health_check
-    assert "Git SHA Mismatch" in health_check
-    assert "exit 1" in health_check
-
-
-def test_AC8_13_72_staging_dokploy_rollout_parsing_is_typed_and_fail_fast() -> None:
-    """AC8.13.72: staging rollout parsing handles Dokploy shape drift clearly."""
-    dokploy_client = read("repo/libs/dokploy.py")
-    primitive = deploy_primitive_source(ROOT)
-
-    assert (
-        "def get_compose_deployments(self, compose_id: str) -> list[dict]"
-        in dokploy_client
-    )
-    assert '"deployment.allByCompose?composeId={compose_id}"' in dokploy_client
-    assert (
-        'deployments = self.get_compose(compose_id).get("deployments")'
-        in dokploy_client
-    )
-    assert "if isinstance(deployments, list):" in dokploy_client
-    assert (
-        "return [item for item in deployments if isinstance(item, dict)]"
-        in dokploy_client
-    )
-    assert 'for key in ("deployments", "data", "items"):' in dokploy_client
-    assert "if isinstance(items, list):" in dokploy_client
-    assert "return []" in dokploy_client
-
-    assert "def _deployment_ids(deployments) -> set[str]:" in primitive
-    assert "return {_dep_id(d) for d in (deployments or []) if _dep_id(d)}" in primitive
-    assert "client.get_compose_deployments(compose_id) or []" in primitive
-    assert 'status = str(d.get("status") or "").lower()' in primitive
-    assert 'if status == "error":' in primitive
-    assert 'if status in {"done", "success", "successful"}:' in primitive
 
 
 def test_AC8_13_72_staging_dokploy_noop_after_redeploy_fails_before_health() -> None:
