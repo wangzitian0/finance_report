@@ -159,7 +159,7 @@ async def test_decimal_precision():
 
 
 async def test_fx_rate_required_for_non_base_currency():
-    """AC-ledger.2.5: Non-base currency lines require fx_rate.
+    """AC-ledger.2.5, AC-ledger.11.4: Non-base currency lines require fx_rate.
 
     Verify that journal lines with currency != base currency
     must have a non-null fx_rate value.
@@ -181,7 +181,7 @@ async def test_fx_rate_required_for_non_base_currency():
 
 
 async def test_missing_currency_is_treated_as_base_currency_for_fx_validation():
-    """AC-ledger.2.6: Legacy lines without currency are treated as base currency.
+    """AC-ledger.2.7: Legacy lines without currency are treated as base currency.
 
     Older records may omit currency. They must not require fx_rate because the
     accounting base currency is SGD.

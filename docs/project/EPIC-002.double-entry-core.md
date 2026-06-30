@@ -140,7 +140,7 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 > `AC-ledger.11.4`
 >
 > **Multi-currency ledger integrity** (was AC2.12.*):
-> `AC-ledger.12.1` · `AC-ledger.12.2` · `AC-ledger.12.5` · `AC-ledger.12.6`
+> `AC-ledger.12.1` · `AC-ledger.12.2` · `AC-ledger.12.6`
 
 ### AC2.17: Account Management UI Responsiveness
 
@@ -157,6 +157,17 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 > package (#1420 slice 3c-ii); their new `AC-ledger.7.*`–`AC-ledger.12.*` ids are
 > listed in the disclaimer above and defined in
 > [`common/ledger/contract.py`](../../common/ledger/contract.py)'s `roadmap`.
+
+### Retained in EPIC-002 (not a ledger AC)
+
+`AC2.12.5` was mis-filed in the AC2.12 multi-currency group, but it covers
+stream-redaction (PII chunk buffering), not double-entry — so it is **not**
+migrated into `ledger` (which would mis-home a storage AC). It stays defined here
+pending a proper re-home to a storage/observability package.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC2.12.5 | Stream redactor accumulates small chunks in buffer | `test_stream_redactor_small_chunks` | `infra/test_infra_edge_cases.py` | P1 |
 
 ### AC2.13: User-Scoped Ledger Integrity
 

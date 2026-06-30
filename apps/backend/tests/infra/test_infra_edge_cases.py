@@ -16,7 +16,7 @@ from src.services.storage import StorageError, StorageService
 
 
 def test_stream_redactor_small_chunks():
-    """AC-ledger.12.5 - Stream redactor accumulates small chunks in buffer"""
+    """AC2.12.5 - Stream redactor accumulates small chunks in buffer"""
     redactor = StreamRedactor(tail_size=10)
 
     result1 = redactor.process("Hello")
@@ -27,14 +27,14 @@ def test_stream_redactor_small_chunks():
 
 
 def test_stream_redactor_flush_empty():
-    """AC-ledger.12.5 - Stream redactor flush on empty buffer returns empty string"""
+    """AC2.12.5 - Stream redactor flush on empty buffer returns empty string"""
     redactor = StreamRedactor(tail_size=10)
     result = redactor.flush()
     assert result == ""
 
 
 def test_storage_service_bucket_already_checked():
-    """AC-ledger.11.4 - Storage service skips bucket check if already verified"""
+    """Storage service skips bucket check if already verified."""
     service = StorageService(bucket="test-bucket")
     service._checked_buckets.add(service.bucket)
 
@@ -44,7 +44,7 @@ def test_storage_service_bucket_already_checked():
 
 
 def test_storage_service_get_object_client_error():
-    """AC-ledger.11.4 - Storage service get_object raises StorageError on ClientError"""
+    """Storage service get_object raises StorageError on ClientError."""
     service = StorageService(bucket="test-bucket")
     service._checked_buckets.add(service.bucket)
 
@@ -58,7 +58,7 @@ def test_storage_service_get_object_client_error():
 
 
 def test_storage_service_get_object_success():
-    """AC-ledger.11.4 - Storage service get_object returns bytes on success"""
+    """Storage service get_object returns bytes on success."""
     service = StorageService(bucket="test-bucket")
     service._checked_buckets.add(service.bucket)
 

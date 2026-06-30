@@ -104,7 +104,7 @@ async def approved_statement(db, user_id):
 
 class TestDetectDuplicates:
     async def test_detect_duplicates(self, db, user_id, approved_statement):
-        """AC-ledger.1.1 AC16.2.1 Detect duplicate transactions for a user."""
+        """AC16.2.1 Detect duplicate transactions for a user."""
         await _add_txn(
             db,
             user_id,
@@ -130,7 +130,7 @@ class TestDetectDuplicates:
 
 class TestDetectTransferPairs:
     async def test_detect_transfer_pairs(self, db, user_id):
-        """AC-ledger.2.1 AC16.2.2 Detect matching transfer pairs (OUT/IN)."""
+        """AC16.2.2 Detect matching transfer pairs (OUT/IN)."""
         txn_out = await _add_txn(
             db,
             user_id,
@@ -156,7 +156,7 @@ class TestDetectTransferPairs:
 
 class TestDetectAnomalies:
     async def test_detect_large_amount(self, db, user_id, approved_statement):
-        """AC-ledger.3.1 Detect large transaction amount anomalies."""
+        """Detect large transaction amount anomalies."""
         for i in range(10):
             await _add_txn(
                 db,
@@ -185,7 +185,7 @@ class TestDetectAnomalies:
 
 class TestResolveCheck:
     async def test_resolve_check(self, db, user_id):
-        """AC-ledger.4.1 Resolve a consistency check and update status."""
+        """Resolve a consistency check and update status."""
         check = ConsistencyCheck(
             id=uuid4(),
             user_id=user_id,
@@ -209,7 +209,7 @@ class TestResolveCheck:
 
 class TestRunAllConsistencyChecks:
     async def test_run_all_aggregates_results(self, db, user_id, approved_statement):
-        """AC-ledger.5.1 run_all_consistency_checks aggregates results from all detectors."""
+        """run_all_consistency_checks aggregates results from all detectors."""
         await _add_txn(
             db,
             user_id,
@@ -234,7 +234,7 @@ class TestRunAllConsistencyChecks:
         assert CheckType.DUPLICATE in types
 
     async def test_run_all_empty_statement(self, db, user_id, approved_statement):
-        """AC-ledger.5.2 run_all_consistency_checks returns empty for clean statement."""
+        """run_all_consistency_checks returns empty for clean statement."""
         # No transactions -> no checks
         checks = await run_all_consistency_checks(db, user_id, approved_statement.id)
         assert checks == []
@@ -242,7 +242,7 @@ class TestRunAllConsistencyChecks:
 
 class TestGetPendingChecks:
     async def test_get_pending_returns_only_pending(self, db, user_id):
-        """AC-ledger.6.1 get_pending_checks returns only PENDING checks."""
+        """get_pending_checks returns only PENDING checks."""
         pending = ConsistencyCheck(
             id=uuid4(),
             user_id=user_id,
@@ -268,7 +268,7 @@ class TestGetPendingChecks:
         assert result[0].status == CheckStatus.PENDING
 
     async def test_get_pending_filters_by_type(self, db, user_id):
-        """AC-ledger.6.2 get_pending_checks filters by check_type."""
+        """get_pending_checks filters by check_type."""
         dup = ConsistencyCheck(
             id=uuid4(),
             user_id=user_id,
@@ -293,7 +293,7 @@ class TestGetPendingChecks:
         assert result[0].check_type == CheckType.DUPLICATE
 
     async def test_get_pending_empty(self, db, user_id):
-        """AC-ledger.6.3 get_pending_checks returns empty when no pending checks."""
+        """get_pending_checks returns empty when no pending checks."""
         result = await get_pending_checks(db, user_id)
         assert result == []
 

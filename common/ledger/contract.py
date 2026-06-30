@@ -975,20 +975,6 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
-            id="AC-ledger.12.5",
-            statement=(
-                "The stream redactor accumulates small chunks in its buffer "
-                "(multi-currency ledger-integrity edge support). Was EPIC-002 "
-                "AC2.12.5."
-            ),
-            test=(
-                "apps/backend/tests/infra/test_infra_edge_cases.py"
-                "::test_stream_redactor_small_chunks"
-            ),
-            priority="P1",
-            status="done",
-        ),
-        ACRecord(
             id="AC-ledger.12.6",
             statement=(
                 "Statement validation rejects invalid statement balance and "

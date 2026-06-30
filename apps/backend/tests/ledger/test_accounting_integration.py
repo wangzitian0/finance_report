@@ -702,7 +702,7 @@ async def test_create_journal_entry_default_currency_sgd(db: AsyncSession, bank_
 async def test_create_journal_entry_default_currency_uses_configured_base_currency(
     db: AsyncSession, bank_account, salary_account, test_user_id, monkeypatch: pytest.MonkeyPatch
 ):
-    """AC-ledger.2.2: Missing line currency defaults to the configured base currency."""
+    """AC-ledger.2.7: Missing line currency defaults to the configured base currency."""
     monkeypatch.setattr(settings, "base_currency", "usd")
     lines_data = [
         {"account_id": bank_account.id, "direction": Direction.DEBIT, "amount": Decimal("500.00")},
