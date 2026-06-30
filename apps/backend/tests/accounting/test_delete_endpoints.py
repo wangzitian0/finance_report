@@ -1,11 +1,11 @@
 """AC2.10: DELETE endpoint coverage for accounting resources.
 
 These tests cover API endpoint checklist from EPIC-002:
- AC2.10.1: DELETE /accounts/{id} success
- AC2.10.2: DELETE /accounts/{id} fails with transactions (FK constraint)
- AC2.10.3: DELETE /journal-entries/{id} success for DRAFT
- AC2.10.4: DELETE /journal-entries/{id} fails for POSTED
- AC2.10.5: DELETE /statements/{id} success
+ AC-ledger.10.1: DELETE /accounts/{id} success
+ AC-ledger.10.2: DELETE /accounts/{id} fails with transactions (FK constraint)
+ AC-ledger.10.3: DELETE /journal-entries/{id} success for DRAFT
+ AC-ledger.10.4: DELETE /journal-entries/{id} fails for POSTED
+ AC-ledger.10.5: DELETE /statements/{id} success
 """
 
 from datetime import date

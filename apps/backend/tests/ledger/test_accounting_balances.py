@@ -1,4 +1,4 @@
-"""AC2.4.1 AC2.4.2 AC2.4.3 AC2.4.4 AC2.4.5 AC2.4.6: Account Balance Calculation Tests
+"""AC-ledger.4.1 AC-ledger.4.2 AC-ledger.4.3 AC-ledger.4.4 AC-ledger.4.5 AC-ledger.4.6: Account Balance Calculation Tests
 
 These tests validate account balance calculation across multiple account types (asset, income, expense)
 with proper handling of journal entries and ledger aggregation.

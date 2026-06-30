@@ -1,4 +1,4 @@
-"""AC2.9.1 AC2.9.2 AC2.9.3 AC2.9.4: Data Model Schema Validation Tests
+"""AC-ledger.9.1 AC-ledger.9.2 AC-ledger.9.3 AC-ledger.9.4: Data Model Schema Validation Tests
 
 These tests validate Pydantic schemas for accounts and journal entries,
 including account creation rules, journal line validation, currency rules,

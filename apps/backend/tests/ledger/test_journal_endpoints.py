@@ -1,4 +1,4 @@
-"""AC2.10.1 - AC2.10.1: Journal Entry API Endpoint Tests
+"""AC-ledger.10.1 - AC-ledger.10.1: Journal Entry API Endpoint Tests
 
 These tests validate journal entry API endpoints including CRUD operations,
 filtering, status checks, posting, and voiding.
@@ -20,7 +20,7 @@ async def _create_account(client: AsyncClient, name: str, account_type: str) -> 
 
 
 async def test_journal_entry_endpoints(client: AsyncClient) -> None:
-    """AC2.10.1: Journal entry API endpoints
+    """AC-ledger.10.1: Journal entry API endpoints
 
     GIVEN authenticated user
     WHEN interacting with journal entry API

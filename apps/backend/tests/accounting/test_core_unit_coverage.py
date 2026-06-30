@@ -36,7 +36,7 @@ class TestReportingHelpers:
         assert income_bucket("grocery refund") is None
 
     def test_quantize_money_coerces_int(self):
-        """AC2.8.1: canonical money rounding accepts int and quantizes to 2dp."""
+        """Canonical money rounding accepts int and quantizes to 2dp."""
         result = _quantize_money(5)
         assert result == Decimal("5.00")
 
@@ -62,7 +62,7 @@ class TestReportingHelpers:
 
 
 class TestJournalEntrySchema:
-    """AC2.8.1: multi-currency journal balance validation via fx_rate."""
+    """Multi-currency journal balance validation via fx_rate."""
 
     def test_cross_currency_entry_balances_via_fx_rate(self):
         """A base-currency debit balances a foreign credit only via fx_rate conversion.

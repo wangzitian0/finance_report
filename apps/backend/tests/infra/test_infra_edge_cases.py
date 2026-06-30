@@ -34,7 +34,7 @@ def test_stream_redactor_flush_empty():
 
 
 def test_storage_service_bucket_already_checked():
-    """AC2.11.4 - Storage service skips bucket check if already verified"""
+    """Storage service skips bucket check if already verified."""
     service = StorageService(bucket="test-bucket")
     service._checked_buckets.add(service.bucket)
 
@@ -44,7 +44,7 @@ def test_storage_service_bucket_already_checked():
 
 
 def test_storage_service_get_object_client_error():
-    """AC2.11.4 - Storage service get_object raises StorageError on ClientError"""
+    """Storage service get_object raises StorageError on ClientError."""
     service = StorageService(bucket="test-bucket")
     service._checked_buckets.add(service.bucket)
 
@@ -58,7 +58,7 @@ def test_storage_service_get_object_client_error():
 
 
 def test_storage_service_get_object_success():
-    """AC2.11.4 - Storage service get_object returns bytes on success"""
+    """Storage service get_object returns bytes on success."""
     service = StorageService(bucket="test-bucket")
     service._checked_buckets.add(service.bucket)
 

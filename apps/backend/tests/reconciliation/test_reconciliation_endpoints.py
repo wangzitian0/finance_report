@@ -1,4 +1,4 @@
-"""AC2.10.1 - AC2.10.1: Reconciliation API Endpoint Tests
+"""AC4.3.1, AC4.3.8: Reconciliation API Endpoint Tests
 
 These tests validate reconciliation API endpoints including running reconciliation,
 pending review queue, accepting/rejecting matches, batch operations,

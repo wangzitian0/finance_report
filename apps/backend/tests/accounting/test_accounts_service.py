@@ -1,12 +1,12 @@
 """AC2.1: Account router direct function tests.
 
 These tests cover account service layer operations from EPIC-002:
- AC2.1.1: Account creation with balance
- AC2.1.2: Account listing with/without balance
- AC2.1.3: Account filtering by type and status
- AC2.1.4: Account fetching by ID
- AC2.1.5: Account update (name, code, description, is_active)
- AC2.1.6: Error handling for non-existent accounts
+ AC-ledger.1.1: Account creation with balance
+ AC-ledger.1.2: Account listing with/without balance
+ AC-ledger.1.3: Account filtering by type and status
+ AC-ledger.1.4: Account fetching by ID
+ AC-ledger.1.5: Account update (name, code, description, is_active)
+ AC-ledger.1.6: Error handling for non-existent accounts
 """
 
 from uuid import uuid4

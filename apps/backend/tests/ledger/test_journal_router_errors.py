@@ -1,4 +1,4 @@
-"""AC2.7.2 - AC2.7.2: Journal Router Error Handling Tests
+"""AC-ledger.7.2 - AC-ledger.7.2: Journal Router Error Handling Tests
 
 These tests validate journal router error handling for various scenarios including
 validation errors, posting restrictions, voiding constraints, and deletion protection.

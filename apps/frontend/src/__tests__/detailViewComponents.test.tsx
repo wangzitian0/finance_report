@@ -134,7 +134,7 @@ describe("JournalEntryDetailsModal", () => {
     expect(within(creditCard).getByText("CREDIT")).toBeInTheDocument()
   })
 
-  it("AC2.12.1 journal entry details display FX-converted base amounts", () => {
+  it("AC-ledger.12.1 journal entry details display FX-converted base amounts", () => {
     const lines: JournalLine[] = [
       { id: "line-usd", account_id: "assets:usd", direction: "DEBIT", amount: "100", currency: "USD", fx_rate: "1.35" },
       { id: "line-missing-fx", account_id: "income:fx", direction: "CREDIT", amount: "100", currency: "USD" },
