@@ -39,4 +39,11 @@ describe("next.config redirects (EPIC-022 route alignment)", () => {
     const map = await redirectMap();
     expect(map.get("/review")).toBe("/notifications");
   });
+
+  it("AC22.21.4 redirects the legacy settings pages to the merged tabbed /settings", async () => {
+    const map = await redirectMap();
+    expect(map.get("/settings/general")).toBe("/settings?tab=general");
+    expect(map.get("/settings/ai")).toBe("/settings?tab=ai");
+    expect(map.get("/settings/llm")).toBe("/settings?tab=llm");
+  });
 });
