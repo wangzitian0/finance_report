@@ -82,15 +82,15 @@ def test_strict_mode_fully_redacts_descriptions_for_real_statements() -> None:
         {
             "institution": "DBS Bank",
             "transactions": [
-                {"description": "FROM: WANG ZITIAN PAYNOW", "amount": "190.00", "direction": "IN", "balance_after": "42869.09"}
+                {"description": "FROM: JOHN DOE PAYNOW", "amount": "190.00", "direction": "IN", "balance_after": "42869.09"}
             ],
             "positions": [{"symbol": "AAPL", "quantity": "10", "market_value": "1900.25"}],
         },
         strict=True,
     )
     txn = masked["transactions"][0]
-    assert txn["description"] == "**"  # fully redacted (not "FRO***NOW")
-    assert "WANG" not in str(masked)
+    assert txn["description"] == "**"  # fully redacted (not "FRO***DOE")
+    assert "DOE" not in str(masked)
     assert txn["amount"] == "190.00" and txn["balance_after"] == "42869.09"  # flow kept
     assert masked["positions"][0]["symbol"] == "AAPL"  # public symbol kept
     assert masked["institution"] == "DBS Bank"  # institution name not PII
