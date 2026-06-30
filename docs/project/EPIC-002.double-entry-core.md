@@ -106,9 +106,23 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 > the AC2.13–AC2.23 range stay defined below, because they are not ledger ACs: the
 > frontend UI ACs `AC2.15.8` / `AC2.16.3` / `AC2.17.1` (the ledger package is
 > `fe=None`), the reporting-layer tier-degrade `AC2.16.4`, the cross-EPIC
-> framework-boundary doc-contract `AC2.18.1`, and the whole Money value-type
-> extension `AC2.19.*`–`AC2.23.*` (owned by the `money` kernel). Slice 3c-iii is
-> the final AC batch of the #1420 cutover.
+> framework-boundary doc-contract `AC2.18.1`, and the Money value-type extension
+> `AC2.19.*`–`AC2.22.*` (owned by the `money` kernel). Slice 3c-iii is the final AC
+> batch of the #1420 cutover.
+>
+> The two Money *leftovers* whose anchor test proves a money-package statement — the
+> net-worth restatement via the `convert` primitive and the narrow-waist `float`-ban
+> guard — have since migrated into the `money` package roadmap, owned by and sourced
+> from [`common/money/contract.py`](../../common/money/contract.py); their EPIC-002
+> table rows are deleted.
+>
+> **Money leftovers** (net-worth restatement + narrow-waist `float`-ban guard, was
+> AC2.22.* / AC2.23.*): `AC-money.22.3` · `AC-money.23.1`
+> *(AC2.22.3 and AC2.23.1 removed — canonical copies are the two `AC-money.*` ids above)*
+>
+> The pure value-type ACs `AC2.19.*` / `AC2.20.*` / `AC2.21.*` (and `AC2.22.1` /
+> `AC2.22.2` / `AC2.22.4`) stay defined below — they anchor the money contract's
+> `invariants[].test` proof edges, so re-homing them is a separate cutover.
 >
 > **Account management** (was AC2.1.*):
 > `AC-ledger.1.1` · `AC-ledger.1.2` · `AC-ledger.1.3` · `AC-ledger.1.4` · `AC-ledger.1.5` · `AC-ledger.1.6`
@@ -463,8 +477,12 @@ and there is no regression on currencies outside the active ISO set.
 |----|-----------|---------------|------|----------|
 | AC2.22.1 | `StatementSummary.typed_currency_balances()` reads the per-currency JSONB as a typed `CurrencyBalances` (no scalar collapse) | `test_AC2_22_1_statement_summary_typed_currency_balances` | `apps/backend/tests/money/test_money_backend_module.py` | P1 |
 | AC2.22.2 | Reconciliation per-currency balance check routes through same-currency `Money`; per-currency totals are byte-identical to the legacy arithmetic (incl. `"*"`/non-ISO fallback) | `test_AC2_22_2_per_currency_validation_totals_unchanged` (+ `balance_check`) | `apps/backend/tests/money/test_money_adopt.py` | P0 |
-| AC2.22.3 | Reporting net-worth restatement routes through the `convert` primitive (`restate`/`restate_unrounded`); restated totals are byte-identical to `to_money(amount*rate)` / `amount*rate` | `test_AC2_22_3_restate_is_byte_identical` (+ `restate_unrounded`) | `apps/backend/tests/money/test_money_adopt.py` | P0 |
 | AC2.22.4 | `TransferLeg.money` exposes a leg's value as a typed `Money` (same-currency-only combination) | `test_AC2_22_4_transfer_leg_exposes_typed_money` | `apps/backend/tests/money/test_money_backend_module.py` | P1 |
+
+> **Migrated**: net-worth restatement via the `convert` primitive moved to the `money`
+> package roadmap — its proof is a money-package statement. Owned by, and sourced from,
+> [`common/money/contract.py`](../../common/money/contract.py)'s `roadmap`.
+> *(AC2.22.3 removed — canonical copy is `AC-money.22.3` in `common/money/contract.py`)*
 
 > The L2/L3 *score-baseline* promotion of the money invariants stays in #1103.
 > The existing reporting net-worth E2E tests (internal-transfer fee / FX ledger)
@@ -476,9 +494,10 @@ A CI guard keeps the money standard from eroding: the money modules stay
 `float`-free and every stack keeps a conformance suite, so the cross-language
 narrow waist cannot silently decay back into ad-hoc money handling.
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC2.23.1 | The guard flags a money-shaped `float` violation on an injected sample and reports none on the real money modules; each stack (Python reference, shipped backend, frontend) keeps a conformance suite | `test_AC2_23_1_guard_flags_injected_float_violation` (+ siblings) | `tests/tooling/test_money_narrow_waist_guard.py` | P0 |
+> **Migrated**: the narrow-waist `float`-ban guard over the money modules moved to the
+> `money` package roadmap — its proof is a money-package statement. Owned by, and
+> sourced from, [`common/money/contract.py`](../../common/money/contract.py)'s `roadmap`.
+> *(AC2.23.1 removed — canonical copy is `AC-money.23.1` in `common/money/contract.py`)*
 
 ---
 

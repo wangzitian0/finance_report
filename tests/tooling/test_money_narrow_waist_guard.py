@@ -1,4 +1,5 @@
-"""Narrow-waist guard gate (EPIC-002 AC2.23, #1167 / #1172).
+"""Narrow-waist guard gate (AC-money.23.1, migrated from EPIC-002 AC2.23.1 into the
+money package roadmap; #1167 / #1172).
 
 Locks the money standard against erosion: the money modules stay float-free and
 every stack keeps a conformance suite. The hard test proves the guard actually
@@ -36,12 +37,12 @@ async def worse(*args: float, **kwargs: float) -> float:  # async + *args/**kwar
 
 @ac_proof(
     proof_id="test_money_guard_flags_injected_violation",
-    ac_ids=["AC2.23.1"],
+    ac_ids=["AC-money.23.1"],
     ci_tier="pr_ci",
     issue="#1172",
 )
 def test_AC2_23_1_guard_flags_injected_float_violation():
-    """AC2.23.1: the guard reports money-shaped float on a violation, none on clean."""
+    """AC-money.23.1: the guard reports money-shaped float on a violation, none on clean."""
     hits = scan_text_for_float(_VIOLATION_SNIPPET)
     assert hits, "guard must flag a money-shaped float violation"
     assert any("cast" in h for h in hits)
@@ -52,34 +53,34 @@ def test_AC2_23_1_guard_flags_injected_float_violation():
 
 @ac_proof(
     proof_id="test_money_modules_are_float_free",
-    ac_ids=["AC2.23.1"],
+    ac_ids=["AC-money.23.1"],
     ci_tier="pr_ci",
     issue="#1172",
 )
 def test_AC2_23_1_money_modules_are_float_free():
-    """AC2.23.1: the real money modules contain no float in money type positions."""
+    """AC-money.23.1: the real money modules contain no float in money type positions."""
     assert float_violations() == []
 
 
 @ac_proof(
     proof_id="test_money_conformance_suite_per_stack",
-    ac_ids=["AC2.23.1"],
+    ac_ids=["AC-money.23.1"],
     ci_tier="pr_ci",
     issue="#1172",
 )
 def test_AC2_23_1_conformance_suite_present_in_every_stack():
-    """AC2.23.1: each stack keeps a conformance suite so the ends cannot drift."""
+    """AC-money.23.1: each stack keeps a conformance suite so the ends cannot drift."""
     assert missing_conformance_suites() == []
 
 
 @ac_proof(
     proof_id="test_money_guard_reports_violation_with_path",
-    ac_ids=["AC2.23.1"],
+    ac_ids=["AC-money.23.1"],
     ci_tier="pr_ci",
     issue="#1172",
 )
 def test_AC2_23_1_float_violations_reports_offending_path(tmp_path: Path):
-    """AC2.23.1: float_violations surfaces an offending money-module file by path."""
+    """AC-money.23.1: float_violations surfaces an offending money-module file by path."""
     money_dir = tmp_path / "common" / "money"
     money_dir.mkdir(parents=True)
     (money_dir / "bad.py").write_text("def f(x: float) -> None:\n    return None\n")
