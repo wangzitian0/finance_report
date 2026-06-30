@@ -2,63 +2,37 @@
 
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
+import { LogIn, LogOut, Zap } from "lucide-react";
+
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { clearUser, getUserEmail, isAuthenticated } from "@/lib/auth";
-import { fetchWorkflowStatus } from "@/lib/api";
-import { advancedNavItems, primaryWorkflowNavItems, type NavItem } from "@/components/navigation";
-import { useState, useEffect } from "react";
-import { ChevronDown, FolderOpen, LogIn, LogOut, Zap } from "lucide-react";
+import { ADD_ACTION, bottomTabItems, type NavItem } from "@/components/navigation";
+import AddSheet from "@/components/shell/AddSheet";
 
 // Hide dev routes in production
 const IS_DEV = process.env.NODE_ENV === "development";
 
+function isActive(pathname: string, href: string): boolean {
+    if (href === "/") return pathname === "/";
+    return pathname === href || pathname.startsWith(href + "/");
+}
+
+// EPIC-022 AC22.21.2: the desktop sidebar mirrors the mobile bottom tab bar —
+// Home, Chat, a center-equivalent Add action, Audit, and More — so there is one
+// IA in two form factors.
 export function Sidebar() {
     const pathname = usePathname();
     const router = useRouter();
     const { isCollapsed, toggleSidebar } = useWorkspace();
     const [userEmail, setUserEmail] = useState<string | null>(null);
     const [isAuth, setIsAuth] = useState(false);
-    const [advancedAttentionCount, setAdvancedAttentionCount] = useState(0);
-    const [isAdvancedOpen, setIsAdvancedOpen] = useState(() =>
-        advancedNavItems.some((item) => pathname === item.href || pathname.startsWith(item.href + "/")),
-    );
+    const [addOpen, setAddOpen] = useState(false);
 
     useEffect(() => {
         setUserEmail(getUserEmail());
         setIsAuth(isAuthenticated());
-    }, [pathname]);
-
-    useEffect(() => {
-        if (!isAuth) {
-            setAdvancedAttentionCount(0);
-            return;
-        }
-
-        const fetchWorkflowAttention = async () => {
-            try {
-                const status = await fetchWorkflowStatus();
-                const attentionCount = status.event_counts.blocked + status.event_counts.action_required;
-                setAdvancedAttentionCount(attentionCount);
-            } catch {
-                setAdvancedAttentionCount(0);
-            }
-        };
-
-        void fetchWorkflowAttention();
-        const refreshInterval = window.setInterval(fetchWorkflowAttention, 30000);
-        window.addEventListener("focus", fetchWorkflowAttention);
-
-        return () => {
-            window.clearInterval(refreshInterval);
-            window.removeEventListener("focus", fetchWorkflowAttention);
-        };
-    }, [isAuth]);
-
-    useEffect(() => {
-        if (advancedNavItems.some((item) => pathname === item.href || pathname.startsWith(item.href + "/"))) {
-            setIsAdvancedOpen(true);
-        }
     }, [pathname]);
 
     const handleLogout = () => {
@@ -66,51 +40,35 @@ export function Sidebar() {
         router.push("/login");
     };
 
-    const renderNavLink = (item: NavItem, badgeCount = 0, inset = false) => {
-        const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-        const IconComponent = item.icon;
-        const label = badgeCount > 0 ? `${item.label} ${badgeCount}` : item.label;
+    const [home, chat, audit, more] = bottomTabItems;
+    const AddIcon = ADD_ACTION.icon;
+    const visibleTabs: NavItem[] = isAuth ? [home, chat, audit, more] : [home];
 
+    const renderNavLink = (item: NavItem) => {
+        const active = isActive(pathname, item.href);
+        const Icon = item.icon;
         return (
             <Link
                 key={item.href}
                 href={item.href}
                 className={`
-                    relative flex items-center gap-2.5 rounded-md min-h-[44px]
+                    relative flex items-center gap-2.5 rounded-md min-h-[44px] px-2.5 py-3
                     transition-colors text-sm
-                    ${inset ? "px-2.5 py-2.5" : "px-2.5 py-3"}
-                    ${isActive
+                    ${active
                         ? "bg-[var(--accent-muted)] text-[var(--accent)]"
                         : "text-muted hover:bg-[var(--background-muted)] hover:text-[var(--foreground)]"
                     }
                     ${isCollapsed ? "justify-center" : ""}
                 `}
-                title={isCollapsed ? label : undefined}
-                aria-label={isCollapsed ? label : undefined}
+                title={isCollapsed ? item.label : undefined}
+                aria-label={isCollapsed ? item.label : undefined}
+                aria-current={active ? "page" : undefined}
             >
-                <span className="relative flex h-5 w-5 flex-shrink-0 items-center justify-center">
-                    <IconComponent className="w-5 h-5" aria-hidden="true" />
-                    {isCollapsed && badgeCount > 0 && (
-                        <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-[var(--warning)] ring-2 ring-[var(--background-card)]" />
-                    )}
-                </span>
-                {!isCollapsed && (
-                    <>
-                        <span className="font-medium">{item.label}</span>
-                        {badgeCount > 0 && (
-                            <span className="ml-auto inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-[var(--warning)] px-1.5 py-0.5 text-xs font-semibold text-white">
-                                {badgeCount > 99 ? "99+" : badgeCount}
-                            </span>
-                        )}
-                    </>
-                )}
+                <Icon className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
+                {!isCollapsed && <span className="font-medium">{item.label}</span>}
             </Link>
         );
     };
-
-    const visiblePrimaryItems = primaryWorkflowNavItems.filter(item => isAuth || !item.protected);
-    const visibleAdvancedItems = advancedNavItems.filter(item => isAuth || !item.protected);
-    const isAdvancedActive = visibleAdvancedItems.some((item) => pathname === item.href || pathname.startsWith(item.href + "/"));
 
     return (
         <aside
@@ -153,69 +111,40 @@ export function Sidebar() {
                 </div>
             </div>
 
-            {/* Navigation */}
+            {/* Navigation — mirrors the bottom tab bar: Home, Chat, Add, Audit, More */}
             <nav className="p-2 space-y-0.5" aria-label="Sidebar navigation">
-                {visiblePrimaryItems.map((item) => renderNavLink(item))}
-
-                {visibleAdvancedItems.length > 0 && (
-                    <div className="pt-1">
-                        <button
-                            type="button"
-                            onClick={() => setIsAdvancedOpen((open) => !open)}
-                            className={`
-                                relative flex w-full items-center gap-2.5 rounded-md px-2.5 py-3 min-h-[44px]
-                                text-sm transition-colors
-                                ${isAdvancedActive
-                                    ? "bg-[var(--accent-muted)] text-[var(--accent)]"
-                                    : "text-muted hover:bg-[var(--background-muted)] hover:text-[var(--foreground)]"
-                                }
-                                ${isCollapsed ? "justify-center" : ""}
-                            `}
-                            title={isCollapsed ? `Advanced${advancedAttentionCount > 0 ? ` ${advancedAttentionCount}` : ""}` : undefined}
-                            aria-label={`Advanced${advancedAttentionCount > 0 ? ` ${advancedAttentionCount}` : ""}`}
-                            aria-expanded={isAdvancedOpen}
-                        >
-                            <span className="relative flex h-5 w-5 flex-shrink-0 items-center justify-center">
-                                <FolderOpen className="w-5 h-5" aria-hidden="true" />
-                                {isCollapsed && advancedAttentionCount > 0 && (
-                                    <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-[var(--warning)] ring-2 ring-[var(--background-card)]" />
-                                )}
-                            </span>
-                            {!isCollapsed && (
-                                <>
-                                    <span className="font-medium">Advanced</span>
-                                    {advancedAttentionCount > 0 && (
-                                        <span className="ml-auto inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-[var(--warning)] px-1.5 py-0.5 text-xs font-semibold text-white">
-                                            {advancedAttentionCount > 99 ? "99+" : advancedAttentionCount}
-                                        </span>
-                                    )}
-                                    <ChevronDown
-                                        className={`h-4 w-4 transition-transform ${isAdvancedOpen ? "rotate-180" : ""}`}
-                                        aria-hidden="true"
-                                    />
-                                </>
-                            )}
-                        </button>
-
-                        {isAdvancedOpen && (
-                            <div className={`mt-1 space-y-0.5 ${isCollapsed ? "" : "pl-3"}`}>
-                                {visibleAdvancedItems.map((item) => renderNavLink(item, 0, true))}
-                            </div>
-                        )}
-                    </div>
+                {renderNavLink(home)}
+                {isAuth && renderNavLink(chat)}
+                {isAuth && (
+                    <button
+                        type="button"
+                        onClick={() => setAddOpen(true)}
+                        className={`
+                            relative flex w-full items-center gap-2.5 rounded-md min-h-[44px] px-2.5 py-3
+                            text-sm font-medium text-[var(--accent)] hover:bg-[var(--accent-muted)] transition-colors
+                            ${isCollapsed ? "justify-center" : ""}
+                        `}
+                        title={isCollapsed ? ADD_ACTION.label : undefined}
+                        aria-label={ADD_ACTION.label}
+                    >
+                        <AddIcon className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
+                        {!isCollapsed && <span>{ADD_ACTION.label}</span>}
+                    </button>
                 )}
+                {isAuth && renderNavLink(audit)}
+                {isAuth && renderNavLink(more)}
+                {/* visibleTabs retained for parity with the bottom bar's auth gating */}
+                <span className="sr-only">{visibleTabs.length} navigation targets</span>
             </nav>
 
             {/* Bottom Section */}
             <div className="absolute bottom-0 left-0 right-0 p-2 border-t border-[var(--border)] space-y-1">
-                {/* User Email */}
                 {!isCollapsed && userEmail && (
                     <div className="px-2.5 py-1.5 text-xs text-[var(--foreground-muted)] truncate">
                         {userEmail}
                     </div>
                 )}
 
-                {/* Dev-only: Ping-Pong connectivity test */}
                 {IS_DEV && (
                     <Link
                         href="/ping-pong"
@@ -233,7 +162,6 @@ export function Sidebar() {
                     </Link>
                 )}
 
-                {/* Logout Button */}
                 {isAuth && (
                     <button
                         onClick={handleLogout}
@@ -251,7 +179,6 @@ export function Sidebar() {
                     </button>
                 )}
 
-                {/* Login Link (if not auth) */}
                 {!isAuth && (
                     <Link
                         href="/login"
@@ -269,6 +196,8 @@ export function Sidebar() {
                     </Link>
                 )}
             </div>
+
+            <AddSheet isOpen={addOpen} onClose={() => setAddOpen(false)} onUploadComplete={() => router.refresh()} />
         </aside>
     );
 }

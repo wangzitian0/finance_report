@@ -1,10 +1,11 @@
 "use client";
 
 import { ReactNode } from "react";
+import Link from "next/link";
 import { WorkspaceProvider, useWorkspace } from "@/hooks/useWorkspace";
 import { useSessionBootstrap } from "@/hooks/useSessionBootstrap";
 import { Sidebar } from "@/components/Sidebar";
-import { MobileNav } from "@/components/MobileNav";
+import { BottomTabBar } from "@/components/shell/BottomTabBar";
 import { InstallAppPrompt } from "@/components/pwa/InstallAppPrompt";
 import { WorkspaceTabs } from "@/components/WorkspaceTabs";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -38,7 +39,15 @@ function AppShellContent({ children }: AppShellProps) {
                 }`}
             >
                 <div className="flex min-w-0 items-center border-b border-border bg-surface-card print:hidden">
-                    <MobileNav />
+                    <Link
+                        href="/"
+                        className="flex items-center gap-2 px-3 py-2 md:hidden"
+                        aria-label="Finance Report home"
+                    >
+                        <span className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--accent)] text-sm font-bold text-white">
+                            $
+                        </span>
+                    </Link>
                     <div className="hidden md:block min-w-0 flex-1">
                         <WorkspaceTabs />
                     </div>
@@ -46,10 +55,19 @@ function AppShellContent({ children }: AppShellProps) {
                 </div>
                 <InstallAppPrompt />
 
-                <main id="main-content" tabIndex={-1} className="min-h-[calc(100vh-4rem)]">
+                {/* Bottom padding on mobile so the fixed bottom tab bar never
+                    covers page content. */}
+                <main
+                    id="main-content"
+                    tabIndex={-1}
+                    className="min-h-[calc(100vh-4rem)] pb-20 md:pb-0"
+                >
                     {children}
                 </main>
             </div>
+
+            {/* EPIC-022 AC22.21.2: mobile/PWA-first bottom tab bar. */}
+            <BottomTabBar />
 
             {/* First-run LLM provider prompt (EPIC-023 PR4): app-wide so it
                 surfaces wherever the user lands while unconfigured. */}
