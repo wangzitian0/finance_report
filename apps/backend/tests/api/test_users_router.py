@@ -56,7 +56,7 @@ async def test_delete_user_with_immutable_entries_returns_409(
     client: AsyncClient,
     test_user: User,
 ) -> None:
-    """AC2.14.6: when the cascade is blocked by the ledger immutability invariant
+    """AC-ledger.14.6: when the cascade is blocked by the ledger immutability invariant
     (posted/reconciled entries), account deletion returns a clean 409, not a leaked 500.
 
     The invariant is a DB trigger present only on the migrated database, not the

@@ -146,7 +146,7 @@ async def post_opening_balance_entry(
 
 
 async def get_opening_balance_readiness(db: AsyncSession, user_id: UUID) -> dict:
-    """Detect whether a user's balance sheet may be silently incomplete (#949 / AC2.16.1).
+    """Detect whether a user's balance sheet may be silently incomplete (#949 / AC-ledger.16.1).
 
     The everyday-user persona who already owns assets/liabilities on day one will,
     without recording opening balances, get a balance sheet that looks right but

@@ -21,7 +21,7 @@ async def _account(client: AsyncClient, name: str, account_type: str) -> str:
 async def test_AC2_15_1_opening_balances_post_balanced_and_reflect_in_balance_sheet(
     client: AsyncClient, ac_evidence
 ) -> None:
-    """AC2.15.1: a guided opening-balance request posts a balanced entry and the
+    """AC-ledger.15.1: a guided opening-balance request posts a balanced entry and the
     as-of balance sheet reflects the starting position with the equation intact."""
     bank = await _account(client, "Bank", "ASSET")
     mortgage = await _account(client, "Mortgage", "LIABILITY")
@@ -48,7 +48,7 @@ async def test_AC2_15_1_opening_balances_post_balanced_and_reflect_in_balance_sh
     # Behavioral evidence: 10000 asset offset by 5000 liability nets 5000 into equity,
     # the entry balances at 10000.00, and the equation delta is exactly 0.00.
     ac_evidence(
-        ac_id="AC2.15.1",
+        ac_id="AC-ledger.15.1",
         score=1.0,
         metric="opening_balance_golden_totals_match",
         comment="balanced 10000.00; total_assets 10000.00, total_equity 5000.00, equation_delta 0.00",
@@ -57,7 +57,7 @@ async def test_AC2_15_1_opening_balances_post_balanced_and_reflect_in_balance_sh
 
 
 async def test_AC2_15_2_single_asset_opening_balance_offsets_into_equity(client: AsyncClient, ac_evidence) -> None:
-    """AC2.15.2: a single asset opening balance is offset entirely into Opening
+    """AC-ledger.15.2: a single asset opening balance is offset entirely into Opening
     Balance Equity, keeping the entry balanced."""
     savings = await _account(client, "Savings", "ASSET")
     resp = await client.post(
@@ -74,7 +74,7 @@ async def test_AC2_15_2_single_asset_opening_balance_offsets_into_equity(client:
     # Behavioral evidence: a single 8000 asset is offset entirely into equity, so
     # total_assets == total_equity == 8000.00 with the equation kept intact.
     ac_evidence(
-        ac_id="AC2.15.2",
+        ac_id="AC-ledger.15.2",
         score=1.0,
         metric="single_asset_opening_offsets_into_equity",
         comment="total_assets 8000.00 == total_equity 8000.00 (single asset offset to equity)",
@@ -83,7 +83,7 @@ async def test_AC2_15_2_single_asset_opening_balance_offsets_into_equity(client:
 
 
 async def test_AC2_15_3_unknown_account_is_rejected(client: AsyncClient) -> None:
-    """AC2.15.3: an opening balance for a non-owned/unknown account is rejected."""
+    """AC-ledger.15.3: an opening balance for a non-owned/unknown account is rejected."""
     resp = await client.post(
         "/accounts/opening-balances",
         json={"entry_date": "2026-01-01", "balances": {str(uuid4()): "100.00"}},
@@ -92,7 +92,7 @@ async def test_AC2_15_3_unknown_account_is_rejected(client: AsyncClient) -> None
 
 
 async def test_AC2_15_4_opening_balance_rejected_when_prior_activity_exists(client: AsyncClient) -> None:
-    """AC2.15.4: an opening balance establishes a starting position, not a delta,
+    """AC-ledger.15.4: an opening balance establishes a starting position, not a delta,
     so it is rejected when an affected account already has posted activity before
     the opening date."""
     bank = await _account(client, "Bank", "ASSET")
@@ -110,7 +110,7 @@ async def test_AC2_15_4_opening_balance_rejected_when_prior_activity_exists(clie
 
 
 async def test_AC2_15_5_non_base_currency_is_rejected(client: AsyncClient) -> None:
-    """AC2.15.5: opening balances are accepted only in the base currency (MVP),
+    """AC-ledger.15.5: opening balances are accepted only in the base currency (MVP),
     with a clear error rather than a confusing FX-rate failure."""
     bank = await _account(client, "Bank", "ASSET")
     resp = await client.post(
@@ -121,7 +121,7 @@ async def test_AC2_15_5_non_base_currency_is_rejected(client: AsyncClient) -> No
 
 
 async def test_AC2_15_6_account_currency_mismatch_is_rejected(client: AsyncClient) -> None:
-    """AC2.15.6: an opening balance into an account whose currency differs from the
+    """AC-ledger.15.6: an opening balance into an account whose currency differs from the
     request (base) currency is rejected, so journal lines cannot be mis-stamped."""
     resp_acc = await client.post("/accounts", json={"name": "USD Bank", "type": "ASSET", "currency": "USD"})
     assert resp_acc.status_code == 201, resp_acc.text
@@ -135,7 +135,7 @@ async def test_AC2_15_6_account_currency_mismatch_is_rejected(client: AsyncClien
 
 
 async def test_AC2_15_7_system_account_target_is_rejected(client: AsyncClient, db, test_user) -> None:
-    """AC2.15.7: opening balances may only target user-managed accounts; a system
+    """AC-ledger.15.7: opening balances may only target user-managed accounts; a system
     account (e.g. Processing) cannot be set via this endpoint."""
     from src.models.account import Account, AccountType
 

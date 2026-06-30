@@ -155,21 +155,21 @@ Semantics (the contract the balance sheet relies on):
   journal entry that increases each supplied account to its opening balance on
   its normal side (assets/expenses debited, liabilities/equity/income credited).
   The net is offset into a **system Opening Balance Equity account** so the entry
-  balances and the accounting equation holds (AC2.15.1, AC2.15.2). Opening Balance
+  balances and the accounting equation holds (AC-ledger.15.1, AC-ledger.15.2). Opening Balance
   Equity surfaces inside the balance sheet's `EQUITY` section, not as an asset or
   liability.
 - **A starting position, not a delta.** An opening balance is rejected when an
   affected account already has posted activity *before* the opening date, so the
-  posted amount can never stack on top of an existing balance (AC2.15.4). It
+  posted amount can never stack on top of an existing balance (AC-ledger.15.4). It
   establishes where the account *was*, then statement imports take over.
 - **Base currency only.** Opening balances are accepted only in the report base
   currency, with a clear error instead of a confusing downstream FX-rate failure
-  (AC2.15.5); a referenced account whose currency differs from the request is
-  rejected so journal lines cannot be mis-stamped (AC2.15.6).
+  (AC-ledger.15.5); a referenced account whose currency differs from the request is
+  rejected so journal lines cannot be mis-stamped (AC-ledger.15.6).
 - **User-managed accounts only.** Even though the entry is SYSTEM-typed (it
   touches the system equity account), the request may only target user-managed
   accounts — a system account such as Processing cannot be seeded this way
-  (AC2.15.3, AC2.15.7).
+  (AC-ledger.15.3, AC-ledger.15.7).
 
 Because opening balances are ordinary posted journal entries, every downstream
 report (net-worth time-series, cash-flow opening position) reads them through the

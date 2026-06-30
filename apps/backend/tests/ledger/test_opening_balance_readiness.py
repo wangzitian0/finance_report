@@ -24,7 +24,7 @@ async def _asset(db: AsyncSession, user_id, name: str = "Bank") -> Account:
 
 
 async def test_AC2_16_1_no_activity_does_not_need_opening_balance(db: AsyncSession, test_user) -> None:
-    """AC2.16.1: a user with no posted activity is not nudged — there is nothing
+    """AC-ledger.16.1: a user with no posted activity is not nudged — there is nothing
     to be incomplete about yet."""
     readiness = await get_opening_balance_readiness(db, test_user.id)
     assert readiness["needs_opening_balance"] is False
@@ -33,7 +33,7 @@ async def test_AC2_16_1_no_activity_does_not_need_opening_balance(db: AsyncSessi
 
 
 async def test_AC2_16_1_activity_without_opening_entry_needs_opening_balance(db: AsyncSession, test_user) -> None:
-    """AC2.16.1: posted activity with no opening-balance entry flags the gap."""
+    """AC-ledger.16.1: posted activity with no opening-balance entry flags the gap."""
     await create_valid_posted_entry(db, test_user.id, entry_date=date(2026, 3, 1))
 
     readiness = await get_opening_balance_readiness(db, test_user.id)
@@ -44,7 +44,7 @@ async def test_AC2_16_1_activity_without_opening_entry_needs_opening_balance(db:
 
 
 async def test_AC2_16_1_opening_entry_before_activity_clears_the_nudge(db: AsyncSession, test_user) -> None:
-    """AC2.16.1: an opening-balance entry on/before the earliest activity clears it."""
+    """AC-ledger.16.1: an opening-balance entry on/before the earliest activity clears it."""
     asset = await _asset(db, test_user.id)
     await create_valid_posted_entry(db, test_user.id, entry_date=date(2026, 3, 1))
     await post_opening_balance_entry(
@@ -63,7 +63,7 @@ async def test_AC2_16_1_opening_entry_before_activity_clears_the_nudge(db: Async
 
 
 async def test_AC2_16_1_opening_entry_after_activity_still_needs(db: AsyncSession, test_user) -> None:
-    """AC2.16.1: an opening entry dated *after* the earliest activity leaves the
+    """AC-ledger.16.1: an opening entry dated *after* the earliest activity leaves the
     early period uncovered, so the nudge stays on."""
     asset = await _asset(db, test_user.id)
     await create_valid_posted_entry(db, test_user.id, entry_date=date(2026, 1, 1))
@@ -83,7 +83,7 @@ async def test_AC2_16_1_opening_entry_after_activity_still_needs(db: AsyncSessio
 
 
 async def test_AC2_16_2_readiness_endpoint_returns_status(client: AsyncClient) -> None:
-    """AC2.16.2: the endpoint exposes the readiness signal to the UI."""
+    """AC-ledger.16.2: the endpoint exposes the readiness signal to the UI."""
     resp = await client.get("/accounts/opening-balance-readiness")
     assert resp.status_code == 200, resp.text
     body = resp.json()

@@ -90,21 +90,25 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 
 ## 🧪 Test Cases
 
-> **The EPIC-002 double-entry backend ACs in groups AC2.1–AC2.12 are no longer
-> defined here.** They migrated into the `ledger` package (#1420 slice 3c-ii) and
-> are owned by, and sourced directly from,
+> **The EPIC-002 double-entry backend ACs in groups AC2.1–AC2.12 and the genuine
+> double-entry rows of AC2.13–AC2.16 are no longer defined here.** They migrated
+> into the `ledger` package (#1420 slices 3c-ii and 3c-iii) and are owned by, and
+> sourced directly from,
 > [`common/ledger/contract.py`](../../common/ledger/contract.py)'s `roadmap` under
 > the package-scoped numeric `AC-ledger.<group>.<seq>` id scheme (the leading "2"
 > is dropped and the sequence preserved, so `AC2.<g>.<s>` becomes
-> `AC-ledger.<g>.<s>`; groups 1–12 are this slice, 71–76 are the EPIC-015
-> processing block from slice 3c-i).
+> `AC-ledger.<g>.<s>`; groups 1–12 are slice 3c-ii, 13–16 are slice 3c-iii, and
+> 71–76 are the EPIC-015 processing block from slice 3c-i).
 > `common/ssot/generate_ac_registry.py` reads package-contract roadmaps additively,
 > so the AC index counts them without an EPIC-table mirror. This note references
 > the new ids (keeping the registry↔EPIC link intact) but defines none of them —
-> the contract is the single definition source. The remaining double-entry groups
-> AC2.13–AC2.23 (user-scoped integrity, DB invariant floor, opening balances,
-> framework boundary, and the Money value-type extension) **remain defined below**;
-> the AC2.13–AC2.23 backend core lands in slice 3c-iii.
+> the contract is the single definition source. The **non-double-entry** rows of
+> the AC2.13–AC2.23 range stay defined below, because they are not ledger ACs: the
+> frontend UI ACs `AC2.15.8` / `AC2.16.3` / `AC2.17.1` (the ledger package is
+> `fe=None`), the reporting-layer tier-degrade `AC2.16.4`, the cross-EPIC
+> framework-boundary doc-contract `AC2.18.1`, and the whole Money value-type
+> extension `AC2.19.*`–`AC2.23.*` (owned by the `money` kernel). Slice 3c-iii is
+> the final AC batch of the #1420 cutover.
 >
 > **Account management** (was AC2.1.*):
 > `AC-ledger.1.1` · `AC-ledger.1.2` · `AC-ledger.1.3` · `AC-ledger.1.4` · `AC-ledger.1.5` · `AC-ledger.1.6`
@@ -141,6 +145,18 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 >
 > **Multi-currency ledger integrity** (was AC2.12.*):
 > `AC-ledger.12.1` · `AC-ledger.12.2` · `AC-ledger.12.6`
+>
+> **User-scoped ledger integrity** (was AC2.13.*):
+> `AC-ledger.13.1` · `AC-ledger.13.2` · `AC-ledger.13.3`
+>
+> **Database ledger invariant floor** (was AC2.14.*):
+> `AC-ledger.14.1` · `AC-ledger.14.2` · `AC-ledger.14.3` · `AC-ledger.14.4` · `AC-ledger.14.5` · `AC-ledger.14.6`
+>
+> **Guided opening balances — backend** (was the AC2.15.* backend rows; the frontend `AC2.15.8` stays in EPIC-002):
+> `AC-ledger.15.1` · `AC-ledger.15.2` · `AC-ledger.15.3` · `AC-ledger.15.4` · `AC-ledger.15.5` · `AC-ledger.15.6` · `AC-ledger.15.7`
+>
+> **Opening-balance readiness — backend** (was the AC2.16.* backend detection rows; the frontend `AC2.16.3` and reporting `AC2.16.4` stay in EPIC-002):
+> `AC-ledger.16.1` · `AC-ledger.16.2`
 
 ### AC2.17: Account Management UI Responsiveness
 
@@ -169,51 +185,40 @@ pending a proper re-home to a storage/observability package.
 |----|-----------|---------------|------|----------|
 | AC2.12.5 | Stream redactor accumulates small chunks in buffer | `test_stream_redactor_small_chunks` | `infra/test_infra_edge_cases.py` | P1 |
 
-### AC2.13: User-Scoped Ledger Integrity
+> **AC2.13 (User-Scoped Ledger Integrity) and AC2.14 (Database Ledger Invariant
+> Floor)** were genuine double-entry groups and migrated wholesale into the
+> `ledger` package as `AC-ledger.13.*` and `AC-ledger.14.*` (#1420 slice 3c-iii);
+> see the disclaimer above. No EPIC-002 row remains for them.
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC2.13.1 | Manual journal creation rejects lines using another user's account | `test_AC2_13_1_create_journal_entry_rejects_cross_user_account()` | `accounting/test_accounting_integration.py` | P0 |
-| AC2.13.2 | Posting validates that every line account belongs to the entry owner | `test_AC2_13_2_post_journal_entry_rejects_cross_user_account()` | `accounting/test_accounting_integration.py` | P0 |
-| AC2.13.3 | Balance aggregation requires account and entry ownership to match | `test_AC2_13_3_balance_queries_ignore_cross_user_entry_headers()` | `accounting/test_accounting_integration.py` | P0 |
-
-### AC2.14: Database Ledger Invariant Floor
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC2.14.1 | PostgreSQL rejects posted/reconciled entries with fewer than two lines even when service validation is bypassed | `test_AC2_14_1_posted_entry_requires_two_lines_at_database_boundary()` | `accounting/test_ledger_schema_invariants.py` | P0 |
-| AC2.14.2 | PostgreSQL rejects posted/reconciled entries whose debits and credits do not balance after base-currency conversion | `test_AC2_14_2_posted_entry_must_balance_in_base_currency()` | `accounting/test_ledger_schema_invariants.py` | P0 |
-| AC2.14.3 | PostgreSQL rejects posted/reconciled non-base-currency lines without a positive FX rate | `test_AC2_14_3_non_base_posted_lines_require_positive_fx_rate()` | `accounting/test_ledger_schema_invariants.py` | P0 |
-| AC2.14.4 | PostgreSQL blocks direct update/delete of posted/reconciled entries and lines while draft entries remain editable | `test_AC2_14_4_posted_entries_and_lines_are_immutable_but_drafts_are_editable()` | `accounting/test_ledger_schema_invariants.py` | P0 |
-| AC2.14.5 | Voiding a posted entry preserves a non-null immutable reversal relationship instead of deleting or editing posted lines | `test_AC2_14_5_void_transition_requires_reversal_relationship()` | `accounting/test_ledger_schema_invariants.py` | P0 |
-| AC2.14.6 | Account deletion blocked by the immutability invariant (posted/reconciled entries) returns a clean HTTP 409, not a leaked 500 | `test_delete_user_with_immutable_entries_returns_409()` | `apps/backend/tests/api/test_users_router.py` | P1 |
-
-### AC2.15: Guided Opening Balances ([#949](https://github.com/wangzitian0/finance_report/issues/949))
+### AC2.15: Guided Opening Balances ([#949](https://github.com/wangzitian0/finance_report/issues/949)) — frontend AC only
 
 A user with pre-existing assets/liabilities can establish year-start balances via one guided request, so a cross-year balance sheet is complete from the start instead of silently omitting the opening position.
 
+> The backend opening-balance ACs in the `AC2.15.*` range (which post and validate
+> the balanced double-entry) migrated into the `ledger` package as
+> `AC-ledger.15.*` (#1420 slice 3c-iii). Only the **frontend** guided-flow AC
+> `AC2.15.8` stays here, because the ledger package is `fe=None` (the same rule
+> that kept EPIC-015's `AC15.7.*` frontend rows in their EPIC).
+
 | AC ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC2.15.1 | `POST /api/accounts/opening-balances` posts one balanced entry that increases each account to its opening balance on its normal side and offsets the net into a system Opening Balance Equity account; the as-of balance sheet reflects the starting position with the accounting equation intact | `test_AC2_15_1_opening_balances_post_balanced_and_reflect_in_balance_sheet` | `accounting/test_opening_balance.py` | P0 |
-| AC2.15.2 | A single asset opening balance offsets entirely into Opening Balance Equity, keeping the entry balanced | `test_AC2_15_2_single_asset_opening_balance_offsets_into_equity` | `accounting/test_opening_balance.py` | P0 |
-| AC2.15.3 | An opening balance for a non-owned or unknown account is rejected | `test_AC2_15_3_unknown_account_is_rejected` | `accounting/test_opening_balance.py` | P0 |
-| AC2.15.4 | An opening balance establishes a starting position, not a delta: it is rejected when an affected account already has posted activity before the opening date | `test_AC2_15_4_opening_balance_rejected_when_prior_activity_exists` | `accounting/test_opening_balance.py` | P0 |
-| AC2.15.5 | Opening balances are accepted only in the base currency, with a clear error rather than a confusing FX-rate failure | `test_AC2_15_5_non_base_currency_is_rejected` | `accounting/test_opening_balance.py` | P0 |
-| AC2.15.6 | An opening balance into an account whose currency differs from the request currency is rejected, so journal lines cannot be mis-stamped | `test_AC2_15_6_account_currency_mismatch_is_rejected` | `accounting/test_opening_balance.py` | P0 |
-| AC2.15.7 | Opening balances may only target user-managed accounts; a system account (e.g. Processing) cannot be set via this endpoint even though the entry is SYSTEM-typed | `test_AC2_15_7_system_account_target_is_rejected` | `accounting/test_opening_balance.py` | P0 |
 | AC2.15.8 | The Accounts page offers a guided opening-balance flow: a non-accountant enters an as-of date and a starting balance per eligible (active, non-income/expense) account, and the UI posts the balances map to `POST /api/accounts/opening-balances` — never hand-written journal lines — validating positive two-decimal amounts and surfacing backend errors instead of silently closing | `AC2.15.8 lists only eligible accounts and hides income/expense and inactive ones`, `AC2.15.8 posts a balances map without requiring hand-written journal lines`, `AC2.15.8 blocks submission until at least one positive balance is entered`, `AC2.15.8 rejects non-positive or over-precise amounts before calling the API`, `AC2.15.8 surfaces a backend error instead of closing` | `apps/frontend/src/__tests__/openingBalanceModal.test.tsx` | P1 |
 
-### AC2.16: Opening-Balance Readiness Nudge ([#949](https://github.com/wangzitian0/finance_report/issues/949))
+### AC2.16: Opening-Balance Readiness Nudge ([#949](https://github.com/wangzitian0/finance_report/issues/949)) — frontend & reporting ACs only
 
 The everyday-user persona who already owns assets/liabilities on day one can post
 real activity without ever recording a starting position, yielding a balance
 sheet that looks right but silently omits the opening balances. These ACs surface
 that gap before the numbers are trusted.
 
+> The backend ledger-activity detection ACs in the `AC2.16.*` range migrated into
+> the `ledger` package as `AC-ledger.16.*` (#1420 slice 3c-iii). The **frontend**
+> nudge `AC2.16.3` (ledger is `fe=None`) and the **reporting-layer** tier-degrade
+> `AC2.16.4` (a report-assembly property, not a double-entry posting one) stay
+> defined here.
+
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC2.16.1 | `get_opening_balance_readiness` reports `needs_opening_balance=True` only when the user has posted activity and no opening-balance entry on or before its earliest date (no activity, an opening entry before activity, or a mis-dated opening entry after activity are all distinguished) | `test_AC2_16_1_no_activity_does_not_need_opening_balance`, `test_AC2_16_1_activity_without_opening_entry_needs_opening_balance`, `test_AC2_16_1_opening_entry_before_activity_clears_the_nudge`, `test_AC2_16_1_opening_entry_after_activity_still_needs` | `apps/backend/tests/accounting/test_opening_balance_readiness.py` | P1 |
-| AC2.16.2 | `GET /api/accounts/opening-balance-readiness` exposes the readiness signal to the UI | `test_AC2_16_2_readiness_endpoint_returns_status` | `apps/backend/tests/accounting/test_opening_balance_readiness.py` | P1 |
 | AC2.16.3 | The Accounts page shows a warning nudge (with a CTA that opens the guided flow) when opening balances are missing, and hides it once they are recorded | `AC2.16.3 shows a readiness nudge and opens the modal when opening balances are missing`, `AC2.16.3 hides the readiness nudge when opening balances are already recorded` | `apps/frontend/src/__tests__/accountsPage.test.tsx` | P1 |
 | AC2.16.4 {tier:CODE-ONLY} | The balance sheet and net-worth allocation degrade their aggregate confidence tier to `LOW` and emit an `opening_balance_warnings` entry when the user needs an opening balance, so a structurally-incomplete total is never presented as trusted (HIGH); once an opening balance is recorded the degrade and warning clear | `test_AC2_16_4_balance_sheet_degrades_tier_and_warns_when_opening_balance_missing`, `test_AC2_16_4_balance_sheet_clears_warning_once_opening_balance_recorded`, `test_AC2_16_4_net_worth_allocation_surfaces_opening_balance_warning` | `apps/backend/tests/reporting/test_balance_sheet_opening_balance_gate.py` | P1 |
 
@@ -382,8 +387,9 @@ disclosure decisions must not be embedded into posting logic.
 
 ### AC2.18: Framework-Neutral Ledger Boundary
 
-> Renumbered from a second `AC2.13` group whose `AC2.13.1` collided with AC2.13.1
-> (User-Scoped Ledger Integrity); the registry kept the user-scoped row and
+> Renumbered from a second `AC2.13` group whose first row collided with the
+> original User-Scoped Ledger Integrity `AC2.13.*` group (since migrated to
+> `AC-ledger.13.*`, #1420 slice 3c-iii); the registry kept the user-scoped row and
 > silently dropped this framework-neutral one until the IDs were made unique.
 
 | ID | Test Case | Test Function | File | Priority |
