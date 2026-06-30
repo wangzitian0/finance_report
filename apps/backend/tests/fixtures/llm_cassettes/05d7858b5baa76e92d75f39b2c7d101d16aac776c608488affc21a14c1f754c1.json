@@ -1,0 +1,58 @@
+{
+  "fingerprint": "05d7858b5baa76e92d75f39b2c7d101d16aac776c608488affc21a14c1f754c1",
+  "role": "vision",
+  "tag": "flow-only",
+  "source": {
+    "origin": "local",
+    "sha256": "837b3fd2bf3c7fbd0691222480a1ae49e7046e2b4c132e64d72e9286882944af"
+  },
+  "request": {
+    "role": "vision",
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a financial statement parser.\nExtract structured transaction data from the provided document.\n\nPRIVACY INSTRUCTIONS:\n- Do NOT extract or include any personally identifiable information (PII)\n- Ignore names, addresses, NRIC/ID numbers, and full account numbers\n- Only extract account_last4: the LAST 4 alphanumeric characters (letters and digits ONLY) of the account number. Strip all hyphens, dashes, spaces, and special characters first, then take the last 4 characters. Example: \"XXX-553-3\" → \"5533\", \"1234-5678\" → \"5678\"\n- Focus only on financial transaction data\n\nCRITICAL: Return a SINGLE JSON object (not an array).\nDo NOT wrap the JSON in markdown or code fences.\nDo NOT include any extra text before or after the JSON.\nEven if the document contains multiple accounts, combine them into one response.\n\nOutput format (JSON object - NOT an array):\n{\n  \"institution\": \"Bank Name\",\n  \"account_last4\": \"1234\",  // MUST be exactly 4 alphanumeric characters (no hyphens/spaces)\n  \"currency\": \"SGD\",\n  \"period_start\": \"2025-01-01\",\n  \"period_end\": \"2025-01-31\",\n  \"opening_balance\": \"10000.00\",\n  \"closing_balance\": \"12500.00\",\n  \"balances\": [\n    {\"currency\": \"SGD\", \"opening\": \"10000.00\", \"closing\": \"12500.00\"},\n    {\"currency\": \"USD\", \"opening\": \"2000.00\", \"closing\": \"3500.00\"}\n  ],\n  \"transactions\": [\n    {\n      \"date\": \"2025-01-15\",\n      \"description\": \"SALARY ACME CORP\",\n      \"amount\": \"5000.00\",\n      \"direction\": \"IN\",\n      \"reference\": \"TXN123456\",\n      \"currency\": \"SGD\",\n      \"balance_after\": \"15000.00\",\n      \"raw_text\": \"15 Jan SALARY ACME CORP 5,000.00 CR\",\n      \"suggested_category\": \"Salary\",\n      \"category_confidence\": 0.95\n    }\n  ]\n}\n\nImportant Rules:\n1. Output MUST be a single JSON object starting with `{`, NOT an array `[`, and no markdown\n2. All amounts as non-negative strings with 2 decimal places, no commas (e.g., \"10000.00\")\n3. Normalize EVERY date to ISO YYYY-MM-DD, converting from whatever format the\n   source uses — e.g. 2025年01月15日 -> 2025-01-15, 15/01/2025 -> 2025-01-15,\n   2025/1/5 -> 2025-01-05, 15 Jan 2025 -> 2025-01-15. Do the conversion yourself;\n   never echo a non-ISO source format.\n4. direction: \"IN\" for credits/deposits, \"OUT\" for debits/withdrawals\n5. Include ALL transactions visible in the document\n6. Preserve raw_text exactly as shown (for audit trail)\n7. If unsure about a field, set it to null but include the transaction\n8. For long statements with 50+ transactions, include all of them - do NOT truncate\n9. For each transaction, include \"currency\" (ISO 4217 code, e.g. \"SGD\", \"USD\")\n10. Include \"balance_after\" showing the running balance after the transaction (from the balance column if present)\n11. Auto-detect the institution name from the document header/logo and return it in the \"institution\" field\n12. For each transaction, suggest a category from: Food & Dining, Transport, Shopping, Utilities, Salary, Transfer, Investment, Insurance, Rent, Healthcare, Entertainment, Education, Subscriptions, Other. Set \"suggested_category\" and \"category_confidence\" (0.0-1.0). If unsure, use \"Other\" with low confidence.\n13. MULTI-SECTION STATEMENTS: a statement may contain more than one transaction section (e.g. \"SAVINGS - TRANSACTION DETAILS\" and \"INVESTMENTS - TRANSACTION DETAILS\"). Extract transactions from EVERY section, but record each cash movement EXACTLY ONCE. A transfer or fund purchase/redemption between the user's own accounts (e.g. \"Buy - Mari Invest\" / \"Sell - Mari Invest\") is shown as a cash movement in one section AND mirrored in another - include ONLY the single cash leg that moves THIS statement's balance (a purchase/\"Buy\" reduces cash -> OUT; a redemption/\"Sell\" adds cash -> IN), and do NOT also add the mirrored row from the other section as a second transaction. Do NOT skip transfers between the user's own accounts, and do NOT double-count them.\n14. COMPLETENESS SELF-CHECK (do this before returning): reconcile EACH currency separately. For every currency present, opening_balance + sum(IN) - sum(OUT) for that currency MUST equal that currency's closing balance within 0.10. Never add amounts across different currencies. The top-level opening_balance/closing_balance are for the statement's primary currency. If a currency does NOT balance, you have either missed, duplicated, or mis-signed a transaction: use the running balance (\"balance_after\" / the daily balance column) to locate the day where the balance jumps and correct it using ONLY what the document actually shows. NEVER invent, fabricate, or alter transactions or balances to force a match - if the document genuinely does not reconcile, return exactly what is shown.\n15. FOREIGN-EXCHANGE / CROSS-CURRENCY: if a line converts one currency to another (e.g. \"Converted 1,000 SGD to 740 USD\"), record the leg in the currency that actually moved on THIS statement and set its \"currency\" accordingly; preserve the other currency, the exchange rate, and any fee/spread in \"raw_text\" (and \"reference\" if shown). List a separately-shown fee as its own transaction.\n16. MULTI-CURRENCY STATEMENTS (\"balances\" array): if the statement holds balances in MORE THAN ONE currency (e.g. a multi-currency / consolidated account that prints a per-currency or per-account opening & closing, or a \"Currency Breakdown\"), additionally emit a \"balances\" array with one {currency, opening, closing} entry PER currency — each currency's own opening and closing as shown, NEVER cross-summed or converted into a single currency. Put each currency's native amounts (do NOT convert to the \"base/SGD equivalent\" column). The top-level \"currency\"/\"opening_balance\"/\"closing_balance\" remain the PRIMARY currency's values. OMIT \"balances\" entirely for an ordinary single-currency statement.\n"
+      },
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "Extract this bank statement (all pages)."
+          },
+          {
+            "type": "image_url",
+            "image_bytes_sha256": "40ade890f407da2434f6abd950ebdd5e044b51a0f02141d1092182c27cba1e15"
+          },
+          {
+            "type": "image_url",
+            "image_bytes_sha256": "6886ce2b218307dedb6fb1062a6449e438e450f68ac2b8f2f5840d7b9d5ca865"
+          },
+          {
+            "type": "image_url",
+            "image_bytes_sha256": "7c13de38da63fce4b496794618aa08fc4218f7d1a20bc8aa93201d00d9f32601"
+          },
+          {
+            "type": "image_url",
+            "image_bytes_sha256": "116177455f978803ea10a68d394201b333735de5edb15b40f9bea5a9da672c01"
+          },
+          {
+            "type": "image_url",
+            "image_bytes_sha256": "33d909765dede4bc792c3118daad3cc26fe0d4c2d229426358e2171f2f78ddbf"
+          },
+          {
+            "type": "image_url",
+            "image_bytes_sha256": "7fe4198f1f4364b10c23d1f8e8a9e4a60261e016811d52afe1a8b573a8605b29"
+          }
+        ]
+      }
+    ],
+    "decode_params": {
+      "temperature": 0,
+      "max_tokens": 32768
+    }
+  },
+  "response": {
+    "stream_text": "{\"institution\": \"Futu\", \"account_last4\": \"**\", \"currency\": \"HKD\", \"period_start\": \"2025-06-01\", \"period_end\": \"2025-06-30\", \"opening_balance\": \"1238.57\", \"closing_balance\": \"1238.57\", \"positions\": [{\"symbol\": \"01810\", \"quantity\": \"5400\", \"market_value\": \"323730.00\", \"price\": \"59.95\", \"currency\": \"HKD\", \"asset_type\": \"stock\"}], \"transactions\": []}"
+  }
+}

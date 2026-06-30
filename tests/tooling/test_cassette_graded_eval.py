@@ -284,10 +284,66 @@ def test_AC23_8_6_runs_on_committed_cassettes_without_network_or_key() -> None:
 
 
 def test_AC23_8_6_ground_truth_artifacts_are_synthetic() -> None:
-    """AC23.8.6 (data hygiene): every ground-truth artifact is flagged synthetic."""
+    """AC23.8.6 (data hygiene): every committed cassette is EITHER synthetic, OR a real
+    statement that has been STRICTLY PII-masked — and for the real ones the gate proves
+    it structurally (not by trusting the recorder), by an ALLOWLIST: every string field
+    whose key is not a known PII-free field (flow values, public security symbols, the
+    institution/period/currency) must be fully redacted to ``**``. So an unexpected
+    free-text key cannot slip through partially masked, and no PII enters git regardless
+    of provenance."""
+    import re
+
+    from common.ssot.cassette_graded_eval import CASSETTE_DIR, _parse_extraction
+    from tools._lib.fixtures.extraction_pii_mask import _DESC_KEYS
+
+    # A masked-description token: hash-derived hex + a star run + hex (no real text), or
+    # all stars. Lowercase-hex + stars only — a real (cased, spaced) description can't match.
+    pseudonym = re.compile(r"[0-9a-f]{2}\*+[0-9a-f]{2}|\*+")
+    # Non-PII string fields that may stay verbatim. Description fields may be a pseudonym.
+    # ANY other string field MUST be ``**`` — allowlist (deny-by-default), so a new key can't leak.
+    safe_string_keys = {
+        "institution", "currency", "period_start", "period_end",
+        "opening_balance", "closing_balance", "opening", "closing",
+        "date", "amount", "direction", "balance_after", "suggested_category",
+        "symbol", "ticker", "isin", "asset_identifier", "asset_type",
+        "quantity", "market_value", "price",
+    }
+    # Broad CJK / kana / hangul coverage (Han + Ext-A + Hiragana/Katakana + Hangul) so a
+    # name in any East-Asian script is caught, not just the basic Han block.
+    cjk = re.compile(r"[぀-ヿ㐀-䶿一-鿿가-힯豈-﫿]")
+
+    def _assert_pii_free(name: str, obj: object) -> None:
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                if not isinstance(value, str):
+                    _assert_pii_free(name, value)
+                elif key in safe_string_keys:
+                    continue
+                elif key in _DESC_KEYS:
+                    assert pseudonym.fullmatch(value), (
+                        f"{name}: description {key!r}={value!r} is not an irreversible "
+                        f"pseudonym (hex+stars+hex) nor fully redacted"
+                    )
+                else:
+                    assert value == "**", (
+                        f"{name}: text field {key!r}={value!r} is neither an allowlisted "
+                        f"non-PII field nor fully redacted to '**'"
+                    )
+        elif isinstance(obj, list):
+            for item in obj:
+                _assert_pii_free(name, item)
+
     for path in sorted(GROUND_TRUTH_DIR.glob("*.truth.json")):
         data = json.loads(path.read_text(encoding="utf-8"))
-        assert data.get("synthetic") is True, f"{path.name} not marked synthetic"
+        if data.get("synthetic") is True:
+            continue
+        assert data.get("synthetic") is False, f"{path.name}: 'synthetic' must be set true or false"
+        extraction = _parse_extraction(CASSETTE_DIR / f"{path.name[: -len('.truth.json')]}.json")
+        assert extraction is not None, f"{path.name}: no scorable cassette to verify PII-masking"
+        assert not cjk.search(json.dumps(extraction, ensure_ascii=False)), (
+            f"{path.name}: a CJK character (likely a real name) survives in a committed real cassette"
+        )
+        _assert_pii_free(path.name, extraction)
 
 
 # --------------------------------------------------------------------------- #

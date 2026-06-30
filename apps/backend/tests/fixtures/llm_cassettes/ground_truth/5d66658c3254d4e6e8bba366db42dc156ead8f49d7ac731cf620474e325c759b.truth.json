@@ -1,0 +1,20 @@
+{
+  "synthetic": false,
+  "modality": "vision",
+  "institution_class": "brokerage",
+  "edge_condition": "happy_path",
+  "source": "own_moomoo_2505",
+  "note": "Real own statement, agent-extracted, strict-masked (zero PII); local source by sha256.",
+  "balance_reconciles": false,
+  "expected": {
+    "opening_balance": "0.00",
+    "closing_balance": "0.01",
+    "transactions": [
+      {
+        "date": "2025-05-02",
+        "description": "47************************************************c3",
+        "amount": "1614.03"
+      }
+    ]
+  }
+}

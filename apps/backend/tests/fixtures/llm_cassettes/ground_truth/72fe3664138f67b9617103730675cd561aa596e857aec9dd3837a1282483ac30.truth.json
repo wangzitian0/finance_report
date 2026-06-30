@@ -1,0 +1,190 @@
+{
+  "synthetic": false,
+  "modality": "vision",
+  "institution_class": "bank",
+  "edge_condition": "happy_path",
+  "source": "own_gxs_2506",
+  "note": "Real own statement, agent-extracted, strict-masked (zero PII); local source by sha256.",
+  "balance_reconciles": true,
+  "expected": {
+    "opening_balance": "51730.82",
+    "closing_balance": "2953.14",
+    "transactions": [
+      {
+        "date": "2025-06-01",
+        "description": "08***********9e",
+        "amount": "2.38"
+      },
+      {
+        "date": "2025-06-02",
+        "description": "08***********9e",
+        "amount": "2.38"
+      },
+      {
+        "date": "2025-06-02",
+        "description": "9f*********************b6",
+        "amount": "200.00"
+      },
+      {
+        "date": "2025-06-03",
+        "description": "08***********9e",
+        "amount": "2.38"
+      },
+      {
+        "date": "2025-06-04",
+        "description": "08***********9e",
+        "amount": "2.37"
+      },
+      {
+        "date": "2025-06-05",
+        "description": "08***********9e",
+        "amount": "2.37"
+      },
+      {
+        "date": "2025-06-06",
+        "description": "08***********9e",
+        "amount": "2.37"
+      },
+      {
+        "date": "2025-06-07",
+        "description": "08***********9e",
+        "amount": "2.38"
+      },
+      {
+        "date": "2025-06-08",
+        "description": "08***********9e",
+        "amount": "2.37"
+      },
+      {
+        "date": "2025-06-08",
+        "description": "8c******************9f",
+        "amount": "48000.00"
+      },
+      {
+        "date": "2025-06-09",
+        "description": "08***********9e",
+        "amount": "0.16"
+      },
+      {
+        "date": "2025-06-10",
+        "description": "08***********9e",
+        "amount": "0.16"
+      },
+      {
+        "date": "2025-06-11",
+        "description": "08***********9e",
+        "amount": "0.17"
+      },
+      {
+        "date": "2025-06-12",
+        "description": "08***********9e",
+        "amount": "0.16"
+      },
+      {
+        "date": "2025-06-12",
+        "description": "9f*********************b6",
+        "amount": "200.00"
+      },
+      {
+        "date": "2025-06-13",
+        "description": "08***********9e",
+        "amount": "0.16"
+      },
+      {
+        "date": "2025-06-14",
+        "description": "08***********9e",
+        "amount": "0.15"
+      },
+      {
+        "date": "2025-06-15",
+        "description": "08***********9e",
+        "amount": "0.15"
+      },
+      {
+        "date": "2025-06-16",
+        "description": "08***********9e",
+        "amount": "0.16"
+      },
+      {
+        "date": "2025-06-17",
+        "description": "08***********9e",
+        "amount": "0.15"
+      },
+      {
+        "date": "2025-06-18",
+        "description": "08***********9e",
+        "amount": "0.16"
+      },
+      {
+        "date": "2025-06-19",
+        "description": "08***********9e",
+        "amount": "0.15"
+      },
+      {
+        "date": "2025-06-19",
+        "description": "9f*********************b6",
+        "amount": "200.00"
+      },
+      {
+        "date": "2025-06-20",
+        "description": "08***********9e",
+        "amount": "0.15"
+      },
+      {
+        "date": "2025-06-21",
+        "description": "08***********9e",
+        "amount": "0.14"
+      },
+      {
+        "date": "2025-06-22",
+        "description": "08***********9e",
+        "amount": "0.15"
+      },
+      {
+        "date": "2025-06-23",
+        "description": "08***********9e",
+        "amount": "0.14"
+      },
+      {
+        "date": "2025-06-24",
+        "description": "08***********9e",
+        "amount": "0.15"
+      },
+      {
+        "date": "2025-06-25",
+        "description": "08***********9e",
+        "amount": "0.14"
+      },
+      {
+        "date": "2025-06-26",
+        "description": "08***********9e",
+        "amount": "0.15"
+      },
+      {
+        "date": "2025-06-27",
+        "description": "08***********9e",
+        "amount": "0.14"
+      },
+      {
+        "date": "2025-06-28",
+        "description": "08***********9e",
+        "amount": "0.15"
+      },
+      {
+        "date": "2025-06-29",
+        "description": "08***********9e",
+        "amount": "0.14"
+      },
+      {
+        "date": "2025-06-29",
+        "description": "9f*********************b6",
+        "amount": "200.00"
+      },
+      {
+        "date": "2025-06-30",
+        "description": "08***********9e",
+        "amount": "0.14"
+      }
+    ]
+  }
+}

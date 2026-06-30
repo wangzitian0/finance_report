@@ -9,18 +9,21 @@ in that output, uniformly for synthetic (HF) and real (own) statements:
 - **Meta / identity fields** (account holder, account number, ``account_last4``,
   address, NRIC, phone, email, customer id) -> masked to a fixed ``**`` marker. The
   institution name, period and currency are kept (not identity PII).
-- **Transaction descriptions** -> keep first 3 + ``***`` + last 3 chars, so a
-  counterparty name like ``"ACME TRADING PTE LTD"`` becomes ``"ACM***LTD"``. Short
-  strings (<= 6 chars) are fully starred.
+- **Transaction descriptions** -> an irreversible, deterministic PSEUDONYM that keeps
+  distinguishability (equal in → equal token, distinct in → distinct token) without
+  leaking the text: ``"ACME TRADING PTE LTD"`` becomes e.g. ``"a1b2***c3d4"`` (sha256-
+  derived ``<4 hex>***<4 hex>``). This supersedes a ``first3***last3`` scheme, which
+  leaked the real first/last characters.
 - **Flow values** (date, amount, direction, balance) are PII-free and kept verbatim,
   so the graded-eval (field accuracy) and balance-chain gates still mean something.
 
-Pure + idempotent: re-masking an already-masked value is a no-op (the markers don't
-re-trigger). No network, no model.
+Pure + idempotent: re-masking an already-masked value is a no-op. No network, no model.
 """
 
 from __future__ import annotations
 
+import hashlib
+import re
 from typing import Any
 
 # Top-level extraction keys that carry identity PII (vs the institution/period/flow).
@@ -52,20 +55,41 @@ _META_PII_KEYS = frozenset(
 # Per-transaction free-text keys whose value may carry a counterparty name.
 _DESC_KEYS = frozenset({"description", "desc", "narrative", "remarks", "counterparty", "payee", "merchant"})
 _META_MARK = "**"
+# A masked description token: 2 hex + stars + 2 hex (e.g. ``a3**************9f``), or all
+# stars for a <=4-char source. The leading/trailing hex are sha256-derived (NOT the real
+# characters); the star run preserves the original length.
+_PSEUDONYM_RE = re.compile(r"[0-9a-f]{2}\*+[0-9a-f]{2}|\*+")
 
 
 def mask_description(value: str) -> str:
-    """Mask a description to ``first3 + *** + last3`` (counterparty-name safe)."""
+    """Mask a description to a deterministic, NON-recoverable, LENGTH-PRESERVING token
+    that keeps DISTINGUISHABILITY: equal descriptions → equal token, distinct → (almost
+    surely) distinct token, but the original text cannot be recovered. The token is
+    ``<2 hex>`` + ``*`` × (len − 4) + ``<2 hex>`` where the hex pairs are sha256-derived,
+    NOT the real characters; its length equals the original. A ≤4-char source is all
+    stars. Idempotent on an already-masked token.
+
+    This supersedes a ``first3***last3`` scheme, which leaked the real first/last
+    characters (residual PII for a real name)."""
     s = str(value)
-    if "***" in s:  # already masked -> idempotent
+    n = len(s)
+    if n == 0:
+        return ""
+    if _PSEUDONYM_RE.fullmatch(s):  # already masked -> idempotent
         return s
-    if len(s) <= 6:
-        return "*" * len(s)
-    return f"{s[:3]}***{s[-3:]}"
+    if n <= 4:
+        return "*" * n
+    digest = hashlib.sha256(" ".join(s.split()).casefold().encode("utf-8")).hexdigest()
+    return f"{digest[:2]}{'*' * (n - 4)}{digest[2:4]}"
 
 
 def mask_obj(obj: Any, *, _key: str | None = None) -> Any:
-    """Recursively mask identity meta fields (-> ``**``) and descriptions (first3***last3)."""
+    """Recursively mask identity meta fields (-> ``**``) and descriptions (-> a
+    non-recoverable pseudonym, see :func:`mask_description`). Flow values
+    (date/amount/direction/balance/currency) and public security symbols are never PII
+    and are kept. This is safe for BOTH synthetic and real statements: meta/free-text
+    that could carry a name is either fully redacted or replaced by an irreversible
+    pseudonym, so no original text can be recovered."""
     if isinstance(obj, dict):
         return {k: mask_obj(v, _key=k) for k, v in obj.items()}
     if isinstance(obj, list):
@@ -79,7 +103,8 @@ def mask_obj(obj: Any, *, _key: str | None = None) -> Any:
 
 
 def mask_extraction(extracted: dict[str, Any]) -> dict[str, Any]:
-    """Mask an extraction-output dict in place-safe (returns a new masked dict)."""
+    """Mask an extraction-output dict (returns a new masked dict): identity meta and
+    free-text audit fields -> ``**``; descriptions -> an irreversible pseudonym."""
     return mask_obj(extracted)
 
 
@@ -109,20 +134,21 @@ def source_ref(*, hf_url: str | None = None, file_bytes: bytes | None = None) ->
     if hf_url:
         return {"origin": "huggingface", "url": hf_url}
     if file_bytes is not None:
-        import hashlib
-
         return {"origin": "local", "sha256": hashlib.sha256(file_bytes).hexdigest()}
     raise ValueError("source_ref needs hf_url or file_bytes")
 
 
-_TEST_VECTORS = [
-    ({"account_holder": "John Tan", "institution": "DBS", "account_last4": "1234"},
-     {"account_holder": "**", "institution": "DBS", "account_last4": "**"}),
-    ({"transactions": [{"description": "ACME TRADING PTE LTD", "amount": "10.00", "direction": "OUT"}]},
-     {"transactions": [{"description": "ACM***LTD", "amount": "10.00", "direction": "OUT"}]}),
-]
 if __name__ == "__main__":
-    for raw, want in _TEST_VECTORS:
-        got = mask_extraction(raw)
-        assert got == want, f"{got} != {want}"
+    # meta -> '**'; flow kept; descriptions -> irreversible distinguishable pseudonym.
+    m = mask_extraction({"account_holder": "John Tan", "institution": "DBS", "account_last4": "1234"})
+    assert m == {"account_holder": "**", "institution": "DBS", "account_last4": "**"}, m
+    src = "ACME TRADING PTE LTD"
+    a = mask_extraction({"transactions": [{"description": src, "amount": "10.00"}]})
+    c = mask_extraction({"transactions": [{"description": "PHO KITCHEN", "amount": "10.00"}]})
+    da = a["transactions"][0]["description"]
+    assert _PSEUDONYM_RE.fullmatch(da), da
+    assert len(da) == len(src)  # length preserved
+    assert "ACME" not in da and "LTD" not in da  # not recoverable
+    assert da != c["transactions"][0]["description"]  # distinct -> distinct token (distinguishability)
+    assert a["transactions"][0]["amount"] == "10.00"  # flow kept
     print("extraction_pii_mask self-check OK")
