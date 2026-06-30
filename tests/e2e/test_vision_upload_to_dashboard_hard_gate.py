@@ -158,8 +158,12 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(
 
     await _goto_ready(page, "/statements")
 
-    await page.locator("#institution").fill(INSTITUTION_LABEL)
-    await page.set_input_files("#file-upload", str(fixture_path))
+    await page.locator('[data-testid="uploader-institution-statement"]').fill(
+        INSTITUTION_LABEL
+    )
+    await page.set_input_files(
+        '[data-testid="uploader-file-statement"]', str(fixture_path)
+    )
     await expect(
         page.locator("p.font-medium", has_text=fixture_path.name)
     ).to_be_visible(timeout=5_000)
