@@ -24,7 +24,7 @@ def _read(path: Path) -> str:
 )
 def test_AC12_31_1_decimal_boundary_policy_is_mece_and_enforced():
     """AC12.31.1: raw Decimal is an explicit boundary, not domain semantics."""
-    ssot = _read(Path("docs/ssot/base-packages.md"))
+    ssot = _read(Path("common/audit/readme.md"))
     for phrase in [
         "Raw Decimal boundary policy",
         "Allowed raw Decimal boundaries",

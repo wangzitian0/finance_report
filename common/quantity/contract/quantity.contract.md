@@ -2,7 +2,7 @@
 
 > The **interface** half of the quantity module's SSOT; the conformance half is
 > [`../conformance/vectors.json`](../conformance/vectors.json). Authoritative
-> prose: [`docs/ssot/base-packages.md`](../../../docs/ssot/base-packages.md).
+> prose: [`common/audit/readme.md#base-packages`](../../audit/readme.md#base-packages).
 
 ## Types
 

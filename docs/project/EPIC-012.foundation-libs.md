@@ -140,7 +140,7 @@ This EPIC addresses technical debt in the foundational libraries that all module
 ### AC12.9: Ratio / percent value type ([#1167](https://github.com/wangzitian0/finance_report/issues/1167))
 
 The second base-element value type after `money` (see
-[base-packages.md](../ssot/base-packages.md)): a dimensionless `Ratio` with ONE
+[base-packages](https://github.com/wangzitian0/finance_report/blob/main/common/audit/readme.md#base-packages)): a dimensionless `Ratio` with ONE
 percent-display policy (2 dp, **ROUND_HALF_UP**), shared FE/BE via conformance
 vectors, so performance ratios / allocation shares / confidence proportions stop
 diverging across the codebase and across ends.
@@ -493,7 +493,7 @@ explicit boundary or use the typed value package.
 ### AC12.32: UnitPrice — money-per-quantity composite value type ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
 
 The composite base element after `money`/`ratio`/`quantity` (see
-[base-packages.md](../ssot/base-packages.md)): a `UnitPrice` (rate + `Currency` +
+[base-packages](https://github.com/wangzitian0/finance_report/blob/main/common/audit/readme.md#base-packages)): a `UnitPrice` (rate + `Currency` +
 `Unit`) that owns money-per-quantity semantics — `unit_price * quantity -> Money`,
 `UnitPrice.from_total(money, quantity)` (`Money / Quantity`), and the 6-dp
 price/unit-rate quantum — so portfolio/market-data services stop re-deriving the
@@ -558,7 +558,7 @@ other models/services follow incrementally.
 
 ### AC12.36: Shared Decimal-scalar codec — one SSOT per layer ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
 
-The raw-`Decimal` boundary codec required by `base-packages.md` §3 was re-implemented
+The raw-`Decimal` boundary codec required by `common/audit/readme.md#base-packages` §3 was re-implemented
 in every base package — a byte-identical `_decimal_to_wire`, a `_decimal_from_wire` /
 `_payload_mapping` / `_field` triad, and a construction-time `_coerce` — differing only
 by which typed error it raised. That codec is now factored once into a single
