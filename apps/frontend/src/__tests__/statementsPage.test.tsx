@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -41,9 +41,13 @@ vi.mock("next/navigation", () => ({
 }))
 
 vi.mock("@/components/statements/StatementUploader", () => ({
-  default: ({ onUploadComplete }: { onUploadComplete: () => void }) => (
-    <button onClick={onUploadComplete}>UploadMock</button>
+  default: ({ onUploadComplete, kind = "all" }: { onUploadComplete: () => void; kind?: string }) => (
+    <button onClick={onUploadComplete}>{`UploadMock-${kind}`}</button>
   ),
+}))
+
+vi.mock("@/components/assets/GuidedEvidenceForm", () => ({
+  default: () => <div data-testid="manual-evidence-form">ManualEvidenceMock</div>,
 }))
 
 vi.mock("@/components/ui/Toast", () => ({
@@ -140,66 +144,45 @@ describe("StatementsPage", () => {
     await waitFor(() => expect(screen.getAllByText("load failed")).toHaveLength(2))
     fireEvent.click(screen.getByRole("button", { name: "Retry loading statements" }))
     await waitFor(() => expect(screen.getByText("No statements uploaded yet")).toBeInTheDocument())
-    fireEvent.click(screen.getByText("UploadMock"))
+    fireEvent.click(screen.getByText("UploadMock-statement"))
     await waitFor(() => expect(screen.getByText("stmt.pdf")).toBeInTheDocument())
   })
 
-  it("AC19.15.2 feeds source intake checklist from report readiness source trust", async () => {
-    mockStatementsPageApi({
-      statements: [{ items: [] }],
-      readiness: {
-        ...DEFAULT_READINESS,
-        source_trust_summary: {
-          source_classes: ["bank_statement", "manual_record"],
-          deterministic_pr_source_classes: ["bank_statement"],
-          post_merge_llm_ocr_source_classes: ["bank_statement"],
-          manual_trusted_source_classes: [],
-          gap_source_classes: ["manual_record"],
-          blocker_codes: ["manual_evidence_missing"],
-        },
-      },
-    })
+  it("AC19.15.1 exposes exactly three intake entries: one statement uploader plus CSV and Manual", async () => {
+    mockStatementsPageApi({ statements: [{ items: [] }] })
 
     render(<StatementsPage />)
 
-    await waitFor(() =>
-      expect(within(screen.getByTestId("source-intake-manual_record")).getByText("Needs source")).toBeInTheDocument(),
-    )
-    expect(within(screen.getByTestId("source-intake-bank_statement")).getByText("Import supported")).toBeInTheDocument()
-    expect(mockedApiFetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/reports/package/readiness?"),
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
-    )
+    // One primary statement uploader — the user never pre-classifies bank vs
+    // brokerage; the AI identifies the type after upload.
+    await waitFor(() => expect(screen.getByText("UploadMock-statement")).toBeInTheDocument())
+    // CSV is a separate entry (non-standard columns need their own mapping).
+    expect(screen.getByText("CSV import")).toBeInTheDocument()
+    expect(screen.getByText("UploadMock-csv")).toBeInTheDocument()
+    // Manual records (ESOP/RSU, property, …) is one entry, not one card per class.
+    expect(screen.getByText("Manual records")).toBeInTheDocument()
+    expect(screen.getByTestId("manual-evidence-form")).toBeInTheDocument()
   })
 
-  it("AC19.15.2 keeps source intake paths usable when readiness is unavailable", async () => {
-    mockStatementsPageApi({
-      statements: [{ items: [] }],
-      readiness: new Error("readiness unavailable"),
-    })
+  it("AC19.15.2 keeps secondary intake passive: CSV and Manual folded, no per-class checklist, no readiness fetch", async () => {
+    mockStatementsPageApi({ statements: [{ items: [] }] })
 
-    render(<StatementsPage />)
+    const { container } = render(<StatementsPage />)
 
-    await waitFor(() =>
-      expect(screen.getByText("Readiness status unavailable; showing intake paths.")).toBeInTheDocument(),
+    await waitFor(() => expect(screen.getByText("UploadMock-statement")).toBeInTheDocument())
+    // CSV and Manual live in <details> that are collapsed by default — they
+    // never compete with the primary statement entry for attention.
+    const folded = container.querySelectorAll("details")
+    expect(folded).toHaveLength(2)
+    folded.forEach((node) => expect(node.hasAttribute("open")).toBe(false))
+    // The retired per-source-class intake checklist must not return.
+    expect(screen.queryByTestId("source-intake-bank_statement")).toBeNull()
+    expect(screen.queryByTestId("source-intake-manual_record")).toBeNull()
+    // The page no longer pulls report readiness just to render intake entries.
+    expect(mockedApiFetch).not.toHaveBeenCalledWith(
+      expect.stringContaining("/api/reports/package/readiness"),
+      expect.anything(),
     )
-    expect(screen.getByText("Readiness unavailable")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Upload brokerage evidence" })).toHaveAttribute("href", "/upload")
-  })
-
-  it("AC19.15.2 treats a missing source trust summary as readiness unavailable", async () => {
-    mockStatementsPageApi({
-      statements: [{ items: [] }],
-      readiness: { ...DEFAULT_READINESS, source_trust_summary: undefined },
-    })
-
-    render(<StatementsPage />)
-
-    await waitFor(() =>
-      expect(screen.getByText("Readiness status unavailable; showing intake paths.")).toBeInTheDocument(),
-    )
-    expect(screen.getByText("Readiness unavailable")).toBeInTheDocument()
-    expect(within(screen.getByTestId("source-intake-manual_record")).getByText("Manual-trusted")).toBeInTheDocument()
   })
 
   it("AC22.5.x surfaces a parsed statement as ready-to-review with a direct review deep-link", async () => {

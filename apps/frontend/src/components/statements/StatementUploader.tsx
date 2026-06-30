@@ -57,15 +57,32 @@ function getFileExtension(fileName: string): string {
     return fileName.split(".").pop()?.toLowerCase() || "";
 }
 
+// #1208-followup: the Upload page now exposes ONE statement entry plus separate
+// CSV and Manual entries (no per-source-class checklist). `kind` lets the same
+// uploader back the statement entry (document statements, LLM identifies the
+// type) and the CSV entry (non-standard columns, mapped server-side) with the
+// right accepted types — without the user pre-classifying bank vs brokerage.
+type UploaderKind = "all" | "statement" | "csv";
+
+const KIND_CONFIG: Record<UploaderKind, { extensions: string[]; acceptAttr: string; typesLabel: string }> = {
+    all: { extensions: ["pdf", "csv", "png", "jpg", "jpeg"], acceptAttr: ".pdf,.csv,.png,.jpg,.jpeg", typesLabel: "PDF, CSV, PNG, or JPG" },
+    statement: { extensions: ["pdf", "png", "jpg", "jpeg"], acceptAttr: ".pdf,.png,.jpg,.jpeg", typesLabel: "PDF, PNG, or JPG" },
+    csv: { extensions: ["csv"], acceptAttr: ".csv", typesLabel: "CSV" },
+};
+
 interface StatementUploaderProps {
     onUploadComplete?: () => void;
     onError?: (error: string) => void;
+    /** Restrict accepted file types for the statement vs CSV entry. Default "all". */
+    kind?: UploaderKind;
 }
 
 export default function StatementUploader({
     onUploadComplete,
     onError,
+    kind = "all",
 }: StatementUploaderProps): JSX.Element {
+    const uploaderConfig = KIND_CONFIG[kind];
     const { showToast } = useToast();
     const [isDragging, setIsDragging] = useState(false);
     const [file, setFile] = useState<File | null>(null);
@@ -128,10 +145,10 @@ export default function StatementUploader({
     }, []);
 
     const validateAndSetFile = useCallback(function validateAndSetFile(f: File): void {
-        const validExtensions = new Set(["pdf", "csv", "png", "jpg", "jpeg"]);
+        const validExtensions = new Set(uploaderConfig.extensions);
         const extension = getFileExtension(f.name);
         if (!validExtensions.has(extension)) {
-            setError(`Invalid file type: .${extension}. Allowed: PDF, CSV, PNG, JPG`);
+            setError(`Invalid file type: .${extension}. Allowed: ${uploaderConfig.typesLabel}`);
             return;
         }
         if (f.size > 10 * 1024 * 1024) {
@@ -140,7 +157,7 @@ export default function StatementUploader({
         }
         setFile(f);
         setError(null);
-    }, []);
+    }, [uploaderConfig]);
 
     const handleDragOver = useCallback(function handleDragOver(e: React.DragEvent): void {
         e.preventDefault();
@@ -239,7 +256,7 @@ export default function StatementUploader({
             >
                 <input
                     type="file"
-                    accept=".pdf,.csv,.png,.jpg,.jpeg"
+                    accept={uploaderConfig.acceptAttr}
                     onChange={handleFileChange}
                     className="hidden"
                     id="file-upload"
@@ -265,7 +282,7 @@ export default function StatementUploader({
                         ) : (
                             <>
                                 <p className="font-medium">Drop files here or click to upload</p>
-                                <p className="text-xs text-muted mt-1">PDF, CSV, PNG, or JPG (max 10MB)</p>
+                                <p className="text-xs text-muted mt-1">{uploaderConfig.typesLabel} (max 10MB)</p>
                             </>
                         )}
                     </div>

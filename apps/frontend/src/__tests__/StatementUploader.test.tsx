@@ -364,7 +364,7 @@ describe("AC3.5.3 StatementUploader model selection", () => {
     fireEvent.change(fileInput, {
       target: { files: [new File(["data"], "statement.exe", { type: "application/octet-stream" })] },
     });
-    expect(await screen.findByText("Invalid file type: .exe. Allowed: PDF, CSV, PNG, JPG")).toBeInTheDocument();
+    expect(await screen.findByText("Invalid file type: .exe. Allowed: PDF, CSV, PNG, or JPG")).toBeInTheDocument();
 
     const hugeFile = new File([new Uint8Array(10 * 1024 * 1024 + 1)], "statement.pdf", { type: "application/pdf" });
     fireEvent.change(fileInput, { target: { files: [hugeFile] } });
