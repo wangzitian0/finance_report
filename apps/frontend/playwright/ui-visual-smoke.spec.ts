@@ -155,7 +155,7 @@ async function expectNonblankScreenshot(page: Page) {
 
 async function expectAppShellVisible(page: Page, mobile: boolean) {
   if (mobile) {
-    await expect(page.getByLabel("Open navigation menu")).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
+    await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
     return;
   }
 

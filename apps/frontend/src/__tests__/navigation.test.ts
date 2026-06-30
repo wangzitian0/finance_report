@@ -22,7 +22,7 @@ const ACCOUNTING_JARGON_HREFS = [
 ];
 
 describe("navigation metadata", () => {
-  it("AC22.1.1 AC22.21.1 exposes a five-target bottom tab bar (Home, Chat, Add, Audit, More)", () => {
+  it("AC19.6.2 AC19.8.5 AC22.1.1 AC22.1.7 AC22.2.4 AC22.21.1 exposes a five-target bottom tab bar with distinct icons (Home, Chat, Add, Audit, More)", () => {
     expect(bottomTabItems.map((item) => item.label)).toEqual([
       "Home",
       "Chat",

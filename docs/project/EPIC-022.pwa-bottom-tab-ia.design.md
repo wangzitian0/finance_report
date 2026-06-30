@@ -1,5 +1,7 @@
 # EPIC-022 PR12+ — PWA Bottom-Tab IA (Low-Fidelity Design)
 
+> **Vision Anchor**: `decision-2-event-middle-layer`, `decision-4-two-stage-review`.
+>
 > Status: **design / pre-AC** (low-fidelity, approved direction; ACs land separately).
 > Parent: [EPIC-022 Everyday-User IA](./EPIC-022.everyday-user-ia.md). This is the
 > next slice that **finishes EPIC-022's own thesis**: EPIC-022 collapsed the

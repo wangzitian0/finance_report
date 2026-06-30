@@ -48,6 +48,14 @@ Processing, AI Settings, Review) collapses into a single **Advanced** group that
 is hidden by default. The authenticated landing page is a lightweight **Home**:
 financial key numbers, an action-required summary, and a quick-upload entry.
 
+> **Update (PR12, AC22.21)**: the 3-peer + Advanced-drawer model above was the
+> PR1–PR11 shape. It still left the accounting machinery as nine standing nav
+> verbs, so the app stayed information-overloaded. PR12 supersedes it with a
+> mobile/PWA-first **bottom tab bar** (Home · Chat · ⊕ Add · Audit · More): the
+> machinery folds into an on-demand `/audit` hub, Settings merge into one tabbed
+> page, Portfolio moves behind `/more`, and Upload becomes the center Add sheet.
+> See AC22.21 and [the design doc](./EPIC-022.pwa-bottom-tab-ia.design.md).
+
 ## Why This EPIC Exists
 
 EPIC-019 made "upload + reports" the intended primary operations and added a
@@ -465,10 +473,10 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC22.21.1 | The navigation model exposes a bottom tab bar of Home (`/`), Chat (`/chat`), Audit (`/audit`), and More (`/more`) plus a center Add action, and no longer exposes a `primaryWorkflowNavItems`/`advancedNavItems` split or any of Journal/Reconciliation/Processing/Confidence/Accounts/Settings as a navigation entry | `navigation.test.ts` | P1 |
-| AC22.21.2 | The shell renders the bottom tab bar on mobile and mirrors the same five targets in the desktop sidebar; tapping Add opens a bottom sheet offering "Upload statement" (the statement uploader) and "Manual entry" (the guided evidence form), and Add is an action, not a route | `bottomTabBar.test.tsx`, `addSheet.test.tsx` | P1 |
-| AC22.21.3 | `/audit` renders a verify-on-demand hub aggregating Trust (confidence), Reconciliation, Journal, and Processing as cards that deep-link to their existing pages, and those pages render a back-link to `/audit` | `auditHub.test.tsx`, `auditBackLinks.test.tsx` | P1 |
-| AC22.21.4 | `/settings` renders one page with General, AI, and LLM as tabs, and `/settings/general`, `/settings/ai`, `/settings/llm` resolve to that page with the corresponding tab active | `settingsPage.test.tsx` | P1 |
-| AC22.21.5 | `/more` lists low-frequency destinations — Portfolio (shown only when the user holds securities), Settings, Advanced, and Logout | `morePage.test.tsx` | P1 |
-| AC22.21.6 | The Home renders the net-worth headline, a three-statement segmented summary (Balance Sheet / Income / Cash Flow) each deep-linking to its full report, the single next-action, the attention bell, and keeps heavy charts behind an opt-in toggle | `dashboardPage.test.tsx` | P1 |
-| AC22.21.7 | Desktop and mobile smoke covers the bottom tab bar, the Add sheet, the Audit hub, and the merged Settings without layout overflow, with safe-area-aware bottom-bar styling for standalone PWA sessions | `epic022-bottom-tab-ia.spec.ts` | P1 |
+| AC22.21.1 {tier:CODE-ONLY} | The navigation model exposes a bottom tab bar of Home (`/`), Chat (`/chat`), Audit (`/audit`), and More (`/more`) plus a center Add action, and no longer exposes a `primaryWorkflowNavItems`/`advancedNavItems` split or any of Journal/Reconciliation/Processing/Confidence/Accounts/Settings as a navigation entry | `navigation.test.ts` | P1 |
+| AC22.21.2 {tier:CODE-ONLY} | The shell renders the bottom tab bar on mobile and mirrors the same five targets in the desktop sidebar; tapping Add opens a bottom sheet offering "Upload statement" (the statement uploader) and "Manual entry" (the guided evidence form), and Add is an action, not a route | `bottomTabBar.test.tsx`, `addSheet.test.tsx` | P1 |
+| AC22.21.3 {tier:CODE-ONLY} | `/audit` renders a verify-on-demand hub aggregating Trust (confidence), Reconciliation, Journal, and Processing as cards that deep-link to their existing pages, and those pages render a back-link to `/audit` | `auditHub.test.tsx`, `auditBackLinks.test.tsx` | P1 |
+| AC22.21.4 {tier:CODE-ONLY} | `/settings` renders one page with General, AI, and LLM as tabs, and `/settings/general`, `/settings/ai`, `/settings/llm` resolve to that page with the corresponding tab active | `settingsPage.test.tsx` | P1 |
+| AC22.21.5 {tier:CODE-ONLY} | `/more` lists low-frequency destinations — Portfolio (shown only when the user holds securities), Settings, Advanced, and Logout | `morePage.test.tsx` | P1 |
+| AC22.21.6 {tier:CODE-ONLY} | The Home renders the net-worth headline, a three-statement segmented entry (Balance Sheet / Income / Cash Flow) each deep-linking to its full report, the single next-action, the attention bell, and keeps heavy charts behind an opt-in toggle | `homeStatements.test.tsx`, `dashboardPage.test.tsx` | P1 |
+| AC22.21.7 {tier:CODE-ONLY} | Desktop and mobile smoke covers the bottom tab bar, the Add sheet, the Audit hub, and the merged Settings without layout overflow, with safe-area-aware bottom-bar styling for standalone PWA sessions | `epic022-bottom-tab-ia.spec.ts` | P1 |

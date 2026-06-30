@@ -7,6 +7,7 @@ import ProcessingSummaryCard from "@/components/ProcessingSummaryCard";
 import { UploadToReportHomePanel } from "@/components/workflow/WorkflowNotifications";
 import { AdvisorBrief } from "@/components/advisor/AdvisorBrief";
 import { TrustMeter } from "@/components/home/TrustMeter";
+import { ThreeStatementNav } from "@/components/home/ThreeStatementNav";
 import { InfoHint } from "@/components/ui/InfoHint";
 import { OpeningBalanceWarningBanner } from "@/components/reports/OpeningBalanceWarningBanner";
 
@@ -137,6 +138,12 @@ export default function HomePage() {
     <div className="p-6">
       <div className="mb-6">
         <UploadToReportHomePanel />
+      </div>
+
+      {/* EPIC-022 AC22.21.6: the three statements are the product — lead with a
+          segmented entry into each, deep-linking to the full report. */}
+      <div className="mb-6">
+        <ThreeStatementNav />
       </div>
 
       <div className="mb-6">

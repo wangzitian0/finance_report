@@ -331,14 +331,21 @@ Frontend monetary display and arithmetic must use `decimal.js` through
 
 ## 9. Responsive Navigation
 
-Desktop sidebar and mobile drawer navigation share `components/navigation.ts` as the route source of truth.
+The app is mobile/PWA-first. `components/navigation.ts` is the single route
+source of truth, shared by a mobile bottom tab bar (`components/shell/BottomTabBar`)
+and the desktop sidebar (`components/Sidebar`), which mirror the **same** targets
+(EPIC-022 AC22.21).
 
 **Rules:**
-- Add primary workflow routes once in `primaryWorkflowNavItems` and drill-down
-  routes once in `advancedNavItems`.
+- The bottom tab bar is exactly five hit targets: Home, Chat, a center **Add**
+  action (opens `AddSheet`, not a route), Audit, and More — declared once in
+  `bottomTabItems` + `ADD_ACTION`.
+- The accounting machinery is **not** navigation. Folded out of nav into the
+  on-demand `/audit` hub (`auditHubItems`); low-frequency destinations live behind
+  `/more` (`moreItems` + `advancedItems`).
 - Add workspace tab labels/icons once in `ROUTE_CONFIG`.
-- Mobile must not render desktop workspace tabs; phone navigation uses the drawer only.
-- Do not create separate reduced mobile menus that hide core routes.
+- The desktop sidebar must mirror the same five targets — do not reintroduce a
+  primary/Advanced split or a separate reduced mobile menu that hides core routes.
 
 ## 10. Mobile Review Surfaces
 

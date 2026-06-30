@@ -116,7 +116,7 @@ describe("Sidebar and WorkspaceTabs", () => {
     expect(brand).toHaveAttribute("href", "/")
   })
 
-  it("AC22.21.1 keeps the accounting machinery and settings out of the sidebar", async () => {
+  it("AC15.7.7 AC16.19.12 AC19.6.3 AC19.6.4 AC19.6.5 AC22.21.1 keeps the accounting machinery, sidebar badges and settings out of the sidebar (supersedes the Advanced drawer)", async () => {
     render(<Sidebar />)
 
     await screen.findByRole("link", { name: /^Home$/i })
