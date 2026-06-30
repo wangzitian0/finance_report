@@ -1,71 +1,83 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ADD_ACTION,
   DEFAULT_ROUTE_ICON,
   ROUTE_CONFIG,
-  advancedNavItems,
+  advancedItems,
+  auditHubItems,
+  bottomTabItems,
   getRouteConfig,
-  primaryWorkflowNavItems,
+  moreItems,
 } from "@/components/navigation";
 
-const ACCOUNTING_JARGON_HREFS = ["/journal", "/reconciliation", "/accounts", "/statements"];
+const ACCOUNTING_JARGON_HREFS = [
+  "/journal",
+  "/reconciliation",
+  "/accounts",
+  "/statements",
+  "/settings",
+  "/processing",
+  "/confidence",
+];
 
 describe("navigation metadata", () => {
-  it("AC19.6.2 AC19.8.5 AC22.1.1 AC22.2.4 exposes exactly three everyday peers and folds the rest into advanced", () => {
-    expect(primaryWorkflowNavItems.map((item) => item.label)).toEqual([
-      "Upload",
-      "Reports",
+  it("AC22.1.1 AC22.21.1 exposes a five-target bottom tab bar (Home, Chat, Add, Audit, More)", () => {
+    expect(bottomTabItems.map((item) => item.label)).toEqual([
+      "Home",
       "Chat",
+      "Audit",
+      "More",
     ]);
-    expect(primaryWorkflowNavItems.map((item) => item.href)).toEqual([
-      "/upload",
-      "/reports",
+    expect(bottomTabItems.map((item) => item.href)).toEqual([
+      "/",
       "/chat",
+      "/audit",
+      "/more",
     ]);
 
-    // AC22.1.1: no accounting-jargon route is a top-level peer.
-    const primaryHrefs = primaryWorkflowNavItems.map((item) => item.href);
+    // Add is the center action — an action that opens a sheet, not a route.
+    expect(ADD_ACTION.label).toBe("Add");
+
+    // AC22.1.1: no accounting-jargon route or settings page is a bottom tab.
+    const tabHrefs = bottomTabItems.map((item) => item.href);
     for (const jargonHref of ACCOUNTING_JARGON_HREFS) {
-      expect(primaryHrefs).not.toContain(jargonHref);
+      expect(tabHrefs).not.toContain(jargonHref);
     }
 
-    expect(advancedNavItems.map((item) => item.label)).toEqual([
-      "Portfolio",
-      "Accounts",
-      "Journal",
-      "Reconciliation",
-      "Processing",
-      "Confidence Trend",
-      "General Settings",
-      "AI Settings",
-      "LLM Models",
-    ]);
-    expect(advancedNavItems.find((item) => item.label === "AI Settings")?.href).toBe("/settings/ai");
-    expect(advancedNavItems.find((item) => item.label === "LLM Models")?.href).toBe("/settings/llm");
+    // The four bottom tabs use distinct icons.
+    const icons = bottomTabItems.map((item) => item.icon);
+    expect(new Set(icons).size).toBe(icons.length);
+  });
 
-    // AC22.1.4: the legacy "Upload Pipeline" label is gone from the nav model.
-    const allLabels = [...primaryWorkflowNavItems, ...advancedNavItems].map((item) => item.label);
-    expect(allLabels).not.toContain("Upload Pipeline");
-    // Events lives in the header bell, not the sidebar nav.
-    expect(allLabels).not.toContain("Events");
-    // AC22.2.4: the standalone Review Queue is folded into the notification center.
-    expect(allLabels).not.toContain("Review");
+  it("AC22.21.3 folds the accounting machinery into the /audit hub, out of navigation", () => {
+    const auditHrefs = auditHubItems.map((item) => item.href);
+    expect(auditHrefs).toEqual(
+      expect.arrayContaining(["/confidence", "/reconciliation", "/journal", "/processing"]),
+    );
+    // None of these machinery routes is reachable as a bottom tab.
+    const tabHrefs = bottomTabItems.map((item) => item.href);
+    for (const href of auditHrefs) {
+      expect(tabHrefs).not.toContain(href);
+    }
+  });
+
+  it("AC22.21.5 routes low-frequency destinations through the /more overflow", () => {
+    const moreHrefs = moreItems.map((item) => item.href);
+    expect(moreHrefs).toEqual(expect.arrayContaining(["/portfolio", "/settings"]));
+    // Accounts is the genuine power escape hatch under Advanced, not a tab.
+    expect(advancedItems.map((item) => item.href)).toContain("/accounts");
   });
 
   it("AC22.1.6 lists Portfolio exactly once across the navigation model", () => {
-    const portfolioEntries = [...primaryWorkflowNavItems, ...advancedNavItems].filter(
-      (item) => item.label === "Portfolio",
-    );
+    const portfolioEntries = [
+      ...bottomTabItems,
+      ...auditHubItems,
+      ...moreItems,
+      ...advancedItems,
+    ].filter((item) => item.label === "Portfolio");
     expect(portfolioEntries).toHaveLength(1);
     expect(portfolioEntries[0].href).toBe("/portfolio");
-  });
-
-  it("AC22.1.7 gives Chat and AI Settings distinct icons", () => {
-    const chat = primaryWorkflowNavItems.find((item) => item.label === "Chat");
-    const aiSettings = advancedNavItems.find((item) => item.label === "AI Settings");
-    expect(chat).toBeDefined();
-    expect(aiSettings).toBeDefined();
-    expect(chat?.icon).not.toBe(aiSettings?.icon);
   });
 
   it("AC16.19.4 AC19.6.6 resolves exact, parent, advanced, and home route labels", () => {
@@ -75,6 +87,9 @@ describe("navigation metadata", () => {
     expect(getRouteConfig("/reconciliation/unmatched").label).toBe("Unmatched");
     expect(getRouteConfig("/processing").label).toBe("Processing");
     expect(getRouteConfig("/chat").label).toBe("Chat");
+    expect(getRouteConfig("/audit").label).toBe("Audit");
+    expect(getRouteConfig("/more").label).toBe("More");
+    expect(getRouteConfig("/settings").label).toBe("Settings");
     expect(getRouteConfig("/settings/ai").label).toBe("AI Settings");
     expect(getRouteConfig("/settings/llm").label).toBe("LLM Models");
     expect(getRouteConfig("/").label).toBe("Home");
@@ -85,12 +100,8 @@ describe("navigation metadata", () => {
   });
 
   it("AC22.18.1 drops the legacy /events alias so /notifications is the one canonical label", () => {
-    // /events is permanently redirected to /notifications; it is no longer in
-    // ROUTE_CONFIG, so it falls through to a derived label instead of leaking
-    // the legacy "Notifications" mapping.
     expect(ROUTE_CONFIG["/events"]).toBeUndefined();
     expect(getRouteConfig("/events").label).toBe("Events");
-    // /notifications remains the single canonical Notifications surface.
     expect(getRouteConfig("/notifications").label).toBe("Notifications");
   });
 });

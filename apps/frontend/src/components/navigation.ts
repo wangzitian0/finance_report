@@ -2,15 +2,18 @@ import {
     BarChart3,
     Bell,
     BookOpen,
+    Clock,
     Coins,
     Cpu,
     ClipboardCheck,
-    Clock,
     FileText,
+    FolderOpen,
     Home,
     Landmark,
     Link2,
     MessageSquare,
+    MoreHorizontal,
+    Plus,
     ShieldCheck,
     SlidersHorizontal,
     TrendingDown,
@@ -32,24 +35,40 @@ export interface RouteConfig {
     Icon: LucideIcon;
 }
 
-// Three peers an everyday user needs. Notifications live in the header bell,
-// not here. Everything internal lives under Advanced (see EPIC-022).
-export const primaryWorkflowNavItems: NavItem[] = [
-    { icon: UploadCloud, label: "Upload", href: "/upload", protected: true },
-    { icon: BarChart3, label: "Reports", href: "/reports", protected: true },
+// EPIC-022 AC22.21: mobile/PWA-first bottom tab bar, mirrored by the desktop
+// sidebar. Exactly four routed tabs plus a center "Add" action (see ADD_ACTION).
+// The accounting machinery is no longer a set of nav verbs — it lives in the
+// on-demand `/audit` hub; low-frequency destinations live behind `/more`.
+export const bottomTabItems: NavItem[] = [
+    { icon: Home, label: "Home", href: "/", protected: false },
     { icon: MessageSquare, label: "Chat", href: "/chat", protected: true },
+    { icon: ShieldCheck, label: "Audit", href: "/audit", protected: true },
+    { icon: MoreHorizontal, label: "More", href: "/more", protected: true },
 ];
 
-export const advancedNavItems: NavItem[] = [
-    { icon: Wallet, label: "Portfolio", href: "/portfolio", protected: true },
-    { icon: Landmark, label: "Accounts", href: "/accounts", protected: true },
-    { icon: BookOpen, label: "Journal", href: "/journal", protected: true },
+// The center tab is an action (opens the Add bottom sheet), not a route.
+export const ADD_ACTION = { icon: Plus, label: "Add" } as const;
+
+// `/audit` hub cards — verify-on-demand machinery folded out of navigation.
+// Each deep-links to an existing page (which back-links to `/audit`).
+export const auditHubItems: NavItem[] = [
+    { icon: TrendingDown, label: "Trust", href: "/confidence", protected: true },
     { icon: Link2, label: "Reconciliation", href: "/reconciliation", protected: true },
+    { icon: BookOpen, label: "Journal", href: "/journal", protected: true },
     { icon: Clock, label: "Processing", href: "/processing", protected: true },
-    { icon: TrendingDown, label: "Confidence Trend", href: "/confidence", protected: true },
-    { icon: Coins, label: "General Settings", href: "/settings/general", protected: true },
-    { icon: SlidersHorizontal, label: "AI Settings", href: "/settings/ai", protected: true },
-    { icon: Cpu, label: "LLM Models", href: "/settings/llm", protected: true },
+];
+
+// `/more` overflow — low-frequency destinations. Portfolio is conditional
+// (rendered only when the user holds securities; gating happens in the page).
+export const moreItems: NavItem[] = [
+    { icon: Wallet, label: "Portfolio", href: "/portfolio", protected: true },
+    { icon: SlidersHorizontal, label: "Settings", href: "/settings", protected: true },
+];
+
+// The genuine power/escape-hatch routes left after Audit and Settings absorb the
+// rest. Rendered under an "Advanced" subheading on `/more`.
+export const advancedItems: NavItem[] = [
+    { icon: Landmark, label: "Accounts", href: "/accounts", protected: true },
 ];
 
 export const ROUTE_CONFIG: Record<string, RouteConfig> = {
@@ -57,6 +76,8 @@ export const ROUTE_CONFIG: Record<string, RouteConfig> = {
     "/upload": { label: "Upload", Icon: UploadCloud },
     "/notifications": { label: "Notifications", Icon: Bell },
     "/attention": { label: "Needs attention", Icon: ShieldCheck },
+    "/audit": { label: "Audit", Icon: ShieldCheck },
+    "/more": { label: "More", Icon: MoreHorizontal },
     // Legacy routes redirect to the new IA; keep label/icon mappings so any
     // persisted workspace tabs or breadcrumbs render with the new names.
     // #1118: `/events` is permanently redirected to `/notifications` and is no
@@ -83,6 +104,7 @@ export const ROUTE_CONFIG: Record<string, RouteConfig> = {
     "/processing": { label: "Processing", Icon: Clock },
     "/confidence": { label: "Confidence Trend", Icon: TrendingDown },
     "/chat": { label: "Chat", Icon: MessageSquare },
+    "/settings": { label: "Settings", Icon: SlidersHorizontal },
     "/settings/general": { label: "General Settings", Icon: Coins },
     "/settings/ai": { label: "AI Settings", Icon: SlidersHorizontal },
     "/settings/llm": { label: "LLM Models", Icon: Cpu },
@@ -90,6 +112,9 @@ export const ROUTE_CONFIG: Record<string, RouteConfig> = {
 };
 
 export const DEFAULT_ROUTE_ICON = UploadCloud;
+
+// Re-exported so the `/more` page can render the genuine power escape hatch.
+export { FolderOpen };
 
 export function getRouteConfig(pathname: string): RouteConfig {
     if (ROUTE_CONFIG[pathname]) return ROUTE_CONFIG[pathname];

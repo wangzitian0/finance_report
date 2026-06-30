@@ -128,7 +128,7 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC22.1.1 | Primary navigation renders exactly three peers (Upload, Reports, Chat) plus a collapsible Advanced group; no accounting-jargon route (Journal, Reconciliation, Accounts, Statements) appears at the top level | `navigation.test.ts` | P1 |
+| AC22.1.1 | Primary navigation renders a bottom tab bar of exactly five hit targets — Home, Chat, a center Add action, Audit, and More — mirrored by the desktop sidebar; no accounting-jargon route (Journal, Reconciliation, Accounts, Statements) and no Settings page appears as a top-level tab (superseded by AC22.21.1 for the data-model shape) | `navigation.test.ts` | P1 |
 | AC22.1.2 | The authenticated Home renders financial key numbers, an action-required summary, and a quick-upload entry | `dashboardPage.test.tsx` | P1 |
 | AC22.1.3 | The sidebar brand links to `/` and the login flow redirects to `/` after authentication | `sidebarAndTabs.test.tsx`, `loginPage.test.tsx` | P1 |
 | AC22.1.4 | `/dashboard` redirects to `/` and the label "Upload Pipeline" no longer appears in the navigation model | `nextConfigRedirects.test.ts`, `navigation.test.ts` | P1 |
@@ -136,7 +136,7 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 | AC22.1.6 | `/assets` redirects to `/portfolio` and exactly one navigation entry is labeled "Portfolio" | `nextConfigRedirects.test.ts`, `navigation.test.ts` | P1 |
 | AC22.1.7 | Chat and AI Settings navigation entries use distinct icons | `navigation.test.ts` | P1 |
 | AC22.1.8 | `/upload` renders both the statement uploader and upload history, and `/statements/upload` redirects to `/upload` | `statementsPage.test.tsx`, `nextConfigRedirects.test.ts` | P1 |
-| AC22.1.9 | Desktop and mobile smoke covers the 3-peer navigation, the Advanced toggle, and the notification bell without layout overflow | `epic022-ia-shell.spec.ts` | P1 |
+| AC22.1.9 | Desktop and mobile smoke covers the five-target bottom-tab navigation (Home, Chat, Add, Audit, More) and the notification bell without layout overflow | `epic022-ia-shell.spec.ts` | P1 |
 
 ### AC22.2 — Unified Notification Inbox
 
@@ -449,3 +449,26 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 | AC22.20.2 | The shared install hook captures Android/Chromium `beforeinstallprompt`, suppresses the browser's automatic prompt until the app-level action, invokes `prompt()`, and records dismissals so business pages do not handle install events | `pwaInstall.test.tsx` | P1 |
 | AC22.20.3 | The global app-shell install prompt renders an Android install action when a deferred prompt is available and renders iOS Add to Home Screen guidance when the browser cannot provide a programmatic prompt | `pwaInstall.test.tsx` | P1 |
 | AC22.20.4 | Installed or standalone sessions hide the install prompt, and the app shell uses safe-area-aware standalone styling for home-screen launch without page-level changes | `pwaInstall.test.tsx`, `designTokens.test.tsx` | P1 |
+
+### AC22.21 — Mobile/PWA Bottom-Tab IA: Audit Hub, Add Sheet, Merged Settings
+
+> PR12 slice (continuation). EPIC-022 collapsed the accounting machinery into a
+> nine-item Advanced drawer but kept each as a standing navigation verb, so the
+> app stayed information-overloaded. This slice flips to a mobile/PWA-first bottom
+> tab bar (Home · Chat · Add · Audit · More), pushes the machinery (Journal,
+> Reconciliation, Confidence, Processing) out of navigation into an on-demand
+> `/audit` hub, turns Upload into a center Add bottom sheet, merges the three
+> Settings pages into one tabbed `/settings`, and gates Portfolio behind a `/more`
+> overflow. Deep pages stay reachable and gain back-links; the attention inbox
+> (the bell + `/attention`) is reused unchanged. See the low-fidelity design in
+> [EPIC-022.pwa-bottom-tab-ia.design.md](./EPIC-022.pwa-bottom-tab-ia.design.md).
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC22.21.1 | The navigation model exposes a bottom tab bar of Home (`/`), Chat (`/chat`), Audit (`/audit`), and More (`/more`) plus a center Add action, and no longer exposes a `primaryWorkflowNavItems`/`advancedNavItems` split or any of Journal/Reconciliation/Processing/Confidence/Accounts/Settings as a navigation entry | `navigation.test.ts` | P1 |
+| AC22.21.2 | The shell renders the bottom tab bar on mobile and mirrors the same five targets in the desktop sidebar; tapping Add opens a bottom sheet offering "Upload statement" (the statement uploader) and "Manual entry" (the guided evidence form), and Add is an action, not a route | `bottomTabBar.test.tsx`, `addSheet.test.tsx` | P1 |
+| AC22.21.3 | `/audit` renders a verify-on-demand hub aggregating Trust (confidence), Reconciliation, Journal, and Processing as cards that deep-link to their existing pages, and those pages render a back-link to `/audit` | `auditHub.test.tsx`, `auditBackLinks.test.tsx` | P1 |
+| AC22.21.4 | `/settings` renders one page with General, AI, and LLM as tabs, and `/settings/general`, `/settings/ai`, `/settings/llm` resolve to that page with the corresponding tab active | `settingsPage.test.tsx` | P1 |
+| AC22.21.5 | `/more` lists low-frequency destinations — Portfolio (shown only when the user holds securities), Settings, Advanced, and Logout | `morePage.test.tsx` | P1 |
+| AC22.21.6 | The Home renders the net-worth headline, a three-statement segmented summary (Balance Sheet / Income / Cash Flow) each deep-linking to its full report, the single next-action, the attention bell, and keeps heavy charts behind an opt-in toggle | `dashboardPage.test.tsx` | P1 |
+| AC22.21.7 | Desktop and mobile smoke covers the bottom tab bar, the Add sheet, the Audit hub, and the merged Settings without layout overflow, with safe-area-aware bottom-bar styling for standalone PWA sessions | `epic022-bottom-tab-ia.spec.ts` | P1 |
