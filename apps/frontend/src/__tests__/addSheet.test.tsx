@@ -4,7 +4,11 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import AddSheet from "@/components/shell/AddSheet";
 
 vi.mock("@/components/statements/StatementUploader", () => ({
-    default: ({ kind }: { kind?: string }) => <div data-testid="uploader">UploaderMock-{kind}</div>,
+    default: ({ kind, onUploadComplete }: { kind?: string; onUploadComplete?: () => void }) => (
+        <button data-testid="uploader" onClick={() => onUploadComplete?.()}>
+            UploaderMock-{kind}
+        </button>
+    ),
 }));
 
 vi.mock("@/components/assets/GuidedEvidenceForm", () => ({
@@ -30,5 +34,24 @@ describe("AddSheet (EPIC-022 AC22.21.2)", () => {
         render(<AddSheet isOpen onClose={() => {}} />);
         fireEvent.click(screen.getByText("Manual entry"));
         expect(screen.getByTestId("evidence-form")).toBeInTheDocument();
+    });
+
+    it("fires onUploadComplete and closes after a successful upload", () => {
+        const onClose = vi.fn();
+        const onUploadComplete = vi.fn();
+        render(<AddSheet isOpen onClose={onClose} onUploadComplete={onUploadComplete} />);
+
+        fireEvent.click(screen.getByText("Upload statement"));
+        fireEvent.click(screen.getByTestId("uploader"));
+
+        expect(onUploadComplete).toHaveBeenCalledTimes(1);
+        expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("closes via the sheet's close control", () => {
+        const onClose = vi.fn();
+        render(<AddSheet isOpen onClose={onClose} />);
+        fireEvent.click(screen.getByRole("button", { name: /close panel/i }));
+        expect(onClose).toHaveBeenCalledTimes(1);
     });
 });

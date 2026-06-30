@@ -3,16 +3,13 @@
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
-import { LogIn, LogOut, Zap } from "lucide-react";
+import { LogIn, LogOut } from "lucide-react";
 
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { clearUser, getUserEmail, isAuthenticated } from "@/lib/auth";
 import { ADD_ACTION, bottomTabItems, type NavItem } from "@/components/navigation";
 import AddSheet from "@/components/shell/AddSheet";
-
-// Hide dev routes in production
-const IS_DEV = process.env.NODE_ENV === "development";
 
 function isActive(pathname: string, href: string): boolean {
     if (href === "/") return pathname === "/";
@@ -143,23 +140,6 @@ export function Sidebar() {
                     <div className="px-2.5 py-1.5 text-xs text-[var(--foreground-muted)] truncate">
                         {userEmail}
                     </div>
-                )}
-
-                {IS_DEV && (
-                    <Link
-                        href="/ping-pong"
-                        className={`
-            flex items-center gap-2.5 px-2.5 py-3 rounded-md min-h-[44px]
-            text-[var(--foreground-muted)] hover:bg-[var(--background-muted)] hover:text-[var(--foreground)]
-            transition-colors text-sm
-            ${isCollapsed ? "justify-center" : ""}
-          `}
-                        title={isCollapsed ? "Ping-Pong Demo" : undefined}
-                        aria-label={isCollapsed ? "Ping-Pong Demo" : undefined}
-                    >
-                        <Zap className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
-                        {!isCollapsed && <span className="font-medium">Ping-Pong</span>}
-                    </Link>
                 )}
 
                 {isAuth && (

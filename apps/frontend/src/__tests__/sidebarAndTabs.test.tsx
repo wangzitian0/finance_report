@@ -128,6 +128,44 @@ describe("Sidebar and WorkspaceTabs", () => {
     expect(screen.queryByRole("link", { name: /AI Settings/i })).toBeNull()
   })
 
+  it("AC22.21.2 shows only Home and a Login link when unauthenticated", async () => {
+    isAuthenticatedMock.mockReturnValue(false)
+    getUserEmailMock.mockReturnValue(null)
+    render(<Sidebar />)
+
+    await waitFor(() => expect(screen.getByRole("link", { name: /^Home$/i })).toBeInTheDocument())
+    expect(screen.getByRole("link", { name: "Login" })).toHaveAttribute("href", "/login")
+    expect(screen.queryByRole("link", { name: /^Chat$/i })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Add" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Logout" })).toBeNull()
+  })
+
+  it("AC22.21.2 renders a collapsed icon-only rail without text labels", async () => {
+    workspaceMockData = { ...workspaceMockData, isCollapsed: true }
+    render(<Sidebar />)
+
+    await waitFor(() => expect(screen.getByLabelText("Expand sidebar")).toBeInTheDocument())
+    // Collapsed: the Add action is still reachable by its aria-label.
+    expect(screen.getByRole("button", { name: "Add" })).toBeInTheDocument()
+    // The user email row is hidden when collapsed.
+    expect(screen.queryByText("user@example.com")).toBeNull()
+  })
+
+  it("AC22.21.2 toggles collapse and opens the Add sheet", async () => {
+    pathnameMock = "/audit"
+    render(<Sidebar />)
+
+    await waitFor(() => expect(screen.getByRole("link", { name: /^Audit$/i })).toBeInTheDocument())
+    // The active route is marked.
+    expect(screen.getByRole("link", { name: /^Audit$/i })).toHaveAttribute("aria-current", "page")
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }))
+    expect(toggleSidebarMock).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole("button", { name: "Add" }))
+    expect(screen.getByRole("dialog", { name: "Add" })).toBeInTheDocument()
+  })
+
   it("AC16.19.4 adds and manages workspace tabs from route changes", async () => {
     pathnameMock = "/reports/balance-sheet"
     render(<WorkspaceTabs />)

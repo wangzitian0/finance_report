@@ -19,8 +19,14 @@ vi.mock("@/lib/auth", () => ({
 // AddSheet pulls heavy uploader/evidence components; stub it so this suite stays
 // focused on the tab bar's structure and the Add action wiring.
 vi.mock("@/components/shell/AddSheet", () => ({
-    default: ({ isOpen }: { isOpen: boolean }) =>
-        isOpen ? <div data-testid="add-sheet">AddSheetMock</div> : null,
+    default: ({ isOpen, onUploadComplete }: { isOpen: boolean; onUploadComplete?: () => void }) =>
+        isOpen ? (
+            <div data-testid="add-sheet">
+                <button data-testid="add-complete" onClick={() => onUploadComplete?.()}>
+                    complete
+                </button>
+            </div>
+        ) : null,
 }));
 
 describe("BottomTabBar (EPIC-022 AC22.21.2)", () => {
@@ -51,6 +57,10 @@ describe("BottomTabBar (EPIC-022 AC22.21.2)", () => {
         expect(screen.queryByTestId("add-sheet")).toBeNull();
         fireEvent.click(screen.getByLabelText("Add"));
         expect(screen.getByTestId("add-sheet")).toBeInTheDocument();
+
+        // A completed upload refreshes the current route so new data shows.
+        fireEvent.click(screen.getByTestId("add-complete"));
+        expect(refreshMock).toHaveBeenCalledTimes(1);
     });
 
     it("points each tab at its canonical route", () => {
