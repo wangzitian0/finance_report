@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -21,7 +21,14 @@ export function BottomTabBar() {
     const pathname = usePathname();
     const router = useRouter();
     const [addOpen, setAddOpen] = useState(false);
-    const authed = isAuthenticated();
+    // Read auth in an effect, not during render: isAuthenticated() returns false
+    // on the server (no localStorage) but true on the client, which would render
+    // a different tab set on each side and trip a hydration mismatch. Mirror the
+    // Sidebar's pattern so SSR and the first client render agree.
+    const [authed, setAuthed] = useState(false);
+    useEffect(() => {
+        setAuthed(isAuthenticated());
+    }, [pathname]);
 
     const renderTab = (item: NavItem) => {
         const Icon = item.icon;

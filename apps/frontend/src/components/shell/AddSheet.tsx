@@ -67,7 +67,7 @@ export default function AddSheet({ isOpen, onClose, onUploadComplete }: AddSheet
 
             {mode === "upload" && (
                 <StatementUploader
-                    kind="statement"
+                    kind="all"
                     onUploadComplete={() => {
                         onUploadComplete?.();
                         close();

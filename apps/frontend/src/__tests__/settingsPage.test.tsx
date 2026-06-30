@@ -44,6 +44,25 @@ describe("Merged Settings page (EPIC-022 AC22.21.4)", () => {
         expect(replaceMock).toHaveBeenCalledWith("/settings?tab=llm", { scroll: false });
     });
 
+    it("moves between tabs with the arrow keys (WAI-ARIA tabs pattern)", () => {
+        render(<SettingsPage />);
+        const tablist = screen.getByRole("tablist", { name: "Settings sections" });
+        fireEvent.keyDown(tablist, { key: "ArrowRight" });
+        expect(screen.getByRole("tab", { name: "AI" })).toHaveAttribute("aria-selected", "true");
+        expect(screen.getByRole("tab", { name: "AI" })).toHaveFocus();
+        expect(replaceMock).toHaveBeenCalledWith("/settings?tab=ai", { scroll: false });
+        fireEvent.keyDown(tablist, { key: "ArrowLeft" });
+        expect(screen.getByRole("tab", { name: "General" })).toHaveAttribute("aria-selected", "true");
+    });
+
+    it("wires each tab to its panel via aria-controls/labelledby", () => {
+        render(<SettingsPage />);
+        const tab = screen.getByRole("tab", { name: "General" });
+        const panel = screen.getByRole("tabpanel");
+        expect(tab).toHaveAttribute("aria-controls", "settings-panel-general");
+        expect(panel).toHaveAttribute("aria-labelledby", "settings-tab-general");
+    });
+
     it("opens the tab named by the ?tab= query (e.g. /settings/ai → ?tab=ai)", () => {
         navigationState.searchParams = new URLSearchParams("tab=ai");
         render(<SettingsPage />);

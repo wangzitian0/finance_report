@@ -40,15 +40,35 @@ export default function SettingsPage() {
         router.replace(`/settings?tab=${id}`, { scroll: false });
     };
 
+    // WAI-ARIA tabs keyboard pattern: Arrow keys move (and activate) the tab, and
+    // focus follows to the newly active tab (required with roving tabindex).
+    const onTablistKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+        e.preventDefault();
+        const i = TABS.findIndex((t) => t.id === tab);
+        const next = e.key === "ArrowRight" ? (i + 1) % TABS.length : (i - 1 + TABS.length) % TABS.length;
+        const nextId = TABS[next].id;
+        selectTab(nextId);
+        document.getElementById(`settings-tab-${nextId}`)?.focus();
+    };
+
     return (
         <div className="p-6">
-            <div role="tablist" aria-label="Settings sections" className="flex gap-1 border-b border-[var(--border)]">
+            <div
+                role="tablist"
+                aria-label="Settings sections"
+                onKeyDown={onTablistKeyDown}
+                className="flex gap-1 border-b border-[var(--border)]"
+            >
                 {TABS.map((t) => (
                     <button
                         key={t.id}
                         type="button"
                         role="tab"
+                        id={`settings-tab-${t.id}`}
+                        aria-controls={`settings-panel-${t.id}`}
                         aria-selected={tab === t.id}
+                        tabIndex={tab === t.id ? 0 : -1}
                         onClick={() => selectTab(t.id)}
                         className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
                             tab === t.id
@@ -61,7 +81,13 @@ export default function SettingsPage() {
                 ))}
             </div>
 
-            <div className="mt-2">
+            <div
+                role="tabpanel"
+                id={`settings-panel-${tab}`}
+                aria-labelledby={`settings-tab-${tab}`}
+                tabIndex={0}
+                className="mt-2"
+            >
                 {tab === "general" && <GeneralSettingsPage />}
                 {tab === "ai" && <AiSettingsPage />}
                 {tab === "llm" && <LlmSettingsPage />}

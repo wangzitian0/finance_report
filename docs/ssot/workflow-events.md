@@ -21,13 +21,13 @@
 | Compact status/events API | `apps/backend/src/routers/workflow.py` |
 | Report package readiness fact source | `GET /api/reports/package/readiness` in `apps/backend/src/services/report_readiness.py` |
 | Header badge, Event inbox, Status feed | `apps/frontend/src/components/workflow/WorkflowNotifications.tsx` |
-| Upload-to-Report home | `apps/frontend/src/app/(main)/dashboard/page.tsx` |
+| Upload-to-Report home | `apps/frontend/src/app/(main)/page.tsx` (the `/dashboard` route redirects here) |
 | Events page | `apps/frontend/src/app/(main)/events/page.tsx` advanced session history surface |
 | Workflow navigation IA | `apps/frontend/src/components/navigation.ts` |
 | Desktop workflow navigation | `apps/frontend/src/components/Sidebar.tsx` |
-| Mobile workflow navigation | `apps/frontend/src/components/MobileNav.tsx` |
+| Mobile workflow navigation | `apps/frontend/src/components/shell/BottomTabBar.tsx` |
 | Database migrations | `apps/backend/migrations/versions/0021_add_workflow_events.py`, `apps/backend/migrations/versions/0022_harden_workflow_contract.py`, `apps/backend/migrations/versions/0024_add_workflow_sessions.py` |
-| Contract tests | `apps/backend/tests/workflow/test_workflow_events.py`, `apps/backend/tests/api/test_workflow_router.py`, `apps/frontend/src/__tests__/navigation.test.ts`, `apps/frontend/src/__tests__/sidebarAndTabs.test.tsx`, `apps/frontend/src/__tests__/mobileNav.coverage.test.tsx`, `apps/frontend/src/__tests__/workflowApi.test.ts`, `apps/frontend/src/__tests__/workflowSurfaces.test.tsx`, `apps/frontend/playwright/workflow-notifications.spec.ts`, `apps/frontend/playwright/workflow-navigation.spec.ts`, `apps/frontend/playwright/report-readiness.spec.ts` |
+| Contract tests | `apps/backend/tests/workflow/test_workflow_events.py`, `apps/backend/tests/api/test_workflow_router.py`, `apps/frontend/src/__tests__/navigation.test.ts`, `apps/frontend/src/__tests__/sidebarAndTabs.test.tsx`, `apps/frontend/src/__tests__/bottomTabBar.test.tsx`, `apps/frontend/src/__tests__/workflowApi.test.ts`, `apps/frontend/src/__tests__/workflowSurfaces.test.tsx`, `apps/frontend/playwright/workflow-notifications.spec.ts`, `apps/frontend/playwright/workflow-navigation.spec.ts`, `apps/frontend/playwright/report-readiness.spec.ts` |
 
 ---
 
@@ -398,50 +398,24 @@ Upload-to-Report home rules:
 
 ## 11. Workflow Navigation
 
-EPIC-019 owns the product-level navigation model for the upload-to-report
-journey. The primary navigation must express the workflow, not the internal
-accounting pipeline.
+The product navigation IA is owned by EPIC-022 and `docs/ssot/frontend-patterns.md`
+§9 (the mobile/PWA bottom tab bar — Home, Chat, Add, Audit, More). EPIC-019 no
+longer defines a primary/advanced navigation split; the earlier "Upload Pipeline
+/ Reports / AI / Advanced" model was superseded by EPIC-022 AC22.21. This section
+only records the workflow-events constraints the shell must honour, regardless of
+its form factor:
 
-Primary navigation:
-
-```text
-Upload Pipeline -> /dashboard
-Reports -> /reports
-AI -> /chat
-Advanced
-```
-
-Advanced navigation:
-
-```text
-Events -> /events
-Portfolio -> /portfolio
-Statements -> /statements
-Review -> /review
-Accounts -> /accounts
-Journal -> /journal
-Reconciliation -> /reconciliation
-Processing -> /processing
-AI Settings -> /settings/ai
-```
-
-Rules:
-
-- `/dashboard` remains the authenticated upload-to-report home and is labeled
-  as Upload Pipeline in primary navigation.
-- `/events` is an Advanced session-history surface, not a primary navigation
-  entry.
-- `/chat` is labeled AI and is an auxiliary utility, not workflow domain state.
-- `/settings/ai` is the AI Settings route.
-- Advanced is a navigation group, not a new backend workflow concept.
-- Advanced pages are not removed. Direct routes and event `action_href` links
-  into review, reconciliation, processing, statements, reports, and package
-  readiness must continue to work.
-- Desktop and mobile navigation must expose the same primary and advanced
-  groups.
 - Navigation attention indicators must use `GET /api/workflow/status` through
-  `lib/api.ts`. Sidebar-local review queue polling must not calculate separate
-  review badge semantics.
+  `lib/api.ts`. The shell must not calculate separate review-badge semantics with
+  bespoke sidebar polling.
+- Workflow attention is surfaced through the notification bell plus the
+  `/attention` inbox; the accounting machinery (journal, reconciliation,
+  processing, statements, reports, package readiness) is reachable on demand via
+  the Audit hub and event `action_href` deep links.
+- Direct routes and event `action_href` links into review, reconciliation,
+  processing, statements, reports, and package readiness must continue to work.
+- Legacy routes must keep resolving: `/dashboard` redirects to `/` (the
+  authenticated Home) and `/events` redirects to `/notifications`.
 
 ---
 

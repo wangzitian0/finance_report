@@ -311,14 +311,19 @@ assert abs(assets - liabilities_equity) < Decimal("0.01")  # ✅ PASSED
 - [x] **AC15.7.3** Card click-through navigates to `/processing` listing pending transfers (existing or new page) with line items `{from_account, to_account, amount, initiated_date, days_outstanding}`
 - [x] **AC15.7.4** Pending entries older than 7 days render a warning badge on the listing row
 - [x] **AC15.7.5** Frontend test mounts ProcessingSummaryCard and asserts `pending_count` + `pending_total` labels render
-- [x] **AC15.7.6** Sidebar navigation exposes a Processing entry between Reconciliation and AI Settings
-- [x] **AC15.7.7** Sidebar Processing entry shows a warning indicator when Processing Account current balance is non-zero
+- [x] **AC15.7.6** Processing is discoverable as a card in the Audit hub at `/audit` (superseded the old sidebar entry per EPIC-022 AC22.21.3)
+- [x] **AC15.7.7** The Processing Account non-zero-balance warning surfaces on the Home Processing card (AC15.7.8) and the attention inbox; the old sidebar badge was removed with the Advanced drawer (EPIC-022 AC22.21)
 - [x] **AC15.7.8** Dashboard Processing card shows the signed current balance and a non-zero balance warning
+
+> **AC15.7.6/AC15.7.7 superseded by EPIC-022 AC22.21**: the Advanced sidebar drawer
+> was removed, so Processing discoverability moved to the `/audit` hub and its
+> balance warning is carried by the Home Processing card (AC15.7.8) and the
+> attention inbox. Rows kept for history with Verification updated to current tests.
 
 | AC ID | Description | Test | Path | Priority |
 |-------|-------------|------|------|----------|
-| AC15.7.6 | Sidebar navigation exposes a Processing entry between Reconciliation and AI Settings | `AC15.7.6 AC19.6.3 shows Processing between Reconciliation and AI Settings in Advanced` | `apps/frontend/src/__tests__/sidebarAndTabs.test.tsx` | P1 |
-| AC15.7.7 | Sidebar Processing entry shows a warning indicator when Processing Account current balance is non-zero | `AC15.7.7 shows a sidebar warning when Processing Account balance is non-zero` | `apps/frontend/src/__tests__/sidebarAndTabs.test.tsx` | P1 |
+| AC15.7.6 | Processing is discoverable as a card in the Audit hub (`/audit`), superseding the old sidebar entry | `AC15.7.6 aggregates the verify-on-demand machinery (incl. Processing) as deep-linking cards` | `apps/frontend/src/__tests__/auditHub.test.tsx` | P1 |
+| AC15.7.7 | The sidebar Processing badge was removed with the Advanced drawer; the non-zero-balance warning is carried by the Home Processing card and attention inbox | `AC15.7.7 AC16.19.12 AC19.6.3 AC19.6.4 AC19.6.5 AC22.21.1 keeps the accounting machinery, sidebar badges and settings out of the sidebar (supersedes the Advanced drawer)` | `apps/frontend/src/__tests__/sidebarAndTabs.test.tsx` | P1 |
 | AC15.7.8 | Dashboard Processing card shows the signed current balance and a non-zero balance warning | `shows the current Processing Account balance when transfers are unresolved` | `apps/frontend/src/components/__tests__/ProcessingSummaryCard.test.tsx` | P1 |
 
 **Priority**: P0-quick-win — small UI surface; backend already exposes processing-account state.
