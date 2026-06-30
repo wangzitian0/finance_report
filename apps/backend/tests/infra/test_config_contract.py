@@ -127,7 +127,7 @@ class TestConfigContract:
 
         s = Settings()
         assert s.db_pool_size == 20
-        """AC-config.20.5: Ensure DB_POOL_MAX_OVERFLOW env var actually overrides the setting."""
+        # AC-config.20.5: Ensure DB_POOL_MAX_OVERFLOW env var actually overrides the setting.
         monkeypatch.setenv("DB_POOL_MAX_OVERFLOW", "25")
         from src.config import Settings
 
