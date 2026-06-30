@@ -486,8 +486,8 @@ The April 2026 FE/UI audit snapshot was removed from this EPIC. Current review U
 - [x] **AC16.23.2** TransactionTable supports inline edit of `amount`, `description`, `date` with optimistic update + server confirm; failed write reverts row and shows error toast
 - [x] **AC16.23.3** Conflict resolution dialog `<ConflictResolutionDialog />` opens when backend returns duplicate or transfer-pair candidates; user can pick canonical row or link the pair
 - [x] **AC16.23.4** Stage 2 listing exposes severity filter, check-type filter, and score-range slider; filters persist in URL query string
-- [x] **AC16.23.5** Mobile navigation drawer (`<MobileNav />`) renders below 768 px with links to Dashboard / Review / Processing / Portfolio; existing desktop sidebar hidden on mobile
-- [x] **AC16.23.6** Frontend tests mount each new component (PdfPreviewPane, TransactionTable, ConflictResolutionDialog, MobileNav) and assert primary affordance renders
+- [x] **AC16.23.5** Mobile navigation renders below 768 px (originally the `<MobileNav />` drawer; replaced by the `<BottomTabBar />` bottom tab bar per EPIC-022 AC22.21); the desktop sidebar is hidden on mobile
+- [x] **AC16.23.6** Frontend tests mount each new component (PdfPreviewPane, TransactionTable, ConflictResolutionDialog, BottomTabBar) and assert primary affordance renders
 
 ### Acceptance Criteria — Feature (group 24, run-level Stage 2)
 

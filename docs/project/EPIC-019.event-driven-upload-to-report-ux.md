@@ -368,12 +368,20 @@ workflow state exists.
 
 ### AC19.6 — Navigation Folding And Advanced Drill-Down
 
+> **Superseded by EPIC-022 AC22.21.** AC19.6.1–AC19.6.7 below describe the
+> original primary/advanced navigation model (Upload Pipeline / Reports / AI /
+> Advanced + mobile drawer). EPIC-022 PR12 replaced it with a mobile/PWA bottom
+> tab bar (Home · Chat · Add · Audit · More); navigation IA is now owned by
+> EPIC-022 and `docs/ssot/frontend-patterns.md` §9. These rows are kept for
+> history with their Verification updated to the current tests; the live
+> navigation contract is AC22.21.x. Deep-link reachability (AC19.6.6) still holds.
+
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC19.6.1 | EPIC-019 and workflow-events SSOT define the canonical primary/advanced navigation IA and document `/dashboard` as the Upload Pipeline primary entry | `test_AC19_6_1_workflow_navigation_ssot_documents_primary_and_advanced_groups` | P0 |
+| AC19.6.1 | The workflow-events SSOT cedes navigation-IA ownership to EPIC-022 (bottom-tab) and keeps only the workflow-attention contract; the superseded primary/advanced split is no longer documented there | `test_AC19_6_1_workflow_navigation_ia_owned_by_epic022_with_attention_contract` | P0 |
 | AC19.6.2 | Frontend navigation exports separate primary workflow nav and advanced nav groups while preserving route config for all existing advanced deep links | `navigation.test.ts` | P0 |
 | AC19.6.3 | Desktop sidebar renders Upload Pipeline, Reports, AI, and Advanced as the primary surface; advanced child links remain accessible and active-state aware | `sidebarAndTabs.test.tsx` | P0 |
-| AC19.6.4 | Mobile nav renders the same primary/advanced grouping, supports advanced route selection, closes the drawer on navigation, and avoids overflow | `mobileNav.coverage.test.tsx`, `workflow-navigation.spec.ts` | P0 |
+| AC19.6.4 | Mobile navigation (now the bottom tab bar, per AC22.21) exposes the workflow surfaces and avoids overflow | `bottomTabBar.test.tsx`, `workflow-navigation.spec.ts` | P0 |
 | AC19.6.5 | Sidebar attention indicators are derived from `/api/workflow/status` through `lib/api.ts`; direct `/api/statements/pending-review` and stage2 queue polling are removed from Sidebar | `sidebarAndTabs.test.tsx` | P0 |
 | AC19.6.6 | Workflow event action links and workspace route labels continue to deep-link into advanced review/reconciliation/processing/report destinations | `workflowSurfaces.test.tsx`, `sidebarAndTabs.test.tsx`, `workflowActionRoutes.test.tsx` | P0 |
 | AC19.6.7 | Desktop and mobile Playwright smoke covers the folded navigation and Advanced access without horizontal overflow | `workflow-navigation.spec.ts` | P0 |
@@ -392,7 +400,7 @@ workflow state exists.
 | AC19.8.2 | Backend model and migration define `workflow_sessions`, explicit `workflow_session_status_enum`, and nullable legacy-safe `workflow_events.session_id` with session timeline indexes | `test_AC19_8_2_workflow_session_model_contract` | P0 |
 | AC19.8.3 | `GET /workflow/status` returns active session summary and `GET /workflow/events` returns session-scoped event timeline metadata | `test_AC19_8_3_workflow_status_and_events_expose_session_timeline` | P0 |
 | AC19.8.4 | Notification drawer and Events page group timestamped events by workflow session, while Upload Pipeline shows only active-session latest state plus recent timeline preview | `workflowSurfaces.test.tsx`, `workflow-notifications.spec.ts`, `upload-first-dashboard.spec.ts` | P0 |
-| AC19.8.5 | Primary IA is Upload Pipeline, Reports, AI, Advanced; Events and Portfolio are Advanced drill-downs; AI Settings points to `/settings/ai` | `navigation.test.ts`, `sidebarAndTabs.test.tsx`, `mobileNav.coverage.test.tsx`, `workflow-navigation.spec.ts` | P0 |
+| AC19.8.5 | Navigation IA (superseded by EPIC-022 AC22.21): the bottom tab bar is Home, Chat, Add, Audit, More; the accounting machinery and settings are reached via the Audit hub and More, not a primary/advanced split | `navigation.test.ts`, `sidebarAndTabs.test.tsx`, `bottomTabBar.test.tsx`, `workflow-navigation.spec.ts` | P0 |
 | AC19.8.6 | `/chat` is a simple AI utility page with model selector, active conversation, and session-list drawer; it is not labeled AI Settings | `chatPanelComponent.test.tsx`, `ChatPageClient.test.tsx` | P1 |
 | AC19.8.7 | Report readiness has route-level Playwright smoke coverage before package output | `report-readiness.spec.ts` | P1 |
 | AC19.8.8 | CR cleanup fixes mixed-currency investment schedule fallback, missing Processing FX readiness blocker coverage, stale SSOT paths, and stale navigation docs | `test_AC19_8_8_investment_schedule_fallback_holding_cost_basis_converts_currency`, `test_AC19_8_8_package_readiness_blocks_when_processing_fx_conversion_fails`, `report-readiness.spec.ts` | P0 |
