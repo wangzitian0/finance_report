@@ -54,7 +54,7 @@ concepts:
 
   base_packages:
     owner: common/audit/readme.md#base-packages
-    description: The family of value-type narrow-waist base packages (money, ratio, quantity) and the canonical structure each follows (#1167 / AC12.30). Internalized into the audit package (the number-governor that declares the value family).
+    description: The family of value-type narrow-waist base packages (money, ratio, quantity, unit_price) and the canonical structure each follows (#1167 / AC12.30). Internalized into the audit package (the number-governor that declares the value family).
     family: platform
     kind: concept
     authority: documented_contract
