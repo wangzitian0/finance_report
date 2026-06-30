@@ -53,8 +53,8 @@ concepts:
       - tests/tooling/test_money_conformance.py
 
   base_packages:
-    owner: docs/ssot/base-packages.md
-    description: The family of value-type narrow-waist base packages (money, ratio, quantity) and the canonical structure each follows (#1167 / AC12.30).
+    owner: common/audit/readme.md#base-packages
+    description: The family of value-type narrow-waist base packages (money, ratio, quantity, unit_price) and the canonical structure each follows (#1167 / AC12.30). Internalized into the audit package (the number-governor that declares the value family).
     family: platform
     kind: concept
     authority: documented_contract
@@ -850,12 +850,12 @@ concepts:
       - apps/backend/tests/llm/test_cassette.py
 
   cassette_graded_eval:
-    owner: docs/ssot/cassette-graded-eval.md
+    owner: common/llm/readme.md#cassette-graded-eval
     family: llm
     kind: concept
-    description: Graded per-field accuracy eval over committed cassettes with a ratcheted per-case score floor (EPIC-023 AC23.8) — the accuracy oracle complementing the AC23.7 balance-chain consistency gate.
+    description: Graded per-field accuracy eval over committed cassettes with a ratcheted per-case score floor (EPIC-023 AC23.8) — the accuracy oracle complementing the AC23.7 balance-chain consistency gate. Internalized into the llm package.
     cross_refs:
-      - common/llm/readme.md
+      - common/llm/readme.md#cassettes
       - docs/project/EPIC-023.llm-provider-abstraction.md
       - common/ssot/cassette_graded_eval.py
       - common/ssot/check_cassette_graded_eval.py

@@ -46,7 +46,9 @@ def test_AC23_8_1_eval_set_covers_documented_matrix_to_min_count() -> None:
     edge_conditions = {c.edge_condition for c in cases}
 
     # Both modalities present (text + vision).
-    assert REQUIRED_MODALITIES <= modalities, f"missing modalities: {REQUIRED_MODALITIES - modalities}"
+    assert REQUIRED_MODALITIES <= modalities, (
+        f"missing modalities: {REQUIRED_MODALITIES - modalities}"
+    )
     # At least a generic and a named institution class are represented.
     assert len(institution_classes) >= 2, institution_classes
     # The #1254-class duplicate-row edge condition and a happy path are present.
@@ -57,12 +59,7 @@ def test_AC23_8_1_eval_set_covers_documented_matrix_to_min_count() -> None:
 
 def test_AC23_8_1_matrix_breadth_is_documented_not_overclaimed() -> None:
     """AC23.8.1: the eval doc explicitly bounds drift-detection power by breadth."""
-    doc = (
-        Path(__file__).resolve().parents[2]
-        / "docs"
-        / "ssot"
-        / "cassette-graded-eval.md"
-    )
+    doc = Path(__file__).resolve().parents[2] / "common" / "llm" / "readme.md"
     text = doc.read_text(encoding="utf-8").lower()
     # No overclaiming: the doc must say breadth bounds the power and CI green is
     # not a correctness guarantee on unseen statements.
@@ -79,7 +76,9 @@ def test_AC23_8_2_normalizers_are_exact_value_aware() -> None:
     assert normalize_amount("-5.0") == Decimal("-5")
     assert normalize_date("2026-01-02") == "2026-01-02"
     assert normalize_date("02/01/2026", dayfirst=True) == "2026-01-02"
-    assert normalize_description("  Coffee   SHOP ") == normalize_description("coffee shop")
+    assert normalize_description("  Coffee   SHOP ") == normalize_description(
+        "coffee shop"
+    )
 
 
 def test_AC23_8_2_case_score_is_fraction_of_correct_fields() -> None:
@@ -131,7 +130,10 @@ def test_AC23_8_3_unbaselined_case_blocks_the_gate(tmp_path: Path) -> None:
 
 def test_AC23_8_3_baseline_is_raise_only() -> None:
     """AC23.8.3: ratcheted_baseline keeps the higher floor and never lowers it."""
-    baseline = {"version": 1, "cases": {"c1": {"score": 0.9, "metric": "x", "provenance": "y"}}}
+    baseline = {
+        "version": 1,
+        "cases": {"c1": {"score": 0.9, "metric": "x", "provenance": "y"}},
+    }
     # A higher current score raises the floor.
     raised = ratcheted_baseline(baseline, {"c1": {"score": 0.95}})
     assert raised["cases"]["c1"]["score"] == 0.95
@@ -159,7 +161,16 @@ def test_AC23_8_4_injected_regression_fails_the_gate(tmp_path: Path) -> None:
 
     write_jsonl(
         baseline_file,
-        {"version": 1, "cases": {target.case_id: {"score": correct_score, "metric": "field-accuracy", "provenance": "test"}}},
+        {
+            "version": 1,
+            "cases": {
+                target.case_id: {
+                    "score": correct_score,
+                    "metric": "field-accuracy",
+                    "provenance": "test",
+                }
+            },
+        },
     )
 
     # Inject a regression: corrupt one transaction amount so the case score drops.
@@ -206,7 +217,9 @@ def test_AC23_8_5_balance_passes_but_field_accuracy_regresses(tmp_path: Path) ->
     # Demonstrate the gap on a case that ALREADY reconciles — skip balance-exempt
     # (non-reconciling-by-construction) corpora like the HF statements.
     target, pair = next(
-        (c, p) for c in cases if balance_violation(c.extracted) is None and (p := _pick_pair(c)) is not None
+        (c, p)
+        for c in cases
+        if balance_violation(c.extracted) is None and (p := _pick_pair(c)) is not None
     )
     i, j = pair
 
@@ -232,9 +245,20 @@ def test_AC23_8_5_balance_passes_but_field_accuracy_regresses(tmp_path: Path) ->
 
     write_jsonl(
         baseline_file,
-        {"version": 1, "cases": {target.case_id: {"score": correct_score, "metric": "field-accuracy", "provenance": "test"}}},
+        {
+            "version": 1,
+            "cases": {
+                target.case_id: {
+                    "score": correct_score,
+                    "metric": "field-accuracy",
+                    "provenance": "test",
+                }
+            },
+        },
     )
-    findings = evaluate(baseline_path=baseline_file, overrides={target.case_id: [plausible]})
+    findings = evaluate(
+        baseline_path=baseline_file, overrides={target.case_id: [plausible]}
+    )
     assert any(target.case_id in r for r in findings["regressions"]), findings
 
 
@@ -254,7 +278,9 @@ def test_AC23_8_6_runs_on_committed_cassettes_without_network_or_key() -> None:
 
     baseline = load_jsonl(DEFAULT_BASELINE)
     for case in cases:
-        assert case.case_id in baseline["cases"], f"no persisted floor for {case.case_id}"
+        assert case.case_id in baseline["cases"], (
+            f"no persisted floor for {case.case_id}"
+        )
 
 
 def test_AC23_8_6_ground_truth_artifacts_are_synthetic() -> None:
@@ -288,11 +314,6 @@ def test_AC23_8_7_reliability_aggregates_over_n_samples() -> None:
 
 def test_AC23_8_7_single_sample_limitation_documented() -> None:
     """AC23.8.7: the doc states a single recording is a point estimate, not reliability."""
-    doc = (
-        Path(__file__).resolve().parents[2]
-        / "docs"
-        / "ssot"
-        / "cassette-graded-eval.md"
-    )
+    doc = Path(__file__).resolve().parents[2] / "common" / "llm" / "readme.md"
     text = doc.read_text(encoding="utf-8").lower()
     assert "single" in text and "sample" in text

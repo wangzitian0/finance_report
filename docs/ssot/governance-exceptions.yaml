@@ -147,6 +147,26 @@ exceptions:
       MANIFEST llm_provider_abstraction owner and the cassette_graded_eval
       cross_ref now point there. Remove this exception once the deletion is
       merged.
+  # Batch SSOT internalization into already-existing packages, per the
+  # package-migration standard (common/meta/migration-standard.md, step 3 "SSOT
+  # internalized"). Each doc folded into the package readme that owns it and the
+  # MANIFEST owner repointed there; the deletions show up as changed SSOT files
+  # with no owner, and these temporary exceptions cover only that deletion churn.
+  - target: finance_report:docs/ssot/base-packages.md
+    issue: https://github.com/wangzitian0/finance_report/issues/1419
+    reason: >-
+      base-packages.md (the value-package family doc) internalized into
+      common/audit/readme.md#base-packages — audit is the number-governor that
+      declares the money/ratio/quantity/unit_price value language. The MANIFEST
+      base_packages owner now points there. Remove this exception once the
+      deletion is merged.
+  - target: finance_report:docs/ssot/cassette-graded-eval.md
+    issue: https://github.com/wangzitian0/finance_report/issues/1426
+    reason: >-
+      cassette-graded-eval.md (the graded accuracy oracle over the llm cassette
+      layer) internalized into common/llm/readme.md#cassette-graded-eval; the
+      MANIFEST cassette_graded_eval owner now points there. Remove this exception
+      once the deletion is merged.
 
   # Ledger package self-hosts: the double-entry SSOT moved out of docs/ssot/ into
   # the `ledger` package that owns it (Stage-2 of the ledger cutover #1420), per

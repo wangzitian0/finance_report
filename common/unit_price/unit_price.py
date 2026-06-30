@@ -44,7 +44,7 @@ from common.unit_price.errors import (
 
 # Price/unit-rate quantum: 6 dp, ROUND_HALF_UP. Deliberately NOT the 2-dp money
 # quantum — prices and unit costs carry sub-cent precision (see the rounding
-# carve-out in common/money/rounding.py and docs/ssot/base-packages.md).
+# carve-out in common/money/rounding.py and common/audit/readme.md#base-packages).
 UNIT_PRICE_DP: int = 6
 UNIT_PRICE_QUANTUM = Decimal("0.000001")
 UNIT_PRICE_ROUNDING: str = ROUND_HALF_UP

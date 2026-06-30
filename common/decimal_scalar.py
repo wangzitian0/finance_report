@@ -1,7 +1,8 @@
 """Shared Decimal-scalar codec — the single boundary primitive the base-package
 value types route their raw-``Decimal`` conversions through.
 
-``base-packages.md`` §3 ("Raw Decimal boundary policy") requires that hand-written
+``common/audit/readme.md#base-packages`` §3 ("Raw Decimal boundary policy")
+requires that hand-written
 semantic conversion at a value boundary go through *the owning base-package
 codec*, never local ``Decimal(str(...))`` glue. Each base package
 (``money`` / ``quantity`` / ``ratio`` / ``unit_price``) used to re-implement that
@@ -13,7 +14,7 @@ hierarchy (``Invalid*PayloadError`` / ``FloatNotAllowedError``) is preserved.
 
 Pure and dependency-light on purpose: it imports no base package, so it stays a
 substrate primitive rather than a fifth base package (the family is bounded —
-``base-packages.md`` §2). The backend keeps its own mirror under
+``common/audit/readme.md#base-packages`` §2). The backend keeps its own mirror under
 ``apps/backend/src/decimal_scalar.py`` for the same self-contained-shipping reason
 the value types themselves are mirrored (#1167).
 """

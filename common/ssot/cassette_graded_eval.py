@@ -14,7 +14,7 @@ Pure Python: no network, no API key, no DB. Scoring is deterministic on committe
 fixtures; refresh is the local ``make llm-record`` path.
 
 **Scope (anti-overclaim):** drift-detection power is bounded by the eval-set
-breadth documented in ``docs/ssot/cassette-graded-eval.md`` — CI green is NOT a
+breadth documented in ``common/llm/readme.md#cassette-graded-eval`` — CI green is NOT a
 correctness guarantee on an unseen statement (the staging ``-m llm`` gate's job).
 """
 
@@ -78,7 +78,10 @@ def normalize_description(value: object) -> str:
 # --------------------------------------------------------------------------- #
 def _field_matches(field_name: str, got: object, want: object) -> bool:
     try:
-        if field_name == "amount" or field_name in ("opening_balance", "closing_balance"):
+        if field_name == "amount" or field_name in (
+            "opening_balance",
+            "closing_balance",
+        ):
             return normalize_amount(got) == normalize_amount(want)
         if field_name == "date":
             return normalize_date(got) == normalize_date(want)
@@ -87,7 +90,9 @@ def _field_matches(field_name: str, got: object, want: object) -> bool:
         return False
 
 
-def _pair_transactions(truth_txns: list[dict], got_txns: list[dict]) -> tuple[dict[int, int], set[int]]:
+def _pair_transactions(
+    truth_txns: list[dict], got_txns: list[dict]
+) -> tuple[dict[int, int], set[int]]:
     """Pair each truth row to an extracted row by CONTENT, in two passes:
 
     1. exact (date AND amount) — re-ordered rows still pair regardless of position;
@@ -105,7 +110,10 @@ def _pair_transactions(truth_txns: list[dict], got_txns: list[dict]) -> tuple[di
                 continue
             if not _field_matches("date", got["date"], want.get("date")):
                 continue
-            if exact and not ("amount" in got and _field_matches("amount", got["amount"], want.get("amount"))):
+            if exact and not (
+                "amount" in got
+                and _field_matches("amount", got["amount"], want.get("amount"))
+            ):
                 continue
             return j
         return None
@@ -121,7 +129,9 @@ def _pair_transactions(truth_txns: list[dict], got_txns: list[dict]) -> tuple[di
     return pairs, used
 
 
-def case_score(extracted: dict[str, Any], truth: dict[str, Any]) -> tuple[float, dict[str, int]]:
+def case_score(
+    extracted: dict[str, Any], truth: dict[str, Any]
+) -> tuple[float, dict[str, int]]:
     """Score one extraction against ground truth: fraction of fields matched.
 
     Scored fields: ``opening_balance``, ``closing_balance``, and per transaction
@@ -150,7 +160,11 @@ def case_score(extracted: dict[str, Any], truth: dict[str, Any]) -> tuple[float,
         for fname in _TXN_FIELDS:
             if fname in want:
                 total += 1
-                if isinstance(got, dict) and fname in got and _field_matches(fname, got[fname], want[fname]):
+                if (
+                    isinstance(got, dict)
+                    and fname in got
+                    and _field_matches(fname, got[fname], want[fname])
+                ):
                     matched += 1
     # Penalise invented rows: each extracted row that paired with no truth row is wrong.
     extra = max(0, len(got_txns) - len(used))
@@ -164,7 +178,7 @@ def reliability_score(samples: list[dict[str, Any]], truth: dict[str, Any]) -> f
     """Mean per-field score over N recordings of the same case (AC23.8.7).
 
     One recording yields a single point estimate, NOT a reliability measure — the
-    limitation is documented in ``docs/ssot/cassette-graded-eval.md``. With N>=2
+    limitation is documented in ``common/llm/readme.md#cassette-graded-eval``. With N>=2
     samples the case score is the mean, smoothing per-run nondeterminism.
     """
     if not samples:
@@ -308,7 +322,9 @@ def evaluate(
 
     for case_id in base_cases:
         if case_id not in seen:
-            missing.append(f"{case_id}: baselined case has no cassette/ground-truth in this run")
+            missing.append(
+                f"{case_id}: baselined case has no cassette/ground-truth in this run"
+            )
 
     return {
         "regressions": regressions,

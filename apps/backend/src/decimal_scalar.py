@@ -7,7 +7,8 @@ own copy, exactly like the ``money`` / ``quantity`` / ``ratio`` / ``unit_price``
 value types are mirrored under ``apps/backend/src`` (#1167). Kept byte-for-byte in
 step with the reference impl.
 
-``base-packages.md`` §3 ("Raw Decimal boundary policy") requires that hand-written
+``common/audit/readme.md#base-packages`` §3 ("Raw Decimal boundary policy")
+requires that hand-written
 semantic conversion at a value boundary go through *the owning base-package
 codec*, never local ``Decimal(str(...))`` glue. Each base package used to
 re-implement that codec — a byte-identical ``_decimal_to_wire``, a

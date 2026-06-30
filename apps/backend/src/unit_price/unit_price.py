@@ -3,7 +3,7 @@
 Backend runtime copy: identical semantics to ``common/unit_price/unit_price.py``,
 importing the shipped ``src.money`` / ``src.quantity`` types. The conformance
 suite proves the two stay identical (``common/`` is not shipped into the image).
-See ``docs/ssot/base-packages.md``.
+See ``common/audit/readme.md#base-packages``.
 """
 
 from __future__ import annotations

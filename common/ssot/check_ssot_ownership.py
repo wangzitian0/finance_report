@@ -84,6 +84,16 @@ MUST_BE_ABSENT: list[Path] = [
     # (common/ledger/readme.md) — the processing (in-transit) account belongs to
     # ledger (its EPIC-015 too) per migration-standard step 3 (#1420).
     REPO_ROOT / "docs" / "ssot" / "processing_account.md",
+    # base-packages.md internalized into the audit package
+    # (common/audit/readme.md#base-packages) — audit is the number-governor that
+    # declares the value-package family, per migration-standard step 3 "SSOT
+    # internalized" (#1419 / umbrella #1416).
+    REPO_ROOT / "docs" / "ssot" / "base-packages.md",
+    # cassette-graded-eval.md internalized into the llm package
+    # (common/llm/readme.md#cassette-graded-eval) — the graded accuracy oracle
+    # over the llm package's cassette layer, per migration-standard step 3
+    # "SSOT internalized" (Stage-2 precursor to the code cutover #1426).
+    REPO_ROOT / "docs" / "ssot" / "cassette-graded-eval.md",
 ]
 
 # ---------------------------------------------------------------------------
