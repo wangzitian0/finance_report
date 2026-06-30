@@ -12,7 +12,7 @@ class TestConfigContract:
     """Test configuration contracts and synchronization."""
 
     def test_primary_model_format(self):
-        """AC12.18.1: Ensure PRIMARY_MODEL follows expected pattern."""
+        """AC-config.18.1: Ensure PRIMARY_MODEL follows expected pattern."""
         from src.config import settings
 
         assert settings.ai_provider == "zai"
@@ -24,7 +24,7 @@ class TestConfigContract:
         )
 
     def test_config_sync_with_env_example(self):
-        """AC12.18.2: Ensure config.py default matches .env.example documentation."""
+        """AC-config.18.2: Ensure config.py default matches .env.example documentation."""
         from src.config import settings
 
         # Go up to project root: tests/infra/ -> tests/ -> backend/ -> apps/ -> project_root
@@ -44,7 +44,7 @@ class TestConfigContract:
         )
 
     def test_base_currency_format(self):
-        """AC12.18.3: Ensure BASE_CURRENCY is a valid ISO 4217 currency code."""
+        """AC-config.18.3: Ensure BASE_CURRENCY is a valid ISO 4217 currency code."""
         from src.config import settings
 
         assert settings.base_currency.isalpha(), (
@@ -58,7 +58,7 @@ class TestConfigContract:
         )
 
     def test_s3_bucket_format(self):
-        """AC12.18.4: Ensure S3_BUCKET follows naming conventions."""
+        """AC-config.18.4: Ensure S3_BUCKET follows naming conventions."""
         from src.config import settings
 
         # S3 bucket naming rules: lowercase, no underscores, 3-63 chars
@@ -73,7 +73,7 @@ class TestConfigContract:
         )
 
     def test_jwt_algorithm_allowed(self):
-        """AC12.18.5: Ensure JWT_ALGORITHM is a secure algorithm."""
+        """AC-config.18.5: Ensure JWT_ALGORITHM is a secure algorithm."""
         from src.config import settings
 
         # Allow only HS256 and RS256 (secure algorithms)
@@ -83,7 +83,7 @@ class TestConfigContract:
         )
 
     def test_database_url_format(self):
-        """AC12.18.6: Ensure DATABASE_URL follows expected format."""
+        """AC-config.18.6: Ensure DATABASE_URL follows expected format."""
         from src.config import settings
 
         # Should use asyncpg driver for async FastAPI compatibility
@@ -93,7 +93,7 @@ class TestConfigContract:
         ), f"Invalid database URL: {settings.database_url}. Expected postgresql+asyncpg:// or sqlite://"
 
     def test_db_pool_size_config_default(self, monkeypatch):
-        """AC12.20.1: Ensure DB_POOL_SIZE has the expected default."""
+        """AC-config.20.1: Ensure DB_POOL_SIZE has the expected default."""
         monkeypatch.delenv("DB_POOL_SIZE", raising=False)
         from src.config import Settings
 
@@ -102,7 +102,7 @@ class TestConfigContract:
         assert s.db_pool_size == 5
 
     def test_db_pool_max_overflow_config_default(self, monkeypatch):
-        """AC12.20.2: Ensure DB_POOL_MAX_OVERFLOW has the expected default."""
+        """AC-config.20.2: Ensure DB_POOL_MAX_OVERFLOW has the expected default."""
         monkeypatch.delenv("DB_POOL_MAX_OVERFLOW", raising=False)
         from src.config import Settings
 
@@ -111,7 +111,7 @@ class TestConfigContract:
         assert s.db_pool_max_overflow == 10
 
     def test_db_pool_config_valid_range(self, monkeypatch):
-        """AC12.20.3: Ensure pool config values are within valid range (pool_size >= 1, max_overflow >= 0)."""
+        """AC-config.20.3: Ensure pool config values are within valid range (pool_size >= 1, max_overflow >= 0)."""
         monkeypatch.delenv("DB_POOL_SIZE", raising=False)
         monkeypatch.delenv("DB_POOL_MAX_OVERFLOW", raising=False)
         from src.config import Settings
@@ -121,13 +121,13 @@ class TestConfigContract:
         assert s.db_pool_max_overflow >= 0
 
     def test_db_pool_size_env_override(self, monkeypatch):
-        """AC12.20.4: Ensure DB_POOL_SIZE env var actually overrides the setting."""
+        """AC-config.20.4: Ensure DB_POOL_SIZE env var actually overrides the setting."""
         monkeypatch.setenv("DB_POOL_SIZE", "20")
         from src.config import Settings
 
         s = Settings()
         assert s.db_pool_size == 20
-        """AC12.20.5: Ensure DB_POOL_MAX_OVERFLOW env var actually overrides the setting."""
+        # AC-config.20.5: Ensure DB_POOL_MAX_OVERFLOW env var actually overrides the setting.
         monkeypatch.setenv("DB_POOL_MAX_OVERFLOW", "25")
         from src.config import Settings
 

@@ -194,43 +194,74 @@ diverging across the codebase and across ends.
 | AC12.17.1 | External API async with log_args=True logs args count | `test_log_external_api_async_with_log_args()` | `infra/test_logger.py` | P0 |
 | AC12.17.2 | External API async failure with log_args=True logs args | `test_log_external_api_async_failure_with_log_args()` | `infra/test_logger.py` | P0 |
 
-### AC12.18: Logging - Configuration - Environment Variables
+### AC12.18: Config - Environment-Variable Format Contract — migrated to the `config` package
+
+> **The config-format assertion ACs of this group are no longer defined here.**
+> The PRIMARY_MODEL / config-sync / BASE_CURRENCY / S3_BUCKET / JWT_ALGORITHM /
+> DATABASE_URL config-contract rows (were AC12.18.* rows .1–.6) migrated into the
+> `config` package and are owned by, and sourced directly from,
+> [`common/config/contract.py`](../../common/config/contract.py)'s `roadmap`
+> under the package-scoped numeric `AC-config.<group>.<seq>` id scheme (the
+> leading "12" is dropped and the group/seq preserved, so `AC12.18.<s>` becomes
+> `AC-config.18.<s>`). `common/ssot/generate_ac_registry.py` reads package-contract
+> roadmaps additively, so the AC index counts them without an EPIC-table mirror.
+> This note references the new ids (keeping the registry↔EPIC link intact) but
+> defines none of them — the contract is the single definition source.
+>
+> Migrated `AC-config.18.<s>` ids (homed in the package roadmap):
+> `AC-config.18.1` · `AC-config.18.2` · `AC-config.18.3` · `AC-config.18.4` · `AC-config.18.5` · `AC-config.18.6`
+
+The non-migrated **AC12.18.7** stub stays defined here: it is not a config-format
+assertion (its only live anchor is the reconciliation `[AC12.18.7.2]` tag on
+`apps/backend/tests/reconciliation/test_reconciliation_scoring_helpers.py`, a
+transfer/candidate-matching unit test — a reconciliation concern, not config).
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC12.18.1 | Ensure PRIMARY_MODEL follows expected pattern | `test_primary_model_format()` | `infra/test_config_contract.py` | P0 |
-| AC12.18.2 | Ensure config.py default matches .env.example documentation | `test_config_sync_with_env_example()` | `infra/test_config_contract.py` | P0 |
-| AC12.18.3 | Ensure BASE_CURRENCY is valid ISO 4217 currency code | `test_base_currency_format()` | `infra/test_config_contract.py` | P0 |
-| AC12.18.4 | Ensure S3_BUCKET follows naming conventions | `test_s3_bucket_format()` | `infra/test_config_contract.py` | P0 |
-| AC12.18.5 | Ensure JWT_ALGORITHM is secure algorithm | `test_jwt_algorithm_allowed()` | `infra/test_config_contract.py` | P0 |
-| AC12.18.6 | Ensure DATABASE_URL follows expected format | `test_database_url_format()` | `infra/test_config_contract.py` | P0 |
 | AC12.18.7 | stub | — | — | — |
 
-### AC12.19: Infrastructure - Epic 001 Contracts
+### AC12.19: Infrastructure - Epic 001 Contracts — migrated to the `platform` package
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.19.1 | Moon workspace configuration files exist | `test_epic_001_moon_workspace_configs_exist()` | `infra/test_epic_001_contracts.py` | P0 |
+> **The moon/infra contract AC of this group is no longer defined here.** The
+> moon-workspace-config-exists row (was the AC12.19.* row) migrated into the `platform`
+> package and is owned by, and sourced directly from,
+> [`common/platform/contract.py`](../../common/platform/contract.py)'s `roadmap`
+> as `AC-platform.19.1` (the leading "12" is dropped and the group/seq preserved).
+> This note references the new id (keeping the registry↔EPIC link intact) but
+> defines none of them — the contract is the single definition source.
+>
+> Migrated `AC-platform.19.<s>` ids (homed in the package roadmap):
+> `AC-platform.19.1`
 
-### AC12.20: Database - Connection Pool Configuration
+### AC12.20: Database - Connection Pool Configuration — migrated to the `config` package
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.20.1 | DB_POOL_SIZE config field exists with default | `test_db_pool_size_config_default()` | `infra/test_config_contract.py` | P1 |
-| AC12.20.2 | DB_MAX_OVERFLOW config field exists with default | `test_db_max_overflow_config_default()` | `infra/test_config_contract.py` | P1 |
-| AC12.20.3 | Pool config is positive integer | `test_db_pool_config_positive_integer()` | `infra/test_config_contract.py` | P1 |
-| AC12.20.4 | Ensure DB_POOL_SIZE env var actually overrides the setting. | `test_db_pool_size_env_override` | `infra/test_config_contract.py` | P1 |
-| AC12.20.5 | Ensure DB_POOL_MAX_OVERFLOW env var actually overrides the setting. | `test_db_pool_size_env_override` | `infra/test_config_contract.py` | P1 |
+> **The DB connection-pool config-field ACs of this group are no longer defined
+> here.** The DB_POOL_SIZE / DB_POOL_MAX_OVERFLOW / range / env-override rows
+> (were AC12.20.* rows .1–.5) migrated into the `config` package and are owned by,
+> and sourced directly from,
+> [`common/config/contract.py`](../../common/config/contract.py)'s `roadmap`
+> under the numeric `AC-config.20.<seq>` scheme (the leading "12" is dropped and
+> the group/seq preserved). This note references the new ids (keeping the
+> registry↔EPIC link intact) but defines none of them — the contract is the
+> single definition source.
+>
+> Migrated `AC-config.20.<s>` ids (homed in the package roadmap):
+> `AC-config.20.1` · `AC-config.20.2` · `AC-config.20.3` · `AC-config.20.4` · `AC-config.20.5`
 
-### AC12.21: Exceptions - BaseAppException
+### AC12.21: Exceptions - BaseAppException — migrated to the `platform` package
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.21.1 | BaseAppException has error_id attribute | `test_base_app_exception_has_error_id()` | `infra/test_exceptions.py` | P1 |
-| AC12.21.2 | BaseAppException has status_code attribute | `test_base_app_exception_has_status_code()` | `infra/test_exceptions.py` | P1 |
-| AC12.21.3 | BaseAppException is subclass of Exception | `test_base_app_exception_is_exception()` | `infra/test_exceptions.py` | P1 |
-| AC12.21.4 | BaseAppException can be raised and caught | `test_base_app_exception_raise_and_catch()` | `infra/test_exceptions.py` | P1 |
-| AC12.21.5 | BaseAppException handler serializes error_id and status_code into JSON response. | `test_base_app_exception_handler_returns_structured_json` | `infra/test_exceptions.py` | P1 |
+> **The BaseAppException-hierarchy ACs of this group are no longer defined here.**
+> The error_id / status_code / subclass / raise-and-catch / structured-handler
+> rows (were AC12.21.* rows .1–.5) migrated into the `platform` package and are
+> owned by, and sourced directly from,
+> [`common/platform/contract.py`](../../common/platform/contract.py)'s `roadmap`
+> under the numeric `AC-platform.21.<seq>` scheme (the leading "12" is dropped and
+> the group/seq preserved). This note references the new ids (keeping the
+> registry↔EPIC link intact) but defines none of them — the contract is the
+> single definition source.
+>
+> Migrated `AC-platform.21.<s>` ids (homed in the package roadmap):
+> `AC-platform.21.1` · `AC-platform.21.2` · `AC-platform.21.3` · `AC-platform.21.4` · `AC-platform.21.5`
 
 ## 📏 Acceptance Criteria
 
@@ -303,14 +334,20 @@ diverging across the codebase and across ends.
 | AC12.22.1 | Move 6 inline schemas from statements router to review module | N/A (mechanical) | N/A | P0 |
 | AC12.22.2 | Extract background task schemas from inline/background definitions into dedicated modules | N/A (mechanical) | N/A | P0 |
 
-### AC12.23: Rate Limiting - Global API Middleware (M3)
+### AC12.23: Rate Limiting - Global API Middleware (M3) — migrated to the `platform` package
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.23.1 | Global rate limit middleware exempts /health | `test_global_rate_limit_middleware_exempts_health()` | `infra/test_rate_limit.py` | P1 |
-| AC12.23.2 | Global rate limit middleware returns 429 after limit exceeded | `test_global_rate_limit_middleware_blocks_after_limit()` | `infra/test_rate_limit.py` | P1 |
-| AC12.23.3 | Global rate limit middleware allows normal requests | `test_global_rate_limit_middleware_allows_normal_requests()` | `infra/test_rate_limit.py` | P1 |
-| AC12.23.4 | Global rate limit middleware exempts /docs | `test_global_rate_limit_middleware_exempts_docs()` | `infra/test_rate_limit.py` | P1 |
+> **The global rate-limit middleware ACs of this group are no longer defined
+> here.** The /health-exempt / 429-after-limit / allows-normal / /docs-exempt
+> rows (were AC12.23.* rows .1–.4) migrated into the `platform` package (the
+> rate-limiter is a platform-substrate middleware) and are owned by, and sourced
+> directly from, [`common/platform/contract.py`](../../common/platform/contract.py)'s
+> `roadmap` under the numeric `AC-platform.23.<seq>` scheme (the leading "12" is
+> dropped and the group/seq preserved). This note references the new ids (keeping
+> the registry↔EPIC link intact) but defines none of them — the contract is the
+> single definition source.
+>
+> Migrated `AC-platform.23.<s>` ids (homed in the package roadmap):
+> `AC-platform.23.1` · `AC-platform.23.2` · `AC-platform.23.3` · `AC-platform.23.4`
 
 ### AC12.24: Metrics - Prometheus Endpoint (M4)
 
@@ -414,10 +451,18 @@ Tier 2 of #1000. Every exception handler emits the shared `ErrorResponse`
 OpenAPI, and the frontend `apiFetch` throws a typed `ApiError` carrying `errorId` so
 callers branch on a machine-readable code instead of matching `detail` text.
 
+> **The backend error-contract ACs of this group migrated to the `platform`
+> package.** The structured-404-error and OpenAPI-ErrorResponse rows (were
+> the AC12.27.* rows .1–.2) are owned by, and sourced directly from,
+> [`common/platform/contract.py`](../../common/platform/contract.py)'s `roadmap`
+> as `AC-platform.27.1`–`AC-platform.27.2` (the leading "12" is dropped and the
+> group/seq preserved). The **frontend** row AC12.27.3 stays defined below: its
+> anchor is a `.test.ts` (a vitest `it()`, not a Python `path::func`) and the
+> `platform` package is `fe=None`, so it cannot be homed in the package roadmap
+> (same precedent as the ledger cutover leaving EPIC-002's frontend rows defined).
+
 | AC ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC12.27.1 | An HTTPException-derived 404 returns a structured body with `error_id` | `test_AC12_27_1_http_error_has_structured_error_id` | `api/test_typed_contract_sweep.py` | P1 |
-| AC12.27.2 | OpenAPI declares `ErrorResponse` and references it for common 4xx | `test_AC12_27_2_openapi_declares_error_response_contract` | `api/test_typed_contract_sweep.py` | P1 |
 | AC12.27.3 | Frontend `apiFetch` throws `ApiError` carrying the parsed `errorId` | `test_AC12_27_3_api_error_carries_error_id` | `__tests__/apiErrorStructured.test.ts` | P1 |
 
 ### AC12.28: Generated Frontend API Types from OpenAPI ([#1004](https://github.com/wangzitian0/finance_report/issues/1004))
@@ -431,10 +476,17 @@ from the live FastAPI schema. `api-types.ts` is regenerated from the spec
 change that isn't regenerated is caught at compile time (`npm run build`) —
 enforcing the FE↔BE contract instead of leaving the generated client as dead code.
 
+> **The backend OpenAPI-spec ACs of this group migrated to the `platform`
+> package.** The generator-emits-spec and staleness-gate rows (were
+> the AC12.28.* rows .1–.2) are owned by, and sourced directly from,
+> [`common/platform/contract.py`](../../common/platform/contract.py)'s `roadmap`
+> as `AC-platform.28.1`–`AC-platform.28.2` (the leading "12" is dropped and the
+> group/seq preserved). The **frontend** row AC12.28.3 stays defined below: its
+> anchor is a `.test.ts` (a vitest `it()`, not a Python `path::func`) and the
+> `platform` package is `fe=None`, so it cannot be homed in the package roadmap.
+
 | AC ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC12.28.1 | The generator emits the spec from the live OpenAPI schema | `test_AC12_28_1_generator_emits_types_from_openapi` | `tests/tooling/test_generate_openapi_spec.py` | P2 |
-| AC12.28.2 | The `--check` staleness gate fails when the committed spec is stale | `test_AC12_28_2_staleness_gate_detects_drift` | `tests/tooling/test_generate_openapi_spec.py` | P2 |
 | AC12.28.3 | High-traffic call sites type responses against the generated schema | `test_AC12_28_3_types_stage2_batch_responses_against_generated_schema` | `__tests__/apiTypedClient.test.ts` | P2 |
 
 ### AC12.29: API-Surface Consistency Sweep ([#1099](https://github.com/wangzitian0/finance_report/issues/1099))
@@ -448,14 +500,18 @@ codes), then a follow-up PR completed the verb-in-path URL renames atomically ac
 backend + frontend (`/reconciliation/run`→`/runs`, `/market-data/sync/{fx,stocks}`→
 `/market-data/{fx,stocks}/syncs`, `journal /post`→`/postings` / `/void`→`/voidings`).
 
-| AC ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.29.1 | Router status codes use `status.HTTP_*` constants (zero raw-integer `status_code=` literals); the async upload endpoint advertises `202`, and synchronous long operations document their `200` | `test_AC12_29_1_status_codes_use_constants_and_async_uses_202` | `api/test_api_surface_consistency.py` | P1 |
-| AC12.29.6 | Verb-in-path action URLs are renamed to resource-style nouns (`/reconciliation/runs`, `/market-data/{fx,stocks}/syncs`, `/journal-entries/{id}/postings`/`/voidings`); old verb URLs gone, new noun URLs present | `test_AC12_29_6_verb_in_path_urls_renamed_to_resources` | `api/test_api_surface_consistency.py` | P1 |
-| AC12.29.2 | The three named unbounded list endpoints (`/assets/restricted`, `/reconciliation/transactions/{txn_id}/anomalies`, `/reports/package/snapshots`) accept bounded `limit`/`offset` with an enforced `le=MAX_PAGE_LIMIT` | `test_AC12_29_2_named_unbounded_endpoints_are_bounded` | `api/test_api_surface_consistency.py` | P1 |
-| AC12.29.3 | A single documented pagination convention exists (`deps.DEFAULT_PAGE_LIMIT`/`MAX_PAGE_LIMIT` via the shared `PaginationParams`); an over-max `limit` is rejected with 422 | `test_AC12_29_3_pagination_convention_is_enforced` | `api/test_api_surface_consistency.py` | P1 |
-| AC12.29.4 | No two API operations collide on (method, path); every router maps to exactly one OpenAPI tag (the deliberately shared `/statements` and `/ai` prefixes carry distinct tags and are documented) | `test_AC12_29_4_no_route_or_tag_collisions` | `api/test_api_surface_consistency.py` | P1 |
-| AC12.29.5 | The deprecated `POST /statements/{id}/approve` and `/reject` are removed (return 404/405); the `/statements/{id}/review/*` variants remain the supported path | `test_AC12_29_5_deprecated_statement_decision_endpoints_removed` | `api/test_api_surface_consistency.py` | P1 |
+> **The API-surface-consistency ACs of this group migrated to the `platform`
+> package.** All six rows (were the AC12.29.* rows .1–.6: status-code constants /
+> bounded list endpoints / pagination convention / route+tag uniqueness /
+> deprecated-endpoint removal / verb-in-path rename) are owned by, and sourced
+> directly from, [`common/platform/contract.py`](../../common/platform/contract.py)'s
+> `roadmap` under the numeric `AC-platform.29.<seq>` scheme (the leading "12" is
+> dropped and the group/seq preserved). This note references the new ids (keeping
+> the registry↔EPIC link intact) but defines none of them — the contract is the
+> single definition source.
+>
+> Migrated `AC-platform.29.<s>` ids (homed in the package roadmap):
+> `AC-platform.29.1` · `AC-platform.29.2` · `AC-platform.29.3` · `AC-platform.29.4` · `AC-platform.29.5` · `AC-platform.29.6`
 
 ### AC12.30: Base Element Completion — Money / Ratio / Quantity
 

@@ -7,17 +7,17 @@ from src.utils.exceptions import BaseAppException
 
 class TestBaseAppException:
     def test_base_app_exception_has_error_id(self):
-        """AC12.21.1: BaseAppException stores the error_id attribute."""
+        """AC-platform.21.1: BaseAppException stores the error_id attribute."""
         exc = BaseAppException(error_id="ERR_001", message="test error")
         assert exc.error_id == "ERR_001"
 
     def test_base_app_exception_has_status_code(self):
-        """AC12.21.2: BaseAppException stores the status_code attribute."""
+        """AC-platform.21.2: BaseAppException stores the status_code attribute."""
         exc = BaseAppException(error_id="ERR_002", message="bad request", status_code=400)
         assert exc.status_code == 400
 
     def test_base_app_exception_is_subclass_of_exception(self):
-        """AC12.21.3: BaseAppException is subclass of Exception."""
+        """AC-platform.21.3: BaseAppException is subclass of Exception."""
         exc = BaseAppException(error_id="ERR_003", message="error")
         assert isinstance(exc, Exception)
         """BaseAppException defaults to status_code=500 when not specified."""
@@ -25,7 +25,7 @@ class TestBaseAppException:
         assert exc.status_code == 500
 
     def test_base_app_exception_raise_and_catch(self):
-        """AC12.21.4: BaseAppException can be raised and caught."""
+        """AC-platform.21.4: BaseAppException can be raised and caught."""
         with pytest.raises(BaseAppException) as exc_info:
             raise BaseAppException(error_id="ERR_004", message="raised!", status_code=422)
         assert exc_info.value.error_id == "ERR_004"
@@ -34,7 +34,7 @@ class TestBaseAppException:
         assert str(exc_info.value) == "raised!"
 
     async def test_base_app_exception_handler_returns_structured_json(self):
-        """AC12.21.5: BaseAppException handler serializes error_id and status_code into JSON response."""
+        """AC-platform.21.5: BaseAppException handler serializes error_id and status_code into JSON response."""
         import json
         from unittest.mock import MagicMock
 

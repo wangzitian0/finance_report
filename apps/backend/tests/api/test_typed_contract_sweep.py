@@ -21,7 +21,7 @@ from src.schemas.review import BatchApproveRequest
 
 
 async def test_AC12_27_1_http_error_has_structured_error_id(client: AsyncClient) -> None:
-    """AC12.27.1: an HTTPException-derived 404 returns a structured body with a
+    """AC-platform.27.1: an HTTPException-derived 404 returns a structured body with a
     machine-readable ``error_id`` (not just free-text ``detail``)."""
     missing = "00000000-0000-0000-0000-000000000000"
     response = await client.post(f"/reconciliation/matches/{missing}/accept")
@@ -34,7 +34,7 @@ async def test_AC12_27_1_http_error_has_structured_error_id(client: AsyncClient)
 
 
 async def test_AC12_27_2_openapi_declares_error_response_contract() -> None:
-    """AC12.27.2: the shared ``ErrorResponse`` is declared in OpenAPI and referenced
+    """AC-platform.27.2: the shared ``ErrorResponse`` is declared in OpenAPI and referenced
     by the common 4xx responses, so the contract is visible to the generated client."""
     from src.main import app
 

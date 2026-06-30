@@ -8,7 +8,7 @@ from common.ssot import generate_openapi_spec as gen
 
 
 def test_AC12_28_1_generator_emits_types_from_openapi(monkeypatch) -> None:
-    """AC12.28.1: ``generate()`` serializes the live OpenAPI schema deterministically
+    """AC-platform.28.1: ``generate()`` serializes the live OpenAPI schema deterministically
     (sorted keys + trailing newline), preserving component schemas like ErrorResponse.
     """
     fake = {
@@ -27,8 +27,10 @@ def test_AC12_28_1_generator_emits_types_from_openapi(monkeypatch) -> None:
     assert gen.render(fake) == gen.render(dict(reversed(list(fake.items()))))
 
 
-def test_AC12_28_2_staleness_gate_detects_drift(monkeypatch, tmp_path: Path, capsys) -> None:
-    """AC12.28.2: ``--check`` exits 0 when the committed spec matches and 1 on drift."""
+def test_AC12_28_2_staleness_gate_detects_drift(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    """AC-platform.28.2: ``--check`` exits 0 when the committed spec matches and 1 on drift."""
     output = tmp_path / "openapi.json"
     monkeypatch.setattr(gen, "generate", lambda: '{"openapi": "3.1.0"}\n')
 
