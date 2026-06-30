@@ -253,21 +253,15 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 | AC7.13.4 | On deploy/rollout failure the lifecycle rolls back to last-known-good source/env or marks the record safe-to-reconcile, recording which mutation step (source/env/deploy/rollout) it was left at — never a silent half-update | `test_AC7_13_4_mutate_then_fail_marks_state_and_records_step` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
 | AC7.13.5 | The CI/CD SSOT documents both the no-new-deployment fail-fast mode and the half-update rollback / safe-to-reconcile recovery path | `test_AC7_13_5_ci_cd_docs_describe_failure_modes` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
 
-### AC7.14: Effective Production App Env Verification (#575)
+### AC7.14: Effective Production App Env Verification (#575) — RELOCATED to infra2
 
-> The production deploy must verify the effective remote app env (`IMAGE_TAG`,
-> `GIT_COMMIT_SHA`, `IAC_CONFIG_HASH`) before the long health wait and fail fast
-> on stale Dokploy config. The fixed staging/prod path is now infra2
-> `deploy_v2` / `deploy_primitive`, not the retired app-side bash deploy script.
-
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC7.14.1 | The fixed staging/prod deploy path verifies the effective remote app config (`IAC_CONFIG_HASH`) after Dokploy rollout and before the public health wait; a matching effective config proceeds | `test_AC7_14_1_verify_runs_after_rollout_and_before_health` | `tests/tooling/test_issue_575_effective_env_verify.py` | P0 |
-| AC7.14.2 | If Dokploy reports success but the effective app env / compose config is stale, the deploy fails fast with diagnostics that name the stale `IAC_CONFIG_HASH` without echoing secrets | `test_AC7_14_2_stale_effective_config_fails_fast_without_secret_echo` | `tests/tooling/test_issue_575_effective_env_verify.py` | P0 |
-| AC7.14.3 | Stale effective config is fail-closed on the unified deploy_v2 path; the retired force-recreate escape hatch is absent from production release, and recovery is a manual rerun after the Dokploy/env issue is corrected | `test_AC7_14_3_no_force_recreate_escape_hatch_remains` | `tests/tooling/test_issue_575_effective_env_verify.py` | P0 |
-| AC7.14.4 | `repo/tools/deploy_primitive.py` and infra2 primitive tests have contract coverage for rollout wait, Vault preflight, effective config verification, and forced per-deploy `IAC_CONFIG_HASH` refresh | `test_AC7_14_1_verify_runs_after_rollout_and_before_health`, `test_AC7_14_2_stale_effective_config_fails_fast_without_secret_echo`, `test_AC7_14_6_rollout_baseline_is_snapshotted_before_mutation` | `tests/tooling/test_issue_575_effective_env_verify.py` | P0 |
-| AC7.14.5 | Production deployment docs describe the stale effective-config failure mode and deploy_v2 manual rerun recovery path | `test_AC7_14_5_deployment_doc_describes_effective_config_failure_and_recovery` | `tests/tooling/test_issue_575_effective_env_verify.py` | P0 |
-| AC7.14.6 | The rollout-wait baseline (`before_ids`) is snapshotted before `update_compose_env` / `deploy_compose`, so fast new deployments are detected as new records and no-op deploys fail before readiness | `test_AC7_14_6_rollout_baseline_is_snapshotted_before_mutation` | `tests/tooling/test_issue_575_effective_env_verify.py` | P0 |
+> **Relocated out of this app EPIC (#1518 / #1435).** Effective-config verification is infra2
+> `deploy_primitive` *behavior*, owned and behaviorally self-tested by infra2
+> (`repo/libs/tests/test_deploy_primitive.py`: `test_verify_effective_config_hash_*`,
+> `test_wait_for_rollout_*`, `test_preflight_vault_token_*`, `test_deploy_with_wait_snapshots_*`).
+> These were app ACs only because app tests mirrored infra2 source to prove them; the boundary
+> fix (App emits / Infra consumes) is that infra owns and tests this, app does not. Infra2
+> ownership tracked in #1518 — app no longer carries AC7.14.x.
 
 ### AC7.15: CI/Deploy Workflow Contract vs SSOT (#531)
 
