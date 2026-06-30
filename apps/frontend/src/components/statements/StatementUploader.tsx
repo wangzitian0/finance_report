@@ -269,6 +269,7 @@ export default function StatementUploader({
                     onChange={handleFileChange}
                     className="hidden"
                     id={fileInputId}
+                    data-testid={`uploader-file-${kind}`}
                 />
                 <label htmlFor={fileInputId} className="cursor-pointer block">
                     <div className="flex flex-col items-center">
@@ -306,6 +307,7 @@ export default function StatementUploader({
                 <input
                     type="text"
                     id={institutionId}
+                    data-testid={`uploader-institution-${kind}`}
                     value={institution}
                     onChange={(e) => setInstitution(e.target.value)}
                     placeholder="Auto-detected from document, or enter manually"
@@ -346,6 +348,7 @@ export default function StatementUploader({
                     </label>
                     <select
                         id={aiModelId}
+                        data-testid={`uploader-model-${kind}`}
                         className="input"
                         value={selectedModel}
                         onChange={(e) => {

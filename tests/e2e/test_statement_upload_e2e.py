@@ -111,14 +111,18 @@ async def test_statement_upload_full_flow(authenticated_page_unique: Page) -> No
     page = authenticated_page_unique
     await page.goto(_get_url("/statements"))
     await page.wait_for_load_state("domcontentloaded")
-    await page.locator("#institution").fill("E2E Upload Test Bank")
+    await page.locator('[data-testid="uploader-institution-statement"]').fill(
+        "E2E Upload Test Bank"
+    )
     # Wait for AI model dropdown options to load, then explicitly select one.
-    model_select = page.locator("select#ai-model")
+    model_select = page.locator('[data-testid="uploader-model-statement"]')
     await expect(model_select).to_be_visible(timeout=15_000)
     await expect(model_select).not_to_have_value("", timeout=15_000)
     await model_select.select_option(index=0)
-    await page.set_input_files("#file-upload", str(pdf_path))
-    await expect(page.locator("p.font-medium", has_text=pdf_path.name)).to_be_visible(timeout=5_000)
+    await page.set_input_files('[data-testid="uploader-file-statement"]', str(pdf_path))
+    await expect(page.locator("p.font-medium", has_text=pdf_path.name)).to_be_visible(
+        timeout=5_000
+    )
 
     async with page.expect_response(
         lambda r: "/api/statements/upload" in r.url,
@@ -134,7 +138,9 @@ async def test_statement_upload_full_flow(authenticated_page_unique: Page) -> No
     statement_id = upload_body.get("id")
     assert statement_id, f"Upload response missing 'id' field: {upload_body}"
     # Statement row appears in the list with the institution name we provided.
-    await expect(_statement_row(page, "E2E Upload Test Bank")).to_be_visible(timeout=15_000)
+    await expect(_statement_row(page, "E2E Upload Test Bank")).to_be_visible(
+        timeout=15_000
+    )
     # Verify the statement is immediately accessible via the API. Playwright's
     # context request shares the browser cookie jar used by the page.
     api_resp = await page.request.get(_get_url(f"/api/statements/{statement_id}"))
@@ -168,13 +174,17 @@ async def test_model_selection_and_upload(authenticated_page_unique: Page) -> No
     await page.goto(_get_url("/statements"))
     await page.wait_for_load_state("domcontentloaded")
 
-    model_select = page.locator("select#ai-model")
+    model_select = page.locator('[data-testid="uploader-model-statement"]')
     await expect(model_select).to_be_visible(timeout=5_000)
     await model_select.select_option(index=0)
 
-    await page.locator("#institution").fill("E2E Model Test Bank")
-    await page.set_input_files("#file-upload", str(pdf_path))
-    await expect(page.locator("p.font-medium", has_text=pdf_path.name)).to_be_visible(timeout=5_000)
+    await page.locator('[data-testid="uploader-institution-statement"]').fill(
+        "E2E Model Test Bank"
+    )
+    await page.set_input_files('[data-testid="uploader-file-statement"]', str(pdf_path))
+    await expect(page.locator("p.font-medium", has_text=pdf_path.name)).to_be_visible(
+        timeout=5_000
+    )
 
     async with page.expect_response(
         lambda r: "/api/statements/upload" in r.url,
@@ -190,7 +200,9 @@ async def test_model_selection_and_upload(authenticated_page_unique: Page) -> No
     statement_id = upload_body.get("id")
     assert statement_id, f"Upload response missing 'id' field: {upload_body}"
 
-    await expect(_statement_row(page, "E2E Model Test Bank")).to_be_visible(timeout=15_000)
+    await expect(_statement_row(page, "E2E Model Test Bank")).to_be_visible(
+        timeout=15_000
+    )
     statement = await _find_statement_by_institution(page, "E2E Model Test Bank")
     assert statement and statement.get("id") == statement_id
 
@@ -205,7 +217,9 @@ async def test_stale_model_id_auto_cleanup(authenticated_page_unique: Page) -> N
     _skip_if_no_url()
     page = authenticated_page_unique
     await page.goto(_get_url("/statements"), wait_until="domcontentloaded")
-    await expect(page.locator("select#ai-model")).to_be_visible(timeout=15_000)
+    await expect(
+        page.locator('[data-testid="uploader-model-statement"]')
+    ).to_be_visible(timeout=15_000)
 
     # Use a guaranteed-nonexistent model ID so the test is catalog-independent.
     # Real model IDs are provider-configured and may change over time; using
@@ -213,11 +227,17 @@ async def test_stale_model_id_auto_cleanup(authenticated_page_unique: Page) -> N
     stale_id = "test/nonexistent-model-for-stale-cleanup-test"
     await page.evaluate(f'localStorage.setItem("statement_model_v1", "{stale_id}")')
     await page.reload(wait_until="domcontentloaded")
-    await expect(page.locator("select#ai-model")).to_be_visible(timeout=15_000)
+    await expect(
+        page.locator('[data-testid="uploader-model-statement"]')
+    ).to_be_visible(timeout=15_000)
     await page.wait_for_function(
         "(staleId) => localStorage.getItem('statement_model_v1') !== staleId",
         arg=stale_id,
         timeout=15_000,
     )
-    stored_model: str | None = await page.evaluate('localStorage.getItem("statement_model_v1")')
-    assert stored_model != stale_id, f"Stale model ID '{stale_id}' was not cleared from localStorage after reload"
+    stored_model: str | None = await page.evaluate(
+        'localStorage.getItem("statement_model_v1")'
+    )
+    assert stored_model != stale_id, (
+        f"Stale model ID '{stale_id}' was not cleared from localStorage after reload"
+    )

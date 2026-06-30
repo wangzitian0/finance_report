@@ -150,7 +150,9 @@ async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> No
             f"Redirected to /login despite authenticated_page fixture. URL: {page.url}"
         )
 
-    await page.locator("#institution").fill(INSTITUTION_LABEL)
+    await page.locator('[data-testid="uploader-institution-statement"]').fill(
+        INSTITUTION_LABEL
+    )
     # Fetch the default model from the backend API and select it explicitly.
     # Selecting by value ensures we always use the backend-configured OCR model.
     models_resp = await page.evaluate(
@@ -159,11 +161,11 @@ async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> No
     default_model: str = (
         models_resp.get("default_model") or models_resp["models"][0]["id"]
     )
-    model_select = page.locator("select#ai-model")
+    model_select = page.locator('[data-testid="uploader-model-statement"]')
     await expect(model_select).to_be_visible(timeout=15_000)
     await expect(model_select).not_to_have_value("", timeout=15_000)
     await model_select.select_option(value=default_model)
-    await page.set_input_files("#file-upload", str(pdf_path))
+    await page.set_input_files('[data-testid="uploader-file-statement"]', str(pdf_path))
     await expect(page.locator("p.font-medium", has_text=pdf_path.name)).to_be_visible(
         timeout=5_000
     )
