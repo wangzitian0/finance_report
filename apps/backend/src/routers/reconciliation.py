@@ -156,7 +156,7 @@ async def _load_entry_summaries(
 
 # Synchronous 200: matching runs inline and the response carries the completed run
 # result (matches_created/auto_accepted/pending_review/unmatched), so this is a
-# finished operation, not a 202 background job (cf. #1099 AC12.29.1).
+# finished operation, not a 202 background job (cf. #1099 AC-platform.29.1).
 @router.post("/runs", response_model=ReconciliationRunResponse, status_code=status.HTTP_200_OK)
 async def run_reconciliation(
     payload: ReconciliationRunRequest,

@@ -601,7 +601,7 @@ async def list_statement_transactions(
 
 # Synchronous 200: the import runs inline and returns the full BrokerageImportResponse
 # (counts + reconciliation results), so the operation is complete on response — not a
-# 202 background job (cf. #1099 AC12.29.1).
+# 202 background job (cf. #1099 AC-platform.29.1).
 @router.post(
     "/{statement_id}/brokerage/import",
     response_model=BrokerageImportResponse,

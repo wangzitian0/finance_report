@@ -736,7 +736,7 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, model
     assert {item.id for item in pending.items} == set(created_ids)
 
     # Test approve. The legacy POST /statements/{id}/approve endpoint was removed
-    # in #1099 (AC12.29.5); drive the same state transition via the service layer.
+    # in #1099 (AC-platform.29.5); drive the same state transition via the service layer.
     statement_id = created_ids[0]
 
     approved = await statement_validation_mod.approve_statement(db, statement_id, test_user.id)

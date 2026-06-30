@@ -32,7 +32,7 @@ from src.identity.extension.auth import get_current_user_id
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 CurrentUserId = Annotated[UUID, Depends(get_current_user_id)]
 
-# Pagination convention for list endpoints (#1099 AC12.29.2/.3).
+# Pagination convention for list endpoints (#1099 AC-platform.29.2/.3).
 # A single default + hard maximum shared by every list endpoint via the
 # ``Pagination`` dependency below: the bound (``1 <= limit <= MAX_PAGE_LIMIT``,
 # ``offset >= 0``) is enforced here once so the generated frontend client can reuse

@@ -4,13 +4,13 @@ A follow-up to the typed-contract sweep (#1074 → AC12.27/AC12.28): the public 
 surface must stay internally consistent so the generated frontend client (#1004)
 is built on clean, unambiguous foundations.
 
-PR1 of the sweep (this file's AC12.29.4/.5):
-- AC12.29.4 — no route collisions; every operation maps to exactly one OpenAPI tag,
+PR1 of the sweep (this file's AC-platform.29.4/.5):
+- AC-platform.29.4 — no route collisions; every operation maps to exactly one OpenAPI tag,
   so each operation lands in exactly one generated FE client module. The
   ``/statements`` and ``/ai`` URL prefixes are deliberately shared by two routers
   each, but those routers carry *distinct* tags (``statements`` vs ``review``,
   ``ai`` vs ``ai-feedback``) — that is the documented disambiguation.
-- AC12.29.5 — the long-deprecated ``POST /statements/{id}/approve`` and ``/reject``
+- AC-platform.29.5 — the long-deprecated ``POST /statements/{id}/approve`` and ``/reject``
   are gone; the ``/statements/{id}/review/*`` variants are the supported path.
 """
 
@@ -32,7 +32,7 @@ _ROUTER_DIR = Path(_routers_pkg.__file__).resolve().parent
 _RAW_STATUS_CODE = re.compile(r"status_code\s*=\s*\d")
 
 # The list endpoints #1099 named as unbounded; each must now accept bounded
-# limit/offset (AC12.29.2).
+# limit/offset (AC-platform.29.2).
 _PREVIOUSLY_UNBOUNDED_LIST_PATHS = (
     "/assets/restricted",
     "/reconciliation/transactions/{txn_id}/anomalies",
@@ -60,7 +60,7 @@ def _api_routes() -> list[APIRoute]:
 
 
 def test_AC12_29_4_no_route_or_tag_collisions() -> None:
-    """AC12.29.4: no two operations share a (method, path), and every business
+    """AC-platform.29.4: no two operations share a (method, path), and every business
     operation maps to exactly one OpenAPI tag.
 
     The single-tag invariant is what keeps the generated FE client modular: a tool
@@ -113,7 +113,7 @@ def test_AC12_29_4_no_route_or_tag_collisions() -> None:
 
 
 def test_AC12_29_1_status_codes_use_constants_and_async_uses_202() -> None:
-    """AC12.29.1: routers use ``status.HTTP_*`` constants (no raw-integer
+    """AC-platform.29.1: routers use ``status.HTTP_*`` constants (no raw-integer
     ``status_code=`` literals), and the async upload endpoint advertises ``202``."""
     offenders: list[str] = []
     for py in sorted(_ROUTER_DIR.glob("*.py")):
@@ -129,7 +129,7 @@ def test_AC12_29_1_status_codes_use_constants_and_async_uses_202() -> None:
 
 
 def test_AC12_29_6_verb_in_path_urls_renamed_to_resources() -> None:
-    """AC12.29.6: the verb-in-path action URLs are renamed to resource-style nouns
+    """AC-platform.29.6: the verb-in-path action URLs are renamed to resource-style nouns
     (the rename #1099 originally deferred, completed FE+BE atomically). The old verb
     URLs are gone from the schema; the new noun URLs are present."""
     paths = set(app.openapi()["paths"])
@@ -146,7 +146,7 @@ def test_AC12_29_6_verb_in_path_urls_renamed_to_resources() -> None:
 
 
 def test_AC12_29_2_named_unbounded_endpoints_are_bounded() -> None:
-    """AC12.29.2: the three named unbounded list endpoints now accept bounded
+    """AC-platform.29.2: the three named unbounded list endpoints now accept bounded
     ``limit``/``offset`` query params, with ``limit`` capped at ``MAX_PAGE_LIMIT``."""
     paths = app.openapi()["paths"]
 
@@ -166,7 +166,7 @@ def test_AC12_29_2_named_unbounded_endpoints_are_bounded() -> None:
 
 
 async def test_AC12_29_3_pagination_convention_is_enforced(client: AsyncClient) -> None:
-    """AC12.29.3: a single documented pagination convention exists and the shared
+    """AC-platform.29.3: a single documented pagination convention exists and the shared
     dependency rejects an over-max ``limit`` with 422."""
     assert isinstance(DEFAULT_PAGE_LIMIT, int)
     assert isinstance(MAX_PAGE_LIMIT, int)
@@ -183,7 +183,7 @@ async def test_AC12_29_3_pagination_convention_is_enforced(client: AsyncClient) 
 
 
 async def test_AC12_29_5_deprecated_statement_decision_endpoints_removed(client: AsyncClient) -> None:
-    """AC12.29.5: the deprecated Stage-0 ``/approve`` and ``/reject`` statement
+    """AC-platform.29.5: the deprecated Stage-0 ``/approve`` and ``/reject`` statement
     decision endpoints are removed; the ``/review/*`` variants remain.
 
     Asserts both the routing layer (the endpoints no longer respond, returning

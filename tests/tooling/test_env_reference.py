@@ -36,7 +36,7 @@ def test_backend_block_uses_example_override_and_real_default():
     block = gen.render_backend_block(fields)
     # Example override (localhost) is what .env.example shows.
     assert "DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432" in block
-    # PRIMARY_MODEL has no override, so its default is shown (AC12.18.2 contract).
+    # PRIMARY_MODEL has no override, so its default is shown (AC-config.18.2 contract).
     assert "PRIMARY_MODEL=glm-5.1" in block
 
 

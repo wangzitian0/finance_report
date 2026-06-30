@@ -105,7 +105,7 @@ def test_rate_limiter_reset_nonexistent_key_is_safe() -> None:
 
 
 async def test_global_rate_limit_middleware_exempts_health(public_client: AsyncClient) -> None:
-    """AC12.23.1: /health should never be rate-limited."""
+    """AC-platform.23.1: /health should never be rate-limited."""
     from src.main import api_rate_limiter
 
     with patch.object(api_rate_limiter, "is_allowed", return_value=(False, 30)):
@@ -115,7 +115,7 @@ async def test_global_rate_limit_middleware_exempts_health(public_client: AsyncC
 
 
 async def test_global_rate_limit_middleware_blocks_after_limit(public_client: AsyncClient) -> None:
-    """AC12.23.2: After exceeding limit, middleware returns 429 with Retry-After header."""
+    """AC-platform.23.2: After exceeding limit, middleware returns 429 with Retry-After header."""
     from src.main import api_rate_limiter
 
     # Use a non-exempt path (not in _RATE_LIMIT_EXEMPT_PATHS)
@@ -129,7 +129,7 @@ async def test_global_rate_limit_middleware_blocks_after_limit(public_client: As
 
 
 async def test_global_rate_limit_middleware_allows_normal_requests(public_client: AsyncClient) -> None:
-    """AC12.23.3: Normal requests within limit should pass through."""
+    """AC-platform.23.3: Normal requests within limit should pass through."""
     from src.main import api_rate_limiter
 
     # Use a non-exempt path so the middleware actually invokes the rate limiter.
@@ -142,7 +142,7 @@ async def test_global_rate_limit_middleware_allows_normal_requests(public_client
 
 
 async def test_global_rate_limit_middleware_exempts_docs(public_client: AsyncClient) -> None:
-    """AC12.23.4: /docs should never be rate-limited."""
+    """AC-platform.23.4: /docs should never be rate-limited."""
     from src.main import api_rate_limiter
 
     with patch.object(api_rate_limiter, "is_allowed", return_value=(False, 30)):

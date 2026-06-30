@@ -269,5 +269,286 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── EPIC-012 (foundation-libs) platform/api ACs homed here ──
+        # Migrated from the EPIC-012 table: the leading "12" is dropped and the
+        # group/seq preserved, so AC12.<g>.<s> becomes AC-platform.<g>.<s>
+        # (numeric AC-<pkg>.<n>.<n> grammar). Only the moon/infra contract, the
+        # BaseAppException hierarchy, and the API-surface platform ACs that have a
+        # resolving Python anchor test are homed. LEFT in EPIC-012 (not homed):
+        # the mechanical schema-move rows AC12.22.1/.2 (no anchor test), the
+        # removed/deferred Prometheus-metrics rows AC12.24.1-.3 (no test), and the
+        # frontend rows AC12.27.3 / AC12.28.3 (their `.test.ts` anchor is not a
+        # Python path::func and this package is fe=None — same precedent as the
+        # ledger cutover leaving EPIC-002's frontend rows in place). The package
+        # tier (CODE-ONLY) gives proof_kind=exact.
+        # ── group 19: Infrastructure — moon workspace contract (was AC12.19.*) ──
+        ACRecord(
+            id="AC-platform.19.1",
+            statement=(
+                "The moon workspace configuration files exist (the EPIC-001 "
+                "moon/infra contract). Was EPIC-012 AC12.19.1."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_epic_001_contracts.py"
+                "::test_epic_001_moon_workspace_configs_exist"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        # ── group 21: Exceptions — BaseAppException hierarchy (was AC12.21.*) ──
+        ACRecord(
+            id="AC-platform.21.1",
+            statement=(
+                "BaseAppException stores the error_id attribute. "
+                "Was EPIC-012 AC12.21.1."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_exceptions.py"
+                "::test_base_app_exception_has_error_id"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.21.2",
+            statement=(
+                "BaseAppException stores the status_code attribute. "
+                "Was EPIC-012 AC12.21.2."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_exceptions.py"
+                "::test_base_app_exception_has_status_code"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.21.3",
+            statement=(
+                "BaseAppException is a subclass of Exception. Was EPIC-012 AC12.21.3."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_exceptions.py"
+                "::test_base_app_exception_is_subclass_of_exception"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.21.4",
+            statement=(
+                "BaseAppException can be raised and caught with its fields intact. "
+                "Was EPIC-012 AC12.21.4."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_exceptions.py"
+                "::test_base_app_exception_raise_and_catch"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.21.5",
+            statement=(
+                "The BaseAppException handler serializes error_id and status_code "
+                "into a structured JSON response. Was EPIC-012 AC12.21.5."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_exceptions.py"
+                "::test_base_app_exception_handler_returns_structured_json"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group 23: Rate limiting — global API middleware (was AC12.23.*) ──
+        ACRecord(
+            id="AC-platform.23.1",
+            statement=(
+                "The global rate-limit middleware exempts /health (never "
+                "rate-limited). Was EPIC-012 AC12.23.1."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_rate_limit.py"
+                "::test_global_rate_limit_middleware_exempts_health"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.23.2",
+            statement=(
+                "The global rate-limit middleware returns 429 with a Retry-After "
+                "header after the limit is exceeded. Was EPIC-012 AC12.23.2."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_rate_limit.py"
+                "::test_global_rate_limit_middleware_blocks_after_limit"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.23.3",
+            statement=(
+                "The global rate-limit middleware allows normal requests within "
+                "the limit. Was EPIC-012 AC12.23.3."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_rate_limit.py"
+                "::test_global_rate_limit_middleware_allows_normal_requests"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.23.4",
+            statement=(
+                "The global rate-limit middleware exempts /docs (never "
+                "rate-limited). Was EPIC-012 AC12.23.4."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_rate_limit.py"
+                "::test_global_rate_limit_middleware_exempts_docs"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group 27: Structured API error contract (was AC12.27.*; .3 is FE) ──
+        ACRecord(
+            id="AC-platform.27.1",
+            statement=(
+                "An HTTPException-derived 404 returns a structured body with an "
+                "error_id (plus detail + request_id). Was EPIC-012 AC12.27.1."
+            ),
+            test=(
+                "apps/backend/tests/api/test_typed_contract_sweep.py"
+                "::test_AC12_27_1_http_error_has_structured_error_id"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.27.2",
+            statement=(
+                "OpenAPI declares the shared ErrorResponse and references it for "
+                "the common 4xx errors. Was EPIC-012 AC12.27.2."
+            ),
+            test=(
+                "apps/backend/tests/api/test_typed_contract_sweep.py"
+                "::test_AC12_27_2_openapi_declares_error_response_contract"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group 28: Generated FE API types from OpenAPI (was AC12.28.*; .3 FE) ──
+        ACRecord(
+            id="AC-platform.28.1",
+            statement=(
+                "The generator emits the OpenAPI spec from the live FastAPI "
+                "schema. Was EPIC-012 AC12.28.1."
+            ),
+            test=(
+                "tests/tooling/test_generate_openapi_spec.py"
+                "::test_AC12_28_1_generator_emits_types_from_openapi"
+            ),
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.28.2",
+            statement=(
+                "The --check staleness gate fails when the committed OpenAPI spec "
+                "drifts from the live schema. Was EPIC-012 AC12.28.2."
+            ),
+            test=(
+                "tests/tooling/test_generate_openapi_spec.py"
+                "::test_AC12_28_2_staleness_gate_detects_drift"
+            ),
+            priority="P2",
+            status="done",
+        ),
+        # ── group 29: API-surface consistency sweep (was AC12.29.*) ──
+        ACRecord(
+            id="AC-platform.29.1",
+            statement=(
+                "Router status codes use status.HTTP_* constants (no raw-integer "
+                "status_code literals); the async upload endpoint advertises 202. "
+                "Was EPIC-012 AC12.29.1."
+            ),
+            test=(
+                "apps/backend/tests/api/test_api_surface_consistency.py"
+                "::test_AC12_29_1_status_codes_use_constants_and_async_uses_202"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.29.2",
+            statement=(
+                "The named unbounded list endpoints accept bounded limit/offset "
+                "with an enforced le=MAX_PAGE_LIMIT. Was EPIC-012 AC12.29.2."
+            ),
+            test=(
+                "apps/backend/tests/api/test_api_surface_consistency.py"
+                "::test_AC12_29_2_named_unbounded_endpoints_are_bounded"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.29.3",
+            statement=(
+                "A single documented pagination convention is enforced "
+                "(DEFAULT_PAGE_LIMIT/MAX_PAGE_LIMIT via PaginationParams); an "
+                "over-max limit is rejected with 422. Was EPIC-012 AC12.29.3."
+            ),
+            test=(
+                "apps/backend/tests/api/test_api_surface_consistency.py"
+                "::test_AC12_29_3_pagination_convention_is_enforced"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.29.4",
+            statement=(
+                "No two API operations collide on (method, path); every router "
+                "maps to exactly one OpenAPI tag. Was EPIC-012 AC12.29.4."
+            ),
+            test=(
+                "apps/backend/tests/api/test_api_surface_consistency.py"
+                "::test_AC12_29_4_no_route_or_tag_collisions"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.29.5",
+            statement=(
+                "The deprecated POST /statements/{id}/approve and /reject are "
+                "removed (404/405); the /review/* variants remain. "
+                "Was EPIC-012 AC12.29.5."
+            ),
+            test=(
+                "apps/backend/tests/api/test_api_surface_consistency.py"
+                "::test_AC12_29_5_deprecated_statement_decision_endpoints_removed"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.29.6",
+            statement=(
+                "Verb-in-path action URLs are renamed to resource-style nouns "
+                "(/reconciliation/runs, /market-data/{fx,stocks}/syncs, "
+                "/journal-entries/{id}/postings,/voidings). Was EPIC-012 AC12.29.6."
+            ),
+            test=(
+                "apps/backend/tests/api/test_api_surface_consistency.py"
+                "::test_AC12_29_6_verb_in_path_urls_renamed_to_resources"
+            ),
+            priority="P1",
+            status="done",
+        ),
     ],
 )
