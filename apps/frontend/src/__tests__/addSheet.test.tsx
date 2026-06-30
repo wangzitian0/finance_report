@@ -27,7 +27,7 @@ describe("AddSheet (EPIC-022 AC22.21.2)", () => {
         expect(screen.getByText("Manual entry")).toBeInTheDocument();
 
         fireEvent.click(screen.getByText("Upload statement"));
-        expect(screen.getByTestId("uploader")).toHaveTextContent("UploaderMock-statement");
+        expect(screen.getByTestId("uploader")).toHaveTextContent("UploaderMock-all");
     });
 
     it("reveals the guided evidence form for manual entry", () => {

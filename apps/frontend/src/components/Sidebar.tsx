@@ -39,7 +39,6 @@ export function Sidebar() {
 
     const [home, chat, audit, more] = bottomTabItems;
     const AddIcon = ADD_ACTION.icon;
-    const visibleTabs: NavItem[] = isAuth ? [home, chat, audit, more] : [home];
 
     const renderNavLink = (item: NavItem) => {
         const active = isActive(pathname, item.href);
@@ -130,8 +129,6 @@ export function Sidebar() {
                 )}
                 {isAuth && renderNavLink(audit)}
                 {isAuth && renderNavLink(more)}
-                {/* visibleTabs retained for parity with the bottom bar's auth gating */}
-                <span className="sr-only">{visibleTabs.length} navigation targets</span>
             </nav>
 
             {/* Bottom Section */}
