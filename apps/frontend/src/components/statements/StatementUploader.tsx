@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 
 import { fetchAiModels } from "@/lib/aiModels";
 import { useToast } from "@/components/ui/Toast";
@@ -83,6 +83,15 @@ export default function StatementUploader({
     kind = "all",
 }: StatementUploaderProps): JSX.Element {
     const uploaderConfig = KIND_CONFIG[kind];
+    // Per-instance ids so multiple uploaders (statement + CSV) can coexist on
+    // one page without colliding label/datalist associations. useId() returns
+    // colon-delimited values (":r1:") that are invalid in CSS selectors, so we
+    // strip the colons while keeping the per-instance uniqueness.
+    const reactId = useId().replace(/:/g, "");
+    const fileInputId = `file-upload-${reactId}`;
+    const institutionId = `institution-${reactId}`;
+    const banksListId = `banks-list-${reactId}`;
+    const aiModelId = `ai-model-${reactId}`;
     const { showToast } = useToast();
     const [isDragging, setIsDragging] = useState(false);
     const [file, setFile] = useState<File | null>(null);
@@ -259,9 +268,9 @@ export default function StatementUploader({
                     accept={uploaderConfig.acceptAttr}
                     onChange={handleFileChange}
                     className="hidden"
-                    id="file-upload"
+                    id={fileInputId}
                 />
-                <label htmlFor="file-upload" className="cursor-pointer block">
+                <label htmlFor={fileInputId} className="cursor-pointer block">
                     <div className="flex flex-col items-center">
                         <div className={`w-10 h-10 rounded-md flex items-center justify-center mb-3 ${iconTone}`}>
                             {file ? (
@@ -291,19 +300,19 @@ export default function StatementUploader({
 
             {/* Institution Input */}
             <div>
-                <label htmlFor="institution" className="block text-sm font-medium mb-1.5">
+                <label htmlFor={institutionId} className="block text-sm font-medium mb-1.5">
                     Bank / Institution <span className="text-muted font-normal">(optional)</span>
                 </label>
                 <input
                     type="text"
-                    id="institution"
+                    id={institutionId}
                     value={institution}
                     onChange={(e) => setInstitution(e.target.value)}
                     placeholder="Auto-detected from document, or enter manually"
                     className="input"
-                    list="banks-list"
+                    list={banksListId}
                 />
-                <datalist id="banks-list">
+                <datalist id={banksListId}>
                     <option value="DBS" />
                     <option value="OCBC" />
                     <option value="UOB" />
@@ -332,11 +341,11 @@ export default function StatementUploader({
                 </div>
             ) : (
                 <div>
-                    <label htmlFor="ai-model" className="block text-sm font-medium mb-1.5">
+                    <label htmlFor={aiModelId} className="block text-sm font-medium mb-1.5">
                         AI Model
                     </label>
                     <select
-                        id="ai-model"
+                        id={aiModelId}
                         className="input"
                         value={selectedModel}
                         onChange={(e) => {
