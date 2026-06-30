@@ -309,7 +309,7 @@ Brokerage fund positions (e.g. money-market funds) store the full fund name as
 on every lookup. The guard skips guaranteed-404 Yahoo requests for non-ticker
 identifiers (these positions are valued from their existing AtomicPosition
 snapshot). The unpriced-drop skip is intentionally kept at `debug` to honor the
-high-volume audit-noise contract (AC10.8.4); surfacing dropped positions to the
+high-volume audit-noise contract (AC-observability.8.4); surfacing dropped positions to the
 user (e.g. a report blocker) is tracked as follow-up. Issue #1035.
 
 | ID | Test Case | Test Function | File | Priority |

@@ -30,7 +30,7 @@ def _read(path: Path) -> str:
 
 
 def test_otel_settings_are_explicit_and_environment_backed(monkeypatch) -> None:
-    """AC10.1.1 AC10.5.4: OTEL settings are owned by backend config."""
+    """AC-observability.1.1 AC-observability.5.4: OTEL settings are owned by backend config."""
     monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
     monkeypatch.delenv("OTEL_SERVICE_NAME", raising=False)
     monkeypatch.delenv("OTEL_RESOURCE_ATTRIBUTES", raising=False)
@@ -127,7 +127,7 @@ def test_app_readme_and_compose_document_observability_rollout() -> None:
 
 
 def test_backend_otel_absence_is_startup_safe(monkeypatch) -> None:
-    """AC10.7.1 AC10.7.4: Missing OTEL endpoint keeps startup path local."""
+    """AC-observability.7.1 AC-observability.7.4: Missing OTEL endpoint keeps startup path local."""
     monkeypatch.setattr(logger_module.settings, "otel_exporter_otlp_endpoint", None)
 
     logger_module._configure_otel_tracing()
@@ -135,7 +135,7 @@ def test_backend_otel_absence_is_startup_safe(monkeypatch) -> None:
 
 
 def test_external_api_logging_omits_sensitive_arguments_by_default(caplog) -> None:
-    """AC10.7.3: External API logging omits credentials unless explicitly requested."""
+    """AC-observability.7.3: External API logging omits credentials unless explicitly requested."""
 
     @logger_module.log_external_api("example-provider")
     def call_provider(password: str, *, token: str) -> str:
@@ -153,7 +153,7 @@ def test_external_api_logging_omits_sensitive_arguments_by_default(caplog) -> No
 
 
 def test_production_renderer_outputs_structured_json(monkeypatch) -> None:
-    """AC10.7.7: Non-debug renderer emits parseable structured JSON."""
+    """AC-observability.7.7: Non-debug renderer emits parseable structured JSON."""
     monkeypatch.setattr(logger_module.settings, "debug", False)
 
     renderer = logger_module._select_renderer()
@@ -164,7 +164,7 @@ def test_production_renderer_outputs_structured_json(monkeypatch) -> None:
 
 
 def test_AC10_8_4_high_volume_fx_audit_noise_uses_debug_level() -> None:
-    """AC10.8.4: High-volume staging audit noise is debug-only by default."""
+    """AC-observability.8.4: High-volume staging audit noise is debug-only by default."""
     database = _read(REPO_ROOT / "apps" / "backend" / "src" / "database.py")
     fx_revaluation = _read(REPO_ROOT / "apps" / "backend" / "src" / "services" / "fx_revaluation.py")
     reporting = _read(REPO_ROOT / "apps" / "backend" / "src" / "services" / "reporting")
@@ -175,7 +175,7 @@ def test_AC10_8_4_high_volume_fx_audit_noise_uses_debug_level() -> None:
 
 
 def test_AC10_9_1_observability_status_is_redacted_and_vendor_neutral(monkeypatch) -> None:
-    """AC10.9.1: Runtime observability status is stable, redacted, and vendor-neutral OTEL."""
+    """AC-observability.9.1: Runtime observability status is stable, redacted, and vendor-neutral OTEL."""
     monkeypatch.setattr(
         observability_module.settings,
         "otel_exporter_otlp_endpoint",
@@ -212,7 +212,7 @@ def test_AC10_9_1_observability_status_is_redacted_and_vendor_neutral(monkeypatc
 
 
 def test_AC10_9_2_observability_startup_log_uses_runtime_contract(monkeypatch) -> None:
-    """AC10.9.2: Startup emits one safe structured observability contract event."""
+    """AC-observability.9.2: Startup emits one safe structured observability contract event."""
     monkeypatch.setattr(observability_module.settings, "otel_exporter_otlp_endpoint", None)
     monkeypatch.setattr(observability_module.settings, "otel_service_name", "finance-report-backend")
     monkeypatch.setattr(observability_module.settings, "otel_resource_attributes", None)
@@ -234,7 +234,7 @@ def test_AC10_9_2_observability_startup_log_uses_runtime_contract(monkeypatch) -
 
 
 def test_AC10_11_1_security_warning_redacts_credentials() -> None:
-    """AC10.11.1: Security warning helper never emits raw credentials."""
+    """AC-observability.11.1: Security warning helper never emits raw credentials."""
     mock_logger = Mock()
 
     observability_module.log_security_warning(
@@ -258,7 +258,7 @@ def test_AC10_11_1_security_warning_redacts_credentials() -> None:
 
 
 def test_AC10_11_2_financial_mutation_audit_helpers_and_callsites() -> None:
-    """AC10.11.2: Financial mutation audit events are stable and wired."""
+    """AC-observability.11.2: Financial mutation audit events are stable and wired."""
     mock_logger = Mock()
     user_id = uuid4()
     entry_id = uuid4()
@@ -292,7 +292,7 @@ def test_AC10_11_2_financial_mutation_audit_helpers_and_callsites() -> None:
 
 
 def test_AC10_11_3_provider_error_body_logging_is_redacted() -> None:
-    """AC10.11.3: Raw provider bodies are redacted or summarized before logging."""
+    """AC-observability.11.3: Raw provider bodies are redacted or summarized before logging."""
     safe = observability_module.safe_log_fields(
         {
             "error_body": "provider raw response with prompt and account 123456789",
@@ -319,7 +319,7 @@ def test_AC10_11_3_provider_error_body_logging_is_redacted() -> None:
 
 
 async def test_AC10_9_3_health_response_includes_redacted_observability_status(monkeypatch) -> None:
-    """AC10.9.3: Health exposes the same redacted observability contract for deploy checks."""
+    """AC-observability.9.3: Health exposes the same redacted observability contract for deploy checks."""
     from src import main
     from src.boot import Bootloader, ServiceStatus
 
@@ -350,7 +350,7 @@ async def test_AC10_9_3_health_response_includes_redacted_observability_status(m
 
 
 def test_AC10_4_3_main_instruments_fastapi_app_instance() -> None:
-    """AC10.4.3: main wires FastAPI request instrumentation to the app instance.
+    """AC-observability.4.3: main wires FastAPI request instrumentation to the app instance.
 
     Regression guard for #768/#576: the broken `FastAPIInstrumentor.instrument()`
     (no instance, before the app existed) must not return, and the per-app
@@ -365,7 +365,7 @@ def test_AC10_4_3_main_instruments_fastapi_app_instance() -> None:
 
 
 def test_AC10_4_3_instrumentation_state_reflected_in_status() -> None:
-    """AC10.4.3: observability status reports REAL instrumentation init, not config."""
+    """AC-observability.4.3: observability status reports REAL instrumentation init, not config."""
     original = observability_module.is_fastapi_instrumentation_active()
     try:
         observability_module.mark_fastapi_instrumentation_active(False)
@@ -380,7 +380,7 @@ def test_AC10_4_3_instrumentation_state_reflected_in_status() -> None:
 
 
 def test_AC10_4_4_otel_resource_includes_commit_version(monkeypatch) -> None:
-    """AC10.4.4: trace/log resource carries the deploy commit for correlation."""
+    """AC-observability.4.4: trace/log resource carries the deploy commit for correlation."""
     monkeypatch.setattr(logger_module.settings, "git_commit_sha", "abc1234", raising=False)
     resource = logger_module._build_otel_resource()
     attributes = dict(resource.attributes)
@@ -390,7 +390,7 @@ def test_AC10_4_4_otel_resource_includes_commit_version(monkeypatch) -> None:
 
 
 def test_AC10_4_3_instrument_app_applies_to_instance(monkeypatch) -> None:
-    """AC10.4.3: _instrument_fastapi_app applies instrumentation to the app instance."""
+    """AC-observability.4.3: _instrument_fastapi_app applies instrumentation to the app instance."""
     import sys
     import types
 
@@ -413,7 +413,7 @@ def test_AC10_4_3_instrument_app_applies_to_instance(monkeypatch) -> None:
 
 
 def test_AC10_4_3_instrument_app_skips_without_endpoint(monkeypatch) -> None:
-    """AC10.4.3: instrumentation is a no-op (and stays inactive) without an endpoint."""
+    """AC-observability.4.3: instrumentation is a no-op (and stays inactive) without an endpoint."""
     from fastapi import FastAPI
 
     from src import main as main_module

@@ -95,43 +95,69 @@ Enable production-grade log observability via OpenTelemetry/OTLP, while keeping 
 > **Test Organization**: Tests organized by feature blocks using ACx.y.z numbering.
 > **Coverage**: See `apps/backend/tests/infra/test_logger.py`, `apps/backend/tests/infra/test_observability_contract.py`, and `docs/ssot/observability.md`
 
-### AC10.1: Backend Logging Configuration
+> **The backend observability runtime ACs of EPIC-010 are no longer defined
+> here.** The OTEL/logging/tracing/metrics/redaction/audit-log runtime ACs in
+> groups AC10.1, AC10.2, AC10.4, AC10.8, AC10.10, AC10.11, AC10.12 and the
+> backend rows of AC10.5/AC10.7/AC10.9 migrated into the `observability` package
+> and are owned by, and sourced directly from,
+> [`common/observability/contract.py`](../../common/observability/contract.py)'s
+> `roadmap` under the package-scoped numeric `AC-observability.<group>.<seq>` id
+> scheme (the leading "10" is dropped and the sequence preserved, so
+> `AC10.<g>.<s>` becomes `AC-observability.<g>.<s>`).
+> `common/ssot/generate_ac_registry.py` reads package-contract roadmaps
+> additively, so the AC index counts them without an EPIC-table mirror. This note
+> references the new ids (keeping the registry↔EPIC link intact) but defines none
+> of them — the contract is the single definition source. The **non-runtime**
+> rows below stay defined here because they are cross-cutting infra governance,
+> not backend observability: the SSOT/docs-linkage rows `AC10.5.1`–`AC10.5.3` and
+> `AC10.7.5`, the infra2 deploy-template rows `AC10.6.1`–`AC10.6.4` and
+> `AC10.7.6` (Vault `secrets.ctmpl` / `compose.yaml` / app README under the
+> `repo/` infra2 submodule), and the Dokploy deploy-failure-snapshot tooling row
+> `AC10.9.5`.
 
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC10.1.1 | OTEL settings in config | `test_otel_settings_are_explicit_and_environment_backed()` | `infra/test_observability_contract.py` | P0 |
-| AC10.1.2 | Optional OTLP log export configured | `test_configure_otel_logging_with_fake_exporter()` | `infra/test_logger.py` | P0 |
-| AC10.1.3 | Fallback to stdout when OTEL vars absent | `test_select_renderer_uses_json_in_production()` | `infra/test_logger.py` | P0 |
+Migrated `AC-observability.<g>.<s>` ids (homed in the package roadmap):
 
-### AC10.2: OTLP Endpoint Construction
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC10.2.2 | Build OTLP endpoint preserves logs path | `test_build_otlp_logs_endpoint_preserves_logs_path()` | `infra/test_logger.py` | P0 |
-*(AC10.2.1 removed — canonical copy is AC12.1.1 in EPIC-012)*
+> **Backend logging configuration** (was AC10.1.*):
+> `AC-observability.1.1` · `AC-observability.1.2` · `AC-observability.1.3`
+>
+> **OTLP endpoint construction** (was AC10.2.*):
+> `AC-observability.2.2`
+>
+> **OTEL configuration & error handling** (was AC10.4.*):
+> `AC-observability.4.1` · `AC-observability.4.2` · `AC-observability.4.3` · `AC-observability.4.4`
+>
+> **OTEL config ownership** (was the backend-config row, now `AC-observability.5.4`):
+> `AC-observability.5.4`
+>
+> **Must-have runtime traceability** (was the runtime rows of AC10.7.*):
+> `AC-observability.7.1` · `AC-observability.7.2` · `AC-observability.7.3` · `AC-observability.7.4` · `AC-observability.7.7`
+>
+> **Staging audit replay logging** (was AC10.8.*):
+> `AC-observability.8.1` · `AC-observability.8.2` · `AC-observability.8.3` · `AC-observability.8.4`
+>
+> **Production observability runtime contract** (was the app-owned rows of AC10.9.*):
+> `AC-observability.9.1` · `AC-observability.9.2` · `AC-observability.9.3`
+>
+> **Backend OTEL metrics pillar** (was AC10.10.*):
+> `AC-observability.10.1` · `AC-observability.10.2` · `AC-observability.10.3` · `AC-observability.10.4`
+>
+> **Logging content hardening** (was AC10.11.*):
+> `AC-observability.11.1` · `AC-observability.11.2` · `AC-observability.11.3`
+>
+> **Async parse failure visibility** (was AC10.12.*):
+> `AC-observability.12.1` · `AC-observability.12.2` · `AC-observability.12.3`
 
-### AC10.3: Renderer Selection
-
-*(AC10.3.1 and AC10.3.2 removed — canonical copies are AC12.2.1 and AC12.2.2 in EPIC-012)*
-
-### AC10.4: OTEL Configuration & Error Handling
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC10.4.1 | Configure OTEL logging warns on missing dependency | `test_configure_otel_logging_missing_dependency_warns()` | `infra/test_logger.py` | P0 |
-| AC10.4.2 | Configure OTEL logging with fake exporter | `test_configure_otel_logging_with_fake_exporter()` | `infra/test_logger.py` | P1 |
-| AC10.4.3 | FastAPI request instrumentation binds the app instance (not the no-op classmethod) | `test_AC10_4_3_main_instruments_fastapi_app_instance()` | `infra/test_observability_contract.py` | P0 |
-| AC10.4.4 | OTEL resource carries deploy commit for run-to-trace correlation | `test_AC10_4_4_otel_resource_includes_commit_version()` | `infra/test_observability_contract.py` | P0 |
-
-### AC10.5: Documentation (SSOT)
+### AC10.5: Documentation (SSOT) — retained (cross-cutting docs governance)
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
 | AC10.5.1 | Observability SSOT exists | `test_observability_ssot_and_env_docs_are_linked()` | `infra/test_observability_contract.py` | P0 |
 | AC10.5.2 | SSOT linked in index | `test_observability_ssot_and_env_docs_are_linked()` | `infra/test_observability_contract.py` | P0 |
 | AC10.5.3 | OTEL vars documented in .env.example | `test_observability_ssot_and_env_docs_are_linked()` | `infra/test_observability_contract.py` | P0 |
-| AC10.5.4 | OTEL vars documented in config.py | `test_otel_settings_are_explicit_and_environment_backed()` | `infra/test_observability_contract.py` | P0 |
 
-### AC10.6: Infrastructure Templates
+*(The backend-config row that was in the `AC10.5.*` group migrated to `AC-observability.5.4`.)*
+
+### AC10.6: Infrastructure Templates — retained (infra2 deploy-template governance)
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
@@ -140,65 +166,30 @@ Enable production-grade log observability via OpenTelemetry/OTLP, while keeping 
 | AC10.6.3 | IAC_CONFIG_HASH in compose.yaml | `test_app_readme_and_compose_document_observability_rollout()` | `infra/test_observability_contract.py` | P0 |
 | AC10.6.4 | Template helpers use printf not default | `test_vault_template_exposes_otel_keys_with_safe_quoting()` | `infra/test_observability_contract.py` | P0 |
 
-### AC10.7: Must-Have Acceptance Criteria Traceability
+### AC10.7: Must-Have Acceptance Criteria Traceability — retained doc/infra rows
+
+> The backend runtime rows of the `AC10.7.*` group migrated to
+> `AC-observability.7.1`, `AC-observability.7.2`, `AC-observability.7.3`,
+> `AC-observability.7.4`, and `AC-observability.7.7`. The two doc/infra-governance
+> rows below stay defined here.
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC10.7.1 | Backend starts without an observability backend | `test_backend_otel_absence_is_startup_safe()` | `infra/test_observability_contract.py` | P0 |
-| AC10.7.2 | Logs export over OTLP | `test_configure_otel_logging_with_fake_exporter()` | `infra/test_logger.py` | P0 |
-| AC10.7.3 | No sensitive data in logs | `test_external_api_logging_omits_sensitive_arguments_by_default()` | `infra/test_observability_contract.py` | P0 |
-| AC10.7.4 | OTLP optional by default | `test_backend_otel_absence_is_startup_safe()` | `infra/test_observability_contract.py` | P0 |
 | AC10.7.5 | OTEL config documented | `test_observability_ssot_and_env_docs_are_linked()` | `infra/test_observability_contract.py` | P0 |
 | AC10.7.6 | Vault templates include OTEL keys | `test_vault_template_exposes_otel_keys_with_safe_quoting()` | `infra/test_observability_contract.py` | P0 |
-| AC10.7.7 | Structured JSON logs in non-debug | `test_production_renderer_outputs_structured_json()` | `infra/test_observability_contract.py` | P0 |
 
-### AC10.8: Staging Audit Replay Logging
-
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC10.8.1 | Statement upload audit logs include non-sensitive input provenance, correlation IDs, and storage failure context | `test_AC10_8_1_upload_audit_logs_include_statement_input_provenance()`, `test_AC10_8_1_upload_storage_failure_logs_safe_audit_context()` | `api/test_statements_router.py` | P0 |
-| AC10.8.2 | Async statement parsing emits structured 5/10/20/70/80/90/100 checkpoints and safe failure context | `test_AC10_8_2_parse_checkpoints_and_failure_logs_are_structured()` | `extraction/test_statement_parsing_audit_logging.py` | P0 |
-| AC10.8.3 | Brokerage import and reconciliation emit start/complete/failure audit checkpoints with result counts | `test_AC10_8_3_statement_scoped_brokerage_import_audit_logs()`, `test_AC10_8_3_brokerage_import_audit_checkpoints()`, `test_AC10_8_3_reconciliation_run_audit_checkpoints()` | `api/test_statements_router.py`, `extraction/test_statement_parsing_audit_logging.py`, `reconciliation/test_reconciliation_router_additional.py` | P0 |
-| AC10.8.4 | High-volume staging audit noise is reduced for SQL echo and repeated FX/portfolio valuation detail logs | `test_AC10_8_4_high_volume_fx_audit_noise_uses_debug_level()` | `infra/test_observability_contract.py` | P1 |
-
-### AC10.9: Production Observability Runtime Contract
+### AC10.9: Production Observability Runtime Contract — retained deploy-tooling row
 
 > The app exposes only its own vendor-neutral OTEL runtime readiness. Choosing the
 > observability backend and wiring alert rules (e.g. error-log alerts → Lark) are
 > infra2's concern, reached through the OTLP endpoint — the app declares no
-> backend-specific alert routing.
+> backend-specific alert routing. The app-owned runtime rows of the `AC10.9.*`
+> group migrated to `AC-observability.9.1`, `AC-observability.9.2`, and
+> `AC-observability.9.3`; the deploy-tooling snapshot row below stays defined here.
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC10.9.1 | Backend exposes a stable redacted, vendor-neutral OTEL observability status (service name, deployment environment, resource attributes, exporter flags) without exposing the OTLP endpoint or any backend-specific alert metadata | `test_AC10_9_1_observability_status_is_redacted_and_vendor_neutral()` | `infra/test_observability_contract.py` | P0 |
-| AC10.9.2 | Startup logs emit one structured observability runtime event capturing OTEL runtime readiness | `test_AC10_9_2_observability_startup_log_uses_runtime_contract()` | `infra/test_observability_contract.py` | P0 |
-| AC10.9.3 | `/health` includes the same redacted observability status so deploy checks can prove app-side OTEL readiness | `test_AC10_9_3_health_response_includes_redacted_observability_status()` | `infra/test_observability_contract.py` | P0 |
 | AC10.9.5 | Deploy failure snapshots include non-secret platform health fields; the app does **not** build observability-backend pivot links (infra2 owns linking to its backend) | `test_AC10_9_5_snapshot_includes_platform_health()`, `test_AC10_9_5_main_missing_inputs_emits_skip_marker_with_platform_health()` | `tests/tooling/test_dokploy_failure_snapshot.py` | P0 |
-
-### AC10.10: Backend OTEL Metrics Pillar
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC10.10.1 | MeterProvider and OTLP metric exporter are endpoint-gated and no-op safe when unset | `test_AC10_10_1_configure_metrics_is_noop_without_endpoint()`, `test_AC10_10_1_configure_metrics_creates_otlp_provider()` | `infra/test_telemetry_metrics.py` | P0 |
-| AC10.10.2 | RED request-count and request-duration metrics use low-cardinality route/status labels | `test_AC10_10_2_red_metrics_record_low_cardinality_labels()` | `infra/test_telemetry_metrics.py` | P0 |
-| AC10.10.3 | DB pool and async parse in-flight gauges expose current saturation values | `test_AC10_10_3_saturation_gauges_observe_current_values()` | `infra/test_telemetry_metrics.py` | P0 |
-| AC10.10.4 | Business metric helpers cover parse, AI-provider, reconciliation, and confidence signals **and are emitted from their production call-sites** — parse completion (success + failure), the AI provider stream (latency + outcome), and reconciliation match resolution — driven through the real code path, with low-cardinality labels only | `test_AC10_10_4_business_metric_helpers_record_outcomes()`, `test_AC10_10_4_parse_outcome_metric_emitted()`, `test_AC10_10_4_ai_provider_call_metric_emitted_on_success()`, `test_AC10_10_4_ai_provider_call_metric_emitted_on_error()`, `test_AC10_10_4_reconciliation_match_outcome_metric_emitted()` | `infra/test_telemetry_metrics.py`, `extraction/test_statement_parsing_audit_logging.py`, `ai/test_ai_streaming.py`, `reconciliation/test_reconciliation_matching_unit.py` | P0 |
-
-### AC10.11: Logging Content Hardening
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC10.11.1 | Authenticated requests bind `user_id` into structured log context and authentication/rate-limit failures emit warning events plus the rate-limit rejection metric without credentials | `test_AC10_11_1_get_current_user_id_binds_user_context()`, `test_AC10_11_1_security_warning_redacts_credentials()`, `test_AC10_11_1_rate_limit_rejections_record_alert_metric()` | `auth/test_auth.py`, `infra/test_observability_contract.py`, `infra/test_telemetry_metrics.py` | P0 |
-| AC10.11.2 | Financial mutations emit stable audit logs for journal post/void and reconciliation accept operations | `test_AC10_11_2_financial_mutation_audit_helpers_and_callsites()` | `infra/test_observability_contract.py` | P0 |
-| AC10.11.3 | Provider/error-body logging uses bounded safe summaries and rejects raw risky payload fields | `test_AC10_11_3_provider_error_body_logging_is_redacted()` | `infra/test_observability_contract.py` | P0 |
-
-### AC10.12: Async Parse Failure Visibility
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC10.12.1 | Failed async statement parse tasks emit a low-cardinality failure metric and safe structured log context | `test_AC10_12_1_async_parse_tracking_records_failures()` | `infra/test_telemetry_metrics.py` | P0 |
-| AC10.12.2 | In-process fallback and Prefect flow wrappers pass statement/request context into async parse tracking | `test_AC10_12_2_async_parse_tracking_receives_statement_context()` | `infra/test_telemetry_metrics.py` | P0 |
-| AC10.12.3 | Parse failure handling still marks statements rejected and emits the existing safe `statement.parse.failed` contract | `test_AC10_12_3_parse_failure_state_and_log_contract_are_preserved()` | `infra/test_telemetry_metrics.py` | P0 |
 
 ## 📏 Acceptance Criteria
 

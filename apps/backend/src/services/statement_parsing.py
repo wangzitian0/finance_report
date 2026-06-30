@@ -324,7 +324,7 @@ async def handle_parse_failure(
             error_type=error_type,
             safe_error_message=_safe_error_message(message),
         )
-        # AC10.10.4: business metric for the parse outcome (failure path).
+        # AC-observability.10.4: business metric for the parse outcome (failure path).
         record_statement_parse_outcome(outcome="failure")
     except Exception as inner_exc:
         logger.exception(
@@ -585,7 +585,7 @@ async def parse_statement_background(
                 transactions_count=len(transactions),
                 auto_posted_count=auto_posted_count,
             )
-            # AC10.10.4: business metric for the parse outcome (success path).
+            # AC-observability.10.4: business metric for the parse outcome (success path).
             record_statement_parse_outcome(outcome="success")
         except Exception as exc:
             logger.exception(

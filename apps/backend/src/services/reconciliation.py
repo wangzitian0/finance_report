@@ -852,7 +852,7 @@ async def execute_matching(
         )
         raise
 
-    # AC10.10.4: emit one business metric per resolved match, labelled by its
+    # AC-observability.10.4: emit one business metric per resolved match, labelled by its
     # final disposition (auto_accepted / pending_review / rejected). Low
     # cardinality — the label is the bounded ReconciliationStatus enum value.
     for created_match in matches:

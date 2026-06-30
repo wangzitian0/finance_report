@@ -73,7 +73,7 @@ async def test_get_current_user_id_direct(db, test_user):
 
 
 async def test_AC10_11_1_get_current_user_id_binds_user_context(db, test_user):
-    """AC10.11.1: Auth dependency binds user_id into structured log context."""
+    """AC-observability.11.1: Auth dependency binds user_id into structured log context."""
     from src.identity import create_access_token
 
     structlog.contextvars.clear_contextvars()

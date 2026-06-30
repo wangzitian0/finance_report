@@ -222,7 +222,7 @@ async def test_litellm_error_becomes_retryable_aistreamerror(monkeypatch):
 
 
 async def test_AC10_10_4_ai_provider_call_metric_emitted_on_success(litellm_stub, monkeypatch):
-    """AC10.10.4: a completed provider stream emits the ai-provider latency metric
+    """AC-observability.10.4: a completed provider stream emits the ai-provider latency metric
     (outcome=success), driven through the real _stream_ai_base path."""
     _explicit_provider(monkeypatch)
     calls: list[dict] = []
@@ -243,7 +243,7 @@ async def test_AC10_10_4_ai_provider_call_metric_emitted_on_success(litellm_stub
 
 
 async def test_AC10_10_4_ai_provider_call_metric_emitted_on_error(monkeypatch):
-    """AC10.10.4: a failed provider stream emits the ai-provider metric (outcome=error)
+    """AC-observability.10.4: a failed provider stream emits the ai-provider metric (outcome=error)
     and still re-raises AIStreamError."""
     _explicit_provider(monkeypatch)
     calls: list[dict] = []
