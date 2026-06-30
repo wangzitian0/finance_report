@@ -88,7 +88,6 @@ nav:
       - Environments: ssot/environments.md
       - CI/CD: ssot/ci-cd.md
       - Coverage: ssot/coverage.md
-      - Cassette Graded Eval: ssot/cassette-graded-eval.md
       - Deployment: ssot/deployment.md
       - Runtime Incident Response: ssot/runtime-incident-response.md
       - TDD Workflow: ssot/tdd.md
