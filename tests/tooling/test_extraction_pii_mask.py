@@ -35,16 +35,26 @@ def test_meta_identity_fields_are_starred() -> None:
     assert masked["address"] == "**"
 
 
-def test_description_keeps_first3_star_last3() -> None:
-    assert mask_description("ACME TRADING PTE LTD") == "ACM***LTD"
-    assert mask_description("NEFT Cr-...CLOTHING INDUSTRIES LTD--") == "NEF***D--"
-    assert mask_description("short") == "*****"  # <= 6 chars -> fully starred
-    assert mask_description("abcdef") == "******"
+def test_description_is_unique_but_unrecoverable_pseudonym() -> None:
+    """A description becomes a sha256-derived ``<2hex>`` + stars + ``<2hex>`` token,
+    LENGTH-PRESERVING: distinguishable (equal→equal, distinct→distinct), not recoverable
+    (no real characters leak), and the same length as the original."""
+    import re
+
+    pat = re.compile(r"[0-9a-f]{2}\*+[0-9a-f]{2}")
+    src = "ACME TRADING PTE LTD"
+    a = mask_description(src)
+    assert pat.fullmatch(a)
+    assert len(a) == len(src)  # length preserved
+    assert "ACM" not in a and "LTD" not in a  # original chars do NOT leak
+    # equal content (case-insensitive, same length) -> equal token; distinct -> distinct
+    assert a == mask_description("acme trading pte ltd")  # same length, just case
+    assert a != mask_description("CLOTHING INDUSTRIES LTD")
 
 
 def test_description_mask_is_idempotent() -> None:
     once = mask_description("ACME TRADING PTE LTD")
-    assert mask_description(once) == once  # markers don't re-trigger
+    assert mask_description(once) == once  # re-masking a pseudonym is a no-op
 
 
 def test_raw_text_and_reference_are_masked() -> None:
@@ -74,10 +84,9 @@ def test_raw_text_and_reference_are_masked() -> None:
     assert "CITI BANK" not in str(txn)  # no counterparty name survives anywhere in the row
 
 
-def test_strict_mode_fully_redacts_descriptions_for_real_statements() -> None:
-    """strict=True (real/own statements): descriptions are fully redacted to ``**``, not
-    first3***last3 — because first/last chars of a real name are still residual PII and
-    must never enter git. Flow values + public security symbols are still kept."""
+def test_real_name_description_is_pseudonymised_not_leaked() -> None:
+    """A real counterparty name in a description leaves no recoverable trace: the token
+    is hex+stars+hex (length-preserved), and meta/flow/symbol are handled as expected."""
     masked = mask_extraction(
         {
             "institution": "DBS Bank",
@@ -85,12 +94,11 @@ def test_strict_mode_fully_redacts_descriptions_for_real_statements() -> None:
                 {"description": "FROM: JOHN DOE PAYNOW", "amount": "190.00", "direction": "IN", "balance_after": "42869.09"}
             ],
             "positions": [{"symbol": "AAPL", "quantity": "10", "market_value": "1900.25"}],
-        },
-        strict=True,
+        }
     )
     txn = masked["transactions"][0]
-    assert txn["description"] == "**"  # fully redacted (not "FRO***DOE")
-    assert "DOE" not in str(masked)
+    assert "JOHN" not in str(masked) and "DOE" not in str(masked)  # no real name survives
+    assert len(txn["description"]) == len("FROM: JOHN DOE PAYNOW")  # length preserved
     assert txn["amount"] == "190.00" and txn["balance_after"] == "42869.09"  # flow kept
     assert masked["positions"][0]["symbol"] == "AAPL"  # public symbol kept
     assert masked["institution"] == "DBS Bank"  # institution name not PII
@@ -106,7 +114,7 @@ def test_flow_values_are_kept() -> None:
     assert txn["amount"] == "10.00"
     assert txn["direction"] == "OUT"
     assert txn["balance_after"] == "90.00"
-    assert txn["description"] == "ACM***LTD"
+    assert txn["description"] != "ACME PTE LTD" and len(txn["description"]) == len("ACME PTE LTD")  # pseudonymised, length kept
 
 
 def test_mask_response_text_handles_fenced_json() -> None:

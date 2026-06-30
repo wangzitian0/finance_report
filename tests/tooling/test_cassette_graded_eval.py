@@ -294,9 +294,13 @@ def test_AC23_8_6_ground_truth_artifacts_are_synthetic() -> None:
     import re
 
     from common.ssot.cassette_graded_eval import CASSETTE_DIR, _parse_extraction
+    from tools._lib.fixtures.extraction_pii_mask import _DESC_KEYS
 
-    # Non-PII string fields that may stay verbatim. ANY other string-valued field MUST be
-    # ``**`` — this is allowlist (deny-by-default), so a new/unexpected key can't leak.
+    # A masked-description token: hash-derived hex + a star run + hex (no real text), or
+    # all stars. Lowercase-hex + stars only — a real (cased, spaced) description can't match.
+    pseudonym = re.compile(r"[0-9a-f]{2}\*+[0-9a-f]{2}|\*+")
+    # Non-PII string fields that may stay verbatim. Description fields may be a pseudonym.
+    # ANY other string field MUST be ``**`` — allowlist (deny-by-default), so a new key can't leak.
     safe_string_keys = {
         "institution", "currency", "period_start", "period_end",
         "opening_balance", "closing_balance", "opening", "closing",
@@ -311,13 +315,20 @@ def test_AC23_8_6_ground_truth_artifacts_are_synthetic() -> None:
     def _assert_pii_free(name: str, obj: object) -> None:
         if isinstance(obj, dict):
             for key, value in obj.items():
-                if isinstance(value, str):
-                    assert key in safe_string_keys or value == "**", (
+                if not isinstance(value, str):
+                    _assert_pii_free(name, value)
+                elif key in safe_string_keys:
+                    continue
+                elif key in _DESC_KEYS:
+                    assert pseudonym.fullmatch(value), (
+                        f"{name}: description {key!r}={value!r} is not an irreversible "
+                        f"pseudonym (hex+stars+hex) nor fully redacted"
+                    )
+                else:
+                    assert value == "**", (
                         f"{name}: text field {key!r}={value!r} is neither an allowlisted "
                         f"non-PII field nor fully redacted to '**'"
                     )
-                else:
-                    _assert_pii_free(name, value)
         elif isinstance(obj, list):
             for item in obj:
                 _assert_pii_free(name, item)
