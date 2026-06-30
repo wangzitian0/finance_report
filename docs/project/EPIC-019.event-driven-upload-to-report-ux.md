@@ -455,23 +455,33 @@ insert now runs inside a SAVEPOINT and recovers the existing row on conflict, mi
 | AC19.14.2 | A duplicate `(user_id, dedupe_key)` insert recovers via savepoint, returns the existing row, and leaves the outer transaction usable for subsequent reads/flushes | `test_AC19_14_2_duplicate_insert_does_not_poison_outer_transaction` | P0 |
 | AC19.14.3 | Concurrent `sync_workflow_events_for_user` runs over the same source state do not 500 on the workflow-event dedupe key and create the derived uploaded event exactly once | `test_AC19_14_3_sync_tolerates_concurrent_event_creation` | P0 |
 
-### AC19.15 — Source Intake Checklist For Report Coverage (issue #1208)
+### AC19.15 — Three-Entry Upload Intake (issue #1208)
 
-The Upload entry must no longer imply that report readiness is only about bank
-statements. It should expose every required source class from
-`docs/ssot/source-coverage-matrix.yaml`, point each class to the existing intake
-path, and keep manual-trusted inputs clearly distinct from uploaded/imported
-sources. This slice is UI guidance only; it does not introduce new parsers or
-change backend source-trust decisions.
+The Upload page must present exactly **three** intake entries, not a per-source
+checklist that forces the user to pre-classify their evidence:
+
+1. **Statement upload (primary)** — one uploader for the majority of source
+   classes (bank, brokerage, settlement, liability, …). The user never picks a
+   type; the AI identifies it after upload and the rest happens passively via
+   notification / chat / review.
+2. **CSV import (folded)** — a separate entry because non-standard column
+   headers need their own server-side mapping. Collapsed by default.
+3. **Manual records (folded)** — one entry for assets no statement can verify
+   (ESOP/RSU, property, …), each with its own guided UI inside. Collapsed by
+   default and clearly labelled as manual-trusted.
+
+This supersedes the earlier per-source-class "intake checklist" (and its SSOT
+parity guard), which drifted from the single-entry + LLM-typed + passive design.
+This slice is UI structure only; it does not introduce new parsers or change
+backend source-trust decisions. Required-source-class coverage remains governed
+independently by AC13.12 over `docs/ssot/source-coverage-matrix.yaml`.
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC19.15.1 | The Upload page renders a source intake checklist covering bank statements, brokerage statements, settlement notes, ESOP/RSU plans, property statements, liability statements, CSV exports, and manual records, with each item linked to its existing intake path | `AC19.15.1 renders every required source class with intake links` | P1 |
-| AC19.15.2 | Source intake status labels treat readiness gaps as action-required, identify manual-trusted classes separately, and never claim manual evidence is imported automatically | `AC19.15.2 labels readiness gaps and manual-trusted source classes` | P1 |
+| AC19.15.1 | The Upload page exposes exactly three intake entries — one primary statement uploader (the AI identifies the type; the user never pre-classifies), one CSV import, and one Manual records entry — with no per-source-class checklist | `AC19.15.1 exposes exactly three intake entries: one statement uploader plus CSV and Manual` | P1 |
+| AC19.15.2 | The CSV import and Manual records entries are folded (collapsed) by default so they stay passive, the retired per-source-class checklist does not return, and the page does not fetch report readiness merely to render intake | `AC19.15.2 keeps secondary intake passive: CSV and Manual folded, no per-class checklist, no readiness fetch` | P1 |
 
-Traceability note: AC19.15 is tracked in this EPIC-local product UI table, and
-issue #1233 adds a tooling parity guard so the Upload checklist cannot drift from
-`docs/ssot/source-coverage-matrix.yaml` without failing CI.
+Traceability note: AC19.15 is tracked in this EPIC-local product UI table.
 
 ## How To Build It
 

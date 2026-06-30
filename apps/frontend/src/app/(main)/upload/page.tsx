@@ -5,20 +5,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 
-import {
-    SourceIntakeChecklist,
-    type SourceIntakeReadinessState,
-} from "@/components/source-intake/SourceIntakeChecklist";
 import StatementUploader from "@/components/statements/StatementUploader";
+import GuidedEvidenceForm from "@/components/assets/GuidedEvidenceForm";
 import { FlowStepBanner } from "@/components/workflow/FlowStepBanner";
 import { InfoHint } from "@/components/ui/InfoHint";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { Alert, Badge, Button, EmptyState, IconButton, LoadingState, PageHeader } from "@/components/ui";
 import type { BadgeVariant } from "@/components/ui";
-import { reportPeriodStart } from "@/hooks/usePersonalReportPackage";
 import { apiFetch } from "@/lib/api";
-import { BankStatement, BankStatementListResponse, PersonalReportPackageReadinessResponse } from "@/lib/types";
+import { BankStatement, BankStatementListResponse } from "@/lib/types";
 import { formatCurrencyLocale } from "@/lib/money";
 
 // Plain-language status for everyday users. "parsed" means the AI finished and
@@ -40,20 +36,6 @@ function statusDisplay(status: string): { label: string; variant: BadgeVariant }
     }
 }
 
-type SourceTrustSummary = NonNullable<
-    PersonalReportPackageReadinessResponse["source_trust_summary"]
->;
-
-function packageReadinessQuery(): string {
-    const reportDate = new Date().toISOString().slice(0, 10);
-    const params = new URLSearchParams({
-        start_date: reportPeriodStart(reportDate),
-        end_date: reportDate,
-        as_of_date: reportDate,
-    });
-    return `?${params.toString()}`;
-}
-
 export default function UploadPage() {
     const { showToast } = useToast();
     const router = useRouter();
@@ -63,9 +45,6 @@ export default function UploadPage() {
     const [polling, setPolling] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deletingStatementId, setDeletingStatementId] = useState<string | null>(null);
-    const [sourceTrustSummary, setSourceTrustSummary] = useState<SourceTrustSummary | undefined>();
-    const [sourceTrustReadinessState, setSourceTrustReadinessState] =
-        useState<SourceIntakeReadinessState>("loading");
 
     const fetchStatements = useCallback(async () => {
         try {
@@ -85,30 +64,6 @@ export default function UploadPage() {
     useEffect(() => {
         fetchStatements();
     }, [fetchStatements]);
-
-    useEffect(() => {
-        const controller = new AbortController();
-
-        apiFetch<PersonalReportPackageReadinessResponse>(
-            `/api/reports/package/readiness${packageReadinessQuery()}`,
-            { signal: controller.signal },
-        )
-            .then((readiness) => {
-                const trustSummary = readiness.source_trust_summary;
-                setSourceTrustSummary(trustSummary);
-                setSourceTrustReadinessState(trustSummary ? "loaded" : "unavailable");
-            })
-            .catch((err) => {
-                if (!(err instanceof DOMException && err.name === "AbortError")) {
-                    setSourceTrustSummary(undefined);
-                    setSourceTrustReadinessState("unavailable");
-                }
-            });
-
-        return () => {
-            controller.abort();
-        };
-    }, []);
 
     useEffect(() => {
         if (!polling) return;
@@ -150,7 +105,7 @@ export default function UploadPage() {
         <div className="p-6">
             <PageHeader
                 title="Upload"
-                description="Upload statements, add guided evidence, and keep every report source class visible before you read reports."
+                description="Drop a statement and we identify the type for you. CSV imports and manual records are tucked away until you need them."
                 className="sm:block"
             />
 
@@ -158,20 +113,47 @@ export default function UploadPage() {
                 <FlowStepBanner current="upload" />
             </div>
 
-            <div className="mb-6">
-                <SourceIntakeChecklist
-                    readinessState={sourceTrustReadinessState}
-                    sourceTrustSummary={sourceTrustSummary}
-                />
-            </div>
-
-            {/* Upload Section */}
+            {/* #1208-followup: ONE statement entry (the AI identifies bank /
+                brokerage / settlement / etc. — the user never pre-classifies),
+                with CSV and Manual as folded secondary entries. This replaces the
+                per-source-class intake checklist, which drifted from the
+                single-entry + LLM-typed + passive design. */}
             <div className="mb-6">
                 <StatementUploader
+                    kind="statement"
                     onUploadComplete={fetchStatements}
                     onError={setError}
                 />
             </div>
+
+            {/* CSV import — separate because non-standard column headers need
+                their own server-side mapping. Folded by default. */}
+            <details className="card mb-3 group">
+                <summary className="card-header flex items-center justify-between cursor-pointer list-none">
+                    <span className="text-sm font-medium">CSV import</span>
+                    <span className="text-xs text-muted">Non-standard columns are mapped automatically</span>
+                </summary>
+                <div className="card-body">
+                    <StatementUploader
+                        kind="csv"
+                        onUploadComplete={fetchStatements}
+                        onError={setError}
+                    />
+                </div>
+            </details>
+
+            {/* Manual records — assets no statement can verify (ESOP/RSU,
+                property, …). Trusted because the user supplied them; clearly
+                labelled as manual. Folded by default. */}
+            <details className="card mb-6 group">
+                <summary className="card-header flex items-center justify-between cursor-pointer list-none">
+                    <span className="text-sm font-medium">Manual records</span>
+                    <span className="text-xs text-muted">ESOP / RSU, property, and other manual-trusted evidence</span>
+                </summary>
+                <div className="card-body">
+                    <GuidedEvidenceForm />
+                </div>
+            </details>
 
             {/* Error Display */}
             {error && (

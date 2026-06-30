@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 
 import { fetchAiModels } from "@/lib/aiModels";
 import { useToast } from "@/components/ui/Toast";
@@ -57,15 +57,41 @@ function getFileExtension(fileName: string): string {
     return fileName.split(".").pop()?.toLowerCase() || "";
 }
 
+// #1208-followup: the Upload page now exposes ONE statement entry plus separate
+// CSV and Manual entries (no per-source-class checklist). `kind` lets the same
+// uploader back the statement entry (document statements, LLM identifies the
+// type) and the CSV entry (non-standard columns, mapped server-side) with the
+// right accepted types — without the user pre-classifying bank vs brokerage.
+type UploaderKind = "all" | "statement" | "csv";
+
+const KIND_CONFIG: Record<UploaderKind, { extensions: string[]; acceptAttr: string; typesLabel: string }> = {
+    all: { extensions: ["pdf", "csv", "png", "jpg", "jpeg"], acceptAttr: ".pdf,.csv,.png,.jpg,.jpeg", typesLabel: "PDF, CSV, PNG, or JPG" },
+    statement: { extensions: ["pdf", "png", "jpg", "jpeg"], acceptAttr: ".pdf,.png,.jpg,.jpeg", typesLabel: "PDF, PNG, or JPG" },
+    csv: { extensions: ["csv"], acceptAttr: ".csv", typesLabel: "CSV" },
+};
+
 interface StatementUploaderProps {
     onUploadComplete?: () => void;
     onError?: (error: string) => void;
+    /** Restrict accepted file types for the statement vs CSV entry. Default "all". */
+    kind?: UploaderKind;
 }
 
 export default function StatementUploader({
     onUploadComplete,
     onError,
+    kind = "all",
 }: StatementUploaderProps): JSX.Element {
+    const uploaderConfig = KIND_CONFIG[kind];
+    // Per-instance ids so multiple uploaders (statement + CSV) can coexist on
+    // one page without colliding label/datalist associations. useId() returns
+    // colon-delimited values (":r1:") that are invalid in CSS selectors, so we
+    // strip the colons while keeping the per-instance uniqueness.
+    const reactId = useId().replace(/:/g, "");
+    const fileInputId = `file-upload-${reactId}`;
+    const institutionId = `institution-${reactId}`;
+    const banksListId = `banks-list-${reactId}`;
+    const aiModelId = `ai-model-${reactId}`;
     const { showToast } = useToast();
     const [isDragging, setIsDragging] = useState(false);
     const [file, setFile] = useState<File | null>(null);
@@ -128,10 +154,10 @@ export default function StatementUploader({
     }, []);
 
     const validateAndSetFile = useCallback(function validateAndSetFile(f: File): void {
-        const validExtensions = new Set(["pdf", "csv", "png", "jpg", "jpeg"]);
+        const validExtensions = new Set(uploaderConfig.extensions);
         const extension = getFileExtension(f.name);
         if (!validExtensions.has(extension)) {
-            setError(`Invalid file type: .${extension}. Allowed: PDF, CSV, PNG, JPG`);
+            setError(`Invalid file type: .${extension}. Allowed: ${uploaderConfig.typesLabel}`);
             return;
         }
         if (f.size > 10 * 1024 * 1024) {
@@ -140,7 +166,7 @@ export default function StatementUploader({
         }
         setFile(f);
         setError(null);
-    }, []);
+    }, [uploaderConfig]);
 
     const handleDragOver = useCallback(function handleDragOver(e: React.DragEvent): void {
         e.preventDefault();
@@ -239,12 +265,12 @@ export default function StatementUploader({
             >
                 <input
                     type="file"
-                    accept=".pdf,.csv,.png,.jpg,.jpeg"
+                    accept={uploaderConfig.acceptAttr}
                     onChange={handleFileChange}
                     className="hidden"
-                    id="file-upload"
+                    id={fileInputId}
                 />
-                <label htmlFor="file-upload" className="cursor-pointer block">
+                <label htmlFor={fileInputId} className="cursor-pointer block">
                     <div className="flex flex-col items-center">
                         <div className={`w-10 h-10 rounded-md flex items-center justify-center mb-3 ${iconTone}`}>
                             {file ? (
@@ -265,7 +291,7 @@ export default function StatementUploader({
                         ) : (
                             <>
                                 <p className="font-medium">Drop files here or click to upload</p>
-                                <p className="text-xs text-muted mt-1">PDF, CSV, PNG, or JPG (max 10MB)</p>
+                                <p className="text-xs text-muted mt-1">{uploaderConfig.typesLabel} (max 10MB)</p>
                             </>
                         )}
                     </div>
@@ -274,19 +300,19 @@ export default function StatementUploader({
 
             {/* Institution Input */}
             <div>
-                <label htmlFor="institution" className="block text-sm font-medium mb-1.5">
+                <label htmlFor={institutionId} className="block text-sm font-medium mb-1.5">
                     Bank / Institution <span className="text-muted font-normal">(optional)</span>
                 </label>
                 <input
                     type="text"
-                    id="institution"
+                    id={institutionId}
                     value={institution}
                     onChange={(e) => setInstitution(e.target.value)}
                     placeholder="Auto-detected from document, or enter manually"
                     className="input"
-                    list="banks-list"
+                    list={banksListId}
                 />
-                <datalist id="banks-list">
+                <datalist id={banksListId}>
                     <option value="DBS" />
                     <option value="OCBC" />
                     <option value="UOB" />
@@ -315,11 +341,11 @@ export default function StatementUploader({
                 </div>
             ) : (
                 <div>
-                    <label htmlFor="ai-model" className="block text-sm font-medium mb-1.5">
+                    <label htmlFor={aiModelId} className="block text-sm font-medium mb-1.5">
                         AI Model
                     </label>
                     <select
-                        id="ai-model"
+                        id={aiModelId}
                         className="input"
                         value={selectedModel}
                         onChange={(e) => {
