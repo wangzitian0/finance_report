@@ -15,11 +15,14 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import create_async_engine
-
 from src.config import PROTECTED_ENVIRONMENTS, settings
 from src.logger import get_logger
+from src.runtime import (
+    DatabaseCheck,
+    DependencyStatus,
+    LlmCheck,
+    ObjectStorageCheck,
+)
 
 logger = get_logger(__name__)
 
@@ -209,62 +212,45 @@ class Bootloader:
 
     @staticmethod
     async def _check_database() -> ServiceStatus:
-        """Verify database connectivity (SELECT 1)."""
-        start = time.perf_counter()
-        engine = None
-        try:
-            engine = create_async_engine(settings.database_url, echo=False)
-            async with engine.connect() as conn:
-                await conn.execute(text("SELECT 1"))
-
-            duration_ms = (time.perf_counter() - start) * 1000
-            return ServiceStatus("database", "ok", "Connection successful", duration_ms)
-
-        except Exception as e:
-            duration_ms = (time.perf_counter() - start) * 1000
-            return ServiceStatus("database", "error", str(e), duration_ms)
-        finally:
-            if engine:
-                await engine.dispose()
+        """Verify database connectivity (SELECT 1). Delegates to the runtime
+        `DatabaseCheck` adapter; maps present ⇒ ok, absent ⇒ error."""
+        result = await DatabaseCheck(settings.database_url).probe()
+        status = "ok" if result.present else "error"
+        return ServiceStatus("database", status, result.detail, result.duration_ms)
 
     @staticmethod
     async def _check_s3() -> ServiceStatus:
-        """HEAD bucket check."""
-        import aioboto3
-        from botocore.config import Config
-
-        start = time.perf_counter()
-        try:
-            session = aioboto3.Session()
-            async with session.client(
-                "s3",
-                endpoint_url=settings.s3_endpoint,
-                aws_access_key_id=settings.s3_access_key,
-                aws_secret_access_key=settings.s3_secret_key,
-                region_name=settings.s3_region,
-                config=Config(connect_timeout=5, read_timeout=5),
-            ) as s3:
-                await s3.head_bucket(Bucket=settings.s3_bucket)
-
-            duration_ms = (time.perf_counter() - start) * 1000
-            return ServiceStatus("minio", "ok", "Bucket accessible", duration_ms)
-        except Exception as e:
-            duration_ms = (time.perf_counter() - start) * 1000
-            return ServiceStatus("minio", "error", str(e), duration_ms)
+        """HEAD bucket check. Delegates to the runtime `ObjectStorageCheck` adapter
+        (reported under the legacy `minio` service name)."""
+        result = await ObjectStorageCheck(
+            endpoint=settings.s3_endpoint,
+            access_key=settings.s3_access_key,
+            secret_key=settings.s3_secret_key,
+            region=settings.s3_region,
+            bucket=settings.s3_bucket,
+        ).probe()
+        status = "ok" if result.present else "error"
+        return ServiceStatus("minio", status, result.detail, result.duration_ms)
 
     @staticmethod
     async def _check_ai_provider() -> ServiceStatus:
         """Report the configured AI provider (the model catalogue is local — see
-        ``src/llm/catalog.py`` — so there is no remote ``/models`` probe)."""
-        api_key = getattr(settings, "ai_api_key", None)
-        if not isinstance(api_key, str) or not api_key:
-            return ServiceStatus("ai_provider", "skipped", "Not configured")
+        ``src/llm/catalog.py`` — so there is no remote ``/models`` probe).
 
-        return ServiceStatus(
-            "ai_provider",
-            "ok",
-            f"Configured provider={settings.ai_provider}, primary={settings.primary_model}, ocr={settings.ocr_model}",
-        )
+        Delegates to the runtime `LlmCheck` adapter. The AI provider is treated as
+        optional here, so an absent (unconfigured) provider maps to `skipped`
+        rather than `error` — preserved from the pre-runtime behaviour; the switch
+        to declared-required enforcement lands with the manifest cutover.
+        """
+        result = await LlmCheck(
+            api_key=getattr(settings, "ai_api_key", None),
+            provider=settings.ai_provider,
+            primary_model=settings.primary_model,
+            ocr_model=settings.ocr_model,
+        ).probe()
+        if result.status is DependencyStatus.PRESENT:
+            return ServiceStatus("ai_provider", "ok", result.detail)
+        return ServiceStatus("ai_provider", "skipped", result.detail)
 
     _check_openrouter = _check_ai_provider
 

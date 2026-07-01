@@ -384,7 +384,7 @@ class TestBootloaderDatabase:
         yield
 
     async def test_check_database_success(self, mock_settings):
-        with patch("src.boot.create_async_engine") as mock_engine:
+        with patch("src.runtime.extension.adapters.create_async_engine") as mock_engine:
             mock_conn = AsyncMock()
             mock_conn.execute = AsyncMock()
             mock_engine_instance = MagicMock()
@@ -399,7 +399,7 @@ class TestBootloaderDatabase:
             mock_conn.execute.assert_called_once()
 
     async def test_check_database_failure(self, mock_settings):
-        with patch("src.boot.create_async_engine") as mock_engine:
+        with patch("src.runtime.extension.adapters.create_async_engine") as mock_engine:
             mock_engine.side_effect = Exception("Connection refused")
 
             status = await Bootloader._check_database()
