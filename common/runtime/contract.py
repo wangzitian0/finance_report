@@ -7,12 +7,14 @@ them, and the invariant that a *declared* dependency must be *asserted present*
 (no silent ``skipped``/``warning``/fallback).
 
 It is a ``kernel`` leaf (``depends_on=[]``) and currently ``draft`` — still being
-designed. The *construct* phase ships the ``base`` value language + the dependency
-manifest + the ``DependencyCheck`` port (published below); the adapters, the
-"declared ⇒ asserted present" enforcement, and the compose/lifecycle relocation
-land in the switch/cleanup phases. Roadmap ACs (each pinned to a real test) are
-added when the enforcement invariants land; the prose contract lives in
-``readme.md`` + ``todo.md`` until then.
+designed. The *construct* phase shipped the ``base`` value language + dependency
+manifest + the ``DependencyCheck`` port; the *switch* phase adds the
+``extension`` probe adapters (``DatabaseCheck`` / ``ObjectStorageCheck`` /
+``LlmCheck``, published below) that ``boot.Bootloader`` now delegates to. Still to
+come in *cleanup*: the "declared ⇒ asserted present" enforcement (drop
+``skipped``) and the compose/lifecycle relocation. Roadmap ACs (each pinned to a
+real test) are added when the enforcement invariants land; the prose contract
+lives in ``readme.md`` + ``todo.md`` until then.
 """
 
 from __future__ import annotations

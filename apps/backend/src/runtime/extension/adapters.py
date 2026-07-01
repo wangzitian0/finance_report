@@ -125,10 +125,17 @@ class LlmCheck:
         self._ocr_model = ocr_model
 
     async def probe(self) -> ProbeResult:
+        start = time.perf_counter()
         if not isinstance(self._api_key, str) or not self._api_key:
-            return ProbeResult(self.name, DependencyStatus.ABSENT, "Not configured")
+            return ProbeResult(
+                self.name,
+                DependencyStatus.ABSENT,
+                "Not configured",
+                (time.perf_counter() - start) * 1000,
+            )
         return ProbeResult(
             self.name,
             DependencyStatus.PRESENT,
             f"Configured provider={self._provider}, primary={self._primary_model}, ocr={self._ocr_model}",
+            (time.perf_counter() - start) * 1000,
         )
