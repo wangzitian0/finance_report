@@ -372,6 +372,37 @@ describe("AC3.5.3 StatementUploader model selection", () => {
     expect(apiUpload).not.toHaveBeenCalled();
   });
 
+  it("AC19.15.3 statement uploader rejects csv and csv uploader rejects non-csv, each enforcing its own kind's extensions", async () => {
+    vi.mocked(fetchAiModels).mockResolvedValue({
+      default_model: "google/gemini-3-flash-preview",
+      fallback_models: [],
+      models: baseModels,
+    });
+
+    const { unmount } = render(<StatementUploader kind="statement" />);
+    fireEvent.change(screen.getByTestId("uploader-file-statement"), {
+      target: { files: [new File(["a,b"], "data.csv", { type: "text/csv" })] },
+    });
+    expect(
+      await screen.findByText("Invalid file type: .csv. Allowed: PDF, PNG, or JPG"),
+    ).toBeInTheDocument();
+    unmount();
+
+    render(<StatementUploader kind="csv" />);
+    const csvInput = screen.getByTestId("uploader-file-csv");
+    fireEvent.change(csvInput, {
+      target: { files: [new File(["data"], "statement.pdf", { type: "application/pdf" })] },
+    });
+    expect(
+      await screen.findByText("Invalid file type: .pdf. Allowed: CSV"),
+    ).toBeInTheDocument();
+
+    fireEvent.change(csvInput, {
+      target: { files: [new File(["a,b"], "data.csv", { type: "text/csv" })] },
+    });
+    expect(await screen.findByText("data.csv")).toBeInTheDocument();
+  });
+
   it("AC8.4.1 requires a file and calls completion callback after successful upload", async () => {
     vi.mocked(fetchAiModels).mockResolvedValue({
       default_model: "google/gemini-3-flash-preview",
