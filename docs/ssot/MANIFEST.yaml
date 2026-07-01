@@ -279,14 +279,20 @@ concepts:
       - docs/project/EPIC-014.ttd-transformation.md
       - .github/workflows/ci.yml
 
+  # PDF fixture SSOT is internalized into the `testing` package
+  # (common/testing/README.md#pdf-fixtures) per the package-migration standard
+  # (common/meta/migration-standard.md, step 3 "SSOT internalized"); the central
+  # docs/ssot/pdf-fixtures.md is retired.
   pdf_fixtures:
-    owner: docs/ssot/pdf-fixtures.md
-    description: Synthetic PDF fixture commands, local-only real-PDF handling, committed template policy, and font fallback.
+    owner: common/testing/README.md#pdf-fixtures
+    family: pdf
+    kind: concept
+    description: Synthetic PDF fixture commands, local-only real-PDF handling, committed template policy, and font fallback. Internalized into the testing package.
     cross_refs:
       - docs/project/EPIC-009.pdf-fixture-generation.md
-      - tools/_lib/pdf_fixtures/README.md
-      - tools/_lib/pdf_fixtures/FONT_HANDLING.md
-      - tools/_lib/pdf_fixtures/analyzers/README.md
+      - common/testing/fixtures/pdf/README.md
+      - common/testing/fixtures/pdf/FONT_HANDLING.md
+      - common/testing/fixtures/pdf/analyzers/README.md
       - tests/tooling/test_pdf_fixture_epic009_behavior.py
       - tests/tooling/test_pdf_fixture_parseable.py
 
@@ -859,6 +865,7 @@ concepts:
       - docs/project/EPIC-023.llm-provider-abstraction.md
       - common/ssot/cassette_graded_eval.py
       - common/ssot/check_cassette_graded_eval.py
-      - docs/ssot/cassette-eval-baseline.jsonl
+      - common/testing/fixtures/cassette-eval-baseline.jsonl
+      - common/testing/fixtures/llm_cassettes/
     proofs:
       - tests/tooling/test_cassette_graded_eval.py

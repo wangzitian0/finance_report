@@ -17,7 +17,8 @@ streaming for the caller — all fully offline and key-free:
 
 They assert provider-agnostic response *handling*, never provider-specific
 correctness (that stays the staging ``-m llm`` gate's job). The synthetic
-cassettes under ``tests/fixtures/llm_cassettes`` carry only anonymised content.
+cassettes under ``common/testing/fixtures/llm_cassettes`` carry only anonymised
+content.
 """
 
 from __future__ import annotations
@@ -38,7 +39,7 @@ from src.llm.client import litellm_stream
 from src.llm.common import LLMError, ProtocolFamily, ProviderRef
 from src.services.ai_streaming import accumulate_stream
 
-FIXTURE_CASSETTE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "llm_cassettes"
+FIXTURE_CASSETTE_DIR = Path(__file__).resolve().parents[4] / "common" / "testing" / "fixtures" / "llm_cassettes"
 
 # Mirror the committed synthetic cassettes (authored under FIXTURE_CASSETTE_DIR);
 # the fingerprint of these inputs resolves those frozen-text files in replay.

@@ -2,7 +2,7 @@
 
 This directory contains code and templates for synthetic PDF bank and brokerage
 statement fixtures. The documentation owner is
-[`docs/ssot/pdf-fixtures.md`](../../../docs/ssot/pdf-fixtures.md).
+[`common/testing/README.md#pdf-fixtures`](../../README.md#pdf-fixtures).
 
 Common commands:
 
@@ -12,8 +12,8 @@ python tools/generate_pdf_fixtures.py --source dbs
 python tools/generate_pdf_fixtures.py --source dbs --output /path/to/output/
 
 python tools/analyze_pdf_fixture.py \
-  --input tools/_lib/pdf_fixtures/input/real_dbs_statement.pdf \
-  --output tools/_lib/pdf_fixtures/templates/dbs_template.yaml \
+  --input common/testing/fixtures/pdf/input/real_dbs_statement.pdf \
+  --output common/testing/fixtures/pdf/templates/dbs_template.yaml \
   --source dbs
 ```
 

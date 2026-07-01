@@ -172,8 +172,8 @@ router, or generated-fixture flows.
 | `apps/frontend/src/components/review/BalanceIndicator.tsx` | Review UI subcomponent covered through review page/component suites |
 | `apps/frontend/src/components/review/ReviewActionBar.tsx` | Review UI subcomponent covered through review page/action suites |
 | `apps/frontend/src/components/review/Stage2ReviewQueue.tsx` | Review UI subcomponent covered through review queue and run review page suites |
-| `tools/_lib/pdf_fixtures/generators/base_generator.py` | EPIC-009 fixture infrastructure covered by `tests/tooling/test_pdf_fixture_epic009_behavior.py` |
-| `tools/_lib/pdf_fixtures/generators/font_utils.py` | EPIC-009 fixture infrastructure covered by `tests/tooling/test_pdf_fixture_tooling_coverage.py` |
+| `common/testing/fixtures/pdf/generators/base_generator.py` | EPIC-009 fixture infrastructure covered by `tests/tooling/test_pdf_fixture_epic009_behavior.py` |
+| `common/testing/fixtures/pdf/generators/font_utils.py` | EPIC-009 fixture infrastructure covered by `tests/tooling/test_pdf_fixture_tooling_coverage.py` |
 
 ### Staging Bug Regression Repros
 

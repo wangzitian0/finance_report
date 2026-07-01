@@ -36,6 +36,6 @@ coverage-tools.lcov
 /artifacts/
 
 # PDF Fixtures: Input and Output directories
-tools/_lib/pdf_fixtures/input/
-tools/_lib/pdf_fixtures/output/
+common/testing/fixtures/pdf/input/
+common/testing/fixtures/pdf/output/
 .sisyphus/

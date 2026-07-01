@@ -7,7 +7,7 @@ from decimal import Decimal
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PDF_FIXTURES = REPO_ROOT / "tools" / "_lib" / "pdf_fixtures"
+PDF_FIXTURES = REPO_ROOT / "common" / "testing" / "fixtures" / "pdf"
 
 
 DBS_DATE_PATTERN = re.compile(r"^\d{2}/\d{2}/\d{4}$")
@@ -38,9 +38,9 @@ def _read_pdf_text_and_tables(
 
 
 def _get_generator_classes() -> tuple[type, type, type]:
-    dbs_cls = import_module("tools._lib.pdf_fixtures.generators.dbs_generator").DBSGenerator
-    cmb_cls = import_module("tools._lib.pdf_fixtures.generators.cmb_generator").CMBGenerator
-    mari_cls = import_module("tools._lib.pdf_fixtures.generators.mari_generator").MariGenerator
+    dbs_cls = import_module("common.testing.fixtures.pdf.generators.dbs_generator").DBSGenerator
+    cmb_cls = import_module("common.testing.fixtures.pdf.generators.cmb_generator").CMBGenerator
+    mari_cls = import_module("common.testing.fixtures.pdf.generators.mari_generator").MariGenerator
     return dbs_cls, cmb_cls, mari_cls
 
 
@@ -144,7 +144,7 @@ def _extract_mari_summary_balances(
 
 
 def test_ac8_13_10_futu_generated_pdf_parseable(tmp_path: Path) -> None:
-    futu_generator = import_module("tools._lib.pdf_fixtures.generators.futu_generator").FutuGenerator
+    futu_generator = import_module("common.testing.fixtures.pdf.generators.futu_generator").FutuGenerator
     output_path = tmp_path / "futu" / "test_futu.pdf"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -169,7 +169,7 @@ def test_ac8_13_10_futu_generated_pdf_parseable(tmp_path: Path) -> None:
 
 
 def test_ac8_13_10_moomoo_generated_pdf_parseable(tmp_path: Path) -> None:
-    moomoo_generator = import_module("tools._lib.pdf_fixtures.generators.moomoo_generator").MoomooGenerator
+    moomoo_generator = import_module("common.testing.fixtures.pdf.generators.moomoo_generator").MoomooGenerator
     output_path = tmp_path / "moomoo" / "test_moomoo.pdf"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -192,7 +192,7 @@ def test_ac8_13_10_moomoo_generated_pdf_parseable(tmp_path: Path) -> None:
 
 def test_ac9_3_6_pingan_generated_pdf_dates_and_balances(tmp_path: Path) -> None:
     """AC9.3.6: Pingan PDFs remain parseable with source-specific dates and balances."""
-    pingan_generator = import_module("tools._lib.pdf_fixtures.generators.pingan_generator").PinganGenerator
+    pingan_generator = import_module("common.testing.fixtures.pdf.generators.pingan_generator").PinganGenerator
     output_path = tmp_path / "pingan" / "test_pingan.pdf"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -215,7 +215,7 @@ def test_ac9_3_6_pingan_generated_pdf_dates_and_balances(tmp_path: Path) -> None
 
 def test_ac8_13_10_futu_fake_data_count_boundaries() -> None:
     generate_futu_transactions = import_module(
-        "tools._lib.pdf_fixtures.data.fake_data"
+        "common.testing.fixtures.pdf.data.fake_data"
     ).generate_futu_transactions
     start_date = datetime(2025, 1, 1)
 
@@ -445,7 +445,7 @@ def test_ac9_3_6_date_formats_correct_per_source(tmp_path: Path) -> None:
 
 
 def _get_template_extractor():
-    cls = import_module("tools._lib.pdf_fixtures.analyzers.template_extractor").TemplateExtractor
+    cls = import_module("common.testing.fixtures.pdf.analyzers.template_extractor").TemplateExtractor
     return cls()
 
 

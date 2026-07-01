@@ -20,7 +20,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CASSETTE_DIR = REPO_ROOT / "apps" / "backend" / "tests" / "fixtures" / "llm_cassettes"
+CASSETTE_DIR = REPO_ROOT / "common" / "testing" / "fixtures" / "llm_cassettes"
 TOLERANCE = Decimal("0.01")
 _STATEMENT_KEYS = ("opening_balance", "closing_balance", "transactions")
 # Mirror services/validation.normalize_amount_direction: the canonical extraction

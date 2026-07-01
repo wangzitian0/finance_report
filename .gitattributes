@@ -8,7 +8,8 @@
 # after a union merge if line order drifts.
 docs/ssot/ac-score-baseline.jsonl merge=union
 
-# docs/ssot/cassette-eval-baseline.jsonl is the cassette graded-eval ratchet floor
-# (EPIC-023 AC23.8), stored as sorted JSONL (one case per line). Same rationale:
-# PRs ratcheting DIFFERENT cases auto-merge by union; only same-case edits conflict.
-docs/ssot/cassette-eval-baseline.jsonl merge=union
+# common/testing/fixtures/cassette-eval-baseline.jsonl is the cassette graded-eval
+# ratchet floor (EPIC-023 AC23.8), stored as sorted JSONL (one case per line). Same
+# rationale: PRs ratcheting DIFFERENT cases auto-merge by union; only same-case
+# edits conflict.
+common/testing/fixtures/cassette-eval-baseline.jsonl merge=union

@@ -20,7 +20,7 @@ Re-record only on change via a manifest (source bytes sha + prompt sha); orphans
 
 Run from repo root with the coding token in direnv::
 
-    GLM_CODING_TOKEN=… python tools/_lib/pdf_fixtures/record_hf_cassettes.py
+    GLM_CODING_TOKEN=… python common/testing/fixtures/pdf/record_hf_cassettes.py
 
 Recorder only — makes live GLM calls and writes fixtures; never imported by tests.
 """
@@ -43,7 +43,7 @@ from typing import Any
 # data-shaping helpers (and their tests) import cleanly where those heavy deps aren't
 # installed (e.g. the tooling-coverage CI env).
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT / "apps/backend"))  # for src.* (the cassette/prompt modules)
 sys.path.insert(0, str(ROOT))  # for the tools.* package
 
@@ -51,7 +51,7 @@ from src.llm.cassette import fingerprint  # noqa: E402
 from src.prompts.statement import SYSTEM_PROMPT  # noqa: E402
 from tools._lib.fixtures.extraction_pii_mask import mask_extraction, source_ref  # noqa: E402
 
-CASSETTE_DIR = ROOT / "apps/backend/tests/fixtures/llm_cassettes"
+CASSETTE_DIR = ROOT / "common/testing/fixtures/llm_cassettes"
 TRUTH_DIR = CASSETTE_DIR / "ground_truth"
 INPUT_ROOT = ROOT / "tmp/input/hf_oracle"
 MANIFEST = ROOT / "tmp/hf_cassette_manifest.json"

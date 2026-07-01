@@ -148,13 +148,13 @@ def test_AC8_13_20_ci_workflow_changes_are_heavy_except_docs_workflow() -> None:
 def test_AC8_13_20_markdown_under_runtime_trees_is_heavy() -> None:
     """AC8.13.20: Markdown outside the documented lightweight trees is not globally skipped."""
     result = classify_changed_paths(
-        ["apps/backend/README.md", "tools/_lib/pdf_fixtures/README.md"]
+        ["apps/backend/README.md", "common/testing/fixtures/pdf/README.md"]
     )
 
     assert result.heavy_required is True
     assert result.heavy_files == (
         "apps/backend/README.md",
-        "tools/_lib/pdf_fixtures/README.md",
+        "common/testing/fixtures/pdf/README.md",
     )
 
 
@@ -185,17 +185,17 @@ def test_AC8_13_20_pr_preview_only_runs_for_app_e2e_or_compose_changes() -> None
     assert is_pr_preview_relevant("docker-compose.pr-preview.yml") is True
     assert is_pr_preview_relevant("tools/generate_pdf_fixtures.py") is True
     assert (
-        is_pr_preview_relevant("tools/_lib/pdf_fixtures/generators/dbs_generator.py")
+        is_pr_preview_relevant("common/testing/fixtures/pdf/generators/dbs_generator.py")
         is True
     )
     assert (
-        is_pr_preview_relevant("tools/_lib/pdf_fixtures/templates/dbs_template.yaml")
+        is_pr_preview_relevant("common/testing/fixtures/pdf/templates/dbs_template.yaml")
         is True
     )
-    assert is_pr_preview_relevant("tools/_lib/pdf_fixtures/README.md") is False
-    assert is_pr_preview_relevant("tools/_lib/pdf_fixtures/FONT_HANDLING.md") is False
+    assert is_pr_preview_relevant("common/testing/fixtures/pdf/README.md") is False
+    assert is_pr_preview_relevant("common/testing/fixtures/pdf/FONT_HANDLING.md") is False
     assert (
-        is_pr_preview_relevant("tools/_lib/pdf_fixtures/analyzers/README.md") is False
+        is_pr_preview_relevant("common/testing/fixtures/pdf/analyzers/README.md") is False
     )
     assert (
         is_pr_preview_relevant("apps/backend/tests/reporting/test_reports.py") is False
@@ -287,11 +287,11 @@ def test_AC8_13_20_pdf_fixture_docs_do_not_trigger_preview_or_staging() -> None:
     """AC8.13.20: PDF fixture MkDocs/doc entrypoint changes do not deploy previews."""
     result = classify_changed_paths(
         [
-            "docs/ssot/pdf-fixtures.md",
+            "common/testing/README.md",
             "mkdocs.yml",
-            "tools/_lib/pdf_fixtures/README.md",
-            "tools/_lib/pdf_fixtures/FONT_HANDLING.md",
-            "tools/_lib/pdf_fixtures/analyzers/README.md",
+            "common/testing/fixtures/pdf/README.md",
+            "common/testing/fixtures/pdf/FONT_HANDLING.md",
+            "common/testing/fixtures/pdf/analyzers/README.md",
             "tests/tooling/test_pdf_fixture_epic009_behavior.py",
         ]
     )
@@ -320,7 +320,7 @@ def test_AC8_13_104_staging_ai_ocr_runs_only_for_provider_risk_paths() -> None:
         "tests/e2e/test_statement_full_journey.py",
         "tests/e2e/test_personal_financial_report_package.py",
         "tools/staging_ai_ocr_gate_contract.py",
-        "tools/_lib/pdf_fixtures/generators/moomoo_generator.py",
+        "common/testing/fixtures/pdf/generators/moomoo_generator.py",
         "docs/ssot/ai.md",
         # The critical-proof matrix is no longer committed; its hand-curated
         # macro-outcome source is the staging trigger that replaced it.
@@ -386,8 +386,8 @@ def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None
         "tools/smoke_test.sh",
         "tools/generate_pdf_fixtures.py",
         "tools/check_ghcr_image_tag.sh",
-        "tools/_lib/pdf_fixtures/generators/dbs_generator.py",
-        "tools/_lib/pdf_fixtures/templates/dbs_template.yaml",
+        "common/testing/fixtures/pdf/generators/dbs_generator.py",
+        "common/testing/fixtures/pdf/templates/dbs_template.yaml",
         "toolchain.toml",
         ".python-version",
         ".node-version",
@@ -408,9 +408,9 @@ def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None
         "common/ssot/check_ssot_ownership.py",
         "common/ssot/build_ac_traceability.py",
         "tests/tooling/test_check_ssot_ownership.py",
-        "tools/_lib/pdf_fixtures/README.md",
-        "tools/_lib/pdf_fixtures/FONT_HANDLING.md",
-        "tools/_lib/pdf_fixtures/analyzers/README.md",
+        "common/testing/fixtures/pdf/README.md",
+        "common/testing/fixtures/pdf/FONT_HANDLING.md",
+        "common/testing/fixtures/pdf/analyzers/README.md",
         ".github/workflows/docs.yml",
     ):
         assert is_staging_relevant(path) is False

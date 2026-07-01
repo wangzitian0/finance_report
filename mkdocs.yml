@@ -93,7 +93,6 @@ nav:
       - TDD Workflow: ssot/tdd.md
       - Reconciliation Engine: ssot/reconciliation.md
       - Confirmation Workflow: ssot/confirmation-workflow.md
-      - PDF Fixtures: ssot/pdf-fixtures.md
       - Reporting: ssot/reporting.md
       - Framework Reporting: ssot/framework-reporting.md
       - AI Advisor: ssot/ai.md

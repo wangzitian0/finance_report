@@ -14,7 +14,7 @@ import yaml
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PDF_FIXTURES = REPO_ROOT / "tools" / "_lib" / "pdf_fixtures"
+PDF_FIXTURES = REPO_ROOT / "common" / "testing" / "fixtures" / "pdf"
 FINANCE_REPORT_IAC = REPO_ROOT / "repo" / "finance_report" / "finance_report"
 
 

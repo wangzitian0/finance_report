@@ -186,7 +186,7 @@ parallel once PR1 merges.
 > amounts as `Decimal`, dates ISO, descriptions normalised) against a sibling
 > SYNTHETIC ground-truth artifact (`*.truth.json`, anonymised; no real financial
 > data). A per-case score FLOOR is persisted as a ratcheted JSONL baseline
-> (`docs/ssot/cassette-eval-baseline.jsonl`, `merge=union`, floor only goes UP),
+> (`common/testing/fixtures/cassette-eval-baseline.jsonl`, `merge=union`, floor only goes UP),
 > and the lint-job gate FAILS when a refreshed cassette regresses a case below its
 > floor — catching "invariant passes but a field is now wrong", which AC23.7 cannot
 > see. Pure Python, no key/network/DB, deterministic on committed cassettes;

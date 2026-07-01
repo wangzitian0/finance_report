@@ -142,10 +142,10 @@ def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
 @pytest.mark.parametrize(
     ("tool_module", "implementation_module"),
     [
-        ("tools.analyze_pdf_fixture", "tools._lib.pdf_fixtures.analyzers.analyze_pdf"),
+        ("tools.analyze_pdf_fixture", "common.testing.fixtures.pdf.analyzers.analyze_pdf"),
         (
             "tools.generate_pdf_fixtures",
-            "tools._lib.pdf_fixtures.generate_pdf_fixtures",
+            "common.testing.fixtures.pdf.generate_pdf_fixtures",
         ),
         ("tools.generate_test_pdfs", "tools._lib.fixtures.generate_test_pdfs"),
         ("tools.seed_fx_rates", "tools._lib.market_data.seed_fx_rates"),

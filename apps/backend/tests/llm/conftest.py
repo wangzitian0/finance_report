@@ -3,7 +3,7 @@
 Support file for ``test_cassette.py`` (which carries the per-AC references
 AC23.5.1 .. AC23.5.7). These run fully offline: replay reads committed JSON,
 record writes against a *mocked* client (no real provider key, no network). The
-synthetic cassettes used here live in ``apps/backend/tests/fixtures/llm_cassettes``
+synthetic cassettes used here live in ``common/testing/fixtures/llm_cassettes``
 and carry only generated/anonymised content (no real amounts, accounts, names, or
 filenames).
 """
@@ -16,7 +16,7 @@ import pytest
 
 from src.llm.cassette import CassetteMode, CassetteRecorder, CassetteStore
 
-FIXTURE_CASSETTE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "llm_cassettes"
+FIXTURE_CASSETTE_DIR = Path(__file__).resolve().parents[4] / "common" / "testing" / "fixtures" / "llm_cassettes"
 
 
 @pytest.fixture

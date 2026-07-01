@@ -126,9 +126,9 @@ LLM calls are made **deterministic in CI** via a record/replay cassette layer
 (`apps/backend/src/llm/cassette.py`) exposed through two chokepoints:
 `client.cassette_completion` (non-streaming) and the **streaming bridge**
 `client.litellm_stream` (the real extraction transport — see below). A *cassette*
-is a committed JSON file under `apps/backend/tests/fixtures/llm_cassettes/`
-holding the semantic request fingerprint and the frozen provider response —
-reviewed in the diff.
+is a committed JSON file under `common/testing/fixtures/llm_cassettes/`
+(the `testing` package's fixture home) holding the semantic request fingerprint
+and the frozen provider response — reviewed in the diff.
 
 ### Modes — `LLM_CASSETTE_MODE`
 
@@ -229,7 +229,7 @@ including the "balance still reconciles but a field is now wrong" case.
 ### 6.2 Ground-truth source (synthetic only)
 
 Each scored cassette `<fingerprint>.json` has a sibling ground-truth manifest
-`apps/backend/tests/fixtures/llm_cassettes/ground_truth/<fingerprint>.truth.json`:
+`common/testing/fixtures/llm_cassettes/ground_truth/<fingerprint>.truth.json`:
 
 ```json
 {
@@ -266,10 +266,10 @@ end-to-end so `0.10 × 3 == 0.30` holds exactly.
 ### 6.4 Ratchet (floor only goes up)
 
 The per-case floor is persisted as sorted, line-oriented JSONL at
-`docs/ssot/cassette-eval-baseline.jsonl` (one case per line, `merge=union` in
-`.gitattributes` so PRs ratcheting different cases auto-merge). This mirrors the
-established AC behavioural-score ratchet (`docs/ssot/ac-score-baseline.jsonl`,
-`common/ssot/check_ac_score_baseline.py`):
+`common/testing/fixtures/cassette-eval-baseline.jsonl` (one case per line,
+`merge=union` in `.gitattributes` so PRs ratcheting different cases auto-merge).
+This mirrors the established AC behavioural-score ratchet
+(`docs/ssot/ac-score-baseline.jsonl`, `common/ssot/check_ac_score_baseline.py`):
 
 - **Gate:** `tools/check_cassette_graded_eval.py` fails if any case scores below
   its floor (minus a tiny epsilon), if a baselined case lost its floor, **or if a
@@ -334,7 +334,7 @@ Commit the refreshed cassettes and the raised baseline together.
 ### 6.8 Real-statement corpus (source-referenced, PII-masked)
 
 Large/scanned statements are recorded as cassettes by
-`tools/_lib/pdf_fixtures/record_hf_cassettes.py` (engine: GLM-4.6V, thinking disabled,
+`common/testing/fixtures/pdf/record_hf_cassettes.py` (engine: GLM-4.6V, thinking disabled,
 pages rendered as compressed JPEG so even scanned docs fit context). To avoid repo
 bloat and PII, **the source document is never committed** — the cassette stores a
 `source` reference (an HF dataset URL, or a sha256 for a local/own statement) and the

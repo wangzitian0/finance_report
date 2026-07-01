@@ -160,14 +160,14 @@ PR_PREVIEW_EXACT = COMMON_DEPLOY_RUNTIME_EXACT | PR_PREVIEW_ONLY_EXACT
 PR_PREVIEW_PREFIXES = COMMON_DEPLOY_RUNTIME_PREFIXES
 
 PDF_FIXTURE_RUNTIME_EXACT = {
-    "tools/_lib/pdf_fixtures/__init__.py",
-    "tools/_lib/pdf_fixtures/generate_pdf_fixtures.py",
+    "common/testing/fixtures/pdf/__init__.py",
+    "common/testing/fixtures/pdf/generate_pdf_fixtures.py",
 }
 PDF_FIXTURE_RUNTIME_PREFIXES = (
-    "tools/_lib/pdf_fixtures/data/",
-    "tools/_lib/pdf_fixtures/generators/",
-    "tools/_lib/pdf_fixtures/templates/",
-    "tools/_lib/pdf_fixtures/validators/",
+    "common/testing/fixtures/pdf/data/",
+    "common/testing/fixtures/pdf/generators/",
+    "common/testing/fixtures/pdf/templates/",
+    "common/testing/fixtures/pdf/validators/",
 )
 
 STAGING_EXACT = COMMON_DEPLOY_RUNTIME_EXACT | STAGING_ONLY_EXACT
@@ -199,10 +199,10 @@ STAGING_AI_OCR_PREFIXES = (
     "apps/backend/src/services/statement",
     "apps/backend/src/routers/ai",
     "apps/backend/src/routers/statements",
-    "tools/_lib/pdf_fixtures/data/",
-    "tools/_lib/pdf_fixtures/generators/",
-    "tools/_lib/pdf_fixtures/templates/",
-    "tools/_lib/pdf_fixtures/validators/",
+    "common/testing/fixtures/pdf/data/",
+    "common/testing/fixtures/pdf/generators/",
+    "common/testing/fixtures/pdf/templates/",
+    "common/testing/fixtures/pdf/validators/",
 )
 
 

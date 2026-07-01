@@ -8,11 +8,11 @@ from types import SimpleNamespace
 
 import pytest
 import yaml
-from tools._lib.pdf_fixtures.generators.dbs_generator import DBSGenerator
-from tools._lib.pdf_fixtures.validators.pdf_validator import PDFValidator
+from common.testing.fixtures.pdf.generators.dbs_generator import DBSGenerator
+from common.testing.fixtures.pdf.validators.pdf_validator import PDFValidator
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PDF_FIXTURES = REPO_ROOT / "tools" / "_lib" / "pdf_fixtures"
+PDF_FIXTURES = REPO_ROOT / "common" / "testing" / "fixtures" / "pdf"
 TEMPLATE_DIR = PDF_FIXTURES / "templates"
 
 
@@ -164,7 +164,7 @@ def test_AC9_8_3_generated_pdf_validator_surfaces_real_format_drift(
         ],
     )
     monkeypatch.setattr(
-        "tools._lib.pdf_fixtures.validators.pdf_validator.pdfplumber.open",
+        "common.testing.fixtures.pdf.validators.pdf_validator.pdfplumber.open",
         lambda _path: _FakePdf([page]),
     )
 
@@ -198,7 +198,7 @@ def test_AC9_8_3_generated_pdf_validator_rejects_invalid_inputs(
     assert invalid_result["errors"] == ["real_format_contract is required"]
 
     monkeypatch.setattr(
-        "tools._lib.pdf_fixtures.validators.pdf_validator.pdfplumber.open",
+        "common.testing.fixtures.pdf.validators.pdf_validator.pdfplumber.open",
         lambda _path: _FakePdf([]),
     )
 
@@ -214,7 +214,7 @@ def test_AC9_8_3_generated_pdf_validator_rejects_invalid_inputs(
         raise RuntimeError("parse failed")
 
     monkeypatch.setattr(
-        "tools._lib.pdf_fixtures.validators.pdf_validator.pdfplumber.open",
+        "common.testing.fixtures.pdf.validators.pdf_validator.pdfplumber.open",
         raise_open,
     )
 

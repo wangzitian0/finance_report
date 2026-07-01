@@ -16,7 +16,7 @@ from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 from reportlab.pdfgen import canvas
 
 ROOT_DIR = Path(__file__).resolve().parents[3]
-OUTPUT_DIR = ROOT_DIR / "apps/backend/tests/fixtures/generated"
+OUTPUT_DIR = ROOT_DIR / "common/testing/fixtures/pdf/generated"
 PENNY = Decimal("0.01")
 
 

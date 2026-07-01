@@ -187,7 +187,7 @@ def main():
         from .generators.pingan_generator import PinganGenerator
     except ImportError as e:
         print(f"❌ Error importing generators: {e}")
-        print("Make sure tools._lib.pdf_fixtures is importable from the repository root.")
+        print("Make sure common.testing.fixtures.pdf is importable from the repository root.")
         sys.exit(1)
 
     # Template paths

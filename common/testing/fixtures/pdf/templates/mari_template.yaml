@@ -1,6 +1,6 @@
 # Mari Bank PDF Format Template
 # Extracted format information only (no sensitive data)
-# This template can be refined by running: python tools/analyze_pdf_fixture.py --input <real_pdf> --output tools/_lib/pdf_fixtures/templates/mari_template.yaml --source mari
+# This template can be refined by running: python tools/analyze_pdf_fixture.py --input <real_pdf> --output common/testing/fixtures/pdf/templates/mari_template.yaml --source mari
 
 source: mari
 

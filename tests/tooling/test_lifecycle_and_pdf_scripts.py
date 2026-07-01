@@ -21,13 +21,13 @@ GENERATE_TEST_PDFS_MODULE = "tools._lib.fixtures.generate_test_pdfs"
 def test_AC8_13_15_pdf_fixture_modules_are_importable_for_script_coverage():
     """AC8.13.15: Script coverage policy can see PDF fixture tool modules."""
     modules = [
-        "tools._lib.pdf_fixtures.analyzers.analyze_pdf",
-        "tools._lib.pdf_fixtures.analyzers.pdf_analyzer",
-        "tools._lib.pdf_fixtures.generate_pdf_fixtures",
-        "tools._lib.pdf_fixtures.generators.moomoo_generator",
-        "tools._lib.pdf_fixtures.generators.pingan_generator",
-        "tools._lib.pdf_fixtures.validators",
-        "tools._lib.pdf_fixtures.validators.pdf_validator",
+        "common.testing.fixtures.pdf.analyzers.analyze_pdf",
+        "common.testing.fixtures.pdf.analyzers.pdf_analyzer",
+        "common.testing.fixtures.pdf.generate_pdf_fixtures",
+        "common.testing.fixtures.pdf.generators.moomoo_generator",
+        "common.testing.fixtures.pdf.generators.pingan_generator",
+        "common.testing.fixtures.pdf.validators",
+        "common.testing.fixtures.pdf.validators.pdf_validator",
     ]
 
     for module in modules:

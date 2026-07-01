@@ -65,7 +65,7 @@ test:
 # Re-record the LLM cassettes against a live provider. Provider-agnostic: it uses
 # whatever provider key the env config resolves (any provider, not only the GLM
 # plan). Records in `record` mode (real call + write/update cassette under
-# apps/backend/tests/fixtures/llm_cassettes); commit the resulting diff. CI runs
+# common/testing/fixtures/llm_cassettes); commit the resulting diff. CI runs
 # the same tests in `replay` mode with no key. Pass extra args via ARGS=...
 #
 # Covers the AC23.5 non-streaming layer and the AC23.6 streaming bridge. To record

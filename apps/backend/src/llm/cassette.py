@@ -41,9 +41,10 @@ from src.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Where committed cassettes live. Kept under tests/fixtures so they are reviewed
-# in the diff (the frozen response is visible) and never shipped in the app image.
-CASSETTE_DIR = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "llm_cassettes"
+# Where committed cassettes live: the `testing` package's fixture home, so they
+# are reviewed in the diff (the frozen response is visible) and never shipped in
+# the app image.
+CASSETTE_DIR = Path(__file__).resolve().parents[4] / "common" / "testing" / "fixtures" / "llm_cassettes"
 
 # Env var selecting the mode; CI defaults to replay, local dev to off.
 CASSETTE_MODE_ENV = "LLM_CASSETTE_MODE"
