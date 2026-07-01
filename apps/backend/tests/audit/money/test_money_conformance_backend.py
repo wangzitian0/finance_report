@@ -24,19 +24,19 @@ _VECTORS = json.loads((Path(__file__).resolve().parents[5] / "common/audit/money
 
 @ac_proof(
     proof_id="test_backend_to_money_quantum",
-    ac_ids=["AC2.20.1"],
+    ac_ids=["AC-audit.20.1"],
     ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_20_1_backend_to_money_matches_standard_quantum():
-    """AC2.20.1: the shipped backend money quantum/default rounding match the standard."""
+    """AC-audit.20.1: the shipped backend money quantum/default rounding match the standard."""
     assert str(MONEY_QUANTUM) == _VECTORS["money_quantum"]
     assert _VECTORS["default_rounding"] == "ROUND_HALF_EVEN"
 
 
 @ac_proof(
     proof_id="test_backend_to_money_rounding",
-    ac_ids=["AC2.20.1"],
+    ac_ids=["AC-audit.20.1"],
     ci_tier="pr_ci",
     issue="#1170",
 )
@@ -46,5 +46,5 @@ def test_AC2_20_1_backend_to_money_matches_standard_quantum():
     ids=lambda c: c["amount"],
 )
 def test_AC2_20_1_backend_to_money_matches_rounding_vectors(case):
-    """AC2.20.1: the shipped to_money() reproduces every default-rounding standard vector."""
+    """AC-audit.20.1: the shipped to_money() reproduces every default-rounding standard vector."""
     assert to_money(Decimal(case["amount"])) == Decimal(case["expected"]), case

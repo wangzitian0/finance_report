@@ -25,11 +25,11 @@ def _read(path: Path) -> str:
 
 @ac_proof(
     proof_id="test_unit_price_investment_adoption",
-    ac_ids=["AC12.32.3"],
+    ac_ids=["AC-audit.32.3"],
     ci_tier="pr_ci",
 )
 def test_AC12_32_3_investment_accounting_uses_unit_price():
-    """AC12.32.3: investment accounting prices via UnitPrice, not local Decimal helpers."""
+    """AC-audit.32.3: investment accounting prices via UnitPrice, not local Decimal helpers."""
     src = _read(Path("apps/backend/src/services/investment_accounting.py"))
     assert "from src.audit.unit_price import UnitPrice" in src
     # typed call sites replace the raw quantity*price / amount/quantity glue
@@ -44,11 +44,11 @@ def test_AC12_32_3_investment_accounting_uses_unit_price():
 
 @ac_proof(
     proof_id="test_unit_price_market_data_adoption",
-    ac_ids=["AC12.32.3"],
+    ac_ids=["AC-audit.32.3"],
     ci_tier="pr_ci",
 )
 def test_AC12_32_3_market_data_price_quantum_is_single_sourced():
-    """AC12.32.3: market-data prices reuse the package quantum, not a local literal."""
+    """AC-audit.32.3: market-data prices reuse the package quantum, not a local literal."""
     src = _read(Path("apps/backend/src/services/market_data"))
     assert "from src.audit.unit_price import UNIT_PRICE_QUANTUM" in src
     assert "_PRICE_QUANT = UNIT_PRICE_QUANTUM" in src

@@ -20,9 +20,9 @@ RATIO = load_ratio_vectors()
 
 
 # ── Money predicates + sum ──────────────────────────────────────────────
-@ac_proof(proof_id="test_money_predicates", ac_ids=["AC12.33.1"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_money_predicates", ac_ids=["AC-audit.33.1"], ci_tier="pr_ci")
 def test_AC12_33_1_money_predicates_and_sum():
-    """AC12.33.1: Money has is_zero/is_positive/is_negative and a typed sum."""
+    """AC-audit.33.1: Money has is_zero/is_positive/is_negative and a typed sum."""
     assert Money.zero("USD").is_zero()
     assert Money(Decimal("0.01"), "USD").is_positive()
     assert Money(Decimal("-0.01"), "USD").is_negative()
@@ -44,10 +44,12 @@ def test_AC12_33_1_money_predicates_and_sum():
 
 
 @ac_proof(
-    proof_id="test_money_composite_conformance", ac_ids=["AC12.33.2"], ci_tier="pr_ci"
+    proof_id="test_money_composite_conformance",
+    ac_ids=["AC-audit.33.2"],
+    ci_tier="pr_ci",
 )
 def test_AC12_33_2_money_composite_matches_standard():
-    """AC12.33.2: Money predicates / sum / tolerance reproduce the shared vectors."""
+    """AC-audit.33.2: Money predicates / sum / tolerance reproduce the shared vectors."""
     for c in MONEY["predicates"]:
         m = Money(Decimal(c["amount"]), c["currency"])
         assert m.is_zero() == c["is_zero"], c
@@ -71,9 +73,9 @@ def test_AC12_33_2_money_composite_matches_standard():
 
 
 # ── MoneyTolerance laws ─────────────────────────────────────────────────
-@ac_proof(proof_id="test_money_tolerance", ac_ids=["AC12.33.1"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_money_tolerance", ac_ids=["AC-audit.33.1"], ci_tier="pr_ci")
 def test_AC12_33_1_money_tolerance_absolute_relative_and_scaled():
-    """AC12.33.1: MoneyTolerance bands on max(absolute, relative*|expected|) and scales."""
+    """AC-audit.33.1: MoneyTolerance bands on max(absolute, relative*|expected|) and scales."""
     tol = MoneyTolerance(Money(Decimal("0.01"), "USD"))  # pure absolute
     assert tol.holds(Money(Decimal("100.00"), "USD"), Money(Decimal("100.005"), "USD"))
     assert not tol.holds(
@@ -99,9 +101,11 @@ def test_AC12_33_1_money_tolerance_absolute_relative_and_scaled():
 
 
 # ── Ratio fallback ──────────────────────────────────────────────────────
-@ac_proof(proof_id="test_ratio_fraction_or_zero", ac_ids=["AC12.33.1"], ci_tier="pr_ci")
+@ac_proof(
+    proof_id="test_ratio_fraction_or_zero", ac_ids=["AC-audit.33.1"], ci_tier="pr_ci"
+)
 def test_AC12_33_1_ratio_fraction_or_zero_and_none():
-    """AC12.33.1: Ratio.fraction_or_zero/_or_none replace zero-denominator branching."""
+    """AC-audit.33.1: Ratio.fraction_or_zero/_or_none replace zero-denominator branching."""
     assert Ratio.fraction_or_zero(2, 8) == Ratio.fraction(2, 8)
     assert Ratio.fraction_or_zero(5, 0) == Ratio.zero()
     assert Ratio.fraction_or_none(5, 0) is None
@@ -114,10 +118,12 @@ def test_AC12_33_1_ratio_fraction_or_zero_and_none():
 
 
 @ac_proof(
-    proof_id="test_ratio_fallback_conformance", ac_ids=["AC12.33.2"], ci_tier="pr_ci"
+    proof_id="test_ratio_fallback_conformance",
+    ac_ids=["AC-audit.33.2"],
+    ci_tier="pr_ci",
 )
 def test_AC12_33_2_ratio_fraction_or_zero_matches_standard():
-    """AC12.33.2: Ratio.fraction_or_zero reproduces the shared vectors."""
+    """AC-audit.33.2: Ratio.fraction_or_zero reproduces the shared vectors."""
     for c in RATIO["fraction_or_zero"]:
         got = Ratio.fraction_or_zero(Decimal(c["part"]), Decimal(c["whole"]))
         assert got.value == Decimal(c["expected"]), c

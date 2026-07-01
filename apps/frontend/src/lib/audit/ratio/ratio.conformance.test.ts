@@ -1,6 +1,6 @@
 // Frontend side of the cross-language ratio conformance suite (#1167).
 //
-// Proves the frontend rendering of the ratio standard: AC12.9.1 (value type +
+// Proves the frontend rendering of the ratio standard: AC-audit.9.1 (value type +
 // percent policy). Loads the SAME language-neutral standard the Python reference
 // uses (common/audit/ratio/conformance/vectors.json) and asserts the TS impl reproduces
 // every value, so the frontend cannot drift from the backend on the HALF_UP
@@ -13,10 +13,19 @@ import { fileURLToPath } from "node:url";
 import Decimal from "decimal.js";
 import { describe, expect, it } from "vitest";
 
-import { FloatNotAllowedError, PERCENT_DP, PERCENT_ROUNDING, Ratio, UndefinedRatioError } from "./index";
+import {
+  FloatNotAllowedError,
+  PERCENT_DP,
+  PERCENT_ROUNDING,
+  Ratio,
+  UndefinedRatioError,
+} from "./index";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const vectorsPath = resolve(here, "../../../../../../common/audit/ratio/conformance/vectors.json");
+const vectorsPath = resolve(
+  here,
+  "../../../../../../common/audit/ratio/conformance/vectors.json",
+);
 const VECTORS = JSON.parse(readFileSync(vectorsPath, "utf-8")) as {
   percent_dp: number;
   percent_rounding: string;
@@ -49,7 +58,10 @@ describe("ratio conformance (cross-language standard #1167)", () => {
   it("round-trips from_percent", () => {
     for (const c of VECTORS.from_percent) {
       const got = Ratio.fromPercent(c.percent).toPercent(2);
-      expect(got.equals(new Decimal(c.expected_percent_2dp)), JSON.stringify(c)).toBe(true);
+      expect(
+        got.equals(new Decimal(c.expected_percent_2dp)),
+        JSON.stringify(c),
+      ).toBe(true);
     }
   });
 });

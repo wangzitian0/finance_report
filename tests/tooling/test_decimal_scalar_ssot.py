@@ -78,21 +78,21 @@ def _assert_layer_shares_one_codec(layer_root: str, import_prefix: str) -> None:
 
 @ac_proof(
     proof_id="test_common_base_packages_share_one_scalar_codec",
-    ac_ids=["AC12.36.1"],
+    ac_ids=["AC-audit.36.1"],
     ci_tier="pr_ci",
 )
 def test_AC12_36_1_common_base_packages_share_one_scalar_codec():
-    """AC12.36.1: the four common base packages share one decimal_scalar codec."""
+    """AC-audit.36.1: the four common base packages share one decimal_scalar codec."""
     _assert_layer_shares_one_codec("common", "common")
 
 
 @ac_proof(
     proof_id="test_backend_base_packages_share_one_scalar_codec",
-    ac_ids=["AC12.36.2"],
+    ac_ids=["AC-audit.36.2"],
     ci_tier="pr_ci",
 )
 def test_AC12_36_2_backend_base_packages_share_one_scalar_codec():
-    """AC12.36.2: the backend mirror shares one src.decimal_scalar codec."""
+    """AC-audit.36.2: the backend mirror shares one src.decimal_scalar codec."""
     _assert_layer_shares_one_codec("apps/backend/src", "src")
 
 

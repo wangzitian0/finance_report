@@ -38,18 +38,20 @@ FRONTEND_RATIO_ADOPTION_FILES = [
 def _read(path: Path) -> str:
     target = REPO / path
     if target.is_dir():
-        return "\n".join(p.read_text(encoding="utf-8") for p in sorted(target.rglob("*.py")))
+        return "\n".join(
+            p.read_text(encoding="utf-8") for p in sorted(target.rglob("*.py"))
+        )
     return target.read_text(encoding="utf-8")
 
 
 @ac_proof(
     proof_id="test_ratio_backend_adoption",
-    ac_ids=["AC12.9.3"],
+    ac_ids=["AC-audit.9.3"],
     ci_tier="pr_ci",
     issue="#1200",
 )
 def test_AC12_9_3_backend_percentage_call_sites_route_through_ratio():
-    """AC12.9.3: targeted backend percentage files use Ratio, not manual percent math."""
+    """AC-audit.9.3: targeted backend percentage files use Ratio, not manual percent math."""
     for path in BACKEND_RATIO_ADOPTION_FILES:
         src = _read(path)
         assert "from src.audit.ratio import Ratio" in src, f"{path} must import Ratio"
@@ -77,12 +79,12 @@ def test_AC12_9_3_backend_percentage_call_sites_route_through_ratio():
 
 @ac_proof(
     proof_id="test_ratio_backend_adoption_keeps_ratio_typed",
-    ac_ids=["AC12.9.3"],
+    ac_ids=["AC-audit.9.3"],
     ci_tier="pr_ci",
     issue="#1200",
 )
 def test_AC12_9_3_backend_adoption_keeps_ratio_typed_until_boundary():
-    """AC12.9.3: adoption code should not construct Ratio and unwrap it on the same expression."""
+    """AC-audit.9.3: adoption code should not construct Ratio and unwrap it on the same expression."""
     inline_boundary = re.compile(
         r"Ratio(?:\.fraction|\.from_percent)?\([^()\n]*\)\.to_percent\("
     )
@@ -108,12 +110,12 @@ def test_AC12_9_3_backend_adoption_keeps_ratio_typed_until_boundary():
 
 @ac_proof(
     proof_id="test_ratio_frontend_adoption",
-    ac_ids=["AC12.9.3"],
+    ac_ids=["AC-audit.9.3"],
     ci_tier="pr_ci",
     issue="#1200",
 )
 def test_AC12_9_3_frontend_percentage_call_sites_use_ratio_helpers():
-    """AC12.9.3: targeted frontend percentage files use ratio formatting helpers."""
+    """AC-audit.9.3: targeted frontend percentage files use ratio formatting helpers."""
     helper_import = "@/lib/audit/ratio/format"
     for path in FRONTEND_RATIO_ADOPTION_FILES:
         src = _read(path)

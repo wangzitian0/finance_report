@@ -24,9 +24,11 @@ from common.audit.ratio import Ratio
 from common.testing.ac_proof import ac_proof
 
 
-@ac_proof(proof_id="test_quantity_rejects_float", ac_ids=["AC12.30.1"], ci_tier="pr_ci")
+@ac_proof(
+    proof_id="test_quantity_rejects_float", ac_ids=["AC-audit.30.1"], ci_tier="pr_ci"
+)
 def test_AC12_30_1_quantity_rejects_float_and_is_decimal_backed():
-    """AC12.30.1: Quantity rejects float/bool, is Decimal-backed and immutable."""
+    """AC-audit.30.1: Quantity rejects float/bool, is Decimal-backed and immutable."""
     with pytest.raises(FloatNotAllowedError):
         Quantity(0.125, "shares")
     with pytest.raises(FloatNotAllowedError):
@@ -50,10 +52,10 @@ def test_AC12_30_1_quantity_rejects_float_and_is_decimal_backed():
 
 
 @ac_proof(
-    proof_id="test_quantity_unit_validation", ac_ids=["AC12.30.1"], ci_tier="pr_ci"
+    proof_id="test_quantity_unit_validation", ac_ids=["AC-audit.30.1"], ci_tier="pr_ci"
 )
 def test_AC12_30_1_unit_rejects_invalid_and_normalizes():
-    """AC12.30.1: Unit normalizes case/space and rejects ambiguous unit strings."""
+    """AC-audit.30.1: Unit normalizes case/space and rejects ambiguous unit strings."""
     assert Unit(" shares ").code == "shares"
     assert Unit("UNITS").code == "units"
     for bad in ("", "   ", "share lot", "shares/usd", "1shares"):
@@ -63,10 +65,10 @@ def test_AC12_30_1_unit_rejects_invalid_and_normalizes():
 
 
 @ac_proof(
-    proof_id="test_quantity_quantize_policy", ac_ids=["AC12.30.1"], ci_tier="pr_ci"
+    proof_id="test_quantity_quantize_policy", ac_ids=["AC-audit.30.1"], ci_tier="pr_ci"
 )
 def test_AC12_30_1_quantize_is_six_dp_half_up():
-    """AC12.30.1: quantity quantization is 6 dp / ROUND_HALF_UP, not money's HALF_EVEN."""
+    """AC-audit.30.1: quantity quantization is 6 dp / ROUND_HALF_UP, not money's HALF_EVEN."""
     assert QUANTITY_DP == 6
     assert QUANTITY_QUANTUM == Decimal("0.000001")
     assert QUANTITY_ROUNDING != ROUND_HALF_EVEN
@@ -78,9 +80,11 @@ def test_AC12_30_1_quantize_is_six_dp_half_up():
     )
 
 
-@ac_proof(proof_id="test_quantity_arithmetic", ac_ids=["AC12.30.1"], ci_tier="pr_ci")
+@ac_proof(
+    proof_id="test_quantity_arithmetic", ac_ids=["AC-audit.30.1"], ci_tier="pr_ci"
+)
 def test_AC12_30_1_same_unit_arithmetic_compare_and_zero():
-    """AC12.30.1: quantities add/sub/scale/compare only within the same unit."""
+    """AC-audit.30.1: quantities add/sub/scale/compare only within the same unit."""
     a, b = Quantity(Decimal("1.25"), "shares"), Quantity(Decimal("2.75"), "shares")
     assert (a + b) == Quantity(Decimal("4.00"), "shares")
     assert (b - a) == Quantity(Decimal("1.50"), "shares")
@@ -96,9 +100,9 @@ def test_AC12_30_1_same_unit_arithmetic_compare_and_zero():
         _ = a + Decimal("1")  # type: ignore[operator]
 
 
-@ac_proof(proof_id="test_quantity_ratio", ac_ids=["AC12.30.1"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_quantity_ratio", ac_ids=["AC-audit.30.1"], ci_tier="pr_ci")
 def test_AC12_30_1_same_unit_ratio_derivation():
-    """AC12.30.1: Quantity / Quantity derives a Ratio only for the same unit."""
+    """AC-audit.30.1: Quantity / Quantity derives a Ratio only for the same unit."""
     part = Quantity(Decimal("2"), "shares")
     whole = Quantity(Decimal("8"), "shares")
     assert part.ratio_to(whole) == Ratio(Decimal("0.25"))

@@ -24,16 +24,16 @@ _VECTORS = json.loads(
 )
 
 
-@ac_proof(proof_id="test_quantity_backend_conformance", ac_ids=["AC12.30.2"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_quantity_backend_conformance", ac_ids=["AC-audit.30.2"], ci_tier="pr_ci")
 @pytest.mark.parametrize("case", _VECTORS["quantize"], ids=lambda c: c["value"])
 def test_AC12_30_2_backend_quantity_quantize_matches(case):
-    """AC12.30.2: src.audit.quantity quantize matches the shared standard."""
+    """AC-audit.30.2: src.audit.quantity quantize matches the shared standard."""
     assert Quantity(Decimal(case["value"]), case["unit"]).quantize().value == Decimal(case["expected"])
 
 
-@ac_proof(proof_id="test_quantity_backend_value_type", ac_ids=["AC12.30.1"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_quantity_backend_value_type", ac_ids=["AC-audit.30.1"], ci_tier="pr_ci")
 def test_AC12_30_1_backend_quantity_value_type_laws():
-    """AC12.30.1: src.audit.quantity rejects float, uses 6-dp policy, and guards units."""
+    """AC-audit.30.1: src.audit.quantity rejects float, uses 6-dp policy, and guards units."""
     assert QUANTITY_DP == 6
     assert QUANTITY_QUANTUM == Decimal("0.000001")
     assert QUANTITY_ROUNDING == "ROUND_HALF_UP"

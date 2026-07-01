@@ -1,30 +1,19 @@
 # `audit` — worklist
 
 The number-governor fold lands in waves (issue #1419, umbrella #1416). This file
-tracks what remains after step 1, the physical fold (registering `audit`,
-relocating `money`/`ratio`/`quantity`/`unit_price` code+tests+conformance vectors
-into `audit`, declaring the Shared-Kernel `units`, pinning the number-governor
-invariants).
+tracks what remains after step 2 (AC ownership transfer): step 1 physically
+folded `money`/`ratio`/`quantity`/`unit_price` into `audit`; step 2 moved the
+value-language ACs into audit's own `roadmap` as `AC-audit.*` — `AC-audit.19.*`/
+`.20.*` (was EPIC-002 `AC2.19`/`AC2.20`), `AC-audit.9.*` (Ratio), `.30.*`
+(Quantity + ExchangeRate), `.32.*` (UnitPrice), `.33.*` (composite ops), `.36.*`
+(decimal scalar codec) — all renamed atomically across `@ac_proof(ac_ids=[...])`
+edges, BE/FE traceability docstrings, and `docs/ssot/ac-tier-baseline.json`
+(shrunk via `check_ac_tier_baseline.py --update`).
 
-## Next: AC ownership transfer (its own atomic cutover)
+## Next: step 3 (issue #1419 close-out)
 
-Move the value-language ACs from their EPIC tables into audit's `roadmap` as
-`AC-audit.*`, deleting the EPIC rows (DoD: a single home; no AC in both an EPIC
-table and a roadmap). This is deferred because the value ACs are wired into more
-than the EPIC table, and all references must move atomically or the per-type
-PROTECTION count floor regresses:
-
-- EPIC-002: `AC2.19.1`, `AC2.19.2`, `AC2.20.1` (Money / Currency / FX convert).
-- EPIC-012: `AC12.9.*` (Ratio), `AC12.30.*` (Quantity + ExchangeRate),
-  `AC12.32.*` (UnitPrice), `AC12.33.*` (composite ops), `AC12.36.*` (decimal
-  scalar codec).
-- Each move must also rename: every `@ac_proof(ac_ids=[...])` edge, the
-  traceability docstring references in the BE *and* FE tests, and the tier
-  baseline (`docs/ssot/ac-tier-baseline.json`) — keeping registry-eligible
-  numeric ids (`AC-audit.<n>.<n>`) so `has_real_ref` / `has_proof` counts stay at
-  or above `docs/ssot/protection-floor.json`.
-- Edit only the audit/value rows: EPIC-012 is shared with middleware (leave its
-  rows); EPIC-001 is identity's.
+Whatever residual references step 2 surfaces (docs/SSOT cross-links, historical
+mentions) — tracked in the issue, not yet itemized here.
 
 ## Later: audit's own base + extension + data
 

@@ -26,15 +26,15 @@ from src.audit.money import (
 )
 
 
-# ── AC2.19.1: Money/Currency construction invariants ────────────────────
+# ── AC-audit.19.1: Money/Currency construction invariants ────────────────────
 @ac_proof(
     proof_id="test_money_rejects_float_backend",
-    ac_ids=["AC2.19.1"],
+    ac_ids=["AC-audit.19.1"],
     ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_19_1_money_rejects_float_amount():
-    """AC2.19.1: Money construction rejects float (the monetary red line)."""
+    """AC-audit.19.1: Money construction rejects float (the monetary red line)."""
     with pytest.raises(FloatNotAllowedError):
         Money(10.0, "USD")
     with pytest.raises(FloatNotAllowedError):
@@ -46,12 +46,12 @@ def test_AC2_19_1_money_rejects_float_amount():
 
 @ac_proof(
     proof_id="test_money_accepts_decimal_and_int_backend",
-    ac_ids=["AC2.19.1"],
+    ac_ids=["AC-audit.19.1"],
     ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_19_1_money_is_decimal_backed():
-    """AC2.19.1: Money is Decimal-backed; Decimal and int are accepted."""
+    """AC-audit.19.1: Money is Decimal-backed; Decimal and int are accepted."""
     assert Money(Decimal("10.00"), "USD").amount == Decimal("10.00")
     assert isinstance(Money(5, "USD").amount, Decimal)
     assert Money(5, "USD").amount == Decimal("5")
@@ -59,12 +59,12 @@ def test_AC2_19_1_money_is_decimal_backed():
 
 @ac_proof(
     proof_id="test_money_is_immutable_backend",
-    ac_ids=["AC2.19.1"],
+    ac_ids=["AC-audit.19.1"],
     ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_19_1_money_is_immutable():
-    """AC2.19.1: Money is immutable (frozen value type)."""
+    """AC-audit.19.1: Money is immutable (frozen value type)."""
     m = Money(Decimal("1.00"), "USD")
     with pytest.raises((AttributeError, TypeError)):
         m.amount = Decimal("2.00")  # type: ignore[misc]
@@ -72,12 +72,12 @@ def test_AC2_19_1_money_is_immutable():
 
 @ac_proof(
     proof_id="test_currency_rejects_non_iso_backend",
-    ac_ids=["AC2.19.1"],
+    ac_ids=["AC-audit.19.1"],
     ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_19_1_currency_rejects_non_iso():
-    """AC2.19.1: Currency rejects non-ISO-4217 codes and normalises case."""
+    """AC-audit.19.1: Currency rejects non-ISO-4217 codes and normalises case."""
     assert Currency("usd ").code == "USD"  # normalised
     for bad in ("US", "XYZ", "EURO", "123", ""):
         with pytest.raises(InvalidCurrencyError):
@@ -87,15 +87,15 @@ def test_AC2_19_1_currency_rejects_non_iso():
         Money(Decimal("1.00"), "XYZ")
 
 
-# ── AC2.19.2: same-currency arithmetic; cross-currency raises ───────────
+# ── AC-audit.19.2: same-currency arithmetic; cross-currency raises ───────────
 @ac_proof(
     proof_id="test_same_currency_arithmetic_backend",
-    ac_ids=["AC2.19.2"],
+    ac_ids=["AC-audit.19.2"],
     ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_19_2_same_currency_add_and_subtract():
-    """AC2.19.2: same-currency +/- works and stays in-currency."""
+    """AC-audit.19.2: same-currency +/- works and stays in-currency."""
     a = Money(Decimal("10.00"), "SGD")
     b = Money(Decimal("2.50"), "SGD")
     assert (a + b) == Money(Decimal("12.50"), "SGD")
@@ -106,12 +106,12 @@ def test_AC2_19_2_same_currency_add_and_subtract():
 
 @ac_proof(
     proof_id="test_cross_currency_arithmetic_raises_backend",
-    ac_ids=["AC2.19.2"],
+    ac_ids=["AC-audit.19.2"],
     ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_19_2_cross_currency_arithmetic_raises():
-    """AC2.19.2: cross-currency +/-/compare raises (no implicit conversion)."""
+    """AC-audit.19.2: cross-currency +/-/compare raises (no implicit conversion)."""
     usd = Money(Decimal("10.00"), "USD")
     sgd = Money(Decimal("10.00"), "SGD")
     with pytest.raises(CurrencyMismatchError):
@@ -124,15 +124,15 @@ def test_AC2_19_2_cross_currency_arithmetic_raises():
     assert usd != sgd
 
 
-# ── AC2.20.1: the single FX conversion primitive ────────────────────────
+# ── AC-audit.20.1: the single FX conversion primitive ────────────────────────
 @ac_proof(
     proof_id="test_convert_applies_rate_and_target_backend",
-    ac_ids=["AC2.20.1"],
+    ac_ids=["AC-audit.20.1"],
     ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_20_1_convert_applies_rate_and_changes_currency():
-    """AC2.20.1: convert applies a Decimal rate and restates into the target."""
+    """AC-audit.20.1: convert applies a Decimal rate and restates into the target."""
     result = convert(Money(Decimal("100.00"), "USD"), ExchangeRate("USD", "SGD", Decimal("1.35")))
     assert result == Money(Decimal("135.00"), "SGD")
     assert result.currency == Currency("SGD")
@@ -140,24 +140,24 @@ def test_AC2_20_1_convert_applies_rate_and_changes_currency():
 
 @ac_proof(
     proof_id="test_convert_rejects_float_rate_backend",
-    ac_ids=["AC2.20.1"],
+    ac_ids=["AC-audit.20.1"],
     ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_20_1_convert_rejects_float_rate():
-    """AC2.20.1: convert rejects a float rate (no implicit float in money math)."""
+    """AC-audit.20.1: convert rejects a float rate (no implicit float in money math)."""
     with pytest.raises(FloatNotAllowedError):
         ExchangeRate("USD", "SGD", 1.35)  # type: ignore[arg-type]
 
 
 @ac_proof(
     proof_id="test_convert_rounds_half_even_at_boundary_backend",
-    ac_ids=["AC2.20.1"],
+    ac_ids=["AC-audit.20.1"],
     ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_20_1_convert_rounds_half_even_at_boundary():
-    """AC2.20.1: convert quantizes to 2 dp with banker's rounding at the boundary."""
+    """AC-audit.20.1: convert quantizes to 2 dp with banker's rounding at the boundary."""
     # 1.005 -> half to even -> 1.00 (HALF_UP would give 1.01).
     assert convert(Money(Decimal("1.00"), "USD"), ExchangeRate("USD", "EUR", Decimal("1.005"))) == Money(
         Decimal("1.00"), "EUR"
@@ -174,12 +174,12 @@ def test_AC2_20_1_convert_rounds_half_even_at_boundary():
 
 @ac_proof(
     proof_id="test_convert_round_trip_backend",
-    ac_ids=["AC2.20.1"],
+    ac_ids=["AC-audit.20.1"],
     ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_20_1_convert_round_trip_within_boundary():
-    """AC2.20.1: convert there-and-back returns the original at the 2-dp boundary."""
+    """AC-audit.20.1: convert there-and-back returns the original at the 2-dp boundary."""
     rate = Decimal("1.25")
     original = Money(Decimal("80.00"), "USD")
     there_rate = ExchangeRate("USD", "SGD", rate)
@@ -260,12 +260,12 @@ def test_AC2_21_1_currency_balances_jsonb_round_trip():
 # ── Supporting surface (full-branch coverage of the narrow waist) ────────
 @ac_proof(
     proof_id="test_money_surface_helpers_backend",
-    ac_ids=["AC2.19.1", "AC2.19.2"],
+    ac_ids=["AC-audit.19.1", "AC-audit.19.2"],
     ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_19_money_surface_helpers_and_comparisons():
-    """AC2.19.1 / AC2.19.2: zero/scale/compare/str helpers behave and stay same-currency."""
+    """AC-audit.19.1 / AC-audit.19.2: zero/scale/compare/str helpers behave and stay same-currency."""
     usd = Currency("USD")
     assert Money.zero(usd) == Money(Decimal("0"), "USD")
     assert Money(Decimal("2"), "USD") * 3 == Money(Decimal("6"), "USD")

@@ -440,18 +440,31 @@ banker's-rounding-vs-`decimal.js`-HALF_UP divergence).
 > each end keeps its own implementation in its own deployable, and backend
 > adoption (#1171) needs **no Docker/build-context change**.
 
-### AC2.19: Money / Currency value types
+### AC2.19: Money / Currency value types — migrated to the `audit` package
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC2.19.1 | `Money(amount, currency)` rejects `float`/`bool`, is Decimal-backed and immutable; `Currency` rejects non-ISO-4217 codes and normalises case | `test_AC2_19_1_money_rejects_float_amount` (+ siblings) | `tests/tooling/test_money_value_type.py` | P0 |
-| AC2.19.2 | Same-currency `+`/`-`/compare works; cross-currency arithmetic or comparison raises a typed `CurrencyMismatchError` (no implicit float, no implicit conversion) | `test_AC2_19_2_cross_currency_arithmetic_raises` (+ siblings) | `tests/tooling/test_money_value_type.py` | P0 |
+> **The Money/Currency value-type ACs of this group are no longer defined
+> here.** The float-rejection/Decimal-backing/immutability and cross-currency-
+> mismatch rows (were AC2.19.* rows .1–.2) migrated into the `audit` package
+> and are owned by, and sourced directly from,
+> [`common/audit/contract.py`](../../common/audit/contract.py)'s `roadmap`
+> under the package-scoped numeric `AC-audit.<group>.<seq>` id scheme (the
+> leading "2" is dropped and the group/seq preserved, so `AC2.19.<s>` becomes
+> `AC-audit.19.<s>`). `common/ssot/generate_ac_registry.py` reads
+> package-contract roadmaps additively, so the AC index counts them without an
+> EPIC-table mirror. This note references the new ids (keeping the
+> registry↔EPIC link intact) but defines none of them — the contract is the
+> single definition source.
+>
+> Migrated `AC-audit.19.<s>` ids (homed in the package roadmap):
+> `AC-audit.19.1` · `AC-audit.19.2`
 
-### AC2.20: Single FX conversion primitive
+### AC2.20: Single FX conversion primitive — migrated to the `audit` package
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC2.20.1 | `convert(money, rate, *, to, rounding)` applies a Decimal rate into an explicit target currency, rejects float rates, quantizes with banker's rounding at the boundary, and round-trips at 2 dp | `test_AC2_20_1_convert_rounds_half_even_at_boundary` (+ siblings) | `tests/tooling/test_money_value_type.py` | P0 |
+> **The FX conversion AC of this group is no longer defined here.** The
+> `convert()` primitive row (was the AC2.20.* row) migrated into the `audit`
+> package and is owned by, and sourced directly from,
+> [`common/audit/contract.py`](../../common/audit/contract.py)'s `roadmap` as
+> `AC-audit.20.1` (the leading "2" is dropped and the group/seq preserved).
 
 ### AC2.21: Per-currency balance container
 

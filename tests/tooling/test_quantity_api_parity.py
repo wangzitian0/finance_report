@@ -39,18 +39,24 @@ def _frontend_exports() -> set[str]:
 
 
 @ac_proof(
-    proof_id="test_quantity_shared_api_backend", ac_ids=["AC12.30.2"], ci_tier="pr_ci"
+    proof_id="test_quantity_shared_api_backend",
+    ac_ids=["AC-audit.30.2"],
+    ci_tier="pr_ci",
 )
 def test_AC12_30_2_backend_exposes_shared_quantity_api():
-    """AC12.30.2: the backend quantity module exports the full shared surface."""
+    """AC-audit.30.2: the backend quantity module exports the full shared surface."""
     missing = SHARED_API - _backend_exports()
-    assert not missing, f"backend src.audit.quantity missing shared API: {sorted(missing)}"
+    assert not missing, (
+        f"backend src.audit.quantity missing shared API: {sorted(missing)}"
+    )
 
 
 @ac_proof(
-    proof_id="test_quantity_shared_api_frontend", ac_ids=["AC12.30.2"], ci_tier="pr_ci"
+    proof_id="test_quantity_shared_api_frontend",
+    ac_ids=["AC-audit.30.2"],
+    ci_tier="pr_ci",
 )
 def test_AC12_30_2_frontend_exposes_shared_quantity_api():
-    """AC12.30.2: the frontend quantity module exports the full shared surface."""
+    """AC-audit.30.2: the frontend quantity module exports the full shared surface."""
     missing = SHARED_API - _frontend_exports()
     assert not missing, f"frontend lib/quantity missing shared API: {sorted(missing)}"

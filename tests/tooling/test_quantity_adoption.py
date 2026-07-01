@@ -17,10 +17,12 @@ def _read(path: Path) -> str:
 
 
 @ac_proof(
-    proof_id="test_quantity_frontend_adoption", ac_ids=["AC12.30.4"], ci_tier="pr_ci"
+    proof_id="test_quantity_frontend_adoption",
+    ac_ids=["AC-audit.30.4"],
+    ci_tier="pr_ci",
 )
 def test_AC12_30_4_frontend_quantity_formatting_is_not_exported_from_money():
-    """AC12.30.4: formatQuantity is public from lib/quantity, not lib/money."""
+    """AC-audit.30.4: formatQuantity is public from lib/quantity, not lib/money."""
     money_index = _read(Path("apps/frontend/src/lib/audit/money/index.ts"))
     quantity_index = _read(Path("apps/frontend/src/lib/audit/quantity/index.ts"))
     assert "formatQuantity" not in money_index
@@ -40,10 +42,10 @@ def test_AC12_30_4_frontend_quantity_formatting_is_not_exported_from_money():
 
 
 @ac_proof(
-    proof_id="test_quantity_backend_adoption", ac_ids=["AC12.30.4"], ci_tier="pr_ci"
+    proof_id="test_quantity_backend_adoption", ac_ids=["AC-audit.30.4"], ci_tier="pr_ci"
 )
 def test_AC12_30_4_backend_quantity_hot_paths_use_quantity_type():
-    """AC12.30.4: targeted backend quantity paths use Quantity for quantity semantics."""
+    """AC-audit.30.4: targeted backend quantity paths use Quantity for quantity semantics."""
     investment = _read(Path("apps/backend/src/services/investment_accounting.py"))
     assert "from src.audit.quantity import Quantity" in investment
     assert (

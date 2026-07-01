@@ -48,23 +48,23 @@ def _frontend_exports() -> set[str]:
 
 @ac_proof(
     proof_id="test_money_shared_api_backend",
-    ac_ids=["AC2.19.1"],
+    ac_ids=["AC-audit.19.1"],
     ci_tier="pr_ci",
     issue="#1167",
 )
 def test_AC2_19_1_backend_exposes_shared_money_api():
-    """AC2.19.1: the backend money module exports the full shared value-type surface."""
+    """AC-audit.19.1: the backend money module exports the full shared value-type surface."""
     missing = SHARED_API - _backend_exports()
     assert not missing, f"backend src.audit.money missing shared API: {sorted(missing)}"
 
 
 @ac_proof(
     proof_id="test_money_shared_api_frontend",
-    ac_ids=["AC2.19.1"],
+    ac_ids=["AC-audit.19.1"],
     ci_tier="pr_ci",
     issue="#1167",
 )
 def test_AC2_19_1_frontend_exposes_shared_money_api():
-    """AC2.19.1: the frontend money module exports the full shared value-type surface."""
+    """AC-audit.19.1: the frontend money module exports the full shared value-type surface."""
     missing = SHARED_API - _frontend_exports()
     assert not missing, f"frontend lib/money missing shared API: {sorted(missing)}"

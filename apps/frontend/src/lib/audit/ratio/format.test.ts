@@ -11,7 +11,7 @@ import {
   percentNumberFromRatioValue,
 } from "./format";
 
-describe("ratio percent formatting helpers (EPIC-012 AC12.9.3)", () => {
+describe("ratio percent formatting helpers (AC-audit.9.3)", () => {
   it("test_AC12_9_3_ratio_format_helpers_use_canonical_percent_policy", () => {
     expect(formatPercentFromRatioValue("0.12005")).toBe("12.01%");
     expect(formatPercentFromPercentValue("12.005")).toBe("12.01%");
