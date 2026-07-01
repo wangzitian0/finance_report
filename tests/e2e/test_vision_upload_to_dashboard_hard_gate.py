@@ -161,12 +161,25 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(
     await page.locator('[data-testid="uploader-institution-statement"]').fill(
         INSTITUTION_LABEL
     )
-    await page.set_input_files(
-        '[data-testid="uploader-file-statement"]', str(fixture_path)
-    )
-    await expect(
-        page.locator("p.font-medium", has_text=fixture_path.name)
-    ).to_be_visible(timeout=5_000)
+    # The CSV path renders no AI-model dropdown, so unlike the PDF upload E2E specs
+    # there is no incidental async wait to absorb client-side hydration time before
+    # this is the first interaction on the page. Against a real staging deploy
+    # (JS bundle fetched over the network, unlike an instant localhost load), the
+    # file input's onChange handler can still be attaching when set_input_files
+    # dispatches the change event, dropping it silently. Retry the selection
+    # (each attempt re-dispatches the event) rather than widening the timeout,
+    # which would only mask the race.
+    filename_locator = page.locator("p.font-medium", has_text=fixture_path.name)
+    for attempt in range(3):
+        await page.set_input_files(
+            '[data-testid="uploader-file-statement"]', str(fixture_path)
+        )
+        try:
+            await expect(filename_locator).to_be_visible(timeout=5_000)
+            break
+        except AssertionError:
+            if attempt == 2:
+                raise
 
     upload_resp = None
     upload_body_text = ""
