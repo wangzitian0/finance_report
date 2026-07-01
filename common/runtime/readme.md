@@ -85,5 +85,9 @@ declared dependency is proven present — or the build/smoke fails.**
 
 ## Public vs internal
 
-Draft: no published symbol language yet (`contract.interface == []`). Consumers do
-not import `runtime` today; the package currently owns the *model* (this file).
+Draft. The **construct** phase publishes the `base` value language + manifest +
+port (`contract.interface`): `DependencyKind`, `EnvTier` (+ `APP_OWNED_TIERS` /
+`VPS_TIERS`), `Dependency` / `DependencyManifest` / `DEPENDENCY_MANIFEST`, and the
+`DependencyCheck` port (+ `DependencyStatus`). No consumer routes through it yet —
+the switch phase points `boot.validate` and the smoke test at the manifest; the
+adapters and the compose/lifecycle relocation follow. See [`todo.md`](./todo.md).

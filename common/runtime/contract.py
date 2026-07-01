@@ -7,10 +7,12 @@ them, and the invariant that a *declared* dependency must be *asserted present*
 (no silent ``skipped``/``warning``/fallback).
 
 It is a ``kernel`` leaf (``depends_on=[]``) and currently ``draft`` — still being
-designed. It ships no implementation units and no curated published language yet
-(``interface=[]``), so the prose contract (ubiquitous language, invariants, the
-roadmap of ACs) lives in ``readme.md`` + ``todo.md`` until each AC lands with a
-real test. Roadmap entries move here (each pinned to its test) as they are built.
+designed. The *construct* phase ships the ``base`` value language + the dependency
+manifest + the ``DependencyCheck`` port (published below); the adapters, the
+"declared ⇒ asserted present" enforcement, and the compose/lifecycle relocation
+land in the switch/cleanup phases. Roadmap ACs (each pinned to a real test) are
+added when the enforcement invariants land; the prose contract lives in
+``readme.md`` + ``todo.md`` until then.
 """
 
 from __future__ import annotations
@@ -24,8 +26,18 @@ CONTRACT = PackageContract(
     tier="CODE-ONLY",
     depends_on=[],
     roles=[],
-    implementations={"be": "common/runtime", "fe": None},
-    interface=[],
+    implementations={"be": "apps/backend/src/runtime", "fe": None},
+    interface=[
+        "APP_OWNED_TIERS",
+        "DEPENDENCY_MANIFEST",
+        "VPS_TIERS",
+        "Dependency",
+        "DependencyCheck",
+        "DependencyKind",
+        "DependencyManifest",
+        "DependencyStatus",
+        "EnvTier",
+    ],
     events=[],
     invariants=[],
     roadmap=[],
