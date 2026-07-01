@@ -158,28 +158,20 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(
 
     await _goto_ready(page, "/statements")
 
-    await page.locator('[data-testid="uploader-institution-statement"]').fill(
+    # The fixture is a CSV, but the primary "statement" uploader (EPIC-019 AC19.15
+    # three-entry intake) only accepts pdf/png/jpg — a csv there is rejected by
+    # validateAndSetFile's extension check and never sets `file`, so the filename
+    # never renders. CSV import is the folded secondary entry: expand it and scope
+    # all interactions to it, since both entries share the same button label.
+    csv_section = page.locator("details").filter(has_text="CSV import")
+    await csv_section.locator("summary").click()
+    await csv_section.locator('[data-testid="uploader-institution-csv"]').fill(
         INSTITUTION_LABEL
     )
-    # The CSV path renders no AI-model dropdown, so unlike the PDF upload E2E specs
-    # there is no incidental async wait to absorb client-side hydration time before
-    # this is the first interaction on the page. Against a real staging deploy
-    # (JS bundle fetched over the network, unlike an instant localhost load), the
-    # file input's onChange handler can still be attaching when set_input_files
-    # dispatches the change event, dropping it silently. Retry the selection
-    # (each attempt re-dispatches the event) rather than widening the timeout,
-    # which would only mask the race.
-    filename_locator = page.locator("p.font-medium", has_text=fixture_path.name)
-    for attempt in range(3):
-        await page.set_input_files(
-            '[data-testid="uploader-file-statement"]', str(fixture_path)
-        )
-        try:
-            await expect(filename_locator).to_be_visible(timeout=5_000)
-            break
-        except AssertionError:
-            if attempt == 2:
-                raise
+    await page.set_input_files('[data-testid="uploader-file-csv"]', str(fixture_path))
+    await expect(
+        csv_section.locator("p.font-medium", has_text=fixture_path.name)
+    ).to_be_visible(timeout=5_000)
 
     upload_resp = None
     upload_body_text = ""
@@ -188,7 +180,9 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(
         async with page.expect_response(
             lambda r: "/api/statements/upload" in r.url, timeout=30_000
         ) as upload_info:
-            await page.get_by_role("button", name="Upload & Parse Statement").click()
+            await csv_section.get_by_role(
+                "button", name="Upload & Parse Statement"
+            ).click()
         upload_resp = await upload_info.value
         upload_body_text = await upload_resp.text()
         if upload_resp.status in (200, 201, 202):
