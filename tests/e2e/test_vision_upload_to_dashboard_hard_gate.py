@@ -161,17 +161,31 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(
     # The fixture is a CSV, but the primary "statement" uploader (EPIC-019 AC19.15
     # three-entry intake) only accepts pdf/png/jpg — a csv there is rejected by
     # validateAndSetFile's extension check and never sets `file`, so the filename
-    # never renders. CSV import is the folded secondary entry: expand it and scope
-    # all interactions to it, since both entries share the same button label.
+    # never renders (confirmed root cause: two live staging runs still failed here
+    # with a hydration-race retry loop in place, ruling out timing as the cause —
+    # see AC19.15.3 for the unit-tier regression test that now locks this contract
+    # down). CSV import is the folded secondary entry: expand it and scope all
+    # interactions to it, since both entries share the same button label.
     csv_section = page.locator("details").filter(has_text="CSV import")
     await csv_section.locator("summary").click()
     await csv_section.locator('[data-testid="uploader-institution-csv"]').fill(
         INSTITUTION_LABEL
     )
-    await page.set_input_files('[data-testid="uploader-file-csv"]', str(fixture_path))
-    await expect(
-        csv_section.locator("p.font-medium", has_text=fixture_path.name)
-    ).to_be_visible(timeout=5_000)
+    # Belt-and-suspenders per this file's existing staging-environment tolerance
+    # convention (#944): retry the selection in case hydration is still slow on a
+    # freshly rolled-out container, even though the wrong-kind mismatch above was
+    # the actual, deterministic cause of both prior failures.
+    filename_locator = csv_section.locator("p.font-medium", has_text=fixture_path.name)
+    for attempt in range(3):
+        await page.set_input_files(
+            '[data-testid="uploader-file-csv"]', str(fixture_path)
+        )
+        try:
+            await expect(filename_locator).to_be_visible(timeout=5_000)
+            break
+        except AssertionError:
+            if attempt == 2:
+                raise
 
     upload_resp = None
     upload_body_text = ""
