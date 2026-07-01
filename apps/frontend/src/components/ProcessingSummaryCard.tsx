@@ -4,7 +4,7 @@ import Link from "next/link";
 import { AlertTriangle, Clock } from "lucide-react";
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { ProcessingSummaryResponse } from "@/lib/types";
-import { formatCurrency, isAmountZero } from "@/lib/money";
+import { formatCurrency, isAmountZero } from "@/lib/audit/money";
 import { formatDateDisplay } from "@/lib/date";
 
 const EMPTY_PROCESSING_SUMMARY: ProcessingSummaryResponse = {

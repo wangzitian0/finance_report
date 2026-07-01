@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { BackLink } from "@/components/ui/BackLink";
 import { apiFetch } from "@/lib/api";
-import { formatCurrencyLocale } from "@/lib/money";
+import { formatCurrencyLocale } from "@/lib/audit/money";
 import type {
   BankStatementTransactionSummary,
   JournalEntrySummary,

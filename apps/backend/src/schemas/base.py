@@ -8,7 +8,7 @@ from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 # Canonical currency normalizer lives in the money layer; re-exported here so
 # existing ``from src.schemas.base import normalize_currency_code`` callers and the
 # ``CurrencyCode`` BeforeValidator keep working off the single source of truth.
-from src.money.currency import normalize_currency_code
+from src.audit.money.currency import normalize_currency_code
 
 T = TypeVar("T")
 

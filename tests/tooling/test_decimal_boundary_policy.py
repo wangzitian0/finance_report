@@ -45,7 +45,7 @@ def test_AC12_31_1_decimal_boundary_policy_is_mece_and_enforced():
     # convert_amount routes through the money primitive (imported privately as
     # _money_convert; the public fx.convert_money is now the Money-native helper).
     assert (
-        "from src.money import ExchangeRate, Money, MoneyError, convert as _money_convert"
+        "from src.audit.money import ExchangeRate, Money, MoneyError, convert as _money_convert"
         in fx
     )
     assert "ExchangeRate(source, target, rate)" in fx
@@ -74,7 +74,7 @@ def test_AC12_31_3_migrated_hotspots_use_base_packages():
     for path in quantity_service_files:
         src = _read(path)
         # value type via direct import OR a model .quantity_qty accessor (#3 push)
-        assert "from src.quantity import Quantity" in src or ".quantity_qty" in src, (
+        assert "from src.audit.quantity import Quantity" in src or ".quantity_qty" in src, (
             f"{path} must use Quantity (import or .quantity_qty accessor)"
         )
         assert "quantized_quantity_value" not in src

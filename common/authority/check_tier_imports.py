@@ -52,7 +52,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # least one real file (see ``missing_protected_globs``).
 PROTECTED_MODULE_GLOBS: tuple[str, ...] = (
     # money primitives + the ledger/journal core
-    "apps/backend/src/money/**/*.py",
+    "apps/backend/src/audit/money/**/*.py",
     "apps/backend/src/ledger/**/*.py",
     "apps/backend/src/models/journal.py",
     # deterministic financial-truth services

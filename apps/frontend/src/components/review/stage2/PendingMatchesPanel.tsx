@@ -1,4 +1,4 @@
-import { formatAmount } from "@/lib/money";
+import { formatAmount } from "@/lib/audit/money";
 import { formatDateDisplay } from "@/lib/date";
 
 import type { PendingMatch } from "./types";

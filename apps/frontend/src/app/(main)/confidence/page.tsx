@@ -20,7 +20,7 @@ import {
   type TrendDirection,
 } from "@/lib/confidence";
 import { formatDateTimeDisplay } from "@/lib/date";
-import { formatPercentFromRatioValue } from "@/lib/ratio/format";
+import { formatPercentFromRatioValue } from "@/lib/audit/ratio/format";
 import type {
   ConfidenceNorthStarResponse,
   CorrectionLoopReplayResponse,

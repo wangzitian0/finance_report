@@ -13,8 +13,8 @@ import {
 } from "lucide-react";
 
 import { apiFetch } from "@/lib/api";
-import { formatCurrencyLocale } from "@/lib/money";
-import { formatPercentFromPercentValue } from "@/lib/ratio/format";
+import { formatCurrencyLocale } from "@/lib/audit/money";
+import { formatPercentFromPercentValue } from "@/lib/audit/ratio/format";
 import { Badge, type BadgeVariant } from "@/components/ui";
 import { InfoHint, type GlossaryTerm } from "@/components/ui/InfoHint";
 import { reportPeriodStart } from "@/hooks/usePersonalReportPackage";

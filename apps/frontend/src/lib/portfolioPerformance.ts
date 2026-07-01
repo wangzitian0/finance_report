@@ -1,5 +1,5 @@
-import { compareAmounts, sumAmounts } from "./money";
-import { formatPercentValueFromParts } from "@/lib/ratio/format";
+import { compareAmounts, sumAmounts } from "./audit/money";
+import { formatPercentValueFromParts } from "@/lib/audit/ratio/format";
 import type { InvestmentPerformanceReportSchedule } from "./types";
 
 /**

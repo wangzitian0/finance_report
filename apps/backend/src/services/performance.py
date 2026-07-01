@@ -7,12 +7,12 @@ from uuid import UUID
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit.ratio import Ratio
 from src.config import settings
 from src.logger import get_logger
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
 from src.models.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
-from src.ratio import Ratio
 from src.services import fx
 
 logger = get_logger(__name__)

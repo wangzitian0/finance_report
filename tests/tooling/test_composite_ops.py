@@ -8,10 +8,11 @@ re-deriving them as raw Decimal glue.
 from decimal import Decimal
 
 import pytest
-from common.money import CurrencyMismatchError, Money, MoneyTolerance
-from common.money.conformance import load_vectors as load_money_vectors
-from common.ratio import FloatNotAllowedError, Ratio
-from common.ratio.conformance import load_vectors as load_ratio_vectors
+
+from common.audit.money import CurrencyMismatchError, Money, MoneyTolerance
+from common.audit.money.conformance import load_vectors as load_money_vectors
+from common.audit.ratio import FloatNotAllowedError, Ratio
+from common.audit.ratio.conformance import load_vectors as load_ratio_vectors
 from common.testing.ac_proof import ac_proof
 
 MONEY = load_money_vectors()

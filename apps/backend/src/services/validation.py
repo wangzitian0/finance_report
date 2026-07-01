@@ -7,8 +7,8 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+from src.audit.money.adopt import balance_check
 from src.models.statement_enums import BankStatementStatus
-from src.money.adopt import balance_check
 
 BALANCE_TOLERANCE = Decimal("0.10")
 IN_DIRECTION_ALIASES = {"IN", "CREDIT", "CR", "DEPOSIT", "INFLOW"}

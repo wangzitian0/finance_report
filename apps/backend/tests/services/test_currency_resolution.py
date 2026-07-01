@@ -19,7 +19,7 @@ from uuid import uuid4
 import pytest
 from common.testing.ac_proof import ac_proof
 
-from src.money import InvalidCurrencyError
+from src.audit.money import InvalidCurrencyError
 from src.services.currency_resolution import (
     UNRESOLVED_PLACEHOLDER,
     CurrencyUnresolvedError,
@@ -79,7 +79,7 @@ def test_AC12_40_2_flags_unresolved_instead_of_silent_default(candidates):
 @ac_proof(proof_id="test_unresolved_placeholder_is_not_valid", ac_ids=["AC12.40.2"], ci_tier="pr_ci", issue="#1341")
 def test_AC12_40_2_placeholder_cannot_masquerade_as_real_currency():
     """AC12.40.2: the placeholder is rejected by Currency(), so it can never look resolved."""
-    from src.money import Currency
+    from src.audit.money import Currency
 
     with pytest.raises(InvalidCurrencyError):
         Currency(UNRESOLVED_PLACEHOLDER)

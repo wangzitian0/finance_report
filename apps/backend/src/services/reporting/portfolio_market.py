@@ -11,6 +11,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit.unit_price import UnitPrice
 from src.logger import get_logger
 from src.models.account import Account, AccountType
 from src.models.layer3 import (
@@ -28,7 +29,6 @@ from src.services.reporting_calc import (
     ReportError,
     _quantize_money,
 )
-from src.unit_price import UnitPrice
 
 logger = get_logger(__name__)
 

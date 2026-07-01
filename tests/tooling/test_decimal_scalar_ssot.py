@@ -35,16 +35,16 @@ def _read(rel: str) -> str:
 def _assert_layer_shares_one_codec(layer_root: str, import_prefix: str) -> None:
     """Every base package under ``layer_root`` routes through ``import_prefix.decimal_scalar``."""
     wire_modules = {
-        "money": f"{layer_root}/money/wire.py",
-        "quantity": f"{layer_root}/quantity/wire.py",
-        "ratio": f"{layer_root}/ratio/wire.py",
-        "unit_price": f"{layer_root}/unit_price/wire.py",
+        "money": f"{layer_root}/audit/money/wire.py",
+        "quantity": f"{layer_root}/audit/quantity/wire.py",
+        "ratio": f"{layer_root}/audit/ratio/wire.py",
+        "unit_price": f"{layer_root}/audit/unit_price/wire.py",
     }
     core_modules = {
-        "money": f"{layer_root}/money/money.py",
-        "quantity": f"{layer_root}/quantity/quantity.py",
-        "ratio": f"{layer_root}/ratio/ratio.py",
-        "unit_price": f"{layer_root}/unit_price/unit_price.py",
+        "money": f"{layer_root}/audit/money/money.py",
+        "quantity": f"{layer_root}/audit/quantity/quantity.py",
+        "ratio": f"{layer_root}/audit/ratio/ratio.py",
+        "unit_price": f"{layer_root}/audit/unit_price/unit_price.py",
     }
 
     for pkg, rel in wire_modules.items():

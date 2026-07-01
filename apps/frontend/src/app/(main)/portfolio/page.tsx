@@ -17,11 +17,11 @@ import {
   amountToChartNumber,
   formatCurrencyLocale,
   sumAmounts,
-} from "@/lib/money";
+} from "@/lib/audit/money";
 import {
   clampPercentWidthFromPercentValue,
   formatPercentFromPercentValue,
-} from "@/lib/ratio/format";
+} from "@/lib/audit/ratio/format";
 import type {
   InvestmentPerformanceReportSchedule,
   NetWorthAllocationResponse,

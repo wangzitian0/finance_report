@@ -7,7 +7,7 @@ import { LoadingState } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
 import { ProcessingPendingListResponse } from "@/lib/types";
 import { formatDateDisplay } from "@/lib/date";
-import { formatCurrencyLocale } from "@/lib/money";
+import { formatCurrencyLocale } from "@/lib/audit/money";
 
 export default function ProcessingPage() {
   const [data, setData] = useState<ProcessingPendingListResponse | null>(null);

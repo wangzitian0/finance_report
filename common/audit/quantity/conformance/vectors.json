@@ -1,0 +1,38 @@
+{
+  "_comment": "Language-neutral quantity standard (EPIC-012 AC12.30). Both the Python reference impl (common/audit/quantity), backend runtime (src.quantity), and TypeScript frontend (apps/frontend/src/lib/audit/quantity) load THIS file and must reproduce every expected value. Values are decimal STRINGS, never JSON floats. Quantity storage/display quantum is 6 dp ROUND_HALF_UP.",
+  "quantity_quantum": "0.000001",
+  "quantity_dp": 6,
+  "default_rounding": "ROUND_HALF_UP",
+  "shared_api": [
+    "Quantity",
+    "Unit",
+    "QUANTITY_QUANTUM",
+    "QUANTITY_DP",
+    "QUANTITY_ROUNDING",
+    "QuantityError",
+    "FloatNotAllowedError",
+    "InvalidUnitError",
+    "UnitMismatchError",
+    "InvalidQuantityPayloadError",
+    "quantity_to_wire",
+    "quantity_from_wire"
+  ],
+  "unit_normalize": [
+    {"input": " shares ", "expected": "shares"},
+    {"input": "UNITS", "expected": "units"},
+    {"input": "contract-lots", "expected": "contract-lots"}
+  ],
+  "unit_invalid": ["", "   ", "share lot", "shares/usd", "1shares"],
+  "quantize": [
+    {"value": "10", "unit": "shares", "expected": "10.000000"},
+    {"value": "1.2345674", "unit": "shares", "expected": "1.234567"},
+    {"value": "1.2345675", "unit": "shares", "expected": "1.234568"},
+    {"value": "-1.2345675", "unit": "shares", "expected": "-1.234568"},
+    {"value": "0.0000004", "unit": "shares", "expected": "0.000000"},
+    {"value": "0.0000005", "unit": "shares", "expected": "0.000001"}
+  ],
+  "ratio": [
+    {"part": "2", "whole": "8", "unit": "shares", "expected_ratio": "0.25", "expected_percent_2dp": "25.00"},
+    {"part": "1", "whole": "3", "unit": "units", "expected_ratio": "0.3333333333333333333333333333", "expected_percent_2dp": "33.33"}
+  ]
+}

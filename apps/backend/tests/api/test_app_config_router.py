@@ -10,8 +10,8 @@ from common.testing.ac_proof import ac_proof
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit.money import Currency
 from src.config import settings
-from src.money import Currency
 from src.services.app_config import get_effective_base_currency
 
 pytestmark = pytest.mark.asyncio

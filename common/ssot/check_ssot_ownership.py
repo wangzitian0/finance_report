@@ -78,7 +78,7 @@ MUST_BE_ABSENT: list[Path] = [
     # accounting.md internalized into the ledger package (common/ledger/readme.md):
     # the double-entry sections per migration-standard step 3 "SSOT internalized"
     # (Stage-2 of the ledger cutover #1420). The #money-type section moved into
-    # common/money/readme.md (the money kernel owns it).
+    # common/audit/money/readme.md (the money kernel owns it).
     REPO_ROOT / "docs" / "ssot" / "accounting.md",
     # processing_account.md internalized into the ledger package
     # (common/ledger/readme.md) — the processing (in-transit) account belongs to

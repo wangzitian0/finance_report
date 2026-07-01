@@ -12,7 +12,7 @@ import ConfidenceBadge from "@/components/ui/ConfidenceBadge";
 import { EmptyState, LoadingState, StatusBadge } from "@/components/ui";
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
-import { formatCurrencyLocale, sumAmounts } from "@/lib/money";
+import { formatCurrencyLocale, sumAmounts } from "@/lib/audit/money";
 import { formatDateDisplay } from "@/lib/date";
 import { JournalEntry, JournalEntryListResponse, JournalLine } from "@/lib/types";
 

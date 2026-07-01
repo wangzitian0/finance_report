@@ -21,8 +21,8 @@ def _read(path: Path) -> str:
 )
 def test_AC12_30_4_frontend_quantity_formatting_is_not_exported_from_money():
     """AC12.30.4: formatQuantity is public from lib/quantity, not lib/money."""
-    money_index = _read(Path("apps/frontend/src/lib/money/index.ts"))
-    quantity_index = _read(Path("apps/frontend/src/lib/quantity/index.ts"))
+    money_index = _read(Path("apps/frontend/src/lib/audit/money/index.ts"))
+    quantity_index = _read(Path("apps/frontend/src/lib/audit/quantity/index.ts"))
     assert "formatQuantity" not in money_index
     assert "formatQuantity" in quantity_index
 
@@ -33,7 +33,7 @@ def test_AC12_30_4_frontend_quantity_formatting_is_not_exported_from_money():
     ]
     for path in call_sites:
         src = _read(path)
-        assert "@/lib/quantity" in src, (
+        assert "@/lib/audit/quantity" in src, (
             f"{path} must import quantity formatting from lib/quantity"
         )
         assert "formatQuantity" in src
@@ -45,7 +45,7 @@ def test_AC12_30_4_frontend_quantity_formatting_is_not_exported_from_money():
 def test_AC12_30_4_backend_quantity_hot_paths_use_quantity_type():
     """AC12.30.4: targeted backend quantity paths use Quantity for quantity semantics."""
     investment = _read(Path("apps/backend/src/services/investment_accounting.py"))
-    assert "from src.quantity import Quantity" in investment
+    assert "from src.audit.quantity import Quantity" in investment
     assert (
         "trade_quantity = Quantity(quantity, INVESTMENT_QUANTITY_UNIT).quantize()"
         in investment
@@ -61,7 +61,7 @@ def test_AC12_30_4_backend_quantity_hot_paths_use_quantity_type():
     assert "unit_cost=_quantized_quantity" not in investment
 
     portfolio = _read(Path("apps/backend/src/services/portfolio.py"))
-    assert "from src.quantity import Quantity" in portfolio
+    assert "from src.audit.quantity import Quantity" in portfolio
     # Quantity now flows via the ManagedPosition.quantity_qty accessor (#3 boundary
     # push); still the Quantity value type, just read at the ORM boundary.
     assert "position_quantity = position.quantity_qty.quantize()" in portfolio

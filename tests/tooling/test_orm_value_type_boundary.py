@@ -43,8 +43,8 @@ def _read(path: str) -> str:
 def test_AC12_35_1_managed_position_exposes_typed_accessors():
     """AC12.35.1: ManagedPosition exposes Money/Quantity read accessors at the ORM boundary."""
     src = _read("apps/backend/src/models/layer3.py")
-    assert "from src.money import Money" in src
-    assert "from src.quantity import Quantity" in src
+    assert "from src.audit.money import Money" in src
+    assert "from src.audit.quantity import Quantity" in src
     for accessor in (
         "def cost_basis_money(self) -> Money",
         "def unrealized_pnl_money(self) -> Money",
@@ -126,7 +126,7 @@ def test_AC12_37_1_journal_line_exposes_money_accessor():
     """AC12.37.1: JournalLine exposes a typed `money` read accessor at the ORM
     boundary (lines are immutable; amount/currency columns stay storage)."""
     src = _read("apps/backend/src/models/journal.py")
-    assert "from src.money import Money" in src
+    assert "from src.audit.money import Money" in src
     assert "def money(self) -> Money" in src
 
 

@@ -15,9 +15,9 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit.money import to_money
 from src.models.account import Account, AccountType
 from src.models.layer2 import AssetType, AtomicPosition
-from src.money import to_money
 from src.services.assets import AssetService
 
 

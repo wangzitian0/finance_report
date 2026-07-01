@@ -22,8 +22,8 @@ from __future__ import annotations
 from decimal import Decimal
 
 import src.config
+from src.audit.money import Currency, Money
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalLine
-from src.money import Currency, Money
 
 
 class AccountingError(Exception):

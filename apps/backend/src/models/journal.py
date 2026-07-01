@@ -12,10 +12,10 @@ from sqlalchemy import DECIMAL, CheckConstraint, Date, DateTime, Enum, ForeignKe
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from src.audit.money import Money
 from src.config import settings
 from src.database import Base
 from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
-from src.money import Money
 
 if TYPE_CHECKING:
     from src.models.account import Account

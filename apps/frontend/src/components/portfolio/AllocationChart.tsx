@@ -5,7 +5,7 @@ import { apiFetch } from "@/lib/api";
 import {
   formatPercentFromPercentValue,
   percentNumberFromPercentValue,
-} from "@/lib/ratio/format";
+} from "@/lib/audit/ratio/format";
 import { AllocationBreakdown } from "@/lib/types";
 import { PieChart } from "@/components/charts/PieChart";
 

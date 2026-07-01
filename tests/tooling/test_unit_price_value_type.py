@@ -8,10 +8,10 @@ so portfolio/market-data services stop re-deriving them as raw ``Decimal`` glue.
 from decimal import Decimal
 
 import pytest
-from common.money import Money
-from common.quantity import Quantity
-from common.testing.ac_proof import ac_proof
-from common.unit_price import (
+
+from common.audit.money import Money
+from common.audit.quantity import Quantity
+from common.audit.unit_price import (
     UNIT_PRICE_DP,
     UNIT_PRICE_QUANTUM,
     UNIT_PRICE_ROUNDING,
@@ -21,6 +21,7 @@ from common.unit_price import (
     UnitMismatchError,
     UnitPrice,
 )
+from common.testing.ac_proof import ac_proof
 
 
 @ac_proof(

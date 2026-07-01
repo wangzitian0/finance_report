@@ -1,6 +1,6 @@
 "use client";
 
-import { formatCurrencyLocale } from "@/lib/money";
+import { formatCurrencyLocale } from "@/lib/audit/money";
 import type { BankStatementTransaction } from "@/lib/types";
 import ConfidenceBadge from "@/components/ui/ConfidenceBadge";
 

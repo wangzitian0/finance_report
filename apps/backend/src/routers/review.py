@@ -5,6 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
+from src.audit.money import InvalidCurrencyError
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
 from src.models.consistency_check import CheckStatus, CheckType
@@ -12,7 +13,6 @@ from src.models.journal import JournalEntry, JournalEntryStatus
 from src.models.layer2 import AtomicTransaction
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_summary import StatementSummary
-from src.money import InvalidCurrencyError
 from src.schemas.review import (
     BatchApproveRequest,
     BatchApproveResponse,
@@ -143,7 +143,7 @@ async def resolve_transaction_currency_endpoint(
 ) -> ResolveCurrencyResponse:
     """Reviewer specifies the currency for a ``currency_unresolved`` transaction (AC12.40.3).
 
-    Validates the chosen code as ISO-4217 (``src.money.Currency``), clears the
+    Validates the chosen code as ISO-4217 (``src.audit.money.Currency``), clears the
     unresolved flag, and records the resolution audit (who/when). Only after this
     can the transaction be promoted to a journal entry (AC12.40.4).
     """

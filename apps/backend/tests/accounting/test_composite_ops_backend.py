@@ -7,19 +7,19 @@ from pathlib import Path
 import pytest
 from common.testing.ac_proof import ac_proof
 
-from src.money import CurrencyMismatchError, Money, MoneyTolerance
-from src.ratio import Ratio
+from src.audit.money import CurrencyMismatchError, Money, MoneyTolerance
+from src.audit.ratio import Ratio
 
 pytestmark = pytest.mark.no_db
 
 _ROOT = Path(__file__).resolve().parents[4]
-_MONEY = json.loads((_ROOT / "common/money/conformance/vectors.json").read_text())
-_RATIO = json.loads((_ROOT / "common/ratio/conformance/vectors.json").read_text())
+_MONEY = json.loads((_ROOT / "common/audit/money/conformance/vectors.json").read_text())
+_RATIO = json.loads((_ROOT / "common/audit/ratio/conformance/vectors.json").read_text())
 
 
 @ac_proof(proof_id="test_backend_money_composite", ac_ids=["AC12.33.1"], ci_tier="pr_ci")
 def test_AC12_33_1_backend_money_predicates_sum_tolerance():
-    """AC12.33.1: src.money predicates, sum and MoneyTolerance behave correctly."""
+    """AC12.33.1: src.audit.money predicates, sum and MoneyTolerance behave correctly."""
     assert Money.zero("USD").is_zero()
     assert Money(Decimal("0.01"), "USD").is_positive()
     assert Money(Decimal("-0.01"), "USD").is_negative()

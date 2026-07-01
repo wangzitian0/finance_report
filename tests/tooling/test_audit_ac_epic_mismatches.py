@@ -10,7 +10,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from common.ssot import audit_ac_epic_mismatches as aam
 
-
 SAMPLE_REGISTRY_YAML = yaml.dump(
     {
         "version": "1.0",

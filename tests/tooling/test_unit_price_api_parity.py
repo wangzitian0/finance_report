@@ -1,7 +1,7 @@
 """Cross-language unit-price API-parity guard (EPIC-012 AC12.32).
 
-The shipped backend ``src.unit_price`` must export the full shared surface so the
-reference (``common/unit_price``) and runtime stay identical. A TypeScript
+The shipped backend ``src.audit.unit_price`` must export the full shared surface so the
+reference (``common/audit/unit_price``) and runtime stay identical. A TypeScript
 frontend is a P2 follow-up (#1253); when it lands, add its export check here.
 """
 
@@ -13,7 +13,7 @@ from common.testing.ac_proof import ac_proof
 
 REPO = Path(__file__).resolve().parents[2]
 SHARED_API = set(
-    json.loads((REPO / "common/unit_price/conformance/vectors.json").read_text())[
+    json.loads((REPO / "common/audit/unit_price/conformance/vectors.json").read_text())[
         "shared_api"
     ]
 )
@@ -34,8 +34,8 @@ def _exports(init_path: Path) -> set[str]:
 )
 def test_AC12_32_2_common_exposes_shared_unit_price_api():
     """AC12.32.2: the reference unit-price module exports the full shared surface."""
-    missing = SHARED_API - _exports(REPO / "common/unit_price/__init__.py")
-    assert not missing, f"common.unit_price missing shared API: {sorted(missing)}"
+    missing = SHARED_API - _exports(REPO / "common/audit/unit_price/__init__.py")
+    assert not missing, f"common.audit.unit_price missing shared API: {sorted(missing)}"
 
 
 @ac_proof(
@@ -43,5 +43,5 @@ def test_AC12_32_2_common_exposes_shared_unit_price_api():
 )
 def test_AC12_32_2_backend_exposes_shared_unit_price_api():
     """AC12.32.2: the shipped backend unit-price module exports the full shared surface."""
-    missing = SHARED_API - _exports(REPO / "apps/backend/src/unit_price/__init__.py")
-    assert not missing, f"backend src.unit_price missing shared API: {sorted(missing)}"
+    missing = SHARED_API - _exports(REPO / "apps/backend/src/audit/unit_price/__init__.py")
+    assert not missing, f"backend src.audit.unit_price missing shared API: {sorted(missing)}"

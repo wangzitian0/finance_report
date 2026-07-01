@@ -1,8 +1,10 @@
 # `audit` — worklist
 
 The number-governor fold lands in waves (issue #1419, umbrella #1416). This file
-tracks what remains after the first, low-risk fold (registering `audit`, declaring
-the Shared-Kernel `units`, pinning the number-governor invariants).
+tracks what remains after step 1, the physical fold (registering `audit`,
+relocating `money`/`ratio`/`quantity`/`unit_price` code+tests+conformance vectors
+into `audit`, declaring the Shared-Kernel `units`, pinning the number-governor
+invariants).
 
 ## Next: AC ownership transfer (its own atomic cutover)
 
@@ -34,5 +36,9 @@ PROTECTION count floor regresses:
 
 ## Will not do here
 
-- Relocate the value-package code or touch the conformance vectors / BE-FE parity
-  — the value packages ARE the Shared-Kernel cross-runtime reference and stay put.
+- Touch the *content* of the conformance vectors or the BE-FE parity contract —
+  only their physical location moved (into `audit`), the language-neutral
+  standard itself is unchanged.
+- Rename the colliding error classes (`FloatNotAllowedError` etc., independently
+  defined per domain) to enable a flatter `audit.*` namespace — the submodule
+  design (`audit.money`, `audit.ratio`, ...) avoids needing this.

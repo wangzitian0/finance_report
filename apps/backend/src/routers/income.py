@@ -6,11 +6,11 @@ from http import HTTPStatus
 from fastapi import APIRouter, Query
 from sqlalchemy import select
 
+from src.audit.money import to_money
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
-from src.money import to_money
 from src.schemas.base import normalize_currency_code
 from src.schemas.income import AnnualizedIncomeResponse, FxConversionErrorResponse
 from src.services.fx import FxRateError, convert_amount

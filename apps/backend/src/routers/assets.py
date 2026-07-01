@@ -8,6 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Query, status
 from sqlalchemy import select
 
+from src.audit.money import Money, to_money
 from src.config import settings
 from src.deps import CurrentUserId, DbSession, Pagination
 from src.logger import get_logger
@@ -18,7 +19,6 @@ from src.models.layer3 import (
     ManualValuationSnapshot,
     PositionStatus,
 )
-from src.money import Money, to_money
 from src.schemas.assets import (
     DepreciationResponse,
     ManagedPositionListResponse,

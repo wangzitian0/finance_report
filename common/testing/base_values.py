@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from common.money import FloatNotAllowedError, Money
+from common.audit.money import FloatNotAllowedError, Money
 
 
 def money_amount(value: object, currency: str = "USD") -> Decimal:

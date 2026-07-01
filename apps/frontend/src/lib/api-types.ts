@@ -1903,7 +1903,7 @@ export interface paths {
          * Resolve Transaction Currency Endpoint
          * @description Reviewer specifies the currency for a ``currency_unresolved`` transaction (AC12.40.3).
          *
-         *     Validates the chosen code as ISO-4217 (``src.money.Currency``), clears the
+         *     Validates the chosen code as ISO-4217 (``src.audit.money.Currency``), clears the
          *     unresolved flag, and records the resolution audit (who/when). Only after this
          *     can the transaction be promoted to a journal entry (AC12.40.4).
          */
@@ -3273,7 +3273,7 @@ export interface components {
          * BaseCurrencyUpdate
          * @description Request body to set the effective base reporting currency.
          *
-         *     The code is validated against ISO 4217 via ``src.money.Currency`` so an
+         *     The code is validated against ISO 4217 via ``src.audit.money.Currency`` so an
          *     invalid code is rejected at the request boundary (HTTP 422) and never
          *     persisted; the stored value is the normalized (upper-cased) code.
          */

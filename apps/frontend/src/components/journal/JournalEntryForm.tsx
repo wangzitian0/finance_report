@@ -7,7 +7,7 @@ import { z } from "zod";
 
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { apiFetch } from "@/lib/api";
-import { formatAmount, isAmountZero, parseAmount, sumAmounts } from "@/lib/money";
+import { formatAmount, isAmountZero, parseAmount, sumAmounts } from "@/lib/audit/money";
 import { Account, JournalEntry } from "@/lib/types";
 
 interface JournalEntryFormProps {

@@ -1,15 +1,16 @@
 """Python side of the cross-language ratio conformance suite (EPIC-012 AC12.9, #1167).
 
-Drives the Python reference (``common.ratio``) off the SAME vectors the TypeScript
-frontend uses (``common/ratio/conformance/vectors.json``). Divergence on the
+Drives the Python reference (``common.audit.ratio``) off the SAME vectors the TypeScript
+frontend uses (``common/audit/ratio/conformance/vectors.json``). Divergence on the
 HALF_UP percent policy turns this (or its TS mirror) red.
 """
 
 from decimal import Decimal
 
 import pytest
-from common.ratio import PERCENT_DP, PERCENT_ROUNDING, Ratio
-from common.ratio.conformance import load_vectors
+
+from common.audit.ratio import PERCENT_DP, PERCENT_ROUNDING, Ratio
+from common.audit.ratio.conformance import load_vectors
 from common.testing.ac_proof import ac_proof
 
 VECTORS = load_vectors()
