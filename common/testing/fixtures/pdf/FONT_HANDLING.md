@@ -1,7 +1,7 @@
 # PDF Fixture Font Handling
 
 Font fallback policy is owned by
-[`docs/ssot/pdf-fixtures.md`](../../../docs/ssot/pdf-fixtures.md#font-fallback).
+[`common/testing/README.md#pdf-fixtures`](../../README.md#pdf-fixtures).
 
 The implementation lives in `generators/font_utils.py`:
 
@@ -12,5 +12,5 @@ The implementation lives in `generators/font_utils.py`:
 Quick check:
 
 ```bash
-python -c "from tools._lib.pdf_fixtures.generators.font_utils import register_chinese_fonts; print(register_chinese_fonts())"
+python -c "from common.testing.fixtures.pdf.generators.font_utils import register_chinese_fonts; print(register_chinese_fonts())"
 ```

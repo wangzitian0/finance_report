@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from tools._lib.pdf_fixtures import record_hf_cassettes as rec
+from common.testing.fixtures.pdf import record_hf_cassettes as rec
 
 
 def test_iso_date_normalises_both_hf_schemas() -> None:

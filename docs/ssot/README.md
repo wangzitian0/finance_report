@@ -90,7 +90,7 @@ cleanup that backfills `family` / `kind` and binds child clauses.
 | Document | Key | Current owner role |
 |---|---|---|
 | [common/extraction/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md) | `extraction` | Statement parsing rationale and code/test links — internalized into the `extraction` package (migration-standard step 3) |
-| [pdf-fixtures.md](./pdf-fixtures.md) | `pdf_fixtures` | Synthetic PDF fixture commands, local-only input policy, and font fallback |
+| [common/testing/README.md#pdf-fixtures](https://github.com/wangzitian0/finance_report/blob/main/common/testing/README.md#pdf-fixtures) | `pdf_fixtures` | Synthetic PDF fixture commands, local-only input policy, and font fallback — internalized into the `testing` package (migration-standard step 3) |
 | [reconciliation.md](./reconciliation.md) | `reconciliation` | Matching rationale; thresholds should migrate to code/common |
 | [reporting.md](./reporting.md) | `reporting` | Report calculation rationale and proof links |
 | [framework-reporting.md](./framework-reporting.md) | `framework_reporting` | US/HK target-backward policy layer for personal report packages |

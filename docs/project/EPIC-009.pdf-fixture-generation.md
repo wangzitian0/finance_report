@@ -2,7 +2,7 @@
 
 > **Status ownership**: This EPIC owns AC9.x scope only. Tool usage,
 > template policy, generated-output policy, font fallback, and live proof are
-> owned by [PDF Fixtures SSOT](../ssot/pdf-fixtures.md), code, and tests.
+> owned by [`testing` package §PDF Fixtures](../../common/testing/README.md#pdf-fixtures), code, and tests.
 > **Vision Anchor**: `decision-filter-accuracy-auditability`
 > **Dependencies**: EPIC-003, EPIC-008
 
@@ -16,11 +16,11 @@ tests. Fixtures use fictional data; real PDFs stay local and gitignored.
 
 | Fact | Owner |
 |---|---|
-| Commands, local-only input/output policy, template format, and font fallback | [PDF Fixtures SSOT](../ssot/pdf-fixtures.md) |
-| Analyzer and template extraction behavior | `tools/_lib/pdf_fixtures/analyzers/`, `tools/analyze_pdf_fixture.py` |
-| Generator, validator, and fake-data behavior | `tools/_lib/pdf_fixtures/`, `tools/generate_pdf_fixtures.py` |
+| Commands, local-only input/output policy, template format, and font fallback | [`testing` package §PDF Fixtures](../../common/testing/README.md#pdf-fixtures) |
+| Analyzer and template extraction behavior | `common/testing/fixtures/pdf/analyzers/`, `tools/analyze_pdf_fixture.py` |
+| Generator, validator, and fake-data behavior | `common/testing/fixtures/pdf/`, `tools/generate_pdf_fixtures.py` |
 | Parseability, date-format, balance, and template contracts | `tests/tooling/test_pdf_fixture_*.py` |
-| Real PDF exclusion and sensitive-output policy | `.gitignore`, `tools/_lib/pdf_fixtures/.gitignore`, tests |
+| Real PDF exclusion and sensitive-output policy | `.gitignore`, `common/testing/fixtures/pdf/.gitignore`, tests |
 
 ## Acceptance Criteria
 
@@ -108,6 +108,6 @@ tests. Fixtures use fictional data; real PDFs stay local and gitignored.
 
 ## Related
 
-- [PDF Fixtures SSOT](../ssot/pdf-fixtures.md)
+- [`testing` package §PDF Fixtures](../../common/testing/README.md#pdf-fixtures)
 - [EPIC-003: Statement Parsing](./EPIC-003.statement-parsing.md)
 - [EPIC-008: Testing Strategy](./EPIC-008.testing-strategy.md)

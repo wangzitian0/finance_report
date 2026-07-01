@@ -11,16 +11,16 @@ import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PDF_FIXTURES = REPO_ROOT / "tools" / "_lib" / "pdf_fixtures"
+PDF_FIXTURES = REPO_ROOT / "common" / "testing" / "fixtures" / "pdf"
 
-from tools._lib.pdf_fixtures.analyzers.template_extractor import (  # noqa: E402
+from common.testing.fixtures.pdf.analyzers.template_extractor import (  # noqa: E402
     TemplateExtractor as SanitizingTemplateExtractor,
 )
-from tools._lib.pdf_fixtures.generators.base_generator import BasePDFGenerator  # noqa: E402
-from tools._lib.pdf_fixtures.generators.cmb_generator import CMBGenerator  # noqa: E402
-from tools._lib.pdf_fixtures.generators.dbs_generator import DBSGenerator  # noqa: E402
-import tools._lib.pdf_fixtures.generators.mari_generator as mari_module  # noqa: E402
-from tools._lib.pdf_fixtures.generators.mari_generator import MariGenerator  # noqa: E402
+from common.testing.fixtures.pdf.generators.base_generator import BasePDFGenerator  # noqa: E402
+from common.testing.fixtures.pdf.generators.cmb_generator import CMBGenerator  # noqa: E402
+from common.testing.fixtures.pdf.generators.dbs_generator import DBSGenerator  # noqa: E402
+import common.testing.fixtures.pdf.generators.mari_generator as mari_module  # noqa: E402
+from common.testing.fixtures.pdf.generators.mari_generator import MariGenerator  # noqa: E402
 
 
 def _load_template(name: str) -> dict:
@@ -161,7 +161,7 @@ def test_AC9_2_2_AC9_2_3_AC9_2_4_generators_load_committed_templates(
     """AC9.2.2 AC9.2.3 AC9.2.4: bank-specific generators load committed templates."""
     if klass is CMBGenerator:
         monkeypatch.setattr(
-            "tools._lib.pdf_fixtures.generators.cmb_generator.register_chinese_fonts",
+            "common.testing.fixtures.pdf.generators.cmb_generator.register_chinese_fonts",
             lambda: None,
         )
 
@@ -174,7 +174,7 @@ def test_AC9_2_2_AC9_2_3_AC9_2_4_generators_load_committed_templates(
 
 def test_AC9_2_7_main_script_registers_all_supported_generators() -> None:
     """AC9.2.7: Main script exposes all committed PDF fixture generators."""
-    from tools._lib.pdf_fixtures import generate_pdf_fixtures
+    from common.testing.fixtures.pdf import generate_pdf_fixtures
 
     text = Path(generate_pdf_fixtures.__file__).read_text()
 
@@ -191,20 +191,19 @@ def test_AC9_2_7_main_script_registers_all_supported_generators() -> None:
 
 
 def test_AC9_4_readmes_document_analysis_generation_templates_and_examples() -> None:
-    """AC9.4.1 AC9.4.2 AC9.4.3 AC9.4.4: MkDocs SSOT owns fixture docs."""
+    """AC9.4.1 AC9.4.2 AC9.4.3 AC9.4.4: the `testing` package README owns fixture docs."""
     analyzer_readme = (PDF_FIXTURES / "analyzers" / "README.md").read_text()
     tool_readme = (PDF_FIXTURES / "README.md").read_text()
     font_entry = (PDF_FIXTURES / "FONT_HANDLING.md").read_text()
-    ssot = (REPO_ROOT / "docs" / "ssot" / "pdf-fixtures.md").read_text()
-    mkdocs = (REPO_ROOT / "mkdocs.yml").read_text()
+    ssot = (REPO_ROOT / "common" / "testing" / "README.md").read_text()
     manifest = (REPO_ROOT / "docs" / "ssot" / "MANIFEST.yaml").read_text()
 
     assert "PDF Format Analysis" in analyzer_readme
     assert "python tools/analyze_pdf_fixture.py" in analyzer_readme
     assert "must stay local" in analyzer_readme
     assert "format-only metadata" in analyzer_readme
-    assert "docs/ssot/pdf-fixtures.md" in tool_readme
-    assert "docs/ssot/pdf-fixtures.md#font-fallback" in font_entry
+    assert "common/testing/README.md#pdf-fixtures" in tool_readme
+    assert "common/testing/README.md#pdf-fixtures" in font_entry
     assert "Generate Test PDFs" in ssot
     assert "Analyze Real PDFs" in ssot
     assert "python tools/analyze_pdf_fixture.py" in ssot
@@ -212,8 +211,7 @@ def test_AC9_4_readmes_document_analysis_generation_templates_and_examples() -> 
     assert "templates/*.yaml" in ssot
     assert "input/" in ssot and "gitignored" in ssot
     assert "register_chinese_fonts()" in ssot
-    assert "PDF Fixtures: ssot/pdf-fixtures.md" in mkdocs
-    assert "owner: docs/ssot/pdf-fixtures.md" in manifest
+    assert "owner: common/testing/README.md#pdf-fixtures" in manifest
 
 
 def test_AC9_5_git_contract_tracks_safe_sources_only() -> None:
@@ -243,7 +241,7 @@ def test_AC9_6_1_AC9_6_2_generators_preserve_template_source_identity(
 ) -> None:
     """AC9.6.1 AC9.6.2: DBS and CMB generators load their own source templates."""
     monkeypatch.setattr(
-        "tools._lib.pdf_fixtures.generators.cmb_generator.register_chinese_fonts",
+        "common.testing.fixtures.pdf.generators.cmb_generator.register_chinese_fonts",
         lambda: None,
     )
 
@@ -282,14 +280,14 @@ def test_AC9_6_3_cmb_generator_uses_registered_chinese_font(
             captured_table_styles.append(style)
 
     monkeypatch.setattr(
-        "tools._lib.pdf_fixtures.generators.cmb_generator.register_chinese_fonts",
+        "common.testing.fixtures.pdf.generators.cmb_generator.register_chinese_fonts",
         lambda: "ChineseFont",
     )
     monkeypatch.setattr(
-        "tools._lib.pdf_fixtures.generators.cmb_generator.Paragraph", FakeParagraph
+        "common.testing.fixtures.pdf.generators.cmb_generator.Paragraph", FakeParagraph
     )
     monkeypatch.setattr(
-        "tools._lib.pdf_fixtures.generators.cmb_generator.Table", FakeTable
+        "common.testing.fixtures.pdf.generators.cmb_generator.Table", FakeTable
     )
     monkeypatch.setattr(
         CMBGenerator, "create_document", lambda self, output_path: FakeDoc()

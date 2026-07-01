@@ -41,9 +41,31 @@ from src.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Where committed cassettes live. Kept under tests/fixtures so they are reviewed
-# in the diff (the frozen response is visible) and never shipped in the app image.
-CASSETTE_DIR = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "llm_cassettes"
+
+def _find_cassette_dir() -> Path:
+    """Locate ``common/testing/fixtures/llm_cassettes`` from the repo root.
+
+    Cassettes live under the `testing` package's fixture home so they are
+    reviewed in the diff (the frozen response is visible) — deliberately
+    **outside** ``apps/backend``, so the Docker build (``COPY src ./src`` only,
+    no ``common/``) never ships them. That means this module also loads inside
+    the built image, where there is no monorepo root above ``/app`` to find:
+    walk upward bounded by the filesystem root (never past it, unlike a fixed
+    ``parents[N]``) and fall back to a sentinel that simply has no cassettes.
+    ``off`` mode (the image's runtime default) never reads this path; only the
+    full-checkout CI/local ``replay``/``record`` paths do.
+    """
+    for ancestor in Path(__file__).resolve().parents:
+        candidate = ancestor / "common" / "testing" / "fixtures" / "llm_cassettes"
+        if candidate.is_dir():
+            return candidate
+    return Path(__file__).resolve().parent / "_no_cassettes_in_this_image"
+
+
+# Where committed cassettes live: the `testing` package's fixture home, so they
+# are reviewed in the diff (the frozen response is visible) and never shipped in
+# the app image.
+CASSETTE_DIR = _find_cassette_dir()
 
 # Env var selecting the mode; CI defaults to replay, local dev to off.
 CASSETTE_MODE_ENV = "LLM_CASSETTE_MODE"

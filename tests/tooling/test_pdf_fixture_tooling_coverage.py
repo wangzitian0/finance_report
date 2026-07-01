@@ -10,18 +10,18 @@ from types import SimpleNamespace
 
 import pytest
 
-from tools._lib.pdf_fixtures.analyzers import analyze_pdf as analyze_pdf_cli
-from tools._lib.pdf_fixtures.analyzers.pdf_analyzer import PDFAnalyzer, TemplateExtractor
-from tools._lib.pdf_fixtures.data.fake_data import (
+from common.testing.fixtures.pdf.analyzers import analyze_pdf as analyze_pdf_cli
+from common.testing.fixtures.pdf.analyzers.pdf_analyzer import PDFAnalyzer, TemplateExtractor
+from common.testing.fixtures.pdf.data.fake_data import (
     generate_cmb_transactions,
     generate_dbs_transactions,
     generate_mari_transactions,
     generate_moomoo_transactions,
     generate_pingan_transactions,
 )
-from tools._lib.pdf_fixtures import generate_pdf_fixtures
-from tools._lib.pdf_fixtures.generators import font_utils
-from tools._lib.pdf_fixtures.validators.pdf_validator import PDFValidator
+from common.testing.fixtures.pdf import generate_pdf_fixtures
+from common.testing.fixtures.pdf.generators import font_utils
+from common.testing.fixtures.pdf.validators.pdf_validator import PDFValidator
 
 
 class _FakePdf:
@@ -48,7 +48,7 @@ def test_AC9_1_1_analyzer_extracts_page_table_and_text_positions(
         extract_text=lambda: "Statement Period\nTransaction Details\nBalance",
     )
     monkeypatch.setattr(
-        "tools._lib.pdf_fixtures.analyzers.pdf_analyzer.pdfplumber.open",
+        "common.testing.fixtures.pdf.analyzers.pdf_analyzer.pdfplumber.open",
         lambda _path: _FakePdf([page]),
     )
 
@@ -69,7 +69,7 @@ def test_AC9_1_1_analyzer_rejects_unreadable_pdf(
         raise RuntimeError("cannot parse")
 
     monkeypatch.setattr(
-        "tools._lib.pdf_fixtures.analyzers.pdf_analyzer.pdfplumber.open",
+        "common.testing.fixtures.pdf.analyzers.pdf_analyzer.pdfplumber.open",
         raise_open,
     )
 
@@ -112,7 +112,7 @@ def test_AC9_3_1_validator_reports_page_table_and_key_phrase_findings(
         extract_text=lambda: "Account Summary",
     )
     monkeypatch.setattr(
-        "tools._lib.pdf_fixtures.validators.pdf_validator.pdfplumber.open",
+        "common.testing.fixtures.pdf.validators.pdf_validator.pdfplumber.open",
         lambda _path: _FakePdf([page]),
     )
 
@@ -147,7 +147,7 @@ def test_AC9_3_1_validator_fails_empty_and_unreadable_pdfs(
 ) -> None:
     """AC9.3.1: Empty or unreadable PDFs fail validation explicitly."""
     monkeypatch.setattr(
-        "tools._lib.pdf_fixtures.validators.pdf_validator.pdfplumber.open",
+        "common.testing.fixtures.pdf.validators.pdf_validator.pdfplumber.open",
         lambda _path: _FakePdf([]),
     )
     empty_result = PDFValidator().validate_structure(Path("empty.pdf"), {})
@@ -158,7 +158,7 @@ def test_AC9_3_1_validator_fails_empty_and_unreadable_pdfs(
         raise RuntimeError("boom")
 
     monkeypatch.setattr(
-        "tools._lib.pdf_fixtures.validators.pdf_validator.pdfplumber.open",
+        "common.testing.fixtures.pdf.validators.pdf_validator.pdfplumber.open",
         raise_open,
     )
     bad_result = PDFValidator().validate_structure(Path("bad.pdf"), {})
@@ -174,7 +174,7 @@ def test_AC9_3_1_validator_compares_real_and_generated_structure(
     generated_page = SimpleNamespace(extract_tables=lambda: [])
     opened = iter([_FakePdf([real_page, real_page]), _FakePdf([generated_page])])
     monkeypatch.setattr(
-        "tools._lib.pdf_fixtures.validators.pdf_validator.pdfplumber.open",
+        "common.testing.fixtures.pdf.validators.pdf_validator.pdfplumber.open",
         lambda _path: next(opened),
     )
 
@@ -194,7 +194,7 @@ def test_AC9_3_1_validator_reports_compare_errors(
         raise RuntimeError("compare failed")
 
     monkeypatch.setattr(
-        "tools._lib.pdf_fixtures.validators.pdf_validator.pdfplumber.open",
+        "common.testing.fixtures.pdf.validators.pdf_validator.pdfplumber.open",
         raise_open,
     )
 
@@ -414,12 +414,12 @@ def test_AC9_7_1_AC9_7_2_main_generates_all_sources_with_default_output(
 
         return FakeGenerator
 
-    import tools._lib.pdf_fixtures.generators.cmb_generator as cmb_module
-    import tools._lib.pdf_fixtures.generators.dbs_generator as dbs_module
-    import tools._lib.pdf_fixtures.generators.futu_generator as futu_module
-    import tools._lib.pdf_fixtures.generators.mari_generator as mari_module
-    import tools._lib.pdf_fixtures.generators.moomoo_generator as moomoo_module
-    import tools._lib.pdf_fixtures.generators.pingan_generator as pingan_module
+    import common.testing.fixtures.pdf.generators.cmb_generator as cmb_module
+    import common.testing.fixtures.pdf.generators.dbs_generator as dbs_module
+    import common.testing.fixtures.pdf.generators.futu_generator as futu_module
+    import common.testing.fixtures.pdf.generators.mari_generator as mari_module
+    import common.testing.fixtures.pdf.generators.moomoo_generator as moomoo_module
+    import common.testing.fixtures.pdf.generators.pingan_generator as pingan_module
 
     monkeypatch.setattr(cmb_module, "CMBGenerator", make_generator("cmb"))
     monkeypatch.setattr(dbs_module, "DBSGenerator", make_generator("dbs"))
@@ -497,7 +497,7 @@ def test_AC9_7_1_main_reports_generator_errors(
     )
 
     # Patch the imported class inside the real generators module path used by main().
-    import tools._lib.pdf_fixtures.generators.dbs_generator as dbs_module
+    import common.testing.fixtures.pdf.generators.dbs_generator as dbs_module
 
     monkeypatch.setattr(dbs_module, "DBSGenerator", BrokenGenerator)
 

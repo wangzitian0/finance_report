@@ -137,6 +137,22 @@ verifiable.
 > defines none of them — the contract is the single definition source. This is
 > the precedent: a package's ACs live in its contract, never duplicated.
 
+### AC-testing — Package model: the `testing` package (test/fixture-scoped capability)
+
+> The `testing` package (test/fixture-scoped capability code reused across
+> backend, tooling, and E2E tests — AC evidence, fixture VOs, and the relocated
+> LLM cassette + PDF fixture corpus) is specified by
+> [`common/testing/README.md`](../../common/testing/README.md) +
+> [`common/testing/contract.py`](../../common/testing/contract.py).
+>
+> **`AC-testing.1.1` is NOT defined here.** It is owned by, and sourced directly
+> from, `common/testing/contract.py`'s `roadmap`;
+> `common/ssot/generate_ac_registry.py` reads package-contract roadmaps
+> additively, so the AC index counts it without an EPIC-table mirror. This
+> blockquote references the ID (keeping the registry↔EPIC link intact) but
+> defines none of it — the contract is the single definition source, per the
+> `counter` precedent above.
+
 ### AC-platform — Platform: domain EventBus via the transactional outbox (meta-layer capability #1)
 
 > The first *runtime* capability of the meta layer: a domain **EventBus

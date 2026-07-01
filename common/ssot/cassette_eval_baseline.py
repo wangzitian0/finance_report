@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_BASELINE = REPO_ROOT / "docs" / "ssot" / "cassette-eval-baseline.jsonl"
+DEFAULT_BASELINE = REPO_ROOT / "common" / "testing" / "fixtures" / "cassette-eval-baseline.jsonl"
 
 BASELINE_VERSION = 1
 

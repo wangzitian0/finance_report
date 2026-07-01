@@ -1,6 +1,6 @@
 # Moomoo SG Brokerage PDF Format Template
 # Extracted format information only (no sensitive data)
-# This template can be refined by running: python tools/analyze_pdf_fixture.py --input tools/_lib/pdf_fixtures/input/real_pdf.pdf --output tools/_lib/pdf_fixtures/templates/moomoo_template.yaml --source moomoo
+# This template can be refined by running: python tools/analyze_pdf_fixture.py --input common/testing/fixtures/pdf/input/real_pdf.pdf --output common/testing/fixtures/pdf/templates/moomoo_template.yaml --source moomoo
 
 source: moomoo
 
