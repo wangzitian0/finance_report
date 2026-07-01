@@ -10,13 +10,13 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit.quantity import Quantity
 from src.config import settings
 from src.models.account import Account
 from src.models.journal import JournalEntry, JournalLine
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
 from src.models.market_data import FxRate, MarketDataSyncState, StockPrice
-from src.quantity import Quantity
 from src.services.market_data._base import (
     _FRESHNESS_THRESHOLD,
     MARKET_DATA_QUANTITY_UNIT,

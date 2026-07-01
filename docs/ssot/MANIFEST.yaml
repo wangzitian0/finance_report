@@ -33,21 +33,21 @@ concepts:
       - apps/backend/tests/accounting/test_decimal_safety.py
     proofs:
       - apps/backend/tests/accounting/test_decimal_safety.py
-      - apps/backend/tests/money/test_money.py
+      - apps/backend/tests/audit/money/test_money.py
 
   money_value_type:
-    owner: common/money/readme.md#money-type
-    description: Money/Currency/ExchangeRate/convert/CurrencyBalances value types in common/money/ make bad money states unrepresentable (#1167).
+    owner: common/audit/money/readme.md#money-type
+    description: Money/Currency/ExchangeRate/convert/CurrencyBalances value types in common/audit/money/ make bad money states unrepresentable (#1167).
     family: accounting
     kind: concept
     authority: documented_contract
     cross_refs:
       - docs/project/EPIC-002.double-entry-core.md
-      - common/money/__init__.py
-      - common/money/contract/money.contract.md
-      - common/money/conformance/vectors.json
-      - apps/backend/src/money/__init__.py
-      - apps/frontend/src/lib/money/index.ts
+      - common/audit/money/__init__.py
+      - common/audit/money/contract/money.contract.md
+      - common/audit/money/conformance/vectors.json
+      - apps/backend/src/audit/money/__init__.py
+      - apps/frontend/src/lib/audit/money/index.ts
     proofs:
       - tests/tooling/test_money_value_type.py
       - tests/tooling/test_money_conformance.py
@@ -59,16 +59,16 @@ concepts:
     kind: concept
     authority: documented_contract
     cross_refs:
-      - common/ratio/__init__.py
-      - common/ratio/contract/ratio.contract.md
-      - common/ratio/conformance/vectors.json
-      - common/quantity/__init__.py
-      - common/quantity/contract/quantity.contract.md
-      - common/quantity/conformance/vectors.json
-      - apps/backend/src/ratio/__init__.py
-      - apps/backend/src/quantity/__init__.py
-      - apps/frontend/src/lib/ratio/index.ts
-      - apps/frontend/src/lib/quantity/index.ts
+      - common/audit/ratio/__init__.py
+      - common/audit/ratio/contract/ratio.contract.md
+      - common/audit/ratio/conformance/vectors.json
+      - common/audit/quantity/__init__.py
+      - common/audit/quantity/contract/quantity.contract.md
+      - common/audit/quantity/conformance/vectors.json
+      - apps/backend/src/audit/ratio/__init__.py
+      - apps/backend/src/audit/quantity/__init__.py
+      - apps/frontend/src/lib/audit/ratio/index.ts
+      - apps/frontend/src/lib/audit/quantity/index.ts
       - docs/project/EPIC-012.foundation-libs.md
     proofs:
       - tests/tooling/test_ratio_value_type.py

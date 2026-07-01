@@ -15,7 +15,15 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "apps" / "backend"))
 
+# The processing-account verbs were folded into the ledger package (#1420 slice 3b):
+# the pure scoring policy lives in ``src.ledger.base.processing`` and the impure
+# DB verbs in ``src.ledger.extension.processing``. ``processing_account_module`` is
+# the extension module so ``patch.object(..., "get_or_create_processing_account")``
+# intercepts the in-module acquisition the verbs call.
+import src.ledger.extension.processing as processing_account_module  # noqa: E402
 import src.models._registry  # noqa: E402, F401  -- register all ORM mappers before relationship config
+from src.audit.money import Money  # noqa: E402
+from src.ledger.base.processing import _calculate_pair_confidence  # noqa: E402
 from src.models.account import Account, AccountType  # noqa: E402
 from src.models.journal import (  # noqa: E402
     Direction,
@@ -24,16 +32,6 @@ from src.models.journal import (  # noqa: E402
     JournalEntryStatus,
     JournalLine,
 )
-from src.money import Money  # noqa: E402
-
-
-# The processing-account verbs were folded into the ledger package (#1420 slice 3b):
-# the pure scoring policy lives in ``src.ledger.base.processing`` and the impure
-# DB verbs in ``src.ledger.extension.processing``. ``processing_account_module`` is
-# the extension module so ``patch.object(..., "get_or_create_processing_account")``
-# intercepts the in-module acquisition the verbs call.
-import src.ledger.extension.processing as processing_account_module  # noqa: E402
-from src.ledger.base.processing import _calculate_pair_confidence  # noqa: E402
 
 find_transfer_pairs = processing_account_module.find_transfer_pairs
 get_processing_balance = processing_account_module.get_processing_balance

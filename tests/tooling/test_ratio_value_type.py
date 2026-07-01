@@ -1,16 +1,17 @@
 """Ratio value-type behavioural proofs (EPIC-012 AC12.9, #1167 base-package family).
 
-Exercises the ``common.ratio`` narrow waist: construction (rejects float),
+Exercises the ``common.audit.ratio`` narrow waist: construction (rejects float),
 ``fraction`` (zero-whole undefined), the single percent-display policy
 (2 dp / HALF_UP), and dimensionless arithmetic.
 
-Contract: ``common/ratio/contract/ratio.contract.md``.
+Contract: ``common/audit/ratio/contract/ratio.contract.md``.
 """
 
 from decimal import ROUND_HALF_EVEN, Decimal
 
 import pytest
-from common.ratio import (
+
+from common.audit.ratio import (
     PERCENT_DP,
     PERCENT_ROUNDING,
     FloatNotAllowedError,

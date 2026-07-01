@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { apiFetch } from "@/lib/api";
-import { compareAmounts } from "@/lib/money";
+import { compareAmounts } from "@/lib/audit/money";
 import { Account } from "@/lib/types";
 
 interface OpeningBalanceModalProps {

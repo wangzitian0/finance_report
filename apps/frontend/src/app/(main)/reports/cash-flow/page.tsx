@@ -11,7 +11,7 @@ import { ReportToolbar } from "@/components/reports/ReportToolbar";
 import { ExportCsvButton } from "@/components/reports/ExportCsvButton";
 import { CurrencyFilterControl, DateFilterControl } from "@/components/reports/ReportFilters";
 import { formatDateInput } from "@/lib/date";
-import { compareAmounts, formatCurrencyLocale, toDecimal } from "@/lib/money";
+import { compareAmounts, formatCurrencyLocale, toDecimal } from "@/lib/audit/money";
 import { useCurrencies } from "@/hooks/useCurrencies";
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { useReportFilters } from "@/hooks/useReportFilters";

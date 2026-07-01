@@ -1,8 +1,8 @@
 "use client";
 
-import { compareAmounts, formatCurrencyLocale } from "@/lib/money";
+import { compareAmounts, formatCurrencyLocale } from "@/lib/audit/money";
 import { computeMarketValuePerformance } from "@/lib/portfolioPerformance";
-import { formatSignedPercentFromPercentValue } from "@/lib/ratio/format";
+import { formatSignedPercentFromPercentValue } from "@/lib/audit/ratio/format";
 import type { InvestmentPerformanceReportSchedule } from "@/lib/types";
 
 function amountClass(value: string | null): string {

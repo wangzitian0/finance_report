@@ -52,7 +52,7 @@ def test_AC12_9_3_backend_percentage_call_sites_route_through_ratio():
     """AC12.9.3: targeted backend percentage files use Ratio, not manual percent math."""
     for path in BACKEND_RATIO_ADOPTION_FILES:
         src = _read(path)
-        assert "from src.ratio import Ratio" in src, f"{path} must import Ratio"
+        assert "from src.audit.ratio import Ratio" in src, f"{path} must import Ratio"
         assert (
             "Ratio.fraction(" in src
             or "Ratio.fraction_or_zero(" in src
@@ -114,7 +114,7 @@ def test_AC12_9_3_backend_adoption_keeps_ratio_typed_until_boundary():
 )
 def test_AC12_9_3_frontend_percentage_call_sites_use_ratio_helpers():
     """AC12.9.3: targeted frontend percentage files use ratio formatting helpers."""
-    helper_import = "@/lib/ratio/format"
+    helper_import = "@/lib/audit/ratio/format"
     for path in FRONTEND_RATIO_ADOPTION_FILES:
         src = _read(path)
         assert helper_import in src, f"{path} must use the shared ratio format helpers"

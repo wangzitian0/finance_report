@@ -9,6 +9,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit.money import to_money
 from src.config import settings
 from src.models.account import Account, AccountType
 from src.models.consistency_check import CheckStatus, ConsistencyCheck
@@ -21,7 +22,6 @@ from src.models.portfolio import DividendIncome, MarketDataOverride
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
-from src.money import to_money
 from src.schemas.reporting import (
     FrameworkPolicyResult,
     PersonalReportingFrameworkId,

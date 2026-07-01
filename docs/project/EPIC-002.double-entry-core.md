@@ -113,7 +113,7 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 > The two Money *leftovers* whose anchor test proves a money-package statement — the
 > net-worth restatement via the `convert` primitive and the narrow-waist `float`-ban
 > guard — have since migrated into the `money` package roadmap, owned by and sourced
-> from [`common/money/contract.py`](../../common/money/contract.py); their EPIC-002
+> from [`common/audit/money/contract.py`](../../common/audit/money/contract.py); their EPIC-002
 > table rows are deleted.
 >
 > **Money leftovers** (net-worth restatement + narrow-waist `float`-ban guard, was
@@ -424,9 +424,9 @@ extension adds an **application-layer value type** above the DB double-entry
 invariant floor (AC2.14): one authoritative `Money` type, a validated `Currency`,
 a single `convert()` FX primitive, and a per-currency `CurrencyBalances`
 container — so bad money states become *unrepresentable*, not merely
-tested-against. Contract: [common/money/readme.md#money-type](https://github.com/wangzitian0/finance_report/blob/main/common/money/readme.md#money-type).
+tested-against. Contract: [common/audit/money/readme.md#money-type](https://github.com/wangzitian0/finance_report/blob/main/common/audit/money/readme.md#money-type).
 
-The standard is **cross-language**: `common/money/` holds the language-neutral
+The standard is **cross-language**: `common/audit/money/` holds the language-neutral
 **interface** (`contract/money.contract.md`) and **conformance data**
 (`conformance/vectors.json`). The Python reference impl (#1170) and the frontend
 TS impl (#1171's FE sibling) each load the **same** vectors and must reproduce
@@ -462,7 +462,7 @@ banker's-rounding-vs-`decimal.js`-HALF_UP divergence).
 ### AC2.22: Materiality adoption ([#1171](https://github.com/wangzitian0/finance_report/issues/1171))
 
 Route the highest-value call-sites through the value types, behaviour-preserving.
-The backend runs its own shippable `src/money` "end" (mirrors `common/money`, kept
+The backend runs its own shippable `src/money` "end" (mirrors `common/audit/money`, kept
 in lockstep by the shared conformance vectors + the #1172 guard), because the
 backend image does not ship `common/`.
 
@@ -475,14 +475,14 @@ and there is no regression on currencies outside the active ISO set.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC2.22.1 | `StatementSummary.typed_currency_balances()` reads the per-currency JSONB as a typed `CurrencyBalances` (no scalar collapse) | `test_AC2_22_1_statement_summary_typed_currency_balances` | `apps/backend/tests/money/test_money_backend_module.py` | P1 |
-| AC2.22.2 | Reconciliation per-currency balance check routes through same-currency `Money`; per-currency totals are byte-identical to the legacy arithmetic (incl. `"*"`/non-ISO fallback) | `test_AC2_22_2_per_currency_validation_totals_unchanged` (+ `balance_check`) | `apps/backend/tests/money/test_money_adopt.py` | P0 |
-| AC2.22.4 | `TransferLeg.money` exposes a leg's value as a typed `Money` (same-currency-only combination) | `test_AC2_22_4_transfer_leg_exposes_typed_money` | `apps/backend/tests/money/test_money_backend_module.py` | P1 |
+| AC2.22.1 | `StatementSummary.typed_currency_balances()` reads the per-currency JSONB as a typed `CurrencyBalances` (no scalar collapse) | `test_AC2_22_1_statement_summary_typed_currency_balances` | `apps/backend/tests/audit/money/test_money_backend_module.py` | P1 |
+| AC2.22.2 | Reconciliation per-currency balance check routes through same-currency `Money`; per-currency totals are byte-identical to the legacy arithmetic (incl. `"*"`/non-ISO fallback) | `test_AC2_22_2_per_currency_validation_totals_unchanged` (+ `balance_check`) | `apps/backend/tests/audit/money/test_money_adopt.py` | P0 |
+| AC2.22.4 | `TransferLeg.money` exposes a leg's value as a typed `Money` (same-currency-only combination) | `test_AC2_22_4_transfer_leg_exposes_typed_money` | `apps/backend/tests/audit/money/test_money_backend_module.py` | P1 |
 
 > **Migrated**: net-worth restatement via the `convert` primitive moved to the `money`
 > package roadmap — its proof is a money-package statement. Owned by, and sourced from,
-> [`common/money/contract.py`](../../common/money/contract.py)'s `roadmap`.
-> *(AC2.22.3 removed — canonical copy is `AC-money.22.3` in `common/money/contract.py`)*
+> [`common/audit/money/contract.py`](../../common/audit/money/contract.py)'s `roadmap`.
+> *(AC2.22.3 removed — canonical copy is `AC-money.22.3` in `common/audit/money/contract.py`)*
 
 > The L2/L3 *score-baseline* promotion of the money invariants stays in #1103.
 > The existing reporting net-worth E2E tests (internal-transfer fee / FX ledger)
@@ -496,8 +496,8 @@ narrow waist cannot silently decay back into ad-hoc money handling.
 
 > **Migrated**: the narrow-waist `float`-ban guard over the money modules moved to the
 > `money` package roadmap — its proof is a money-package statement. Owned by, and
-> sourced from, [`common/money/contract.py`](../../common/money/contract.py)'s `roadmap`.
-> *(AC2.23.1 removed — canonical copy is `AC-money.23.1` in `common/money/contract.py`)*
+> sourced from, [`common/audit/money/contract.py`](../../common/audit/money/contract.py)'s `roadmap`.
+> *(AC2.23.1 removed — canonical copy is `AC-money.23.1` in `common/audit/money/contract.py`)*
 
 ---
 

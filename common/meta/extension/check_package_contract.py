@@ -43,7 +43,7 @@ asserts:
       ``platform.__all__``, so the imports resolve to *published* symbols and are
       allowed (the same exception lets ``unit_price`` import the published ``Money``
       / ``Quantity`` value types from their defining modules, and how ``money`` /
-      ``quantity`` import the published ``Ratio`` via its root ``from src.ratio
+      ``quantity`` import the published ``Ratio`` via its root ``from src.audit.ratio
       import Ratio``). The rule rejects imports of *unpublished* internals (including
       a root import of a submodule), not paths to published symbols — so no current
       package regresses.

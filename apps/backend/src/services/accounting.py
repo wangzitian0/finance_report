@@ -43,9 +43,9 @@ async def post_opening_balance_entry(
     """
     # Imported lazily so importing this module stays free of the FastAPI/util
     # dependency graph (tooling tests import accounting without those installed).
+    from src.audit.money import Money, to_money
+    from src.audit.money.currency import normalize_currency_code
     from src.ledger import Entry, Leg
-    from src.money import Money, to_money
-    from src.money.currency import normalize_currency_code
     from src.services.account_service import get_or_create_opening_balance_equity_account
 
     if not balances:

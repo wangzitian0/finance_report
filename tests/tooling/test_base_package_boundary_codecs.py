@@ -8,6 +8,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
+
 from common.testing.ac_proof import ac_proof
 
 REPO = Path(__file__).resolve().parents[2]
@@ -29,9 +30,8 @@ def _ensure_backend_src_importable() -> None:
 )
 def test_AC12_31_4_common_boundary_codecs_round_trip_strings_and_db_fields():
     """AC12.31.4: common base packages own JSON-string and DB Decimal codecs."""
-    from common.money import (
+    from common.audit.money import (
         ExchangeRate,
-        FloatNotAllowedError as MoneyFloatNotAllowedError,
         InvalidMoneyPayloadError,
         Money,
         exchange_rate_from_db_fields,
@@ -43,8 +43,13 @@ def test_AC12_31_4_common_boundary_codecs_round_trip_strings_and_db_fields():
         money_to_db_fields,
         money_to_wire,
     )
-    from common.quantity import (
+    from common.audit.money import (
+        FloatNotAllowedError as MoneyFloatNotAllowedError,
+    )
+    from common.audit.quantity import (
         FloatNotAllowedError as QuantityFloatNotAllowedError,
+    )
+    from common.audit.quantity import (
         InvalidQuantityPayloadError,
         Quantity,
         quantity_from_db_fields,
@@ -52,8 +57,10 @@ def test_AC12_31_4_common_boundary_codecs_round_trip_strings_and_db_fields():
         quantity_to_db_fields,
         quantity_to_wire,
     )
-    from common.ratio import (
+    from common.audit.ratio import (
         FloatNotAllowedError as RatioFloatNotAllowedError,
+    )
+    from common.audit.ratio import (
         InvalidRatioPayloadError,
         Ratio,
         ratio_from_db_value,
@@ -131,7 +138,7 @@ def test_AC12_31_4_common_boundary_codecs_round_trip_strings_and_db_fields():
 def test_AC12_31_4_backend_boundary_codecs_match_common_surface():
     """AC12.31.4: backend runtime copies expose the same boundary codec surface."""
     _ensure_backend_src_importable()
-    from src.money import (
+    from src.audit.money import (
         ExchangeRate,
         Money,
         exchange_rate_from_db_fields,
@@ -143,14 +150,14 @@ def test_AC12_31_4_backend_boundary_codecs_match_common_surface():
         money_to_db_fields,
         money_to_wire,
     )
-    from src.quantity import (
+    from src.audit.quantity import (
         Quantity,
         quantity_from_db_fields,
         quantity_from_wire,
         quantity_to_db_fields,
         quantity_to_wire,
     )
-    from src.ratio import (
+    from src.audit.ratio import (
         Ratio,
         ratio_from_db_value,
         ratio_from_wire,
@@ -192,17 +199,17 @@ def test_AC12_31_4_backend_boundary_codecs_match_common_surface():
 def test_AC12_31_4_wire_codecs_are_declared_in_shared_api():
     """AC12.31.4: language-neutral vectors declare the cross-end wire codec surface."""
     money_api = set(
-        json.loads((REPO / "common/money/conformance/vectors.json").read_text())[
+        json.loads((REPO / "common/audit/money/conformance/vectors.json").read_text())[
             "shared_api"
         ]
     )
     ratio_api = set(
-        json.loads((REPO / "common/ratio/conformance/vectors.json").read_text())[
+        json.loads((REPO / "common/audit/ratio/conformance/vectors.json").read_text())[
             "shared_api"
         ]
     )
     quantity_api = set(
-        json.loads((REPO / "common/quantity/conformance/vectors.json").read_text())[
+        json.loads((REPO / "common/audit/quantity/conformance/vectors.json").read_text())[
             "shared_api"
         ]
     )

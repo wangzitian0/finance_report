@@ -1,5 +1,5 @@
 import { BankStatement, BankStatementTransaction } from "@/lib/types";
-import { formatCurrencyLocale } from "@/lib/money";
+import { formatCurrencyLocale } from "@/lib/audit/money";
 import { StatusBadge } from "@/components/ui";
 
 interface StatementTransactionsTableProps {

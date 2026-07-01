@@ -13,16 +13,21 @@ confidence / provenance, trace records). ``audit.extension`` will then reach the
 financial flow (``ledger`` / ``extraction`` / ``portfolio`` / ``reporting``) to
 assert global numeric correctness (issue #1419, umbrella #1416; closeout #1429).
 
-Scope of THIS contract (the low-risk first fold — see ``readme.md`` §Migration
-state):
+Scope of THIS contract (the physical fold — see ``readme.md`` §Migration state):
 
-* **Declares the Shared Kernel as audit's value-object ``units``.** The four value
-  packages (``money`` / ``ratio`` / ``quantity`` / ``unit_price``) remain the
-  canonical cross-runtime reference (``common/<pkg>`` + BE/FE mirrors +
-  ``conformance/vectors.json``) — their code is **not** physically relocated, which
-  is the correct model: they ARE the Shared-Kernel reference (see
-  ``common/meta/migration-standard.md`` "project-level contract"). ``audit``
-  declares them as the value language it governs.
+* **The four value packages are physically folded into ``audit``.** ``money`` /
+  ``ratio`` / ``quantity`` / ``unit_price`` now live as ``common/audit/<domain>``
+  + ``apps/backend/src/audit/<domain>`` + ``apps/frontend/src/lib/audit/<domain>``
+  (where a frontend mirror exists), each still the canonical cross-runtime
+  reference (``conformance/vectors.json`` unchanged in content, only relocated).
+  A prior version of this contract argued non-relocation was "the correct
+  model" — that was superseded (issue #1419, 2026-07-01): the four packages'
+  colliding symbol names (``FloatNotAllowedError`` etc., independently defined in
+  every domain) make a flat merge unsafe, so each domain stays an internal
+  **submodule** of ``audit`` (``audit.money``, ``audit.ratio``, ...) rather than
+  flattening everything into one namespace. Only the 10 non-colliding
+  value-object classes are re-exported flat at ``audit``'s root — exactly the
+  ``units`` this contract already declared.
 * **Pins the number-governor invariants to the existing conformance tests.** Each
   ``invariants[].test`` resolves to a real, already-green conformance/guard test,
   so the gate proves audit's numeric guarantees against the SAME vectors that keep
@@ -35,27 +40,35 @@ ACs are registry-tracked and wired into ``@ac_proof`` edges, the per-type
 PROTECTION count floor (``docs/ssot/protection-floor.json``), the tier baseline,
 and the BE/FE traceability references; re-homing them must rename every such
 reference atomically to avoid lowering the protection floor — so it is its own
-cutover, not bundled here. ``roadmap`` is therefore empty for now, exactly as the
-``money`` contract documents for the same reason (no AC may live in both an EPIC
-table and a package roadmap; ``check_epic_package_dual`` enforces it).
+cutover, not bundled here (issue #1419 step 2/3). ``roadmap`` is therefore empty
+for now — no AC may live in both an EPIC table and a package roadmap
+(``check_epic_package_dual`` enforces it).
 
 This file is the machine contract the governance gate
 (``tools/check_package_contract.py``) validates: ``interface`` == the BE
-implementation's ``__all__`` (audit has no BE implementation yet, so its interface
-is empty), and every ``invariants[].test`` resolves to a real test function.
+implementation's ``__all__`` (the 10 value-object classes re-exported flat at
+``apps/backend/src/audit/__init__.py``), and every ``invariants[].test`` resolves
+to a real test function.
 """
 
 from __future__ import annotations
 
-from common.meta.package_contract import Invariant, Kind, PackageContract, Unit
+from common.meta.package_contract import (
+    ACRecord,
+    Invariant,
+    Kind,
+    PackageContract,
+    Unit,
+)
 
 CONTRACT = PackageContract(
     name="audit",
-    # platform: the number governor, a governing peer to ``meta`` (also platform).
-    # It declares the value language as its units but imports none of it (its base
-    # depends on nothing, per the migration-standard package table), so depends_on
-    # is empty and no dependency edge or cycle is introduced.
-    klass="platform",
+    # kernel: audit now physically hosts the value-object family it governs (the
+    # four folded domains), matching what each of them declared before the fold
+    # (``klass="kernel"``). depends_on stays empty: the domains depend on each
+    # other internally (an implementation detail within audit), not on anything
+    # outside audit.
+    klass="kernel",
     status="active",
     # The number governor is deterministic value-language + invariant checking, no
     # LLM: a pure-code (CODE-ONLY) package, like ``meta`` and the value packages.
@@ -80,11 +93,27 @@ CONTRACT = PackageContract(
         Unit(name="Unit", kind=Kind.VALUE_OBJECT),
         Unit(name="UnitPrice", kind=Kind.VALUE_OBJECT),
     ],
-    # No BE/FE implementation of its own yet: audit is governance-only at this
-    # stage (the value language runs in the value packages' mirrors). An empty
-    # interface against a missing BE implementation is accepted by the gate.
-    implementations={"be": None, "fe": None},
-    interface=[],
+    implementations={
+        "be": "apps/backend/src/audit",
+        "fe": "apps/frontend/src/lib/audit",
+    },
+    # The 10 value-object classes re-exported flat at the BE root (matches
+    # ``units`` above exactly). Each domain's errors / wire codecs / helpers are
+    # NOT part of this flat interface (several names collide across domains,
+    # e.g. FloatNotAllowedError) — reach those via the domain submodule
+    # (``src.audit.money``, ``src.audit.ratio``, ...).
+    interface=[
+        "Money",
+        "Currency",
+        "ExchangeRate",
+        "MoneyTolerance",
+        "CurrencyBalance",
+        "CurrencyBalances",
+        "Ratio",
+        "Quantity",
+        "Unit",
+        "UnitPrice",
+    ],
     events=[],
     # The number-governor guarantees, each pinned to an existing, already-green
     # conformance/guard test (the SAME vectors that keep the BE/FE value mirrors in
@@ -158,5 +187,41 @@ CONTRACT = PackageContract(
             ),
         ),
     ],
-    roadmap=[],
+    # The two EPIC-002 money leftovers whose proof is a money-package statement
+    # (not a pure value-type statement — those ACs, AC2.19/2.20/2.21, stay in
+    # EPIC-002 per the invariants[].test edges above and move in step 2 of
+    # #1419). These two previously lived in the now-deleted money/contract.py's
+    # roadmap; money folding into audit means audit is their new single home —
+    # not deferred, just following the code that already owned them.
+    roadmap=[
+        ACRecord(
+            id="AC-money.22.3",
+            statement=(
+                "Reporting net-worth restatement routes through the convert primitive "
+                "(restate / restate_unrounded); restated totals are byte-identical to "
+                "to_money(amount*rate) / amount*rate. Was EPIC-002 AC2.22.3."
+            ),
+            test=(
+                "apps/backend/tests/audit/money/test_money_adopt.py"
+                "::test_AC2_22_3_restate_is_byte_identical"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-money.23.1",
+            statement=(
+                "The narrow-waist guard flags a money-shaped float violation on an "
+                "injected sample and reports none on the real money modules; each stack "
+                "(Python reference, shipped backend, frontend) keeps a conformance "
+                "suite. Was EPIC-002 AC2.23.1."
+            ),
+            test=(
+                "tests/tooling/test_money_narrow_waist_guard.py"
+                "::test_AC2_23_1_guard_flags_injected_float_violation"
+            ),
+            priority="P0",
+            status="done",
+        ),
+    ],
 )

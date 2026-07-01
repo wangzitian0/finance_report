@@ -18,8 +18,8 @@ import {
   formatCurrencyLocale,
   subtractAmounts,
   toDecimal,
-} from "@/lib/money";
-import { percentNumberFromParts } from "@/lib/ratio/format";
+} from "@/lib/audit/money";
+import { percentNumberFromParts } from "@/lib/audit/ratio/format";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { BarChart } from "@/components/charts/BarChart";
 import { NetWorthTimeSeriesChart } from "@/components/charts/NetWorthTimeSeriesChart";

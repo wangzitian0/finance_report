@@ -3,7 +3,8 @@
 from decimal import Decimal
 
 import pytest
-from common.quantity import (
+
+from common.audit.quantity import (
     QUANTITY_DP,
     QUANTITY_QUANTUM,
     QUANTITY_ROUNDING,
@@ -11,7 +12,7 @@ from common.quantity import (
     Quantity,
     Unit,
 )
-from common.quantity.conformance import load_vectors
+from common.audit.quantity.conformance import load_vectors
 from common.testing.ac_proof import ac_proof
 
 VECTORS = load_vectors()

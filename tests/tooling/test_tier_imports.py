@@ -63,7 +63,7 @@ def test_AC26_7_1_clean_and_lookalike_sources_are_not_flagged() -> None:
     """AC-authority.7.1 (b): clean / look-alike imports are false-positive-free."""
     clean = (
         "from decimal import Decimal\n"
-        "from src.money.money import Money\n"
+        "from src.audit.money.money import Money\n"
         "import src.services.reporting_calc as calc\n"
     )
     assert gate.forbidden_imports_in_source(clean) == []
@@ -80,7 +80,7 @@ def test_AC26_7_1_gate_fails_on_synthetic_violating_tree(tmp_path: Path) -> None
     Build a temp repo whose tree mirrors one protected glob and plant a violating
     import there, then point the gate at it — the real codebase is untouched.
     """
-    money_dir = tmp_path / "apps" / "backend" / "src" / "money"
+    money_dir = tmp_path / "apps" / "backend" / "src" / "audit" / "money"
     money_dir.mkdir(parents=True)
     (money_dir / "money.py").write_text(
         "from src.llm.client import LLMClient\n", encoding="utf-8"
@@ -97,7 +97,7 @@ def test_AC26_7_1_gate_fails_on_synthetic_violating_tree(tmp_path: Path) -> None
 
     assert gate.missing_protected_globs(tmp_path) == []
     found = gate.violations(tmp_path)
-    assert ("apps/backend/src/money/money.py", "src.llm.client", "src.llm") in found
+    assert ("apps/backend/src/audit/money/money.py", "src.llm.client", "src.llm") in found
     assert gate.main(["--repo-root", str(tmp_path)]) == 1
 
 

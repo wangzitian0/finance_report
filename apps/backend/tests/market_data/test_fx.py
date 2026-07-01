@@ -10,9 +10,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit.money import ExchangeRate, Money
 from src.config import settings
 from src.models.market_data import FxRate
-from src.money import ExchangeRate, Money
 from src.services import fx as fx_service, market_data
 from src.services.fx import (
     FxRateError,

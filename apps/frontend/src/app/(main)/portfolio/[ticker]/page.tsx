@@ -7,10 +7,10 @@ import { useState } from "react";
 
 import { apiFetch } from "@/lib/api";
 import { DividendEvent, PortfolioHolding, RealizedLot } from "@/lib/types";
-import { compareAmounts, formatCurrencyLocale } from "@/lib/money";
-import { formatQuantity } from "@/lib/quantity";
+import { compareAmounts, formatCurrencyLocale } from "@/lib/audit/money";
+import { formatQuantity } from "@/lib/audit/quantity";
 import { formatDateDisplay } from "@/lib/date";
-import { formatSignedPercentFromPercentValue } from "@/lib/ratio/format";
+import { formatSignedPercentFromPercentValue } from "@/lib/audit/ratio/format";
 
 function getPnlColor(value: string): string {
   const comparison = compareAmounts(value, "0");

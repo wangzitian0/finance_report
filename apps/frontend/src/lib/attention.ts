@@ -12,7 +12,7 @@ import type {
   ProcessingPendingItem,
   ReconciliationStatsResponse,
 } from "@/lib/types";
-import { percentNumberFromPercentValue } from "@/lib/ratio/format";
+import { percentNumberFromPercentValue } from "@/lib/audit/ratio/format";
 
 export type AttentionKind =
   | "statement_review"

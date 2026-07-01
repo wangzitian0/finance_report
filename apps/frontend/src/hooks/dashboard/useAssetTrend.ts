@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
-import { compareAmounts } from "@/lib/money";
+import { compareAmounts } from "@/lib/audit/money";
 import type { BalanceSheetResponse, TrendResponse } from "@/lib/types";
 
 /**

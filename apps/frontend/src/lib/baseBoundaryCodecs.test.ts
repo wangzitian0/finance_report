@@ -11,21 +11,21 @@ import {
   exchange_rate_to_wire,
   money_from_wire,
   money_to_wire,
-} from "./money";
+} from "./audit/money";
 import {
   FloatNotAllowedError as QuantityFloatNotAllowedError,
   InvalidQuantityPayloadError,
   Quantity,
   quantity_from_wire,
   quantity_to_wire,
-} from "./quantity";
+} from "./audit/quantity";
 import {
   FloatNotAllowedError as RatioFloatNotAllowedError,
   InvalidRatioPayloadError,
   Ratio,
   ratio_from_wire,
   ratio_to_wire,
-} from "./ratio";
+} from "./audit/ratio";
 
 describe("base-package boundary codecs", () => {
   it("test_AC12_31_4_frontend_boundary_codecs_round_trip_json_strings", () => {

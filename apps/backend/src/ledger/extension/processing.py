@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 import src.config
+from src.audit.money import Money
 from src.ledger.base.processing import (
     AUTO_PAIR_THRESHOLD,
     MAX_DATE_DIFF_DAYS,
@@ -42,7 +43,6 @@ from src.ledger.base.processing import (
 from src.ledger.base.types.entry import Entry
 from src.models.account import Account
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
-from src.money import Money
 
 
 async def get_or_create_processing_account(db: AsyncSession, user_id: UUID, currency: str = "SGD") -> Account:

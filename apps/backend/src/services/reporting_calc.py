@@ -18,10 +18,10 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import ClassVar
 
+from src.audit.money import to_money
 from src.config import settings
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntrySourceType, JournalLine
-from src.money import to_money
 from src.schemas.base import normalize_currency_code
 from src.schemas.provenance import DataProvenance
 from src.services.source_type_priority import normalize_source_type

@@ -20,10 +20,10 @@ These files are test infrastructure, not behavior proof.
 |---|---|
 | `apps/backend/tests/__init__.py` | Package marker |
 | `apps/backend/tests/accounting/__init__.py` | Package marker |
-| `apps/backend/tests/money/__init__.py` | Package marker |
-| `apps/backend/tests/quantity/__init__.py` | Package marker |
-| `apps/backend/tests/ratio/__init__.py` | Package marker |
-| `apps/backend/tests/unit_price/__init__.py` | Package marker |
+| `apps/backend/tests/audit/money/__init__.py` | Package marker |
+| `apps/backend/tests/audit/quantity/__init__.py` | Package marker |
+| `apps/backend/tests/audit/ratio/__init__.py` | Package marker |
+| `apps/backend/tests/audit/unit_price/__init__.py` | Package marker |
 | `apps/backend/tests/ledger/__init__.py` | Package marker |
 | `apps/backend/tests/ledger/_ledger_helpers.py` | Published ledger test factory (shared posted/void entry builders) |
 | `tests/tooling/_infra2_source.py` | Shared helper (not a test): resilient resolver for infra2 deploy-primitive source; see #1519 |
@@ -63,7 +63,7 @@ explicit AC IDs for the behavior.
 | Path | Owner |
 |---|---|
 | `tests/tooling/test_smoke_min_checks.py` | `docs/ssot/env_smoke_test.md` |
-| `apps/backend/tests/money/test_money.py` | `common/ledger/readme.md` |
+| `apps/backend/tests/audit/money/test_money.py` | `common/ledger/readme.md` |
 | `apps/backend/tests/ledger/test_processing_account_endpoints.py` | `common/ledger/readme.md` |
 | `apps/backend/tests/api/test_ai_feedback_router_extra.py` | `docs/ssot/ai.md` |
 | `apps/backend/tests/assets/test_assets_positions_and_depreciation.py` | `docs/ssot/assets.md` |

@@ -1,17 +1,18 @@
 """Money value-type behavioural proofs (EPIC-002 AC2.19–AC2.21, #1167 / #1170).
 
-These exercise the ``common.money`` narrow waist: ``Money`` / ``Currency``
+These exercise the ``common.audit.money`` narrow waist: ``Money`` / ``Currency``
 construction invariants, same-currency-only arithmetic, the single ``convert``
 FX primitive, and the per-currency ``CurrencyBalances`` container that makes a
 multi-currency statement inexpressible as a scalar.
 
-Contract: ``common/money/readme.md#money-type``.
+Contract: ``common/audit/money/readme.md#money-type``.
 """
 
 from decimal import ROUND_HALF_EVEN, Decimal
 
 import pytest
-from common.money import (
+
+from common.audit.money import (
     Currency,
     CurrencyBalance,
     CurrencyBalances,
@@ -265,7 +266,7 @@ def test_AC2_21_1_multi_currency_balance_is_not_a_scalar():
 )
 def test_AC2_21_1_balance_rejects_currency_mismatch_and_duplicates():
     """AC2.21.1: a bucket's amounts must match its currency; no duplicate currencies."""
-    from common.money.errors import MoneyError
+    from common.audit.money.errors import MoneyError
 
     # Wrong type for opening/closing fails with a typed MoneyError, not AttributeError.
     with pytest.raises(MoneyError):

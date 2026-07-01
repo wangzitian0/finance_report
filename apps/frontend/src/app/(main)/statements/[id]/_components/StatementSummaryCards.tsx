@@ -1,5 +1,5 @@
 import { BankStatement } from "@/lib/types";
-import { formatCurrencyLocale } from "@/lib/money";
+import { formatCurrencyLocale } from "@/lib/audit/money";
 
 interface StatementSummaryCardsProps {
     statement: BankStatement;

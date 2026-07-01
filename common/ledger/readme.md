@@ -11,7 +11,7 @@
 > ([`../meta/migration-standard.md`](../meta/migration-standard.md), step 3 "SSOT
 > internalized").
 >
-> The **money/currency/FX value kernel is owned by [`common/money`](../money/readme.md)**,
+> The **money/currency/FX value kernel is owned by [`common/audit/money`](../money/readme.md)**,
 > not by ledger; a `Leg` carries a `Money` from that shared kernel. The Money value
 > types (`#money-type`) were internalized into the money package in the same slice.
 >
@@ -131,13 +131,13 @@ produces it anymore.)
     -   **Guardrail**: `apps/backend/tests/accounting/test_decimal_safety.py` fuzzes models with float inputs to ensure strictness.
 
 - **Rule A2 — Canonical money rounding**: Currency amounts are quantized to **2 decimal places using banker's rounding (`ROUND_HALF_EVEN`)**. This is the single project-wide rounding mode for money.
-    -   **Enforcement**: round money through the one helper `src.money.to_money()` (the backend money module; mirrored from `common/money`). Do not hand-roll `quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)` for currency.
+    -   **Enforcement**: round money through the one helper `src.audit.money.to_money()` (the backend money module; mirrored from `common/audit/money`). Do not hand-roll `quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)` for currency.
     -   **Scope**: currency amounts only. Intentionally **out of scope** (they keep their own quantization/rounding): typed `ExchangeRate` values, security prices (6 dp), `Quantity` values (6 dp), and percentages / performance ratios (XIRR, TWR, MWR, allocation %).
-    -   **Guardrail**: `apps/backend/tests/money/test_money.py`.
+    -   **Guardrail**: `apps/backend/tests/audit/money/test_money.py`.
 
 > The **money value types** (`Money` / `Currency` / `ExchangeRate` / `convert` /
 > `CurrencyBalances`) that make these rules type-enforced are the money Shared
-> Kernel, owned by [`common/money/readme.md#money-type`](../money/readme.md#money-type).
+> Kernel, owned by [`common/audit/money/readme.md#money-type`](../money/readme.md#money-type).
 > A `Leg` carries a `Money` from that kernel; ledger does not redefine money.
 
 <a id="entry-balance"></a>

@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { PortfolioHolding } from "@/lib/types";
-import { compareAmounts, formatCurrencyLocale } from "@/lib/money";
-import { formatQuantity } from "@/lib/quantity";
+import { compareAmounts, formatCurrencyLocale } from "@/lib/audit/money";
+import { formatQuantity } from "@/lib/audit/quantity";
 import { formatDateDisplay } from "@/lib/date";
-import { formatSignedPercentFromPercentValue } from "@/lib/ratio/format";
+import { formatSignedPercentFromPercentValue } from "@/lib/audit/ratio/format";
 import { ProvenanceBadge } from "@/components/ui/ProvenanceBadge";
 
 interface HoldingsTableProps {

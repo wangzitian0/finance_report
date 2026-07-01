@@ -2,7 +2,7 @@
 
 Exposes the effective base reporting currency for reading and updating. The
 update validates the code against ISO 4217 (via the request schema, which reuses
-``src.money.Currency``) so an invalid code returns HTTP 422 and is never
+``src.audit.money.Currency``) so an invalid code returns HTTP 422 and is never
 persisted.
 """
 

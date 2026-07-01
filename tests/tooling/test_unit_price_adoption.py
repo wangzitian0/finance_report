@@ -31,7 +31,7 @@ def _read(path: Path) -> str:
 def test_AC12_32_3_investment_accounting_uses_unit_price():
     """AC12.32.3: investment accounting prices via UnitPrice, not local Decimal helpers."""
     src = _read(Path("apps/backend/src/services/investment_accounting.py"))
-    assert "from src.unit_price import UnitPrice" in src
+    assert "from src.audit.unit_price import UnitPrice" in src
     # typed call sites replace the raw quantity*price / amount/quantity glue
     assert "buy_price * trade_quantity" in src
     assert "sell_price * trade_quantity" in src
@@ -50,5 +50,5 @@ def test_AC12_32_3_investment_accounting_uses_unit_price():
 def test_AC12_32_3_market_data_price_quantum_is_single_sourced():
     """AC12.32.3: market-data prices reuse the package quantum, not a local literal."""
     src = _read(Path("apps/backend/src/services/market_data"))
-    assert "from src.unit_price import UNIT_PRICE_QUANTUM" in src
+    assert "from src.audit.unit_price import UNIT_PRICE_QUANTUM" in src
     assert "_PRICE_QUANT = UNIT_PRICE_QUANTUM" in src

@@ -8,11 +8,11 @@ established **at the ingest boundary**, never silent-defaulted:
 * **AC12.40.2** — when it is unknown/ambiguous, flag the row ``currency_unresolved``
   and route it to human review; it cannot be promoted to a ``JournalLine``.
 * **AC12.40.3** — a reviewer specifies the currency (ISO-4217 validated via
-  ``src.money.Currency``); the resolution is audited (who / when / chosen value).
+  ``src.audit.money.Currency``); the resolution is audited (who / when / chosen value).
 * **AC12.40.4** — the promotion gate blocks ``currency_unresolved`` items (enforced
   in ``review_queue.create_entry_from_txn``).
 
-This module owns the *decision*: it is dependency-light (kernel ``src.money`` +
+This module owns the *decision*: it is dependency-light (kernel ``src.audit.money`` +
 models only) so both the ingest path (``deduplication``) and the review path
 (``review_queue`` / routers) reuse the same rule without an import cycle.
 """
@@ -26,9 +26,9 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit.money import Currency, InvalidCurrencyError
 from src.logger import get_logger
 from src.models.layer2 import AtomicTransaction
-from src.money import Currency, InvalidCurrencyError
 from src.utils.exceptions import BaseAppException
 
 logger = get_logger(__name__)
@@ -106,7 +106,7 @@ async def resolve_transaction_currency(
 ) -> AtomicTransaction:
     """Reviewer specifies the currency for a ``currency_unresolved`` transaction (AC12.40.3).
 
-    Validates ``currency`` as an ISO-4217 code via ``src.money.Currency``, writes it
+    Validates ``currency`` as an ISO-4217 code via ``src.audit.money.Currency``, writes it
     to the row, clears the ``currency_unresolved`` flag, and records the resolution
     audit (who / when). After this the promotion gate (AC12.40.4) lets the row
     become a ``JournalLine``.

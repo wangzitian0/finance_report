@@ -25,21 +25,23 @@ Everyone's `base` ultimately depends on `audit.base` (the value types), so
 the symmetric mirror of `meta.extension` reaching every package to govern
 structure.
 
-## The Shared Kernel stays where it is
+## The Shared Kernel now lives inside audit
 
-The four value packages (`money` / `ratio` / `quantity` / `unit_price`) are a
+The four value domains (`money` / `ratio` / `quantity` / `unit_price`) are a
 cross-runtime **Shared Kernel**: a language-neutral standard
-(`common/<pkg>/contract/*.contract.md` + `conformance/vectors.json`) with a
-canonical Python reference in `common/<pkg>` and per-end mirrors in
-`apps/backend/src/<pkg>` and `apps/frontend/src/lib/<pkg>`, kept in lockstep by
-the conformance vectors. That is exactly what `common/` is for — code whose
-strategic role is "shared by everyone" (see
-[`../meta/migration-standard.md`](../meta/migration-standard.md) "Where files
-go"). The value→audit fold therefore **declares** these types as audit's value
-language (its `units`) and **homes audit's numeric invariants against the same
-conformance suites**; it does **not** relocate the value-package code, and it does
-**not** touch the conformance vectors or the BE/FE parity. Backward compatibility
-of those contracts is sacred.
+(`common/audit/<domain>/contract/*.contract.md` + `conformance/vectors.json`)
+with a canonical Python reference in `common/audit/<domain>` and per-end mirrors
+in `apps/backend/src/audit/<domain>` and `apps/frontend/src/lib/audit/<domain>`
+(where a frontend mirror exists), kept in lockstep by the conformance vectors —
+content unchanged by the fold, only relocated. Each domain stays an internal
+**submodule** of `audit` rather than flattening into one namespace: several
+symbol names collide across domains (`FloatNotAllowedError` is defined
+independently in every domain), so a consumer reaches domain-specific errors/
+wire codecs via `from src.audit.money import FloatNotAllowedError`. Only the 10
+non-colliding value-object classes are re-exported flat at `audit`'s root
+(`from src.audit import Money`) — exactly the `units` this contract declares.
+Backward compatibility of the language-neutral contracts and conformance vectors
+is sacred; only the physical location and Python/TS import path changed.
 
 The membership rule for what earns a Shared-Kernel value package, the canonical
 structure every one must follow, and the raw-`Decimal` boundary policy are
@@ -53,29 +55,35 @@ Monetary values are `Decimal`-backed and never use `float`; money rounds with
 banker's `HALF_EVEN`. audit's `no-float-in-money-narrow-waist` invariant pins this
 to the existing narrow-waist guard test. See: common/ledger/readme.md#decimal-rule
 
-## Migration state (this fold)
+## Migration state (issue #1419, Stage 1 of umbrella #1416)
 
-This first, low-risk fold (issue #1419, Stage 1 of umbrella #1416):
+Three-step sequence, each a separate merge-gated PR:
 
-- **Done here** — `audit` is registered as a package (this `contract.py`),
-  declares the Shared Kernel as its value-object `units`, and pins six
-  number-governor `invariants` to the existing, already-green conformance/guard
-  tests (`test_{money,ratio,quantity,unit_price}_conformance.py` +
-  `test_money_narrow_waist_guard.py`). The gate
-  (`tools/check_package_contract.py`) validates audit alongside every other
-  package.
-- **Deferred (separate atomic cutover)** — transferring AC *ownership* of the
+- **Step 1 (done here)** — the four value domains are physically folded into
+  `audit`: `common/{money,ratio,quantity,unit_price}` →
+  `common/audit/<domain>`, `apps/backend/src/{money,ratio,quantity,unit_price}` →
+  `apps/backend/src/audit/<domain>`, `apps/frontend/src/lib/{money,ratio,quantity}`
+  → `apps/frontend/src/lib/audit/<domain>` (frontend `unit_price` mirror doesn't
+  exist yet — unrelated P2 follow-up). All ~85 consumer files (routers, services,
+  models, schemas, the frontend app tree) repointed to the new paths. `klass`
+  flipped `platform` → `kernel`; `implementations`/`interface` populated
+  (10 value-object classes, flat re-export). Old locations deleted entirely — no
+  re-export shim, no residue.
+- **Step 2 (next, separate PR)** — transferring AC *ownership* of the
   value-language ACs (`AC2.19`/`AC2.20` in EPIC-002, `AC12.9`/`AC12.30`/`AC12.32`/
   `AC12.33`/`AC12.36` in EPIC-012) into audit's `roadmap`. Those ACs are
   registry-tracked and wired into `@ac_proof` edges, the per-type PROTECTION count
   floor, the tier baseline, and the BE/FE traceability references; re-homing them
   must atomically rename every such reference so the protection floor never drops.
-  That is its own transaction (one per domain), tracked in [`todo.md`](./todo.md).
-  `roadmap` stays empty until then — no AC may live in both an EPIC table and a
-  package roadmap (`check_epic_package_dual` enforces it), exactly as the `money`
-  contract documents today.
-- **Also deferred** — audit's own base value objects (invariants / confidence /
-  provenance / trace) and the `extension` reach into the financial flow.
+  Tracked in [`todo.md`](./todo.md). `roadmap` stays empty until then — no AC may
+  live in both an EPIC table and a package roadmap (`check_epic_package_dual`
+  enforces it).
+- **Step 3 (after that)** — close out any remaining residual references
+  (docs/SSOT cross-links, historical mentions) issue #1419 surfaces once step 2
+  lands.
+- **Also deferred, unrelated to #1419's 3-step sequence** — audit's own base
+  value objects (invariants / confidence / provenance / trace) and the
+  `extension` reach into the financial flow.
 
 <a id="base-packages"></a>
 
@@ -173,7 +181,7 @@ layer is explicitly a boundary or test fixture. Hand-written semantic conversion
 at those boundaries must route through the owning base-package codec/adapter,
 not through local `Decimal(str(...))` helpers.
 
-1. **Base packages** — `common/money`, `common/ratio`, `common/quantity` and the
+1. **Base packages** — `common/audit/money`, `common/audit/ratio`, `common/audit/quantity` and the
    backend/frontend runtime copies may use `Decimal`/`decimal.js` internally.
 2. **DB models and migrations** — SQLAlchemy `Numeric` columns, Alembic
    migrations, and repository/query predicates store exact numeric values; code
@@ -278,10 +286,10 @@ the standard; it is dev/test-time only, never shipped into a runtime image.
 
 ### Used by
 
-- `money`: [common/money/readme.md#money-type](https://github.com/wangzitian0/finance_report/blob/main/common/money/readme.md#money-type), `common/money/`, `apps/backend/src/money/`, `apps/frontend/src/lib/money/`
-- `ratio`: [EPIC-012 AC12.9](../../docs/project/EPIC-012.foundation-libs.md), `common/ratio/`, `apps/backend/src/ratio/`, `apps/frontend/src/lib/ratio/`
-- `quantity`: [EPIC-012 AC12.30](../../docs/project/EPIC-012.foundation-libs.md), `common/quantity/`, `apps/backend/src/quantity/`, `apps/frontend/src/lib/quantity/`
-- `unit_price`: [EPIC-012 AC12.32](../../docs/project/EPIC-012.foundation-libs.md), `common/unit_price/`, `apps/backend/src/unit_price/` (frontend `apps/frontend/src/lib/unit_price/` is a P2 follow-up — no frontend call sites today; conformance vectors are already language-neutral so adoption is additive)
+- `money`: [common/audit/money/readme.md#money-type](https://github.com/wangzitian0/finance_report/blob/main/common/audit/money/readme.md#money-type), `common/audit/money/`, `apps/backend/src/audit/money/`, `apps/frontend/src/lib/audit/money/`
+- `ratio`: [EPIC-012 AC12.9](../../docs/project/EPIC-012.foundation-libs.md), `common/audit/ratio/`, `apps/backend/src/audit/ratio/`, `apps/frontend/src/lib/audit/ratio/`
+- `quantity`: [EPIC-012 AC12.30](../../docs/project/EPIC-012.foundation-libs.md), `common/audit/quantity/`, `apps/backend/src/audit/quantity/`, `apps/frontend/src/lib/audit/quantity/`
+- `unit_price`: [EPIC-012 AC12.32](../../docs/project/EPIC-012.foundation-libs.md), `common/audit/unit_price/`, `apps/backend/src/audit/unit_price/` (frontend `apps/frontend/src/lib/audit/unit_price/` is a P2 follow-up — no frontend call sites today; conformance vectors are already language-neutral so adoption is additive)
 
 ## See also
 

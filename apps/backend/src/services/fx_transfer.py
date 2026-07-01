@@ -22,7 +22,7 @@ moves + FX revaluation; internal transfers cancel (minus fees).**
 
 All money is :class:`~decimal.Decimal` (never ``float`` — see the decimal rule in
 ``common/ledger/readme.md``). FX rates carry 6 dp; currency amounts quantize to
-2 dp via :func:`src.money.to_money`.
+2 dp via :func:`src.audit.money.to_money`.
 """
 
 from __future__ import annotations
@@ -32,9 +32,9 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
+from src.audit.money import Money, to_money
 from src.models.fx_conversion import FxConversion
 from src.models.journal import JournalEntrySourceType
-from src.money import Money, to_money
 from src.schemas.base import normalize_currency_code
 
 # Default implied-rate tolerance: the implied rate (amount_from / amount_to) may

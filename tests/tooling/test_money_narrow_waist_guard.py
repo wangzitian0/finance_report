@@ -8,7 +8,7 @@ bites — it flags an injected violation and passes on the real tree.
 
 from pathlib import Path
 
-from common.money.guard import (
+from common.audit.money.guard import (
     float_violations,
     missing_conformance_suites,
     scan_text_for_float,

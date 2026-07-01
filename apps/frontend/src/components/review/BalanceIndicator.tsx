@@ -1,6 +1,6 @@
 "use client";
 
-import { formatCurrencyLocale } from "@/lib/money";
+import { formatCurrencyLocale } from "@/lib/audit/money";
 import type { MoneyValue } from "@/lib/types";
 
 interface BalanceValidationResult {

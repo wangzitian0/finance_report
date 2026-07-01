@@ -7,12 +7,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { BackLink } from "@/components/ui/BackLink";
 import { InfoHint } from "@/components/ui/InfoHint";
 import { apiFetch } from "@/lib/api";
-import { formatAmount } from "@/lib/money";
+import { formatAmount } from "@/lib/audit/money";
 import {
   clampPercentWidthFromPercentValue,
   formatPercentFromPercentValue,
   percentNumberFromParts,
-} from "@/lib/ratio/format";
+} from "@/lib/audit/ratio/format";
 import {
   ReconciliationMatchListResponse,
   ReconciliationMatchResponse,

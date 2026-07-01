@@ -4,7 +4,7 @@ The crown-jewel invariant of a double-entry system is *debits == credits*. Today
 that invariant lives as a scattered runtime check (``abs(debit - credit) < 0.01``
 re-implemented in several services). ``Entry`` makes it a **type**: an entry that
 does not balance *per currency* cannot be constructed — :class:`UnbalancedEntryError`
-is raised at construction, exactly like :class:`~src.money.Money` rejects ``float``.
+is raised at construction, exactly like :class:`~src.audit.money.Money` rejects ``float``.
 
 This is the *invariant* (a value object), not the *policy*: which account is
 debited/credited for a buy/sell/dividend stays in the domain service
@@ -23,9 +23,9 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+from src.audit.money import Money
 from src.ledger.base.types.errors import DegenerateEntryError, UnbalancedEntryError
 from src.models.journal import Direction
-from src.money import Money
 
 
 @dataclass(frozen=True)

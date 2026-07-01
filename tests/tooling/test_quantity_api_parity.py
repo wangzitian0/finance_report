@@ -9,14 +9,14 @@ from common.testing.ac_proof import ac_proof
 
 REPO = Path(__file__).resolve().parents[2]
 SHARED_API = set(
-    json.loads((REPO / "common/quantity/conformance/vectors.json").read_text())[
+    json.loads((REPO / "common/audit/quantity/conformance/vectors.json").read_text())[
         "shared_api"
     ]
 )
 
 
 def _backend_exports() -> set[str]:
-    src = (REPO / "apps/backend/src/quantity/__init__.py").read_text()
+    src = (REPO / "apps/backend/src/audit/quantity/__init__.py").read_text()
     for node in ast.walk(ast.parse(src)):
         if isinstance(node, ast.Assign) and any(
             isinstance(t, ast.Name) and t.id == "__all__" for t in node.targets
@@ -26,7 +26,7 @@ def _backend_exports() -> set[str]:
 
 
 def _frontend_exports() -> set[str]:
-    src = (REPO / "apps/frontend/src/lib/quantity/index.ts").read_text()
+    src = (REPO / "apps/frontend/src/lib/audit/quantity/index.ts").read_text()
     names: set[str] = set()
     for block in re.findall(r"export\s*\{([^}]*)\}", src):
         for raw in block.split(","):
@@ -44,7 +44,7 @@ def _frontend_exports() -> set[str]:
 def test_AC12_30_2_backend_exposes_shared_quantity_api():
     """AC12.30.2: the backend quantity module exports the full shared surface."""
     missing = SHARED_API - _backend_exports()
-    assert not missing, f"backend src.quantity missing shared API: {sorted(missing)}"
+    assert not missing, f"backend src.audit.quantity missing shared API: {sorted(missing)}"
 
 
 @ac_proof(

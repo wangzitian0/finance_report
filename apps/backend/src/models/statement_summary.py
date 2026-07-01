@@ -35,10 +35,10 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from src.audit.money import CurrencyBalances
 from src.database import Base
 from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 from src.models.statement_enums import BankStatementStatus, Stage1Status
-from src.money import CurrencyBalances
 
 
 class StatementSummary(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):

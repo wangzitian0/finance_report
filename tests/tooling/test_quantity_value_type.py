@@ -1,6 +1,6 @@
 """Quantity value-type behavioural proofs (EPIC-012 AC12.30).
 
-Exercises the ``common.quantity`` narrow waist: construction invariants,
+Exercises the ``common.audit.quantity`` narrow waist: construction invariants,
 6-dp quantity quantization, same-unit arithmetic/comparison, and deriving a
 ``Ratio`` from two quantities without routing through naked Decimal division.
 """
@@ -8,9 +8,8 @@ Exercises the ``common.quantity`` narrow waist: construction invariants,
 from decimal import ROUND_HALF_EVEN, Decimal
 
 import pytest
-from common.testing.ac_proof import ac_proof
 
-from common.quantity import (
+from common.audit.quantity import (
     QUANTITY_DP,
     QUANTITY_QUANTUM,
     QUANTITY_ROUNDING,
@@ -21,7 +20,8 @@ from common.quantity import (
     Unit,
     UnitMismatchError,
 )
-from common.ratio import Ratio
+from common.audit.ratio import Ratio
+from common.testing.ac_proof import ac_proof
 
 
 @ac_proof(proof_id="test_quantity_rejects_float", ac_ids=["AC12.30.1"], ci_tier="pr_ci")

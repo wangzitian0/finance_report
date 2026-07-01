@@ -10,9 +10,9 @@ otherwise falls back to ``settings.base_currency``.
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit.money import Currency
 from src.config import settings
 from src.models.app_config import BASE_CURRENCY_KEY, AppConfig
-from src.money import Currency
 
 
 async def get_effective_base_currency(db: AsyncSession) -> str:

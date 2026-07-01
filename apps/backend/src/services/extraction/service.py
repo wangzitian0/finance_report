@@ -11,13 +11,13 @@ from uuid import UUID
 import httpx
 from sqlalchemy import select
 
+from src.audit.money.currency import normalize_currency_code
 from src.config import settings
 from src.models.account import Account, AccountType
 from src.models.layer1 import DocumentType
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
-from src.money.currency import normalize_currency_code
 from src.prompts import get_parsing_prompt
 from src.services.ai_streaming import (
     AIStreamError,

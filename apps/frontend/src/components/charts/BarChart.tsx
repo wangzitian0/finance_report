@@ -1,4 +1,4 @@
-import { formatAmount } from "@/lib/money";
+import { formatAmount } from "@/lib/audit/money";
 
 interface BarItem {
   label: string;

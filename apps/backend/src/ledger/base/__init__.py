@@ -2,7 +2,7 @@
 
 No I/O and no concrete cross-package wiring: it never imports this package's own
 ``extension`` / ``data`` layers, and reaches other packages only through their
-published interfaces (``src.money``'s value types, ``src.config`` as a bare module).
+published interfaces (``src.audit.money``'s value types, ``src.config`` as a bare module).
 The :class:`JournalRepository` is a *port* (a Protocol) satisfied by the
 ``extension`` adapter — mechanism B (dependency inversion).
 """

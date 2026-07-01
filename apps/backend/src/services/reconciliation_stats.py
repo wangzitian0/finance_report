@@ -8,10 +8,10 @@ from uuid import UUID
 from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit.ratio import Ratio
 from src.logger import get_logger
 from src.models.layer2 import AtomicTransaction
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
-from src.ratio import Ratio
 
 logger = get_logger(__name__)
 

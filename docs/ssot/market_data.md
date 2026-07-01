@@ -155,7 +155,7 @@ CREATE INDEX idx_market_data_sync_state_lookup
 
 ```python
 # Conversion example
-from src.money import ExchangeRate, Money, convert
+from src.audit.money import ExchangeRate, Money, convert
 
 amount_sgd = Decimal("1000.00")
 fx_rate = Decimal("0.741523")  # SGD/USD

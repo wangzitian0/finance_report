@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, field_validator
 
-from src.money import Currency, InvalidCurrencyError
+from src.audit.money import Currency, InvalidCurrencyError
 
 
 class BaseCurrencyResponse(BaseModel):
@@ -14,7 +14,7 @@ class BaseCurrencyResponse(BaseModel):
 class BaseCurrencyUpdate(BaseModel):
     """Request body to set the effective base reporting currency.
 
-    The code is validated against ISO 4217 via ``src.money.Currency`` so an
+    The code is validated against ISO 4217 via ``src.audit.money.Currency`` so an
     invalid code is rejected at the request boundary (HTTP 422) and never
     persisted; the stored value is the normalized (upper-cased) code.
     """

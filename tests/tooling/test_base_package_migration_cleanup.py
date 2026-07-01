@@ -8,6 +8,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
+
 from common.testing.ac_proof import ac_proof
 
 REPO = Path(__file__).resolve().parents[2]
@@ -76,7 +77,7 @@ def _ensure_backend_src_importable() -> None:
 def test_AC12_31_5_money_fixture_helpers_route_through_base_package():
     """AC12.31.5: E2E/fixture money adapters use one shared Money-backed helper."""
     helper = _read(Path("common/testing/base_values.py"))
-    assert "from common.money import FloatNotAllowedError, Money" in helper
+    assert "from common.audit.money import FloatNotAllowedError, Money" in helper
     assert "Money(Decimal(str(value)), currency).quantize().amount" in helper
 
     for path in MONEY_FIXTURE_FILES:
@@ -109,7 +110,7 @@ def test_AC12_31_5_frontend_percent_formatters_are_not_duplicated():
     """AC12.31.5: frontend percent display/calculation calls Ratio format helpers directly."""
     for path in FRONTEND_PERCENT_FILES:
         src = _read(path)
-        assert "@/lib/ratio/format" in src, f"{path} must use Ratio format helpers"
+        assert "@/lib/audit/ratio/format" in src, f"{path} must use Ratio format helpers"
         assert "function formatReturnPercent(" not in src
         assert "function formatAllocationPercent(" not in src
         assert "function formatPercent(" not in src
@@ -124,7 +125,7 @@ def test_AC12_31_5_frontend_percent_formatters_are_not_duplicated():
     assert "formatPercentFromPercentValue(d.percentage, { dp: 1 })" in allocation
     assert "formatAmount(d.percentage, 1)}%" not in allocation
 
-    ratio_format = _read(Path("apps/frontend/src/lib/ratio/format.ts"))
+    ratio_format = _read(Path("apps/frontend/src/lib/audit/ratio/format.ts"))
     assert "export function percentNumberFromParts(" in ratio_format
 
 
@@ -137,7 +138,7 @@ def test_AC12_31_5_backend_money_adapters_are_not_duplicated():
     """AC12.31.5: backend services use the shared Money rounding adapter directly."""
     for path in BACKEND_MONEY_ADAPTER_FILES:
         src = _read(path)
-        assert re.search(r"from src\.money import [^\n]*to_money", src), (
+        assert re.search(r"from src\.audit\.money import [^\n]*to_money", src), (
             f"{path} must import the backend Money adapter"
         )
         assert "def _money(" not in src, f"{path} still defines a local money adapter"
@@ -197,7 +198,7 @@ def test_AC12_31_6_ssot_fx_examples_use_money_exchange_rate():
 )
 def test_AC12_31_7_backend_quantity_business_code_uses_value_type():
     """AC12.31.7: backend services hold Quantity objects in business calculations."""
-    quantity_api = _read(Path("apps/backend/src/quantity/__init__.py"))
+    quantity_api = _read(Path("apps/backend/src/audit/quantity/__init__.py"))
     for helper in [
         "quantized_quantity_value",
         "quantity_is_zero",
@@ -216,7 +217,7 @@ def test_AC12_31_7_backend_quantity_business_code_uses_value_type():
         src = _read(path)
         # value type used by direct import OR via a model .quantity_qty accessor
         # (the #3 boundary push: reporting reads Quantity off the ORM accessor).
-        assert "from src.quantity import Quantity" in src or ".quantity_qty" in src, (
+        assert "from src.audit.quantity import Quantity" in src or ".quantity_qty" in src, (
             f"{path} must use the Quantity value type (import or .quantity_qty accessor)"
         )
         for needle in forbidden_local_adapters:
@@ -262,7 +263,7 @@ def test_AC12_31_7_backend_quantity_value_type_handles_storage_edges():
     """AC12.31.7: Quantity itself owns storage-edge rounding and zero semantics."""
     _ensure_backend_src_importable()
 
-    from src.quantity import FloatNotAllowedError, Quantity
+    from src.audit.quantity import FloatNotAllowedError, Quantity
 
     assert Quantity(Decimal("1.2345675"), "units").quantize().value == Decimal(
         "1.234568"

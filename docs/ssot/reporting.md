@@ -717,7 +717,7 @@ Reports are generated in a single base currency (user configurable, default: SGD
   `net_worth_adjustment_gain_loss`, and `equation_delta`.
 
 ```python
-from src.money import ExchangeRate, Money, convert, to_money
+from src.audit.money import ExchangeRate, Money, convert, to_money
 
 def consolidate_amount(amount: Decimal, currency: str, target: str, date: date) -> Decimal:
     if currency == target:

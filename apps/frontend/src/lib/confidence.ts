@@ -16,7 +16,7 @@ import {
   formatPercentFromRatioValue,
   percentNumberFromRatioValue,
   ratioNumberFromRatioValue,
-} from "@/lib/ratio/format";
+} from "@/lib/audit/ratio/format";
 
 /**
  * Parse a proportion to a finite number, or `null` for a missing/blank/non-finite

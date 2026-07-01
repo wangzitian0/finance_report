@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useMemo, useState, useEffect, useCallback } from "react";
-import { amountToChartNumber, compareAmounts } from "@/lib/money";
+import { amountToChartNumber, compareAmounts } from "@/lib/audit/money";
 import type { MoneyValue } from "@/lib/types";
 
 const ReactECharts = dynamic(

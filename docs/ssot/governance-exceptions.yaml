@@ -174,7 +174,7 @@ exceptions:
   # "SSOT internalized"). The double-entry sections folded into
   # common/ledger/readme.md (preserving the #decimal-rule / #entry-balance /
   # #async-tx-boundary / #accounting-equation anchors); the #money-type section
-  # moved into common/money/readme.md (the money kernel owns it). The MANIFEST
+  # moved into common/audit/money/readme.md (the money kernel owns it). The MANIFEST
   # decimal_monetary_rule / money_value_type / accounting_equation /
   # double_entry_bookkeeping / transaction_boundary owners now point at the
   # package readmes, so docs/ssot/accounting.md is deleted. The deletion shows up
@@ -186,7 +186,7 @@ exceptions:
       accounting.md internalized into common/ledger/readme.md (the ledger package
       owns the double-entry invariants + the #decimal-rule / #entry-balance /
       #async-tx-boundary / #accounting-equation anchors) and
-      common/money/readme.md (the money kernel owns #money-type); the MANIFEST
+      common/audit/money/readme.md (the money kernel owns #money-type); the MANIFEST
       decimal_monetary_rule / money_value_type / accounting_equation /
       double_entry_bookkeeping / transaction_boundary owners now point there.
       Remove this exception once the deletion is merged.

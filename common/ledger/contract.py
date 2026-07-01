@@ -35,7 +35,8 @@ EPIC-002 (ledger is ``fe=None``), the reporting tier-degrade ``AC2.16.4`` is a
 report-layer property not a posting one, the framework-boundary contract
 ``AC2.18.1`` is a cross-EPIC doc-assertion test (not double-entry behaviour), and
 the entire Money value-type extension ``AC2.19.*``–``AC2.23.*`` belongs to the
-``money`` kernel, not ledger. Those rows remain defined in EPIC-002.
+``audit`` kernel (folded from ``money`` — issue #1419), not ledger. Those rows
+remain defined in EPIC-002.
 In each case the package now owns the migrated ACs; the source EPIC backend
 tables are deleted and replaced with a disclaimer that lists the new ids
 (mirroring how identity emptied EPIC-001).
@@ -92,9 +93,10 @@ CONTRACT = PackageContract(
     # Deterministic double-entry arithmetic + persistence, no LLM: a pure-code
     # (CODE-ONLY) package.
     tier="CODE-ONLY",
-    # money/config are the only registered packages the impl imports. Both are
-    # lower-rank (kernel) than ledger (core), so the edges are downward.
-    depends_on=["money", "config"],
+    # audit/config are the only registered packages the impl imports. Both are
+    # lower-rank (kernel) than ledger (core), so the edges are downward. (money
+    # folded into audit — issue #1419.)
+    depends_on=["audit", "config"],
     roles=["base", "extension", "data"],
     units=[
         # base — the pure double-entry core.

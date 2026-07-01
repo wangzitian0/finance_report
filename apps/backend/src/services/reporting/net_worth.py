@@ -10,6 +10,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit.ratio import Ratio
 from src.constants.error_ids import ErrorIds
 from src.logger import get_logger
 from src.models.account import Account, AccountType
@@ -17,7 +18,6 @@ from src.models.journal import JournalEntry, JournalLine
 from src.models.layer3 import (
     ManualValuationLiquidityClass,
 )
-from src.ratio import Ratio
 from src.services.fx import (
     FxRateError,
     PrefetchedFxRates,
