@@ -6,17 +6,32 @@ ubiquitous-language prose ([`readme.md`](./readme.md)), its machine-checkable
 :class:`~common.meta.package_contract.PackageContract`
 ([`contract.py`](./contract.py)), and its worklist ([`todo.md`](./todo.md)).
 
-``audit`` has no implementation of its own yet: the value language it governs
-(``Money`` / ``Ratio`` / ``Quantity`` / ``UnitPrice`` and friends) runs in the
-Shared-Kernel value packages' cross-runtime mirrors (``common/<pkg>`` +
-``apps/backend/src/<pkg>`` + ``apps/frontend/src/lib/<pkg>``). This is a *spec
-surface*: the only thing it re-exports is the package's own ``CONTRACT`` (so
-tooling can ``from common.audit import CONTRACT``). See ``common/meta/readme.md``
-and ``common/meta/migration-standard.md`` for the model and the value→audit fold.
+The value language ``audit`` governs (``Money`` / ``Ratio`` / ``Quantity`` /
+``UnitPrice`` and friends) is physically folded here as domain submodules
+(``common.audit.money``, ``common.audit.ratio``, ...) — each still
+dependency-light (stdlib + Decimal only), importable from tooling/tests/the
+conformance suite without pulling in ``common.meta``/pydantic. ``CONTRACT`` is
+therefore lazy-loaded (`PEP 562 <https://peps.python.org/pep-0562/>`_): plain
+``from common.audit import CONTRACT`` still works for governance tooling, but
+``from common.audit.money import Money`` does not eagerly import
+``common.meta.package_contract`` (and its pydantic dependency) just to reach a
+domain submodule. See ``common/meta/readme.md`` and
+``common/meta/migration-standard.md`` for the model and the value→audit fold.
 """
 
 from __future__ import annotations
 
-from common.audit.contract import CONTRACT
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from common.audit.contract import CONTRACT as CONTRACT
 
 __all__ = ["CONTRACT"]
+
+
+def __getattr__(name: str):
+    if name == "CONTRACT":
+        from common.audit.contract import CONTRACT
+
+        return CONTRACT
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
