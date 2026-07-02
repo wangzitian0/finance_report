@@ -448,6 +448,26 @@ grounding mechanism.)
 | AC18.14.3 | Substrate | The service builds the corpus from the persisted correction store, scoped to the user | `test_AC18_14_3_service_builds_corpus_from_persisted_corrections()` | `services/test_correction_loop.py` | P1 |
 | AC18.14.4 | Observable | The held-out replay result is surfaced read-only over the live corpus, so the loop's effect on the low-confidence proportion is auditable (no new source of truth) | `test_AC18_14_4_service_replay_measures_held_out_reduction()`, `test_AC18_14_4_replay_endpoint_surfaces_the_loop_effect()` | `services/test_correction_loop.py`, `metrics/test_correction_loop_replay.py` | P1 |
 
+### AC18.15: Transaction Classify Node — Construct (#1544)
+
+The flag-gated transaction classify node (#1483 EPIC, Construct stage): the model
+*proposes* a category from a fixed closed catalog with a confidence score; deterministic
+code *disposes* (category→account, classification row). The classification basis is an
+effective-dated, immutable `ClassificationPolicy` version (a change = a new version with
+an explicit `effective_from` cutoff, prospective by default). Construct-only: nothing in
+production consumes the node yet — #1545 (Migrate) flips that.
+
+| AC | Group | Description | Test Functions | Test File | Priority |
+|----|-------|-------------|----------------|-----------|----------|
+| AC18.15.1 | Policy | The classification policy is a versioned, effective-dated, immutable object: `policy_for(as_of)` head-selects the latest version whose `effective_from` <= as_of, and an effective version can never be mutated — a basis change is a new appended version {tier:CODE-LED} {proof:property} | `test_AC18_15_1_policy_is_effective_dated_and_immutable()` | `services/test_transaction_classification.py` | P1 |
+| AC18.15.2 | Purity | The classify pass is reproducible: identical (transactions, policy, proposals) produce identical outcomes, each stamped with the policy version {tier:CODE-LED} {proof:property} | `test_AC18_15_2_classify_is_reproducible_for_same_inputs()` | `services/test_transaction_classification.py` | P1 |
+| AC18.15.3 | Catalog | Model output is constrained to the policy's closed catalog: an off-catalog proposal is rejected (never applied), and the LLM boundary parses prompt-driven JSON with code-owned clamping and a graceful per-transaction `None` fallback {tier:CODE-LED} {proof:property} | `test_AC18_15_3_off_catalog_proposal_is_rejected_never_applied()`, `test_AC18_15_3_proposer_parses_and_clamps_model_json()`, `test_AC18_15_3_proposer_fails_safe_to_none()` | `services/test_transaction_classification.py` | P1 |
+| AC18.15.4 | Gate | The confidence gate disposes deterministically: >= auto threshold becomes an APPLIED classification onto a real catalog account; the review band becomes a DRAFT visible to the existing ai_feedback 60-84 queue; below stays in the genuine Uncategorized tail {tier:CODE-LED} {proof:property} | `test_AC18_15_4_confidence_gate_applies_reviews_or_tails()` | `services/test_transaction_classification.py` | P1 |
+| AC18.15.5 | Red line | The model never touches money: proposals cannot express an amount, the node imports no posting primitives, and transaction Decimal amounts pass through classification untouched {tier:CODE-LED} {proof:property} | `test_AC18_15_5_model_never_touches_money()` | `services/test_transaction_classification.py` | P0 |
+| AC18.15.6 | Pro-forma | `commit_basis=False` computes verdicts under a candidate policy without writing the basis-of-record: no classifications, no policy rules, no accounts {tier:CODE-LED} {proof:property} | `test_AC18_15_6_pro_forma_writes_nothing()` | `services/test_transaction_classification.py` | P1 |
+| AC18.15.7 | Rules | A user's deterministic rule wins before the model is consulted, and having no rules is a no-op pre-pass, not an error {tier:CODE-LED} {proof:property} | `test_AC18_15_7_user_rule_prepass_wins_over_model()`, `test_AC18_15_7_no_rules_is_a_noop_prepass_not_an_error()` | `services/test_transaction_classification.py` | P1 |
+| AC18.15.8 | Construct-only | The node is inert with `enable_ai_classification` off (the default), and pre-Migrate no production module imports it (the wired flip is #1545's job) {tier:CODE-LED} {proof:property} | `test_AC18_15_8_flag_off_is_a_noop()`, `test_AC18_15_8_construct_only_no_production_consumer()` | `services/test_transaction_classification.py` | P1 |
+
 ---
 
 ## 🚫 Out of Scope (v1)
