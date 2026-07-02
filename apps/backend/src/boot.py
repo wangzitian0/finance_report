@@ -44,7 +44,7 @@ class BootMode(str, Enum):
 @dataclass
 class ServiceStatus:
     service: str
-    status: str  # 'ok', 'warning', 'error', 'skipped'
+    status: str  # 'ok', 'warning', 'error'
     message: str
     duration_ms: float = 0.0
 
@@ -237,10 +237,11 @@ class Bootloader:
         """Report the configured AI provider (the model catalogue is local — see
         ``src/llm/catalog.py`` — so there is no remote ``/models`` probe).
 
-        Delegates to the runtime `LlmCheck` adapter. The AI provider is treated as
-        optional here, so an absent (unconfigured) provider maps to `skipped`
-        rather than `error` — preserved from the pre-runtime behaviour; the switch
-        to declared-required enforcement lands with the manifest cutover.
+        Delegates to the runtime `LlmCheck` adapter. A declared dependency that is
+        absent is an `error`, not a silent `skipped` (runtime invariant 2). This
+        check only runs in FULL (smoke) mode, which runs against a real deployed
+        environment where the provider is configured; the app's own startup
+        (CRITICAL) checks only the database.
         """
         result = await LlmCheck(
             api_key=getattr(settings, "ai_api_key", None),
@@ -248,9 +249,8 @@ class Bootloader:
             primary_model=settings.primary_model,
             ocr_model=settings.ocr_model,
         ).probe()
-        if result.status is DependencyStatus.PRESENT:
-            return ServiceStatus("ai_provider", "ok", result.detail)
-        return ServiceStatus("ai_provider", "skipped", result.detail)
+        status = "ok" if result.status is DependencyStatus.PRESENT else "error"
+        return ServiceStatus("ai_provider", status, result.detail)
 
     _check_openrouter = _check_ai_provider
 
