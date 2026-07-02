@@ -1,0 +1,18 @@
+{
+  "fingerprint": "985c01908f41ad079e84c49c2b9865d214080309dfe983695720d0a9787716b3",
+  "request": {
+    "decode_params": {},
+    "messages": [
+      {
+        "content": "Classify each personal-finance transaction into EXACTLY ONE category from this closed list: [SALARY, INTEREST, INVESTMENT_INCOME, REFUND, OTHER_INCOME, DINING, GROCERIES, TRANSPORT, HOUSING, UTILITIES, SHOPPING, HEALTHCARE, ENTERTAINMENT, TRAVEL, EDUCATION, INSURANCE, FEES, OTHER_EXPENSE]. Respond with ONLY the raw JSON array — Do NOT wrap it in markdown or code fences and do not add prose. Item i must be {\"category\": \"<one of the list>\", \"confidence\": <0-100 integer>, \"reason\": \"<short>\"} for transaction i.\n\nTransactions:\n0. direction=IN description=\"Monthly salary deposit ACME PTE LTD\"\n1. direction=OUT description=\"NTUC FairPrice groceries\"",
+        "role": "user"
+      }
+    ],
+    "role": "text"
+  },
+  "response": {
+    "stream_text": "[{\"category\": \"SALARY\", \"confidence\": 100, \"reason\": \"Monthly salary deposit from employer\"}, {\"category\": \"GROCERIES\", \"confidence\": 100, \"reason\": \"Purchase at a supermarket\"}]"
+  },
+  "role": "text",
+  "tag": "flow-only"
+}
