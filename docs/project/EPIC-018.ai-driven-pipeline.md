@@ -255,8 +255,8 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 |-------|-------|-------------|
 | AC18.1.1 | 1 | Extraction prompt returns `suggested_category` and `category_confidence` |
 | AC18.1.2 | 1 | `BankStatementTransaction` has `suggested_category` and `category_confidence` columns |
-| AC18.1.3 | 1 | `RuleType.ML_MODEL` evaluates AI suggestion with confidence threshold ≥ 0.7 |
-| AC18.1.4 | 1 | Classification priority: KEYWORD > REGEX > ML_MODEL > Uncategorized |
+| AC18.1.3 | 1 | RETIRED (EPIC #1483 cleanup): `RuleType.ML_MODEL` rule matching deleted — it read AI signals (`suggested_category`/`category_confidence`) that no producer ever wrote, and no rule CRUD exists; the model path is the transaction classify node (§AC18.15). `RuleType.ML_MODEL` survives only as the classification-policy anchor row type {tier:CODE-LED} {proof:property} |
+| AC18.1.4 | 1 | Classification priority: KEYWORD > REGEX > Uncategorized (the ML tier moved to the classify node, §AC18.15) {tier:CODE-LED} {proof:property} |
 | AC18.1.5 | 1 | `create_entry_from_txn` reads classification before defaulting to Uncategorized |
 | AC18.1.6 | 1 | Auto-created category accounts are user-scoped and correctly typed |
 | AC18.2.1 | 2 | `CorrectionLog` model records original and corrected categories |

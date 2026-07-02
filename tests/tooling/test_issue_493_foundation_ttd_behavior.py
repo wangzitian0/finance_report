@@ -103,7 +103,6 @@ def test_AC12_22_2_background_task_payload_schemas_are_module_owned() -> None:
     payload_schema_names = {
         "StatementDecisionRequest",
         "RetryParsingRequest",
-        "TransactionUpdateRequest",
         "ParsedStatementPreview",
     }
 
