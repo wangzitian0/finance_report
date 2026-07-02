@@ -156,14 +156,15 @@ job inventories or scenario counts into this EPIC.
 >
 > ℹ️ **Non-contiguous AC numbering**: Gaps in `AC8.x.y` numbers reflect deprecated or merged ACs preserved for historical traceability through generated registry indexes plus explicit overrides. Do **not** renumber. New active ACs append to the next available index in the owning EPIC block.
 
-### AC8.1: Smoke Tests (Health Checks)
+### AC8.1: Smoke Tests (Health Checks) — migrated to the `runtime` package
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC8.1.1 | API health check | `test_api_health_check()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.1.2 | Backend service reachable | `test_backend_service_reachable()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.1.3 | Frontend service reachable | `test_frontend_api_proxy_reachable()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.1.4 | Database connectivity | `test_database_connectivity()` | `e2e/test_core_journeys.py` | P0 |
+> The smoke-test / health-check ACs (were `AC8.1.*`) moved into the
+> `runtime` package roadmap (`common/runtime/contract.py`) under the
+> package-scoped `AC-runtime.<group>.<seq>` id scheme —
+> `generate_ac_registry.py` reads package-contract roadmaps. Migrated ids
+> (homed in the package roadmap): `AC-runtime.1.1` · `AC-runtime.1.2` ·
+> `AC-runtime.1.3` · `AC-runtime.1.4`. `runtime` owns the environment smoke test
+> (`common/runtime/readme.md`).
 
 ### AC8.2: Phase 1 - Onboarding & Account Structure
 

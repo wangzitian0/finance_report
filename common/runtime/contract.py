@@ -6,27 +6,29 @@ provider, cache, telemetry, …), how each of the six environments substitutes
 them, and the invariant that a *declared* dependency must be *asserted present*
 (no silent ``skipped``/``warning``/fallback).
 
-It is a ``kernel`` leaf (``depends_on=[]``) and currently ``draft`` — still being
-designed. The *construct* phase shipped the ``base`` value language + dependency
-manifest + the ``DependencyCheck`` port; the *switch* phase adds the
-``extension`` probe adapters (``DatabaseCheck`` / ``ObjectStorageCheck`` /
-``LlmCheck``, published below) that ``boot.Bootloader`` now delegates to. The
-*cleanup* phase dropped the silent ``skipped`` status: an absent declared
-dependency is an ``error`` (runtime invariant 2). Remaining as a future feature
-(not the migration): manifest-driven ``validate`` for *all* declared dependencies
-per env tier + smoke↔declaration parity — see ``todo.md``. Roadmap ACs (each
-pinned to a real test) are added when those enforcement invariants land; the
-prose contract lives in ``readme.md`` + ``todo.md`` until then.
+A ``kernel`` leaf (``depends_on=[]``), now ``active``. The *construct* phase
+shipped the ``base`` value language + dependency manifest + the
+``DependencyCheck`` port; the *switch* phase added the ``extension`` probe
+adapters (``DatabaseCheck`` / ``ObjectStorageCheck`` / ``LlmCheck``, published
+below) that ``boot.Bootloader`` delegates to; the *cleanup* phase dropped the
+silent ``skipped`` status. The *migrate* phase homes the smoke-test / health
+ACs here: EPIC-008 AC8.1.1–.3 → ``AC-runtime.1.*`` (smoke / service reachability)
+and EPIC-007 AC7.7.1–.2 → ``AC-runtime.7.*`` (``/health`` dependency-presence),
+each ``test=`` resolving to its existing proof; the package tier (CODE-ONLY)
+gives ``proof_kind=exact``. The env-smoke-test SSOT prose is absorbed into
+``readme.md``. Remaining as a future feature (not this migration): manifest-driven
+``validate`` for *all* declared dependencies per env tier + smoke↔declaration
+parity — see ``todo.md``.
 """
 
 from __future__ import annotations
 
-from common.meta.package_contract import PackageContract
+from common.meta.package_contract import ACRecord, PackageContract
 
 CONTRACT = PackageContract(
     name="runtime",
     klass="kernel",
-    status="draft",
+    status="active",
     tier="CODE-ONLY",
     depends_on=[],
     roles=[],
@@ -48,5 +50,50 @@ CONTRACT = PackageContract(
     ],
     events=[],
     invariants=[],
-    roadmap=[],
+    roadmap=[
+        # ── Smoke tests / service reachability (was EPIC-008 AC8.1.1–.3) ──
+        ACRecord(
+            id="AC-runtime.1.1",
+            statement="The API health endpoint is reachable and returns 200. Was EPIC-008 AC8.1.1.",
+            test="apps/backend/tests/e2e/test_core_journeys.py::test_api_health_check",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.1.2",
+            statement="The backend service is reachable and returns a structured health JSON. Was EPIC-008 AC8.1.2.",
+            test="apps/backend/tests/e2e/test_core_journeys.py::test_backend_service_reachable",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.1.3",
+            statement="The frontend API proxy is reachable, validating API availability through the proxy. Was EPIC-008 AC8.1.3.",
+            test="apps/backend/tests/e2e/test_core_journeys.py::test_frontend_api_proxy_reachable",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.1.4",
+            statement="Database connectivity is proven through a create+read cycle. Was EPIC-008 AC8.1.4.",
+            test="apps/backend/tests/e2e/test_core_journeys.py::test_database_connectivity",
+            priority="P0",
+            status="done",
+        ),
+        # ── /health dependency-presence (was EPIC-007 AC7.7.1–.2) ──
+        ACRecord(
+            id="AC-runtime.7.1",
+            statement="/health returns 200 when all declared dependencies are present. Was EPIC-007 AC7.7.1.",
+            test="apps/backend/tests/infra/test_main.py::test_health_when_all_services_healthy",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.7.2",
+            statement="/health returns 503 when a declared dependency is absent (invariant 2). Was EPIC-007 AC7.7.2.",
+            test="apps/backend/tests/infra/test_main.py::test_health_returns_503_on_database_failure",
+            priority="P0",
+            status="done",
+        ),
+    ],
 )
