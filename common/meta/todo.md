@@ -13,6 +13,11 @@ The meta package's own worklist. Cross-package migration lives in
       contracts at `common/*/contract.py`; resolve `interface` against
       `implementations["be"]`.
 - [x] Source ACs additively from package-contract `roadmap`s (no EPIC mirror).
+- [x] Close the additive-discovery blind spot: every `common/<dir>` must ship a
+      `contract.py` or be a documented exception
+      (`check_package_directory_coverage`), so a new undeclared junk drawer
+      (like the retired `common/ci`/`common/shell`/`common/ssot`) cannot
+      silently recur.
 
 ## Next
 

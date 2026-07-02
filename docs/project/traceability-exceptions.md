@@ -141,6 +141,7 @@ explicit AC IDs for the behavior.
 | `tests/tooling/test_check_env_keys.py` | `docs/ssot/development.md` |
 | `tests/tooling/test_check_manifest.py` | `docs/ssot/MANIFEST.yaml` |
 | `tests/tooling/test_check_package_contract.py` | `common/meta/readme.md` |
+| `tests/tooling/test_check_package_directory_coverage.py` | `common/meta/readme.md` |
 | `tests/tooling/test_check_ssot_ownership.py` | `docs/ssot/MANIFEST.yaml` |
 | `tests/tooling/test_counter_package.py` | `common/meta/readme.md` |
 | `tests/tooling/test_identity_package.py` | `common/meta/readme.md` |

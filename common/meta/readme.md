@@ -101,6 +101,18 @@ about a package is *derived from its contract*:
 Because governance reads the contract, adding a package adds no central index to
 edit: a new package is governed the moment it ships a `common/<pkg>/contract.py`.
 
+That additive discovery has a blind spot: a directory with **no** `contract.py`
+is invisible to `check_package_contract`, not rejected — exactly how
+`common/ci`, `common/shell`, and `common/ssot` accumulated as undeclared junk
+drawers before being dissolved back into real packages (#1564-#1568).
+`tools/check_package_directory_coverage.py` (logic in
+[`extension/check_package_directory_coverage.py`](./extension/check_package_directory_coverage.py))
+closes that gap from the other direction: every directory directly under
+`common/` must ship a `contract.py` **or** be a documented, reasoned entry in
+`UNGOVERNED_EXCEPTIONS` (today: `ssot`, and the two pending-cutover SSOT-only
+domains `extraction` / `llm`) — so a new junk drawer fails the gate instead of
+silently accumulating.
+
 ## Examples
 
 - **`meta`** (`platform`, the meta-package) — self-hosts the model **and** is the
@@ -190,7 +202,8 @@ The recipe for moving a module (and its EPIC-table ACs) into the package model.
    [`traceability-exceptions.md`](../../docs/project/traceability-exceptions.md).
 
 9. **Run the gates locally before pushing:** `check_package_contract`,
-   `generate_ac_registry --check`, `check_ac_proof_kind`, `check_tier_ast_literal`,
-   `check_epic_package_dual`, `check_draft_packages`, `check_tier_imports`,
-   `check_authority_reconcile`, and `lint_doc_consistency`. The untagged-debt
-   ratchet shrinks automatically as the moved ACs leave the EPIC source.
+   `check_package_directory_coverage`, `generate_ac_registry --check`,
+   `check_ac_proof_kind`, `check_tier_ast_literal`, `check_epic_package_dual`,
+   `check_draft_packages`, `check_tier_imports`, `check_authority_reconcile`, and
+   `lint_doc_consistency`. The untagged-debt ratchet shrinks automatically as the
+   moved ACs leave the EPIC source.
