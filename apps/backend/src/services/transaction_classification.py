@@ -116,7 +116,9 @@ class ClassificationPolicy(BaseModel):
 POLICY_VERSIONS: tuple[ClassificationPolicy, ...] = (
     ClassificationPolicy(
         version=1,
-        effective_from=date(2020, 1, 1),
+        # The INITIAL basis covers all prior history (pre-2020 statements are
+        # normal); only later versions carry a meaningful cutover date.
+        effective_from=date.min,
         catalog=tuple(TransactionCategory),
         model_version="v1",
     ),
@@ -487,3 +489,43 @@ async def backfill_classifications(db: AsyncSession, user_id: UUID) -> dict:
         summaries.append({"policy_version": version, **summarize_outcomes(outcomes)})
 
     return {"classified": written, "candidates": len(candidates), "runs": summaries}
+
+
+async def classify_by_effective_policy(
+    db: AsyncSession,
+    user_id: UUID,
+    transactions: Sequence[AtomicTransaction],
+) -> list[ClassificationOutcome]:
+    """The production posting seam (#1545): classify each transaction under the
+    policy in effect on its OWN txn_date.
+
+    Contract (CR #1555): the flag gate comes FIRST — with classification disabled
+    this returns immediately without evaluating any policy, so posting behaves
+    exactly as before this EPIC. A transaction whose date no policy covers is
+    SKIPPED (it stays in the Uncategorized tail) rather than crashing the posting
+    path.
+    """
+    if not transactions or not await _classification_enabled(db, user_id):
+        return []
+
+    by_version: dict[int, list[AtomicTransaction]] = {}
+    policies: dict[int, ClassificationPolicy] = {}
+    skipped = 0
+    for txn in transactions:
+        try:
+            policy = policy_for(txn.txn_date)
+        except ValueError:
+            skipped += 1
+            continue
+        policies[policy.version] = policy
+        by_version.setdefault(policy.version, []).append(txn)
+    if skipped:
+        logger.warning(
+            "transactions predate every classification policy; left unclassified",
+            skipped=skipped,
+        )
+
+    outcomes: list[ClassificationOutcome] = []
+    for version in sorted(by_version):
+        outcomes.extend(await classify_transactions(db, user_id, by_version[version], policy=policies[version]))
+    return outcomes

@@ -266,3 +266,70 @@ async def test_AC18_16_5_reclassification_never_rewrites_posted_entries(db, test
     entries = (await db.execute(select(JournalEntry))).scalars().all()
     lines = (await db.execute(select(JournalLine))).scalars().all()
     assert _snapshot(entries, lines) == before
+
+
+# --- AC18.16.3/.6 (CR #1555): the posting seam must never raise from policy lookup ---
+
+
+@pytest.mark.asyncio
+async def test_AC18_16_3_flag_off_never_evaluates_policy_even_for_pre_epoch_txns(db, test_user, monkeypatch):
+    """CR #1555: with the flag off, posting a statement whose transactions predate
+    every policy's effective_from must NOT raise — the flag gate comes before any
+    policy evaluation (flag off = today's behaviour, unconditionally)."""
+    import src.services.transaction_classification as tc
+    from src.config import settings
+
+    monkeypatch.setattr(settings, "enable_ai_classification", False)
+    # a registry that covers nothing before 2030 — policy_for would raise for 2026
+    narrow = ClassificationPolicy(
+        version=1,
+        effective_from=date(2030, 1, 1),
+        catalog=tuple(TransactionCategory),
+        model_version="v1",
+    )
+    monkeypatch.setattr(tc, "POLICY_VERSIONS", (narrow,))
+
+    bank = await _bank(db, test_user.id)
+    created = await _ingest_month(db, test_user.id, bank, "2026-06", opening=Decimal("0.00"), closing=SALARY - RENT)
+
+    assert created == 2  # posting succeeded; no policy lookup ever ran
+    count = len((await db.execute(select(TransactionClassification))).scalars().all())
+    assert count == 0
+
+
+@pytest.mark.asyncio
+async def test_AC18_16_6_uncovered_txn_dates_skip_classification_not_crash_posting(
+    db, test_user, enabled_flag, stub_proposer, monkeypatch
+):
+    """CR #1555: flag ON, a transaction dated before every policy's effective_from
+    is SKIPPED (stays in the Uncategorized tail) — it must never crash posting."""
+    import src.services.transaction_classification as tc
+
+    narrow = ClassificationPolicy(
+        version=1,
+        effective_from=date(2026, 7, 1),  # June txns are uncovered, July covered
+        catalog=tuple(TransactionCategory),
+        model_version="v1",
+    )
+    monkeypatch.setattr(tc, "POLICY_VERSIONS", (narrow,))
+
+    bank = await _bank(db, test_user.id)
+    created_june = await _ingest_month(
+        db, test_user.id, bank, "2026-06", opening=Decimal("0.00"), closing=SALARY - RENT
+    )
+    created_july = await _ingest_month(
+        db, test_user.id, bank, "2026-07", opening=SALARY - RENT, closing=2 * (SALARY - RENT)
+    )
+
+    assert created_june == 2  # uncovered => skipped, not crashed
+    assert created_july == 2
+    rows = (await db.execute(select(TransactionClassification))).scalars().all()
+    assert len(rows) == 2  # only July's two txns classified
+
+
+def test_AC18_16_6_initial_policy_covers_all_history():
+    """CR #1555: the DEFAULT initial basis covers all prior history (pre-2020
+    statements are normal), so real imports never hit the uncovered edge."""
+    from src.services.transaction_classification import policy_for
+
+    assert policy_for(date(1999, 1, 1)).version == 1
