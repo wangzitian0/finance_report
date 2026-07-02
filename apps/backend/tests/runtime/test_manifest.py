@@ -46,12 +46,30 @@ def test_every_dependency_is_backed_by_a_real_config_setting() -> None:
         assert hasattr(settings, attr), f"{name}: settings.{attr} missing"
 
 
+def test_runtime_owns_the_dependency_env_vars_bound_to_config() -> None:
+    # runtime is the SSOT for *which* env vars configure each external dependency;
+    # config owns the mechanism (Settings reads them). Every declared env var maps
+    # to a real Settings field (env-var name -> snake_case attribute).
+    for dep in DEPENDENCY_MANIFEST:
+        assert dep.env_vars, dep.name
+        for env_var in dep.env_vars:
+            assert env_var.isupper(), f"{dep.name}: env var {env_var!r} should be UPPER_SNAKE"
+            attr = env_var.lower()
+            assert hasattr(settings, attr), f"{dep.name}: settings.{attr} missing for {env_var}"
+
+
 def test_every_dependency_is_required_somewhere_no_silent_optional() -> None:
     # A dependency required in no tier is meaningless; `Dependency` forbids it.
     for dep in DEPENDENCY_MANIFEST:
         assert dep.required_in, dep.name
     with pytest.raises(ValueError):
-        Dependency(name="x", kind=DependencyKind.CODE_DOMINANT, required_in=frozenset(), summary="s")
+        Dependency(
+            name="x",
+            kind=DependencyKind.CODE_DOMINANT,
+            required_in=frozenset(),
+            env_vars=frozenset({"X"}),
+            summary="s",
+        )
 
 
 def test_llm_is_the_only_model_dominant_dependency() -> None:

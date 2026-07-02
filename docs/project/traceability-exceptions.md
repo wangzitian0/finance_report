@@ -62,7 +62,7 @@ explicit AC IDs for the behavior.
 
 | Path | Owner |
 |---|---|
-| `tests/tooling/test_smoke_min_checks.py` | `docs/ssot/env_smoke_test.md` |
+| `tests/tooling/test_smoke_min_checks.py` | `common/runtime/readme.md` (env_smoke_test owned by the runtime package) |
 | `apps/backend/tests/audit/money/test_money.py` | `common/ledger/readme.md` |
 | `apps/backend/tests/ledger/test_processing_account_endpoints.py` | `common/ledger/readme.md` |
 | `apps/backend/tests/api/test_ai_feedback_router_extra.py` | `docs/ssot/ai.md` |

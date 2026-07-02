@@ -29,6 +29,7 @@ class Dependency:
     name: str
     kind: DependencyKind
     required_in: frozenset[EnvTier]
+    env_vars: frozenset[str]
     summary: str
 
     def __post_init__(self) -> None:
@@ -38,6 +39,11 @@ class Dependency:
             raise ValueError(
                 f"dependency {self.name!r} is required in no tier; a dependency "
                 "must be required somewhere (no silent-optional dependencies)"
+            )
+        if not self.env_vars:
+            raise ValueError(
+                f"dependency {self.name!r} declares no env vars; runtime is the "
+                "SSOT for which env vars configure each external dependency"
             )
 
 
@@ -74,18 +80,21 @@ DEPENDENCY_MANIFEST = DependencyManifest(
     (
         Dependency(
             name="database",
+            env_vars=frozenset({"DATABASE_URL"}),
             kind=DependencyKind.CODE_DOMINANT,
             required_in=_ALL,
             summary="Postgres — the system of record (DATABASE_URL).",
         ),
         Dependency(
             name="object_storage",
+            env_vars=frozenset({"S3_ENDPOINT", "S3_ACCESS_KEY", "S3_SECRET_KEY", "S3_BUCKET", "S3_REGION"}),
             kind=DependencyKind.CODE_DOMINANT,
             required_in=_ALL,
             summary="S3-compatible object storage for uploaded statements (S3_*).",
         ),
         Dependency(
             name="llm",
+            env_vars=frozenset({"AI_API_KEY", "AI_PROVIDER", "AI_BASE_URL"}),
             kind=DependencyKind.MODEL_DOMINANT,
             required_in=_ALL,
             summary="The AI provider used for statement extraction (AI_*); "
@@ -93,30 +102,35 @@ DEPENDENCY_MANIFEST = DependencyManifest(
         ),
         Dependency(
             name="cache",
+            env_vars=frozenset({"REDIS_URL"}),
             kind=DependencyKind.CODE_DOMINANT,
             required_in=_VPS,
             summary="Redis (REDIS_URL) — optional in the app-owned tiers.",
         ),
         Dependency(
             name="workflow_engine",
+            env_vars=frozenset({"PREFECT_API_URL"}),
             kind=DependencyKind.CODE_DOMINANT,
             required_in=frozenset({EnvTier.STAGING, EnvTier.PRODUCTION}),
             summary="Prefect (PREFECT_API_URL) — durable flows; in-process fallback in the app-owned tiers.",
         ),
         Dependency(
             name="telemetry",
+            env_vars=frozenset({"OTEL_EXPORTER_OTLP_ENDPOINT"}),
             kind=DependencyKind.CODE_DOMINANT,
             required_in=_VPS,
             summary="OTel exporter (OTEL_EXPORTER_OTLP_ENDPOINT).",
         ),
         Dependency(
             name="analytics",
+            env_vars=frozenset({"OPENPANEL_API_URL", "OPENPANEL_CLIENT_ID"}),
             kind=DependencyKind.CODE_DOMINANT,
             required_in=frozenset({EnvTier.STAGING, EnvTier.PRODUCTION}),
             summary="OpenPanel product analytics (OPENPANEL_API_URL).",
         ),
         Dependency(
             name="market_data",
+            env_vars=frozenset({"MARKET_DATA_YAHOO_TIMEOUT_SECONDS"}),
             kind=DependencyKind.CODE_DOMINANT,
             required_in=frozenset({EnvTier.PRODUCTION}),
             summary="Yahoo Finance market-data fetch for report-side FX.",
