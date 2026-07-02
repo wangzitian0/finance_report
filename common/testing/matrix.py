@@ -69,6 +69,15 @@ PATH_RULES: tuple[PathRule, ...] = (
     PathRule("tests/e2e/", "deployment_e2e", True),
 )
 
+
+def classify_stage(path: str) -> str | None:
+    """Return the execution stage for a repo-relative test path (first match)."""
+    for rule in PATH_RULES:
+        if path.startswith(rule.path):
+            return rule.stage
+    return None
+
+
 GENERATED_MATRIX_HEADER = (
     "# GENERATED from common/testing/matrix.py — do not hand-edit.\n"
     "# Regenerate: python tools/test_selection.py --emit-matrix\n"
@@ -276,3 +285,115 @@ def emit_shell(stage: str) -> str:
             f"PR_PREVIEW_E2E_PARALLELISM={PR_PREVIEW_E2E_PARALLELISM}",
         ]
     )
+
+
+# ---------------------------------------------------------------------------
+# Workflow pytest contracts (issue #1557): every pytest invocation in
+# .github/workflows/*.yml is registered here with its marker expression and
+# explicit paths. tests/tooling/test_workflow_selection_conformance.py
+# enforces this registry FAIL-CLOSED in both directions — an unregistered
+# invocation in a workflow fails lint-tier CI, and a registered contract with
+# no live invocation fails too (a gate cannot be dropped by editing only the
+# workflow). Marker expressions live here ONCE; workflows keep the literal
+# text and the conformance gate proves equality.
+# ---------------------------------------------------------------------------
+
+BACKEND_CI_MARKER = "not slow and not e2e and not integration"
+BACKEND_INTEGRATION_MARKER = "integration"
+BACKEND_TIER1_MARKER = "e2e and not slow and not integration and not perf"
+# Staging post-deploy core E2E intentionally shares the preview expression.
+STAGING_CORE_E2E_MARKER = PR_PREVIEW_E2E_MARKER
+STAGING_AI_OCR_MARKER = "llm"
+STAGING_VERSION_CHECK_MARKER = "smoke"
+PRODUCTION_READONLY_MARKER = "prod_safe"
+
+
+@dataclass(frozen=True)
+class WorkflowPytestContract:
+    """One expected pytest invocation inside a GitHub workflow."""
+
+    stage: str
+    workflow: str
+    # The exact `-m` expression the invocation must carry; None means the
+    # marker is variable-driven (derived at runtime via tools/test_selection).
+    marker: str | None
+    # Explicit path/node arguments the invocation must carry (empty = none:
+    # the job's cwd/addopts scope the run).
+    paths: tuple[str, ...] = ()
+    # Substring identifying this invocation's line uniquely in the workflow.
+    anchor: str = ""
+
+
+WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
+    WorkflowPytestContract(
+        stage="backend_ci",
+        workflow=".github/workflows/ci.yml",
+        marker=BACKEND_CI_MARKER,
+        anchor="--splits 5",
+    ),
+    WorkflowPytestContract(
+        stage="backend_integration",
+        workflow=".github/workflows/ci.yml",
+        marker=BACKEND_INTEGRATION_MARKER,
+        anchor="--junit-xml=test-results/backend-integration.xml",
+    ),
+    WorkflowPytestContract(
+        stage="backend_tier1_api_e2e",
+        workflow=".github/workflows/ci.yml",
+        marker=BACKEND_TIER1_MARKER,
+        paths=("tests/e2e/test_core_journeys.py",),
+        anchor="--junit-xml=test-results/backend-tier1-e2e.xml",
+    ),
+    WorkflowPytestContract(
+        stage=PR_PREVIEW_E2E_STAGE,
+        workflow=".github/workflows/preview.yml",
+        marker=None,  # runtime-derived: eval tools/test_selection.py --shell
+        paths=('"${PR_PREVIEW_E2E_TESTS[@]}"',),
+        anchor='-m "$PR_PREVIEW_E2E_MARKER"',
+    ),
+    WorkflowPytestContract(
+        stage="staging_core_e2e",
+        workflow=".github/workflows/deploy.yml",
+        marker=STAGING_CORE_E2E_MARKER,
+        paths=("tests/e2e",),
+        anchor="--junit-xml=test-results/staging-core-e2e.xml",
+    ),
+    WorkflowPytestContract(
+        stage="staging_provider_connectivity",
+        workflow=".github/workflows/deploy.yml",
+        marker=STAGING_AI_OCR_MARKER,
+        paths=("tests/e2e/test_ai_provider_connectivity.py",),
+        anchor="--junit-xml=test-results/staging-provider-connectivity.xml",
+    ),
+    WorkflowPytestContract(
+        stage="staging_ai_ocr_version_check",
+        workflow=".github/workflows/staging-ai-ocr-gate.yml",
+        marker=STAGING_VERSION_CHECK_MARKER,
+        paths=("tests/e2e/test_version_check.py",),
+        anchor="--junit-xml=test-results/staging-ai-ocr-version.xml",
+    ),
+    WorkflowPytestContract(
+        stage="staging_ai_ocr_gate",
+        workflow=".github/workflows/staging-ai-ocr-gate.yml",
+        marker=STAGING_AI_OCR_MARKER,
+        # Corpus is derived from @ac_proof metadata by
+        # tools/staging_ai_ocr_gate_contract.py --shell (a view over the same
+        # AC graph); the invocation consumes the emitted array.
+        paths=('"${STAGING_AI_OCR_TESTS[@]}"',),
+        anchor="--junit-xml=test-results/staging-ai-ocr-gate.xml",
+    ),
+    WorkflowPytestContract(
+        stage="production_readonly_smoke",
+        workflow=".github/workflows/release.yml",
+        marker=PRODUCTION_READONLY_MARKER,
+        paths=("tests/e2e/test_production_readonly_smoke.py",),
+        anchor="--junit-xml=test-results/production-readonly-e2e.xml",
+    ),
+)
+
+# Stages whose junit-xml is aggregated by the ac-behavioral-ratchet job on
+# every PR. A behavioral @ac_proof declaring ci_tier="pr_ci" must surface in
+# this evidence — enforced by common/testing/check_pr_ci_evidence.py.
+PR_EVIDENCE_STAGES: frozenset[str] = frozenset(
+    {"backend_ci", "backend_integration", "backend_tier1_api_e2e", "frontend_vitest"}
+)

@@ -609,6 +609,22 @@ reconciliation), #1558 (package declaration rollout + mirror-assertion ratchet).
 | AC8.22.5 | The `--shell` emission is valid, shlex-round-trippable bash (test array, quoted marker expression, parallelism) matching the in-code selection exactly, and an unknown stage is rejected with an explicit error {tier:CODE-ONLY} | `test_AC8_22_5_shell_emission_round_trips` | `tests/tooling/test_execution_matrix_contract.py` | P1 |
 | AC8.22.6 | The testing-package governance charter (execution matrix, package declaration protocol, E2E extension layer, fast interception, responsibility table) exists in `common/testing/README.md`, and `docs/ssot/MANIFEST.yaml` records `common/testing/matrix.py` as the `test_execution_matrix` owner with the generated YAML as a cross-ref {tier:CODE-ONLY} | `test_AC8_22_6_charter_and_manifest_ownership` | `tests/tooling/test_execution_matrix_contract.py` | P1 |
 
+### AC8.23: Workflow Selection Conformance & Execution Reconciliation
+
+Follow-up to AC8.22 (issue #1557): marker expressions and test paths for every
+junit-emitting pytest invocation across `.github/workflows/*.yml` now live once
+in `common/testing/matrix.py` (`WORKFLOW_PYTEST_CONTRACTS`), enforced
+fail-closed by a central conformance gate; and a declared `ci_tier="pr_ci"` on
+an `@ac_proof` is reconciled against actual PR junit evidence in the
+`ac-behavioral-ratchet` job — execution tier becomes a contract, not metadata.
+
+| AC ID | Test Case | Test Function | File | Priority |
+|---|---|---|---|---|
+| AC8.23.1 | Every junit-emitting pytest invocation in any workflow is registered in the matrix contracts and every registered contract has exactly one live invocation — fail-closed in both directions, so a selection change is impossible without touching the SSOT {tier:CODE-ONLY} | `test_AC8_23_1_every_workflow_pytest_invocation_is_registered` | `tests/tooling/test_workflow_selection_conformance.py` | P0 |
+| AC8.23.2 | Each registered invocation's `-m` expression and explicit path arguments equal the matrix constants (backend shards, integration, tier-1, staging core/provider/AI-OCR/version, production readonly) — marker semantics have exactly one owner {tier:CODE-ONLY} | `test_AC8_23_2_registered_invocations_match_matrix_selection` | `tests/tooling/test_workflow_selection_conformance.py` | P0 |
+| AC8.23.3 | The staging AI/OCR corpus (derived from `@ac_proof` metadata) and the matrix llm rows describe the same provider-dependent spec set, with the connectivity probe as the only declared difference — the two derivations cannot drift silently {tier:CODE-ONLY} | `test_AC8_23_3_staging_ai_ocr_corpus_aligns_with_matrix_llm_rows` | `tests/tooling/test_workflow_selection_conformance.py` | P1 |
+| AC8.23.4 | A behavioral `pr_ci` proof absent from aggregated PR junit evidence fails the reconciliation gate (wired after the score ratchet in ci.yml); present proofs pass, skipped-only warns, and parametrized/class-nested junit ids are matched correctly {tier:CODE-ONLY} | `test_AC8_23_4_pr_ci_evidence_reconciliation_gate`, `test_AC8_23_4_junit_parsing_handles_params_and_classes` | `tests/tooling/test_workflow_selection_conformance.py` | P0 |
+
 ## 5. E2E Suite Ownership
 
 Current test counts and coverage percentages belong to generated reports and CI
