@@ -12,11 +12,12 @@ shipped the ``base`` value language + dependency manifest + the
 adapters (``DatabaseCheck`` / ``ObjectStorageCheck`` / ``LlmCheck``, published
 below) that ``boot.Bootloader`` delegates to; the *cleanup* phase dropped the
 silent ``skipped`` status. The *migrate* phase homes the smoke-test / health
-ACs here: EPIC-008 AC8.1.1–.3 → ``AC-runtime.1.*`` (smoke / service reachability)
-and EPIC-007 AC7.7.1–.2 → ``AC-runtime.7.*`` (``/health`` dependency-presence),
-each ``test=`` resolving to its existing proof; the package tier (CODE-ONLY)
-gives ``proof_kind=exact``. The env-smoke-test SSOT prose is absorbed into
-``readme.md``. Remaining as a future feature (not this migration): manifest-driven
+ACs here: EPIC-008 AC8.1.1–.4 → ``AC-runtime.1.*`` (smoke / service reachability /
+DB connectivity) and EPIC-007 AC7.7.1–.2 → ``AC-runtime.7.*`` (``/health``
+dependency-presence), each ``test=`` resolving to its existing proof; the package
+tier (CODE-ONLY) gives ``proof_kind=exact``. (Step 3 / cleanup absorbs the
+env-smoke-test SSOT prose into ``readme.md`` and retires the doc.) Remaining as a
+future feature (not this migration): manifest-driven
 ``validate`` for *all* declared dependencies per env tier + smoke↔declaration
 parity — see ``todo.md``.
 """
@@ -51,7 +52,7 @@ CONTRACT = PackageContract(
     events=[],
     invariants=[],
     roadmap=[
-        # ── Smoke tests / service reachability (was EPIC-008 AC8.1.1–.3) ──
+        # ── Smoke tests / service reachability (was EPIC-008 AC8.1.1–.4) ──
         ACRecord(
             id="AC-runtime.1.1",
             statement="The API health endpoint is reachable and returns 200. Was EPIC-008 AC8.1.1.",
