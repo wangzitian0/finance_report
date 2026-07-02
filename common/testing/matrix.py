@@ -348,6 +348,7 @@ WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
         stage=PR_PREVIEW_E2E_STAGE,
         workflow=".github/workflows/preview.yml",
         marker=None,  # runtime-derived: eval tools/test_selection.py --shell
+        paths=('"${PR_PREVIEW_E2E_TESTS[@]}"',),
         anchor='-m "$PR_PREVIEW_E2E_MARKER"',
     ),
     WorkflowPytestContract(

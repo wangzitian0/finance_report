@@ -74,9 +74,22 @@ def test_AC8_23_1_every_workflow_pytest_invocation_is_registered() -> None:
             )
 
 
+def _selection_tokens(line: str) -> set[str]:
+    """Extract the test-selection tokens from a pytest invocation line:
+    literal test paths/nodes plus test-array shell expansions."""
+    tokens = set()
+    for token in line.split():
+        if token.startswith("tests/"):
+            tokens.add(token)
+        elif token.startswith('"${') and "TESTS" in token:
+            tokens.add(token)
+    return tokens
+
+
 def test_AC8_23_2_registered_invocations_match_matrix_selection() -> None:
-    """AC8.23.2: each invocation's -m expression and explicit paths equal the
-    matrix contract."""
+    """AC8.23.2: each invocation's -m expression and its FULL set of
+    selection tokens equal the matrix contract — an extra path argument
+    added to a workflow without updating the SSOT fails too."""
     invocations = _pytest_invocations()
     for contract in matrix.WORKFLOW_PYTEST_CONTRACTS:
         line = next(
@@ -87,10 +100,11 @@ def test_AC8_23_2_registered_invocations_match_matrix_selection() -> None:
                 f"{contract.stage}: marker drifted from matrix constant.\n"
                 f'  expected: -m "{contract.marker}"\n  line: {line}'
             )
-        for path in contract.paths:
-            assert path in line, (
-                f"{contract.stage}: expected path {path!r} in invocation: {line}"
-            )
+        assert _selection_tokens(line) == set(contract.paths), (
+            f"{contract.stage}: selection tokens drifted from the matrix "
+            f"contract.\n  expected: {sorted(contract.paths)}\n"
+            f"  found: {sorted(_selection_tokens(line))}\n  line: {line}"
+        )
 
 
 def test_AC8_23_3_staging_ai_ocr_corpus_aligns_with_matrix_llm_rows() -> None:
@@ -99,11 +113,12 @@ def test_AC8_23_3_staging_ai_ocr_corpus_aligns_with_matrix_llm_rows() -> None:
     specs — the two derivations cannot drift apart silently."""
     import sys
 
-    sys.path.insert(0, str(ROOT / "tools"))
+    tools_dir = str(ROOT / "tools")
+    sys.path.insert(0, tools_dir)
     try:
         from staging_ai_ocr_gate_contract import gate_files
     finally:
-        sys.path.pop(0)
+        sys.path.remove(tools_dir)
 
     corpus = set(gate_files())
     llm_rows = {
