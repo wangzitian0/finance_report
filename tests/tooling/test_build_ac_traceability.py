@@ -12,7 +12,7 @@ from unittest import mock
 
 import pytest
 
-from common.ssot import build_ac_traceability as bat
+from common.testing import build_ac_traceability as bat
 
 
 SAMPLE_REGISTRY = """\

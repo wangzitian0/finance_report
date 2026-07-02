@@ -1,4 +1,4 @@
-"""Tests for the common.ssot.check_ac_traceability validation library.
+"""Tests for the common.testing.check_ac_traceability validation library.
 
 Covers AC traceability verification: every mandatory AC has at least one CI-stage
 test reference, and the pure functions correctly classify covered / unexecuted /
@@ -7,7 +7,7 @@ placeholder / stub / missing ACs. The library is consumed by the single gate
 """
 
 import pytest
-from common.ssot import check_ac_traceability as cat
+from common.testing import check_ac_traceability as cat
 
 SAMPLE_REGISTRY_YAML = """\
 version: '1.0'

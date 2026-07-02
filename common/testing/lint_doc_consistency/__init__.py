@@ -1,6 +1,6 @@
 """Doc/SSOT consistency linter (package)."""
 
-from common.ssot.lint_doc_consistency._base import (
+from common.testing.lint_doc_consistency._base import (
     AC_PATTERN,
     AC_REGISTRY,
     CHECK6_FIXTURE_EXCLUDE,
@@ -23,8 +23,8 @@ from common.ssot.lint_doc_consistency._base import (
     TRACEABILITY_EXCEPTIONS,
     VISION_PATH,
 )
-from common.ssot.lint_doc_consistency._types import Violation
-from common.ssot.lint_doc_consistency._parsing import (
+from common.testing.lint_doc_consistency._types import Violation
+from common.testing.lint_doc_consistency._parsing import (
     EPIC_FILE_PATTERN,
     FRONTEND_RAW_FETCH_ALLOWED_FILES,
     GENERATED_ANALYSIS_SNAPSHOTS,
@@ -54,7 +54,7 @@ from common.ssot.lint_doc_consistency._parsing import (
     parse_epic_anchor,
     parse_vision_anchors,
 )
-from common.ssot.lint_doc_consistency._checks import (
+from common.testing.lint_doc_consistency._checks import (
     BACKEND_COVERAGE_COPY_RE,
     check_code_owned_coverage_threshold_doc,
     check_epic_anchors,
@@ -72,7 +72,7 @@ from common.ssot.lint_doc_consistency._checks import (
     check_registry_to_tests,
     check_test_id_epic_alignment,
 )
-from common.ssot.lint_doc_consistency.cli import main
+from common.testing.lint_doc_consistency.cli import main
 
 __all__ = [
     "AC_PATTERN",

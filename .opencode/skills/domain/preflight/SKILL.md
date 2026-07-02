@@ -40,7 +40,7 @@ Exit code is non-zero if any gate fails; the summary names which one.
 | `apps/frontend/*` | `npm run lint` + `npm run test:coverage` + `npm run build` |
 
 It includes **untracked** files, so new files are checked before they are
-committed. The mapping lives in `common/ssot/preflight.py` (`CHECKS`); add a new
+committed. The mapping lives in `common/testing/preflight.py` (`CHECKS`); add a new
 gate there with a test in `tests/tooling/test_preflight.py`.
 
 ## Notes

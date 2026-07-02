@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from common.ssot.lint_doc_consistency import _parsing
+from common.testing.lint_doc_consistency import _parsing
 
-from common.ssot.lint_doc_consistency import _base
+from common.testing.lint_doc_consistency import _base
 
 import re
 from pathlib import Path
 
 
-from common.ssot.lint_doc_consistency._base import (
+from common.testing.lint_doc_consistency._base import (
     AC_PATTERN,
     CHECK6_FIXTURE_EXCLUDE,
     E2E_PRODUCT_TEST_EXCEPTION_PREFIXES,
@@ -19,7 +19,7 @@ from common.ssot.lint_doc_consistency._base import (
     RECONCILIATION_SSOT,
     TDD_SSOT,
 )
-from common.ssot.lint_doc_consistency._parsing import (
+from common.testing.lint_doc_consistency._parsing import (
     FRONTEND_RAW_FETCH_ALLOWED_FILES,
     GENERATED_ANALYSIS_SNAPSHOTS,
     PROOF_PLACEMENT_REQUIRED_TOKENS,
@@ -36,7 +36,7 @@ from common.ssot.lint_doc_consistency._parsing import (
     load_traceability_exception_paths,
     parse_epic_anchor,
 )
-from common.ssot.lint_doc_consistency._types import Violation
+from common.testing.lint_doc_consistency._types import Violation
 
 
 def check_no_ac_test_exceptions(

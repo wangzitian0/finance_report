@@ -12,7 +12,7 @@ import json
 from decimal import Decimal
 from pathlib import Path
 
-from common.ssot.check_llm_cassettes import (
+from common.testing.check_llm_cassettes import (
     balance_violation,
     check,
     exempt_count,

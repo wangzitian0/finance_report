@@ -13,7 +13,7 @@ auto-merge by union concatenation; only two PRs editing the SAME AC produce a
 
 This is a STORAGE change only. The baseline remains a PERSISTED ratchet — it is
 never regenerated from current scores (that would erase the floor). The ratchet
-semantics live in :mod:`common.ssot.check_ac_score_baseline`; this module only
+semantics live in :mod:`common.testing.check_ac_score_baseline`; this module only
 loads/normalises/writes the on-disk form, and keeps an in-memory shape
 (``{"version": 1, "acs": {ac_id: {...}}}``) identical to the legacy JSON so the
 ratchet logic is untouched.

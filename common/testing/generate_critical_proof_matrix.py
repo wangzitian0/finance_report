@@ -6,8 +6,8 @@ This module is a LIBRARY for the one AC-keyed graph, not a CLI gate. The
 ``@ac_proof(...)`` decorator co-located on each critical-proof test (see
 :mod:`common.testing.ac_proof`). ``collect_proofs`` statically scans the test
 tree for those decorators (mirroring the AST style of
-``common.ssot.check_critical_proof_matrix``); ``build_matrix_from_graph`` reuses
-the proofs the single :class:`~common.ssot.ac_graph.AcGraph` already collected.
+``common.testing.check_critical_proof_matrix``); ``build_matrix_from_graph`` reuses
+the proofs the single :class:`~common.testing.ac_graph.AcGraph` already collected.
 
 The ``outcomes:`` section is the README/EPIC macro-outcome contract, not a
 per-test fact, so it is kept as a small hand-maintained source file
@@ -31,7 +31,7 @@ from typing import Any
 
 import yaml
 
-from common.ssot.ac_proof_execution import normalize_proof_execution
+from common.testing.ac_proof_execution import normalize_proof_execution
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -246,7 +246,7 @@ def _matrix_payload(
 
 
 def build_matrix_from_graph(graph: Any) -> dict[str, Any]:
-    """Return the matrix payload from a pre-built ``common.ssot.ac_graph.AcGraph``.
+    """Return the matrix payload from a pre-built ``common.testing.ac_graph.AcGraph``.
 
     The de-materialized projection: instead of re-scanning the test tree, reuse
     the proofs and outcomes the single AC graph already collected.
@@ -288,7 +288,7 @@ def main(argv: list[str] | None = None) -> int:
     import argparse
     import sys
 
-    from common.ssot.ac_graph import build_ac_graph
+    from common.testing.ac_graph import build_ac_graph
 
     parser = argparse.ArgumentParser(
         description="Render the derived critical-proof matrix on demand (never committed)."

@@ -18,8 +18,8 @@ import argparse
 import sys
 from pathlib import Path
 
-from common.ssot.cassette_eval_baseline import DEFAULT_BASELINE, load_jsonl, write_jsonl
-from common.ssot.cassette_graded_eval import (
+from common.testing.cassette_eval_baseline import DEFAULT_BASELINE, load_jsonl, write_jsonl
+from common.testing.cassette_graded_eval import (
     GROUND_TRUTH_DIR,
     evaluate,
     load_cases,

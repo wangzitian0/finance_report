@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from common.ssot import (
+from common.testing import (
     ac_score_baseline_format as baseline_format,
     check_ac_score_baseline as ratchet,
 )

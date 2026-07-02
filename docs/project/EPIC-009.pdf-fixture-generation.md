@@ -29,7 +29,7 @@ tests. Fixtures use fictional data; real PDFs stay local and gitignored.
 > [`common/testing/contract.py`](../../common/testing/contract.py)'s
 > `roadmap` under the package-scoped `AC-testing.<group>.<seq>` id scheme (the
 > leading "9" is dropped and the group/seq preserved, so `AC9.<g>.<s>` becomes
-> `AC-testing.<g>.<s>`). `common/ssot/generate_ac_registry.py` reads
+> `AC-testing.<g>.<s>`). `common/testing/generate_ac_registry.py` reads
 > package-contract roadmaps additively, so the AC index counts them without an
 > EPIC-table mirror. This note references the new ids (keeping the
 > registry↔EPIC link intact) but defines none of them — the contract is the

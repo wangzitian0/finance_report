@@ -29,15 +29,15 @@ def build_critical_matrix() -> dict:
     The matrix is a derived (not committed) view of the one AC-keyed graph, so
     tests read the freshly-built payload instead of a checked-in YAML file.
     """
-    from common.ssot.ac_graph import build_ac_graph
-    from common.ssot.generate_critical_proof_matrix import build_matrix_from_graph
+    from common.testing.ac_graph import build_ac_graph
+    from common.testing.generate_critical_proof_matrix import build_matrix_from_graph
 
     return build_matrix_from_graph(build_ac_graph(ROOT))
 
 
 def critical_matrix_text() -> str:
     """Render the in-memory critical-proof matrix to its canonical YAML text."""
-    from common.ssot.generate_critical_proof_matrix import render_matrix
+    from common.testing.generate_critical_proof_matrix import render_matrix
 
     return render_matrix(build_critical_matrix())
 
@@ -1818,7 +1818,7 @@ def test_AC8_13_70_ci_documents_closed_e2e_traceability_system() -> None:
     ci_cd = read("docs/ssot/ci-cd.md")
     tdd = read("docs/ssot/tdd.md")
     readme = read("README.md")
-    checker = read("common/ssot/check_e2e_epic_traceability.py")
+    checker = read("common/testing/check_e2e_epic_traceability.py")
 
     assert "the README EPIC map matches project EPIC files" in ci_cd
     assert "unclassified E2E-like assets outside declared roots" in ci_cd
@@ -2556,7 +2556,7 @@ def test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate
 ):
     """AC8.13.24: CI uploads traceability audit instead of gating stale snapshots."""
     workflow = read(".github/workflows/ci.yml")
-    audit_builder = read("common/ssot/build_ac_traceability.py")
+    audit_builder = read("common/testing/build_ac_traceability.py")
     ci_cd = read("docs/ssot/ci-cd.md")
     project_readme = read("docs/project/README.md")
 

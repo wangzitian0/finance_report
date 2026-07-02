@@ -4,7 +4,7 @@
 This replaces the N per-view byte-compare gates (the generated critical-proof
 matrix ``--check``, the vision-to-proof matrix ``--check``, and the EPIC-status
 ``--check``) with TWO gates over the one AC-keyed graph
-(:mod:`common.ssot.ac_graph`):
+(:mod:`common.testing.ac_graph`):
 
 **Gate A — INTEGRITY (hard, binary).** One predicate — "does this reference
 obligation resolve?" — applied to every edge type. It collects, from the graph,
@@ -59,7 +59,7 @@ never-regressing sub-parts with different CI entry points:
    JUnit artifacts. This entry point delegates it only when ``--ratchet-current``
    is provided;
 2. the per-type COUNT floor over ``protection-floor.json`` (delegated to
-   :mod:`common.ssot.protection`): for each protection type, current count of
+   :mod:`common.testing.protection`): for each protection type, current count of
    mandatory active ACs at that type must be ``>=`` the committed floor. Adding
    protection only raises the current count and passes WITHOUT editing the floor
    file; the floor is bumped only by the explicit ``--update-floor`` action.
@@ -72,8 +72,8 @@ so the gate REPORTS the protection levels even though only a floor regression
 fails it.
 
 This is the SINGLE AC-index gate entry point. The former standalone CI gate
-steps for ``common.ssot.check_ac_traceability`` and
-``common.ssot.check_critical_proof_matrix`` are retired; their logic is folded
+steps for ``common.testing.check_ac_traceability`` and
+``common.testing.check_critical_proof_matrix`` are retired; their logic is folded
 into Gate A here (by importing them as libraries), so every failure they caught
 still fails this gate with the same wording.
 """
@@ -86,8 +86,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from common.ssot.ac_graph import AcGraph, build_ac_graph
-from common.ssot.protection import (
+from common.testing.ac_graph import AcGraph, build_ac_graph
+from common.testing.protection import (
     PROTECTION_TYPES,
     check_count_floor,
     update_floor,
@@ -262,11 +262,11 @@ def check_repo_contracts(repo_root: Path) -> list[str]:
 
     Returns the combined list of failure messages (empty when both pass).
     """
-    from common.ssot.check_ac_traceability import (
+    from common.testing.check_ac_traceability import (
         run_traceability,
         traceability_failure_messages,
     )
-    from common.ssot.check_critical_proof_matrix import validate_matrix_contract
+    from common.testing.check_critical_proof_matrix import validate_matrix_contract
 
     errors: list[str] = []
     errors.extend(traceability_failure_messages(run_traceability(repo_root)))
@@ -280,7 +280,7 @@ def check_repo_contracts(repo_root: Path) -> list[str]:
 
 
 def _run_score_ratchet(repo_root: Path, current: Path, baseline: Path | None) -> int:
-    from common.ssot.check_ac_score_baseline import (
+    from common.testing.check_ac_score_baseline import (
         DEFAULT_BASELINE,
         main as ratchet_main,
     )

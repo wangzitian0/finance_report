@@ -86,8 +86,8 @@ def test_retire_bank_statement_migration_normalizes_uppercase_source_type_drift(
 def test_AC8_13_124_traceability_gate_and_audit_builder_share_test_surface() -> None:
     """AC8.13.124: AC traceability gate and uploaded audit scan the same roots."""
 
-    from common.ssot import build_ac_traceability as bat
-    from common.ssot.test_surface import DEFAULT_AC_TEST_DIRS
+    from common.testing import build_ac_traceability as bat
+    from common.testing.test_surface import DEFAULT_AC_TEST_DIRS
 
     expected = (
         "apps/backend/tests",
@@ -103,9 +103,9 @@ def test_AC8_13_124_traceability_gate_and_audit_builder_share_test_surface() -> 
     assert builder_defaults == expected
     assert DEFAULT_AC_TEST_DIRS == expected
 
-    parser_defaults_source = read("common/ssot/check_ac_traceability.py")
+    parser_defaults_source = read("common/testing/check_ac_traceability.py")
     assert "DEFAULT_AC_TEST_DIRS" in parser_defaults_source
 
-    builder_source = read("common/ssot/build_ac_traceability.py")
+    builder_source = read("common/testing/build_ac_traceability.py")
     assert "default_ac_test_dirs" in builder_source
     assert ' + ".join(DEFAULT_AC_TEST_DIRS)' in builder_source

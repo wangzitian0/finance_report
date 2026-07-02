@@ -3,7 +3,7 @@
 
 This is the COUNT side of the protection ratchet. The per-AC behavioural-score
 floor (``ac-score-baseline.jsonl``) is owned by
-:mod:`common.ssot.check_ac_score_baseline`; this module owns the complementary
+:mod:`common.testing.check_ac_score_baseline`; this module owns the complementary
 per-TYPE count floor: for each protection *type* it derives how many mandatory,
 active ACs currently have that type from the graph, and enforces
 ``current_count[type] >= committed_floor[type]`` so protection never regresses
@@ -31,7 +31,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from common.ssot.ac_graph import AcGraph
+from common.testing.ac_graph import AcGraph
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_FLOOR = REPO_ROOT / "docs" / "ssot" / "protection-floor.json"

@@ -76,7 +76,7 @@ TEST_FILE_SUFFIXES = (
     ".spec.tsx",
 )
 
-# Matches BOTH AC id grammars (mirrors common.ssot.ac_traceability_refs):
+# Matches BOTH AC id grammars (mirrors common.testing.ac_traceability_refs):
 # legacy ``AC{epic}.{n}.{n}`` and package-scoped ``AC-{package}.{n}.{n}``. The
 # ``epic`` group is set only for the legacy form (``pkg`` for the package form),
 # so consumers needing the EPIC number must check ``group("epic")`` is not None.

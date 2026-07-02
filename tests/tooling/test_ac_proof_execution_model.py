@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from common.ssot import generate_critical_proof_matrix as matrix
-from common.ssot.ac_graph import _proof_edges
-from common.ssot.ac_proof_execution import (
+from common.testing import generate_critical_proof_matrix as matrix
+from common.testing.ac_graph import _proof_edges
+from common.testing.ac_proof_execution import (
     PROOF_EXECUTION_STAGES,
     PROOF_TASK_CATEGORIES,
     normalize_proof_execution,

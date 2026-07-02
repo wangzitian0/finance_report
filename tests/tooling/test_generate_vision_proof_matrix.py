@@ -12,7 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
-from common.ssot import generate_vision_proof_matrix as gvpm
+from common.testing import generate_vision_proof_matrix as gvpm
 
 
 def _build():
@@ -188,7 +188,7 @@ def test_AC14_1_19_graph_vision_items_come_from_passed_root(tmp_path) -> None:
     silently read the real checkout. This asserts the vision items track the
     passed root.
     """
-    from common.ssot.ac_graph import build_ac_graph
+    from common.testing.ac_graph import build_ac_graph
 
     anchor = _write_temp_vision_repo(tmp_path)
     # build_ac_graph also needs an outcomes doc + baseline under the temp root.

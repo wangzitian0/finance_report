@@ -1,7 +1,7 @@
 """Cassette GRADED field-accuracy eval + drift ratchet.
 
 EPIC-023 AC23.8 / issue #1307. The balance-chain gate
-(:mod:`common.ssot.check_llm_cassettes`, AC23.7) catches INCONSISTENCY, not
+(:mod:`common.testing.check_llm_cassettes`, AC23.7) catches INCONSISTENCY, not
 INACCURACY: an LLM that reads ``50`` as ``150`` still passes as long as the chain
 balances. This module scores each committed statement cassette PER FIELD against
 a sibling SYNTHETIC ground-truth artifact (``<fingerprint>.truth.json``), yields
@@ -26,8 +26,8 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
-from common.ssot.cassette_eval_baseline import DEFAULT_BASELINE, load_jsonl
-from common.ssot.check_llm_cassettes import CASSETTE_DIR, _response_text
+from common.testing.cassette_eval_baseline import DEFAULT_BASELINE, load_jsonl
+from common.testing.check_llm_cassettes import CASSETTE_DIR, _response_text
 
 GROUND_TRUTH_DIR = CASSETTE_DIR / "ground_truth"
 

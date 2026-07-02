@@ -1,7 +1,7 @@
 """Conflict-free storage for the cassette graded-eval ratchet baseline.
 
 EPIC-023 AC23.8 / issue #1307. This mirrors
-:mod:`common.ssot.ac_score_baseline_format`: the per-case score FLOOR is stored
+:mod:`common.testing.ac_score_baseline_format`: the per-case score FLOOR is stored
 as **sorted, line-oriented JSONL** (one JSON object per case, one per line,
 sorted by ``case_id``). Paired with a ``merge=union`` ``.gitattributes`` rule,
 two PRs that ratchet DIFFERENT cases auto-merge by union concatenation; only two
@@ -9,7 +9,7 @@ PRs editing the SAME case produce a (legitimate, semantic) conflict.
 
 This is a STORAGE module only. The baseline is a PERSISTED ratchet floor — it is
 never regenerated from current scores (that would erase the floor). The ratchet
-semantics live in :mod:`common.ssot.cassette_graded_eval`; this module only
+semantics live in :mod:`common.testing.cassette_graded_eval`; this module only
 loads/normalises/writes the on-disk form into the in-memory shape
 ``{"version": 1, "cases": {case_id: {...}}}``.
 """

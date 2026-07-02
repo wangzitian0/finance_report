@@ -6,7 +6,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from common.ssot import analyze_test_ac_coverage as coverage
+from common.testing import analyze_test_ac_coverage as coverage
 
 
 class TestAnalyzeRepo:

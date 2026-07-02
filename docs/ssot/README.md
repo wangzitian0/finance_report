@@ -17,7 +17,7 @@ README.md -> EPIC -> E2E
 ```
 
 That macro contract is a DERIVED (not committed) view of the one AC-keyed graph
-([ac_graph.py](../../common/ssot/ac_graph.py)): its hand-curated outcome source
+([ac_graph.py](../../common/testing/ac_graph.py)): its hand-curated outcome source
 is [critical-proof-outcomes.yaml](./critical-proof-outcomes.yaml) and its proofs
 come from the co-located `@ac_proof` decorators. It is validated by
 `tools/check_ac_index.py` and gated for dangling/missing links by

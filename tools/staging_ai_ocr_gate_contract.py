@@ -81,8 +81,8 @@ def _load_matrix() -> dict[str, Any]:
     scan and the vision build the full graph performs. The observable
     proofs/outcomes payload is identical, only the startup cost is lower.
     """
-    from common.ssot.ac_graph import build_proofs_only
-    from common.ssot.generate_critical_proof_matrix import build_matrix_from_graph
+    from common.testing.ac_graph import build_proofs_only
+    from common.testing.generate_critical_proof_matrix import build_matrix_from_graph
 
     return build_matrix_from_graph(build_proofs_only(REPO_ROOT))
 

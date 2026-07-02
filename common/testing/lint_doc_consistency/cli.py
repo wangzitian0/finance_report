@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from common.ssot.lint_doc_consistency import _base
+from common.testing.lint_doc_consistency import _base
 
 import argparse
 import sys
 
 
-from common.ssot.lint_doc_consistency._checks import (
+from common.testing.lint_doc_consistency._checks import (
     check_code_owned_coverage_threshold_doc,
     check_epic_anchors,
     check_epic_to_registry,
@@ -25,14 +25,14 @@ from common.ssot.lint_doc_consistency._checks import (
     check_registry_to_tests,
     check_test_id_epic_alignment,
 )
-from common.ssot.lint_doc_consistency._parsing import (
+from common.testing.lint_doc_consistency._parsing import (
     collect_ac_refs_in_epics,
     collect_ac_refs_in_tests,
     list_epic_files,
     load_registry_acs,
     parse_vision_anchors,
 )
-from common.ssot.lint_doc_consistency._types import Violation
+from common.testing.lint_doc_consistency._types import Violation
 
 
 def main() -> int:

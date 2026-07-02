@@ -1,7 +1,7 @@
 """AC8.13.139: one AC-keyed graph, derived views, exactly TWO gates.
 
 The cross-cutting proof/vision/status indexes are unified onto ONE AC-keyed
-graph (``common/ssot/ac_graph.py``). The critical-proof matrix, vision-proof
+graph (``common/testing/ac_graph.py``). The critical-proof matrix, vision-proof
 matrix, and README EPIC-status table are DERIVED on demand and never
 committed-materialized, and the gate over that graph is exactly TWO gates:
 
@@ -35,13 +35,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from common.ssot import (
+from common.testing import (
     check_ac_index as gate,
     check_ac_score_baseline as ratchet,
     protection,
 )
-from common.ssot.ac_graph import AcGraph, AcNode, Outcome, ProofEdge, VisionItem
-from common.ssot.ac_score_baseline_format import write_jsonl
+from common.testing.ac_graph import AcGraph, AcNode, Outcome, ProofEdge, VisionItem
+from common.testing.ac_score_baseline_format import write_jsonl
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -159,7 +159,7 @@ def test_AC8_13_139_gate_fails_on_mandatory_ac_without_proof(tmp_path) -> None:
     graph-level mirror — not by a graph obligation in ``check_integrity``. A
     deprecated (strikethrough) AC with no test is excluded, not a failure.
     """
-    from common.ssot import check_ac_traceability as traceability
+    from common.testing import check_ac_traceability as traceability
 
     docs = tmp_path / "docs"
     docs.mkdir()

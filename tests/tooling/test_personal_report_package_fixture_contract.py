@@ -17,8 +17,8 @@ def _matrix() -> dict:
     The matrix is a derived (not committed) view of the one AC-keyed graph, so
     tests read the freshly-built payload instead of a checked-in YAML file.
     """
-    from common.ssot.ac_graph import build_ac_graph
-    from common.ssot.generate_critical_proof_matrix import build_matrix_from_graph
+    from common.testing.ac_graph import build_ac_graph
+    from common.testing.generate_critical_proof_matrix import build_matrix_from_graph
 
     return build_matrix_from_graph(build_ac_graph(ROOT))
 

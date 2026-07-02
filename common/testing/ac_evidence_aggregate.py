@@ -9,7 +9,7 @@ module reads those properties back and reduces them to one record per AC:
 - ``score`` = the best (max) score observed among *passing* rows;
 - ``metric``/``comment``/``provenance`` taken from the row that owns the max score.
 
-The output JSON is the input to :mod:`common.ssot.check_ac_score_baseline`.
+The output JSON is the input to :mod:`common.testing.check_ac_score_baseline`.
 """
 
 from __future__ import annotations

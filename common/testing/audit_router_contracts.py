@@ -135,7 +135,7 @@ def render_markdown(findings: Sequence[UntypedEndpoint]) -> str:
         "Endpoints below declare no (non-`None`) `response_model`, so their response "
         "contract is absent from the OpenAPI schema. Type them (or document why a "
         "status-only handler is intentional) and lower the budget "
-        "(`DEFAULT_MAX_UNTYPED_ENDPOINTS` in `common/ssot/audit_router_contracts.py`).",
+        "(`DEFAULT_MAX_UNTYPED_ENDPOINTS` in `common/testing/audit_router_contracts.py`).",
         "",
         f"**Untyped endpoints: {len(findings)}**",
         "",
