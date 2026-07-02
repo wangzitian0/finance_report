@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 
-from common.ssot.governance_report._base import (
+from common.meta.extension.governance_report._base import (
     PROTECTED_DEBT_LABELS,
     PROTECTED_RATIO_LABELS,
     RATIO_EPSILON,
 )
-from common.ssot.governance_report._types import GateViolation, GovernanceEntry
-from common.ssot.governance_report._util import (
+from common.meta.extension.governance_report._types import GateViolation, GovernanceEntry
+from common.meta.extension.governance_report._util import (
     _gate_target,
     _has_proof,
     _is_high_risk,

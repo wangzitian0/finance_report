@@ -9,18 +9,18 @@ from collections.abc import Mapping
 from pathlib import Path
 
 
-from common.ssot.governance_report._base import (
+from common.meta.extension.governance_report._base import (
     GATE_EXCEPTION_PATH,
     GATE_HLS_RULE,
     GATE_ISSUE,
     HLS_ISSUE,
     SOURCE_ISSUE,
 )
-from common.ssot.governance_report._gate import (
+from common.meta.extension.governance_report._gate import (
     _load_changed_files,
     evaluate_incremental_gate,
 )
-from common.ssot.governance_report._report import build_report
+from common.meta.extension.governance_report._report import build_report
 
 
 def _join_sample(values: object, limit: int = 5) -> str:

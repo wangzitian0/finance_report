@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-from common.ssot.governance_report._base import (
+from common.meta.extension.governance_report._base import (
     GATE_HLS_RULE,
     GATE_ISSUE,
 )

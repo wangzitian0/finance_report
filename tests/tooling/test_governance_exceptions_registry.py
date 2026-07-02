@@ -12,7 +12,7 @@ from pathlib import Path
 
 import yaml
 
-from common.ssot import check_governance_exceptions as gec
+from common.meta.extension import check_governance_exceptions as gec
 
 ROOT = Path(__file__).resolve().parents[2]
 REGISTRY = ROOT / "docs" / "ssot" / "governance-exceptions.yaml"

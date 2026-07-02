@@ -29,15 +29,6 @@ first worked example.
 
 from __future__ import annotations
 
-from common.meta.base.package_contract import (
-    ACRecord,
-    Invariant,
-    Kind,
-    PackageContract,
-    Unit,
-)
-from common.meta.data.projection import contract_index
-
 __all__ = [
     "ACRecord",
     "Invariant",
@@ -46,3 +37,26 @@ __all__ = [
     "Unit",
     "contract_index",
 ]
+
+# Lazy re-export (PEP 562): common/meta/extension/ hosts several stdlib-only
+# governance gates (check_manifest, check_ssot_ownership, ...) that CI's lint
+# job runs with only `--with pyyaml` -- no pydantic. Importing ANY
+# common.meta.* submodule always runs this __init__ first, so an eager import
+# of the pydantic-backed base/data layers here would drag pydantic into every
+# one of those lightweight gates. __getattr__ defers the import until a caller
+# actually reaches for ACRecord/Invariant/Kind/PackageContract/Unit/
+# contract_index, so check_package_contract.py (which does need the model)
+# still gets it, while the stdlib-only gates never pay the cost.
+_BASE_NAMES = {"ACRecord", "Invariant", "Kind", "PackageContract", "Unit"}
+
+
+def __getattr__(name: str):
+    if name in _BASE_NAMES:
+        from common.meta.base import package_contract
+
+        return getattr(package_contract, name)
+    if name == "contract_index":
+        from common.meta.data.projection import contract_index
+
+        return contract_index
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

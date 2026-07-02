@@ -2,7 +2,7 @@
 
 import subprocess  # noqa: F401  (kept for monkeypatch of governance_report.subprocess.run)
 
-from common.ssot.governance_report._base import (
+from common.meta.extension.governance_report._base import (
     GATE_EXCEPTION_PATH,
     GATE_HLS_RULE,
     GATE_ISSUE,
@@ -20,12 +20,12 @@ from common.ssot.governance_report._base import (
     SSOT_FILE_EXCLUDES,
     SSOT_FILE_SUFFIXES,
 )
-from common.ssot.governance_report._types import (
+from common.meta.extension.governance_report._types import (
     GateViolation,
     GovernanceEntry,
     ManifestSource,
 )
-from common.ssot.governance_report._util import (
+from common.meta.extension.governance_report._util import (
     _as_strings,
     _display_path,
     _display_ref,
@@ -38,7 +38,7 @@ from common.ssot.governance_report._util import (
     _manifest_entry_target,
     _source_relative_path,
 )
-from common.ssot.governance_report._metrics import (
+from common.meta.extension.governance_report._metrics import (
     _compare_governance_trends,
     _coverage_ratio,
     _field_coverage,
@@ -46,19 +46,19 @@ from common.ssot.governance_report._metrics import (
     _governance_quality_snapshot,
     _quality_ratio,
 )
-from common.ssot.governance_report._manifest import (
+from common.meta.extension.governance_report._manifest import (
     _entries_from_manifest_data,
     _load_manifest_entries,
     _load_manifest_entries_from_text,
     _orphan_ssot_files,
 )
-from common.ssot.governance_report._report import (
+from common.meta.extension.governance_report._report import (
     _contains_high_risk_terms,
     _manifest_sources,
     build_report,
     build_source_report,
 )
-from common.ssot.governance_report._gate import (
+from common.meta.extension.governance_report._gate import (
     _changed_ssot_files,
     _entry_by_key,
     _exception_path_for_report,
@@ -71,7 +71,7 @@ from common.ssot.governance_report._gate import (
     _source_manifest_repo_path,
     evaluate_incremental_gate,
 )
-from common.ssot.governance_report.cli import (
+from common.meta.extension.governance_report.cli import (
     _join_sample,
     main,
     parse_args,

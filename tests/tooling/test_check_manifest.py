@@ -17,7 +17,7 @@ from unittest import mock
 
 import pytest
 
-from common.ssot import check_manifest as cm
+from common.meta.extension import check_manifest as cm
 
 
 # ---------------------------------------------------------------------------

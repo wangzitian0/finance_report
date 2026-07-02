@@ -8,8 +8,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from common.ci import metrics_contract as contract  # noqa: E402
-from common.ci.metrics_contract import (  # noqa: E402
+from common.meta.extension import metrics_contract as contract  # noqa: E402
+from common.meta.extension.metrics_contract import (  # noqa: E402
     _has_code_files,
     _validate_policy_shape,
     _validate_repo_contract_files,

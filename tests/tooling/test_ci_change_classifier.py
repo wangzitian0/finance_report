@@ -405,7 +405,7 @@ def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None
         "apps/frontend/README.md",
         "docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md",
         "docs/ssot/ci-cd.md",
-        "common/ssot/check_ssot_ownership.py",
+        "common/meta/extension/check_ssot_ownership.py",
         "common/ssot/build_ac_traceability.py",
         "tests/tooling/test_check_ssot_ownership.py",
         "common/testing/fixtures/pdf/README.md",
@@ -419,7 +419,7 @@ def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None
         [
             "docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md",
             "docs/ssot/ci-cd.md",
-            "common/ssot/check_ssot_ownership.py",
+            "common/meta/extension/check_ssot_ownership.py",
             "tests/tooling/test_check_ssot_ownership.py",
         ]
     )

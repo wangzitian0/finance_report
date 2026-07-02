@@ -11,7 +11,7 @@ proof chain deliberately does not gate as normal AC proof:
 
 Each classified entry must declare ``id``, ``owner``, ``reason``, and a tracking
 ``issue`` URL. The legacy ``exceptions`` list (SSOT governance gate exceptions)
-is left untouched so ``common/ssot/governance_report.py`` keeps reading it.
+is left untouched so ``common/meta/extension/governance_report`` keeps reading it.
 
 Exit code 0 on success, 1 on any violation.
 
@@ -27,7 +27,7 @@ from pathlib import Path
 
 import yaml
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_REGISTRY = REPO_ROOT / "docs" / "ssot" / "governance-exceptions.yaml"
 
 CLASSIFIED_SECTIONS = ("proof_exceptions", "code_owned_surfaces")

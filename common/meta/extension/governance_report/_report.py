@@ -12,7 +12,7 @@ except ImportError:  # pragma: no cover - CLI guard
     yaml = None
 
 
-from common.ssot.governance_report._base import (
+from common.meta.extension.governance_report._base import (
     GATE_ISSUE,
     HIGH_RISK_SUBSTRINGS,
     HIGH_RISK_TOKENS,
@@ -20,13 +20,13 @@ from common.ssot.governance_report._base import (
     REPORT_VERSION,
     SOURCE_ISSUE,
 )
-from common.ssot.governance_report._manifest import (
+from common.meta.extension.governance_report._manifest import (
     _load_manifest_entries,
     _orphan_ssot_files,
 )
-from common.ssot.governance_report._metrics import _field_coverage, _future_candidate
-from common.ssot.governance_report._types import ManifestSource
-from common.ssot.governance_report._util import (
+from common.meta.extension.governance_report._metrics import _field_coverage, _future_candidate
+from common.meta.extension.governance_report._types import ManifestSource
+from common.meta.extension.governance_report._util import (
     _display_path,
     _has_proof,
     _infer_family,
