@@ -615,10 +615,14 @@ concepts:
     # issue #1556): matrix.py is the source; the docs YAML is its generated
     # view (tools/test_selection.py --emit-matrix, drift-gated in CI).
     owner: common/testing/matrix.py
+    family: tdd
+    kind: matrix
     description: >-
       Test placement and selection SSOT: path-to-stage mapping for AC
       traceability execution proof plus per-stage runtime test selection
       (consumed by workflows via tools/test_selection.py).
+    proofs:
+      - tests/tooling/test_execution_matrix_contract.py
     cross_refs:
       - docs/ssot/test-execution-matrix.yaml
       - docs/ssot/ci-cd.md
@@ -628,10 +632,15 @@ concepts:
 
   test_execution_matrix_generated_view:
     owner: docs/ssot/test-execution-matrix.yaml
+    family: tdd
+    kind: matrix
+    parent: test_execution_matrix
     description: >-
       Generated view of common/testing/matrix.py kept for AC-traceability
       consumers; never hand-edit — regenerate via
       tools/test_selection.py --emit-matrix (drift-gated in CI).
+    proofs:
+      - tests/tooling/test_execution_matrix_contract.py
     cross_refs:
       - common/testing/matrix.py
       - tools/test_selection.py
