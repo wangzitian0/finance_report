@@ -103,6 +103,11 @@ def package_test_ownership() -> dict[str, str]:
                 f"package {pkg!r} is in PACKAGE_TEST_DECLARATIONS but its "
                 "contract.py declares no TEST_ROOTS"
             )
+        if isinstance(roots, str):
+            raise ValueError(
+                f"package {pkg!r}: TEST_ROOTS must be a tuple of paths, "
+                "not a bare string"
+            )
         for root in roots:
             other = ownership.get(root)
             if other is not None:

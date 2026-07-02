@@ -28,16 +28,19 @@ TOOLING_DIR = REPO_ROOT / "tests" / "tooling"
 BASELINE_PATH = Path(__file__).parent / "mirror-assertion-baseline.json"
 
 _MIRROR_RE = re.compile(
-    r"""assert\s+(?:not\s+)?f?["'].*?["']\s+(?:not\s+)?in\s+""",
+    r"""assert\s+\(?\s*(?:not\s+)?[frbuFRBU]{0,2}["'].*?["']\s+(?:not\s+)?in\s+""",
     re.VERBOSE,
 )
 
 
 def _logical_lines(text: str) -> list[str]:
     """Join implicit (bracket) and explicit (backslash) continuations enough
-    for the assert-literal-in pattern to land on one line."""
+    for the assert-literal-in pattern to land on one line: backslash joins,
+    newline right after ``(``, and newline right before ``in``/``not in`` —
+    the split points that would otherwise let a mirror assert evade the count."""
     joined = re.sub(r"\\\n\s*", " ", text)
     joined = re.sub(r"\(\s*\n\s*", "(", joined)
+    joined = re.sub(r"\n\s+(?=(?:not\s+)?in\s)", " ", joined)
     return joined.splitlines()
 
 
