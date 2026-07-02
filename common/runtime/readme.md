@@ -65,15 +65,22 @@ declared dependency is proven present — or the build/smoke fails.**
 - **extension** — the per-dependency check/substitute adapters (db, s3, llm,
   redis, telemetry). Each implements the port; an adapter may instead live in its
   own domain package and implement this port (dependency inversion).
-- **api** — `boot.validate` and the smoke test become this package's boundary:
-  they run the declared checks and enforce invariants 2 and 6.
+- **api** — `boot.validate` and the **environment smoke test**
+  (`docs/ssot/env_smoke_test.md`, `tools/smoke_test.sh`) are this package's
+  boundary: `runtime` **owns** the smoke test — the deployed-environment
+  verification that every declared dependency is present (invariants 2 and 6),
+  plus the version-integrity / routing / functional checks it composes.
 
 ## Boundaries with neighbouring packages
 
-- **`config`** — owns the env-key *plumbing* (the three-layer
-  `secrets.ctmpl` ↔ `config.py` ↔ `.env.example` consistency). `runtime` owns the
-  *dependency semantics* on top: which keys denote a dependency, its kind, its
-  per-tier substitute, and the presence assertion.
+- **`config`** — owns the env-var *mechanism*: the three-layer SSOT
+  (`secrets.ctmpl` ↔ `config.py` ↔ `.env.example`), the pydantic `Settings`
+  reader, and schema validation — shared by every package. `runtime` owns the
+  *dependency layer* on top: the **manifest is the SSOT for which env vars are
+  external-dependency env vars** (`Dependency.env_vars`, bound to `Settings`),
+  each dependency's kind, its per-tier substitute, and the presence assertion.
+  (Only dependency env vars consolidate here — feature/security/domain env vars
+  stay with `config` and their domain packages.)
 - **`testing`** — owns proof *provenance* (`deterministic` / `golden_fixture` /
   `live_llm`); `runtime`'s `Kind` maps onto it (code-dominant → deterministic,
   model-dominant → live on staging).

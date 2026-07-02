@@ -827,9 +827,12 @@ concepts:
   # ── Environment smoke test ────────────────────────────────────────────
   env_smoke_test:
     owner: docs/ssot/env_smoke_test.md
-    description: Environment smoke testing via real boot operations.
+    description: Environment smoke testing via real boot operations. Owned by the
+      runtime package (common/runtime/readme.md) — it is runtime's deployed-env
+      dependency-presence verification; env_smoke_test.md is its SSOT doc.
     cross_refs:
       - docs/ssot/development.md
+      - common/runtime/readme.md
     proofs:
       - tests/tooling/test_runtime_incident_response_ssot.py
 
