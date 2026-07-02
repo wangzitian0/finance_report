@@ -33,7 +33,7 @@ except ImportError:  # pragma: no cover
     print("ERROR: PyYAML not installed. Run: pip install pyyaml", file=sys.stderr)
     sys.exit(1)
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 MANIFEST_PATH = REPO_ROOT / "docs" / "ssot" / "MANIFEST.yaml"
 
 

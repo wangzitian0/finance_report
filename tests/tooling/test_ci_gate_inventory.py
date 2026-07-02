@@ -183,7 +183,7 @@ def test_AC8_13_153_staging_ai_ocr_gate_is_a_single_reusable_workflow() -> None:
 
 def test_AC8_13_154_production_release_line_lives_in_release_yml() -> None:
     """AC8.13.154: production release split into release.yml; deploy.yml keeps staging + promote."""
-    from common.ci.workflow_contract import APP_WORKFLOW_FILES, WORKFLOW_CONTRACT
+    from common.meta.extension.workflow_contract import APP_WORKFLOW_FILES, WORKFLOW_CONTRACT
 
     release = _load_yaml(WORKFLOWS / "release.yml")
     deploy = _load_yaml(WORKFLOWS / "deploy.yml")

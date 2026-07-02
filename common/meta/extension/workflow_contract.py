@@ -625,7 +625,7 @@ def run_contract(repo_root: Path) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--repo-root", type=Path, default=Path(__file__).resolve().parents[2]
+        "--repo-root", type=Path, default=Path(__file__).resolve().parents[3]
     )
     args = parser.parse_args(argv)
     return run_contract(args.repo_root)

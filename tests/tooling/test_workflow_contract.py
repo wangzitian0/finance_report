@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from common.ci import workflow_contract as contract  # noqa: E402
+from common.meta.extension import workflow_contract as contract  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 

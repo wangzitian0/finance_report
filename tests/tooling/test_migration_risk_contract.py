@@ -5,7 +5,7 @@ from textwrap import dedent
 
 import yaml
 
-from common.ci import migration_risk
+from common.meta.extension import migration_risk
 
 
 ROOT = Path(__file__).resolve().parents[2]

@@ -102,7 +102,7 @@ def test_instruction_mirrors_exempt_from_ssot_ownership_check() -> None:
     Otherwise their mirrored content trips check4 (rule keyword without a
     cross-reference) and breaks CI.
     """
-    from common.ssot import check_ssot_ownership
+    from common.meta.extension import check_ssot_ownership
 
     for entry in ("CLAUDE.md", "GEMINI.md"):
         assert (ROOT / entry) in check_ssot_ownership.CHECK4_EXEMPT_PATHS

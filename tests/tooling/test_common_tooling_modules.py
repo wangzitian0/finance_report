@@ -135,7 +135,8 @@ def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
         policy_tool.main is importlib.import_module("common.coverage.check_policy").main
     )
     assert (
-        metrics_tool.main is importlib.import_module("common.ci.metrics_contract").main
+        metrics_tool.main
+        is importlib.import_module("common.meta.extension.metrics_contract").main
     )
 
 
@@ -180,8 +181,8 @@ def test_AC8_13_57_ssot_tools_delegate_to_common_implementations():
         "tools.check_e2e_epic_traceability": (
             "common.testing.check_e2e_epic_traceability"
         ),
-        "tools.check_manifest": "common.ssot.check_manifest",
-        "tools.check_ssot_ownership": "common.ssot.check_ssot_ownership",
+        "tools.check_manifest": "common.meta.extension.check_manifest",
+        "tools.check_ssot_ownership": "common.meta.extension.check_ssot_ownership",
         "tools.generate_ac_registry": "common.testing.generate_ac_registry",
         "tools.generate_db_schema_reference": (
             "common.ssot.generate_db_schema_reference"
@@ -199,7 +200,7 @@ def test_AC8_13_57_ssot_tools_delegate_to_common_implementations():
 def test_AC8_13_58_ci_tools_delegate_to_common_implementations():
     """AC8.13.58: CI commands keep common contracts separate from tool reports."""
     command_modules = {
-        "tools.check_migration_risk": "common.ci.migration_risk",
+        "tools.check_migration_risk": "common.meta.extension.migration_risk",
         "tools.check_toolchain_contract": "common.runtime.check_toolchain_contract",
         "tools.ci_change_classifier": "common.testing.change_classifier",
         "tools.github_workflow_timing_summary": (

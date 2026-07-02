@@ -22,8 +22,8 @@ from pathlib import Path
 import pytest
 
 from common.authority import check_authority_reconcile as g_reconcile
-from common.ssot import check_draft_packages as g_draft
-from common.ssot import check_epic_package_dual as g_dual
+from common.meta.extension import check_draft_packages as g_draft
+from common.meta.extension import check_epic_package_dual as g_dual
 from common.authority import check_tier_ast_literal as g_tier
 
 

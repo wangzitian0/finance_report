@@ -169,7 +169,7 @@ concepts:
       - docs/ssot/ci-cd.md
       - docs/ssot/deployment.md
       - tools/check_migration_risk.py
-      - common/ci/migration_risk.py
+      - common/meta/extension/migration_risk.py
       - tests/tooling/test_migration_risk_contract.py
 
   # ── Reconciliation domain ──────────────────────────────────────────────
@@ -758,8 +758,8 @@ concepts:
       - common/authority/check_ac_tier_baseline.py
       - tools/check_ac_tier_baseline.py
       - common/authority/check_tier_ast_literal.py
-      - common/ssot/check_epic_package_dual.py
-      - common/ssot/check_draft_packages.py
+      - common/meta/extension/check_epic_package_dual.py
+      - common/meta/extension/check_draft_packages.py
       - common/authority/authority_classifier.py
       - common/authority/check_authority_reconcile.py
 
@@ -785,7 +785,7 @@ concepts:
     description: Registered draft packages for the migration-safety draft gate (tools/check_draft_packages.py); a draft package leaves its authority tier undecided, so listing it here makes adding one a reviewed act and a draft must carry no done ACs.
     cross_refs:
       - common/authority/readme.md
-      - common/ssot/check_draft_packages.py
+      - common/meta/extension/check_draft_packages.py
       - tools/check_draft_packages.py
       - tests/tooling/test_migration_safety_gates.py
 
@@ -794,7 +794,7 @@ concepts:
     description: Report-only governance metrics for SSOT ownership, shape, proof coverage, and future gate candidates.
     cross_refs:
       - docs/project/EPIC-014.ttd-transformation.md
-      - common/ssot/governance_report/_metrics.py
+      - common/meta/extension/governance_report/_metrics.py
       - tools/report_ssot_governance.py
       - tests/tooling/test_ssot_governance_report.py
       - .github/workflows/ci.yml
@@ -807,7 +807,7 @@ concepts:
     cross_refs:
       - docs/project/EPIC-014.ttd-transformation.md
       - docs/ssot/governance-exceptions.yaml
-      - common/ssot/governance_report/_gate.py
+      - common/meta/extension/governance_report/_gate.py
       - tools/report_ssot_governance.py
       - tests/tooling/test_ssot_governance_report.py
       - .github/workflows/ci.yml
@@ -820,7 +820,7 @@ concepts:
     parent: ssot_governance_gates
     cross_refs:
       - docs/ssot/tdd.md
-      - common/ssot/governance_report/_gate.py
+      - common/meta/extension/governance_report/_gate.py
       - tests/tooling/test_ssot_governance_report.py
 
   # ── Agent governance ──────────────────────────────────────────────────

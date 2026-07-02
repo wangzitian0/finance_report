@@ -8,10 +8,10 @@ from pathlib import Path
 
 import pytest
 
-from common.ssot import (
+from common.meta.extension import (
     check_ssot_ownership,  # noqa: F401 (module reference for monkeypatch)
 )
-from common.ssot.check_ssot_ownership import (
+from common.meta.extension.check_ssot_ownership import (
     Violation,
     check_must_be_absent,
     check_retired_archive_roots,
@@ -50,7 +50,7 @@ class TestCheckRetiredArchiveRoots:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
-            "common.ssot.check_ssot_ownership.RETIRED_ARCHIVE_ROOT_FILES",
+            "common.meta.extension.check_ssot_ownership.RETIRED_ARCHIVE_ROOT_FILES",
             [tmp_path / "should-not-exist.md"],
         )
         assert check_retired_archive_roots() == []
@@ -60,9 +60,9 @@ class TestCheckRetiredArchiveRoots:
     ) -> None:
         bad = tmp_path / "AC-AUDIT-2026-02-25.md"
         bad.write_text("old content")
-        monkeypatch.setattr("common.ssot.check_ssot_ownership.REPO_ROOT", tmp_path)
+        monkeypatch.setattr("common.meta.extension.check_ssot_ownership.REPO_ROOT", tmp_path)
         monkeypatch.setattr(
-            "common.ssot.check_ssot_ownership.RETIRED_ARCHIVE_ROOT_FILES", [bad]
+            "common.meta.extension.check_ssot_ownership.RETIRED_ARCHIVE_ROOT_FILES", [bad]
         )
         violations = check_retired_archive_roots()
         assert len(violations) == 1
@@ -85,7 +85,7 @@ class TestCheckMustBeAbsent:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
-            "common.ssot.check_ssot_ownership.MUST_BE_ABSENT",
+            "common.meta.extension.check_ssot_ownership.MUST_BE_ABSENT",
             [tmp_path / "deleted-file.md"],
         )
         assert check_must_be_absent() == []
@@ -95,9 +95,9 @@ class TestCheckMustBeAbsent:
     ) -> None:
         present = tmp_path / "EPIC-016-IMPLEMENTATION-PLAN.md"
         present.write_text("leftover")
-        monkeypatch.setattr("common.ssot.check_ssot_ownership.REPO_ROOT", tmp_path)
+        monkeypatch.setattr("common.meta.extension.check_ssot_ownership.REPO_ROOT", tmp_path)
         monkeypatch.setattr(
-            "common.ssot.check_ssot_ownership.MUST_BE_ABSENT", [present]
+            "common.meta.extension.check_ssot_ownership.MUST_BE_ABSENT", [present]
         )
         violations = check_must_be_absent()
         assert len(violations) == 1
@@ -124,7 +124,7 @@ class TestCheckRuleCrossReferences:
         f = ssot_dir / "accounting.md"
         f.write_text("NEVER use FLOAT for monetary amounts.\n")
 
-        monkeypatch.setattr("common.ssot.check_ssot_ownership.REPO_ROOT", tmp_path)
+        monkeypatch.setattr("common.meta.extension.check_ssot_ownership.REPO_ROOT", tmp_path)
         violations = check_rule_cross_references()
         assert violations == []
 
@@ -145,9 +145,9 @@ class TestCheckRuleCrossReferences:
 
         import re as _re
 
-        monkeypatch.setattr("common.ssot.check_ssot_ownership.REPO_ROOT", tmp_path)
+        monkeypatch.setattr("common.meta.extension.check_ssot_ownership.REPO_ROOT", tmp_path)
         monkeypatch.setattr(
-            "common.ssot.check_ssot_ownership.RULE_KEYWORDS",
+            "common.meta.extension.check_ssot_ownership.RULE_KEYWORDS",
             [
                 (
                     "Decimal monetary rule",
@@ -160,7 +160,7 @@ class TestCheckRuleCrossReferences:
             ],
         )
         monkeypatch.setattr(
-            "common.ssot.check_ssot_ownership.CHECK4_EXEMPT_PATHS", set()
+            "common.meta.extension.check_ssot_ownership.CHECK4_EXEMPT_PATHS", set()
         )
         violations = check_rule_cross_references()
         assert len(violations) == 1
@@ -185,9 +185,9 @@ class TestCheckRuleCrossReferences:
 
         import re as _re
 
-        monkeypatch.setattr("common.ssot.check_ssot_ownership.REPO_ROOT", tmp_path)
+        monkeypatch.setattr("common.meta.extension.check_ssot_ownership.REPO_ROOT", tmp_path)
         monkeypatch.setattr(
-            "common.ssot.check_ssot_ownership.RULE_KEYWORDS",
+            "common.meta.extension.check_ssot_ownership.RULE_KEYWORDS",
             [
                 (
                     "Decimal monetary rule",
@@ -200,7 +200,7 @@ class TestCheckRuleCrossReferences:
             ],
         )
         monkeypatch.setattr(
-            "common.ssot.check_ssot_ownership.CHECK4_EXEMPT_PATHS", set()
+            "common.meta.extension.check_ssot_ownership.CHECK4_EXEMPT_PATHS", set()
         )
         violations = check_rule_cross_references()
         assert violations == []
@@ -220,9 +220,9 @@ class TestCheckRuleCrossReferences:
 
         import re as _re
 
-        monkeypatch.setattr("common.ssot.check_ssot_ownership.REPO_ROOT", tmp_path)
+        monkeypatch.setattr("common.meta.extension.check_ssot_ownership.REPO_ROOT", tmp_path)
         monkeypatch.setattr(
-            "common.ssot.check_ssot_ownership.RULE_KEYWORDS",
+            "common.meta.extension.check_ssot_ownership.RULE_KEYWORDS",
             [
                 (
                     "Decimal monetary rule",
@@ -233,7 +233,7 @@ class TestCheckRuleCrossReferences:
             ],
         )
         monkeypatch.setattr(
-            "common.ssot.check_ssot_ownership.CHECK4_EXEMPT_PATHS", set()
+            "common.meta.extension.check_ssot_ownership.CHECK4_EXEMPT_PATHS", set()
         )
 
         original_read_text = Path.read_text
@@ -297,7 +297,7 @@ class TestMain:
 
         monkeypatch.setattr(sys, "argv", ["check_ssot_ownership.py"])
         monkeypatch.setattr(
-            "common.ssot.check_ssot_ownership.check_must_be_absent",
+            "common.meta.extension.check_ssot_ownership.check_must_be_absent",
             lambda: [fake_violation],
         )
         result = main()

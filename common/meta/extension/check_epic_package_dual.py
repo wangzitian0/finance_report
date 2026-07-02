@@ -25,7 +25,7 @@ from common.testing.generate_ac_registry import (
     _package_roadmap_acs,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 def _epic_table_ids(epic_dir: Path) -> set[str]:

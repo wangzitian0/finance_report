@@ -1032,7 +1032,7 @@ def test_AC8_13_55_post_merge_staging_is_scoped_to_deploy_relevant_paths() -> No
         in classifier_tests
     )
     assert "docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md" in classifier_tests
-    assert "common/ssot/check_ssot_ownership.py" in classifier_tests
+    assert "common/meta/extension/check_ssot_ownership.py" in classifier_tests
     assert "Staging deploy is manual (`workflow_dispatch`) only" in ci_cd
     assert (
         "The diff-based change classifier no longer scopes the staging deploy by changed paths"

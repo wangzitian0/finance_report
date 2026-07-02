@@ -7,14 +7,14 @@ from pathlib import Path
 from typing import Any
 
 
-from common.ssot.governance_report._base import (
+from common.meta.extension.governance_report._base import (
     HIGH_RISK_SUBSTRINGS,
     HIGH_RISK_TOKENS,
     MACHINE_KINDS,
     MACHINE_OWNER_SUFFIXES,
     PROOF_MARKERS,
 )
-from common.ssot.governance_report._types import GovernanceEntry
+from common.meta.extension.governance_report._types import GovernanceEntry
 
 
 def _file_part(ref: str) -> str:

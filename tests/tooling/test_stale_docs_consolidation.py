@@ -15,7 +15,7 @@ from pathlib import Path
 
 import yaml
 
-from common.ssot import check_ssot_ownership as cso
+from common.meta.extension import check_ssot_ownership as cso
 
 ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs"

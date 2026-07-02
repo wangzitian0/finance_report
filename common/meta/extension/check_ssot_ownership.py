@@ -33,7 +33,7 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 # ---------------------------------------------------------------------------
 # Check 1 — Retired archive roots must NOT exist in docs/project/ root

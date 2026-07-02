@@ -21,7 +21,7 @@ from pathlib import Path
 
 import yaml
 
-from common.ssot import governance_report
+from common.meta.extension import governance_report
 
 ROOT = Path(__file__).resolve().parents[2]
 
