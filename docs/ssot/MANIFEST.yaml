@@ -446,7 +446,7 @@ concepts:
       - tools/_lib/shell/bootstrap.sh
       - common/runtime/shell/common.sh
       - tools/check_toolchain_contract.py
-      - common/ci/check_toolchain_contract.py
+      - common/runtime/check_toolchain_contract.py
       - .moon/toolchain.yml
       - .github/workflows/ci.yml
       - docker-compose.yml

@@ -19,7 +19,7 @@ every document.
 | CI, preview, staging, and production gate semantics | `docs/ssot/ci-cd.md` |
 | Boot/runtime health validation | `docs/ssot/env_smoke_test.md`, `apps/backend/src/boot.py`, `apps/backend/src/main.py` |
 | App observability runtime contract | `docs/ssot/observability.md`, `apps/backend/src/observability.py` |
-| Staging/production health and version smoke | `tools/health_check.sh`, `tools/production_infra_smoke.py`, `common/ci/production_infra_smoke.py` |
+| Staging/production health and version smoke | `tools/health_check.sh`, `tools/production_infra_smoke.py`, `common/runtime/production_infra_smoke.py` |
 | Delivery-engine evidence and optimization recommendations | `docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md` |
 | Infra alerting, Lark delivery, watchdogs | `repo/docs/ssot/ops.alerting.md` |
 | Availability history and stability windows | `repo/docs/ssot/ops.availability-ledger.md` |

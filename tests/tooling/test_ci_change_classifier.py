@@ -6,8 +6,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from common.ci import change_classifier as classifier  # noqa: E402
-from common.ci.change_classifier import (
+from common.testing import change_classifier as classifier  # noqa: E402
+from common.testing.change_classifier import (
     ENV_STAGE_MATRIX,
     Environment,
     PipelineStage,
