@@ -7,7 +7,6 @@ from datetime import date
 from decimal import Decimal
 from unittest.mock import patch
 
-import pytest
 from sqlalchemy import select
 
 from src.models.account import Account, AccountType
@@ -708,7 +707,6 @@ class TestClassificationService:
         assert len(classifications) == 1
 
 
-@pytest.mark.asyncio
 async def test_AC18_1_3_ml_rule_matching_is_retired(db, test_user):
     """AC18.1.3: ML_MODEL rule matching is RETIRED (EPIC #1483 cleanup) — even an
     active ML_MODEL rule never matches (the model path is the classify node), and

@@ -69,7 +69,6 @@ class RetryParsingRequest(BaseModel):
     model: str | None = Field(None, description="Optional model override (e.g. gpt-4o)")
 
 
-
 # --- Response Schemas ---
 
 
