@@ -1415,6 +1415,11 @@ jobs:
           python tools/aggregate_ac_evidence.py $junit_files --output ac-evidence-current.json
           # L2 (pass-required) + L3 (score ratchet) against the checked-in baseline.
           python tools/check_ac_score_baseline.py ac-evidence-current.json
+          # ci_tier reconciliation (#1557): every behavioral pr_ci proof must
+          # actually appear in this PR's junit evidence — declared execution
+          # tier is a contract, not metadata.
+          # shellcheck disable=SC2086
+          python tools/check_pr_ci_evidence.py $junit_files
 
   finish:
     needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, lint, tooling-coverage, unified-coverage, ac-traceability, ac-behavioral-ratchet]
