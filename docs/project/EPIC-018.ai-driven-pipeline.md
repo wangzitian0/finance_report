@@ -466,7 +466,22 @@ production consumes the node yet — #1545 (Migrate) flips that.
 | AC18.15.5 | Red line | The model never touches money: proposals cannot express an amount, the node imports no posting primitives, and transaction Decimal amounts pass through classification untouched {tier:CODE-LED} {proof:property} | `test_AC18_15_5_model_never_touches_money()` | `services/test_transaction_classification.py` | P0 |
 | AC18.15.6 | Pro-forma | `commit_basis=False` computes verdicts under a candidate policy without writing the basis-of-record: no classifications, no policy rules, no accounts {tier:CODE-LED} {proof:property} | `test_AC18_15_6_pro_forma_writes_nothing()` | `services/test_transaction_classification.py` | P1 |
 | AC18.15.7 | Rules | A user's deterministic rule wins before the model is consulted, and having no rules is a no-op pre-pass, not an error {tier:CODE-LED} {proof:property} | `test_AC18_15_7_user_rule_prepass_wins_over_model()`, `test_AC18_15_7_no_rules_is_a_noop_prepass_not_an_error()` | `services/test_transaction_classification.py` | P1 |
-| AC18.15.8 | Construct-only | The node is inert with `enable_ai_classification` off (the default), and pre-Migrate no production module imports it (the wired flip is #1545's job) {tier:CODE-LED} {proof:property} | `test_AC18_15_8_flag_off_is_a_noop()`, `test_AC18_15_8_construct_only_no_production_consumer()` | `services/test_transaction_classification.py` | P1 |
+| AC18.15.8 | Consumer seam | The node is inert with `enable_ai_classification` off (the default), and the statement-posting seam is the ONLY production consumer (wired by #1545; no other module may grow a side-door into classification) {tier:CODE-LED} {proof:property} | `test_AC18_15_8_flag_off_is_a_noop()`, `test_AC18_15_8_sole_production_consumer_is_statement_posting()` | `services/test_transaction_classification.py` | P1 |
+
+### AC18.16: Transaction Classification — Migrate (#1545)
+
+The import → income-statement path reads the classify node under the period's
+effective policy (#1483 EPIC, Migrate stage). Headline invariant: publishing a new
+classification-basis version NEVER changes an already-covered period's as-reported
+figures — a basis change is prospective from its `effective_from` cutoff.
+
+| AC | Group | Description | Test Functions | Test File | Priority |
+|----|-------|-------------|----------------|-----------|----------|
+| AC18.16.1 | Comparability | Publishing a new policy version leaves every already-covered period's as-reported income statement byte-identical: each transaction classifies under the policy in effect on its own txn_date, and a full recompute after publishing stays prospective (covered rows keep their original policy anchor) {tier:CODE-LED} {proof:property} | `test_AC18_16_1_new_policy_version_never_restates_covered_periods()` | `services/test_classification_migration.py` | P0 |
+| AC18.16.2 | Symptom | After a real statement import with the flag on, the income statement has categorized leaf lines beyond the two Uncategorized buckets, each with a non-null confidence tier (the exact #1483 QA symptom, locked as a regression test; the per-line tier aggregation is now wired into the income statement) {tier:CODE-LED} {proof:property} | `test_AC18_16_2_import_produces_categorized_income_statement()` | `services/test_classification_migration.py` | P0 |
+| AC18.16.3 | Flag off | With `enable_ai_classification` off (the default), the import path behaves exactly as before this EPIC: only the two Uncategorized buckets, zero classification rows {tier:CODE-LED} {proof:property} | `test_AC18_16_3_flag_off_is_byte_identical_to_today()` | `services/test_classification_migration.py` | P1 |
+| AC18.16.4 | Backfill | The one-time backfill classifies each not-yet-classified transaction once under its own effective policy; a re-run is a no-op (idempotent, dated, append-only) — a temporary migration aid removed by #1546, not a permanent adapter {tier:CODE-LED} {proof:property} | `test_AC18_16_4_backfill_is_idempotent_dated_append_only()` | `services/test_classification_migration.py` | P1 |
+| AC18.16.5 | Ledger stability | Re-running classification never rewrites posted journal entries or lines — the category is a projection over the immutable ledger, not an edit of it {tier:CODE-LED} {proof:property} | `test_AC18_16_5_reclassification_never_rewrites_posted_entries()` | `services/test_classification_migration.py` | P0 |
 
 ---
 

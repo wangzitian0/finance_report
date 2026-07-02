@@ -123,8 +123,14 @@ POLICY_VERSIONS: tuple[ClassificationPolicy, ...] = (
 )
 
 
-def policy_for(as_of: date, *, registry: Sequence[ClassificationPolicy] = POLICY_VERSIONS) -> ClassificationPolicy:
-    """Head-select the policy in effect on ``as_of`` (latest effective_from <= as_of)."""
+def policy_for(as_of: date, *, registry: Sequence[ClassificationPolicy] | None = None) -> ClassificationPolicy:
+    """Head-select the policy in effect on ``as_of`` (latest effective_from <= as_of).
+
+    The default registry is resolved at call time so a newly published version is
+    visible without rebinding call sites.
+    """
+    if registry is None:
+        registry = POLICY_VERSIONS
     effective = [p for p in registry if p.effective_from <= as_of]
     if not effective:
         raise ValueError(f"no classification policy effective on {as_of.isoformat()}")
@@ -434,3 +440,50 @@ async def classify_transactions(
         **summarize_outcomes(outcomes),
     )
     return outcomes
+
+
+async def backfill_classifications(db: AsyncSession, user_id: UUID) -> dict:
+    """One-time (#1545) backfill: classify a user's not-yet-classified transactions
+    under each transaction's OWN effective policy (``policy_for(txn_date)``).
+
+    Idempotent and append-only by construction: only transactions with no
+    classification row at all are candidates, so a re-run is a no-op — existing
+    rows are never rewritten. This is a temporary migration aid, not a permanent
+    adapter; #1546 removes it once the backfill has run.
+    """
+    if not await _classification_enabled(db, user_id):
+        return {"classified": 0, "candidates": 0}
+
+    classified_txn_ids = select(TransactionClassification.atomic_txn_id)
+    candidates = (
+        (
+            await db.execute(
+                select(AtomicTransaction)
+                .where(AtomicTransaction.user_id == user_id)
+                .where(~AtomicTransaction.id.in_(classified_txn_ids))
+                .order_by(AtomicTransaction.txn_date)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not candidates:
+        return {"classified": 0, "candidates": 0}
+
+    # Effective-dated basis: group by the policy in effect on each txn's date, so a
+    # later-published version never touches already-covered periods (prospective).
+    by_version: dict[int, list[AtomicTransaction]] = {}
+    policies: dict[int, ClassificationPolicy] = {}
+    for txn in candidates:
+        policy = policy_for(txn.txn_date)
+        policies[policy.version] = policy
+        by_version.setdefault(policy.version, []).append(txn)
+
+    written = 0
+    summaries = []
+    for version, txns in sorted(by_version.items()):
+        outcomes = await classify_transactions(db, user_id, txns, policy=policies[version])
+        written += sum(1 for o in outcomes if o.disposition in ("applied", "review"))
+        summaries.append({"policy_version": version, **summarize_outcomes(outcomes)})
+
+    return {"classified": written, "candidates": len(candidates), "runs": summaries}

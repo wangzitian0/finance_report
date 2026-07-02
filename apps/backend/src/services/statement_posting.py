@@ -21,6 +21,7 @@ from src.models.statement_summary import StatementSummary
 from src.services.review_queue import create_entry_from_txn
 from src.services.source_type_priority import STATEMENT_SOURCE_TYPES, promote_entry_source_type
 from src.services.statement_validation import approve_statement, resolve_statement_transactions
+from src.services.transaction_classification import ClassificationPolicy, classify_transactions, policy_for
 
 HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD = 85
 
@@ -78,6 +79,22 @@ async def auto_create_posted_entries_for_statement(
 
     preloaded_bank_account = await resolve_statement_posting_account(db, statement, user_id)
     await validate_statement_period_unique(db, statement, user_id, preloaded_bank_account.id)
+
+    # Classify BEFORE posting (#1545): ``create_entry_from_txn`` picks the
+    # counter-account from an APPLIED classification, so a categorized txn posts to
+    # its real category account instead of the Uncategorized bucket. The pass is
+    # flag-gated inside ``classify_transactions`` (no-op when off => today's
+    # behaviour), and the classification basis is effective-dated: each txn
+    # classifies under the policy in effect on its OWN txn_date, so publishing a
+    # new basis version never restates already-covered periods (prospective).
+    by_version: dict[int, list] = {}
+    policies: dict[int, ClassificationPolicy] = {}
+    for txn in txns_to_post:
+        policy = policy_for(txn.txn_date)
+        policies[policy.version] = policy
+        by_version.setdefault(policy.version, []).append(txn)
+    for version in sorted(by_version):
+        await classify_transactions(db, user_id, by_version[version], policy=policies[version])
 
     for txn in txns_to_post:
         # ``create_entry_from_txn`` consumes the Layer-2 ``AtomicTransaction``.
