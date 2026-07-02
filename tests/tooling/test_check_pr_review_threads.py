@@ -1,4 +1,4 @@
-"""Tests for the PR review-thread merge gate (common.ci.check_pr_review_threads).
+"""Tests for the PR review-thread merge gate (common.testing.check_pr_review_threads).
 
 This gate blocks a PR at merge time when an unresolved P0/P1 (or unresolved
 Copilot-authored) review thread exists, while resolved/outdated threads and
@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from common.ci import check_pr_review_threads as gate
+from common.testing import check_pr_review_threads as gate
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 

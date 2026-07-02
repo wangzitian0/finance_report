@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from common.ssot import lint_doc_consistency as ldc
+from common.testing import lint_doc_consistency as ldc
 
 ROOT = Path(__file__).resolve().parents[2]
 EXCEPTIONS = ROOT / "docs" / "project" / "traceability-exceptions.md"

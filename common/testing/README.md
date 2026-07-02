@@ -1,3 +1,60 @@
+# `testing` — the cross-cutting CI-governance layer
+
+Every domain package owns its own semantic contract and (long-term) its own
+unit/integration tests — `runtime` is simply the package whose domain is
+environments/dependencies/CD. `testing` is the one package that is **not** a
+domain peer: it sits above the packages and governs how their guarantees are
+*executed and proven* in CI. Guarantees themselves are organized via ACs
+(EPIC → AC → test); orchestration is organized via SSOT; this package owns the
+machinery connecting the two (EPIC-008, issues #1556/#1557/#1558).
+
+## Governance charter
+
+### Execution matrix
+
+[`matrix.py`](./matrix.py) is the SSOT for **test placement and selection**:
+path→stage classification (whose generated view is
+`docs/ssot/test-execution-matrix.yaml`, drift-gated by
+`tests/tooling/test_execution_matrix_contract.py`) and per-stage selection
+(marker expression, explicit node sets, parallelism). Workflows consume
+selection at runtime via `tools/test_selection.py --stage <stage> --shell` —
+they never restate test lists (the `preview.yml` whitelist retired by #1547
+is the canonical counterexample).
+
+### Package declaration protocol
+
+Each domain package declares its own unit/integration test roots in its
+`contract.py`; the matrix aggregates those declarations (same pattern as
+ACRecord roadmaps feeding the AC registry). Unit/integration rows are
+package-owned and conflict-free by construction. Rollout: #1558.
+
+### E2E extension layer
+
+Root E2E specs cross packages, so no single package can declare them: their
+rows live directly here (`matrix.E2E_ROWS`), one **named row per spec file**
+with its external needs (`llm_provider`, `market_data`, `deployed_env`,
+`state_sensitive`) and audit status. The pre-merge in-runner set is derived
+(audited AND no needs) — an unaudited or dependent spec defaults to the
+post-merge ladder and can never silently creep into the merge-blocking path.
+
+### Fast interception
+
+The matrix is SSOT'd in this package — not in prose, not in workflow YAML —
+because its enforcement point must be pre-merge at lint speed: code is
+import-checked and contract-tested on every PR, while any other home can only
+be reconciled after the fact.
+
+### Responsibility table
+
+| Failure class | Owner |
+|---|---|
+| dependency missing / env wrong / config drift | `runtime` (its domain contract / check port) |
+| test not selected / not executed / not reported | `testing` (this package) |
+| assertion weak or wrong (covered but proves nothing) | the domain package's AC — `testing` only *exposes* it via ratchets |
+| flaky test | `testing` (quarantine/retry policy), unless the runtime check is red |
+
+---
+
 # AC behavioral-evidence pipeline (spike)
 
 A bare `pass` carries ~0 bits of information — it only says "no exception was

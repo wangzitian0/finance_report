@@ -42,15 +42,15 @@ from typing import Any
 
 import yaml
 
-from common.ssot.ac_score_baseline_format import load_jsonl
-from common.ssot.ac_traceability_refs import AC_PATTERN, classify_reference_file
-from common.ssot.generate_ac_registry import build_registry_entries
-from common.ssot.generate_critical_proof_matrix import (
+from common.testing.ac_score_baseline_format import load_jsonl
+from common.testing.ac_traceability_refs import AC_PATTERN, classify_reference_file
+from common.testing.generate_ac_registry import build_registry_entries
+from common.testing.generate_critical_proof_matrix import (
     CollectedProof,
     collect_proofs,
 )
-from common.ssot.ac_proof_execution import normalize_proof_execution
-from common.ssot.test_surface import default_ac_test_dirs
+from common.testing.ac_proof_execution import normalize_proof_execution
+from common.testing.test_surface import default_ac_test_dirs
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OUTCOMES = REPO_ROOT / "docs" / "ssot" / "critical-proof-outcomes.yaml"
@@ -198,7 +198,7 @@ def _vision_items(repo_root: Path) -> list[VisionItem]:
     # Reuse the vision matrix parsing (vision.md anchors + EPIC anchor map +
     # registries). Imported lazily so the heavy vision build only runs when the
     # graph is actually constructed.
-    from common.ssot import generate_vision_proof_matrix as vision
+    from common.testing import generate_vision_proof_matrix as vision
 
     # build_matrix is memoized per repo_root; clear so we never reuse a stale
     # process cache, and pass THIS graph's repo_root so vision.md/EPIC/registry

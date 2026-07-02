@@ -9,7 +9,7 @@ but ONLY for ACs that carry a tier, so it is non-breaking for the ~1655 untagged
 legacy ACs (they have no ``proof_kind`` key and are ignored).
 
 The proof KIND is declared next to the AC text with a ``{proof:KIND}`` marker
-(parsed by :mod:`common.ssot.generate_ac_registry` alongside ``{tier:XX}``). When
+(parsed by :mod:`common.testing.generate_ac_registry` alongside ``{tier:XX}``). When
 an AC declares a tier but no explicit proof marker, the kind defaults to the
 tier's canonical valid kind, so the registry value is always a matrix-valid kind
 unless someone declares an explicit, *contradictory* marker.
@@ -39,9 +39,9 @@ import argparse
 import sys
 from pathlib import Path
 
-from common.ssot.ac_registry_format import sort_key
+from common.testing.ac_registry_format import sort_key
 from common.authority.authority_matrix import TIER_VALID_PROOF_KINDS
-from common.ssot.generate_ac_registry import AC_PROOF_KINDS, build_registry_entries
+from common.testing.generate_ac_registry import AC_PROOF_KINDS, build_registry_entries
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

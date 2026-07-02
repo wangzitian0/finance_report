@@ -206,7 +206,7 @@ CONTRACT = PackageContract(
 )
 ```
 
-`common/ssot/generate_ac_registry.py` reads this package tier statically (AST) and
+`common/testing/generate_ac_registry.py` reads this package tier statically (AST) and
 stamps it onto every AC in the package's `roadmap`, so the registry value carries
 the inherited tier.
 

@@ -131,7 +131,7 @@ verifiable.
 > **`AC-counter.1.1`, `AC-counter.1.2`, `AC-counter.1.3`, and `AC-counter.1.4` are NOT defined here.**
 > They are owned by, and sourced directly from,
 > [`common/counter/contract.py`](../../common/counter/contract.py)'s `roadmap`;
-> `common/ssot/generate_ac_registry.py` reads package-contract roadmaps
+> `common/testing/generate_ac_registry.py` reads package-contract roadmaps
 > additively, so the AC index counts them without an EPIC-table mirror. This
 > blockquote references the IDs (keeping the registry↔EPIC link intact) but
 > defines none of them — the contract is the single definition source. This is
@@ -147,7 +147,7 @@ verifiable.
 >
 > **`AC-testing.1.1` through `AC-testing.8.3` are NOT defined here.** They are
 > owned by, and sourced directly from, `common/testing/contract.py`'s
-> `roadmap`; `common/ssot/generate_ac_registry.py` reads package-contract
+> `roadmap`; `common/testing/generate_ac_registry.py` reads package-contract
 > roadmaps additively, so the AC index counts them without an EPIC-table
 > mirror. This blockquote references the ids (keeping the registry↔EPIC link
 > intact) but defines none of them — the contract is the single definition
@@ -180,7 +180,7 @@ verifiable.
 > here.** They are owned by, and sourced directly from,
 > [`common/platform/contract.py`](../../common/platform/contract.py)'s `roadmap`
 > (`AC-platform.1.5` is the cross-package one proving `counter` emits atomically through
-> the outbox); `common/ssot/generate_ac_registry.py` reads it additively, so the
+> the outbox); `common/testing/generate_ac_registry.py` reads it additively, so the
 > AC index counts them without an EPIC-table mirror. This blockquote references
 > the IDs (keeping the registry-to-EPIC link intact) but defines none of them —
 > the contract is the single definition source, exactly as the `AC-counter`

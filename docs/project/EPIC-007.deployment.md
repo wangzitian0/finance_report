@@ -180,12 +180,14 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 | AC7.6.1 | Config syncs with .env.example | `TestConfigContract.test_config_sync_with_env_example` | `infra/test_config_contract.py` | P0 |
 | AC7.6.2 | Required secrets documented | Manual verification | `.env.example` | P0 |
 
-### AC7.7: Health Checks
+### AC7.7: Health Checks — migrated to the `runtime` package
 
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC7.7.1 | Health endpoint returns 200 | `test_health_when_all_services_healthy()` | `infra/test_main.py` | P0 |
-| AC7.7.2 | Health check with services down | `test_health_returns_503_on_database_failure()`, `test_health_fails_when_redis_configured_but_unavailable()`, `test_health_returns_503_on_s3_failure()` | `infra/test_main.py` | P0 |
+> The `/health` dependency-presence ACs (were `AC7.7.*`) moved into the
+> `runtime` package roadmap (`common/runtime/contract.py`) as
+> `AC-runtime.7.1` · `AC-runtime.7.2` — `/health` returning 200 when all declared
+> dependencies are present and 503 when one is absent is `runtime`'s invariant 2.
+> (Deployment-topology / manual-status ACs, e.g. `AC7.9.*`, stay in this EPIC —
+> that is infra2's domain.)
 
 ### AC7.8: Docker & CI Configuration
 

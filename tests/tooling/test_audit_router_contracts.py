@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from common.ssot import audit_router_contracts as audit
+from common.testing import audit_router_contracts as audit
 
 ROOT = Path(__file__).resolve().parents[2]
 

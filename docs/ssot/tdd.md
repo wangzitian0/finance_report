@@ -119,7 +119,7 @@ runnable directly for local validation / report rendering.
 
 The matrix `proofs` section comes from the co-located `@ac_proof(...)` decorator
 on each critical-proof test (`common/testing/ac_proof.py`), statically scanned
-into the one AC graph (`common/ssot/ac_graph.py`). The macro `outcomes` section —
+into the one AC graph (`common/testing/ac_graph.py`). The macro `outcomes` section —
 the README/EPIC outcome contract — stays hand-maintained in
 `docs/ssot/critical-proof-outcomes.yaml`. The checker builds the matrix
 **in-memory** from those two sharded sources and validates it; the matrix is
@@ -170,7 +170,7 @@ PR that touched ANY AC rewrote them — the repo's worst merge-conflict hotspot,
 and the same "committed file + generator + byte-check" wheel reinvented three
 times. The final model removes that:
 
-- **One model.** `common/ssot/ac_graph.py` exposes `build_ac_graph()`, the single
+- **One model.** `common/testing/ac_graph.py` exposes `build_ac_graph()`, the single
   AC-keyed graph. Every concern is just additional FIELDS on the one AC key.
 - **Sharded sources only.** The graph is built from sources that no two
   independent PRs share: AC nodes from the EPIC docs (via the registry loader),

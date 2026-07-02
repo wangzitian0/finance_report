@@ -1,8 +1,9 @@
 # `runtime` — the app↔external-world dependency boundary
 
-> **Status: draft.** The model below is the contract we are committing to; the
-> implementation (ports, manifest, gate wiring) lands incrementally, each AC with
-> a real test, moving from [`todo.md`](./todo.md) into [`contract.py`](./contract.py).
+> **Status: active.** The boundary — value language, manifest, `DependencyCheck`
+> port + adapters — is shipped, and the smoke/health ACs are homed in
+> [`contract.py`](./contract.py)'s roadmap. Remaining work (manifest-driven
+> enforcement, substitutes) is tracked in [`todo.md`](./todo.md).
 > Model spec: [`../meta/readme.md`](../meta/readme.md).
 
 ## Why this package exists
@@ -19,6 +20,15 @@ treated as "optional" and only `warning`s when down).
 `runtime` is the bounded context that owns that boundary: **what we depend on,
 how each environment provides or substitutes it, and the guarantee that a
 declared dependency is proven present — or the build/smoke fails.**
+
+Scope note (#1556): `runtime` is a **domain package like any other** — its
+domain happens to be environments/dependencies/**CD** (deploy execution,
+release evidence, rollback, environment tiering). Cross-cutting CI governance
+— which tests run where, and proof that they ran — belongs to
+[`common/testing`](../testing/README.md); the responsibility split is defined
+in that package's charter. In the failure-attribution table there: dependency
+missing / env wrong / config drift → this package's contract; everything about
+test selection, execution, and reporting → `testing`.
 
 ## Ubiquitous language
 
@@ -92,9 +102,10 @@ declared dependency is proven present — or the build/smoke fails.**
 
 ## Public vs internal
 
-Draft. The **construct** phase publishes the `base` value language + manifest +
-port (`contract.interface`): `DependencyKind`, `EnvTier` (+ `APP_OWNED_TIERS` /
-`VPS_TIERS`), `Dependency` / `DependencyManifest` / `DEPENDENCY_MANIFEST`, and the
-`DependencyCheck` port (+ `DependencyStatus`). No consumer routes through it yet —
-the switch phase points `boot.validate` and the smoke test at the manifest; the
-adapters and the compose/lifecycle relocation follow. See [`todo.md`](./todo.md).
+The package publishes (`contract.interface`) the `base` value language + manifest
++ port and the `extension` adapters: `DependencyKind`, `EnvTier`
+(+ `APP_OWNED_TIERS` / `VPS_TIERS`), `Dependency` / `DependencyManifest` /
+`DEPENDENCY_MANIFEST`, the `DependencyCheck` port (+ `DependencyStatus` /
+`ProbeResult`), and `DatabaseCheck` / `ObjectStorageCheck` / `LlmCheck`.
+`boot.Bootloader` delegates its checks to the adapters. See [`todo.md`](./todo.md)
+for the remaining enforcement work.

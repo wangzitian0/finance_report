@@ -176,7 +176,7 @@ COMPONENTS: tuple[CoverageComponent, ...] = (
             "common/**/__pycache__/**",
             "common/tests/**",
             # Long-poll CI waiter: no meaningful unit coverage (moved from tools/_lib/ci).
-            "common/ci/wait_for_cheap_ci.py",
+            "common/testing/wait_for_cheap_ci.py",
         ),
     ),
 )

@@ -94,7 +94,7 @@ about a package is *derived from its contract*:
     port/adapter (B), and `data` is a sink nothing imports — additive, so legacy
     role-folder packages keep passing.
 - The AC registry sources a package's ACs **directly from its `roadmap`**:
-  `common/ssot/generate_ac_registry.py` reads `common/*/contract.py` roadmaps
+  `common/testing/generate_ac_registry.py` reads `common/*/contract.py` roadmaps
   additively (alongside the EPIC tables), so a package's ACs live in its contract
   and are **never mirrored** into an EPIC table.
 

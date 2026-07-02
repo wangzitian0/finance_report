@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from common.ssot.lint_doc_consistency import _base
+from common.testing.lint_doc_consistency import _base
 
 import os
 import re
@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 try:
-    from common.ssot.ac_registry_format import load_registry_entries
+    from common.testing.ac_registry_format import load_registry_entries
 except ImportError:  # pragma: no cover - environment guard
     print(
         "ERROR: PyYAML not installed. Run: pip install pyyaml",
@@ -19,7 +19,7 @@ except ImportError:  # pragma: no cover - environment guard
     sys.exit(1)
 
 
-from common.ssot.lint_doc_consistency._base import (
+from common.testing.lint_doc_consistency._base import (
     AC_PATTERN,
     EXCLUDED_DIRS,
     MKDOCS_CONFIG,

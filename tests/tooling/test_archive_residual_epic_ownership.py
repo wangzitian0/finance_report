@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from common.ssot.ac_registry_format import load_registry_entries
+from common.testing.ac_registry_format import load_registry_entries
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

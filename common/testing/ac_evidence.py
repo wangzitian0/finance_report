@@ -14,8 +14,8 @@ result for one Acceptance Criterion — a five-field record:
 
 The record is emitted via pytest's builtin ``record_property`` fixture, which
 serialises it into the junit-xml ``<property>`` element that CI already produces.
-Downstream, :mod:`common.ssot.ac_evidence_aggregate` reads it back and
-:mod:`common.ssot.check_ac_score_baseline` ratchets it. See
+Downstream, :mod:`common.testing.ac_evidence_aggregate` reads it back and
+:mod:`common.testing.check_ac_score_baseline` ratchets it. See
 ``common/testing/README.md`` for the full mechanism rationale.
 
 stdlib-only by design: this module is importable from any test suite without
@@ -32,7 +32,7 @@ from typing import Any, Callable
 PROPERTY_KEY = "ac_evidence"
 
 # Accepts BOTH id grammars, matching the traceability layer
-# (``common/ssot/ac_traceability_refs.py``): the legacy EPIC-scoped ``ACx.y.z``
+# (``common/testing/ac_traceability_refs.py``): the legacy EPIC-scoped ``ACx.y.z``
 # and the package-scoped ``AC-<pkg>.x.y`` (e.g. ``AC-ledger.2.1``) used once an
 # AC migrates into a package contract's roadmap. Without the second alternative,
 # an ``@ac_proof`` test moved into the package scheme could not emit evidence.

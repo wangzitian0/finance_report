@@ -23,12 +23,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from common.ssot.ac_score_baseline_format import load_jsonl, write_jsonl
+from common.testing.ac_score_baseline_format import load_jsonl, write_jsonl
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 # The baseline is stored as conflict-free sorted JSONL (one AC per line) so two
 # PRs adopting *different* ACs auto-merge via `merge=union` instead of colliding
-# on one central JSON object. See common/ssot/ac_score_baseline_format.py. This
+# on one central JSON object. See common/testing/ac_score_baseline_format.py. This
 # is a STORAGE change only — the baseline is still a persisted ratchet floor and
 # is never regenerated from current scores.
 DEFAULT_BASELINE = REPO_ROOT / "docs" / "ssot" / "ac-score-baseline.jsonl"

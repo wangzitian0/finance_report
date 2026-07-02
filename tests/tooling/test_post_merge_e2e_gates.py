@@ -29,15 +29,15 @@ def build_critical_matrix() -> dict:
     The matrix is a derived (not committed) view of the one AC-keyed graph, so
     tests read the freshly-built payload instead of a checked-in YAML file.
     """
-    from common.ssot.ac_graph import build_ac_graph
-    from common.ssot.generate_critical_proof_matrix import build_matrix_from_graph
+    from common.testing.ac_graph import build_ac_graph
+    from common.testing.generate_critical_proof_matrix import build_matrix_from_graph
 
     return build_matrix_from_graph(build_ac_graph(ROOT))
 
 
 def critical_matrix_text() -> str:
     """Render the in-memory critical-proof matrix to its canonical YAML text."""
-    from common.ssot.generate_critical_proof_matrix import render_matrix
+    from common.testing.generate_critical_proof_matrix import render_matrix
 
     return render_matrix(build_critical_matrix())
 
@@ -68,7 +68,7 @@ def staging_ai_ocr_contract_shell() -> str:
 
 def test_AC8_13_13_post_merge_train_waits_only_for_older_active_runs() -> None:
     """AC8.13.13: FIFO train gate waits for older active staging runs only."""
-    from common.ci.wait_post_merge_train_turn import (
+    from common.runtime.wait_post_merge_train_turn import (
         older_active_runs,
         workflow_run_from_payload,
     )
@@ -108,7 +108,7 @@ def test_AC8_13_13_post_merge_train_waits_until_blockers_finish(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """AC8.13.13: FIFO gate polls until older active runs are gone."""
-    from common.ci import wait_post_merge_train_turn as train
+    from common.runtime import wait_post_merge_train_turn as train
 
     current_payload = {
         "id": 20,
@@ -166,7 +166,7 @@ def test_AC8_13_13_post_merge_train_timeout_lists_blockers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """AC8.13.13: FIFO timeout reports the blocking run URLs."""
-    from common.ci import wait_post_merge_train_turn as train
+    from common.runtime import wait_post_merge_train_turn as train
 
     current_payload = {
         "id": 20,
@@ -214,7 +214,7 @@ def test_AC8_13_13_github_actions_client_pages_workflow_runs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """AC8.13.13: GitHub client follows workflow-run pagination."""
-    from common.ci.wait_post_merge_train_turn import GitHubActionsClient
+    from common.runtime.wait_post_merge_train_turn import GitHubActionsClient
 
     requested_urls: list[str] = []
 
@@ -247,7 +247,7 @@ def test_AC8_13_13_github_actions_client_pages_workflow_runs(
         )
 
     monkeypatch.setattr(
-        "common.ci.wait_post_merge_train_turn.urllib.request.urlopen",
+        "common.runtime.wait_post_merge_train_turn.urllib.request.urlopen",
         fake_urlopen,
     )
 
@@ -267,7 +267,7 @@ def test_AC8_13_13_github_actions_client_reports_http_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """AC8.13.13: GitHub API failures stay readable in CI logs."""
-    from common.ci.wait_post_merge_train_turn import GitHubActionsClient
+    from common.runtime.wait_post_merge_train_turn import GitHubActionsClient
 
     def fake_urlopen(_request: object, timeout: int) -> object:
         assert timeout == 20
@@ -280,7 +280,7 @@ def test_AC8_13_13_github_actions_client_reports_http_errors(
         )
 
     monkeypatch.setattr(
-        "common.ci.wait_post_merge_train_turn.urllib.request.urlopen",
+        "common.runtime.wait_post_merge_train_turn.urllib.request.urlopen",
         fake_urlopen,
     )
 
@@ -299,7 +299,7 @@ def test_AC8_13_13_post_merge_train_cli_validates_context(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """AC8.13.13: CLI exits clearly when GitHub context is missing."""
-    from common.ci.wait_post_merge_train_turn import main
+    from common.runtime.wait_post_merge_train_turn import main
 
     assert main(["--repository", "", "--run-id", "0", "--token", ""]) == 2
 
@@ -312,7 +312,7 @@ def test_AC8_13_13_post_merge_train_cli_handles_runtime_failure(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """AC8.13.13: CLI returns failure without a Python traceback."""
-    from common.ci import wait_post_merge_train_turn as train
+    from common.runtime import wait_post_merge_train_turn as train
 
     class FakeClient:
         def __init__(self, **_kwargs: object) -> None:
@@ -1001,7 +1001,7 @@ def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates()
 def test_AC8_13_55_post_merge_staging_is_scoped_to_deploy_relevant_paths() -> None:
     """AC8.13.55: Post-merge staging only runs for deploy-relevant changes."""
     workflow = read(".github/workflows/deploy.yml")
-    classifier = read("common/ci/change_classifier.py")
+    classifier = read("common/testing/change_classifier.py")
     classifier_tests = read("tests/tooling/test_ci_change_classifier.py")
     ci_cd = read("docs/ssot/ci-cd.md")
 
@@ -1062,8 +1062,8 @@ def test_AC8_13_60_deploy_workflows_have_no_nonblocking_noop_gates() -> None:
 def test_AC8_13_52_production_release_dry_run_does_not_mutate_production() -> None:
     """AC8.13.52 AC8.13.65: Production dry-run validates without deploying."""
     workflow = read(".github/workflows/release.yml")
-    release_evidence = read("common/ci/release_evidence.py")
-    release_images = read("common/ci/release_images.py")
+    release_evidence = read("common/runtime/release_evidence.py")
+    release_images = read("common/runtime/release_images.py")
     ci_cd = read("docs/ssot/ci-cd.md")
 
     assert "dry_run:" in workflow
@@ -1146,7 +1146,7 @@ def test_AC8_13_52_production_release_checks_use_pinned_python() -> None:
 
 def test_AC8_13_52_production_release_matches_exact_staging_run_name() -> None:
     """AC8.13.52: Production release requires staging validation for the exact version_ref."""
-    release_evidence = read("common/ci/release_evidence.py")
+    release_evidence = read("common/runtime/release_evidence.py")
     staging_contract = release_evidence.split("def verify_staging", 1)[1].split(
         "def _required", 1
     )[0]
@@ -1178,7 +1178,7 @@ def test_AC8_13_52_release_evidence_tool_requires_exact_successful_staging_run()
     None
 ):
     """AC8.13.52: Shared release evidence rejects fuzzy or failed staging proof."""
-    from common.ci import release_evidence
+    from common.runtime import release_evidence
 
     def fake_gh_json(args: list[str]) -> object:
         command = " ".join(args)
@@ -1226,7 +1226,7 @@ def test_AC8_13_52_release_evidence_tool_requires_exact_successful_staging_run()
 
 def test_AC8_13_52_release_evidence_tool_reports_source_and_release_runs() -> None:
     """AC8.13.52: Shared release evidence reports source and release-image runs."""
-    from common.ci import release_evidence
+    from common.runtime import release_evidence
 
     def source_ci_json(_args: list[str]) -> object:
         return [
@@ -1276,7 +1276,7 @@ def test_AC8_13_52_release_evidence_tool_reports_source_and_release_runs() -> No
 
 def test_AC8_13_52_release_evidence_tool_fails_without_staging_jobs() -> None:
     """AC8.13.52: Shared release evidence fails when staging jobs are missing."""
-    from common.ci import release_evidence
+    from common.runtime import release_evidence
 
     def fake_gh_json(args: list[str]) -> object:
         command = " ".join(args)
@@ -1300,7 +1300,7 @@ def test_AC8_13_52_release_evidence_tool_fails_without_staging_jobs() -> None:
 
 def test_AC8_13_52_release_image_tool_reports_backend_and_frontend_digests() -> None:
     """AC8.13.52: Shared release image verification emits both image digests."""
-    from common.ci import release_images
+    from common.runtime import release_images
 
     def inspect_image(image: str) -> tuple[int, str]:
         digest_by_image = {
@@ -1324,7 +1324,7 @@ def test_AC8_13_52_release_image_tool_reports_backend_and_frontend_digests() -> 
 
 def test_AC8_13_52_release_image_tool_fails_when_a_digest_is_missing() -> None:
     """AC8.13.52: Shared release image verification fails closed on missing digest."""
-    from common.ci import release_images
+    from common.runtime import release_images
 
     def inspect_image(_image: str) -> tuple[int, str]:
         return 0, "Name: missing-digest\n"
@@ -1342,7 +1342,7 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     """AC8.13.16: CI skips heavy jobs for lightweight changes and caches npm."""
     workflow = read(".github/workflows/ci.yml")
     pr_workflow = read(".github/workflows/preview.yml")
-    classifier = read("common/ci/change_classifier.py")
+    classifier = read("common/testing/change_classifier.py")
     ci_cd = read("docs/ssot/ci-cd.md")
     environments = read("docs/ssot/environments.md")
 
@@ -1818,7 +1818,7 @@ def test_AC8_13_70_ci_documents_closed_e2e_traceability_system() -> None:
     ci_cd = read("docs/ssot/ci-cd.md")
     tdd = read("docs/ssot/tdd.md")
     readme = read("README.md")
-    checker = read("common/ssot/check_e2e_epic_traceability.py")
+    checker = read("common/testing/check_e2e_epic_traceability.py")
 
     assert "the README EPIC map matches project EPIC files" in ci_cd
     assert "unclassified E2E-like assets outside declared roots" in ci_cd
@@ -1975,8 +1975,8 @@ def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
     # Tag promotion stays in deploy.yml's promote job; the release line moved to
     # release.yml (#1354 / AC8.13.154).
     release_images = read(".github/workflows/deploy.yml")
-    resolver = read("common/ci/release_coordinate.py")
-    release_image_tool = read("common/ci/release_images.py")
+    resolver = read("common/runtime/release_coordinate.py")
+    release_image_tool = read("common/runtime/release_images.py")
     ci_cd = read("docs/ssot/ci-cd.md")
     deployment = read("docs/ssot/deployment.md")
 
@@ -2075,8 +2075,14 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     assert '"AI_JSON_MAX_TOKENS": "8192"' in preview_lifecycle
     assert '"AI_JSON_DISABLE_THINKING": "true"' in preview_lifecycle
     assert "https://api.z.ai/api/coding/paas/v4" in read("docs/ssot/ci-cd.md")
-    assert '-m "(smoke or e2e) and not llm"' in pr_workflow
+    # The preview marker expression is derived from the execution matrix at
+    # runtime (#1547/#1556); the llm exclusion is asserted on the SSOT value.
+    assert '-m "$PR_PREVIEW_E2E_MARKER"' in pr_workflow
     assert '-m "smoke or e2e"' not in pr_workflow
+
+    from common.testing import matrix as _matrix
+
+    assert "not llm" in _matrix.PR_PREVIEW_E2E_MARKER
 
 
 def test_AC8_13_21_staging_ai_ocr_gate_runs_under_manual_dispatch() -> None:
@@ -2197,7 +2203,7 @@ def test_AC8_13_120_staging_runs_lightweight_provider_connectivity_smoke() -> No
 def test_AC8_13_22_staging_deploys_manually_dispatched_version_ref() -> None:
     """AC8.13.22: Staging deploys the manually dispatched release version_ref."""
     workflow = read(".github/workflows/deploy.yml")
-    resolver = read("common/ci/release_coordinate.py")
+    resolver = read("common/runtime/release_coordinate.py")
 
     parsed = yaml.safe_load(workflow)
     # PyYAML parses the bare `on:` key as the boolean True.
@@ -2251,7 +2257,7 @@ def test_AC8_13_22_staging_deploys_manually_dispatched_version_ref() -> None:
 
 def test_AC8_13_22_release_coordinate_rejects_non_release_ref() -> None:
     """AC8.13.22: Release coordinate resolution rejects branch-form refs."""
-    from common.ci import release_coordinate
+    from common.runtime import release_coordinate
 
     with pytest.raises(ValueError, match="version_ref must be a release tag"):
         release_coordinate.resolve("main")
@@ -2261,7 +2267,7 @@ def test_AC8_13_22_release_coordinate_rejects_whitespace_version_ref(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """AC8.13.22: Whitespace-padded release refs fail instead of being trimmed."""
-    from common.ci import release_coordinate
+    from common.runtime import release_coordinate
 
     monkeypatch.setattr(release_coordinate, "_run", lambda *_args: None)
     monkeypatch.setattr(release_coordinate, "_out", lambda *_args: "a" * 40)
@@ -2274,7 +2280,7 @@ def test_AC8_13_22_release_coordinate_fetches_only_requested_tag(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """AC8.13.22: Release coordinate resolution does not force-fetch every tag."""
-    from common.ci import release_coordinate
+    from common.runtime import release_coordinate
 
     commands: list[tuple[str, ...]] = []
     monkeypatch.setattr(
@@ -2311,7 +2317,7 @@ def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
     ci_workflow = read(".github/workflows/ci.yml")
     release_workflow = read(".github/workflows/deploy.yml")
     deploy_workflow = read(".github/workflows/deploy.yml")
-    resolver = read("common/ci/release_coordinate.py")
+    resolver = read("common/runtime/release_coordinate.py")
     ci_cd = read("docs/ssot/ci-cd.md")
 
     assert "container-images:" in ci_workflow
@@ -2556,7 +2562,7 @@ def test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate
 ):
     """AC8.13.24: CI uploads traceability audit instead of gating stale snapshots."""
     workflow = read(".github/workflows/ci.yml")
-    audit_builder = read("common/ssot/build_ac_traceability.py")
+    audit_builder = read("common/testing/build_ac_traceability.py")
     ci_cd = read("docs/ssot/ci-cd.md")
     project_readme = read("docs/project/README.md")
 
@@ -2996,13 +3002,23 @@ def test_AC8_13_46_pr_preview_non_llm_gate_matches_staging_strict_parallelism() 
 
     for block in (preview_block, staging_block):
         assert "STRICT_E2E_GATES: true" in block
-        assert '-m "(smoke or e2e) and not llm" -n 4' in block
 
-    assert "PR_PREVIEW_E2E_TESTS=(" in preview_block
-    assert "tests/e2e/test_core_journeys.py" in preview_block
-    assert "tests/e2e/test_e2e_flows.py::test_full_navigation" in preview_block
+    # Preview selection is derived from the execution matrix SSOT
+    # (common/testing/matrix.py, #1547/#1556): the workflow carries no
+    # hardcoded test list; full conformance is gated in
+    # tests/tooling/test_execution_matrix_contract.py (AC8.22).
+    assert (
+        'eval "$(python tools/test_selection.py --stage pr_preview_e2e --shell)"'
+        in preview_block
+    )
     assert 'pytest "${PR_PREVIEW_E2E_TESTS[@]}"' in preview_block
-    assert "pytest tests/e2e -v" not in preview_block
+    assert '-m "$PR_PREVIEW_E2E_MARKER"' in preview_block
+    assert "tests/e2e/" not in preview_block
+
+    from common.testing import matrix
+
+    # The preview marker expression stays aligned with the staging gate's.
+    assert matrix.PR_PREVIEW_E2E_MARKER == "(smoke or e2e) and not llm"
 
     assert 'pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4' in staging_block
 
@@ -3141,7 +3157,7 @@ def test_AC8_13_112_sparse_matrix_recommendation_tracks_simplification_path() ->
     """AC8.13.112: sparse-matrix audit keeps the simplification path explicit."""
     recommendation = read("docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md")
     ci_cd = read("docs/ssot/ci-cd.md")
-    classifier = read("common/ci/change_classifier.py")
+    classifier = read("common/testing/change_classifier.py")
 
     for token in (
         "Structured matrix consumer migration",
@@ -3667,7 +3683,7 @@ def test_AC8_13_34_ci_and_post_merge_write_timing_summaries() -> None:
     """AC8.13.34: CI and post-merge workflows report queue and critical-path timing."""
     ci_workflow = read(".github/workflows/ci.yml")
     deploy_workflow = read(".github/workflows/deploy.yml")
-    timing_script = read("common/ci/github_workflow_timing_summary.py")
+    timing_script = read("common/testing/github_workflow_timing_summary.py")
     ci_cd = read("docs/ssot/ci-cd.md")
 
     assert "Write CI timing summary" in ci_workflow
@@ -3778,7 +3794,7 @@ def test_wait_for_cheap_ci_full_flow(monkeypatch) -> None:
     import importlib
 
     importlib.import_module("tools.wait_for_cheap_ci")
-    from common.ci.wait_for_cheap_ci import GitHubActionsClient, main
+    from common.testing.wait_for_cheap_ci import GitHubActionsClient, main
     import urllib.request
     import urllib.error
     from io import BytesIO

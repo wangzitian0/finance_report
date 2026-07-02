@@ -1,10 +1,10 @@
-"""Tests for the diff-aware preflight dispatcher (common/ssot/preflight.py)."""
+"""Tests for the diff-aware preflight dispatcher (common/testing/preflight.py)."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from common.ssot import preflight
+from common.testing import preflight
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

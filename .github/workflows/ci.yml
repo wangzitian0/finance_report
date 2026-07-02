@@ -1046,7 +1046,7 @@ jobs:
       - name: Run tooling tests with coverage
         run: |
           mkdir -p coverage
-          printf '[run]\nomit =\n    tests/tooling/*\n    common/__init__.py\n    common/**/__init__.py\n    tools/__init__.py\n    tools/**/__init__.py\n    tools/wait_for_cheap_ci.py\n    common/ci/wait_for_cheap_ci.py\n' > /tmp/tooling-coveragerc
+          printf '[run]\nomit =\n    tests/tooling/*\n    common/__init__.py\n    common/**/__init__.py\n    tools/__init__.py\n    tools/**/__init__.py\n    tools/wait_for_cheap_ci.py\n    common/testing/wait_for_cheap_ci.py\n' > /tmp/tooling-coveragerc
           uv run --with pytest --with pytest-cov --with pytest-asyncio --with anyio --with pyyaml --with pydantic --with pydantic-settings --with email-validator --with structlog --with sqlalchemy --with asyncpg --with pdfplumber --with reportlab pytest tests/tooling/ \
             --cov=common \
             --cov=tools \

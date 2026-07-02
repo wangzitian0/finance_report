@@ -2,7 +2,7 @@
 """Pure validation library for AC test-reference traceability.
 
 This module is a LIBRARY, not a CLI gate. Its functions are imported by the
-single consolidated gate (:mod:`common.ssot.check_ac_index`) — which calls
+single consolidated gate (:mod:`common.testing.check_ac_index`) — which calls
 ``run_traceability`` + ``traceability_failure_messages`` inside Gate A — and by
 the traceability unit tests. There is no ``main()`` / argument parser / report
 printer here any more: the one gate entry point is ``tools/check_ac_index.py``.
@@ -16,11 +16,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import NamedTuple
 
-from common.ssot.ac_traceability_refs import AC_PATTERN, classify_reference_file
-from common.ssot.test_surface import DEFAULT_AC_TEST_DIRS
+from common.testing.ac_traceability_refs import AC_PATTERN, classify_reference_file
+from common.testing.test_surface import DEFAULT_AC_TEST_DIRS
 
 try:
-    from common.ssot.ac_registry_format import load_registry_entries
+    from common.testing.ac_registry_format import load_registry_entries
 except ImportError:
     print("ERROR: PyYAML not installed. Run: pip install pyyaml", file=sys.stderr)
     sys.exit(1)

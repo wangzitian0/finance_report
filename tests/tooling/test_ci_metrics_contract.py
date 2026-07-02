@@ -94,7 +94,7 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     """AC8.13.26 AC8.13.35: CI enforces one metrics contract and documents its limits."""
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     ci_cd = (ROOT / "docs/ssot/ci-cd.md").read_text(encoding="utf-8")
-    traceability = (ROOT / "common/ssot/build_ac_traceability.py").read_text(
+    traceability = (ROOT / "common/testing/build_ac_traceability.py").read_text(
         encoding="utf-8"
     )
 
@@ -259,7 +259,7 @@ def test_AC8_13_26_repo_contract_reports_missing_tokens(tmp_path):
         "docs/ssot/ci-cd.md",
         "single CI metrics contract\n",
     )
-    _write(tmp_path, "common/ssot/build_ac_traceability.py", "reference metric\n")
+    _write(tmp_path, "common/testing/build_ac_traceability.py", "reference metric\n")
 
     errors = _validate_repo_contract_files(tmp_path)
 
@@ -343,7 +343,7 @@ def test_AC8_13_68_repo_contract_requires_e2e_before_audit_artifact(tmp_path):
     )
     _write(
         tmp_path,
-        "common/ssot/build_ac_traceability.py",
+        "common/testing/build_ac_traceability.py",
         "not behavioral coverage\nplaceholder assertions\nreference metric\n",
     )
 

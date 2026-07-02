@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from common.ci import github_workflow_timing_summary as timing_summary  # noqa: E402
+from common.testing import github_workflow_timing_summary as timing_summary  # noqa: E402
 
 format_duration = timing_summary.format_duration
 format_timing_summary = timing_summary.format_timing_summary

@@ -47,7 +47,7 @@ Observed on May 27, 2026:
 
 The current sparse Env x Stage model is documented in
 `docs/ssot/ci-cd.md#env-x-stage-contract` and implemented in
-`common/ci/change_classifier.py` through structured outputs:
+`common/testing/change_classifier.py` through structured outputs:
 `env_stage_required`, `env_stage_reasons`, `env_stage_stages`,
 `env_stage_files`, and provider-gate JSON outputs. GitHub Actions jobs now
 normalize their gates from that structured matrix:

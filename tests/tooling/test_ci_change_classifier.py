@@ -6,8 +6,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from common.ci import change_classifier as classifier  # noqa: E402
-from common.ci.change_classifier import (
+from common.testing import change_classifier as classifier  # noqa: E402
+from common.testing.change_classifier import (
     ENV_STAGE_MATRIX,
     Environment,
     PipelineStage,
@@ -209,12 +209,12 @@ def test_AC8_13_20_pr_preview_only_runs_for_app_e2e_or_compose_changes() -> None
         is False
     )
     assert is_pr_preview_relevant("apps/frontend/README.md") is False
-    assert is_pr_preview_relevant("common/ssot/ac_traceability_refs.py") is False
+    assert is_pr_preview_relevant("common/testing/ac_traceability_refs.py") is False
     assert is_pr_preview_relevant(".github/workflows/ci.yml") is False
 
     result = classify_changed_paths(
         [
-            "common/ssot/ac_traceability_refs.py",
+            "common/testing/ac_traceability_refs.py",
             "docs/ssot/ci-cd.md",
             ".github/workflows/ci.yml",
         ]
@@ -406,7 +406,7 @@ def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None
         "docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md",
         "docs/ssot/ci-cd.md",
         "common/meta/extension/check_ssot_ownership.py",
-        "common/ssot/build_ac_traceability.py",
+        "common/testing/build_ac_traceability.py",
         "tests/tooling/test_check_ssot_ownership.py",
         "common/testing/fixtures/pdf/README.md",
         "common/testing/fixtures/pdf/FONT_HANDLING.md",

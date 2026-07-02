@@ -8,7 +8,7 @@ broad registry hygiene stays with ``check_ac_traceability.run_traceability``.
 This module is a LIBRARY, not a CLI gate. ``validate_matrix_contract`` /
 ``validate_matrix`` / ``validate_outcomes`` (and the ``build_matrix_payload``
 helper) are imported by the single consolidated gate
-(:mod:`common.ssot.check_ac_index`, Gate A) and by the matrix unit tests. There
+(:mod:`common.testing.check_ac_index`, Gate A) and by the matrix unit tests. There
 is no ``main()`` / argument parser / markdown report renderer here any more: the
 one gate entry point is ``tools/check_ac_index.py``.
 """
@@ -23,8 +23,8 @@ from typing import Any
 
 import yaml
 
-from common.ssot.ac_registry_format import load_registry_entries
-from common.ssot.ac_traceability_refs import AC_PATTERN
+from common.testing.ac_registry_format import load_registry_entries
+from common.testing.ac_traceability_refs import AC_PATTERN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REGISTRY_PATHS = (
@@ -629,7 +629,7 @@ def build_matrix_payload(repo_root: Path) -> dict[str, Any]:
     """Build the critical proof matrix payload in-memory from the AC graph.
 
     The matrix is a DERIVED view of the one AC-keyed graph (see
-    ``common.ssot.ac_graph``); it is never committed-materialized, so the
+    ``common.testing.ac_graph``); it is never committed-materialized, so the
     validator reads the freshly-built payload instead of a checked-in file.
 
     Only the proofs + outcomes drive the matrix payload, so this routes through
@@ -637,8 +637,8 @@ def build_matrix_payload(repo_root: Path) -> dict[str, Any]:
     and the vision build that the full graph performs. The payload (and thus all
     downstream validation) is identical to the full-graph build, only faster.
     """
-    from common.ssot.ac_graph import build_proofs_only
-    from common.ssot.generate_critical_proof_matrix import build_matrix_from_graph
+    from common.testing.ac_graph import build_proofs_only
+    from common.testing.generate_critical_proof_matrix import build_matrix_from_graph
 
     return build_matrix_from_graph(build_proofs_only(repo_root))
 

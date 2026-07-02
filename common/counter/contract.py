@@ -8,7 +8,7 @@ This is the authoritative spec the governance gate
 function; ``depends_on`` must not introduce a forbidden upward/sideways edge.
 
 The package's ACs live here in ``roadmap`` (the package-model AC registry). The
-AC-registry generator (``common/ssot/generate_ac_registry.py``) sources them
+AC-registry generator (``common/testing/generate_ac_registry.py``) sources them
 directly from this contract, so they are NO LONGER mirrored into an EPIC table —
 the contract is the single source.
 """
