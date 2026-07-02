@@ -25,8 +25,7 @@ from src.identity.base.types import AUTH_COOKIE_NAME
 from src.identity.extension.observability import bind_authenticated_user_context
 from src.identity.extension.security import decode_access_token
 from src.identity.extension.sql import SqlUserRepository
-from src.logger import get_logger
-from src.observability import log_security_warning
+from src.observability import get_logger, log_security_warning
 
 logger = get_logger(__name__)
 

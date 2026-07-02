@@ -30,7 +30,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from common import test_isolation  # noqa: E402
+from common.testing import test_isolation  # noqa: E402
 
 COMPOSE_FILE = REPO_ROOT / "docker-compose.yml"
 BACKEND_DIR = REPO_ROOT / "apps" / "backend"

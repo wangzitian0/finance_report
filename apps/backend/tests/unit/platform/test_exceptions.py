@@ -3,7 +3,7 @@
 import pytest
 from fastapi import HTTPException, status
 
-from src.utils.exceptions import (
+from src.platform import (
     raise_bad_request,
     raise_conflict,
     raise_gateway_timeout,

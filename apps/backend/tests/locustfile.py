@@ -18,7 +18,7 @@ from locust import HttpUser, between, events, task
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
-from src.logger import get_logger
+from src.observability import get_logger
 
 logger = get_logger(__name__)
 

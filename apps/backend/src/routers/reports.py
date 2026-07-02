@@ -16,17 +16,13 @@ from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select, union
 
-from src.analytics import track as _track_analytics
 from src.config import settings
-from src.constants.report_package import (
-    PERSONAL_REPORT_PACKAGE_CONTRACT,
-    PERSONAL_REPORT_PACKAGE_NOTES,
-)
 from src.deps import CurrentUserId, DbSession, Pagination
-from src.logger import get_logger
 from src.models.account import Account, AccountType
 from src.models.layer4 import ReportSnapshot, ReportType as SnapshotReportType
 from src.models.market_data import FxRate
+from src.observability import get_logger, track as _track_analytics
+from src.platform import raise_bad_request, raise_not_found
 from src.schemas import (
     AccountLineageResponse,
     AccountTrendResponse,
@@ -84,8 +80,11 @@ from src.services.reporting import (
     get_net_worth_allocation_schedule,
     get_net_worth_timeseries,
 )
+from src.services.reporting.report_package import (
+    PERSONAL_REPORT_PACKAGE_CONTRACT,
+    PERSONAL_REPORT_PACKAGE_NOTES,
+)
 from src.services.reporting_snapshot import ReportingSnapshotService
-from src.utils import raise_bad_request, raise_not_found
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 logger = get_logger(__name__)

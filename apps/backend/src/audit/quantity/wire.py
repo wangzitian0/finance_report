@@ -5,9 +5,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 from decimal import Decimal
 
+from src.audit.decimal_scalar import WireCodec, decimal_to_wire as _decimal_to_wire
 from src.audit.quantity.errors import FloatNotAllowedError, InvalidQuantityPayloadError
 from src.audit.quantity.quantity import Quantity
-from src.decimal_scalar import WireCodec, decimal_to_wire as _decimal_to_wire
 
 QuantityWire = dict[str, str]
 QuantityDbFields = dict[str, Decimal | str]

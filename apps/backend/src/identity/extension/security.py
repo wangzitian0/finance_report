@@ -21,7 +21,7 @@ import jwt
 # via ``src.config.settings`` so a monkeypatched ``settings`` is always reflected
 # and the cross-domain gate sees only the bare-root import.
 import src.config
-from src.logger import get_logger
+from src.observability import get_logger
 
 logger = get_logger(__name__)
 

@@ -21,8 +21,7 @@ from src.llm.common import LLMConfigError, LLMError, ProtocolFamily, ProviderRef
 from src.llm.env_config import _protocol_for
 from src.llm.factory import get_config_source, get_usage_meter
 from src.llm.usage import estimate_tokens, estimate_tokens_from_chars
-from src.logger import get_logger
-from src.telemetry_metrics import record_ai_provider_call
+from src.observability import get_logger, record_ai_provider_call
 
 logger = get_logger(__name__)
 

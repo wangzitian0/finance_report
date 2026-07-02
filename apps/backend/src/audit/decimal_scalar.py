@@ -1,7 +1,7 @@
 """Shared Decimal-scalar codec — the single boundary primitive the backend's
 base-package value types route their raw-``Decimal`` conversions through.
 
-Backend mirror of ``common/decimal_scalar.py`` (the reference impl). The backend
+Backend mirror of ``common/audit/decimal_scalar.py`` (the reference impl). The backend
 ships self-contained — it does not import ``common`` at runtime — so it keeps its
 own copy, exactly like the ``money`` / ``quantity`` / ``ratio`` / ``unit_price``
 value types are mirrored under ``apps/backend/src`` (#1167). Kept byte-for-byte in

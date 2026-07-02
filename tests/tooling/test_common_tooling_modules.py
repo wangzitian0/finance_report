@@ -16,7 +16,7 @@ sys.path.insert(0, str(ROOT))
 
 from common.coverage import policy as coverage_policy  # noqa: E402
 from common.testing import ac_registry_format, ac_traceability_refs  # noqa: E402
-from common import test_isolation  # noqa: E402
+from common.testing import test_isolation  # noqa: E402
 
 
 def _module_is_available(module_name: str) -> bool:
@@ -77,7 +77,7 @@ def test_AC8_13_53_common_coverage_component_is_a_governed_source_root():
     assert component.component_root == ""
     assert component.source_subdir == "common"
     assert component.ci_lcov_path == "coverage/common.lcov"
-    assert "common/test_isolation.py" in component.expected_sources(ROOT)
+    assert "common/testing/test_isolation.py" in component.expected_sources(ROOT)
     assert "common/testing/check_ac_traceability.py" in component.expected_sources(ROOT)
     assert "tools/_lib/dev/test_lifecycle.py" not in component.expected_sources(ROOT)
     assert not (ROOT / "common" / "dev").exists()

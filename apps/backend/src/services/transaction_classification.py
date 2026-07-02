@@ -29,7 +29,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
-from src.logger import get_logger
 from src.models.account import AccountType
 from src.models.layer2 import AtomicTransaction
 from src.models.layer3 import (
@@ -38,6 +37,7 @@ from src.models.layer3 import (
     RuleType,
     TransactionClassification,
 )
+from src.observability import get_logger
 from src.services.classification import ClassificationService
 
 logger = get_logger(__name__)

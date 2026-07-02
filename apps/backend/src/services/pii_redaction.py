@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import NamedTuple
 
-from src.logger import get_logger
+from src.observability.logger import get_logger
 
 logger = get_logger(__name__)
 

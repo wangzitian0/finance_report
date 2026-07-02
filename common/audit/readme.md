@@ -219,7 +219,7 @@ code one place to audit and translate failures.
 The Decimal-scalar mechanics shared by every package's codec — the canonical
 wire string form (`decimal_to_wire`), the construction-time coercion
 (`coerce_decimal`), and the wire-parse / mapping / field triad (`WireCodec`) —
-live once in a single `decimal_scalar` module per layer (`common/decimal_scalar.py`
+live once in a single `decimal_scalar` module per layer (`common/audit/decimal_scalar.py`
 and its `apps/backend/src` mirror), parameterized by each package's typed errors.
 It is dependency-light substrate, not a fifth base package, so the family stays
 bounded (§2). Routing every package through it is enforced by AC12.36, so the

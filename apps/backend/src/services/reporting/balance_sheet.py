@@ -9,9 +9,8 @@ from uuid import UUID
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.constants.error_ids import ErrorIds
-from src.logger import get_logger
 from src.models.account import AccountType
+from src.observability import ErrorIds, get_logger
 from src.schemas.provenance import DataProvenance
 from src.services.fx import (
     FxWarning,

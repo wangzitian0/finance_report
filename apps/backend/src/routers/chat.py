@@ -12,8 +12,9 @@ from sqlalchemy import func, select
 
 from src.deps import CurrentUserId, DbSession
 from src.llm.catalog import LitellmCatalog
-from src.logger import get_logger
 from src.models.chat import ChatMessage, ChatSession, ChatSessionStatus
+from src.observability import get_logger
+from src.platform import get_owned_or_404, raise_bad_request, raise_not_found, raise_service_unavailable
 from src.schemas.chat import (
     ChatHistoryResponse,
     ChatMessagePreview,
@@ -26,7 +27,6 @@ from src.schemas.chat import (
 )
 from src.schemas.streaming import ChatStreamEnvelope
 from src.services.ai_advisor import AIAdvisorError, AIAdvisorService, detect_language
-from src.utils import get_owned_or_404, raise_bad_request, raise_not_found, raise_service_unavailable
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 logger = get_logger(__name__)

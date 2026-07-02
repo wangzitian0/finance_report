@@ -7,7 +7,6 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.logger import get_logger
 from src.models.layer2 import AtomicTransaction
 from src.models.layer3 import (
     ClassificationRule,
@@ -15,6 +14,7 @@ from src.models.layer3 import (
     RuleType,
     TransactionClassification,
 )
+from src.observability import get_logger
 
 logger = get_logger(__name__)
 

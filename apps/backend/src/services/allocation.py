@@ -11,9 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.ratio import Ratio
 from src.config import settings
-from src.logger import get_logger
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
+from src.observability import get_logger
 from src.services import fx
 from src.services.performance import batch_latest_atomic_positions
 

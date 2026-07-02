@@ -6,8 +6,12 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from src.config import parse_key_value_pairs, settings
-from src.logger import get_logger
+import src.config
+from src.observability.logger import get_logger
+
+# Bound from the bare published root (see logger.py; config publishes no names).
+settings = src.config.settings
+parse_key_value_pairs = src.config.parse_key_value_pairs
 
 _metrics_export_active = False
 _meter: Any | None = None

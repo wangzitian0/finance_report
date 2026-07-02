@@ -5,9 +5,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 from decimal import Decimal
 
+from src.audit.decimal_scalar import WireCodec, decimal_to_wire as _decimal_to_wire
 from src.audit.unit_price.errors import FloatNotAllowedError, InvalidUnitPricePayloadError
 from src.audit.unit_price.unit_price import UnitPrice
-from src.decimal_scalar import WireCodec, decimal_to_wire as _decimal_to_wire
 
 UnitPriceWire = dict[str, str]
 UnitPriceDbFields = dict[str, Decimal | str]

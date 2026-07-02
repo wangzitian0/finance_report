@@ -39,3 +39,6 @@ coverage-tools.lcov
 common/testing/fixtures/pdf/input/
 common/testing/fixtures/pdf/output/
 .sisyphus/
+
+# Real statement inputs for the local cassette recorder — never commit (PII)
+tools/_lib/pdf_fixtures/

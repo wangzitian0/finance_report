@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.database import async_session_maker
-from src.logger import get_logger
+from src.observability import get_logger
 from src.services.market_data import sync_fx_rates, sync_stock_prices
 
 logger = get_logger(__name__)

@@ -5,10 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 
+from src.audit.decimal_scalar import coerce_decimal
 from src.audit.quantity.errors import FloatNotAllowedError, UnitMismatchError
 from src.audit.quantity.unit import Unit
 from src.audit.ratio import Ratio
-from src.decimal_scalar import coerce_decimal
 
 QUANTITY_DP: int = 6
 QUANTITY_QUANTUM = Decimal("0.000001")

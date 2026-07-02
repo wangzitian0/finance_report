@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.utils.exceptions import BaseAppException
+from src.platform import BaseAppException
 
 
 class TestBaseAppException:

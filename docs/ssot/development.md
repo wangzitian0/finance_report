@@ -252,7 +252,7 @@ moon run :test                                             # Auto-detect from gi
 
 ---
 
-## Isolation Utilities (`common/test_isolation.py`)
+## Isolation Utilities (`common/testing/test_isolation.py`)
 
 **Purpose**: Namespace-aware resource naming for parallel test execution.
 
@@ -264,7 +264,7 @@ moon run :test                                             # Auto-detect from gi
 | `sanitize_namespace(name)` | `"feature/auth-v2"` | `"feature_auth_v2"` | Safe identifier |
 
 Integration points:
-- `common/test_isolation.py` — owns reusable namespace, database, bucket, and suffix helpers
+- `common/testing/test_isolation.py` — owns reusable namespace, database, bucket, and suffix helpers
 - `tools/test_lifecycle.py` — command entry point that creates DBs and overrides `S3_BUCKET`
 - `apps/backend/tests/conftest.py` — reads `TEST_NAMESPACE`, generates worker URLs
 - Contract tests: `apps/backend/tests/infra/test_isolation.py` (15 tests)

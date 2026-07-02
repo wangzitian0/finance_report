@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from src.audit.decimal_scalar import WireCodec, decimal_to_wire as _decimal_to_wire
 from src.audit.ratio.errors import FloatNotAllowedError, InvalidRatioPayloadError
 from src.audit.ratio.ratio import Ratio
-from src.decimal_scalar import WireCodec, decimal_to_wire as _decimal_to_wire
 
 # The shared scalar codec bound to ratio's typed errors (ratio wire is a bare
 # decimal string, so only ``parse`` is needed — no payload envelope).

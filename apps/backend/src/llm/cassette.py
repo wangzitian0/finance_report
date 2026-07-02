@@ -37,7 +37,7 @@ from pathlib import Path
 from typing import Any
 
 from src.llm.common import LLMConfigError, LLMError, Message
-from src.logger import get_logger
+from src.observability import get_logger
 
 logger = get_logger(__name__)
 

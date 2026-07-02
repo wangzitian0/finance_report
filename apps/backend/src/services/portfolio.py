@@ -14,7 +14,6 @@ from src.audit.quantity import Quantity
 from src.audit.ratio import Ratio
 from src.audit.unit_price import UnitPrice
 from src.config import settings
-from src.logger import get_logger
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
 from src.models.market_data import StockPrice
@@ -25,6 +24,7 @@ from src.models.portfolio import (
     MarketDataOverride,
     PriceSource,
 )
+from src.observability import get_logger
 from src.schemas.portfolio import (
     HoldingResponse,
     PortfolioSummaryResponse,

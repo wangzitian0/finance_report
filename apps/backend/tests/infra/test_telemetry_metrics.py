@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from src import telemetry_metrics
+from src.observability import telemetry_metrics
 
 pytestmark = pytest.mark.no_db
 REPO_ROOT = Path(__file__).resolve().parents[4]

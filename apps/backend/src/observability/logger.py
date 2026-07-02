@@ -19,7 +19,12 @@ import structlog
 from structlog.stdlib import BoundLogger
 from structlog.types import Processor
 
-from src.config import parse_key_value_pairs, settings
+import src.config
+
+# Bound from the bare published root (``import src.config``) to respect the
+# package-model cross-domain rule (config publishes no named symbols).
+settings = src.config.settings
+parse_key_value_pairs = src.config.parse_key_value_pairs
 
 P = ParamSpec("P")
 T = TypeVar("T")

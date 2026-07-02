@@ -30,11 +30,8 @@ from src.identity.extension.observability import bind_authenticated_user_context
 from src.identity.extension.rate_limit import auth_rate_limiter, register_rate_limiter
 from src.identity.extension.security import create_access_token, hash_password, verify_password
 from src.identity.extension.sql import SqlUserRepository, User
-from src.logger import get_logger
-from src.observability import log_security_warning
-from src.platform import RateLimiter
-from src.telemetry_metrics import record_rate_limit_rejected
-from src.utils import raise_bad_request, raise_not_found, raise_too_many_requests, raise_unauthorized
+from src.observability import get_logger, log_security_warning, record_rate_limit_rejected
+from src.platform import RateLimiter, raise_bad_request, raise_not_found, raise_too_many_requests, raise_unauthorized
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 logger = get_logger(__name__)

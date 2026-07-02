@@ -41,7 +41,7 @@ def test_epic_001_backend_skeleton_exists() -> None:
         # The auth router moved into the identity package (#1428, Stage-1 cutover);
         # the backend-skeleton contract now points at its single home.
         REPO_ROOT / "apps/backend/src/identity/extension/api/auth.py",
-        REPO_ROOT / "apps/backend/src/logger.py",
+        REPO_ROOT / "apps/backend/src/observability/logger.py",
     ]
     for file_path in required_files:
         assert file_path.exists(), f"Missing backend skeleton file: {file_path}"

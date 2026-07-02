@@ -13,14 +13,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.identity import User
-from src.logger import get_logger
 from src.models.layer1 import DocumentStatus, DocumentType, UploadedDocument
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
+from src.observability import get_logger, record_statement_parse_outcome
 from src.services import ExtractionError, ExtractionService, StorageError, StorageService
 from src.services.brokerage_positions import looks_like_brokerage_payload
 from src.services.statement_posting import try_auto_approve_high_confidence_statement
-from src.telemetry_metrics import record_statement_parse_outcome
 
 if TYPE_CHECKING:
     pass

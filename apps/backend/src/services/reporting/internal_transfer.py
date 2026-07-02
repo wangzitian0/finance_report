@@ -12,9 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.money import to_money
 from src.audit.money.adopt import restate
-from src.constants.error_ids import ErrorIds
-from src.logger import get_logger
 from src.models.fx_conversion import FxConversion
+from src.observability import ErrorIds, get_logger
 from src.services.fx import (
     FxRateError,
     get_exchange_rate,

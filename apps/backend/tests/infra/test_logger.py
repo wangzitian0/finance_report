@@ -8,7 +8,7 @@ import types
 from structlog.dev import ConsoleRenderer
 from structlog.processors import JSONRenderer
 
-from src import logger as logger_module
+from src.observability import logger as logger_module
 
 
 def test_build_otlp_logs_endpoint_adds_suffix() -> None:

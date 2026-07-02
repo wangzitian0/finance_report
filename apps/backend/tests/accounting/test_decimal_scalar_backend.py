@@ -1,7 +1,7 @@
 """Behavioural coverage for the backend's shared Decimal-scalar codec mirror (AC-audit.36.2).
 
-The backend ships ``src.decimal_scalar`` as a self-contained copy of
-``common.decimal_scalar`` (the value types route through it). This exercises every
+The backend ships ``src.audit.decimal_scalar`` as a self-contained copy of
+``common.audit.decimal_scalar`` (the value types route through it). This exercises every
 branch directly so the mirror stays covered independent of the value-type suites.
 """
 
@@ -11,7 +11,7 @@ from decimal import Decimal
 
 import pytest
 
-from src.decimal_scalar import WireCodec, coerce_decimal, decimal_to_wire
+from src.audit.decimal_scalar import WireCodec, coerce_decimal, decimal_to_wire
 
 pytestmark = pytest.mark.no_db
 

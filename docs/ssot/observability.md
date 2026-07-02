@@ -35,7 +35,7 @@
 
 | Component | Physical Location | Description |
 |-----------|-------------------|-------------|
-| Logging configuration | `apps/backend/src/logger.py` | Structlog setup + optional OTLP log export |
+| Logging configuration | `apps/backend/src/observability/logger.py` | Structlog setup + optional OTLP log export |
 | Runtime contract | `apps/backend/src/observability.py` | Redacted observability status for health checks, startup logs, and alert triage |
 | Env settings | `apps/backend/src/config.py` | OTEL environment variables |
 | Env documentation | `.env.example` | Developer guidance for OTEL variables |
@@ -128,7 +128,7 @@ infra2's to define — find them in the infra2 contract, not here.
 The backend uses `opentelemetry-sdk` with structlog for log export:
 
 ```python
-# Already configured in apps/backend/src/logger.py
+# Already configured in apps/backend/src/observability/logger.py
 # Just set environment variables to enable OTLP export
 ```
 

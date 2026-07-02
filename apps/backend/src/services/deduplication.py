@@ -8,7 +8,6 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.logger import get_logger
 from src.models.layer1 import DocumentStatus, DocumentType, UploadedDocument
 from src.models.layer2 import (
     AtomicPosition,
@@ -18,6 +17,7 @@ from src.models.layer2 import (
     TransactionDirection,
 )
 from src.models.statement_summary import StatementSummary
+from src.observability import get_logger
 from src.services.currency_resolution import resolve_ingest_currency
 
 logger = get_logger(__name__)

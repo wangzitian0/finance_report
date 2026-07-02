@@ -15,7 +15,7 @@ hierarchy (``Invalid*PayloadError`` / ``FloatNotAllowedError``) is preserved.
 Pure and dependency-light on purpose: it imports no base package, so it stays a
 substrate primitive rather than a fifth base package (the family is bounded —
 ``common/audit/readme.md#base-packages`` §2). The backend keeps its own mirror under
-``apps/backend/src/decimal_scalar.py`` for the same self-contained-shipping reason
+``apps/backend/src/audit/decimal_scalar.py`` for the same self-contained-shipping reason
 the value types themselves are mirrored (#1167).
 """
 

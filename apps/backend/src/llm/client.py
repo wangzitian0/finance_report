@@ -38,7 +38,7 @@ from src.llm.common import (
     ReasoningEffort,
 )
 from src.llm.routing import build_call
-from src.logger import get_logger
+from src.observability import get_logger
 
 logger = get_logger(__name__)
 

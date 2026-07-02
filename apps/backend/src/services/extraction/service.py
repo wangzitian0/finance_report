@@ -18,6 +18,7 @@ from src.models.layer1 import DocumentType
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
+from src.observability import record_financial_invariant_violation
 from src.prompts import get_parsing_prompt
 from src.services.ai_streaming import (
     AIStreamError,
@@ -55,7 +56,6 @@ from src.services.validation import (
     validate_balance_explicit,
     validate_balance_per_currency,
 )
-from src.telemetry_metrics import record_financial_invariant_violation
 
 
 def _institution_class(*, is_brokerage: bool) -> str:
@@ -912,7 +912,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 content = await accumulate_stream(stream)
 
                 if not content or not content.strip():
-                    from src.constants.error_ids import ErrorIds
+                    from src.observability import ErrorIds
 
                     logger.error(
                         "AI returned empty response",
@@ -941,7 +941,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                     logger.info("AI extraction successful (streaming)", model=model)
                     return parsed
                 except json.JSONDecodeError as e:
-                    from src.constants.error_ids import ErrorIds
+                    from src.observability import ErrorIds
 
                     # A single malformed-but-recoverable response (markdown fence or
                     # prose around a valid object) should not reject the upload (#982).
@@ -974,7 +974,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                     continue
 
             except AIStreamError as e:
-                from src.constants.error_ids import ErrorIds
+                from src.observability import ErrorIds
 
                 error_msg = str(e)
                 if "429" in error_msg or "quota" in error_msg.lower():
@@ -1011,7 +1011,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                     last_error = ExtractionError(f"Model {model} failed: {error_msg}")
                 continue
             except httpx.TimeoutException:
-                from src.constants.error_ids import ErrorIds
+                from src.observability import ErrorIds
 
                 logger.warning(
                     "AI extraction timed out",
@@ -1026,7 +1026,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             except ExtractionError:
                 raise
             except (ValueError, TypeError, KeyError, AttributeError) as e:
-                from src.constants.error_ids import ErrorIds
+                from src.observability import ErrorIds
 
                 logger.exception(
                     "Programming error in extraction",
@@ -1036,7 +1036,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 )
                 raise ExtractionError(f"Internal error: {type(e).__name__}") from e
 
-        from src.constants.error_ids import ErrorIds
+        from src.observability import ErrorIds
 
         if error_summary:
             breakdown = ", ".join(f"{ct} {et}" for et, ct in error_summary.items())

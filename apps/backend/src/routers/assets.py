@@ -11,7 +11,6 @@ from sqlalchemy import select
 from src.audit.money import Money, to_money
 from src.config import settings
 from src.deps import CurrentUserId, DbSession, Pagination
-from src.logger import get_logger
 from src.models.layer3 import (
     ManagedPosition,
     ManualValuationComponentType,
@@ -19,6 +18,8 @@ from src.models.layer3 import (
     ManualValuationSnapshot,
     PositionStatus,
 )
+from src.observability import get_logger
+from src.platform import raise_bad_request, raise_internal_error, raise_not_found
 from src.schemas.assets import (
     DepreciationResponse,
     ManagedPositionListResponse,
@@ -34,7 +35,6 @@ from src.schemas.assets import (
 )
 from src.services import fx
 from src.services.assets import AssetService, AssetServiceError
-from src.utils import raise_bad_request, raise_internal_error, raise_not_found
 
 router = APIRouter(prefix="/assets", tags=["assets"])
 logger = get_logger(__name__)

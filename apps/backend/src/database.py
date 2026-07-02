@@ -118,7 +118,7 @@ async def init_db() -> None:
     via Alembic migrations. This ensures consistency across all
     environments and prevents schema-code mismatch.
     """
-    from src.logger import get_logger
+    from src.observability import get_logger
 
     logger = get_logger(__name__)
     logger.info("Database initialized (schema managed by migrations)")

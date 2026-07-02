@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 from common.testing.ac_proof import ac_proof
 
-from common.decimal_scalar import WireCodec, coerce_decimal, decimal_to_wire
+from common.audit.decimal_scalar import WireCodec, coerce_decimal, decimal_to_wire
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -66,7 +66,7 @@ def _assert_layer_shares_one_codec(layer_root: str, import_prefix: str) -> None:
         )
 
     # The canonical logic lives only in the shared module.
-    codec_src = _read(f"{layer_root}/decimal_scalar.py")
+    codec_src = _read(f"{layer_root}/audit/decimal_scalar.py")
     assert "def decimal_to_wire(" in codec_src
     assert "def coerce_decimal(" in codec_src
     assert "class WireCodec" in codec_src
@@ -83,7 +83,7 @@ def _assert_layer_shares_one_codec(layer_root: str, import_prefix: str) -> None:
 )
 def test_AC12_36_1_common_base_packages_share_one_scalar_codec():
     """AC-audit.36.1: the four common base packages share one decimal_scalar codec."""
-    _assert_layer_shares_one_codec("common", "common")
+    _assert_layer_shares_one_codec("common", "common.audit")
 
 
 @ac_proof(
@@ -92,8 +92,8 @@ def test_AC12_36_1_common_base_packages_share_one_scalar_codec():
     ci_tier="pr_ci",
 )
 def test_AC12_36_2_backend_base_packages_share_one_scalar_codec():
-    """AC-audit.36.2: the backend mirror shares one src.decimal_scalar codec."""
-    _assert_layer_shares_one_codec("apps/backend/src", "src")
+    """AC-audit.36.2: the backend mirror shares one src.audit.decimal_scalar codec."""
+    _assert_layer_shares_one_codec("apps/backend/src", "src.audit")
 
 
 # ── behavioural coverage of the shared codec (common layer) ──────────────────

@@ -27,9 +27,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.money import Currency, InvalidCurrencyError
-from src.logger import get_logger
 from src.models.layer2 import AtomicTransaction
-from src.utils.exceptions import BaseAppException
+from src.observability import get_logger
+from src.platform import BaseAppException
 
 logger = get_logger(__name__)
 

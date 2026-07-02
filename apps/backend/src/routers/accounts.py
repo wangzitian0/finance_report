@@ -19,9 +19,10 @@ from src.ledger import (
     get_unpaired_transfers,
     list_processing_transfer_legs,
 )
-from src.logger import get_logger
 from src.models.account import AccountType
 from src.models.journal import JournalLine
+from src.observability import get_logger
+from src.platform import raise_bad_request, raise_not_found
 from src.schemas import (
     AccountCoverageListResponse,
     AccountCreate,
@@ -43,7 +44,6 @@ from src.services.accounting import (
     get_opening_balance_readiness,
     post_opening_balance_entry,
 )
-from src.utils import raise_bad_request, raise_not_found
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 logger = get_logger(__name__)

@@ -23,6 +23,7 @@ from src.models.layer3 import (
     ManualValuationLiquidityClass,
     ManualValuationSnapshot,
 )
+from src.platform import raise_bad_request
 from src.schemas import (
     AnnualizedIncomeScheduleHolding,
     AnnualizedIncomeScheduleIncome,
@@ -31,7 +32,6 @@ from src.schemas import (
 )
 from src.services.fx import FxRateError, convert_amount
 from src.services.reporting_calc import income_bucket
-from src.utils import raise_bad_request
 
 
 async def generate_annualized_income_schedule(

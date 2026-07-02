@@ -9,10 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.ratio import Ratio
 from src.config import settings
-from src.logger import get_logger
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
 from src.models.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
+from src.observability import get_logger
 from src.services import fx
 
 logger = get_logger(__name__)

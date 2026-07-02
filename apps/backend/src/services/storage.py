@@ -12,7 +12,7 @@ from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
 from src.config import settings
-from src.logger import get_logger
+from src.observability import get_logger
 
 logger = get_logger(__name__)
 

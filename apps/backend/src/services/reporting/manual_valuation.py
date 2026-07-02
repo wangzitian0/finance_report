@@ -8,12 +8,12 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.logger import get_logger
 from src.models.account import AccountType
 from src.models.layer3 import (
     ManualValuationComponentType,
     ManualValuationLiquidityClass,
 )
+from src.observability import get_logger
 from src.services.assets import AssetService
 from src.services.fx import (
     FxRateError,

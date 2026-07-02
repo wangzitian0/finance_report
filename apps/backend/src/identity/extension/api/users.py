@@ -21,8 +21,8 @@ from src.deps import CurrentUserId, DbSession
 from src.identity.extension.sql import User
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
+from src.platform import raise_bad_request, raise_conflict, raise_not_found
 from src.schemas import UserCreate, UserListResponse, UserResponse, UserUpdate
-from src.utils import raise_bad_request, raise_conflict, raise_not_found
 
 router = APIRouter(prefix="/users", tags=["users"])
 

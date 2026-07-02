@@ -40,7 +40,7 @@ import this package's :class:`DomainEvent` (its ``Incremented`` is a
 ``DomainEvent``) and write through its bus — a strictly *downward* edge only if
 ``platform`` (the package) ranks **below** ``counter``. So this foundational
 event/outbox + middleware substrate — which declares no governed edges (it
-imports only the unregistered ``src.database`` Base/session and ``src.logger``;
+imports only the unregistered ``src.database`` Base/session;
 the config-bound ``api_rate_limiter`` instance is wired in ``src.main``) — is classed
 ``kernel``: a leaf the whole app builds events on. "Meta layer" describes its
 *role* (the runtime middleware capabilities of the platform substrate);
@@ -65,7 +65,7 @@ CONTRACT = PackageContract(
     # Every AC in the roadmap inherits this tier.
     tier="CODE-ONLY",
     # No governed edges: this package imports only unregistered backend infra
-    # (``src.logger`` and the shared ORM Base/session). The config-bound
+    # (the shared ORM Base/session). The config-bound
     # ``api_rate_limiter`` instance is wired at the composition root (src.main),
     # so the substrate stays config-free.
     depends_on=[],
@@ -111,6 +111,7 @@ CONTRACT = PackageContract(
     ],
     implementations={"be": "apps/backend/src/platform", "fe": None},
     interface=[
+        "BaseAppException",
         "DomainEvent",
         "EventBus",
         "Outbox",
@@ -122,6 +123,17 @@ CONTRACT = PackageContract(
         "RateLimiter",
         "RecordingEventBus",
         "SubscriberRegistry",
+        "get_owned_or_404",
+        "paginate",
+        "raise_bad_request",
+        "raise_conflict",
+        "raise_gateway_timeout",
+        "raise_internal_error",
+        "raise_not_found",
+        "raise_service_unavailable",
+        "raise_too_large",
+        "raise_too_many_requests",
+        "raise_unauthorized",
     ],
     events=[],
     invariants=[

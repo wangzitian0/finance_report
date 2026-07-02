@@ -28,9 +28,10 @@ import logging
 import threading
 from typing import Any
 
-import httpx
+import src.config
 
-from src.config import settings
+# Bound from the bare published root (see logger.py; config publishes no names).
+settings = src.config.settings
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,10 @@ def build_payload(event: str, properties: dict[str, Any] | None) -> dict[str, An
 def _post(payload: dict[str, Any], client_id: str, endpoint: str) -> None:
     """Best-effort single POST. Never raises — a telemetry hiccup must not surface."""
     try:
+        # Imported lazily: this module is loaded via the observability package
+        # root, which tooling-only environments import without backend deps.
+        import httpx
+
         with httpx.Client(timeout=_TIMEOUT_SECONDS) as client:
             response = client.post(endpoint, json=payload, headers={"openpanel-client-id": client_id})
         response.raise_for_status()

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from src.logger import get_logger
+from src.observability import get_logger
 from src.prompts.ai_advisor import DISCLAIMER_EN, DISCLAIMER_ZH
 
 logger = get_logger("src.services.ai_advisor")
