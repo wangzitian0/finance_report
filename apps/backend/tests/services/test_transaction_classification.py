@@ -374,3 +374,27 @@ async def test_AC18_15_3_proposer_fails_safe_to_none(monkeypatch):
     monkeypatch.setattr(settings, "ai_api_key", "test-key")
     monkeypatch.setattr("src.services.ai_streaming.stream_ai_json", lambda **kw: _fake_stream("{nope"))
     assert await tc.propose_categories(txns, policy_for(date.today())) == [None]
+
+
+@pytest.mark.asyncio
+async def test_AC18_15_2_committed_rerun_is_idempotent_not_integrityerror(db, test_user, enabled_flag):
+    """AC18.15.2: re-running the pass under the SAME policy is idempotent — the
+    existing classification is kept (no duplicate (txn, policy-rule) row, no
+    IntegrityError), because classification is a recomputable pass, not a one-shot."""
+    txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="ACME PAYROLL")
+    proposer = _stub_proposer(
+        {txn.description: CategoryProposal(category=TransactionCategory.SALARY.value, confidence=95)}
+    )
+    policy = _policy()
+
+    first = await classify_transactions(db, test_user.id, [txn], policy=policy, proposer=proposer, commit_basis=True)
+    second = await classify_transactions(db, test_user.id, [txn], policy=policy, proposer=proposer, commit_basis=True)
+
+    assert first[0].disposition == "applied"
+    assert second[0].disposition == "applied"  # same verdict, reported again
+    rows = (
+        (await db.execute(select(TransactionClassification).where(TransactionClassification.atomic_txn_id == txn.id)))
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 1  # kept, not duplicated

@@ -5,7 +5,7 @@ from the FIXED catalog below with a confidence score; deterministic code *dispos
 resolves category→account and writes the classification row. The model never touches
 money: proposals cannot express amounts, and posting stays with the ledger path.
 
-The classification 口径 is a first-class, effective-dated policy: a taxonomy/threshold
+The classification basis is a first-class, effective-dated policy: a taxonomy/threshold
 change is a NEW ``ClassificationPolicy`` version with an explicit ``effective_from``
 cutoff (prospective by default). ``commit_basis=False`` runs the same pass pro-forma —
 compute the verdicts under a candidate policy without writing the basis-of-record.
@@ -95,7 +95,7 @@ CATEGORY_ACCOUNTS: dict[TransactionCategory, tuple[str, AccountType]] = {
 
 
 class ClassificationPolicy(BaseModel):
-    """An effective-dated, immutable classification 口径 version.
+    """An effective-dated, immutable classification-basis version.
 
     A taxonomy/threshold change is a NEW version with its own ``effective_from``
     cutoff — prospective by default; already-effective versions are never mutated.
@@ -111,7 +111,7 @@ class ClassificationPolicy(BaseModel):
     review_threshold: int = 60
 
 
-#: Append-only registry of policy versions. A 口径 change appends a new version here
+#: Append-only registry of policy versions. A basis change appends a new version here
 #: (or, post-#1545, to its persisted home) — it never edits an existing entry.
 POLICY_VERSIONS: tuple[ClassificationPolicy, ...] = (
     ClassificationPolicy(
@@ -334,6 +334,33 @@ async def classify_transactions(
 
     # 3) deterministic disposal under the confidence gate
     policy_rule: ClassificationRule | None = None
+    # Idempotent re-run: classification is a recomputable pass. A txn already
+    # classified under THIS policy version keeps its row (no duplicate
+    # (atomic_txn_id, rule_version_id) insert); superseding across policy
+    # versions is #1545's migration seam.
+    already_classified: set[UUID] = set()
+    if commit_basis:
+        existing_rule = (
+            await db.execute(
+                select(ClassificationRule.id)
+                .where(ClassificationRule.user_id == user_id)
+                .where(ClassificationRule.rule_name == POLICY_RULE_NAME)
+                .where(ClassificationRule.version_number == policy.version)
+            )
+        ).scalar_one_or_none()
+        if existing_rule is not None:
+            already_classified = {
+                row
+                for row in (
+                    await db.execute(
+                        select(TransactionClassification.atomic_txn_id).where(
+                            TransactionClassification.rule_version_id == existing_rule
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            }
     proposal_by_txn = dict(zip(remaining, proposals))
     for txn in transactions:
         if txn.id in ruled:
@@ -372,7 +399,7 @@ async def classify_transactions(
         else:
             disposition = "tail"
 
-        if commit_basis and disposition in ("applied", "review"):
+        if commit_basis and disposition in ("applied", "review") and txn.id not in already_classified:
             if policy_rule is None:
                 policy_rule = await _ensure_policy_rule(db, user_id, policy)
             account = await _resolve_category_account(db, user_id, category, txn.currency)
