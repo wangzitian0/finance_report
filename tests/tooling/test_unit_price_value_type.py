@@ -25,10 +25,10 @@ from common.testing.ac_proof import ac_proof
 
 
 @ac_proof(
-    proof_id="test_unit_price_rejects_float", ac_ids=["AC12.32.1"], ci_tier="pr_ci"
+    proof_id="test_unit_price_rejects_float", ac_ids=["AC-audit.32.1"], ci_tier="pr_ci"
 )
 def test_AC12_32_1_unit_price_rejects_float_and_is_decimal_backed():
-    """AC12.32.1: UnitPrice rejects float/bool, is Decimal-backed and immutable."""
+    """AC-audit.32.1: UnitPrice rejects float/bool, is Decimal-backed and immutable."""
     with pytest.raises(FloatNotAllowedError):
         UnitPrice(0.125, "SGD", "shares")
     with pytest.raises(FloatNotAllowedError):
@@ -39,9 +39,9 @@ def test_AC12_32_1_unit_price_rejects_float_and_is_decimal_backed():
         price.rate = Decimal("2")  # type: ignore[misc]
 
 
-@ac_proof(proof_id="test_unit_price_policy", ac_ids=["AC12.32.1"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_unit_price_policy", ac_ids=["AC-audit.32.1"], ci_tier="pr_ci")
 def test_AC12_32_1_unit_price_quantum_is_six_dp_half_up():
-    """AC12.32.1: the price quantum is 6 dp / ROUND_HALF_UP, not the money quantum."""
+    """AC-audit.32.1: the price quantum is 6 dp / ROUND_HALF_UP, not the money quantum."""
     assert UNIT_PRICE_DP == 6
     assert UNIT_PRICE_QUANTUM == Decimal("0.000001")
     assert UNIT_PRICE_ROUNDING == "ROUND_HALF_UP"
@@ -50,9 +50,9 @@ def test_AC12_32_1_unit_price_quantum_is_six_dp_half_up():
     )
 
 
-@ac_proof(proof_id="test_unit_price_product", ac_ids=["AC12.32.1"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_unit_price_product", ac_ids=["AC-audit.32.1"], ci_tier="pr_ci")
 def test_AC12_32_1_unit_price_times_quantity_is_money():
-    """AC12.32.1: price * quantity yields exact Money in the price's currency."""
+    """AC-audit.32.1: price * quantity yields exact Money in the price's currency."""
     price = UnitPrice(Decimal("10.50"), "SGD", "shares")
     qty = Quantity(Decimal("3"), "shares")
     assert price * qty == Money(Decimal("31.50"), "SGD")
@@ -65,9 +65,11 @@ def test_AC12_32_1_unit_price_times_quantity_is_money():
         price * Quantity(Decimal("3"), "contracts")
 
 
-@ac_proof(proof_id="test_unit_price_from_total", ac_ids=["AC12.32.1"], ci_tier="pr_ci")
+@ac_proof(
+    proof_id="test_unit_price_from_total", ac_ids=["AC-audit.32.1"], ci_tier="pr_ci"
+)
 def test_AC12_32_1_unit_price_from_total_is_money_over_quantity():
-    """AC12.32.1: from_total derives Money / Quantity; zero quantity is undefined."""
+    """AC-audit.32.1: from_total derives Money / Quantity; zero quantity is undefined."""
     derived = UnitPrice.from_total(
         Money(Decimal("100.00"), "SGD"), Quantity(Decimal("4"), "shares")
     )
@@ -80,9 +82,9 @@ def test_AC12_32_1_unit_price_from_total_is_money_over_quantity():
         )
 
 
-@ac_proof(proof_id="test_unit_price_compare", ac_ids=["AC12.32.1"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_unit_price_compare", ac_ids=["AC-audit.32.1"], ci_tier="pr_ci")
 def test_AC12_32_1_unit_price_compare_requires_same_currency_and_unit():
-    """AC12.32.1: comparison is same-currency AND same-unit only."""
+    """AC-audit.32.1: comparison is same-currency AND same-unit only."""
     a = UnitPrice(Decimal("5"), "USD", "shares")
     b = UnitPrice(Decimal("7"), "USD", "shares")
     assert a < b and b > a

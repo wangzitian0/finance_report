@@ -30,18 +30,26 @@ def _exports(init_path: Path) -> set[str]:
 
 
 @ac_proof(
-    proof_id="test_unit_price_shared_api_common", ac_ids=["AC12.32.2"], ci_tier="pr_ci"
+    proof_id="test_unit_price_shared_api_common",
+    ac_ids=["AC-audit.32.2"],
+    ci_tier="pr_ci",
 )
 def test_AC12_32_2_common_exposes_shared_unit_price_api():
-    """AC12.32.2: the reference unit-price module exports the full shared surface."""
+    """AC-audit.32.2: the reference unit-price module exports the full shared surface."""
     missing = SHARED_API - _exports(REPO / "common/audit/unit_price/__init__.py")
     assert not missing, f"common.audit.unit_price missing shared API: {sorted(missing)}"
 
 
 @ac_proof(
-    proof_id="test_unit_price_shared_api_backend", ac_ids=["AC12.32.2"], ci_tier="pr_ci"
+    proof_id="test_unit_price_shared_api_backend",
+    ac_ids=["AC-audit.32.2"],
+    ci_tier="pr_ci",
 )
 def test_AC12_32_2_backend_exposes_shared_unit_price_api():
-    """AC12.32.2: the shipped backend unit-price module exports the full shared surface."""
-    missing = SHARED_API - _exports(REPO / "apps/backend/src/audit/unit_price/__init__.py")
-    assert not missing, f"backend src.audit.unit_price missing shared API: {sorted(missing)}"
+    """AC-audit.32.2: the shipped backend unit-price module exports the full shared surface."""
+    missing = SHARED_API - _exports(
+        REPO / "apps/backend/src/audit/unit_price/__init__.py"
+    )
+    assert not missing, (
+        f"backend src.audit.unit_price missing shared API: {sorted(missing)}"
+    )

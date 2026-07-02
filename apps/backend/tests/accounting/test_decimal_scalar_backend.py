@@ -1,4 +1,4 @@
-"""Behavioural coverage for the backend's shared Decimal-scalar codec mirror (AC12.36.2).
+"""Behavioural coverage for the backend's shared Decimal-scalar codec mirror (AC-audit.36.2).
 
 The backend ships ``src.decimal_scalar`` as a self-contained copy of
 ``common.decimal_scalar`` (the value types route through it). This exercises every

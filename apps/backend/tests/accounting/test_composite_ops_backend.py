@@ -17,9 +17,9 @@ _MONEY = json.loads((_ROOT / "common/audit/money/conformance/vectors.json").read
 _RATIO = json.loads((_ROOT / "common/audit/ratio/conformance/vectors.json").read_text())
 
 
-@ac_proof(proof_id="test_backend_money_composite", ac_ids=["AC12.33.1"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_backend_money_composite", ac_ids=["AC-audit.33.1"], ci_tier="pr_ci")
 def test_AC12_33_1_backend_money_predicates_sum_tolerance():
-    """AC12.33.1: src.audit.money predicates, sum and MoneyTolerance behave correctly."""
+    """AC-audit.33.1: src.audit.money predicates, sum and MoneyTolerance behave correctly."""
     assert Money.zero("USD").is_zero()
     assert Money(Decimal("0.01"), "USD").is_positive()
     assert Money(Decimal("-0.01"), "USD").is_negative()
@@ -31,9 +31,9 @@ def test_AC12_33_1_backend_money_predicates_sum_tolerance():
     assert not tol.holds(Money(Decimal("100.00"), "USD"), Money(Decimal("100.02"), "USD"))
 
 
-@ac_proof(proof_id="test_backend_composite_vectors", ac_ids=["AC12.33.2"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_backend_composite_vectors", ac_ids=["AC-audit.33.2"], ci_tier="pr_ci")
 def test_AC12_33_2_backend_composite_matches_standard():
-    """AC12.33.2: the shipped backend reproduces the shared composite vectors."""
+    """AC-audit.33.2: the shipped backend reproduces the shared composite vectors."""
     for c in _MONEY["predicates"]:
         m = Money(Decimal(c["amount"]), c["currency"])
         assert (m.is_zero(), m.is_positive(), m.is_negative()) == (

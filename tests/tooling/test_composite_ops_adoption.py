@@ -15,24 +15,34 @@ def _read(path: str) -> str:
     return (REPO / path).read_text(encoding="utf-8")
 
 
-@ac_proof(proof_id="test_ratio_fraction_or_zero_adoption", ac_ids=["AC12.33.3"], ci_tier="pr_ci")
+@ac_proof(
+    proof_id="test_ratio_fraction_or_zero_adoption",
+    ac_ids=["AC-audit.33.3"],
+    ci_tier="pr_ci",
+)
 def test_AC12_33_3_zero_denominator_branching_routes_through_ratio():
-    """AC12.33.3: zero-denominator ratio branching uses Ratio.fraction_or_zero."""
+    """AC-audit.33.3: zero-denominator ratio branching uses Ratio.fraction_or_zero."""
     portfolio = _read("apps/backend/src/services/portfolio.py")
-    assert "def _ratio_or_zero(" not in portfolio, "local _ratio_or_zero helper must be retired"
+    assert "def _ratio_or_zero(" not in portfolio, (
+        "local _ratio_or_zero helper must be retired"
+    )
     assert "Ratio.fraction_or_zero(" in portfolio
 
     perf = _read("apps/backend/src/services/performance_report.py")
     assert "Ratio.fraction_or_zero(value, total_market_value)" in perf
-    assert 'else Ratio.zero()' not in perf
+    assert "else Ratio.zero()" not in perf
 
     stats = _read("apps/backend/src/services/reconciliation_stats.py")
     assert "Ratio.fraction_or_zero(matched, total)" in stats
 
 
-@ac_proof(proof_id="test_money_predicates_sum_adoption", ac_ids=["AC12.33.3"], ci_tier="pr_ci")
+@ac_proof(
+    proof_id="test_money_predicates_sum_adoption",
+    ac_ids=["AC-audit.33.3"],
+    ci_tier="pr_ci",
+)
 def test_AC12_33_3_money_predicates_and_sum_adopted():
-    """AC12.33.3: investment accounting uses Money predicates + Money.sum."""
+    """AC-audit.33.3: investment accounting uses Money predicates + Money.sum."""
     src = _read("apps/backend/src/services/investment_accounting.py")
     assert "gross.is_positive()" in src
     assert "net.is_positive()" in src

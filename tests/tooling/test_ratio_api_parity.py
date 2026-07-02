@@ -14,7 +14,11 @@ from pathlib import Path
 from common.testing.ac_proof import ac_proof
 
 REPO = Path(__file__).resolve().parents[2]
-SHARED_API = set(json.loads((REPO / "common/audit/ratio/conformance/vectors.json").read_text())["shared_api"])
+SHARED_API = set(
+    json.loads((REPO / "common/audit/ratio/conformance/vectors.json").read_text())[
+        "shared_api"
+    ]
+)
 
 
 def _backend_exports() -> set[str]:
@@ -40,15 +44,25 @@ def _frontend_exports() -> set[str]:
     return names
 
 
-@ac_proof(proof_id="test_ratio_shared_api_backend", ac_ids=["AC12.9.2"], ci_tier="pr_ci", issue="#1167")
+@ac_proof(
+    proof_id="test_ratio_shared_api_backend",
+    ac_ids=["AC-audit.9.2"],
+    ci_tier="pr_ci",
+    issue="#1167",
+)
 def test_AC12_9_2_backend_exposes_shared_ratio_api():
-    """AC12.9.2: the backend ratio module exports the full shared surface."""
+    """AC-audit.9.2: the backend ratio module exports the full shared surface."""
     missing = SHARED_API - _backend_exports()
     assert not missing, f"backend src.audit.ratio missing shared API: {sorted(missing)}"
 
 
-@ac_proof(proof_id="test_ratio_shared_api_frontend", ac_ids=["AC12.9.2"], ci_tier="pr_ci", issue="#1167")
+@ac_proof(
+    proof_id="test_ratio_shared_api_frontend",
+    ac_ids=["AC-audit.9.2"],
+    ci_tier="pr_ci",
+    issue="#1167",
+)
 def test_AC12_9_2_frontend_exposes_shared_ratio_api():
-    """AC12.9.2: the frontend ratio module exports the full shared surface."""
+    """AC-audit.9.2: the frontend ratio module exports the full shared surface."""
     missing = SHARED_API - _frontend_exports()
     assert not missing, f"frontend lib/ratio missing shared API: {sorted(missing)}"

@@ -11,7 +11,7 @@
 > ([`../meta/migration-standard.md`](../meta/migration-standard.md), step 3 "SSOT
 > internalized").
 >
-> The **money/currency/FX value kernel is owned by [`common/audit/money`](../money/readme.md)**,
+> The **money/currency/FX value kernel is owned by [`common/audit/money`](../audit/money/readme.md)**,
 > not by ledger; a `Leg` carries a `Money` from that shared kernel. The Money value
 > types (`#money-type`) were internalized into the money package in the same slice.
 >
@@ -137,7 +137,7 @@ produces it anymore.)
 
 > The **money value types** (`Money` / `Currency` / `ExchangeRate` / `convert` /
 > `CurrencyBalances`) that make these rules type-enforced are the money Shared
-> Kernel, owned by [`common/audit/money/readme.md#money-type`](../money/readme.md#money-type).
+> Kernel, owned by [`common/audit/money/readme.md#money-type`](../audit/money/readme.md#money-type).
 > A `Leg` carries a `Money` from that kernel; ledger does not redefine money.
 
 <a id="entry-balance"></a>

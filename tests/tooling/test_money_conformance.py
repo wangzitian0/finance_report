@@ -26,7 +26,7 @@ VECTORS = load_vectors()
 
 @ac_proof(
     proof_id="test_money_conformance_rounding",
-    ac_ids=["AC2.20.1"],
+    ac_ids=["AC-audit.20.1"],
     ci_tier="pr_ci",
     issue="#1170",
 )
@@ -34,14 +34,14 @@ VECTORS = load_vectors()
     "case", VECTORS["rounding"], ids=lambda c: f"{c['amount']}/{c['rounding']}"
 )
 def test_AC2_20_1_conformance_rounding(case):
-    """AC2.20.1: Python quantize matches the shared rounding standard."""
+    """AC-audit.20.1: Python quantize matches the shared rounding standard."""
     got = Money(Decimal(case["amount"]), "USD").quantize(case["rounding"]).amount
     assert got == Decimal(case["expected"]), case
 
 
 @ac_proof(
     proof_id="test_money_conformance_convert",
-    ac_ids=["AC2.20.1"],
+    ac_ids=["AC-audit.20.1"],
     ci_tier="pr_ci",
     issue="#1170",
 )
@@ -49,7 +49,7 @@ def test_AC2_20_1_conformance_rounding(case):
     "case", VECTORS["convert"], ids=lambda c: f"{c['amount']}*{c['rate']}"
 )
 def test_AC2_20_1_conformance_convert(case):
-    """AC2.20.1: Python convert matches the shared FX standard."""
+    """AC-audit.20.1: Python convert matches the shared FX standard."""
     result = convert(
         Money(Decimal(case["amount"]), case["from"]),
         ExchangeRate(case["from"], case["to"], Decimal(case["rate"])),
@@ -61,12 +61,12 @@ def test_AC2_20_1_conformance_convert(case):
 
 @ac_proof(
     proof_id="test_money_conformance_currency",
-    ac_ids=["AC2.19.1"],
+    ac_ids=["AC-audit.19.1"],
     ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_19_1_conformance_currency_validation():
-    """AC2.19.1: Python Currency matches the shared normalise/reject standard."""
+    """AC-audit.19.1: Python Currency matches the shared normalise/reject standard."""
     for case in VECTORS["currency_normalize"]:
         assert Currency(case["input"]).code == case["expected"], case
     for bad in VECTORS["currency_invalid"]:
@@ -84,12 +84,12 @@ def test_money_quantum_matches_standard():
 
 @ac_proof(
     proof_id="test_money_conformance_iso_set_parity",
-    ac_ids=["AC2.19.1"],
+    ac_ids=["AC-audit.19.1"],
     ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_19_1_iso_currency_set_matches_standard():
-    """AC2.19.1: the Python ISO-4217 set equals the shared canonical set.
+    """AC-audit.19.1: the Python ISO-4217 set equals the shared canonical set.
 
     Guarantees the two ends accept/reject the SAME currencies (not just the
     sampled normalise/invalid cases) — the frontend asserts the same parity.

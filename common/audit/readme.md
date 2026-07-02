@@ -59,7 +59,7 @@ to the existing narrow-waist guard test. See: common/ledger/readme.md#decimal-ru
 
 Three-step sequence, each a separate merge-gated PR:
 
-- **Step 1 (done here)** — the four value domains are physically folded into
+- **Step 1 (done)** — the four value domains are physically folded into
   `audit`: `common/{money,ratio,quantity,unit_price}` →
   `common/audit/<domain>`, `apps/backend/src/{money,ratio,quantity,unit_price}` →
   `apps/backend/src/audit/<domain>`, `apps/frontend/src/lib/{money,ratio,quantity}`
@@ -69,18 +69,19 @@ Three-step sequence, each a separate merge-gated PR:
   flipped `platform` → `kernel`; `implementations`/`interface` populated
   (10 value-object classes, flat re-export). Old locations deleted entirely — no
   re-export shim, no residue.
-- **Step 2 (next, separate PR)** — transferring AC *ownership* of the
-  value-language ACs (`AC2.19`/`AC2.20` in EPIC-002, `AC12.9`/`AC12.30`/`AC12.32`/
-  `AC12.33`/`AC12.36` in EPIC-012) into audit's `roadmap`. Those ACs are
-  registry-tracked and wired into `@ac_proof` edges, the per-type PROTECTION count
-  floor, the tier baseline, and the BE/FE traceability references; re-homing them
-  must atomically rename every such reference so the protection floor never drops.
-  Tracked in [`todo.md`](./todo.md). `roadmap` stays empty until then — no AC may
-  live in both an EPIC table and a package roadmap (`check_epic_package_dual`
+- **Step 2 (done here)** — transferred AC *ownership* of the value-language
+  ACs (`AC2.19`/`AC2.20` in EPIC-002, `AC12.9`/`AC12.30`/`AC12.32`/`AC12.33`/
+  `AC12.36` in EPIC-012) into audit's `roadmap` as `AC-audit.<n>.<n>` (20
+  roadmap ACs total, including the pre-existing `AC-money.22.3`/`AC-money.23.1`
+  leftovers). Every `@ac_proof(ac_ids=[...])` edge, BE/FE traceability
+  docstring/comment, and the tier baseline
+  (`docs/ssot/ac-tier-baseline.json`, shrunk via
+  `check_ac_tier_baseline.py --update`) were renamed atomically; the migrated
+  EPIC table rows were deleted and replaced with disclaimer paragraphs. No AC
+  lives in both an EPIC table and a package roadmap (`check_epic_package_dual`
   enforces it).
-- **Step 3 (after that)** — close out any remaining residual references
-  (docs/SSOT cross-links, historical mentions) issue #1419 surfaces once step 2
-  lands.
+- **Step 3 (next, separate PR)** — close out any remaining residual references
+  (docs/SSOT cross-links, historical mentions) issue #1419 surfaces.
 - **Also deferred, unrelated to #1419's 3-step sequence** — audit's own base
   value objects (invariants / confidence / provenance / trace) and the
   `extension` reach into the financial flow.

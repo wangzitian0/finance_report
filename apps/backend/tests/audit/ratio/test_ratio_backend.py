@@ -25,25 +25,25 @@ pytestmark = pytest.mark.no_db
 _VECTORS = json.loads((Path(__file__).resolve().parents[5] / "common/audit/ratio/conformance/vectors.json").read_text())
 
 
-@ac_proof(proof_id="test_ratio_backend_conformance", ac_ids=["AC12.9.2"], ci_tier="pr_ci", issue="#1167")
+@ac_proof(proof_id="test_ratio_backend_conformance", ac_ids=["AC-audit.9.2"], ci_tier="pr_ci", issue="#1167")
 @pytest.mark.parametrize("case", _VECTORS["to_percent"], ids=lambda c: c["ratio"])
 def test_AC12_9_2_backend_to_percent_matches(case):
-    """AC12.9.2: src.audit.ratio to_percent matches the shared standard."""
+    """AC-audit.9.2: src.audit.ratio to_percent matches the shared standard."""
     assert Ratio(Decimal(case["ratio"])).to_percent(case["dp"]) == Decimal(case["expected"])
 
 
-@ac_proof(proof_id="test_ratio_backend_percent_of", ac_ids=["AC12.9.2"], ci_tier="pr_ci", issue="#1167")
+@ac_proof(proof_id="test_ratio_backend_percent_of", ac_ids=["AC-audit.9.2"], ci_tier="pr_ci", issue="#1167")
 @pytest.mark.parametrize("case", _VECTORS["percent_of"], ids=lambda c: f"{c['part']}/{c['whole']}")
 def test_AC12_9_2_backend_percent_of_matches(case):
-    """AC12.9.2: src.audit.ratio fraction(part, whole).to_percent matches the standard."""
+    """AC-audit.9.2: src.audit.ratio fraction(part, whole).to_percent matches the standard."""
     assert Ratio.fraction(Decimal(case["part"]), Decimal(case["whole"])).to_percent(case["dp"]) == Decimal(
         case["expected"]
     )
 
 
-@ac_proof(proof_id="test_ratio_backend_value_type", ac_ids=["AC12.9.1"], ci_tier="pr_ci", issue="#1167")
+@ac_proof(proof_id="test_ratio_backend_value_type", ac_ids=["AC-audit.9.1"], ci_tier="pr_ci", issue="#1167")
 def test_AC12_9_1_backend_value_type_laws():
-    """AC12.9.1: src.audit.ratio rejects float, zero-whole undefined, percent policy, arithmetic."""
+    """AC-audit.9.1: src.audit.ratio rejects float, zero-whole undefined, percent policy, arithmetic."""
     assert PERCENT_DP == 2 and PERCENT_ROUNDING == "ROUND_HALF_UP"
     with pytest.raises(FloatNotAllowedError):
         Ratio(0.1)

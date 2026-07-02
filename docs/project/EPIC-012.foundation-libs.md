@@ -137,7 +137,7 @@ This EPIC addresses technical debt in the foundational libraries that all module
 | AC12.8.3 | Log exception without traceback | `test_log_exception_without_traceback()` | `infra/test_logger.py` | P0 |
 | AC12.8.4 | Log exception with custom level | `test_log_exception_custom_level()` | `infra/test_logger.py` | P0 |
 
-### AC12.9: Ratio / percent value type ([#1167](https://github.com/wangzitian0/finance_report/issues/1167))
+### AC12.9: Ratio / percent value type — migrated to the `audit` package ([#1167](https://github.com/wangzitian0/finance_report/issues/1167))
 
 The second base-element value type after `money` (see
 [base-packages](https://github.com/wangzitian0/finance_report/blob/main/common/audit/readme.md#base-packages)): a dimensionless `Ratio` with ONE
@@ -145,11 +145,21 @@ percent-display policy (2 dp, **ROUND_HALF_UP**), shared FE/BE via conformance
 vectors, so performance ratios / allocation shares / confidence proportions stop
 diverging across the codebase and across ends.
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.9.1 | `Ratio` rejects float, is Decimal-backed/immutable; `fraction(part, whole)` builds it (zero whole undefined → raises); percent display is the canonical 2 dp / ROUND_HALF_UP; dimensionless arithmetic | `test_AC12_9_1_ratio_rejects_float_and_is_decimal_backed` (+ siblings) | `tests/tooling/test_ratio_value_type.py`, `apps/backend/tests/audit/ratio/test_ratio_backend.py` | P1 |
-| AC12.9.2 | Cross-language conformance: the Python reference, shipped backend `src.audit.ratio`, and frontend `lib/ratio` reproduce the same `vectors.json` (to_percent / percent_of / from_percent) and export the same `shared_api` (identifier-parity guard) | `test_AC12_9_2_to_percent_matches_standard` (+ siblings) | `tests/tooling/test_ratio_conformance.py`, `tests/tooling/test_ratio_api_parity.py` | P1 |
-| AC12.9.3 | Ratio adoption: portfolio performance/P&L percentages, allocation shares, reconciliation match rate, and frontend confidence/portfolio percent formatting route through the Ratio narrow waist without changing API shapes | `test_AC12_9_3_backend_percentage_call_sites_route_through_ratio`, `test_AC12_9_3_ratio_format_helpers_use_canonical_percent_policy` (+ siblings) | `tests/tooling/test_ratio_adoption.py`, `apps/frontend/src/lib/audit/ratio/format.test.ts` | P1 |
+> **The Ratio value-type/conformance/adoption ACs of this group are no longer
+> defined here.** The float-rejection/percent-policy, cross-language-
+> conformance, and adoption rows (were AC12.9.* rows .1–.3) migrated into the
+> `audit` package and are owned by, and sourced directly from,
+> [`common/audit/contract.py`](../../common/audit/contract.py)'s `roadmap`
+> under the package-scoped numeric `AC-audit.<group>.<seq>` id scheme (the
+> leading "12" is dropped and the group/seq preserved, so `AC12.9.<s>` becomes
+> `AC-audit.9.<s>`). `common/ssot/generate_ac_registry.py` reads
+> package-contract roadmaps additively, so the AC index counts them without an
+> EPIC-table mirror. This note references the new ids (keeping the
+> registry↔EPIC link intact) but defines none of them — the contract is the
+> single definition source.
+>
+> Migrated `AC-audit.9.<s>` ids (homed in the package roadmap):
+> `AC-audit.9.1` · `AC-audit.9.2` · `AC-audit.9.3`
 
 ### AC12.10: Logging - Build Processors
 
@@ -513,7 +523,7 @@ backend + frontend (`/reconciliation/run`→`/runs`, `/market-data/sync/{fx,stoc
 > Migrated `AC-platform.29.<s>` ids (homed in the package roadmap):
 > `AC-platform.29.1` · `AC-platform.29.2` · `AC-platform.29.3` · `AC-platform.29.4` · `AC-platform.29.5` · `AC-platform.29.6`
 
-### AC12.30: Base Element Completion — Money / Ratio / Quantity
+### AC12.30: Base Element Completion — Money / Ratio / Quantity — migrated to the `audit` package
 
 The base-element family is intentionally MECE: `Money` owns amounts and
 currency-aware arithmetic, `Ratio` owns dimensionless percentages/proportions,
@@ -521,12 +531,22 @@ and `Quantity` owns shares/units/contracts. `ExchangeRate` is not a fourth base
 element; it is the typed conversion parameter inside `money.convert`, replacing
 the previous naked-`Decimal` rate boundary.
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.30.1 | `Quantity(value, unit)` rejects float/bool, is Decimal-backed/immutable, quantizes to 6 dp / ROUND_HALF_UP, supports same-unit arithmetic/comparison, and derives `Ratio` from same-unit quantities | `test_AC12_30_1_quantity_rejects_float_and_is_decimal_backed` (+ siblings) | `tests/tooling/test_quantity_value_type.py`, `apps/backend/tests/audit/quantity/test_quantity_backend.py` | P1 |
-| AC12.30.2 | Cross-language conformance: Python reference, shipped backend `src.audit.quantity`, and frontend `lib/quantity` reproduce the same `vectors.json` and export the same `shared_api` | `test_AC12_30_2_quantity_quantize_matches_standard` (+ siblings) | `tests/tooling/test_quantity_conformance.py`, `tests/tooling/test_quantity_api_parity.py` | P1 |
-| AC12.30.3 | Money conversion uses typed `ExchangeRate(base, quote, rate)` instead of a naked rate; source/target mismatch raises and the Python/backend/frontend conformance vectors route through `ExchangeRate` | `test_AC12_30_3_convert_accepts_typed_exchange_rate` (+ siblings) | `tests/tooling/test_money_value_type.py`, `tests/tooling/test_money_conformance.py`, `apps/backend/tests/audit/money/test_money_backend_module.py`, `apps/frontend/src/lib/audit/money/money.conformance.test.ts` | P1 |
-| AC12.30.4 | Quantity adoption: frontend quantity formatting is public only from `lib/quantity`, and targeted backend quantity hot paths use `Quantity` for 6-dp quantization/zero checks instead of local naked-`Decimal` quantity helpers | `test_AC12_30_4_frontend_quantity_formatting_is_not_exported_from_money`, `test_AC12_30_4_backend_quantity_hot_paths_use_quantity_type` | `tests/tooling/test_quantity_adoption.py` | P1 |
+> **The Quantity value-type/conformance/ExchangeRate-adoption/adoption ACs of
+> this group are no longer defined here.** The float-rejection/quantization,
+> cross-language-conformance, typed-ExchangeRate-adoption, and quantity-
+> adoption rows (were AC12.30.* rows .1–.4) migrated into the `audit` package
+> and are owned by, and sourced directly from,
+> [`common/audit/contract.py`](../../common/audit/contract.py)'s `roadmap`
+> under the package-scoped numeric `AC-audit.<group>.<seq>` id scheme (the
+> leading "12" is dropped and the group/seq preserved, so `AC12.30.<s>` becomes
+> `AC-audit.30.<s>`). `common/ssot/generate_ac_registry.py` reads
+> package-contract roadmaps additively, so the AC index counts them without an
+> EPIC-table mirror. This note references the new ids (keeping the
+> registry↔EPIC link intact) but defines none of them — the contract is the
+> single definition source.
+>
+> Migrated `AC-audit.30.<s>` ids (homed in the package roadmap):
+> `AC-audit.30.1` · `AC-audit.30.2` · `AC-audit.30.3` · `AC-audit.30.4`
 
 ### AC12.31: Decimal Boundary Policy and Migration
 
@@ -546,7 +566,7 @@ explicit boundary or use the typed value package.
 | AC12.31.6 | Post-merge cleanup retires remaining base-package drift: confidence percent display calls Ratio helpers directly and SSOT FX examples use `Money`/`ExchangeRate` instead of hand-rolled Decimal conversion | `test_AC12_31_6_confidence_percent_wrapper_is_retired`, `test_AC12_31_6_ssot_fx_examples_use_money_exchange_rate` | `tests/tooling/test_base_package_migration_cleanup.py` | P1 |
 | AC12.31.7 | Backend Quantity migration cleanup keeps `Quantity` objects in service calculations, removes service-local and package-level Decimal-to-Decimal quantity facades, and permits raw `Decimal` only at DB/model/SQL boundaries | `test_AC12_31_7_backend_quantity_business_code_uses_value_type`, `test_AC12_31_7_backend_quantity_value_type_handles_storage_edges` | `tests/tooling/test_base_package_migration_cleanup.py` | P1 |
 
-### AC12.32: UnitPrice — money-per-quantity composite value type ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
+### AC12.32: UnitPrice — money-per-quantity composite value type — migrated to the `audit` package ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
 
 The composite base element after `money`/`ratio`/`quantity` (see
 [base-packages](https://github.com/wangzitian0/finance_report/blob/main/common/audit/readme.md#base-packages)): a `UnitPrice` (rate + `Currency` +
@@ -556,13 +576,23 @@ price/unit-rate quantum — so portfolio/market-data services stop re-deriving t
 `quantity.value * price` extension, the `amount / quantity.value` rate, and a
 duplicated local `quantize` helper as raw `Decimal` glue.
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.32.1 | `UnitPrice(rate, currency, unit)` rejects float/bool, is Decimal-backed/immutable, quantizes to 6 dp / ROUND_HALF_UP, applies to a same-unit `Quantity` to yield `Money` (unit/currency mismatch raises), and derives from `Money / Quantity` via `from_total` (zero quantity undefined → raises) | `test_AC12_32_1_unit_price_rejects_float_and_is_decimal_backed` (+ siblings) | `tests/tooling/test_unit_price_value_type.py`, `apps/backend/tests/audit/unit_price/test_unit_price_backend.py` | P1 |
-| AC12.32.2 | Cross-language conformance: the Python reference (`common/audit/unit_price`) and shipped backend (`src.audit.unit_price`) reproduce the same `vectors.json` (quantize / product / from_total) and export the same `shared_api` (identifier-parity guard). Frontend is a P2 follow-up | `test_AC12_32_2_unit_price_quantize_matches_standard` (+ siblings), `test_AC12_32_2_backend_exposes_shared_unit_price_api` | `tests/tooling/test_unit_price_conformance.py`, `tests/tooling/test_unit_price_api_parity.py`, `apps/backend/tests/audit/unit_price/test_unit_price_backend.py` | P1 |
-| AC12.32.3 | UnitPrice adoption: investment accounting prices buys/sells and lot/avg-cost through `UnitPrice` (removing the local `_quantized_unit_rate` helper and `UNIT_RATE_QUANTUM` literal), and market-data single-sources the price quantum from `UNIT_PRICE_QUANTUM` | `test_AC12_32_3_investment_accounting_uses_unit_price`, `test_AC12_32_3_market_data_price_quantum_is_single_sourced` | `tests/tooling/test_unit_price_adoption.py` | P1 |
+> **The UnitPrice value-type/conformance/adoption ACs of this group are no
+> longer defined here.** The float-rejection/quantization, cross-language-
+> conformance, and adoption rows (were AC12.32.* rows .1–.3) migrated into the
+> `audit` package and are owned by, and sourced directly from,
+> [`common/audit/contract.py`](../../common/audit/contract.py)'s `roadmap`
+> under the package-scoped numeric `AC-audit.<group>.<seq>` id scheme (the
+> leading "12" is dropped and the group/seq preserved, so `AC12.32.<s>` becomes
+> `AC-audit.32.<s>`). `common/ssot/generate_ac_registry.py` reads
+> package-contract roadmaps additively, so the AC index counts them without an
+> EPIC-table mirror. This note references the new ids (keeping the
+> registry↔EPIC link intact) but defines none of them — the contract is the
+> single definition source.
+>
+> Migrated `AC-audit.32.<s>` ids (homed in the package roadmap):
+> `AC-audit.32.1` · `AC-audit.32.2` · `AC-audit.32.3`
 
-### AC12.33: Composite value operations — Money predicates/sum, Ratio fallback, MoneyTolerance ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
+### AC12.33: Composite value operations — Money predicates/sum, Ratio fallback, MoneyTolerance — migrated to the `audit` package ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
 
 Reusable composite operations on the existing base elements so business code
 stays typed instead of re-deriving them as raw `Decimal` glue: `Money` gains
@@ -572,11 +602,21 @@ zero-denominator fallbacks `fraction_or_zero`/`fraction_or_none`; and a new
 relative*|expected|)`). These are added cross-language-ready (shared conformance
 vectors) but adopted on the backend first.
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.33.1 | `Money` exposes `is_zero`/`is_positive`/`is_negative` and a typed `Money.sum` (cross-currency raises; empty needs a currency); `Ratio.fraction_or_zero`/`fraction_or_none` give the zero-denominator fallback; `MoneyTolerance(absolute, relative)` matches on `max(absolute, relative*\|expected\|)`, scales, and rejects cross-currency comparison | `test_AC12_33_1_money_predicates_and_sum` (+ siblings) | `tests/tooling/test_composite_ops.py`, `apps/backend/tests/accounting/test_composite_ops_backend.py` | P1 |
-| AC12.33.2 | Cross-language conformance: the Python reference and shipped backend reproduce the shared `vectors.json` groups (`predicates`/`sum`/`tolerance` for money, `fraction_or_zero` for ratio) | `test_AC12_33_2_money_composite_matches_standard`, `test_AC12_33_2_ratio_fraction_or_zero_matches_standard`, `test_AC12_33_2_backend_composite_matches_standard` | `tests/tooling/test_composite_ops.py`, `apps/backend/tests/accounting/test_composite_ops_backend.py` | P1 |
-| AC12.33.3 | Adoption: zero-denominator ratio branching routes through `Ratio.fraction_or_zero` (retiring the local `_ratio_or_zero` helper in portfolio, plus performance-report and reconciliation-stats call sites), and investment accounting uses `Money` predicates + `Money.sum` instead of naked `Decimal("0")` comparisons | `test_AC12_33_3_zero_denominator_branching_routes_through_ratio`, `test_AC12_33_3_money_predicates_and_sum_adopted` | `tests/tooling/test_composite_ops_adoption.py` | P1 |
+> **The composite value-operations ACs of this group are no longer defined
+> here.** The Money predicates/sum + Ratio fallback + MoneyTolerance rows, the
+> cross-language conformance row, and the adoption row (were AC12.33.* rows
+> .1–.3) migrated into the `audit` package and are owned by, and sourced
+> directly from, [`common/audit/contract.py`](../../common/audit/contract.py)'s
+> `roadmap` under the package-scoped numeric `AC-audit.<group>.<seq>` id scheme
+> (the leading "12" is dropped and the group/seq preserved, so `AC12.33.<s>`
+> becomes `AC-audit.33.<s>`). `common/ssot/generate_ac_registry.py` reads
+> package-contract roadmaps additively, so the AC index counts them without an
+> EPIC-table mirror. This note references the new ids (keeping the
+> registry↔EPIC link intact) but defines none of them — the contract is the
+> single definition source.
+>
+> Migrated `AC-audit.33.<s>` ids (homed in the package roadmap):
+> `AC-audit.33.1` · `AC-audit.33.2` · `AC-audit.33.3`
 
 ### AC12.34: Ledger module — `Entry` value object + vertical-slice template ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
 
@@ -612,7 +652,7 @@ other models/services follow incrementally.
 | AC12.35.3 | The FX boundary is Money-native: `fx.convert_money(money, target) -> Money` wraps `convert_amount`, and portfolio holdings valuation flows as `Money` end-to-end (`UnitPrice(price) * position.quantity_qty` → `fx.convert_money` → `Money` P&L), collapsing the `if currency != base` Decimal branch {tier:CODE-ONLY} | `test_AC12_35_3_portfolio_holdings_value_flows_as_money` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
 | AC12.35.4 | Ratchet: the migrated business files (`portfolio`, `investment_accounting`, `assets`, `performance_report`, `reporting/portfolio_market`) read `ManagedPosition` money only via the typed accessors — no raw `position.cost_basis`/`unrealized_pnl`/`realized_pnl` reads remain (column writes `position.x = …` at the storage edge stay allowed), so the old raw-`Decimal` pattern cannot creep back {tier:CODE-ONLY} | `test_AC12_35_4_no_raw_managed_position_money_reads_in_migrated_files` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
 
-### AC12.36: Shared Decimal-scalar codec — one SSOT per layer ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
+### AC12.36: Shared Decimal-scalar codec — one SSOT per layer — migrated to the `audit` package ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
 
 The raw-`Decimal` boundary codec required by `common/audit/readme.md#base-packages` §3 was re-implemented
 in every base package — a byte-identical `_decimal_to_wire`, a `_decimal_from_wire` /
@@ -623,10 +663,20 @@ each package supplies its own error classes, so the per-domain error hierarchy i
 preserved while the duplicated bodies disappear. The module is dependency-light (it
 imports no base package, so the family stays bounded — not a fifth base package).
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.36.1 | The four `common/` base-package codecs route raw-`Decimal` conversion through one shared `common.decimal_scalar` module (`decimal_to_wire` / `coerce_decimal` / `WireCodec`); no base package re-defines the `_decimal_to_wire` / `_decimal_from_wire` / `_payload_mapping` / `_field` bodies or the construction-time `_coerce` body locally, and the canonical codec logic (`rstrip`, `IEEE-754` rejection, decimal-string parse) lives only in `decimal_scalar` {tier:CODE-ONLY} | `test_AC12_36_1_common_base_packages_share_one_scalar_codec` | `tests/tooling/test_decimal_scalar_ssot.py` | P1 |
-| AC12.36.2 | The backend self-contained mirror likewise routes every base-package `Decimal` boundary through one shared `src.decimal_scalar` module, keeping the backend end conformant without re-duplicating the codec per package {tier:CODE-ONLY} | `test_AC12_36_2_backend_base_packages_share_one_scalar_codec` | `tests/tooling/test_decimal_scalar_ssot.py` | P1 |
+> **The shared Decimal-scalar codec ACs of this group are no longer defined
+> here.** The common-layer and backend-mirror codec-SSOT rows (were AC12.36.*
+> rows .1–.2) migrated into the `audit` package and are owned by, and sourced
+> directly from, [`common/audit/contract.py`](../../common/audit/contract.py)'s
+> `roadmap` under the package-scoped numeric `AC-audit.<group>.<seq>` id scheme
+> (the leading "12" is dropped and the group/seq preserved, so `AC12.36.<s>`
+> becomes `AC-audit.36.<s>`). `common/ssot/generate_ac_registry.py` reads
+> package-contract roadmaps additively, so the AC index counts them without an
+> EPIC-table mirror. This note references the new ids (keeping the
+> registry↔EPIC link intact) but defines none of them — the contract is the
+> single definition source.
+>
+> Migrated `AC-audit.36.<s>` ids (homed in the package roadmap):
+> `AC-audit.36.1` · `AC-audit.36.2`
 
 ### AC12.37: `JournalLine.money` accessor — boundary push Phase 2 ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
 

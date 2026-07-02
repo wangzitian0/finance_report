@@ -36,25 +36,25 @@ _VECTORS = json.loads((Path(__file__).resolve().parents[5] / "common/audit/money
 # ── backend module conforms to the shared standard ──────────────────────
 @ac_proof(
     proof_id="test_backend_money_module_rounding_conformance",
-    ac_ids=["AC2.20.1"],
+    ac_ids=["AC-audit.20.1"],
     ci_tier="pr_ci",
     issue="#1171",
 )
 @pytest.mark.parametrize("case", _VECTORS["rounding"], ids=lambda c: f"{c['amount']}/{c['rounding']}")
 def test_AC2_20_1_backend_money_module_matches_rounding(case):
-    """AC2.20.1: src.audit.money reproduces the shared rounding standard."""
+    """AC-audit.20.1: src.audit.money reproduces the shared rounding standard."""
     assert Money(Decimal(case["amount"]), "USD").quantize(case["rounding"]).amount == Decimal(case["expected"])
 
 
 @ac_proof(
     proof_id="test_backend_money_module_convert_conformance",
-    ac_ids=["AC2.20.1"],
+    ac_ids=["AC-audit.20.1"],
     ci_tier="pr_ci",
     issue="#1171",
 )
 @pytest.mark.parametrize("case", _VECTORS["convert"], ids=lambda c: f"{c['amount']}*{c['rate']}")
 def test_AC2_20_1_backend_money_module_matches_convert(case):
-    """AC2.20.1: src.audit.money.convert reproduces the shared FX standard."""
+    """AC-audit.20.1: src.audit.money.convert reproduces the shared FX standard."""
     result = convert(
         Money(Decimal(case["amount"]), case["from"]),
         ExchangeRate(case["from"], case["to"], Decimal(case["rate"])),
@@ -66,45 +66,45 @@ def test_AC2_20_1_backend_money_module_matches_convert(case):
 
 @ac_proof(
     proof_id="test_backend_money_typed_exchange_rate",
-    ac_ids=["AC12.30.3"],
+    ac_ids=["AC-audit.30.3"],
     ci_tier="pr_ci",
 )
 def test_AC12_30_3_backend_convert_accepts_typed_exchange_rate():
-    """AC12.30.3: src.audit.money.convert takes ExchangeRate, not a naked Decimal rate."""
+    """AC-audit.30.3: src.audit.money.convert takes ExchangeRate, not a naked Decimal rate."""
     result = convert(Money(Decimal("100.00"), "USD"), ExchangeRate("USD", "SGD", Decimal("1.35")))
     assert result == Money(Decimal("135.00"), "SGD")
 
 
 @ac_proof(
     proof_id="test_backend_money_exchange_rate_mismatch",
-    ac_ids=["AC12.30.3"],
+    ac_ids=["AC-audit.30.3"],
     ci_tier="pr_ci",
 )
 def test_AC12_30_3_backend_exchange_rate_source_mismatch_raises():
-    """AC12.30.3: src.audit.money.convert rejects a rate whose base does not match money.currency."""
+    """AC-audit.30.3: src.audit.money.convert rejects a rate whose base does not match money.currency."""
     with pytest.raises(CurrencyMismatchError):
         convert(Money(Decimal("100.00"), "EUR"), ExchangeRate("USD", "SGD", Decimal("1.35")))
 
 
 @ac_proof(
     proof_id="test_backend_money_convert_rejects_naked_decimal_rate",
-    ac_ids=["AC12.30.3"],
+    ac_ids=["AC-audit.30.3"],
     ci_tier="pr_ci",
 )
 def test_AC12_30_3_backend_convert_rejects_naked_decimal_rate():
-    """AC12.30.3: src.audit.money.convert rejects the old naked-Decimal rate boundary."""
+    """AC-audit.30.3: src.audit.money.convert rejects the old naked-Decimal rate boundary."""
     with pytest.raises(TypeError):
         convert(Money(Decimal("100.00"), "USD"), Decimal("1.35"))  # type: ignore[arg-type]
 
 
 @ac_proof(
     proof_id="test_backend_money_module_iso_parity",
-    ac_ids=["AC2.19.1"],
+    ac_ids=["AC-audit.19.1"],
     ci_tier="pr_ci",
     issue="#1171",
 )
 def test_AC2_19_1_backend_money_module_iso_parity():
-    """AC2.19.1: the backend ISO set equals the shared canonical set."""
+    """AC-audit.19.1: the backend ISO set equals the shared canonical set."""
     from src.audit.money.currency import ISO_4217_CODES
 
     assert ISO_4217_CODES == set(_VECTORS["iso4217"])

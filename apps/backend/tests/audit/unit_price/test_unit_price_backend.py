@@ -26,9 +26,9 @@ _VECTORS = json.loads(
 )
 
 
-@ac_proof(proof_id="test_unit_price_backend_value_type", ac_ids=["AC12.32.1"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_unit_price_backend_value_type", ac_ids=["AC-audit.32.1"], ci_tier="pr_ci")
 def test_AC12_32_1_backend_unit_price_value_type_laws():
-    """AC12.32.1: src.audit.unit_price rejects float, uses the 6-dp policy, guards units."""
+    """AC-audit.32.1: src.audit.unit_price rejects float, uses the 6-dp policy, guards units."""
     assert UNIT_PRICE_DP == 6
     assert UNIT_PRICE_QUANTUM == Decimal("0.000001")
     assert UNIT_PRICE_ROUNDING == "ROUND_HALF_UP"
@@ -44,9 +44,9 @@ def test_AC12_32_1_backend_unit_price_value_type_laws():
         UnitPrice.from_total(Money(Decimal("1.00"), "USD"), Quantity(Decimal("0"), "shares"))
 
 
-@ac_proof(proof_id="test_unit_price_backend_matches_vectors", ac_ids=["AC12.32.2"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_unit_price_backend_matches_vectors", ac_ids=["AC-audit.32.2"], ci_tier="pr_ci")
 def test_AC12_32_2_backend_unit_price_matches_standard():
-    """AC12.32.2: the shipped backend reproduces the shared conformance vectors."""
+    """AC-audit.32.2: the shipped backend reproduces the shared conformance vectors."""
     for case in _VECTORS["quantize"]:
         got = UnitPrice(Decimal(case["rate"]), case["currency"], case["unit"]).quantize()
         assert got.rate == Decimal(case["expected"]), case
