@@ -20,8 +20,11 @@ def test_enums_have_explicit_names():
     """
     models_to_check = get_all_models()
     # Anti-vacuity: the guardrail went silently green once when the models
-    # facade was emptied (#1461) and this collected zero classes.
-    assert len(models_to_check) > 5, "no mapped classes collected — the enum guardrail is scanning nothing"
+    # facade was emptied (#1461) and this collected zero classes. A known
+    # mapped class must be in the collection or the registry wasn't populated.
+    assert any(model.__name__ == "User" for model in models_to_check), (
+        "known mapped classes missing — the enum guardrail is scanning nothing"
+    )
     violations = []
 
     for model in models_to_check:
