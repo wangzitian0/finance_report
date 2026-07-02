@@ -10,11 +10,13 @@ It is a ``kernel`` leaf (``depends_on=[]``) and currently ``draft`` — still be
 designed. The *construct* phase shipped the ``base`` value language + dependency
 manifest + the ``DependencyCheck`` port; the *switch* phase adds the
 ``extension`` probe adapters (``DatabaseCheck`` / ``ObjectStorageCheck`` /
-``LlmCheck``, published below) that ``boot.Bootloader`` now delegates to. Still to
-come in *cleanup*: the "declared ⇒ asserted present" enforcement (drop
-``skipped``) and the compose/lifecycle relocation. Roadmap ACs (each pinned to a
-real test) are added when the enforcement invariants land; the prose contract
-lives in ``readme.md`` + ``todo.md`` until then.
+``LlmCheck``, published below) that ``boot.Bootloader`` now delegates to. The
+*cleanup* phase dropped the silent ``skipped`` status: an absent declared
+dependency is an ``error`` (runtime invariant 2). Remaining as a future feature
+(not the migration): manifest-driven ``validate`` for *all* declared dependencies
+per env tier + smoke↔declaration parity — see ``todo.md``. Roadmap ACs (each
+pinned to a real test) are added when those enforcement invariants land; the
+prose contract lives in ``readme.md`` + ``todo.md`` until then.
 """
 
 from __future__ import annotations

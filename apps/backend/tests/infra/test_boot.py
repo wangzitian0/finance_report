@@ -424,12 +424,14 @@ class TestBootloaderS3:
 
 
 class TestBootloaderOpenrouter:
-    async def test_check_openrouter_skipped(self, mock_settings):
+    async def test_check_openrouter_absent_is_error_not_skipped(self, mock_settings):
+        # runtime invariant 2: a declared dependency that is absent is an error,
+        # not a silent `skipped`.
         mock_settings.ai_api_key = None
 
         status = await Bootloader._check_openrouter()
 
-        assert status.status == "skipped"
+        assert status.status == "error"
         assert status.service == "ai_provider"
 
     async def test_check_openrouter_success(self, mock_settings):
