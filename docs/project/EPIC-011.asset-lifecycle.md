@@ -415,4 +415,4 @@ representative fixture expansion needed before the overall
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC11.12.1 | Re-applying the same rule version to the same atomic transaction is idempotent and returns the existing classification without inserting duplicates | `test_apply_rules_is_idempotent_for_existing_transaction_rule_version` | `extraction/test_classification_service.py` | P0 |
-| AC11.12.2 | Classification priority is deterministic across rule type and descending rule version | `test_classification_priority_keyword_over_regex_over_ml`, `test_same_type_rules_prefer_newer_version` | `extraction/test_classification_service.py` | P0 |
+| AC11.12.2 | Classification priority is deterministic across rule type and descending rule version {tier:CODE-LED} {proof:property} | `test_classification_priority_keyword_over_regex`, `test_same_type_rules_prefer_newer_version` | `extraction/test_classification_service.py` | P0 |

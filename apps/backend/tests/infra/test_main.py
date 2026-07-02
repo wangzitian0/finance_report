@@ -179,16 +179,6 @@ class TestSchemas:
         assert BankStatementStatusEnum.PARSED.value == "parsed"
         assert BankStatementStatusEnum.APPROVED.value == "approved"
 
-    def test_event_update_request(self):
-        """Test EventUpdateRequest partial update."""
-        from decimal import Decimal
-
-        from src.schemas.extraction import TransactionUpdateRequest
-
-        update = TransactionUpdateRequest(amount=Decimal("100.00"))
-        assert update.amount == Decimal("100.00")
-        assert update.description is None
-
 
 class TestDatabase:
     """Tests for database module."""

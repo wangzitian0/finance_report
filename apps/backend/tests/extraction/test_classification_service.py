@@ -1,18 +1,20 @@
 """Tests for Classification Service.
 
-AC18.1.3 AC18.1.4: ML model classification threshold and rule priority coverage.
+AC18.1.4 AC11.12.2: deterministic rule matching and priority coverage (ML matching retired, EPIC #1483 cleanup).
 """
 
 from datetime import date
 from decimal import Decimal
 from unittest.mock import patch
 
+import pytest
 from sqlalchemy import select
 
 from src.models.account import Account, AccountType
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.layer3 import ClassificationRule, RuleType, TransactionClassification
 from src.services.classification import ClassificationService
+from tests.factories import AtomicTransactionFactory
 
 
 class TestClassificationService:
@@ -528,96 +530,8 @@ class TestClassificationService:
 
         assert len(results) == 0
 
-    async def test_apply_ml_model_rule_matches_on_confidence_threshold(self, db, test_user):
-        service = ClassificationService()
-
-        account = Account(
-            user_id=test_user.id,
-            name="AI Category Account",
-            type=AccountType.EXPENSE,
-            currency="SGD",
-            code="6810",
-        )
-        db.add(account)
-        await db.flush()
-
-        ml_rule = ClassificationRule(
-            user_id=test_user.id,
-            version_number=1,
-            effective_date=date(2024, 1, 1),
-            rule_name="ML Category Rule",
-            rule_type=RuleType.ML_MODEL,
-            rule_config={"source": "extraction_ai", "confidence_threshold": "0.70"},
-            default_account_id=account.id,
-            created_by=test_user.id,
-        )
-        db.add(ml_rule)
-        await db.flush()
-
-        txn = AtomicTransaction(
-            user_id=test_user.id,
-            txn_date=date(2024, 1, 15),
-            amount=Decimal("22.00"),
-            direction=TransactionDirection.OUT,
-            description="Grocery purchase",
-            currency="SGD",
-            dedup_hash="hash_ml_high",
-            source_documents=[{"category_confidence": "0.82", "suggested_category": "Food & Dining"}],
-        )
-        db.add(txn)
-        await db.flush()
-
-        results = await service.apply_rules(db, test_user.id, [txn])
-
-        assert len(results) == 1
-        assert results[0].atomic_txn_id == txn.id
-        assert results[0].confidence_score == 82
-
-    async def test_apply_ml_model_rule_rejects_low_confidence(self, db, test_user):
-        service = ClassificationService()
-
-        account = Account(
-            user_id=test_user.id,
-            name="AI Low Confidence",
-            type=AccountType.EXPENSE,
-            currency="SGD",
-            code="6811",
-        )
-        db.add(account)
-        await db.flush()
-
-        ml_rule = ClassificationRule(
-            user_id=test_user.id,
-            version_number=1,
-            effective_date=date(2024, 1, 1),
-            rule_name="ML Low Confidence Rule",
-            rule_type=RuleType.ML_MODEL,
-            rule_config={"source": "extraction_ai", "confidence_threshold": "0.70"},
-            default_account_id=account.id,
-            created_by=test_user.id,
-        )
-        db.add(ml_rule)
-        await db.flush()
-
-        txn = AtomicTransaction(
-            user_id=test_user.id,
-            txn_date=date(2024, 1, 15),
-            amount=Decimal("12.00"),
-            direction=TransactionDirection.OUT,
-            description="Random merchant",
-            currency="SGD",
-            dedup_hash="hash_ml_low",
-            source_documents=[{"category_confidence": "0.40", "suggested_category": "Shopping"}],
-        )
-        db.add(txn)
-        await db.flush()
-
-        results = await service.apply_rules(db, test_user.id, [txn])
-
-        assert len(results) == 0
-
-    async def test_classification_priority_keyword_over_regex_over_ml(self, db, test_user):
-        """AC18.1.4 AC11.12.2: Rule type priority beats lower-priority AI/regex matches."""
+    async def test_classification_priority_keyword_over_regex(self, db, test_user):
+        """AC18.1.4 AC11.12.2: Rule type priority: KEYWORD beats REGEX (ML tier retired)."""
         service = ClassificationService()
 
         keyword_account = Account(
@@ -634,14 +548,7 @@ class TestClassificationService:
             currency="SGD",
             code="6813",
         )
-        ml_account = Account(
-            user_id=test_user.id,
-            name="ML Account",
-            type=AccountType.EXPENSE,
-            currency="SGD",
-            code="6814",
-        )
-        db.add_all([keyword_account, regex_account, ml_account])
+        db.add_all([keyword_account, regex_account])
         await db.flush()
 
         keyword_rule = ClassificationRule(
@@ -664,17 +571,7 @@ class TestClassificationService:
             default_account_id=regex_account.id,
             created_by=test_user.id,
         )
-        ml_rule = ClassificationRule(
-            user_id=test_user.id,
-            version_number=1,
-            effective_date=date(2024, 1, 1),
-            rule_name="ML Priority",
-            rule_type=RuleType.ML_MODEL,
-            rule_config={"source": "extraction_ai", "confidence_threshold": "0.70"},
-            default_account_id=ml_account.id,
-            created_by=test_user.id,
-        )
-        db.add_all([keyword_rule, regex_rule, ml_rule])
+        db.add_all([keyword_rule, regex_rule])
         await db.flush()
 
         txn = AtomicTransaction(
@@ -810,216 +707,26 @@ class TestClassificationService:
         classifications = classification_result.scalars().all()
         assert len(classifications) == 1
 
-    async def test_ml_model_rule_ignores_non_extraction_source(self, db, test_user):
-        service = ClassificationService()
 
-        account = Account(
-            user_id=test_user.id,
-            name="ML Non Extraction",
-            type=AccountType.EXPENSE,
-            currency="SGD",
-            code="6815",
-        )
-        db.add(account)
-        await db.flush()
+@pytest.mark.asyncio
+async def test_AC18_1_3_ml_rule_matching_is_retired(db, test_user):
+    """AC18.1.3: ML_MODEL rule matching is RETIRED (EPIC #1483 cleanup) — even an
+    active ML_MODEL rule never matches (the model path is the classify node), and
+    the dead AI-signal reader is gone from the service."""
+    service = ClassificationService()
+    assert not hasattr(service, "_extract_ai_signals")
 
-        ml_rule = ClassificationRule(
-            user_id=test_user.id,
-            version_number=1,
-            effective_date=date(2024, 1, 1),
-            rule_name="ML Non Extraction Rule",
-            rule_type=RuleType.ML_MODEL,
-            rule_config={"source": "other", "confidence_threshold": "0.70"},
-            default_account_id=account.id,
-            created_by=test_user.id,
-        )
-        db.add(ml_rule)
-        await db.flush()
+    rule = ClassificationRule(
+        user_id=test_user.id,
+        version_number=1,
+        effective_date=date(2024, 1, 1),
+        rule_name="legacy-ml-rule",
+        rule_type=RuleType.ML_MODEL,
+        rule_config={"source": "extraction_ai", "confidence_threshold": "0.1"},
+        created_by=test_user.id,
+    )
+    db.add(rule)
+    await db.flush()
+    txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="anything")
 
-        txn = AtomicTransaction(
-            user_id=test_user.id,
-            txn_date=date(2024, 1, 15),
-            amount=Decimal("20.00"),
-            direction=TransactionDirection.OUT,
-            description="Food",
-            currency="SGD",
-            dedup_hash="hash_ml_non_extraction",
-            source_documents=[{"category_confidence": "0.99", "suggested_category": "Food & Dining"}],
-        )
-        db.add(txn)
-        await db.flush()
-
-        results = await service.apply_rules(db, test_user.id, [txn])
-        assert len(results) == 0
-
-    async def test_ml_model_rule_handles_invalid_threshold(self, db, test_user):
-        service = ClassificationService()
-
-        account = Account(
-            user_id=test_user.id,
-            name="ML Invalid Threshold",
-            type=AccountType.EXPENSE,
-            currency="SGD",
-            code="6816",
-        )
-        db.add(account)
-        await db.flush()
-
-        ml_rule = ClassificationRule(
-            user_id=test_user.id,
-            version_number=1,
-            effective_date=date(2024, 1, 1),
-            rule_name="ML Invalid Threshold Rule",
-            rule_type=RuleType.ML_MODEL,
-            rule_config={"source": "extraction_ai", "confidence_threshold": "bad"},
-            default_account_id=account.id,
-            created_by=test_user.id,
-        )
-        db.add(ml_rule)
-        await db.flush()
-
-        txn = AtomicTransaction(
-            user_id=test_user.id,
-            txn_date=date(2024, 1, 15),
-            amount=Decimal("20.00"),
-            direction=TransactionDirection.OUT,
-            description="Food",
-            currency="SGD",
-            dedup_hash="hash_ml_invalid_threshold",
-            source_documents=[{"category_confidence": "0.99", "suggested_category": "Food & Dining"}],
-        )
-        db.add(txn)
-        await db.flush()
-
-        with patch("src.services.classification.logger") as mock_logger:
-            results = await service.apply_rules(db, test_user.id, [txn])
-        assert len(results) == 0
-        mock_logger.warning.assert_called_once()
-
-    async def test_ml_model_rule_category_constraint(self, db, test_user):
-        service = ClassificationService()
-
-        account = Account(
-            user_id=test_user.id,
-            name="ML Category Constraint",
-            type=AccountType.EXPENSE,
-            currency="SGD",
-            code="6817",
-        )
-        db.add(account)
-        await db.flush()
-
-        ml_rule = ClassificationRule(
-            user_id=test_user.id,
-            version_number=1,
-            effective_date=date(2024, 1, 1),
-            rule_name="ML Category Constraint Rule",
-            rule_type=RuleType.ML_MODEL,
-            rule_config={
-                "source": "extraction_ai",
-                "confidence_threshold": "0.70",
-                "suggested_category": "Transport",
-            },
-            default_account_id=account.id,
-            created_by=test_user.id,
-        )
-        db.add(ml_rule)
-        await db.flush()
-
-        txn_mismatch = AtomicTransaction(
-            user_id=test_user.id,
-            txn_date=date(2024, 1, 15),
-            amount=Decimal("9.00"),
-            direction=TransactionDirection.OUT,
-            description="Taxi",
-            currency="SGD",
-            dedup_hash="hash_ml_category_mismatch",
-            source_documents=[{"category_confidence": "0.95", "suggested_category": "Food & Dining"}],
-        )
-        txn_match = AtomicTransaction(
-            user_id=test_user.id,
-            txn_date=date(2024, 1, 15),
-            amount=Decimal("11.00"),
-            direction=TransactionDirection.OUT,
-            description="MRT",
-            currency="SGD",
-            dedup_hash="hash_ml_category_match",
-            source_documents=[{"category_confidence": "0.95", "suggested_category": "Transport"}],
-        )
-        db.add_all([txn_mismatch, txn_match])
-        await db.flush()
-
-        results = await service.apply_rules(db, test_user.id, [txn_mismatch, txn_match])
-
-        assert len(results) == 1
-        assert results[0].atomic_txn_id == txn_match.id
-
-    async def test_extract_ai_signals_supports_dict_and_fallback_keys(self, db, test_user):
-        service = ClassificationService()
-
-        txn = AtomicTransaction(
-            user_id=test_user.id,
-            txn_date=date(2024, 1, 15),
-            amount=Decimal("8.00"),
-            direction=TransactionDirection.OUT,
-            description="Fallback keys",
-            currency="SGD",
-            dedup_hash="hash_ai_signal_dict",
-            source_documents={"ai_confidence": "0.88", "category": "Utilities"},
-        )
-        db.add(txn)
-        await db.flush()
-
-        confidence, category = service._extract_ai_signals(txn)
-        assert confidence == Decimal("0.88")
-        assert category == "Utilities"
-
-    async def test_extract_ai_signals_handles_invalid_values_and_empty(self, db, test_user):
-        service = ClassificationService()
-
-        txn_invalid = AtomicTransaction(
-            user_id=test_user.id,
-            txn_date=date(2024, 1, 15),
-            amount=Decimal("8.00"),
-            direction=TransactionDirection.OUT,
-            description="Invalid ai confidence",
-            currency="SGD",
-            dedup_hash="hash_ai_signal_invalid",
-            source_documents=[{"category_confidence": "not-a-decimal"}, {"foo": "bar"}],
-        )
-        db.add(txn_invalid)
-        await db.flush()
-
-        confidence, category = service._extract_ai_signals(txn_invalid)
-        assert confidence is None
-        assert category is None
-
-    async def test_confidence_score_for_ml_defaults_to_70_without_signal(self, db, test_user):
-        service = ClassificationService()
-
-        ml_rule = ClassificationRule(
-            user_id=test_user.id,
-            version_number=1,
-            effective_date=date(2024, 1, 1),
-            rule_name="ML score fallback",
-            rule_type=RuleType.ML_MODEL,
-            rule_config={"source": "extraction_ai", "confidence_threshold": "0.70"},
-            created_by=test_user.id,
-        )
-        db.add(ml_rule)
-        await db.flush()
-
-        txn = AtomicTransaction(
-            user_id=test_user.id,
-            txn_date=date(2024, 1, 15),
-            amount=Decimal("8.00"),
-            direction=TransactionDirection.OUT,
-            description="No ai signal",
-            currency="SGD",
-            dedup_hash="hash_ml_conf_fallback",
-            source_documents=[],
-        )
-        db.add(txn)
-        await db.flush()
-
-        assert service._confidence_score_for_rule(txn, ml_rule) == 70
+    assert await service.apply_rules(db, test_user.id, [txn]) == []
