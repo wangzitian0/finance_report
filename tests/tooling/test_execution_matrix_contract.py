@@ -136,6 +136,24 @@ def test_AC8_22_5_shell_emission_round_trips() -> None:
     with _pytest.raises(ValueError):
         matrix.emit_shell("nonexistent_stage")
 
+    # The CLI rejects an unknown stage with a diagnostic instead of a
+    # KeyError traceback (Copilot review on PR #1562), on both output paths.
+    for extra in ([], ["--shell"]):
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "tools" / "test_selection.py"),
+                "--stage",
+                "nonexistent_stage",
+                *extra,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 2, result.stderr
+        assert "unknown selection stage" in result.stderr
+
 
 def test_AC8_22_6_charter_and_manifest_ownership() -> None:
     """AC8.22.6: the governance charter exists and MANIFEST ownership moved."""

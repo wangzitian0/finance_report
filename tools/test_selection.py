@@ -67,11 +67,20 @@ def main() -> int:
     if not args.stage:
         parser.error("--stage is required unless using --emit-matrix/--check-matrix")
 
+    selection = matrix.SELECTIONS.get(args.stage)
+    if selection is None:
+        known = ", ".join(sorted(matrix.SELECTIONS))
+        print(
+            f"ERROR: unknown selection stage {args.stage!r}; known stages: {known}",
+            file=sys.stderr,
+        )
+        return 2
+
     if args.shell:
         print(matrix.emit_shell(args.stage))
         return 0
 
-    for node in matrix.SELECTIONS[args.stage]():
+    for node in selection():
         print(node)
     return 0
 
