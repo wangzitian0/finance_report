@@ -444,7 +444,7 @@ concepts:
       - toolchain.toml
       - tools/bootstrap.sh
       - tools/_lib/shell/bootstrap.sh
-      - common/shell/common.sh
+      - common/runtime/shell/common.sh
       - tools/check_toolchain_contract.py
       - common/ci/check_toolchain_contract.py
       - .moon/toolchain.yml
@@ -460,7 +460,7 @@ concepts:
       - docs/ssot/environments.md#host-shell-boundaries
       - tools/bootstrap.sh
       - tools/_lib/shell/
-      - common/shell/common.sh
+      - common/runtime/shell/common.sh
 
   namespace_isolation:
     owner: docs/ssot/development.md#local-test-isolation

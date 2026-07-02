@@ -22,7 +22,7 @@ def run_bash(script: str) -> subprocess.CompletedProcess[str]:
 
 def test_AC8_13_72_common_dokploy_call_redacts_non_200_body() -> None:
     script = r'''
-      source common/shell/common.sh
+      source common/runtime/shell/common.sh
       DOKPLOY_API_URL="https://dokploy.example/api"
       DOKPLOY_API_KEY="api-secret"
       curl() {
@@ -60,7 +60,7 @@ JSON
 
 def test_AC8_13_72_deploy_v2_updates_allowlisted_env_only() -> None:
     primitive = deploy_primitive_source(ROOT)
-    common_shell = (ROOT / "common/shell/common.sh").read_text()
+    common_shell = (ROOT / "common/runtime/shell/common.sh").read_text()
 
     assert "env_vars = {" in primitive
     for key in (
