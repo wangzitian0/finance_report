@@ -1,4 +1,7 @@
-"""LLM cassette integrity gate tests (EPIC-023 AC23.7 / issue #1307).
+"""LLM cassette integrity gate tests (migrated from EPIC-023's AC23.7 group to
+the `testing` package; see common/testing/contract.py roadmap; issue #1307).
+
+AC-testing.11.1
 
 The gate (`tools/check_llm_cassettes.py`) is the detectable-drift check: every
 committed statement-extraction cassette must satisfy the balance-chain invariant,

@@ -1,4 +1,8 @@
-"""EPIC-009 real-format contract tests for synthetic PDF fixtures."""
+"""Real-format contract tests for synthetic PDF fixtures (migrated from
+EPIC-009 to the `testing` package; see common/testing/contract.py roadmap).
+
+AC-testing.8.1 AC-testing.8.2 AC-testing.8.3
+"""
 
 from __future__ import annotations
 

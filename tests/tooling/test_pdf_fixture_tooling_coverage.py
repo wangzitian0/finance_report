@@ -1,4 +1,7 @@
-"""AC9.1.1 AC9.1.3 AC9.2.5 AC9.2.6 AC9.3.1 AC9.7.1 AC9.7.2 AC9.7.3: PDF fixture tooling behavior."""
+"""AC-testing.1.1 AC-testing.1.3 AC-testing.2.5 AC-testing.2.6 AC-testing.3.1
+AC-testing.7.1 AC-testing.7.2 AC-testing.7.3: PDF fixture tooling behavior
+(migrated from EPIC-009 to the `testing` package; see
+common/testing/contract.py roadmap)."""
 
 from __future__ import annotations
 

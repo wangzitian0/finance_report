@@ -145,13 +145,21 @@ verifiable.
 > [`common/testing/README.md`](../../common/testing/README.md) +
 > [`common/testing/contract.py`](../../common/testing/contract.py).
 >
-> **`AC-testing.1.1` is NOT defined here.** It is owned by, and sourced directly
-> from, `common/testing/contract.py`'s `roadmap`;
-> `common/ssot/generate_ac_registry.py` reads package-contract roadmaps
-> additively, so the AC index counts it without an EPIC-table mirror. This
-> blockquote references the ID (keeping the registry↔EPIC link intact) but
-> defines none of it — the contract is the single definition source, per the
-> `counter` precedent above.
+> **`AC-testing.1.1` through `AC-testing.11.1` are NOT defined here.** They are
+> owned by, and sourced directly from, `common/testing/contract.py`'s
+> `roadmap`; `common/ssot/generate_ac_registry.py` reads package-contract
+> roadmaps additively, so the AC index counts them without an EPIC-table
+> mirror. This blockquote references the ids (keeping the registry↔EPIC link
+> intact) but defines none of them — the contract is the single definition
+> source, per the `counter` precedent above.
+>
+> Groups 1-8 (`AC-testing.1.*`-`AC-testing.8.*`) migrated from
+> [EPIC-009](./EPIC-009.pdf-fixture-generation.md)'s PDF fixture generation
+> ACs; groups 9-11 (`AC-testing.9.*`-`AC-testing.11.1`) migrated from
+> [EPIC-023](./EPIC-023.llm-provider-abstraction.md)'s cassette
+> layer/streaming-bridge/integrity-gate ACs (AC23.8's graded eval stays in
+> EPIC-023 — its `{tier:LLM-LED}` proof is incompatible with `testing`'s
+> single package-wide `CODE-ONLY` tier).
 
 ### AC-platform — Platform: domain EventBus via the transactional outbox (meta-layer capability #1)
 

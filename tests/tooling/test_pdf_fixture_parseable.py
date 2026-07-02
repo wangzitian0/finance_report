@@ -1,3 +1,7 @@
+"""AC-testing.3.2 AC-testing.3.3 AC-testing.3.4 AC-testing.3.5 AC-testing.3.6:
+generated PDF fixture parseability (migrated from EPIC-009's AC9.3 group to
+the `testing` package; see common/testing/contract.py roadmap)."""
+
 from __future__ import annotations
 
 import re

@@ -146,6 +146,7 @@ explicit AC IDs for the behavior.
 | `tests/tooling/test_identity_package.py` | `common/meta/readme.md` |
 | `tests/tooling/test_ledger_package.py` | `common/meta/readme.md` |
 | `tests/tooling/test_platform_package.py` | `common/meta/readme.md` |
+| `tests/tooling/test_testing_package.py` | `common/meta/readme.md` |
 | `tests/tooling/test_coverage_analyzer.py` | `docs/ssot/coverage.md` |
 | `tests/tooling/test_migration_safety_gates.py` | `common/authority/readme.md` |
 | `tests/tooling/test_delivery_gates_contract.py` | `docs/ssot/delivery-gates.yaml` |
