@@ -583,6 +583,31 @@ which runs in the full-stack `preview.yml` lane that carries the frontend bundle
 | AC8.21.2 | The previously LLM-gated statement list -> detail journey runs in the no-LLM merge tier via the fixture: the list row and detail expose `status=parsed`, a non-empty `original_filename` (the stretched-link label, #1142), and the parsed transactions | `test_seeded_statement_list_and_detail_no_llm` | `apps/backend/tests/e2e/test_seeded_statement_journey.py` | P0 |
 | AC8.21.3 | The seeded statement's transactions endpoint resolves the parsed atomic transactions (descriptions, Decimal amounts, directions) with no provider call, so the downstream review/reconcile journey runs provider-free | `test_seeded_statement_transactions_endpoint_no_llm` | `apps/backend/tests/e2e/test_seeded_statement_journey.py` | P0 |
 
+### AC8.22: Test Execution Matrix as Code (testing-package governance)
+
+Which tests run where was previously scattered: `docs/ssot/test-execution-matrix.yaml`
+was hand-maintained, the PR preview E2E set was a hardcoded 2-file whitelist in
+`preview.yml`, and marker semantics lived only in inline `-m` expressions —
+so a non-LLM Tier-3 E2E gate was invisible pre-merge purely because nobody
+added it to the whitelist (#1547). `common/testing/matrix.py` is now the SSOT
+for test placement and selection (issue #1556): the docs YAML is its generated
+view, every root E2E spec has a named ownership row (needs + audit status),
+the pre-merge in-runner selection is derived (audited AND no external needs —
+so an unaudited or provider-dependent spec can never silently enter the
+merge-blocking path), and `preview.yml` consumes the selection at runtime via
+`tools/test_selection.py --shell` instead of restating it. Charter:
+`common/testing/README.md`; follow-ups: #1557 (all workflows + ci_tier↔JUnit
+reconciliation), #1558 (package declaration rollout + mirror-assertion ratchet).
+
+| AC ID | Test Case | Test Function | File | Priority |
+|---|---|---|---|---|
+| AC8.22.1 | The checked-in `docs/ssot/test-execution-matrix.yaml` is exactly the view generated from `common/testing/matrix.py` (byte-identical via the `--check-matrix` CLI gate), and the generated YAML parses into the same path→stage/ci_required rules the AC-traceability consumer reads — matrix-as-code cannot drift from the SSOT view {tier:CODE-ONLY} | `test_AC8_22_1_generated_matrix_matches_checked_in_yaml`, `test_AC8_22_1_generated_yaml_parses_identically_for_consumers` | `tests/tooling/test_execution_matrix_contract.py` | P0 |
+| AC8.22.2 | `preview.yml` derives its in-runner E2E selection at runtime by eval'ing `tools/test_selection.py --stage pr_preview_e2e --shell` (tests, marker expression, parallelism all from the matrix) and carries no hardcoded `tests/e2e/` path — the #1547 whitelist is structurally impossible to reintroduce {tier:CODE-ONLY} | `test_AC8_22_2_preview_workflow_derives_selection_from_matrix` | `tests/tooling/test_execution_matrix_contract.py` | P0 |
+| AC8.22.3 | The derived pre-merge selection contains exactly the audited, dependency-free rows (preserving the original in-runner set), every selected spec exists on disk, no `llm`-marked spec (verified against file content, not row metadata) can appear in the merge-blocking set, and the #1547 vision-hard-gate candidate stays excluded as an unaudited row carrying its live in-runner failure evidence (PR #1562: structured backend 404 on the upload endpoint) until diagnosed — admission is a row flip, not a workflow edit {tier:CODE-ONLY} | `test_AC8_22_3_preview_selection_is_audited_and_dependency_free` | `tests/tooling/test_execution_matrix_contract.py` | P0 |
+| AC8.22.4 | Every root `tests/e2e/test_*.py` spec has a named ownership row in the matrix (needs + audit status + reason) and no stale row survives file removal — an unclassified E2E spec fails CI instead of silently landing outside any execution tier {tier:CODE-ONLY} | `test_AC8_22_4_every_root_e2e_spec_has_a_named_row` | `tests/tooling/test_execution_matrix_contract.py` | P1 |
+| AC8.22.5 | The `--shell` emission is valid, shlex-round-trippable bash (test array, quoted marker expression, parallelism) matching the in-code selection exactly, and an unknown stage is rejected with an explicit error {tier:CODE-ONLY} | `test_AC8_22_5_shell_emission_round_trips` | `tests/tooling/test_execution_matrix_contract.py` | P1 |
+| AC8.22.6 | The testing-package governance charter (execution matrix, package declaration protocol, E2E extension layer, fast interception, responsibility table) exists in `common/testing/README.md`, and `docs/ssot/MANIFEST.yaml` records `common/testing/matrix.py` as the `test_execution_matrix` owner with the generated YAML as a cross-ref {tier:CODE-ONLY} | `test_AC8_22_6_charter_and_manifest_ownership` | `tests/tooling/test_execution_matrix_contract.py` | P1 |
+
 ## 5. E2E Suite Ownership
 
 Current test counts and coverage percentages belong to generated reports and CI

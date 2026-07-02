@@ -2075,8 +2075,14 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     assert '"AI_JSON_MAX_TOKENS": "8192"' in preview_lifecycle
     assert '"AI_JSON_DISABLE_THINKING": "true"' in preview_lifecycle
     assert "https://api.z.ai/api/coding/paas/v4" in read("docs/ssot/ci-cd.md")
-    assert '-m "(smoke or e2e) and not llm"' in pr_workflow
+    # The preview marker expression is derived from the execution matrix at
+    # runtime (#1547/#1556); the llm exclusion is asserted on the SSOT value.
+    assert '-m "$PR_PREVIEW_E2E_MARKER"' in pr_workflow
     assert '-m "smoke or e2e"' not in pr_workflow
+
+    from common.testing import matrix as _matrix
+
+    assert "not llm" in _matrix.PR_PREVIEW_E2E_MARKER
 
 
 def test_AC8_13_21_staging_ai_ocr_gate_runs_under_manual_dispatch() -> None:
@@ -2996,13 +3002,23 @@ def test_AC8_13_46_pr_preview_non_llm_gate_matches_staging_strict_parallelism() 
 
     for block in (preview_block, staging_block):
         assert "STRICT_E2E_GATES: true" in block
-        assert '-m "(smoke or e2e) and not llm" -n 4' in block
 
-    assert "PR_PREVIEW_E2E_TESTS=(" in preview_block
-    assert "tests/e2e/test_core_journeys.py" in preview_block
-    assert "tests/e2e/test_e2e_flows.py::test_full_navigation" in preview_block
+    # Preview selection is derived from the execution matrix SSOT
+    # (common/testing/matrix.py, #1547/#1556): the workflow carries no
+    # hardcoded test list; full conformance is gated in
+    # tests/tooling/test_execution_matrix_contract.py (AC8.22).
+    assert (
+        'eval "$(python tools/test_selection.py --stage pr_preview_e2e --shell)"'
+        in preview_block
+    )
     assert 'pytest "${PR_PREVIEW_E2E_TESTS[@]}"' in preview_block
-    assert "pytest tests/e2e -v" not in preview_block
+    assert '-m "$PR_PREVIEW_E2E_MARKER"' in preview_block
+    assert "tests/e2e/" not in preview_block
+
+    from common.testing import matrix
+
+    # The preview marker expression stays aligned with the staging gate's.
+    assert matrix.PR_PREVIEW_E2E_MARKER == "(smoke or e2e) and not llm"
 
     assert 'pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4' in staging_block
 

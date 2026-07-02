@@ -296,12 +296,15 @@ def test_pr_preview_gate_exercises_health_smoke_e2e_and_storage_paths() -> None:
     assert 'curl -fsS "$APP_URL/api/health"' in readiness_block
     assert "stack did not become healthy within 300s" in readiness_block
     assert "bash tools/smoke_test.sh" in workflow
-    assert "PR_PREVIEW_E2E_TESTS=(" in workflow
-    assert "tests/e2e/test_core_journeys.py" in workflow
-    assert "tests/e2e/test_e2e_flows.py::test_full_navigation" in workflow
+    # E2E selection is derived at runtime from the execution matrix SSOT
+    # (common/testing/matrix.py, #1547/#1556); full conformance is gated in
+    # tests/tooling/test_execution_matrix_contract.py (AC8.22).
     assert (
-        'pytest "${PR_PREVIEW_E2E_TESTS[@]}" -v -m "(smoke or e2e) and not llm"'
+        'eval "$(python tools/test_selection.py --stage pr_preview_e2e --shell)"'
         in workflow
+    )
+    assert (
+        'pytest "${PR_PREVIEW_E2E_TESTS[@]}" -v -m "$PR_PREVIEW_E2E_MARKER"' in workflow
     )
     assert "no PR preview image is pushed" in workflow
 
@@ -336,7 +339,12 @@ def test_pr_preview_follows_successful_ci_without_dokploy_deploy() -> None:
     e2e_blob = yaml.safe_dump(jobs["e2e"])
     assert "smoke_test.sh" in e2e_blob
     assert "pytest" in e2e_blob
-    assert "test_core_journeys" in e2e_blob
+    # Selection comes from the execution matrix at runtime (#1547/#1556),
+    # and the derived set still includes the core journeys.
+    assert "tools/test_selection.py" in e2e_blob
+    from common.testing import matrix
+
+    assert "tests/e2e/test_core_journeys.py" in matrix.pr_preview_e2e_selection()
     assert "pr_preview_lifecycle" not in e2e_blob
 
     # On PR close the app dispatches a vendor-neutral teardown to infra2 (which
