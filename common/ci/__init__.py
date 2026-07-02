@@ -1,1 +1,0 @@
-"""Shared CI contract modules."""
