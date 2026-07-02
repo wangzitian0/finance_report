@@ -21,6 +21,7 @@ from src.models.statement_summary import StatementSummary
 from src.services.review_queue import create_entry_from_txn
 from src.services.source_type_priority import STATEMENT_SOURCE_TYPES, promote_entry_source_type
 from src.services.statement_validation import approve_statement, resolve_statement_transactions
+from src.services.transaction_classification import classify_by_effective_policy
 
 HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD = 85
 
@@ -78,6 +79,14 @@ async def auto_create_posted_entries_for_statement(
 
     preloaded_bank_account = await resolve_statement_posting_account(db, statement, user_id)
     await validate_statement_period_unique(db, statement, user_id, preloaded_bank_account.id)
+
+    # Classify BEFORE posting (#1545): ``create_entry_from_txn`` picks the
+    # counter-account from an APPLIED classification, so a categorized txn posts to
+    # its real category account instead of the Uncategorized bucket. The seam is
+    # flag-gated FIRST (no policy evaluation when off => today's behaviour exactly)
+    # and effective-dated per txn_date, so publishing a new basis version never
+    # restates already-covered periods; uncovered dates are skipped, never fatal.
+    await classify_by_effective_policy(db, user_id, txns_to_post)
 
     for txn in txns_to_post:
         # ``create_entry_from_txn`` consumes the Layer-2 ``AtomicTransaction``.

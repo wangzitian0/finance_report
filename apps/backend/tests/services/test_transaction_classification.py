@@ -302,9 +302,10 @@ async def test_AC18_15_8_flag_off_is_a_noop(db, test_user, monkeypatch):
     assert await _count(db, TransactionClassification) == 0
 
 
-def test_AC18_15_8_construct_only_no_production_consumer():
-    """AC18.15.8: pre-Migrate, no production module imports the classify node —
-    the exact 'wired' flip is #1545's job, asserted there in reverse."""
+def test_AC18_15_8_sole_production_consumer_is_statement_posting():
+    """AC18.15.8 (flipped by #1545 as planned): the statement-posting seam is the
+    ONLY production consumer of the classify node — no other module may grow a
+    side-door into classification."""
     src_root = Path("src")
     importers = []
     for path in src_root.rglob("*.py"):
@@ -316,7 +317,7 @@ def test_AC18_15_8_construct_only_no_production_consumer():
                 importers.append(str(path))
             elif isinstance(node, ast.Import) and any("transaction_classification" in a.name for a in node.names):
                 importers.append(str(path))
-    assert importers == []
+    assert importers == ["src/services/statement_posting.py"]
 
 
 # --- AC18.15.3 (LLM boundary contract): prompt-driven JSON, parsed + clamped by code ---

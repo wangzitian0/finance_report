@@ -21,7 +21,13 @@ from src.services.fx import (
     PrefetchedFxRates,
     convert_money,
 )
-from src.services.reporting._core import _REPORT_STATUSES, _build_account_lines, _line_total, _load_accounts
+from src.services.reporting._core import (
+    _REPORT_STATUSES,
+    _aggregate_account_confidence_tiers,
+    _build_account_lines,
+    _line_total,
+    _load_accounts,
+)
 from src.services.reporting.balance_sheet import generate_balance_sheet
 from src.services.reporting.internal_transfer import _internal_transfer_adjustment
 from src.services.reporting_calc import (
@@ -217,16 +223,29 @@ async def generate_income_statement(
         account_id: _combine_provenance(provenance_values)
         for account_id, provenance_values in provenance_inputs_by_account.items()
     }
+    # Per-line confidence tiers (#1483/#1545): derived from the contributing
+    # entries' source_type over the reporting window, same as the balance sheet.
+    # Income-statement lines previously always carried confidence_tier=None
+    # because the tier aggregation was never wired here.
+    tiers = await _aggregate_account_confidence_tiers(
+        db,
+        user_id,
+        (AccountType.INCOME, AccountType.EXPENSE),
+        end_date,
+        start_date=start_date,
+    )
     income_lines = _build_account_lines(
         accounts,
         balances,
         AccountType.INCOME,
+        tiers=tiers,
         provenance_by_account=provenance_by_account,
     )
     expense_lines = _build_account_lines(
         accounts,
         balances,
         AccountType.EXPENSE,
+        tiers=tiers,
         provenance_by_account=provenance_by_account,
     )
 
