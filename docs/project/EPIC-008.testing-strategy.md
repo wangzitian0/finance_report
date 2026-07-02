@@ -623,7 +623,23 @@ an `@ac_proof` is reconciled against actual PR junit evidence in the
 | AC8.23.1 | Every junit-emitting pytest invocation in any workflow is registered in the matrix contracts and every registered contract has exactly one live invocation — fail-closed in both directions, so a selection change is impossible without touching the SSOT {tier:CODE-ONLY} | `test_AC8_23_1_every_workflow_pytest_invocation_is_registered` | `tests/tooling/test_workflow_selection_conformance.py` | P0 |
 | AC8.23.2 | Each registered invocation's `-m` expression and explicit path arguments equal the matrix constants (backend shards, integration, tier-1, staging core/provider/AI-OCR/version, production readonly) — marker semantics have exactly one owner {tier:CODE-ONLY} | `test_AC8_23_2_registered_invocations_match_matrix_selection` | `tests/tooling/test_workflow_selection_conformance.py` | P0 |
 | AC8.23.3 | The staging AI/OCR corpus (derived from `@ac_proof` metadata) and the matrix llm rows describe the same provider-dependent spec set, with the connectivity probe as the only declared difference — the two derivations cannot drift silently {tier:CODE-ONLY} | `test_AC8_23_3_staging_ai_ocr_corpus_aligns_with_matrix_llm_rows` | `tests/tooling/test_workflow_selection_conformance.py` | P1 |
-| AC8.23.4 | A behavioral `pr_ci` proof absent from aggregated PR junit evidence fails the reconciliation gate (wired after the score ratchet in ci.yml); present proofs pass, skipped-only warns, and parametrized/class-nested junit ids are matched correctly {tier:CODE-ONLY} | `test_AC8_23_4_pr_ci_evidence_reconciliation_gate`, `test_AC8_23_4_junit_parsing_handles_params_and_classes` | `tests/tooling/test_workflow_selection_conformance.py` | P0 |
+| AC8.23.4 | A behavioral `pr_ci` proof absent from aggregated PR junit evidence fails the reconciliation gate (wired after the score ratchet in ci.yml); present proofs pass, skipped-only is a hard fail (#1558: a pr_ci proof that only ever skips pre-merge is not executing its promise, though a skip in one shard with a real run in another passes), and parametrized/class-nested junit ids are matched correctly {tier:CODE-ONLY} | `test_AC8_23_4_pr_ci_evidence_reconciliation_gate`, `test_AC8_23_4_junit_parsing_handles_params_and_classes` | `tests/tooling/test_workflow_selection_conformance.py` | P0 |
+
+### AC8.24: Package Test Declarations, Environment Preconditions & Mirror Ratchet
+
+Series closer (issue #1558): domain packages declare the test roots they own
+in their own `contract.py` (`TEST_ROOTS`), aggregated into the generated
+execution-matrix view; E2E stages carry an explicit environment precondition
+(runtime's smoke gate) that runs before any test so a red environment is never
+attributed as a test failure; and the mirror-assertion stock is locked behind
+an only-goes-down ratchet (`common/testing/mirror_ratchet.py`), stopping the
+#1435 accretion.
+
+| AC ID | Test Case | Test Function | File | Priority |
+|---|---|---|---|---|
+| AC8.24.1 | The seed packages (runtime, ledger, coverage) declare their owned test roots via `TEST_ROOTS` in their `contract.py`; the matrix aggregates them into the generated YAML's `ownership:` section (a dropped declaration fails the `--check-matrix` drift gate), every declared root exists on disk, and a root declared by two packages is rejected {tier:CODE-ONLY} | `test_AC8_24_1_seed_packages_declare_owned_test_roots`, `test_AC8_24_1_duplicate_declaration_is_rejected` | `tests/tooling/test_package_declaration_and_ratchet.py` | P0 |
+| AC8.24.2 | Workflow pytest contracts declaring an environment precondition (the runtime-owned smoke gate, for the preview and staging core E2E stages) must run it before the pytest invocation in the same workflow — mechanized fault attribution: a red precondition aborts before tests start {tier:CODE-ONLY} | `test_AC8_24_2_e2e_stages_run_their_environment_precondition_first` | `tests/tooling/test_package_declaration_and_ratchet.py` | P0 |
+| AC8.24.3 | The mirror-assertion count over `tests/tooling/` is locked behind a committed baseline that may only decrease: growth fails CI, `--update` refuses to raise the baseline, and paydown lowers it — with the eight marker-literal mirrors already redundant with AC8.23.2 deleted in the same change {tier:CODE-ONLY} | `test_AC8_24_3_mirror_assertion_ratchet_is_locked_and_only_goes_down` | `tests/tooling/test_package_declaration_and_ratchet.py` | P0 |
 
 ## 5. E2E Suite Ownership
 
