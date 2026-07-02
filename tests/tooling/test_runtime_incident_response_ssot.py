@@ -28,7 +28,7 @@ def test_AC8_13_126_runtime_incident_response_ssot_centralizes_triage() -> None:
         "docs/ssot/deployment.md",
         "docs/ssot/observability.md",
         "docs/ssot/ci-cd.md",
-        "docs/ssot/env_smoke_test.md",
+        "common/runtime/readme.md",
         "docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md",
         "repo/docs/ssot/ops.alerting.md",
         "repo/docs/ssot/ops.availability-ledger.md",
@@ -55,7 +55,7 @@ def test_AC8_13_126_runtime_incident_response_ssot_centralizes_triage() -> None:
         "docs/ssot/deployment.md",
         "docs/ssot/observability.md",
         "docs/ssot/ci-cd.md",
-        "docs/ssot/env_smoke_test.md",
+        "common/runtime/readme.md",
         "docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md",
         "repo/docs/ssot/ops.alerting.md",
         "repo/docs/ssot/ops.availability-ledger.md",
@@ -72,7 +72,10 @@ def test_AC8_13_126_runtime_incident_response_ssot_centralizes_triage() -> None:
 
     deployment = read("docs/ssot/deployment.md")
     assert "(./runtime-incident-response.md)" in deployment
-    assert "| 502 Bad Gateway | Backend crashed | Check CHECKPOINT-3 in SigNoz logs |" not in deployment
+    assert (
+        "| 502 Bad Gateway | Backend crashed | Check CHECKPOINT-3 in SigNoz logs |"
+        not in deployment
+    )
 
     observability = read("docs/ssot/observability.md")
     assert "(./runtime-incident-response.md)" in observability
@@ -81,8 +84,11 @@ def test_AC8_13_126_runtime_incident_response_ssot_centralizes_triage() -> None:
     ci_cd = read("docs/ssot/ci-cd.md")
     assert "(./runtime-incident-response.md)" in ci_cd
 
-    env_smoke = read("docs/ssot/env_smoke_test.md")
-    assert "(./runtime-incident-response.md)" in env_smoke
+    # env_smoke_test.md was retired; its Three-Gates SSOT is internalized into
+    # the runtime package readme, which now carries the link-back to this triage
+    # SSOT (deployed-service incident routing).
+    runtime_readme = read("common/runtime/readme.md")
+    assert "(../../docs/ssot/runtime-incident-response.md)" in runtime_readme
 
     recommendation = read("docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md")
     assert "(../ssot/runtime-incident-response.md)" in recommendation

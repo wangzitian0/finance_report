@@ -106,7 +106,6 @@ nav:
       - Observability Logging: ssot/observability-logging.md
       - Product Analytics Events: reference/analytics-events.md
       - Frontend Patterns: ssot/frontend-patterns.md
-      - Env Smoke Test: ssot/env_smoke_test.md
   - Governance:
       - Agent Orchestration: agents/orchestration.md
       - Red Lines: agents/red-lines.md

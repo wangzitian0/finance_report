@@ -76,10 +76,31 @@ test selection, execution, and reporting → `testing`.
   redis, telemetry). Each implements the port; an adapter may instead live in its
   own domain package and implement this port (dependency inversion).
 - **api** — `boot.validate` and the **environment smoke test**
-  (`docs/ssot/env_smoke_test.md`, `tools/smoke_test.sh`) are this package's
-  boundary: `runtime` **owns** the smoke test — the deployed-environment
-  verification that every declared dependency is present (invariants 2 and 6),
-  plus the version-integrity / routing / functional checks it composes.
+  (`tools/smoke_test.sh`) are this package's boundary: `runtime` **owns** the
+  smoke test — the deployed-environment verification that every declared
+  dependency is present (invariants 2 and 6), plus the version-integrity /
+  routing / functional checks it composes. See *Environment verification* below.
+
+## Environment verification (the Three Gates)
+
+One validation engine (`apps/backend/src/boot.py`) runs across all environments — "one
+codebase, one standard" — at three gates of increasing strictness:
+
+| Gate | Mode | When | Scope | Failure |
+|------|------|------|-------|---------|
+| **1 Static** | `dry-run` | build / CI | config integrity (keys present) + code importable | build / CI fail |
+| **2 Startup** | `critical` | app start | database connectivity + schema/migration sync | crash-loop (refuse to serve) |
+| **3 Health** | `full` | runtime | full stack (Redis, S3, AI) + latency | alert / 503 (drain traffic) |
+
+Each environment maps to these gates with the same code: **Local** — Gate 2 on
+`moon run :dev`, Gate 3 via `python -m src.boot --mode full`; **CI** — Gate 1
+(`--mode dry-run`) + Gate 2 (pytest DB fixture); **Staging / Production** — Gate 2
+at container entrypoint (`main.py`), Gate 3 via the load balancer hitting
+`/health`. Two complementary checks: `src.boot` proves *internal connectivity*
+("can the app reach its dependencies?"); `tools/smoke_test.sh` proves *external
+availability* ("can a user reach the app?"). Deployed-service incident routing
+(502/503, stale version, secrets, flapping) lives in
+[`docs/ssot/runtime-incident-response.md`](../../docs/ssot/runtime-incident-response.md).
 
 ## Boundaries with neighbouring packages
 

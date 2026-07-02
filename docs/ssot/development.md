@@ -127,7 +127,7 @@ moon run :test -- --backend-e2e   # Backend Tier-1 API E2E under apps/backend/te
 moon run :test -- tests/accounting/  # Run specific module
 moon run :test -- tests/accounting/test_journal_service.py  # Run specific file
 
-# Environment Verification (See docs/ssot/env_smoke_test.md for full details)
+# Environment Verification (See common/runtime/readme.md for full details)
 uv run python -m src.boot --mode full  # Full Stack Check (Gate 3)
 
 # Code Quality

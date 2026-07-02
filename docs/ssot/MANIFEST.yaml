@@ -421,7 +421,7 @@ concepts:
       - docs/ssot/deployment.md
       - docs/ssot/observability.md
       - docs/ssot/ci-cd.md
-      - docs/ssot/env_smoke_test.md
+      - common/runtime/readme.md
       - docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md
       - repo/docs/ssot/ops.alerting.md
       - repo/docs/ssot/ops.availability-ledger.md
@@ -852,16 +852,21 @@ concepts:
       - common/extraction/readme.md
 
   # ── Environment smoke test ────────────────────────────────────────────
+  # The env-smoke-test SSOT is internalized into the `runtime` package
+  # (common/runtime/readme.md#environment-verification-the-three-gates) per the
+  # package-migration standard (common/meta/migration-standard.md, step 3
+  # "SSOT internalized"); the central docs/ssot/env_smoke_test.md is retired.
+  # The package readme is the single owner of the Three-Gates verification.
   env_smoke_test:
-    owner: docs/ssot/env_smoke_test.md
-    description: Environment smoke testing via real boot operations. Owned by the
-      runtime package (common/runtime/readme.md) — it is runtime's deployed-env
-      dependency-presence verification; env_smoke_test.md is its SSOT doc.
+    owner: common/runtime/readme.md#environment-verification-the-three-gates
+    description: Environment smoke testing via real boot operations — runtime's
+      deployed-env dependency-presence verification (the Three Gates). Owned by
+      the runtime package (common/runtime/readme.md).
     cross_refs:
       - docs/ssot/development.md
-      - common/runtime/readme.md
     proofs:
       - tests/tooling/test_runtime_incident_response_ssot.py
+      - tests/tooling/test_runtime_ssot_internalized.py
 
   # ── LLM provider abstraction (EPIC-023) ───────────────────────────────
   # The LLM SSOT is internalized into the `llm` package (common/llm/readme.md)
