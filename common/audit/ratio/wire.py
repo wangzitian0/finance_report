@@ -6,8 +6,8 @@ from decimal import Decimal
 
 from common.audit.ratio.errors import FloatNotAllowedError, InvalidRatioPayloadError
 from common.audit.ratio.ratio import Ratio
-from common.decimal_scalar import WireCodec
-from common.decimal_scalar import decimal_to_wire as _decimal_to_wire
+from common.audit.decimal_scalar import WireCodec
+from common.audit.decimal_scalar import decimal_to_wire as _decimal_to_wire
 
 # The shared scalar codec bound to ratio's typed errors (ratio wire is a bare
 # decimal string, so only ``parse`` is needed — no payload envelope).

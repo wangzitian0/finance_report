@@ -490,7 +490,7 @@ CONTRACT = PackageContract(
             id="AC-audit.36.1",
             statement=(
                 "The four common/ base-package codecs route raw-Decimal "
-                "conversion through one shared common.decimal_scalar module "
+                "conversion through one shared common.audit.decimal_scalar module "
                 "(decimal_to_wire / coerce_decimal / WireCodec); no base "
                 "package re-defines the _decimal_to_wire / _decimal_from_wire / "
                 "_payload_mapping / _field bodies or the construction-time "
@@ -510,7 +510,7 @@ CONTRACT = PackageContract(
             statement=(
                 "The backend self-contained mirror likewise routes every "
                 "base-package Decimal boundary through one shared "
-                "src.decimal_scalar module, keeping the backend end conformant "
+                "src.audit.decimal_scalar module, keeping the backend end conformant "
                 "without re-duplicating the codec per package. Was EPIC-012 "
                 "AC12.36.2."
             ),

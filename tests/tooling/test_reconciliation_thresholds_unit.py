@@ -34,7 +34,7 @@ def _load_reconciliation_module():
     """Load reconciliation without importing src.services package exports."""
     previous_services = sys.modules.get("src.services")
     previous_accounting = sys.modules.get("src.services.accounting")
-    previous_logger = sys.modules.get("src.logger")
+    previous_logger = sys.modules.get("src.observability")
     # The processing-account transfer verbs were folded into the ledger package
     # (#1420 slice 3b): reconciliation now imports them from ``src.ledger`` instead
     # of ``src.services.processing_account``, so we stub ``src.ledger`` here.
@@ -54,8 +54,9 @@ def _load_reconciliation_module():
     accounting_module = ModuleType("src.services.accounting")
     accounting_module.ValidationError = _StubValidationError
     accounting_module.validate_journal_balance = Mock()
-    logger_module = ModuleType("src.logger")
+    logger_module = ModuleType("src.observability")
     logger_module.get_logger = Mock(return_value=Mock())
+    logger_module.record_reconciliation_match_outcome = Mock()
     ledger_module = ModuleType("src.ledger")
     ledger_module.ValidationError = _StubValidationError
     ledger_module.validate_journal_balance = Mock()
@@ -71,7 +72,7 @@ def _load_reconciliation_module():
 
     sys.modules["src.services"] = services_package
     sys.modules["src.services.accounting"] = accounting_module
-    sys.modules["src.logger"] = logger_module
+    sys.modules["src.observability"] = logger_module
     sys.modules["src.ledger"] = ledger_module
     sys.modules["src.services.source_type_priority"] = source_type_priority_module
     sys.modules["src.services.statement_summary"] = statement_summary_module
@@ -124,9 +125,9 @@ def _load_reconciliation_module():
         else:
             sys.modules["src.services.accounting"] = previous_accounting
         if previous_logger is None:
-            sys.modules.pop("src.logger", None)
+            sys.modules.pop("src.observability", None)
         else:
-            sys.modules["src.logger"] = previous_logger
+            sys.modules["src.observability"] = previous_logger
         if previous_ledger is None:
             sys.modules.pop("src.ledger", None)
         else:

@@ -15,8 +15,8 @@ from common.audit.unit_price.errors import (
     InvalidUnitPricePayloadError,
 )
 from common.audit.unit_price.unit_price import UnitPrice
-from common.decimal_scalar import WireCodec
-from common.decimal_scalar import decimal_to_wire as _decimal_to_wire
+from common.audit.decimal_scalar import WireCodec
+from common.audit.decimal_scalar import decimal_to_wire as _decimal_to_wire
 
 UnitPriceWire = dict[str, str]
 UnitPriceDbFields = dict[str, Decimal | str]

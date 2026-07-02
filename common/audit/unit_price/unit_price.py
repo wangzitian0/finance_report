@@ -40,7 +40,7 @@ from common.audit.unit_price.errors import (
     UndefinedUnitPriceError,
     UnitMismatchError,
 )
-from common.decimal_scalar import coerce_decimal
+from common.audit.decimal_scalar import coerce_decimal
 
 # Price/unit-rate quantum: 6 dp, ROUND_HALF_UP. Deliberately NOT the 2-dp money
 # quantum — prices and unit costs carry sub-cent precision (see the rounding

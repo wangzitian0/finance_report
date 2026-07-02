@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 
-from src.logger import get_logger
+from src.observability import get_logger
 
 logger = get_logger(__name__)
 CSV_INFERRED_BALANCE_REVIEW_NOTE = (

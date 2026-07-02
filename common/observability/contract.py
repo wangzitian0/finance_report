@@ -10,9 +10,10 @@ run via ``tools/`` wrappers (its invariant is pinned below).
 
 ``depends_on=["config"]``: the OTEL runtime reads the backend config singleton via
 its bare published root (``import src.config``), the one registered-package edge it
-declares (a same-class ``kernel`` -> ``kernel`` edge, acyclic). Its other imports
-(``src.services.pii_redaction``, ``src.telemetry_metrics``) are unregistered backend
-infrastructure, so they are not governed cross-package edges.
+declares (a same-class ``kernel`` -> ``kernel`` edge, acyclic). The formerly flat
+``src.logger`` / ``src.telemetry_metrics`` / ``src.analytics`` modules and the
+``ErrorIds`` vocabulary now live inside this package; its one remaining import of
+unregistered backend infrastructure is ``src.services.pii_redaction``.
 """
 
 from __future__ import annotations
@@ -27,15 +28,31 @@ CONTRACT = PackageContract(
     depends_on=["config"],
     implementations={"be": "apps/backend/src/observability", "fe": None},
     interface=[
+        "INVARIANT_VIOLATION_KINDS",
+        "ErrorIds",
+        "configure_database_pool_metrics",
+        "configure_logging",
+        "configure_otel_metrics",
         "current_request_id",
+        "get_logger",
         "get_observability_status",
+        "http_route_label_from_scope",
         "is_fastapi_instrumentation_active",
+        "is_metrics_export_active",
         "log_financial_mutation",
         "log_observability_startup",
         "log_security_warning",
         "mark_fastapi_instrumentation_active",
+        "record_ai_provider_call",
+        "record_financial_invariant_violation",
+        "record_http_request",
+        "record_rate_limit_rejected",
+        "record_reconciliation_match_outcome",
+        "record_statement_parse_outcome",
+        "run_with_async_parse_tracking",
         "safe_error_message",
         "safe_log_fields",
+        "track",
     ],
     events=[],
     invariants=[

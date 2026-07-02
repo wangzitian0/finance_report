@@ -102,7 +102,7 @@ explicit AC IDs for the behavior.
 | `apps/backend/tests/services/test_confidence_tier.py` | `docs/ssot/source-type-priority.md` |
 | `apps/backend/tests/unit/schemas/test_schemas.py` | `docs/ssot/schema.md` |
 | `apps/backend/tests/unit/services/test_source_type_priority.py` | `docs/ssot/source-type-priority.md` |
-| `apps/backend/tests/unit/utils/test_exceptions.py` | `docs/ssot/development.md` |
+| `apps/backend/tests/unit/platform/test_exceptions.py` | `docs/ssot/development.md` |
 | `apps/backend/tests/test_factories.py` | `apps/backend/tests/factories.py` |
 | `apps/frontend/src/__tests__/analytics.test.tsx` | Frontend analytics tracking (OpenPanel PV) — non-blocking infra, not product behavior |
 | `apps/frontend/src/__tests__/confidence.test.ts` | `docs/ssot/frontend-patterns.md` |
@@ -169,7 +169,7 @@ router, or generated-fixture flows.
 
 | Source path | Classification |
 |---|---|
-| `apps/backend/src/constants/error_ids.py` | Shared error-code constants; covered indirectly by exception/API tests |
+| `apps/backend/src/observability/error_ids.py` | Shared error-code constants; covered indirectly by exception/API tests |
 | `apps/backend/src/routers/user_settings.py` | Owned by AC18.5.5 through `apps/backend/tests/api/test_user_settings_router.py` |
 | `apps/frontend/src/components/review/BalanceIndicator.tsx` | Review UI subcomponent covered through review page/component suites |
 | `apps/frontend/src/components/review/ReviewActionBar.tsx` | Review UI subcomponent covered through review page/action suites |

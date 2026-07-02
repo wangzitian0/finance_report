@@ -62,8 +62,9 @@ CONTRACT = PackageContract(
     # rate limiter, the observability security-warning log, and config (settings,
     # imported by its bare published root like observability does). All three are
     # kernel-class, so a core package importing them is strictly downward.
-    # (src.database / src.logger / src.deps / src.utils are unregistered backend
-    # infra, out of scope for the edge rule.)
+    # (src.database / src.deps are unregistered backend infra, out of scope for
+    # the edge rule; the former flat src.logger / src.utils now live inside the
+    # observability / platform packages, so those imports are governed edges.)
     depends_on=["platform", "observability", "config"],
     roles=["base", "extension"],
     units=[

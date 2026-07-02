@@ -15,15 +15,22 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
-from src.constants.error_ids import ErrorIds
 from src.deps import CurrentUserId, DbSession
 from src.llm.catalog import LitellmCatalog
 from src.llm.common import Modality
-from src.logger import get_logger
 from src.models.account import Account, AccountType
 from src.models.layer1 import UploadedDocument
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
+from src.observability import ErrorIds, get_logger
+from src.platform import (
+    get_owned_or_404,
+    raise_bad_request,
+    raise_internal_error,
+    raise_not_found,
+    raise_service_unavailable,
+    raise_too_large,
+)
 from src.schemas import (
     AtomicTransactionResponse,
     BankStatementListResponse,
@@ -59,14 +66,6 @@ from src.services.statement_validation import (
     validate_balance_chain,
 )
 from src.services.statement_workflow import approve_statement_workflow, reject_statement_workflow
-from src.utils import (
-    get_owned_or_404,
-    raise_bad_request,
-    raise_internal_error,
-    raise_not_found,
-    raise_service_unavailable,
-    raise_too_large,
-)
 
 router = APIRouter(prefix="/statements", tags=["statements"])
 

@@ -8,8 +8,8 @@ from decimal import Decimal
 from common.audit.money.errors import FloatNotAllowedError, InvalidMoneyPayloadError
 from common.audit.money.exchange_rate import ExchangeRate
 from common.audit.money.money import Money
-from common.decimal_scalar import WireCodec
-from common.decimal_scalar import decimal_to_wire as _decimal_to_wire
+from common.audit.decimal_scalar import WireCodec
+from common.audit.decimal_scalar import decimal_to_wire as _decimal_to_wire
 
 MoneyWire = dict[str, str]
 ExchangeRateWire = dict[str, str]

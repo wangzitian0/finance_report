@@ -50,7 +50,7 @@ def get_observability_status() -> dict[str, Any]:
     resource_attributes = src.config.parse_key_value_pairs(settings.otel_resource_attributes)
     exporter_configured = bool(settings.otel_exporter_otlp_endpoint)
     try:
-        from src.telemetry_metrics import is_metrics_export_active
+        from src.observability.telemetry_metrics import is_metrics_export_active
 
         metrics_export_enabled = is_metrics_export_active()
     except Exception:  # pragma: no cover - defensive import guard

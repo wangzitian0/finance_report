@@ -22,10 +22,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from decimal import ROUND_HALF_EVEN, Decimal
 
+from src.audit.decimal_scalar import coerce_decimal
 from src.audit.money.currency import Currency
 from src.audit.money.errors import CurrencyMismatchError, FloatNotAllowedError
 from src.audit.money.rounding import to_money
-from src.decimal_scalar import coerce_decimal
 
 # Amount inputs accepted at construction. ``bool`` is an ``int`` subclass but is
 # never a valid amount, so it is rejected explicitly by the shared codec below.

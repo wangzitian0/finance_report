@@ -36,6 +36,7 @@ from src.platform.base import (
     SubscriberRegistry,
 )
 from src.platform.extension import (
+    BaseAppException,
     Outbox,
     OutboxEventBus,
     OutboxRelay,
@@ -43,9 +44,21 @@ from src.platform.extension import (
     RateLimiter,
     RateLimitState,
     RecordingEventBus,
+    get_owned_or_404,
+    paginate,
+    raise_bad_request,
+    raise_conflict,
+    raise_gateway_timeout,
+    raise_internal_error,
+    raise_not_found,
+    raise_service_unavailable,
+    raise_too_large,
+    raise_too_many_requests,
+    raise_unauthorized,
 )
 
 __all__ = [
+    "BaseAppException",
     "DomainEvent",
     "EventBus",
     "Outbox",
@@ -57,4 +70,15 @@ __all__ = [
     "RateLimiter",
     "RecordingEventBus",
     "SubscriberRegistry",
+    "get_owned_or_404",
+    "paginate",
+    "raise_bad_request",
+    "raise_conflict",
+    "raise_gateway_timeout",
+    "raise_internal_error",
+    "raise_not_found",
+    "raise_service_unavailable",
+    "raise_too_large",
+    "raise_too_many_requests",
+    "raise_unauthorized",
 ]

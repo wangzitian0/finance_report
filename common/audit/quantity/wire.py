@@ -10,8 +10,8 @@ from common.audit.quantity.errors import (
     InvalidQuantityPayloadError,
 )
 from common.audit.quantity.quantity import Quantity
-from common.decimal_scalar import WireCodec
-from common.decimal_scalar import decimal_to_wire as _decimal_to_wire
+from common.audit.decimal_scalar import WireCodec
+from common.audit.decimal_scalar import decimal_to_wire as _decimal_to_wire
 
 QuantityWire = dict[str, str]
 QuantityDbFields = dict[str, Decimal | str]

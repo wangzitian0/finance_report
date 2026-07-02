@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 from sqlalchemy.sql.base import ExecutableOption
 
-from src.utils.exceptions import raise_not_found
+from src.platform.extension.http_errors import raise_not_found
 
 
 async def get_owned_or_404[M](

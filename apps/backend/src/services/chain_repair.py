@@ -24,7 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
-from src.logger import get_logger
+from src.observability import get_logger
 from src.services.validation import (
     ChainBreak,
     detect_balance_chain_break,

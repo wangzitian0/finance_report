@@ -11,12 +11,9 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from src import (
-    logger as logger_module,
-    observability as observability_module,
-    telemetry_metrics as telemetry_metrics_module,
-)
+from src import observability as observability_module
 from src.config import Settings
+from src.observability import logger as logger_module, telemetry_metrics as telemetry_metrics_module
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 APP_IAC = REPO_ROOT / "repo" / "finance_report" / "finance_report" / "10.app"

@@ -23,7 +23,7 @@ from sqlalchemy.pool import NullPool
 # side effect; issue #1461).
 import src.models._registry  # noqa: F401
 from src.config import settings
-from src.logger import get_logger
+from src.observability import get_logger
 from src.services.fx import clear_fx_cache
 
 # Make the repo's ``common/`` importable at collection time (not just inside the

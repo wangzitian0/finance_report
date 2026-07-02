@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 
+from src.audit.decimal_scalar import coerce_decimal
 from src.audit.money.currency import Currency
 from src.audit.money.money import Money
 from src.audit.quantity.quantity import Quantity
@@ -21,7 +22,6 @@ from src.audit.unit_price.errors import (
     UndefinedUnitPriceError,
     UnitMismatchError,
 )
-from src.decimal_scalar import coerce_decimal
 
 # Price/unit-rate quantum: 6 dp, ROUND_HALF_UP. Deliberately NOT the 2-dp money
 # quantum — prices and unit costs carry sub-cent precision.

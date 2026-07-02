@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 from datetime import date
 
-from src.logger import get_logger
+from src.observability import get_logger
 
 logger = get_logger(__name__)
 

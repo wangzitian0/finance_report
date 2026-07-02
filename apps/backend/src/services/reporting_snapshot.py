@@ -89,7 +89,7 @@ class ReportingSnapshotService:
             return snapshot
 
         except Exception as e:
-            from src.logger import get_logger
+            from src.observability import get_logger
 
             logger = get_logger(__name__)
             logger.error(

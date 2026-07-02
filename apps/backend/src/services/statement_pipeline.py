@@ -26,9 +26,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
 from src.database import create_session_maker_from_db
-from src.logger import get_logger
+from src.observability import get_logger, run_with_async_parse_tracking
 from src.services.statement_parsing import parse_statement_background
-from src.telemetry_metrics import run_with_async_parse_tracking
 
 logger = get_logger(__name__)
 

@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 
 from common.audit.ratio.errors import FloatNotAllowedError, UndefinedRatioError
-from common.decimal_scalar import coerce_decimal
+from common.audit.decimal_scalar import coerce_decimal
 
 # Canonical percent-display policy (NOT money's HALF_EVEN — percentages are not
 # money and follow the finance display convention of round-half-up).

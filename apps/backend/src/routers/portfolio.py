@@ -10,13 +10,13 @@ from sqlalchemy import select
 from src.audit.money import to_money
 from src.audit.ratio import Ratio
 from src.deps import CurrentUserId, DbSession
-from src.logger import get_logger
 from src.models.layer3 import ManagedPosition, PositionStatus
 from src.models.portfolio import (
     DividendIncome,
     InvestmentTransaction,
     InvestmentTransactionType,
 )
+from src.observability import get_logger
 from src.schemas.portfolio import (
     BrokerageImportRequest,
     BrokerageImportResponse,

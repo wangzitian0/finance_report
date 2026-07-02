@@ -22,7 +22,7 @@
 - `.github/workflows/deploy.yml` - Manual staging AI/OCR audit input inventory
 
 ### Configuration
-- **Logger**: Structured logging via `src/logger.py` with OTEL integration
+- **Logger**: Structured logging via `src/observability/logger.py` with OTEL integration
 - **Frontend**: Browser console logging with structured JSON
 - **Backend**: OTLP export for distributed tracing
 

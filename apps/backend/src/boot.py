@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from src.config import PROTECTED_ENVIRONMENTS, settings
-from src.logger import get_logger
+from src.observability import get_logger
 from src.runtime import (
     DatabaseCheck,
     DependencyStatus,

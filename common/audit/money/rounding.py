@@ -6,7 +6,7 @@ see ``common/ledger/readme.md#decimal-rule``.
 
 This module is the canonical home for the cross-language standard, tooling and
 tests (it lives in ``common/`` so every end shares one definition). The backend
-keeps its **own** self-contained ``to_money`` in ``apps/backend/src/utils/money.py``
+keeps its **own** self-contained ``to_money`` in ``apps/backend/src/audit/money/``
 for its runtime (``common/`` is not shipped into the image); the conformance
 suite proves the two stay identical. Runtime unification waits on adoption (#1171).
 

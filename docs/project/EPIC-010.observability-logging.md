@@ -74,7 +74,7 @@ Enable production-grade log observability via OpenTelemetry/OTLP, while keeping 
 
 ### Backend
 - [x] Add OTEL settings to `apps/backend/src/config.py`.
-- [x] Configure optional OTLP log export in `apps/backend/src/logger.py`.
+- [x] Configure optional OTLP log export in `apps/backend/src/observability/logger.py`.
 - [x] Keep fallback to stdout when OTEL vars are absent.
 
 ### Documentation (SSOT)

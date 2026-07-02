@@ -778,7 +778,7 @@ class AIAdvisorService:
         user_id: UUID | None = None,
         bound: SceneBinding | None = None,
     ) -> AsyncIterator[tuple[str, str]]:
-        from src.constants.error_ids import ErrorIds
+        from src.observability import ErrorIds
         from src.services.ai_streaming import AIStreamError
 
         models = [self.primary_model, *self.fallback_models]

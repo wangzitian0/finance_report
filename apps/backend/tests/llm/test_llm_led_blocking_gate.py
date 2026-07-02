@@ -265,7 +265,7 @@ class TestNoFalseReject:
 class TestObservability:
     def test_AC20_9_7_each_failure_mode_has_distinct_reason_and_metric(self):
         """[AC20.9.7] Each failure mode maps to a distinct reason code AND metric kind."""
-        from src.telemetry_metrics import INVARIANT_VIOLATION_KINDS
+        from src.observability import INVARIANT_VIOLATION_KINDS
 
         verdicts = [
             evaluate_llm_led_extraction_gate(

@@ -5,10 +5,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 from decimal import Decimal
 
+from src.audit.decimal_scalar import WireCodec, decimal_to_wire as _decimal_to_wire
 from src.audit.money.errors import FloatNotAllowedError, InvalidMoneyPayloadError
 from src.audit.money.exchange_rate import ExchangeRate
 from src.audit.money.money import Money
-from src.decimal_scalar import WireCodec, decimal_to_wire as _decimal_to_wire
 
 MoneyWire = dict[str, str]
 ExchangeRateWire = dict[str, str]

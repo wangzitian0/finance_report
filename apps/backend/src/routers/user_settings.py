@@ -6,8 +6,8 @@ from sqlalchemy import select
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.identity import User
+from src.platform import raise_not_found
 from src.schemas.user import UserAiSettingsResponse, UserAiSettingsUpdate
-from src.utils import raise_not_found
 
 router = APIRouter(prefix="/users/me/settings", tags=["user-settings"])
 

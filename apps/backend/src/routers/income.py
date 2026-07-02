@@ -11,11 +11,11 @@ from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.platform import raise_bad_request
 from src.schemas.base import normalize_currency_code
 from src.schemas.income import AnnualizedIncomeResponse, FxConversionErrorResponse
 from src.services.fx import FxRateError, convert_amount
 from src.services.reporting_calc import AnnualizedIncomeTotals, income_bucket, resolve_line_currency
-from src.utils import raise_bad_request
 
 router = APIRouter(prefix="/income", tags=["income"])
 

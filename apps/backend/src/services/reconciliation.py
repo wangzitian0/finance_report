@@ -19,10 +19,10 @@ from src.ledger import (
     detect_transfer_pattern,
     find_transfer_pairs,
 )
-from src.logger import get_logger
 from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 from src.models.layer2 import AtomicTransaction
 from src.models.reconciliation import ReconciliationMatch, ReconciliationMatchJournalEntry, ReconciliationStatus
+from src.observability import get_logger, record_reconciliation_match_outcome
 from src.services.reconciliation_config import (  # noqa: F401
     DEFAULT_CONFIG,
     MAX_COMBINATION_CANDIDATES,
@@ -50,7 +50,6 @@ from src.services.reconciliation_scoring import (  # noqa: F401
 from src.services.reconciliation_stats import ReconciliationStats, get_reconciliation_stats  # noqa: F401
 from src.services.source_type_priority import promote_entry_source_type
 from src.services.statement_summary import resolve_custody_account_id
-from src.telemetry_metrics import record_reconciliation_match_outcome
 
 logger = get_logger(__name__)
 

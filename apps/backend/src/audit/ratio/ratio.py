@@ -23,8 +23,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 
+from src.audit.decimal_scalar import coerce_decimal
 from src.audit.ratio.errors import FloatNotAllowedError, UndefinedRatioError
-from src.decimal_scalar import coerce_decimal
 
 # Canonical percent-display policy (NOT money's HALF_EVEN — percentages are not
 # money and follow the finance display convention of round-half-up).

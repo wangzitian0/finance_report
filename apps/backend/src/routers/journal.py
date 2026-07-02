@@ -12,16 +12,15 @@ from src.ledger import (
     post_journal_entry,
     void_journal_entry,
 )
-from src.logger import get_logger
 from src.models.journal import JournalEntry, JournalEntryStatus
-from src.observability import log_financial_mutation
+from src.observability import get_logger, log_financial_mutation
+from src.platform import get_owned_or_404, paginate, raise_bad_request
 from src.schemas import (
     JournalEntryCreate,
     JournalEntryListResponse,
     JournalEntryResponse,
     VoidJournalEntryRequest,
 )
-from src.utils import get_owned_or_404, paginate, raise_bad_request
 
 router = APIRouter(prefix="/journal-entries", tags=["journal-entries"])
 logger = get_logger(__name__)

@@ -20,9 +20,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit.money import Money
 from src.config import settings
 from src.ledger import Entry, Leg
-from src.logger import get_logger
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
+from src.observability import get_logger
 from src.services.fx import FxRateError, get_exchange_rate
 
 logger = get_logger(__name__)

@@ -16,8 +16,8 @@ from uuid import uuid4
 
 import pytest
 
-from src import telemetry_metrics
 from src.models.statement_enums import BankStatementStatus
+from src.observability import telemetry_metrics
 from src.services.extraction import ExtractionService
 from src.services.validation import count_within_document_dedup_collapse
 

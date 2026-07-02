@@ -7,12 +7,13 @@ from sqlalchemy import select
 
 from src.audit.money import InvalidCurrencyError
 from src.deps import CurrentUserId, DbSession
-from src.logger import get_logger
 from src.models.consistency_check import CheckStatus, CheckType
 from src.models.journal import JournalEntry, JournalEntryStatus
 from src.models.layer2 import AtomicTransaction
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_summary import StatementSummary
+from src.observability import get_logger
+from src.platform import get_owned_or_404, raise_conflict
 from src.schemas.review import (
     BatchApproveRequest,
     BatchApproveResponse,
@@ -42,7 +43,6 @@ from src.services.currency_resolution import resolve_transaction_currency
 from src.services.review_queue import accept_match as accept_match_service, get_stage2_queue
 from src.services.source_type_priority import STATEMENT_SOURCE_TYPES
 from src.services.statement_validation import resolve_statement_conflicts, resolve_statement_transactions
-from src.utils import get_owned_or_404, raise_conflict
 
 logger = get_logger(__name__)
 

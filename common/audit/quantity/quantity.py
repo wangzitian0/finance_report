@@ -8,7 +8,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from common.audit.quantity.errors import FloatNotAllowedError, UnitMismatchError
 from common.audit.quantity.unit import Unit
 from common.audit.ratio import Ratio
-from common.decimal_scalar import coerce_decimal
+from common.audit.decimal_scalar import coerce_decimal
 
 QUANTITY_DP: int = 6
 QUANTITY_QUANTUM = Decimal("0.000001")

@@ -26,15 +26,21 @@ from src.boot import Bootloader, BootMode
 from src.config import settings
 from src.database import engine, get_db, init_db
 from src.identity import auth_router, users_router
-from src.logger import configure_logging, get_logger
 from src.models.ping_state import PingState
 from src.observability import (
+    configure_database_pool_metrics,
+    configure_logging,
+    configure_otel_metrics,
+    get_logger,
     get_observability_status,
+    http_route_label_from_scope,
     log_observability_startup,
     log_security_warning,
     mark_fastapi_instrumentation_active,
+    record_http_request,
+    record_rate_limit_rejected,
 )
-from src.platform import RateLimitConfig, RateLimiter
+from src.platform import BaseAppException, RateLimitConfig, RateLimiter
 from src.routers import (
     accounts,
     ai_feedback,
@@ -67,14 +73,6 @@ from src.schemas.errors import (
 from src.services.market_data_scheduler import run_market_data_scheduler
 from src.services.statement_parsing_supervisor import run_parsing_supervisor
 from src.services.storage_sweep import run_storage_sweep
-from src.telemetry_metrics import (
-    configure_database_pool_metrics,
-    configure_otel_metrics,
-    http_route_label_from_scope,
-    record_http_request,
-    record_rate_limit_rejected,
-)
-from src.utils.exceptions import BaseAppException
 
 # Initialize logging early
 configure_logging()

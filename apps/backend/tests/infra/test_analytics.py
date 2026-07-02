@@ -3,7 +3,7 @@
 AC24.2.2 ("the analytics layer actually dispatches an OpenPanel event") realized
 SERVER-SIDE — the 4th telemetry combination (backend product analytics). A thin REST
 client (NOT the official openpanel SDK, which sends profileId=null and 400s against our
-self-hosted instance — see src/analytics.py). Same posture as the FE: config-gated
+self-hosted instance — see src/observability/analytics.py). Same posture as the FE: config-gated
 no-op, non-blocking, never raises.
 """
 
@@ -13,8 +13,8 @@ from typing import Any
 
 import pytest
 
-from src import analytics
 from src.config import settings
+from src.observability import analytics
 
 
 class _ImmediateThread:
@@ -91,5 +91,7 @@ def test_track_never_raises_on_transport_error(monkeypatch) -> None:
         def post(self, *a: Any, **k: Any):
             raise RuntimeError("connection refused")
 
-    monkeypatch.setattr(analytics.httpx, "Client", lambda *a, **k: _BoomClient())
+    # httpx is imported lazily inside _post (tooling envs load the observability
+    # package without backend deps), so patch the library itself.
+    monkeypatch.setattr("httpx.Client", lambda *a, **k: _BoomClient())
     assert analytics.track("report_generated") is True

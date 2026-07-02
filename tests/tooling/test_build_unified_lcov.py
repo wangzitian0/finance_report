@@ -60,7 +60,7 @@ def test_build_unified_lcov_rewrites_component_source_paths(tmp_path):
         "SF:tools/check.py\nDA:1,1\nLH:1\nLF:1\nend_of_record\n"
     )
     (coverage_dir / "common.lcov").write_text(
-        "SF:common/test_isolation.py\nDA:1,1\nLH:1\nLF:1\nend_of_record\n"
+        "SF:common/testing/test_isolation.py\nDA:1,1\nLH:1\nLF:1\nend_of_record\n"
     )
 
     output = coverage_dir / "unified.lcov"
@@ -70,7 +70,7 @@ def test_build_unified_lcov_rewrites_component_source_paths(tmp_path):
     assert "SF:apps/backend/src/api.py" in content
     assert "SF:apps/frontend/src/app/page.tsx" in content
     assert "SF:tools/check.py" in content
-    assert "SF:common/test_isolation.py" in content
+    assert "SF:common/testing/test_isolation.py" in content
 
 
 def test_build_unified_lcov_can_emit_line_only_coveralls_report(tmp_path):
