@@ -6,7 +6,7 @@ from httpx import AsyncClient
 
 
 async def test_health_when_all_services_healthy(client: AsyncClient, monkeypatch) -> None:
-    """AC7.7.1: Health endpoint returns 200 when all services healthy."""
+    """AC-runtime.7.1: Health endpoint returns 200 when all services healthy."""
     from src.boot import Bootloader, ServiceStatus
 
     monkeypatch.setattr(
@@ -24,7 +24,7 @@ async def test_health_when_all_services_healthy(client: AsyncClient, monkeypatch
 
 
 async def test_health_endpoint_structure(client: AsyncClient) -> None:
-    """AC7.7.1: Health endpoint returns proper structure with checks."""
+    """AC-runtime.7.1: Health endpoint returns proper structure with checks."""
     response = await client.get("/health")
     assert response.status_code in [200, 503]
     data = response.json()
@@ -42,7 +42,7 @@ async def test_health_endpoint_structure(client: AsyncClient) -> None:
 
 
 async def test_health_returns_503_on_database_failure(public_client: AsyncClient, monkeypatch) -> None:
-    """AC7.7.2: Health returns 503 when database check fails."""
+    """AC-runtime.7.2: Health returns 503 when database check fails."""
     # The health check uses the db dependency directly.
     # To mock its failure, we can mock the execute method of the session.
     # However, it's easier to mock get_db to yield a session that fails.
@@ -70,7 +70,7 @@ async def test_health_returns_503_on_database_failure(public_client: AsyncClient
 
 
 async def test_health_returns_503_on_s3_failure(public_client: AsyncClient, monkeypatch) -> None:
-    """AC7.7.2: Health returns 503 when S3 check fails."""
+    """AC-runtime.7.2: Health returns 503 when S3 check fails."""
     from src.boot import Bootloader, ServiceStatus
 
     monkeypatch.setattr(

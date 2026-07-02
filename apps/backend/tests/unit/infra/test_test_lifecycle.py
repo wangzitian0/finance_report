@@ -23,7 +23,7 @@ def patch_cache_file(tmp_path):
 
 
 def test_sanitize_namespace():
-    """AC8.1.1: Verify namespace sanitization replaces invalid characters."""
+    """Namespace sanitization replaces invalid characters (test-isolation helper)."""
     assert test_lifecycle._sanitize_namespace("feat/cleanup") == "feat_cleanup"
     assert test_lifecycle._sanitize_namespace("WS-123") == "ws_123"
     assert test_lifecycle._sanitize_namespace("space name") == "spacename"
@@ -33,7 +33,7 @@ def test_sanitize_namespace():
 
 
 def test_long_namespace_resource_names_are_bounded():
-    """AC8.1.1: Long branch namespaces remain valid for Postgres and S3."""
+    """Long branch namespaces stay valid for Postgres and S3 (test-isolation helper)."""
     namespace = "codex_issue_490_testing_strategy_ac_coverage_0bb5607e"
 
     db_name = test_lifecycle.get_test_db_name(namespace)
@@ -94,7 +94,7 @@ def test_test_database_persistence(
     # branch name containing "down" (e.g. ".../cashflow-drilldown") would leak
     # into the string and create a false positive (#884).
     down_calls = [
-        c for c in mock_run.call_args_list if c.args and isinstance(c.args[0], (list, tuple)) and "down" in c.args[0]
+        c for c in mock_run.call_args_list if c.args and isinstance(c.args[0], list | tuple) and "down" in c.args[0]
     ]
     assert len(down_calls) == 0
 
@@ -184,7 +184,7 @@ def test_test_database_ephemeral(
     down_calls = [
         c
         for c in mock_run.call_args_list
-        if c.args and isinstance(c.args[0], (list, tuple)) and "down" in c.args[0] and "-v" in c.args[0]
+        if c.args and isinstance(c.args[0], list | tuple) and "down" in c.args[0] and "-v" in c.args[0]
     ]
     assert len(down_calls) == 1
     mock_unregister.assert_called_once()

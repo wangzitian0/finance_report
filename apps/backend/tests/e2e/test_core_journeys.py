@@ -62,7 +62,7 @@ async def _post_balanced_entry(client, *, debit_id, credit_id, amount, entry_dat
 @pytest.mark.e2e
 async def test_api_health_check(client):
     """
-    EPIC-001 EPIC-007 EPIC-010 EPIC-012 / AC8.1.1: Health endpoint reachable
+    EPIC-001 EPIC-007 EPIC-010 EPIC-012 / AC-runtime.1.1: Health endpoint reachable
     AC8.8.1: Core journey — health check
     GIVEN the API is running
     WHEN requesting health endpoint
@@ -744,7 +744,7 @@ async def test_register_and_login_flow(public_client):
 @pytest.mark.e2e
 async def test_backend_service_reachable(client):
     """
-    EPIC-001 EPIC-007 EPIC-010 EPIC-012 / AC8.1.2: Backend service returns structured health JSON
+    EPIC-001 EPIC-007 EPIC-010 EPIC-012 / AC-runtime.1.2: Backend service returns structured health JSON
     GIVEN the backend API is running
     WHEN requesting the health endpoint
     THEN it should return JSON with status information
@@ -758,7 +758,7 @@ async def test_backend_service_reachable(client):
 @pytest.mark.e2e
 async def test_frontend_api_proxy_reachable(client):
     """
-    EPIC-001 EPIC-007 EPIC-012 / AC8.1.3: OpenAPI docs endpoint reachable (proxy validates API availability)
+    EPIC-001 EPIC-007 EPIC-012 / AC-runtime.1.3: OpenAPI docs endpoint reachable (proxy validates API availability)
     GIVEN the backend API is running
     WHEN requesting the OpenAPI schema endpoint
     THEN it should return 200 with a valid OpenAPI JSON document
@@ -773,7 +773,7 @@ async def test_frontend_api_proxy_reachable(client):
 @pytest.mark.e2e
 async def test_database_connectivity(client, test_user):
     """
-    EPIC-001 EPIC-002 EPIC-012 / AC8.1.4: Database connectivity proven via create+read cycle
+    EPIC-001 EPIC-002 EPIC-012 / AC-runtime.1.4: Database connectivity proven via create+read cycle
     GIVEN the database is connected
     WHEN creating and then reading back an account
     THEN both operations succeed, proving DB write+read connectivity

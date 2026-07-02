@@ -1,6 +1,4 @@
 {
   "_comment": "Registered draft packages (tools/check_draft_packages.py). A draft package leaves its authority tier undecided; listing it here makes adding one a reviewed act. Resolve drafts to active over time.",
-  "draft_packages": [
-    "runtime"
-  ]
+  "draft_packages": []
 }

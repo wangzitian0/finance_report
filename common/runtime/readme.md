@@ -1,8 +1,9 @@
 # `runtime` — the app↔external-world dependency boundary
 
-> **Status: draft.** The model below is the contract we are committing to; the
-> implementation (ports, manifest, gate wiring) lands incrementally, each AC with
-> a real test, moving from [`todo.md`](./todo.md) into [`contract.py`](./contract.py).
+> **Status: active.** The boundary — value language, manifest, `DependencyCheck`
+> port + adapters — is shipped, and the smoke/health ACs are homed in
+> [`contract.py`](./contract.py)'s roadmap. Remaining work (manifest-driven
+> enforcement, substitutes) is tracked in [`todo.md`](./todo.md).
 > Model spec: [`../meta/readme.md`](../meta/readme.md).
 
 ## Why this package exists
@@ -101,9 +102,10 @@ test selection, execution, and reporting → `testing`.
 
 ## Public vs internal
 
-Draft. The **construct** phase publishes the `base` value language + manifest +
-port (`contract.interface`): `DependencyKind`, `EnvTier` (+ `APP_OWNED_TIERS` /
-`VPS_TIERS`), `Dependency` / `DependencyManifest` / `DEPENDENCY_MANIFEST`, and the
-`DependencyCheck` port (+ `DependencyStatus`). No consumer routes through it yet —
-the switch phase points `boot.validate` and the smoke test at the manifest; the
-adapters and the compose/lifecycle relocation follow. See [`todo.md`](./todo.md).
+The package publishes (`contract.interface`) the `base` value language + manifest
++ port and the `extension` adapters: `DependencyKind`, `EnvTier`
+(+ `APP_OWNED_TIERS` / `VPS_TIERS`), `Dependency` / `DependencyManifest` /
+`DEPENDENCY_MANIFEST`, the `DependencyCheck` port (+ `DependencyStatus` /
+`ProbeResult`), and `DatabaseCheck` / `ObjectStorageCheck` / `LlmCheck`.
+`boot.Bootloader` delegates its checks to the adapters. See [`todo.md`](./todo.md)
+for the remaining enforcement work.
