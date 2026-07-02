@@ -42,6 +42,7 @@ from src.routers import (
     assets,
     audit,
     chat,
+    classifications,
     corrections,
     evidence,
     income,
@@ -382,6 +383,7 @@ app.include_router(ai_feedback.router, **_router_kwargs)
 app.include_router(audit.router, **_router_kwargs)
 app.include_router(assets.router, **_router_kwargs)
 app.include_router(chat.router, **_router_kwargs)
+app.include_router(classifications.router, **_router_kwargs)
 app.include_router(corrections.router, **_router_kwargs)
 app.include_router(evidence.router, **_router_kwargs)
 app.include_router(journal.router, **_router_kwargs)

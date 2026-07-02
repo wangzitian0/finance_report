@@ -1377,6 +1377,24 @@
         "title": "AuthResponse",
         "type": "object"
       },
+      "BackfillClassificationsResponse": {
+        "properties": {
+          "candidates": {
+            "title": "Candidates",
+            "type": "integer"
+          },
+          "classified": {
+            "title": "Classified",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "classified",
+          "candidates"
+        ],
+        "title": "BackfillClassificationsResponse",
+        "type": "object"
+      },
       "BalanceSheetResponse": {
         "description": "Balance sheet response schema.",
         "properties": {
@@ -1453,6 +1471,16 @@
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Net Worth Adjustment Gain Loss",
             "type": "string"
+          },
+          "opening_balance_warnings": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Opening Balance Warnings",
+            "type": "array"
           },
           "total_assets": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -1823,7 +1851,7 @@
         "type": "object"
       },
       "BaseCurrencyUpdate": {
-        "description": "Request body to set the effective base reporting currency.\n\nThe code is validated against ISO 4217 via ``src.money.Currency`` so an\ninvalid code is rejected at the request boundary (HTTP 422) and never\npersisted; the stored value is the normalized (upper-cased) code.",
+        "description": "Request body to set the effective base reporting currency.\n\nThe code is validated against ISO 4217 via ``src.audit.money.Currency`` so an\ninvalid code is rejected at the request boundary (HTTP 422) and never\npersisted; the stored value is the normalized (upper-cased) code.",
         "properties": {
           "base_currency": {
             "title": "Base Currency",
@@ -2071,6 +2099,18 @@
       "BrokerageImportResponse": {
         "description": "Response for brokerage position import.",
         "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
           "broker": {
             "title": "Broker",
             "type": "string"
@@ -3817,6 +3857,19 @@
             "title": "Quantity",
             "type": "string"
           },
+          "reporting_cost_basis": {
+            "description": "Explicit reporting cost-basis alias of `cost_basis`.",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$",
+            "readOnly": true,
+            "title": "Reporting Cost Basis",
+            "type": "string"
+          },
+          "reporting_currency": {
+            "description": "Explicit reporting-currency alias of `currency` (identical across endpoints).",
+            "readOnly": true,
+            "title": "Reporting Currency",
+            "type": "string"
+          },
           "sector": {
             "anyOf": [
               {
@@ -3861,7 +3914,9 @@
           "native_cost_basis",
           "native_currency",
           "acquisition_date",
-          "status"
+          "status",
+          "reporting_currency",
+          "reporting_cost_basis"
         ],
         "title": "HoldingResponse",
         "type": "object"
@@ -5303,6 +5358,19 @@
             "title": "Id",
             "type": "string"
           },
+          "native_cost_basis": {
+            "description": "Explicit native cost-basis alias of `cost_basis`.",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$",
+            "readOnly": true,
+            "title": "Native Cost Basis",
+            "type": "string"
+          },
+          "native_currency": {
+            "description": "Explicit native-currency alias of `currency` (identical across endpoints).",
+            "readOnly": true,
+            "title": "Native Currency",
+            "type": "string"
+          },
           "position_metadata": {
             "anyOf": [
               {
@@ -5370,7 +5438,9 @@
           "status",
           "currency",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "native_currency",
+          "native_cost_basis"
         ],
         "title": "ManagedPositionResponse",
         "type": "object"
@@ -5958,6 +6028,18 @@
             "title": "As Of Date",
             "type": "string"
           },
+          "confidence_tier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Aggregate confidence tier; LOW when an opening balance is missing.",
+            "title": "Confidence Tier"
+          },
           "currency": {
             "description": "Report presentation currency.",
             "maxLength": 3,
@@ -5975,6 +6057,17 @@
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Net Worth",
             "type": "string"
+          },
+          "opening_balance_warnings": {
+            "description": "Non-empty when activity exists without a recorded opening balance.",
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Opening Balance Warnings",
+            "type": "array"
           },
           "rows": {
             "description": "Signed allocation rows that sum to net worth.",
@@ -7673,11 +7766,12 @@
         "type": "object"
       },
       "ProtocolFamily": {
-        "description": "Axis 1 — the wire protocol a provider speaks.\n\nConcrete vendors map onto exactly one family; e.g. Z.AI/GLM and DeepSeek are\n``OPENAI_COMPATIBLE`` (custom ``api_base``), Claude is ``ANTHROPIC_COMPATIBLE``.",
+        "description": "Axis 1 — the wire protocol a provider speaks.\n\nConcrete vendors map onto exactly one family; e.g. Z.AI/GLM and DeepSeek are\n``OPENAI_COMPATIBLE`` (custom ``api_base``), Claude is ``ANTHROPIC_COMPATIBLE``,\nand Google Gemini (AI Studio / Vertex) is ``GOOGLE_GEMINI`` — its native API\naccepts a whole PDF as one ``file`` part (no per-page image rendering) and has\na high output ceiling, which is why it is the provider of choice for extracting\nlarge or scanned statements.",
         "enum": [
           "openai-compatible",
           "anthropic-compatible",
-          "openrouter-compatible"
+          "openrouter-compatible",
+          "google-gemini"
         ],
         "title": "ProtocolFamily",
         "type": "string"
@@ -13979,6 +14073,103 @@
         "summary": "Suggestions",
         "tags": [
           "chat"
+        ]
+      }
+    },
+    "/classifications/backfill": {
+      "post": {
+        "description": "Classify the caller's not-yet-classified transactions (idempotent).",
+        "operationId": "backfill_transaction_classifications_classifications_backfill_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackfillClassificationsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Backfill Transaction Classifications",
+        "tags": [
+          "classifications"
         ]
       }
     },
@@ -23428,7 +23619,7 @@
     },
     "/review/transactions/{transaction_id}/currency": {
       "post": {
-        "description": "Reviewer specifies the currency for a ``currency_unresolved`` transaction (AC12.40.3).\n\nValidates the chosen code as ISO-4217 (``src.money.Currency``), clears the\nunresolved flag, and records the resolution audit (who/when). Only after this\ncan the transaction be promoted to a journal entry (AC12.40.4).",
+        "description": "Reviewer specifies the currency for a ``currency_unresolved`` transaction (AC12.40.3).\n\nValidates the chosen code as ISO-4217 (``src.audit.money.Currency``), clears the\nunresolved flag, and records the resolution audit (who/when). Only after this\ncan the transaction be promoted to a journal entry (AC12.40.4).",
         "operationId": "resolve_transaction_currency_endpoint_review_transactions__transaction_id__currency_post",
         "parameters": [
           {
