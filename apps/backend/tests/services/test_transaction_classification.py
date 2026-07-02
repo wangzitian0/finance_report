@@ -465,27 +465,54 @@ def test_AC18_17_1_no_classify_writer_is_defined_but_uninvoked():
     recur silently. This is the lock that caught backfill_classifications."""
     # Entry seams must be invoked from production code OUTSIDE the module; the
     # core pass (classify_transactions) must be invoked by those live seams.
+    # Alias-aware (CR #1572): a seam imported as `... import X as Y` counts via Y,
+    # and attribute calls count only through an import of THIS module — unrelated
+    # same-named attributes elsewhere do not satisfy the gate.
+    seam_module = "src.services.transaction_classification"
     entry_seams = ("classify_by_effective_policy", "backfill_classifications")
 
-    def call_names(tree: ast.AST) -> set[str]:
-        names = set()
+    def seam_calls(tree: ast.AST) -> set[str]:
+        alias_to_seam: dict[str, str] = {}
+        module_aliases: set[str] = set()
         for node in ast.walk(tree):
-            if isinstance(node, ast.Call):
-                fn = node.func
-                name = fn.id if isinstance(fn, ast.Name) else (fn.attr if isinstance(fn, ast.Attribute) else None)
-                if name:
-                    names.add(name)
-        return names
+            if isinstance(node, ast.ImportFrom) and node.module == seam_module:
+                for alias in node.names:
+                    if alias.name in entry_seams:
+                        alias_to_seam[alias.asname or alias.name] = alias.name
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name == seam_module:
+                        module_aliases.add((alias.asname or alias.name).split(".")[0])
+        called: set[str] = set()
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            fn = node.func
+            if isinstance(fn, ast.Name) and fn.id in alias_to_seam:
+                called.add(alias_to_seam[fn.id])
+            elif (
+                isinstance(fn, ast.Attribute)
+                and fn.attr in entry_seams
+                and isinstance(fn.value, ast.Name)
+                and fn.value.id in module_aliases
+            ):
+                called.add(fn.attr)
+        return called
 
     external_calls: set[str] = set()
     for path in Path("src").rglob("*.py"):
         if path == MODULE_PATH:
             continue
-        external_calls |= call_names(ast.parse(path.read_text(encoding="utf-8")))
+        external_calls |= seam_calls(ast.parse(path.read_text(encoding="utf-8")))
     orphaned = [w for w in entry_seams if w not in external_calls]
     assert not orphaned, f"classify entry seam(s) defined but never invoked in production: {orphaned}"
 
-    module_calls = call_names(ast.parse(MODULE_PATH.read_text(encoding="utf-8")))
+    module_src = MODULE_PATH.read_text(encoding="utf-8")
+    module_calls = {
+        node.func.id
+        for node in ast.walk(ast.parse(module_src))
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
     assert "classify_transactions" in module_calls, "the core pass is not wired to any live entry seam"
 
 

@@ -519,10 +519,13 @@ async def backfill_classifications(db: AsyncSession, user_id: UUID) -> dict:
     """One-time (#1545) backfill: classify a user's not-yet-classified transactions
     under each transaction's OWN effective policy (``policy_for(txn_date)``).
 
-    Idempotent and append-only by construction: only transactions with no
-    classification row at all are candidates, so a re-run is a no-op — existing
-    rows are never rewritten. This is a temporary migration aid, not a permanent
-    adapter; #1546 removes it once the backfill has run.
+    Append-only and duplicate-free by construction: transactions that already
+    carry a classification row are never candidates again, so a re-run cannot
+    rewrite or duplicate anything. Transactions still in the tail (low-confidence,
+    no-proposal, off-catalog) get NO row and therefore ARE re-attempted on the
+    next run — deliberately: the tail may resolve under a better model or a new
+    policy version (the edit-tags → re-extract direction). Entry point: the
+    /classifications/backfill router (#1546).
     """
     if not await _classification_enabled(db, user_id):
         return {"classified": 0, "candidates": 0}
