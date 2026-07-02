@@ -138,11 +138,15 @@ E2E_ROWS: tuple[E2ERow, ...] = (
     E2ERow(
         "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py",
         needs=(),
-        audited=True,
+        audited=False,
         reason=(
-            "#1547: CSV-kind upload only — no AI/OCR provider call, no market-data, "
-            "no Vault-only secret; uses the same authenticated_page_unique fixture "
-            "as the core journeys."
+            "#1547 candidate: CSV-kind upload only — no AI/OCR provider call, no "
+            "market-data, no Vault-only secret. First in-runner attempt (PR #1562) "
+            "failed live: POST /api/statements/upload returned a structured backend "
+            "404 in the ephemeral stack while the same flow passes on staging — the "
+            "in-runner proxy/route mismatch must be diagnosed before pre-merge "
+            "admission. The matrix now makes that iteration a per-PR 15-minute "
+            "loop instead of a staging deploy cycle."
         ),
     ),
     E2ERow(

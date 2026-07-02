@@ -80,11 +80,16 @@ def test_AC8_22_3_preview_selection_is_audited_and_dependency_free() -> None:
     selection = matrix.pr_preview_e2e_selection()
     selected_files = {node.split("::", 1)[0] for node in selection}
 
-    # #1547's ask: the non-LLM vision hard gate runs pre-merge by rule.
-    assert "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py" in selected_files
     # The original in-runner set is preserved.
     assert "tests/e2e/test_core_journeys.py" in selected_files
     assert "tests/e2e/test_e2e_flows.py::test_full_navigation" in selection
+    # #1547's candidate (the non-LLM vision hard gate) stays out until its
+    # in-runner 404 (observed live on PR #1562) is diagnosed — admission is a
+    # row flip once the audit evidence is green, not a workflow edit.
+    vision = "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py"
+    vision_row = next(row for row in matrix.E2E_ROWS if row.file == vision)
+    assert not vision_row.audited and "#1562" in vision_row.reason
+    assert vision not in selected_files
 
     for node in selection:
         file = ROOT / node.split("::", 1)[0]
