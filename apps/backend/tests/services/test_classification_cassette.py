@@ -67,15 +67,23 @@ async def test_record_or_replay_real_provider():
             assert 0 <= p.confidence <= 100
 
 
-def _find_classify_cassette() -> dict | None:
-    for path in CASSETTE_DIR.glob("*.json"):
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        if _PROMPT_MARKER in json.dumps(data.get("request", {})):
-            return data
-    return None
+# The cassette FILENAME is the request fingerprint (hash over role + messages +
+# decode params), so pinning it pins the exact deterministic inputs above. A
+# re-record with changed inputs writes a NEW file — update this constant then.
+_CASSETTE_FINGERPRINT = "985c01908f41ad079e84c49c2b9865d214080309dfe983695720d0a9787716b3"
+
+
+def _load_pinned_cassette() -> dict | None:
+    path = CASSETTE_DIR / f"{_CASSETTE_FINGERPRINT}.json"
+    if not path.is_file():
+        return None
+    data = json.loads(path.read_text(encoding="utf-8"))
+    request = json.dumps(data.get("request", {}))
+    # belt: the pinned file really is THIS prompt over THESE fixed inputs
+    assert _PROMPT_MARKER in request
+    for desc, _ in _FIXED_TXNS:
+        assert desc in request, f"pinned cassette does not contain fixed input {desc!r}"
+    return data
 
 
 def test_frozen_real_response_parses_in_plain_ci():
@@ -83,7 +91,7 @@ def test_frozen_real_response_parses_in_plain_ci():
     parse path in a normal CI shard (no cassette mode, zero network) — the exact
     gate the staging fenced-JSON failure needed. If the cassette is ever
     re-recorded into a shape the parser can't handle, this fails in CI."""
-    cassette = _find_classify_cassette()
+    cassette = _load_pinned_cassette()
     assert cassette is not None, (
         "classify cassette missing — record it: AI_PROVIDER=zai "
         "AI_BASE_URL=https://api.z.ai/api/coding/paas/v4 AI_API_KEY=$GLM_CODING_TOKEN "
