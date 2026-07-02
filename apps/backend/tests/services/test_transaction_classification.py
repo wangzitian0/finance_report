@@ -429,8 +429,25 @@ async def test_AC18_15_3_proposer_recovers_fenced_or_prose_wrapped_arrays(monkey
     assert await tc.propose_categories(txns, policy) == [None]
 
 
-def test_AC18_15_3_prompt_forbids_markdown_fences():
-    """AC18.15.3: the prompt carries the same no-fence instruction the statement
-    prompts use, so recovery is the fallback, not the norm."""
-    src = MODULE_PATH.read_text(encoding="utf-8")
-    assert "Do NOT wrap" in src and "fence" in src
+@pytest.mark.asyncio
+async def test_AC18_15_3_prompt_forbids_markdown_fences(monkeypatch):
+    """AC18.15.3: the ACTUAL prompt sent to the model carries the no-fence
+    instruction the statement prompts use, so recovery is the fallback, not the
+    norm. Asserted on the captured request, not on module source (CR #1560)."""
+    from src.config import settings
+    from src.services import transaction_classification as tc
+
+    monkeypatch.setattr(settings, "ai_api_key", "test-key")
+    captured: dict = {}
+
+    def capture_stream(**kwargs):
+        captured["messages"] = kwargs["messages"]
+        return _fake_stream("[]")
+
+    monkeypatch.setattr("src.services.ai_streaming.stream_ai_json", capture_stream)
+    txns = [AtomicTransactionFactory.build(user_id=None, description="ACME PAYROLL")]
+    await tc.propose_categories(txns, policy_for(date.today()))
+
+    prompt = captured["messages"][0]["content"]
+    assert "Do NOT wrap it in markdown or code fences" in prompt
+    assert "ONLY the raw JSON array" in prompt
