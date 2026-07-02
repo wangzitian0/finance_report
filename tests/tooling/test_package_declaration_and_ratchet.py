@@ -32,7 +32,12 @@ def test_AC8_24_1_seed_packages_declare_owned_test_roots() -> None:
 
 def test_AC8_24_1_duplicate_declaration_is_rejected(monkeypatch) -> None:
     """AC8.24.1: two packages declaring the same root is an aggregation error."""
-    import common.ledger.contract as ledger_contract
+    # importlib, not a bound `import a.b.c as x`: the latter needs the parent
+    # package attribute set at bind time, which fails under the tooling job's
+    # minimal env import ordering (matrix aggregation itself uses importlib).
+    import importlib
+
+    ledger_contract = importlib.import_module("common.ledger.contract")
 
     monkeypatch.setattr(
         ledger_contract, "TEST_ROOTS", ("apps/backend/tests/infra/test_main.py",)
