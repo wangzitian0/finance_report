@@ -154,6 +154,24 @@ CONTRACT = PackageContract(
             ),
             test="tests/tooling/test_meta_layering.py::test_meta_base_is_pure",
         ),
+        Invariant(
+            id="every-common-directory-is-governed-or-excepted",
+            statement=(
+                "check_package_contract discovers packages additively (globs "
+                "common/*/contract.py), so a directory with no contract.py is "
+                "invisible to it -- how common/ci, common/shell, and common/ssot "
+                "accumulated as undeclared junk drawers (#1564-#1568). "
+                "check_package_directory_coverage closes that gap from the other "
+                "direction: every directory directly under common/ must ship a "
+                "contract.py or be a documented, reasoned entry in "
+                "UNGOVERNED_EXCEPTIONS, so a new junk drawer cannot silently "
+                "recur."
+            ),
+            test=(
+                "tests/tooling/test_check_package_directory_coverage.py"
+                "::test_bare_directory_with_no_exception_is_rejected"
+            ),
+        ),
     ],
     roadmap=[
         # The governance gate's building-block behavior — meta's domain. Each AC
