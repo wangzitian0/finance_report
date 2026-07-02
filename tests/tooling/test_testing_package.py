@@ -2,7 +2,8 @@
 
 Mirrors ``test_counter_package.py``: proves the published language equals
 ``__all__`` and that ``check_package_contract`` discovers and validates the
-package (AC-testing.1.1). ``testing`` has no ``apps/backend/src`` counterpart
+package (the ``passes-own-governance-gate`` invariant — not a roadmap AC;
+see ``common/testing/contract.py``). ``testing`` has no ``apps/backend/src`` counterpart
 (``implementations["be"] = "common/testing"``, self-hosted like
 ``common/meta``/``common/runtime``), so there is no layering or ORM-boundary
 check here yet — those apply once the package adopts a ``base/extension``

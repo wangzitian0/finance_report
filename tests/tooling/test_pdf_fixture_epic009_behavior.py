@@ -1,4 +1,12 @@
-"""Behavior-backed EPIC-009 PDF fixture generation coverage."""
+"""Behavior-backed PDF fixture generation coverage (migrated from EPIC-009 to
+the `testing` package; see common/testing/contract.py roadmap).
+
+AC-testing.1.2 AC-testing.1.4 AC-testing.1.5 AC-testing.1.6 AC-testing.2.1
+AC-testing.2.2 AC-testing.2.3 AC-testing.2.4 AC-testing.2.7 AC-testing.4.1
+AC-testing.4.2 AC-testing.4.3 AC-testing.4.4 AC-testing.5.1 AC-testing.5.2
+AC-testing.5.3 AC-testing.5.4 AC-testing.5.5 AC-testing.6.1 AC-testing.6.2
+AC-testing.6.3 AC-testing.6.4 AC-testing.6.5
+"""
 
 from __future__ import annotations
 

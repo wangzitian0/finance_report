@@ -24,87 +24,32 @@ tests. Fixtures use fictional data; real PDFs stay local and gitignored.
 
 ## Acceptance Criteria
 
-> Keep this section as AC definitions only. Proof mappings are owned by tests
-> and generated traceability reports.
-
-### AC9.1: PDF Format Analysis
-
-| ID | Requirement |
-|---|---|
-| AC9.1.1 | PDF analyzer exists |
-| AC9.1.2 | Template extractor exists |
-| AC9.1.3 | CLI tool exists |
-| AC9.1.4 | DBS template exists |
-| AC9.1.5 | CMB template exists |
-| AC9.1.6 | Mari Bank template exists |
-
-### AC9.2: PDF Generators
-
-| ID | Requirement |
-|---|---|
-| AC9.2.1 | Base generator class exists |
-| AC9.2.2 | DBS generator exists |
-| AC9.2.3 | CMB generator exists |
-| AC9.2.4 | Mari Bank generator exists |
-| AC9.2.5 | Font utilities exist |
-| AC9.2.6 | Fake data generator exists |
-| AC9.2.7 | Main script exists |
-
-### AC9.3: PDF Validation
-
-| ID | Requirement |
-|---|---|
-| AC9.3.1 | Format validator exists |
-| AC9.3.2 | Generated DBS PDF parseable |
-| AC9.3.3 | Generated CMB PDF parseable |
-| AC9.3.4 | Generated Mari PDF parseable |
-| AC9.3.5 | Balance calculations correct |
-| AC9.3.6 | Date formats correct |
-
-### AC9.4: Documentation And Integration
-
-| ID | Requirement |
-|---|---|
-| AC9.4.1 | Format analysis README |
-| AC9.4.2 | Generation README |
-| AC9.4.3 | Template format specification |
-| AC9.4.4 | Usage examples |
-
-### AC9.5: Git Configuration
-
-| ID | Requirement |
-|---|---|
-| AC9.5.1 | .gitignore excludes real PDFs |
-| AC9.5.2 | Format templates committed |
-| AC9.5.3 | Generators committed |
-| AC9.5.4 | Analyzers committed |
-| AC9.5.5 | Validators committed |
-
-### AC9.6: Generator Implementation Quality
-
-| ID | Requirement |
-|---|---|
-| AC9.6.1 | DBS generator loads template |
-| AC9.6.2 | CMB generator loads template |
-| AC9.6.3 | CMB generator supports Chinese fonts |
-| AC9.6.4 | Mari generator generates interest section |
-| AC9.6.5 | Generators use fictional data |
-
-### AC9.7: CLI And Script Functionality
-
-| ID | Requirement |
-|---|---|
-| AC9.7.1 | Main script supports --source parameter |
-| AC9.7.2 | Main script supports --output parameter |
-| AC9.7.3 | Analyzer CLI supports input/output |
-
-### AC9.8: Real-Format Parity Contracts
-
-| ID | Requirement |
-|---|---|
-| AC9.8.1 | Committed templates define sanitized real-format contracts for page, table, date, currency, and key text metadata |
-| AC9.8.2 | Validator rejects missing or drifting real-format contracts |
-| AC9.8.3 | Generated PDFs satisfy the real-format contract for parser-visible page, table, date, currency, and key-text structure |
+> **This EPIC's AC9.1–AC9.8 groups are NO LONGER defined here.** They migrated
+> into the `testing` package and are owned by, and sourced directly from,
+> [`common/testing/contract.py`](../../common/testing/contract.py)'s
+> `roadmap` under the package-scoped `AC-testing.<group>.<seq>` id scheme (the
+> leading "9" is dropped and the group/seq preserved, so `AC9.<g>.<s>` becomes
+> `AC-testing.<g>.<s>`). `common/ssot/generate_ac_registry.py` reads
+> package-contract roadmaps additively, so the AC index counts them without an
+> EPIC-table mirror. This note references the new ids (keeping the
+> registry↔EPIC link intact) but defines none of them — the contract is the
+> single definition source, per the `counter`/`audit` precedent
+> ([EPIC-025](./EPIC-025.dry-ssot-simplification.md)).
+>
+> Migrated ids (each was the same-suffix `AC9.<g>.<s>`, "9" dropped):
+> PDF format analysis — `AC-testing.1.1`, `AC-testing.1.2`, `AC-testing.1.3`,
+> `AC-testing.1.4`, `AC-testing.1.5`, `AC-testing.1.6`; PDF generators —
+> `AC-testing.2.1`, `AC-testing.2.2`, `AC-testing.2.3`, `AC-testing.2.4`,
+> `AC-testing.2.5`, `AC-testing.2.6`, `AC-testing.2.7`; PDF validation —
+> `AC-testing.3.1`, `AC-testing.3.2`, `AC-testing.3.3`, `AC-testing.3.4`,
+> `AC-testing.3.5`, `AC-testing.3.6`; documentation — `AC-testing.4.1`,
+> `AC-testing.4.2`, `AC-testing.4.3`, `AC-testing.4.4`; git configuration —
+> `AC-testing.5.1`, `AC-testing.5.2`, `AC-testing.5.3`, `AC-testing.5.4`,
+> `AC-testing.5.5`; generator implementation quality — `AC-testing.6.1`,
+> `AC-testing.6.2`, `AC-testing.6.3`, `AC-testing.6.4`, `AC-testing.6.5`; CLI
+> and script functionality — `AC-testing.7.1`, `AC-testing.7.2`,
+> `AC-testing.7.3`; real-format parity contracts — `AC-testing.8.1`,
+> `AC-testing.8.2`, `AC-testing.8.3`.
 
 ## Related
 
