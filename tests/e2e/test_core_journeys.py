@@ -72,7 +72,7 @@ async def test_api_health_check(app_url):
 
 @pytest.mark.smoke
 async def test_homepage_loads(app_url):
-    """AC-runtime.1.3: Verify the homepage is accessible (frontend reachability)."""
+    """EPIC-007 / AC-runtime.1.3: Verify the homepage is accessible (frontend reachability)."""
     async with httpx.AsyncClient(verify=False, timeout=API_TIMEOUT) as client:
         response = await client.get(f"{app_url}/")
         assert response.status_code < 400, f"Homepage returned {response.status_code}"
