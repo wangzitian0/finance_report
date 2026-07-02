@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from common.ci.release_coordinate import resolve_infra2_release_tag
+from common.runtime.release_coordinate import resolve_infra2_release_tag
 
 ROOT = Path(__file__).resolve().parents[2]
 REPO = ROOT / "repo"

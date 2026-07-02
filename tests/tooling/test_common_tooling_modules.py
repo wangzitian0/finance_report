@@ -200,16 +200,16 @@ def test_AC8_13_58_ci_tools_delegate_to_common_implementations():
     """AC8.13.58: CI commands keep common contracts separate from tool reports."""
     command_modules = {
         "tools.check_migration_risk": "common.ci.migration_risk",
-        "tools.check_toolchain_contract": "common.ci.check_toolchain_contract",
-        "tools.ci_change_classifier": "common.ci.change_classifier",
+        "tools.check_toolchain_contract": "common.runtime.check_toolchain_contract",
+        "tools.ci_change_classifier": "common.testing.change_classifier",
         "tools.github_workflow_timing_summary": (
-            "common.ci.github_workflow_timing_summary"
+            "common.testing.github_workflow_timing_summary"
         ),
-        "tools.production_infra_smoke": "common.ci.production_infra_smoke",
-        "tools.resolve_release_coordinate": "common.ci.release_coordinate",
-        "tools.verify_release_evidence": "common.ci.release_evidence",
-        "tools.verify_release_images": "common.ci.release_images",
-        "tools.wait_post_merge_train_turn": ("common.ci.wait_post_merge_train_turn"),
+        "tools.production_infra_smoke": "common.runtime.production_infra_smoke",
+        "tools.resolve_release_coordinate": "common.runtime.release_coordinate",
+        "tools.verify_release_evidence": "common.runtime.release_evidence",
+        "tools.verify_release_images": "common.runtime.release_images",
+        "tools.wait_post_merge_train_turn": ("common.runtime.wait_post_merge_train_turn"),
     }
 
     for tool_module, common_module in command_modules.items():

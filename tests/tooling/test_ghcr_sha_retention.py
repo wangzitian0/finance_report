@@ -9,7 +9,7 @@ from typing import Sequence
 
 import yaml
 
-from common.ci.ghcr_retention import (
+from common.runtime.ghcr_retention import (
     load_versions,
     prune_ghcr_sha_images,
     select_retention_decisions,
@@ -114,7 +114,7 @@ def test_AC7_19_1_pruner_deletes_selected_versions_only() -> None:
 
     # Keep this test focused on the delete contract; the JSON shape is covered by
     # load_versions and the workflow contract covers the GHCR list endpoint.
-    import common.ci.ghcr_retention as retention
+    import common.runtime.ghcr_retention as retention
 
     original_list = retention._list_versions
     try:

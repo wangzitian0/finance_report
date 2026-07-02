@@ -6,8 +6,8 @@ from urllib.error import HTTPError, URLError
 
 import pytest
 
-import common.ci.production_infra_smoke as production_infra_smoke
-from common.ci.production_infra_smoke import (
+import common.runtime.production_infra_smoke as production_infra_smoke
+from common.runtime.production_infra_smoke import (
     HttpResponse,
     SmokeFailure,
     fetch_url,
