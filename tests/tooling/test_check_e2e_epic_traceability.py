@@ -6,7 +6,7 @@ import ast
 import sys
 from pathlib import Path
 
-from common.ssot import check_e2e_epic_traceability as checker
+from common.testing import check_e2e_epic_traceability as checker
 
 
 def _write_readme_epic_map(repo_root: Path, epic_ids: list[str]) -> None:

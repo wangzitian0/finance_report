@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from common.authority import check_ac_tier_baseline as tier_gate
-from common.ssot import generate_ac_registry as gar
+from common.testing import generate_ac_registry as gar
 
 ROOT = Path(__file__).resolve().parents[2]
 

@@ -104,7 +104,7 @@ Enable production-grade log observability via OpenTelemetry/OTLP, while keeping 
 > `roadmap` under the package-scoped numeric `AC-observability.<group>.<seq>` id
 > scheme (the leading "10" is dropped and the sequence preserved, so
 > `AC10.<g>.<s>` becomes `AC-observability.<g>.<s>`).
-> `common/ssot/generate_ac_registry.py` reads package-contract roadmaps
+> `common/testing/generate_ac_registry.py` reads package-contract roadmaps
 > additively, so the AC index counts them without an EPIC-table mirror. This note
 > references the new ids (keeping the registry↔EPIC link intact) but defines none
 > of them — the contract is the single definition source. The **non-runtime**

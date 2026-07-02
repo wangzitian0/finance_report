@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from common.coverage import policy as coverage_policy  # noqa: E402
-from common.ssot import ac_registry_format, ac_traceability_refs  # noqa: E402
+from common.testing import ac_registry_format, ac_traceability_refs  # noqa: E402
 from common import test_isolation  # noqa: E402
 
 
@@ -78,7 +78,7 @@ def test_AC8_13_53_common_coverage_component_is_a_governed_source_root():
     assert component.source_subdir == "common"
     assert component.ci_lcov_path == "coverage/common.lcov"
     assert "common/test_isolation.py" in component.expected_sources(ROOT)
-    assert "common/ssot/check_ac_traceability.py" in component.expected_sources(ROOT)
+    assert "common/testing/check_ac_traceability.py" in component.expected_sources(ROOT)
     assert "tools/_lib/dev/test_lifecycle.py" not in component.expected_sources(ROOT)
     assert not (ROOT / "common" / "dev").exists()
     assert not (ROOT / "common" / "fixtures").exists()
@@ -171,22 +171,22 @@ def test_AC8_13_53_tool_owned_commands_delegate_to_tools_lib(
 def test_AC8_13_57_ssot_tools_delegate_to_common_implementations():
     """AC8.13.57: SSOT commands live under tools and delegate to common."""
     command_modules = {
-        "tools.analyze_test_ac_coverage": "common.ssot.analyze_test_ac_coverage",
-        "tools.audit_ac_epic_mismatches": "common.ssot.audit_ac_epic_mismatches",
-        "tools.build_ac_traceability": "common.ssot.build_ac_traceability",
+        "tools.analyze_test_ac_coverage": "common.testing.analyze_test_ac_coverage",
+        "tools.audit_ac_epic_mismatches": "common.testing.audit_ac_epic_mismatches",
+        "tools.build_ac_traceability": "common.testing.build_ac_traceability",
         # check_ac_traceability / check_critical_proof_matrix are no longer
         # standalone tool commands: their validators are folded into the single
         # check_ac_index gate (they remain pure common-only libraries).
         "tools.check_e2e_epic_traceability": (
-            "common.ssot.check_e2e_epic_traceability"
+            "common.testing.check_e2e_epic_traceability"
         ),
         "tools.check_manifest": "common.ssot.check_manifest",
         "tools.check_ssot_ownership": "common.ssot.check_ssot_ownership",
-        "tools.generate_ac_registry": "common.ssot.generate_ac_registry",
+        "tools.generate_ac_registry": "common.testing.generate_ac_registry",
         "tools.generate_db_schema_reference": (
             "common.ssot.generate_db_schema_reference"
         ),
-        "tools.lint_doc_consistency": "common.ssot.lint_doc_consistency",
+        "tools.lint_doc_consistency": "common.testing.lint_doc_consistency",
     }
 
     for tool_module, common_module in command_modules.items():

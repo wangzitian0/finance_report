@@ -12,8 +12,8 @@ from pathlib import Path
 
 import pytest
 
-from common.ssot import generate_epic_status as ges
-from common.ssot.analyze_test_ac_coverage import ACRecord, AnalysisResult
+from common.testing import generate_epic_status as ges
+from common.testing.analyze_test_ac_coverage import ACRecord, AnalysisResult
 
 
 def _result_with(registry: dict[str, ACRecord], **buckets: set[str]) -> AnalysisResult:

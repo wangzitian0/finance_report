@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from common.ssot.generate_ac_registry import materialized_entries
+from common.testing.generate_ac_registry import materialized_entries
 
 ROOT = Path(__file__).resolve().parents[2]
 

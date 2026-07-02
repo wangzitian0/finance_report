@@ -7,7 +7,7 @@ writes it into a clearly delimited generated block in the README, or (with
 
 Sources (read-if-present; tolerate absence gracefully):
 - ``docs/ac_registry.yaml`` / ``docs/infra_registry.yaml`` — the AC registries,
-  consumed through :func:`common.ssot.analyze_test_ac_coverage.analyze_repo` so
+  consumed through :func:`common.testing.analyze_test_ac_coverage.analyze_repo` so
   the coverage accounting matches the AC coverage report exactly.
 - ``tmp/test-ac-coverage-report.md`` — the generated AC coverage
   snapshot (referenced for provenance; counts are recomputed live, not parsed).
@@ -43,8 +43,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from common.ssot.ac_registry_format import load_registry_entries
-from common.ssot.analyze_test_ac_coverage import (
+from common.testing.ac_registry_format import load_registry_entries
+from common.testing.analyze_test_ac_coverage import (
     AnalysisResult,
     _is_deprecated_description,
     analyze_repo,

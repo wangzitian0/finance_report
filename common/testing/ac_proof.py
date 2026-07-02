@@ -28,7 +28,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TypeVar
 
-from common.ssot.ac_proof_execution import normalize_proof_execution
+from common.testing.ac_proof_execution import normalize_proof_execution
 
 F = TypeVar("F", bound=Callable[..., object])
 

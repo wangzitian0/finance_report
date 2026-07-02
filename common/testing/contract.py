@@ -19,7 +19,7 @@ PDF fixture generator + committed synthetic PDFs (``fixtures/pdf/``,
 ``docs/ssot/pdf-fixtures.md`` (see ``README.md#pdf-fixtures``).
 
 The package's ACs live here in ``roadmap`` (the package-model AC registry);
-``common/ssot/generate_ac_registry.py`` sources them directly from this
+``common/testing/generate_ac_registry.py`` sources them directly from this
 contract, same as ``counter``. ``roadmap`` groups 1-8 migrated from EPIC-009
 (PDF fixture generation, the leading "9" dropped, group/seq preserved:
 ``AC9.<g>.<s>`` -> ``AC-testing.<g>.<s>``).

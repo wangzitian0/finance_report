@@ -29,7 +29,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from common.ssot import (
+from common.testing import (
     check_ac_index as gate,
     check_ac_traceability as traceability,
     check_critical_proof_matrix as cpm,

@@ -152,7 +152,7 @@ diverging across the codebase and across ends.
 > [`common/audit/contract.py`](../../common/audit/contract.py)'s `roadmap`
 > under the package-scoped numeric `AC-audit.<group>.<seq>` id scheme (the
 > leading "12" is dropped and the group/seq preserved, so `AC12.9.<s>` becomes
-> `AC-audit.9.<s>`). `common/ssot/generate_ac_registry.py` reads
+> `AC-audit.9.<s>`). `common/testing/generate_ac_registry.py` reads
 > package-contract roadmaps additively, so the AC index counts them without an
 > EPIC-table mirror. This note references the new ids (keeping the
 > registry↔EPIC link intact) but defines none of them — the contract is the
@@ -213,7 +213,7 @@ diverging across the codebase and across ends.
 > [`common/config/contract.py`](../../common/config/contract.py)'s `roadmap`
 > under the package-scoped numeric `AC-config.<group>.<seq>` id scheme (the
 > leading "12" is dropped and the group/seq preserved, so `AC12.18.<s>` becomes
-> `AC-config.18.<s>`). `common/ssot/generate_ac_registry.py` reads package-contract
+> `AC-config.18.<s>`). `common/testing/generate_ac_registry.py` reads package-contract
 > roadmaps additively, so the AC index counts them without an EPIC-table mirror.
 > This note references the new ids (keeping the registry↔EPIC link intact) but
 > defines none of them — the contract is the single definition source.
@@ -539,7 +539,7 @@ the previous naked-`Decimal` rate boundary.
 > [`common/audit/contract.py`](../../common/audit/contract.py)'s `roadmap`
 > under the package-scoped numeric `AC-audit.<group>.<seq>` id scheme (the
 > leading "12" is dropped and the group/seq preserved, so `AC12.30.<s>` becomes
-> `AC-audit.30.<s>`). `common/ssot/generate_ac_registry.py` reads
+> `AC-audit.30.<s>`). `common/testing/generate_ac_registry.py` reads
 > package-contract roadmaps additively, so the AC index counts them without an
 > EPIC-table mirror. This note references the new ids (keeping the
 > registry↔EPIC link intact) but defines none of them — the contract is the
@@ -583,7 +583,7 @@ duplicated local `quantize` helper as raw `Decimal` glue.
 > [`common/audit/contract.py`](../../common/audit/contract.py)'s `roadmap`
 > under the package-scoped numeric `AC-audit.<group>.<seq>` id scheme (the
 > leading "12" is dropped and the group/seq preserved, so `AC12.32.<s>` becomes
-> `AC-audit.32.<s>`). `common/ssot/generate_ac_registry.py` reads
+> `AC-audit.32.<s>`). `common/testing/generate_ac_registry.py` reads
 > package-contract roadmaps additively, so the AC index counts them without an
 > EPIC-table mirror. This note references the new ids (keeping the
 > registry↔EPIC link intact) but defines none of them — the contract is the
@@ -609,7 +609,7 @@ vectors) but adopted on the backend first.
 > directly from, [`common/audit/contract.py`](../../common/audit/contract.py)'s
 > `roadmap` under the package-scoped numeric `AC-audit.<group>.<seq>` id scheme
 > (the leading "12" is dropped and the group/seq preserved, so `AC12.33.<s>`
-> becomes `AC-audit.33.<s>`). `common/ssot/generate_ac_registry.py` reads
+> becomes `AC-audit.33.<s>`). `common/testing/generate_ac_registry.py` reads
 > package-contract roadmaps additively, so the AC index counts them without an
 > EPIC-table mirror. This note references the new ids (keeping the
 > registry↔EPIC link intact) but defines none of them — the contract is the
@@ -669,7 +669,7 @@ imports no base package, so the family stays bounded — not a fifth base packag
 > directly from, [`common/audit/contract.py`](../../common/audit/contract.py)'s
 > `roadmap` under the package-scoped numeric `AC-audit.<group>.<seq>` id scheme
 > (the leading "12" is dropped and the group/seq preserved, so `AC12.36.<s>`
-> becomes `AC-audit.36.<s>`). `common/ssot/generate_ac_registry.py` reads
+> becomes `AC-audit.36.<s>`). `common/testing/generate_ac_registry.py` reads
 > package-contract roadmaps additively, so the AC index counts them without an
 > EPIC-table mirror. This note references the new ids (keeping the
 > registry↔EPIC link intact) but defines none of them — the contract is the

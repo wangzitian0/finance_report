@@ -13,7 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest import mock
 
-from common.ssot import lint_doc_consistency as ldc
+from common.testing import lint_doc_consistency as ldc
 
 
 def test_AC16_25_1_playwright_specs_are_traceability_test_roots() -> None:

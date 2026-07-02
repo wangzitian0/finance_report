@@ -16,7 +16,7 @@ import json
 from decimal import Decimal
 from pathlib import Path
 
-from common.ssot.cassette_graded_eval import (
+from common.testing.cassette_graded_eval import (
     GROUND_TRUTH_DIR,
     REQUIRED_EDGE_CONDITIONS,
     REQUIRED_MODALITIES,
@@ -29,7 +29,7 @@ from common.ssot.cassette_graded_eval import (
     normalize_description,
     ratcheted_baseline,
 )
-from common.ssot.cassette_eval_baseline import DEFAULT_BASELINE, load_jsonl
+from common.testing.cassette_eval_baseline import DEFAULT_BASELINE, load_jsonl
 
 
 # --------------------------------------------------------------------------- #
@@ -117,7 +117,7 @@ def test_AC23_8_3_committed_cassettes_meet_their_floors() -> None:
 def test_AC23_8_3_unbaselined_case_blocks_the_gate(tmp_path: Path) -> None:
     """AC23.8.3: an eval case with NO persisted floor blocks the gate (so a deleted
     floor or an unguarded new case cannot silently disable the ratchet)."""
-    from common.ssot.check_cassette_graded_eval import main as gate_main
+    from common.testing.check_cassette_graded_eval import main as gate_main
 
     empty_baseline = tmp_path / "empty.jsonl"
     empty_baseline.write_text("", encoding="utf-8")
@@ -157,7 +157,7 @@ def test_AC23_8_4_injected_regression_fails_the_gate(tmp_path: Path) -> None:
     # Build a baseline that records the case's CURRENT (correct) score as the floor.
     correct_score, _ = case_score(target.extracted, target.truth)
     baseline_file = tmp_path / "baseline.jsonl"
-    from common.ssot.cassette_eval_baseline import write_jsonl
+    from common.testing.cassette_eval_baseline import write_jsonl
 
     write_jsonl(
         baseline_file,
@@ -193,7 +193,7 @@ def test_AC23_8_4_injected_regression_fails_the_gate(tmp_path: Path) -> None:
 def test_AC23_8_5_balance_passes_but_field_accuracy_regresses(tmp_path: Path) -> None:
     """AC23.8.5: a cassette whose balance chain still reconciles but whose amount
     no longer matches ground truth is flagged by the graded gate (while AC23.7 stays green)."""
-    from common.ssot.check_llm_cassettes import balance_violation
+    from common.testing.check_llm_cassettes import balance_violation
 
     def _same_direction(a: dict, b: dict) -> bool:
         """True when two transactions move money the SAME way (so a compensating
@@ -241,7 +241,7 @@ def test_AC23_8_5_balance_passes_but_field_accuracy_regresses(tmp_path: Path) ->
     assert plausible_score < correct_score
 
     baseline_file = tmp_path / "baseline.jsonl"
-    from common.ssot.cassette_eval_baseline import write_jsonl
+    from common.testing.cassette_eval_baseline import write_jsonl
 
     write_jsonl(
         baseline_file,
@@ -293,7 +293,7 @@ def test_AC23_8_6_ground_truth_artifacts_are_synthetic() -> None:
     of provenance."""
     import re
 
-    from common.ssot.cassette_graded_eval import CASSETTE_DIR, _parse_extraction
+    from common.testing.cassette_graded_eval import CASSETTE_DIR, _parse_extraction
     from tools._lib.fixtures.extraction_pii_mask import _DESC_KEYS
 
     # A masked-description token: hash-derived hex + a star run + hex (no real text), or
@@ -362,7 +362,7 @@ def test_AC23_8_7_reliability_aggregates_over_n_samples() -> None:
     s_perfect, _ = case_score(perfect, truth)
     s_wrong, _ = case_score(wrong, truth)
 
-    from common.ssot.cassette_graded_eval import reliability_score
+    from common.testing.cassette_graded_eval import reliability_score
 
     mean = reliability_score([perfect, wrong], truth)
     assert mean == (s_perfect + s_wrong) / 2

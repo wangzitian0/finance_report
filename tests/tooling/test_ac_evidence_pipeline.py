@@ -4,8 +4,8 @@ Proves the whole chain hermetically (no DB, no app deps):
 
     test emits (code, score, metric, comment, provenance)
         -> junit-xml <property>
-        -> common.ssot.ac_evidence_aggregate  (reduce per AC)
-        -> common.ssot.check_ac_score_baseline (L2 + L3 ratchet gate)
+        -> common.testing.ac_evidence_aggregate  (reduce per AC)
+        -> common.testing.check_ac_score_baseline (L2 + L3 ratchet gate)
 
 Covers AC8.13.* hygiene siblings only indirectly; this file is the executable
 specification for the mechanism itself.
@@ -22,9 +22,9 @@ from xml.etree import ElementTree
 
 import pytest
 
-from common.ssot import ac_evidence_aggregate as agg
-from common.ssot import ac_score_baseline_format as baseline_format
-from common.ssot import check_ac_score_baseline as ratchet
+from common.testing import ac_evidence_aggregate as agg
+from common.testing import ac_score_baseline_format as baseline_format
+from common.testing import check_ac_score_baseline as ratchet
 from common.testing.ac_evidence import (
     PROPERTY_KEY,
     ACEvidence,

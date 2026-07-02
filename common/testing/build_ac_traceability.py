@@ -36,11 +36,11 @@ from datetime import date
 from pathlib import Path
 from typing import NamedTuple
 
-from common.ssot.ac_traceability_refs import AC_PATTERN, classify_reference_file
-from common.ssot.test_surface import DEFAULT_AC_TEST_DIRS, default_ac_test_dirs
+from common.testing.ac_traceability_refs import AC_PATTERN, classify_reference_file
+from common.testing.test_surface import DEFAULT_AC_TEST_DIRS, default_ac_test_dirs
 
 try:
-    from common.ssot.ac_registry_format import load_registry_entries
+    from common.testing.ac_registry_format import load_registry_entries
 except ImportError:  # pragma: no cover - import guard
     print("ERROR: PyYAML not installed. Run: pip install pyyaml", file=sys.stderr)
     sys.exit(1)
@@ -181,7 +181,7 @@ def collect_references(test_files: list[Path]) -> dict[str, ACReferenceStats]:
 
 def _ac_sort_key(ac_id: str) -> tuple:
     """Sort ACs over both id grammars (AC1.2.10 after AC1.2.9; package ids last)."""
-    from common.ssot.ac_registry_format import sort_key
+    from common.testing.ac_registry_format import sort_key
 
     return sort_key(ac_id)
 
@@ -492,7 +492,7 @@ def render_document(
         "Source registries: `docs/ac_registry.yaml`, "
         "`docs/infra_registry.yaml`. "
         "AC reference pattern: `ACx.y.z` (matched by "
-        "`common.ssot.ac_traceability_refs.AC_PATTERN`; gated by "
+        "`common.testing.ac_traceability_refs.AC_PATTERN`; gated by "
         "`tools/check_ac_index.py`)."
     )
     lines.append("")

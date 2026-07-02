@@ -27,8 +27,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-from common.ssot.ac_registry_format import load_registry_entries
-from common.ssot.ac_traceability_refs import AC_PATTERN, classify_reference_file
+from common.testing.ac_registry_format import load_registry_entries
+from common.testing.ac_traceability_refs import AC_PATTERN, classify_reference_file
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_REGISTRY_PATHS = (

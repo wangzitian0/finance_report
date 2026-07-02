@@ -12,7 +12,7 @@ auto-merge.
 
 The cross-cutting aggregate VIEWS (critical-proof matrix, vision-proof matrix,
 EPIC status) are no longer committed at all: they are DERIVED on demand from the
-one AC-keyed graph (``common/ssot/ac_graph.py``) and gated by
+one AC-keyed graph (``common/testing/ac_graph.py``) and gated by
 ``tools/check_ac_index.py``, so this migration no longer regenerates any matrix
 file.
 
@@ -31,7 +31,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from common.ssot.ac_score_baseline_format import (  # noqa: E402
+from common.testing.ac_score_baseline_format import (  # noqa: E402
     load_jsonl,
     write_jsonl,
 )

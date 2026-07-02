@@ -8,7 +8,7 @@ sys.path.insert(0, str(ROOT))
 
 import pytest  # noqa: E402
 
-from common.ssot.ac_registry_format import (  # noqa: E402
+from common.testing.ac_registry_format import (  # noqa: E402
     epic_group_key,
     load_registry_entries,
     registry_validation_errors,

@@ -65,7 +65,7 @@ collision-free as later slices add ACs without re-reading this file:
 
 (The aspirational ``AC-ledger.<entity>.<seq>`` form some docs advertise is not
 adopted: the live traceability regex in
-``common/ssot/ac_traceability_refs.py`` accepts only the numeric
+``common/testing/ac_traceability_refs.py`` accepts only the numeric
 ``AC-<pkg>.<n>.<n>`` grammar that every shipped package — counter/authority/
 identity — already uses.) The EPIC-015 **frontend** UI-gap ACs (``AC15.7.*``)
 stay in EPIC-015: ledger is a backend-only package (``fe=None``), exactly as the

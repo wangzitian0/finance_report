@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from common.ssot import check_ac_traceability as cat
+from common.testing import check_ac_traceability as cat
 
 
 def test_stub_only_mandatory_ac_fails_traceability_gate(tmp_path: Path) -> None:

@@ -7,7 +7,7 @@ from typing import Any
 
 import yaml
 
-from common.ssot.ac_proof_execution import (
+from common.testing.ac_proof_execution import (
     PROOF_EXECUTION_STAGES,
     PROOF_TASK_CATEGORIES,
 )

@@ -114,7 +114,7 @@ Set up a runnable Monorepo development environment, complete user authentication
 > no longer defined here.** It migrated into the `identity` package as
 > **`AC-identity.2.1`** / **`AC-identity.2.2`** — owned by, and sourced
 > directly from, [`common/identity/contract.py`](../../common/identity/contract.py)'s
-> `roadmap` (#1428). `common/ssot/generate_ac_registry.py` reads package-contract
+> `roadmap` (#1428). `common/testing/generate_ac_registry.py` reads package-contract
 > roadmaps additively, so the AC index counts them without an EPIC-table mirror.
 > This note references the new ids (keeping the registry↔EPIC link intact) but
 > defines none of them — the contract is the single definition source.
@@ -137,7 +137,7 @@ Set up a runnable Monorepo development environment, complete user authentication
 > - login accepts valid credentials → **`AC-identity.2.2`**
 > - register handles the duplicate-email IntegrityError race → **`AC-identity.2.3`**
 >
-> `common/ssot/generate_ac_registry.py` reads package roadmaps additively, so the
+> `common/testing/generate_ac_registry.py` reads package roadmaps additively, so the
 > index counts them without an EPIC-table mirror. This note references the new ids
 > but defines none of them — the contract is the single definition source.
 

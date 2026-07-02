@@ -1,4 +1,4 @@
-"""Tests for the common.ssot.check_critical_proof_matrix validation library.
+"""Tests for the common.testing.check_critical_proof_matrix validation library.
 
 The library is consumed by the single gate ``tools/check_ac_index.py`` (via
 ``check_ac_index.check_repo_contracts`` -> ``validate_matrix_contract``).
@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from common.ssot import check_critical_proof_matrix as matrix
+from common.testing import check_critical_proof_matrix as matrix
 
 
 def _write_registry(repo_root: Path) -> None:

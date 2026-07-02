@@ -46,7 +46,7 @@ exceptions:
 
   # De-materialization: the critical-proof and vision-proof matrices are no
   # longer committed — they are derived on-demand views of the one AC-keyed
-  # graph (common/ssot/ac_graph.py), gated by tools/check_ac_index.py. Their
+  # graph (common/testing/ac_graph.py), gated by tools/check_ac_index.py. Their
   # deletion shows up as a changed SSOT file with no owner; these temporary
   # exceptions cover only the deletion churn in this PR. The matrices' concepts
   # remain registered in MANIFEST.yaml, now owned by their generators.

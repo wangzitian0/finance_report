@@ -247,7 +247,7 @@ concepts:
       - docs/project/EPIC-013.statement-parsing-v2.md
 
   ac_graph:
-    owner: common/ssot/ac_graph.py
+    owner: common/testing/ac_graph.py
     family: tdd
     kind: model
     description: The one AC-keyed graph (EPIC -> AC -> Proof -> score -> vision). All cross-cutting proof/vision/status indexes are DERIVED views of this single model, rendered on demand and never committed-materialized; consistency is gated by tools/check_ac_index.py.
@@ -259,13 +259,13 @@ concepts:
       - docs/ssot/critical-proof-outcomes.yaml
       - docs/ssot/ac-score-baseline.jsonl
       - docs/ssot/protection-floor.json
-      - common/ssot/protection.py
+      - common/testing/protection.py
       - common/testing/ac_proof.py
       - vision.md
       - .github/workflows/ci.yml
 
   vision_proof_matrix:
-    owner: common/ssot/generate_vision_proof_matrix.py
+    owner: common/testing/generate_vision_proof_matrix.py
     family: tdd
     kind: matrix
     parent: ac_graph
@@ -275,7 +275,7 @@ concepts:
       - tools/generate_vision_proof_matrix.py
     cross_refs:
       - vision.md
-      - common/ssot/ac_graph.py
+      - common/testing/ac_graph.py
       - docs/project/EPIC-014.ttd-transformation.md
       - .github/workflows/ci.yml
 
@@ -548,9 +548,9 @@ concepts:
     authority: documented_contract
     description: AC-keyed proof execution placement model; stage and task_category are metadata on proof edges, not extra coverage keys.
     cross_refs:
-      - common/ssot/ac_proof_execution.py
+      - common/testing/ac_proof_execution.py
       - common/testing/ac_proof.py
-      - common/ssot/ac_graph.py
+      - common/testing/ac_graph.py
       - docs/project/EPIC-008.testing-strategy.md
     proofs:
       - tests/tooling/test_ac_proof_execution_model.py
@@ -688,9 +688,9 @@ concepts:
       - docs/ssot/tdd.md
       - common/testing/README.md
       - common/testing/ac_evidence.py
-      - common/ssot/ac_evidence_aggregate.py
-      - common/ssot/ac_score_baseline_format.py
-      - common/ssot/check_ac_score_baseline.py
+      - common/testing/ac_evidence_aggregate.py
+      - common/testing/ac_score_baseline_format.py
+      - common/testing/check_ac_score_baseline.py
       - tools/check_ac_score_baseline.py
       - tools/migrate_proof_index_storage.py
       - tests/tooling/test_ac_evidence_pipeline.py
@@ -704,13 +704,13 @@ concepts:
     authority: machine_generated
     cross_refs:
       - docs/ssot/tdd.md
-      - common/ssot/protection.py
-      - common/ssot/check_ac_index.py
+      - common/testing/protection.py
+      - common/testing/check_ac_index.py
       - tools/check_ac_index.py
       - tests/tooling/test_ac_index_consistency.py
 
   critical_proof_matrix:
-    owner: common/ssot/generate_critical_proof_matrix.py
+    owner: common/testing/generate_critical_proof_matrix.py
     family: tdd
     kind: matrix
     parent: ac_graph
@@ -720,7 +720,7 @@ concepts:
       - docs/ssot/tdd.md
       - docs/ssot/ci-cd.md
       - docs/ssot/critical-proof-outcomes.yaml
-      - common/ssot/ac_graph.py
+      - common/testing/ac_graph.py
       - .github/workflows/ci.yml
       - common/testing/ac_proof.py
       - tools/generate_critical_proof_matrix.py
@@ -734,8 +734,8 @@ concepts:
     parent: critical_proof_matrix
     authority: human_curated
     cross_refs:
-      - common/ssot/ac_graph.py
-      - common/ssot/generate_critical_proof_matrix.py
+      - common/testing/ac_graph.py
+      - common/testing/generate_critical_proof_matrix.py
       - tools/generate_critical_proof_matrix.py
 
   authority_tiers:
@@ -753,7 +753,7 @@ concepts:
       - common/extraction/readme.md
       - docs/project/EPIC-026.ac-authority-tiers.md
       - docs/ssot/ac-tier-baseline.json
-      - common/ssot/generate_ac_registry.py
+      - common/testing/generate_ac_registry.py
       - common/authority/authority_matrix.py
       - common/authority/check_ac_tier_baseline.py
       - tools/check_ac_tier_baseline.py
@@ -893,8 +893,8 @@ concepts:
     cross_refs:
       - common/llm/readme.md#cassettes
       - docs/project/EPIC-023.llm-provider-abstraction.md
-      - common/ssot/cassette_graded_eval.py
-      - common/ssot/check_cassette_graded_eval.py
+      - common/testing/cassette_graded_eval.py
+      - common/testing/check_cassette_graded_eval.py
       - common/testing/fixtures/cassette-eval-baseline.jsonl
       - common/testing/fixtures/llm_cassettes/
     proofs:

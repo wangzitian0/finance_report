@@ -34,7 +34,7 @@ The package-local worklist. Cross-package migration lives in
       replaced with a disclaimer listing the new ids; the `AC15.<1-6>.*` test
       docstrings repointed to the new ids. The id form is the numeric
       `AC-ledger.<n>.<n>` grammar the live traceability regex
-      (`common/ssot/ac_traceability_refs.py`) accepts — **not** the aspirational
+      (`common/testing/ac_traceability_refs.py`) accepts — **not** the aspirational
       `AC-ledger.<entity>.<seq>` form some docs advertise (that form fails the regex
       and is invisible to `check_registry_to_tests`). Group blocks are reserved
       ledger-locally: **1–70 = EPIC-002/012 double-entry** (slices 3c-ii/iii),
