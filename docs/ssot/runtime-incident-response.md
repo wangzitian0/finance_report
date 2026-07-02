@@ -17,7 +17,7 @@ every document.
 |---|---|
 | App deployment model and release flow | `docs/ssot/deployment.md` |
 | CI, preview, staging, and production gate semantics | `docs/ssot/ci-cd.md` |
-| Boot/runtime health validation | `docs/ssot/env_smoke_test.md`, `apps/backend/src/boot.py`, `apps/backend/src/main.py` |
+| Boot/runtime health validation | `common/runtime/readme.md`, `apps/backend/src/boot.py`, `apps/backend/src/main.py` |
 | App observability runtime contract | `docs/ssot/observability.md`, `apps/backend/src/observability.py` |
 | Staging/production health and version smoke | `tools/health_check.sh`, `tools/production_infra_smoke.py`, `common/runtime/production_infra_smoke.py` |
 | Delivery-engine evidence and optimization recommendations | `docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md` |
@@ -159,8 +159,8 @@ Other docs should link here instead of copying these playbooks:
   redacted app observability fields.
 - `docs/ssot/ci-cd.md` owns gate placement, workflow semantics, and required
   checks.
-- `docs/ssot/env_smoke_test.md` owns Bootloader gate definitions and smoke-test
-  rationale.
+- `common/runtime/readme.md` (the `runtime` package) owns Bootloader gate
+  definitions and smoke-test rationale (the Three Gates).
 - `docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md` may record historical
   delivery evidence, but runtime incident categories and closure proof still
   link back here.
