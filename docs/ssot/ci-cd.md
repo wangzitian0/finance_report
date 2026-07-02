@@ -664,7 +664,7 @@ The provider-backed AI/OCR corpus is split into two distinct gates that share on
   divergence fails fast with key-name-only diagnostics that never print env
   values.
 - PR preview E2E explicitly excludes tests marked `llm`. The post-merge `Staging AI/OCR Gate` workflow is the single automated CI entry point that may spend provider quota.
-- PR preview non-LLM E2E is a strict preview-relevant subset: `STRICT_E2E_GATES=true`, marker `(smoke or e2e) and not llm`, `-n 4` parallelism, and explicit paths limited to `tests/e2e/test_core_journeys.py` plus `tests/e2e/test_e2e_flows.py::test_full_navigation`. Broader business regression paths, provider-sensitive paths, and state-sensitive registration or statement workflows remain staging/post-merge responsibilities.
+- PR preview non-LLM E2E is a strict preview-relevant subset **derived from the execution matrix** (`common/testing/matrix.py`, issue #1547): the workflow evals `python tools/test_selection.py --stage pr_preview_e2e --shell` at runtime instead of hardcoding a whitelist. A root E2E spec enters the pre-merge set only when its matrix row is audited AND declares no external needs (provider quota, market data, deployed-env probing, state-sensitivity); everything else remains a staging/post-merge responsibility, and an unaudited spec can never silently creep into the merge-blocking path.
 - The shared `.github/actions/setup-e2e-tests` action owns E2E Python import setup. It must export the repository root through `PYTHONPATH` via `$GITHUB_ENV` before preview, staging, AI/OCR, or production E2E pytest commands run, because `tests/e2e/conftest.py` imports shared helpers through the `tests.e2e.*` package path while pytest may choose `tests/e2e` as its root directory.
 - PR-preview reclaim is infra2-owned and event-driven: on PR close the app
   dispatches a `preview-teardown` signal and infra2 performs the idempotent 1:1
@@ -851,10 +851,11 @@ import a brokerage PDF, create property, mortgage, and ESOP valuation snapshots,
 then prove exact as-of assets, liabilities, net worth, and dashboard/report
 totals.
 
-PR preview E2E intentionally runs a strict runtime/API/UI subset, currently
-`tests/e2e/test_core_journeys.py` plus
-`tests/e2e/test_e2e_flows.py::test_full_navigation`, excludes the `llm` marker,
-and does not inject the provider API key. This keeps provider spend and broad
+PR preview E2E intentionally runs a strict runtime/API/UI subset derived from
+the execution matrix (`common/testing/matrix.py` — audited rows with no
+external needs; see the generated selection via
+`python tools/test_selection.py --stage pr_preview_e2e`), excludes the `llm`
+marker, and does not inject the provider API key. This keeps provider spend and broad
 business-regression concurrency concentrated in the post-merge staging job,
 where `STRICT_E2E_GATES=true` makes provider/config failures block deploy. PR
 preview remains useful for app wiring and non-provider route proof without

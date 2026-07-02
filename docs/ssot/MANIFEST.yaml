@@ -611,12 +611,30 @@ concepts:
       - docs/ssot/coverage.md
 
   test_execution_matrix:
-    owner: docs/ssot/test-execution-matrix.yaml
-    description: Path-to-stage mapping for AC traceability execution proof.
+    # SSOT internalized into the testing package (migration-standard step 3,
+    # issue #1556): matrix.py is the source; the docs YAML is its generated
+    # view (tools/test_selection.py --emit-matrix, drift-gated in CI).
+    owner: common/testing/matrix.py
+    description: >-
+      Test placement and selection SSOT: path-to-stage mapping for AC
+      traceability execution proof plus per-stage runtime test selection
+      (consumed by workflows via tools/test_selection.py).
     cross_refs:
+      - docs/ssot/test-execution-matrix.yaml
       - docs/ssot/ci-cd.md
       - docs/ssot/tdd.md
       - tools/check_ac_index.py
+      - tools/test_selection.py
+
+  test_execution_matrix_generated_view:
+    owner: docs/ssot/test-execution-matrix.yaml
+    description: >-
+      Generated view of common/testing/matrix.py kept for AC-traceability
+      consumers; never hand-edit — regenerate via
+      tools/test_selection.py --emit-matrix (drift-gated in CI).
+    cross_refs:
+      - common/testing/matrix.py
+      - tools/test_selection.py
 
   # ── Deployment ─────────────────────────────────────────────────────────
   deployment_architecture:

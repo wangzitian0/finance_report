@@ -392,11 +392,10 @@ jobs:
           echo "--- Phase 1: Smoke Check (Shell) ---"
           bash tools/smoke_test.sh "$APP_URL" staging
           echo "--- Phase 2: Runtime/API/UI Validation (Python, no real AI/OCR) ---"
-          PR_PREVIEW_E2E_TESTS=(
-            tests/e2e/test_core_journeys.py
-            tests/e2e/test_e2e_flows.py::test_full_navigation
-          )
-          pytest "${PR_PREVIEW_E2E_TESTS[@]}" -v -m "(smoke or e2e) and not llm" -n 4 --junit-xml=test-results/in-runner-e2e.xml
+          # Selection is derived from the execution matrix SSOT
+          # (common/testing/matrix.py) — never hardcode test paths here.
+          eval "$(python tools/test_selection.py --stage pr_preview_e2e --shell)"
+          pytest "${PR_PREVIEW_E2E_TESTS[@]}" -v -m "$PR_PREVIEW_E2E_MARKER" -n "$PR_PREVIEW_E2E_PARALLELISM" --junit-xml=test-results/in-runner-e2e.xml
 
       - name: Stack logs on failure
         if: failure()

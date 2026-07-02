@@ -20,6 +20,15 @@ treated as "optional" and only `warning`s when down).
 how each environment provides or substitutes it, and the guarantee that a
 declared dependency is proven present — or the build/smoke fails.**
 
+Scope note (#1556): `runtime` is a **domain package like any other** — its
+domain happens to be environments/dependencies/**CD** (deploy execution,
+release evidence, rollback, environment tiering). Cross-cutting CI governance
+— which tests run where, and proof that they ran — belongs to
+[`common/testing`](../testing/README.md); the responsibility split is defined
+in that package's charter. In the failure-attribution table there: dependency
+missing / env wrong / config drift → this package's contract; everything about
+test selection, execution, and reporting → `testing`.
+
 ## Ubiquitous language
 
 - **Dependency** — an external backend the app talks to across a process edge.
