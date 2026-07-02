@@ -83,7 +83,7 @@ test selection, execution, and reporting → `testing`.
 
 ## Environment verification (the Three Gates)
 
-One validation engine (`src/boot.py`) runs across all environments — "one
+One validation engine (`apps/backend/src/boot.py`) runs across all environments — "one
 codebase, one standard" — at three gates of increasing strictness:
 
 | Gate | Mode | When | Scope | Failure |

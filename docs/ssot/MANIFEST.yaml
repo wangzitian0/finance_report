@@ -866,6 +866,7 @@ concepts:
       - docs/ssot/development.md
     proofs:
       - tests/tooling/test_runtime_incident_response_ssot.py
+      - tests/tooling/test_runtime_ssot_internalized.py
 
   # ── LLM provider abstraction (EPIC-023) ───────────────────────────────
   # The LLM SSOT is internalized into the `llm` package (common/llm/readme.md)
