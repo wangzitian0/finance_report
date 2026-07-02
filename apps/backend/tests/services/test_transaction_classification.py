@@ -399,3 +399,55 @@ async def test_AC18_15_2_committed_rerun_is_idempotent_not_integrityerror(db, te
         .all()
     )
     assert len(rows) == 1  # kept, not duplicated
+
+
+# --- AC18.15.3 (staging observe fix): fenced/prose-wrapped model arrays are recovered ---
+
+
+@pytest.mark.asyncio
+async def test_AC18_15_3_proposer_recovers_fenced_or_prose_wrapped_arrays(monkeypatch):
+    """AC18.15.3: models wrap JSON in markdown fences or prose (seen live on
+    staging: json.loads failed at char 0 => every txn degraded to no_proposal).
+    The boundary recovers the balanced top-level array instead of giving up."""
+    from src.config import settings
+    from src.services import transaction_classification as tc
+
+    monkeypatch.setattr(settings, "ai_api_key", "test-key")
+    txns = [AtomicTransactionFactory.build(user_id=None, description="ACME PAYROLL")]
+    policy = policy_for(date.today())
+
+    fenced = '```json\n[{"category": "SALARY", "confidence": 90, "reason": "payroll"}]\n```'
+    prose = 'Sure! Here is the classification:\n[{"category": "SALARY", "confidence": 88}]\nHope that helps.'
+    for content in (fenced, prose):
+        monkeypatch.setattr("src.services.ai_streaming.stream_ai_json", lambda **kw: _fake_stream(content))
+        proposals = await tc.propose_categories(txns, policy)
+        assert proposals[0] is not None, content
+        assert proposals[0].category == "SALARY"
+
+    # empty response stays a graceful per-txn None (distinct from a parse failure)
+    monkeypatch.setattr("src.services.ai_streaming.stream_ai_json", lambda **kw: _fake_stream(""))
+    assert await tc.propose_categories(txns, policy) == [None]
+
+
+@pytest.mark.asyncio
+async def test_AC18_15_3_prompt_forbids_markdown_fences(monkeypatch):
+    """AC18.15.3: the ACTUAL prompt sent to the model carries the no-fence
+    instruction the statement prompts use, so recovery is the fallback, not the
+    norm. Asserted on the captured request, not on module source (CR #1560)."""
+    from src.config import settings
+    from src.services import transaction_classification as tc
+
+    monkeypatch.setattr(settings, "ai_api_key", "test-key")
+    captured: dict = {}
+
+    def capture_stream(**kwargs):
+        captured["messages"] = kwargs["messages"]
+        return _fake_stream("[]")
+
+    monkeypatch.setattr("src.services.ai_streaming.stream_ai_json", capture_stream)
+    txns = [AtomicTransactionFactory.build(user_id=None, description="ACME PAYROLL")]
+    await tc.propose_categories(txns, policy_for(date.today()))
+
+    prompt = captured["messages"][0]["content"]
+    assert "Do NOT wrap it in markdown or code fences" in prompt
+    assert "ONLY the raw JSON array" in prompt
