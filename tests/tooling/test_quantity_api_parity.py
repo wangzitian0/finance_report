@@ -59,4 +59,4 @@ def test_AC12_30_2_backend_exposes_shared_quantity_api():
 def test_AC12_30_2_frontend_exposes_shared_quantity_api():
     """AC-audit.30.2: the frontend quantity module exports the full shared surface."""
     missing = SHARED_API - _frontend_exports()
-    assert not missing, f"frontend lib/quantity missing shared API: {sorted(missing)}"
+    assert not missing, f"frontend lib/audit/quantity missing shared API: {sorted(missing)}"

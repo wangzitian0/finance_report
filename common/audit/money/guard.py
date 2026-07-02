@@ -1,12 +1,14 @@
-"""Narrow-waist guard — keep the money standard from eroding (#1167 / #1172).
+"""Narrow-waist guard — keep the value-type standard from eroding (#1167 / #1172).
 
-Two invariants this guard enforces so the money "narrow waist" cannot silently
-decay back into ad-hoc money handling:
+Two invariants this guard enforces so the audit value-type "narrow waist"
+(money/ratio/quantity/unit_price, folded into ``audit`` by #1419) cannot
+silently decay back into ad-hoc number handling:
 
-1. **No ``float`` in the money modules.** The whole point of the value types is
-   that ``float`` is unrepresentable for money. A ``float(...)`` cast or a
-   ``: float`` annotation inside the money modules would reopen the red line.
-   (``isinstance(x, float)`` — the *rejection* of float — is explicitly allowed.)
+1. **No ``float`` in the audit value modules.** The whole point of the value
+   types is that ``float`` is unrepresentable for money-shaped numbers. A
+   ``float(...)`` cast or a ``: float`` annotation inside these modules would
+   reopen the red line. (``isinstance(x, float)`` — the *rejection* of float —
+   is explicitly allowed.)
 
 2. **A conformance suite per stack.** The cross-language standard
    (``common/audit/money/conformance/vectors.json``) is only meaningful if every stack
@@ -67,18 +69,41 @@ def scan_text_for_float(text: str) -> list[str]:
     return sorted(set(offending))
 
 
+# The value-type narrow waist after the #1419 fold: the whole audit package
+# (money/ratio/quantity/unit_price contracts + backend impls) shares the
+# no-float red line, so the guard scans all of it, not just money.
+MONEY_MODULE_ROOTS = (
+    Path("common") / "audit",
+    Path("apps") / "backend" / "src" / "audit",
+)
+
+
 def python_money_module_paths(repo_root: Path = REPO_ROOT) -> list[Path]:
-    """Python files that make up the money narrow waist (the runtime impls)."""
-    roots = [
-        repo_root / "common" / "money",
-        repo_root / "apps" / "backend" / "src" / "money",
-    ]
+    """Python files of the audit value-type narrow waist (the runtime impls).
+
+    Named for its historical money-only scope; since the #1419 fold it covers
+    every audit value module (money/ratio/quantity/unit_price), which all share
+    the no-float red line.
+
+    Raises if a scan root is missing — a vanished root means the guard would
+    silently pass on nothing (exactly how it went dead once after the value→audit
+    fold moved the modules; #1419).
+    """
     files: list[Path] = []
-    for root in roots:
-        if root.exists():
-            files.extend(
-                sorted(p for p in root.rglob("*.py") if "conformance" not in p.parts)
+    for rel in MONEY_MODULE_ROOTS:
+        root = repo_root / rel
+        if not root.exists():
+            raise FileNotFoundError(
+                f"money-guard scan root missing: {rel.as_posix()} — "
+                "update MONEY_MODULE_ROOTS if the modules moved"
             )
+        files.extend(
+            sorted(
+                p
+                for p in root.rglob("*.py")
+                if "conformance" not in p.parts and "__pycache__" not in p.parts
+            )
+        )
     return files
 
 

@@ -113,7 +113,7 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 > The two Money *leftovers* whose anchor test proves a money-package statement — the
 > net-worth restatement via the `convert` primitive and the narrow-waist `float`-ban
 > guard — have since migrated into the `money` package roadmap, owned by and sourced
-> from [`common/audit/money/contract.py`](../../common/audit/money/contract.py); their EPIC-002
+> from [`common/audit/contract.py`](../../common/audit/contract.py); their EPIC-002
 > table rows are deleted.
 >
 > **Money leftovers** (net-worth restatement + narrow-waist `float`-ban guard, was
@@ -475,7 +475,7 @@ banker's-rounding-vs-`decimal.js`-HALF_UP divergence).
 ### AC2.22: Materiality adoption ([#1171](https://github.com/wangzitian0/finance_report/issues/1171))
 
 Route the highest-value call-sites through the value types, behaviour-preserving.
-The backend runs its own shippable `src/money` "end" (mirrors `common/audit/money`, kept
+The backend runs its own shippable `src/audit/money` "end" (mirrors `common/audit/money`, kept
 in lockstep by the shared conformance vectors + the #1172 guard), because the
 backend image does not ship `common/`.
 
@@ -494,8 +494,8 @@ and there is no regression on currencies outside the active ISO set.
 
 > **Migrated**: net-worth restatement via the `convert` primitive moved to the `money`
 > package roadmap — its proof is a money-package statement. Owned by, and sourced from,
-> [`common/audit/money/contract.py`](../../common/audit/money/contract.py)'s `roadmap`.
-> *(AC2.22.3 removed — canonical copy is `AC-money.22.3` in `common/audit/money/contract.py`)*
+> [`common/audit/contract.py`](../../common/audit/contract.py)'s `roadmap`.
+> *(AC2.22.3 removed — canonical copy is `AC-money.22.3` in `common/audit/contract.py`)*
 
 > The L2/L3 *score-baseline* promotion of the money invariants stays in #1103.
 > The existing reporting net-worth E2E tests (internal-transfer fee / FX ledger)
@@ -509,8 +509,8 @@ narrow waist cannot silently decay back into ad-hoc money handling.
 
 > **Migrated**: the narrow-waist `float`-ban guard over the money modules moved to the
 > `money` package roadmap — its proof is a money-package statement. Owned by, and
-> sourced from, [`common/audit/money/contract.py`](../../common/audit/money/contract.py)'s `roadmap`.
-> *(AC2.23.1 removed — canonical copy is `AC-money.23.1` in `common/audit/money/contract.py`)*
+> sourced from, [`common/audit/contract.py`](../../common/audit/contract.py)'s `roadmap`.
+> *(AC2.23.1 removed — canonical copy is `AC-money.23.1` in `common/audit/contract.py`)*
 
 ---
 
