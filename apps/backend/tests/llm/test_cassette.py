@@ -1,8 +1,4 @@
-"""LLM record/replay cassette layer (migrated from EPIC-023's AC23.5 group to
-the `testing` package; see common/testing/contract.py roadmap).
-
-AC-testing.9.1 AC-testing.9.2 AC-testing.9.3 AC-testing.9.4 AC-testing.9.5
-AC-testing.9.6 AC-testing.9.7
+"""LLM record/replay cassette layer (EPIC-023 AC23.5).
 
 Fully offline + key-free: replay reads hand-authored synthetic cassettes, record
 writes against a mocked client. No real provider key is ever used. The tests pin

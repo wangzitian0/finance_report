@@ -130,36 +130,53 @@ parallel once PR1 merges.
 | AC23.4.9 | `api_base` rejects loopback/private/link-local/reserved IPs and local-only names (`localhost`, `*.internal`, metadata) at the schema boundary, closing the obvious SSRF foot-guns {tier:CODE-ONLY} | `apps/backend/tests/integration/test_llm_api.py` | P1 |
 | AC23.4.10 | Provider creation is capped per user (`MAX_PROVIDERS_PER_USER`); exceeding it returns 409 instead of growing the table unbounded {tier:CODE-ONLY} | `apps/backend/tests/integration/test_llm_api.py` | P1 |
 
-### AC23.5, AC23.6, AC23.7 — migrated to the `testing` package
+### AC23.5 — LLM record/replay cassette layer
+> Foundation slice for deterministic LLM tests in CI. A wrapper around the
+> chat-completion call (`src/llm/cassette.py`, re-exported via `client.py`)
+> records real provider responses locally and replays committed JSON cassettes in
+> CI — no API key, no network, no flakiness. **Scope (anti-false-confidence):**
+> record/replay is regression protection for KNOWN inputs only; it does NOT
+> discover new real-world document shapes (that stays the staging real-doc audit
+> loop), and **CI green ≠ a real unknown statement works**. Provider-specific
+> correctness is the staging `-m llm` gate's job, not the cassette tests'. See
+> [`common/llm/readme.md#cassettes`](https://github.com/wangzitian0/finance_report/blob/main/common/llm/readme.md#cassettes).
+> (Wiring existing extraction/advisor tests onto
+> replay and the eval/drift ratchet are separate follow-up issues.)
 
-> **AC23.5 (LLM record/replay cassette layer), AC23.6 (streaming-cassette
-> bridge), and AC23.7 (cassette integrity gate) are NO LONGER defined here.**
-> All three are deterministic, `{tier:CODE-ONLY}` test/CI-determinism
-> infrastructure — not customer-facing LLM behavior — so they migrated into
-> the `testing` package and are owned by, and sourced directly from,
-> [`common/testing/contract.py`](../../common/testing/contract.py)'s
-> `roadmap` — freshly numbered groups 9-11 because EPIC-009's migrated groups
-> already occupy 1-8 in that same roadmap. `common/ssot/generate_ac_registry.py`
-> reads package-contract roadmaps additively, so the AC index counts them
-> without an EPIC-table mirror. This note references the new ids (keeping the
-> registry↔EPIC link intact) but defines none of them — the contract is the
-> single definition source, per
-> the `counter`/`audit` precedent
-> ([EPIC-025](./EPIC-025.dry-ssot-simplification.md)).
->
-> Migrated ids: cassette layer (was AC23.5) — `AC-testing.9.1`,
-> `AC-testing.9.2`, `AC-testing.9.3`, `AC-testing.9.4`, `AC-testing.9.5`,
-> `AC-testing.9.6`, `AC-testing.9.7`; streaming-cassette bridge (was AC23.6) —
-> `AC-testing.10.1`, `AC-testing.10.2`, `AC-testing.10.3`, `AC-testing.10.4`,
-> `AC-testing.10.5`; cassette integrity gate (was AC23.7's sole item) —
-> `AC-testing.11.1`.
->
-> **AC23.8 (below) does NOT migrate.** Its per-case score is authored by the
-> LLM under evaluation (`{tier:LLM-LED}{proof:eval}`), which is incompatible
-> with `testing`'s single package-wide `CODE-ONLY` tier (every roadmap AC in a
-> package inherits its one tier) — it is still an LLM-domain accuracy claim
-> that happens to run over the now-relocated cassette corpus, not a
-> deterministic testing-capability claim like AC23.5-.7.
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC23.5.1 | `LLM_CASSETTE_MODE` selects `replay` / `record` / `off`; it defaults to `off` (live, local dev) and an unknown value fails closed with `LLMConfigError` rather than silently calling the network {tier:CODE-ONLY}{proof:property} | `apps/backend/tests/unit/llm/test_cassette.py` | P1 |
+| AC23.5.2 | `replay` returns the recorded response with **zero network calls and no API key** (the live call is never invoked); committed synthetic cassettes are keyed by their own fingerprint so the default store resolves them {tier:CODE-ONLY}{proof:property} | `apps/backend/tests/unit/llm/test_cassette.py` | P1 |
+| AC23.5.3 | A request with no matching cassette is a **hard failure** in `replay` (`CassetteMiss`) that never falls back to the network, and misses batch into one actionable summary (`N cassette(s) need re-record: …; run make llm-record`) {tier:CODE-ONLY}{proof:property} | `apps/backend/tests/unit/llm/test_cassette.py` | P1 |
+| AC23.5.4 | `record` performs the (here mocked) provider call and persists the cassette; re-recording an unchanged request is idempotent (identical bytes, no diff churn); `off` is a plain live call that writes nothing {tier:CODE-ONLY}{proof:property} | `apps/backend/tests/unit/llm/test_cassette.py` | P1 |
+| AC23.5.5 | Fingerprint integrity: a change to an output-affecting field → different key (no stale match); two semantically-different requests → different keys (no false match); the same semantic request under a different model id → the **same** key (model-id-agnostic); image content is keyed by a bytes hash {tier:CODE-ONLY}{proof:property} | `apps/backend/tests/unit/llm/test_cassette.py` | P1 |
+| AC23.5.6 | Normalisation strips only the intended volatile fields (timestamps, random request ids): differing volatile fields keep the key stable, while any output-relevant field changing the key proves nothing else is stripped {tier:CODE-ONLY}{proof:property} | `apps/backend/tests/unit/llm/test_cassette.py` | P1 |
+| AC23.5.7 | A `correctness` cassette MUST refuse to record (`CassetteValidationError`) when the response fails ground-truth validation or no validator is supplied; a `flow-only` cassette records freely and never claims LLM correctness {tier:CODE-ONLY}{proof:property} | `apps/backend/tests/unit/llm/test_cassette.py` | P1 |
+
+### AC23.6 — Streaming-cassette bridge (the real extraction transport)
+> The real extraction transport is STREAMING (`services/ai_streaming.stream_ai_json`
+> → `client.litellm_stream` → `accumulate_stream`) and previously bypassed the
+> AC23.5 cassette layer entirely, so PR CI never exercised the LLM path. This
+> slice makes `litellm_stream` cassette-aware while **preserving streaming** for
+> the caller: `off` is the prior live passthrough (prod/staging stay live & real —
+> the staging `-m llm` gate is untouched), `record` accumulates the live stream
+> and freezes the text, `replay` synthesises the stream from the frozen text with
+> no key/network. Both text and default-config vision (OCR_MODEL==VISION_MODEL)
+> flow through this path; the non-default raw-httpx layout-parser path
+> (`services/extraction/_ocr.py`) is a documented out-of-scope gap. Wiring the
+> first batch of extraction tests onto replay is scaffolded here (skipped pending
+> real recording via `make llm-record`) so PR CI stays green; recording the real
+> correctness cassettes is the operator follow-up. **Scope (anti-false-confidence):**
+> as with AC23.5, CI green ≠ a real unknown statement works.
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC23.6.1 | `litellm_stream` in `replay` serves a committed frozen-text cassette by synthesising a stream (text and image-part/vision requests both resolve their cassette) with **zero network and no API key**; the caller's `accumulate_stream` rebuilds the recorded text {tier:CODE-ONLY}{proof:property} | `apps/backend/tests/unit/llm/test_streaming_cassette.py` | P1 |
+| AC23.6.2 | A streamed request with no matching cassette is a **hard failure** in `replay` (`CassetteMiss`, scene = derived role) that never falls back to the network {tier:CODE-ONLY}{proof:property} | `apps/backend/tests/unit/llm/test_streaming_cassette.py` | P1 |
+| AC23.6.3 | `record` performs the real (here mocked) streaming call, accumulates the full text, freezes a cassette idempotently (no diff churn) and yields the text so the caller still works; a `correctness` streaming cassette refuses to record without a validator; the mode defaults to `LLM_CASSETTE_MODE` {tier:CODE-ONLY}{proof:property} | `apps/backend/tests/unit/llm/test_streaming_cassette.py` | P1 |
+| AC23.6.4 | `off` mode is an EXACT passthrough of the live (mocked) stream — deltas arrive unchanged (not collapsed), no cassette is written, and a provider failure is normalised to `LLMError` exactly as before — so prod/staging keep running the live `-m llm` path real {tier:CODE-ONLY}{proof:property} | `apps/backend/tests/unit/llm/test_streaming_cassette.py` | P1 |
+| AC23.6.5 | The fingerprint role is derived from the messages (any image part → `vision`, else `text`), so text and vision get **different** keys, while the same semantic request under a different model id resolves the **same** cassette (model-id-agnostic) {tier:CODE-ONLY}{proof:property} | `apps/backend/tests/unit/llm/test_streaming_cassette.py` | P1 |
+| AC23.7.1 | The LLM cassette integrity gate (`tools/check_llm_cassettes.py`, lint job) fails when any committed statement-extraction cassette breaks the balance-chain invariant `opening + Σ amounts ≈ closing` (Decimal) — detectable drift for a re-recorded/inconsistent cassette; pure Python, no key/network/DB, so it never perturbs the AC behavioral-score aggregator {tier:CODE-ONLY}{proof:property} | `tests/tooling/test_llm_cassette_integrity.py` | P1 |
 
 ### AC23.8 — Cassette GRADED field-accuracy eval + drift ratchet
 > AC23.7 gates cassette *consistency* (the balance chain reconciles), not

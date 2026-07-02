@@ -20,20 +20,24 @@ PDF fixture generator + committed synthetic PDFs (``fixtures/pdf/``,
 
 The package's ACs live here in ``roadmap`` (the package-model AC registry);
 ``common/ssot/generate_ac_registry.py`` sources them directly from this
-contract, same as ``counter``. ``roadmap`` groups 1-8 migrated from
-EPIC-009 (PDF fixture generation, the leading "9" dropped, group/seq
-preserved: ``AC9.<g>.<s>`` -> ``AC-testing.<g>.<s>``); groups 9-11 migrated
-from EPIC-023's cassette layer/streaming-bridge/integrity-gate sections
-(``AC23.5.<s>`` -> ``AC-testing.9.<s>``, ``AC23.6.<s>`` -> ``AC-testing.10.<s>``,
-``AC23.7.1`` -> ``AC-testing.11.1``; renumbered to a fresh group range because
-EPIC-009 already occupies groups 1-8). EPIC-023's AC23.8 (the GRADED
-field-accuracy eval) stays in EPIC-023: its per-case score is authored by the
-LLM under evaluation ({tier:LLM-LED}{proof:eval}), which is incompatible with
-this package's CODE-ONLY tier (a package's roadmap ACs all inherit one tier —
-see ``PackageContract._tier_decided_and_proofs_match``) — it is not a
-"testing capability" claim like the deterministic cassette/PDF-fixture
-mechanics, it is still an LLM-domain accuracy claim that merely runs over the
-now-relocated fixture corpus.
+contract, same as ``counter``. ``roadmap`` groups 1-8 migrated from EPIC-009
+(PDF fixture generation, the leading "9" dropped, group/seq preserved:
+``AC9.<g>.<s>`` -> ``AC-testing.<g>.<s>``).
+
+EPIC-023's cassette-layer ACs (AC23.5/AC23.6/AC23.7, plus the graded-eval
+AC23.8) deliberately do NOT migrate here, even though AC23.5-.7 carry a
+``{tier:CODE-ONLY}`` annotation in EPIC-023 prose: this package's own
+governance gate (``common/authority/check_authority_reconcile.py``) DETECTS a
+package's tier from what its roadmap-AC tests actually exercise, and
+``common/authority/authority_classifier.py`` classifies *any* test that
+drives the cassette/replay harness as the ``LLM`` band by design (the
+harness is inherently LLM-facing infrastructure, not domain-agnostic testing
+capability, no matter how deterministic/mocked its assertions are). A
+CODE-ONLY package permits zero detected-LLM roadmap-AC tests, so cassette
+tests can never be roadmap members here regardless of their EPIC-authored
+tier annotation — only the relocated cassette *fixture data*
+(``fixtures/llm_cassettes/``) lives in this package; the cassette
+*mechanism*'s ACs (and its eventual formal home) stay with ``llm``.
 """
 
 from __future__ import annotations
@@ -346,170 +350,6 @@ CONTRACT = PackageContract(
             ),
             test="tests/tooling/test_pdf_fixture_real_format_contract.py::test_AC9_8_3_generated_pdf_matches_template_real_format_contract",
             priority="P2",
-            status="done",
-        ),
-        # ── Group 9-11: migrated from EPIC-023 (cassette layer / streaming bridge
-        #     / integrity gate). AC23.8 (graded eval, LLM-LED tier) stays in
-        #     EPIC-023 — see the module docstring. ──
-        ACRecord(
-            id="AC-testing.9.1",
-            statement=(
-                "`LLM_CASSETTE_MODE` selects `replay` / `record` / `off`; it defaults "
-                "to `off` (live, local dev) and an unknown value fails closed with "
-                "`LLMConfigError` rather than silently calling the network "
-                "(Was EPIC-023 AC23.5.1)."
-            ),
-            test="apps/backend/tests/llm/test_cassette.py::test_AC23_5_1_mode_defaults_to_off",
-            priority="P1",
-            status="done",
-        ),
-        ACRecord(
-            id="AC-testing.9.2",
-            statement=(
-                "`replay` returns the recorded response with zero network calls and "
-                "no API key (the live call is never invoked); committed synthetic "
-                "cassettes are keyed by their own fingerprint so the default store "
-                "resolves them (Was EPIC-023 AC23.5.2)."
-            ),
-            test="apps/backend/tests/llm/test_cassette.py::test_AC23_5_2_replay_returns_recorded_response_without_network",
-            priority="P1",
-            status="done",
-        ),
-        ACRecord(
-            id="AC-testing.9.3",
-            statement=(
-                "A request with no matching cassette is a hard failure in `replay` "
-                "(`CassetteMiss`) that never falls back to the network, and misses "
-                "batch into one actionable summary (Was EPIC-023 AC23.5.3)."
-            ),
-            test="apps/backend/tests/llm/test_cassette.py::test_AC23_5_3_replay_miss_is_a_hard_failure_no_network",
-            priority="P1",
-            status="done",
-        ),
-        ACRecord(
-            id="AC-testing.9.4",
-            statement=(
-                "`record` performs the (here mocked) provider call and persists the "
-                "cassette; re-recording an unchanged request is idempotent; `off` is "
-                "a plain live call that writes nothing (Was EPIC-023 AC23.5.4)."
-            ),
-            test="apps/backend/tests/llm/test_cassette.py::test_AC23_5_4_record_writes_cassette_against_mocked_client",
-            priority="P1",
-            status="done",
-        ),
-        ACRecord(
-            id="AC-testing.9.5",
-            statement=(
-                "Fingerprint integrity: a change to an output-affecting field "
-                "produces a different key; two semantically-different requests "
-                "produce different keys; the same semantic request under a "
-                "different model id produces the same key (model-id-agnostic); "
-                "image content is keyed by a bytes hash (Was EPIC-023 AC23.5.5)."
-            ),
-            test="apps/backend/tests/llm/test_cassette.py::test_AC23_5_5_output_affecting_change_misses",
-            priority="P1",
-            status="done",
-        ),
-        ACRecord(
-            id="AC-testing.9.6",
-            statement=(
-                "Normalisation strips only the intended volatile fields (timestamps, "
-                "random request ids): differing volatile fields keep the key stable, "
-                "while any output-relevant field changing the key proves nothing "
-                "else is stripped (Was EPIC-023 AC23.5.6)."
-            ),
-            test="apps/backend/tests/llm/test_cassette.py::test_AC23_5_6_normalization_strips_only_volatile_fields",
-            priority="P1",
-            status="done",
-        ),
-        ACRecord(
-            id="AC-testing.9.7",
-            statement=(
-                "A `correctness` cassette MUST refuse to record "
-                "(`CassetteValidationError`) when the response fails ground-truth "
-                "validation or no validator is supplied; a `flow-only` cassette "
-                "records freely and never claims LLM correctness "
-                "(Was EPIC-023 AC23.5.7)."
-            ),
-            test="apps/backend/tests/llm/test_cassette.py::test_AC23_5_7_correctness_cassette_refuses_to_record_when_validation_fails",
-            priority="P1",
-            status="done",
-        ),
-        ACRecord(
-            id="AC-testing.10.1",
-            statement=(
-                "`litellm_stream` in `replay` serves a committed frozen-text "
-                "cassette by synthesising a stream (text and image-part/vision "
-                "requests both resolve their cassette) with zero network and no API "
-                "key; the caller's `accumulate_stream` rebuilds the recorded text "
-                "(Was EPIC-023 AC23.6.1)."
-            ),
-            test="apps/backend/tests/llm/test_streaming_cassette.py::test_AC23_6_1_replay_synthesises_stream_from_frozen_text_cassette",
-            priority="P1",
-            status="done",
-        ),
-        ACRecord(
-            id="AC-testing.10.2",
-            statement=(
-                "A streamed request with no matching cassette is a hard failure in "
-                "`replay` (`CassetteMiss`, scene = derived role) that never falls "
-                "back to the network (Was EPIC-023 AC23.6.2)."
-            ),
-            test="apps/backend/tests/llm/test_streaming_cassette.py::test_AC23_6_2_replay_miss_is_hard_failure",
-            priority="P1",
-            status="done",
-        ),
-        ACRecord(
-            id="AC-testing.10.3",
-            statement=(
-                "`record` performs the real (here mocked) streaming call, "
-                "accumulates the full text, freezes a cassette idempotently and "
-                "yields the text so the caller still works; a `correctness` "
-                "streaming cassette refuses to record without a validator; the mode "
-                "defaults to `LLM_CASSETTE_MODE` (Was EPIC-023 AC23.6.3)."
-            ),
-            test="apps/backend/tests/llm/test_streaming_cassette.py::test_AC23_6_3_record_accumulates_and_writes_cassette",
-            priority="P1",
-            status="done",
-        ),
-        ACRecord(
-            id="AC-testing.10.4",
-            statement=(
-                "`off` mode is an exact passthrough of the live (mocked) stream — "
-                "deltas arrive unchanged, no cassette is written, and a provider "
-                "failure is normalised to `LLMError` exactly as before — so "
-                "prod/staging keep running the live `-m llm` path real "
-                "(Was EPIC-023 AC23.6.4)."
-            ),
-            test="apps/backend/tests/llm/test_streaming_cassette.py::test_AC23_6_4_off_mode_passes_stream_through_untouched",
-            priority="P1",
-            status="done",
-        ),
-        ACRecord(
-            id="AC-testing.10.5",
-            statement=(
-                "The fingerprint role is derived from the messages (any image part "
-                "-> `vision`, else `text`), so text and vision get different keys, "
-                "while the same semantic request under a different model id "
-                "resolves the same cassette (model-id-agnostic) "
-                "(Was EPIC-023 AC23.6.5)."
-            ),
-            test="apps/backend/tests/llm/test_streaming_cassette.py::test_AC23_6_5_role_derivation_text_vs_vision_distinct_keys",
-            priority="P1",
-            status="done",
-        ),
-        ACRecord(
-            id="AC-testing.11.1",
-            statement=(
-                "The LLM cassette integrity gate (`tools/check_llm_cassettes.py`, "
-                "lint job) fails when any committed statement-extraction cassette "
-                "breaks the balance-chain invariant `opening + Σ amounts ≈ closing` "
-                "(Decimal) — detectable drift for a re-recorded/inconsistent "
-                "cassette; pure Python, no key/network/DB "
-                "(Was EPIC-023 AC23.7.1)."
-            ),
-            test="tests/tooling/test_llm_cassette_integrity.py::test_AC23_7_1_committed_cassettes_satisfy_balance_chain",
-            priority="P1",
             status="done",
         ),
     ],

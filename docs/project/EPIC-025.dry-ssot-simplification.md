@@ -145,7 +145,7 @@ verifiable.
 > [`common/testing/README.md`](../../common/testing/README.md) +
 > [`common/testing/contract.py`](../../common/testing/contract.py).
 >
-> **`AC-testing.1.1` through `AC-testing.11.1` are NOT defined here.** They are
+> **`AC-testing.1.1` through `AC-testing.8.3` are NOT defined here.** They are
 > owned by, and sourced directly from, `common/testing/contract.py`'s
 > `roadmap`; `common/ssot/generate_ac_registry.py` reads package-contract
 > roadmaps additively, so the AC index counts them without an EPIC-table
@@ -155,11 +155,14 @@ verifiable.
 >
 > Groups 1-8 (`AC-testing.1.*`-`AC-testing.8.*`) migrated from
 > [EPIC-009](./EPIC-009.pdf-fixture-generation.md)'s PDF fixture generation
-> ACs; groups 9-11 (`AC-testing.9.*`-`AC-testing.11.1`) migrated from
-> [EPIC-023](./EPIC-023.llm-provider-abstraction.md)'s cassette
-> layer/streaming-bridge/integrity-gate ACs (AC23.8's graded eval stays in
-> EPIC-023 — its `{tier:LLM-LED}` proof is incompatible with `testing`'s
-> single package-wide `CODE-ONLY` tier).
+> ACs. EPIC-023's cassette layer/streaming-bridge/integrity-gate ACs
+> (AC23.5/AC23.6/AC23.7) do NOT migrate here despite their EPIC-authored
+> `{tier:CODE-ONLY}` annotation: `common/authority/authority_classifier.py`
+> detects any cassette/replay-harness test as the `LLM` band regardless of
+> how deterministic its assertions are, which `common/authority/
+> check_authority_reconcile.py` enforces against `testing`'s single
+> package-wide `CODE-ONLY` tier — see `common/testing/contract.py`'s module
+> docstring.
 
 ### AC-platform — Platform: domain EventBus via the transactional outbox (meta-layer capability #1)
 

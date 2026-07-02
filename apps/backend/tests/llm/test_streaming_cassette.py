@@ -1,7 +1,4 @@
-"""Streaming-cassette bridge for ``litellm_stream`` (migrated from EPIC-023's
-AC23.6 group to the `testing` package; see common/testing/contract.py roadmap).
-
-AC-testing.10.1 AC-testing.10.2 AC-testing.10.3 AC-testing.10.4 AC-testing.10.5
+"""Streaming-cassette bridge for ``litellm_stream`` (EPIC-023 AC23.6).
 
 The real extraction transport is STREAMING and previously bypassed the cassette
 layer entirely, so PR CI never exercised the LLM path. These tests pin the
