@@ -22,7 +22,7 @@ def _read(path: Path) -> str:
     ci_tier="pr_ci",
 )
 def test_AC12_30_4_frontend_quantity_formatting_is_not_exported_from_money():
-    """AC-audit.30.4: formatQuantity is public from lib/quantity, not lib/money."""
+    """AC-audit.30.4: formatQuantity is public from lib/audit/quantity, not lib/audit/money."""
     money_index = _read(Path("apps/frontend/src/lib/audit/money/index.ts"))
     quantity_index = _read(Path("apps/frontend/src/lib/audit/quantity/index.ts"))
     assert "formatQuantity" not in money_index
@@ -36,7 +36,7 @@ def test_AC12_30_4_frontend_quantity_formatting_is_not_exported_from_money():
     for path in call_sites:
         src = _read(path)
         assert "@/lib/audit/quantity" in src, (
-            f"{path} must import quantity formatting from lib/quantity"
+            f"{path} must import quantity formatting from lib/audit/quantity"
         )
         assert "formatQuantity" in src
 

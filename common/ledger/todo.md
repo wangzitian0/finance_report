@@ -41,12 +41,16 @@ The package-local worklist. Cross-package migration lives in
       **71–76 = EPIC-015 processing**. The EPIC-015 frontend ACs (`AC15.7.*`) stay
       in EPIC-015 (ledger is backend-only).
 
+- [x] **slice 3c-ii — EPIC-002 AC migration** (shipped in #1517/#1522): the
+      double-entry ACs homed in the contract `roadmap` under the reserved
+      **groups 1–70** (`AC-ledger.<n>.<n>` numeric grammar), removed from the
+      EPIC-002 tables; the rows left in EPIC-002 are the non-ledger ones
+      (frontend, reporting, money value-types) per its disclaimer.
+
 ## Next
-- [ ] **slice 3c-ii/iii — EPIC-002 / EPIC-012 (AC12.34) AC migration**: move the
-      double-entry ACs into the contract `roadmap` under the reserved **groups 1–70**
-      (`AC-ledger.<n>.<n>`, the numeric grammar — not `AC-ledger.<entity>.<seq>`),
-      removed from the EPIC tables (atomic), deleting the EPIC rows when all their
-      ACs are distributed.
+- [ ] **slice 3c-iii — EPIC-012 `AC12.34.1–.6` migration**: move the remaining
+      double-entry-adjacent rows out of EPIC-012 into the `roadmap` (same numeric
+      grammar), deleting the EPIC rows when distributed.
 - [ ] Publish a typed read API for balances consumed by reporting, and consider an
       `EntryPosted` domain event (mechanism C) so reconciliation/reporting react by
       event with no compile edge.

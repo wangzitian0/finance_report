@@ -1,20 +1,14 @@
 from pathlib import Path
 
-from sqlalchemy import inspect
 from sqlalchemy.types import Enum
 
-from src import models
+import src.models._registry  # noqa: F401 — registers every mapped class on Base
+from src.database import Base
 
 
 def get_all_models():
-    """Dynamically get all SQLAlchemy models from src.models."""
-    model_classes = set()  # Use set to avoid duplicates from aliases
-    for name in dir(models):
-        obj = getattr(models, name)
-        # Check if it looks like a model (has __tablename__)
-        if hasattr(obj, "__tablename__"):
-            model_classes.add(obj)
-    return list(model_classes)
+    """Every mapped class, from the registry (the src.models hub is empty, #1461)."""
+    return [mapper.class_ for mapper in Base.registry.mappers]
 
 
 def test_enums_have_explicit_names():
@@ -25,11 +19,13 @@ def test_enums_have_explicit_names():
     See: docs/ssot/schema.md
     """
     models_to_check = get_all_models()
+    # Anti-vacuity: the guardrail went silently green once when the models
+    # facade was emptied (#1461) and this collected zero classes.
+    assert len(models_to_check) > 5, "no mapped classes collected — the enum guardrail is scanning nothing"
     violations = []
 
     for model in models_to_check:
-        mapper = inspect(model)
-        for column in mapper.columns:
+        for column in model.__mapper__.columns:
             if isinstance(column.type, Enum):
                 # Check if name is explicitly set
                 if column.type.name is None:
