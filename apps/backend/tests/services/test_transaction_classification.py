@@ -302,10 +302,10 @@ async def test_AC18_15_8_flag_off_is_a_noop(db, test_user, monkeypatch):
     assert await _count(db, TransactionClassification) == 0
 
 
-def test_AC18_15_8_sole_production_consumer_is_statement_posting():
-    """AC18.15.8 (flipped by #1545 as planned): the statement-posting seam is the
-    ONLY production consumer of the classify node — no other module may grow a
-    side-door into classification."""
+def test_AC18_15_8_production_consumers_are_the_declared_seams():
+    """AC18.15.8: the classify node's production consumers are EXACTLY the two
+    declared seams — the posting path (#1545) and the backfill/re-extract router
+    (#1546). No other module may grow a side-door into classification."""
     src_root = Path("src")
     importers = []
     for path in src_root.rglob("*.py"):
@@ -317,7 +317,10 @@ def test_AC18_15_8_sole_production_consumer_is_statement_posting():
                 importers.append(str(path))
             elif isinstance(node, ast.Import) and any("transaction_classification" in a.name for a in node.names):
                 importers.append(str(path))
-    assert importers == ["src/services/statement_posting.py"]
+    assert sorted(importers) == [
+        "src/routers/classifications.py",
+        "src/services/statement_posting.py",
+    ]
 
 
 # --- AC18.15.3 (LLM boundary contract): prompt-driven JSON, parsed + clamped by code ---
@@ -451,3 +454,44 @@ async def test_AC18_15_3_prompt_forbids_markdown_fences(monkeypatch):
     prompt = captured["messages"][0]["content"]
     assert "Do NOT wrap it in markdown or code fences" in prompt
     assert "ONLY the raw JSON array" in prompt
+
+
+# --- AC18.17 (#1546 Cleanup): governance locks -----------------------------------
+
+
+def test_AC18_17_1_no_classify_writer_is_defined_but_uninvoked():
+    """AC18.17.1: every classification writer has a production call site — the
+    #1279 'closed-but-not-wired' failure mode (orphaned scaffolding) can never
+    recur silently. This is the lock that caught backfill_classifications."""
+    # Entry seams must be invoked from production code OUTSIDE the module; the
+    # core pass (classify_transactions) must be invoked by those live seams.
+    entry_seams = ("classify_by_effective_policy", "backfill_classifications")
+
+    def call_names(tree: ast.AST) -> set[str]:
+        names = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                fn = node.func
+                name = fn.id if isinstance(fn, ast.Name) else (fn.attr if isinstance(fn, ast.Attribute) else None)
+                if name:
+                    names.add(name)
+        return names
+
+    external_calls: set[str] = set()
+    for path in Path("src").rglob("*.py"):
+        if path == MODULE_PATH:
+            continue
+        external_calls |= call_names(ast.parse(path.read_text(encoding="utf-8")))
+    orphaned = [w for w in entry_seams if w not in external_calls]
+    assert not orphaned, f"classify entry seam(s) defined but never invoked in production: {orphaned}"
+
+    module_calls = call_names(ast.parse(MODULE_PATH.read_text(encoding="utf-8")))
+    assert "classify_transactions" in module_calls, "the core pass is not wired to any live entry seam"
+
+
+def test_AC18_17_3_reports_read_only_applied_classifications():
+    """AC18.17.3: reports consume exactly ONE classification source and only
+    APPLIED rows — the DRAFT review band never leaks into as-reported figures."""
+    src = Path("src/services/reporting/income_statement.py").read_text(encoding="utf-8")
+    assert "ClassificationStatus.APPLIED" in src
+    assert "ClassificationStatus.DRAFT" not in src and "ClassificationStatus.SUPERSEDED" not in src

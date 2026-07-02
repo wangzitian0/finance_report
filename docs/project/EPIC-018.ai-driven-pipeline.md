@@ -466,7 +466,7 @@ production consumes the node yet — #1545 (Migrate) flips that.
 | AC18.15.5 | Red line | The model never touches money: proposals cannot express an amount, the node imports no posting primitives, and transaction Decimal amounts pass through classification untouched {tier:CODE-LED} {proof:property} | `test_AC18_15_5_model_never_touches_money()` | `services/test_transaction_classification.py` | P0 |
 | AC18.15.6 | Pro-forma | `commit_basis=False` computes verdicts under a candidate policy without writing the basis-of-record: no classifications, no policy rules, no accounts {tier:CODE-LED} {proof:property} | `test_AC18_15_6_pro_forma_writes_nothing()` | `services/test_transaction_classification.py` | P1 |
 | AC18.15.7 | Rules | A user's deterministic rule wins before the model is consulted, and having no rules is a no-op pre-pass, not an error {tier:CODE-LED} {proof:property} | `test_AC18_15_7_user_rule_prepass_wins_over_model()`, `test_AC18_15_7_no_rules_is_a_noop_prepass_not_an_error()` | `services/test_transaction_classification.py` | P1 |
-| AC18.15.8 | Consumer seam | The node is inert with `enable_ai_classification` off (the default), and the statement-posting seam is the ONLY production consumer (wired by #1545; no other module may grow a side-door into classification) {tier:CODE-LED} {proof:property} | `test_AC18_15_8_flag_off_is_a_noop()`, `test_AC18_15_8_sole_production_consumer_is_statement_posting()` | `services/test_transaction_classification.py` | P1 |
+| AC18.15.8 | Consumer seams | The node is inert with `enable_ai_classification` off (the default), and its production consumers are EXACTLY the two declared seams — the posting path (#1545) and the backfill/re-extract router (#1546); no other module may grow a side-door into classification {tier:CODE-LED} {proof:property} | `test_AC18_15_8_flag_off_is_a_noop()`, `test_AC18_15_8_production_consumers_are_the_declared_seams()` | `services/test_transaction_classification.py` | P1 |
 
 ### AC18.16: Transaction Classification — Migrate (#1545)
 
@@ -482,6 +482,19 @@ figures — a basis change is prospective from its `effective_from` cutoff.
 | AC18.16.3 | Flag off | With `enable_ai_classification` off (the default), the import path behaves exactly as before this EPIC: only the two Uncategorized buckets, zero classification rows {tier:CODE-LED} {proof:property} | `test_AC18_16_3_flag_off_is_byte_identical_to_today()` | `services/test_classification_migration.py` | P1 |
 | AC18.16.4 | Backfill | The one-time backfill classifies each not-yet-classified transaction once under its own effective policy; a re-run is a no-op (idempotent, dated, append-only) — a temporary migration aid removed by #1546, not a permanent adapter {tier:CODE-LED} {proof:property} | `test_AC18_16_4_backfill_is_idempotent_dated_append_only()` | `services/test_classification_migration.py` | P1 |
 | AC18.16.5 | Ledger stability | Re-running classification never rewrites posted journal entries or lines — the category is a projection over the immutable ledger, not an edit of it {tier:CODE-LED} {proof:property} | `test_AC18_16_5_reclassification_never_rewrites_posted_entries()` | `services/test_classification_migration.py` | P0 |
+
+### AC18.17: Transaction Classification — Cleanup (#1546)
+
+Closes the #1483 EPIC: no orphaned classification scaffolding can exist or recur
+(the #1279 "closed-but-not-wired" failure mode), and the backfill pass becomes a
+live, controlled entry point (the seed of the edit-tags → re-extract capability)
+instead of dead code.
+
+| AC | Group | Description | Test Functions | Test File | Priority |
+|----|-------|-------------|----------------|-----------|----------|
+| AC18.17.1 | No orphans | Every classification entry seam has a production call site and the core pass is wired to a live seam (AST gate) — a defined-but-uninvoked classify writer fails CI, so orphaned scaffolding can never recur silently {tier:CODE-LED} {proof:property} | `test_AC18_17_1_no_classify_writer_is_defined_but_uninvoked()` | `services/test_transaction_classification.py` | P0 |
+| AC18.17.2 | Backfill live | `POST /classifications/backfill` classifies the caller's not-yet-classified transactions under each transaction's own effective policy, is idempotent on re-run, and is flag-gated (off => zero classifications) {tier:CODE-LED} {proof:property} | `test_AC18_17_2_backfill_endpoint_classifies_then_is_idempotent()`, `test_AC18_17_2_backfill_endpoint_is_flag_gated()` | `api/test_classifications_router.py` | P1 |
+| AC18.17.3 | Single source | Reports consume exactly one classification source and only APPLIED rows — the DRAFT review band and SUPERSEDED history never leak into as-reported figures {tier:CODE-LED} {proof:property} | `test_AC18_17_3_reports_read_only_applied_classifications()` | `services/test_transaction_classification.py` | P0 |
 
 ---
 
