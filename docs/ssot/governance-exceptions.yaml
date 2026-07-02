@@ -220,16 +220,6 @@ exceptions:
       apps/backend/tests/fixtures/generated/); the MANIFEST pdf_fixtures owner
       now points there. Remove this exception once the deletion is merged.
 
-  - target: finance_report:docs/ssot/env_smoke_test.md
-    issue: https://github.com/wangzitian0/finance_report/issues/1554
-    reason: >-
-      env_smoke_test.md is retired — its Three-Gates environment-verification
-      SSOT is internalized into the runtime package
-      (common/runtime/readme.md#environment-verification-the-three-gates); the
-      MANIFEST env_smoke_test owner now points there. The deletion shows up as a
-      changed SSOT file with no owner; this temporary exception covers only that
-      deletion churn. Remove this exception once the deletion is merged.
-
 # ---------------------------------------------------------------------------
 # Temporary SSOT governance gate exceptions live in `exceptions` above.
 # Each exception must target a single gate finding and link a GitHub issue.
