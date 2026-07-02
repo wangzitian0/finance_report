@@ -171,6 +171,59 @@ Proposer = Callable[
 ]
 
 
+def _recover_json_array(content: str) -> list | None:
+    """Best-effort recovery of a JSON array from a fenced/prose-wrapped response.
+
+    Models occasionally wrap an otherwise-valid array in a markdown code fence or
+    pad it with prose (seen live on staging: ``json.loads`` failed at char 0 and
+    every transaction degraded to ``no_proposal``). Scan every top-level balanced
+    ``[...]`` — tracking string literals so brackets inside values don't truncate
+    one — and return the largest that parses. Deterministic; never invents data;
+    returns ``None`` when nothing recoverable exists (the graceful-fallback path).
+    The array twin of ``extraction/_coerce._repair_json_object``.
+    """
+    if not content:
+        return None
+    text = content.strip()
+    candidates: list[str] = []
+    i, n = 0, len(text)
+    while i < n:
+        if text[i] != "[":
+            i += 1
+            continue
+        depth, in_string, escaped, end = 0, False, False, None
+        for j in range(i, n):
+            char = text[j]
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == '"':
+                    in_string = False
+            elif char == '"':
+                in_string = True
+            elif char == "[":
+                depth += 1
+            elif char == "]":
+                depth -= 1
+                if depth == 0:
+                    end = j
+                    break
+        if end is None:
+            break
+        candidates.append(text[i : end + 1])
+        i = end + 1
+    for candidate in sorted(candidates, key=len, reverse=True):
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, list):
+            return parsed
+    return None
+
+
 async def propose_categories(
     transactions: Sequence[AtomicTransaction], policy: ClassificationPolicy
 ) -> list[CategoryProposal | None]:
@@ -192,8 +245,9 @@ async def propose_categories(
     )
     prompt = (
         "Classify each personal-finance transaction into EXACTLY ONE category from "
-        f"this closed list: [{catalog}]. Respond with a JSON array; item i must be "
-        '{"category": "<one of the list>", "confidence": <0-100 integer>, '
+        f"this closed list: [{catalog}]. Respond with ONLY the raw JSON array — "
+        "Do NOT wrap it in markdown or code fences and do not add prose. Item i "
+        'must be {"category": "<one of the list>", "confidence": <0-100 integer>, '
         '"reason": "<short>"} for transaction i.\n\nTransactions:\n' + lines
     )
 
@@ -204,10 +258,24 @@ async def propose_categories(
             timeout=60.0,
         )
         content = await accumulate_stream(stream)
-        parsed = json.loads(content)
+        if not content or not content.strip():
+            logger.warning("transaction classification proposal returned empty response")
+            return [None] * len(transactions)
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError:
+            parsed = _recover_json_array(content)
         if not isinstance(parsed, list):
-            raise ValueError("expected a JSON array")
-    except (AIStreamError, json.JSONDecodeError, ValueError, TypeError) as e:
+            # Redacted diagnostics only (descriptions are user data): enough to
+            # distinguish fenced/prose/truncated shapes from the logs next time.
+            logger.warning(
+                "transaction classification proposal failed",
+                error="unparseable model response",
+                content_length=len(content),
+                looks_fenced=content.lstrip().startswith("`"),
+            )
+            return [None] * len(transactions)
+    except (AIStreamError, ValueError, TypeError) as e:
         logger.warning("transaction classification proposal failed", error=str(e))
         return [None] * len(transactions)
 

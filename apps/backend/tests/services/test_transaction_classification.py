@@ -399,3 +399,38 @@ async def test_AC18_15_2_committed_rerun_is_idempotent_not_integrityerror(db, te
         .all()
     )
     assert len(rows) == 1  # kept, not duplicated
+
+
+# --- AC18.15.3 (staging observe fix): fenced/prose-wrapped model arrays are recovered ---
+
+
+@pytest.mark.asyncio
+async def test_AC18_15_3_proposer_recovers_fenced_or_prose_wrapped_arrays(monkeypatch):
+    """AC18.15.3: models wrap JSON in markdown fences or prose (seen live on
+    staging: json.loads failed at char 0 => every txn degraded to no_proposal).
+    The boundary recovers the balanced top-level array instead of giving up."""
+    from src.config import settings
+    from src.services import transaction_classification as tc
+
+    monkeypatch.setattr(settings, "ai_api_key", "test-key")
+    txns = [AtomicTransactionFactory.build(user_id=None, description="ACME PAYROLL")]
+    policy = policy_for(date.today())
+
+    fenced = '```json\n[{"category": "SALARY", "confidence": 90, "reason": "payroll"}]\n```'
+    prose = 'Sure! Here is the classification:\n[{"category": "SALARY", "confidence": 88}]\nHope that helps.'
+    for content in (fenced, prose):
+        monkeypatch.setattr("src.services.ai_streaming.stream_ai_json", lambda **kw: _fake_stream(content))
+        proposals = await tc.propose_categories(txns, policy)
+        assert proposals[0] is not None, content
+        assert proposals[0].category == "SALARY"
+
+    # empty response stays a graceful per-txn None (distinct from a parse failure)
+    monkeypatch.setattr("src.services.ai_streaming.stream_ai_json", lambda **kw: _fake_stream(""))
+    assert await tc.propose_categories(txns, policy) == [None]
+
+
+def test_AC18_15_3_prompt_forbids_markdown_fences():
+    """AC18.15.3: the prompt carries the same no-fence instruction the statement
+    prompts use, so recovery is the fallback, not the norm."""
+    src = MODULE_PATH.read_text(encoding="utf-8")
+    assert "Do NOT wrap" in src and "fence" in src
