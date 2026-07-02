@@ -78,6 +78,41 @@ def classify_stage(path: str) -> str | None:
     return None
 
 
+# ---------------------------------------------------------------------------
+# Package test-root declarations (issue #1558): each domain package declares
+# the test roots it owns via a module-level TEST_ROOTS tuple in its
+# contract.py; the matrix aggregates them into the generated YAML's
+# `ownership:` section. Removing a declaration changes the generated view and
+# fails the --check-matrix drift gate. Seed rollout: three packages.
+# ---------------------------------------------------------------------------
+
+PACKAGE_TEST_DECLARATIONS: tuple[str, ...] = ("runtime", "ledger", "coverage")
+
+
+def package_test_ownership() -> dict[str, str]:
+    """Aggregate declared test roots → owning package (lazy imports so the
+    runtime selection path stays stdlib-only)."""
+    import importlib
+
+    ownership: dict[str, str] = {}
+    for pkg in PACKAGE_TEST_DECLARATIONS:
+        contract = importlib.import_module(f"common.{pkg}.contract")
+        roots = getattr(contract, "TEST_ROOTS", None)
+        if not roots:
+            raise ValueError(
+                f"package {pkg!r} is in PACKAGE_TEST_DECLARATIONS but its "
+                "contract.py declares no TEST_ROOTS"
+            )
+        for root in roots:
+            other = ownership.get(root)
+            if other is not None:
+                raise ValueError(
+                    f"test root {root!r} declared by both {other!r} and {pkg!r}"
+                )
+            ownership[root] = pkg
+    return ownership
+
+
 GENERATED_MATRIX_HEADER = (
     "# GENERATED from common/testing/matrix.py — do not hand-edit.\n"
     "# Regenerate: python tools/test_selection.py --emit-matrix\n"
@@ -96,6 +131,13 @@ def emit_execution_matrix_yaml() -> str:
         lines.append(f"  - path: {rule.path}")
         lines.append(f"    stage: {rule.stage}")
         lines.append(f"    ci_required: {'true' if rule.ci_required else 'false'}")
+    # Package-declared test ownership (issue #1558). Consumers of `rules:`
+    # (AC traceability) ignore this section; it exists so a dropped or
+    # duplicated declaration is a visible generated-view change.
+    lines.append("ownership:")
+    for root, pkg in sorted(package_test_ownership().items()):
+        lines.append(f"  - path: {root}")
+        lines.append(f"    package: {pkg}")
     return "\n".join(lines) + "\n"
 
 
@@ -322,6 +364,10 @@ class WorkflowPytestContract:
     paths: tuple[str, ...] = ()
     # Substring identifying this invocation's line uniquely in the workflow.
     anchor: str = ""
+    # Environment precondition that must run BEFORE this invocation in the
+    # same workflow (runtime package's domain: a red precondition is an
+    # environment failure, not a test failure — issue #1558). Empty = none.
+    precondition: str = ""
 
 
 WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
@@ -350,6 +396,7 @@ WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
         marker=None,  # runtime-derived: eval tools/test_selection.py --shell
         paths=('"${PR_PREVIEW_E2E_TESTS[@]}"',),
         anchor='-m "$PR_PREVIEW_E2E_MARKER"',
+        precondition="tools/smoke_test.sh",
     ),
     WorkflowPytestContract(
         stage="staging_core_e2e",
@@ -357,6 +404,7 @@ WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
         marker=STAGING_CORE_E2E_MARKER,
         paths=("tests/e2e",),
         anchor="--junit-xml=test-results/staging-core-e2e.xml",
+        precondition="tools/smoke_test.sh",
     ),
     WorkflowPytestContract(
         stage="staging_provider_connectivity",

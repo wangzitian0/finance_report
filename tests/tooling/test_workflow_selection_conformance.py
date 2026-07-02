@@ -168,7 +168,8 @@ def test_AC8_23_4_pr_ci_evidence_reconciliation_gate(tmp_path: Path) -> None:
     assert run_check([junit_for(proofs)]) == 0
     assert run_check([junit_for(proofs[1:])]) == 1
 
-    # Skipped-only counts as present (warning), not missing — for now.
+    # Skipped-only is a hard fail (#1558): a pr_ci proof that only ever skips
+    # pre-merge is not executing its promise.
     skipped = tmp_path / "skipped.xml"
     first = proofs[0]
     skipped.write_text(
@@ -176,7 +177,9 @@ def test_AC8_23_4_pr_ci_evidence_reconciliation_gate(tmp_path: Path) -> None:
         f' name="{first["test"]}"><skipped/></testcase></testsuite>',
         encoding="utf-8",
     )
-    assert run_check([junit_for(proofs[1:]), skipped]) == 0
+    assert run_check([junit_for(proofs[1:]), skipped]) == 1
+    # ...but a skip in one shard with a real run in another still passes.
+    assert run_check([junit_for(proofs), skipped]) == 0
 
 
 def test_AC8_23_4_junit_parsing_handles_params_and_classes(tmp_path: Path) -> None:
