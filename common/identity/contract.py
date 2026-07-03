@@ -1,12 +1,13 @@
 """The ``identity`` package's machine-checkable :class:`PackageContract`.
 
 ``identity`` is the vertical **users + authentication + AI-feedback** domain slice
-(``klass="core"``). The governance gate (``tools/check_package_contract.py``)
+(layer ``domain``, L3 — resolved from the central map in
+``common/meta/base/layering.py``). The governance gate (``tools/check_package_contract.py``)
 validates the BE implementation (``apps/backend/src/identity``) against this
 contract: ``interface`` must equal the implementation's ``__all__``; every
 ``invariants[].test`` / ``roadmap[].test`` must resolve to a real test;
-``depends_on`` must introduce no forbidden import edge (a ``core`` package may
-import the ``kernel`` substrate it builds on — ``platform`` for the rate limiter,
+``depends_on`` must introduce no forbidden import edge (a ``domain`` package may
+import the ``infra`` substrate it builds on — ``platform`` for the rate limiter,
 ``observability`` for the security-warning log — both strictly downward); and each
 declared ``unit`` sits in the layer its ``kind`` dictates.
 
@@ -28,13 +29,13 @@ mirroring ``counter``/``platform``:
   operations, the auth rate limiters, the observability binding, and the ``/auth``
   + ``/users`` transport (``extension/api/``).
 
-### Why ``klass="core"``
+### Why layer ``domain``
 
 ``User``/``AiFeedback`` are a vertical domain (a bounded context), not a reusable
-horizontal capability — so identity is a ``core`` package. The gate ranks
-``kernel(0) < platform(1) < core(2)`` and forbids importing an equal/higher rank;
-identity (``core``) importing ``platform``/``observability`` (``kernel``) is a
-strictly downward edge.
+horizontal capability — so identity is a ``domain`` package. The gate ranks
+``meta(L0) < infra(L1) < middleware(L2) < domain(L3) < app(L4)`` and forbids
+importing an equal/higher rank; identity (``domain``) importing
+``platform``/``observability`` (``infra``) is a strictly downward edge.
 
 The package's ACs live here in ``roadmap`` (the package-model AC registry),
 sourced directly into the AC registry — no longer mirrored into the EPIC-001
@@ -57,10 +58,10 @@ CONTRACT = PackageContract(
     # Deterministic auth/user domain, no LLM: a pure-code (CODE-ONLY) package.
     # Every AC in the roadmap inherits this tier.
     tier="CODE-ONLY",
-    # Downward edges only: the kernel substrate identity builds on — the platform
+    # Downward edges only: the infra substrate identity builds on — the platform
     # rate limiter, the observability security-warning log, and config (settings,
     # imported by its bare published root like observability does). All three are
-    # kernel-class, so a core package importing them is strictly downward.
+    # infra-class, so a domain package importing them is strictly downward.
     # (src.database / src.deps are unregistered backend infra, out of scope for
     # the edge rule; the former flat src.logger / src.utils now live inside the
     # observability / platform packages, so those imports are governed edges.)

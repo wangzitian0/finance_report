@@ -3,7 +3,7 @@
 ``config`` is internal tooling — env-key + schema-validation helpers
 (``env_keys``, ``schema_validation``) — not a domain bounded context, so it
 publishes no curated symbol language (``interface=[]``); callers import its
-modules directly. The contract governs it as a ``kernel`` leaf (``depends_on=[]``)
+modules directly. The contract governs it as an ``infra`` leaf (L1, ``depends_on=[]``)
 with an invariant pinned to its test. (The DAG import-scan only inspects
 ``src.<pkg>`` imports, so for a ``common/``-implemented package leaf-purity is a
 declared, not a scanned, property.)

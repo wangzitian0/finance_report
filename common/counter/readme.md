@@ -1,4 +1,4 @@
-# `counter` — per-(user, key) tallies (platform package)
+# `counter` — per-(user, key) tallies (middleware package)
 
 > The **canonical worked example of the package model** (a package = DDD bounded
 > context). Model spec: [`../governance/readme.md`](../governance/readme.md).
@@ -12,7 +12,7 @@
 ## Why
 
 Insight reports ask "**how many times did X happen** — overall, or for this
-user?". `counter` is the small, reusable platform capability that answers that:
+user?". `counter` is the small, reusable middleware capability that answers that:
 it tallies named events per user and lets a report read either the per-user count
 or the global count (sum across users).
 

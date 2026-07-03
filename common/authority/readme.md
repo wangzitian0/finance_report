@@ -199,7 +199,6 @@ cannot silently shrink as the tree evolves.
 ```python
 CONTRACT = PackageContract(
     name="counter",
-    klass="platform",
     status="active",
     tier="CODE-ONLY",        # the whole package's authority tier; every AC inherits it
     ...

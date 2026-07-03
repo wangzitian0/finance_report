@@ -10,7 +10,7 @@ run via ``tools/`` wrappers (its invariant is pinned below).
 
 ``depends_on=["config"]``: the OTEL runtime reads the backend config singleton via
 its bare published root (``import src.config``), the one registered-package edge it
-declares (a same-class ``kernel`` -> ``kernel`` edge, acyclic). The formerly flat
+declares (a same-layer ``infra`` -> ``infra`` edge, acyclic). The formerly flat
 ``src.logger`` / ``src.telemetry_metrics`` / ``src.analytics`` modules and the
 ``ErrorIds`` vocabulary now live inside this package; its one remaining import of
 unregistered backend infrastructure is ``src.services.pii_redaction``.

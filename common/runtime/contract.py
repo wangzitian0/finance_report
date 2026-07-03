@@ -6,7 +6,7 @@ provider, cache, telemetry, …), how each of the six environments substitutes
 them, and the invariant that a *declared* dependency must be *asserted present*
 (no silent ``skipped``/``warning``/fallback).
 
-A ``kernel`` leaf (``depends_on=[]``), now ``active``. The *construct* phase
+An ``infra`` leaf (L1, ``depends_on=[]``), now ``active``. The *construct* phase
 shipped the ``base`` value language + dependency manifest + the
 ``DependencyCheck`` port; the *switch* phase added the ``extension`` probe
 adapters (``DatabaseCheck`` / ``ObjectStorageCheck`` / ``LlmCheck``, published

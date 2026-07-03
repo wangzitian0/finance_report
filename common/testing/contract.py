@@ -1,6 +1,6 @@
 """The ``testing`` package's machine-checkable :class:`PackageContract`.
 
-``testing`` is a ``kernel`` leaf: test/fixture-scoped capability code reused
+``testing`` is an ``infra`` leaf (L1): test/fixture-scoped capability code reused
 across backend, tooling, and E2E tests (mirrors ``base_values.py``'s own
 docstring: "these helpers are intentionally test/fixture scoped"). It has no
 production runtime edge — nothing under ``apps/*/src`` imports it — so unlike

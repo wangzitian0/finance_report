@@ -60,9 +60,11 @@ from common.meta.package_contract import (
 
 CONTRACT = PackageContract(
     name="audit",
-    # kernel: audit now physically hosts the value-object family it governs (the
-    # four folded domains), matching what each of them declared before the fold
-    # (``klass="kernel"``). depends_on stays empty: the domains depend on each
+    # infra (L1): audit now physically hosts the value-object family it governs
+    # (the four folded domains), matching where the fold placed each of them
+    # (formerly ``klass="kernel"``, now ``infra`` in the five-layer topology
+    # resolved from ``common/meta/base/layering.py``). depends_on stays empty:
+    # the domains depend on each
     # other internally (an implementation detail within audit), not on anything
     # outside audit.
     status="active",

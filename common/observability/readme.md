@@ -1,11 +1,11 @@
-# `observability` — OTEL runtime contract, audit logging + OpenPanel CLI (kernel)
+# `observability` — OTEL runtime contract, audit logging + OpenPanel CLI (infra)
 
 > Model spec: [`../governance/readme.md`](../governance/readme.md). Machine
 > contract: [`contract.py`](./contract.py). Worklist: [`todo.md`](./todo.md).
 
 ## What
 
-Two cohesive surfaces under one `kernel` package:
+Two cohesive surfaces under one `infra` package:
 
 1. **Backend observability language** (BE implementation:
    `apps/backend/src/observability`) — the vendor-neutral OpenTelemetry runtime
@@ -21,9 +21,9 @@ Two cohesive surfaces under one `kernel` package:
 
 ## Shape
 
-A `kernel` package, `tier=CODE-ONLY` (pure Python, no LLM). `depends_on=["config"]`:
+An `infra` package (L1), `tier=CODE-ONLY` (pure Python, no LLM). `depends_on=["config"]`:
 the OTEL runtime reads the backend config singleton via its bare published root
-(`import src.config`) — a same-class, acyclic `kernel` -> `kernel` edge. Its other
+(`import src.config`) — a same-layer, acyclic `infra` -> `infra` edge. Its other
 imports (`src.services.pii_redaction`, `src.telemetry_metrics`) are unregistered
 backend infrastructure, not governed cross-package edges. Its published language —
 `contract.interface` — equals `apps/backend/src/observability/__init__.__all__`,

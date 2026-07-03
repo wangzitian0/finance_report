@@ -12,7 +12,7 @@
 >
 > First worked example: [`common/counter`](../counter/readme.md) (spec) +
 > [`apps/backend/src/counter`](../../apps/backend/src/counter) (implementation).
-> The first `core` domain on the model is
+> The first `domain`-layer (L3) bounded context on the model is
 > [`common/ledger`](../ledger/readme.md) (spec) +
 > [`apps/backend/src/ledger`](../../apps/backend/src/ledger) (implementation).
 
@@ -27,7 +27,8 @@ these parts:
    why the package exists, a usage example, and what is public vs internal. (The
    review surface.)
 2. **`contract.py`** (`common/<pkg>/contract.py`) — a machine-checkable
-   `PackageContract` (a pydantic model): the package's `status`, `klass`,
+   `PackageContract` (a pydantic model): the package's `status`, `klass`
+   (its layer, resolved from the central `PACKAGE_LAYER` map — not self-claimed),
    `units` (its DDD building blocks, each carrying its `kind` → layer; `roles` is
    the legacy form), `implementations`, published `interface`, emitted `events`,
    the `invariants` it guarantees, and its `roadmap` (the ACs it owns).
@@ -57,20 +58,65 @@ So `common/<pkg>/` is the **spec + high-level review surface**;
 `apps/backend/src/<pkg>` and `apps/frontend/src/lib/<pkg>` are conforming
 **implementations**.
 
-## Three package classes
+## The five-layer topology
 
-A package declares one `klass`; the class fixes its place in the dependency DAG.
-The rule is **never up, never sideways-cyclic**: a package may never import a
-*higher* class, and may import a *same-class* package only when it declares it in
-`depends_on` **and** the overall `depends_on` graph stays acyclic. (Enforced by
-`check_package_contract`: the upward guard + a global cycle check.) So a cohesive
-family can share one layer and depend on each other acyclically.
+Every package sits in one of five ordered layers — `meta < infra < middleware <
+domain < app`. Placement is **global topology**, so it is owned here in L0 as
+the central `PACKAGE_LAYER` map ([`base/layering.py`](./base/layering.py)): a
+package's `contract.py` does not self-claim a `klass`; the model resolves it
+from the map (a declared value must agree with the map; only packages outside
+the map — synthetic/test contracts — declare one).
 
-| class | what it is | may depend on |
-|-------|-----------|---------------|
-| `kernel` | the value-language layer reused everywhere (e.g. `money`, `ratio`, `quantity`, `unit_price`) | other `kernel` packages it declares (acyclic) |
-| `platform` | a reusable horizontal capability (e.g. `counter`) | `kernel` + same-class declared (acyclic) |
-| `core` | a vertical domain slice (e.g. `ledger`) | `platform` + `kernel` + same-class declared (acyclic) |
+The dependency rule is **never up, never sideways-cyclic**: a package may never
+import a *higher* layer, and may import a *same-layer* package only when it
+declares it in `depends_on` **and** the overall graph stays acyclic. (Enforced
+by `check_package_contract`: the upward guard + a global cycle check.) So a
+cohesive family — the value types — can share one layer and depend on each
+other acyclically.
+
+```mermaid
+flowchart TD
+    subgraph L0["L0 · meta — template + global governance"]
+        meta["meta<br/><i>PackageContract (the template) · gates in extension/</i>"]
+    end
+    subgraph L1["L1 · infra — business-agnostic foundations"]
+        infra["config · audit · authority · observability<br/>testing · coverage · governance · runtime · llm · platform"]
+    end
+    subgraph L2["L2 · middleware — the shared domain kernel"]
+        middleware["money · ratio · quantity · unit_price · counter"]
+    end
+    subgraph L3["L3 · domain — vertical business slices"]
+        domain["ledger · identity · extraction · reconciliation"]
+    end
+    subgraph L4["L4 · app — the deliverables"]
+        app["apps/backend · apps/frontend"]
+    end
+
+    app -->|import| domain
+    domain -->|import| middleware
+    middleware -->|import| infra
+    infra -->|"import<br/>(every contract.py uses the L0 template)"| meta
+    meta -.->|"tool-time inversion: CI gates scan every<br/>contract.py — never a runtime import"| L4
+```
+
+Two edge *phases* keep the picture acyclic:
+
+- the **template edge** is import-time and points down: every `contract.py`
+  imports `PackageContract` from L0;
+- the **governance edge** is tool-time and points up: `meta`'s `extension/`
+  gates scan every package's contract in CI, outside the runtime import DAG.
+  Wherever a lower layer must know about a higher one, the edge is inverted
+  through exactly two legal forms — a port in the lower layer's `base` with the
+  adapter registered from above (import-time), or a declaration in the upper
+  package's contract scanned by the lower package's `extension` at tool-time.
+
+| layer | what it is | examples |
+|-------|-----------|----------|
+| `meta` (L0) | the template every package follows + the global governance gates; governs only at package granularity (`contract.py`), never implementations | `meta` |
+| `infra` (L1) | business-agnostic foundations — L1 does not know what money is | `config`, `audit`, `authority`, `observability`, `testing`, `coverage`, `runtime`, `llm`, `platform` |
+| `middleware` (L2) | the shared domain kernel: the value language + generic capabilities | `money`, `ratio`, `quantity`, `unit_price`, `counter` |
+| `domain` (L3) | vertical business slices | `ledger`, `identity`, `extraction` |
+| `app` (L4) | the deliverables | `apps/backend`, `apps/frontend` |
 
 ## Governance is computed, not authored
 

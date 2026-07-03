@@ -31,20 +31,21 @@ ORM model lives with the SQL adapter in ``extension`` (declared taxonomy-only, n
 placed module, exactly as ``counter`` keeps its ``CounterTally`` table in
 ``extension``).
 
-### Why ``klass="kernel"``
+### Why layer ``infra``
 
-The ``klass`` is a position in the import DAG, not a marketing label. The gate
-ranks ``kernel(0) < platform(1) < core(2)`` and forbids any package importing a
-target of **equal or higher** rank. ``counter`` (a ``platform`` package) must
+The layer is a position in the import DAG, not a marketing label. The gate
+ranks ``meta(L0) < infra(L1) < middleware(L2) < domain(L3) < app(L4)`` and
+forbids any package importing a
+target of **equal or higher** rank. ``counter`` (a ``middleware`` package, L2) must
 import this package's :class:`DomainEvent` (its ``Incremented`` is a
 ``DomainEvent``) and write through its bus — a strictly *downward* edge only if
 ``platform`` (the package) ranks **below** ``counter``. So this foundational
 event/outbox + middleware substrate — which declares no governed edges (it
 imports only the unregistered ``src.database`` Base/session;
-the config-bound ``api_rate_limiter`` instance is wired in ``src.main``) — is classed
-``kernel``: a leaf the whole app builds events on. "Meta layer" describes its
+the config-bound ``api_rate_limiter`` instance is wired in ``src.main``) — is placed
+in ``infra`` (L1): a leaf the whole app builds events on. "Meta layer" describes its
 *role* (the runtime middleware capabilities of the platform substrate);
-``kernel`` is its honest DAG rank.
+``infra`` is its honest DAG rank.
 """
 
 from __future__ import annotations

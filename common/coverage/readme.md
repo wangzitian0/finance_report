@@ -1,4 +1,4 @@
-# `coverage` — unified coverage policy + lcov helpers (kernel tooling package)
+# `coverage` — unified coverage policy + lcov helpers (infra tooling package)
 
 > Internal tooling, not a domain bounded context. Model spec:
 > [`../governance/readme.md`](../governance/readme.md). Machine contract:
@@ -14,12 +14,12 @@ The unified-coverage policy and lcov toolchain: which source files are in scope 
 > [`docs/ssot/coverage.md`](../../docs/ssot/coverage.md) and is owned by EPIC-008
 > (testing-strategy), whose ACs (`AC8.13.27` / `AC8.13.66` / `AC8.13.75`) assert
 > against that doc. That surface is cross-cutting (backend + frontend + CI +
-> Coveralls), not this narrow `kernel` leaf's domain, so per the package-migration
+> Coveralls), not this narrow `infra` leaf's domain, so per the package-migration
 > standard's "don't force a bad fit" it is **not** internalized here.
 
 ## Shape
 
-A `kernel` leaf: no declared dependencies (`depends_on=[]`) and `tier=CODE-ONLY`
+An `infra` leaf (L1): no declared dependencies (`depends_on=[]`) and `tier=CODE-ONLY`
 (pure Python, no LLM). It is a **collection of modules** invoked directly (and via
 `tools/` wrappers), so it publishes **no curated symbol language** —
 `contract.interface` is `[]`. Its [`contract.py`](./contract.py) is validated by

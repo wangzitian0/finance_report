@@ -51,7 +51,7 @@ def _contract(name: str, **overrides: object) -> PackageContract:
 
 
 def test_layer_rank_is_the_five_layer_order() -> None:
-    """L0 meta < L1 infra < L2 middleware < L3 domain < L4 app."""
+    """AC-meta.layer.1: L0 meta < L1 infra < L2 middleware < L3 domain < L4 app."""
     assert LAYER_RANK == {
         "meta": 0,
         "infra": 1,
@@ -63,13 +63,13 @@ def test_layer_rank_is_the_five_layer_order() -> None:
 
 @pytest.mark.parametrize("legacy", ["kernel", "platform", "core"])
 def test_old_klass_vocabulary_is_rejected(legacy: str) -> None:
-    """The retired kernel/platform/core words no longer construct a contract."""
+    """AC-meta.layer.1: the retired kernel/platform/core words are rejected."""
     with pytest.raises(ValidationError):
         _contract("synthetic-legacy", klass=legacy)
 
 
 def test_new_layer_vocabulary_is_accepted() -> None:
-    """A package not in the central map declares its layer explicitly."""
+    """AC-meta.layer.1: a package not in the central map declares its layer."""
     assert _contract("synthetic-new", klass="infra").klass == "infra"
 
 
@@ -77,13 +77,13 @@ def test_new_layer_vocabulary_is_accepted() -> None:
 
 
 def test_package_layer_map_covers_every_registered_package() -> None:
-    """Every discovered contract resolves a layer from PACKAGE_LAYER."""
+    """AC-meta.layer.2: every discovered contract resolves a layer from PACKAGE_LAYER."""
     missing = [p.name for p in discover_packages(REPO) if p.name not in PACKAGE_LAYER]
     assert missing == [], f"packages with no central placement: {missing}"
 
 
 def test_mapped_package_needs_no_declared_klass() -> None:
-    """A package in the central map gets its layer as a default."""
+    """AC-meta.layer.2: a package in the central map gets its layer as a default."""
     assert _contract("ledger").klass == "domain"
     assert _contract("runtime").klass == "infra"
     assert _contract("counter").klass == "middleware"
@@ -91,13 +91,13 @@ def test_mapped_package_needs_no_declared_klass() -> None:
 
 
 def test_declared_klass_must_match_central_map() -> None:
-    """A self-claim that contradicts the L0 map is rejected, not silently won."""
+    """AC-meta.layer.2: a self-claim contradicting the L0 map is rejected."""
     with pytest.raises(ValidationError):
         _contract("ledger", klass="infra")
 
 
 def test_unmapped_package_requires_a_declared_klass() -> None:
-    """No map entry + no declaration = unplaceable, rejected at construction."""
+    """AC-meta.layer.2: no map entry + no declaration = unplaceable, rejected."""
     with pytest.raises(ValidationError):
         _contract("synthetic-unmapped")
 
@@ -106,7 +106,7 @@ def test_unmapped_package_requires_a_declared_klass() -> None:
 
 
 def test_no_depends_on_edge_points_to_a_higher_layer() -> None:
-    """Declared depends_on edges go down or sideways, never up the five layers."""
+    """AC-meta.layer.3: depends_on edges go down or sideways, never up."""
     offenders: list[str] = []
     for pkg in discover_packages(REPO):
         my_rank = LAYER_RANK[pkg.contract.klass]
@@ -120,13 +120,13 @@ def test_no_depends_on_edge_points_to_a_higher_layer() -> None:
 
 
 def test_meta_depends_on_nothing() -> None:
-    """L0 has no downward edge to point at — the tier vocabulary is internal."""
+    """AC-meta.layer.3: L0 depends on nothing — the tier vocabulary is internal."""
     (meta,) = [p for p in discover_packages(REPO) if p.name == "meta"]
     assert meta.contract.depends_on == []
 
 
 def test_testing_does_not_declare_a_middleware_dependency() -> None:
-    """The L1 testing package must not depend upward on the L2 value language."""
+    """AC-meta.layer.3: testing (L1) must not depend upward on money (L2)."""
     (testing,) = [p for p in discover_packages(REPO) if p.name == "testing"]
     assert "money" not in testing.contract.depends_on
 
@@ -139,7 +139,7 @@ def test_testing_does_not_declare_a_middleware_dependency() -> None:
     ["common.meta.base.layering", "common.meta.base.authority_matrix"],
 )
 def test_layer_vocabulary_imports_without_pydantic(module: str) -> None:
-    """The L0 vocabulary modules stay importable in the pydantic-free lint env."""
+    """AC-meta.layer.4: L0 vocabulary stays importable in the pydantic-free lint env."""
     code = f"import sys; sys.modules['pydantic'] = None; import {module}"
     proc = subprocess.run(
         [sys.executable, "-c", code],
@@ -154,7 +154,7 @@ def test_layer_vocabulary_imports_without_pydantic(module: str) -> None:
 
 
 def test_readme_carries_the_mermaid_five_layer_diagram() -> None:
-    """common/meta/readme.md holds the authoritative layer diagram."""
+    """AC-meta.layer.5: common/meta/readme.md holds the authoritative layer diagram."""
     text = (REPO / "common/meta/readme.md").read_text(encoding="utf-8")
     assert "```mermaid" in text
     for layer in ("meta", "infra", "middleware", "domain", "app"):
