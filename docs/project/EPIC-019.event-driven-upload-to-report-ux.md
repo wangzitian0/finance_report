@@ -482,7 +482,7 @@ This supersedes the earlier per-source-class "intake checklist" (and its SSOT
 parity guard), which drifted from the single-entry + LLM-typed + passive design.
 This slice is UI structure only; it does not introduce new parsers or change
 backend source-trust decisions. Required-source-class coverage remains governed
-independently by AC13.12 over `docs/ssot/source-coverage-matrix.yaml`.
+independently by AC-extraction.112 over `docs/ssot/source-coverage-matrix.yaml`.
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|

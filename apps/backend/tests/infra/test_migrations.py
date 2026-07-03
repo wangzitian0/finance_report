@@ -69,7 +69,7 @@ def test_sqlalchemy_metadata_and_alembic_graph_are_valid(alembic_script):
 
 
 def test_AC13_10_4_source_type_migration_handles_missing_legacy_enum_label():
-    """AC13.10.4: legacy source_type cleanup must tolerate production enum drift."""
+    """AC-extraction.110.4: legacy source_type cleanup must tolerate production enum drift."""
     migration = SCRIPT_LOCATION / "versions" / "0018_source_type_priority.py"
     source = migration.read_text()
 
@@ -79,7 +79,7 @@ def test_AC13_10_4_source_type_migration_handles_missing_legacy_enum_label():
 
 
 def test_AC13_10_4_retire_bank_statement_value_is_drift_tolerant():
-    """AC13.10.4: dropping the legacy bank_statement enum value must tolerate drift.
+    """AC-extraction.110.4: dropping the legacy bank_statement enum value must tolerate drift.
 
     0040 (#896) removes 'bank_statement' from journal_source_type_enum. It must
     (a) re-run the defensive data collapse first so the type rebuild cannot fail

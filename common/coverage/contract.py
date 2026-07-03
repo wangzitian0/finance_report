@@ -44,3 +44,12 @@ CONTRACT = PackageContract(
     ],
     roadmap=[],
 )
+
+# Test roots this package owns (aggregated into the execution matrix's
+# generated ownership view; see common/testing/matrix.py, issue #1558).
+TEST_ROOTS: tuple[str, ...] = (
+    "tests/tooling/test_coverage_policy.py",
+    "tests/tooling/test_coverage_analyzer.py",
+    "tests/tooling/test_calculate_unified_coverage.py",
+    "tests/tooling/test_coverage_artifact_preflight.py",
+)

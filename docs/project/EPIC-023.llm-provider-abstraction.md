@@ -1,6 +1,6 @@
 # EPIC-023: LLM Provider Abstraction (litellm)
 
-> **Status**: In progress — PR1 lands the frozen contract (`src/llm/common`) and
+> **Status**: ✅ Complete — shipped across EPIC A/B and cut over to the `llm` package (#1426); the frozen contract (`src/llm/base`, formerly `src/llm/common`) and
 > the secret cipher; PR2 (EPIC A) implements the litellm client/catalogue/usage
 > meter and rewires existing call sites; PR3 (EPIC B) adds DB-backed provider
 > config, the scene×model matrix, and the first-run modal.
@@ -17,7 +17,7 @@
 ## Objective
 
 Replace the bespoke `httpx` AI plumbing (`services/ai_streaming.py`,
-`services/ai_models.py`, the provider calls inside `services/extraction.py`) with
+`services/ai_models.py`, the provider calls inside the extraction pipeline) with
 **litellm behind a single in-repo package, `src/llm`**, structured around three
 orthogonal axes:
 
@@ -58,7 +58,7 @@ unreliable across providers to support enforcing a money ceiling.
 
 | Slice | PR | Owns |
 |-------|----|------|
-| **common** | PR1 | `src/llm/common`: value types, `ConfigSource`/`LLMClient`/`CatalogProvider` protocols, `SecretCipher`+`FernetCipher`, [`common/llm/readme.md`](https://github.com/wangzitian0/finance_report/blob/main/common/llm/readme.md) (the LLM SSOT, internalized into the `llm` package). The frozen contract A and B build against. |
+| **common** | PR1 | `src/llm/base` (was `src/llm/common`): value types, `ConfigSource`/`LLMClient`/`CatalogProvider` protocols, `SecretCipher`+`FernetCipher`, [`common/llm/readme.md`](https://github.com/wangzitian0/finance_report/blob/main/common/llm/readme.md) (the LLM SSOT, internalized into the `llm` package). The frozen contract A and B build against. |
 | **EPIC A** | PR2 | litellm `client`/`catalog`/`usage`/`routing` + `EnvConfigSource` — the litellm-backed scene surface. Cutting the legacy `ai_streaming`/`ai_models`/`extraction` call sites onto it is a deliberate follow-up (it requires migrating their transport-coupled unit tests and verifying live extraction through the post-merge AI/OCR gate). |
 | **EPIC B** | PR3 | `llm_provider` + `llm_scene_binding` tables, `DbConfigSource`, `/llm/*` API, first-run modal + scene×model settings page. |
 
@@ -67,148 +67,61 @@ parallel once PR1 merges.
 
 ## Acceptance Criteria
 
-### AC23.1 — Frozen contract & secret encryption
-> PR1 slice. The shared types/protocols and the at-rest secret cipher that EPIC A
-> and EPIC B both build against.
-
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC23.1.1 | The three axes are typed: `ProtocolFamily` enumerates exactly the three universal protocol families, `Scene` the fixed call sites, and `ModelSpec`/`SceneBinding` carry modality/free/reasoning so model selection is data, not code {tier:CODE-ONLY} | `apps/backend/tests/unit/llm/test_types.py` | P1 |
-| AC23.1.2 | `FernetCipher` round-trips a provider secret (`encrypt` → `decrypt`) and never persists plaintext {tier:CODE-ONLY} | `apps/backend/tests/unit/llm/test_secrets.py` | P1 |
-| AC23.1.3 | Key rotation is single-pass: a secret sealed by an older key still decrypts after a newer key is prepended, and `rotate()` re-stamps it to the newest `key_version` {tier:CODE-ONLY} | `apps/backend/tests/unit/llm/test_secrets.py` | P1 |
-| AC23.1.4 | `build_cipher()` raises `LLMConfigError` when `LLM_ENCRYPTION_KEYS` is unset, and `FernetCipher` rejects malformed keys — DB-backed secrets fail closed {tier:CODE-ONLY} | `apps/backend/tests/unit/llm/test_secrets.py` | P1 |
-| AC23.1.5 | The seam protocols (`ConfigSource`, `LLMClient`, `CatalogProvider`, `SecretCipher`) are runtime-checkable and a conforming implementation satisfies `isinstance`, so EPIC A/B can swap implementations behind the contract {tier:CODE-ONLY} | `apps/backend/tests/unit/llm/test_contract.py` | P1 |
-
-### AC23.2 — litellm-backed scene surface
-> PR2 slice (EPIC A). The litellm implementation of the contract: provider
-> routing, the scene client, the dynamic catalogue, env config, and the usage
-> meter. (Legacy call-site cutover is a follow-up — see Scope Slices.)
-
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC23.2.1 | Provider routing maps each protocol family onto the correct litellm call — `openai`/`anthropic`/`openrouter` prefix, custom `api_base` for OpenAI-compatible endpoints, OpenRouter attribution headers — and normalises an already-qualified model id {tier:CODE-ONLY} | `apps/backend/tests/unit/llm/test_routing.py` | P1 |
-| AC23.2.2 | The litellm transport streams via litellm with `drop_params` (model-rejected params like `seed` are dropped, not 400'd) and resolves a binding's provider/model through the `ConfigSource` (`resolve_provider_and_model`, honouring the `provider_id/model` qualifier) {tier:CODE-ONLY} | `apps/backend/tests/unit/llm/test_client.py` | P1 |
-| AC23.2.3 | Provider failures are normalised to `LLMError` with a retryable verdict (rate-limit/5xx/timeout → retryable; others not) {tier:CODE-ONLY} | `apps/backend/tests/unit/llm/test_client.py` | P1 |
-| AC23.2.4 | `EnvConfigSource` projects the existing env settings onto scene bindings (vision/ocr → vision/ocr models, the rest → primary) and reports `is_configured() == False` when no API key, driving the first-run modal {tier:CODE-ONLY} | `apps/backend/tests/unit/llm/test_env_config.py` | P1 |
-| AC23.2.5 | The dynamic catalogue lists configured models enriched with litellm pricing, flags the free tier, and filters by provider/modality/free {tier:CODE-ONLY} | `apps/backend/tests/unit/llm/test_catalog.py` | P1 |
-| AC23.2.6 | The usage meter counts requests and (estimated) tokens per UTC day and rolls over at the day boundary — observability only, no money/cost and no ceiling (per-token pricing is too unreliable across providers to enforce a USD limit; the unenforced `AI_DAILY_LIMIT_USD` is dropped) {tier:CODE-ONLY} | `apps/backend/tests/unit/llm/test_usage.py` | P1 |
-
-### AC23.3 — DB-backed configuration & cutover
-> PR3 slice (EPIC B): the provider/binding tables, the DB config source layered
-> over env (all-or-nothing), and the cutover of the existing call sites onto the
-> litellm client. The `/llm` API, the first-run modal, and the scene×model page
-> ship in PR4 (with their own ACs) — that is where `LitellmCatalog`/`LitellmClient`
-> are consumed and `services/ai_models.py` is retired.
-
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC23.3.1 | `DbConfigSource` reads provider instances (decrypting the at-rest API key) and scene bindings (qualified by provider id) from `llm_providers` / `llm_scene_bindings` {tier:CODE-ONLY} | `apps/backend/tests/integration/test_llm_db_config.py` | P1 |
-| AC23.3.2 | Config resolves DB-first with an env fallback; `is_configured()` is true when either has a provider and false when both are empty (driving the first-run modal) {tier:CODE-ONLY} | `apps/backend/tests/integration/test_llm_db_config.py` | P1 |
-
-### AC23.4 — `/llm` config API, per-user model selection & legacy retirement
-> PR4 slice. Puts `LitellmCatalog`/`LitellmClient` on the live path behind a
-> `/llm` API, makes model selection **per-user** (each user configures their own
-> providers + scene→model bindings, with the deployment default as fallback and
-> an OpenRouter free-tier suggestion when nothing is configured), and retires the
-> legacy `services/ai_models.py` / `routers/ai_models.py` catalogue.
+> **Migrated (2026-07-03, #1426 Stage-2 cutover):** all 44 ACs moved to the
+> `llm` package roadmap in [`common/llm/contract.py`](../../common/llm/contract.py)
+> as `AC-llm.<group>.<seq>` (numeric grammar, leading epic number dropped:
+> the leading `23` is dropped, group and sequence preserved), per Decision A (standard-preserving move — every
+> AC kept its statement, anchored test, and priority; the package tier is
+> LLM-LED with per-AC `proof_kind`). This table intentionally holds no rows;
+> the contract roadmap is the single source.
 >
-> Per-user is additive over PR3: a nullable `user_id` is added to
-> `llm_providers` / `llm_scene_bindings` — `NULL` rows remain the deployment
-> default (preserving AC23.3 behaviour), non-null rows are owned by that user.
-> Config resolves user rows → deployment-default rows → env fallback.
-
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC23.4.1 | `GET /llm/config/status` reports `{configured}` for the current user from the layered (user → deployment → env) config source, driving the first-run modal {tier:CODE-ONLY} | `apps/backend/tests/integration/test_llm_api.py` | P1 |
-| AC23.4.2 | `GET/POST/DELETE /llm/providers` is scoped to the current user; POST encrypts the API key via `build_cipher` before persist and the response **never** returns or logs the plaintext key; with `LLM_ENCRYPTION_KEYS` unset, POST fails closed {tier:CODE-ONLY} | `apps/backend/tests/integration/test_llm_api.py` | P1 |
-| AC23.4.3 | `GET /llm/catalog` lists models via `LitellmCatalog` enriched with pricing/free-tier and filtered by `modality`/`free_only` {tier:CODE-ONLY} | `apps/backend/tests/integration/test_llm_api.py` | P1 |
-| AC23.4.4 | `GET/PUT /llm/scenes` round-trips the current user's scene→model bindings (model + reasoning + fallbacks), validated against their providers {tier:CODE-ONLY} | `apps/backend/tests/integration/test_llm_api.py` | P1 |
-| AC23.4.5 | Per-user config resolves through the scene-keyed seam and is **live for the AI advisor**: `ai_streaming` resolves the provider via `get_config_source(user_id)` (the user's provider, else deployment default, else env) and `advisor.chat` prefers the user's bound model when no per-message model is given; a BYO-provider user is not blocked by a missing deployment `AI_API_KEY`. (Threading `user_id` into the remaining `extraction` OCR/vision/json call sites is the documented follow-up, verified via the post-merge AI/OCR gate.) {tier:CODE-LED} | `apps/backend/tests/integration/test_llm_api.py`, `apps/backend/tests/ai/test_ai_advisor_service.py` | P1 |
-| AC23.4.6 | The legacy `services/ai_models.py` + `routers/ai_models.py` are removed; remaining model lookups (`statements`, `chat`) resolve through `LitellmCatalog`, and the dead `AI_MODEL_CATALOG_SOURCE` config is dropped {tier:CODE-ONLY} | `apps/backend/tests/integration/test_llm_api.py` | P1 |
-| AC23.4.7 | The usage meter is a process-wide singleton (`get_usage_meter`), so the live transport accumulates onto one counter and request/token tallies survive across requests (a fresh meter per call would reset the totals); a completed live stream records one request plus estimated prompt/completion tokens, and `stream_options` is never sent (Z.AI rejects unknown params) {tier:CODE-ONLY} | `apps/backend/tests/unit/llm/test_factory.py`, `apps/backend/tests/ai/test_ai_streaming.py` | P1 |
-| AC23.4.8 | `DbConfigSource.get_provider` is scoped to the caller's scope (own rows, else deployment default); it never resolves or decrypts another tenant's provider by id {tier:CODE-ONLY} | `apps/backend/tests/integration/test_llm_db_config.py` | P1 |
-| AC23.4.9 | `api_base` rejects loopback/private/link-local/reserved IPs and local-only names (`localhost`, `*.internal`, metadata) at the schema boundary, closing the obvious SSRF foot-guns {tier:CODE-ONLY} | `apps/backend/tests/integration/test_llm_api.py` | P1 |
-| AC23.4.10 | Provider creation is capped per user (`MAX_PROVIDERS_PER_USER`); exceeding it returns 409 instead of growing the table unbounded {tier:CODE-ONLY} | `apps/backend/tests/integration/test_llm_api.py` | P1 |
-
-### AC23.5 — LLM record/replay cassette layer
-> Foundation slice for deterministic LLM tests in CI. A wrapper around the
-> chat-completion call (`src/llm/cassette.py`, re-exported via `client.py`)
-> records real provider responses locally and replays committed JSON cassettes in
-> CI — no API key, no network, no flakiness. **Scope (anti-false-confidence):**
-> record/replay is regression protection for KNOWN inputs only; it does NOT
-> discover new real-world document shapes (that stays the staging real-doc audit
-> loop), and **CI green ≠ a real unknown statement works**. Provider-specific
-> correctness is the staging `-m llm` gate's job, not the cassette tests'. See
-> [`common/llm/readme.md#cassettes`](https://github.com/wangzitian0/finance_report/blob/main/common/llm/readme.md#cassettes).
-> (Wiring existing extraction/advisor tests onto
-> replay and the eval/drift ratchet are separate follow-up issues.)
-
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC23.5.1 | `LLM_CASSETTE_MODE` selects `replay` / `record` / `off`; it defaults to `off` (live, local dev) and an unknown value fails closed with `LLMConfigError` rather than silently calling the network {tier:CODE-ONLY}{proof:property} | `apps/backend/tests/unit/llm/test_cassette.py` | P1 |
-| AC23.5.2 | `replay` returns the recorded response with **zero network calls and no API key** (the live call is never invoked); committed synthetic cassettes are keyed by their own fingerprint so the default store resolves them {tier:CODE-ONLY}{proof:property} | `apps/backend/tests/unit/llm/test_cassette.py` | P1 |
-| AC23.5.3 | A request with no matching cassette is a **hard failure** in `replay` (`CassetteMiss`) that never falls back to the network, and misses batch into one actionable summary (`N cassette(s) need re-record: …; run make llm-record`) {tier:CODE-ONLY}{proof:property} | `apps/backend/tests/unit/llm/test_cassette.py` | P1 |
-| AC23.5.4 | `record` performs the (here mocked) provider call and persists the cassette; re-recording an unchanged request is idempotent (identical bytes, no diff churn); `off` is a plain live call that writes nothing {tier:CODE-ONLY}{proof:property} | `apps/backend/tests/unit/llm/test_cassette.py` | P1 |
-| AC23.5.5 | Fingerprint integrity: a change to an output-affecting field → different key (no stale match); two semantically-different requests → different keys (no false match); the same semantic request under a different model id → the **same** key (model-id-agnostic); image content is keyed by a bytes hash {tier:CODE-ONLY}{proof:property} | `apps/backend/tests/unit/llm/test_cassette.py` | P1 |
-| AC23.5.6 | Normalisation strips only the intended volatile fields (timestamps, random request ids): differing volatile fields keep the key stable, while any output-relevant field changing the key proves nothing else is stripped {tier:CODE-ONLY}{proof:property} | `apps/backend/tests/unit/llm/test_cassette.py` | P1 |
-| AC23.5.7 | A `correctness` cassette MUST refuse to record (`CassetteValidationError`) when the response fails ground-truth validation or no validator is supplied; a `flow-only` cassette records freely and never claims LLM correctness {tier:CODE-ONLY}{proof:property} | `apps/backend/tests/unit/llm/test_cassette.py` | P1 |
-
-### AC23.6 — Streaming-cassette bridge (the real extraction transport)
-> The real extraction transport is STREAMING (`services/ai_streaming.stream_ai_json`
-> → `client.litellm_stream` → `accumulate_stream`) and previously bypassed the
-> AC23.5 cassette layer entirely, so PR CI never exercised the LLM path. This
-> slice makes `litellm_stream` cassette-aware while **preserving streaming** for
-> the caller: `off` is the prior live passthrough (prod/staging stay live & real —
-> the staging `-m llm` gate is untouched), `record` accumulates the live stream
-> and freezes the text, `replay` synthesises the stream from the frozen text with
-> no key/network. Both text and default-config vision (OCR_MODEL==VISION_MODEL)
-> flow through this path; the non-default raw-httpx layout-parser path
-> (`services/extraction/_ocr.py`) is a documented out-of-scope gap. Wiring the
-> first batch of extraction tests onto replay is scaffolded here (skipped pending
-> real recording via `make llm-record`) so PR CI stays green; recording the real
-> correctness cassettes is the operator follow-up. **Scope (anti-false-confidence):**
-> as with AC23.5, CI green ≠ a real unknown statement works.
-
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC23.6.1 | `litellm_stream` in `replay` serves a committed frozen-text cassette by synthesising a stream (text and image-part/vision requests both resolve their cassette) with **zero network and no API key**; the caller's `accumulate_stream` rebuilds the recorded text {tier:CODE-ONLY}{proof:property} | `apps/backend/tests/unit/llm/test_streaming_cassette.py` | P1 |
-| AC23.6.2 | A streamed request with no matching cassette is a **hard failure** in `replay` (`CassetteMiss`, scene = derived role) that never falls back to the network {tier:CODE-ONLY}{proof:property} | `apps/backend/tests/unit/llm/test_streaming_cassette.py` | P1 |
-| AC23.6.3 | `record` performs the real (here mocked) streaming call, accumulates the full text, freezes a cassette idempotently (no diff churn) and yields the text so the caller still works; a `correctness` streaming cassette refuses to record without a validator; the mode defaults to `LLM_CASSETTE_MODE` {tier:CODE-ONLY}{proof:property} | `apps/backend/tests/unit/llm/test_streaming_cassette.py` | P1 |
-| AC23.6.4 | `off` mode is an EXACT passthrough of the live (mocked) stream — deltas arrive unchanged (not collapsed), no cassette is written, and a provider failure is normalised to `LLMError` exactly as before — so prod/staging keep running the live `-m llm` path real {tier:CODE-ONLY}{proof:property} | `apps/backend/tests/unit/llm/test_streaming_cassette.py` | P1 |
-| AC23.6.5 | The fingerprint role is derived from the messages (any image part → `vision`, else `text`), so text and vision get **different** keys, while the same semantic request under a different model id resolves the **same** cassette (model-id-agnostic) {tier:CODE-ONLY}{proof:property} | `apps/backend/tests/unit/llm/test_streaming_cassette.py` | P1 |
-| AC23.7.1 | The LLM cassette integrity gate (`tools/check_llm_cassettes.py`, lint job) fails when any committed statement-extraction cassette breaks the balance-chain invariant `opening + Σ amounts ≈ closing` (Decimal) — detectable drift for a re-recorded/inconsistent cassette; pure Python, no key/network/DB, so it never perturbs the AC behavioral-score aggregator {tier:CODE-ONLY}{proof:property} | `tests/tooling/test_llm_cassette_integrity.py` | P1 |
-
-### AC23.8 — Cassette GRADED field-accuracy eval + drift ratchet
-> AC23.7 gates cassette *consistency* (the balance chain reconciles), not
-> *accuracy*: an LLM that misreads `50` as `150` still passes as long as the chain
-> still balances. This slice adds a GRADED field-accuracy eval over the committed
-> statement cassettes — each case is scored per-field (exact/normalised match:
-> amounts as `Decimal`, dates ISO, descriptions normalised) against a sibling
-> SYNTHETIC ground-truth artifact (`*.truth.json`, anonymised; no real financial
-> data). A per-case score FLOOR is persisted as a ratcheted JSONL baseline
-> (`common/testing/fixtures/cassette-eval-baseline.jsonl`, `merge=union`, floor only goes UP),
-> and the lint-job gate FAILS when a refreshed cassette regresses a case below its
-> floor — catching "invariant passes but a field is now wrong", which AC23.7 cannot
-> see. Pure Python, no key/network/DB, deterministic on committed cassettes;
-> refresh is the local `make llm-record` path. **Scope (anti-overclaim):**
-> drift-detection power is bounded by the eval-set breadth documented in the
-> coverage matrix — CI green ≠ accurate on an unseen statement (that remains the
-> staging `-m llm` gate's job). {tier:LLM-LED}{proof:eval}
-
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC23.8.1 | The eval set covers a documented **modality × institution-class × edge-condition** matrix (text & vision modalities; generic & named-institution classes; happy-path & duplicate-row/#1254 edge conditions) to a stated minimum case count, and the doc explicitly states drift-detection power is bounded by that breadth (no overclaiming) {tier:LLM-LED}{proof:eval} | `tests/tooling/test_cassette_graded_eval.py` | P1 |
-| AC23.8.2 | Each case scores **per-field accuracy** (exact/normalised match: amounts as `Decimal`, dates ISO-normalised, descriptions case/space-normalised) against the case's known-correct ground-truth values, producing a numeric `[0,1]` score {tier:LLM-LED}{proof:eval} | `tests/tooling/test_cassette_graded_eval.py` | P1 |
-| AC23.8.3 | A per-case score floor is persisted in a ratcheted JSONL baseline and may only go **UP** (`--update` raises, never lowers; refuses to cement a regressed run); the gate FAILS when any case scores below its floor {tier:LLM-LED}{proof:eval} | `tests/tooling/test_cassette_graded_eval.py` | P1 |
-| AC23.8.4 | A deliberately-regressed cassette (a field flipped so its score drops below floor) is CAUGHT and fails the gate — proven by a test that injects the regression and asserts the gate returns a violation {tier:LLM-LED}{proof:eval} | `tests/tooling/test_cassette_graded_eval.py` | P1 |
-| AC23.8.5 | The graded eval distinguishes "balance invariant passes but field-accuracy regressed" from "invariant fails": a cassette whose chain still reconciles but whose amount no longer matches ground truth is flagged by the graded gate while the AC23.7 balance gate stays green {tier:LLM-LED}{proof:eval} | `tests/tooling/test_cassette_graded_eval.py` | P1 |
-| AC23.8.6 | The eval runs deterministically in CI on committed cassettes with **NO network and NO API key**; the refresh path is the local `make llm-record` target (documented), never CI {tier:LLM-LED}{proof:eval} | `tests/tooling/test_cassette_graded_eval.py` | P1 |
-| AC23.8.7 | Reliability scoring aggregates over **N≥2 samples** per case when multiple recordings of the same case exist (mean score), and the single-sample limitation (one recording ⇒ point estimate, not a reliability measure) is documented {tier:LLM-LED}{proof:eval} | `tests/tooling/test_cassette_graded_eval.py` | P1 |
-
-### AC23.9 — litellm transport hygiene ([#1442](https://github.com/wangzitian0/finance_report/issues/1442))
-
-litellm's default aiohttp transport lazily creates an `aiohttp.ClientSession` per request handler and never closes it (no shared `litellm.aclient_session`), leaking an ERROR-level "Unclosed client session" on every `acompletion` — a real socket/fd leak that accumulates under sustained parsing. The single litellm chokepoint (`src/llm/client.py`) disables the aiohttp transport so litellm uses the httpx transport it manages itself.
-
-| AC ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC23.9.1 | Importing the litellm client disables litellm's aiohttp transport (so no per-`acompletion` unclosed-session leak); the transport resolver returns httpx {tier:CODE-ONLY} | `test_AC23_9_1_litellm_aiohttp_transport_disabled_prevents_session_leak` | `unit/llm/test_client.py` | P1 |
+> Cassette fixture *data* (the 32-case corpus + graded-eval baseline) lives in
+> the `testing` package (#1553, `AC-testing.*`); the cassette *mechanism* ACs
+> above are llm's (`common/testing/contract.py` documents the split).
+>
+> Migrated ids (each resolves in the contract roadmap):
+>
+> `AC-llm.1.1`
+> `AC-llm.1.2`
+> `AC-llm.1.3`
+> `AC-llm.1.4`
+> `AC-llm.1.5`
+> `AC-llm.2.1`
+> `AC-llm.2.2`
+> `AC-llm.2.3`
+> `AC-llm.2.4`
+> `AC-llm.2.5`
+> `AC-llm.2.6`
+> `AC-llm.3.1`
+> `AC-llm.3.2`
+> `AC-llm.4.1`
+> `AC-llm.4.2`
+> `AC-llm.4.3`
+> `AC-llm.4.4`
+> `AC-llm.4.5`
+> `AC-llm.4.6`
+> `AC-llm.4.7`
+> `AC-llm.4.8`
+> `AC-llm.4.9`
+> `AC-llm.4.10`
+> `AC-llm.5.1`
+> `AC-llm.5.2`
+> `AC-llm.5.3`
+> `AC-llm.5.4`
+> `AC-llm.5.5`
+> `AC-llm.5.6`
+> `AC-llm.5.7`
+> `AC-llm.6.1`
+> `AC-llm.6.2`
+> `AC-llm.6.3`
+> `AC-llm.6.4`
+> `AC-llm.6.5`
+> `AC-llm.7.1`
+> `AC-llm.8.1`
+> `AC-llm.8.2`
+> `AC-llm.8.3`
+> `AC-llm.8.4`
+> `AC-llm.8.5`
+> `AC-llm.8.6`
+> `AC-llm.8.7`
+> `AC-llm.9.1`

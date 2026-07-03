@@ -65,7 +65,7 @@ facts are managed by the SSOT/code surfaces below instead of being copied here:
 | Fact | Owner |
 |---|---|
 | Four-layer raw/atomic/logic/report architecture | [assets.md](../ssot/assets.md), [schema.md](../ssot/schema.md), models, migrations |
-| Upload, extraction, and atomic record flow | [common/extraction/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md), `apps/backend/src/services/extraction/` |
+| Upload, extraction, and atomic record flow | [common/extraction/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md), `apps/backend/src/extraction/` |
 | Reconciliation and reporting integration | [reconciliation.md](../ssot/reconciliation.md), [reporting.md](../ssot/reporting.md) |
 | Market data sync, freshness, and provider fallback | [market_data.md](../ssot/market_data.md), `apps/backend/src/services/market_data/` |
 | AC-to-test proof and current counts | `python tools/analyze_test_ac_coverage.py --no-write --stdout`, CI traceability artifact |
@@ -415,4 +415,4 @@ representative fixture expansion needed before the overall
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC11.12.1 | Re-applying the same rule version to the same atomic transaction is idempotent and returns the existing classification without inserting duplicates | `test_apply_rules_is_idempotent_for_existing_transaction_rule_version` | `extraction/test_classification_service.py` | P0 |
-| AC11.12.2 | Classification priority is deterministic across rule type and descending rule version | `test_classification_priority_keyword_over_regex_over_ml`, `test_same_type_rules_prefer_newer_version` | `extraction/test_classification_service.py` | P0 |
+| AC11.12.2 | Classification priority is deterministic across rule type and descending rule version {tier:CODE-LED} {proof:property} | `test_classification_priority_keyword_over_regex`, `test_same_type_rules_prefer_newer_version` | `extraction/test_classification_service.py` | P0 |

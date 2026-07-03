@@ -10,10 +10,10 @@ from __future__ import annotations
 
 import pytest
 
-import src.llm.client as client_mod
+import src.llm.extension.client as client_mod
 import src.services.ai_streaming as ai_streaming
 from src.config import settings
-from src.llm.common import LLMError, ProtocolFamily, ProviderRef
+from src.llm.base import LLMError, ProtocolFamily, ProviderRef
 from src.services.ai_streaming import AIStreamError, accumulate_stream, stream_ai_chat, stream_ai_json
 
 pytestmark = pytest.mark.no_db
@@ -71,7 +71,7 @@ async def test_stream_ai_json_uses_explicit_credentials(litellm_stub, monkeypatc
 
 
 async def test_stream_ai_json_forwards_zai_knobs_and_seed(litellm_stub, monkeypatch):
-    """AC13.16.1: a provided seed is forwarded in the request payload (deterministic
+    """AC-extraction.116.1: a provided seed is forwarded in the request payload (deterministic
     decoding, #989). do_sample/thinking ride extra_body; seed is a native (droppable) param."""
     _explicit_provider(monkeypatch)
     await accumulate_stream(
@@ -162,9 +162,9 @@ async def test_stream_fails_closed_with_multiple_providers(monkeypatch):
 
 
 async def test_AC23_4_7_records_request_and_token_usage(litellm_stub, monkeypatch):
-    """AC23.4.7: a completed live stream counts one request + (estimated) tokens, and
+    """AC-llm.4.7: a completed live stream counts one request + (estimated) tokens, and
     never sends stream_options (Z.AI rejects unknown params)."""
-    from src.llm.usage import LlmUsageMeter
+    from src.llm.base.usage import LlmUsageMeter
 
     meter = LlmUsageMeter()
     monkeypatch.setattr(ai_streaming, "get_usage_meter", lambda: meter)
@@ -179,7 +179,7 @@ async def test_AC23_4_7_records_request_and_token_usage(litellm_stub, monkeypatc
 
 
 async def test_AC23_4_5_user_qualified_model_resolves_exact_provider_with_many(litellm_stub, monkeypatch):
-    """AC23.4.5 / C1: a user with several providers + a qualified binding (provider_id/model)
+    """AC-llm.4.5 / C1: a user with several providers + a qualified binding (provider_id/model)
     resolves the exact provider instead of failing closed."""
     from uuid import uuid4
 

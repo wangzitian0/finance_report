@@ -27,8 +27,9 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
+from src.extraction import ExtractionError
 from src.identity import User
-from src.llm.common import Modality, ModelSpec
+from src.llm.base import Modality, ModelSpec
 from src.models.account import Account, AccountType
 from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 from src.models.evidence import EvidenceEdge, EvidenceNode
@@ -48,7 +49,6 @@ from src.schemas.review import (
     Stage1ApprovalRequest,
 )
 from src.services import (
-    ExtractionError,
     StorageError,
     statement_parsing as statement_parsing_mod,
     statement_pipeline,
@@ -121,7 +121,7 @@ def make_upload_file(name: str, content: bytes) -> UploadFile:
 
 
 async def test_build_statement_storage_key_sanitizes_extension():
-    """AC13.5.1: Statement object keys avoid PII and normalize unsafe extensions."""
+    """AC-extraction.105.1: Statement object keys avoid PII and normalize unsafe extensions."""
     from uuid import uuid4
 
     statement_id = uuid4()
@@ -268,7 +268,7 @@ async def wait_for_background_tasks() -> None:
 
 
 async def test_upload_statement_duplicate(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
-    """AC3.5.4: Uploading the same file twice should trigger duplicate detection."""
+    """AC-extraction.5.4: Uploading the same file twice should trigger duplicate detection."""
     content = b"duplicate-statement"
 
     async def fake_parse_document(
@@ -324,7 +324,7 @@ async def test_upload_statement_duplicate(db, monkeypatch, storage_stub, model_c
 
 
 async def test_upload_storage_failure(db, monkeypatch, model_catalog_stub, test_user):
-    """AC3.5.5: Storage failure should return 503."""
+    """AC-extraction.5.5: Storage failure should return 503."""
     content = b"content"
 
     # Mock StorageService to raise StorageError
@@ -353,7 +353,7 @@ async def test_upload_storage_failure(db, monkeypatch, model_catalog_stub, test_
 
 
 async def test_upload_invalid_extension(db, test_user):
-    """AC3.5.6: Invalid file extension should return 400."""
+    """AC-extraction.5.6: Invalid file extension should return 400."""
     content = b"content"
     upload_file = make_upload_file("statement.exe", content)
 
@@ -399,7 +399,7 @@ async def test_AC3_5_upload_rejects_cross_user_account_id(db, monkeypatch, test_
 
 
 async def test_upload_uses_default_ocr_pipeline_for_pdf(db, monkeypatch, storage_stub, test_user):
-    """AC3.5.7: PDF/image uploads may omit model and use the default OCR pipeline."""
+    """AC-extraction.5.7: PDF/image uploads may omit model and use the default OCR pipeline."""
     mock_parse = AsyncMock(return_value=None)
     monkeypatch.setattr(statement_pipeline, "parse_statement_background", mock_parse)
 
@@ -570,7 +570,7 @@ async def test_AC10_8_3_statement_scoped_brokerage_import_audit_logs(db, test_us
 
 
 async def test_upload_rejects_text_only_model(db, monkeypatch, test_user):
-    """AC3.5.8: Upload rejects models without image modalities."""
+    """AC-extraction.5.8: Upload rejects models without image modalities."""
 
     async def fake_catalog_get(self, model_id):
         return ModelSpec(id=model_id, provider_id="env", modalities=frozenset({Modality.TEXT}))
@@ -595,11 +595,11 @@ async def test_upload_rejects_text_only_model(db, monkeypatch, test_user):
 
 
 async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
-    """AC3.5.9: Upload then list statements and transactions."""
+    """AC-extraction.5.9: Upload then list statements and transactions."""
 
     content = b"statement-flow"
 
-    from src.services.deduplication import dual_write_layer2
+    from src.extraction.extension.deduplication import dual_write_layer2
 
     async def fake_parse_document(
         self,
@@ -678,7 +678,7 @@ async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, model_c
 
 
 async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
-    """AC3.5.10: Review queue includes reviewable parsed statements and supports approve/reject."""
+    """AC-extraction.5.10: Review queue includes reviewable parsed statements and supports approve/reject."""
     contents = [b"review-70", b"review-90"]
     scores = [70, 90]
     score_by_hash = {
@@ -686,7 +686,7 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, model
         hashlib.sha256(contents[1]).hexdigest(): scores[1],
     }
 
-    from src.services.deduplication import dual_write_layer2
+    from src.extraction.extension.deduplication import dual_write_layer2
 
     async def fake_parse_document(
         self,
@@ -789,7 +789,7 @@ async def test_stage1_reject_triggers_reparse(db, monkeypatch, storage_stub, tes
 
 
 async def test_get_statement_not_found(db, test_user):
-    """AC3.5.11: Missing statement returns 404."""
+    """AC-extraction.5.11: Missing statement returns 404."""
     with pytest.raises(HTTPException) as exc:
         await statements_router.get_statement(
             statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"),
@@ -800,7 +800,7 @@ async def test_get_statement_not_found(db, test_user):
 
 
 async def test_list_statement_transactions_not_found(db, test_user):
-    """AC3.5.11: Missing statement transactions return 404."""
+    """AC-extraction.5.11: Missing statement transactions return 404."""
     with pytest.raises(HTTPException) as exc:
         await statements_router.list_statement_transactions(
             statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"),
@@ -812,7 +812,7 @@ async def test_list_statement_transactions_not_found(db, test_user):
 
 
 async def test_upload_file_too_large(db, model_catalog_stub, test_user):
-    """AC3.5.12: File exceeding 10MB limit returns 413."""
+    """AC-extraction.5.12: File exceeding 10MB limit returns 413."""
     content = b"x" * (10 * 1024 * 1024 + 1)
     upload_file = make_upload_file("large-statement.pdf", content)
 
@@ -832,7 +832,7 @@ async def test_upload_file_too_large(db, model_catalog_stub, test_user):
 
 
 async def test_upload_extraction_failure(db, monkeypatch, model_catalog_stub, test_user):
-    """AC3.5.13: Extraction failure marks statement as rejected."""
+    """AC-extraction.5.13: Extraction failure marks statement as rejected."""
     content = b"content"
 
     mock_storage = MagicMock()
@@ -889,7 +889,7 @@ async def test_upload_extraction_failure(db, monkeypatch, model_catalog_stub, te
 
 
 async def test_retry_statement_not_found(db, test_user):
-    """AC3.5.14: Retry on missing statement returns 404."""
+    """AC-extraction.5.14: Retry on missing statement returns 404."""
     from src.schemas import RetryParsingRequest
 
     with pytest.raises(HTTPException) as exc:
@@ -903,7 +903,7 @@ async def test_retry_statement_not_found(db, test_user):
 
 
 async def test_retry_rejects_text_only_model(db, monkeypatch, test_user):
-    """AC3.5.15: Retry rejects models without image modalities."""
+    """AC-extraction.5.15: Retry rejects models without image modalities."""
     from src.schemas import RetryParsingRequest
 
     statement = build_statement(test_user.id, "hash", 80)
@@ -929,7 +929,7 @@ async def test_retry_rejects_text_only_model(db, monkeypatch, test_user):
 
 
 async def test_retry_statement_storage_failure(db, monkeypatch, test_user):
-    """AC3.5.16: Retry returns 503 if storage fetch fails."""
+    """AC-extraction.5.16: Retry returns 503 if storage fetch fails."""
     from src.schemas import RetryParsingRequest
 
     statement = build_statement(test_user.id, "hash", 80)
@@ -956,7 +956,7 @@ async def test_retry_statement_storage_failure(db, monkeypatch, test_user):
 
 
 async def test_retry_statement_invalid_status(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
-    """AC3.5.17: Retry on statement not in parsed/rejected status returns 400."""
+    """AC-extraction.5.17: Retry on statement not in parsed/rejected status returns 400."""
     from src.schemas import RetryParsingRequest
 
     content = b"statement"
@@ -1015,7 +1015,7 @@ async def test_retry_statement_invalid_status(db, monkeypatch, storage_stub, mod
 
 
 async def test_retry_statement_parsing_allowed(db, monkeypatch, storage_stub, test_user):
-    """AC3.5.18: Verify that retrying a statement in PARSING status is allowed."""
+    """AC-extraction.5.18: Verify that retrying a statement in PARSING status is allowed."""
     from unittest.mock import patch
     from uuid import uuid4
 
@@ -1048,7 +1048,7 @@ async def test_retry_statement_parsing_allowed(db, monkeypatch, storage_stub, te
 
 
 async def test_AC13_21_3_retry_accepts_parsed_resting_state(db, storage_stub, test_user):
-    """AC13.21.3 (#1141): retry accepts a balance-invalid statement at its PARSED rest.
+    """AC-extraction.121.3 (#1141): retry accepts a balance-invalid statement at its PARSED rest.
 
     A balance-invalid bank statement now rests in PARSED (review) instead of the
     UPLOADED dead-end that the retry endpoint rejected. PARSED is already an
@@ -1090,7 +1090,7 @@ async def test_AC13_21_3_retry_accepts_parsed_resting_state(db, storage_stub, te
 
 
 async def test_AC13_21_6_csv_missing_institution_rejected_sync(db, storage_stub, test_user):
-    """AC13.21.6 (#1141): CSV upload without an institution fails synchronously (400).
+    """AC-extraction.121.6 (#1141): CSV upload without an institution fails synchronously (400).
 
     Previously a CSV with no institution was accepted (202) and only rejected
     asynchronously inside the parse worker ("Institution is required for CSV
@@ -1114,9 +1114,9 @@ async def test_AC13_21_6_csv_missing_institution_rejected_sync(db, storage_stub,
 
 
 async def test_retry_statement_success(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
-    """AC3.5.19: Retry parsing with stronger model succeeds."""
+    """AC-extraction.5.19: Retry parsing with stronger model succeeds."""
+    from src.extraction.extension.deduplication import dual_write_layer2
     from src.schemas import RetryParsingRequest
-    from src.services.deduplication import dual_write_layer2
 
     content = b"statement"
 
@@ -1181,9 +1181,9 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, model_cata
 
 
 async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
-    """AC3.5.20: Retry extraction failure returns 422."""
+    """AC-extraction.5.20: Retry extraction failure returns 422."""
+    from src.extraction.extension.deduplication import dual_write_layer2
     from src.schemas import RetryParsingRequest
-    from src.services.deduplication import dual_write_layer2
 
     content = b"statement"
 
@@ -1260,7 +1260,7 @@ async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub,
 
 
 async def test_upload_statement_rejects_invalid_model(db, test_user, storage_stub, monkeypatch):
-    """AC3.5.21: Upload rejects models not in the OpenRouter catalog."""
+    """AC-extraction.5.21: Upload rejects models not in the OpenRouter catalog."""
     content = b"some content"
     upload_file = make_upload_file("statement.pdf", content)
 
@@ -1284,7 +1284,7 @@ async def test_upload_statement_rejects_invalid_model(db, test_user, storage_stu
 
 
 async def test_upload_statement_rejects_model_without_image_modality(db, test_user, storage_stub, monkeypatch):
-    """AC3.5.22: Upload rejects a model lacking image/PDF modality (400)."""
+    """AC-extraction.5.22: Upload rejects a model lacking image/PDF modality (400)."""
     content = b"some content"
     upload_file = make_upload_file("statement.pdf", content)
 
@@ -1308,7 +1308,7 @@ async def test_upload_statement_rejects_model_without_image_modality(db, test_us
 
 
 async def test_retry_statement_rejects_invalid_model(db, test_user, monkeypatch, storage_stub):
-    """AC3.5.23: Retry rejects a model not in the catalogue (400)."""
+    """AC-extraction.5.23: Retry rejects a model not in the catalogue (400)."""
     statement = build_statement(test_user.id, "hash", 80)
     statement.status = BankStatementStatus.REJECTED
     db.add(statement)
@@ -1334,7 +1334,7 @@ async def test_retry_statement_rejects_invalid_model(db, test_user, monkeypatch,
 
 
 async def test_background_parse_error_logging(db, monkeypatch, test_user, storage_stub):
-    """AC3.5.24: Background parse error should be caught and logged."""
+    """AC-extraction.5.24: Background parse error should be caught and logged."""
     content = b"content"
 
     async def fake_parse_document_fail(*args, **kwargs):
@@ -1378,7 +1378,7 @@ async def test_background_parse_error_logging(db, monkeypatch, test_user, storag
 
 
 async def test_background_retry_error_logging(db, monkeypatch, test_user, storage_stub):
-    """AC3.5.25: Background retry error should be caught and logged."""
+    """AC-extraction.5.25: Background retry error should be caught and logged."""
     statement = build_statement(test_user.id, "hash_retry", 80)
     statement.status = BankStatementStatus.REJECTED
     db.add(statement)
@@ -1763,7 +1763,7 @@ async def test_approve_statement_stage1_creates_posted_entries(db, test_user):
 
 
 async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account(db, test_user):
-    """AC3.6.1: Stage 1 posting may auto-map only from a unique prior confirmed statement."""
+    """AC-extraction.6.1: Stage 1 posting may auto-map only from a unique prior confirmed statement."""
     bank_account = Account(
         user_id=test_user.id,
         name="DBS Confirmed Account",
@@ -1822,7 +1822,7 @@ async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account
 
 
 async def test_auto_approve_high_confidence_statement_creates_posted_entries(db, test_user):
-    """AC3.3.1: High-confidence, balance-valid, uniquely mapped statements auto-approve and post."""
+    """AC-extraction.3.1: High-confidence, balance-valid, uniquely mapped statements auto-approve and post."""
     bank_account = await create_statement_account(db, test_user.id, "DBS Auto Approval")
     statement = build_statement(test_user.id, "hash_s1_high_confidence_auto", 90)
     statement.status = BankStatementStatus.APPROVED
@@ -1872,7 +1872,7 @@ async def test_auto_approve_high_confidence_statement_returns_zero_for_non_candi
 
 
 async def test_auto_approve_high_confidence_statement_falls_back_to_pending_review_on_guard_failure(db, test_user):
-    """AC3.3.1: Unsafe high-confidence statements remain reviewable instead of failing parsing."""
+    """AC-extraction.3.1: Unsafe high-confidence statements remain reviewable instead of failing parsing."""
     unsafe_account = Account(
         user_id=test_user.id,
         name="High Confidence Liability",
@@ -1909,7 +1909,7 @@ async def test_auto_approve_high_confidence_statement_falls_back_to_pending_revi
 
 
 async def test_auto_approve_guard_failure_preserves_uncommitted_parse_data(db, test_user):
-    """AC3.3.1: Auto-approval guard fallback must not roll back parsed statement data."""
+    """AC-extraction.3.1: Auto-approval guard fallback must not roll back parsed statement data."""
     unsafe_account = Account(
         user_id=test_user.id,
         name="Uncommitted Liability",
@@ -1997,7 +1997,7 @@ async def test_approve_statement_stage1_promotes_existing_statement_entries_with
 
 
 async def test_approve_statement_stage1_blocks_prior_unconfirmed_account_mapping(db, test_user):
-    """AC3.6.5: Stage 1 posting cannot auto-map from an unconfirmed prior statement."""
+    """AC-extraction.6.5: Stage 1 posting cannot auto-map from an unconfirmed prior statement."""
     user_id = test_user.id
     bank_account = await create_statement_account(db, user_id, "DBS Unconfirmed Prior")
 
@@ -2032,7 +2032,7 @@ async def test_approve_statement_stage1_blocks_prior_unconfirmed_account_mapping
 
 
 async def test_approve_statement_stage1_blocks_overlapping_statement_period_before_posting(db, test_user):
-    """AC3.6.6: Stage 1 posting blocks duplicate or overlapping account/currency periods."""
+    """AC-extraction.6.6: Stage 1 posting blocks duplicate or overlapping account/currency periods."""
     user_id = test_user.id
     bank_account = await create_statement_account(db, user_id, "DBS Period Guard")
 
@@ -2152,7 +2152,7 @@ async def test_approve_statement_stage1_blocks_missing_statement_currency_before
 
 
 async def test_approve_statement_stage1_blocks_unmapped_account_without_fallback(db, test_user):
-    """AC3.6.2: Stage 1 posting blocks first uploads without an explicit account mapping."""
+    """AC-extraction.6.2: Stage 1 posting blocks first uploads without an explicit account mapping."""
     user_id = test_user.id
     statement = build_statement(user_id, "hash_s1_unmapped", 90)
     statement.status = BankStatementStatus.PARSED
@@ -2192,7 +2192,7 @@ async def test_approve_statement_stage1_blocks_unmapped_account_without_fallback
 
 
 async def test_approve_statement_stage1_blocks_missing_account_metadata(db, test_user):
-    """AC3.6.2: Stage 1 posting blocks unmapped statements with incomplete account metadata."""
+    """AC-extraction.6.2: Stage 1 posting blocks unmapped statements with incomplete account metadata."""
     user_id = test_user.id
     statement = build_statement(user_id, "hash_s1_missing_account_metadata", 90)
     statement.status = BankStatementStatus.PARSED
@@ -2221,7 +2221,7 @@ async def test_approve_statement_stage1_blocks_missing_account_metadata(db, test
 
 
 async def test_approve_statement_stage1_blocks_invalid_explicit_account_mapping(db, test_user):
-    """AC3.6.2: Stage 1 posting blocks stale statement account references."""
+    """AC-extraction.6.2: Stage 1 posting blocks stale statement account references."""
     user_id = test_user.id
 
     statement = build_statement(user_id, "hash_s1_invalid_account_mapping", 90)
@@ -2268,7 +2268,7 @@ async def test_approve_statement_stage1_blocks_unsafe_explicit_account_mapping(
     is_active,
     expected_detail,
 ):
-    """AC3.6.2: Explicit statement accounts must be active ASSET accounts in the statement currency."""
+    """AC-extraction.6.2: Explicit statement accounts must be active ASSET accounts in the statement currency."""
     user_id = test_user.id
     account = Account(
         user_id=user_id,
@@ -2307,7 +2307,7 @@ async def test_approve_statement_stage1_blocks_unsafe_explicit_account_mapping(
 
 
 async def test_approve_statement_stage1_creates_account_with_explicit_confirmation(db, test_user):
-    """AC3.6.4: First upload approval can explicitly create and bind a statement account."""
+    """AC-extraction.6.4: First upload approval can explicitly create and bind a statement account."""
     user_id = test_user.id
     statement = build_statement(user_id, "hash_s1_confirm_create_account", 90)
     statement.status = BankStatementStatus.PARSED
@@ -2365,7 +2365,7 @@ async def test_approve_statement_stage1_creates_account_with_explicit_confirmati
 
 
 async def test_approve_statement_stage1_blocks_ambiguous_account_mapping(db, test_user):
-    """AC3.6.3: Stage 1 posting blocks ambiguous statement-account metadata matches."""
+    """AC-extraction.6.3: Stage 1 posting blocks ambiguous statement-account metadata matches."""
     user_id = test_user.id
     first_account = Account(
         user_id=user_id,
@@ -3618,7 +3618,7 @@ async def test_AC18_8_3_AC18_8_6_create_entry_from_txn_writes_statement_to_ledge
     assert entry.source_id == txn.id
 
     # Statement->ledger lineage is materialized lazily; trigger it for the posted entry.
-    from src.services.evidence_graph_materialization import EvidenceGraphMaterializationService
+    from src.extraction.extension.evidence_graph_materialization import EvidenceGraphMaterializationService
 
     await EvidenceGraphMaterializationService().materialize_for_entity(
         db,

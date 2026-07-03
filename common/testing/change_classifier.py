@@ -141,6 +141,13 @@ PR_PREVIEW_ONLY_EXACT = frozenset(
         "docker-compose.pr-preview.yml",
         "tools/pr_preview_lifecycle.py",
         "tools/_lib/dev/pr_preview_lifecycle.py",
+        # The in-runner preview stack itself and the selection SSOT it runs
+        # (#1547 follow-up): changing what the gate runs, or the stack it
+        # runs on, must run the gate.
+        "docker-compose.ci-e2e.yml",
+        "tools/ci/e2e-nginx.conf",
+        "common/testing/matrix.py",
+        "tools/test_selection.py",
     }
 )
 STAGING_ONLY_EXACT = frozenset(
@@ -177,7 +184,7 @@ STAGING_AI_OCR_EXACT = frozenset(
     {
         ".github/workflows/deploy.yml",
         "apps/backend/src/config.py",
-        "apps/backend/src/prompts/statement.py",
+        "apps/backend/src/extraction/extension/prompts/statement.py",
         "docs/ssot/ai.md",
         # The critical-proof matrix is no longer committed; it is a derived view
         # of the AC graph. Adding/removing an llm-marked post-merge @ac_proof
@@ -195,7 +202,7 @@ STAGING_AI_OCR_EXACT = frozenset(
 )
 STAGING_AI_OCR_PREFIXES = (
     "apps/backend/src/services/ai",
-    "apps/backend/src/services/extraction",
+    "apps/backend/src/extraction",
     "apps/backend/src/services/statement",
     "apps/backend/src/routers/ai",
     "apps/backend/src/routers/statements",

@@ -17,7 +17,7 @@ regardless of what the LLM emits:
    the chain is broken (the #1254 detector, expressed as a property).
 2. **Dedup row/count conservation** — two genuinely-distinct same-date/same-amount
    rows must never collapse into one (the #1254 dedup root cause). The
-   conservation property is owned by AC13.22.1
+   conservation property is owned by AC-extraction.122.1
    (`test_AC13_22_1_same_balance_distinct_rows_do_not_collapse` in
    `extraction/test_deduplication.py`); here we assert the same conservation
    property holds across a generated space of repeat-counts via the public
@@ -33,9 +33,9 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
+from src.extraction.base.validation import BALANCE_TOLERANCE, validate_balance
+from src.extraction.extension.deduplication import DeduplicationService
 from src.models.layer2 import TransactionDirection
-from src.services.deduplication import DeduplicationService
-from src.services.validation import BALANCE_TOLERANCE, validate_balance
 
 
 def _make_statement(opening: Decimal, ins: list[Decimal], outs: list[Decimal]) -> dict:
@@ -68,12 +68,12 @@ _BALANCED_CASES = [
 
 
 class TestBalanceChainInvariantLP:
-    """AC3.1.1 / AC3.5.7 / AC3.5.19 (tier LLM-LED): the balance-chain invariant."""
+    """AC-extraction.1.1 / AC-extraction.5.7 / AC-extraction.5.19 (tier LLM-LED): the balance-chain invariant."""
 
     def test_balance_chain_invariant_holds_for_consistent_statements(self):
         """opening + ΣIN − ΣOUT ≈ closing holds across the generated space.
 
-        [AC3.1.1] [AC3.5.7] LLM-LED invariant: whatever the LLM emits, a statement
+        [AC-extraction.1.1] [AC-extraction.5.7] LLM-LED invariant: whatever the LLM emits, a statement
         whose chain is internally consistent passes the deterministic balance
         gate. The property is asserted over many shapes, not one golden fixture.
         """
@@ -89,7 +89,7 @@ class TestBalanceChainInvariantLP:
     def test_balance_chain_invariant_detects_broken_chain(self):
         """A closing that breaks the chain by more than tolerance is rejected.
 
-        [AC3.5.19] LLM-LED invariant (the #1254 detector): if the LLM emits a closing
+        [AC-extraction.5.19] LLM-LED invariant (the #1254 detector): if the LLM emits a closing
         balance that does not reconcile with the row sum, the deterministic gate
         FLAGS it — code gatekeeps the LLM output instead of trusting it.
         """
@@ -104,7 +104,7 @@ class TestBalanceChainInvariantLP:
     def test_balance_chain_tolerance_is_symmetric(self):
         """Rounding within tolerance passes in either direction (property, not golden).
 
-        [AC3.1.1] LLM-LED invariant: the gate tolerates sub-cent rounding the LLM may
+        [AC-extraction.1.1] LLM-LED invariant: the gate tolerates sub-cent rounding the LLM may
         introduce, symmetrically above and below the computed closing.
         """
         base = _make_statement(Decimal("1000.00"), [Decimal("100.00")], [])
@@ -115,9 +115,9 @@ class TestBalanceChainInvariantLP:
 
 
 class TestDedupConservationLP:
-    """AC3.5.19 (tier LLM-LED): row/count conservation — distinct rows never collapse.
+    """AC-extraction.5.19 (tier LLM-LED): row/count conservation — distinct rows never collapse.
 
-    The canonical conservation property lives in AC13.22.1
+    The canonical conservation property lives in AC-extraction.122.1
     (`test_AC13_22_1_same_balance_distinct_rows_do_not_collapse`). This asserts
     the same #1254 root-cause property across a generated range of repeat counts:
     N genuinely-distinct same-date/same-amount/same-balance rows must yield N
@@ -142,7 +142,7 @@ class TestDedupConservationLP:
     def test_distinct_same_amount_rows_never_collapse(self):
         """N distinct same-date/same-amount rows -> N distinct hashes (#1254).
 
-        [AC3.5.19] LLM-LED conservation property across repeat counts 1..12.
+        [AC-extraction.5.19] LLM-LED conservation property across repeat counts 1..12.
         """
         for n in range(1, 13):
             for balance_after in (None, Decimal("100.00")):
@@ -154,7 +154,7 @@ class TestDedupConservationLP:
     def test_identical_row_reupload_is_idempotent(self):
         """The same row (same occurrence index) hashes identically — true dups collapse.
 
-        [AC3.5.19] LLM-LED conservation: dedup must still collapse genuine re-uploads,
+        [AC-extraction.5.19] LLM-LED conservation: dedup must still collapse genuine re-uploads,
         so conservation does not become "never dedup anything".
         """
         for balance_after in (None, Decimal("100.00")):

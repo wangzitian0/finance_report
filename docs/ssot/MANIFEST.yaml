@@ -882,9 +882,9 @@ concepts:
     cross_refs:
       - common/extraction/readme.md
       - docs/project/EPIC-023.llm-provider-abstraction.md
-      - apps/backend/src/llm/common/types.py
-      - apps/backend/src/llm/common/secrets.py
-      - apps/backend/src/llm/cassette.py
+      - apps/backend/src/llm/base/types.py
+      - apps/backend/src/llm/base/secrets.py
+      - apps/backend/src/llm/extension/cassette.py
     proofs:
       - apps/backend/tests/llm/test_secrets.py
       - apps/backend/tests/llm/test_types.py

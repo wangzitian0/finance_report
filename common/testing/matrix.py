@@ -78,6 +78,46 @@ def classify_stage(path: str) -> str | None:
     return None
 
 
+# ---------------------------------------------------------------------------
+# Package test-root declarations (issue #1558): each domain package declares
+# the test roots it owns via a module-level TEST_ROOTS tuple in its
+# contract.py; the matrix aggregates them into the generated YAML's
+# `ownership:` section. Removing a declaration changes the generated view and
+# fails the --check-matrix drift gate. Seed rollout: three packages.
+# ---------------------------------------------------------------------------
+
+PACKAGE_TEST_DECLARATIONS: tuple[str, ...] = ("runtime", "ledger", "coverage")
+
+
+def package_test_ownership() -> dict[str, str]:
+    """Aggregate declared test roots → owning package (lazy imports so the
+    runtime selection path stays stdlib-only)."""
+    import importlib
+
+    ownership: dict[str, str] = {}
+    for pkg in PACKAGE_TEST_DECLARATIONS:
+        contract = importlib.import_module(f"common.{pkg}.contract")
+        roots = getattr(contract, "TEST_ROOTS", None)
+        if not roots:
+            raise ValueError(
+                f"package {pkg!r} is in PACKAGE_TEST_DECLARATIONS but its "
+                "contract.py declares no TEST_ROOTS"
+            )
+        if isinstance(roots, str):
+            raise ValueError(
+                f"package {pkg!r}: TEST_ROOTS must be a tuple of paths, "
+                "not a bare string"
+            )
+        for root in roots:
+            other = ownership.get(root)
+            if other is not None:
+                raise ValueError(
+                    f"test root {root!r} declared by both {other!r} and {pkg!r}"
+                )
+            ownership[root] = pkg
+    return ownership
+
+
 GENERATED_MATRIX_HEADER = (
     "# GENERATED from common/testing/matrix.py — do not hand-edit.\n"
     "# Regenerate: python tools/test_selection.py --emit-matrix\n"
@@ -96,6 +136,13 @@ def emit_execution_matrix_yaml() -> str:
         lines.append(f"  - path: {rule.path}")
         lines.append(f"    stage: {rule.stage}")
         lines.append(f"    ci_required: {'true' if rule.ci_required else 'false'}")
+    # Package-declared test ownership (issue #1558). Consumers of `rules:`
+    # (AC traceability) ignore this section; it exists so a dropped or
+    # duplicated declaration is a visible generated-view change.
+    lines.append("ownership:")
+    for root, pkg in sorted(package_test_ownership().items()):
+        lines.append(f"  - path: {root}")
+        lines.append(f"    package: {pkg}")
     return "\n".join(lines) + "\n"
 
 
@@ -147,15 +194,16 @@ E2E_ROWS: tuple[E2ERow, ...] = (
     E2ERow(
         "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py",
         needs=(),
-        audited=False,
+        audited=True,
         reason=(
-            "#1547 candidate: CSV-kind upload only — no AI/OCR provider call, no "
-            "market-data, no Vault-only secret. First in-runner attempt (PR #1562) "
-            "failed live: POST /api/statements/upload returned a structured backend "
-            "404 in the ephemeral stack while the same flow passes on staging — the "
-            "in-runner proxy/route mismatch must be diagnosed before pre-merge "
-            "admission. The matrix now makes that iteration a per-PR 15-minute "
-            "loop instead of a staging deploy cycle."
+            "#1547 lineage: no provider/market/Vault dependency. Two in-runner "
+            "stack bugs were flushed out on the way in: the double-/api "
+            "NEXT_PUBLIC_API_URL 404 (PR #1587) and the #1589 click timeout — "
+            "the app-wide FirstRunModal ('Set up your AI provider') opened on "
+            "every full navigation because the stack had no provider wiring, "
+            "intercepting pointer events over the upload button; fixed with "
+            "placeholder provider wiring + an unroutable AI_BASE_URL in "
+            "docker-compose.ci-e2e.yml (validates wiring, cannot spend quota)."
         ),
     ),
     E2ERow(
@@ -221,26 +269,41 @@ E2E_ROWS: tuple[E2ERow, ...] = (
     E2ERow(
         "tests/e2e/test_version_check.py",
         needs=(),
-        audited=False,
-        reason="Pending audit (#1547 follow-up): asserts deployed sha vs expected release.",
+        audited=True,
+        reason=(
+            "Audited (#1547 follow-up): API-only GET /api/health comparing git_sha "
+            "with EXPECTED_SHA — both provided by the in-runner stack (GIT_COMMIT_SHA "
+            "baked into images, EXPECTED_SHA set by the preview job)."
+        ),
     ),
     E2ERow(
         "tests/e2e/test_ac_authority_tiers_epic026.py",
         needs=(),
-        audited=False,
-        reason="Pending audit (#1547 follow-up).",
+        audited=True,
+        reason=(
+            "Audited (#1547 follow-up): pure registry/ratchet validation over local "
+            "files — no network, no fixtures, zero external dependencies."
+        ),
     ),
     E2ERow(
         "tests/e2e/test_application_ai_advisor_epic021.py",
         needs=(),
-        audited=False,
-        reason="Pending audit (#1547 follow-up): advisor flow may exercise a live LLM path.",
+        audited=True,
+        reason=(
+            "Audited (#1547 follow-up): despite the name, this validates EPIC/SSOT "
+            "document contracts only — it never exercises the advisor runtime or "
+            "any LLM path."
+        ),
     ),
     E2ERow(
         "tests/e2e/test_llm_provider_abstraction_epic023.py",
         needs=(),
-        audited=False,
-        reason="Pending audit (#1547 follow-up).",
+        audited=True,
+        reason=(
+            "Audited (#1547 follow-up): static definition/document validation of the "
+            "provider-abstraction contract (types, scenes, rotation) — reads files, "
+            "never invokes the LLM layer."
+        ),
     ),
 )
 
@@ -322,6 +385,10 @@ class WorkflowPytestContract:
     paths: tuple[str, ...] = ()
     # Substring identifying this invocation's line uniquely in the workflow.
     anchor: str = ""
+    # Environment precondition that must run BEFORE this invocation in the
+    # same workflow (runtime package's domain: a red precondition is an
+    # environment failure, not a test failure — issue #1558). Empty = none.
+    precondition: str = ""
 
 
 WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
@@ -350,6 +417,7 @@ WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
         marker=None,  # runtime-derived: eval tools/test_selection.py --shell
         paths=('"${PR_PREVIEW_E2E_TESTS[@]}"',),
         anchor='-m "$PR_PREVIEW_E2E_MARKER"',
+        precondition="tools/smoke_test.sh",
     ),
     WorkflowPytestContract(
         stage="staging_core_e2e",
@@ -357,6 +425,7 @@ WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
         marker=STAGING_CORE_E2E_MARKER,
         paths=("tests/e2e",),
         anchor="--junit-xml=test-results/staging-core-e2e.xml",
+        precondition="tools/smoke_test.sh",
     ),
     WorkflowPytestContract(
         stage="staging_provider_connectivity",

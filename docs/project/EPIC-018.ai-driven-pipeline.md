@@ -91,14 +91,14 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 
 #### 1.1 Extraction Prompt Enhancement
 - [x] Add `suggested_category` and `category_confidence` fields to extraction prompt
-  - File: `apps/backend/src/prompts/statement.py`
+  - File: `apps/backend/src/extraction/extension/prompts/statement.py`
   - Categories: Food & Dining, Transport, Shopping, Utilities, Salary, Transfer, Investment, Insurance, Rent, Healthcare, Entertainment, Education, Subscriptions, Other
   - Confidence: 0.0-1.0 float returned by AI
 - [x] Add `suggested_category` VARCHAR(100) and `category_confidence` DECIMAL(3,2) columns to `BankStatementTransaction`
   - File: `apps/backend/src/models/statement.py`
   - Migration: Alembic migration with nullable columns (backward compatible)
 - [x] Update extraction service to parse and persist AI-returned category fields
-  - File: `apps/backend/src/services/extraction.py`
+  - File: `apps/backend/src/extraction/extension/service.py`
   - Graceful fallback: if AI omits category, set `suggested_category=NULL`, `category_confidence=0.0`
 
 #### 1.2 Classification Service: Implement ML_MODEL Rule Type
@@ -156,7 +156,7 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
   - Group by `original_category → corrected_category` pattern
   - Inject as few-shot examples into extraction prompt
   - Format: "Previously, transactions like '{description}' were categorized as '{corrected_category}'"
-- [x] Update `apps/backend/src/prompts/statement.py` to accept correction examples
+- [x] Update `apps/backend/src/extraction/extension/prompts/statement.py` to accept correction examples
   - Add `correction_examples: list[dict]` parameter to prompt builder
   - Inject up to 10 most relevant corrections as few-shot context
 - [x] Add cache for correction examples (per user, 1-hour TTL)
@@ -255,8 +255,8 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 |-------|-------|-------------|
 | AC18.1.1 | 1 | Extraction prompt returns `suggested_category` and `category_confidence` |
 | AC18.1.2 | 1 | `BankStatementTransaction` has `suggested_category` and `category_confidence` columns |
-| AC18.1.3 | 1 | `RuleType.ML_MODEL` evaluates AI suggestion with confidence threshold ≥ 0.7 |
-| AC18.1.4 | 1 | Classification priority: KEYWORD > REGEX > ML_MODEL > Uncategorized |
+| AC18.1.3 | 1 | RETIRED (EPIC #1483 cleanup): `RuleType.ML_MODEL` rule matching deleted — it read AI signals (`suggested_category`/`category_confidence`) that no producer ever wrote, and no rule CRUD exists; the model path is the transaction classify node (§AC18.15). `RuleType.ML_MODEL` survives only as the classification-policy anchor row type {tier:CODE-LED} {proof:property} |
+| AC18.1.4 | 1 | Classification priority: KEYWORD > REGEX > Uncategorized (the ML tier moved to the classify node, §AC18.15) {tier:CODE-LED} {proof:property} |
 | AC18.1.5 | 1 | `create_entry_from_txn` reads classification before defaulting to Uncategorized |
 | AC18.1.6 | 1 | Auto-created category accounts are user-scoped and correctly typed |
 | AC18.2.1 | 2 | `CorrectionLog` model records original and corrected categories |

@@ -74,7 +74,7 @@ def _decimal(value) -> Decimal:
 async def test_account_coverage_reports_latest_confirmed_balance_and_stale_status(
     client: AsyncClient, db: AsyncSession, test_user
 ) -> None:
-    """AC3.7.1: Each account reports latest source date, balance, and stale status."""
+    """AC-extraction.7.1: Each account reports latest source date, balance, and stale status."""
     account = await _create_account(db, test_user.id, name="DBS Multiplier")
     await _create_statement(
         db,
@@ -113,7 +113,7 @@ async def test_account_coverage_reports_latest_confirmed_balance_and_stale_statu
 async def test_account_coverage_reports_empty_active_account_as_stale(
     client: AsyncClient, db: AsyncSession, test_user
 ) -> None:
-    """AC3.7.1: Active accounts without approved statements are stale and incomplete."""
+    """AC-extraction.7.1: Active accounts without approved statements are stale and incomplete."""
     account = await _create_account(db, test_user.id, name="Unconfirmed Cash")
     await db.commit()
 
@@ -131,7 +131,7 @@ async def test_account_coverage_reports_empty_active_account_as_stale(
 async def test_account_coverage_detects_adjacent_opening_balance_mismatch(
     client: AsyncClient, db: AsyncSession, test_user
 ) -> None:
-    """AC3.7.2: Adjacent monthly statements verify previous close equals next open."""
+    """AC-extraction.7.2: Adjacent monthly statements verify previous close equals next open."""
     account = await _create_account(db, test_user.id, name="DBS Continuity")
     previous = await _create_statement(
         db,
@@ -172,7 +172,7 @@ async def test_account_coverage_detects_adjacent_opening_balance_mismatch(
 async def test_account_coverage_ignores_incomplete_unapproved_boundary_statement(
     client: AsyncClient, db: AsyncSession, test_user
 ) -> None:
-    """AC3.7.2: Incomplete unapproved boundary statements do not create continuity issues."""
+    """AC-extraction.7.2: Incomplete unapproved boundary statements do not create continuity issues."""
     account = await _create_account(db, test_user.id, name="Pending Balance Boundary")
     await _create_statement(
         db,
@@ -207,7 +207,7 @@ async def test_account_coverage_ignores_incomplete_unapproved_boundary_statement
 async def test_account_coverage_reports_missing_overlapping_and_duplicate_ranges(
     client: AsyncClient, db: AsyncSession, test_user
 ) -> None:
-    """AC3.7.3: Missing, overlapping, and duplicate statement periods are visible."""
+    """AC-extraction.7.3: Missing, overlapping, and duplicate statement periods are visible."""
     account = await _create_account(db, test_user.id, name="DBS Coverage Defects")
     await _create_statement(
         db,
@@ -265,7 +265,7 @@ async def test_account_coverage_reports_missing_overlapping_and_duplicate_ranges
 async def test_account_coverage_accepts_broker_monthly_cadence_with_daily_snapshot_override(
     client: AsyncClient, db: AsyncSession, test_user
 ) -> None:
-    """AC3.7.4: Broker monthly cadence can use a daily snapshot as latest source."""
+    """AC-extraction.7.4: Broker monthly cadence can use a daily snapshot as latest source."""
     account = await _create_account(db, test_user.id, name="Brokerage Cash")
     await _create_statement(
         db,
@@ -315,7 +315,7 @@ async def test_account_coverage_accepts_broker_monthly_cadence_with_daily_snapsh
 
 
 async def test_account_coverage_returns_empty_list_when_user_has_no_active_accounts(client: AsyncClient) -> None:
-    """AC3.7.1: Users without active accounts receive an empty coverage list."""
+    """AC-extraction.7.1: Users without active accounts receive an empty coverage list."""
     response = await client.get("/accounts/coverage?as_of=2025-03-10&stale_after_days=45")
 
     assert response.status_code == 200

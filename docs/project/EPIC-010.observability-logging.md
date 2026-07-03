@@ -189,7 +189,7 @@ Migrated `AC-observability.<g>.<s>` ids (homed in the package roadmap):
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC10.9.5 | Deploy failure snapshots include non-secret platform health fields; the app does **not** build observability-backend pivot links (infra2 owns linking to its backend) | `test_AC10_9_5_snapshot_includes_platform_health()`, `test_AC10_9_5_main_missing_inputs_emits_skip_marker_with_platform_health()` | `tests/tooling/test_dokploy_failure_snapshot.py` | P0 |
+| AC10.9.5 | RETIRED (App/Infra boundary #876): deploy failure snapshots are infra2-owned end to end — the app ships no Dokploy failure-snapshot tool and never reaches the Dokploy API for platform diagnostics (the app copy was an orphan duplicating infra2's `deploy_failure_snapshot`, which runs inside the deploy_v2 front door). The boundary intent stands: the app builds no observability-backend pivot links {tier:CODE-LED} {proof:property} | `test_AC10_9_5_app_side_snapshot_is_retired()`, `test_AC10_9_5_infra2_owns_deploy_failure_snapshots()` | `tests/tooling/test_dokploy_snapshot_retired.py` | P0 |
 
 ## 📏 Acceptance Criteria
 

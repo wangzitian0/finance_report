@@ -3,10 +3,10 @@
 Two defects are covered here (the third, the 409 deletion guard, lives in
 ``api/test_users_router.py``):
 
-- AC13.23.2: the parse-failure lineage write must re-check user existence and
+- AC-extraction.123.2: the parse-failure lineage write must re-check user existence and
   skip the FK-violating ``uploaded_documents.user_id`` insert when the owning
   user has been deleted mid-parse.
-- AC13.23.3: ``handle_parse_failure`` must roll back BEFORE reading any expired
+- AC-extraction.123.3: ``handle_parse_failure`` must roll back BEFORE reading any expired
   ORM attribute (using a plain cached ``statement_id``), so an already-failed
   session does not raise ``PendingRollbackError`` and mask the original error;
   the original error must still be logged.
@@ -34,7 +34,7 @@ pytestmark = pytest.mark.asyncio
 
 
 async def test_AC13_23_2_failed_lineage_skips_when_user_deleted(db, test_user):
-    """AC13.23.2: when the owning user is deleted mid-parse, the failure-handler
+    """AC-extraction.123.2: when the owning user is deleted mid-parse, the failure-handler
     lineage write must NOT attempt the FK-violating UploadedDocument insert.
 
     Reproduces #1256 defect 1: the background parse captured ``user_id`` before
@@ -75,7 +75,7 @@ async def test_AC13_23_2_failed_lineage_skips_when_user_deleted(db, test_user):
 
 
 async def test_AC13_23_3_failure_handler_rolls_back_before_reading_orm(db, test_user):
-    """AC13.23.3: the handler rolls back BEFORE any ORM attribute read, and never
+    """AC-extraction.123.3: the handler rolls back BEFORE any ORM attribute read, and never
     needs a live ORM read at all when the caller passes the plain ``statement_id``.
 
     Reproduces #1256 defect 2: the old handler read ``statement.id`` off the
@@ -125,7 +125,7 @@ async def test_AC13_23_3_failure_handler_rolls_back_before_reading_orm(db, test_
 
 
 async def test_AC13_23_3_original_error_not_masked(db, test_user):
-    """AC13.23.3: a failure during the rejection write must not swallow the
+    """AC-extraction.123.3: a failure during the rejection write must not swallow the
     original error — the original message stays logged even if the inner write
     raises (e.g. PendingRollbackError from a poisoned session)."""
     statement = await StatementSummaryFactory.create_async(db, user_id=test_user.id, status=BankStatementStatus.PARSING)

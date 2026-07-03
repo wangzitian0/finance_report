@@ -180,6 +180,16 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 | AC7.6.1 | Config syncs with .env.example | `TestConfigContract.test_config_sync_with_env_example` | `infra/test_config_contract.py` | P0 |
 | AC7.6.2 | Required secrets documented | Manual verification | `.env.example` | P0 |
 
+> The config↔manifest env-var guardrail lives in the `runtime` package roadmap
+> (`common/runtime/contract.py`) as `AC-runtime.2.1` (#1579): every `config.py`
+> env var is either one of a declared dependency's env vars in the
+> `DependencyManifest` or a reasoned non-dependency entry — an unclassified new
+> env var fails CI, so a new external backend cannot bypass the manifest.
+> Its enforcement sibling is `AC-runtime.3.1` (#1577): `boot.validate` FULL
+> derives the dependency set from `DEPENDENCY_MANIFEST.required_for(tier)`
+> (tier resolved from `ENVIRONMENT` via `resolve_env_tier`, unknown → strictest)
+> instead of a hardcoded per-mode list.
+
 ### AC7.7: Health Checks — migrated to the `runtime` package
 
 > The `/health` dependency-presence ACs (were `AC7.7.*`) moved into the

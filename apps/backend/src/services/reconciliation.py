@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.config import settings
+from src.extraction.extension.statement_summary import resolve_custody_account_id
 from src.ledger import (
     create_transfer_in_entry,
     create_transfer_out_entry,
@@ -49,7 +50,6 @@ from src.services.reconciliation_scoring import (  # noqa: F401
 )
 from src.services.reconciliation_stats import ReconciliationStats, get_reconciliation_stats  # noqa: F401
 from src.services.source_type_priority import promote_entry_source_type
-from src.services.statement_summary import resolve_custody_account_id
 
 logger = get_logger(__name__)
 

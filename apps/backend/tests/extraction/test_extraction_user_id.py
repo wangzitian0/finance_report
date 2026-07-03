@@ -1,4 +1,4 @@
-"""Extraction threads the user's id to the transport (EPIC-023 AC23.4.5).
+"""Extraction threads the user's id to the transport (EPIC-023 AC-llm.4.5).
 
 So a BYO-provider user's uploads resolve their own provider instead of the
 deployment/env default. ``stream_ai_json`` is mocked to capture the ``user_id``.
@@ -11,7 +11,8 @@ from uuid import uuid4
 
 import pytest
 
-from src.services.extraction import ExtractionService, service as extraction_mod
+from src.extraction.extension import service as extraction_mod
+from src.extraction.extension.service import ExtractionService
 
 pytestmark = pytest.mark.no_db
 

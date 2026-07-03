@@ -163,7 +163,7 @@ def test_AC2_18_1_canonical_ledger_is_framework_neutral() -> None:
 
 
 def test_AC3_10_1_statement_parsing_is_source_capture_not_framework_policy() -> None:
-    """AC3.10.1: Statement parsing captures evidence and leaves framework policy to EPIC-020."""
+    """AC-extraction.10.1: Statement parsing captures evidence and leaves framework policy to EPIC-020."""
     epic = read("docs/project/EPIC-003.statement-parsing.md")
 
     assert "Framework Boundary" in epic

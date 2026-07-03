@@ -1,12 +1,12 @@
-"""Env-backed ConfigSource maps scenes behaviour-preservingly (EPIC-023 AC23.2.4)."""
+"""Env-backed ConfigSource maps scenes behaviour-preservingly (EPIC-023 AC-llm.2.4)."""
 
 from __future__ import annotations
 
 import pytest
 
 from src.config import settings
-from src.llm.common import ProtocolFamily, Scene
-from src.llm.env_config import EnvConfigSource
+from src.llm.base import ProtocolFamily, Scene
+from src.llm.extension.env_config import EnvConfigSource
 
 
 @pytest.fixture
@@ -21,7 +21,7 @@ def configured(monkeypatch):
 
 
 async def test_AC23_2_4_unconfigured_when_no_api_key(monkeypatch):
-    """AC23.2.4: no API key -> not configured, no providers, no bindings (drives first-run modal)."""
+    """AC-llm.2.4: no API key -> not configured, no providers, no bindings (drives first-run modal)."""
     monkeypatch.setattr(settings, "ai_api_key", "", raising=False)
     src = EnvConfigSource()
     assert await src.is_configured() is False
@@ -30,7 +30,7 @@ async def test_AC23_2_4_unconfigured_when_no_api_key(monkeypatch):
 
 
 async def test_AC23_2_4_provider_protocol_inferred_from_ai_provider(configured):
-    """AC23.2.4: Z.AI maps to the openai-compatible family with its api_base + key."""
+    """AC-llm.2.4: Z.AI maps to the openai-compatible family with its api_base + key."""
     providers = await configured.list_providers()
     assert len(providers) == 1
     p = providers[0]
@@ -41,7 +41,7 @@ async def test_AC23_2_4_provider_protocol_inferred_from_ai_provider(configured):
 
 
 async def test_AC23_2_4_openrouter_and_anthropic_families(monkeypatch):
-    """AC23.2.4: provider id selects the right protocol family."""
+    """AC-llm.2.4: provider id selects the right protocol family."""
     monkeypatch.setattr(settings, "ai_api_key", "k", raising=False)
     monkeypatch.setattr(settings, "ai_provider", "openrouter", raising=False)
     assert (await EnvConfigSource().list_providers())[0].protocol is ProtocolFamily.OPENROUTER_COMPATIBLE
@@ -52,13 +52,13 @@ async def test_AC23_2_4_openrouter_and_anthropic_families(monkeypatch):
 
 
 async def test_AC23_2_4_get_provider_by_id(configured):
-    """AC23.2.4: get_provider returns the env provider by id, None otherwise."""
+    """AC-llm.2.4: get_provider returns the env provider by id, None otherwise."""
     assert (await configured.get_provider("env")) is not None
     assert (await configured.get_provider("nope")) is None
 
 
 async def test_AC23_2_4_scene_bindings_match_configured_models(configured):
-    """AC23.2.4: vision/ocr scenes -> vision/ocr models; the rest -> primary model."""
+    """AC-llm.2.4: vision/ocr scenes -> vision/ocr models; the rest -> primary model."""
     assert (await configured.get_binding(Scene.EXTRACTION_VISION)).model_id == "glm-4.6v"
     assert (await configured.get_binding(Scene.EXTRACTION_OCR)).model_id == "glm-4.6v"
     assert (await configured.get_binding(Scene.EXTRACTION_JSON)).model_id == "glm-5.1"

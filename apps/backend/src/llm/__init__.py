@@ -1,27 +1,145 @@
-"""LLM provider abstraction (EPIC-023).
+"""``llm`` — the backend implementation of the ``llm`` package (EPIC-023 → #1426).
 
-``src/llm`` is the single entry point for talking to language models. It is built
+``src/llm`` is the single entry point for talking to language models, built
 around three orthogonal axes (see ``common/llm/readme.md``):
 
-- **Protocol family** — ``openai-compatible`` / ``anthropic-compatible`` /
-  ``openrouter-compatible``. Every concrete vendor (Z.AI/GLM, DeepSeek, a local
-  vLLM, …) slots into one of these three; they are *not* enumerated as special
-  cases.
-- **Model** — a dynamic catalogue that may be far larger than the bound set,
-  each entry carrying capabilities (modalities, free-tier, pricing).
+- **Protocol family** — ``openai-compatible`` / ``anthropic-compatible`` / …;
+  every concrete vendor slots into a family, never a special case.
+- **Model** — a dynamic catalogue, each entry carrying capabilities.
 - **Scene** — the fixed, code-defined set of call sites (``extraction.ocr``,
-  ``advisor.chat``, …). The binding ``scene -> model`` is the configurable
+  ``advisor.chat``, …); the ``scene -> model`` binding is the configurable
   surface.
 
-``src/llm/common`` holds the frozen contract (types + protocols + the secret
-cipher) that the litellm client implementation (EPIC A) and the DB-backed
-configuration layer (EPIC B) both build against. Importing from ``common`` keeps
-the two halves decoupled so they can evolve in parallel.
+Files converge by layer (common/meta/migration-standard.md): ``base/`` is the
+frozen contract (types, ports, errors, secret cipher) plus the usage entity;
+``extension/`` holds the adapters — the litellm transport (the single litellm
+chokepoint), catalogue, routing, env/DB config sources, the input-keyed
+cassette record/replay subsystem, and the ORM entities; ``data/`` is the
+reserved projection layer (usage rollup lands there, package-internal).
 
-The package ``__init__`` is intentionally import-light: it does NOT eagerly pull
-in the litellm-dependent surface (``client``/``catalog``/``cost``). That keeps
-``from src.llm.common import …`` litellm-free, so lightweight consumers (e.g. the
-SQLAlchemy models, run in minimal tooling environments without litellm installed)
-can use the contract without the heavy dependency. Import the implementations
-explicitly from their submodules (``src.llm.client``, ``src.llm.catalog``, …).
+The names re-exported below are the entire public surface (``__all__`` must
+equal ``contract.interface``). The litellm-dependent symbols
+(``litellm_stream`` / ``cassette_completion`` / ``resolve_provider_and_model``
+/ ``LitellmCatalog``) are exposed **lazily** (PEP 562): importing this root
+never imports ``litellm``, so minimal tooling environments can load the
+package; the heavy dependency is paid on first use of those four names only.
 """
+
+from __future__ import annotations
+
+from typing import Any
+
+from src.llm.base import (
+    CatalogProvider,
+    ChatResult,
+    ConfigSource,
+    Encrypted,
+    FernetCipher,
+    LLMBudgetExceeded,
+    LLMClient,
+    LLMConfigError,
+    LLMError,
+    LlmUsageMeter,
+    Message,
+    Modality,
+    ModelCatalogError,
+    ModelSpec,
+    ProtocolFamily,
+    ProviderRef,
+    ReasoningEffort,
+    Scene,
+    SceneBinding,
+    SecretCipher,
+    Usage,
+    build_cipher,
+    estimate_tokens,
+    estimate_tokens_from_chars,
+)
+from src.llm.extension import (
+    CASSETTE_DIR,
+    Cassette,
+    CassetteMiss,
+    CassetteMode,
+    CassetteRecorder,
+    CassetteStore,
+    CassetteTag,
+    CassetteValidationError,
+    DbConfigSource,
+    EnvConfigSource,
+    LayeredConfigSource,
+    LitellmCall,
+    build_call,
+    current_mode,
+    fingerprint,
+    get_config_source,
+    get_usage_meter,
+    miss_summary,
+    protocol_for,
+)
+
+# The litellm-heavy surface, resolved lazily so ``import src.llm`` stays
+# litellm-free (the no-litellm-at-root invariant; see common/llm/contract.py).
+_LAZY_CLIENT = frozenset({"litellm_stream", "cassette_completion", "resolve_provider_and_model"})
+
+
+def __getattr__(name: str) -> Any:
+    if name in _LAZY_CLIENT:
+        from src.llm.extension import client
+
+        return getattr(client, name)
+    if name == "LitellmCatalog":
+        from src.llm.extension.catalog import LitellmCatalog
+
+        return LitellmCatalog
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+__all__ = [
+    "CASSETTE_DIR",
+    "Cassette",
+    "CassetteMiss",
+    "CassetteMode",
+    "CassetteRecorder",
+    "CassetteStore",
+    "CassetteTag",
+    "CassetteValidationError",
+    "CatalogProvider",
+    "ChatResult",
+    "ConfigSource",
+    "DbConfigSource",
+    "Encrypted",
+    "EnvConfigSource",
+    "FernetCipher",
+    "LLMBudgetExceeded",
+    "LLMClient",
+    "LLMConfigError",
+    "LLMError",
+    "LayeredConfigSource",
+    "LitellmCall",
+    "LitellmCatalog",
+    "LlmUsageMeter",
+    "Message",
+    "Modality",
+    "ModelCatalogError",
+    "ModelSpec",
+    "ProtocolFamily",
+    "ProviderRef",
+    "ReasoningEffort",
+    "Scene",
+    "SceneBinding",
+    "SecretCipher",
+    "Usage",
+    "build_call",
+    "build_cipher",
+    "cassette_completion",
+    "current_mode",
+    "estimate_tokens",
+    "estimate_tokens_from_chars",
+    "fingerprint",
+    "get_config_source",
+    "get_usage_meter",
+    "litellm_stream",
+    "miss_summary",
+    "protocol_for",
+    "resolve_provider_and_model",
+]

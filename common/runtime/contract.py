@@ -36,6 +36,7 @@ CONTRACT = PackageContract(
     interface=[
         "APP_OWNED_TIERS",
         "DEPENDENCY_MANIFEST",
+        "NON_DEPENDENCY_ENV_FIELDS",
         "VPS_TIERS",
         "DatabaseCheck",
         "Dependency",
@@ -47,6 +48,8 @@ CONTRACT = PackageContract(
         "LlmCheck",
         "ObjectStorageCheck",
         "ProbeResult",
+        "check_env_classification",
+        "resolve_env_tier",
     ],
     events=[],
     invariants=[],
@@ -80,6 +83,31 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        # ── config↔manifest env-var guardrail (#1579) ──
+        ACRecord(
+            id="AC-runtime.2.1",
+            statement=(
+                "Every config.py env var is classified: a declared dependency env var in the "
+                "DependencyManifest, or a reasoned NON_DEPENDENCY_ENV_FIELDS entry — an "
+                "unclassified new env var fails CI (fail-closed guardrail, #1579)."
+            ),
+            test="apps/backend/tests/runtime/test_env_guardrail.py::test_every_config_env_var_is_classified",
+            priority="P1",
+            status="done",
+        ),
+        # ── manifest-driven validate (#1577) ──
+        ACRecord(
+            id="AC-runtime.3.1",
+            statement=(
+                "boot.validate FULL derives its dependency set from "
+                "DEPENDENCY_MANIFEST.required_for(resolve_env_tier(...)) — a declared-required "
+                "probed dependency that is absent fails validate; a declared-required dependency "
+                "without a probe adapter is a visible warning (#1580), never a silent skip (#1577)."
+            ),
+            test="apps/backend/tests/infra/test_boot.py::test_AC_runtime_3_1_required_checks_cover_the_tier_declaration",
+            priority="P1",
+            status="done",
+        ),
         # ── /health dependency-presence (was EPIC-007 AC7.7.1–.2) ──
         ACRecord(
             id="AC-runtime.7.1",
@@ -97,3 +125,7 @@ CONTRACT = PackageContract(
         ),
     ],
 )
+
+# Test roots this package owns (aggregated into the execution matrix's
+# generated ownership view; see common/testing/matrix.py, issue #1558).
+TEST_ROOTS: tuple[str, ...] = ("apps/backend/tests/infra/test_main.py",)

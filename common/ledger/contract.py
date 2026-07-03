@@ -1582,3 +1582,11 @@ CONTRACT = PackageContract(
         ),
     ],
 )
+
+# Test roots this package owns (aggregated into the execution matrix's
+# generated ownership view; see common/testing/matrix.py, issue #1558).
+TEST_ROOTS: tuple[str, ...] = (
+    "apps/backend/tests/ledger/",
+    "tests/tooling/test_ledger_module.py",
+    "tests/tooling/test_ledger_package.py",
+)

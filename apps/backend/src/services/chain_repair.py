@@ -24,12 +24,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
-from src.observability import get_logger
-from src.services.validation import (
+from src.extraction.base.validation import (
     ChainBreak,
     detect_balance_chain_break,
     validate_balance,
 )
+from src.observability import get_logger
 
 logger = get_logger(__name__)
 
@@ -39,7 +39,7 @@ class RegionReExtractor(Protocol):
     """Injectable seam that re-extracts the broken region of a statement.
 
     Implementations receive the original extracted ``payload`` and the
-    :class:`~src.services.validation.ChainBreak` that pinpoints where a row was
+    :class:`~src.extraction.base.validation.ChainBreak` that pinpoints where a row was
     dropped, and return a repaired extraction payload (same dict shape) or
     ``None`` if they could not produce one. The real implementation issues a
     targeted re-extract LLM call; tests inject a deterministic double.

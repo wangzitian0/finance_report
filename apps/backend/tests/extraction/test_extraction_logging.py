@@ -8,7 +8,7 @@ import re
 
 import pytest
 
-from src.services.extraction import ExtractionService
+from src.extraction.extension.service import ExtractionService
 
 
 class TestExtractStatusCode:

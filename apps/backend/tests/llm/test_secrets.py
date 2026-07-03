@@ -1,4 +1,4 @@
-"""Unit tests for provider-secret encryption + rotation (EPIC-023 AC23.1.2-.4)."""
+"""Unit tests for provider-secret encryption + rotation (EPIC-023 AC-llm.1.2-.4)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import pytest
 from cryptography.fernet import Fernet
 
 from src.config import settings
-from src.llm.common import FernetCipher, LLMConfigError, build_cipher
+from src.llm.base import FernetCipher, LLMConfigError, build_cipher
 
 
 def _key() -> str:
@@ -15,7 +15,7 @@ def _key() -> str:
 
 
 def test_AC23_1_2_round_trips_a_provider_secret_without_storing_plaintext():
-    """AC23.1.2: encrypt -> decrypt recovers the secret; ciphertext is not the plaintext."""
+    """AC-llm.1.2: encrypt -> decrypt recovers the secret; ciphertext is not the plaintext."""
     cipher = FernetCipher([_key()])
     secret = "sk-super-secret-provider-key"
 
@@ -28,7 +28,7 @@ def test_AC23_1_2_round_trips_a_provider_secret_without_storing_plaintext():
 
 
 def test_AC23_1_3_rotation_is_single_pass_old_ciphertext_still_decrypts():
-    """AC23.1.3: after prepending a new key, an old secret still decrypts and re-stamps.
+    """AC-llm.1.3: after prepending a new key, an old secret still decrypts and re-stamps.
 
     The version stamp is a stable fingerprint of the encrypting key, so "needs
     re-stamping" is `row.key_version != cipher.current_version` and stays correct
@@ -63,8 +63,8 @@ def test_AC23_1_3_rotation_is_single_pass_old_ciphertext_still_decrypts():
 
 
 def test_AC23_1_3_rotate_fails_closed_on_a_corrupt_value():
-    """AC23.1.3: rotating a value no key can decrypt fails closed, not silently."""
-    from src.llm.common import Encrypted
+    """AC-llm.1.3: rotating a value no key can decrypt fails closed, not silently."""
+    from src.llm.base import Encrypted
 
     cipher = FernetCipher([_key()])
     with pytest.raises(LLMConfigError):
@@ -72,21 +72,21 @@ def test_AC23_1_3_rotate_fails_closed_on_a_corrupt_value():
 
 
 def test_AC23_1_4_build_cipher_fails_closed_without_a_key(monkeypatch):
-    """AC23.1.4: no LLM_ENCRYPTION_KEYS -> build_cipher raises (DB secrets fail closed)."""
+    """AC-llm.1.4: no LLM_ENCRYPTION_KEYS -> build_cipher raises (DB secrets fail closed)."""
     monkeypatch.setattr(settings, "llm_encryption_key_list", [], raising=False)
     with pytest.raises(LLMConfigError):
         build_cipher()
 
 
 def test_AC23_1_4_build_cipher_uses_configured_keys(monkeypatch):
-    """AC23.1.4: build_cipher constructs a working cipher from configured keys."""
+    """AC-llm.1.4: build_cipher constructs a working cipher from configured keys."""
     monkeypatch.setattr(settings, "llm_encryption_key_list", [_key()], raising=False)
     cipher = build_cipher()
     assert cipher.decrypt(cipher.encrypt("x")) == "x"
 
 
 def test_AC23_1_4_fernet_cipher_rejects_empty_and_malformed_keys():
-    """AC23.1.4: an empty key list or a non-Fernet key is a config error, not a crash."""
+    """AC-llm.1.4: an empty key list or a non-Fernet key is a config error, not a crash."""
     with pytest.raises(LLMConfigError):
         FernetCipher([])
     with pytest.raises(LLMConfigError):

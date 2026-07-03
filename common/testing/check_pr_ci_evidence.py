@@ -7,8 +7,9 @@ against real execution — a proof could claim pr_ci and silently never run.
 This gate runs in the ``ac-behavioral-ratchet`` job after junit aggregation:
 every behavioral pr_ci proof whose file classifies (via the execution matrix)
 into a PR-evidence stage must appear as an executed testcase in the aggregated
-junit. Absent → hard fail. Present but skipped-only → warning for now (some
-suites skip conditionally; tightening tracked in #1558).
+junit. Absent → hard fail. Present but skipped-only → hard fail too (#1558):
+a proof that only ever skips pre-merge is not executing its promise — either
+make it run or declare post_merge_environment.
 """
 
 from __future__ import annotations
@@ -86,23 +87,21 @@ def run_check(junit_paths: list[Path]) -> int:
         elif hit is False:
             skipped_only.append(label)
 
-    for label in skipped_only:
-        print(f"WARNING: pr_ci proof only ever skipped in PR evidence: {label}")
-    if missing:
+    if missing or skipped_only:
         print(
-            f"ERROR: {len(missing)} behavioral pr_ci proof(s) never executed in "
-            "PR junit evidence. Either the test does not run pre-merge (fix the "
-            "marker/stage so it does) or the proof's ci_tier is wrong "
-            "(declare post_merge_environment).",
+            f"ERROR: {len(missing)} behavioral pr_ci proof(s) never executed and "
+            f"{len(skipped_only)} only ever skipped in PR junit evidence. Either "
+            "the test does not run pre-merge (fix the marker/stage/skip condition "
+            "so it does) or the proof's ci_tier is wrong (declare "
+            "post_merge_environment).",
             file=sys.stderr,
         )
         for label in missing:
-            print(f"  - {label}", file=sys.stderr)
+            print(f"  - missing: {label}", file=sys.stderr)
+        for label in skipped_only:
+            print(f"  - skipped-only: {label}", file=sys.stderr)
         return 1
-    print(
-        f"pr_ci evidence reconciliation: {len(scoped)} proofs executed "
-        f"({len(skipped_only)} skipped-only warnings)."
-    )
+    print(f"pr_ci evidence reconciliation: {len(scoped)} proofs executed.")
     return 0
 
 

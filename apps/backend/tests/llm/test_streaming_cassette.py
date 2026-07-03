@@ -1,4 +1,4 @@
-"""Streaming-cassette bridge for ``litellm_stream`` (EPIC-023 AC23.6).
+"""Streaming-cassette bridge for ``litellm_stream`` (EPIC-023 AC-llm.6).
 
 The real extraction transport is STREAMING and previously bypassed the cassette
 layer entirely, so PR CI never exercised the LLM path. These tests pin the
@@ -27,16 +27,16 @@ from pathlib import Path
 
 import pytest
 
-import src.llm.client as client_mod
-from src.llm.cassette import (
+import src.llm.extension.client as client_mod
+from src.llm.base import LLMError, ProtocolFamily, ProviderRef
+from src.llm.extension.cassette import (
     CassetteMiss,
     CassetteMode,
     CassetteStore,
     CassetteTag,
     fingerprint,
 )
-from src.llm.client import litellm_stream
-from src.llm.common import LLMError, ProtocolFamily, ProviderRef
+from src.llm.extension.client import litellm_stream
 from src.services.ai_streaming import accumulate_stream
 
 FIXTURE_CASSETTE_DIR = Path(__file__).resolve().parents[4] / "common" / "testing" / "fixtures" / "llm_cassettes"
@@ -111,7 +111,7 @@ def committed_store() -> CassetteStore:
 
 
 async def test_AC23_6_1_replay_synthesises_stream_from_frozen_text_cassette(monkeypatch, committed_store):
-    """AC23.6.1: replay reads the committed frozen-text cassette and synthesises a
+    """AC-llm.6.1: replay reads the committed frozen-text cassette and synthesises a
     stream; accumulate_stream rebuilds the recorded text with NO network/key."""
 
     async def explode(**kwargs):  # pragma: no cover - replay must not touch litellm
@@ -147,7 +147,7 @@ async def test_AC23_6_1_replay_synthesises_stream_from_frozen_text_cassette(monk
 
 
 async def test_AC23_6_1_replay_vision_cassette_synthesises_stream(monkeypatch, committed_store):
-    """AC23.6.1: a vision (image-part) request resolves the committed vision
+    """AC-llm.6.1: a vision (image-part) request resolves the committed vision
     cassette in replay — the same bridge serves default-config OCR/vision."""
 
     async def explode(**kwargs):  # pragma: no cover
@@ -168,7 +168,7 @@ async def test_AC23_6_1_replay_vision_cassette_synthesises_stream(monkeypatch, c
 
 
 async def test_AC23_6_2_replay_miss_is_hard_failure(monkeypatch, tmp_path):
-    """AC23.6.2: a request with no matching cassette is a hard CassetteMiss in
+    """AC-llm.6.2: a request with no matching cassette is a hard CassetteMiss in
     replay — never a network fallback (the live call is never made)."""
 
     async def explode(**kwargs):  # pragma: no cover
@@ -192,7 +192,7 @@ async def test_AC23_6_2_replay_miss_is_hard_failure(monkeypatch, tmp_path):
 
 
 async def test_AC23_6_3_record_accumulates_and_writes_cassette(monkeypatch, tmp_path):
-    """AC23.6.3: record performs the (mocked) streaming call, accumulates the full
+    """AC-llm.6.3: record performs the (mocked) streaming call, accumulates the full
     text, writes a cassette, and yields the text so the caller still works."""
     monkeypatch.setattr(client_mod.litellm, "acompletion", _fake_stream('{"a"', ":1", "}"))
     store = CassetteStore(directory=tmp_path / "c")
@@ -216,7 +216,7 @@ async def test_AC23_6_3_record_accumulates_and_writes_cassette(monkeypatch, tmp_
 
 
 async def test_AC23_6_3_record_is_idempotent(monkeypatch, tmp_path):
-    """AC23.6.3: re-recording the same streamed request rewrites identical bytes
+    """AC-llm.6.3: re-recording the same streamed request rewrites identical bytes
     (no diff churn) — the second put reports no change."""
     monkeypatch.setattr(client_mod.litellm, "acompletion", _fake_stream("frozen"))
     store = CassetteStore(directory=tmp_path / "c")
@@ -247,7 +247,7 @@ async def test_AC23_6_3_record_is_idempotent(monkeypatch, tmp_path):
 
 
 async def test_AC23_6_4_off_mode_passes_stream_through_untouched(monkeypatch, tmp_path):
-    """AC23.6.4: off mode streams the live (mocked) deltas through unchanged,
+    """AC-llm.6.4: off mode streams the live (mocked) deltas through unchanged,
     skipping empty chunks, and writes NO cassette — prod/staging stay live."""
     monkeypatch.setattr(client_mod.litellm, "acompletion", _fake_stream("Hel", "", "lo"))
     store = CassetteStore(directory=tmp_path / "c")
@@ -268,7 +268,7 @@ async def test_AC23_6_4_off_mode_passes_stream_through_untouched(monkeypatch, tm
 
 
 async def test_AC23_6_4_off_mode_normalises_provider_error(monkeypatch):
-    """AC23.6.4: off mode preserves the prior error contract — a provider failure
+    """AC-llm.6.4: off mode preserves the prior error contract — a provider failure
     is normalised to LLMError exactly as before the bridge."""
 
     async def boom(**kwargs):
@@ -289,7 +289,7 @@ async def test_AC23_6_4_off_mode_normalises_provider_error(monkeypatch):
 
 
 def test_AC23_6_5_role_derivation_text_vs_vision_distinct_keys():
-    """AC23.6.5: image-part messages key as 'vision', text-only as 'text', and the
+    """AC-llm.6.5: image-part messages key as 'vision', text-only as 'text', and the
     two produce DIFFERENT fingerprints (no cross-modality false match)."""
     assert client_mod._stream_role(_VISION_MESSAGES) == "vision"
     assert client_mod._stream_role(_TEXT_MESSAGES) == "text"
@@ -299,7 +299,7 @@ def test_AC23_6_5_role_derivation_text_vs_vision_distinct_keys():
 
 
 async def test_AC23_6_5_model_id_swap_resolves_same_cassette(monkeypatch, committed_store):
-    """AC23.6.5: swapping the model id (glm-5.1 -> glm-5.2) resolves the SAME
+    """AC-llm.6.5: swapping the model id (glm-5.1 -> glm-5.2) resolves the SAME
     committed cassette in replay — the key is model-id-agnostic."""
 
     async def explode(**kwargs):  # pragma: no cover
@@ -332,9 +332,9 @@ async def test_AC23_6_5_model_id_swap_resolves_same_cassette(monkeypatch, commit
 
 
 async def test_AC23_6_3_record_correctness_requires_validator(monkeypatch, tmp_path):
-    """AC23.6.3: a correctness streaming cassette refuses to record without a
+    """AC-llm.6.3: a correctness streaming cassette refuses to record without a
     ground-truth validator (freezing an unvalidated answer is the trap)."""
-    from src.llm.cassette import CassetteValidationError
+    from src.llm.extension.cassette import CassetteValidationError
 
     monkeypatch.setattr(client_mod.litellm, "acompletion", _fake_stream("anything"))
     store = CassetteStore(directory=tmp_path / "c")
@@ -351,7 +351,7 @@ async def test_AC23_6_3_record_correctness_requires_validator(monkeypatch, tmp_p
 
 
 async def test_AC23_6_3_record_correctness_validated_freezes_text(monkeypatch, tmp_path):
-    """AC23.6.3: a correctness streaming cassette whose accumulated text passes the
+    """AC-llm.6.3: a correctness streaming cassette whose accumulated text passes the
     ground-truth validator records and freezes the validated text."""
     monkeypatch.setattr(client_mod.litellm, "acompletion", _fake_stream('{"closing_balance":', ' "100.00"}'))
     store = CassetteStore(directory=tmp_path / "c")
@@ -378,10 +378,10 @@ async def test_AC23_6_3_record_correctness_validated_freezes_text(monkeypatch, t
 
 
 async def test_AC23_6_3_record_correctness_refuses_wrong_answer(monkeypatch, tmp_path):
-    """AC23.6.3: a correctness cassette refuses to record (CassetteValidationError)
+    """AC-llm.6.3: a correctness cassette refuses to record (CassetteValidationError)
     when the accumulated text fails ground-truth validation — never freezes a
     wrong answer — and writes nothing."""
-    from src.llm.cassette import CassetteValidationError
+    from src.llm.extension.cassette import CassetteValidationError
 
     monkeypatch.setattr(client_mod.litellm, "acompletion", _fake_stream("wrong answer"))
     store = CassetteStore(directory=tmp_path / "c")
@@ -401,9 +401,9 @@ async def test_AC23_6_3_record_correctness_refuses_wrong_answer(monkeypatch, tmp
 
 
 async def test_AC23_6_3_record_correctness_validator_error_refuses(monkeypatch, tmp_path):
-    """AC23.6.3: a validator that RAISES refuses the record (wrapped as
+    """AC-llm.6.3: a validator that RAISES refuses the record (wrapped as
     CassetteValidationError), not silently freezing the response."""
-    from src.llm.cassette import CassetteValidationError
+    from src.llm.extension.cassette import CassetteValidationError
 
     def boom(_response: dict) -> bool:
         raise RuntimeError("validator blew up")
@@ -424,7 +424,7 @@ async def test_AC23_6_3_record_correctness_validator_error_refuses(monkeypatch, 
 
 
 async def test_AC23_6_3_record_default_mode_from_env(monkeypatch, tmp_path):
-    """AC23.6.3: with no explicit cassette_mode, the bridge reads LLM_CASSETTE_MODE
+    """AC-llm.6.3: with no explicit cassette_mode, the bridge reads LLM_CASSETTE_MODE
     (here 'record') so the CI replay step / make llm-record drive it via the env."""
     monkeypatch.setenv("LLM_CASSETTE_MODE", "record")
     monkeypatch.setattr(client_mod.litellm, "acompletion", _fake_stream("env-driven"))

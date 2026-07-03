@@ -1,0 +1,1693 @@
+"""The ``extraction`` package's machine-checkable :class:`PackageContract`.
+
+This is the authoritative spec the governance gate
+(``tools/check_package_contract.py``) validates the BE implementation against:
+``interface`` must equal the implementation's ``__init__.__all__``
+(``implementations["be"]`` = ``apps/backend/src/extraction``); every
+``invariants[].test`` must resolve to a real test function; ``depends_on``
+must not introduce a forbidden upward/sideways edge.
+
+## What this package is
+
+The statement-parsing bounded context (EPIC-003/EPIC-013 → #1421): documents
+in (PDF/image/CSV), verified financial facts out. It owns the **source→fact**
+half of the money pipeline — parsing (vision-LLM + per-institution CSV),
+per-currency balance closure and balance-chain continuity, dedup by content
+hash, brokerage detection/positions, and the evidence lineage that links every
+extracted fact to its source document.
+
+## Ownership boundaries
+
+* **AtomicTransaction is extraction's aggregate**: downstream domains
+  (reconciliation / reporting) reference its rows **by id** (Decision B) —
+  the Stage-4 parallelism anchor.
+* The ORM entities (``UploadedDocument`` / ``AtomicTransaction`` /
+  ``AtomicPosition``) stay in the unregistered ``src/models/`` until their
+  cross-domain FKs are cut (Stage-4 scope; ledger/llm precedent).
+* ``confidence_metric`` / ``confidence_tier`` (journal-confidence metric
+  snapshots) are NOT this package's — they read ledger's aggregates and stay
+  in ``services/`` pending the reporting/observability re-home.
+* No ``llm`` edge yet: the OCR/vision call sites still reach the provider via
+  their own httpx path; routing them through ``src.llm`` (threading
+  ``user_id``, the AC-llm.4.5 documented follow-up) ADDS ``llm`` to
+  ``depends_on`` when it lands.
+"""
+
+from __future__ import annotations
+
+from common.meta.package_contract import (
+    ACRecord,
+    Invariant,
+    Kind,
+    PackageContract,
+    Unit,
+)
+
+CONTRACT = PackageContract(
+    name="extraction",
+    klass="core",
+    status="active",
+    # LLM-LED: the pipeline's correctness is proven by property tests over the
+    # deterministic calculus plus cassette-replay/eval evidence for the
+    # vision-LLM path (the authority classifier bands cassette-driven tests as
+    # LLM). Non-eval ACs carry proof_kind=property.
+    tier="LLM-LED",
+    depends_on=["audit", "platform", "observability", "config"],
+    roles=["base", "extension", "data"],
+    units=[
+        # ── base: the pure validation/confidence calculus lives in
+        # base/validation.py; its functions are published via the interface.
+        # (Not declared as units: KIND_LAYER has no pure-function kind homed in
+        # base — the base-layer-pure invariant is the guard instead.)
+        # ── aggregates/entities: taxonomy-only (ORM in unregistered models/,
+        # FK surgery is Stage-4; see docstring) ──
+        Unit(name="StatementSummary", kind=Kind.AGGREGATE_ROOT),
+        Unit(name="UploadedDocument", kind=Kind.ENTITY),
+        Unit(name="AtomicTransaction", kind=Kind.ENTITY),
+        Unit(name="AtomicPosition", kind=Kind.ENTITY),
+        # ── extension: the parsing pipeline + adapters ──
+        Unit(
+            name="ExtractionService",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/service.py",
+        ),
+        Unit(
+            name="DeduplicationService",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/deduplication.py",
+        ),
+        Unit(
+            name="BrokeragePositionImportService",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/brokerage_positions.py",
+        ),
+        Unit(
+            name="EvidenceGraphIntegrationService",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/evidence_graph_integration.py",
+        ),
+        # dual-write persistence verbs (upsert by dedup_hash). Declared as the
+        # repository IMPL half only via taxonomy for now: carving the base
+        # port out of the raw-AsyncSession verbs is the documented follow-up
+        # (todo.md); until then the unit is taxonomy-only.
+        Unit(name="AtomicTransactionRepository", kind=Kind.REPOSITORY),
+        # ── data: evidence lineage read-models ──
+        # Taxonomy-only: the lineage read/write paths are still entangled
+        # (integration instantiates the lineage reader; materialization uses an
+        # integration helper), so the physical files sit in extension/ and the
+        # clean data/ split is documented package-internal follow-up (todo.md).
+        Unit(name="EvidenceLineageService", kind=Kind.PROJECTION),
+        Unit(name="EvidenceGraphMaterializationService", kind=Kind.PROJECTION),
+        # ── reserved: the balance-chain violation as a domain event (today it
+        # is only metrics-logged; publishing via the platform outbox is the
+        # planned upgrade — package-internal, not a re-cutover) ──
+        Unit(name="BalanceChainViolated", kind=Kind.DOMAIN_EVENT),
+    ],
+    implementations={"be": "apps/backend/src/extraction", "fe": None},
+    interface=[
+        "BrokeragePositionImportService",
+        "CurrencyUnresolvedError",
+        "DeduplicationService",
+        "EvidenceGraphIntegrationService",
+        "EvidenceGraphMaterializationService",
+        "EvidenceLineageService",
+        "ExtractionError",
+        "ExtractionService",
+        "SYSTEM_PROMPT",
+        "build_csv_mapping_prompt",
+        "compute_confidence_score",
+        "detect_balance_chain_break",
+        "dual_write_layer2",
+        "get_parsing_prompt",
+        "looks_like_brokerage_document",
+        "looks_like_brokerage_payload",
+        "parse_brokerage_csv_payload",
+        "parse_brokerage_positions",
+        "resolve_custody_account_id",
+        "resolve_ingest_currency",
+        "resolve_transaction_currency",
+        "validate_balance",
+        "validation",
+    ],
+    events=[],
+    invariants=[
+        Invariant(
+            id="interface-equals-published-language",
+            statement=(
+                "The published language (contract.interface) equals __init__.__all__."
+            ),
+            test=(
+                "tests/tooling/test_extraction_package.py"
+                "::test_AC_extraction_1_1_only_all_is_the_published_language"
+            ),
+        ),
+        Invariant(
+            id="converges-by-layer",
+            statement=(
+                "The package converges into base/ (pure validation calculus) + "
+                "extension/ (parsing pipeline) + data/ (evidence read-models); "
+                "the old services/extraction + flat service-module homes are gone."
+            ),
+            test=(
+                "tests/tooling/test_extraction_package.py"
+                "::test_AC_extraction_1_2_converges_by_layer"
+            ),
+        ),
+        Invariant(
+            id="base-layer-pure",
+            statement=(
+                "base/ never imports the package's own extension/ or data/, the "
+                "ORM, or any network client."
+            ),
+            test=(
+                "tests/tooling/test_extraction_package.py"
+                "::test_AC_extraction_1_3_base_layer_is_pure"
+            ),
+        ),
+        Invariant(
+            id="passes-own-governance-gate",
+            statement="check_package_contract validates extraction with no violations.",
+            test=(
+                "tests/tooling/test_extraction_package.py"
+                "::test_AC_extraction_1_4_package_contract_gate_passes"
+            ),
+        ),
+    ],
+    # The EPIC-003 + EPIC-013 ACs, migrated per Decision A. Three EPIC-003
+    # rows stay behind in the EPIC (AC3.3.2 / AC3.5.10 / AC3.6.4): they are
+    # human-authority rows ({tier:HU}{proof:evidence}), and the tier->proof
+    # matrix forbids evidence proofs under this LLM-LED package — a different
+    # authority tier is a different owner, same as frontend rows in ledger's
+    # cutover. (standard-preserving
+    # move; the EPIC table rows were deleted in the same commit). Numeric
+    # AC-<pkg>.<group>.<seq> grammar with reserved group blocks (the ledger
+    # precedent): **1–12 = EPIC-003** (leading epic number dropped) and
+    # **101–123 = EPIC-013** (group + 100, so the two EPICs' group numbers
+    # cannot collide). Original ids are kept as trailing comments.
+    roadmap=[
+        ACRecord(
+            id="AC-extraction.1.1",
+            statement="Parse DBS PDF",  # was AC3.1.1
+            test="apps/backend/tests/extraction/test_extraction_invariants.py::test_balance_chain_invariant_holds_for_consistent_statements",
+            priority="P0",
+            status="done",
+            proof_kind="invariant",
+        ),
+        ACRecord(
+            id="AC-extraction.1.2",
+            statement="Parse CSV (DBS)",  # was AC3.1.2
+            test="apps/backend/tests/extraction/test_csv_parsing.py::test_parse_dbs_csv",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.1.3",
+            statement="Parse CSV (Wise)",  # was AC3.1.3
+            test="apps/backend/tests/extraction/test_csv_parsing.py::test_parse_wise_csv",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.1.4",
+            statement="Parse CSV (Generic)",  # was AC3.1.4
+            test="apps/backend/tests/extraction/test_csv_parsing.py::test_parse_generic_csv_with_amount_column",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.1.5",
+            statement="Parse CSV with BOM",  # was AC3.1.5
+            test="apps/backend/tests/extraction/test_csv_parsing.py::test_parse_csv_with_bom",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.2.1",
+            statement="Balance Validation (Pass)",  # was AC3.2.1
+            test="apps/backend/tests/extraction/test_extraction.py::test_balance_valid",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.2.2",
+            statement="Balance Validation (Fail)",  # was AC3.2.2
+            test="apps/backend/tests/extraction/test_extraction.py::test_balance_invalid",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.2.3",
+            statement="Completeness Validation",  # was AC3.2.3
+            test="apps/backend/tests/extraction/test_pdf_parsing.py::test_missing_required_fields_detected",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.2.4",
+            statement="Bank statement balance mismatches preserve validation_error details",  # was AC3.2.4
+            test="apps/backend/tests/extraction/test_pdf_parsing.py::test_parse_document_bank_balance_mismatch_records_validation_error",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.2.5",
+            statement="CSV transaction exports without statement balances remain reviewable",  # was AC3.2.5
+            test="apps/backend/tests/extraction/test_extraction_flow.py::test_parse_document_csv_without_statement_balances_remains_reviewable",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.3.1",
+            statement="High Confidence (Auto-Accept)",  # was AC3.3.1
+            test="apps/backend/tests/api/test_statements_router.py::test_auto_approve_high_confidence_statement_creates_posted_entries",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.3.3",
+            statement="Low Confidence (Manual)",  # was AC3.3.3
+            test="apps/backend/tests/extraction/test_extraction.py::test_low_confidence_empty_transactions",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.4.1",
+            statement="Invalid Parse Not Persisted",  # was AC3.4.1
+            test="apps/backend/tests/extraction/test_pdf_parsing.py::test_extraction_error_not_persisted",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.4.2",
+            statement="Unsupported File Type",  # was AC3.4.2
+            test="apps/backend/tests/extraction/test_extraction_flow.py::test_parse_document_unsupported_type",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.4.3",
+            statement="Extraction Timeout",  # was AC3.4.3
+            test="apps/backend/tests/extraction/test_pdf_parsing.py::test_extraction_timeout_raises_error",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.5.1",
+            statement="Full Upload Flow",  # was AC3.5.1
+            test="tests/e2e/test_statement_upload_e2e.py::test_statement_upload_full_flow",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.5.2",
+            statement="File Size Limit",  # was AC3.5.2
+            test="apps/backend/tests/extraction/test_pdf_parsing.py::test_upload_file_exceeds_10mb_limit",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.5.3",
+            statement="Model Selection Flow",  # was AC3.5.3
+            test="apps/backend/tests/extraction/test_extraction_flow.py::test_parse_document_csv_success",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.5.4",
+            statement="Extraction Flow Tests",  # was AC3.5.4
+            test="apps/backend/tests/extraction/test_extraction_flow.py::test_parsed_statement_sets_stage1_pending_review",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.5.5",
+            statement="Statement Parsing Supervisor",  # was AC3.5.5
+            test="apps/backend/tests/extraction/test_statement_parsing_supervisor.py::test_reset_stale_parsing_jobs_marks_rejected",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.5.6",
+            statement="Invalid file extension should return 400.",  # was AC3.5.6
+            test="apps/backend/tests/api/test_statements_router.py::test_upload_invalid_extension",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.5.7",
+            statement="PDF/image uploads may omit model and use the default OCR pipeline.",  # was AC3.5.7
+            test="apps/backend/tests/api/test_statements_router.py::test_upload_uses_default_ocr_pipeline_for_pdf",
+            priority="P1",
+            status="done",
+            proof_kind="invariant",
+        ),
+        ACRecord(
+            id="AC-extraction.5.8",
+            statement="Upload rejects models without image modalities.",  # was AC3.5.8
+            test="apps/backend/tests/api/test_statements_router.py::test_upload_rejects_text_only_model",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.5.9",
+            statement="Upload then list statements and transactions.",  # was AC3.5.9
+            test="apps/backend/tests/api/test_statements_router.py::test_list_and_transactions_flow",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.5.11",
+            statement="Missing statement returns 404.",  # was AC3.5.11
+            test="apps/backend/tests/api/test_statements_router.py::test_get_statement_not_found",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.5.12",
+            statement="File exceeding 10MB limit returns 413.",  # was AC3.5.12
+            test="apps/backend/tests/api/test_statements_router.py::test_upload_file_too_large",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.5.13",
+            statement="Extraction failure marks statement as rejected.",  # was AC3.5.13
+            test="apps/backend/tests/api/test_statements_router.py::test_upload_extraction_failure",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.5.14",
+            statement="Retry on missing statement returns 404.",  # was AC3.5.14
+            test="apps/backend/tests/api/test_statements_router.py::test_retry_statement_not_found",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.5.15",
+            statement="Retry rejects models without image modalities.",  # was AC3.5.15
+            test="apps/backend/tests/api/test_statements_router.py::test_retry_rejects_text_only_model",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.5.16",
+            statement="Retry returns 503 if storage fetch fails.",  # was AC3.5.16
+            test="apps/backend/tests/api/test_statements_router.py::test_retry_statement_storage_failure",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.5.17",
+            statement="Retry on statement not in parsed/rejected status returns 400.",  # was AC3.5.17
+            test="apps/backend/tests/api/test_statements_router.py::test_retry_statement_invalid_status",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.5.18",
+            statement="Verify that retrying a statement in PARSING status is allowed.",  # was AC3.5.18
+            test="apps/backend/tests/api/test_statements_router.py::test_retry_statement_parsing_allowed",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.5.19",
+            statement="Retry parsing with stronger model succeeds.",  # was AC3.5.19
+            test="apps/backend/tests/api/test_statements_router.py::test_retry_statement_success",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.5.20",
+            statement="Retry extraction failure returns 422.",  # was AC3.5.20
+            test="apps/backend/tests/api/test_statements_router.py::test_retry_statement_extraction_failure",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.5.21",
+            statement="Upload rejects models not in the OpenRouter catalog.",  # was AC3.5.21
+            test="apps/backend/tests/api/test_statements_router.py::test_upload_statement_rejects_invalid_model",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.5.22",
+            statement="Upload rejects a model lacking image/PDF modality (400). _(EPIC-023: model validation now resolves through the local `LitellmCatalog`; the prior remote-catalog 503 path no longer exists.)_",  # was AC3.5.22
+            test="apps/backend/tests/api/test_statements_router.py::test_upload_statement_rejects_model_without_image_modality",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.5.23",
+            statement="Retry rejects a model not in the catalogue (400). _(EPIC-023: model validation now resolves through the local `LitellmCatalog`; the prior remote-catalog 503 path no longer exists.)_",  # was AC3.5.23
+            test="apps/backend/tests/api/test_statements_router.py::test_retry_statement_rejects_invalid_model",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.5.24",
+            statement="Background parse error should be caught and logged.",  # was AC3.5.24
+            test="apps/backend/tests/api/test_statements_router.py::test_background_parse_error_logging",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.5.25",
+            statement="Background retry error should be caught and logged.",  # was AC3.5.25
+            test="apps/backend/tests/api/test_statements_router.py::test_background_retry_error_logging",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.6.1",
+            statement="Unique Prior Mapping",  # was AC3.6.1
+            test="apps/backend/tests/api/test_statements_router.py::test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.6.2",
+            statement="No Silent Fallback Posting",  # was AC3.6.2
+            test="apps/backend/tests/reconciliation/test_review_queue.py::test_create_entry_from_txn_auto_post_requires_account_mapping",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.6.3",
+            statement="Ambiguous Mapping Blocked",  # was AC3.6.3
+            test="apps/backend/tests/api/test_statements_router.py::test_approve_statement_stage1_blocks_ambiguous_account_mapping",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.6.5",
+            statement="Prior Mapping Requires Confirmed Statement",  # was AC3.6.5
+            test="apps/backend/tests/api/test_statements_router.py::test_approve_statement_stage1_blocks_prior_unconfirmed_account_mapping",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.6.6",
+            statement="Source Period Unique Before Posting",  # was AC3.6.6
+            test="apps/backend/tests/api/test_statements_router.py::test_approve_statement_stage1_blocks_overlapping_statement_period_before_posting",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.7.1",
+            statement="Latest Confirmed Source",  # was AC3.7.1
+            test="apps/backend/tests/accounting/test_account_statement_coverage.py::test_account_coverage_reports_latest_confirmed_balance_and_stale_status",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.7.2",
+            statement="Adjacent Opening Continuity",  # was AC3.7.2
+            test="apps/backend/tests/accounting/test_account_statement_coverage.py::test_account_coverage_detects_adjacent_opening_balance_mismatch",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.7.3",
+            statement="Missing/Overlapping/Duplicate Periods",  # was AC3.7.3
+            test="apps/backend/tests/accounting/test_account_statement_coverage.py::test_account_coverage_reports_missing_overlapping_and_duplicate_ranges",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.7.4",
+            statement="Broker Daily Snapshot Override",  # was AC3.7.4
+            test="apps/backend/tests/accounting/test_account_statement_coverage.py::test_account_coverage_accepts_broker_monthly_cadence_with_daily_snapshot_override",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.8.1",
+            statement="Delete old orphaned storage objects",  # was AC3.8.1
+            test="apps/backend/tests/services/test_storage_sweep.py::test_sweep_deletes_orphaned_object",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.8.2",
+            statement="Preserve objects with DB records",  # was AC3.8.2
+            test="apps/backend/tests/services/test_storage_sweep.py::test_sweep_skips_known_db_objects",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.8.3",
+            statement="Skip recent in-flight uploads",  # was AC3.8.3
+            test="apps/backend/tests/services/test_storage_sweep.py::test_sweep_skips_recent_objects",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.8.4",
+            statement="No-op without configured S3 bucket",  # was AC3.8.4
+            test="apps/backend/tests/services/test_storage_sweep.py::test_sweep_skips_when_no_bucket_configured",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.8.5",
+            statement="Return zero for empty statement prefix",  # was AC3.8.5
+            test="apps/backend/tests/services/test_storage_sweep.py::test_sweep_returns_zero_when_no_objects",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.8.6",
+            statement="Handle storage listing errors",  # was AC3.8.6
+            test="apps/backend/tests/services/test_storage_sweep.py::test_sweep_handles_storage_list_error",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.8.7",
+            statement="Handle object delete errors",  # was AC3.8.7
+            test="apps/backend/tests/services/test_storage_sweep.py::test_sweep_handles_delete_error",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.8.8",
+            statement="Paginate storage keys and normalize timestamps",  # was AC3.8.8
+            test="apps/backend/tests/services/test_storage_sweep.py::test_list_storage_keys_returns_paginated_keys_and_normalizes_timestamps",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.8.9",
+            statement="Convert storage client listing errors",  # was AC3.8.9
+            test="apps/backend/tests/services/test_storage_sweep.py::test_list_storage_keys_raises_on_client_error",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.8.10",
+            statement="Exit runner on stop event",  # was AC3.8.10
+            test="apps/backend/tests/services/test_storage_sweep.py::test_run_storage_sweep_exits_on_stop_event",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.8.11",
+            statement="Log runner deletion counts",  # was AC3.8.11
+            test="apps/backend/tests/services/test_storage_sweep.py::test_run_storage_sweep_logs_when_objects_deleted",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.8.12",
+            statement="Continue runner after unexpected sweep exception",  # was AC3.8.12
+            test="apps/backend/tests/services/test_storage_sweep.py::test_run_storage_sweep_handles_exception",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.8.13",
+            statement="Disable runner by feature flag",  # was AC3.8.13
+            test="apps/backend/tests/services/test_storage_sweep.py::test_run_storage_sweep_disabled_by_feature_flag",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.8.14",
+            statement="Grace period + interval config defaults match issue #356 (24h / daily)",  # was AC3.8.14
+            test="apps/backend/tests/services/test_storage_sweep.py::test_grace_period_and_interval_defaults_match_issue_356",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.8.15",
+            statement="Sweep grace-period cutoff is config-driven, not a hardcoded constant",  # was AC3.8.15
+            test="apps/backend/tests/services/test_storage_sweep.py::test_sweep_reads_grace_period_from_config",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.8.16",
+            statement="Sweep runner wait interval is read from config",  # was AC3.8.16
+            test="apps/backend/tests/services/test_storage_sweep.py::test_run_storage_sweep_reads_interval_from_config",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.9.1",
+            statement="Parsing cases that fail audit are recorded in an SSOT registry without expanding deterministic parser scope or committing real documents",  # was AC3.9.1
+            test="tests/tooling/test_extraction_failed_case_registry.py::test_AC3_9_1_extraction_failed_case_registry_preserves_audit_cases_without_parser_expansion",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.10.1",
+            statement="Statement parsing owns fact-forward settlement evidence capture and must preserve source metadata needed by framework readiness while leaving US/HK policy decisions to EPIC-020",  # was AC3.10.1
+            test="tests/tooling/test_framework_reporting_epic_contract.py::test_AC3_10_1_statement_parsing_is_source_capture_not_framework_policy",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.11.1",
+            statement="A missing `period_start` falls back to `period_end` instead of hard-failing the parse",  # was AC3.11.1
+            test="apps/backend/tests/extraction/test_extraction.py::test_AC3_11_1_period_start_falls_back_to_period_end",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.11.2",
+            statement="With no period bounds, the statement period is derived from the transaction-date range",  # was AC3.11.2
+            test="apps/backend/tests/extraction/test_extraction.py::test_AC3_11_2_period_derived_from_transaction_dates",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.11.3",
+            statement="A statement with no period and no transaction dates still rejects (no silent zero-date)",  # was AC3.11.3
+            test="apps/backend/tests/extraction/test_extraction.py::test_AC3_11_3_no_resolvable_date_still_raises",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.12.1",
+            statement="A brokerage holdings statement with no opening/closing balances persists `balance_validated=None` (not a vacuous `0==0` true)",  # was AC3.12.1
+            test="apps/backend/tests/extraction/test_statement_brokerage_import_bridge.py::test_AC3_12_1_brokerage_without_balances_reports_balance_validated_none_not_vacuous_true",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.101.1",
+            statement="Test that valid balances pass validation",  # was AC13.1.1
+            test="apps/backend/tests/extraction/test_extraction.py::test_balance_valid",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.101.2",
+            statement="Test that invalid balances fail validation",  # was AC13.1.2
+            test="apps/backend/tests/extraction/test_extraction.py::test_balance_invalid",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.101.3",
+            statement="Test that small differences are tolerated",  # was AC13.1.3
+            test="apps/backend/tests/extraction/test_extraction.py::test_balance_tolerance",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.102.1",
+            statement="Test that complete data gets high confidence (Auto-Accept)",  # was AC13.2.1
+            test="apps/backend/tests/extraction/test_extraction.py::test_high_confidence",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.102.2",
+            statement="Test that partial data gets medium confidence (Review)",  # was AC13.2.2
+            test="apps/backend/tests/extraction/test_extraction.py::test_medium_confidence",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.102.3",
+            statement="Test that no transactions lowers confidence (Manual)",  # was AC13.2.3
+            test="apps/backend/tests/extraction/test_extraction.py::test_low_confidence_empty_transactions",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.103.1",
+            statement="Test DBS fixture has correct structure",  # was AC13.3.1
+            test="apps/backend/tests/extraction/test_extraction.py::test_dbs_fixture_structure",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.103.2",
+            statement="Test DBS fixture balances reconcile",  # was AC13.3.2
+            test="apps/backend/tests/extraction/test_extraction.py::test_dbs_balance_reconciliation",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.103.3",
+            statement="Test MariBank fixture has sanitized merchant names",  # was AC13.3.3
+            test="apps/backend/tests/extraction/test_extraction.py::test_maribank_fixture_descriptions_carry_no_pii",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.103.4",
+            statement="Test GXS fixture has daily interest entries",  # was AC13.3.4
+            test="apps/backend/tests/extraction/test_extraction.py::test_gxs_fixture_daily_interest",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.103.5",
+            statement="Test all fixtures have valid dates",  # was AC13.3.5
+            test="apps/backend/tests/extraction/test_extraction.py::test_all_fixtures_have_dates",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.104.1",
+            statement="Test default parsing prompt",  # was AC13.4.1
+            test="apps/backend/tests/extraction/test_extraction.py::test_get_parsing_prompt_default",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.104.2",
+            statement="Test DBS-specific prompt",  # was AC13.4.2
+            test="apps/backend/tests/extraction/test_extraction.py::test_get_parsing_prompt_dbs",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.104.3",
+            statement="Test CMB-specific prompt",  # was AC13.4.3
+            test="apps/backend/tests/extraction/test_extraction.py::test_get_parsing_prompt_cmb",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.104.4",
+            statement="Test with unknown institution returns base prompt",  # was AC13.4.4
+            test="apps/backend/tests/extraction/test_extraction.py::test_get_parsing_prompt_unknown_institution",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.104.5",
+            statement="Test Futu-specific prompt",  # was AC13.4.5
+            test="apps/backend/tests/extraction/test_extraction.py::test_get_parsing_prompt_futu",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.104.6",
+            statement="Test GXS-specific prompt",  # was AC13.4.6
+            test="apps/backend/tests/extraction/test_extraction.py::test_get_parsing_prompt_gxs",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.104.7",
+            statement="Test MariBank-specific prompt",  # was AC13.4.7
+            test="apps/backend/tests/extraction/test_extraction.py::test_get_parsing_prompt_maribank",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.105.1",
+            statement="Test that PDF payloads use provider-compatible `file` or `image_url` shapes",  # was AC13.5.1
+            test="apps/backend/tests/api/test_statements_router.py::test_build_statement_storage_key_sanitizes_extension",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.105.2",
+            statement="Test that PNG images use 'image_url' type",  # was AC13.5.2
+            test="apps/backend/tests/extraction/test_extraction.py::test_png_uses_image_url_type",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.105.3",
+            statement="Test that JPG images use 'image_url' type",  # was AC13.5.3
+            test="apps/backend/tests/extraction/test_extraction.py::test_jpg_uses_image_url_type",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.105.4",
+            statement="Test that JPEG images use 'image_url' type",  # was AC13.5.4
+            test="apps/backend/tests/extraction/test_extraction.py::test_jpeg_uses_image_url_type",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.106.1",
+            statement="Test that CSV parsing raises error when institution is None",  # was AC13.6.1
+            test="apps/backend/tests/extraction/test_extraction.py::test_csv_requires_institution",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.106.2",
+            statement="Test that parse_document accepts institution=None for PDFs (AI auto-detect)",  # was AC13.6.2
+            test="apps/backend/tests/extraction/test_extraction.py::test_parse_document_accepts_none_institution_for_pdf",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.106.3",
+            statement="Test that parse_document accepts force_model parameter",  # was AC13.6.3
+            test="apps/backend/tests/extraction/test_extraction.py::test_parse_document_accepts_force_model",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.107.5",
+            statement="Test _safe_date with valid input",  # was AC13.7.5
+            test="apps/backend/tests/extraction/test_extraction.py::test_safe_date_valid",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.107.6",
+            statement="Test _safe_date with invalid format",  # was AC13.7.6
+            test="apps/backend/tests/extraction/test_extraction.py::test_safe_date_invalid_format",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.107.7",
+            statement="Test _safe_date with empty input",  # was AC13.7.7
+            test="apps/backend/tests/extraction/test_extraction.py::test_safe_date_empty",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.107.8",
+            statement="Test _safe_decimal with valid input",  # was AC13.7.8
+            test="apps/backend/tests/extraction/test_extraction.py::test_safe_decimal_valid",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.107.9",
+            statement="Test _safe_decimal with invalid input",  # was AC13.7.9
+            test="apps/backend/tests/extraction/test_extraction.py::test_safe_decimal_invalid",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.107.10",
+            statement="Test _safe_decimal with None",  # was AC13.7.10
+            test="apps/backend/tests/extraction/test_extraction.py::test_safe_decimal_none",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.107.11",
+            statement="Test _safe_decimal None required",  # was AC13.7.11
+            test="apps/backend/tests/extraction/test_extraction.py::test_safe_decimal_none_required",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.107.12",
+            statement="Test compute_confidence with missing transactions key",  # was AC13.7.12
+            test="apps/backend/tests/extraction/test_extraction.py::test_compute_confidence_missing_transactions",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.108.1",
+            statement="Test consistent chain scores 10",  # was AC13.8.1
+            test="apps/backend/tests/extraction/test_extraction.py::test_consistent_chain",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.108.2",
+            statement="Test inconsistent chain scores 0",  # was AC13.8.2
+            test="apps/backend/tests/extraction/test_extraction.py::test_inconsistent_chain",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.108.3",
+            statement="Test single transaction",  # was AC13.8.3
+            test="apps/backend/tests/extraction/test_extraction.py::test_single_txn",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.108.4",
+            statement="Test no balance after",  # was AC13.8.4
+            test="apps/backend/tests/extraction/test_extraction.py::test_no_balance_after",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.108.5",
+            statement="Test empty list",  # was AC13.8.5
+            test="apps/backend/tests/extraction/test_extraction.py::test_empty_list",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.108.6",
+            statement="Test partial consistency",  # was AC13.8.6
+            test="apps/backend/tests/extraction/test_extraction.py::test_partial_consistency",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.108.7",
+            statement="Test all currencies match",  # was AC13.8.7
+            test="apps/backend/tests/extraction/test_extraction.py::test_all_match_header",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.108.8",
+            statement="Test no currencies match",  # was AC13.8.8
+            test="apps/backend/tests/extraction/test_extraction.py::test_none_match",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.108.9",
+            statement="Test no header currency",  # was AC13.8.9
+            test="apps/backend/tests/extraction/test_extraction.py::test_no_header_uses_most_common",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.108.10",
+            statement="Test no currencies in transactions",  # was AC13.8.10
+            test="apps/backend/tests/extraction/test_extraction.py::test_no_currencies",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.108.11",
+            statement="Test empty list (currency)",  # was AC13.8.11
+            test="apps/backend/tests/extraction/test_extraction.py::test_empty_list",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.108.12",
+            statement="Test mixed currencies partial",  # was AC13.8.12
+            test="apps/backend/tests/extraction/test_extraction.py::test_mixed_currencies_partial",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.108.13",
+            statement="Test missing currencies penalized",  # was AC13.8.13
+            test="apps/backend/tests/extraction/test_extraction.py::test_missing_currencies_penalized",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.109.1",
+            statement="Test full score with all factors",  # was AC13.9.1
+            test="apps/backend/tests/extraction/test_extraction.py::test_full_score_with_all_factors",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.109.2",
+            statement="Test no new factors caps at 85",  # was AC13.9.2
+            test="apps/backend/tests/extraction/test_extraction.py::test_no_new_factors_caps_at_85",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.115.1",
+            statement="Brokerage statement with a single transaction is penalized below the review/auto-approve band",  # was AC13.15.1
+            test="apps/backend/tests/extraction/test_extraction.py::test_brokerage_single_txn_penalized",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.115.2",
+            statement="Brokerage statement with a plausible transaction count is not penalized",  # was AC13.15.2
+            test="apps/backend/tests/extraction/test_extraction.py::test_brokerage_sufficient_txns_not_penalized",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.115.3",
+            statement="Non-brokerage (bank) statement with one transaction keeps its existing score",  # was AC13.15.3
+            test="apps/backend/tests/extraction/test_extraction.py::test_bank_single_txn_not_penalized",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.115.4",
+            statement="`is_brokerage` defaults to False so existing callers are unaffected",  # was AC13.15.4
+            test="apps/backend/tests/extraction/test_extraction.py::test_default_is_not_brokerage",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.115.5",
+            statement="The cap uses the persisted transaction count (after skipped rows), not the raw extracted count",  # was AC13.15.5
+            test="apps/backend/tests/extraction/test_extraction.py::test_effective_count_uses_persisted_not_extracted",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.118.1",
+            statement="The vision model list appends `VISION_FALLBACK_MODELS` after the primary OCR/vision model, deduplicated and order-preserving, so more than one model is attempted on the vision path",  # was AC13.18.1
+            test="apps/backend/tests/extraction/test_extraction_error_paths.py::test_extract_financial_data_shared_ocr_vision_skips_layout_parser",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.118.2",
+            statement="When the primary vision model raises a non-retryable provider error (e.g. a 400), the vision path attempts the configured vision fallback model and succeeds instead of failing the upload",  # was AC13.18.2
+            test="apps/backend/tests/extraction/test_extraction_error_paths.py::test_vision_path_falls_back_to_secondary_model_on_non_retryable_error",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.119.1",
+            statement="Common non-ISO date formats parse; empty/garbage return None",  # was AC13.19.1
+            test="apps/backend/tests/extraction/test_tolerant_date_parsing.py::test_AC13_19_1_tolerant_parse_date_accepts_non_iso_formats",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.119.2",
+            statement="A Chinese-format statement parses instead of being rejected",  # was AC13.19.2
+            test="apps/backend/tests/extraction/test_tolerant_date_parsing.py::test_AC13_19_2_chinese_format_statement_parses_instead_of_aborting",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.119.3",
+            statement="One unparseable row date is non-fatal — the row is skipped, the rest parse",  # was AC13.19.3
+            test="apps/backend/tests/extraction/test_tolerant_date_parsing.py::test_AC13_19_3_one_bad_row_date_is_non_fatal",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.119.4",
+            statement="The model is the primary date normalizer: the prompt instructs converting any source format to ISO YYYY-MM-DD (parser is only a fallback)",  # was AC13.19.4
+            test="apps/backend/tests/extraction/test_tolerant_date_parsing.py::test_AC13_19_4_parsing_prompt_instructs_iso_date_normalization",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.114.1",
+            statement="A markdown json-fenced object (multi-line and single-line) is recovered",  # was AC13.14.1
+            test="apps/backend/tests/extraction/test_json_repair.py::test_strips_json_code_fence",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.114.2",
+            statement="Surrounding prose and a bare fence reduce to the outermost balanced object",  # was AC13.14.2
+            test="apps/backend/tests/extraction/test_json_repair.py::test_strips_bare_code_fence_and_prose",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.114.3",
+            statement="An already-clean object round-trips unchanged",  # was AC13.14.3
+            test="apps/backend/tests/extraction/test_json_repair.py::test_clean_object_is_preserved",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.114.4",
+            statement="Content with no recoverable JSON object returns None; braces inside strings do not truncate",  # was AC13.14.4
+            test="apps/backend/tests/extraction/test_json_repair.py::test_unrecoverable_returns_none",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.114.5",
+            statement="The extraction loop salvages a fenced response instead of rejecting the upload",  # was AC13.14.5
+            test="apps/backend/tests/extraction/test_json_repair.py::test_fenced_response_is_salvaged",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.114.6",
+            statement="A response with no recoverable JSON still fails through the model-chain path",  # was AC13.14.6
+            test="apps/backend/tests/extraction/test_json_repair.py::test_unrecoverable_response_still_fails",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.114.7",
+            statement="When a small example object precedes the real (larger) extraction, the largest object is recovered (not the example)",  # was AC13.14.7
+            test="apps/backend/tests/extraction/test_json_repair.py::test_prefers_largest_object_when_example_precedes_real",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.114.8",
+            statement="A complete object followed by trailing unbalanced-brace junk still recovers the complete object",  # was AC13.14.8
+            test="apps/backend/tests/extraction/test_json_repair.py::test_complete_object_then_trailing_unbalanced_brace",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.114.9",
+            statement="A leading unmatched brace (junk) before the real object does not stop the scan — the real object is recovered",  # was AC13.14.9
+            test="apps/backend/tests/extraction/test_json_repair.py::test_leading_unbalanced_brace_then_real_object",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.110.1",
+            statement="Source type stamped on manual entry creation",  # was AC13.10.1
+            test="apps/backend/tests/reconciliation/test_source_type.py::test_source_type_stamped_on_create",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.110.2",
+            statement="Auto-match records trusted anchor without mutating posted source_type",  # was AC13.10.2
+            test="apps/backend/tests/reconciliation/test_source_type.py::test_auto_match_records_anchor_without_mutating_posted_source_type",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.110.3",
+            statement="Stage-1 approve promotes to user_confirmed",  # was AC13.10.3
+            test="apps/backend/tests/extraction/test_source_type_promotion.py::test_stage1_approve_promotes_source_type",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.110.4",
+            statement="Manual entry wins over auto_parsed in conflict",  # was AC13.10.4
+            test="apps/backend/tests/infra/test_migrations.py::test_AC13_10_4_source_type_migration_handles_missing_legacy_enum_label",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.110.5",
+            statement="source_type cannot be downgraded",  # was AC13.10.5
+            test="apps/backend/tests/reconciliation/test_source_type.py::test_source_type_no_downgrade",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.110.6",
+            statement="All four source_type values accepted by API",  # was AC13.10.6
+            test="apps/backend/tests/reconciliation/test_source_type.py::test_all_four_source_type_values_accepted_by_api",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.112.1",
+            statement="Source coverage matrix covers every source class named by vision.md with owner EPICs, proof levels, ingestion path, review requirement, traceability target, and test anchors",  # was AC13.12.1
+            test="tests/tooling/test_source_coverage_matrix.py::test_AC13_12_1_source_coverage_matrix_covers_vision_source_classes",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.112.2",
+            statement="Source coverage matrix rejects source classes whose only proof level is post-merge LLM/OCR unless an explicit exception is recorded",  # was AC13.12.2
+            test="tests/tooling/test_source_coverage_matrix.py::test_AC13_12_2_source_coverage_matrix_rejects_llm_only_sources",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.112.3",
+            statement="Source coverage matrix requires a gap issue for any source class still classified as a gap",  # was AC13.12.3
+            test="tests/tooling/test_source_coverage_matrix.py::test_AC13_12_3_source_coverage_matrix_requires_gap_issue",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.111.1",
+            statement="Dual-write handles duplicate document hash / IntegrityError without failing.",  # was AC13.11.1
+            test="apps/backend/tests/extraction/test_extraction_error_paths.py::test_dual_write_layer2_integrity_error_is_non_fatal",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.111.2",
+            statement="Dedup upsert sanitizes malformed source_documents payloads (transaction).",  # was AC13.11.2
+            test="apps/backend/tests/extraction/test_deduplication.py::test_upsert_atomic_transaction_handles_non_list_source_documents",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.113.1",
+            statement="Pure scoring + routing functions return identical results across N runs on the same input.",  # was AC13.13.1
+            test="apps/backend/tests/extraction/test_extraction_determinism.py::test_scoring_and_routing_are_deterministic",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.113.2",
+            statement="Re-parsing identical model output yields identical confidence/status/validation_error across N parses.",  # was AC13.13.2
+            test="apps/backend/tests/extraction/test_extraction_determinism.py::test_repeated_parse_yields_identical_confidence_status_validation",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.113.3",
+            statement="Each payload class (bank-valid, bank-balance-invalid, brokerage) routes consistently across N parses.",  # was AC13.13.3
+            test="apps/backend/tests/extraction/test_extraction_determinism.py::test_routing_is_consistent_per_payload_class",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.121.1",
+            statement="`route_by_threshold` routes a balance-invalid bank statement to `PARSED` (review), never `uploaded`, regardless of score.",  # was AC13.21.1
+            test="apps/backend/tests/accounting/test_validation.py::test_AC13_21_1_balance_invalid_routes_to_parsed_review",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.121.2",
+            statement="_Superseded by AC20.9.2 (#1352)._ A parsed bank statement that fails balance reconciliation is now BLOCKING: it is quarantined to `REJECTED` (not `PARSED`/review) with `stage1_status=REJECTED` and a typed `validation_error` reason code.",  # was AC13.21.2
+            test="apps/backend/tests/extraction/test_extraction_determinism.py::test_AC20_9_2_balance_invalid_parse_is_quarantined",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.121.3",
+            statement="The retry endpoint accepts a balance-invalid statement at its `PARSED` resting state.",  # was AC13.21.3
+            test="apps/backend/tests/api/test_statements_router.py::test_AC13_21_3_retry_accepts_parsed_resting_state",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.121.4",
+            statement="Report readiness counts the balance-invalid `PARSED` statement as an available input.",  # was AC13.21.4
+            test="apps/backend/tests/accounting/test_validation.py::test_AC13_21_4_readiness_counts_parsed_balance_invalid",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.121.5",
+            statement="_Superseded by AC20.9.2 (#1352)._ The same balance-mismatch payload routes deterministically across N parses to the same status — now `REJECTED` (the LLM-LED blocking gate), not `PARSED`.",  # was AC13.21.5
+            test="apps/backend/tests/extraction/test_extraction_determinism.py::test_routing_is_consistent_per_payload_class",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.121.6",
+            statement="CSV upload with a missing institution fails synchronously with HTTP 400 and an actionable message.",  # was AC13.21.6
+            test="apps/backend/tests/api/test_statements_router.py::test_AC13_21_6_csv_missing_institution_rejected_sync",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.122.1",
+            statement="Two distinct same-date/same-amount/same-direction rows sharing one running `balance_after` hash differently within one document (via `occurrence_index`), while a re-uploaded identical row still collapses across documents.",  # was AC13.22.1
+            test="apps/backend/tests/extraction/test_deduplication.py::test_AC13_22_1_same_balance_distinct_rows_do_not_collapse",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.122.2",
+            statement="A parsed statement with two same-date/same-amount deposits separated by a carried-forward/brought-forward balance repeat persists both deposits and the running-balance chain reconciles.",  # was AC13.22.2
+            test="apps/backend/tests/extraction/test_dual_write_layer2.py::test_AC13_22_2_page_boundary_duplicate_deposit_survives",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.116.1",
+            statement="A provided seed is forwarded in the streaming request payload",  # was AC13.16.1
+            test="apps/backend/tests/ai/test_ai_streaming.py::test_stream_ai_json_forwards_zai_knobs_and_seed",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.116.2",
+            statement="Extraction forwards the configured `ai_json_seed` to the model call",  # was AC13.16.2
+            test="apps/backend/tests/extraction/test_seed_determinism.py::test_extraction_forwards_configured_seed",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.116.3",
+            statement="Extraction pins `temperature=0` / `do_sample=False` alongside the seed",  # was AC13.16.3
+            test="apps/backend/tests/extraction/test_seed_determinism.py::test_extraction_decoding_is_deterministic_by_default",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.116.4",
+            statement="Empty `AI_JSON_SEED` parses as None (omitted) instead of raising",  # was AC13.16.4
+            test="apps/backend/tests/extraction/test_seed_determinism.py::test_empty_seed_env_is_treated_as_none",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.116.5",
+            statement="The seed is off (None) by default so it is never sent to providers that reject it (e.g. glm-4.6v)",  # was AC13.16.5
+            test="apps/backend/tests/extraction/test_seed_determinism.py::test_seed_is_off_by_default",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.117.1",
+            statement="A reconciling first parse is returned without retry",  # was AC13.17.1
+            test="apps/backend/tests/extraction/test_self_consistency.py::test_reconciles_first_attempt_single_call",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.117.2",
+            statement="A failing parse is retried and the reconciling result wins",  # was AC13.17.2
+            test="apps/backend/tests/extraction/test_self_consistency.py::test_retries_until_reconciles",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.117.3",
+            statement="When no attempt reconciles, the smallest-difference result is kept",  # was AC13.17.3
+            test="apps/backend/tests/extraction/test_self_consistency.py::test_keeps_best_when_none_reconcile",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.117.4",
+            statement="Brokerage payloads are not retried",  # was AC13.17.4
+            test="apps/backend/tests/extraction/test_self_consistency.py::test_brokerage_is_not_retried",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.117.5",
+            statement="Attempt 0 uses the configured seed; retries vary it (seed+1, seed+2 …)",  # was AC13.17.5
+            test="apps/backend/tests/extraction/test_self_consistency.py::test_seed_varies_per_attempt",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.117.6",
+            statement="`AI_EXTRACT_MAX_ATTEMPTS=1` keeps single-shot behavior",  # was AC13.17.6
+            test="apps/backend/tests/extraction/test_self_consistency.py::test_max_attempts_one_disables_retry",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.117.7",
+            statement='A structurally-invalid parse (balance uncomputable, difference 0) does not win "best" over a numerically-close parse',  # was AC13.17.7
+            test="apps/backend/tests/extraction/test_self_consistency.py::test_structurally_invalid_parse_does_not_win_as_best",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.117.8",
+            statement="If every attempt is structurally invalid, the last parse is returned so `parse_document` reports the failure",  # was AC13.17.8
+            test="apps/backend/tests/extraction/test_self_consistency.py::test_all_invalid_returns_last_parse",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.117.9",
+            statement="A transient extraction error on a retry attempt keeps the earlier usable parse (no upload regression)",  # was AC13.17.9
+            test="apps/backend/tests/extraction/test_self_consistency.py::test_transient_retry_error_keeps_earlier_usable_parse",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.117.10",
+            statement="If every attempt raises, the error propagates so the upload fails as in the single-call path",  # was AC13.17.10
+            test="apps/backend/tests/extraction/test_self_consistency.py::test_all_attempts_error_reraises",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.117.11",
+            statement="A transient error on the first attempt does not abort; a later reconciling attempt is returned",  # was AC13.17.11
+            test="apps/backend/tests/extraction/test_self_consistency.py::test_first_attempt_error_then_success_recovers",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.117.12",
+            statement="An error after an earlier usable parse keeps trying remaining attempts; a later reconciling parse still wins",  # was AC13.17.12
+            test="apps/backend/tests/extraction/test_self_consistency.py::test_error_mid_run_does_not_skip_remaining_attempts",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.120.1",
+            statement="AC-C1: detector pinpoints the exact break index on a crafted chain with a dropped row",  # was AC13.20.1
+            test="apps/backend/tests/extraction/test_chain_break_repair.py::test_AC13_20_1_detector_finds_break_index_on_dropped_row",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.120.2",
+            statement="AC-C1: a clean running-balance chain reports no break",  # was AC13.20.2
+            test="apps/backend/tests/extraction/test_chain_break_repair.py::test_AC13_20_2_clean_chain_reports_no_break",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.120.3",
+            statement="AC-C1: detection is Decimal-based and tolerant within `BALANCE_TOLERANCE` (no float drift)",  # was AC13.20.3
+            test="apps/backend/tests/extraction/test_chain_break_repair.py::test_AC13_20_3_detector_is_decimal_tolerant",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.120.4",
+            statement="AC-C2: on balance mismatch with a detected break, the repair hook is invoked exactly once",  # was AC13.20.4
+            test="apps/backend/tests/extraction/test_chain_break_repair.py::test_AC13_20_4_repair_hook_invoked_once_on_mismatch",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.120.5",
+            statement="AC-C2: a clean/reconciling chain never invokes the repair hook",  # was AC13.20.5
+            test="apps/backend/tests/extraction/test_chain_break_repair.py::test_AC13_20_5_repair_hook_not_invoked_on_clean_chain",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.120.6",
+            statement="AC-C2: when no repair backend is injected, the hook is a safe no-op returning the original payload",  # was AC13.20.6
+            test="apps/backend/tests/extraction/test_chain_break_repair.py::test_AC13_20_6_repair_is_safe_noop_without_backend",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.120.7",
+            statement="AC-C3: the synthetic dropped-row fixture drives the detector to the correct index and triggers the repair hook",  # was AC13.20.7
+            test="apps/backend/tests/extraction/test_chain_break_repair.py::test_AC13_20_7_regression_fixture_detects_and_repairs",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.120.8",
+            statement="AC-C3: the clean-bank dropped-row regression-corpus fixture triggers the chain-break detector + `repair_under_extraction` end-to-end through `ExtractionService._extract_with_balance_retry` with an injected `RegionReExtractor` (recall stays a soft metric)",  # was AC13.20.8
+            test="apps/backend/tests/extraction/test_chain_break_repair.py::test_AC13_20_8_corpus_fixture_triggers_repair_end_to_end",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.123.1",
+            statement="User deletion is refused with HTTP 409 (actionable message) while the user has a statement in the `PARSING` (in-flight) state; with no in-flight parse the delete still succeeds (204)",  # was AC13.23.1
+            test="apps/backend/tests/api/test_users_router.py::test_AC13_23_1_delete_user_with_in_flight_parse_returns_409",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.123.2",
+            statement="Parse-failure lineage write re-checks user existence and skips the FK-violating insert (no `IntegrityError`) when the owning user is gone",  # was AC13.23.2
+            test="apps/backend/tests/extraction/test_parse_user_deletion_lifecycle.py::test_AC13_23_2_failed_lineage_skips_when_user_deleted",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.123.3",
+            statement="The failure handler rolls back before reading ORM attributes (cached `statement_id`); the original error is preserved/logged and never masked by `PendingRollbackError`",  # was AC13.23.3
+            test="apps/backend/tests/extraction/test_parse_user_deletion_lifecycle.py::test_AC13_23_3_failure_handler_rolls_back_before_reading_orm",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+    ],
+)

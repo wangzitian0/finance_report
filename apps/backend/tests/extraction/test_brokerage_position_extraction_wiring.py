@@ -23,18 +23,22 @@ from uuid import uuid4
 from sqlalchemy import select
 
 from src.database import create_session_maker_from_db
-from src.models.layer1 import DocumentType, UploadedDocument
-from src.models.layer2 import AtomicPosition
-from src.models.statement_enums import BankStatementStatus, Stage1Status
-from src.models.statement_summary import StatementSummary
-from src.prompts import BROKERAGE_POSITIONS_PROMPT, SYSTEM_PROMPT, get_parsing_prompt
-from src.services.brokerage_positions import (
+from src.extraction.extension.brokerage_positions import (
     BrokeragePositionImportService,
     brokerage_currency_balances,
     looks_like_brokerage_document,
     parse_brokerage_positions,
 )
-from src.services.extraction import ExtractionService
+from src.extraction.extension.prompts.statement import (
+    BROKERAGE_POSITIONS_PROMPT,
+    SYSTEM_PROMPT,
+    get_parsing_prompt,
+)
+from src.extraction.extension.service import ExtractionService
+from src.models.layer1 import DocumentType, UploadedDocument
+from src.models.layer2 import AtomicPosition
+from src.models.statement_enums import BankStatementStatus, Stage1Status
+from src.models.statement_summary import StatementSummary
 from src.services.statement_parsing import parse_statement_background, route_brokerage_for_review_if_present
 from tests.factories import StatementSummaryFactory
 
@@ -454,7 +458,7 @@ async def test_per_currency_nav_self_check_failure_marks_statement_invalid(test_
             ],
         }
 
-    monkeypatch.setattr("src.services.extraction.service.validate_balance_per_currency", _failing_per_currency)
+    monkeypatch.setattr("src.extraction.extension.service.validate_balance_per_currency", _failing_per_currency)
 
     statement, _ = await service.parse_document(
         file_path=Path("ibkr-multicurrency-2506.pdf"),

@@ -8,14 +8,14 @@ from decimal import Decimal
 
 import pytest
 
-from src.services.brokerage_positions import (
+from src.extraction.extension.brokerage_positions import (
     UnsupportedBrokerageCsvError,
     classify_brokerage_csv,
     parse_brokerage_csv_payload,
     parse_brokerage_positions,
     parse_brokerage_positions_csv_rows,
 )
-from src.services.extraction import ExtractionError, ExtractionService
+from src.extraction.extension.service import ExtractionError, ExtractionService
 
 # --- Synthetic brokerage CSV fixtures (no real data) -----------------------
 

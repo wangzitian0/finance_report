@@ -15,7 +15,7 @@ from common.testing.ac_proof import ac_proof
 
 from src.audit.money.adopt import balance_check, restate, restate_unrounded
 from src.audit.money.rounding import to_money
-from src.services.validation import validate_balance_per_currency
+from src.extraction.base.validation import validate_balance_per_currency
 
 pytestmark = pytest.mark.no_db
 

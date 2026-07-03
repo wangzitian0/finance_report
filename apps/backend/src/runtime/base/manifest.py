@@ -87,14 +87,41 @@ DEPENDENCY_MANIFEST = DependencyManifest(
         ),
         Dependency(
             name="object_storage",
-            env_vars=frozenset({"S3_ENDPOINT", "S3_ACCESS_KEY", "S3_SECRET_KEY", "S3_BUCKET", "S3_REGION"}),
+            env_vars=frozenset(
+                {
+                    "S3_ENDPOINT",
+                    "S3_ACCESS_KEY",
+                    "S3_SECRET_KEY",
+                    "S3_BUCKET",
+                    "S3_REGION",
+                    # The optional public-bucket client is the same backend.
+                    "S3_PUBLIC_ENDPOINT",
+                    "S3_PUBLIC_ACCESS_KEY",
+                    "S3_PUBLIC_SECRET_KEY",
+                    "S3_PUBLIC_BUCKET",
+                }
+            ),
             kind=DependencyKind.CODE_DOMINANT,
             required_in=_ALL,
             summary="S3-compatible object storage for uploaded statements (S3_*).",
         ),
         Dependency(
             name="llm",
-            env_vars=frozenset({"AI_API_KEY", "AI_PROVIDER", "AI_BASE_URL"}),
+            env_vars=frozenset(
+                {
+                    "AI_PROVIDER",
+                    # Every alias of the key/base-url fields is a dependency env
+                    # var (no alias smuggling past the guardrail).
+                    "AI_API_KEY",
+                    "ZAI_API_KEY",
+                    "GLM_API_KEY",
+                    "OPENROUTER_API_KEY",
+                    "GEMINI_API_KEY",
+                    "AI_BASE_URL",
+                    "ZAI_BASE_URL",
+                    "OPENROUTER_BASE_URL",
+                }
+            ),
             kind=DependencyKind.MODEL_DOMINANT,
             required_in=_ALL,
             summary="The AI provider used for statement extraction (AI_*); "

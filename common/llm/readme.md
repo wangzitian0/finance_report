@@ -186,7 +186,7 @@ through it. `litellm_stream` is cassette-aware **while preserving streaming**:
 The fingerprint **role** is derived from the messages — `vision` if any message
 carries an image part, else `text` — so callers need no change and text vs vision
 key distinctly. The non-default raw-httpx layout path
-(`services/extraction/_ocr.py`) bypasses this bridge and is a known out-of-scope
+(`src/extraction/extension/_ocr.py`) bypasses this bridge and is a known out-of-scope
 gap. Wiring the first batch of extraction tests onto replay is scaffolded under
 `apps/backend/tests/extraction/test_extraction_cassette_replay.py` (skipped via
 the `needs_real_cassette` marker until the operator records real cassettes with
@@ -334,7 +334,7 @@ Commit the refreshed cassettes and the raised baseline together.
 ### 6.8 Real-statement corpus (source-referenced, PII-masked)
 
 Large/scanned statements are recorded as cassettes by
-`common/testing/fixtures/pdf/record_hf_cassettes.py` (engine: GLM-4.6V, thinking disabled,
+`tools/_lib/record_hf_cassettes.py` (engine: GLM-4.6V, thinking disabled,
 pages rendered as compressed JPEG so even scanned docs fit context). To avoid repo
 bloat and PII, **the source document is never committed** — the cassette stores a
 `source` reference (an HF dataset URL, or a sha256 for a local/own statement) and the

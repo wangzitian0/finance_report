@@ -683,7 +683,8 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
     assert 'run_timed_phase "Staging AI/OCR Gate' in reusable
     assert "tools/staging_ai_ocr_gate_contract.py --shell" in reusable
     assert 'pytest "${STAGING_AI_OCR_TESTS[@]}"' in reusable
-    assert '-v -m "llm"' in reusable
+    # Marker expression equality is owned by the matrix conformance
+    # gate (AC8.23.2, tests/tooling/test_workflow_selection_conformance.py).
     assert "test_version_check.py" in reusable
     assert "STRICT_E2E_GATES: true" in reusable
 
@@ -2054,7 +2055,8 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
         "env_vars.update({k: v for k, v in model_overrides.items() if v})" in primitive
     )
     assert '"IAC_CONFIG_HASH": config_hash' in primitive
-    assert '-m "(smoke or e2e) and not llm" -n 4' in workflow
+    # Marker expression equality is owned by the matrix conformance
+    # gate (AC8.23.2, tests/tooling/test_workflow_selection_conformance.py).
     assert "PARSING_TIMEOUT_MS: 480000" in workflow
     # Staging is manual-only; no workflow_run auto-trigger remains.
     assert "workflow_run" not in workflow
@@ -2062,7 +2064,8 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     assert "test_brokerage_upload_to_portfolio_value.py" in contract
     assert "test_four_asset_net_worth_golden_path.py" in contract
     assert "tools/staging_ai_ocr_gate_contract.py --shell" in ai_workflow
-    assert '-v -m "llm"' in workflow
+    # Marker expression equality is owned by the matrix conformance
+    # gate (AC8.23.2, tests/tooling/test_workflow_selection_conformance.py).
     assert "PARSING_TIMEOUT_MS: 480000" in ai_workflow
     assert "@pytest.mark.llm" in journey
     assert "@pytest.mark.llm" in brokerage
@@ -2151,7 +2154,8 @@ def test_AC8_13_120_staging_runs_lightweight_provider_connectivity_smoke() -> No
     assert "id: ai_provider_connectivity" in workflow
     assert "timeout-minutes: 10" in workflow
     assert "pytest tests/e2e/test_ai_provider_connectivity.py" in workflow
-    assert '-v -m "llm"' in workflow
+    # Marker expression equality is owned by the matrix conformance
+    # gate (AC8.23.2, tests/tooling/test_workflow_selection_conformance.py).
     assert "test-results/staging-provider-connectivity.xml" in workflow
     assert "provider-connectivity" in workflow
     assert "provider_connectivity_outcome=" in workflow
@@ -3020,7 +3024,8 @@ def test_AC8_13_46_pr_preview_non_llm_gate_matches_staging_strict_parallelism() 
     # The preview marker expression stays aligned with the staging gate's.
     assert matrix.PR_PREVIEW_E2E_MARKER == "(smoke or e2e) and not llm"
 
-    assert 'pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4' in staging_block
+    # Marker expression equality is owned by the matrix conformance
+    # gate (AC8.23.2, tests/tooling/test_workflow_selection_conformance.py).
 
     assert "PR preview non-LLM E2E is a strict preview-relevant subset" in ci_cd
 
@@ -3462,7 +3467,6 @@ def test_AC8_13_119_delivery_resource_leak_hardening_is_contracted() -> None:
 
 def test_AC8_13_10_multi_brokerage_upload_to_portfolio_value_gate() -> None:
     """AC8.13.10: Staging proves multi-brokerage upload through latest value."""
-    workflow = read(".github/workflows/deploy.yml")
     reusable = read(".github/workflows/staging-ai-ocr-gate.yml")
     brokerage = read("tests/e2e/test_brokerage_upload_to_portfolio_value.py")
     statements_router = read("apps/backend/src/routers/statements.py")
@@ -3473,7 +3477,8 @@ def test_AC8_13_10_multi_brokerage_upload_to_portfolio_value_gate() -> None:
     assert (
         "test_brokerage_upload_to_portfolio_value.py" in staging_ai_ocr_contract_shell()
     )
-    assert '-m "llm"' in workflow
+    # Marker expression equality is owned by the matrix conformance
+    # gate (AC8.23.2, tests/tooling/test_workflow_selection_conformance.py).
     assert "pytest.mark.critical" in brokerage
     assert "pytest.mark.llm" in brokerage
     assert '("moomoo", "Moomoo E2E Portfolio")' in brokerage
@@ -3607,7 +3612,6 @@ def test_AC8_13_32_vision_hard_gate_proves_trusted_reporting_totals() -> None:
 def test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical() -> None:
     """AC8.13.42: four-asset as-of net worth proof is wired into the post-merge hard gate."""
     gate = read("tests/e2e/test_four_asset_net_worth_golden_path.py")
-    deploy_workflow = read(".github/workflows/deploy.yml")
     ai_workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
     matrix = critical_matrix_text()
     epic = read("docs/project/EPIC-008.testing-strategy.md")
@@ -3640,9 +3644,11 @@ def test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical() -> 
 
     # The gate body (contract shell + llm marker) lives in the reusable workflow.
     assert "tools/staging_ai_ocr_gate_contract.py --shell" in ai_workflow
-    assert '-v -m "llm"' in ai_workflow
+    # Marker expression equality is owned by the matrix conformance
+    # gate (AC8.23.2, tests/tooling/test_workflow_selection_conformance.py).
     # deploy.yml still runs the provider connectivity smoke under the llm marker.
-    assert '-v -m "llm"' in deploy_workflow
+    # Marker expression equality is owned by the matrix conformance
+    # gate (AC8.23.2, tests/tooling/test_workflow_selection_conformance.py).
     assert "test_four_asset_net_worth_golden_path.py" in staging_ai_ocr_contract_shell()
 
     assert "four-asset-as-of-net-worth" in matrix

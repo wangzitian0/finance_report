@@ -14078,7 +14078,7 @@
     },
     "/classifications/backfill": {
       "post": {
-        "description": "Classify the caller's not-yet-classified transactions (idempotent).",
+        "description": "Classify the caller's not-yet-classified transactions (duplicate-free; the tail is re-attempted).",
         "operationId": "backfill_transaction_classifications_classifications_backfill_post",
         "responses": {
           "200": {

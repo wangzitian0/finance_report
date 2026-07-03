@@ -3,10 +3,13 @@
 Re-exports the 10 Shared-Kernel value-object classes (``common/audit/contract.py``'s
 ``units``) flat at the package root, so a consumer that only needs the class can
 write ``from src.audit import Money``. Each domain's errors, wire codecs, and
-helper functions are NOT re-exported here (several names collide across domains,
-e.g. ``FloatNotAllowedError`` is defined independently in every domain) — reach
-those via the domain submodule instead: ``from src.audit.money import
-FloatNotAllowedError, money_to_wire``.
+helper functions are mostly NOT re-exported here (several names collide across
+domains, e.g. ``FloatNotAllowedError`` is defined independently in every domain)
+— reach those via the domain submodule instead: ``from src.audit.money import
+FloatNotAllowedError, money_to_wire``. The four collision-free helpers other
+PACKAGES consume (``to_money`` / ``balance_check`` / ``normalize_currency_code``
+/ ``InvalidCurrencyError``) ARE published, because the cross-package rule
+requires every cross-domain-imported name to be in this ``__all__`` (#1421).
 """
 
 from __future__ import annotations
@@ -19,6 +22,10 @@ from src.audit.money import (
     Money,
     MoneyTolerance,
 )
+from src.audit.money.adopt import balance_check
+from src.audit.money.currency import normalize_currency_code
+from src.audit.money.errors import InvalidCurrencyError
+from src.audit.money.rounding import to_money
 from src.audit.quantity import Quantity, Unit
 from src.audit.ratio import Ratio
 from src.audit.unit_price import UnitPrice
@@ -27,6 +34,10 @@ __all__ = [
     "CurrencyBalance",
     "CurrencyBalances",
     "Currency",
+    "InvalidCurrencyError",
+    "balance_check",
+    "normalize_currency_code",
+    "to_money",
     "ExchangeRate",
     "Money",
     "MoneyTolerance",

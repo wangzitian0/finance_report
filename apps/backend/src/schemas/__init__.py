@@ -147,7 +147,6 @@ from .extraction import (
     ParsedStatementPreview,
     RetryParsingRequest,
     StatementDecisionRequest,
-    TransactionUpdateRequest,
     compose_statement_response,
 )
 
@@ -257,7 +256,6 @@ __all__ = [
     "RetryParsingRequest",
     "StatementDecisionRequest",
     "Stage2ReviewQueueResponse",
-    "TransactionUpdateRequest",
     "TrendPeriod",
     "UnmatchedTransactionsResponse",
     "UserCreate",

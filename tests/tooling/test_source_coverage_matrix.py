@@ -41,7 +41,7 @@ def _valid_source_yaml(source_id: str = "bank_statement") -> str:
 
 
 def test_AC13_12_1_source_coverage_matrix_covers_vision_source_classes() -> None:
-    """AC13.12.1: Source coverage matrix covers every source class named by vision."""
+    """AC-extraction.112.1: Source coverage matrix covers every source class named by vision."""
     results = source_matrix.validate_source_coverage(
         source_matrix.REPO_ROOT,
         source_matrix.DEFAULT_MATRIX,
@@ -71,7 +71,7 @@ def test_AC13_12_1_source_coverage_matrix_covers_vision_source_classes() -> None
 def test_AC13_12_2_source_coverage_matrix_rejects_llm_only_sources(
     tmp_path: Path,
 ) -> None:
-    """AC13.12.2: LLM/OCR-only source coverage fails without an explicit exception."""
+    """AC-extraction.112.2: LLM/OCR-only source coverage fails without an explicit exception."""
     _write_repo_fixture(tmp_path)
     matrix = _write_matrix(
         tmp_path,
@@ -98,7 +98,7 @@ source_classes:
 
 
 def test_AC13_12_3_source_coverage_matrix_requires_gap_issue(tmp_path: Path) -> None:
-    """AC13.12.3: Gap source coverage must carry an explicit issue reference."""
+    """AC-extraction.112.3: Gap source coverage must carry an explicit issue reference."""
     _write_repo_fixture(tmp_path)
     matrix = _write_matrix(
         tmp_path,
@@ -127,7 +127,7 @@ source_classes:
 def test_AC13_12_1_source_coverage_matrix_rejects_invalid_shape_and_global_drift(
     tmp_path: Path,
 ) -> None:
-    """AC13.12.1: Matrix validation rejects malformed entries and source-class drift."""
+    """AC-extraction.112.1: Matrix validation rejects malformed entries and source-class drift."""
     _write_repo_fixture(tmp_path)
     matrix = _write_matrix(
         tmp_path,
@@ -154,7 +154,7 @@ source_classes:
 def test_AC13_12_1_source_coverage_matrix_rejects_source_field_errors(
     tmp_path: Path,
 ) -> None:
-    """AC13.12.1: Source entries must carry valid owners, anchors, proof levels, and IDs."""
+    """AC-extraction.112.1: Source entries must carry valid owners, anchors, proof levels, and IDs."""
     matrix = _write_matrix(
         tmp_path,
         """
@@ -198,7 +198,7 @@ source_classes:
 def test_AC13_12_1_source_coverage_matrix_rejects_non_mapping_and_non_list_sources(
     tmp_path: Path,
 ) -> None:
-    """AC13.12.1: Matrix root and source_classes must have the expected YAML shape."""
+    """AC-extraction.112.1: Matrix root and source_classes must have the expected YAML shape."""
     scalar_matrix = _write_matrix(tmp_path, "[]")
     with pytest.raises(ValueError, match="must contain a YAML mapping"):
         source_matrix.validate_source_coverage(tmp_path, scalar_matrix)
@@ -221,7 +221,7 @@ source_classes: invalid
 def test_AC13_12_1_source_coverage_matrix_rejects_non_list_required_classes_and_proof_levels(
     tmp_path: Path,
 ) -> None:
-    """AC13.12.1: Matrix list fields reject scalar values instead of iterating characters."""
+    """AC-extraction.112.1: Matrix list fields reject scalar values instead of iterating characters."""
     _write_repo_fixture(tmp_path)
     matrix = _write_matrix(
         tmp_path,
@@ -252,7 +252,7 @@ source_classes:
 def test_AC13_12_2_source_coverage_matrix_allows_explicit_llm_only_exception(
     tmp_path: Path,
 ) -> None:
-    """AC13.12.2: Explicit exceptions can document rare LLM/OCR-only post-merge gates."""
+    """AC-extraction.112.2: Explicit exceptions can document rare LLM/OCR-only post-merge gates."""
     _write_repo_fixture(tmp_path)
     matrix = _write_matrix(
         tmp_path,
@@ -282,7 +282,7 @@ source_classes:
 def test_AC13_12_3_source_coverage_matrix_accepts_gap_with_issue(
     tmp_path: Path,
 ) -> None:
-    """AC13.12.3: Gap entries are accepted when they point to an explicit issue."""
+    """AC-extraction.112.3: Gap entries are accepted when they point to an explicit issue."""
     _write_repo_fixture(tmp_path)
     matrix = _write_matrix(
         tmp_path,
@@ -313,7 +313,7 @@ def test_AC13_12_1_source_coverage_matrix_report_and_cli_paths(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC13.12.1: Source coverage checker reports both passing and failing CLI outcomes."""
+    """AC-extraction.112.1: Source coverage checker reports both passing and failing CLI outcomes."""
     _write_repo_fixture(tmp_path)
     matrix = _write_matrix(
         tmp_path,

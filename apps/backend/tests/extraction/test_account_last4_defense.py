@@ -26,10 +26,10 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.extraction.extension.service import ExtractionService
 from src.models.account import Account, AccountType
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
-from src.services.extraction import ExtractionService
 from tests.factories import StatementSummaryFactory
 
 
@@ -294,7 +294,7 @@ class TestBackgroundTaskDirtyData:
             await session.flush()
             return summary, []
 
-        monkeypatch.setattr("src.services.extraction.ExtractionService.parse_document", mock_parse)
+        monkeypatch.setattr("src.extraction.extension.service.ExtractionService.parse_document", mock_parse)
 
         # Mock storage presigned URL
         async def mock_run_in_threadpool(func, *args, **kwargs):
@@ -492,7 +492,7 @@ class TestCascadingFailureRecovery:
             return (parsed_stmt, [])
 
         monkeypatch.setattr(
-            "src.services.extraction.ExtractionService.parse_document",
+            "src.extraction.extension.service.ExtractionService.parse_document",
             parse_then_arm_failure,
         )
 

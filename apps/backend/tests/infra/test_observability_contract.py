@@ -309,7 +309,7 @@ def test_AC10_11_3_provider_error_body_logging_is_redacted() -> None:
     assert "[EMAIL]" in pii_message
     assert "[BANK_ACCOUNT]" in pii_message
 
-    extraction = _read(REPO_ROOT / "apps" / "backend" / "src" / "services" / "extraction")
+    extraction = _read(REPO_ROOT / "apps" / "backend" / "src" / "extraction" / "extension")
     assert "error_body=" not in extraction
     assert "safe_error_message=" in extraction
     assert "OCR layout parsing failed: HTTP {response.status_code}: {error_body}" not in extraction

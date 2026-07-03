@@ -10,7 +10,14 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from common.testing.fixtures.pdf import record_hf_cassettes as rec
+import importlib.util as _ilu
+from pathlib import Path as _P
+_REC_PATH = _P(__file__).resolve().parents[2] / "tools/_lib/record_hf_cassettes.py"
+assert _REC_PATH.is_file(), f"recorder script missing: {_REC_PATH}"
+_spec = _ilu.spec_from_file_location("record_hf_cassettes", _REC_PATH)
+assert _spec is not None and _spec.loader is not None, f"unloadable: {_REC_PATH}"
+rec = _ilu.module_from_spec(_spec)
+_spec.loader.exec_module(rec)
 
 
 def test_iso_date_normalises_both_hf_schemas() -> None:
@@ -45,7 +52,7 @@ def test_build_truth_is_masked_and_balance_exempt() -> None:
     }
     truth = rec.build_truth(hf, modality="text")
     assert truth["synthetic"] is True
-    assert truth["balance_reconciles"] is False  # AC23.7 exemption flag
+    assert truth["balance_reconciles"] is False  # AC-llm.7 exemption flag
     exp = truth["expected"]
     assert exp["transactions"][0]["date"] == "2024-01-01"  # normalised + ISO
     assert exp["transactions"][0]["amount"] == "100.0"  # credit magnitude

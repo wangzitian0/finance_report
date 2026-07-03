@@ -234,7 +234,7 @@ EPIC_WRONG_ANCHOR = """\
 
 ## ACs
 
-AC3.1.1 upload PDF
+AC-extraction.1.1 upload PDF
 """
 
 SAMPLE_REGISTRY_YAML = """\
@@ -262,7 +262,7 @@ groups:
         status: deprecated
   AC3:
     AC3.1:
-      - id: AC3.1.1
+      - id: AC-extraction.1.1
         epic: 3
         epic_name: extraction
         description: 'Upload PDF'

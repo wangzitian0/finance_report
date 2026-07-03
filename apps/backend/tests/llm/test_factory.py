@@ -7,11 +7,11 @@ A fresh meter per call would reset the running request/token totals, so
 
 from __future__ import annotations
 
-import src.llm.factory as factory
+import src.llm.extension.factory as factory
 
 
 def test_usage_meter_is_a_process_singleton() -> None:
-    """AC23.4.7: get_usage_meter returns the same shared meter across calls."""
+    """AC-llm.4.7: get_usage_meter returns the same shared meter across calls."""
     factory._usage_meter = None  # reset any prior state for a deterministic check
     first = factory.get_usage_meter()
     second = factory.get_usage_meter()

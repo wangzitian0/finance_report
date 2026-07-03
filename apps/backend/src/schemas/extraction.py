@@ -69,20 +69,6 @@ class RetryParsingRequest(BaseModel):
     model: str | None = Field(None, description="Optional model override (e.g. gpt-4o)")
 
 
-class TransactionUpdateRequest(BaseModel):
-    """Request to manually correct a transaction."""
-
-    txn_date: date | None = None
-    description: str | None = None
-    amount: Decimal | None = None
-    direction: str | None = None
-    reference: str | None = None
-    currency: str | None = None
-    balance_after: Decimal | None = None
-    suggested_category: str | None = None
-    category_confidence: Decimal | None = None
-
-
 # --- Response Schemas ---
 
 
