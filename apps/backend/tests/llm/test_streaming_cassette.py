@@ -168,8 +168,10 @@ async def test_AC23_6_1_replay_vision_cassette_synthesises_stream(monkeypatch, c
 
 
 async def test_AC23_6_2_replay_miss_is_hard_failure(monkeypatch, tmp_path):
-    """AC-llm.6.2: a request with no matching cassette is a hard CassetteMiss in
-    replay — never a network fallback (the live call is never made)."""
+    """AC-llm.6.2 (#1581): a request with no matching cassette is a hard
+    CassetteMiss in replay — never a network fallback (the live call is never
+    made). Because the fingerprint is input-keyed (sha256 of role + messages +
+    decode params), a changed input IS a miss: runtime invariant 5."""
 
     async def explode(**kwargs):  # pragma: no cover
         raise AssertionError("replay must not call litellm")

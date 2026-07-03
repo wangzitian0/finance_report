@@ -310,7 +310,7 @@ def test_pr_preview_gate_exercises_health_smoke_e2e_and_storage_paths() -> None:
 
     assert 'wait_for_endpoint "API Health" "$BASE_URL/api/health"' in smoke
     assert 'wait_for_endpoint "Frontend Ready" "$BASE_URL/"' in smoke
-    assert 'check_endpoint "DB Connectivity" "$BASE_URL/api/health" "healthy"' in smoke
+    assert 'check_endpoint "DB Connectivity" "$BASE_URL/api/health" "\\"status\\":\\"healthy\\""' in smoke
     assert 'check_endpoint "Ping API" "$BASE_URL/api/ping"' in smoke
     assert 'check_endpoint "API Docs" "$BASE_URL/api/docs"' in smoke
 

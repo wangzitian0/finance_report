@@ -14564,8 +14564,20 @@
     },
     "/health": {
       "get": {
-        "description": "Check application health status with dependency checks.\n\nReturns 200 if all critical services are healthy, 503 otherwise.\nThis endpoint is used by Docker healthcheck and deployment verification.",
+        "description": "Check application health status with dependency checks.\n\nReturns 200 if all critical services are healthy, 503 otherwise.\nThis endpoint is used by Docker healthcheck and deployment verification.\n\nThe default (frequent Docker healthcheck) stays light: database + S3.\n``?full=1`` asserts the FULL manifest-declared dependency set for this\nenvironment's tier (smoke ↔ declaration parity, invariant 6 / #1578): every\ndependency in ``DEPENDENCY_MANIFEST.required_for(tier)`` must be present or\nthe endpoint returns 503. The smoke test calls this form.",
         "operationId": "health_check_health_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "full",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Full",
+              "type": "boolean"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -14574,6 +14586,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Health Check"

@@ -123,16 +123,21 @@ DEPENDENCY_MANIFEST = DependencyManifest(
                 }
             ),
             kind=DependencyKind.MODEL_DOMINANT,
-            required_in=_ALL,
+            # The REAL provider is required on staging/prod only; the app-owned
+            # tiers + preview run the cassette substitute (invariant 5), which
+            # needs no key — declaring _ALL here would overstate (#1578).
+            required_in=frozenset({EnvTier.STAGING, EnvTier.PRODUCTION}),
             summary="The AI provider used for statement extraction (AI_*); "
-            "recorded in CI/preview, real on staging/prod.",
+            "recorded (cassette substitute) in CI/preview, real on staging/prod.",
         ),
         Dependency(
             name="cache",
             env_vars=frozenset({"REDIS_URL"}),
             kind=DependencyKind.CODE_DOMINANT,
-            required_in=_VPS,
-            summary="Redis (REDIS_URL) — optional in the app-owned tiers.",
+            # Only the 10.app (staging/prod) stack renders REDIS_URL; the preview
+            # stack has no Redis — the declaration matches the deployed reality.
+            required_in=frozenset({EnvTier.STAGING, EnvTier.PRODUCTION}),
+            summary="Redis (REDIS_URL) — optional in the app-owned tiers and preview.",
         ),
         Dependency(
             name="workflow_engine",

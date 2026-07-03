@@ -15,7 +15,8 @@ silent ``skipped`` status. The *migrate* phase homes the smoke-test / health
 ACs here: EPIC-008 AC8.1.1–.4 → ``AC-runtime.1.*`` (smoke / service reachability /
 DB connectivity) and EPIC-007 AC7.7.1–.2 → ``AC-runtime.7.*`` (``/health``
 dependency-presence), each ``test=`` resolving to its existing proof; the package
-tier (CODE-ONLY) gives ``proof_kind=exact``. (Step 3 / cleanup absorbs the
+tier (CODE-ONLY) gives ``proof_kind=exact``; the model-dominant substitute
+proofs live with their owning packages (AC-llm.6.2, EPIC-008 AC8.25.*). (Step 3 / cleanup absorbs the
 env-smoke-test SSOT prose into ``readme.md`` and retires the doc.) Remaining as a
 future feature (not this migration): manifest-driven
 ``validate`` for *all* declared dependencies per env tier + smoke↔declaration
@@ -38,6 +39,7 @@ CONTRACT = PackageContract(
         "DEPENDENCY_MANIFEST",
         "NON_DEPENDENCY_ENV_FIELDS",
         "VPS_TIERS",
+        "AnalyticsCheck",
         "DatabaseCheck",
         "Dependency",
         "DependencyCheck",
@@ -46,8 +48,12 @@ CONTRACT = PackageContract(
         "DependencyStatus",
         "EnvTier",
         "LlmCheck",
+        "MarketDataCheck",
         "ObjectStorageCheck",
         "ProbeResult",
+        "RedisCheck",
+        "TelemetryCheck",
+        "WorkflowEngineCheck",
         "check_env_classification",
         "resolve_env_tier",
     ],
@@ -105,6 +111,31 @@ CONTRACT = PackageContract(
                 "without a probe adapter is a visible warning (#1580), never a silent skip (#1577)."
             ),
             test="apps/backend/tests/infra/test_boot.py::test_AC_runtime_3_1_required_checks_cover_the_tier_declaration",
+            priority="P1",
+            status="done",
+        ),
+        # ── probes for every declared dependency (#1580) ──
+        ACRecord(
+            id="AC-runtime.4.1",
+            statement=(
+                "Every declared dependency has a DependencyCheck probe adapter — "
+                "Bootloader._required_checks finds a probe for every dependency of every tier, "
+                "so invariant 2 (absent ⇒ fail) is enforceable across the whole manifest (#1580)."
+            ),
+            test="apps/backend/tests/runtime/test_probe_adapters.py::test_AC_runtime_4_1_every_declared_dependency_has_a_probe_adapter",
+            priority="P1",
+            status="done",
+        ),
+        # ── smoke ↔ declaration parity (invariant 6, #1578) ──
+        ACRecord(
+            id="AC-runtime.6.1",
+            statement=(
+                "The smoke's dependency-presence assertion covers exactly the manifest-declared set: "
+                "GET /health?full=1 (called by tools/smoke_test.sh) probes every dependency in "
+                "DEPENDENCY_MANIFEST.required_for(tier) and returns 503 on any absence "
+                "(invariant 6, #1578; the tag→production gate already requires the staging smoke)."
+            ),
+            test="apps/backend/tests/runtime/test_health_parity.py::test_AC_runtime_6_1_full_health_asserts_the_declared_set",
             priority="P1",
             status="done",
         ),
