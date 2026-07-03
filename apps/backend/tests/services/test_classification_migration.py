@@ -18,10 +18,10 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.extraction.extension.service import ExtractionService
 from src.models.account import Account, AccountType
 from src.models.journal import JournalEntry, JournalLine
 from src.models.layer3 import TransactionClassification
-from src.services.extraction import ExtractionService
 from src.services.reporting import generate_income_statement
 from src.services.statement_posting import auto_create_posted_entries_for_statement
 from src.services.statement_validation import approve_statement

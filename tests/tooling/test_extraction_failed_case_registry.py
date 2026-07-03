@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 def test_AC3_9_1_extraction_failed_case_registry_preserves_audit_cases_without_parser_expansion() -> (
     None
 ):
-    """AC3.9.1: Failed parsing cases are registry-owned, not parser expansion triggers."""
+    """AC-extraction.9.1: Failed parsing cases are registry-owned, not parser expansion triggers."""
     registry = yaml.safe_load(
         (ROOT / "common/extraction/audit-failed-cases.yaml").read_text()
     )
@@ -26,5 +26,5 @@ def test_AC3_9_1_extraction_failed_case_registry_preserves_audit_cases_without_p
     assert "balance_mismatch" in registry["policy"]["allowed_failure_categories"]
     assert "provider_shape_changed" in registry["policy"]["allowed_failure_categories"]
     assert registry["cases"] == []
-    assert "AC3.9.1" in epic
+    assert "AC-extraction.9.1" in epic
     assert "extraction_failed_case_registry" in manifest

@@ -20,7 +20,7 @@ import pytest
 from common.testing.ac_proof import ac_proof
 
 from src.audit.money import InvalidCurrencyError
-from src.services.currency_resolution import (
+from src.extraction.extension.currency_resolution import (
     UNRESOLVED_PLACEHOLDER,
     CurrencyUnresolvedError,
     resolve_ingest_currency,

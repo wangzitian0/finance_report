@@ -465,7 +465,7 @@ async def test_create_entry_from_txn_auto_post_creates_posted_entry(db, test_use
 
 
 async def test_create_entry_from_txn_auto_post_requires_account_mapping(db, test_user):
-    """AC3.6.2: Posted entries cannot silently use the Bank - Main fallback."""
+    """AC-extraction.6.2: Posted entries cannot silently use the Bank - Main fallback."""
     stmt = await _make_statement(db, test_user.id)
     txn = await _make_txn(
         db,

@@ -215,8 +215,8 @@ tier inline at the definition site with a `{tier:XX}` marker, where `XX` is one 
 `CODE-ONLY | CODE-LED | HU | LLM-LED | LLM-ONLY`:
 
 ```text
-| AC3.1.1 | Parse DBS PDF {tier:LLM-LED} | `test_...` | `extraction/test_pdf_parsing.py` | P0 |
-| AC3.2.1 | Balance Validation (Pass) {tier:CODE-ONLY} | `test_balance_valid` | ... | P0 |
+| AC-extraction.1.1 | Parse DBS PDF {tier:LLM-LED} | `test_...` | `extraction/test_pdf_parsing.py` | P0 |
+| AC-extraction.2.1 | Balance Validation (Pass) {tier:CODE-ONLY} | `test_balance_valid` | ... | P0 |
 ```
 
 `tools/generate_ac_registry.py` strips the marker and lifts the tier into the AC's

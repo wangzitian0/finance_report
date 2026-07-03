@@ -1,10 +1,10 @@
 """Critical and High priority tests for EPIC-003.
 
 These tests cover the Critical and High priority gaps identified in the test audit:
-- AC3.2.1: Balance Validation (Pass)
-- AC3.2.2: Balance Validation (Fail)
-- AC3.3.1: High Confidence (Auto-Accept)
-- AC3.3.2: Medium Confidence (Review)
+- AC-extraction.2.1: Balance Validation (Pass)
+- AC-extraction.2.2: Balance Validation (Fail)
+- AC-extraction.3.1: High Confidence (Auto-Accept)
+- AC-extraction.3.2: Medium Confidence (Review)
 - #3 Real PDF parsing tests (using existing fixtures as ground truth)
 - #4 Invalid parse result not persisted
 - #10 File size limit test (10MB)
@@ -20,13 +20,13 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import UploadFile
 
-from src.models.statement_enums import BankStatementStatus
-from src.services.extraction import ExtractionError, ExtractionService
-from src.services.validation import (
+from src.extraction.base.validation import (
     route_by_threshold,
     validate_balance,
     validate_completeness,
 )
+from src.extraction.extension.service import ExtractionError, ExtractionService
+from src.models.statement_enums import BankStatementStatus
 
 
 def make_upload_file(name: str, content: bytes) -> UploadFile:
@@ -51,7 +51,7 @@ class TestInvalidParseNotPersisted:
 
     async def test_extraction_error_not_persisted(self, service, tmp_path):
         """
-        [AC3.4.1] CRITICAL #4: Extraction errors should raise, not persist bad data.
+        [AC-extraction.4.1] CRITICAL #4: Extraction errors should raise, not persist bad data.
         """
         # Create an invalid file
         bad_file = tmp_path / "bad.pdf"
@@ -73,7 +73,7 @@ class TestInvalidParseNotPersisted:
 
     async def test_parse_document_bank_balance_mismatch_records_validation_error(self, service, tmp_path):
         """
-        AC3.2.4 (+AC20.9.2 #1352): Bank statement balance mismatches preserve a typed
+        AC-extraction.2.4 (+AC20.9.2 #1352): Bank statement balance mismatches preserve a typed
         validation_error and are quarantined to REJECTED by the LLM-LED blocking gate.
         """
         pdf_file = tmp_path / "test.pdf"
@@ -142,7 +142,7 @@ class TestFileSizeLimit:
 
     async def test_upload_file_exceeds_10mb_limit(self, client):
         """
-        [AC3.5.2] HIGH #10: File exceeding 10MB should be rejected with 413.
+        [AC-extraction.5.2] HIGH #10: File exceeding 10MB should be rejected with 413.
         """
         # Create content larger than 10MB
         large_content = b"x" * (11 * 1024 * 1024)  # 11MB
@@ -183,7 +183,7 @@ class TestFileSizeLimit:
             )
             return stmt, []
 
-        from src.services.extraction import ExtractionService
+        from src.extraction.extension.service import ExtractionService
 
         monkeypatch.setattr(ExtractionService, "parse_document", fake_parse)
 
@@ -211,13 +211,13 @@ class TestParsingTimeout:
 
     async def test_extraction_timeout_raises_error(self, service):
         """
-        [AC3.4.3] HIGH #11: Extraction timeout should raise ExtractionError.
+        [AC-extraction.4.3] HIGH #11: Extraction timeout should raise ExtractionError.
         """
         service.api_key = "test-key"
 
         from src.services.ai_streaming import AIStreamError
 
-        with patch("src.services.extraction.service.stream_ai_json") as mock_stream:
+        with patch("src.extraction.extension.service.stream_ai_json") as mock_stream:
             mock_stream.side_effect = AIStreamError("Connection timed out")
 
             with pytest.raises(ExtractionError):
@@ -249,7 +249,7 @@ class TestGeminiRetry:
 
         from src.services.ai_streaming import AIStreamError
 
-        with patch("src.services.extraction.service.stream_ai_json") as mock_stream:
+        with patch("src.extraction.extension.service.stream_ai_json") as mock_stream:
             mock_stream.side_effect = AIStreamError("HTTP 429: Rate limit exceeded")
 
             with pytest.raises(ExtractionError, match="429"):
@@ -308,7 +308,7 @@ class TestStatementCompleteness:
     """Test statement completeness validation."""
 
     def test_missing_required_fields_detected(self):
-        """[AC3.2.3] Missing required fields should be identified."""
+        """[AC-extraction.2.3] Missing required fields should be identified."""
         incomplete = {
             "institution": "DBS",
             "period_start": "2025-01-01",

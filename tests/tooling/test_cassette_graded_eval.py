@@ -1,6 +1,6 @@
 """Graded field-accuracy eval + drift ratchet over committed cassettes.
 
-EPIC-023 AC23.8 / issue #1307. AC23.7 (`check_llm_cassettes`) gates cassette
+EPIC-023 AC-llm.8 / issue #1307. AC-llm.7 (`check_llm_cassettes`) gates cassette
 *consistency* (the balance chain reconciles); it cannot see *accuracy* — an LLM
 that misreads ``50`` as ``150`` still balances. This graded eval scores each
 committed statement cassette per-field against a SYNTHETIC ground-truth artifact
@@ -33,10 +33,10 @@ from common.testing.cassette_eval_baseline import DEFAULT_BASELINE, load_jsonl
 
 
 # --------------------------------------------------------------------------- #
-# AC23.8.1 — coverage matrix (modality × institution-class × edge-condition)
+# AC-llm.8.1 — coverage matrix (modality × institution-class × edge-condition)
 # --------------------------------------------------------------------------- #
 def test_AC23_8_1_eval_set_covers_documented_matrix_to_min_count() -> None:
-    """AC23.8.1: the committed eval set meets the documented coverage matrix and
+    """AC-llm.8.1: the committed eval set meets the documented coverage matrix and
     minimum case count across modality / institution-class / edge-condition axes."""
     cases = load_cases()
     assert len(cases) >= MIN_CASES, f"need >= {MIN_CASES} eval cases, got {len(cases)}"
@@ -58,7 +58,7 @@ def test_AC23_8_1_eval_set_covers_documented_matrix_to_min_count() -> None:
 
 
 def test_AC23_8_1_matrix_breadth_is_documented_not_overclaimed() -> None:
-    """AC23.8.1: the eval doc explicitly bounds drift-detection power by breadth."""
+    """AC-llm.8.1: the eval doc explicitly bounds drift-detection power by breadth."""
     doc = Path(__file__).resolve().parents[2] / "common" / "llm" / "readme.md"
     text = doc.read_text(encoding="utf-8").lower()
     # No overclaiming: the doc must say breadth bounds the power and CI green is
@@ -68,10 +68,10 @@ def test_AC23_8_1_matrix_breadth_is_documented_not_overclaimed() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# AC23.8.2 — per-field scoring (exact / normalised match -> numeric score)
+# AC-llm.8.2 — per-field scoring (exact / normalised match -> numeric score)
 # --------------------------------------------------------------------------- #
 def test_AC23_8_2_normalizers_are_exact_value_aware() -> None:
-    """AC23.8.2: amounts compare as Decimal, dates ISO, descriptions normalised."""
+    """AC-llm.8.2: amounts compare as Decimal, dates ISO, descriptions normalised."""
     assert normalize_amount("5.00") == normalize_amount(5) == Decimal("5")
     assert normalize_amount("-5.0") == Decimal("-5")
     assert normalize_date("2026-01-02") == "2026-01-02"
@@ -82,7 +82,7 @@ def test_AC23_8_2_normalizers_are_exact_value_aware() -> None:
 
 
 def test_AC23_8_2_case_score_is_fraction_of_correct_fields() -> None:
-    """AC23.8.2: a perfect extraction scores 1.0; each wrong field lowers it."""
+    """AC-llm.8.2: a perfect extraction scores 1.0; each wrong field lowers it."""
     truth = {
         "opening_balance": "100.00",
         "closing_balance": "130.00",
@@ -105,17 +105,17 @@ def test_AC23_8_2_case_score_is_fraction_of_correct_fields() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# AC23.8.3 — ratchet floor only goes UP; gate fails on regression
+# AC-llm.8.3 — ratchet floor only goes UP; gate fails on regression
 # --------------------------------------------------------------------------- #
 def test_AC23_8_3_committed_cassettes_meet_their_floors() -> None:
-    """AC23.8.3: every committed cassette scores at/above its persisted floor."""
+    """AC-llm.8.3: every committed cassette scores at/above its persisted floor."""
     findings = evaluate(baseline_path=DEFAULT_BASELINE)
     assert findings["regressions"] == [], findings["regressions"]
     assert findings["missing"] == [], findings["missing"]
 
 
 def test_AC23_8_3_unbaselined_case_blocks_the_gate(tmp_path: Path) -> None:
-    """AC23.8.3: an eval case with NO persisted floor blocks the gate (so a deleted
+    """AC-llm.8.3: an eval case with NO persisted floor blocks the gate (so a deleted
     floor or an unguarded new case cannot silently disable the ratchet)."""
     from common.testing.check_cassette_graded_eval import main as gate_main
 
@@ -129,7 +129,7 @@ def test_AC23_8_3_unbaselined_case_blocks_the_gate(tmp_path: Path) -> None:
 
 
 def test_AC23_8_3_baseline_is_raise_only() -> None:
-    """AC23.8.3: ratcheted_baseline keeps the higher floor and never lowers it."""
+    """AC-llm.8.3: ratcheted_baseline keeps the higher floor and never lowers it."""
     baseline = {
         "version": 1,
         "cases": {"c1": {"score": 0.9, "metric": "x", "provenance": "y"}},
@@ -146,10 +146,10 @@ def test_AC23_8_3_baseline_is_raise_only() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# AC23.8.4 — reverse proof: an injected regression is CAUGHT
+# AC-llm.8.4 — reverse proof: an injected regression is CAUGHT
 # --------------------------------------------------------------------------- #
 def test_AC23_8_4_injected_regression_fails_the_gate(tmp_path: Path) -> None:
-    """AC23.8.4: a cassette field flipped below its floor is caught by the gate."""
+    """AC-llm.8.4: a cassette field flipped below its floor is caught by the gate."""
     cases = load_cases()
     # Pick a statement case with at least one transaction amount to corrupt.
     target = next(c for c in cases if c.extracted.get("transactions"))
@@ -188,11 +188,11 @@ def test_AC23_8_4_injected_regression_fails_the_gate(tmp_path: Path) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# AC23.8.5 — catches plausible-but-wrong (invariant passes, accuracy regresses)
+# AC-llm.8.5 — catches plausible-but-wrong (invariant passes, accuracy regresses)
 # --------------------------------------------------------------------------- #
 def test_AC23_8_5_balance_passes_but_field_accuracy_regresses(tmp_path: Path) -> None:
-    """AC23.8.5: a cassette whose balance chain still reconciles but whose amount
-    no longer matches ground truth is flagged by the graded gate (while AC23.7 stays green)."""
+    """AC-llm.8.5: a cassette whose balance chain still reconciles but whose amount
+    no longer matches ground truth is flagged by the graded gate (while AC-llm.7 stays green)."""
     from common.testing.check_llm_cassettes import balance_violation
 
     def _same_direction(a: dict, b: dict) -> bool:
@@ -225,13 +225,13 @@ def test_AC23_8_5_balance_passes_but_field_accuracy_regresses(tmp_path: Path) ->
 
     # Plausible-but-wrong: shift +1 onto txn i and −1 off txn j (same direction), so
     # the NET is unchanged — the balance chain STILL reconciles — but two per-field
-    # amounts now mismatch truth. This is the drift AC23.7 cannot see.
+    # amounts now mismatch truth. This is the drift AC-llm.7 cannot see.
     plausible = json.loads(json.dumps(target.extracted))
     ti, tj = plausible["transactions"][i], plausible["transactions"][j]
     ti["amount"] = str(Decimal(str(ti["amount"])) + Decimal("1"))
     tj["amount"] = str(Decimal(str(tj["amount"])) - Decimal("1"))
 
-    # AC23.7 balance gate: still GREEN (net preserved).
+    # AC-llm.7 balance gate: still GREEN (net preserved).
     assert balance_violation(plausible) is None
 
     # Graded gate: CAUGHT (per-field amounts regressed) given a floor at the
@@ -263,10 +263,10 @@ def test_AC23_8_5_balance_passes_but_field_accuracy_regresses(tmp_path: Path) ->
 
 
 # --------------------------------------------------------------------------- #
-# AC23.8.6 — deterministic, no network / no key; baseline persisted
+# AC-llm.8.6 — deterministic, no network / no key; baseline persisted
 # --------------------------------------------------------------------------- #
 def test_AC23_8_6_runs_on_committed_cassettes_without_network_or_key() -> None:
-    """AC23.8.6: the eval scores committed cassettes purely from disk (no I/O beyond
+    """AC-llm.8.6: the eval scores committed cassettes purely from disk (no I/O beyond
     reading the fixtures); a persisted baseline floor exists for the committed cases."""
     cases = load_cases()
     assert cases, "expected committed eval cases"
@@ -284,7 +284,7 @@ def test_AC23_8_6_runs_on_committed_cassettes_without_network_or_key() -> None:
 
 
 def test_AC23_8_6_ground_truth_artifacts_are_synthetic() -> None:
-    """AC23.8.6 (data hygiene): every committed cassette is EITHER synthetic, OR a real
+    """AC-llm.8.6 (data hygiene): every committed cassette is EITHER synthetic, OR a real
     statement that has been STRICTLY PII-masked — and for the real ones the gate proves
     it structurally (not by trusting the recorder), by an ALLOWLIST: every string field
     whose key is not a known PII-free field (flow values, public security symbols, the
@@ -347,10 +347,10 @@ def test_AC23_8_6_ground_truth_artifacts_are_synthetic() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# AC23.8.7 — reliability over N samples, single-sample limitation documented
+# AC-llm.8.7 — reliability over N samples, single-sample limitation documented
 # --------------------------------------------------------------------------- #
 def test_AC23_8_7_reliability_aggregates_over_n_samples() -> None:
-    """AC23.8.7: a case with multiple recordings scores the MEAN over samples."""
+    """AC-llm.8.7: a case with multiple recordings scores the MEAN over samples."""
     truth = {
         "opening_balance": "0.00",
         "closing_balance": "0.00",
@@ -369,7 +369,7 @@ def test_AC23_8_7_reliability_aggregates_over_n_samples() -> None:
 
 
 def test_AC23_8_7_single_sample_limitation_documented() -> None:
-    """AC23.8.7: the doc states a single recording is a point estimate, not reliability."""
+    """AC-llm.8.7: the doc states a single recording is a point estimate, not reliability."""
     doc = Path(__file__).resolve().parents[2] / "common" / "llm" / "readme.md"
     text = doc.read_text(encoding="utf-8").lower()
     assert "single" in text and "sample" in text

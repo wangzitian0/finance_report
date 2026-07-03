@@ -1,6 +1,6 @@
 """Extraction tests routed through the streaming-cassette bridge in replay.
 
-EPIC-023 AC23.6 / issue #1306. These wire the first batch of LLM-touching
+EPIC-023 AC-llm.6 / issue #1306. These wire the first batch of LLM-touching
 extraction tests onto the cassette replay path so the parse pipeline's LLM path
 is exercised in CI WITHOUT a key or network. The frozen responses are REAL GLM
 (glm-5.2 / glm-4.6v) completions recorded via the GLM coding plan; in replay
@@ -29,7 +29,7 @@ from pathlib import Path
 
 import pytest
 
-from src.llm.cassette import CassetteMode, current_mode
+from src.llm.extension.cassette import CassetteMode, current_mode
 from src.services.ai_streaming import accumulate_stream, stream_ai_json
 
 # These drive the real LLM transport, so they run only in record mode (freeze the
@@ -122,8 +122,8 @@ async def test_AC23_6_extraction_vision_happy_path_via_replay() -> None:
     which uses amount+direction (IN/OUT), exactly how glm-4.6v reads a statement.
     NO network, NO key in replay.
     """
-    from src.services.extraction.service import ExtractionService
-    from src.services.validation import validate_balance
+    from src.extraction.base.validation import validate_balance
+    from src.extraction.extension.service import ExtractionService
 
     service = ExtractionService()
     # Replay performs no live call, but extract_financial_data guards on a truthy

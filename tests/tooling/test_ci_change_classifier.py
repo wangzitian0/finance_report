@@ -319,8 +319,8 @@ def test_AC8_13_104_staging_ai_ocr_runs_only_for_provider_risk_paths() -> None:
         ".github/workflows/deploy.yml",
         ".github/workflows/deploy.yml",
         "apps/backend/src/config.py",
-        "apps/backend/src/prompts/statement.py",
-        "apps/backend/src/services/extraction.py",
+        "apps/backend/src/extraction/extension/prompts/statement.py",
+        "apps/backend/src/extraction/extension/service.py",
         "apps/backend/src/services/statement_parsing_supervisor.py",
         "apps/backend/src/services/ai_advisor.py",
         "apps/backend/src/routers/statements.py",
@@ -361,14 +361,14 @@ def test_AC8_13_104_staging_ai_ocr_runs_only_for_provider_risk_paths() -> None:
 
     provider_result = classify_changed_paths(
         [
-            "apps/backend/src/services/extraction.py",
+            "apps/backend/src/extraction/extension/service.py",
             "tests/e2e/test_statement_full_journey.py",
         ]
     )
     assert provider_result.staging_required is True
     assert provider_result.staging_ai_ocr_required is True
     assert provider_result.staging_ai_ocr_files == (
-        "apps/backend/src/services/extraction.py",
+        "apps/backend/src/extraction/extension/service.py",
         "tests/e2e/test_statement_full_journey.py",
     )
     assert provider_result.staging_ai_ocr_reason == "staging-ai-ocr-paths-changed"
@@ -742,7 +742,7 @@ def test_AC8_13_111_summary_prints_staging_provider_gate_files(
     """AC8.13.111: Provider-gate staging proof remains visible in summaries."""
     result = classify_changed_paths(
         [
-            "apps/backend/src/services/extraction.py",
+            "apps/backend/src/extraction/extension/service.py",
             "tests/e2e/test_statement_full_journey.py",
         ]
     )
@@ -752,7 +752,7 @@ def test_AC8_13_111_summary_prints_staging_provider_gate_files(
 
     summary_text = summary.read_text(encoding="utf-8")
     assert "Staging AI/OCR-triggering files:" in summary_text
-    assert "- `apps/backend/src/services/extraction.py`" in summary_text
+    assert "- `apps/backend/src/extraction/extension/service.py`" in summary_text
     assert "- `tests/e2e/test_statement_full_journey.py`" in summary_text
 
 

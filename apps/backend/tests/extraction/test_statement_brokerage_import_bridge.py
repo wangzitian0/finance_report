@@ -9,14 +9,14 @@ from uuid import uuid4
 from sqlalchemy import select
 
 from src.database import create_session_maker_from_db
+from src.extraction.extension.brokerage_positions import looks_like_brokerage_payload, parse_brokerage_positions
+from src.extraction.extension.service import ExtractionService
 from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
 from src.services import statement_parsing
-from src.services.brokerage_positions import looks_like_brokerage_payload, parse_brokerage_positions
-from src.services.extraction import ExtractionService
 from src.services.statement_parsing import (
     _count_brokerage_positions,
     _filter_failure_handler_kwargs,
@@ -664,7 +664,7 @@ async def test_parse_statement_background_routes_brokerage_to_review_without_imp
 
 
 async def test_AC3_12_1_brokerage_without_balances_reports_balance_validated_none_not_vacuous_true():
-    """AC3.12.1: a brokerage holdings statement with no opening/closing balances reports
+    """AC-extraction.12.1: a brokerage holdings statement with no opening/closing balances reports
     balance_validated=None (not-applicable), not a vacuous 0==0 True (#1443)."""
     service = ExtractionService()
     service.extract_financial_data = AsyncMock(

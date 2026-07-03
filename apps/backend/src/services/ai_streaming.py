@@ -1,6 +1,6 @@
 """AI provider streaming utilities (litellm transport).
 
-EPIC-023 PR3: the transport is litellm (via :mod:`src.llm.client`), not raw
+EPIC-023 PR3: the transport is litellm (via :mod:`src.llm.extension.client`), not raw
 httpx. These functions keep their signatures for the existing call sites
 (extraction, the AI advisor, reconciliation scoring), but provider selection now
 comes from the layered config (DB providers first, env fallback) and litellm
@@ -15,12 +15,22 @@ from typing import Any
 from uuid import UUID
 
 from src.config import settings
-from src.llm.cassette import CassetteMode, current_mode
-from src.llm.client import litellm_stream, resolve_provider_and_model
-from src.llm.common import LLMConfigError, LLMError, ProtocolFamily, ProviderRef, ReasoningEffort
-from src.llm.env_config import _protocol_for
-from src.llm.factory import get_config_source, get_usage_meter
-from src.llm.usage import estimate_tokens, estimate_tokens_from_chars
+from src.llm import (
+    CassetteMode,
+    LLMConfigError,
+    LLMError,
+    ProtocolFamily,
+    ProviderRef,
+    ReasoningEffort,
+    current_mode,
+    estimate_tokens,
+    estimate_tokens_from_chars,
+    get_config_source,
+    get_usage_meter,
+    litellm_stream,
+    protocol_for,
+    resolve_provider_and_model,
+)
 from src.observability import get_logger, record_ai_provider_call
 
 logger = get_logger(__name__)
@@ -73,7 +83,7 @@ async def _resolve_provider(api_key: str | None, base_url: str | None, user_id: 
         return ProviderRef(
             id="explicit",
             label=settings.ai_provider,
-            protocol=_protocol_for(settings.ai_provider),
+            protocol=protocol_for(settings.ai_provider),
             api_key=api_key,
             api_base=base_url or getattr(settings, "ai_base_url", None) or None,
         )
@@ -125,7 +135,7 @@ async def _stream_ai_base(
         provider = ProviderRef(
             id="replay",
             label="replay",
-            protocol=_protocol_for(settings.ai_provider),
+            protocol=protocol_for(settings.ai_provider),
             api_key="replay",
             api_base=None,
         )

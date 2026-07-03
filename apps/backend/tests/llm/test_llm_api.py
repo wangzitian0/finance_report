@@ -1,4 +1,4 @@
-"""The ``/llm`` per-user config API + binding resolution (EPIC-023 AC23.4).
+"""The ``/llm`` per-user config API + binding resolution (EPIC-023 AC-llm.4).
 
 Exercises the runtime-config surface end to end through the authed client: the
 first-run status flag, provider CRUD (with the API key encrypted at rest and never
@@ -14,7 +14,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.identity import User
-from src.llm.common import FernetCipher, Scene
+from src.llm.base import FernetCipher, Scene
 
 pytestmark = pytest.mark.asyncio
 
@@ -42,7 +42,7 @@ async def _create_provider(client: AsyncClient, **overrides) -> dict:
 
 
 async def test_AC23_4_1_config_status_flips_when_user_configures(client: AsyncClient, cipher) -> None:
-    """AC23.4.1: status is False with no config, True once the user adds a provider."""
+    """AC-llm.4.1: status is False with no config, True once the user adds a provider."""
     before = await client.get("/llm/config/status")
     assert before.status_code == 200
     assert before.json() == {"configured": False}
@@ -56,7 +56,7 @@ async def test_AC23_4_1_config_status_flips_when_user_configures(client: AsyncCl
 async def test_AC23_4_2_provider_create_encrypts_and_never_returns_key(
     client: AsyncClient, db: AsyncSession, cipher
 ) -> None:
-    """AC23.4.2: POST encrypts the key at rest; neither the response nor the row holds plaintext."""
+    """AC-llm.4.2: POST encrypts the key at rest; neither the response nor the row holds plaintext."""
     created = await _create_provider(client)
     assert "api_key" not in created
     assert created["has_api_key"] is True
@@ -69,7 +69,7 @@ async def test_AC23_4_2_provider_create_encrypts_and_never_returns_key(
     row = (await db.execute(select(LlmProvider).where(LlmProvider.id == created["id"]))).scalar_one()
     assert "sk-secret-123" not in row.api_key_ciphertext
     # The ciphertext still round-trips back to the original secret.
-    from src.llm.common import Encrypted
+    from src.llm.base import Encrypted
 
     assert (
         cipher.decrypt(Encrypted(ciphertext=row.api_key_ciphertext, key_version=row.api_key_version)) == "sk-secret-123"
@@ -77,7 +77,7 @@ async def test_AC23_4_2_provider_create_encrypts_and_never_returns_key(
 
 
 async def test_AC23_4_2_provider_create_fails_closed_without_encryption_keys(client: AsyncClient) -> None:
-    """AC23.4.2: with no ``LLM_ENCRYPTION_KEYS`` configured, POST fails closed (no plaintext stored)."""
+    """AC-llm.4.2: with no ``LLM_ENCRYPTION_KEYS`` configured, POST fails closed (no plaintext stored)."""
     resp = await client.post(
         "/llm/providers",
         json={"label": "x", "protocol": "openai-compatible", "api_key": "sk-x"},
@@ -86,7 +86,7 @@ async def test_AC23_4_2_provider_create_fails_closed_without_encryption_keys(cli
 
 
 async def test_AC23_4_2_provider_list_and_delete(client: AsyncClient, cipher) -> None:
-    """AC23.4.2: providers are listed for the user and deletable."""
+    """AC-llm.4.2: providers are listed for the user and deletable."""
     created = await _create_provider(client)
     listed = await client.get("/llm/providers")
     assert listed.status_code == 200
@@ -102,7 +102,7 @@ async def test_AC23_4_2_provider_list_and_delete(client: AsyncClient, cipher) ->
 
 
 async def test_AC23_4_2_provider_rejects_non_http_api_base(client: AsyncClient, cipher) -> None:
-    """AC23.4.2: a non-http(s) ``api_base`` is rejected at the schema boundary (422)."""
+    """AC-llm.4.2: a non-http(s) ``api_base`` is rejected at the schema boundary (422)."""
     resp = await client.post(
         "/llm/providers",
         json={"label": "x", "protocol": "openai-compatible", "api_key": "sk-x", "api_base": "not-a-url"},
@@ -111,13 +111,13 @@ async def test_AC23_4_2_provider_rejects_non_http_api_base(client: AsyncClient, 
 
 
 async def test_AC23_4_2_provider_blank_api_base_persists_as_null(client: AsyncClient, db: AsyncSession, cipher) -> None:
-    """AC23.4.2: a blank ``api_base`` normalises to NULL rather than an empty string."""
+    """AC-llm.4.2: a blank ``api_base`` normalises to NULL rather than an empty string."""
     created = await _create_provider(client, api_base="   ")
     assert created["api_base"] is None
 
 
 async def test_AC23_4_2_delete_non_uuid_is_not_found(client: AsyncClient) -> None:
-    """AC23.4.2: a non-UUID provider id deletes as 404, not a 500 from the UUID cast."""
+    """AC-llm.4.2: a non-UUID provider id deletes as 404, not a 500 from the UUID cast."""
     resp = await client.delete("/llm/providers/not-a-uuid")
     assert resp.status_code == 404
 
@@ -142,7 +142,7 @@ async def test_AC23_4_2_delete_non_uuid_is_not_found(client: AsyncClient) -> Non
     ],
 )
 async def test_AC23_4_9_provider_rejects_ssrf_api_base(client: AsyncClient, cipher, api_base: str) -> None:
-    """AC23.4.9: api_base pointing at loopback/private/link-local/metadata/.internal is rejected (422)."""
+    """AC-llm.4.9: api_base pointing at loopback/private/link-local/metadata/.internal is rejected (422)."""
     resp = await client.post(
         "/llm/providers",
         json={"label": "x", "protocol": "openai-compatible", "api_key": "sk-x", "api_base": api_base},
@@ -151,7 +151,7 @@ async def test_AC23_4_9_provider_rejects_ssrf_api_base(client: AsyncClient, ciph
 
 
 async def test_AC23_4_10_provider_count_capped(client: AsyncClient, cipher, monkeypatch) -> None:
-    """AC23.4.10: creating providers beyond the per-user cap returns 409."""
+    """AC-llm.4.10: creating providers beyond the per-user cap returns 409."""
     monkeypatch.setattr("src.routers.llm.MAX_PROVIDERS_PER_USER", 2)
     await _create_provider(client, label="p1")
     await _create_provider(client, label="p2")
@@ -163,7 +163,7 @@ async def test_AC23_4_10_provider_count_capped(client: AsyncClient, cipher, monk
 
 
 async def test_AC23_4_3_catalog_lists_models_with_filters(client: AsyncClient) -> None:
-    """AC23.4.3: the catalogue lists configured models and honours modality/free filters."""
+    """AC-llm.4.3: the catalogue lists configured models and honours modality/free filters."""
     resp = await client.get("/llm/catalog")
     assert resp.status_code == 200
     models = resp.json()["models"]
@@ -180,7 +180,7 @@ async def test_AC23_4_3_catalog_lists_models_with_filters(client: AsyncClient) -
 
 
 async def test_AC23_4_4_scenes_round_trip(client: AsyncClient, cipher) -> None:
-    """AC23.4.4: PUT /llm/scenes persists per-scene bindings and GET returns them."""
+    """AC-llm.4.4: PUT /llm/scenes persists per-scene bindings and GET returns them."""
     provider = await _create_provider(client)
     payload = {
         "bindings": [
@@ -208,7 +208,7 @@ async def test_AC23_4_4_scenes_round_trip(client: AsyncClient, cipher) -> None:
 
 
 async def test_AC23_4_4_scenes_rejects_foreign_provider(client: AsyncClient, cipher) -> None:
-    """AC23.4.4: a binding referencing a provider the user does not own is rejected."""
+    """AC-llm.4.4: a binding referencing a provider the user does not own is rejected."""
     from uuid import uuid4
 
     resp = await client.put(
@@ -221,14 +221,14 @@ async def test_AC23_4_4_scenes_rejects_foreign_provider(client: AsyncClient, cip
 async def test_AC23_4_5_user_binding_drives_resolution(
     client: AsyncClient, db: AsyncSession, test_user: User, cipher
 ) -> None:
-    """AC23.4.5: the user's binding selects the scene's model on the resolution path."""
+    """AC-llm.4.5: the user's binding selects the scene's model on the resolution path."""
     provider = await _create_provider(client)
     await client.put(
         "/llm/scenes",
         json={"bindings": [{"scene": "advisor.chat", "provider_id": provider["id"], "model": "glm-4.6"}]},
     )
 
-    from src.llm.factory import get_config_source
+    from src.llm.extension.factory import get_config_source
 
     binding = await get_config_source(test_user.id).get_binding(Scene.ADVISOR_CHAT)
     assert binding is not None
@@ -237,6 +237,6 @@ async def test_AC23_4_5_user_binding_drives_resolution(
 
 
 async def test_AC23_4_6_legacy_ai_models_endpoint_removed(client: AsyncClient) -> None:
-    """AC23.4.6: the legacy ``GET /ai/models`` catalogue is retired in favour of /llm/catalog."""
+    """AC-llm.4.6: the legacy ``GET /ai/models`` catalogue is retired in favour of /llm/catalog."""
     resp = await client.get("/ai/models")
     assert resp.status_code == 404

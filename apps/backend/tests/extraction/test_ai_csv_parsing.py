@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.services.extraction import ExtractionService
+from src.extraction.extension.service import ExtractionService
 
 
 async def test_ai_csv_parsing_returns_valid_mapping():
@@ -26,11 +26,11 @@ async def test_ai_csv_parsing_returns_valid_mapping():
         patch.object(service, "primary_model", "test-model"),
         patch.object(service, "base_url", "https://test.api"),
         patch(
-            "src.services.extraction._csv.stream_ai_json",
+            "src.extraction.extension._csv.stream_ai_json",
             return_value=mock_stream,
         ),
         patch(
-            "src.services.extraction._csv.accumulate_stream",
+            "src.extraction.extension._csv.accumulate_stream",
             mock_accumulate,
         ),
     ):
@@ -62,8 +62,8 @@ async def test_ai_csv_parsing_skips_invalid_amount_rows():
         patch.object(service, "api_key", "test-key"),
         patch.object(service, "primary_model", "test-model"),
         patch.object(service, "base_url", "https://test.api"),
-        patch("src.services.extraction._csv.stream_ai_json", return_value=MagicMock()),
-        patch("src.services.extraction._csv.accumulate_stream", mock_accumulate),
+        patch("src.extraction.extension._csv.stream_ai_json", return_value=MagicMock()),
+        patch("src.extraction.extension._csv.accumulate_stream", mock_accumulate),
     ):
         transactions, period_start, period_end = await service._ai_parse_csv(
             headers=["Txn Date", "Narration", "Amount"],
@@ -97,8 +97,8 @@ async def test_ai_csv_parsing_skips_empty_debit_credit_rows():
         patch.object(service, "api_key", "test-key"),
         patch.object(service, "primary_model", "test-model"),
         patch.object(service, "base_url", "https://test.api"),
-        patch("src.services.extraction._csv.stream_ai_json", return_value=MagicMock()),
-        patch("src.services.extraction._csv.accumulate_stream", mock_accumulate),
+        patch("src.extraction.extension._csv.stream_ai_json", return_value=MagicMock()),
+        patch("src.extraction.extension._csv.accumulate_stream", mock_accumulate),
     ):
         transactions, _, _ = await service._ai_parse_csv(
             headers=["Txn Date", "Narration", "Debit", "Credit"],
@@ -139,7 +139,7 @@ async def test_ai_csv_parsing_graceful_failure():
         patch.object(service, "primary_model", "test-model"),
         patch.object(service, "base_url", "https://test.api"),
         patch(
-            "src.services.extraction._csv.stream_ai_json",
+            "src.extraction.extension._csv.stream_ai_json",
             mock_stream,
         ),
     ):

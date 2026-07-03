@@ -127,7 +127,7 @@ async def test_source_type_stamped_on_create(
     db: AsyncSession,
     test_user: User,
 ) -> None:
-    """AC13.10.1: Manual API creation stamps source_type=manual by default."""
+    """AC-extraction.110.1: Manual API creation stamps source_type=manual by default."""
     bank, income, _ = await _add_accounts(db, test_user.id)
     await db.commit()
 
@@ -172,7 +172,7 @@ async def test_all_four_source_type_values_accepted_by_api(
     test_user: User,
     source_type: str,
 ) -> None:
-    """AC13.10.6: API accepts the four source_type hierarchy values."""
+    """AC-extraction.110.6: API accepts the four source_type hierarchy values."""
     bank, income, _ = await _add_accounts(db, test_user.id)
     await db.commit()
 
@@ -204,7 +204,7 @@ async def test_all_four_source_type_values_accepted_by_api(
 
 
 async def test_auto_match_records_anchor_without_mutating_posted_source_type(db: AsyncSession) -> None:
-    """AC13.10.2 AC18.11.1: Auto-accepted reconciliation records a trusted match anchor."""
+    """AC-extraction.110.2 AC18.11.1: Auto-accepted reconciliation records a trusted match anchor."""
     user = User(email=f"auto-match-{uuid4()}@example.com", hashed_password="hashed")
     db.add(user)
     await db.flush()
@@ -236,7 +236,7 @@ async def test_auto_match_records_anchor_without_mutating_posted_source_type(db:
 
 
 async def test_manual_wins_conflict_resolution(db: AsyncSession) -> None:
-    """AC13.10.4: Manual entries win equal-score conflicts over auto_parsed."""
+    """AC-extraction.110.4: Manual entries win equal-score conflicts over auto_parsed."""
     user = User(email=f"manual-wins-{uuid4()}@example.com", hashed_password="hashed")
     db.add(user)
     await db.flush()
@@ -277,7 +277,7 @@ async def test_manual_wins_conflict_resolution(db: AsyncSession) -> None:
 
 
 async def test_source_type_no_downgrade(db: AsyncSession) -> None:
-    """AC13.10.5: Explicit source_type downgrades are rejected."""
+    """AC-extraction.110.5: Explicit source_type downgrades are rejected."""
     user = User(email=f"no-downgrade-{uuid4()}@example.com", hashed_password="hashed")
     db.add(user)
     await db.flush()

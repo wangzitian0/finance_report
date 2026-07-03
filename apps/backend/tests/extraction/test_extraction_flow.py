@@ -4,8 +4,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from src.extraction.extension.service import ExtractionError, ExtractionService
 from src.models.statement_enums import BankStatementStatus, Stage1Status
-from src.services.extraction import ExtractionError, ExtractionService
 
 
 async def mock_stream_generator(content: str):
@@ -14,7 +14,7 @@ async def mock_stream_generator(content: str):
 
 
 class TestExtractionServiceFlow:
-    """AC3.5.1 AC3.5.2 AC3.5.3 AC3.5.4 AC18.1.1 AC18.1.2: Extraction Flow Tests
+    """AC-extraction.5.1 AC-extraction.5.2 AC-extraction.5.3 AC-extraction.5.4 AC18.1.1 AC18.1.2: Extraction Flow Tests
 
     These tests validate the complete extraction service flow including document parsing,
     AI institution auto-detection, transaction extraction, error handling, and
@@ -110,7 +110,7 @@ class TestExtractionServiceFlow:
         assert stmt.stage1_status == Stage1Status.PENDING_REVIEW
 
     async def test_parse_document_csv_without_statement_balances_remains_reviewable(self, service, tmp_path):
-        """AC3.2.5: CSV transaction exports without statement balances remain reviewable."""
+        """AC-extraction.2.5: CSV transaction exports without statement balances remain reviewable."""
         csv_file = tmp_path / "dbs-export.csv"
         csv_file.write_bytes(
             b"Transaction Date,Reference,Debit Amount,Credit Amount,Transaction Ref1\n"
@@ -135,7 +135,7 @@ class TestExtractionServiceFlow:
         )
 
     async def test_parse_document_unsupported_type(self, service, tmp_path):
-        """[AC3.4.2] Test parse_document raises error for unsupported type."""
+        """[AC-extraction.4.2] Test parse_document raises error for unsupported type."""
         txt_file = tmp_path / "test.txt"
         txt_file.write_bytes(b"text")
 
@@ -154,31 +154,31 @@ class TestExtractionServiceFlow:
 
         json_content = json.dumps({"test": "data"})
 
-        with patch("src.services.extraction.service.stream_ai_json") as mock_stream:
+        with patch("src.extraction.extension.service.stream_ai_json") as mock_stream:
             mock_stream.return_value = mock_stream_generator(json_content)
 
             result = await service.extract_financial_data(b"content", "DBS", "png")
             assert result == {"test": "data"}
 
     async def test_extract_financial_data_markdown_json(self, service):
-        """AC13.14.5: markdown-fenced JSON is salvaged, not rejected (#982)."""
+        """AC-extraction.114.5: markdown-fenced JSON is salvaged, not rejected (#982)."""
         service.api_key = "test-key"
 
         content = 'Here is json:\n```json\n{"test": "markdown"}\n```'
 
-        with patch("src.services.extraction.service.stream_ai_json") as mock_stream:
+        with patch("src.extraction.extension.service.stream_ai_json") as mock_stream:
             mock_stream.return_value = mock_stream_generator(content)
 
             result = await service.extract_financial_data(b"content", "DBS", "png")
             assert result == {"test": "markdown"}
 
     async def test_extract_financial_data_salvages_extra_text(self, service):
-        """AC13.14.2: a valid object padded with prose is salvaged (#982)."""
+        """AC-extraction.114.2: a valid object padded with prose is salvaged (#982)."""
         service.api_key = "test-key"
 
         content = 'Sure! {"test": "value"}\nThanks!'
 
-        with patch("src.services.extraction.service.stream_ai_json") as mock_stream:
+        with patch("src.extraction.extension.service.stream_ai_json") as mock_stream:
             mock_stream.return_value = mock_stream_generator(content)
 
             result = await service.extract_financial_data(b"content", "DBS", "png")
@@ -190,7 +190,7 @@ class TestExtractionServiceFlow:
 
         content = json.dumps([{"test": "value"}])
 
-        with patch("src.services.extraction.service.stream_ai_json") as mock_stream:
+        with patch("src.extraction.extension.service.stream_ai_json") as mock_stream:
             mock_stream.return_value = mock_stream_generator(content)
 
             with pytest.raises(ExtractionError, match="strict JSON object"):
@@ -202,7 +202,7 @@ class TestExtractionServiceFlow:
 
         from src.services.ai_streaming import AIStreamError
 
-        with patch("src.services.extraction.service.stream_ai_json") as mock_stream:
+        with patch("src.extraction.extension.service.stream_ai_json") as mock_stream:
             mock_stream.side_effect = AIStreamError("HTTP 400: Bad Request")
 
             with pytest.raises(ExtractionError, match="failed"):
@@ -223,7 +223,7 @@ class TestExtractionServiceFlow:
 
         json_content = json.dumps({"success": True})
 
-        with patch("src.services.extraction.service.stream_ai_json") as mock_stream:
+        with patch("src.extraction.extension.service.stream_ai_json") as mock_stream:
             mock_stream.return_value = mock_stream_generator(json_content)
 
             await service.extract_financial_data(file_content=content, file_url=url, institution="DBS", file_type="png")
@@ -244,7 +244,7 @@ class TestExtractionServiceFlow:
 
         json_content = json.dumps({"success": True})
 
-        with patch("src.services.extraction.service.stream_ai_json") as mock_stream:
+        with patch("src.extraction.extension.service.stream_ai_json") as mock_stream:
             mock_stream.return_value = mock_stream_generator(json_content)
 
             await service.extract_financial_data(file_content=None, file_url=url, institution="DBS", file_type="pdf")
@@ -276,7 +276,7 @@ class TestExtractionServiceFlow:
 
         with (
             patch.object(service, "_render_pdf_pages_as_image_payloads", return_value=[image_payload]) as mock_render,
-            patch("src.services.extraction.service.stream_ai_json") as mock_stream,
+            patch("src.extraction.extension.service.stream_ai_json") as mock_stream,
         ):
             mock_stream.return_value = mock_stream_generator(json_content)
             await service.extract_financial_data(
@@ -288,7 +288,7 @@ class TestExtractionServiceFlow:
             assert payload[0]["content"][1] == image_payload
 
     async def test_force_model_pdf_renders_content_for_zai(self, service):
-        """AC13.5.1: Forced Z.AI PDF vision extraction can use rendered PDF images."""
+        """AC-extraction.105.1: Forced Z.AI PDF vision extraction can use rendered PDF images."""
         service.api_key = "test-key"
         pdf_bytes = b"%PDF-1.4 fake content"
         image_payload = {
@@ -299,7 +299,7 @@ class TestExtractionServiceFlow:
 
         with (
             patch.object(service, "_render_pdf_pages_as_image_payloads", return_value=[image_payload]) as mock_render,
-            patch("src.services.extraction.service.stream_ai_json") as mock_stream,
+            patch("src.extraction.extension.service.stream_ai_json") as mock_stream,
         ):
             mock_stream.return_value = mock_stream_generator(json_content)
             await service.extract_financial_data(
@@ -329,7 +329,7 @@ class TestExtractionServiceFlow:
 
         with (
             patch.object(service, "_render_pdf_pages_as_image_payloads", return_value=[image_payload]) as mock_render,
-            patch("src.services.extraction.service.stream_ai_json") as mock_stream,
+            patch("src.extraction.extension.service.stream_ai_json") as mock_stream,
         ):
             mock_stream.return_value = mock_stream_generator(json_content)
 

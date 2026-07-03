@@ -36,17 +36,17 @@ def test_AC26_7_1_real_tree_has_no_llm_imports_in_protected_modules() -> None:
 def test_AC26_7_1_synthetic_llm_import_is_detected() -> None:
     """AC-authority.7.1 (b): a synthetic CODE-ONLY-style module importing the LLM layer fails."""
     # from-import of the project LLM layer
-    src_from = "from src.llm.client import LLMClient\n\ndef calc():\n    return 1\n"
-    assert gate.forbidden_imports_in_source(src_from) == [("src.llm.client", "src.llm")]
+    src_from = "from src.llm.extension.client import LLMClient\n\ndef calc():\n    return 1\n"
+    assert gate.forbidden_imports_in_source(src_from) == [("src.llm.extension.client", "src.llm")]
 
     # plain import of a raw provider SDK
     src_import = "import anthropic\n"
     assert gate.forbidden_imports_in_source(src_import) == [("anthropic", "anthropic")]
 
     # apps.backend.src.llm spelling is also forbidden
-    src_abs = "from apps.backend.src.llm.factory import make\n"
+    src_abs = "from apps.backend.src.llm.extension.factory import make\n"
     assert gate.forbidden_imports_in_source(src_abs) == [
-        ("apps.backend.src.llm.factory", "apps.backend.src.llm")
+        ("apps.backend.src.llm.extension.factory", "apps.backend.src.llm")
     ]
 
     # parent-package spelling: `from src import llm` pulls in `src.llm`, so it
@@ -83,7 +83,7 @@ def test_AC26_7_1_gate_fails_on_synthetic_violating_tree(tmp_path: Path) -> None
     money_dir = tmp_path / "apps" / "backend" / "src" / "audit" / "money"
     money_dir.mkdir(parents=True)
     (money_dir / "money.py").write_text(
-        "from src.llm.client import LLMClient\n", encoding="utf-8"
+        "from src.llm.extension.client import LLMClient\n", encoding="utf-8"
     )
     # Satisfy the other protected globs so the run fails on the import violation,
     # not on missing-glob drift. One placeholder file per remaining glob.
@@ -97,7 +97,7 @@ def test_AC26_7_1_gate_fails_on_synthetic_violating_tree(tmp_path: Path) -> None
 
     assert gate.missing_protected_globs(tmp_path) == []
     found = gate.violations(tmp_path)
-    assert ("apps/backend/src/audit/money/money.py", "src.llm.client", "src.llm") in found
+    assert ("apps/backend/src/audit/money/money.py", "src.llm.extension.client", "src.llm") in found
     assert gate.main(["--repo-root", str(tmp_path)]) == 1
 
 

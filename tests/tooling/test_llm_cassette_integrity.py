@@ -1,4 +1,4 @@
-"""LLM cassette integrity gate tests (EPIC-023 AC23.7 / issue #1307).
+"""LLM cassette integrity gate tests (EPIC-023 AC-llm.7 / issue #1307).
 
 The gate (`tools/check_llm_cassettes.py`) is the detectable-drift check: every
 committed statement-extraction cassette must satisfy the balance-chain invariant,
@@ -21,12 +21,12 @@ from common.testing.check_llm_cassettes import (
 
 
 def test_AC23_7_1_committed_cassettes_satisfy_balance_chain() -> None:
-    """AC23.7.1: every committed statement cassette satisfies opening + Σ == closing."""
+    """AC-llm.7.1: every committed statement cassette satisfies opening + Σ == closing."""
     assert check() == []
 
 
 def test_AC23_7_1_balance_violation_detects_a_drifted_cassette() -> None:
-    """AC23.7.1: a statement whose chain does not reconcile is flagged (drift catch)."""
+    """AC-llm.7.1: a statement whose chain does not reconcile is flagged (drift catch)."""
     good = {
         "opening_balance": "100.00",
         "closing_balance": "130.00",
@@ -43,7 +43,7 @@ def test_AC23_7_1_balance_violation_detects_a_drifted_cassette() -> None:
 
 
 def test_AC23_7_1_balance_uses_direction_not_just_amount_sign() -> None:
-    """AC23.7.1: net is computed amount+direction aware (the canonical/vision shape),
+    """AC-llm.7.1: net is computed amount+direction aware (the canonical/vision shape),
     not a naive sum of unsigned amounts."""
     # Magnitudes + IN/OUT direction (how glm-4.6v reads a statement): -5 +50 -15 = +30.
     directional = {
@@ -73,7 +73,7 @@ def test_AC23_7_1_balance_uses_direction_not_just_amount_sign() -> None:
 
 
 def test_AC23_7_1_uses_decimal_not_float() -> None:
-    """AC23.7.1: amounts that would lose precision as float still reconcile via Decimal."""
+    """AC-llm.7.1: amounts that would lose precision as float still reconcile via Decimal."""
     payload = {
         "opening_balance": "0.00",
         "closing_balance": "0.30",
@@ -107,7 +107,7 @@ def _write_statement_cassette(cassette_dir: Path, fp: str, *, reconciles: bool) 
 
 
 def test_AC23_7_1_non_reconciling_source_is_balance_exempt(tmp_path: Path) -> None:
-    """AC23.7.1: a statement cassette whose truth declares balance_reconciles=false is
+    """AC-llm.7.1: a statement cassette whose truth declares balance_reconciles=false is
     skipped by the balance gate (its source doesn't reconcile by construction) and
     counted as exempt — while the same broken cassette WITHOUT that truth is flagged."""
     # Exempt: broken balance + truth marking the source non-reconciling -> no violation.
@@ -124,7 +124,7 @@ def test_AC23_7_1_non_reconciling_source_is_balance_exempt(tmp_path: Path) -> No
 
 
 def test_AC23_7_1_extracts_response_text_across_shapes() -> None:
-    """AC23.7.1: the gate reads the frozen text from stream_text / text / choices."""
+    """AC-llm.7.1: the gate reads the frozen text from stream_text / text / choices."""
     assert _response_text({"stream_text": "abc"}) == "abc"
     assert _response_text({"text": "xyz"}) == "xyz"
     assert _response_text({"choices": [{"message": {"content": "deep"}}]}) == "deep"

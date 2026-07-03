@@ -1,5 +1,9 @@
 """Lazy service package exports.
 
+The extraction domain (pipeline, validation, dedup, brokerage, prompts,
+evidence graph) moved to the ``extraction`` package (#1421) — import it via
+``from src.extraction import …``, not from here.
+
 Importing one service submodule must not eagerly import every backend service.
 Tooling tests and small audit CLIs intentionally run with a reduced dependency
 set, so package-level compatibility exports are resolved on demand.
@@ -18,13 +22,10 @@ _SUBMODULES = {
     "allocation",
     "anomaly",
     "assets",
-    "brokerage_positions",
     "classification",
     "confidence_tier",
     "consistency_checks",
     "correction_service",
-    "deduplication",
-    "extraction",
     "fx",
     "fx_revaluation",
     "investment_accounting",
@@ -46,7 +47,6 @@ _SUBMODULES = {
     "statement_validation",
     "storage",
     "storage_sweep",
-    "validation",
     "workflow_events",
 }
 
@@ -55,8 +55,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "AIAdvisorService": ("ai_advisor", "AIAdvisorService"),
     "AccountNotFoundError": ("account_service", "AccountNotFoundError"),
     "AccountServiceError": ("account_service", "AccountServiceError"),
-    "ExtractionError": ("extraction", "ExtractionError"),
-    "ExtractionService": ("extraction", "ExtractionService"),
     "FxRateError": ("fx", "FxRateError"),
     "ReportError": ("reporting", "ReportError"),
     "StorageError": ("storage", "StorageError"),

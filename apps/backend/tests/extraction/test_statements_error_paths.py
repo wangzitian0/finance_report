@@ -1,4 +1,4 @@
-"""AC3.5.5 - Statements Error Path Coverage
+"""AC-extraction.5.5 - Statements Error Path Coverage
 
 Tests for error handling in statement parsing and background task management.
 Covers rollback failures, statement not found scenarios, and exception handling.
@@ -36,7 +36,7 @@ async def _create_parsing_statement(db, user_id):
 
 
 async def test_handle_parse_failure_rollback_fails(db, test_user):
-    """AC3.5.5 - Handle parse failure: Rollback exception is caught and logged
+    """AC-extraction.5.5 - Handle parse failure: Rollback exception is caught and logged
 
     GIVEN a statement exists in the database
     WHEN _handle_parse_failure is called and db.rollback() raises an exception
@@ -54,7 +54,7 @@ async def test_handle_parse_failure_rollback_fails(db, test_user):
 
 
 async def test_handle_parse_failure_statement_not_found(db, test_user):
-    """AC3.5.5 - Handle parse failure: Statement not found after rollback is logged
+    """AC-extraction.5.5 - Handle parse failure: Statement not found after rollback is logged
 
     GIVEN a statement that gets deleted during processing
     WHEN _handle_parse_failure is called and statement is not found after rollback
@@ -73,7 +73,7 @@ async def test_handle_parse_failure_statement_not_found(db, test_user):
 
 
 async def test_handle_parse_failure_commit_fails(db, test_user):
-    """AC3.5.5 - Handle parse failure: Commit failure during error handling is logged
+    """AC-extraction.5.5 - Handle parse failure: Commit failure during error handling is logged
 
     GIVEN a statement exists in the database
     WHEN _handle_parse_failure is called and db.commit() raises an exception

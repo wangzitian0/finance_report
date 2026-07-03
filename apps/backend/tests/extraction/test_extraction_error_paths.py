@@ -9,11 +9,11 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from src.extraction.extension.deduplication import dual_write_layer2
+from src.extraction.extension.service import ExtractionError, ExtractionService
 from src.models.layer1 import DocumentStatus, UploadedDocument
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
-from src.services.deduplication import dual_write_layer2
-from src.services.extraction import ExtractionError, ExtractionService
 from src.services.statement_parsing import handle_parse_failure
 from tests.factories import StatementSummaryFactory
 
@@ -131,7 +131,7 @@ async def test_extract_ocr_markdown_joins_layout_results(monkeypatch):
             assert json["file"].startswith("data:application/pdf;base64,")
             return FakeResponse()
 
-    monkeypatch.setattr("src.services.extraction.httpx.AsyncClient", FakeClient)
+    monkeypatch.setattr("src.extraction.extension.service.httpx.AsyncClient", FakeClient)
 
     markdown = await service._extract_ocr_markdown(
         file_content=b"pdf bytes",
@@ -173,7 +173,7 @@ async def test_extract_ocr_markdown_rejects_empty_layout_result(monkeypatch):
         async def post(self, url, headers, json):
             return FakeResponse()
 
-    monkeypatch.setattr("src.services.extraction.httpx.AsyncClient", FakeClient)
+    monkeypatch.setattr("src.extraction.extension.service.httpx.AsyncClient", FakeClient)
 
     with pytest.raises(ExtractionError, match="empty Markdown"):
         await service._extract_ocr_markdown(
@@ -223,7 +223,7 @@ async def test_extract_financial_data_uses_ocr_first_pipeline():
 async def test_extract_financial_data_shared_ocr_vision_skips_layout_parser():
     """AC8.12.6: Shared OCR/vision model uses one vision call and skips layout parsing.
 
-    AC13.18.1: the configured vision fallback model is appended after the primary
+    AC-extraction.118.1: the configured vision fallback model is appended after the primary
     so more than one model is attempted on the vision path (#1034).
     """
     service = ExtractionService()
@@ -252,7 +252,7 @@ async def test_extract_financial_data_shared_ocr_vision_skips_layout_parser():
 
 
 async def test_vision_path_falls_back_to_secondary_model_on_non_retryable_error():
-    """AC13.18.2: when the primary vision model raises a non-retryable provider
+    """AC-extraction.118.2: when the primary vision model raises a non-retryable provider
     error (e.g. a 400), the vision path attempts the configured vision fallback
     model and succeeds instead of failing the upload (#1034)."""
     from src.services.ai_streaming import AIStreamError
@@ -285,8 +285,8 @@ async def test_vision_path_falls_back_to_secondary_model_on_non_retryable_error(
 
     with (
         patch.object(service, "_build_vision_media_payloads", return_value=[image_payload]),
-        patch("src.services.extraction.service.stream_ai_json", side_effect=fake_stream_ai_json),
-        patch("src.services.extraction.service.accumulate_stream", side_effect=fake_accumulate_stream),
+        patch("src.extraction.extension.service.stream_ai_json", side_effect=fake_stream_ai_json),
+        patch("src.extraction.extension.service.accumulate_stream", side_effect=fake_accumulate_stream),
     ):
         result = await service.extract_financial_data(b"content", "DBS", "pdf")
 
@@ -298,7 +298,7 @@ async def test_vision_path_falls_back_to_secondary_model_on_non_retryable_error(
 def test_ocr_model_selection_helpers_deduplicate_vision_models():
     """AC8.12.6: OCR/vision helper rules avoid duplicate provider calls.
 
-    AC13.18.1: configured vision fallbacks are appended to the vision model list,
+    AC-extraction.118.1: configured vision fallbacks are appended to the vision model list,
     deduplicated and order-preserving, so more than one model is attempted on the
     vision path (#1034).
     """
@@ -322,7 +322,7 @@ def test_ocr_model_selection_helpers_deduplicate_vision_models():
 
 
 def test_vision_extraction_models_dedupes_fallback_against_primary():
-    """AC13.18.1: a vision fallback equal to the primary vision/OCR model is not
+    """AC-extraction.118.1: a vision fallback equal to the primary vision/OCR model is not
     attempted twice; ordering of the remaining fallbacks is preserved (#1034)."""
     service = ExtractionService()
     service.ocr_model = "glm-4.6v"
@@ -333,7 +333,7 @@ def test_vision_extraction_models_dedupes_fallback_against_primary():
 
 
 def test_vision_extraction_models_without_fallbacks_returns_primary_only():
-    """AC13.18.1: with no configured vision fallbacks the list is unchanged, so
+    """AC-extraction.118.1: with no configured vision fallbacks the list is unchanged, so
     deployments that opt out keep the prior single-model behavior (#1034)."""
     service = ExtractionService()
     service.ocr_model = "glm-4.6v"
@@ -438,7 +438,7 @@ async def test_extract_ocr_markdown_surfaces_layout_http_error(monkeypatch):
         async def post(self, url, headers, json):
             return FakeResponse()
 
-    monkeypatch.setattr("src.services.extraction.httpx.AsyncClient", FakeClient)
+    monkeypatch.setattr("src.extraction.extension.service.httpx.AsyncClient", FakeClient)
 
     with pytest.raises(ExtractionError, match="HTTP 503: provider unavailable"):
         await service._extract_ocr_markdown(
@@ -455,7 +455,7 @@ async def test_extract_json_with_models_handles_httpx_timeout():
 
     service = ExtractionService()
 
-    with patch("src.services.extraction.service.stream_ai_json", side_effect=httpx.TimeoutException("slow")):
+    with patch("src.extraction.extension.service.stream_ai_json", side_effect=httpx.TimeoutException("slow")):
         with pytest.raises(ExtractionError, match="All 1 models failed.*timeout"):
             await service._extract_json_with_models(
                 messages=[{"role": "user", "content": "Extract"}],
@@ -475,8 +475,8 @@ async def test_ai_parse_csv_empty_mapping_response():
     service.api_key = "test-key"
 
     with (
-        patch("src.services.extraction._csv.stream_ai_json"),
-        patch("src.services.extraction._csv.accumulate_stream", new_callable=AsyncMock) as mock_accum,
+        patch("src.extraction.extension._csv.stream_ai_json"),
+        patch("src.extraction.extension._csv.accumulate_stream", new_callable=AsyncMock) as mock_accum,
     ):
         mock_accum.return_value = "  "
         with pytest.raises(ExtractionError, match="AI CSV mapping returned empty response"):
@@ -512,7 +512,7 @@ async def test_extract_financial_data_dedicated_ocr_failure_falls_back_to_vision
     assert result == {"transactions": []}
     mock_ocr.assert_awaited_once_with(b"content", None, "pdf", "application/pdf")
     call = mock_extract.await_args.kwargs
-    # AC13.18.1: the vision fallback model is appended after the primary vision model.
+    # AC-extraction.118.1: the vision fallback model is appended after the primary vision model.
     assert call["models"] == ["layout-ocr-model", "glm-4.6v", "glm-4.5v"]
     assert call["messages"][0]["content"][1] == image_payload
 
@@ -524,7 +524,7 @@ async def test_extract_financial_data_all_models_fail():
 
     from src.services.ai_streaming import AIStreamError
 
-    with patch("src.services.extraction.service.stream_ai_json") as mock_stream:
+    with patch("src.extraction.extension.service.stream_ai_json") as mock_stream:
         mock_stream.side_effect = AIStreamError("HTTP 429: Quota Exceeded")
 
         with pytest.raises(ExtractionError, match="rate limited"):
@@ -537,14 +537,14 @@ async def test_extract_financial_data_all_models_fail():
 
 
 async def test_extract_financial_data_json_markdown_fallback():
-    """AC13.14.5: a markdown-fenced but otherwise-valid response is salvaged (#982)."""
+    """AC-extraction.114.5: a markdown-fenced but otherwise-valid response is salvaged (#982)."""
     service = ExtractionService()
     service.api_key = "test-key"
     service.ocr_model = None
 
     content = 'Here is data: ```json\n{"account_last4": "1234"}\n```'
 
-    with patch("src.services.extraction.service.stream_ai_json") as mock_stream:
+    with patch("src.extraction.extension.service.stream_ai_json") as mock_stream:
         mock_stream.return_value = mock_stream_generator(content)
 
         result = await service.extract_financial_data(
@@ -565,7 +565,7 @@ async def test_extract_financial_data_invalid_json_all_attempts():
     # Invalid JSON - should fail with JSON parse error immediately
     content = "Invalid JSON without markdown that is clearly not empty"
 
-    with patch("src.services.extraction.service.stream_ai_json") as mock_stream:
+    with patch("src.extraction.extension.service.stream_ai_json") as mock_stream:
         mock_stream.return_value = mock_stream_generator(content)
 
         # Now expects JSON parse error, not "all models failed"
@@ -724,7 +724,7 @@ async def test_parse_statement_background_storage_error(db, test_user, monkeypat
     monkeypatch.setattr("fastapi.concurrency.run_in_threadpool", mock_run_in_threadpool)
 
     mock_parse = AsyncMock(side_effect=ExtractionError("API key not configured"))
-    monkeypatch.setattr("src.services.extraction.ExtractionService.parse_document", mock_parse)
+    monkeypatch.setattr("src.extraction.extension.service.ExtractionService.parse_document", mock_parse)
 
     await parse_statement_background(
         statement_id=sid,
@@ -1043,8 +1043,8 @@ async def test_extract_force_model():
     valid_json = '{"account_last4": "1234", "transactions": []}'
 
     with (
-        patch("src.services.extraction.service.stream_ai_json") as mock_stream,
-        patch("src.services.extraction.service.accumulate_stream", new_callable=AsyncMock) as mock_accum,
+        patch("src.extraction.extension.service.stream_ai_json") as mock_stream,
+        patch("src.extraction.extension.service.accumulate_stream", new_callable=AsyncMock) as mock_accum,
     ):
         mock_accum.return_value = valid_json
         result = await service.extract_financial_data(
@@ -1090,8 +1090,8 @@ async def test_extract_empty_ai_response():
     service.vision_fallback_models = []  # isolate single-model empty-response behavior
 
     with (
-        patch("src.services.extraction.service.stream_ai_json"),
-        patch("src.services.extraction.service.accumulate_stream", new_callable=AsyncMock) as mock_accum,
+        patch("src.extraction.extension.service.stream_ai_json"),
+        patch("src.extraction.extension.service.accumulate_stream", new_callable=AsyncMock) as mock_accum,
     ):
         mock_accum.return_value = ""  # Empty response
         with pytest.raises(ExtractionError, match="All 1 models failed.*empty_response"):
@@ -1112,8 +1112,8 @@ async def test_extract_return_raw():
     raw_content = '{"account_last4": "1234", "transactions": []}'
 
     with (
-        patch("src.services.extraction.service.stream_ai_json"),
-        patch("src.services.extraction.service.accumulate_stream", new_callable=AsyncMock) as mock_accum,
+        patch("src.extraction.extension.service.stream_ai_json"),
+        patch("src.extraction.extension.service.accumulate_stream", new_callable=AsyncMock) as mock_accum,
     ):
         mock_accum.return_value = raw_content
         result = await service.extract_financial_data(
@@ -1134,8 +1134,8 @@ async def test_extract_value_error_during_extraction():
     service.ocr_model = None
 
     with (
-        patch("src.services.extraction.service.stream_ai_json"),
-        patch("src.services.extraction.service.accumulate_stream", new_callable=AsyncMock) as mock_accum,
+        patch("src.extraction.extension.service.stream_ai_json"),
+        patch("src.extraction.extension.service.accumulate_stream", new_callable=AsyncMock) as mock_accum,
     ):
         mock_accum.side_effect = ValueError("some programming error")
         with pytest.raises(ExtractionError, match="Internal error: ValueError"):
@@ -1238,8 +1238,8 @@ async def test_extract_non_dict_json_response():
     service.ocr_model = None
 
     with (
-        patch("src.services.extraction.service.stream_ai_json"),
-        patch("src.services.extraction.service.accumulate_stream", new_callable=AsyncMock) as mock_accum,
+        patch("src.extraction.extension.service.stream_ai_json"),
+        patch("src.extraction.extension.service.accumulate_stream", new_callable=AsyncMock) as mock_accum,
     ):
         mock_accum.return_value = '[{"amount": "100.00"}]'  # Array, not object
         with pytest.raises(ExtractionError, match="strict JSON object.*no arrays"):
@@ -1259,7 +1259,7 @@ async def test_extract_openrouter_timeout_error():
     service.api_key = "test-key"
     service.ocr_model = None
 
-    with patch("src.services.extraction.service.stream_ai_json") as mock_stream:
+    with patch("src.extraction.extension.service.stream_ai_json") as mock_stream:
         mock_stream.side_effect = AIStreamError("Request timed out after 30s")
         with pytest.raises(ExtractionError, match="timed out"):
             await service.extract_financial_data(
@@ -1278,7 +1278,7 @@ async def test_extract_openrouter_generic_http_error():
     service.api_key = "test-key"
     service.ocr_model = None
 
-    with patch("src.services.extraction.service.stream_ai_json") as mock_stream:
+    with patch("src.extraction.extension.service.stream_ai_json") as mock_stream:
         mock_stream.side_effect = AIStreamError("HTTP 502: Bad Gateway")
         with pytest.raises(ExtractionError, match="failed.*HTTP 502"):
             await service.extract_financial_data(
@@ -1296,8 +1296,8 @@ async def test_extract_extraction_error_reraise():
     service.ocr_model = None
 
     with (
-        patch("src.services.extraction.service.stream_ai_json"),
-        patch("src.services.extraction.service.accumulate_stream", new_callable=AsyncMock) as mock_accum,
+        patch("src.extraction.extension.service.stream_ai_json"),
+        patch("src.extraction.extension.service.accumulate_stream", new_callable=AsyncMock) as mock_accum,
     ):
         mock_accum.side_effect = ExtractionError("Custom extraction failure")
         with pytest.raises(ExtractionError, match="Custom extraction failure"):
@@ -1318,8 +1318,8 @@ async def test_extract_pdf_with_valid_external_url():
     valid_json = '{"account_last4": "9999", "transactions": []}'
 
     with (
-        patch("src.services.extraction.service.stream_ai_json"),
-        patch("src.services.extraction.service.accumulate_stream", new_callable=AsyncMock) as mock_accum,
+        patch("src.extraction.extension.service.stream_ai_json"),
+        patch("src.extraction.extension.service.accumulate_stream", new_callable=AsyncMock) as mock_accum,
     ):
         mock_accum.return_value = valid_json
         result = await service.extract_financial_data(
@@ -1339,8 +1339,8 @@ async def test_extract_image_with_valid_external_url():
     valid_json = '{"account_last4": "8888", "transactions": []}'
 
     with (
-        patch("src.services.extraction.service.stream_ai_json"),
-        patch("src.services.extraction.service.accumulate_stream", new_callable=AsyncMock) as mock_accum,
+        patch("src.extraction.extension.service.stream_ai_json"),
+        patch("src.extraction.extension.service.accumulate_stream", new_callable=AsyncMock) as mock_accum,
     ):
         mock_accum.return_value = valid_json
         result = await service.extract_financial_data(
@@ -1366,7 +1366,7 @@ async def test_parse_document_csv_no_institution():
 
 
 async def test_dual_write_layer2_integrity_error_is_non_fatal():
-    """AC13.11.1: Dual-write handles duplicate document hash / IntegrityError without failing."""
+    """AC-extraction.111.1: Dual-write handles duplicate document hash / IntegrityError without failing."""
     db = AsyncMock()
     # No pre-existing UploadedDocument for (user_id, file_hash), so dual_write takes the
     # create branch; a concurrent race then makes create_uploaded_document raise
@@ -1374,7 +1374,7 @@ async def test_dual_write_layer2_integrity_error_is_non_fatal():
     no_existing = MagicMock()
     no_existing.scalar_one_or_none.return_value = None
     db.execute.return_value = no_existing
-    with patch("src.services.deduplication.DeduplicationService") as mock_dedup_cls:
+    with patch("src.extraction.extension.deduplication.DeduplicationService") as mock_dedup_cls:
         mock_dedup = mock_dedup_cls.return_value
         mock_dedup.create_uploaded_document.side_effect = IntegrityError("x", {}, Exception("dup"))
 

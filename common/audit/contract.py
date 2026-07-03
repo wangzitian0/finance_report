@@ -102,6 +102,10 @@ CONTRACT = PackageContract(
     interface=[
         "Money",
         "Currency",
+        "InvalidCurrencyError",
+        "balance_check",
+        "normalize_currency_code",
+        "to_money",
         "ExchangeRate",
         "MoneyTolerance",
         "CurrencyBalance",

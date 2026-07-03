@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.services.extraction import ExtractionError, ExtractionService
+from src.extraction.extension.service import ExtractionError, ExtractionService
 
 
 class TestCSVParsing:
@@ -10,7 +10,7 @@ class TestCSVParsing:
         self.service = ExtractionService()
 
     async def test_parse_dbs_csv(self):
-        """[AC3.1.2] Parse DBS CSV format."""
+        """[AC-extraction.1.2] Parse DBS CSV format."""
         csv_content = b"""Transaction Date,Reference,Debit Amount,Credit Amount,Transaction Ref1,Transaction Ref2,Transaction Ref3
 15 Jan 2025,REF001,,500.00,SALARY,EMPLOYER PTE LTD,JAN 2025
 16 Jan 2025,REF002,100.00,,NETS,FAIRPRICE,GROCERIES
@@ -45,7 +45,7 @@ class TestCSVParsing:
         assert result["transactions"][1]["direction"] == "OUT"
 
     async def test_parse_wise_csv(self):
-        """[AC3.1.3] Parse Wise CSV format."""
+        """[AC-extraction.1.3] Parse Wise CSV format."""
         csv_content = b"""ID,Created on,Direction,Source amount (after fees),Reference
 12345,2025-01-10T10:30:00Z,OUT,250.00,Payment to vendor
 12346,2025-01-12T14:00:00Z,IN,1500.00,Client payment received"""
@@ -74,7 +74,7 @@ class TestCSVParsing:
         assert result["transactions"][1]["direction"] == "OUT"
 
     async def test_parse_generic_csv_with_amount_column(self):
-        """[AC3.1.4] Parse Generic CSV format."""
+        """[AC-extraction.1.4] Parse Generic CSV format."""
         csv_content = b"""Date,Description,Amount
 2025-01-01,Income,500.00
 2025-01-02,Expense,-100.00"""
@@ -94,7 +94,7 @@ class TestCSVParsing:
             await self.service._parse_csv_content(csv_content, "DBS")
 
     async def test_parse_csv_with_bom(self):
-        """[AC3.1.5] Parse CSV with BOM marker."""
+        """[AC-extraction.1.5] Parse CSV with BOM marker."""
         csv_content = b"\xef\xbb\xbfTransaction Date,Debit Amount,Credit Amount,Description\n15 Jan 2025,,100.00,Test"
 
         result = await self.service._parse_csv_content(csv_content, "DBS")

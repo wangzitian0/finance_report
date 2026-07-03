@@ -15,11 +15,11 @@ from unittest.mock import patch
 
 import pytest
 
+from src.extraction.extension.service import ExtractionService
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.models.layer2 import AtomicTransaction
 from src.models.reconciliation import ReconciliationStatus
-from src.services.extraction import ExtractionService
 from src.services.reconciliation import execute_matching
 
 

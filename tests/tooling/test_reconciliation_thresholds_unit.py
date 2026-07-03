@@ -40,7 +40,7 @@ def _load_reconciliation_module():
     # of ``src.services.processing_account``, so we stub ``src.ledger`` here.
     previous_ledger = sys.modules.get("src.ledger")
     previous_source_type_priority = sys.modules.get("src.services.source_type_priority")
-    previous_statement_summary = sys.modules.get("src.services.statement_summary")
+    previous_statement_summary = sys.modules.get("src.extraction.extension.statement_summary")
 
     # A dedicated stub exception (not bare ValueError) so production
     # ``except ValidationError`` blocks catch only this type — an unrelated
@@ -67,7 +67,7 @@ def _load_reconciliation_module():
     source_type_priority_module = ModuleType("src.services.source_type_priority")
     source_type_priority_module.promote_entry_source_type = Mock(return_value=False)
     source_type_priority_module.source_type_rank = Mock(return_value=0)
-    statement_summary_module = ModuleType("src.services.statement_summary")
+    statement_summary_module = ModuleType("src.extraction.extension.statement_summary")
     statement_summary_module.resolve_custody_account_id = AsyncMock(return_value=None)
 
     sys.modules["src.services"] = services_package
@@ -75,7 +75,7 @@ def _load_reconciliation_module():
     sys.modules["src.observability"] = logger_module
     sys.modules["src.ledger"] = ledger_module
     sys.modules["src.services.source_type_priority"] = source_type_priority_module
-    sys.modules["src.services.statement_summary"] = statement_summary_module
+    sys.modules["src.extraction.extension.statement_summary"] = statement_summary_module
 
     # reconciliation.py was split into focused submodules; load them (in dependency
     # order: config -> scoring -> stats) under their real names so reconciliation's
@@ -139,9 +139,9 @@ def _load_reconciliation_module():
                 previous_source_type_priority
             )
         if previous_statement_summary is None:
-            sys.modules.pop("src.services.statement_summary", None)
+            sys.modules.pop("src.extraction.extension.statement_summary", None)
         else:
-            sys.modules["src.services.statement_summary"] = previous_statement_summary
+            sys.modules["src.extraction.extension.statement_summary"] = previous_statement_summary
 
 
 reconciliation_module = _load_reconciliation_module()

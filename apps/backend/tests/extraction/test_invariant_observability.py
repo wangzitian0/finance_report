@@ -16,10 +16,10 @@ from uuid import uuid4
 
 import pytest
 
+from src.extraction.base.validation import count_within_document_dedup_collapse
+from src.extraction.extension.service import ExtractionService
 from src.models.statement_enums import BankStatementStatus
 from src.observability import telemetry_metrics
-from src.services.extraction import ExtractionService
-from src.services.validation import count_within_document_dedup_collapse
 
 pytestmark = pytest.mark.no_db
 
@@ -160,7 +160,7 @@ async def test_AC26_8_1_balance_invalid_parse_quarantines_and_emits_metric(monke
         recorded.append((kind, institution_class))
 
     # Patch the symbol imported into the extraction service module.
-    monkeypatch.setattr("src.services.extraction.service.record_financial_invariant_violation", capture)
+    monkeypatch.setattr("src.extraction.extension.service.record_financial_invariant_violation", capture)
 
     statement, transactions = await service.parse_document(
         file_path=Path("dbs.pdf"),

@@ -184,7 +184,7 @@ STAGING_AI_OCR_EXACT = frozenset(
     {
         ".github/workflows/deploy.yml",
         "apps/backend/src/config.py",
-        "apps/backend/src/prompts/statement.py",
+        "apps/backend/src/extraction/extension/prompts/statement.py",
         "docs/ssot/ai.md",
         # The critical-proof matrix is no longer committed; it is a derived view
         # of the AC graph. Adding/removing an llm-marked post-merge @ac_proof
@@ -202,7 +202,7 @@ STAGING_AI_OCR_EXACT = frozenset(
 )
 STAGING_AI_OCR_PREFIXES = (
     "apps/backend/src/services/ai",
-    "apps/backend/src/services/extraction",
+    "apps/backend/src/extraction",
     "apps/backend/src/services/statement",
     "apps/backend/src/routers/ai",
     "apps/backend/src/routers/statements",

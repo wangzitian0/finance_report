@@ -6,7 +6,16 @@ from types import ModuleType
 
 
 ROOT = Path(__file__).resolve().parents[2]
-STATEMENT_PROMPT_PATH = ROOT / "apps" / "backend" / "src" / "prompts" / "statement.py"
+STATEMENT_PROMPT_PATH = (
+    ROOT
+    / "apps"
+    / "backend"
+    / "src"
+    / "extraction"
+    / "extension"
+    / "prompts"
+    / "statement.py"
+)
 
 
 def _load_statement_prompt_module() -> ModuleType:

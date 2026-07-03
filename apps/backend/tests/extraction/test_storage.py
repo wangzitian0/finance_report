@@ -84,7 +84,7 @@ def test_redact_presigned_url_removes_query_and_fragment():
 
 
 def test_redact_presigned_url_handles_empty_and_invalid_urls():
-    """AC13.5.1: URL redaction handles edge cases without leaking credentials."""
+    """AC-extraction.105.1: URL redaction handles edge cases without leaking credentials."""
     assert redact_presigned_url(None) is None
     assert redact_presigned_url("") == ""
     assert redact_presigned_url("http://[::1") == "<invalid-url>"

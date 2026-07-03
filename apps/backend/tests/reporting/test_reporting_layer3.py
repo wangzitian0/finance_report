@@ -1,6 +1,6 @@
 """EPIC-018 Phase 4: Tests for reporting Layer 3 integration."""
 
-from src.prompts.csv_mapping import build_csv_mapping_prompt
+from src.extraction.extension.prompts.csv_mapping import build_csv_mapping_prompt
 from src.prompts.reconciliation import RECONCILIATION_SEMANTIC_PROMPT, build_reconciliation_prompt
 
 

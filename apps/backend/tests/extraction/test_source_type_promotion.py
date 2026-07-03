@@ -24,7 +24,7 @@ pytestmark = pytest.mark.asyncio
 
 
 async def test_stage1_approve_promotes_source_type(db: AsyncSession, test_user: User) -> None:
-    """AC13.10.3: Stage-1 approval creates user_confirmed journal entries."""
+    """AC-extraction.110.3: Stage-1 approval creates user_confirmed journal entries."""
     bank_account = Account(
         user_id=test_user.id,
         name=f"DBS Confirmed {uuid4()}",

@@ -16,8 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
-from src.llm.catalog import LitellmCatalog
-from src.llm.common import Modality
+from src.extraction.extension.brokerage_positions import BrokeragePositionImportService
+from src.llm import LitellmCatalog, Modality
 from src.models.account import Account, AccountType
 from src.models.layer1 import UploadedDocument
 from src.models.statement_enums import BankStatementStatus
@@ -50,7 +50,6 @@ from src.schemas.review import (
     StatementReviewResponse,
 )
 from src.services import StorageError, StorageService
-from src.services.brokerage_positions import BrokeragePositionImportService
 from src.services.brokerage_statement_payload import (
     _brokerage_import_not_ready_reason,
     _brokerage_payload_from_persisted_extraction,
@@ -383,7 +382,7 @@ async def upload_statement(
     db.add(statement)
     try:
         await db.flush()
-        from src.services.evidence_graph_integration import EvidenceGraphIntegrationService
+        from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
 
         # ``record_statement_upload`` reads ``original_filename`` (an ODS field that
         # the DWD envelope does not carry); supply it transiently for lineage only.

@@ -14,6 +14,8 @@ from sqlalchemy.exc import MultipleResultsFound
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.deps import PaginationParams
+from src.extraction.extension.deduplication import dual_write_layer2
+from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
 from src.identity import User
 from src.models.account import Account, AccountType
 from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
@@ -52,8 +54,6 @@ from src.routers.reports import (
     personal_report_package_traceability,
 )
 from src.schemas import PersonalReportingFrameworkId, PersonalReportPackageReadinessResponse
-from src.services.deduplication import dual_write_layer2
-from src.services.evidence_graph_integration import EvidenceGraphIntegrationService
 from src.services.fx import FxRateError
 from src.services.report_traceability import (
     _add_anchor_details,

@@ -21,7 +21,7 @@ import json
 
 import pytest
 
-from src.llm.cassette import CASSETTE_DIR, CassetteMode, current_mode
+from src.llm.extension.cassette import CASSETTE_DIR, CassetteMode, current_mode
 from src.services.transaction_classification import (
     POLICY_VERSIONS,
     TransactionCategory,

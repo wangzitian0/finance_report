@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.services.evidence_lineage import DEFAULT_MAX_DEPTH, EvidenceLineageService
+from src.extraction.extension.evidence_lineage import DEFAULT_MAX_DEPTH, EvidenceLineageService
 from tests.factories import UserFactory
 
 

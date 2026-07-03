@@ -6,6 +6,8 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query
 
 from src.deps import CurrentUserId, DbSession
+from src.extraction.extension.evidence_graph_materialization import EvidenceGraphMaterializationService
+from src.extraction.extension.evidence_lineage import DEFAULT_MAX_DEPTH, EvidenceLineageService, EvidenceTraversalStep
 from src.models.evidence import EvidenceEdge, EvidenceNode
 from src.schemas.evidence import (
     EvidenceLineageBlocker,
@@ -17,8 +19,6 @@ from src.schemas.evidence import (
     build_edge_properties,
     build_node_properties,
 )
-from src.services.evidence_graph_materialization import EvidenceGraphMaterializationService
-from src.services.evidence_lineage import DEFAULT_MAX_DEPTH, EvidenceLineageService, EvidenceTraversalStep
 
 router = APIRouter(prefix="/evidence", tags=["evidence"])
 

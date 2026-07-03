@@ -40,16 +40,6 @@ UNGOVERNED_EXCEPTIONS: dict[str, str] = {
         "(generate_api_reference.py, generate_db_schema_reference.py, "
         "generate_openapi_spec.py) -- not a bounded context itself."
     ),
-    "extraction": (
-        "Pending code cutover (#1421): SSOT-only today (readme.md + "
-        "audit-failed-cases.yaml); ships a contract.py once the conforming "
-        "implementation lands under apps/backend/src/services/extraction/."
-    ),
-    "llm": (
-        "Pending code cutover (#1426): SSOT-only today (readme.md); ships a "
-        "contract.py once the conforming implementation lands under "
-        "apps/backend/src/llm/."
-    ),
 }
 
 

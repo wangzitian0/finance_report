@@ -8,6 +8,8 @@ from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.extraction.extension.deduplication import DeduplicationService
+from src.extraction.extension.evidence_lineage import EvidenceLineageService
 from src.identity import User
 from src.models.account import Account, AccountType
 from src.models.evidence import EvidenceEdge, EvidenceNode
@@ -22,8 +24,6 @@ from src.schemas.evidence import (
     build_edge_properties,
     build_node_properties,
 )
-from src.services.deduplication import DeduplicationService
-from src.services.evidence_lineage import EvidenceLineageService
 from tests.factories import UserFactory
 
 
