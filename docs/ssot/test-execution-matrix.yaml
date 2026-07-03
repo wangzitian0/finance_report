@@ -33,3 +33,20 @@ rules:
   - path: tests/e2e/
     stage: deployment_e2e
     ci_required: true
+ownership:
+  - path: apps/backend/tests/infra/test_main.py
+    package: runtime
+  - path: apps/backend/tests/ledger/
+    package: ledger
+  - path: tests/tooling/test_calculate_unified_coverage.py
+    package: coverage
+  - path: tests/tooling/test_coverage_analyzer.py
+    package: coverage
+  - path: tests/tooling/test_coverage_artifact_preflight.py
+    package: coverage
+  - path: tests/tooling/test_coverage_policy.py
+    package: coverage
+  - path: tests/tooling/test_ledger_module.py
+    package: ledger
+  - path: tests/tooling/test_ledger_package.py
+    package: ledger
