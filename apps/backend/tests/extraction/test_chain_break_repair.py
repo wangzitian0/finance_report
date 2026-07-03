@@ -21,12 +21,12 @@ from decimal import Decimal
 from pathlib import Path
 from unittest.mock import AsyncMock
 
+from src.extraction.base.validation import detect_balance_chain_break, validate_balance
+from src.extraction.extension.service import ExtractionService
 from src.services.chain_repair import (
     ChainRepairResult,
     repair_under_extraction,
 )
-from src.services.extraction import ExtractionService
-from src.services.validation import detect_balance_chain_break, validate_balance
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 

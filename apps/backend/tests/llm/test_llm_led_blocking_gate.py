@@ -22,14 +22,14 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
-from src.models.layer2 import AtomicTransaction
-from src.models.statement_enums import BankStatementStatus, Stage1Status
-from src.models.statement_summary import StatementSummary
-from src.services.extraction import ExtractionService
-from src.services.extraction._llm_led_gate import (
+from src.extraction.extension._llm_led_gate import (
     LlmLedQuarantineReason,
     evaluate_llm_led_extraction_gate,
 )
+from src.extraction.extension.service import ExtractionService
+from src.models.layer2 import AtomicTransaction
+from src.models.statement_enums import BankStatementStatus, Stage1Status
+from src.models.statement_summary import StatementSummary
 
 
 @pytest.fixture
@@ -126,7 +126,7 @@ class TestDedupConservationBlockingGate:
         with (
             patch.object(service, "extract_financial_data", new=AsyncMock(return_value=payload)),
             patch(
-                "src.services.extraction.service.count_within_document_dedup_collapse",
+                "src.extraction.extension.service.count_within_document_dedup_collapse",
                 return_value=1,
             ),
         ):
@@ -163,7 +163,7 @@ class TestFailClosedGate:
         — it never lands in PARSED/trusted state. The typed-reason quarantine for the
         unevaluable case is asserted directly on the pure gate below.
         """
-        from src.services.extraction import ExtractionError
+        from src.extraction.extension.service import ExtractionError
 
         payload = _bank_payload(
             opening="1000.00",

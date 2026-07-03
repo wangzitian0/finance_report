@@ -55,8 +55,8 @@ def test_fx_rate_repr():
 
 
 def test_validation_route_by_threshold():
+    from src.extraction.base.validation import route_by_threshold
     from src.models.statement_enums import BankStatementStatus
-    from src.services.validation import route_by_threshold
 
     assert route_by_threshold(85, True) == BankStatementStatus.APPROVED
     assert route_by_threshold(60, True) == BankStatementStatus.PARSED
@@ -66,7 +66,7 @@ def test_validation_route_by_threshold():
 
 
 def test_validation_confidence_with_invalid_amount():
-    from src.services.validation import compute_confidence_score
+    from src.extraction.base.validation import compute_confidence_score
 
     extracted_data = {
         "description": "Test",

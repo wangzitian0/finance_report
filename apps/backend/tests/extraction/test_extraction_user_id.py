@@ -11,7 +11,8 @@ from uuid import uuid4
 
 import pytest
 
-from src.services.extraction import ExtractionService, service as extraction_mod
+from src.extraction.extension import service as extraction_mod
+from src.extraction.extension.service import ExtractionService
 
 pytestmark = pytest.mark.no_db
 

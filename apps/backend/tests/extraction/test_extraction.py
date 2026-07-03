@@ -7,8 +7,8 @@ from uuid import uuid4
 
 import pytest
 
-from src.services.extraction import ExtractionError, ExtractionService
-from src.services.validation import compute_confidence_score, validate_balance
+from src.extraction.base.validation import compute_confidence_score, validate_balance
+from src.extraction.extension.service import ExtractionError, ExtractionService
 
 
 class TestBalanceValidation:
@@ -239,7 +239,7 @@ class TestPromptGeneration:
 
     def test_get_parsing_prompt_default(self):
         """AC13.4.1 AC18.1.1: Test default parsing prompt."""
-        from src.prompts import get_parsing_prompt
+        from src.extraction.extension.prompts.statement import get_parsing_prompt
 
         prompt = get_parsing_prompt()
         assert "financial statement parser" in prompt.lower()
@@ -260,7 +260,7 @@ class TestPromptGeneration:
 
     def test_get_parsing_prompt_dbs(self):
         """AC13.4.2: Test DBS-specific prompt."""
-        from src.prompts import get_parsing_prompt
+        from src.extraction.extension.prompts.statement import get_parsing_prompt
 
         prompt = get_parsing_prompt("DBS")
         assert "DBS" in prompt
@@ -268,7 +268,7 @@ class TestPromptGeneration:
 
     def test_get_parsing_prompt_cmb(self):
         """AC13.4.3: Test CMB-specific prompt."""
-        from src.prompts import get_parsing_prompt
+        from src.extraction.extension.prompts.statement import get_parsing_prompt
 
         prompt = get_parsing_prompt("CMB")
         assert "CMB" in prompt or "招商" in prompt
@@ -276,7 +276,7 @@ class TestPromptGeneration:
 
     def test_get_parsing_prompt_unknown_institution(self):
         """AC13.4.4: Test with unknown institution."""
-        from src.prompts import get_parsing_prompt
+        from src.extraction.extension.prompts.statement import get_parsing_prompt
 
         prompt = get_parsing_prompt("UnknownBank")
         # Should return base prompt without institution hints
@@ -284,21 +284,21 @@ class TestPromptGeneration:
 
     def test_get_parsing_prompt_futu(self):
         """AC13.4.5: Test Futu-specific prompt."""
-        from src.prompts import get_parsing_prompt
+        from src.extraction.extension.prompts.statement import get_parsing_prompt
 
         prompt = get_parsing_prompt("Futu")
         assert "Futu" in prompt or "富途" in prompt
 
     def test_get_parsing_prompt_gxs(self):
         """AC13.4.6: Test GXS-specific prompt."""
-        from src.prompts import get_parsing_prompt
+        from src.extraction.extension.prompts.statement import get_parsing_prompt
 
         prompt = get_parsing_prompt("GXS")
         assert "GXS" in prompt
 
     def test_get_parsing_prompt_maribank(self):
         """AC13.4.7: Test MariBank-specific prompt."""
-        from src.prompts import get_parsing_prompt
+        from src.extraction.extension.prompts.statement import get_parsing_prompt
 
         prompt = get_parsing_prompt("MariBank")
         assert "MariBank" in prompt
@@ -311,7 +311,7 @@ class TestMediaPayloadBuilder:
     """Tests for _build_media_payload method."""
 
     def setup_method(self):
-        from src.services.extraction import ExtractionService
+        from src.extraction.extension.service import ExtractionService
 
         self.service = ExtractionService()
 
@@ -390,13 +390,13 @@ class TestInstitutionDetection:
     """Tests for institution auto-detection in parse_document."""
 
     def setup_method(self):
-        from src.services.extraction import ExtractionService
+        from src.extraction.extension.service import ExtractionService
 
         self.service = ExtractionService()
 
     async def test_csv_requires_institution(self):
         """AC13.6.1: Test that CSV parsing raises error when institution is None."""
-        from src.services.extraction import ExtractionError
+        from src.extraction.extension.service import ExtractionError
 
         with pytest.raises(ExtractionError, match="Institution is required for CSV"):
             await self.service.parse_document(
@@ -432,7 +432,7 @@ class TestExtractionServiceHelpers:
     """Tests for extraction service helper methods."""
 
     def setup_method(self):
-        from src.services.extraction import ExtractionService
+        from src.extraction.extension.service import ExtractionService
 
         self.service = ExtractionService()
 
@@ -516,7 +516,7 @@ class TestExtractionServiceHelpers:
 class TestBalanceProgression:
     def test_consistent_chain(self):
         """AC13.8.1: Test consistent balance chain scores full marks."""
-        from src.services.validation import _score_balance_progression
+        from src.extraction.base.validation import _score_balance_progression
 
         txns = [
             {"balance_after": "1000.00", "amount": "100.00", "direction": "IN"},
@@ -527,7 +527,7 @@ class TestBalanceProgression:
 
     def test_inconsistent_chain(self):
         """AC13.8.2: Test inconsistent balance chain scores zero."""
-        from src.services.validation import _score_balance_progression
+        from src.extraction.base.validation import _score_balance_progression
 
         txns = [
             {"balance_after": "1000.00", "amount": "100.00", "direction": "IN"},
@@ -537,14 +537,14 @@ class TestBalanceProgression:
 
     def test_single_txn(self):
         """AC13.8.3: Test single transaction scores zero."""
-        from src.services.validation import _score_balance_progression
+        from src.extraction.base.validation import _score_balance_progression
 
         txns = [{"balance_after": "1000.00", "amount": "100.00", "direction": "IN"}]
         assert _score_balance_progression(txns) == 0
 
     def test_no_balance_after(self):
         """AC13.8.4: Test transactions without balance_after score zero."""
-        from src.services.validation import _score_balance_progression
+        from src.extraction.base.validation import _score_balance_progression
 
         txns = [
             {"amount": "100.00", "direction": "IN"},
@@ -554,13 +554,13 @@ class TestBalanceProgression:
 
     def test_empty_list(self):
         """AC13.8.5: Test empty transaction list scores zero."""
-        from src.services.validation import _score_balance_progression
+        from src.extraction.base.validation import _score_balance_progression
 
         assert _score_balance_progression([]) == 0
 
     def test_partial_consistency(self):
         """AC13.8.6: Test partial balance consistency scores half."""
-        from src.services.validation import _score_balance_progression
+        from src.extraction.base.validation import _score_balance_progression
 
         txns = [
             {"balance_after": "1000.00", "amount": "100.00", "direction": "IN"},
@@ -573,48 +573,48 @@ class TestBalanceProgression:
 class TestCurrencyConsistency:
     def test_all_match_header(self):
         """AC13.8.7: Test all currencies match header scores full."""
-        from src.services.validation import _score_currency_consistency
+        from src.extraction.base.validation import _score_currency_consistency
 
         txns = [{"currency": "SGD"}, {"currency": "SGD"}, {"currency": "SGD"}]
         assert _score_currency_consistency(txns, "SGD") == 5
 
     def test_none_match(self):
         """AC13.8.8: Test no currencies match header scores zero."""
-        from src.services.validation import _score_currency_consistency
+        from src.extraction.base.validation import _score_currency_consistency
 
         txns = [{"currency": "USD"}, {"currency": "EUR"}]
         assert _score_currency_consistency(txns, "SGD") == 0
 
     def test_no_header_uses_most_common(self):
         """AC13.8.9: Test no header uses most common currency."""
-        from src.services.validation import _score_currency_consistency
+        from src.extraction.base.validation import _score_currency_consistency
 
         txns = [{"currency": "SGD"}, {"currency": "SGD"}, {"currency": "USD"}]
         assert _score_currency_consistency(txns, None) == 3
 
     def test_no_currencies(self):
         """AC13.8.10: Test no currencies in transactions scores zero."""
-        from src.services.validation import _score_currency_consistency
+        from src.extraction.base.validation import _score_currency_consistency
 
         txns = [{"amount": "100"}, {"amount": "200"}]
         assert _score_currency_consistency(txns, "SGD") == 0
 
     def test_empty_list(self):
         """AC13.8.11: Test empty currency list scores zero."""
-        from src.services.validation import _score_currency_consistency
+        from src.extraction.base.validation import _score_currency_consistency
 
         assert _score_currency_consistency([], "SGD") == 0
 
     def test_mixed_currencies_partial(self):
         """AC13.8.12: Test mixed currencies partial match."""
-        from src.services.validation import _score_currency_consistency
+        from src.extraction.base.validation import _score_currency_consistency
 
         txns = [{"currency": "SGD"}, {"currency": "USD"}, {"currency": "SGD"}, {"currency": "SGD"}]
         assert _score_currency_consistency(txns, "SGD") == 3
 
     def test_missing_currencies_penalized(self):
         """AC13.8.13: Test missing currencies penalized."""
-        from src.services.validation import _score_currency_consistency
+        from src.extraction.base.validation import _score_currency_consistency
 
         txns = [{"currency": "SGD"}, {"amount": "100"}, {"amount": "200"}]
         assert _score_currency_consistency(txns, "SGD") == 1
@@ -651,7 +651,7 @@ class TestConfidenceScoringV2:
             "transactions": txns,
         }
         balance_result = {"balance_valid": True, "difference": "0.00"}
-        from src.services.validation import compute_confidence_score
+        from src.extraction.base.validation import compute_confidence_score
 
         score = compute_confidence_score(extracted, balance_result)
         assert score == 100
@@ -670,7 +670,7 @@ class TestConfidenceScoringV2:
             "transactions": txns,
         }
         balance_result = {"balance_valid": True, "difference": "0.00"}
-        from src.services.validation import compute_confidence_score
+        from src.extraction.base.validation import compute_confidence_score
 
         score = compute_confidence_score(extracted, balance_result)
         assert score == 85

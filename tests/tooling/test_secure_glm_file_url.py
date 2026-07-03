@@ -27,7 +27,7 @@ def test_finance_report_minio_bucket_is_private_by_default() -> None:
 
 def test_zai_pdf_fallback_uses_image_url_and_redacts_presigned_urls() -> None:
     """AC13.5.1: Z.AI PDF fallback uses image_url and treats presigned URLs as secrets."""
-    extraction = read("apps/backend/src/services/extraction")
+    extraction = read("apps/backend/src/extraction/extension")
     storage = read("apps/backend/src/services/storage.py")
 
     assert "def _render_pdf_pages_as_image_payloads" in extraction

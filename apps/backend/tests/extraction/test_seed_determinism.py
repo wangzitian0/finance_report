@@ -9,7 +9,7 @@ settings into the streaming call.
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.config import settings
-from src.services.extraction import ExtractionService
+from src.extraction.extension.service import ExtractionService
 
 
 async def test_extraction_forwards_configured_seed():
@@ -21,8 +21,8 @@ async def test_extraction_forwards_configured_seed():
         patch.object(service, "api_key", "test-key"),
         patch.object(service, "base_url", "https://test.api"),
         patch.object(settings, "ai_json_seed", 1234),
-        patch("src.services.extraction.service.stream_ai_json", return_value=mock_stream) as mock_stream_fn,
-        patch("src.services.extraction.service.accumulate_stream", AsyncMock(return_value='{"ok": true}')),
+        patch("src.extraction.extension.service.stream_ai_json", return_value=mock_stream) as mock_stream_fn,
+        patch("src.extraction.extension.service.accumulate_stream", AsyncMock(return_value='{"ok": true}')),
     ):
         result = await service._extract_json_with_models(
             messages=[{"role": "user", "content": "x"}],
@@ -47,8 +47,8 @@ async def test_extraction_decoding_is_deterministic_by_default():
     with (
         patch.object(service, "api_key", "test-key"),
         patch.object(service, "base_url", "https://test.api"),
-        patch("src.services.extraction.service.stream_ai_json", return_value=mock_stream) as mock_stream_fn,
-        patch("src.services.extraction.service.accumulate_stream", AsyncMock(return_value='{"ok": true}')),
+        patch("src.extraction.extension.service.stream_ai_json", return_value=mock_stream) as mock_stream_fn,
+        patch("src.extraction.extension.service.accumulate_stream", AsyncMock(return_value='{"ok": true}')),
     ):
         await service._extract_json_with_models(
             messages=[{"role": "user", "content": "x"}],

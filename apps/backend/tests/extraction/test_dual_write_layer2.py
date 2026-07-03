@@ -9,11 +9,11 @@ from unittest.mock import patch
 import pytest
 from sqlalchemy import select
 
+from src.extraction.extension.service import ExtractionService
 from src.models.layer1 import DocumentStatus, DocumentType, UploadedDocument
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
-from src.services.extraction import ExtractionService
 
 
 @pytest.fixture
@@ -329,11 +329,11 @@ class TestDualWriteLayer2:
         service = ExtractionService()
         file_hash = hashlib.sha256(sample_file_content).hexdigest()
 
-        from src.services.extraction import ExtractionError
+        from src.extraction.extension.service import ExtractionError
 
         with patch.object(service, "extract_financial_data", return_value=mock_ai_response):
             with patch(
-                "src.services.extraction.service.DeduplicationService.create_uploaded_document",
+                "src.extraction.extension.service.DeduplicationService.create_uploaded_document",
                 side_effect=Exception("DB error"),
             ):
                 with pytest.raises(ExtractionError) as exc_info:
@@ -374,7 +374,7 @@ class TestDualWriteLayer2:
         """Test that IntegrityError (duplicate upload) is silently handled."""
         from sqlalchemy.exc import IntegrityError
 
-        from src.services.deduplication import dual_write_layer2
+        from src.extraction.extension.deduplication import dual_write_layer2
         from tests.factories import AtomicTransactionFactory, StatementSummaryFactory
 
         file_hash = hashlib.sha256(sample_file_content).hexdigest()
@@ -403,7 +403,7 @@ class TestDualWriteLayer2:
 
         # Mock create_uploaded_document to raise IntegrityError
         with patch(
-            "src.services.deduplication.DeduplicationService.create_uploaded_document",
+            "src.extraction.extension.deduplication.DeduplicationService.create_uploaded_document",
             side_effect=IntegrityError("INSERT", [], Exception("duplicate")),
         ):
             # Should not raise - IntegrityError is silently handled

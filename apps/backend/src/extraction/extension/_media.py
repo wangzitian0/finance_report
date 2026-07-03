@@ -6,12 +6,15 @@ from io import BytesIO
 from typing import Any
 from urllib.parse import urlparse
 
-from src.config import settings
-from src.services.extraction._base import (
+import src.config
+from src.extraction.extension._base import (
     ExtractionError,
     logger,
 )
 from src.services.storage import redact_presigned_url
+
+# Bound from the bare published root (config publishes no named symbols).
+settings = src.config.settings
 
 
 class _MediaMixin:

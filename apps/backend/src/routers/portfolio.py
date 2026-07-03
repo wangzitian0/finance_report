@@ -10,6 +10,7 @@ from sqlalchemy import select
 from src.audit.money import to_money
 from src.audit.ratio import Ratio
 from src.deps import CurrentUserId, DbSession
+from src.extraction.extension.brokerage_positions import BrokeragePositionImportService
 from src.models.layer3 import ManagedPosition, PositionStatus
 from src.models.portfolio import (
     DividendIncome,
@@ -31,7 +32,6 @@ from src.schemas.portfolio import (
     RealizedLotResponse,
 )
 from src.services import allocation, performance
-from src.services.brokerage_positions import BrokeragePositionImportService
 from src.services.fx import FxRateError
 from src.services.performance import InsufficientDataError, PerformanceError
 from src.services.performance_report import build_investment_performance_report_schedule

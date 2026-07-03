@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.services.extraction import ExtractionError, ExtractionService
+from src.extraction.extension.service import ExtractionError, ExtractionService
 
 
 class TestCSVParsing:

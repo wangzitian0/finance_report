@@ -2,15 +2,15 @@
 
 from typing import Any
 
-from src.observability import safe_error_message
-from src.services.brokerage_positions import (
+from src.extraction.extension._base import (
+    logger,
+)
+from src.extraction.extension.brokerage_positions import (
     _generated_brokerage_positions_payload_from_text,
     looks_like_brokerage_document,
     parse_brokerage_positions,
 )
-from src.services.extraction._base import (
-    logger,
-)
+from src.observability import safe_error_message
 
 
 class _BrokerageMixin:

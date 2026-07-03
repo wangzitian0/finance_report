@@ -5,8 +5,8 @@ from uuid import uuid4
 
 import pytest
 
-from src.services.brokerage_positions import _generated_brokerage_positions_payload_from_text
-from src.services.extraction import ExtractionService
+from src.extraction.extension.brokerage_positions import _generated_brokerage_positions_payload_from_text
+from src.extraction.extension.service import ExtractionService
 
 pytestmark = pytest.mark.no_db
 

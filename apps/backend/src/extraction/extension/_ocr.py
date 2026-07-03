@@ -2,12 +2,15 @@
 
 import httpx
 
-from src.config import settings
-from src.observability import safe_error_message
-from src.services.extraction._base import (
+import src.config
+from src.extraction.extension._base import (
     ExtractionError,
     logger,
 )
+from src.observability import safe_error_message
+
+# Bound from the bare published root (config publishes no named symbols).
+settings = src.config.settings
 
 
 class _OcrMixin:

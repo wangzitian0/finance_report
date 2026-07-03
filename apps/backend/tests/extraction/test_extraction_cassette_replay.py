@@ -122,8 +122,8 @@ async def test_AC23_6_extraction_vision_happy_path_via_replay() -> None:
     which uses amount+direction (IN/OUT), exactly how glm-4.6v reads a statement.
     NO network, NO key in replay.
     """
-    from src.services.extraction.service import ExtractionService
-    from src.services.validation import validate_balance
+    from src.extraction.base.validation import validate_balance
+    from src.extraction.extension.service import ExtractionService
 
     service = ExtractionService()
     # Replay performs no live call, but extract_financial_data guards on a truthy

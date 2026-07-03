@@ -9,13 +9,13 @@ from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
 
+from src.extraction.extension.evidence_graph_integration import _ordered_source_doc_ids
+from src.extraction.extension.evidence_lineage import EvidenceLineageService
 from src.models.evidence import EvidenceEdge, EvidenceNode
 from src.models.journal import JournalEntry, JournalEntrySourceType, JournalLine
 from src.models.layer1 import UploadedDocument
 from src.models.layer2 import AtomicTransaction, AtomicTransactionSourceDocument
 from src.models.statement_summary import StatementSummary
-from src.services.evidence_graph_integration import _ordered_source_doc_ids
-from src.services.evidence_lineage import EvidenceLineageService
 from src.services.source_type_priority import STATEMENT_SOURCE_TYPES
 
 DEFAULT_MATERIALIZATION_WRITE_CAP = 25

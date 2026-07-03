@@ -20,13 +20,13 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import UploadFile
 
-from src.models.statement_enums import BankStatementStatus
-from src.services.extraction import ExtractionError, ExtractionService
-from src.services.validation import (
+from src.extraction.base.validation import (
     route_by_threshold,
     validate_balance,
     validate_completeness,
 )
+from src.extraction.extension.service import ExtractionError, ExtractionService
+from src.models.statement_enums import BankStatementStatus
 
 
 def make_upload_file(name: str, content: bytes) -> UploadFile:
@@ -183,7 +183,7 @@ class TestFileSizeLimit:
             )
             return stmt, []
 
-        from src.services.extraction import ExtractionService
+        from src.extraction.extension.service import ExtractionService
 
         monkeypatch.setattr(ExtractionService, "parse_document", fake_parse)
 
@@ -217,7 +217,7 @@ class TestParsingTimeout:
 
         from src.services.ai_streaming import AIStreamError
 
-        with patch("src.services.extraction.service.stream_ai_json") as mock_stream:
+        with patch("src.extraction.extension.service.stream_ai_json") as mock_stream:
             mock_stream.side_effect = AIStreamError("Connection timed out")
 
             with pytest.raises(ExtractionError):
@@ -249,7 +249,7 @@ class TestGeminiRetry:
 
         from src.services.ai_streaming import AIStreamError
 
-        with patch("src.services.extraction.service.stream_ai_json") as mock_stream:
+        with patch("src.extraction.extension.service.stream_ai_json") as mock_stream:
             mock_stream.side_effect = AIStreamError("HTTP 429: Rate limit exceeded")
 
             with pytest.raises(ExtractionError, match="429"):

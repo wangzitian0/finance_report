@@ -10,8 +10,8 @@ from pathlib import Path
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
-from src.prompts import get_parsing_prompt
-from src.services.extraction import ExtractionService, _tolerant_parse_date
+from src.extraction.extension.prompts.statement import get_parsing_prompt
+from src.extraction.extension.service import ExtractionService, _tolerant_parse_date
 
 
 def test_AC13_19_4_parsing_prompt_instructs_iso_date_normalization():

@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.extraction.extension.currency_resolution import resolve_ingest_currency
 from src.models.layer1 import DocumentStatus, DocumentType, UploadedDocument
 from src.models.layer2 import (
     AtomicPosition,
@@ -18,7 +19,6 @@ from src.models.layer2 import (
 )
 from src.models.statement_summary import StatementSummary
 from src.observability import get_logger
-from src.services.currency_resolution import resolve_ingest_currency
 
 logger = get_logger(__name__)
 
@@ -539,7 +539,7 @@ async def dual_write_layer2(
 
         # Lazily import to avoid an import cycle (evidence_graph_integration imports
         # models that transitively reach back here).
-        from src.services.evidence_graph_integration import EvidenceGraphIntegrationService
+        from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
 
         evidence_graph = EvidenceGraphIntegrationService()
 

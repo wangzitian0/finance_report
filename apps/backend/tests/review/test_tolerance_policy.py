@@ -2,7 +2,8 @@
 
 from decimal import Decimal
 
-from src.services import statement_validation, validation
+from src.extraction import validation
+from src.services import statement_validation
 
 
 def test_ac16_22_7_tolerance_policy_constants_are_intentional():

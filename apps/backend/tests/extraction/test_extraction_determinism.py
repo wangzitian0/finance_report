@@ -26,13 +26,13 @@ from unittest.mock import patch
 
 import pytest
 
-from src.models.statement_enums import BankStatementStatus
-from src.services.extraction import ExtractionService
-from src.services.validation import (
+from src.extraction.base.validation import (
     compute_confidence_score,
     route_by_threshold,
     validate_balance_explicit,
 )
+from src.extraction.extension.service import ExtractionService
+from src.models.statement_enums import BankStatementStatus
 
 # Number of repeated runs/parses used to surface non-determinism. Small enough to
 # stay fast in CI, large enough that order-dependent flakiness shows up reliably.

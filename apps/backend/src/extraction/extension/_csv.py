@@ -5,19 +5,15 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from src.services.ai_streaming import (
-    accumulate_stream,
-    stream_ai_json,
-)
-from src.services.brokerage_positions import (
-    UnsupportedBrokerageCsvError,
-    classify_brokerage_csv,
-    parse_brokerage_csv_payload,
-)
-from src.services.extraction._base import (
+from src.extraction.extension._base import (
     ExtractionError,
     _tolerant_parse_date,
     logger,
+)
+from src.extraction.extension.brokerage_positions import (
+    UnsupportedBrokerageCsvError,
+    classify_brokerage_csv,
+    parse_brokerage_csv_payload,
 )
 from src.services.pii_redaction import detect_pii
 
@@ -422,7 +418,7 @@ class _CsvMixin:
         Returns (transactions, period_start, period_end).
         """
 
-        from src.prompts.csv_mapping import build_csv_mapping_prompt
+        from src.extraction.extension.prompts.csv_mapping import build_csv_mapping_prompt
 
         if not self.api_key:
             raise ExtractionError("AI provider API key required for AI CSV parsing")
@@ -512,3 +508,22 @@ class _CsvMixin:
         )
 
         return transactions, period_start, period_end
+
+
+def stream_ai_json(*args, **kwargs):
+    """Thin lazy proxy over ``src.services.ai_streaming.stream_ai_json``.
+
+    Module-level so tests can monkeypatch it here, but the import happens on
+    first call — ai_streaming pulls the llm package's litellm surface, which
+    minimal tooling envs (that import this package root) do not install.
+    """
+    from src.services import ai_streaming
+
+    return ai_streaming.stream_ai_json(*args, **kwargs)
+
+
+async def accumulate_stream(*args, **kwargs):
+    """Thin lazy proxy over ``src.services.ai_streaming.accumulate_stream`` (see above)."""
+    from src.services import ai_streaming
+
+    return await ai_streaming.accumulate_stream(*args, **kwargs)

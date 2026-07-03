@@ -15,13 +15,13 @@ from uuid import UUID
 from sqlalchemy import select
 
 from src.deps import CurrentUserId, DbSession
+from src.extraction.extension.evidence_lineage import EvidenceLineageService
 from src.models.account import Account, AccountType
 from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 from src.models.layer2 import AtomicPosition, AtomicTransaction
 from src.models.layer3 import ManualValuationLiquidityClass, ManualValuationSnapshot
 from src.models.portfolio import DividendIncome, MarketDataOverride
 from src.services.confidence_tier import derive_confidence_tier
-from src.services.evidence_lineage import EvidenceLineageService
 from src.services.reporting.report_package import PERSONAL_REPORT_PACKAGE_TRACEABILITY
 
 

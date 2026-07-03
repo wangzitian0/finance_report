@@ -50,7 +50,7 @@ sys.path.insert(
 sys.path.insert(0, str(ROOT))  # for the tools.* package
 
 from src.llm.extension.cassette import fingerprint  # noqa: E402
-from src.prompts.statement import SYSTEM_PROMPT  # noqa: E402
+from src.extraction.extension.prompts.statement import SYSTEM_PROMPT  # noqa: E402
 from tools._lib.fixtures.extraction_pii_mask import mask_extraction, source_ref  # noqa: E402
 
 CASSETTE_DIR = ROOT / "common/testing/fixtures/llm_cassettes"

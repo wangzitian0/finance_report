@@ -14,7 +14,7 @@ from decimal import Decimal
 from pathlib import Path
 from unittest.mock import AsyncMock
 
-from src.services.extraction.service import ExtractionService
+from src.extraction.extension.service import ExtractionService
 
 
 def _multi_currency_bank_payload() -> dict:
@@ -90,7 +90,7 @@ async def test_AC4_13_9_bank_multi_currency_per_currency_mismatch_flags_invalid(
             ],
         }
 
-    monkeypatch.setattr("src.services.extraction.service.validate_balance_per_currency", _failing_per_currency)
+    monkeypatch.setattr("src.extraction.extension.service.validate_balance_per_currency", _failing_per_currency)
 
     statement, _ = await service.parse_document(
         file_path=Path("dbs-statement-2506.pdf"),

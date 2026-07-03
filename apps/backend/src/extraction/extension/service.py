@@ -11,41 +11,9 @@ from uuid import UUID
 import httpx
 from sqlalchemy import select
 
+import src.config
 from src.audit.money.currency import normalize_currency_code
-from src.config import settings
-from src.models.account import Account, AccountType
-from src.models.layer1 import DocumentType
-from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.models.statement_enums import BankStatementStatus, Stage1Status
-from src.models.statement_summary import StatementSummary
-from src.observability import record_financial_invariant_violation
-from src.prompts import get_parsing_prompt
-from src.services.ai_streaming import (
-    AIStreamError,
-    accumulate_stream,
-    stream_ai_json,
-)
-from src.services.brokerage_positions import (
-    brokerage_currency_balances,
-    looks_like_brokerage_document,
-    looks_like_brokerage_payload,
-)
-from src.services.chain_repair import RegionReExtractor, repair_under_extraction
-from src.services.currency_resolution import resolve_ingest_currency
-from src.services.deduplication import DeduplicationService, _decimal_key, dual_write_layer2
-from src.services.extraction._base import (
-    CSV_INFERRED_BALANCE_REVIEW_NOTE,
-    ExtractionError,
-    _tolerant_parse_date,
-    logger,
-)
-from src.services.extraction._brokerage import _BrokerageMixin
-from src.services.extraction._coerce import _CoerceMixin
-from src.services.extraction._csv import _CsvMixin
-from src.services.extraction._llm_led_gate import evaluate_llm_led_extraction_gate
-from src.services.extraction._media import _MediaMixin
-from src.services.extraction._ocr import _OcrMixin
-from src.services.validation import (
+from src.extraction.base.validation import (
     bank_currency_balances,
     compute_confidence_score,
     count_within_document_dedup_collapse,
@@ -56,6 +24,62 @@ from src.services.validation import (
     validate_balance_explicit,
     validate_balance_per_currency,
 )
+from src.extraction.extension._base import (
+    CSV_INFERRED_BALANCE_REVIEW_NOTE,
+    ExtractionError,
+    _tolerant_parse_date,
+    logger,
+)
+from src.extraction.extension._brokerage import _BrokerageMixin
+from src.extraction.extension._coerce import _CoerceMixin
+from src.extraction.extension._csv import _CsvMixin
+from src.extraction.extension._llm_led_gate import evaluate_llm_led_extraction_gate
+from src.extraction.extension._media import _MediaMixin
+from src.extraction.extension._ocr import _OcrMixin
+from src.extraction.extension.brokerage_positions import (
+    brokerage_currency_balances,
+    looks_like_brokerage_document,
+    looks_like_brokerage_payload,
+)
+from src.extraction.extension.currency_resolution import resolve_ingest_currency
+from src.extraction.extension.deduplication import DeduplicationService, _decimal_key, dual_write_layer2
+from src.extraction.extension.prompts.statement import get_parsing_prompt
+from src.models.account import Account, AccountType
+from src.models.layer1 import DocumentType
+from src.models.layer2 import AtomicTransaction, TransactionDirection
+from src.models.statement_enums import BankStatementStatus, Stage1Status
+from src.models.statement_summary import StatementSummary
+from src.observability import record_financial_invariant_violation
+from src.services.chain_repair import RegionReExtractor, repair_under_extraction
+
+# Bound from the bare published root (config publishes no named symbols).
+settings = src.config.settings
+
+
+def _ai_stream_error() -> type[Exception]:
+    # Lazy: see the stream_ai_json proxy note (litellm-free package root).
+    from src.services.ai_streaming import AIStreamError
+
+    return AIStreamError
+
+
+def stream_ai_json(*args, **kwargs):
+    """Thin lazy proxy over ``src.services.ai_streaming.stream_ai_json``.
+
+    Module-level so tests can monkeypatch it here, but the import happens on
+    first call — ai_streaming pulls the llm package's litellm surface, which
+    minimal tooling envs (that import this package root) do not install.
+    """
+    from src.services import ai_streaming
+
+    return ai_streaming.stream_ai_json(*args, **kwargs)
+
+
+async def accumulate_stream(*args, **kwargs):
+    """Thin lazy proxy over ``src.services.ai_streaming.accumulate_stream`` (see above)."""
+    from src.services import ai_streaming
+
+    return await ai_streaming.accumulate_stream(*args, **kwargs)
 
 
 def _institution_class(*, is_brokerage: bool) -> str:
@@ -973,7 +997,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                     )
                     continue
 
-            except AIStreamError as e:
+            except _ai_stream_error() as e:
                 from src.observability import ErrorIds
 
                 error_msg = str(e)

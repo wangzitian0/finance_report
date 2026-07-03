@@ -27,6 +27,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
+from src.extraction import ExtractionError
 from src.identity import User
 from src.llm.base import Modality, ModelSpec
 from src.models.account import Account, AccountType
@@ -48,7 +49,6 @@ from src.schemas.review import (
     Stage1ApprovalRequest,
 )
 from src.services import (
-    ExtractionError,
     StorageError,
     statement_parsing as statement_parsing_mod,
     statement_pipeline,
@@ -599,7 +599,7 @@ async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, model_c
 
     content = b"statement-flow"
 
-    from src.services.deduplication import dual_write_layer2
+    from src.extraction.extension.deduplication import dual_write_layer2
 
     async def fake_parse_document(
         self,
@@ -686,7 +686,7 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, model
         hashlib.sha256(contents[1]).hexdigest(): scores[1],
     }
 
-    from src.services.deduplication import dual_write_layer2
+    from src.extraction.extension.deduplication import dual_write_layer2
 
     async def fake_parse_document(
         self,
@@ -1115,8 +1115,8 @@ async def test_AC13_21_6_csv_missing_institution_rejected_sync(db, storage_stub,
 
 async def test_retry_statement_success(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
     """AC3.5.19: Retry parsing with stronger model succeeds."""
+    from src.extraction.extension.deduplication import dual_write_layer2
     from src.schemas import RetryParsingRequest
-    from src.services.deduplication import dual_write_layer2
 
     content = b"statement"
 
@@ -1182,8 +1182,8 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, model_cata
 
 async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
     """AC3.5.20: Retry extraction failure returns 422."""
+    from src.extraction.extension.deduplication import dual_write_layer2
     from src.schemas import RetryParsingRequest
-    from src.services.deduplication import dual_write_layer2
 
     content = b"statement"
 
@@ -3618,7 +3618,7 @@ async def test_AC18_8_3_AC18_8_6_create_entry_from_txn_writes_statement_to_ledge
     assert entry.source_id == txn.id
 
     # Statement->ledger lineage is materialized lazily; trigger it for the posted entry.
-    from src.services.evidence_graph_materialization import EvidenceGraphMaterializationService
+    from src.extraction.extension.evidence_graph_materialization import EvidenceGraphMaterializationService
 
     await EvidenceGraphMaterializationService().materialize_for_entity(
         db,

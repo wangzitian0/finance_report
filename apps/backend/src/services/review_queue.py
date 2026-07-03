@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.config import settings
+from src.extraction.extension.currency_resolution import CurrencyUnresolvedError
 from src.ledger import ValidationError, validate_journal_balance, validate_journal_posting_invariants
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
@@ -18,7 +19,6 @@ from src.models.layer3 import ClassificationStatus, TransactionClassification
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_summary import StatementSummary
 from src.observability import get_logger
-from src.services.currency_resolution import CurrencyUnresolvedError
 from src.services.fx import FxRateError, get_exchange_rate
 from src.services.reconciliation import entry_total_amount, sync_reconciliation_match_journal_entry_links
 from src.services.source_type_priority import (
@@ -484,7 +484,7 @@ async def create_entry_from_txn(
     # --contains--> JournalLine). Imported lazily to avoid an import cycle.
     # Best-effort: provenance must never break journal posting.
     try:
-        from src.services.evidence_graph_integration import EvidenceGraphIntegrationService
+        from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
 
         await EvidenceGraphIntegrationService().record_journal_posting(
             db,

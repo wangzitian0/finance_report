@@ -717,7 +717,7 @@ def brokerage_currency_balances(
     because a position snapshot carries no intra-period cash flow — its opening
     equals its closing (net == 0, so ``open + ΣIN − ΣOUT ≈ close`` holds per
     currency). The result is the ``[{currency, opening, closing}]`` shape consumed
-    by :func:`src.services.validation.validate_balance_per_currency` and persisted
+    by :func:`src.extraction.base.validation.validate_balance_per_currency` and persisted
     on ``StatementSummary.currency_balances``.
 
     An explicitly declared ``balances`` array on the payload (a broker that prints

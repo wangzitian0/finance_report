@@ -12,7 +12,7 @@ from datetime import date
 
 
 def test_brokerage_position_prefers_ticker_over_company_name():
-    from src.services.brokerage_positions import _parse_structured_positions
+    from src.extraction.extension.brokerage_positions import _parse_structured_positions
 
     payload = {
         "currency": "USD",

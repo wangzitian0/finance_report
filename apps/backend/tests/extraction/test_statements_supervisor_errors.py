@@ -270,7 +270,7 @@ async def test_parse_statement_background_error_paths(db, test_user, monkeypatch
         mock_storage = mock_storage_cls.return_value
         mock_storage.generate_presigned_url.return_value = "http://url"
 
-        from src.services.extraction import ExtractionError
+        from src.extraction.extension.service import ExtractionError
 
         mock_parse = AsyncMock(side_effect=ExtractionError("Parse Fail"))
         monkeypatch.setattr("src.services.statement_parsing.ExtractionService.parse_document", mock_parse)

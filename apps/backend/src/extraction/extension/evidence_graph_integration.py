@@ -13,12 +13,12 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.extraction.extension.evidence_lineage import EvidenceLineageService
 from src.models.evidence import EvidenceNode
 from src.models.journal import JournalEntry, JournalLine
 from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AtomicTransaction, AtomicTransactionSourceDocument
 from src.models.statement_summary import StatementSummary
-from src.services.evidence_lineage import EvidenceLineageService
 
 
 class EvidenceGraphIntegrationService:
