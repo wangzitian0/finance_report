@@ -141,6 +141,47 @@ class CassetteValidationError(LLMError):
     """
 
 
+# --- Transparent per-request decision knobs (#1596) -------------------------
+# All layer-owned. Downstream code and tests never read these: the test harness
+# engages the layer once (conftest), deployments/workflows may force LIVE, and
+# operators refresh via `make llm-record`. Priority: LIVE > engaged > live.
+
+ENGAGE_ENV = "LLM_CASSETTE_ENGAGE"
+LIVE_ENV = "LLM_LIVE"
+REFRESH_ENV = "LLM_CASSETTE_REFRESH"
+
+
+def _env_flag(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes")
+
+
+def layer_engaged() -> bool:
+    """The cassette layer is active (bootstrapped once by the test harness)."""
+    return _env_flag(ENGAGE_ENV)
+
+
+def live_forced() -> bool:
+    """Explicit deployment/workflow config: always the real provider (staging
+    ``-m llm`` gates, prod). Deliberate config — allowed even in CI."""
+    return _env_flag(LIVE_ENV)
+
+
+def refresh_requested() -> bool:
+    """Operator re-record of existing cassettes (`make llm-record`). Never in CI:
+    cassettes are only ever written locally and reviewed in the diff."""
+    return _env_flag(REFRESH_ENV) and not in_ci()
+
+
+def in_ci() -> bool:
+    return bool(os.environ.get("CI"))
+
+
+def legacy_mode_env_set() -> bool:
+    """A process-level LLM_CASSETTE_MODE is the pre-#1596 contract; honored for
+    compatibility until the downstream forks are deleted (#1597)."""
+    return bool(os.environ.get(CASSETTE_MODE_ENV, "").strip())
+
+
 def current_mode() -> CassetteMode:
     """The active cassette mode from ``LLM_CASSETTE_MODE`` (default ``off``).
 
@@ -265,6 +306,10 @@ class CassetteStore:
 
     def __init__(self, directory: Path | None = None) -> None:
         self._dir = directory or CASSETTE_DIR
+        # Which cassettes this store served (fingerprints) — the substrate for
+        # orphan detection (#1596): a committed cassette no full suite ever
+        # serves is a leftover from a changed prompt.
+        self._served: set[str] = set()
 
     def _path(self, key: str) -> Path:
         return self._dir / f"{key}.json"
@@ -274,6 +319,12 @@ class CassetteStore:
         if not path.exists():
             return None
         return Cassette.from_json(json.loads(path.read_text(encoding="utf-8")))
+
+    def mark_served(self, key: str) -> None:
+        self._served.add(key)
+
+    def served_keys(self) -> frozenset[str]:
+        return frozenset(self._served)
 
     def put(self, cassette: Cassette) -> bool:
         """Persist ``cassette``; return ``True`` if the bytes changed on disk.
