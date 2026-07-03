@@ -51,7 +51,7 @@ def test_build_truth_is_masked_and_balance_exempt() -> None:
     }
     truth = rec.build_truth(hf, modality="text")
     assert truth["synthetic"] is True
-    assert truth["balance_reconciles"] is False  # AC23.7 exemption flag
+    assert truth["balance_reconciles"] is False  # AC-llm.7 exemption flag
     exp = truth["expected"]
     assert exp["transactions"][0]["date"] == "2024-01-01"  # normalised + ISO
     assert exp["transactions"][0]["amount"] == "100.0"  # credit magnitude

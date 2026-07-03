@@ -1,6 +1,6 @@
 """Extraction tests routed through the streaming-cassette bridge in replay.
 
-EPIC-023 AC23.6 / issue #1306. These wire the first batch of LLM-touching
+EPIC-023 AC-llm.6 / issue #1306. These wire the first batch of LLM-touching
 extraction tests onto the cassette replay path so the parse pipeline's LLM path
 is exercised in CI WITHOUT a key or network. The frozen responses are REAL GLM
 (glm-5.2 / glm-4.6v) completions recorded via the GLM coding plan; in replay

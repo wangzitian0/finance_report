@@ -1,4 +1,4 @@
-"""Unit tests for the LLM contract value types (EPIC-023 AC23.1.1)."""
+"""Unit tests for the LLM contract value types (EPIC-023 AC-llm.1.1)."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from src.llm.base import (
 
 
 def test_AC23_1_1_protocol_family_enumerates_the_supported_families():
-    """AC23.1.1: axis 1 is the fixed set of supported wire protocols. Google Gemini
+    """AC-llm.1.1: axis 1 is the fixed set of supported wire protocols. Google Gemini
     is its own family (native endpoint + whole-PDF ``file`` input) rather than an
     openai-compatible base-url variant."""
     assert {f.value for f in ProtocolFamily} == {
@@ -29,7 +29,7 @@ def test_AC23_1_1_protocol_family_enumerates_the_supported_families():
 
 
 def test_AC23_1_1_scene_enumerates_the_fixed_call_sites():
-    """AC23.1.1: axis 3 is the fixed, code-defined set of scenes (the binding keys)."""
+    """AC-llm.1.1: axis 3 is the fixed, code-defined set of scenes (the binding keys)."""
     assert {s.value for s in Scene} == {
         "extraction.ocr",
         "extraction.vision",
@@ -40,7 +40,7 @@ def test_AC23_1_1_scene_enumerates_the_fixed_call_sites():
 
 
 def test_AC23_1_1_model_spec_carries_capabilities_so_selection_is_data():
-    """AC23.1.1: a model's modalities/free/pricing are data on ModelSpec, not code branches."""
+    """AC-llm.1.1: a model's modalities/free/pricing are data on ModelSpec, not code branches."""
     spec = ModelSpec(
         id="zai/glm-4.6v",
         provider_id="zai",
@@ -58,7 +58,7 @@ def test_AC23_1_1_model_spec_carries_capabilities_so_selection_is_data():
 
 
 def test_AC23_1_1_scene_binding_defaults_are_conservative():
-    """AC23.1.1: a binding maps scene x model with safe defaults (no reasoning, no free pref)."""
+    """AC-llm.1.1: a binding maps scene x model with safe defaults (no reasoning, no free pref)."""
     binding = SceneBinding(scene=Scene.EXTRACTION_VISION, model_id="zai/glm-4.6v")
     assert binding.reasoning is ReasoningEffort.NONE
     assert binding.prefer_free is False
@@ -67,7 +67,7 @@ def test_AC23_1_1_scene_binding_defaults_are_conservative():
 
 
 def test_AC23_1_1_provider_ref_never_reprs_its_api_key():
-    """AC23.1.1: the decrypted api_key is excluded from repr/str (no secret in logs)."""
+    """AC-llm.1.1: the decrypted api_key is excluded from repr/str (no secret in logs)."""
     ref = ProviderRef(id="env", label="zai", protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key="sk-secret-123")
     assert "sk-secret-123" not in repr(ref)
     assert "sk-secret-123" not in str(ref)
@@ -76,6 +76,6 @@ def test_AC23_1_1_provider_ref_never_reprs_its_api_key():
 
 
 def test_AC23_1_1_usage_totals_tokens():
-    """AC23.1.1: Usage exposes total tokens for cost accounting."""
+    """AC-llm.1.1: Usage exposes total tokens for cost accounting."""
     usage = Usage(prompt_tokens=1200, completion_tokens=300)
     assert usage.total_tokens == 1500

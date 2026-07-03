@@ -1,4 +1,4 @@
-"""DB-backed LLM config + env-fallback layering (EPIC-023 AC23.3.1, AC23.3.2).
+"""DB-backed LLM config + env-fallback layering (EPIC-023 AC-llm.3.1, AC-llm.3.2).
 
 DbConfigSource is pointed at the test's own session, so rows are written with
 ``flush`` (not ``commit``) and stay inside the test transaction — the db-fixture
@@ -37,7 +37,7 @@ def _same_session_maker(session):
 
 
 async def test_AC23_3_1_db_config_reads_providers_and_bindings(db, cipher):
-    """AC23.3.1: DbConfigSource decrypts the provider key and qualifies bindings by provider id."""
+    """AC-llm.3.1: DbConfigSource decrypts the provider key and qualifies bindings by provider id."""
     sealed = cipher.encrypt("sk-db-secret")
     provider = LlmProvider(
         label="zai",
@@ -81,7 +81,7 @@ async def test_AC23_3_1_db_config_reads_providers_and_bindings(db, cipher):
 
 
 async def test_AC23_4_8_get_provider_is_user_scoped_no_cross_tenant_key_disclosure(db, cipher):
-    """AC23.4.8: get_provider must not resolve — or decrypt — another user's provider by id."""
+    """AC-llm.4.8: get_provider must not resolve — or decrypt — another user's provider by id."""
     from uuid import uuid4
 
     from src.identity import User
@@ -114,7 +114,7 @@ async def test_AC23_4_8_get_provider_is_user_scoped_no_cross_tenant_key_disclosu
 
 
 async def test_AC23_3_2_layered_uses_db_first_then_env(db, cipher, monkeypatch):
-    """AC23.3.2: with no DB binding for a scene, the layered source falls back to env config."""
+    """AC-llm.3.2: with no DB binding for a scene, the layered source falls back to env config."""
     monkeypatch.setattr(settings, "ai_api_key", "env-key", raising=False)
     monkeypatch.setattr(settings, "ai_provider", "zai", raising=False)
     monkeypatch.setattr(settings, "ai_base_url", "https://api.z.ai", raising=False)
@@ -132,7 +132,7 @@ async def test_AC23_3_2_layered_uses_db_first_then_env(db, cipher, monkeypatch):
 
 
 async def test_AC23_3_2_unconfigured_when_db_and_env_both_empty(db, cipher, monkeypatch):
-    """AC23.3.2: no DB providers (this transaction) and no env key -> unconfigured."""
+    """AC-llm.3.2: no DB providers (this transaction) and no env key -> unconfigured."""
     monkeypatch.setattr(settings, "ai_api_key", "", raising=False)
     layered = LayeredConfigSource(
         DbConfigSource(session_maker=_same_session_maker(db), cipher=cipher),

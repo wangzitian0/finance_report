@@ -162,7 +162,7 @@ async def test_stream_fails_closed_with_multiple_providers(monkeypatch):
 
 
 async def test_AC23_4_7_records_request_and_token_usage(litellm_stub, monkeypatch):
-    """AC23.4.7: a completed live stream counts one request + (estimated) tokens, and
+    """AC-llm.4.7: a completed live stream counts one request + (estimated) tokens, and
     never sends stream_options (Z.AI rejects unknown params)."""
     from src.llm.base.usage import LlmUsageMeter
 
@@ -179,7 +179,7 @@ async def test_AC23_4_7_records_request_and_token_usage(litellm_stub, monkeypatc
 
 
 async def test_AC23_4_5_user_qualified_model_resolves_exact_provider_with_many(litellm_stub, monkeypatch):
-    """AC23.4.5 / C1: a user with several providers + a qualified binding (provider_id/model)
+    """AC-llm.4.5 / C1: a user with several providers + a qualified binding (provider_id/model)
     resolves the exact provider instead of failing closed."""
     from uuid import uuid4
 

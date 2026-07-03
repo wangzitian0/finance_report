@@ -40,7 +40,7 @@ if _REPO_ROOT not in sys.path:
 logger = get_logger(__name__)
 
 
-# --- LLM cassette record/replay (EPIC-023 AC23.5) ---
+# --- LLM cassette record/replay (EPIC-023 AC-llm.5) ---
 # ``--llm-record`` (or ``LLM_CASSETTE_MODE=record``) flips the cassette layer into
 # record mode for the run; ``make llm-record`` passes the flag. Without it the
 # mode is whatever ``LLM_CASSETTE_MODE`` says (replay in CI, off in local dev), so

@@ -1,4 +1,4 @@
-"""Extraction threads the user's id to the transport (EPIC-023 AC23.4.5).
+"""Extraction threads the user's id to the transport (EPIC-023 AC-llm.4.5).
 
 So a BYO-provider user's uploads resolve their own provider instead of the
 deployment/env default. ``stream_ai_json`` is mocked to capture the ``user_id``.

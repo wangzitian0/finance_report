@@ -21,7 +21,7 @@ def read(path: str) -> str:
 
 
 def test_llm_provider_abstraction_epic023_product_owner_contract() -> None:
-    """EPIC-023 / AC23.1.1 AC23.1.3: the LLM abstraction has a product E2E owner.
+    """EPIC-023 / AC-llm.1.1 AC-llm.1.3: the LLM abstraction has a product E2E owner.
 
     Anchors the EPIC to (a) the SSOT vocabulary of its three orthogonal axes and
     (b) the secret-rotation contract, so a drift in either surface fails here.

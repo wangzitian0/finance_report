@@ -1,4 +1,4 @@
-"""litellm transport + provider resolution (EPIC-023 AC23.2.2, AC23.2.3).
+"""litellm transport + provider resolution (EPIC-023 AC-llm.2.2, AC-llm.2.3).
 
 litellm is mocked so these run offline and deterministically — they pin the
 wiring (delta streaming, drop_params, seed/extra_body passthrough, error
@@ -56,7 +56,7 @@ def captured(monkeypatch):
 
 
 async def test_AC23_2_2_stream_yields_only_nonempty_deltas(captured):
-    """AC23.2.2: litellm_stream yields content deltas, skipping empty ones."""
+    """AC-llm.2.2: litellm_stream yields content deltas, skipping empty ones."""
     out = [
         c async for c in litellm_stream([{"role": "user", "content": "hi"}], provider=_provider(), model_id="glm-5.1")
     ]
@@ -64,7 +64,7 @@ async def test_AC23_2_2_stream_yields_only_nonempty_deltas(captured):
 
 
 async def test_AC23_2_2_stream_sets_drop_params_and_passes_seed_extra_body(captured):
-    """AC23.2.2: drop_params is on; seed is native; Z.AI knobs ride extra_body."""
+    """AC-llm.2.2: drop_params is on; seed is native; Z.AI knobs ride extra_body."""
     async for _ in litellm_stream(
         [{"role": "user", "content": "hi"}],
         provider=_provider(),
@@ -83,7 +83,7 @@ async def test_AC23_2_2_stream_sets_drop_params_and_passes_seed_extra_body(captu
 
 
 async def test_AC23_2_4_reasoning_max_tokens_temperature_passthrough(captured):
-    """AC23.2.4: per-scene knobs (reasoning depth, max_tokens, temperature) reach litellm."""
+    """AC-llm.2.4: per-scene knobs (reasoning depth, max_tokens, temperature) reach litellm."""
     from src.llm.base import ReasoningEffort
 
     async for _ in litellm_stream(
@@ -126,7 +126,7 @@ async def test_non_gemini_no_reasoning_omits_reasoning_effort(captured):
 
 
 async def test_AC23_2_3_provider_error_is_normalised_to_llmerror(monkeypatch):
-    """AC23.2.3: a transient provider failure becomes a retryable LLMError."""
+    """AC-llm.2.3: a transient provider failure becomes a retryable LLMError."""
 
     class RateLimitError(Exception):
         pass
@@ -143,7 +143,7 @@ async def test_AC23_2_3_provider_error_is_normalised_to_llmerror(monkeypatch):
 
 
 async def test_AC23_2_3_non_retryable_error_classified(monkeypatch):
-    """AC23.2.3: an unknown provider error is wrapped as non-retryable."""
+    """AC-llm.2.3: an unknown provider error is wrapped as non-retryable."""
 
     async def boom(**kwargs):
         raise ValueError("bad request")
@@ -167,7 +167,7 @@ class _FakeConfig:
 
 
 async def test_AC23_2_2_resolves_provider_from_qualified_model():
-    """AC23.2.2: a 'provider_id/model' binding selects that provider among several."""
+    """AC-llm.2.2: a 'provider_id/model' binding selects that provider among several."""
     p_zai = _provider()
     p_or = ProviderRef(id="router", label="or", protocol=ProtocolFamily.OPENROUTER_COMPATIBLE, api_key="k2")
     provider, model = await resolve_provider_and_model(_FakeConfig([p_zai, p_or]), "router/deepseek-chat")
@@ -176,7 +176,7 @@ async def test_AC23_2_2_resolves_provider_from_qualified_model():
 
 
 async def test_AC23_2_2_ambiguous_unqualified_model_with_many_providers_errors():
-    """AC23.2.2: an unqualified model with >1 provider is rejected, not guessed."""
+    """AC-llm.2.2: an unqualified model with >1 provider is rejected, not guessed."""
     p1 = _provider()
     p2 = ProviderRef(id="other", label="o", protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key="k2")
     with pytest.raises(LLMConfigError):
@@ -184,13 +184,13 @@ async def test_AC23_2_2_ambiguous_unqualified_model_with_many_providers_errors()
 
 
 async def test_AC23_2_2_no_provider_configured_errors():
-    """AC23.2.2: resolving with zero providers is a config error."""
+    """AC-llm.2.2: resolving with zero providers is a config error."""
     with pytest.raises(LLMConfigError):
         await resolve_provider_and_model(_FakeConfig([]), "glm-5.1")
 
 
 async def test_AC23_2_2_unknown_qualified_provider_raises_not_silently_falls_back():
-    """AC23.2.2: a provider_id-qualified model whose provider is unknown raises, not silently wrong creds."""
+    """AC-llm.2.2: a provider_id-qualified model whose provider is unknown raises, not silently wrong creds."""
     p1 = _provider()
     p2 = ProviderRef(id="other", label="o", protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key="k2")
     with pytest.raises(LLMConfigError):
@@ -198,7 +198,7 @@ async def test_AC23_2_2_unknown_qualified_provider_raises_not_silently_falls_bac
 
 
 async def test_AC23_2_2_single_provider_honours_db_style_qualified_binding():
-    """AC23.2.2: a DB binding qualified as provider_id/model strips the id even with one provider."""
+    """AC-llm.2.2: a DB binding qualified as provider_id/model strips the id even with one provider."""
     p = ProviderRef(id="env", label="zai", protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key="k", api_base="https://z")
     provider, model = await resolve_provider_and_model(_FakeConfig([p]), "env/glm-5.1")
     assert provider is p
@@ -206,7 +206,7 @@ async def test_AC23_2_2_single_provider_honours_db_style_qualified_binding():
 
 
 async def test_AC23_2_2_single_provider_keeps_slashed_openrouter_model():
-    """AC23.2.2: with one provider an OpenRouter vendor/model id is used whole, not split as provider."""
+    """AC-llm.2.2: with one provider an OpenRouter vendor/model id is used whole, not split as provider."""
     p = ProviderRef(id="env", label="or", protocol=ProtocolFamily.OPENROUTER_COMPATIBLE, api_key="k")
     provider, model = await resolve_provider_and_model(_FakeConfig([p]), "deepseek/deepseek-chat")
     assert provider is p
@@ -224,7 +224,7 @@ class _FakeResponse:
 
 
 async def test_AC23_5_4_cassette_completion_off_mode_does_a_live_litellm_call(monkeypatch, tmp_path):
-    """AC23.5.4: cassette_completion in off mode performs the real (mocked) litellm
+    """AC-llm.5.4: cassette_completion in off mode performs the real (mocked) litellm
     call and projects the response dict; no cassette is written."""
     from src.llm.extension.cassette import CassetteMode, CassetteRecorder, CassetteStore
     from src.llm.extension.client import cassette_completion
@@ -248,7 +248,7 @@ async def test_AC23_5_4_cassette_completion_off_mode_does_a_live_litellm_call(mo
 
 
 async def test_AC23_5_4_cassette_completion_record_then_replay_roundtrips(monkeypatch, tmp_path):
-    """AC23.5.4 + AC23.5.2: record performs the live call and freezes it; a later
+    """AC-llm.5.4 + AC-llm.5.2: record performs the live call and freezes it; a later
     replay serves it back with no live call (the model id may differ — keying is
     model-id-agnostic)."""
     from src.llm.extension.cassette import CassetteMode, CassetteRecorder, CassetteStore
@@ -288,7 +288,7 @@ async def test_AC23_5_4_cassette_completion_record_then_replay_roundtrips(monkey
 
 
 async def test_AC23_5_4_cassette_completion_record_wraps_provider_error(monkeypatch, tmp_path):
-    """AC23.5.4: a provider failure during a record live call is normalised to LLMError."""
+    """AC-llm.5.4: a provider failure during a record live call is normalised to LLMError."""
     from src.llm.extension.cassette import CassetteMode, CassetteRecorder, CassetteStore
     from src.llm.extension.client import cassette_completion
 
@@ -308,7 +308,7 @@ async def test_AC23_5_4_cassette_completion_record_wraps_provider_error(monkeypa
 
 
 async def test_AC23_5_4_cassette_completion_all_decode_params_and_dict_response(monkeypatch, tmp_path):
-    """AC23.5.4: reasoning/seed/extra_body/timeout knobs reach the live call and a
+    """AC-llm.5.4: reasoning/seed/extra_body/timeout knobs reach the live call and a
     plain-dict response (no model_dump) is returned as-is."""
     from src.llm.base import ReasoningEffort
     from src.llm.extension.cassette import CassetteMode, CassetteRecorder, CassetteStore
@@ -340,7 +340,7 @@ async def test_AC23_5_4_cassette_completion_all_decode_params_and_dict_response(
 
 
 async def test_AC23_5_4_cassette_completion_stringifies_opaque_response(monkeypatch, tmp_path):
-    """AC23.5.4: an opaque response (no model_dump, not a dict) is projected to a
+    """AC-llm.5.4: an opaque response (no model_dump, not a dict) is projected to a
     text payload so any provider shape is freezable."""
     from src.llm.extension.cassette import CassetteMode, CassetteRecorder, CassetteStore
     from src.llm.extension.client import cassette_completion
@@ -361,7 +361,7 @@ async def test_AC23_5_4_cassette_completion_stringifies_opaque_response(monkeypa
 
 
 async def test_AC23_5_4_cassette_completion_passes_through_llmerror(monkeypatch, tmp_path):
-    """AC23.5.4: an LLMError raised by the transport is re-raised unchanged (not
+    """AC-llm.5.4: an LLMError raised by the transport is re-raised unchanged (not
     re-wrapped), preserving its retryable verdict."""
     from src.llm.extension.cassette import CassetteMode, CassetteRecorder, CassetteStore
     from src.llm.extension.client import cassette_completion
@@ -383,7 +383,7 @@ async def test_AC23_5_4_cassette_completion_passes_through_llmerror(monkeypatch,
 
 
 def test_AC23_9_1_litellm_aiohttp_transport_disabled_prevents_session_leak():
-    """AC23.9.1: importing the litellm client disables litellm's aiohttp transport.
+    """AC-llm.9.1: importing the litellm client disables litellm's aiohttp transport.
 
     litellm's aiohttp transport lazily creates an aiohttp ClientSession per
     request handler and never closes it, leaking an "Unclosed client session"

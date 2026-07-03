@@ -1,4 +1,4 @@
-"""The seam protocols are runtime-checkable and swappable (EPIC-023 AC23.1.5).
+"""The seam protocols are runtime-checkable and swappable (EPIC-023 AC-llm.1.5).
 
 These tests pin the contract that lets EPIC A (litellm client) and EPIC B
 (DB config) implement opposite sides independently: a conforming object must
@@ -71,14 +71,14 @@ class _NotAConfigSource:
 
 
 def test_AC23_1_5_conforming_implementations_satisfy_the_protocols():
-    """AC23.1.5: a conforming object passes isinstance for each seam protocol."""
+    """AC-llm.1.5: a conforming object passes isinstance for each seam protocol."""
     assert isinstance(_FakeConfigSource(), ConfigSource)
     assert isinstance(_FakeClient(), LLMClient)
     assert isinstance(_FakeCatalog(), CatalogProvider)
 
 
 def test_AC23_1_5_fernet_cipher_is_a_secret_cipher():
-    """AC23.1.5: the shipped FernetCipher satisfies the SecretCipher protocol."""
+    """AC-llm.1.5: the shipped FernetCipher satisfies the SecretCipher protocol."""
     from cryptography.fernet import Fernet
 
     cipher = FernetCipher([Fernet.generate_key().decode("ascii")])
@@ -86,18 +86,18 @@ def test_AC23_1_5_fernet_cipher_is_a_secret_cipher():
 
 
 def test_AC23_1_5_non_conforming_object_is_rejected():
-    """AC23.1.5: a class missing protocol methods is not an instance — the contract bites."""
+    """AC-llm.1.5: a class missing protocol methods is not an instance — the contract bites."""
     assert not isinstance(_NotAConfigSource(), ConfigSource)
 
 
 def test_AC23_1_5_modality_round_trips_via_model_spec():
-    """AC23.1.5: ModelSpec uses the Modality enum the catalogue/binding share."""
+    """AC-llm.1.5: ModelSpec uses the Modality enum the catalogue/binding share."""
     spec = ModelSpec(id="p/m", provider_id="p", modalities=frozenset({Modality.TEXT}))
     assert spec.accepts(Modality.TEXT)
 
 
 def test_AC23_1_5_error_hierarchy_carries_retryable_semantics():
-    """AC23.1.5: the error contract — config/budget never retry; all derive from LLMError."""
+    """AC-llm.1.5: the error contract — config/budget never retry; all derive from LLMError."""
     from src.llm.base import LLMBudgetExceeded, LLMConfigError, LLMError, ModelCatalogError
 
     budget = LLMBudgetExceeded("over daily budget")

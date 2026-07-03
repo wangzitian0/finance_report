@@ -1,4 +1,4 @@
-"""Dynamic model catalogue with pricing + modality filters (EPIC-023 AC23.2.5)."""
+"""Dynamic model catalogue with pricing + modality filters (EPIC-023 AC-llm.2.5)."""
 
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ def patched(monkeypatch):
 
 
 async def test_AC23_2_5_lists_configured_models_with_pricing(patched):
-    """AC23.2.5: catalogue surfaces configured models with per-Mtok pricing as Decimal."""
+    """AC-llm.2.5: catalogue surfaces configured models with per-Mtok pricing as Decimal."""
     models = await patched.list_models()
     by_id = {m.id: m for m in models}
     assert "glm-5.1" in by_id
@@ -58,21 +58,21 @@ async def test_AC23_2_5_lists_configured_models_with_pricing(patched):
 
 
 async def test_AC23_2_5_flags_free_tier(patched):
-    """AC23.2.5: a zero-priced model is flagged free; free_only filters to it."""
+    """AC-llm.2.5: a zero-priced model is flagged free; free_only filters to it."""
     free = await patched.list_models(free_only=True)
     assert {m.id for m in free} == {"free-mini"}
     assert all(m.is_free for m in free)
 
 
 async def test_AC23_2_5_filters_by_modality(patched):
-    """AC23.2.5: modality filter returns only models that accept it (vision models carry image)."""
+    """AC-llm.2.5: modality filter returns only models that accept it (vision models carry image)."""
     image_models = await patched.list_models(modality=Modality.IMAGE)
     assert "glm-4.6v" in {m.id for m in image_models}
     assert "glm-5.1" not in {m.id for m in image_models}  # text-only primary
 
 
 async def test_AC23_2_5_non_numeric_price_degrades_to_none(monkeypatch):
-    """AC23.2.5: a malformed pricing entry yields None price, not a crash."""
+    """AC-llm.2.5: a malformed pricing entry yields None price, not a crash."""
     monkeypatch.setattr(settings, "primary_model", "weird", raising=False)
     monkeypatch.setattr(settings, "vision_model", "weird", raising=False)
     monkeypatch.setattr(settings, "ocr_model", "weird", raising=False)
@@ -85,7 +85,7 @@ async def test_AC23_2_5_non_numeric_price_degrades_to_none(monkeypatch):
 
 
 async def test_AC23_2_5_dedupes_models(patched):
-    """AC23.2.5: vision_model == ocr_model collapses to a single catalogue entry."""
+    """AC-llm.2.5: vision_model == ocr_model collapses to a single catalogue entry."""
     models = await patched.list_models()
     ids = [m.id for m in models]
     assert ids.count("glm-4.6v") == 1

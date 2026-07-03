@@ -1,7 +1,7 @@
-"""Fixtures for the LLM cassette layer tests (EPIC-023 AC23.5.1–AC23.5.7).
+"""Fixtures for the LLM cassette layer tests (EPIC-023 AC-llm.5.1–AC-llm.5.7).
 
 Support file for ``test_cassette.py`` (which carries the per-AC references
-AC23.5.1 .. AC23.5.7). These run fully offline: replay reads committed JSON,
+AC-llm.5.1 .. AC-llm.5.7). These run fully offline: replay reads committed JSON,
 record writes against a *mocked* client (no real provider key, no network). The
 synthetic cassettes used here live in ``common/testing/fixtures/llm_cassettes``
 and carry only generated/anonymised content (no real amounts, accounts, names, or

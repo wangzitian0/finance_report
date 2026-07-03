@@ -1,8 +1,6 @@
 """Tests for tools._lib.market_data.seed_fx_rates."""
 import sys
-from datetime import date
 from decimal import Decimal
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 import pytest

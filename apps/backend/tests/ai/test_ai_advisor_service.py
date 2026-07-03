@@ -953,7 +953,7 @@ async def test_stream_openrouter_raises_on_programming_error(monkeypatch: pytest
 async def test_AC23_4_5_advisor_uses_user_bound_model_and_threads_user_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC23.4.5: with an advisor.chat binding and no per-message override, the user's
+    """AC-llm.4.5: with an advisor.chat binding and no per-message override, the user's
     bound model is tried first, and its reasoning/max_tokens + user_id reach the transport."""
     from uuid import uuid4
 
@@ -986,7 +986,7 @@ async def test_AC23_4_5_advisor_uses_user_bound_model_and_threads_user_id(
 
 
 async def test_AC23_4_5_advisor_provider_resolution_is_user_scoped(monkeypatch: pytest.MonkeyPatch) -> None:
-    """AC23.4.5: stream_ai_chat resolves the provider via get_config_source(user_id)."""
+    """AC-llm.4.5: stream_ai_chat resolves the provider via get_config_source(user_id)."""
     from uuid import uuid4
 
     from src.llm.base import ProtocolFamily, ProviderRef
