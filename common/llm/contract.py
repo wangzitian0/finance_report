@@ -51,7 +51,6 @@ from common.meta.package_contract import (
 
 CONTRACT = PackageContract(
     name="llm",
-    klass="platform",
     status="active",
     # LLM-LED: the only tier whose proof set covers the graded-eval ACs
     # (AC-llm.8.*, proof=eval) alongside the deterministic property proofs; the
@@ -598,6 +597,37 @@ CONTRACT = PackageContract(
             id="AC-llm.9.1",
             statement="Importing the litellm client disables litellm's aiohttp transport (so no per-`acompletion` unclosed-session leak); the transport resolver returns httpx | `test_AC23_9_1_litellm_aiohttp_transport_disabled_prevents_session_leak`",  # was AC23.9.1
             test="apps/backend/tests/llm/test_client.py::test_AC23_9_1_litellm_aiohttp_transport_disabled_prevents_session_leak",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        # ── group 10: extraction-corpus E2E journeys in the merge tier ──
+        # The committed cassette corpus (fixtures live in common/testing;
+        # the cassette MECHANISM and its ACs live here, see
+        # common/testing/contract.py's docstring) is seeded through the
+        # provider-free seam into the full downstream statement journey in
+        # ci.yml backend-e2e-tier1. Deterministic replay of frozen artifacts:
+        # proof_kind=property.
+        ACRecord(
+            id="AC-llm.10.1",
+            statement="The seeded extraction corpus is a committed 10-fingerprint manifest whose diversity invariants are asserted in code — both modalities (text+vision), bank and brokerage institution classes, a duplicate-rows edge case, a zero-transaction statement, and >=3 statements of 150+ transactions — and unpostable-row drops are pinned to an exact allowlist, so the corpus can neither silently shrink nor homogenize",
+            test="apps/backend/tests/e2e/test_statement_corpus_journeys.py::test_corpus_manifest_is_diverse",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-llm.10.2",
+            statement="Every corpus cassette's frozen extraction output seeds a parsed statement that completes the provider-free downstream journey: transactions endpoint returns the exact cassette row count with Decimal amounts, Stage-1 review reports a validated balance chain, duplicate/transfer-pair candidates are resolved through the reviewer path, approve auto-creates one posted journal entry per transaction, a statement-scoped reconciliation run reaches unmatched=0, and the balance sheet reflects the statement's net movement on the posting account with the accounting equation balanced",
+            test="apps/backend/tests/e2e/test_statement_corpus_journeys.py::test_corpus_statement_full_journey",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-llm.10.3",
+            statement="The zero-transaction corpus statement (a real brokerage month with no activity) is deterministic end-to-end: it seeds, lists, reviews with a trivially-tied balance chain, approves with journal_entries_created == 0, and a statement-scoped reconciliation run reports unmatched=0",
+            test="apps/backend/tests/e2e/test_statement_corpus_journeys.py::test_corpus_zero_transaction_statement_approves_empty",
             priority="P1",
             status="done",
             proof_kind="property",

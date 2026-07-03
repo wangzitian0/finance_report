@@ -142,7 +142,7 @@ class StatementSummary(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     extraction_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=None)
 
     def typed_currency_balances(self) -> CurrencyBalances:
-        """Per-currency balances as a typed :class:`CurrencyBalances` (#1167 / #1171 AC2.22.1).
+        """Per-currency balances as a typed :class:`CurrencyBalances` (#1167 / #1171; AC-audit.22.1).
 
         Parses the ``currency_balances`` JSONB (``[{currency, opening, closing}]``,
         amounts persisted as strings) into the typed container, so a multi-currency

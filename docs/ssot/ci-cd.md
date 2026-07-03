@@ -36,7 +36,7 @@ main-only: unified-coverage ─→ unified-coverage-baseline-pr (not required by
 | **schema-migrations** | Run Alembic `upgrade head` followed by `alembic check` against an ephemeral Postgres service before merge | `needs: [changes]` |
 | **backend** (Shards 1-5) | Backend fast-path tests only: `-m "not slow and not e2e and not integration"` | `needs: [changes]` |
 | **backend-integration** | Backend integration stage (`-m "integration"`), deterministic service-backed behavior checks | `needs: [changes]` |
-| **backend-e2e-tier1** | Backend Tier-1 API E2E stage: the file set registered for `backend_tier1_api_e2e` in `common/testing/matrix.py#WORKFLOW_PYTEST_CONTRACTS` — `apps/backend/tests/e2e/test_core_journeys.py`, `apps/backend/tests/e2e/test_seeded_statement_journey.py`, and the AC8.25 extraction-corpus journeys in `apps/backend/tests/e2e/test_statement_corpus_journeys.py` — with `-m e2e`, executed with explicit marker override. PR runs stay fail-fast; push/main runs report the full Tier-1 failure set. | `needs: [changes]` |
+| **backend-e2e-tier1** | Backend Tier-1 API E2E stage: the file set registered for `backend_tier1_api_e2e` in `common/testing/matrix.py#WORKFLOW_PYTEST_CONTRACTS` — `apps/backend/tests/e2e/test_core_journeys.py`, `apps/backend/tests/e2e/test_seeded_statement_journey.py`, and the extraction-corpus journeys (`AC-llm.10`, registered in `common/llm/contract.py`) in `apps/backend/tests/e2e/test_statement_corpus_journeys.py` — with `-m e2e`, executed with explicit marker override. PR runs stay fail-fast; push/main runs report the full Tier-1 failure set. | `needs: [changes]` |
 | **frontend-build** | Frontend TypeScript typecheck + production build when heavy CI is required | `needs: [changes]` |
 | **frontend-vitest** | Frontend Vitest coverage and JUnit evidence when heavy CI is required | `needs: [changes]` |
 | **frontend-playwright** | Provider-free frontend browser UI proof when heavy CI is required | `needs: [changes]` |
@@ -257,7 +257,7 @@ file.
 | Unit (fast/shard) | `backend` job, 5 seeded shards immediately after change classification | `-m "not slow and not e2e and not integration"` | Feeds unified line coverage (backend component) | Keep as deterministic base and tune seed quality before increasing shard count |
 | Integration (backend marker) | `backend-integration` job (`-m "integration"`) | `apps/backend/tests/**/*` marker-scoped integration suites with service-backed env | Not part of unified line baseline yet | Add sharding when count growth justifies it; keep explicit marker gate in CI |
 | Tooling/common contracts | `tooling-coverage` job | `tests/tooling/` with `--cov=common --cov=tools` | Feeds unified line coverage (common/tools components) | Keep parallel to app tests so tooling failures and LCOV inputs are independently visible |
-| Tier 1 API E2E | `backend-e2e-tier1` job (the `backend_tier1_api_e2e` file set from `common/testing/matrix.py#WORKFLOW_PYTEST_CONTRACTS` with `-m "e2e"`) | Serial backend contract/HTTP/DB/S3 API behavioral paths with Postgres and MinIO bucket readiness, including the AC8.25 extraction-corpus journeys; PR runs use `--maxfail=1`, while push/main Tier-1 E2E runs without `--maxfail=1` so one JUnit artifact reports all failing journeys | Behavioral proof only; AC traceability-backed | Stabilize a deterministic API subset first, then scale by marker or folder |
+| Tier 1 API E2E | `backend-e2e-tier1` job (the `backend_tier1_api_e2e` file set from `common/testing/matrix.py#WORKFLOW_PYTEST_CONTRACTS` with `-m "e2e"`) | Serial backend contract/HTTP/DB/S3 API behavioral paths with Postgres and MinIO bucket readiness, including the extraction-corpus journeys (`AC-llm.10`, see `common/llm/readme.md#extraction-corpus-e2e`); PR runs use `--maxfail=1`, while push/main Tier-1 E2E runs without `--maxfail=1` so one JUnit artifact reports all failing journeys | Behavioral proof only; AC traceability-backed | Stabilize a deterministic API subset first, then scale by marker or folder |
 | Tier 2 HTTP E2E | `tools/tier2_http_e2e.py` against deployed PR/staging/prod URLs | Not in unified coverage baseline | Behavioral proof only; reports carry `proof_tier=tier2_http` | Keep the command strict in deployed gates; advisory/env-gated not-run reports are never proof eligible |
 | Frontend build/typecheck | `frontend-build` job | TypeScript `tsc --noEmit` and Next production build | Behavioral/build proof only; not in unified line coverage | Keep separate from browser tests so build/type errors surface without waiting for Playwright |
 | Frontend Vitest | `frontend-vitest` job | Frontend unit/component coverage with Vitest JUnit output | Feeds unified line coverage (frontend component) and AC behavioral ratchet | Keep as the only frontend source-coverage producer until browser tests emit ratchet-ready evidence |
@@ -281,43 +281,6 @@ calls the extraction service carries `@pytest.mark.llm`; everything provider-fre
 seeds its parsed input through this fixture and stays in the merge gate. New
 statement journeys reuse `seed_parsed_statement(...)` rather than uploading a
 real document and waiting on a provider parse.
-
-#### Extraction corpus as the merge-tier data plane (AC8.25)
-
-The committed extraction corpus lives in
-`common/testing/fixtures/llm_cassettes/`: ~37 cassettes (frozen GLM extraction
-outputs, fingerprint-keyed), 32 sibling `ground_truth/*.truth.json` field-truth
-artifacts, and the ratcheted `cassette-eval-baseline.jsonl`. One corpus, four
-consuming gates — each answering a different question:
-
-| Gate | Stage | Question it answers |
-|---|---|---|
-| Cassette integrity (`tools/check_llm_cassettes.py`, AC23.7) | PR CI `lint` | Is each frozen extraction output internally CONSISTENT (balance chain ties)? |
-| Graded field eval (`common/testing/cassette_graded_eval.py`, AC23.8) | PR CI `lint` + `tooling-coverage` | Is each extraction output ACCURATE per field vs ground truth (raise-only floor)? |
-| Extraction-unit replay (`LLM_CASSETTE_MODE=replay`, AC23.6) | PR CI backend tests | Does the extraction service still produce this output from the frozen provider seam? |
-| **Corpus E2E journeys (AC8.25)** | PR CI `backend-e2e-tier1` | Does each extraction output survive the full downstream pipeline — review → conflict resolution → approve → reconcile → balance sheet? |
-
-The corpus E2E tier (`apps/backend/tests/e2e/test_statement_corpus_journeys.py`)
-seeds a 10-fingerprint maximally-diverse manifest (text+vision, real
-bank/brokerage + synthetic HF, 0→170-transaction scales, the #1254
-duplicate-rows edge) through `seed_parsed_statement` from each cassette's
-`response.stream_text` — the frozen output is the seed source because only it
-carries `direction`; truth files record unsigned magnitudes. Diversity
-invariants are asserted in code (AC8.25.1) so the corpus cannot silently
-shrink.
-
-**Division of labour with staging**: PR CI proves the pipeline on committed
-extraction artifacts (zero provider spend, deterministic); the staging
-provider gates prove live extraction on fixture-generated documents
-(`common/testing/fixtures/pdf/generators/`). Neither substitutes for the
-other.
-
-**Corpus growth policy (right-shift finding → left-shift artifact)**: when a
-staging/nightly provider gate or audit replay surfaces a failure whose cause
-is deterministic (prompt assembly, schema, posting, reconciliation, report
-math), the fix must land with a recorded cassette + ground truth added to the
-corpus — record once, replay forever in the merge tier. Only genuine provider
-drift stays right-shifted as staging/nightly evidence.
 
 ### PR vs Main CI Responsibilities
 
@@ -629,8 +592,11 @@ The provider-backed AI/OCR corpus is split into two distinct gates that share on
   that fired only after CI and a quick merge could land before it ran as a gate
   (GitHub counts a skipped required check as passed). It is image-free, so it needs
   no CI artifact and runs independently of CI. PR close triggers cleanup, not a gate.
-- PR preview does not inject `ZAI_API_KEY`; it validates app wiring without
-  real GLM/OCR provider calls.
+- PR preview injects no REAL provider key: the in-runner stack wires a
+  placeholder `ZAI_API_KEY` with an unroutable `AI_BASE_URL` (so the app
+  reports LLM wiring configured and the first-run provider modal stays out of
+  browser E2E, #1589) while an accidental provider call fails instantly —
+  app wiring is validated without real GLM/OCR provider calls.
 - PR preview does not push, preflight, pull, or delete PR preview images, and it
   does not build images in CI. The `build-preview-backend-image`,
   `build-preview-frontend-image`, `gate-cheap-ci`, and GHCR preflight/delete

@@ -1,10 +1,10 @@
-"""Extraction-corpus journeys in the merge tier (EPIC-008 / AC8.25).
+"""Extraction-corpus journeys in the merge tier (llm package roadmap, AC-llm.10).
 
 The committed LLM cassettes under ``common/testing/fixtures/llm_cassettes/``
 are the repo's extraction artifacts: each one freezes a real GLM extraction
 output (``response.stream_text``) whose field accuracy is already graded
 against a sibling ``ground_truth/*.truth.json`` at extraction-unit level
-(AC23.7/AC23.8). Before AC8.25 that corpus never reached the E2E chain — the
+(AC23.7/AC23.8). Before AC-llm.10 that corpus never reached the E2E chain — the
 merge tier proved review → reconcile → report on one synthetic fixture.
 
 These tests seed a 10-cassette diverse corpus through ``seed_parsed_statement``
@@ -35,10 +35,10 @@ CASSETTE_DIR = REPO_ROOT / "common" / "testing" / "fixtures" / "llm_cassettes"
 GROUND_TRUTH_DIR = CASSETTE_DIR / "ground_truth"
 
 # ---------------------------------------------------------------------------
-# The corpus manifest (AC8.25.1). 10 maximally-diverse fingerprints, chosen for
+# The corpus manifest (AC-llm.10.1). 10 maximally-diverse fingerprints, chosen for
 # axis coverage rather than volume — the diversity invariants are asserted by
 # test_corpus_manifest_is_diverse so the set cannot silently shrink or
-# homogenize. Rationale per pick is in EPIC-008 §AC8.25.
+# homogenize. Registered in common/llm/contract.py roadmap group 10.
 # ---------------------------------------------------------------------------
 CORPUS_FINGERPRINTS: tuple[str, ...] = (
     # text / generic / happy_path — minimal signed-amount baseline
@@ -159,7 +159,7 @@ def load_corpus_case(fingerprint: str) -> CorpusCase:
 
 @pytest.mark.e2e
 def test_corpus_manifest_is_diverse():
-    """EPIC-008 / AC8.25.1: the corpus manifest's diversity invariants hold in code.
+    """AC-llm.10.1: the corpus manifest's diversity invariants hold in code.
 
     GIVEN the committed 10-fingerprint corpus manifest
     WHEN loading each cassette + truth pair
@@ -204,7 +204,7 @@ def test_corpus_manifest_is_diverse():
 @pytest.mark.e2e
 @pytest.mark.parametrize("fingerprint", CORPUS_FINGERPRINTS, ids=lambda fp: fp[:8])
 async def test_corpus_statement_full_journey(client, db, test_user, fingerprint):
-    """EPIC-008 / AC8.25.2: every corpus extraction output completes the downstream journey.
+    """AC-llm.10.2: every corpus extraction output completes the downstream journey.
 
     GIVEN a corpus cassette's frozen extraction output seeded as a parsed statement
     WHEN driving transactions → review → approve → reconciliation → balance sheet via the API
@@ -292,7 +292,7 @@ async def test_corpus_statement_full_journey(client, db, test_user, fingerprint)
 
 @pytest.mark.e2e
 async def test_corpus_zero_transaction_statement_approves_empty(client, db, test_user):
-    """EPIC-008 / AC8.25.3: the zero-transaction corpus statement is deterministic end-to-end.
+    """AC-llm.10.3: the zero-transaction corpus statement is deterministic end-to-end.
 
     GIVEN the real brokerage month with no activity, seeded from its cassette
     WHEN reviewing, approving, and reconciling it

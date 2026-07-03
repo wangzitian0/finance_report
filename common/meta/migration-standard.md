@@ -247,7 +247,7 @@ extension is visible, not hidden.
    as the worked template, and extend `check_package_contract` to support the
    three-layer rule (additive; existing packages keep working). (0b)
 2. **value → audit** fold (its own PR).
-3. **ledger** (the prototype core cutover, already has a legacy `.contract.md`).
+3. **ledger** (the prototype domain-layer cutover, already has a legacy `.contract.md`).
 4. **extraction / portfolio / reconciliation / reporting** (the flow).
 5. **advisor / llm / middleware / identity**.
 6. **audit** consistency closeout (global invariants + cross-package ACs).

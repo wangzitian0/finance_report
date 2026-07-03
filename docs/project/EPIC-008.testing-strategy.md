@@ -604,7 +604,7 @@ reconciliation), #1558 (package declaration rollout + mirror-assertion ratchet).
 |---|---|---|---|---|
 | AC8.22.1 | The checked-in `docs/ssot/test-execution-matrix.yaml` is exactly the view generated from `common/testing/matrix.py` (byte-identical via the `--check-matrix` CLI gate), and the generated YAML parses into the same path→stage/ci_required rules the AC-traceability consumer reads — matrix-as-code cannot drift from the SSOT view {tier:CODE-ONLY} | `test_AC8_22_1_generated_matrix_matches_checked_in_yaml`, `test_AC8_22_1_generated_yaml_parses_identically_for_consumers` | `tests/tooling/test_execution_matrix_contract.py` | P0 |
 | AC8.22.2 | `preview.yml` derives its in-runner E2E selection at runtime by eval'ing `tools/test_selection.py --stage pr_preview_e2e --shell` (tests, marker expression, parallelism all from the matrix) and carries no hardcoded `tests/e2e/` path — the #1547 whitelist is structurally impossible to reintroduce {tier:CODE-ONLY} | `test_AC8_22_2_preview_workflow_derives_selection_from_matrix` | `tests/tooling/test_execution_matrix_contract.py` | P0 |
-| AC8.22.3 | The derived pre-merge selection contains exactly the audited, dependency-free rows (preserving the original in-runner set), every selected spec exists on disk, no `llm`-marked spec (verified against file content, not row metadata) can appear in the merge-blocking set, and the #1547 vision hard gate — its PR #1562 in-runner 404 root-caused to the ci-e2e stack's double-/api NEXT_PUBLIC_API_URL and fixed — stays excluded carrying the next finding (PR #1587: deterministic in-runner-only upload-button click timeout, tracked in its own issue) until that run is green; admission remains a row flip, not a workflow edit {tier:CODE-ONLY} | `test_AC8_22_3_preview_selection_is_audited_and_dependency_free` | `tests/tooling/test_execution_matrix_contract.py` | P0 |
+| AC8.22.3 | The derived pre-merge selection contains exactly the audited, dependency-free rows (preserving the original in-runner set), every selected spec exists on disk, no `llm`-marked spec (verified against file content, not row metadata) can appear in the merge-blocking set, and the #1547 non-LLM vision hard gate is admitted after BOTH in-runner stack bugs it flushed out were root-caused and fixed in docker-compose.ci-e2e.yml — the double-/api NEXT_PUBLIC_API_URL 404 (PR #1587) and the #1589 FirstRunModal pointer interception (no provider wiring -> app-wide dismissible modal on every full navigation; fixed with placeholder wiring + unroutable AI_BASE_URL) — each admission a row flip, never a workflow edit {tier:CODE-ONLY} | `test_AC8_22_3_preview_selection_is_audited_and_dependency_free` | `tests/tooling/test_execution_matrix_contract.py` | P0 |
 | AC8.22.4 | Every root `tests/e2e/test_*.py` spec has a named ownership row in the matrix (needs + audit status + reason) and no stale row survives file removal — an unclassified E2E spec fails CI instead of silently landing outside any execution tier {tier:CODE-ONLY} | `test_AC8_22_4_every_root_e2e_spec_has_a_named_row` | `tests/tooling/test_execution_matrix_contract.py` | P1 |
 | AC8.22.5 | The `--shell` emission is valid, shlex-round-trippable bash (test array, quoted marker expression, parallelism) matching the in-code selection exactly, and an unknown stage is rejected with an explicit error {tier:CODE-ONLY} | `test_AC8_22_5_shell_emission_round_trips` | `tests/tooling/test_execution_matrix_contract.py` | P1 |
 | AC8.22.6 | The testing-package governance charter (execution matrix, package declaration protocol, E2E extension layer, fast interception, responsibility table) exists in `common/testing/README.md`, and `docs/ssot/MANIFEST.yaml` records `common/testing/matrix.py` as the `test_execution_matrix` owner with the generated YAML as a cross-ref {tier:CODE-ONLY} | `test_AC8_22_6_charter_and_manifest_ownership` | `tests/tooling/test_execution_matrix_contract.py` | P1 |
@@ -641,29 +641,24 @@ an only-goes-down ratchet (`common/testing/mirror_ratchet.py`), stopping the
 | AC8.24.2 | Workflow pytest contracts declaring an environment precondition (the runtime-owned smoke gate, for the preview and staging core E2E stages) must run it before the pytest invocation in the same workflow — mechanized fault attribution: a red precondition aborts before tests start {tier:CODE-ONLY} | `test_AC8_24_2_e2e_stages_run_their_environment_precondition_first` | `tests/tooling/test_package_declaration_and_ratchet.py` | P0 |
 | AC8.24.3 | The mirror-assertion count over `tests/tooling/` is locked behind a committed baseline that may only decrease: growth fails CI, `--update` refuses to raise the baseline, and paydown lowers it — with the eight marker-literal mirrors already redundant with AC8.23.2 deleted in the same change {tier:CODE-ONLY} | `test_AC8_24_3_mirror_assertion_ratchet_is_locked_and_only_goes_down` | `tests/tooling/test_package_declaration_and_ratchet.py` | P0 |
 
-### AC8.25: Extraction-Corpus Journeys in the Merge Tier (10-cassette seeded E2E)
+### AC8.25: Real Storage Pipeline (counted tier)
 
-The repo holds ~37 committed extraction artifacts (LLM cassettes + graded
-ground truth under `common/testing/fixtures/llm_cassettes/`), but before this
-AC they were consumed only at extraction-unit level (replay, integrity gate,
-graded eval) — the merge-blocking E2E tier proved the parsed→report chain on a
-single synthetic fixture. A 10-cassette corpus (maximally diverse: text+vision,
-real bank/brokerage + synthetic HF, 0/3/39–69/150+ transaction scales, the
-#1254 duplicate-rows edge, reconciling and non-reconciling balances) is now
-seeded through `seed_parsed_statement` from each cassette's frozen extraction
-output (`response.stream_text` — the artifact carries `direction`, which the
-truth files deliberately omit), and each corpus statement drives the full
-downstream journey — list/detail/transactions → Stage-1 review/approve →
-reconciliation run → balance sheet — in `backend-e2e-tier1` with zero provider
-calls. CI proves the pipeline on the extraction corpus; staging's fixture-based
-provider gates stay the proof for live extraction (see
-[ci-cd.md](../ssot/ci-cd.md)).
+Issue #1520: every counted test stubbed the storage seam (DummyStorage /
+mocked boto3), so the real ``StorageService`` wiring — upload, persist,
+load-back — shipped unproven; green CI did not prove a user's statement
+survives storage. These tests run the REAL service and the REAL
+upload→store→parse pipeline against moto's in-memory S3 (no stub, no service
+container, fast path), reusing the vision hard gate's deterministic CSV
+fixture so the same business numbers are proven at the counted tier. Their
+first run caught a live production bug: the success path persisted the bare
+display filename as ``UploadedDocument.file_path``, so every post-success
+retry/reparse fetched a nonexistent storage key (fixed in
+``statement_parsing.py`` alongside).
 
 | AC ID | Test Case | Test Function | File | Priority |
 |---|---|---|---|---|
-| AC8.25.1 | The seeded extraction corpus is a committed 10-fingerprint manifest whose diversity invariants are asserted in code — both modalities (text+vision), bank and brokerage institution classes, a duplicate-rows edge case, a zero-transaction statement, and at least three statements of 150+ transactions — so the corpus cannot silently shrink or homogenize {tier:CODE-ONLY} | `test_corpus_manifest_is_diverse` | `apps/backend/tests/e2e/test_statement_corpus_journeys.py` | P0 |
-| AC8.25.2 | Every corpus cassette's frozen extraction output seeds a parsed statement that completes the provider-free downstream journey: transactions endpoint returns the exact cassette row count with Decimal amounts, Stage-1 review reports a validated balance chain, approve auto-creates one posted journal entry per transaction, a statement-scoped reconciliation run reaches unmatched=0, and the balance sheet reflects the statement's net movement on the posting account with the accounting equation balanced {tier:CODE-ONLY} | `test_corpus_statement_full_journey` | `apps/backend/tests/e2e/test_statement_corpus_journeys.py` | P0 |
-| AC8.25.3 | The zero-transaction corpus statement (a real brokerage month with no activity) is deterministic end-to-end: it seeds, lists, reviews with a trivially-tied balance chain, approves with `journal_entries_created == 0`, and a statement-scoped reconciliation run reports unmatched=0 {tier:CODE-ONLY} | `test_corpus_zero_transaction_statement_approves_empty` | `apps/backend/tests/e2e/test_statement_corpus_journeys.py` | P1 |
+| AC8.25.1 | A CSV fixture uploads through ``/statements/upload`` with the REAL StorageService into in-memory S3 (env-level config only — the service is never stubbed or patched), the pipeline parses it, the stored object read back via the real ``get_object`` is byte-identical to the fixture, and the resolved transactions carry the fixture's known business values (6 transactions, 11200.00 gross) {tier:CODE-ONLY} | `test_AC8_25_1_upload_parses_through_real_storage_round_trip` | `apps/backend/tests/api/test_real_storage_pipeline.py` | P0 |
+| AC8.25.2 | The retry path re-fetches the source document through the real ``get_object`` (the load-back leg the in-process first parse skips — this is the assertion that caught the file_path production bug), and deleting the stored object makes retry fail instead of parsing a cached copy — proving the pipeline truly reads storage {tier:CODE-ONLY} | `test_AC8_25_2_retry_loads_source_back_through_real_storage` | `apps/backend/tests/api/test_real_storage_pipeline.py` | P0 |
 
 ## 5. E2E Suite Ownership
 
@@ -723,6 +718,7 @@ Product E2E ownership index:
 | `apps/backend/tests/e2e/test_e2e_flows.py` | Backend extended flow E2E; AC references live in the test file |
 | `apps/backend/tests/e2e/test_epic022_ia.py` | EPIC-022 everyday-user IA shell product owner E2E; AC22.1 references live in the test file |
 | `apps/backend/tests/e2e/test_epic025_dry_ssot_e2e.py` | EPIC-025 DRY/SSOT product owner E2E; AC25.1.1 (reporting_calc extraction is behavior-preserving) references live in the test file |
+| `apps/backend/tests/e2e/test_statement_corpus_journeys.py` | Extraction-corpus merge-tier E2E; ACs live in the `llm` package roadmap (AC-llm.10, `common/llm/contract.py`) |
 | `tests/e2e/test_ac_authority_tiers_epic026.py` | EPIC-026 authority-tier pipeline product owner E2E; AC-authority.2.1/AC-authority.3.1/AC-authority.4.1 references live in the test file |
 | `tests/e2e/test_application_ai_advisor_epic021.py` | Application AI Advisor product owner E2E; AC21.1 references live in the test file |
 | `tests/e2e/test_auth_flows.py` | Deployed auth flow E2E; AC references live in the test file |

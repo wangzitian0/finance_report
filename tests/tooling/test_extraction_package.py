@@ -41,7 +41,7 @@ def test_AC_extraction_1_1_only_all_is_the_published_language():
 
     assert sorted(CONTRACT.interface) == sorted(extraction_pkg.__all__)
     assert CONTRACT.name == "extraction"
-    assert CONTRACT.klass == "core"
+    assert CONTRACT.klass == "domain"
     assert CONTRACT.implementations["be"] == "apps/backend/src/extraction"
 
 

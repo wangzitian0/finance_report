@@ -364,3 +364,42 @@ a `sha256` source reference — never the PDF/image.
 survives; every identity/free-text field is `**`). Real single-currency bank statements
 that genuinely reconcile stay balance-asserted (AC23.7); brokerage and multi-currency
 cassettes are balance-exempt (`balance_reconciles: false`) and field-graded only.
+
+## 7. <a id="extraction-corpus-e2e"></a>Extraction-Corpus E2E Journeys in the Merge Tier (AC-llm.10)
+
+> SSOT owner for the **corpus E2E tier**: the committed extraction corpus,
+> seeded end-to-end through the statement pipeline in PR CI. Registered as
+> roadmap group 10 in [`contract.py`](contract.py); tests live in
+> `apps/backend/tests/e2e/test_statement_corpus_journeys.py` and run in the
+> `ci.yml backend-e2e-tier1` merge gate.
+
+One corpus, four consuming gates — each answers a different question:
+
+| Gate | Stage | Question it answers |
+|---|---|---|
+| Cassette integrity (AC23.7, [§5](#cassettes)) | PR CI `lint` | Is each frozen extraction output internally CONSISTENT (balance chain ties)? |
+| Graded field eval (AC23.8, [§6](#cassette-graded-eval)) | PR CI `lint` + `tooling-coverage` | Is each extraction output ACCURATE per field vs ground truth (raise-only floor)? |
+| Extraction-unit replay (AC23.6) | PR CI backend tests | Does the extraction service still produce this output from the frozen provider seam? |
+| **Corpus E2E journeys (AC-llm.10)** | PR CI `backend-e2e-tier1` | Does each extraction output survive the full downstream pipeline — review → conflict resolution → approve → reconcile → balance sheet? |
+
+The corpus E2E tier seeds a 10-fingerprint maximally-diverse manifest
+(text+vision, real bank/brokerage + synthetic HF, 0→170-transaction scales,
+the #1254 duplicate-rows edge) through `seed_parsed_statement` from each
+cassette's `response.stream_text` — the frozen output is the seed source
+because only it carries `direction`; truth files record unsigned magnitudes.
+Diversity invariants and an exact unpostable-row allowlist are asserted in
+code (AC-llm.10.1) so the corpus can neither silently shrink nor silently
+drop rows.
+
+**Division of labour with staging**: PR CI proves the pipeline on committed
+extraction artifacts (zero provider spend, deterministic); the staging
+provider gates prove live extraction on fixture-generated documents
+(`common/testing/fixtures/pdf/generators/`). Neither substitutes for the
+other.
+
+**Corpus growth policy (right-shift finding → left-shift artifact)**: when a
+staging/nightly provider gate or audit replay surfaces a failure whose cause
+is deterministic (prompt assembly, schema, posting, reconciliation, report
+math), the fix should land with a recorded cassette + ground truth added to
+the corpus — record once, replay forever in the merge tier. Only genuine
+provider drift stays right-shifted as staging/nightly evidence.

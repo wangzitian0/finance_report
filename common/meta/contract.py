@@ -26,12 +26,13 @@ from common.meta.package_contract import (
 
 CONTRACT = PackageContract(
     name="meta",
-    klass="platform",
     status="active",
     # The package-model gate is deterministic code (AST + set comparison), no
     # LLM: a pure-code (CODE-ONLY) package. It also OWNS the authority-tier rules below.
     tier="CODE-ONLY",
-    depends_on=["authority"],
+    # L0 depends on nothing: the tier vocabulary (base/authority_matrix.py) and
+    # the five-layer topology (base/layering.py) are meta's own base modules.
+    depends_on=[],
     roles=["base", "extension", "data"],
     units=[
         # base — the pure model: the PackageContract aggregate root + its value
@@ -283,6 +284,79 @@ CONTRACT = PackageContract(
                 "::test_AC_meta_txn_2_extension_writing_other_domain_orm_is_rejected"
             ),
             priority="P0",
+            status="done",
+        ),
+        # The five-layer topology (meta < infra < middleware < domain < app):
+        # placement is global topology owned by L0 as the central PACKAGE_LAYER
+        # map (base/layering.py) — packages do not self-claim a klass.
+        ACRecord(
+            id="AC-meta.layer.1",
+            statement=(
+                "The package topology is the five ordered layers meta < infra < "
+                "middleware < domain < app (LAYER_RANK); the retired "
+                "kernel/platform/core vocabulary no longer constructs a contract."
+            ),
+            test=(
+                "tests/tooling/test_five_layer_model.py"
+                "::test_old_klass_vocabulary_is_rejected"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.layer.2",
+            statement=(
+                "Placement is resolved from the central PACKAGE_LAYER map: a "
+                "mapped package needs no declared klass, a declaration that "
+                "contradicts the map is rejected, and an unmapped package "
+                "without a declaration is unplaceable."
+            ),
+            test=(
+                "tests/tooling/test_five_layer_model.py"
+                "::test_declared_klass_must_match_central_map"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.layer.3",
+            statement=(
+                "No declared depends_on edge points to a higher layer — in "
+                "particular meta (L0) depends on nothing: the tier vocabulary "
+                "and the topology are its own base modules."
+            ),
+            test=(
+                "tests/tooling/test_five_layer_model.py"
+                "::test_no_depends_on_edge_points_to_a_higher_layer"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.layer.4",
+            statement=(
+                "The L0 vocabulary modules (base/layering.py, "
+                "base/authority_matrix.py) stay importable without pydantic, "
+                "preserving the lightweight CI lint env guarantee."
+            ),
+            test=(
+                "tests/tooling/test_five_layer_model.py"
+                "::test_layer_vocabulary_imports_without_pydantic"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.layer.5",
+            statement=(
+                "common/meta/readme.md carries the authoritative mermaid "
+                "five-layer diagram naming all five layers."
+            ),
+            test=(
+                "tests/tooling/test_five_layer_model.py"
+                "::test_readme_carries_the_mermaid_five_layer_diagram"
+            ),
+            priority="P2",
             status="done",
         ),
         ACRecord(

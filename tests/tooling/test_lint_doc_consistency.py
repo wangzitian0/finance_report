@@ -734,6 +734,13 @@ class TestCheckRegistryToEpic:
         violations = ldc.check_registry_to_epic(acs, {})
         assert violations == []
 
+    def test_package_roadmap_acs_exempt(self):
+        """Package-roadmap ACs (epic_name pkg-<name>) need no EPIC back-reference:
+        the contract roadmap is their home (#1421/#1426 cutover cleanup)."""
+        acs = [{"id": "AC-llm.1.1", "mandatory": True, "epic_name": "pkg-llm"}]
+        violations = ldc.check_registry_to_epic(acs, {})
+        assert violations == []
+
     def test_strikethrough_deprecated_skipped(self):
         acs = [{"id": "AC1.1.1", "description": "~~removed behavior~~"}]
         violations = ldc.check_registry_to_epic(acs, {})

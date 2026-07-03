@@ -45,7 +45,6 @@ from common.meta.package_contract import (
 
 CONTRACT = PackageContract(
     name="extraction",
-    klass="core",
     status="active",
     # LLM-LED: the pipeline's correctness is proven by property tests over the
     # deterministic calculus plus cassette-replay/eval evidence for the

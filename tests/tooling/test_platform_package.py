@@ -103,7 +103,7 @@ def test_platform_interface_equals_published_language():
 
     assert sorted(CONTRACT.interface) == sorted(platform_pkg.__all__)
     assert CONTRACT.name == "platform"
-    assert CONTRACT.klass == "kernel"
+    assert CONTRACT.klass == "infra"
     assert CONTRACT.implementations["be"] == "apps/backend/src/platform"
 
 

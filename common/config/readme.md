@@ -1,4 +1,4 @@
-# `config` — env-key + schema validation helpers (kernel tooling package)
+# `config` — env-key + schema validation helpers (infra tooling package)
 
 > Internal tooling, not a domain bounded context. Model spec:
 > [`../governance/readme.md`](../governance/readme.md). Machine contract:
@@ -10,7 +10,7 @@ Helpers that validate environment-key definitions across the secrets template, `
 
 ## Shape
 
-A `kernel` leaf: no declared dependencies (`depends_on=[]`) and `tier=CODE-ONLY`
+An `infra` leaf (L1): no declared dependencies (`depends_on=[]`) and `tier=CODE-ONLY`
 (pure Python, no LLM). It is a **collection of modules** invoked directly (and via
 `tools/` wrappers), so it publishes **no curated symbol language** —
 `contract.interface` is `[]`. Its [`contract.py`](./contract.py) is validated by

@@ -204,16 +204,16 @@ E2E_ROWS: tuple[E2ERow, ...] = (
     E2ERow(
         "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py",
         needs=(),
-        audited=False,
+        audited=True,
         reason=(
-            "#1547 lineage: no provider/market/Vault dependency. The PR #1562 "
-            "in-runner 404 was root-caused (double-/api NEXT_PUBLIC_API_URL in "
-            "docker-compose.ci-e2e.yml) and fixed, but PR #1587 then hit a "
-            "deterministic (2/2) in-runner-only failure one step later: the "
-            "'Upload & Parse Statement' click times out with the element "
-            "reported visible/enabled/stable — a re-render/interception class "
-            "issue; the same flow passes on staging. Tracked in issue #1589; "
-            "flip this row when that run is green."
+            "#1547 lineage: no provider/market/Vault dependency. Two in-runner "
+            "stack bugs were flushed out on the way in: the double-/api "
+            "NEXT_PUBLIC_API_URL 404 (PR #1587) and the #1589 click timeout — "
+            "the app-wide FirstRunModal ('Set up your AI provider') opened on "
+            "every full navigation because the stack had no provider wiring, "
+            "intercepting pointer events over the upload button; fixed with "
+            "placeholder provider wiring + an unroutable AI_BASE_URL in "
+            "docker-compose.ci-e2e.yml (validates wiring, cannot spend quota)."
         ),
     ),
     E2ERow(
