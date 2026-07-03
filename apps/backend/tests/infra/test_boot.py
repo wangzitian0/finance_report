@@ -579,7 +579,7 @@ class TestManifestDrivenValidate:
 
     def test_github_ci_tier_has_no_unprobed_requirements(self):
         """Everything github_ci requires already has a probe adapter; the real
-        LLM provider is a staging/prod requirement (cassette substitute in CI)."""
+        LLM provider is a staging/prod requirement (recorded substitute in CI)."""
         from src.runtime import EnvTier
 
         probed, unprobed = Bootloader._required_checks(EnvTier.GITHUB_CI)
@@ -610,7 +610,7 @@ class TestManifestDrivenValidate:
         assert result is True
         mock_db_check.assert_called_once()
         mock_minio_check.assert_called_once()
-        # The real LLM provider is not a github_ci requirement (cassette tier).
+        # The real LLM provider is not a github_ci requirement (recorded-substitute tier).
         mock_openrouter_check.assert_not_called()
 
     async def test_full_mode_probes_all_eight_deps_on_production(

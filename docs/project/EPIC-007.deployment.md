@@ -192,8 +192,8 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 > in the `runtime` roadmap: `AC-runtime.4.1` (#1580 — a probe adapter for every
 > declared dependency), `AC-llm.6.2` (#1581 — the LLM cassette substitute is
 > input-keyed, runtime invariant 5, owned by the `llm` package), `AC-runtime.6.1` (#1578 — smoke ↔ declaration
-> parity via `/health?full=1`, invariant 6), and `AC-runtime.8.1` (#1520 — the
-> real-StorageService pipeline against an in-memory S3 substitute, invariant 4).
+> parity via `/health?full=1`, invariant 6); the real-StorageService pipeline
+> substitute (invariant 4, #1520) is owned by EPIC-008 as `AC8.25.1`–`.2`.
 
 ### AC7.7: Health Checks — migrated to the `runtime` package
 

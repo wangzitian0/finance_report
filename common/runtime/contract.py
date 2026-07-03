@@ -15,8 +15,8 @@ silent ``skipped`` status. The *migrate* phase homes the smoke-test / health
 ACs here: EPIC-008 AC8.1.1–.4 → ``AC-runtime.1.*`` (smoke / service reachability /
 DB connectivity) and EPIC-007 AC7.7.1–.2 → ``AC-runtime.7.*`` (``/health``
 dependency-presence), each ``test=`` resolving to its existing proof; the package
-tier (CODE-LED — the roadmap includes cassette-driven substitute proofs, e.g.
-the #1520 pipeline replay; deterministic ACs keep ``proof_kind=exact``). (Step 3 / cleanup absorbs the
+tier (CODE-ONLY) gives ``proof_kind=exact``; the model-dominant substitute
+proofs live with their owning packages (AC-llm.6.2, EPIC-008 AC8.25.*). (Step 3 / cleanup absorbs the
 env-smoke-test SSOT prose into ``readme.md`` and retires the doc.) Remaining as a
 future feature (not this migration): manifest-driven
 ``validate`` for *all* declared dependencies per env tier + smoke↔declaration
@@ -30,7 +30,7 @@ from common.meta.package_contract import ACRecord, PackageContract
 CONTRACT = PackageContract(
     name="runtime",
     status="active",
-    tier="CODE-LED",
+    tier="CODE-ONLY",
     depends_on=[],
     roles=[],
     implementations={"be": "apps/backend/src/runtime", "fe": None},
@@ -136,19 +136,6 @@ CONTRACT = PackageContract(
                 "(invariant 6, #1578; the tag→production gate already requires the staging smoke)."
             ),
             test="apps/backend/tests/runtime/test_health_parity.py::test_AC_runtime_6_1_full_health_asserts_the_declared_set",
-            priority="P1",
-            status="done",
-        ),
-        # ── real-storage pipeline substitute (invariant 4, #1520) ──
-        ACRecord(
-            id="AC-runtime.8.1",
-            statement=(
-                "The upload→S3→load→parse pipeline runs the REAL StorageService/boto3 against an "
-                "in-memory S3 substitute (moto) with a byte-identical round-trip and a committed "
-                "REAL-GLM cassette parse — the substitute fakes the backend, never the adapter "
-                "(invariant 4, #1520)."
-            ),
-            test="apps/backend/tests/api/test_statement_pipeline_moto.py::test_AC_1520_upload_s3_load_parse_pipeline",
             priority="P1",
             status="done",
         ),
