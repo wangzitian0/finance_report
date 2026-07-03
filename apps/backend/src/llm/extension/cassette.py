@@ -173,7 +173,7 @@ def refresh_requested() -> bool:
 
 
 def in_ci() -> bool:
-    return bool(os.environ.get("CI"))
+    return _env_flag("CI")
 
 
 def legacy_mode_env_set() -> bool:

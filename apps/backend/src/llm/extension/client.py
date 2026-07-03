@@ -328,14 +328,9 @@ async def litellm_stream(
             return
 
         if in_ci():
-            if t_hit is not None:
-                # refresh is refused in CI: cassettes are never written there.
-                t_store.mark_served(t_key)
-                text = str(t_hit.response.get(_STREAM_TEXT_KEY, ""))
-                if text:
-                    yield text
-                return
-            # MISS in CI is ALWAYS the hard failure — even with a key present.
+            # Reaching here in CI means a MISS: refresh_requested() is always
+            # False in CI, so any HIT was already served above. A MISS in CI is
+            # ALWAYS the hard failure — even with a key present.
             raise CassetteMiss(t_key, scene=t_role)
 
         # Local MISS (or explicit refresh): a real call needs usable credentials.
