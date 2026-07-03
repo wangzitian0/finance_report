@@ -167,10 +167,19 @@ def check_registry_to_epic(
     registry_acs: list[dict],
     epic_refs: dict[str, set[str]],
 ) -> list[Violation]:
-    """Check #3: every non-deprecated AC ID is referenced by some EPIC."""
+    """Check #3: every non-deprecated AC ID is referenced by some EPIC.
+
+    Package-roadmap ACs (``epic_name: pkg-<name>``, sourced from
+    ``common/<pkg>/contract.py``) are exempt: the contract roadmap IS their
+    home — each resolves to an anchoring test there, and ``check_epic_package_dual``
+    forbids a second EPIC-table home — so requiring an EPIC back-reference would
+    only force EPIC stubs to mirror the id list (pure duplication).
+    """
     violations: list[Violation] = []
     for ac in registry_acs:
         if is_deprecated(ac):
+            continue
+        if str(ac.get("epic_name", "")).startswith("pkg-"):
             continue
         ac_id = ac.get("id")
         if not ac_id:
