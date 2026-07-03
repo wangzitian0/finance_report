@@ -641,6 +641,30 @@ an only-goes-down ratchet (`common/testing/mirror_ratchet.py`), stopping the
 | AC8.24.2 | Workflow pytest contracts declaring an environment precondition (the runtime-owned smoke gate, for the preview and staging core E2E stages) must run it before the pytest invocation in the same workflow — mechanized fault attribution: a red precondition aborts before tests start {tier:CODE-ONLY} | `test_AC8_24_2_e2e_stages_run_their_environment_precondition_first` | `tests/tooling/test_package_declaration_and_ratchet.py` | P0 |
 | AC8.24.3 | The mirror-assertion count over `tests/tooling/` is locked behind a committed baseline that may only decrease: growth fails CI, `--update` refuses to raise the baseline, and paydown lowers it — with the eight marker-literal mirrors already redundant with AC8.23.2 deleted in the same change {tier:CODE-ONLY} | `test_AC8_24_3_mirror_assertion_ratchet_is_locked_and_only_goes_down` | `tests/tooling/test_package_declaration_and_ratchet.py` | P0 |
 
+### AC8.25: Extraction-Corpus Journeys in the Merge Tier (10-cassette seeded E2E)
+
+The repo holds ~37 committed extraction artifacts (LLM cassettes + graded
+ground truth under `common/testing/fixtures/llm_cassettes/`), but before this
+AC they were consumed only at extraction-unit level (replay, integrity gate,
+graded eval) — the merge-blocking E2E tier proved the parsed→report chain on a
+single synthetic fixture. A 10-cassette corpus (maximally diverse: text+vision,
+real bank/brokerage + synthetic HF, 0/3/39–69/150+ transaction scales, the
+#1254 duplicate-rows edge, reconciling and non-reconciling balances) is now
+seeded through `seed_parsed_statement` from each cassette's frozen extraction
+output (`response.stream_text` — the artifact carries `direction`, which the
+truth files deliberately omit), and each corpus statement drives the full
+downstream journey — list/detail/transactions → Stage-1 review/approve →
+reconciliation run → balance sheet — in `backend-e2e-tier1` with zero provider
+calls. CI proves the pipeline on the extraction corpus; staging's fixture-based
+provider gates stay the proof for live extraction (see
+[ci-cd.md](../ssot/ci-cd.md)).
+
+| AC ID | Test Case | Test Function | File | Priority |
+|---|---|---|---|---|
+| AC8.25.1 | The seeded extraction corpus is a committed 10-fingerprint manifest whose diversity invariants are asserted in code — both modalities (text+vision), bank and brokerage institution classes, a duplicate-rows edge case, a zero-transaction statement, and at least three statements of 150+ transactions — so the corpus cannot silently shrink or homogenize | `test_corpus_manifest_is_diverse` | `apps/backend/tests/e2e/test_statement_corpus_journeys.py` | P0 |
+| AC8.25.2 | Every corpus cassette's frozen extraction output seeds a parsed statement that completes the provider-free downstream journey: transactions endpoint returns the exact cassette row count with Decimal amounts, Stage-1 review reports a validated balance chain, approve auto-creates one posted journal entry per transaction, a statement-scoped reconciliation run reaches unmatched=0, and the balance sheet reflects the statement's net movement on the posting account with the accounting equation balanced | `test_corpus_statement_full_journey` | `apps/backend/tests/e2e/test_statement_corpus_journeys.py` | P0 |
+| AC8.25.3 | The zero-transaction corpus statement (a real brokerage month with no activity) is deterministic end-to-end: it seeds, lists, reviews with a trivially-tied balance chain, approves with `journal_entries_created == 0`, and a statement-scoped reconciliation run reports unmatched=0 | `test_corpus_zero_transaction_statement_approves_empty` | `apps/backend/tests/e2e/test_statement_corpus_journeys.py` | P1 |
+
 ## 5. E2E Suite Ownership
 
 Current test counts and coverage percentages belong to generated reports and CI
