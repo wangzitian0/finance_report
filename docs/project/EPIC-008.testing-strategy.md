@@ -641,6 +641,25 @@ an only-goes-down ratchet (`common/testing/mirror_ratchet.py`), stopping the
 | AC8.24.2 | Workflow pytest contracts declaring an environment precondition (the runtime-owned smoke gate, for the preview and staging core E2E stages) must run it before the pytest invocation in the same workflow — mechanized fault attribution: a red precondition aborts before tests start {tier:CODE-ONLY} | `test_AC8_24_2_e2e_stages_run_their_environment_precondition_first` | `tests/tooling/test_package_declaration_and_ratchet.py` | P0 |
 | AC8.24.3 | The mirror-assertion count over `tests/tooling/` is locked behind a committed baseline that may only decrease: growth fails CI, `--update` refuses to raise the baseline, and paydown lowers it — with the eight marker-literal mirrors already redundant with AC8.23.2 deleted in the same change {tier:CODE-ONLY} | `test_AC8_24_3_mirror_assertion_ratchet_is_locked_and_only_goes_down` | `tests/tooling/test_package_declaration_and_ratchet.py` | P0 |
 
+### AC8.25: Real Storage Pipeline (counted tier)
+
+Issue #1520: every counted test stubbed the storage seam (DummyStorage /
+mocked boto3), so the real ``StorageService`` wiring — upload, persist,
+load-back — shipped unproven; green CI did not prove a user's statement
+survives storage. These tests run the REAL service and the REAL
+upload→store→parse pipeline against moto's in-memory S3 (no stub, no service
+container, fast path), reusing the vision hard gate's deterministic CSV
+fixture so the same business numbers are proven at the counted tier. Their
+first run caught a live production bug: the success path persisted the bare
+display filename as ``UploadedDocument.file_path``, so every post-success
+retry/reparse fetched a nonexistent storage key (fixed in
+``statement_parsing.py`` alongside).
+
+| AC ID | Test Case | Test Function | File | Priority |
+|---|---|---|---|---|
+| AC8.25.1 | A CSV fixture uploads through ``/statements/upload`` with the REAL StorageService into in-memory S3 (env-level config only — the service is never stubbed or patched), the pipeline parses it, the stored object read back via the real ``get_object`` is byte-identical to the fixture, and the resolved transactions carry the fixture's known business values (6 transactions, 11200.00 gross) {tier:CODE-ONLY} | `test_AC8_25_1_upload_parses_through_real_storage_round_trip` | `apps/backend/tests/api/test_real_storage_pipeline.py` | P0 |
+| AC8.25.2 | The retry path re-fetches the source document through the real ``get_object`` (the load-back leg the in-process first parse skips — this is the assertion that caught the file_path production bug), and deleting the stored object makes retry fail instead of parsing a cached copy — proving the pipeline truly reads storage {tier:CODE-ONLY} | `test_AC8_25_2_retry_loads_source_back_through_real_storage` | `apps/backend/tests/api/test_real_storage_pipeline.py` | P0 |
+
 ## 5. E2E Suite Ownership
 
 Current test counts and coverage percentages belong to generated reports and CI
