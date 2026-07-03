@@ -226,7 +226,7 @@ def test_AC14_1_5_smoke_test_succeeds_against_mocked_local_environment(
                 raise SystemExit(0)
 
             status = "401" if url.endswith("/api/statements") else "200"
-            body = '{"status":"healthy","state":"pong"}' if url.endswith("/api/health") or url.endswith("/api/ping") else "OK"
+            body = '{"status":"healthy","state":"pong"}' if "/api/health" in url or url.endswith("/api/ping") else "OK"
 
             if "-o" in args and "/dev/null" in args:
                 print(status, end="")

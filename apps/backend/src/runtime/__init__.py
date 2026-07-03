@@ -27,9 +27,14 @@ from src.runtime.base.manifest import (
 )
 from src.runtime.base.tiers import APP_OWNED_TIERS, VPS_TIERS, EnvTier, resolve_env_tier
 from src.runtime.extension.adapters import (
+    AnalyticsCheck,
     DatabaseCheck,
     LlmCheck,
+    MarketDataCheck,
     ObjectStorageCheck,
+    RedisCheck,
+    TelemetryCheck,
+    WorkflowEngineCheck,
 )
 
 __all__ = [
@@ -37,6 +42,7 @@ __all__ = [
     "DEPENDENCY_MANIFEST",
     "NON_DEPENDENCY_ENV_FIELDS",
     "VPS_TIERS",
+    "AnalyticsCheck",
     "DatabaseCheck",
     "Dependency",
     "DependencyCheck",
@@ -45,8 +51,12 @@ __all__ = [
     "DependencyStatus",
     "EnvTier",
     "LlmCheck",
+    "MarketDataCheck",
     "ObjectStorageCheck",
     "ProbeResult",
+    "RedisCheck",
+    "TelemetryCheck",
+    "WorkflowEngineCheck",
     "check_env_classification",
     "resolve_env_tier",
 ]

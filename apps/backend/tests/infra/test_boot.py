@@ -451,13 +451,29 @@ class TestBootloaderFullMode:
     async def test_full_mode_includes_openrouter(
         self, mock_settings, mock_db_check, mock_minio_check, mock_openrouter_check
     ):
+        """The real-provider check runs on tiers that declare llm (staging/prod)."""
+        from src.runtime import EnvTier
+
         mock_db_check.return_value = ServiceStatus("database", "ok", "OK")
         mock_minio_check.return_value = ServiceStatus("minio", "ok", "OK")
         mock_openrouter_check.return_value = ServiceStatus("ai_provider", "ok", "OK")
 
         with patch.object(Bootloader, "_check_vault_secrets") as mock_vault:
             mock_vault.return_value = ServiceStatus("vault_secrets", "ok", "OK")
-            result = await Bootloader.validate(BootMode.FULL)
+            with (
+                patch.object(Bootloader, "_check_cache", new_callable=AsyncMock) as m_cache,
+                patch.object(Bootloader, "_check_workflow_engine", new_callable=AsyncMock) as m_wf,
+                patch.object(Bootloader, "_check_telemetry", new_callable=AsyncMock) as m_tel,
+                patch.object(Bootloader, "_check_analytics", new_callable=AsyncMock) as m_an,
+            ):
+                for name, m in {
+                    "cache": m_cache,
+                    "workflow_engine": m_wf,
+                    "telemetry": m_tel,
+                    "analytics": m_an,
+                }.items():
+                    m.return_value = ServiceStatus(name, "ok", "OK")
+                result = await Bootloader.validate(BootMode.FULL, tier=EnvTier.STAGING)
 
         assert result is True
         mock_openrouter_check.assert_called_once()
@@ -562,20 +578,21 @@ class TestManifestDrivenValidate:
     """AC-runtime.3.1 (#1577) — FULL mode derives its checks from the manifest."""
 
     def test_github_ci_tier_has_no_unprobed_requirements(self):
-        """Everything github_ci requires already has a probe adapter."""
+        """Everything github_ci requires already has a probe adapter; the real
+        LLM provider is a staging/prod requirement (cassette substitute in CI)."""
         from src.runtime import EnvTier
 
         probed, unprobed = Bootloader._required_checks(EnvTier.GITHUB_CI)
-        assert set(probed) == {"database", "object_storage", "llm"}
+        assert set(probed) == {"database", "object_storage"}
         assert unprobed == []
 
-    def test_production_tier_names_the_unprobed_requirements(self):
-        """Declared-required deps without a probe are visible (never silently skipped)."""
-        from src.runtime import EnvTier
+    def test_production_tier_probes_every_declared_dependency(self):
+        """Since #1580 every declared-required dep has a probe — nothing unprobed."""
+        from src.runtime import DEPENDENCY_MANIFEST, EnvTier
 
         probed, unprobed = Bootloader._required_checks(EnvTier.PRODUCTION)
-        assert set(probed) == {"database", "object_storage", "llm"}
-        assert unprobed == sorted(["cache", "workflow_engine", "telemetry", "analytics", "market_data"])
+        assert set(probed) == DEPENDENCY_MANIFEST.required_for(EnvTier.PRODUCTION)
+        assert unprobed == []
 
     async def test_full_mode_probes_the_manifest_set_for_the_tier(
         self, mock_settings, mock_db_check, mock_minio_check, mock_openrouter_check
@@ -593,12 +610,41 @@ class TestManifestDrivenValidate:
         assert result is True
         mock_db_check.assert_called_once()
         mock_minio_check.assert_called_once()
-        mock_openrouter_check.assert_called_once()
+        # The real LLM provider is not a github_ci requirement (cassette tier).
+        mock_openrouter_check.assert_not_called()
 
-    async def test_full_mode_warns_for_unprobed_required_deps(
-        self, mock_settings, mock_db_check, mock_minio_check, mock_openrouter_check, mock_logger
+    async def test_full_mode_probes_all_eight_deps_on_production(
+        self, mock_settings, mock_db_check, mock_minio_check, mock_openrouter_check
     ):
-        """On a tier requiring unprobed deps, FULL passes but surfaces them loudly (#1580)."""
+        """AC-runtime.4.1 (#1580): production FULL probes every declared dependency."""
+        from src.runtime import EnvTier
+
+        mock_db_check.return_value = ServiceStatus("database", "ok", "OK")
+        mock_minio_check.return_value = ServiceStatus("minio", "ok", "OK")
+        mock_openrouter_check.return_value = ServiceStatus("ai_provider", "ok", "OK")
+
+        extra = {}
+        with patch.object(Bootloader, "_check_vault_secrets") as mock_vault:
+            mock_vault.return_value = ServiceStatus("vault_secrets", "ok", "OK")
+            with (
+                patch.object(Bootloader, "_check_cache", new_callable=AsyncMock) as extra["cache"],
+                patch.object(Bootloader, "_check_workflow_engine", new_callable=AsyncMock) as extra["workflow_engine"],
+                patch.object(Bootloader, "_check_telemetry", new_callable=AsyncMock) as extra["telemetry"],
+                patch.object(Bootloader, "_check_analytics", new_callable=AsyncMock) as extra["analytics"],
+                patch.object(Bootloader, "_check_market_data", new_callable=AsyncMock) as extra["market_data"],
+            ):
+                for name, mock in extra.items():
+                    mock.return_value = ServiceStatus(name, "ok", "OK")
+                result = await Bootloader.validate(BootMode.FULL, tier=EnvTier.PRODUCTION)
+
+        assert result is True
+        for name, mock in extra.items():
+            mock.assert_called_once(), name
+
+    async def test_full_mode_absent_new_probe_fails_validate(
+        self, mock_settings, mock_db_check, mock_minio_check, mock_openrouter_check
+    ):
+        """An absent cache (Redis down) now fails production FULL — invariant 2."""
         from src.runtime import EnvTier
 
         mock_db_check.return_value = ServiceStatus("database", "ok", "OK")
@@ -607,11 +653,24 @@ class TestManifestDrivenValidate:
 
         with patch.object(Bootloader, "_check_vault_secrets") as mock_vault:
             mock_vault.return_value = ServiceStatus("vault_secrets", "ok", "OK")
-            result = await Bootloader.validate(BootMode.FULL, tier=EnvTier.PRODUCTION)
+            with (
+                patch.object(Bootloader, "_check_cache", new_callable=AsyncMock) as mock_cache,
+                patch.object(Bootloader, "_check_workflow_engine", new_callable=AsyncMock) as m_wf,
+                patch.object(Bootloader, "_check_telemetry", new_callable=AsyncMock) as m_tel,
+                patch.object(Bootloader, "_check_analytics", new_callable=AsyncMock) as m_an,
+                patch.object(Bootloader, "_check_market_data", new_callable=AsyncMock) as m_md,
+            ):
+                mock_cache.return_value = ServiceStatus("cache", "error", "Connection refused")
+                for name, m in {
+                    "workflow_engine": m_wf,
+                    "telemetry": m_tel,
+                    "analytics": m_an,
+                    "market_data": m_md,
+                }.items():
+                    m.return_value = ServiceStatus(name, "ok", "OK")
+                result = await Bootloader.validate(BootMode.FULL, tier=EnvTier.PRODUCTION)
 
-        assert result is True
-        warned = " ".join(str(call) for call in mock_logger.warning.call_args_list)
-        assert "no probe adapter" in warned and "cache" in warned
+        assert result is False
 
     async def test_full_mode_absent_required_dep_fails(self, mock_settings, mock_db_check, mock_logger):
         from src.runtime import EnvTier

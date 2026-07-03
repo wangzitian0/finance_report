@@ -38,6 +38,7 @@ CONTRACT = PackageContract(
         "DEPENDENCY_MANIFEST",
         "NON_DEPENDENCY_ENV_FIELDS",
         "VPS_TIERS",
+        "AnalyticsCheck",
         "DatabaseCheck",
         "Dependency",
         "DependencyCheck",
@@ -46,8 +47,12 @@ CONTRACT = PackageContract(
         "DependencyStatus",
         "EnvTier",
         "LlmCheck",
+        "MarketDataCheck",
         "ObjectStorageCheck",
         "ProbeResult",
+        "RedisCheck",
+        "TelemetryCheck",
+        "WorkflowEngineCheck",
         "check_env_classification",
         "resolve_env_tier",
     ],
@@ -105,6 +110,56 @@ CONTRACT = PackageContract(
                 "without a probe adapter is a visible warning (#1580), never a silent skip (#1577)."
             ),
             test="apps/backend/tests/infra/test_boot.py::test_AC_runtime_3_1_required_checks_cover_the_tier_declaration",
+            priority="P1",
+            status="done",
+        ),
+        # ── probes for every declared dependency (#1580) ──
+        ACRecord(
+            id="AC-runtime.4.1",
+            statement=(
+                "Every declared dependency has a DependencyCheck probe adapter — "
+                "Bootloader._required_checks finds a probe for every dependency of every tier, "
+                "so invariant 2 (absent ⇒ fail) is enforceable across the whole manifest (#1580)."
+            ),
+            test="apps/backend/tests/runtime/test_probe_adapters.py::test_AC_runtime_4_1_every_declared_dependency_has_a_probe_adapter",
+            priority="P1",
+            status="done",
+        ),
+        # ── model-dominant substitute is input-keyed (invariant 5, #1581) ──
+        ACRecord(
+            id="AC-runtime.5.1",
+            statement=(
+                "The LLM cassette substitute is input-keyed (fingerprint = sha256 of role + messages "
+                "+ decode params): a changed input is a replay MISS and a hard failure, never a "
+                "stale-but-passing replay (invariant 5, #1581)."
+            ),
+            test="apps/backend/tests/llm/test_streaming_cassette.py::test_AC23_6_2_replay_miss_is_hard_failure",
+            priority="P1",
+            status="done",
+        ),
+        # ── smoke ↔ declaration parity (invariant 6, #1578) ──
+        ACRecord(
+            id="AC-runtime.6.1",
+            statement=(
+                "The smoke's dependency-presence assertion covers exactly the manifest-declared set: "
+                "GET /health?full=1 (called by tools/smoke_test.sh) probes every dependency in "
+                "DEPENDENCY_MANIFEST.required_for(tier) and returns 503 on any absence "
+                "(invariant 6, #1578; the tag→production gate already requires the staging smoke)."
+            ),
+            test="apps/backend/tests/runtime/test_health_parity.py::test_AC_runtime_6_1_full_health_asserts_the_declared_set",
+            priority="P1",
+            status="done",
+        ),
+        # ── real-storage pipeline substitute (invariant 4, #1520) ──
+        ACRecord(
+            id="AC-runtime.8.1",
+            statement=(
+                "The upload→S3→load→parse pipeline runs the REAL StorageService/boto3 against an "
+                "in-memory S3 substitute (moto) with a byte-identical round-trip and a committed "
+                "REAL-GLM cassette parse — the substitute fakes the backend, never the adapter "
+                "(invariant 4, #1520)."
+            ),
+            test="apps/backend/tests/api/test_statement_pipeline_moto.py::test_AC_1520_upload_s3_load_parse_pipeline",
             priority="P1",
             status="done",
         ),

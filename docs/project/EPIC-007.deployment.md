@@ -188,7 +188,12 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 > Its enforcement sibling is `AC-runtime.3.1` (#1577): `boot.validate` FULL
 > derives the dependency set from `DEPENDENCY_MANIFEST.required_for(tier)`
 > (tier resolved from `ENVIRONMENT` via `resolve_env_tier`, unknown → strictest)
-> instead of a hardcoded per-mode list.
+> instead of a hardcoded per-mode list. The remaining enforcement ACs also live
+> in the `runtime` roadmap: `AC-runtime.4.1` (#1580 — a probe adapter for every
+> declared dependency), `AC-runtime.5.1` (#1581 — the LLM cassette substitute is
+> input-keyed, invariant 5), `AC-runtime.6.1` (#1578 — smoke ↔ declaration
+> parity via `/health?full=1`, invariant 6), and `AC-runtime.8.1` (#1520 — the
+> real-StorageService pipeline against an in-memory S3 substitute, invariant 4).
 
 ### AC7.7: Health Checks — migrated to the `runtime` package
 
