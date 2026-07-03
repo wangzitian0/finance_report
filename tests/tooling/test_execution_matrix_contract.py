@@ -83,14 +83,13 @@ def test_AC8_22_3_preview_selection_is_audited_and_dependency_free() -> None:
     # The original in-runner set is preserved.
     assert "tests/e2e/test_core_journeys.py" in selected_files
     assert "tests/e2e/test_e2e_flows.py::test_full_navigation" in selection
-    # The vision hard gate's 404 was root-caused and fixed (double-/api base
-    # URL), but a deterministic in-runner-only click timeout surfaced next
-    # (PR #1587, 2/2) — the row stays out, carrying that evidence, until its
-    # dedicated issue is fixed; admission remains a row flip.
+    # #1547's ask, delivered: after the double-/api 404 (PR #1587) and the
+    # FirstRunModal click interception (#1589) were both root-caused as
+    # in-runner STACK bugs and fixed in docker-compose.ci-e2e.yml, the
+    # non-LLM vision hard gate runs pre-merge — each admission was a row
+    # flip, never a workflow edit.
     vision = "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py"
-    vision_row = next(row for row in matrix.E2E_ROWS if row.file == vision)
-    assert not vision_row.audited and "#1587" in vision_row.reason
-    assert vision not in selected_files
+    assert vision in selected_files
 
     # Completeness (Copilot on #1587): every audited, dependency-free row is
     # actually selected — "exactly", not just "only".

@@ -592,8 +592,11 @@ The provider-backed AI/OCR corpus is split into two distinct gates that share on
   that fired only after CI and a quick merge could land before it ran as a gate
   (GitHub counts a skipped required check as passed). It is image-free, so it needs
   no CI artifact and runs independently of CI. PR close triggers cleanup, not a gate.
-- PR preview does not inject `ZAI_API_KEY`; it validates app wiring without
-  real GLM/OCR provider calls.
+- PR preview injects no REAL provider key: the in-runner stack wires a
+  placeholder `ZAI_API_KEY` with an unroutable `AI_BASE_URL` (so the app
+  reports LLM wiring configured and the first-run provider modal stays out of
+  browser E2E, #1589) while an accidental provider call fails instantly —
+  app wiring is validated without real GLM/OCR provider calls.
 - PR preview does not push, preflight, pull, or delete PR preview images, and it
   does not build images in CI. The `build-preview-backend-image`,
   `build-preview-frontend-image`, `gate-cheap-ci`, and GHCR preflight/delete

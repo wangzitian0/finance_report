@@ -26,12 +26,11 @@ def test_llm_provider_abstraction_epic023_product_owner_contract() -> None:
     Anchors the EPIC to (a) the SSOT vocabulary of its three orthogonal axes and
     (b) the secret-rotation contract, so a drift in either surface fails here.
     """
-    epic = read("docs/project/EPIC-023.llm-provider-abstraction.md")
     # The LLM SSOT is internalized into the `llm` package (migration-standard
     # step 3); the package readme is the single owner of the axes/rotation prose.
     ssot = read("common/llm/readme.md")
-    types_src = read("apps/backend/src/llm/common/types.py")
-    secrets_src = read("apps/backend/src/llm/common/secrets.py")
+    types_src = read("apps/backend/src/llm/base/types.py")
+    secrets_src = read("apps/backend/src/llm/base/secrets.py")
 
     # Axis 1 — exactly the three universally-compatible protocol families.
     for family in (
@@ -55,5 +54,7 @@ def test_llm_provider_abstraction_epic023_product_owner_contract() -> None:
     assert "MultiFernet" in secrets_src
     assert "LLM_ENCRYPTION_KEYS" in ssot
     assert "rotation" in ssot.lower()
-    assert "single-pass" in epic.lower()
+    # The rotation contract migrated into the llm package with its ACs (#1591).
+    llm_contract = read("common/llm/contract.py")
+    assert "single-pass" in llm_contract.lower()
     assert "one pass" in ssot.lower()
