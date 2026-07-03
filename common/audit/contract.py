@@ -327,7 +327,8 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
-        # ── group 30: Quantity + ExchangeRate (was EPIC-012 AC12.30.*) ──
+        # ── groups 21–22: multi-currency balances + typed-Money adoption
+        # (was EPIC-002 AC2.21.*/AC2.22.*, minus the HU-retained rows) ──
         ACRecord(
             id="AC-audit.21.1",
             statement=(
@@ -371,6 +372,7 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── group 30: Quantity + ExchangeRate (was EPIC-012 AC12.30.*) ──
         ACRecord(
             id="AC-audit.30.1",
             statement=(

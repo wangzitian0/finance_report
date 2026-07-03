@@ -469,8 +469,9 @@ banker's-rounding-vs-`decimal.js`-HALF_UP divergence).
 
 ### AC2.21: Per-currency balance container
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
+> **Migrated**: the container's row lives in the audit package roadmap as
+> `AC-audit.21.1` — owned by, and sourced from,
+> [`common/audit/contract.py`](../../common/audit/contract.py)'s `roadmap`.
 
 ### AC2.22: Materiality adoption ([#1171](https://github.com/wangzitian0/finance_report/issues/1171))
 
@@ -480,14 +481,11 @@ in lockstep by the shared conformance vectors + the #1172 guard), because the
 backend image does not ship `common/`.
 
 The hot-path arithmetic (reconciliation, reporting net-worth) is routed through
-the value types via byte-identical adoption helpers (`src/money/adopt.py`): they
+the value types via byte-identical adoption helpers (`src/audit/money/adopt.py`): they
 go through `Money`/`convert` when both currencies are valid ISO codes and fall
 back to the *identical* Decimal arithmetic for the reconciliation `"*"` sentinel /
 non-ISO codes (crypto / withdrawn), so totals are byte-identical for every input
 and there is no regression on currencies outside the active ISO set.
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
 
 > **Migrated**: net-worth restatement via the `convert` primitive moved to the `money`
 > package roadmap — its proof is a money-package statement. Owned by, and sourced from,
