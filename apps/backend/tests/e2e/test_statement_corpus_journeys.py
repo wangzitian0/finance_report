@@ -159,7 +159,7 @@ def load_corpus_case(fingerprint: str) -> CorpusCase:
 
 @pytest.mark.e2e
 def test_corpus_manifest_is_diverse():
-    """AC-llm.10.1: the corpus manifest's diversity invariants hold in code.
+    """EPIC-023 / AC-llm.10.1: the corpus manifest's diversity invariants hold in code.
 
     GIVEN the committed 10-fingerprint corpus manifest
     WHEN loading each cassette + truth pair
@@ -204,7 +204,7 @@ def test_corpus_manifest_is_diverse():
 @pytest.mark.e2e
 @pytest.mark.parametrize("fingerprint", CORPUS_FINGERPRINTS, ids=lambda fp: fp[:8])
 async def test_corpus_statement_full_journey(client, db, test_user, fingerprint):
-    """AC-llm.10.2: every corpus extraction output completes the downstream journey.
+    """EPIC-023 / AC-llm.10.2: every corpus extraction output completes the downstream journey.
 
     GIVEN a corpus cassette's frozen extraction output seeded as a parsed statement
     WHEN driving transactions → review → approve → reconciliation → balance sheet via the API
@@ -292,7 +292,7 @@ async def test_corpus_statement_full_journey(client, db, test_user, fingerprint)
 
 @pytest.mark.e2e
 async def test_corpus_zero_transaction_statement_approves_empty(client, db, test_user):
-    """AC-llm.10.3: the zero-transaction corpus statement is deterministic end-to-end.
+    """EPIC-023 / AC-llm.10.3: the zero-transaction corpus statement is deterministic end-to-end.
 
     GIVEN the real brokerage month with no activity, seeded from its cassette
     WHEN reviewing, approving, and reconciling it
