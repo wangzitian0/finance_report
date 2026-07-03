@@ -56,6 +56,16 @@ PATH_RULES: tuple[PathRule, ...] = (
     PathRule(
         "apps/backend/tests/e2e/test_core_journeys.py", "backend_tier1_api_e2e", True
     ),
+    PathRule(
+        "apps/backend/tests/e2e/test_seeded_statement_journey.py",
+        "backend_tier1_api_e2e",
+        True,
+    ),
+    PathRule(
+        "apps/backend/tests/e2e/test_statement_corpus_journeys.py",
+        "backend_tier1_api_e2e",
+        True,
+    ),
     PathRule("apps/backend/tests/", "backend_ci", True),
     PathRule(
         "apps/frontend/playwright/inline-edit-happy-path.spec.ts",
@@ -408,7 +418,16 @@ WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
         stage="backend_tier1_api_e2e",
         workflow=".github/workflows/ci.yml",
         marker=BACKEND_TIER1_MARKER,
-        paths=("tests/e2e/test_core_journeys.py",),
+        # Tier-1 file set: core API journeys + the provider-free seeded
+        # statement journeys (AC8.21) + the extraction-corpus journeys
+        # (AC8.25). Browser-dependent specs (test_auth_flows, test_e2e_flows,
+        # test_epic022_ia, test_epic025_dry_ssot_e2e) need a frontend and stay
+        # out of this API-only lane.
+        paths=(
+            "tests/e2e/test_core_journeys.py",
+            "tests/e2e/test_seeded_statement_journey.py",
+            "tests/e2e/test_statement_corpus_journeys.py",
+        ),
         anchor="--junit-xml=test-results/backend-tier1-e2e.xml",
     ),
     WorkflowPytestContract(

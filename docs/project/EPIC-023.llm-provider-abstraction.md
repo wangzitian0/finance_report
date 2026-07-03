@@ -58,7 +58,7 @@ unreliable across providers to support enforcing a money ceiling.
 
 | Slice | PR | Owns |
 |-------|----|------|
-| **common** | PR1 | `src/llm/base` (was `src/llm/common`): value types, `ConfigSource`/`LLMClient`/`CatalogProvider` protocols, `SecretCipher`+`FernetCipher`, [`common/llm/readme.md`](https://github.com/wangzitian0/finance_report/blob/main/common/llm/readme.md) (the LLM SSOT, internalized into the `llm` package). The frozen contract A and B build against. |
+| **common** | PR1 | `src/llm/base` (was `src/llm/common`): value types, `ConfigSource`/`LLMClient`/`CatalogProvider` protocols, `SecretCipher`+`FernetCipher` (single-pass key rotation, AC-llm.1 group), [`common/llm/readme.md`](https://github.com/wangzitian0/finance_report/blob/main/common/llm/readme.md) (the LLM SSOT, internalized into the `llm` package). The frozen contract A and B build against. |
 | **EPIC A** | PR2 | litellm `client`/`catalog`/`usage`/`routing` + `EnvConfigSource` — the litellm-backed scene surface. Cutting the legacy `ai_streaming`/`ai_models`/`extraction` call sites onto it is a deliberate follow-up (it requires migrating their transport-coupled unit tests and verifying live extraction through the post-merge AI/OCR gate). |
 | **EPIC B** | PR3 | `llm_provider` + `llm_scene_binding` tables, `DbConfigSource`, `/llm/*` API, first-run modal + scene×model settings page. |
 

@@ -366,9 +366,11 @@ async def seed_parsed_statement(
             db,
             user_id=user_id,
             source_documents=[doc_marker],
-            # timedelta keeps the date valid for any transaction count (avoids
+            # A row may carry its own date (corpus rows preserve the source
+            # statement's same-day duplicates, #1254); otherwise the timedelta
+            # keeps the date valid for any transaction count (avoids
             # day-overflow once index pushes past the month end).
-            txn_date=base_date + timedelta(days=index),
+            txn_date=row.get("date") or (base_date + timedelta(days=index)),
             description=row["description"],
             amount=row["amount"],
             direction=row["direction"],
