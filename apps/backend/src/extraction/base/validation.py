@@ -228,7 +228,7 @@ def validate_balance_explicit(
     """Validate balance using explicit Decimal values.
 
     When ``currency`` is a valid ISO-4217 code the per-currency arithmetic is
-    routed through same-currency :class:`Money` (#1171 AC2.22.2) so a multi-currency
+    routed through same-currency :class:`Money` (#1171; AC-audit.22.2) so a multi-currency
     statement cannot cross-sum; the ``"*"`` sentinel / non-ISO codes use the
     identical Decimal arithmetic. Byte-identical either way.
     """

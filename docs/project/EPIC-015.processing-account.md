@@ -37,7 +37,7 @@ Balance ≠ 0  → Pending Review ⚠️
 ## ✅ Task Checklist
 
 ### Task 1.1: Documentation
-- [x] Create `docs/ssot/processing_account.md` (485 lines)
+- [x] Create `docs/ssot/processing_account.md (retired -> common/ledger/readme.md)` (485 lines)
   - [x] §1: Concept & Purpose
   - [x] §2: Accounting Rules
   - [x] §3: Data Model Design
@@ -168,7 +168,7 @@ Balance ≠ 0  → Pending Review ⚠️
 
 ## 🔗 Deliverables
 
-- [x] `docs/ssot/processing_account.md` (485 lines) - SSOT specification
+- [x] `docs/ssot/processing_account.md (retired -> common/ledger/readme.md)` (485 lines) - SSOT specification
 - [x] `apps/backend/migrations/versions/c955c65dcc1f_add_is_system_to_accounts.py` - Migration
 - [x] `apps/backend/src/models/account.py` - is_system flag added
 - [x] `apps/backend/src/schemas/account.py` - is_system schema field
