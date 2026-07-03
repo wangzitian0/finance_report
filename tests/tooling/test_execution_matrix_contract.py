@@ -90,6 +90,13 @@ def test_AC8_22_3_preview_selection_is_audited_and_dependency_free() -> None:
     vision = "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py"
     assert vision in selected_files
 
+    # Completeness (Copilot on #1587): every audited, dependency-free row is
+    # actually selected — "exactly", not just "only".
+    for row in matrix.E2E_ROWS:
+        if row.audited and not row.needs:
+            for node in row.nodes or (row.file,):
+                assert node in selection, f"eligible row not selected: {node}"
+
     for node in selection:
         file = ROOT / node.split("::", 1)[0]
         assert file.exists(), f"selected spec missing on disk: {node}"
