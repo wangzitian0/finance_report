@@ -171,7 +171,7 @@ curl -sS -I -X OPTIONS "$BASE_URL/api/ping" \
 
 # 2. Database Connectivity (Via Health Endpoint)
 # Ensure backend isn't just 'up' but actually 'connected' to its infra
-check_endpoint "DB Connectivity" "$BASE_URL/api/health" "healthy" || FAILED=1
+check_endpoint "DB Connectivity" "$BASE_URL/api/health" "\"status\":\"healthy\"" || FAILED=1
 
 # 3. S3 Endpoint Validation (Network isolation check)
 # Fetch the S3 endpoint the backend is using (if exposed via a debug/config endpoint, 
@@ -192,7 +192,11 @@ check_endpoint "Accounts Page" "$BASE_URL/accounts" || FAILED=1
 check_endpoint "Journal Page" "$BASE_URL/journal" || FAILED=1
 check_endpoint "Statements Upload Page" "$BASE_URL/statements/upload" || FAILED=1
 check_endpoint "Reports Page" "$BASE_URL/reports" || FAILED=1
-check_endpoint "API Health" "$BASE_URL/api/health" "healthy" || FAILED=1
+check_endpoint "API Health" "$BASE_URL/api/health" "\"status\":\"healthy\"" || FAILED=1
+# Dependency presence, manifest-driven (runtime invariant 6 / #1578): ?full=1
+# asserts every DEPENDENCY_MANIFEST.required_for(tier) dependency is present
+# for THIS deployment's tier; any absent declared dependency → 503 → smoke fails.
+check_endpoint "Dependency Presence (manifest, full)" "$BASE_URL/api/health?full=1" "\"status\":\"healthy\"" || FAILED=1
 check_endpoint "API Docs" "$BASE_URL/api/docs" || FAILED=1
 check_endpoint "Reconciliation Page" "$BASE_URL/reconciliation" || FAILED=1
 check_endpoint "Ping API" "$BASE_URL/api/ping" || FAILED=1

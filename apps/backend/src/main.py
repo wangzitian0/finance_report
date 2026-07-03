@@ -2,6 +2,7 @@
 """Finance Report Backend - FastAPI Application."""
 
 import asyncio
+import os
 import time
 import traceback
 from collections.abc import AsyncIterator
@@ -64,6 +65,7 @@ from src.routers import (
     workflow,
 )
 from src.routers.reconciliation import router as reconciliation_router
+from src.runtime import resolve_env_tier
 from src.schemas import PingStateResponse
 from src.schemas.errors import (
     COMMON_ERROR_RESPONSES,
@@ -404,11 +406,17 @@ app.include_router(workflow.router, **_router_kwargs)
 
 
 @app.get("/health")
-async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
+async def health_check(full: bool = False, db: AsyncSession = Depends(get_db)) -> Response:
     """Check application health status with dependency checks.
 
     Returns 200 if all critical services are healthy, 503 otherwise.
     This endpoint is used by Docker healthcheck and deployment verification.
+
+    The default (frequent Docker healthcheck) stays light: database + S3.
+    ``?full=1`` asserts the FULL manifest-declared dependency set for this
+    environment's tier (smoke ↔ declaration parity, invariant 6 / #1578): every
+    dependency in ``DEPENDENCY_MANIFEST.required_for(tier)`` must be present or
+    the endpoint returns 503. The smoke test calls this form.
     """
     try:
         # Use Bootloader's internal check methods to ensure consistency
@@ -424,22 +432,37 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
 
         # S3
         s3_res = await Bootloader._check_s3()
-        checks["s3"] = s3_res.status == "ok" or s3_res.status == "skipped"
+        checks["s3"] = s3_res.status == "ok"
+
+        tier = None
+        if full:
+            tier = resolve_env_tier(
+                settings.environment, github_actions=os.getenv("GITHUB_ACTIONS", "").lower() == "true"
+            )
+            probed, unprobed = Bootloader._required_checks(tier)
+            names = sorted(probed.keys() - {"database", "object_storage"})
+            # Probe concurrently — latency is the slowest single probe, not the sum
+            # (each probe has its own ~5s timeout and never raises for an outage).
+            results = await asyncio.gather(*(getattr(Bootloader, probed[name])() for name in names))
+            for name, result in zip(names, results, strict=True):
+                checks[name] = result.status == "ok"
+            for name in unprobed:  # declared before its probe lands: visible, failing
+                checks[name] = False
 
         all_healthy = all(checks.values())
         status_code = 200 if all_healthy else 503
 
-        return JSONResponse(
-            status_code=status_code,
-            content={
-                "status": "healthy" if all_healthy else "unhealthy",
-                "timestamp": datetime.now(UTC).isoformat(),
-                "version": settings.git_commit_sha,
-                "git_sha": settings.git_commit_sha,
-                "checks": checks,
-                "observability": get_observability_status(),
-            },
-        )
+        content = {
+            "status": "healthy" if all_healthy else "unhealthy",
+            "timestamp": datetime.now(UTC).isoformat(),
+            "version": settings.git_commit_sha,
+            "git_sha": settings.git_commit_sha,
+            "checks": checks,
+            "observability": get_observability_status(),
+        }
+        if tier is not None:
+            content["tier"] = tier.value
+        return JSONResponse(status_code=status_code, content=content)
     except Exception as e:
         logger.error(
             "Health check: Unexpected error in endpoint",

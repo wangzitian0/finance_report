@@ -270,7 +270,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
-| `GET` | `/health` | no | - | - | `200` - | Health Check |
+| `GET` | `/health` | no | `full` (query) | - | `200` - | Health Check |
 | `GET` | `/ping` | no | - | - | `200` `PingStateResponse` | Get Ping State |
 | `POST` | `/ping/toggle` | no | - | - | `200` `PingStateResponse` | Toggle Ping State |
 

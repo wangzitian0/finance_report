@@ -19,11 +19,16 @@ from src.config import PROTECTED_ENVIRONMENTS, settings
 from src.observability import get_logger
 from src.runtime import (
     DEPENDENCY_MANIFEST,
+    AnalyticsCheck,
     DatabaseCheck,
     DependencyStatus,
     EnvTier,
     LlmCheck,
+    MarketDataCheck,
     ObjectStorageCheck,
+    RedisCheck,
+    TelemetryCheck,
+    WorkflowEngineCheck,
     resolve_env_tier,
 )
 
@@ -60,15 +65,23 @@ class Bootloader:
         """Split ``DEPENDENCY_MANIFEST.required_for(tier)`` into (probed, unprobed).
 
         ``probed`` maps dependency name → the ``Bootloader`` check-method name;
-        ``unprobed`` (sorted) names the declared-required dependencies that have
-        no probe adapter yet (#1580) — surfaced as warnings, never silently
-        skipped. The dependency set comes from the manifest, not a hardcoded
-        per-mode list (invariant 2, #1577).
+        ``unprobed`` (sorted) names any declared-required dependency without a
+        probe adapter — surfaced as warnings, never silently skipped. Since
+        #1580 every declared dependency has an adapter, so ``unprobed`` is
+        empty unless the manifest gains a dependency before its probe lands
+        (the guardrail test in ``test_probe_adapters.py`` pins this). The
+        dependency set comes from the manifest, not a hardcoded per-mode list
+        (invariant 2, #1577).
         """
         probe_methods = {
             "database": "_check_database",
             "object_storage": "_check_s3",
             "llm": "_check_openrouter",
+            "cache": "_check_cache",
+            "workflow_engine": "_check_workflow_engine",
+            "telemetry": "_check_telemetry",
+            "analytics": "_check_analytics",
+            "market_data": "_check_market_data",
         }
         required = DEPENDENCY_MANIFEST.required_for(tier)
         probed = {name: probe_methods[name] for name in required if name in probe_methods}
@@ -294,6 +307,41 @@ class Bootloader:
         return ServiceStatus("ai_provider", status, result.detail)
 
     _check_openrouter = _check_ai_provider
+
+    @staticmethod
+    async def _check_cache() -> ServiceStatus:
+        """Redis reachability (raw TCP PING). Delegates to `RedisCheck`."""
+        result = await RedisCheck(url=settings.redis_url).probe()
+        status = "ok" if result.status is DependencyStatus.PRESENT else "error"
+        return ServiceStatus("cache", status, result.detail, result.duration_ms)
+
+    @staticmethod
+    async def _check_workflow_engine() -> ServiceStatus:
+        """Prefect API reachability. Delegates to `WorkflowEngineCheck`."""
+        result = await WorkflowEngineCheck(api_url=settings.prefect_api_url).probe()
+        status = "ok" if result.status is DependencyStatus.PRESENT else "error"
+        return ServiceStatus("workflow_engine", status, result.detail, result.duration_ms)
+
+    @staticmethod
+    async def _check_telemetry() -> ServiceStatus:
+        """OTLP collector reachability. Delegates to `TelemetryCheck`."""
+        result = await TelemetryCheck(endpoint=settings.otel_exporter_otlp_endpoint).probe()
+        status = "ok" if result.status is DependencyStatus.PRESENT else "error"
+        return ServiceStatus("telemetry", status, result.detail, result.duration_ms)
+
+    @staticmethod
+    async def _check_analytics() -> ServiceStatus:
+        """OpenPanel API reachability. Delegates to `AnalyticsCheck`."""
+        result = await AnalyticsCheck(api_url=settings.openpanel_api_url).probe()
+        status = "ok" if result.status is DependencyStatus.PRESENT else "error"
+        return ServiceStatus("analytics", status, result.detail, result.duration_ms)
+
+    @staticmethod
+    async def _check_market_data() -> ServiceStatus:
+        """Yahoo Finance reachability. Delegates to `MarketDataCheck`."""
+        result = await MarketDataCheck(timeout_seconds=settings.market_data_yahoo_timeout_seconds).probe()
+        status = "ok" if result.status is DependencyStatus.PRESENT else "error"
+        return ServiceStatus("market_data", status, result.detail, result.duration_ms)
 
     @staticmethod
     def _check_vault_secrets() -> ServiceStatus:

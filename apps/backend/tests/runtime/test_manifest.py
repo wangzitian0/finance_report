@@ -81,10 +81,17 @@ def test_llm_is_the_only_model_dominant_dependency() -> None:
 
 
 def test_required_for_tier_returns_the_declared_subset() -> None:
-    # database + object_storage + llm are required in every tier.
+    # database + object_storage are required in every tier.
     for tier in EnvTier:
         required = DEPENDENCY_MANIFEST.required_for(tier)
-        assert {"database", "object_storage", "llm"} <= required
+        assert {"database", "object_storage"} <= required
+    # The REAL llm provider is a staging/prod requirement; CI/preview run the
+    # cassette substitute (invariant 5) and need no key.
+    assert "llm" in DEPENDENCY_MANIFEST.required_for(EnvTier.STAGING)
+    assert "llm" not in DEPENDENCY_MANIFEST.required_for(EnvTier.PREVIEW)
+    # cache exists only in the 10.app (staging/prod) stack — not preview.
+    assert "cache" in DEPENDENCY_MANIFEST.required_for(EnvTier.PRODUCTION)
+    assert "cache" not in DEPENDENCY_MANIFEST.required_for(EnvTier.PREVIEW)
     # market_data is production-only.
     assert "market_data" in DEPENDENCY_MANIFEST.required_for(EnvTier.PRODUCTION)
     assert "market_data" not in DEPENDENCY_MANIFEST.required_for(EnvTier.GITHUB_CI)
