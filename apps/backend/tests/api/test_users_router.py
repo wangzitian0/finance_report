@@ -79,7 +79,7 @@ async def test_AC13_23_1_delete_user_with_in_flight_parse_returns_409(
     db: AsyncSession,
     test_user: User,
 ) -> None:
-    """AC13.23.1 (#1256): deleting a user while a statement parse is still
+    """AC-extraction.123.1 (#1256): deleting a user while a statement parse is still
     in-flight (``status == PARSING``) is refused with HTTP 409 and an actionable
     message, instead of cascading the delete out from under the running parse.
 
@@ -103,7 +103,7 @@ async def test_AC13_23_1_delete_user_without_in_flight_parse_succeeds(
     db: AsyncSession,
     test_user: User,
 ) -> None:
-    """AC13.23.1 (#1256): the in-flight guard is narrow — a user whose statements
+    """AC-extraction.123.1 (#1256): the in-flight guard is narrow — a user whose statements
     are all in terminal states (no ``PARSING``) deletes normally (204)."""
     await StatementSummaryFactory.create_async(db, user_id=test_user.id, status=BankStatementStatus.PARSED)
     await db.commit()

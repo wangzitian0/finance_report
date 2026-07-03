@@ -15,7 +15,7 @@ def read(path: str) -> str:
 
 
 def test_finance_report_minio_bucket_is_private_by_default() -> None:
-    """AC13.5.1: Finance Report AI URL fallback must not require public buckets."""
+    """AC-extraction.105.1: Finance Report AI URL fallback must not require public buckets."""
     app_deployer = read("repo/finance_report/finance_report/10.app/deploy.py")
     minio_tasks = read("repo/platform/03.minio/shared_tasks.py")
 
@@ -26,7 +26,7 @@ def test_finance_report_minio_bucket_is_private_by_default() -> None:
 
 
 def test_zai_pdf_fallback_uses_image_url_and_redacts_presigned_urls() -> None:
-    """AC13.5.1: Z.AI PDF fallback uses image_url and treats presigned URLs as secrets."""
+    """AC-extraction.105.1: Z.AI PDF fallback uses image_url and treats presigned URLs as secrets."""
     extraction = read("apps/backend/src/extraction/extension")
     storage = read("apps/backend/src/services/storage.py")
 
@@ -43,7 +43,7 @@ def test_zai_pdf_fallback_uses_image_url_and_redacts_presigned_urls() -> None:
 
 
 def test_statement_storage_keys_do_not_include_original_filename_or_user_id() -> None:
-    """AC13.5.1: New statement object keys avoid user and filename leakage."""
+    """AC-extraction.105.1: New statement object keys avoid user and filename leakage."""
     statements = read("apps/backend/src/routers/statements.py")
 
     assert "def build_statement_storage_key" in statements

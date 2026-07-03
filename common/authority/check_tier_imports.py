@@ -56,7 +56,7 @@ PROTECTED_MODULE_GLOBS: tuple[str, ...] = (
     "apps/backend/src/ledger/**/*.py",
     "apps/backend/src/models/journal.py",
     # deterministic financial-truth services
-    "apps/backend/src/services/deduplication.py",
+    "apps/backend/src/extraction/extension/deduplication.py",
     "apps/backend/src/services/accounting.py",
     "apps/backend/src/services/account_service.py",
     "apps/backend/src/services/investment_accounting.py",
@@ -64,7 +64,7 @@ PROTECTED_MODULE_GLOBS: tuple[str, ...] = (
     "apps/backend/src/services/reporting/**/*.py",
     "apps/backend/src/services/reporting_calc.py",
     "apps/backend/src/services/reporting_snapshot.py",
-    "apps/backend/src/services/validation.py",
+    "apps/backend/src/extraction/base/validation.py",
     "apps/backend/src/services/statement_validation.py",
     # FX (deterministic conversion / revaluation / transfer math)
     "apps/backend/src/services/fx.py",

@@ -53,7 +53,7 @@ INFRA_REGISTRY_YAML = yaml.dump(
             "AC3": {
                 "AC3.1": [
                     {
-                        "id": "AC3.1.1",
+                        "id": "AC-extraction.1.1",
                         "epic": 3,
                         "epic_name": "infra",
                         "description": "d4",
@@ -121,7 +121,7 @@ class TestLoadRegistry:
         self._make_docs(tmp_path)
         with mock.patch.object(aam, "ROOT", tmp_path):
             valid = aam.load_registry()
-        assert "AC3.1.1" in valid[3]
+        assert "AC-extraction.1.1" in valid[3]
 
     def test_multiple_epics(self, tmp_path):
         self._make_docs(tmp_path)

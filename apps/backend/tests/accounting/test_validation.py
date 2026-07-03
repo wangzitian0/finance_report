@@ -62,13 +62,13 @@ def test_route_by_threshold():
     assert route_by_threshold(90, True) == BankStatementStatus.APPROVED
     assert route_by_threshold(70, True) == BankStatementStatus.PARSED
     assert route_by_threshold(50, True) == BankStatementStatus.UPLOADED
-    # AC13.21.1 (#1141): a balance-invalid bank statement no longer dead-ends in
+    # AC-extraction.121.1 (#1141): a balance-invalid bank statement no longer dead-ends in
     # `uploaded`; it enters review (`PARSED`), matching the brokerage path.
     assert route_by_threshold(90, False) == BankStatementStatus.PARSED
 
 
 def test_AC13_21_1_balance_invalid_routes_to_parsed_review():
-    """AC13.21.1 (#1141): balance-invalid bank statements route to PARSED (review).
+    """AC-extraction.121.1 (#1141): balance-invalid bank statements route to PARSED (review).
 
     A parsed-but-unvalidated bank statement must never be parked in `uploaded`
     (the retry-rejected, readiness-invisible dead-end). It must enter the same
@@ -83,7 +83,7 @@ def test_AC13_21_1_balance_invalid_routes_to_parsed_review():
 
 
 async def test_AC13_21_4_readiness_counts_parsed_balance_invalid(db, test_user):
-    """AC13.21.4 (#1141): the balance-invalid resting state is readiness-visible.
+    """AC-extraction.121.4 (#1141): the balance-invalid resting state is readiness-visible.
 
     A balance-invalid bank statement rests in `PARSED` (see routing below); report
     readiness counts `PARSED` + `APPROVED` summaries, so the statement is an
@@ -212,7 +212,7 @@ def test_compute_confidence_score_normalizes_signed_outflow_progression():
 
 
 def test_compute_confidence_score_without_balance_proof_gets_no_balance_component():
-    """AC3.2.5: Inferred balances do not earn source balance-validation confidence."""
+    """AC-extraction.2.5: Inferred balances do not earn source balance-validation confidence."""
     extracted = {
         "institution": "DBS",
         "currency": "SGD",

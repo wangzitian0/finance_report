@@ -420,7 +420,7 @@ class TestDualWriteLayer2:
         assert result is None
 
     async def test_AC13_22_2_page_boundary_duplicate_deposit_survives(self, db, test_user):
-        """AC13.22.2: a statement with two distinct same-date/same-amount deposits separated by a
+        """AC-extraction.122.2: a statement with two distinct same-date/same-amount deposits separated by a
         carried-forward / brought-forward balance repeat across a page boundary persists BOTH
         deposits, and the running-balance chain reconciles (#1254).
 

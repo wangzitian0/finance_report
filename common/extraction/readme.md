@@ -353,7 +353,7 @@ S3_PRESIGN_EXPIRY_SECONDS=300
   attempt reconciles, the smallest-difference result is kept so routing is
   unchanged. Only failing parses retry, so average cost is bounded; set
   `AI_EXTRACT_MAX_ATTEMPTS=1` to disable.
-- **Running-balance chain-break detection + repair pass** (#1140 / AC13.20):
+- **Running-balance chain-break detection + repair pass** (#1140 / AC-extraction.120):
   bank-statement *under-extraction* (a dropped or misparsed row) is caught by the
   per-currency self-check (`opening + ΣIN − ΣOUT ≠ closing`), but the underlying
   cause is **recall**, which is probabilistic (LLM). Around that soft metric the

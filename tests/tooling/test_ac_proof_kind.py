@@ -107,18 +107,24 @@ def test_AC26_6_1_first_batch_lp_acs_carry_invariant_proof() -> None:
     """AC-authority.6.1: the retrofitted first-batch LLM-LED/HU/LLM-ONLY ACs declare valid kinds."""
     entries = gar.build_registry_entries(epic_source=ROOT / "docs" / "project")
 
-    # The LLM-LED extraction ACs carry an invariant/property proof (#1254 regression).
-    assert entries["AC3.1.1"]["proof_kind"] == "invariant"
-    assert entries["AC3.5.7"]["proof_kind"] == "invariant"
-    assert entries["AC3.5.19"]["proof_kind"] == "property"
-    # HU review ACs carry an evidence proof.
+    # The LLM-LED extraction ACs migrated into the package roadmap (#1421):
+    # their proof kinds are asserted on the contract (the registry's source).
+    from common.extraction.contract import CONTRACT as EXTRACTION_CONTRACT
+
+    roadmap = {r.id: r for r in EXTRACTION_CONTRACT.roadmap}
+    assert roadmap["AC-extraction.1.1"].proof_kind == "invariant"
+    assert roadmap["AC-extraction.5.7"].proof_kind == "invariant"
+    assert roadmap["AC-extraction.5.19"].proof_kind == "property"
+    # HU review ACs stay in the EPIC (evidence is invalid under the LLM-LED
+    # package tier) and carry an evidence proof.
     for ac_id in ("AC3.3.2", "AC3.5.10", "AC3.6.4"):
         assert entries[ac_id]["proof_kind"] == "evidence", ac_id
     # LLM-ONLY suggestion ACs carry a smoke proof.
     for ac_id in ("AC6.2.3", "AC6.2.4"):
         assert entries[ac_id]["proof_kind"] == "smoke", ac_id
 
-    # None of the LLM-LED ACs is exact (the matrix rule that must hold).
-    for ac_id in ("AC3.1.1", "AC3.5.7", "AC3.5.19"):
-        assert entries[ac_id]["tier"] == "LLM-LED"
-        assert entries[ac_id]["proof_kind"] != "exact"
+    # None of the LLM-LED ACs is exact (the matrix rule that must hold); the
+    # package tier is LLM-LED for every roadmap AC.
+    assert EXTRACTION_CONTRACT.tier == "LLM-LED"
+    for ac_id in ("AC-extraction.1.1", "AC-extraction.5.7", "AC-extraction.5.19"):
+        assert roadmap[ac_id].proof_kind != "exact"

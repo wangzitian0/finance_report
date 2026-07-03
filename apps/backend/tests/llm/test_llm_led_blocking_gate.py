@@ -236,7 +236,7 @@ class TestNoFalseReject:
     def test_AC20_9_6_inferred_csv_marker_exempt_from_balance_gate(self):
         """[AC20.9.6] An explicitly-flagged inferred-CSV review marker is not a false reject.
 
-        The CSV-without-source-balances path (AC3.2.5) is a known-incomplete review
+        The CSV-without-source-balances path (AC-extraction.2.5) is a known-incomplete review
         marker, not a true balance mismatch, so the balance gate exempts it — but the
         dedup gate still applies.
         """

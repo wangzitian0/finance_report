@@ -15,7 +15,7 @@ from src.extraction.extension.service import ExtractionService, _tolerant_parse_
 
 
 def test_AC13_19_4_parsing_prompt_instructs_iso_date_normalization():
-    """AC13.19.4: the extraction prompt makes the model the primary date normalizer.
+    """AC-extraction.119.4: the extraction prompt makes the model the primary date normalizer.
 
     Asserts the specific rule text and a concrete conversion example so the test fails
     if the prompt drops or weakens the ISO-normalization requirement (the tolerant
@@ -29,7 +29,7 @@ def test_AC13_19_4_parsing_prompt_instructs_iso_date_normalization():
 
 
 def test_AC13_19_1_tolerant_parse_date_accepts_non_iso_formats():
-    """AC13.19.1: common non-ISO formats parse; empty/garbage return None."""
+    """AC-extraction.119.1: common non-ISO formats parse; empty/garbage return None."""
     assert _tolerant_parse_date("2025-01-15") == date(2025, 1, 15)
     assert _tolerant_parse_date("2025/01/15") == date(2025, 1, 15)
     assert _tolerant_parse_date("2025.01.15") == date(2025, 1, 15)
@@ -43,7 +43,7 @@ def test_AC13_19_1_tolerant_parse_date_accepts_non_iso_formats():
 
 
 async def test_AC13_19_2_chinese_format_statement_parses_instead_of_aborting():
-    """AC13.19.2: a statement whose dates are in Chinese format parses successfully
+    """AC-extraction.119.2: a statement whose dates are in Chinese format parses successfully
     rather than being rejected with "Date is required"/"Invalid date format"."""
     service = ExtractionService()
     service.extract_financial_data = AsyncMock(
@@ -69,7 +69,7 @@ async def test_AC13_19_2_chinese_format_statement_parses_instead_of_aborting():
 
 
 async def test_AC13_19_3_one_bad_row_date_is_non_fatal():
-    """AC13.19.3: one unparseable row date is skipped; the good rows still parse and
+    """AC-extraction.119.3: one unparseable row date is skipped; the good rows still parse and
     the document is not rejected as a whole."""
     service = ExtractionService()
     service.extract_financial_data = AsyncMock(

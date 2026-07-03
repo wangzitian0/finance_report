@@ -71,7 +71,7 @@ async def test_stream_ai_json_uses_explicit_credentials(litellm_stub, monkeypatc
 
 
 async def test_stream_ai_json_forwards_zai_knobs_and_seed(litellm_stub, monkeypatch):
-    """AC13.16.1: a provided seed is forwarded in the request payload (deterministic
+    """AC-extraction.116.1: a provided seed is forwarded in the request payload (deterministic
     decoding, #989). do_sample/thinking ride extra_body; seed is a native (droppable) param."""
     _explicit_provider(monkeypatch)
     await accumulate_stream(

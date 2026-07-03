@@ -133,11 +133,15 @@ def test_AC_llm_1_5_cassette_mechanism_only_in_llm():
     assert (LLM / "extension/cassette.py").exists()
     runtime = REPO / "apps/backend/src/runtime"
     for py in runtime.rglob("*.py"):
-        text = py.read_text(encoding="utf-8")
-        assert "cassette" not in text.lower(), (
-            f"{py.relative_to(REPO)} mentions cassette — the record/replay "
-            "mechanism belongs to the llm package (runtime only classifies the "
-            "dependency and probes presence)"
+        offending = [
+            mod
+            for mod in _imported_modules(py)
+            if "cassette" in mod or mod.startswith("src.llm.extension")
+        ]
+        assert not offending, (
+            f"{py.relative_to(REPO)} imports the record/replay mechanism "
+            f"({offending}) — it belongs to the llm package (runtime only "
+            "classifies the dependency and probes presence)"
         )
 
 

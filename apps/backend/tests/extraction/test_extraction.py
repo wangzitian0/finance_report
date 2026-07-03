@@ -18,7 +18,7 @@ class TestBalanceValidation:
         self.service = ExtractionService()
 
     def test_balance_valid(self):
-        """AC13.1.1: Test that valid balances pass validation."""
+        """AC-extraction.101.1: Test that valid balances pass validation."""
         extracted = {
             "opening_balance": "1000.00",
             "closing_balance": "1100.00",
@@ -32,7 +32,7 @@ class TestBalanceValidation:
         assert result["difference"] == "0.00"
 
     def test_balance_invalid(self):
-        """AC13.1.2: Test that invalid balances fail validation."""
+        """AC-extraction.101.2: Test that invalid balances fail validation."""
         extracted = {
             "opening_balance": "1000.00",
             "closing_balance": "2000.00",  # Wrong!
@@ -45,7 +45,7 @@ class TestBalanceValidation:
         assert "mismatch" in result["notes"].lower()
 
     def test_balance_tolerance(self):
-        """AC13.1.3: Test that small differences are tolerated."""
+        """AC-extraction.101.3: Test that small differences are tolerated."""
         extracted = {
             "opening_balance": "1000.00",
             "closing_balance": "1100.005",  # Slightly off
@@ -65,7 +65,7 @@ class TestConfidenceScoring:
         self.service = ExtractionService()
 
     def test_high_confidence(self):
-        """AC13.2.1: Test that complete data gets high confidence (Auto-Accept)."""
+        """AC-extraction.102.1: Test that complete data gets high confidence (Auto-Accept)."""
         extracted = {
             "institution": "DBS",
             "period_start": "2025-01-01",
@@ -81,7 +81,7 @@ class TestConfidenceScoring:
         assert score >= 85, f"Expected high confidence, got {score}"
 
     def test_medium_confidence(self):
-        """AC13.2.2: Test that partial data gets medium confidence (Review)."""
+        """AC-extraction.102.2: Test that partial data gets medium confidence (Review)."""
         extracted = {
             "institution": "DBS",
             "period_start": "2025-01-01",
@@ -97,7 +97,7 @@ class TestConfidenceScoring:
         assert 60 <= score < 85, f"Expected medium confidence, got {score}"
 
     def test_low_confidence_empty_transactions(self):
-        """AC3.3.3/AC13.2.3: Missing transactions and invalid fields route to manual confidence."""
+        """AC-extraction.3.3/AC-extraction.102.3: Missing transactions and invalid fields route to manual confidence."""
         extracted = {
             "institution": "DBS",
             "period_start": "invalid-date",
@@ -181,7 +181,7 @@ class TestFixtureData:
         }
 
     def test_dbs_fixture_structure(self, dbs_fixture):
-        """AC13.3.1: Test DBS payload has correct structure."""
+        """AC-extraction.103.1: Test DBS payload has correct structure."""
         assert dbs_fixture["success"] is True
         assert dbs_fixture["institution"] == "DBS"
         assert "statement" in dbs_fixture
@@ -189,7 +189,7 @@ class TestFixtureData:
         assert len(dbs_fixture["events"]) > 0
 
     def test_dbs_balance_reconciliation(self, dbs_fixture):
-        """AC13.3.2: Test DBS payload balances reconcile."""
+        """AC-extraction.103.2: Test DBS payload balances reconcile."""
         stmt = dbs_fixture["statement"]
         events = dbs_fixture["events"]
 
@@ -205,7 +205,7 @@ class TestFixtureData:
         assert diff < Decimal("1.00"), f"Balance mismatch: {diff}"
 
     def test_maribank_fixture_descriptions_carry_no_pii(self, maribank_fixture):
-        """AC13.3.3: every event description is free of detectable PII.
+        """AC-extraction.103.3: every event description is free of detectable PII.
 
         A deterministic safety property (not a frozen merchant-name denylist):
         any description committed as a test fixture must pass the production PII
@@ -219,13 +219,13 @@ class TestFixtureData:
             assert detect_pii(desc) == [], f"PII leaked into fixture description: {desc!r}"
 
     def test_gxs_fixture_daily_interest(self, gxs_fixture):
-        """AC13.3.4: Test GXS payload has daily interest entries."""
+        """AC-extraction.103.4: Test GXS payload has daily interest entries."""
         events = gxs_fixture["events"]
         interest_events = [e for e in events if "Interest" in e.get("description", "")]
         assert len(interest_events) > 20, "GXS should have daily interest entries"
 
     def test_all_fixtures_have_dates(self, dbs_fixture, maribank_fixture, gxs_fixture):
-        """AC13.3.5: Test all payload events have valid dates."""
+        """AC-extraction.103.5: Test all payload events have valid dates."""
         for fixture in [dbs_fixture, maribank_fixture, gxs_fixture]:
             for event in fixture["events"]:
                 assert event.get("date"), "Event missing date"
@@ -238,7 +238,7 @@ class TestPromptGeneration:
     """Tests for prompt generation functions."""
 
     def test_get_parsing_prompt_default(self):
-        """AC13.4.1 AC18.1.1: Test default parsing prompt."""
+        """AC-extraction.104.1 AC18.1.1: Test default parsing prompt."""
         from src.extraction.extension.prompts.statement import get_parsing_prompt
 
         prompt = get_parsing_prompt()
@@ -259,7 +259,7 @@ class TestPromptGeneration:
         assert "NEVER invent, fabricate" in prompt
 
     def test_get_parsing_prompt_dbs(self):
-        """AC13.4.2: Test DBS-specific prompt."""
+        """AC-extraction.104.2: Test DBS-specific prompt."""
         from src.extraction.extension.prompts.statement import get_parsing_prompt
 
         prompt = get_parsing_prompt("DBS")
@@ -267,7 +267,7 @@ class TestPromptGeneration:
         assert "Singapore" in prompt or "GIRO" in prompt or "PayNow" in prompt
 
     def test_get_parsing_prompt_cmb(self):
-        """AC13.4.3: Test CMB-specific prompt."""
+        """AC-extraction.104.3: Test CMB-specific prompt."""
         from src.extraction.extension.prompts.statement import get_parsing_prompt
 
         prompt = get_parsing_prompt("CMB")
@@ -275,7 +275,7 @@ class TestPromptGeneration:
         assert "Chinese" in prompt or "中文" in prompt
 
     def test_get_parsing_prompt_unknown_institution(self):
-        """AC13.4.4: Test with unknown institution."""
+        """AC-extraction.104.4: Test with unknown institution."""
         from src.extraction.extension.prompts.statement import get_parsing_prompt
 
         prompt = get_parsing_prompt("UnknownBank")
@@ -283,21 +283,21 @@ class TestPromptGeneration:
         assert "financial statement parser" in prompt.lower()
 
     def test_get_parsing_prompt_futu(self):
-        """AC13.4.5: Test Futu-specific prompt."""
+        """AC-extraction.104.5: Test Futu-specific prompt."""
         from src.extraction.extension.prompts.statement import get_parsing_prompt
 
         prompt = get_parsing_prompt("Futu")
         assert "Futu" in prompt or "富途" in prompt
 
     def test_get_parsing_prompt_gxs(self):
-        """AC13.4.6: Test GXS-specific prompt."""
+        """AC-extraction.104.6: Test GXS-specific prompt."""
         from src.extraction.extension.prompts.statement import get_parsing_prompt
 
         prompt = get_parsing_prompt("GXS")
         assert "GXS" in prompt
 
     def test_get_parsing_prompt_maribank(self):
-        """AC13.4.7: Test MariBank-specific prompt."""
+        """AC-extraction.104.7: Test MariBank-specific prompt."""
         from src.extraction.extension.prompts.statement import get_parsing_prompt
 
         prompt = get_parsing_prompt("MariBank")
@@ -316,7 +316,7 @@ class TestMediaPayloadBuilder:
         self.service = ExtractionService()
 
     def test_pdf_url_uses_zai_image_url_type(self):
-        """AC13.5.1: Z.AI PDF URLs must use documented image_url payloads."""
+        """AC-extraction.105.1: Z.AI PDF URLs must use documented image_url payloads."""
         data = "https://s3.example.test/bucket/statement.pdf?signature=secret"
         payload = self.service._build_media_payload("pdf", "application/pdf", data)
 
@@ -324,7 +324,7 @@ class TestMediaPayloadBuilder:
         assert payload["image_url"]["url"] == data
 
     def test_pdf_base64_keeps_legacy_file_type(self):
-        """AC13.5.1: Base64 PDFs keep legacy payload shape for non-URL APIs."""
+        """AC-extraction.105.1: Base64 PDFs keep legacy payload shape for non-URL APIs."""
         data = "data:application/pdf;base64,JVBERi0xLjQ="
         payload = self.service._build_media_payload("pdf", "application/pdf", data)
 
@@ -333,7 +333,7 @@ class TestMediaPayloadBuilder:
         assert payload["file"]["file_data"] == data
 
     def test_pdf_content_renders_to_image_payloads_for_zai_vision(self):
-        """AC13.5.1: Uploaded PDFs can be converted to image_url payloads for Z.AI vision."""
+        """AC-extraction.105.1: Uploaded PDFs can be converted to image_url payloads for Z.AI vision."""
         from io import BytesIO
 
         from reportlab.pdfgen import canvas
@@ -350,7 +350,7 @@ class TestMediaPayloadBuilder:
         assert payloads[0]["image_url"]["url"].startswith("data:image/png;base64,")
 
     def test_prefer_url_rejects_private_urls_without_falling_back(self):
-        """AC13.5.1: Z.AI PDF URL fallback must not accept private object URLs."""
+        """AC-extraction.105.1: Z.AI PDF URL fallback must not accept private object URLs."""
         with pytest.raises(ExtractionError, match="No valid file content or accessible URL"):
             self.service._build_ai_file_input(
                 file_content=None,
@@ -361,7 +361,7 @@ class TestMediaPayloadBuilder:
             )
 
     def test_png_uses_image_url_type(self):
-        """AC13.5.2: Test that PNG images use 'image_url' type."""
+        """AC-extraction.105.2: Test that PNG images use 'image_url' type."""
         data = "data:image/png;base64,iVBORw0KGgo="
         payload = self.service._build_media_payload("png", "image/png", data)
 
@@ -370,7 +370,7 @@ class TestMediaPayloadBuilder:
         assert payload["image_url"]["url"] == data
 
     def test_jpg_uses_image_url_type(self):
-        """AC13.5.3: Test that JPG images use 'image_url' type."""
+        """AC-extraction.105.3: Test that JPG images use 'image_url' type."""
         data = "data:image/jpeg;base64,/9j/4AAQSkZJRg=="
         payload = self.service._build_media_payload("jpg", "image/jpeg", data)
 
@@ -378,7 +378,7 @@ class TestMediaPayloadBuilder:
         assert payload["image_url"]["url"] == data
 
     def test_jpeg_uses_image_url_type(self):
-        """AC13.5.4: Test that JPEG images use 'image_url' type."""
+        """AC-extraction.105.4: Test that JPEG images use 'image_url' type."""
         data = "https://example.com/statement.jpeg"
         payload = self.service._build_media_payload("jpeg", "image/jpeg", data)
 
@@ -395,7 +395,7 @@ class TestInstitutionDetection:
         self.service = ExtractionService()
 
     async def test_csv_requires_institution(self):
-        """AC13.6.1: Test that CSV parsing raises error when institution is None."""
+        """AC-extraction.106.1: Test that CSV parsing raises error when institution is None."""
         from src.extraction.extension.service import ExtractionError
 
         with pytest.raises(ExtractionError, match="Institution is required for CSV"):
@@ -412,7 +412,7 @@ class TestInstitutionDetection:
             )
 
     async def test_parse_document_accepts_none_institution_for_pdf(self):
-        """AC13.6.2: Test that parse_document accepts institution=None for PDFs (AI auto-detect)."""
+        """AC-extraction.106.2: Test that parse_document accepts institution=None for PDFs (AI auto-detect)."""
         with pytest.raises(Exception) as exc_info:
             await self.service.parse_document(
                 file_path=Path("test.pdf"),
@@ -437,53 +437,53 @@ class TestExtractionServiceHelpers:
         self.service = ExtractionService()
 
     def test_safe_date_valid(self):
-        """AC13.7.5: Test _safe_date with valid input."""
+        """AC-extraction.107.5: Test _safe_date with valid input."""
         d = self.service._safe_date("2025-01-01")
         assert d.year == 2025
         assert d.month == 1
         assert d.day == 1
 
     def test_safe_date_invalid_format(self):
-        """AC13.7.6: Test _safe_date with invalid format."""
+        """AC-extraction.107.6: Test _safe_date with invalid format."""
         import pytest
 
         with pytest.raises(ValueError, match="Invalid date format"):
             self.service._safe_date("invalid-date")
 
     def test_safe_date_empty(self):
-        """AC13.7.7: Test _safe_date with empty input."""
+        """AC-extraction.107.7: Test _safe_date with empty input."""
         import pytest
 
         with pytest.raises(ValueError, match="Date is required"):
             self.service._safe_date(None)
 
     def test_safe_decimal_valid(self):
-        """AC13.7.8: Test _safe_decimal with valid input."""
+        """AC-extraction.107.8: Test _safe_decimal with valid input."""
         d = self.service._safe_decimal("100.50")
         from decimal import Decimal
 
         assert d == Decimal("100.50")
 
     def test_safe_decimal_invalid(self):
-        """AC13.7.9: Test _safe_decimal with invalid input."""
+        """AC-extraction.107.9: Test _safe_decimal with invalid input."""
         import pytest
 
         with pytest.raises(ValueError, match="Invalid decimal value"):
             self.service._safe_decimal("abc")
 
     def test_safe_decimal_none(self):
-        """AC13.7.10: Test _safe_decimal with None."""
+        """AC-extraction.107.10: Test _safe_decimal with None."""
         assert self.service._safe_decimal(None) is None
 
     def test_safe_decimal_none_required(self):
-        """AC13.7.11: Test _safe_decimal with None and required=True."""
+        """AC-extraction.107.11: Test _safe_decimal with None and required=True."""
         import pytest
 
         with pytest.raises(ValueError, match="Decimal value is required"):
             self.service._safe_decimal(None, required=True)
 
     def test_compute_confidence_missing_transactions(self):
-        """AC13.7.12: Test confidence with missing transactions key."""
+        """AC-extraction.107.12: Test confidence with missing transactions key."""
         extracted = {
             "institution": "DBS",
             "period_start": "2025-01-01",
@@ -496,7 +496,7 @@ class TestExtractionServiceHelpers:
         assert 0 <= score <= 100
 
     async def test_parse_document_accepts_force_model(self):
-        """AC13.6.3: Test that parse_document accepts force_model parameter."""
+        """AC-extraction.106.3: Test that parse_document accepts force_model parameter."""
         service = ExtractionService()
         with pytest.raises(ExtractionError, match="File content is required"):
             await service.parse_document(
@@ -515,7 +515,7 @@ class TestExtractionServiceHelpers:
 
 class TestBalanceProgression:
     def test_consistent_chain(self):
-        """AC13.8.1: Test consistent balance chain scores full marks."""
+        """AC-extraction.108.1: Test consistent balance chain scores full marks."""
         from src.extraction.base.validation import _score_balance_progression
 
         txns = [
@@ -526,7 +526,7 @@ class TestBalanceProgression:
         assert _score_balance_progression(txns) == 10
 
     def test_inconsistent_chain(self):
-        """AC13.8.2: Test inconsistent balance chain scores zero."""
+        """AC-extraction.108.2: Test inconsistent balance chain scores zero."""
         from src.extraction.base.validation import _score_balance_progression
 
         txns = [
@@ -536,14 +536,14 @@ class TestBalanceProgression:
         assert _score_balance_progression(txns) == 0
 
     def test_single_txn(self):
-        """AC13.8.3: Test single transaction scores zero."""
+        """AC-extraction.108.3: Test single transaction scores zero."""
         from src.extraction.base.validation import _score_balance_progression
 
         txns = [{"balance_after": "1000.00", "amount": "100.00", "direction": "IN"}]
         assert _score_balance_progression(txns) == 0
 
     def test_no_balance_after(self):
-        """AC13.8.4: Test transactions without balance_after score zero."""
+        """AC-extraction.108.4: Test transactions without balance_after score zero."""
         from src.extraction.base.validation import _score_balance_progression
 
         txns = [
@@ -553,13 +553,13 @@ class TestBalanceProgression:
         assert _score_balance_progression(txns) == 0
 
     def test_empty_list(self):
-        """AC13.8.5: Test empty transaction list scores zero."""
+        """AC-extraction.108.5: Test empty transaction list scores zero."""
         from src.extraction.base.validation import _score_balance_progression
 
         assert _score_balance_progression([]) == 0
 
     def test_partial_consistency(self):
-        """AC13.8.6: Test partial balance consistency scores half."""
+        """AC-extraction.108.6: Test partial balance consistency scores half."""
         from src.extraction.base.validation import _score_balance_progression
 
         txns = [
@@ -572,48 +572,48 @@ class TestBalanceProgression:
 
 class TestCurrencyConsistency:
     def test_all_match_header(self):
-        """AC13.8.7: Test all currencies match header scores full."""
+        """AC-extraction.108.7: Test all currencies match header scores full."""
         from src.extraction.base.validation import _score_currency_consistency
 
         txns = [{"currency": "SGD"}, {"currency": "SGD"}, {"currency": "SGD"}]
         assert _score_currency_consistency(txns, "SGD") == 5
 
     def test_none_match(self):
-        """AC13.8.8: Test no currencies match header scores zero."""
+        """AC-extraction.108.8: Test no currencies match header scores zero."""
         from src.extraction.base.validation import _score_currency_consistency
 
         txns = [{"currency": "USD"}, {"currency": "EUR"}]
         assert _score_currency_consistency(txns, "SGD") == 0
 
     def test_no_header_uses_most_common(self):
-        """AC13.8.9: Test no header uses most common currency."""
+        """AC-extraction.108.9: Test no header uses most common currency."""
         from src.extraction.base.validation import _score_currency_consistency
 
         txns = [{"currency": "SGD"}, {"currency": "SGD"}, {"currency": "USD"}]
         assert _score_currency_consistency(txns, None) == 3
 
     def test_no_currencies(self):
-        """AC13.8.10: Test no currencies in transactions scores zero."""
+        """AC-extraction.108.10: Test no currencies in transactions scores zero."""
         from src.extraction.base.validation import _score_currency_consistency
 
         txns = [{"amount": "100"}, {"amount": "200"}]
         assert _score_currency_consistency(txns, "SGD") == 0
 
     def test_empty_list(self):
-        """AC13.8.11: Test empty currency list scores zero."""
+        """AC-extraction.108.11: Test empty currency list scores zero."""
         from src.extraction.base.validation import _score_currency_consistency
 
         assert _score_currency_consistency([], "SGD") == 0
 
     def test_mixed_currencies_partial(self):
-        """AC13.8.12: Test mixed currencies partial match."""
+        """AC-extraction.108.12: Test mixed currencies partial match."""
         from src.extraction.base.validation import _score_currency_consistency
 
         txns = [{"currency": "SGD"}, {"currency": "USD"}, {"currency": "SGD"}, {"currency": "SGD"}]
         assert _score_currency_consistency(txns, "SGD") == 3
 
     def test_missing_currencies_penalized(self):
-        """AC13.8.13: Test missing currencies penalized."""
+        """AC-extraction.108.13: Test missing currencies penalized."""
         from src.extraction.base.validation import _score_currency_consistency
 
         txns = [{"currency": "SGD"}, {"amount": "100"}, {"amount": "200"}]
@@ -622,7 +622,7 @@ class TestCurrencyConsistency:
 
 class TestConfidenceScoringV2:
     def test_full_score_with_all_factors(self):
-        """AC13.9.1: Test full score with all factors."""
+        """AC-extraction.109.1: Test full score with all factors."""
         txns = [
             {
                 "date": "2025-01-01",
@@ -657,7 +657,7 @@ class TestConfidenceScoringV2:
         assert score == 100
 
     def test_no_new_factors_caps_at_85(self):
-        """AC13.9.2: Test no new factors caps at 85."""
+        """AC-extraction.109.2: Test no new factors caps at 85."""
         txns = [
             {"date": "2025-01-01", "description": "A", "amount": "100.00", "direction": "IN"},
         ]
@@ -692,7 +692,7 @@ class TestUnderExtractionPenalty:
         }
 
     def test_brokerage_single_txn_penalized(self):
-        """AC13.15.1: A brokerage statement yielding a single transaction is an
+        """AC-extraction.115.1: A brokerage statement yielding a single transaction is an
         under-capture signal and must not present as high confidence."""
         extracted = self._brokerage_extracted(
             [
@@ -714,7 +714,7 @@ class TestUnderExtractionPenalty:
         assert penalized <= 60, f"1-txn brokerage should stay in review band, got {penalized}"
 
     def test_brokerage_sufficient_txns_not_penalized(self):
-        """AC13.15.2: A brokerage statement with a plausible transaction count is
+        """AC-extraction.115.2: A brokerage statement with a plausible transaction count is
         not penalized."""
         txns = [
             {"date": "2025-06-10", "description": "Buy", "amount": "40.00", "direction": "OUT", "currency": "HKD"},
@@ -727,7 +727,7 @@ class TestUnderExtractionPenalty:
         assert score > 60, f"Plausible brokerage parse should not be penalized, got {score}"
 
     def test_bank_single_txn_not_penalized(self):
-        """AC13.15.3: A non-brokerage (bank) statement with one transaction keeps
+        """AC-extraction.115.3: A non-brokerage (bank) statement with one transaction keeps
         its existing score — a single-transaction bank month is legitimate."""
         extracted = {
             "institution": "DBS",
@@ -744,7 +744,7 @@ class TestUnderExtractionPenalty:
         assert compute_confidence_score(extracted, balance_result, is_brokerage=False) == 85
 
     def test_default_is_not_brokerage(self):
-        """AC13.15.4: is_brokerage defaults to False so existing callers are
+        """AC-extraction.115.4: is_brokerage defaults to False so existing callers are
         unaffected."""
         extracted = self._brokerage_extracted(
             [
@@ -764,7 +764,7 @@ class TestUnderExtractionPenalty:
         )
 
     def test_effective_count_uses_persisted_not_extracted(self):
-        """AC13.15.5: the cap uses the persisted count, so a payload that extracts
+        """AC-extraction.115.5: the cap uses the persisted count, so a payload that extracts
         2 rows but persists only 1 (a row skipped) still trips the cap."""
         txns = [
             {"date": "2025-06-10", "description": "Buy", "amount": "40.00", "direction": "OUT", "currency": "HKD"},
@@ -786,13 +786,13 @@ class TestBankPeriodResolution:
         self.service = ExtractionService()
 
     def test_AC3_11_1_period_start_falls_back_to_period_end(self):
-        """AC3.11.1: a missing period_start falls back to period_end instead of hard-failing."""
+        """AC-extraction.11.1: a missing period_start falls back to period_end instead of hard-failing."""
         start, end = self.service._resolve_required_period({"period_end": "2025-03-31", "transactions": []})
         assert start == date(2025, 3, 31)
         assert end == date(2025, 3, 31)
 
     def test_AC3_11_2_period_derived_from_transaction_dates(self):
-        """AC3.11.2: with no period bounds, the period spans the transaction-date range."""
+        """AC-extraction.11.2: with no period bounds, the period spans the transaction-date range."""
         start, end = self.service._resolve_required_period(
             {
                 "transactions": [
@@ -806,12 +806,12 @@ class TestBankPeriodResolution:
         assert end == date(2025, 3, 28)
 
     def test_AC3_11_3_no_resolvable_date_still_raises(self):
-        """AC3.11.3: a statement with no period and no transaction dates still rejects."""
+        """AC-extraction.11.3: a statement with no period and no transaction dates still rejects."""
         with pytest.raises(ValueError, match="Date is required"):
             self.service._resolve_required_period({"transactions": []})
 
     def test_AC3_11_2_missing_end_prefers_transaction_range_over_other_bound(self):
-        """AC3.11.2: a present period_start with a missing period_end resolves the end to
+        """AC-extraction.11.2: a present period_start with a missing period_end resolves the end to
         the last transaction date (a meaningful period), not back to period_start
         (which would collapse to a zero-length range)."""
         start, end = self.service._resolve_required_period(

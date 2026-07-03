@@ -3,12 +3,12 @@
 Bank-statement under-extraction is probabilistic (LLM recall), so this suite pins
 the *deterministic* slice around the soft recall metric:
 
-- AC-C1 (AC13.20.1-.3): a pure, Decimal-based detector that walks the running
+- AC-C1 (AC-extraction.120.1-.3): a pure, Decimal-based detector that walks the running
   ``balance_after`` chain and returns the exact index where a row was dropped.
-- AC-C2 (AC13.20.4-.6): a repair-pass hook keyed off the balance self-check delta
+- AC-C2 (AC-extraction.120.4-.6): a repair-pass hook keyed off the balance self-check delta
   that re-extracts the broken region exactly once via an injectable backend, and
   is a safe no-op when there is no detector signal or no backend.
-- AC-C3 (AC13.20.7): a synthetic dropped-row regression fixture that drives both.
+- AC-C3 (AC-extraction.120.7): a synthetic dropped-row regression fixture that drives both.
 
 No live LLM: the re-extraction backend is a deterministic test double, so these
 tests stay reproducible in CI.
@@ -81,7 +81,7 @@ def _dropped_row_payload() -> dict:
 # AC-C1 — detector
 # --------------------------------------------------------------------------- #
 def test_AC13_20_1_detector_finds_break_index_on_dropped_row():
-    """AC13.20.1 (AC-C1): detector pinpoints the exact break index on a dropped-row chain."""
+    """AC-extraction.120.1 (AC-C1): detector pinpoints the exact break index on a dropped-row chain."""
     payload = _dropped_row_payload()
     result = detect_balance_chain_break(payload["transactions"])
     assert result is not None
@@ -94,13 +94,13 @@ def test_AC13_20_1_detector_finds_break_index_on_dropped_row():
 
 
 def test_AC13_20_2_clean_chain_reports_no_break():
-    """AC13.20.2 (AC-C1): a fully-consistent chain reports no break (None)."""
+    """AC-extraction.120.2 (AC-C1): a fully-consistent chain reports no break (None)."""
     payload = _clean_chain_payload()
     assert detect_balance_chain_break(payload["transactions"]) is None
 
 
 def test_AC13_20_3_detector_is_decimal_tolerant():
-    """AC13.20.3 (AC-C1): detection is Decimal-based and tolerant within BALANCE_TOLERANCE.
+    """AC-extraction.120.3 (AC-C1): detection is Decimal-based and tolerant within BALANCE_TOLERANCE.
 
     A sub-tolerance rounding wobble (<= 0.10) must NOT be reported as a break, and
     the arithmetic must be exact Decimal (no 0.1+0.2 float drift).
@@ -145,7 +145,7 @@ class _RecordingReExtractor:
 
 
 def test_AC13_20_4_repair_hook_invoked_once_on_mismatch():
-    """AC13.20.4 (AC-C2): on a balance mismatch with a detected break, the hook fires once."""
+    """AC-extraction.120.4 (AC-C2): on a balance mismatch with a detected break, the hook fires once."""
     payload = _dropped_row_payload()
     # Sanity: the self-check itself flags the under-extraction.
     assert validate_balance(payload)["balance_valid"] is False
@@ -165,7 +165,7 @@ def test_AC13_20_4_repair_hook_invoked_once_on_mismatch():
 
 
 def test_AC13_20_5_repair_hook_not_invoked_on_clean_chain():
-    """AC13.20.5 (AC-C2): a reconciling chain never invokes the repair backend."""
+    """AC-extraction.120.5 (AC-C2): a reconciling chain never invokes the repair backend."""
     payload = _clean_chain_payload()
     backend = _RecordingReExtractor(repaired_payload=_clean_chain_payload())
     result = repair_under_extraction(payload, reextractor=backend)
@@ -177,7 +177,7 @@ def test_AC13_20_5_repair_hook_not_invoked_on_clean_chain():
 
 
 def test_AC13_20_6_repair_is_safe_noop_without_backend():
-    """AC13.20.6 (AC-C2): with no backend injected, the hook is a safe no-op (original payload)."""
+    """AC-extraction.120.6 (AC-C2): with no backend injected, the hook is a safe no-op (original payload)."""
     payload = _dropped_row_payload()
     result = repair_under_extraction(payload, reextractor=None)
     # The detector still signals (so callers can log), but nothing is mutated.
@@ -234,7 +234,7 @@ def test_AC13_20_repair_only_once_even_if_still_broken():
 # AC-C3 — regression fixture wiring detector + repair together
 # --------------------------------------------------------------------------- #
 def test_AC13_20_7_regression_fixture_detects_and_repairs():
-    """AC13.20.7 (AC-C3): the synthetic dropped-row fixture drives the detector to the right
+    """AC-extraction.120.7 (AC-C3): the synthetic dropped-row fixture drives the detector to the right
     index and triggers the repair hook exactly once, yielding a reconciling parse."""
     under_extracted = _dropped_row_payload()
 
@@ -257,10 +257,10 @@ def test_AC13_20_7_regression_fixture_detects_and_repairs():
 # the live ExtractionService retry loop with an injected RegionReExtractor.
 # --------------------------------------------------------------------------- #
 async def test_AC13_20_8_corpus_fixture_triggers_repair_end_to_end():
-    """AC13.20.8 (AC-C3): the clean-bank dropped-row corpus fixture triggers the chain-break
+    """AC-extraction.120.8 (AC-C3): the clean-bank dropped-row corpus fixture triggers the chain-break
     detector + repair_under_extraction hook end-to-end through ExtractionService.
 
-    Unlike AC13.20.7 (which calls the bare detector/hook functions), this drives the
+    Unlike AC-extraction.120.7 (which calls the bare detector/hook functions), this drives the
     actual ``_extract_with_balance_retry`` path: every model attempt returns the
     under-extracted (dropped-row) payload so the whole-document retry never
     reconciles, the repair pass runs the deterministic detector, and the injected

@@ -664,7 +664,7 @@ async def test_parse_statement_background_routes_brokerage_to_review_without_imp
 
 
 async def test_AC3_12_1_brokerage_without_balances_reports_balance_validated_none_not_vacuous_true():
-    """AC3.12.1: a brokerage holdings statement with no opening/closing balances reports
+    """AC-extraction.12.1: a brokerage holdings statement with no opening/closing balances reports
     balance_validated=None (not-applicable), not a vacuous 0==0 True (#1443)."""
     service = ExtractionService()
     service.extract_financial_data = AsyncMock(

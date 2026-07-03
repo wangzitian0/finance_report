@@ -223,7 +223,7 @@ async def test_extract_financial_data_uses_ocr_first_pipeline():
 async def test_extract_financial_data_shared_ocr_vision_skips_layout_parser():
     """AC8.12.6: Shared OCR/vision model uses one vision call and skips layout parsing.
 
-    AC13.18.1: the configured vision fallback model is appended after the primary
+    AC-extraction.118.1: the configured vision fallback model is appended after the primary
     so more than one model is attempted on the vision path (#1034).
     """
     service = ExtractionService()
@@ -252,7 +252,7 @@ async def test_extract_financial_data_shared_ocr_vision_skips_layout_parser():
 
 
 async def test_vision_path_falls_back_to_secondary_model_on_non_retryable_error():
-    """AC13.18.2: when the primary vision model raises a non-retryable provider
+    """AC-extraction.118.2: when the primary vision model raises a non-retryable provider
     error (e.g. a 400), the vision path attempts the configured vision fallback
     model and succeeds instead of failing the upload (#1034)."""
     from src.services.ai_streaming import AIStreamError
@@ -298,7 +298,7 @@ async def test_vision_path_falls_back_to_secondary_model_on_non_retryable_error(
 def test_ocr_model_selection_helpers_deduplicate_vision_models():
     """AC8.12.6: OCR/vision helper rules avoid duplicate provider calls.
 
-    AC13.18.1: configured vision fallbacks are appended to the vision model list,
+    AC-extraction.118.1: configured vision fallbacks are appended to the vision model list,
     deduplicated and order-preserving, so more than one model is attempted on the
     vision path (#1034).
     """
@@ -322,7 +322,7 @@ def test_ocr_model_selection_helpers_deduplicate_vision_models():
 
 
 def test_vision_extraction_models_dedupes_fallback_against_primary():
-    """AC13.18.1: a vision fallback equal to the primary vision/OCR model is not
+    """AC-extraction.118.1: a vision fallback equal to the primary vision/OCR model is not
     attempted twice; ordering of the remaining fallbacks is preserved (#1034)."""
     service = ExtractionService()
     service.ocr_model = "glm-4.6v"
@@ -333,7 +333,7 @@ def test_vision_extraction_models_dedupes_fallback_against_primary():
 
 
 def test_vision_extraction_models_without_fallbacks_returns_primary_only():
-    """AC13.18.1: with no configured vision fallbacks the list is unchanged, so
+    """AC-extraction.118.1: with no configured vision fallbacks the list is unchanged, so
     deployments that opt out keep the prior single-model behavior (#1034)."""
     service = ExtractionService()
     service.ocr_model = "glm-4.6v"
@@ -512,7 +512,7 @@ async def test_extract_financial_data_dedicated_ocr_failure_falls_back_to_vision
     assert result == {"transactions": []}
     mock_ocr.assert_awaited_once_with(b"content", None, "pdf", "application/pdf")
     call = mock_extract.await_args.kwargs
-    # AC13.18.1: the vision fallback model is appended after the primary vision model.
+    # AC-extraction.118.1: the vision fallback model is appended after the primary vision model.
     assert call["models"] == ["layout-ocr-model", "glm-4.6v", "glm-4.5v"]
     assert call["messages"][0]["content"][1] == image_payload
 
@@ -537,7 +537,7 @@ async def test_extract_financial_data_all_models_fail():
 
 
 async def test_extract_financial_data_json_markdown_fallback():
-    """AC13.14.5: a markdown-fenced but otherwise-valid response is salvaged (#982)."""
+    """AC-extraction.114.5: a markdown-fenced but otherwise-valid response is salvaged (#982)."""
     service = ExtractionService()
     service.api_key = "test-key"
     service.ocr_model = None
@@ -1366,7 +1366,7 @@ async def test_parse_document_csv_no_institution():
 
 
 async def test_dual_write_layer2_integrity_error_is_non_fatal():
-    """AC13.11.1: Dual-write handles duplicate document hash / IntegrityError without failing."""
+    """AC-extraction.111.1: Dual-write handles duplicate document hash / IntegrityError without failing."""
     db = AsyncMock()
     # No pre-existing UploadedDocument for (user_id, file_hash), so dual_write takes the
     # create branch; a concurrent race then makes create_uploaded_document raise

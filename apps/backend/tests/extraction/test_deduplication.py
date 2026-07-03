@@ -127,7 +127,7 @@ class TestDeduplicationService:
         assert _hash(occurrence_index=0) == service.calculate_transaction_hash(
             user_id, txn_date, amount, direction, description, reference=None
         )
-        # AC13.22.1: the running balance is part of the disambiguator, but it is no longer the
+        # AC-extraction.122.1: the running balance is part of the disambiguator, but it is no longer the
         # *sole* key. The per-document occurrence ordinal is always folded in so two genuinely
         # distinct rows that happen to share a running balance (a page-boundary carried-forward /
         # brought-forward repeat) still hash differently.
@@ -143,7 +143,7 @@ class TestDeduplicationService:
         ) == service.calculate_transaction_hash(user_id, txn_date, Decimal("50.00"), direction, description)
 
     def test_AC13_22_1_same_balance_distinct_rows_do_not_collapse(self):
-        """AC13.22.1: two genuinely-distinct same-date/same-amount/same-direction deposits that
+        """AC-extraction.122.1: two genuinely-distinct same-date/same-amount/same-direction deposits that
         share one running ``balance_after`` (a page-boundary carried-forward / brought-forward
         repeat) must hash differently within one document, while a re-uploaded identical row still
         collapses across documents.
@@ -682,7 +682,7 @@ class TestDeduplicationService:
                 assert len(all_records) == 1, f"Race condition: {len(all_records)} duplicate records in database"
 
     async def test_upsert_atomic_transaction_handles_non_list_source_documents(self, db, test_user):
-        """AC13.11.2: Dedup upsert sanitizes malformed source_documents payloads (transaction)."""
+        """AC-extraction.111.2: Dedup upsert sanitizes malformed source_documents payloads (transaction)."""
         service = DeduplicationService()
         doc1 = uuid4()
         doc2 = uuid4()
@@ -716,7 +716,7 @@ class TestDeduplicationService:
         assert len(txn2.source_documents) == 1
 
     async def test_upsert_atomic_position_handles_non_list_source_documents(self, db, test_user):
-        """AC13.11.2: Dedup upsert sanitizes malformed source_documents payloads (position)."""
+        """AC-extraction.111.2: Dedup upsert sanitizes malformed source_documents payloads (position)."""
         service = DeduplicationService()
         doc1 = uuid4()
         doc2 = uuid4()

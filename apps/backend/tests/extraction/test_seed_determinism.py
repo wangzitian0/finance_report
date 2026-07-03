@@ -13,7 +13,7 @@ from src.extraction.extension.service import ExtractionService
 
 
 async def test_extraction_forwards_configured_seed():
-    """AC13.16.2: _extract_json_with_models forwards settings.ai_json_seed."""
+    """AC-extraction.116.2: _extract_json_with_models forwards settings.ai_json_seed."""
     service = ExtractionService()
 
     mock_stream = MagicMock()
@@ -40,7 +40,7 @@ async def test_extraction_forwards_configured_seed():
 
 
 async def test_extraction_decoding_is_deterministic_by_default():
-    """AC13.16.3: temperature 0 / do_sample False are pinned alongside the seed."""
+    """AC-extraction.116.3: temperature 0 / do_sample False are pinned alongside the seed."""
     service = ExtractionService()
 
     mock_stream = MagicMock()
@@ -67,7 +67,7 @@ async def test_extraction_decoding_is_deterministic_by_default():
 
 
 def test_empty_seed_env_is_treated_as_none():
-    """AC13.16.4: AI_JSON_SEED= (empty) parses as None instead of raising, so the
+    """AC-extraction.116.4: AI_JSON_SEED= (empty) parses as None instead of raising, so the
     seed can be omitted for providers that reject it (#989)."""
     from src.config import Settings
 
@@ -77,7 +77,7 @@ def test_empty_seed_env_is_treated_as_none():
 
 
 def test_seed_is_off_by_default(monkeypatch):
-    """AC13.16.5: the seed is off (None) by default, so it is never sent to
+    """AC-extraction.116.5: the seed is off (None) by default, so it is never sent to
     providers that reject unknown params (e.g. glm-4.6v returns HTTP 400) unless
     explicitly opted in for a seed-supporting model (#989)."""
     from src.config import Settings

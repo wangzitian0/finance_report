@@ -90,178 +90,143 @@ Expected routing behavior remains threshold-based (See: `docs/ssot/reconciliatio
 - [x] Test updates and V2 scoring coverage
 - [x] SSOT documentation sync (`extraction.md`, `schema.md`)
 
-## 🧪 Test Cases
+## 🧪 Test Cases / Acceptance Criteria
 
-> **Test Organization**: Tests organized by feature blocks using AC13.x.y numbering.
-> **Coverage**: See `apps/backend/tests/extraction/`
+> **Migrated (2026-07-03, #1421 Stage-2 cutover):** all 118 ACs moved to
+> the `extraction` package roadmap in
+> [`common/extraction/contract.py`](../../common/extraction/contract.py) as
+> `AC-extraction.<group>.<seq>` — this EPIC's rows occupy the reserved
+> groups 101–123 (group + 100), per Decision A (standard-preserving move — every AC kept its
+> statement, anchored test, and priority; the package tier is LLM-LED with
+> per-AC `proof_kind`). This section intentionally holds no rows; the contract
+> roadmap is the single source.
+>
+> Migrated ids (each resolves in the contract roadmap):
+>
+> `AC-extraction.101.1`
+> `AC-extraction.101.2`
+> `AC-extraction.101.3`
+> `AC-extraction.102.1`
+> `AC-extraction.102.2`
+> `AC-extraction.102.3`
+> `AC-extraction.103.1`
+> `AC-extraction.103.2`
+> `AC-extraction.103.3`
+> `AC-extraction.103.4`
+> `AC-extraction.103.5`
+> `AC-extraction.104.1`
+> `AC-extraction.104.2`
+> `AC-extraction.104.3`
+> `AC-extraction.104.4`
+> `AC-extraction.104.5`
+> `AC-extraction.104.6`
+> `AC-extraction.104.7`
+> `AC-extraction.105.1`
+> `AC-extraction.105.2`
+> `AC-extraction.105.3`
+> `AC-extraction.105.4`
+> `AC-extraction.106.1`
+> `AC-extraction.106.2`
+> `AC-extraction.106.3`
+> `AC-extraction.107.5`
+> `AC-extraction.107.6`
+> `AC-extraction.107.7`
+> `AC-extraction.107.8`
+> `AC-extraction.107.9`
+> `AC-extraction.107.10`
+> `AC-extraction.107.11`
+> `AC-extraction.107.12`
+> `AC-extraction.108.1`
+> `AC-extraction.108.2`
+> `AC-extraction.108.3`
+> `AC-extraction.108.4`
+> `AC-extraction.108.5`
+> `AC-extraction.108.6`
+> `AC-extraction.108.7`
+> `AC-extraction.108.8`
+> `AC-extraction.108.9`
+> `AC-extraction.108.10`
+> `AC-extraction.108.11`
+> `AC-extraction.108.12`
+> `AC-extraction.108.13`
+> `AC-extraction.109.1`
+> `AC-extraction.109.2`
+> `AC-extraction.115.1`
+> `AC-extraction.115.2`
+> `AC-extraction.115.3`
+> `AC-extraction.115.4`
+> `AC-extraction.115.5`
+> `AC-extraction.118.1`
+> `AC-extraction.118.2`
+> `AC-extraction.119.1`
+> `AC-extraction.119.2`
+> `AC-extraction.119.3`
+> `AC-extraction.119.4`
+> `AC-extraction.114.1`
+> `AC-extraction.114.2`
+> `AC-extraction.114.3`
+> `AC-extraction.114.4`
+> `AC-extraction.114.5`
+> `AC-extraction.114.6`
+> `AC-extraction.114.7`
+> `AC-extraction.114.8`
+> `AC-extraction.114.9`
+> `AC-extraction.110.1`
+> `AC-extraction.110.2`
+> `AC-extraction.110.3`
+> `AC-extraction.110.4`
+> `AC-extraction.110.5`
+> `AC-extraction.110.6`
+> `AC-extraction.112.1`
+> `AC-extraction.112.2`
+> `AC-extraction.112.3`
+> `AC-extraction.111.1`
+> `AC-extraction.111.2`
+> `AC-extraction.113.1`
+> `AC-extraction.113.2`
+> `AC-extraction.113.3`
+> `AC-extraction.121.1`
+> `AC-extraction.121.2`
+> `AC-extraction.121.3`
+> `AC-extraction.121.4`
+> `AC-extraction.121.5`
+> `AC-extraction.121.6`
+> `AC-extraction.122.1`
+> `AC-extraction.122.2`
+> `AC-extraction.116.1`
+> `AC-extraction.116.2`
+> `AC-extraction.116.3`
+> `AC-extraction.116.4`
+> `AC-extraction.116.5`
+> `AC-extraction.117.1`
+> `AC-extraction.117.2`
+> `AC-extraction.117.3`
+> `AC-extraction.117.4`
+> `AC-extraction.117.5`
+> `AC-extraction.117.6`
+> `AC-extraction.117.7`
+> `AC-extraction.117.8`
+> `AC-extraction.117.9`
+> `AC-extraction.117.10`
+> `AC-extraction.117.11`
+> `AC-extraction.117.12`
+> `AC-extraction.120.1`
+> `AC-extraction.120.2`
+> `AC-extraction.120.3`
+> `AC-extraction.120.4`
+> `AC-extraction.120.5`
+> `AC-extraction.120.6`
+> `AC-extraction.120.7`
+> `AC-extraction.120.8`
+> `AC-extraction.123.1`
+> `AC-extraction.123.2`
+> `AC-extraction.123.3`
 
-### AC13.1: Balance Validation
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC13.1.1 | Test that valid balances pass validation | `test_balance_valid()` | `extraction/test_extraction.py` | P0 |
-| AC13.1.2 | Test that invalid balances fail validation | `test_balance_invalid()` | `extraction/test_extraction.py` | P0 |
-| AC13.1.3 | Test that small differences are tolerated | `test_balance_tolerance()` | `extraction/test_extraction.py` | P0 |
 
-### AC13.2: Confidence Scoring V1
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC13.2.1 | Test that complete data gets high confidence (Auto-Accept) | `test_high_confidence()` | `extraction/test_extraction.py` | P0 |
-| AC13.2.2 | Test that partial data gets medium confidence (Review) | `test_medium_confidence()` | `extraction/test_extraction.py` | P0 |
-| AC13.2.3 | Test that no transactions lowers confidence (Manual) | `test_low_confidence_empty_transactions()` | `extraction/test_extraction.py` | P0 |
-
-### AC13.3: Fixture Data
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC13.3.1 | Test DBS fixture has correct structure | `test_dbs_fixture_structure()` | `extraction/test_extraction.py` | P0 |
-| AC13.3.2 | Test DBS fixture balances reconcile | `test_dbs_balance_reconciliation()` | `extraction/test_extraction.py` | P0 |
-| AC13.3.3 | Test MariBank fixture has sanitized merchant names | `test_maribank_fixture_merchants_sanitized()` | `extraction/test_extraction.py` | P0 |
-| AC13.3.4 | Test GXS fixture has daily interest entries | `test_gxs_fixture_daily_interest()` | `extraction/test_extraction.py` | P0 |
-| AC13.3.5 | Test all fixtures have valid dates | `test_all_fixtures_have_dates()` | `extraction/test_extraction.py` | P0 |
-
-### AC13.4: Prompt Generation
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC13.4.1 | Test default parsing prompt | `test_get_parsing_prompt_default()` | `extraction/test_extraction.py` | P0 |
-| AC13.4.2 | Test DBS-specific prompt | `test_get_parsing_prompt_dbs()` | `extraction/test_extraction.py` | P0 |
-| AC13.4.3 | Test CMB-specific prompt | `test_get_parsing_prompt_cmb()` | `extraction/test_extraction.py` | P0 |
-| AC13.4.4 | Test with unknown institution returns base prompt | `test_get_parsing_prompt_unknown_institution()` | `extraction/test_extraction.py` | P0 |
-| AC13.4.5 | Test Futu-specific prompt | `test_get_parsing_prompt_futu()` | `extraction/test_extraction.py` | P0 |
-| AC13.4.6 | Test GXS-specific prompt | `test_get_parsing_prompt_gxs()` | `extraction/test_extraction.py` | P0 |
-| AC13.4.7 | Test MariBank-specific prompt | `test_get_parsing_prompt_maribank()` | `extraction/test_extraction.py` | P0 |
-
-### AC13.5: Media Payload Builder
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC13.5.1 | Test that PDF payloads use provider-compatible `file` or `image_url` shapes | `test_pdf_url_uses_zai_image_url_type()`, `test_pdf_base64_keeps_legacy_file_type()` | `extraction/test_extraction.py` | P0 |
-| AC13.5.2 | Test that PNG images use 'image_url' type | `test_png_uses_image_url_type()` | `extraction/test_extraction.py` | P0 |
-| AC13.5.3 | Test that JPG images use 'image_url' type | `test_jpg_uses_image_url_type()` | `extraction/test_extraction.py` | P0 |
-| AC13.5.4 | Test that JPEG images use 'image_url' type | `test_jpeg_uses_image_url_type()` | `extraction/test_extraction.py` | P0 |
-
-### AC13.6: Institution Detection
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC13.6.1 | Test that CSV parsing raises error when institution is None | `test_csv_requires_institution()` | `extraction/test_extraction.py` | P0 |
-| AC13.6.2 | Test that parse_document accepts institution=None for PDFs (AI auto-detect) | `test_parse_document_accepts_none_institution_for_pdf()` | `extraction/test_extraction.py` | P0 |
-| AC13.6.3 | Test that parse_document accepts force_model parameter | `test_parse_document_accepts_force_model()` | `extraction/test_extraction.py` | P0 |
-
-### AC13.7: Extraction Service Helpers
-
-> **Note:** the per-transaction event-confidence helper (`_compute_event_confidence`)
-> was removed in EPIC-011 Stage 3 — confidence is now a statement-level score only and
-> `AtomicTransaction` has no per-row confidence. The four event-confidence acceptance
-> criteria are retired with it.
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC13.7.5 | Test _safe_date with valid input | `test_safe_date_valid()` | `extraction/test_extraction.py` | P0 |
-| AC13.7.6 | Test _safe_date with invalid format | `test_safe_date_invalid_format()` | `extraction/test_extraction.py` | P0 |
-| AC13.7.7 | Test _safe_date with empty input | `test_safe_date_empty()` | `extraction/test_extraction.py` | P0 |
-| AC13.7.8 | Test _safe_decimal with valid input | `test_safe_decimal_valid()` | `extraction/test_extraction.py` | P0 |
-| AC13.7.9 | Test _safe_decimal with invalid input | `test_safe_decimal_invalid()` | `extraction/test_extraction.py` | P0 |
-| AC13.7.10 | Test _safe_decimal with None | `test_safe_decimal_none()` | `extraction/test_extraction.py` | P0 |
-| AC13.7.11 | Test _safe_decimal None required | `test_safe_decimal_none_required()` | `extraction/test_extraction.py` | P0 |
-| AC13.7.12 | Test compute_confidence with missing transactions key | `test_compute_confidence_missing_transactions()` | `extraction/test_extraction.py` | P0 |
-
-### AC13.8: Balance Progression & Currency Consistency
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC13.8.1 | Test consistent chain scores 10 | `test_consistent_chain()` | `extraction/test_extraction.py` | P0 |
-| AC13.8.2 | Test inconsistent chain scores 0 | `test_inconsistent_chain()` | `extraction/test_extraction.py` | P0 |
-| AC13.8.3 | Test single transaction | `test_single_txn()` | `extraction/test_extraction.py` | P0 |
-| AC13.8.4 | Test no balance after | `test_no_balance_after()` | `extraction/test_extraction.py` | P0 |
-| AC13.8.5 | Test empty list | `test_empty_list()` | `extraction/test_extraction.py` | P0 |
-| AC13.8.6 | Test partial consistency | `test_partial_consistency()` | `extraction/test_extraction.py` | P0 |
-| AC13.8.7 | Test all currencies match | `test_all_currencies_match()` | `extraction/test_extraction.py` | P0 |
-| AC13.8.8 | Test no currencies match | `test_no_currencies_match()` | `extraction/test_extraction.py` | P0 |
-| AC13.8.9 | Test no header currency | `test_no_header_currency()` | `extraction/test_extraction.py` | P0 |
-| AC13.8.10 | Test no currencies in transactions | `test_no_currencies()` | `extraction/test_extraction.py` | P0 |
-| AC13.8.11 | Test empty list (currency) | `test_empty_list()` | `extraction/test_extraction.py` | P0 |
-| AC13.8.12 | Test mixed currencies partial | `test_mixed_currencies_partial()` | `extraction/test_extraction.py` | P0 |
-| AC13.8.13 | Test missing currencies penalized | `test_missing_currencies_penalized()` | `extraction/test_extraction.py` | P0 |
-
-### AC13.9: Confidence Scoring V2
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC13.9.1 | Test full score with all factors | `test_full_score_with_all_factors()` | `extraction/test_extraction.py` | P0 |
-| AC13.9.2 | Test no new factors caps at 85 | `test_no_new_factors_caps_at_85()` | `extraction/test_extraction.py` | P0 |
-
-### AC13.15: Under-Extraction Penalty (issue #967)
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC13.15.1 | Brokerage statement with a single transaction is penalized below the review/auto-approve band | `test_brokerage_single_txn_penalized()` | `extraction/test_extraction.py` | P1 |
-| AC13.15.2 | Brokerage statement with a plausible transaction count is not penalized | `test_brokerage_sufficient_txns_not_penalized()` | `extraction/test_extraction.py` | P1 |
-| AC13.15.3 | Non-brokerage (bank) statement with one transaction keeps its existing score | `test_bank_single_txn_not_penalized()` | `extraction/test_extraction.py` | P1 |
-| AC13.15.4 | `is_brokerage` defaults to False so existing callers are unaffected | `test_default_is_not_brokerage()` | `extraction/test_extraction.py` | P1 |
-| AC13.15.5 | The cap uses the persisted transaction count (after skipped rows), not the raw extracted count | `test_effective_count_uses_persisted_not_extracted()` | `extraction/test_extraction.py` | P1 |
-
-### AC13.18: Vision Extraction Falls Back to Secondary Models (issue #1034)
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC13.18.1 | The vision model list appends `VISION_FALLBACK_MODELS` after the primary OCR/vision model, deduplicated and order-preserving, so more than one model is attempted on the vision path | `test_ocr_model_selection_helpers_deduplicate_vision_models()`, `test_vision_extraction_models_dedupes_fallback_against_primary()`, `test_vision_extraction_models_without_fallbacks_returns_primary_only()`, `test_extract_financial_data_shared_ocr_vision_skips_layout_parser()`, `test_extract_financial_data_dedicated_ocr_failure_falls_back_to_vision()` | `extraction/test_extraction_error_paths.py` | P1 |
-| AC13.18.2 | When the primary vision model raises a non-retryable provider error (e.g. a 400), the vision path attempts the configured vision fallback model and succeeds instead of failing the upload | `test_vision_path_falls_back_to_secondary_model_on_non_retryable_error()` | `extraction/test_extraction_error_paths.py` | P1 |
-
-### AC13.19: Tolerant Statement Date Parsing ([#1086](https://github.com/wangzitian0/finance_report/issues/1086))
-
-A single empty/non-ISO date previously aborted the entire document parse, making
-Chinese-format statements (`2025年01月15日`) unparseable and discarding an otherwise-good
-multi-month statement on one bad row. A shared `_tolerant_parse_date` accepts common
-non-ISO formats, and an unparseable transaction-row date is skip-and-flagged instead
-of fatal.
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC13.19.1 | Common non-ISO date formats parse; empty/garbage return None | `test_AC13_19_1_tolerant_parse_date_accepts_non_iso_formats` | `extraction/test_tolerant_date_parsing.py` | P1 |
-| AC13.19.2 | A Chinese-format statement parses instead of being rejected | `test_AC13_19_2_chinese_format_statement_parses_instead_of_aborting` | `extraction/test_tolerant_date_parsing.py` | P1 |
-| AC13.19.3 | One unparseable row date is non-fatal — the row is skipped, the rest parse | `test_AC13_19_3_one_bad_row_date_is_non_fatal` | `extraction/test_tolerant_date_parsing.py` | P1 |
-| AC13.19.4 | The model is the primary date normalizer: the prompt instructs converting any source format to ISO YYYY-MM-DD (parser is only a fallback) | `test_AC13_19_4_parsing_prompt_instructs_iso_date_normalization` | `extraction/test_tolerant_date_parsing.py` | P1 |
-
-### AC13.14: JSON-Repair Retry (issue #982)
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC13.14.1 | A markdown json-fenced object (multi-line and single-line) is recovered | `test_strips_json_code_fence()`, `test_strips_single_line_fence()` | `extraction/test_json_repair.py` | P1 |
-| AC13.14.2 | Surrounding prose and a bare fence reduce to the outermost balanced object | `test_strips_bare_code_fence_and_prose()`, `test_extract_financial_data_salvages_extra_text()` | `extraction/test_json_repair.py`, `extraction/test_extraction_flow.py` | P1 |
-| AC13.14.3 | An already-clean object round-trips unchanged | `test_clean_object_is_preserved()` | `extraction/test_json_repair.py` | P1 |
-| AC13.14.4 | Content with no recoverable JSON object returns None; braces inside strings do not truncate | `test_unrecoverable_returns_none()`, `test_does_not_misread_braces_in_strings()` | `extraction/test_json_repair.py` | P1 |
-| AC13.14.5 | The extraction loop salvages a fenced response instead of rejecting the upload | `test_fenced_response_is_salvaged()`, `test_extract_financial_data_markdown_json()`, `test_extract_financial_data_json_markdown_fallback()` | `extraction/test_json_repair.py`, `extraction/test_extraction_flow.py`, `extraction/test_extraction_error_paths.py` | P1 |
-| AC13.14.6 | A response with no recoverable JSON still fails through the model-chain path | `test_unrecoverable_response_still_fails()` | `extraction/test_json_repair.py` | P1 |
-| AC13.14.7 | When a small example object precedes the real (larger) extraction, the largest object is recovered (not the example) | `test_prefers_largest_object_when_example_precedes_real()` | `extraction/test_json_repair.py` | P1 |
-| AC13.14.8 | A complete object followed by trailing unbalanced-brace junk still recovers the complete object | `test_complete_object_then_trailing_unbalanced_brace()` | `extraction/test_json_repair.py` | P1 |
-| AC13.14.9 | A leading unmatched brace (junk) before the real object does not stop the scan — the real object is recovered | `test_leading_unbalanced_brace_then_real_object()` | `extraction/test_json_repair.py` | P1 |
-
-### AC13.10: Source Type Priority & Conflict Resolution
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC13.10.1 | Source type stamped on manual entry creation | `test_source_type_stamped_on_create` | `apps/backend/tests/reconciliation/test_source_type.py` | P0 |
-| AC13.10.2 | Auto-match records trusted anchor without mutating posted source_type | `test_auto_match_records_anchor_without_mutating_posted_source_type` | `apps/backend/tests/reconciliation/test_source_type.py` | P0 |
-| AC13.10.3 | Stage-1 approve promotes to user_confirmed | `test_stage1_approve_promotes_source_type` | `apps/backend/tests/extraction/test_source_type_promotion.py` | P0 |
-| AC13.10.4 | Manual entry wins over auto_parsed in conflict | `test_manual_wins_conflict_resolution` | `apps/backend/tests/reconciliation/test_source_type.py` | P0 |
-| AC13.10.5 | source_type cannot be downgraded | `test_source_type_no_downgrade` | `apps/backend/tests/reconciliation/test_source_type.py` | P1 |
-| AC13.10.6 | All four source_type values accepted by API | `test_all_four_source_type_values_accepted_by_api` | `apps/backend/tests/reconciliation/test_source_type.py` | P1 |
-
-### AC13.12: Source Coverage Matrix
-
-The authoritative source-class registry is
-[`source_coverage_matrix`](../ssot/source-coverage-matrix.yaml).
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC13.12.1 | Source coverage matrix covers every source class named by vision.md with owner EPICs, proof levels, ingestion path, review requirement, traceability target, and test anchors | `test_AC13_12_1_source_coverage_matrix_covers_vision_source_classes`, `test_AC13_12_1_source_coverage_matrix_rejects_non_list_required_classes_and_proof_levels` | `tests/tooling/test_source_coverage_matrix.py` | P0 |
-| AC13.12.2 | Source coverage matrix rejects source classes whose only proof level is post-merge LLM/OCR unless an explicit exception is recorded | `test_AC13_12_2_source_coverage_matrix_rejects_llm_only_sources` | `tests/tooling/test_source_coverage_matrix.py` | P0 |
-| AC13.12.3 | Source coverage matrix requires a gap issue for any source class still classified as a gap | `test_AC13_12_3_source_coverage_matrix_requires_gap_issue` | `tests/tooling/test_source_coverage_matrix.py` | P0 |
-
----
+> Machine-owned SSOT anchor (governance report requirement): source coverage
+> tracking stays registered in
+> [`source_coverage_matrix`](../ssot/source-coverage-matrix.yaml).
 
 ## 📌 Future Work (from Vision Recovery Audit)
 
@@ -291,14 +256,14 @@ retained in [#548](https://github.com/wangzitian0/finance_report/issues/548):
 - Lint/type checks pass
 - PR is ready for review with SSOT + project docs updated
 
-### AC13.11: Recovered Coverage
+### AC-extraction.111: Recovered Coverage
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC13.11.1 | Dual-write handles duplicate document hash / IntegrityError without failing. | `test_dual_write_layer2_integrity_error_is_non_fatal` | `extraction/test_extraction_error_paths.py` | P1 |
-| AC13.11.2 | Dedup upsert sanitizes malformed source_documents payloads (transaction). | `test_upsert_atomic_transaction_handles_non_list_source_documents` | `extraction/test_deduplication.py` | P1 |
+| AC-extraction.111.1 | Dual-write handles duplicate document hash / IntegrityError without failing. | `test_dual_write_layer2_integrity_error_is_non_fatal` | `extraction/test_extraction_error_paths.py` | P1 |
+| AC-extraction.111.2 | Dedup upsert sanitizes malformed source_documents payloads (transaction). | `test_upsert_atomic_transaction_handles_non_list_source_documents` | `extraction/test_deduplication.py` | P1 |
 
-### AC13.13: Extraction Determinism (#989)
+### AC-extraction.113: Extraction Determinism (#989)
 
 The AI vision model is not bit-reproducible and cannot be pinned in CI, but
 everything *downstream* of the model response must be. Given identical extracted
@@ -312,42 +277,42 @@ this gate.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC13.13.1 | Pure scoring + routing functions return identical results across N runs on the same input. | `test_scoring_and_routing_are_deterministic` | `extraction/test_extraction_determinism.py` | P0 |
-| AC13.13.2 | Re-parsing identical model output yields identical confidence/status/validation_error across N parses. | `test_repeated_parse_yields_identical_confidence_status_validation` | `extraction/test_extraction_determinism.py` | P0 |
-| AC13.13.3 | Each payload class (bank-valid, bank-balance-invalid, brokerage) routes consistently across N parses. | `test_routing_is_consistent_per_payload_class` | `extraction/test_extraction_determinism.py` | P0 |
+| AC-extraction.113.1 | Pure scoring + routing functions return identical results across N runs on the same input. | `test_scoring_and_routing_are_deterministic` | `extraction/test_extraction_determinism.py` | P0 |
+| AC-extraction.113.2 | Re-parsing identical model output yields identical confidence/status/validation_error across N parses. | `test_repeated_parse_yields_identical_confidence_status_validation` | `extraction/test_extraction_determinism.py` | P0 |
+| AC-extraction.113.3 | Each payload class (bank-valid, bank-balance-invalid, brokerage) routes consistently across N parses. | `test_routing_is_consistent_per_payload_class` | `extraction/test_extraction_determinism.py` | P0 |
 
-### AC13.21: Balance-Mismatch Statement Lifecycle (#1141, folds #1085 + #1087)
+### AC-extraction.121: Balance-Mismatch Statement Lifecycle (#1141, folds #1085 + #1087)
 
 A bank statement that parses cleanly but whose running balance does not reconcile
 must **not** be parked in `uploaded` (a dead-end that the retry endpoint rejects
 and the report-readiness query ignores). It must enter the same reviewable resting
 state as a brokerage statement: `PARSED` with `stage1_status=PENDING_REVIEW` and a
 `validation_error` describing the mismatch. This makes balance-invalid bank
-statements retriable (AC13.21.3), visible to readiness (AC13.21.4), and
-deterministic (AC13.21.5). CSV intake with a missing institution must fail
+statements retriable (AC-extraction.121.3), visible to readiness (AC-extraction.121.4), and
+deterministic (AC-extraction.121.5). CSV intake with a missing institution must fail
 synchronously at upload with HTTP 400 instead of accepting (202) and then
-rejecting asynchronously (AC13.21.6).
+rejecting asynchronously (AC-extraction.121.6).
 
 > **Superseded (EPIC-020 AC20.9.2, #1352).** The #1141 "balance-invalid bank
 > statement rests in `PARSED`/review" resting state is **no longer the parse-path
 > outcome**: the LLM-LED (event→L2) layer now treats a non-reconciling balance chain as a
 > BLOCKING invariant and quarantines the extraction to `REJECTED` with a typed reason
 > code (an internally-inconsistent extraction must not persist as trusted financial
-> truth). The pure `route_by_threshold` routing function (AC13.21.1) and the
-> readiness `PARSED`-counts filter (AC13.21.4) are unchanged — the gate sits above
-> them in `parse_document`. AC13.21.2 / AC13.21.5 are updated above to the blocking
+> truth). The pure `route_by_threshold` routing function (AC-extraction.121.1) and the
+> readiness `PARSED`-counts filter (AC-extraction.121.4) are unchanged — the gate sits above
+> them in `parse_document`. AC-extraction.121.2 / AC-extraction.121.5 are updated above to the blocking
 > outcome.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC13.21.1 | `route_by_threshold` routes a balance-invalid bank statement to `PARSED` (review), never `uploaded`, regardless of score. | `test_AC13_21_1_balance_invalid_routes_to_parsed_review` | `accounting/test_validation.py` | P0 |
-| AC13.21.2 | _Superseded by AC20.9.2 (#1352)._ A parsed bank statement that fails balance reconciliation is now BLOCKING: it is quarantined to `REJECTED` (not `PARSED`/review) with `stage1_status=REJECTED` and a typed `validation_error` reason code. | `test_AC20_9_2_balance_invalid_parse_is_quarantined` | `extraction/test_extraction_determinism.py` | P0 |
-| AC13.21.3 | The retry endpoint accepts a balance-invalid statement at its `PARSED` resting state. | `test_AC13_21_3_retry_accepts_parsed_resting_state` | `api/test_statements_router.py` | P0 |
-| AC13.21.4 | Report readiness counts the balance-invalid `PARSED` statement as an available input. | `test_AC13_21_4_readiness_counts_parsed_balance_invalid` | `accounting/test_validation.py` | P1 |
-| AC13.21.5 | _Superseded by AC20.9.2 (#1352)._ The same balance-mismatch payload routes deterministically across N parses to the same status — now `REJECTED` (the LLM-LED blocking gate), not `PARSED`. | `test_routing_is_consistent_per_payload_class` | `extraction/test_extraction_determinism.py` | P0 |
-| AC13.21.6 | CSV upload with a missing institution fails synchronously with HTTP 400 and an actionable message. | `test_AC13_21_6_csv_missing_institution_rejected_sync` | `api/test_statements_router.py` | P0 |
+| AC-extraction.121.1 | `route_by_threshold` routes a balance-invalid bank statement to `PARSED` (review), never `uploaded`, regardless of score. | `test_AC13_21_1_balance_invalid_routes_to_parsed_review` | `accounting/test_validation.py` | P0 |
+| AC-extraction.121.2 | _Superseded by AC20.9.2 (#1352)._ A parsed bank statement that fails balance reconciliation is now BLOCKING: it is quarantined to `REJECTED` (not `PARSED`/review) with `stage1_status=REJECTED` and a typed `validation_error` reason code. | `test_AC20_9_2_balance_invalid_parse_is_quarantined` | `extraction/test_extraction_determinism.py` | P0 |
+| AC-extraction.121.3 | The retry endpoint accepts a balance-invalid statement at its `PARSED` resting state. | `test_AC13_21_3_retry_accepts_parsed_resting_state` | `api/test_statements_router.py` | P0 |
+| AC-extraction.121.4 | Report readiness counts the balance-invalid `PARSED` statement as an available input. | `test_AC13_21_4_readiness_counts_parsed_balance_invalid` | `accounting/test_validation.py` | P1 |
+| AC-extraction.121.5 | _Superseded by AC20.9.2 (#1352)._ The same balance-mismatch payload routes deterministically across N parses to the same status — now `REJECTED` (the LLM-LED blocking gate), not `PARSED`. | `test_routing_is_consistent_per_payload_class` | `extraction/test_extraction_determinism.py` | P0 |
+| AC-extraction.121.6 | CSV upload with a missing institution fails synchronously with HTTP 400 and an actionable message. | `test_AC13_21_6_csv_missing_institution_rejected_sync` | `api/test_statements_router.py` | P0 |
 
-### AC13.22: Same-Amount Deposit Survives a Page-Boundary Balance Repeat (#1254)
+### AC-extraction.122: Same-Amount Deposit Survives a Page-Boundary Balance Repeat (#1254)
 
 A single bank statement can contain two **genuinely distinct** same-date,
 same-amount incoming deposits whose extracted running `balance_after` is
@@ -372,12 +337,12 @@ evidence already extracted.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC13.22.1 | Two distinct same-date/same-amount/same-direction rows sharing one running `balance_after` hash differently within one document (via `occurrence_index`), while a re-uploaded identical row still collapses across documents. | `test_AC13_22_1_same_balance_distinct_rows_do_not_collapse` | `extraction/test_deduplication.py` | P0 |
-| AC13.22.2 | A parsed statement with two same-date/same-amount deposits separated by a carried-forward/brought-forward balance repeat persists both deposits and the running-balance chain reconciles. | `test_AC13_22_2_page_boundary_duplicate_deposit_survives` | `extraction/test_dual_write_layer2.py` | P0 |
+| AC-extraction.122.1 | Two distinct same-date/same-amount/same-direction rows sharing one running `balance_after` hash differently within one document (via `occurrence_index`), while a re-uploaded identical row still collapses across documents. | `test_AC13_22_1_same_balance_distinct_rows_do_not_collapse` | `extraction/test_deduplication.py` | P0 |
+| AC-extraction.122.2 | A parsed statement with two same-date/same-amount deposits separated by a carried-forward/brought-forward balance repeat persists both deposits and the running-balance chain reconciles. | `test_AC13_22_2_page_boundary_duplicate_deposit_survives` | `extraction/test_dual_write_layer2.py` | P0 |
 
-### AC13.16: Deterministic Decoding — Request Seed (issue #989)
+### AC-extraction.116: Deterministic Decoding — Request Seed (issue #989)
 
-Complements AC13.13 (downstream determinism). AC13.13 pins everything *after* the
+Complements AC-extraction.113 (downstream determinism). AC-extraction.113 pins everything *after* the
 model response; this AC pins the *request* so the model itself decodes
 reproducibly: temperature 0 / `do_sample` false, plus an optional fixed `seed`
 (`AI_JSON_SEED`) forwarded to the provider. The seed is **off by default**
@@ -386,15 +351,15 @@ because Z.AI/GLM validates params strictly and some models (e.g. the default
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC13.16.1 | A provided seed is forwarded in the streaming request payload | `test_stream_ai_json_forwards_zai_knobs_and_seed()` | `ai/test_ai_streaming.py` | P1 |
-| AC13.16.2 | Extraction forwards the configured `ai_json_seed` to the model call | `test_extraction_forwards_configured_seed()` | `extraction/test_seed_determinism.py` | P1 |
-| AC13.16.3 | Extraction pins `temperature=0` / `do_sample=False` alongside the seed | `test_extraction_decoding_is_deterministic_by_default()` | `extraction/test_seed_determinism.py` | P1 |
-| AC13.16.4 | Empty `AI_JSON_SEED` parses as None (omitted) instead of raising | `test_empty_seed_env_is_treated_as_none()` | `extraction/test_seed_determinism.py` | P1 |
-| AC13.16.5 | The seed is off (None) by default so it is never sent to providers that reject it (e.g. glm-4.6v) | `test_seed_is_off_by_default()` | `extraction/test_seed_determinism.py` | P1 |
+| AC-extraction.116.1 | A provided seed is forwarded in the streaming request payload | `test_stream_ai_json_forwards_zai_knobs_and_seed()` | `ai/test_ai_streaming.py` | P1 |
+| AC-extraction.116.2 | Extraction forwards the configured `ai_json_seed` to the model call | `test_extraction_forwards_configured_seed()` | `extraction/test_seed_determinism.py` | P1 |
+| AC-extraction.116.3 | Extraction pins `temperature=0` / `do_sample=False` alongside the seed | `test_extraction_decoding_is_deterministic_by_default()` | `extraction/test_seed_determinism.py` | P1 |
+| AC-extraction.116.4 | Empty `AI_JSON_SEED` parses as None (omitted) instead of raising | `test_empty_seed_env_is_treated_as_none()` | `extraction/test_seed_determinism.py` | P1 |
+| AC-extraction.116.5 | The seed is off (None) by default so it is never sent to providers that reject it (e.g. glm-4.6v) | `test_seed_is_off_by_default()` | `extraction/test_seed_determinism.py` | P1 |
 
-### AC13.17: Balance-Aware Self-Consistency Re-extract (issue #989 Step B)
+### AC-extraction.117: Balance-Aware Self-Consistency Re-extract (issue #989 Step B)
 
-Step A (AC13.16) makes a single decode reproducible; this AC adds the
+Step A (AC-extraction.116) makes a single decode reproducible; this AC adds the
 **self-consistency** half. When a bank statement's running-balance chain fails to
 reconcile, `_extract_with_balance_retry` re-extracts up to
 `AI_EXTRACT_MAX_ATTEMPTS` times — each attempt with a *varied* seed (configured
@@ -406,20 +371,20 @@ kept so routing is unchanged. Only failing parses retry, so average cost is boun
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC13.17.1 | A reconciling first parse is returned without retry | `test_reconciles_first_attempt_single_call()` | `extraction/test_self_consistency.py` | P1 |
-| AC13.17.2 | A failing parse is retried and the reconciling result wins | `test_retries_until_reconciles()` | `extraction/test_self_consistency.py` | P1 |
-| AC13.17.3 | When no attempt reconciles, the smallest-difference result is kept | `test_keeps_best_when_none_reconcile()` | `extraction/test_self_consistency.py` | P1 |
-| AC13.17.4 | Brokerage payloads are not retried | `test_brokerage_is_not_retried()` | `extraction/test_self_consistency.py` | P1 |
-| AC13.17.5 | Attempt 0 uses the configured seed; retries vary it (seed+1, seed+2 …) | `test_seed_varies_per_attempt()` | `extraction/test_self_consistency.py` | P1 |
-| AC13.17.6 | `AI_EXTRACT_MAX_ATTEMPTS=1` keeps single-shot behavior | `test_max_attempts_one_disables_retry()` | `extraction/test_self_consistency.py` | P1 |
-| AC13.17.7 | A structurally-invalid parse (balance uncomputable, difference 0) does not win "best" over a numerically-close parse | `test_structurally_invalid_parse_does_not_win_as_best()` | `extraction/test_self_consistency.py` | P1 |
-| AC13.17.8 | If every attempt is structurally invalid, the last parse is returned so `parse_document` reports the failure | `test_all_invalid_returns_last_parse()` | `extraction/test_self_consistency.py` | P1 |
-| AC13.17.9 | A transient extraction error on a retry attempt keeps the earlier usable parse (no upload regression) | `test_transient_retry_error_keeps_earlier_usable_parse()` | `extraction/test_self_consistency.py` | P1 |
-| AC13.17.10 | If every attempt raises, the error propagates so the upload fails as in the single-call path | `test_all_attempts_error_reraises()` | `extraction/test_self_consistency.py` | P1 |
-| AC13.17.11 | A transient error on the first attempt does not abort; a later reconciling attempt is returned | `test_first_attempt_error_then_success_recovers()` | `extraction/test_self_consistency.py` | P1 |
-| AC13.17.12 | An error after an earlier usable parse keeps trying remaining attempts; a later reconciling parse still wins | `test_error_mid_run_does_not_skip_remaining_attempts()` | `extraction/test_self_consistency.py` | P1 |
+| AC-extraction.117.1 | A reconciling first parse is returned without retry | `test_reconciles_first_attempt_single_call()` | `extraction/test_self_consistency.py` | P1 |
+| AC-extraction.117.2 | A failing parse is retried and the reconciling result wins | `test_retries_until_reconciles()` | `extraction/test_self_consistency.py` | P1 |
+| AC-extraction.117.3 | When no attempt reconciles, the smallest-difference result is kept | `test_keeps_best_when_none_reconcile()` | `extraction/test_self_consistency.py` | P1 |
+| AC-extraction.117.4 | Brokerage payloads are not retried | `test_brokerage_is_not_retried()` | `extraction/test_self_consistency.py` | P1 |
+| AC-extraction.117.5 | Attempt 0 uses the configured seed; retries vary it (seed+1, seed+2 …) | `test_seed_varies_per_attempt()` | `extraction/test_self_consistency.py` | P1 |
+| AC-extraction.117.6 | `AI_EXTRACT_MAX_ATTEMPTS=1` keeps single-shot behavior | `test_max_attempts_one_disables_retry()` | `extraction/test_self_consistency.py` | P1 |
+| AC-extraction.117.7 | A structurally-invalid parse (balance uncomputable, difference 0) does not win "best" over a numerically-close parse | `test_structurally_invalid_parse_does_not_win_as_best()` | `extraction/test_self_consistency.py` | P1 |
+| AC-extraction.117.8 | If every attempt is structurally invalid, the last parse is returned so `parse_document` reports the failure | `test_all_invalid_returns_last_parse()` | `extraction/test_self_consistency.py` | P1 |
+| AC-extraction.117.9 | A transient extraction error on a retry attempt keeps the earlier usable parse (no upload regression) | `test_transient_retry_error_keeps_earlier_usable_parse()` | `extraction/test_self_consistency.py` | P1 |
+| AC-extraction.117.10 | If every attempt raises, the error propagates so the upload fails as in the single-call path | `test_all_attempts_error_reraises()` | `extraction/test_self_consistency.py` | P1 |
+| AC-extraction.117.11 | A transient error on the first attempt does not abort; a later reconciling attempt is returned | `test_first_attempt_error_then_success_recovers()` | `extraction/test_self_consistency.py` | P1 |
+| AC-extraction.117.12 | An error after an earlier usable parse keeps trying remaining attempts; a later reconciling parse still wins | `test_error_mid_run_does_not_skip_remaining_attempts()` | `extraction/test_self_consistency.py` | P1 |
 
-### AC13.20: Running-Balance Chain-Break Detector + Repair-Pass Hook (root [#1140](https://github.com/wangzitian0/finance_report/issues/1140))
+### AC-extraction.120: Running-Balance Chain-Break Detector + Repair-Pass Hook (root [#1140](https://github.com/wangzitian0/finance_report/issues/1140))
 
 Bank-statement **under-extraction**: the per-currency self-check correctly flags
 `opening + ΣIN − ΣOUT ≠ closing` when rows are dropped, but recall is the
@@ -452,16 +417,16 @@ self-check balance guard and these deterministic seams stay hard-tested.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC13.20.1 | AC-C1: detector pinpoints the exact break index on a crafted chain with a dropped row | `test_AC13_20_1_detector_finds_break_index_on_dropped_row()` | `extraction/test_chain_break_repair.py` | P1 |
-| AC13.20.2 | AC-C1: a clean running-balance chain reports no break | `test_AC13_20_2_clean_chain_reports_no_break()` | `extraction/test_chain_break_repair.py` | P1 |
-| AC13.20.3 | AC-C1: detection is Decimal-based and tolerant within `BALANCE_TOLERANCE` (no float drift) | `test_AC13_20_3_detector_is_decimal_tolerant()` | `extraction/test_chain_break_repair.py` | P1 |
-| AC13.20.4 | AC-C2: on balance mismatch with a detected break, the repair hook is invoked exactly once | `test_AC13_20_4_repair_hook_invoked_once_on_mismatch()` | `extraction/test_chain_break_repair.py` | P1 |
-| AC13.20.5 | AC-C2: a clean/reconciling chain never invokes the repair hook | `test_AC13_20_5_repair_hook_not_invoked_on_clean_chain()` | `extraction/test_chain_break_repair.py` | P1 |
-| AC13.20.6 | AC-C2: when no repair backend is injected, the hook is a safe no-op returning the original payload | `test_AC13_20_6_repair_is_safe_noop_without_backend()` | `extraction/test_chain_break_repair.py` | P1 |
-| AC13.20.7 | AC-C3: the synthetic dropped-row fixture drives the detector to the correct index and triggers the repair hook | `test_AC13_20_7_regression_fixture_detects_and_repairs()` | `extraction/test_chain_break_repair.py` | P1 |
-| AC13.20.8 | AC-C3: the clean-bank dropped-row regression-corpus fixture triggers the chain-break detector + `repair_under_extraction` end-to-end through `ExtractionService._extract_with_balance_retry` with an injected `RegionReExtractor` (recall stays a soft metric) | `test_AC13_20_8_corpus_fixture_triggers_repair_end_to_end()` | `extraction/test_chain_break_repair.py` | P1 |
+| AC-extraction.120.1 | AC-C1: detector pinpoints the exact break index on a crafted chain with a dropped row | `test_AC13_20_1_detector_finds_break_index_on_dropped_row()` | `extraction/test_chain_break_repair.py` | P1 |
+| AC-extraction.120.2 | AC-C1: a clean running-balance chain reports no break | `test_AC13_20_2_clean_chain_reports_no_break()` | `extraction/test_chain_break_repair.py` | P1 |
+| AC-extraction.120.3 | AC-C1: detection is Decimal-based and tolerant within `BALANCE_TOLERANCE` (no float drift) | `test_AC13_20_3_detector_is_decimal_tolerant()` | `extraction/test_chain_break_repair.py` | P1 |
+| AC-extraction.120.4 | AC-C2: on balance mismatch with a detected break, the repair hook is invoked exactly once | `test_AC13_20_4_repair_hook_invoked_once_on_mismatch()` | `extraction/test_chain_break_repair.py` | P1 |
+| AC-extraction.120.5 | AC-C2: a clean/reconciling chain never invokes the repair hook | `test_AC13_20_5_repair_hook_not_invoked_on_clean_chain()` | `extraction/test_chain_break_repair.py` | P1 |
+| AC-extraction.120.6 | AC-C2: when no repair backend is injected, the hook is a safe no-op returning the original payload | `test_AC13_20_6_repair_is_safe_noop_without_backend()` | `extraction/test_chain_break_repair.py` | P1 |
+| AC-extraction.120.7 | AC-C3: the synthetic dropped-row fixture drives the detector to the correct index and triggers the repair hook | `test_AC13_20_7_regression_fixture_detects_and_repairs()` | `extraction/test_chain_break_repair.py` | P1 |
+| AC-extraction.120.8 | AC-C3: the clean-bank dropped-row regression-corpus fixture triggers the chain-break detector + `repair_under_extraction` end-to-end through `ExtractionService._extract_with_balance_retry` with an injected `RegionReExtractor` (recall stays a soft metric) | `test_AC13_20_8_corpus_fixture_triggers_repair_end_to_end()` | `extraction/test_chain_break_repair.py` | P1 |
 
-### AC13.23: User Deletion During In-Flight Parse — Lifecycle Coordination ([#1256](https://github.com/wangzitian0/finance_report/issues/1256))
+### AC-extraction.123: User Deletion During In-Flight Parse — Lifecycle Coordination ([#1256](https://github.com/wangzitian0/finance_report/issues/1256))
 
 Deleting a user (`DELETE /users/{id}`) while an async statement parse is still
 running caused two distinct, compounding defects:
@@ -488,6 +453,138 @@ guard fails gracefully without masking the original error.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC13.23.1 | User deletion is refused with HTTP 409 (actionable message) while the user has a statement in the `PARSING` (in-flight) state; with no in-flight parse the delete still succeeds (204) | `test_AC13_23_1_delete_user_with_in_flight_parse_returns_409()`, `test_AC13_23_1_delete_user_without_in_flight_parse_succeeds()` | `api/test_users_router.py` | P0 |
-| AC13.23.2 | Parse-failure lineage write re-checks user existence and skips the FK-violating insert (no `IntegrityError`) when the owning user is gone | `test_AC13_23_2_failed_lineage_skips_when_user_deleted()` | `extraction/test_parse_user_deletion_lifecycle.py` | P0 |
-| AC13.23.3 | The failure handler rolls back before reading ORM attributes (cached `statement_id`); the original error is preserved/logged and never masked by `PendingRollbackError` | `test_AC13_23_3_failure_handler_rolls_back_before_reading_orm()`, `test_AC13_23_3_original_error_not_masked()` | `extraction/test_parse_user_deletion_lifecycle.py` | P0 |
+| AC-extraction.123.1 | User deletion is refused with HTTP 409 (actionable message) while the user has a statement in the `PARSING` (in-flight) state; with no in-flight parse the delete still succeeds (204) | `test_AC13_23_1_delete_user_with_in_flight_parse_returns_409()`, `test_AC13_23_1_delete_user_without_in_flight_parse_succeeds()` | `api/test_users_router.py` | P0 |
+| AC-extraction.123.2 | Parse-failure lineage write re-checks user existence and skips the FK-violating insert (no `IntegrityError`) when the owning user is gone | `test_AC13_23_2_failed_lineage_skips_when_user_deleted()` | `extraction/test_parse_user_deletion_lifecycle.py` | P0 |
+| AC-extraction.123.3 | The failure handler rolls back before reading ORM attributes (cached `statement_id`); the original error is preserved/logged and never masked by `PendingRollbackError` | `test_AC13_23_3_failure_handler_rolls_back_before_reading_orm()`, `test_AC13_23_3_original_error_not_masked()` | `extraction/test_parse_user_deletion_lifecycle.py` | P0 |
+
+## Acceptance Criteria
+
+> **Migrated (2026-07-03, #1421 Stage-2 cutover):** all 118 ACs moved to
+> the `extraction` package roadmap in
+> [`common/extraction/contract.py`](../../common/extraction/contract.py) as
+> `AC-extraction.<group>.<seq>` — this EPIC's rows occupy the reserved
+> groups 101–123 (group + 100), per Decision A (standard-preserving move — every AC kept its
+> statement, anchored test, and priority; the package tier is LLM-LED with
+> per-AC `proof_kind`). This table intentionally holds no rows; the contract
+> roadmap is the single source.
+>
+> Migrated ids (each resolves in the contract roadmap):
+>
+> `AC-extraction.101.1`
+> `AC-extraction.101.2`
+> `AC-extraction.101.3`
+> `AC-extraction.102.1`
+> `AC-extraction.102.2`
+> `AC-extraction.102.3`
+> `AC-extraction.103.1`
+> `AC-extraction.103.2`
+> `AC-extraction.103.3`
+> `AC-extraction.103.4`
+> `AC-extraction.103.5`
+> `AC-extraction.104.1`
+> `AC-extraction.104.2`
+> `AC-extraction.104.3`
+> `AC-extraction.104.4`
+> `AC-extraction.104.5`
+> `AC-extraction.104.6`
+> `AC-extraction.104.7`
+> `AC-extraction.105.1`
+> `AC-extraction.105.2`
+> `AC-extraction.105.3`
+> `AC-extraction.105.4`
+> `AC-extraction.106.1`
+> `AC-extraction.106.2`
+> `AC-extraction.106.3`
+> `AC-extraction.107.5`
+> `AC-extraction.107.6`
+> `AC-extraction.107.7`
+> `AC-extraction.107.8`
+> `AC-extraction.107.9`
+> `AC-extraction.107.10`
+> `AC-extraction.107.11`
+> `AC-extraction.107.12`
+> `AC-extraction.108.1`
+> `AC-extraction.108.2`
+> `AC-extraction.108.3`
+> `AC-extraction.108.4`
+> `AC-extraction.108.5`
+> `AC-extraction.108.6`
+> `AC-extraction.108.7`
+> `AC-extraction.108.8`
+> `AC-extraction.108.9`
+> `AC-extraction.108.10`
+> `AC-extraction.108.11`
+> `AC-extraction.108.12`
+> `AC-extraction.108.13`
+> `AC-extraction.109.1`
+> `AC-extraction.109.2`
+> `AC-extraction.115.1`
+> `AC-extraction.115.2`
+> `AC-extraction.115.3`
+> `AC-extraction.115.4`
+> `AC-extraction.115.5`
+> `AC-extraction.118.1`
+> `AC-extraction.118.2`
+> `AC-extraction.119.1`
+> `AC-extraction.119.2`
+> `AC-extraction.119.3`
+> `AC-extraction.119.4`
+> `AC-extraction.114.1`
+> `AC-extraction.114.2`
+> `AC-extraction.114.3`
+> `AC-extraction.114.4`
+> `AC-extraction.114.5`
+> `AC-extraction.114.6`
+> `AC-extraction.114.7`
+> `AC-extraction.114.8`
+> `AC-extraction.114.9`
+> `AC-extraction.110.1`
+> `AC-extraction.110.2`
+> `AC-extraction.110.3`
+> `AC-extraction.110.4`
+> `AC-extraction.110.5`
+> `AC-extraction.110.6`
+> `AC-extraction.112.1`
+> `AC-extraction.112.2`
+> `AC-extraction.112.3`
+> `AC-extraction.111.1`
+> `AC-extraction.111.2`
+> `AC-extraction.113.1`
+> `AC-extraction.113.2`
+> `AC-extraction.113.3`
+> `AC-extraction.121.1`
+> `AC-extraction.121.2`
+> `AC-extraction.121.3`
+> `AC-extraction.121.4`
+> `AC-extraction.121.5`
+> `AC-extraction.121.6`
+> `AC-extraction.122.1`
+> `AC-extraction.122.2`
+> `AC-extraction.116.1`
+> `AC-extraction.116.2`
+> `AC-extraction.116.3`
+> `AC-extraction.116.4`
+> `AC-extraction.116.5`
+> `AC-extraction.117.1`
+> `AC-extraction.117.2`
+> `AC-extraction.117.3`
+> `AC-extraction.117.4`
+> `AC-extraction.117.5`
+> `AC-extraction.117.6`
+> `AC-extraction.117.7`
+> `AC-extraction.117.8`
+> `AC-extraction.117.9`
+> `AC-extraction.117.10`
+> `AC-extraction.117.11`
+> `AC-extraction.117.12`
+> `AC-extraction.120.1`
+> `AC-extraction.120.2`
+> `AC-extraction.120.3`
+> `AC-extraction.120.4`
+> `AC-extraction.120.5`
+> `AC-extraction.120.6`
+> `AC-extraction.120.7`
+> `AC-extraction.120.8`
+> `AC-extraction.123.1`
+> `AC-extraction.123.2`
+> `AC-extraction.123.3`

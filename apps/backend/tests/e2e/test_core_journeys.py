@@ -806,7 +806,7 @@ async def test_statement_upload_csv(client, test_user):
     """
     csv_content = "Date,Description,Amount\n2026-01-15,Coffee Shop,-5.00\n2026-01-16,Salary,5000.00\n"
     # CSV parsing has no AI institution auto-detect, so institution is required and
-    # validated synchronously (AC13.21.6 / #1087). Provide it to exercise the happy path.
+    # validated synchronously (AC-extraction.121.6 / #1087). Provide it to exercise the happy path.
     response = await client.post(
         "/statements/upload",
         files={"file": ("test_statement.csv", csv_content.encode(), "text/csv")},
@@ -828,7 +828,7 @@ async def test_statement_list_and_get(client, test_user):
     """
     # Upload first
     csv_content = "Date,Description,Amount\n2026-02-01,Groceries,-50.00\n"
-    # institution is required for CSV (no AI auto-detect) — #1087 / AC13.21.6
+    # institution is required for CSV (no AI auto-detect) — #1087 / AC-extraction.121.6
     upload_resp = await client.post(
         "/statements/upload",
         files={"file": ("list_test.csv", csv_content.encode(), "text/csv")},
@@ -859,7 +859,7 @@ async def test_statement_full_flow(client, test_user):
     """
     # Upload
     csv_content = "Date,Description,Amount\n2026-03-01,Rent,-1500.00\n"
-    # institution is required for CSV (no AI auto-detect) — #1087 / AC13.21.6
+    # institution is required for CSV (no AI auto-detect) — #1087 / AC-extraction.121.6
     upload_resp = await client.post(
         "/statements/upload",
         files={"file": ("flow_test.csv", csv_content.encode(), "text/csv")},
