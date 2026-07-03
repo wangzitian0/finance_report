@@ -83,13 +83,21 @@ def test_AC8_22_3_preview_selection_is_audited_and_dependency_free() -> None:
     # The original in-runner set is preserved.
     assert "tests/e2e/test_core_journeys.py" in selected_files
     assert "tests/e2e/test_e2e_flows.py::test_full_navigation" in selection
-    # #1547's candidate (the non-LLM vision hard gate) stays out until its
-    # in-runner 404 (observed live on PR #1562) is diagnosed — admission is a
-    # row flip once the audit evidence is green, not a workflow edit.
+    # The vision hard gate's 404 was root-caused and fixed (double-/api base
+    # URL), but a deterministic in-runner-only click timeout surfaced next
+    # (PR #1587, 2/2) — the row stays out, carrying that evidence, until its
+    # dedicated issue is fixed; admission remains a row flip.
     vision = "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py"
     vision_row = next(row for row in matrix.E2E_ROWS if row.file == vision)
-    assert not vision_row.audited and "#1562" in vision_row.reason
+    assert not vision_row.audited and "#1587" in vision_row.reason
     assert vision not in selected_files
+
+    # Completeness (Copilot on #1587): every audited, dependency-free row is
+    # actually selected — "exactly", not just "only".
+    for row in matrix.E2E_ROWS:
+        if row.audited and not row.needs:
+            for node in row.nodes or (row.file,):
+                assert node in selection, f"eligible row not selected: {node}"
 
     for node in selection:
         file = ROOT / node.split("::", 1)[0]

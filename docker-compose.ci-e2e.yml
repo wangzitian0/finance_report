@@ -17,7 +17,11 @@ services:
     build:
       args:
         # NEXT_PUBLIC_* are inlined at build time; point the browser at the edge.
-        NEXT_PUBLIC_API_URL: http://localhost:8080/api
+        # NO /api suffix: lib/api.ts callers pass /api-prefixed paths, so a
+        # suffixed base double-prefixed every browser-side fetch
+        # (/api/api/... -> nginx strips one -> backend 404) — the #1547
+        # in-runner-only failure. Deployed envs use the bare origin too.
+        NEXT_PUBLIC_API_URL: http://localhost:8080
         NEXT_PUBLIC_APP_URL: http://localhost:8080
 
   edge:
