@@ -16,8 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
-from src.llm.base import Modality
-from src.llm.extension.catalog import LitellmCatalog
+from src.llm import LitellmCatalog, Modality
 from src.models.account import Account, AccountType
 from src.models.layer1 import UploadedDocument
 from src.models.statement_enums import BankStatementStatus

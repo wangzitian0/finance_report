@@ -17,7 +17,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from src.llm.base import Modality, ProtocolFamily, ReasoningEffort, Scene
+from src.llm import Modality, ProtocolFamily, ReasoningEffort, Scene
 from src.schemas.base import BaseResponse
 
 # Hostnames that resolve to the host/loopback or local-only zones, rejected for
