@@ -440,8 +440,11 @@ async def health_check(full: bool = False, db: AsyncSession = Depends(get_db)) -
                 settings.environment, github_actions=os.getenv("GITHUB_ACTIONS", "").lower() == "true"
             )
             probed, unprobed = Bootloader._required_checks(tier)
-            for name in sorted(probed.keys() - {"database", "object_storage"}):
-                result = await getattr(Bootloader, probed[name])()
+            names = sorted(probed.keys() - {"database", "object_storage"})
+            # Probe concurrently — latency is the slowest single probe, not the sum
+            # (each probe has its own ~5s timeout and never raises for an outage).
+            results = await asyncio.gather(*(getattr(Bootloader, probed[name])() for name in names))
+            for name, result in zip(names, results, strict=True):
                 checks[name] = result.status == "ok"
             for name in unprobed:  # declared before its probe lands: visible, failing
                 checks[name] = False

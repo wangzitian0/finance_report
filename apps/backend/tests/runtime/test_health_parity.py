@@ -47,7 +47,10 @@ async def test_AC_runtime_6_1_full_health_asserts_the_declared_set(client: Async
     declared = DEPENDENCY_MANIFEST.required_for(tier)
     # 'database' and legacy 's3' are the light-form keys; object_storage maps to s3.
     reported = (set(body["checks"]) - {"s3"}) | ({"object_storage"} if "s3" in body["checks"] else set())
-    assert declared <= reported, f"declared {sorted(declared)} vs reported {sorted(reported)}"
+    # Strict equality (invariant 6 is EXACT parity): an extra reported key is
+    # drift just like a missing one. database/object_storage are declared in
+    # every tier, so the mapped check set must equal the declaration.
+    assert reported == declared, f"declared {sorted(declared)} vs reported {sorted(reported)}"
 
 
 async def test_full_health_503_when_a_declared_dep_is_absent(client: AsyncClient, monkeypatch) -> None:

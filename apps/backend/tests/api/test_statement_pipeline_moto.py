@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -38,6 +39,23 @@ from tests.extraction.test_extraction_cassette_replay import (
 pytestmark = pytest.mark.asyncio
 
 _EXPECTED = Path(__file__).resolve().parents[1] / "fixtures" / "generated" / "text_statement_expected.json"
+
+
+def _decimal_normalized(statement: dict) -> dict:
+    """Compare money as Decimal (fixture stores strings; the model emits JSON
+    numbers) — str() before Decimal so a float never seeds the value."""
+    return {
+        "opening_balance": Decimal(str(statement["opening_balance"])),
+        "closing_balance": Decimal(str(statement["closing_balance"])),
+        "transactions": [
+            {
+                "amount": Decimal(str(txn["amount"])),
+                "date": txn["date"],
+                "description": txn["description"],
+            }
+            for txn in statement["transactions"]
+        ],
+    }
 
 
 @pytest.fixture
@@ -105,7 +123,7 @@ async def test_AC_1520_upload_s3_load_parse_pipeline(
     )
     parsed = _loads_tolerant(await accumulate_stream(stream))
     expected = json.loads(_EXPECTED.read_text(encoding="utf-8"))
-    assert parsed == expected
+    assert _decimal_normalized(parsed) == _decimal_normalized(expected)
 
 
 async def test_AC_1520_round_trip_uses_the_real_client(client: AsyncClient, moto_s3, no_async_parse) -> None:

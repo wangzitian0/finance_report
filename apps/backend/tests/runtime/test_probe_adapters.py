@@ -123,6 +123,12 @@ class TestMarketDataCheck:
             result = await MarketDataCheck(timeout_seconds=5).probe()
         assert result.status is DependencyStatus.PRESENT
 
+    async def test_server_error_is_absent(self):
+        # A 5xx means Yahoo is not serving — that is absence, not quota.
+        with patch("httpx.AsyncClient.get", AsyncMock(return_value=_http_response(503))):
+            result = await MarketDataCheck(timeout_seconds=5).probe()
+        assert result.status is DependencyStatus.ABSENT
+
     async def test_unreachable_yahoo_is_absent(self):
         import httpx
 

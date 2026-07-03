@@ -258,8 +258,8 @@ class AnalyticsCheck:
 
 
 class MarketDataCheck:
-    """Yahoo Finance reachability. Any HTTP response (even 429) proves the
-    service is present — presence is not quota."""
+    """Yahoo Finance reachability. Any non-5xx HTTP response (even 429) proves
+    the service is present — presence is not quota; a server error is ABSENT."""
 
     name = "market_data"
 
@@ -277,9 +277,10 @@ class MarketDataCheck:
                 timeout=self._timeout_seconds, headers={"User-Agent": "finance-report-smoke/1.0"}
             ) as client:
                 response = await client.get(self._PROBE_URL)
+            status = DependencyStatus.PRESENT if response.status_code < 500 else DependencyStatus.ABSENT
             return ProbeResult(
                 self.name,
-                DependencyStatus.PRESENT,
+                status,
                 f"HTTP {response.status_code}",
                 (time.perf_counter() - start) * 1000,
             )

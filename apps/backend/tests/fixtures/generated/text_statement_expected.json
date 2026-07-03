@@ -1,9 +1,9 @@
 {
-  "opening_balance": 100.0,
-  "closing_balance": 130.0,
+  "opening_balance": "100.00",
+  "closing_balance": "130.00",
   "transactions": [
-    {"amount": -5.0, "date": "2026-01-02", "description": "Coffee shop"},
-    {"amount": 50.0, "date": "2026-01-05", "description": "Salary credit"},
-    {"amount": -15.0, "date": "2026-01-09", "description": "Groceries"}
+    {"amount": "-5.00", "date": "2026-01-02", "description": "Coffee shop"},
+    {"amount": "50.00", "date": "2026-01-05", "description": "Salary credit"},
+    {"amount": "-15.00", "date": "2026-01-09", "description": "Groceries"}
   ]
 }
