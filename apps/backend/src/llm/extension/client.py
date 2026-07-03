@@ -11,7 +11,7 @@ entry point is ``services.ai_streaming`` (which counts request/token usage).
 from __future__ import annotations
 
 import time
-from collections.abc import AsyncIterator, Mapping, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
 from typing import Any
 
 import litellm
@@ -36,6 +36,11 @@ from src.llm.extension.cassette import (
     _canonical_request,
     current_mode,
     fingerprint,
+    in_ci,
+    layer_engaged,
+    legacy_mode_env_set,
+    live_forced,
+    refresh_requested,
 )
 from src.llm.extension.routing import build_call
 from src.observability import get_logger
@@ -223,7 +228,8 @@ async def _litellm_stream_live(kwargs: dict[str, Any]) -> AsyncIterator[str]:
 async def litellm_stream(
     messages: Sequence[Message],
     *,
-    provider: ProviderRef,
+    provider: ProviderRef | None = None,
+    provider_resolver: Callable[[], Awaitable[ProviderRef]] | None = None,
     model_id: str,
     max_tokens: int | None = None,
     temperature: float | None = None,
@@ -262,25 +268,99 @@ async def litellm_stream(
     Z.AI/GLM rejects unknown params with HTTP 400 and litellm won't drop it (it's a
     supported openai-compatible field). Token usage is estimated by the caller from
     text instead (see ``services.ai_streaming``)."""
+    _provider_cache: list[ProviderRef] = [provider] if provider is not None else []
+
+    async def _resolved_provider() -> ProviderRef:
+        if _provider_cache:
+            return _provider_cache[0]
+        if provider_resolver is not None:
+            resolved = await provider_resolver()
+            _provider_cache.append(resolved)
+            return resolved
+        raise LLMConfigError("litellm_stream needs a provider (or provider_resolver) for a live call")
+
+    async def _live_kwargs() -> dict[str, Any]:
+        live_provider = await _resolved_provider()
+        kwargs = _base_kwargs(
+            provider=live_provider,
+            model_id=model_id,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            reasoning=reasoning,
+            seed=seed,
+            extra_body=extra_body,
+        )
+        kwargs["stream"] = True
+        if timeout is not None:
+            kwargs["timeout"] = timeout
+        return kwargs
+
+    # ------- Transparent per-request decision (#1596) -------
+    # No explicit legacy mode anywhere: the LAYER decides per request; downstream
+    # cannot know (and never says) whether the response is real or frozen.
+    if cassette_mode is None and not legacy_mode_env_set():
+        if live_forced() or not layer_engaged():
+            # Explicit LIVE (staging -m llm gates, prod) or the layer is simply
+            # not engaged (app runtime): exact live passthrough, store untouched.
+            async for content in _litellm_stream_live(await _live_kwargs()):
+                yield content
+            return
+
+        t_role = _stream_role(messages)
+        t_decode = _stream_decode_params(
+            max_tokens=max_tokens,
+            temperature=temperature,
+            reasoning=reasoning,
+            seed=seed,
+            extra_body=extra_body,
+        )
+        t_key = fingerprint(role=t_role, messages=messages, decode_params=t_decode)
+        t_store = cassette_store or CassetteStore()
+        t_hit = t_store.get(t_key)
+
+        if t_hit is not None and not refresh_requested():
+            # HIT serves the frozen response — credentials are never resolved.
+            t_store.mark_served(t_key)
+            text = str(t_hit.response.get(_STREAM_TEXT_KEY, ""))
+            if text:
+                yield text
+            return
+
+        if in_ci():
+            # Reaching here in CI means a MISS: refresh_requested() is always
+            # False in CI, so any HIT was already served above. A MISS in CI is
+            # ALWAYS the hard failure — even with a key present.
+            raise CassetteMiss(t_key, scene=t_role)
+
+        # Local MISS (or explicit refresh): a real call needs usable credentials.
+        try:
+            live_provider = await _resolved_provider()
+        except LLMConfigError:
+            live_provider = None
+        if live_provider is None or not live_provider.api_key:
+            raise CassetteMiss(t_key, scene=t_role)
+
+        parts: list[str] = []
+        async for content in _litellm_stream_live(await _live_kwargs()):
+            parts.append(content)
+        text = "".join(parts)
+        request = _canonical_request(role=t_role, messages=messages, decode_params=t_decode)
+        t_store.put(
+            _Cassette(key=t_key, role=t_role, tag=cassette_tag, request=request, response={_STREAM_TEXT_KEY: text})
+        )
+        t_store.mark_served(t_key)
+        logger.info("llm cassette auto-recorded on miss", key=t_key, role=t_role, refresh=refresh_requested())
+        if text:
+            yield text
+        return
+
+    # ------- Legacy explicit-mode contract (compat until #1597 deletes it) -------
     mode = cassette_mode if cassette_mode is not None else current_mode()
 
-    kwargs = _base_kwargs(
-        provider=provider,
-        model_id=model_id,
-        messages=messages,
-        max_tokens=max_tokens,
-        temperature=temperature,
-        reasoning=reasoning,
-        seed=seed,
-        extra_body=extra_body,
-    )
-    kwargs["stream"] = True
-    if timeout is not None:
-        kwargs["timeout"] = timeout
-
-    # OFF: the prior passthrough, byte-for-byte. Keeps prod/staging live & real.
     if mode is CassetteMode.OFF:
-        async for content in _litellm_stream_live(kwargs):
+        # OFF: the prior passthrough, byte-for-byte. Keeps prod/staging live & real.
+        async for content in _litellm_stream_live(await _live_kwargs()):
             yield content
         return
 
@@ -311,7 +391,7 @@ async def litellm_stream(
     if cassette_tag is CassetteTag.CORRECTNESS and cassette_validator is None:
         raise CassetteValidationError(f"correctness cassette (role={role}) requires a ground-truth validator to record")
     parts: list[str] = []
-    async for content in _litellm_stream_live(kwargs):
+    async for content in _litellm_stream_live(await _live_kwargs()):
         parts.append(content)
     text = "".join(parts)
     response = {_STREAM_TEXT_KEY: text}
