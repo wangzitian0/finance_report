@@ -61,3 +61,23 @@ class ExtractionError(Exception):
     """Raised when extraction fails."""
 
     pass
+
+
+def stream_ai_json(*args, **kwargs):
+    """Thin lazy proxy over ``src.services.ai_streaming.stream_ai_json``.
+
+    Module-level so tests can monkeypatch it (via this module or the modules
+    that re-export it), but the import happens on first call — ai_streaming
+    pulls the llm package's litellm surface, which minimal tooling envs (that
+    import this package root) do not install.
+    """
+    from src.services import ai_streaming
+
+    return ai_streaming.stream_ai_json(*args, **kwargs)
+
+
+async def accumulate_stream(*args, **kwargs):
+    """Thin lazy proxy over ``src.services.ai_streaming.accumulate_stream`` (see above)."""
+    from src.services import ai_streaming
+
+    return await ai_streaming.accumulate_stream(*args, **kwargs)

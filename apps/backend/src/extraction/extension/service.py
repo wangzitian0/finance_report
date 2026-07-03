@@ -28,7 +28,9 @@ from src.extraction.extension._base import (
     CSV_INFERRED_BALANCE_REVIEW_NOTE,
     ExtractionError,
     _tolerant_parse_date,
+    accumulate_stream,
     logger,
+    stream_ai_json,
 )
 from src.extraction.extension._brokerage import _BrokerageMixin
 from src.extraction.extension._coerce import _CoerceMixin
@@ -61,25 +63,6 @@ def _ai_stream_error() -> type[Exception]:
     from src.services.ai_streaming import AIStreamError
 
     return AIStreamError
-
-
-def stream_ai_json(*args, **kwargs):
-    """Thin lazy proxy over ``src.services.ai_streaming.stream_ai_json``.
-
-    Module-level so tests can monkeypatch it here, but the import happens on
-    first call — ai_streaming pulls the llm package's litellm surface, which
-    minimal tooling envs (that import this package root) do not install.
-    """
-    from src.services import ai_streaming
-
-    return ai_streaming.stream_ai_json(*args, **kwargs)
-
-
-async def accumulate_stream(*args, **kwargs):
-    """Thin lazy proxy over ``src.services.ai_streaming.accumulate_stream`` (see above)."""
-    from src.services import ai_streaming
-
-    return await ai_streaming.accumulate_stream(*args, **kwargs)
 
 
 def _institution_class(*, is_brokerage: bool) -> str:
