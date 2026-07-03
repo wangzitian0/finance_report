@@ -51,7 +51,7 @@ or HK-like report classification, measurement, presentation, or disclosure.
 
 ### AI Provider Integration (Backend)
 
-- [x] `services/extraction.py` - Document parsing service
+- [x] `src/extraction/extension/service.py` - Document parsing service (package home since #1421)
   - [x] `parse_pdf()` - PDF parsing (OpenRouter Free Models)
   - [x] `parse_csv()` - CSV parsing (rules + AI assistance)
   - [ ] `parse_xlsx()` - Excel parsing
@@ -77,7 +77,7 @@ or HK-like report classification, measurement, presentation, or disclosure.
 
 ### Validation Layer (Backend)
 
-- [x] `services/validation.py` - Validation service
+- [x] `src/extraction/base/validation.py` - Validation service (package home since #1421)
   - [x] `validate_balance()` - Opening + Transactions ≈ Closing (tolerance 0.1 USD)
   - [x] `validate_completeness()` - Required field validation
   - [x] `compute_confidence_score()` - Score 0-100 based on SSOT factors
@@ -228,8 +228,8 @@ precedent). Extraction's failed-case audit trail stays registered in
 ## 🔗 Deliverables
 
 - [x] `apps/backend/src/models/statement.py`
-- [x] `apps/backend/src/services/extraction.py`
-- [x] `apps/backend/src/services/validation.py`
+- [x] `apps/backend/src/extraction/extension/service.py`
+- [x] `apps/backend/src/extraction/base/validation.py`
 - [x] `apps/backend/src/routers/statements.py`
 - [x] `apps/frontend/src/app/(main)/statements/page.tsx`
 - [x] `apps/frontend/src/app/(main)/statements/[id]/page.tsx`

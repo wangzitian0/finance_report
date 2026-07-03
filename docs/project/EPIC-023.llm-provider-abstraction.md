@@ -1,6 +1,6 @@
 # EPIC-023: LLM Provider Abstraction (litellm)
 
-> **Status**: In progress — PR1 lands the frozen contract (`src/llm/common`) and
+> **Status**: ✅ Complete — shipped across EPIC A/B and cut over to the `llm` package (#1426); the frozen contract (`src/llm/base`, formerly `src/llm/common`) and
 > the secret cipher; PR2 (EPIC A) implements the litellm client/catalogue/usage
 > meter and rewires existing call sites; PR3 (EPIC B) adds DB-backed provider
 > config, the scene×model matrix, and the first-run modal.
@@ -17,7 +17,7 @@
 ## Objective
 
 Replace the bespoke `httpx` AI plumbing (`services/ai_streaming.py`,
-`services/ai_models.py`, the provider calls inside `services/extraction.py`) with
+`services/ai_models.py`, the provider calls inside the extraction pipeline) with
 **litellm behind a single in-repo package, `src/llm`**, structured around three
 orthogonal axes:
 
@@ -58,7 +58,7 @@ unreliable across providers to support enforcing a money ceiling.
 
 | Slice | PR | Owns |
 |-------|----|------|
-| **common** | PR1 | `src/llm/common`: value types, `ConfigSource`/`LLMClient`/`CatalogProvider` protocols, `SecretCipher`+`FernetCipher`, [`common/llm/readme.md`](https://github.com/wangzitian0/finance_report/blob/main/common/llm/readme.md) (the LLM SSOT, internalized into the `llm` package). The frozen contract A and B build against. |
+| **common** | PR1 | `src/llm/base` (was `src/llm/common`): value types, `ConfigSource`/`LLMClient`/`CatalogProvider` protocols, `SecretCipher`+`FernetCipher`, [`common/llm/readme.md`](https://github.com/wangzitian0/finance_report/blob/main/common/llm/readme.md) (the LLM SSOT, internalized into the `llm` package). The frozen contract A and B build against. |
 | **EPIC A** | PR2 | litellm `client`/`catalog`/`usage`/`routing` + `EnvConfigSource` — the litellm-backed scene surface. Cutting the legacy `ai_streaming`/`ai_models`/`extraction` call sites onto it is a deliberate follow-up (it requires migrating their transport-coupled unit tests and verifying live extraction through the post-merge AI/OCR gate). |
 | **EPIC B** | PR3 | `llm_provider` + `llm_scene_binding` tables, `DbConfigSource`, `/llm/*` API, first-run modal + scene×model settings page. |
 
