@@ -1,7 +1,7 @@
 """Product E2E owner for EPIC-023 (LLM provider abstraction).
 
 Mirrors the EPIC-021 owner pattern: a marker-`e2e` contract test that anchors the
-EPIC to its shipped surface. PR1 ships the *contract* (`src/llm/common`) and the
+EPIC to its shipped surface. PR1 ships the *contract* (`src/llm/base`, formerly `src/llm/common`) and the
 secret cipher, so the owner asserts that the EPIC doc, the SSOT vocabulary, and
 the code module express the three orthogonal axes and the single-pass secret
 rotation that the litellm migration (PR2/PR3) builds on.
@@ -30,8 +30,8 @@ def test_llm_provider_abstraction_epic023_product_owner_contract() -> None:
     # The LLM SSOT is internalized into the `llm` package (migration-standard
     # step 3); the package readme is the single owner of the axes/rotation prose.
     ssot = read("common/llm/readme.md")
-    types_src = read("apps/backend/src/llm/common/types.py")
-    secrets_src = read("apps/backend/src/llm/common/secrets.py")
+    types_src = read("apps/backend/src/llm/base/types.py")
+    secrets_src = read("apps/backend/src/llm/base/secrets.py")
 
     # Axis 1 — exactly the three universally-compatible protocol families.
     for family in (

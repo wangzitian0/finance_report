@@ -25,7 +25,7 @@
 This document owns the *vocabulary and contracts* of the LLM layer. It does **not**
 own the concrete values (which provider, which key, which model per scene) — those
 are operational data that live in the database (EPIC-023 EPIC B) and are edited at
-runtime. The code-level contract is `apps/backend/src/llm/common`.
+runtime. The code-level contract is `apps/backend/src/llm/base`.
 
 ---
 
@@ -33,8 +33,8 @@ runtime. The code-level contract is `apps/backend/src/llm/common`.
 
 | Dimension | Physical Location (SSOT) | Description |
 |-----------|--------------------------|-------------|
-| **Contract (types/protocols)** | `apps/backend/src/llm/common/` | Frozen value types + protocols both halves build against |
-| **Secret cipher** | `apps/backend/src/llm/common/secrets.py` | Fernet/MultiFernet encryption of provider API keys at rest |
+| **Contract (types/protocols)** | `apps/backend/src/llm/base/` | Frozen value types + protocols both halves build against |
+| **Secret cipher** | `apps/backend/src/llm/base/secrets.py` | Fernet/MultiFernet encryption of provider API keys at rest |
 | **Encryption key** | `LLM_ENCRYPTION_KEYS` (env/Vault) | Project-level symmetric key(s), newest first |
 | **Provider instances + scene bindings** | DB tables `llm_provider`, `llm_scene_binding` (EPIC B) | Runtime-editable configuration values |
 | **Client / catalogue / usage impl** | `apps/backend/src/llm/` (EPIC A) | litellm-backed implementations of the protocols (usage meter counts requests/tokens, no cost) |
@@ -72,7 +72,7 @@ A **dynamic catalogue** that can be much larger than the bound set. Each entry
 ### Axis 3 — Scene
 
 The fixed, code-defined set of call sites. Adding or renaming a scene is a
-contract change (update this list and `src/llm/common/types.py:Scene`):
+contract change (update this list and `src/llm/base/types.py:Scene`):
 
 | Scene | Where |
 |-------|-------|
