@@ -54,7 +54,7 @@ backend through one owned module, not scattered clients.
 | Dependency | Manifest | Probe adapter | Call-site convergence | CI/local substitute | Gap |
 |---|---|---|---|---|---|
 | Postgres (`database`) | ✅ all 6 tiers | ✅ `DatabaseCheck` | ✅ `create_engine` only in `apps/backend/src/database.py` | real Postgres container (sqlite is a config-contract escape hatch only) | — |
-| S3 (`object_storage`) | ✅ all 6 tiers | ✅ `ObjectStorageCheck` | ✅ boto3 only in `apps/backend/src/services/storage.py` + `apps/backend/src/services/extraction/_media.py` | minio in compose; unit tests still monkeypatch `DummyStorage` | #1520 (invariant 4) |
+| S3 (`object_storage`) | ✅ all 6 tiers | ✅ `ObjectStorageCheck` | ✅ boto3 only in `apps/backend/src/services/storage.py`; callers (e.g. `extraction/_media.py`) go through it | minio in compose; unit tests still monkeypatch `DummyStorage` | #1520 (invariant 4) |
 | LLM (`llm`) | ✅ model-dominant | ✅ `LlmCheck`, no `skipped` | ✅ `src/llm/` (client + cassette) | cassette replay in CI, real provider on staging | #1581 (input-keyed) |
 | Redis (`cache`) | ✅ VPS tiers | ❌ | — | — | #1580 |
 | Prefect (`workflow_engine`) | ✅ staging/prod | ❌ | in-process fallback in app-owned tiers | — | #1580 |
