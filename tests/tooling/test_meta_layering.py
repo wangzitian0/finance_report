@@ -47,7 +47,7 @@ def _imported_modules(path: Path) -> set[str]:
 def _contract(name: str, **overrides: object) -> PackageContract:
     kwargs: dict[str, object] = {
         "name": name,
-        "klass": "kernel",
+        "klass": "infra",
         "tier": "CODE-ONLY",
         "depends_on": [],
         "interface": [],
@@ -217,7 +217,7 @@ def test_AC_meta_projection_1_contract_index_is_pure(tmp_path: Path):
     )
     b = _contract(
         "b",
-        klass="platform",
+        klass="middleware",
         depends_on=["a"],
         roadmap=[
             ACRecord(
@@ -234,7 +234,7 @@ def test_AC_meta_projection_1_contract_index_is_pure(tmp_path: Path):
         ],
     )
     idx = contract_index([a, b])
-    assert idx["registry"]["a"]["klass"] == "kernel"
+    assert idx["registry"]["a"]["klass"] == "infra"
     assert idx["consumers"]["a"] == ["b"]
     assert idx["ac_index"]["AC-b.1.1"] == "b"
     assert idx["units_by_layer"]["a"] == {"base": 1, "extension": 0, "data": 0}
@@ -269,7 +269,7 @@ def test_AC_meta_kind_4_value_type_packages_pass(
     )
     # no base/extension dirs -> placement is skipped, not failed.
     assert cpc._check_kind_placement(pkg) == []
-    assert cpc.check_package(pkg, {"valpkg": "kernel"}, tmp_path) == []
+    assert cpc.check_package(pkg, {"valpkg": "infra"}, tmp_path) == []
 
 
 # --- one-transaction-per-domain (Stage 0, issue #1460) ------------------------
@@ -302,7 +302,7 @@ def test_AC_meta_txn_1_base_deep_import_of_other_domain_object_is_rejected(
         },
     )
     offenders = cpc._check_cross_domain_deep_import(
-        bad, {"consumer": "core", "domainx": "core"}, published
+        bad, {"consumer": "domain", "domainx": "domain"}, published
     )
     assert any("unpublished internal" in o and "domainx" in o for o in offenders), (
         offenders
@@ -317,7 +317,7 @@ def test_AC_meta_txn_1_base_deep_import_of_other_domain_object_is_rejected(
     )
     assert (
         cpc._check_cross_domain_deep_import(
-            ok_deep, {"consumer_deep_ok": "core", "domainx": "core"}, published
+            ok_deep, {"consumer_deep_ok": "domain", "domainx": "domain"}, published
         )
         == []
     )
@@ -331,7 +331,7 @@ def test_AC_meta_txn_1_base_deep_import_of_other_domain_object_is_rejected(
     )
     assert (
         cpc._check_cross_domain_deep_import(
-            ok_root, {"consumer_root_ok": "core", "domainx": "core"}, published
+            ok_root, {"consumer_root_ok": "domain", "domainx": "domain"}, published
         )
         == []
     )
@@ -346,7 +346,7 @@ def test_AC_meta_txn_1_base_deep_import_of_other_domain_object_is_rejected(
         extra_files={"base/use.py": "from src.domainx import extension  # noqa\n"},
     )
     offenders = cpc._check_cross_domain_deep_import(
-        bad_root, {"consumer_root_bad": "core", "domainx": "core"}, published
+        bad_root, {"consumer_root_bad": "domain", "domainx": "domain"}, published
     )
     assert any("unpublished internal" in o and "domainx" in o for o in offenders), (
         offenders
@@ -361,7 +361,7 @@ def test_AC_meta_txn_1_base_deep_import_of_other_domain_object_is_rejected(
     )
     assert (
         cpc._check_cross_domain_deep_import(
-            infra, {"consumer_infra_ok": "core", "domainx": "core"}, published
+            infra, {"consumer_infra_ok": "domain", "domainx": "domain"}, published
         )
         == []
     )
@@ -388,7 +388,7 @@ def test_AC_meta_txn_2_extension_writing_other_domain_orm_is_rejected(
         },
     )
     offenders = cpc._check_cross_domain_deep_import(
-        bad, {"writer": "core", "domainy": "core"}, published
+        bad, {"writer": "domain", "domainy": "domain"}, published
     )
     assert any("unpublished internal" in o and "domainy" in o for o in offenders), (
         offenders
@@ -404,7 +404,7 @@ def test_AC_meta_txn_2_extension_writing_other_domain_orm_is_rejected(
     assert any(
         "deep cross-domain import" in o
         for o in cpc._check_cross_domain_deep_import(
-            bad_plain, {"writer_plain": "core", "domainy": "core"}, published
+            bad_plain, {"writer_plain": "domain", "domainy": "domain"}, published
         )
     )
 
@@ -421,7 +421,7 @@ def test_AC_meta_txn_2_extension_writing_other_domain_orm_is_rejected(
     )
     assert (
         cpc._check_cross_domain_deep_import(
-            via_event, {"writer_ok": "core", "domainy": "core"}, published
+            via_event, {"writer_ok": "domain", "domainy": "domain"}, published
         )
         == []
     )
@@ -462,7 +462,7 @@ def test_AC_meta_txn_3_cross_domain_fk_is_rejected(
     assert table_owner.get("accounts") == "ownerdom"
     assert model_owner.get("Account") == "ownerdom"
 
-    registered = {"ownerdom": "core", "consumerdom": "core"}
+    registered = {"ownerdom": "domain", "consumerdom": "domain"}
     offenders = cpc._check_cross_domain_fk(
         consumer, registered, table_owner, model_owner
     )
@@ -487,5 +487,6 @@ def test_AC_meta_txn_3_cross_domain_fk_is_rejected(
     )
     to_self, mo_self = cpc._collect_orm_ownership([selfdom])
     assert (
-        cpc._check_cross_domain_fk(selfdom, {"selfdom": "core"}, to_self, mo_self) == []
+        cpc._check_cross_domain_fk(selfdom, {"selfdom": "domain"}, to_self, mo_self)
+        == []
     )

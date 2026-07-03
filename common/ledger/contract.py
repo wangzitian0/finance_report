@@ -10,8 +10,8 @@ introduce a forbidden upward/sideways edge; and the building-block layering hold
 into a base port + extension adapter, the account-balance projection a ``data``
 sink).
 
-``ledger`` is the first ``core`` domain on the package model (the double-entry
-bounded context). Slice 3b (#1420) folds the **processing (in-transit) account**
+``ledger`` is the first ``domain``-layer (L3) bounded context on the package
+model (the double-entry bounded context). Slice 3b (#1420) folds the **processing (in-transit) account**
 into the package: its pure identity + transfer detection/scoring policy live in
 ``base/processing.py`` (the :class:`ProcessingAccount` aggregate + ``TransferPair``
 value object + ``detect_transfer_pattern``) and its impure verbs (acquire / post /
@@ -35,7 +35,7 @@ EPIC-002 (ledger is ``fe=None``), the reporting tier-degrade ``AC2.16.4`` is a
 report-layer property not a posting one, the framework-boundary contract
 ``AC2.18.1`` is a cross-EPIC doc-assertion test (not double-entry behaviour), and
 the entire Money value-type extension ``AC2.19.*``–``AC2.23.*`` belongs to the
-``audit`` kernel (folded from ``money`` — issue #1419), not ledger. Those rows
+``audit`` package (``infra``-layer; folded from ``money`` — issue #1419), not ledger. Those rows
 remain defined in EPIC-002.
 In each case the package now owns the migrated ACs; the source EPIC backend
 tables are deleted and replaced with a disclaimer that lists the new ids
@@ -88,14 +88,13 @@ from common.meta.package_contract import (
 
 CONTRACT = PackageContract(
     name="ledger",
-    klass="core",
     status="active",
     # Deterministic double-entry arithmetic + persistence, no LLM: a pure-code
     # (CODE-ONLY) package.
     tier="CODE-ONLY",
     # audit/config are the only registered packages the impl imports. Both are
-    # lower-rank (kernel) than ledger (core), so the edges are downward. (money
-    # folded into audit — issue #1419.)
+    # lower-layer (infra, L1) than ledger (domain, L3), so the edges are
+    # downward. (money folded into audit — issue #1419.)
     depends_on=["audit", "config"],
     roles=["base", "extension", "data"],
     units=[

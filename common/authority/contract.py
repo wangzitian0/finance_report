@@ -2,7 +2,7 @@
 
 ``authority`` is the CODE↔LLM authority-tier bounded context: the value language
 (four-tier vocabulary + tier→proof matrix), the detected-band classifier, and the
-gates that enforce the tier rules. It is a ``kernel`` leaf — depends on nothing
+gates that enforce the tier rules. It is an ``infra`` leaf (L1) — depends on nothing
 registered — and is itself governed by the very ``check_package_contract`` gate
 its ``check_*`` siblings extend.
 """
@@ -13,12 +13,13 @@ from common.meta.package_contract import ACRecord, Invariant, PackageContract
 
 CONTRACT = PackageContract(
     name="authority",
-    klass="kernel",
     status="active",
     # The package defines the tier vocabulary; it is pure deterministic code
     # (AST/text, no LLM): CODE-ONLY.
     tier="CODE-ONLY",
-    depends_on=[],
+    # The tier vocabulary's machine source moved to L0 (meta/base/authority_matrix.py,
+    # re-exported here as a compat shim) — a declared downward edge.
+    depends_on=["meta"],
     roles=["matrix", "classifier", "gates"],
     implementations={"be": "common/authority", "fe": None},
     interface=[

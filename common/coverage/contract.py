@@ -4,8 +4,8 @@
 (``policy``, ``check_policy``, ``calculate_unified_coverage``, ``merge_lcov``,
 ``build_unified_lcov``, ``strip_lcov_branches``, ``analyzer``) — not a domain
 bounded context, so it publishes no curated symbol language (``interface=[]``);
-callers import its modules directly. The contract governs it as a ``kernel`` leaf
-(`depends_on=[]`) with invariants pinned to its tests.
+callers import its modules directly. The contract governs it as an ``infra`` leaf
+(L1, `depends_on=[]`) with invariants pinned to its tests.
 A curated published-language surface is a future cleanup.
 """
 
@@ -15,7 +15,6 @@ from common.meta.package_contract import Invariant, PackageContract
 
 CONTRACT = PackageContract(
     name="coverage",
-    klass="kernel",
     status="active",
     tier="CODE-ONLY",
     depends_on=[],

@@ -1,4 +1,4 @@
-# `identity` — users, authentication & AI-feedback (core package)
+# `identity` — users, authentication & AI-feedback (domain package)
 
 > The vertical **identity** bounded context: the `User` aggregate root, its
 > `AiFeedback` child entity, and the authentication domain (register / login /
@@ -112,7 +112,7 @@ statement parse is in flight, or while posted/reconciled ledger entries exist).
 **Dependency rule (DAG, down only)**: `extension → base`; the package depends
 downward on `platform` (the rate limiter), `observability` (the security-warning
 log), and `config` (settings, imported by its bare published root) — all
-`kernel`-class, declared in `contract.depends_on`. The ORM / `AsyncSession` lives
+`infra`-class, declared in `contract.depends_on`. The ORM / `AsyncSession` lives
 only in `extension` and never leaks into `base`.
 
 `get_current_user_id` is the request chokepoint, reached by routers through

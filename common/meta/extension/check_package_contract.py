@@ -12,9 +12,10 @@ asserts:
       (the published language and the contract agree);
   (b) every ``invariants[].test`` and ``roadmap[].test`` (``"path::func"``)
       resolves to a real test function in the repo;
-  (c) ``depends_on`` introduces no forbidden edge — a ``platform``/``kernel``
-      package's implementation modules must not import a higher layer (mirrors
-      the spirit of ``tests/tooling/test_ledger_module.py``: down only);
+  (c) ``depends_on`` introduces no forbidden edge — a package's implementation
+      modules must not import a higher layer of the five-layer topology
+      (``meta < infra < middleware < domain < app``; mirrors the spirit of
+      ``tests/tooling/test_ledger_module.py``: down only);
   (d) the building-block layering holds for any package that adopts the
       ``base/extension/`` split — base stays pure (mechanism A), each declared
       ``unit`` sits in the layer its ``kind`` dictates (``KIND_LAYER``), a
@@ -70,21 +71,29 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from common.meta.base.package_contract import KIND_LAYER, SPLIT, PackageContract, Unit
+from common.meta.base.package_contract import (
+    KIND_LAYER,
+    LAYER_RANK,
+    SPLIT,
+    PackageContract,
+    Unit,
+)
 
 # This module lives at common/meta/extension/check_package_contract.py, so the
 # repo root is four parents up (extension -> meta -> common -> repo).
 REPO_ROOT = Path(__file__).resolve().parents[3]
 PACKAGE_GLOB = "common/*/contract.py"
 
-# Layer rank for the DAG rule: a package may never import a HIGHER class (no
-# upward edges), and same-class (sideways) edges are allowed only when declared in
+# Layer rank for the DAG rule: a package may never import a HIGHER layer (no
+# upward edges), and same-layer (sideways) edges are allowed only when declared in
 # ``depends_on`` AND acyclic — "never up, never sideways-cyclic". The upward guard
 # is ``_check_no_forbidden_edge``'s ``target_rank > my_rank``; acyclicity is
 # enforced globally by ``_check_no_dependency_cycle``. So a cohesive family (e.g.
-# the value types money/ratio/quantity/unit_price) can share one ``kernel`` layer
-# and depend on each other acyclically, instead of being spread up the ladder.
-_CLASS_RANK = {"kernel": 0, "platform": 1, "core": 2}
+# the value types money/ratio/quantity/unit_price) can share one ``middleware``
+# layer and depend on each other acyclically, instead of being spread up the
+# ladder. The rank table is the five-layer topology owned by meta's base
+# (``meta < infra < middleware < domain < app``).
+_CLASS_RANK = LAYER_RANK
 
 # Packages a given class is forbidden to import, by the import prefix
 # ``src.<pkg>``. We enforce the strongest, statically-checkable edge: a

@@ -25,7 +25,6 @@ from common.meta.package_contract import (
 
 CONTRACT = PackageContract(
     name="counter",
-    klass="platform",
     status="active",
     # Deterministic tally + event emission, no LLM: a pure-code (CODE-ONLY) package.
     # Every AC in the roadmap inherits this tier.

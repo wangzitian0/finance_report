@@ -43,7 +43,7 @@ def test_AC_llm_1_1_only_all_is_the_published_language():
 
     assert sorted(CONTRACT.interface) == sorted(llm_pkg.__all__)
     assert CONTRACT.name == "llm"
-    assert CONTRACT.klass == "platform"
+    assert CONTRACT.klass == "infra"
     assert CONTRACT.implementations["be"] == "apps/backend/src/llm"
 
 

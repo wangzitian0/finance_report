@@ -37,7 +37,7 @@ def _active(name: str, *, tier: str = '"CODE-ONLY"', roadmap: str = "") -> str:
     return f"""
     from common.meta.package_contract import PackageContract, ACRecord
     CONTRACT = PackageContract(
-        name="{name}", klass="kernel", status="active", tier={tier},
+        name="{name}", klass="infra", status="active", tier={tier},
         depends_on=[], interface=[], events=[], invariants=[], roadmap=[{roadmap}])
     """
 
@@ -58,7 +58,7 @@ def test_1b_flags_non_literal_tier_on_shipped_package(tmp_path: Path) -> None:
         from common.meta.package_contract import PackageContract
         T = "CODE-ONLY"
         CONTRACT = PackageContract(
-            name="bad", klass="kernel", status="active", tier=T,
+            name="bad", klass="infra", status="active", tier=T,
             depends_on=[], interface=[], events=[], invariants=[], roadmap=[])
         """,
     )
@@ -73,7 +73,7 @@ def test_1b_allows_undecided_tier_only_for_draft(tmp_path: Path) -> None:
         """
         from common.meta.package_contract import PackageContract
         CONTRACT = PackageContract(
-            name="wip", klass="kernel", status="draft",
+            name="wip", klass="infra", status="draft",
             depends_on=[], interface=[], events=[], invariants=[], roadmap=[])
         """,
     )
@@ -131,7 +131,7 @@ def test_1e_flags_done_ac_in_draft(tmp_path: Path) -> None:
         """
         from common.meta.package_contract import PackageContract, ACRecord
         CONTRACT = PackageContract(
-            name="wip", klass="kernel", status="draft",
+            name="wip", klass="infra", status="draft",
             depends_on=[], interface=[], events=[], invariants=[], roadmap=[
             ACRecord(id="AC-wip.1.1", statement="s", test="t::f",
                      priority="P0", status="done")])
@@ -150,7 +150,7 @@ def test_1e_flags_unregistered_draft(tmp_path: Path) -> None:
         """
         from common.meta.package_contract import PackageContract
         CONTRACT = PackageContract(
-            name="wip", klass="kernel", status="draft",
+            name="wip", klass="infra", status="draft",
             depends_on=[], interface=[], events=[], invariants=[], roadmap=[])
         """,
     )
@@ -169,7 +169,7 @@ def test_1e_flags_unreadable_status_in_draft(tmp_path: Path) -> None:
         from common.meta.package_contract import PackageContract, ACRecord
         S = "done"
         CONTRACT = PackageContract(
-            name="wip", klass="kernel", status="draft",
+            name="wip", klass="infra", status="draft",
             depends_on=[], interface=[], events=[], invariants=[], roadmap=[
             ACRecord(id="AC-wip.1.1", statement="s", test="t::f",
                      priority="P0", status=S)])
@@ -202,7 +202,9 @@ def test_reconcile_flags_llm_test_under_code_only(tmp_path: Path) -> None:
         "def t():\n    cassette.replay()  # cassette marker\n", encoding="utf-8"
     )
     _write_contract(
-        tmp_path, "p", _active("p", tier='"CODE-ONLY"', roadmap=_ac_pointing_at("cass_test.py"))
+        tmp_path,
+        "p",
+        _active("p", tier='"CODE-ONLY"', roadmap=_ac_pointing_at("cass_test.py")),
     )
     violations, _ = g_reconcile.reconcile(tmp_path)
     assert any("declared CODE-ONLY but" in v for v in violations)
@@ -213,7 +215,9 @@ def test_reconcile_passes_code_only_with_deterministic_test(tmp_path: Path) -> N
         "def t():\n    assert 1 == 1\n", encoding="utf-8"
     )
     _write_contract(
-        tmp_path, "p", _active("p", tier='"CODE-ONLY"', roadmap=_ac_pointing_at("det_test.py"))
+        tmp_path,
+        "p",
+        _active("p", tier='"CODE-ONLY"', roadmap=_ac_pointing_at("det_test.py")),
     )
     violations, _ = g_reconcile.reconcile(tmp_path)
     assert violations == []
@@ -224,7 +228,9 @@ def test_reconcile_flags_code_test_under_llm_only(tmp_path: Path) -> None:
         "def t():\n    assert 1 == 1\n", encoding="utf-8"
     )
     _write_contract(
-        tmp_path, "p", _active("p", tier='"LLM-ONLY"', roadmap=_ac_pointing_at("det_test.py"))
+        tmp_path,
+        "p",
+        _active("p", tier='"LLM-ONLY"', roadmap=_ac_pointing_at("det_test.py")),
     )
     violations, _ = g_reconcile.reconcile(tmp_path)
     assert any("declared LLM-ONLY but" in v for v in violations)
@@ -237,7 +243,7 @@ def test_1e_passes_for_registered_draft_without_done(tmp_path: Path) -> None:
         """
         from common.meta.package_contract import PackageContract, ACRecord
         CONTRACT = PackageContract(
-            name="wip", klass="kernel", status="draft",
+            name="wip", klass="infra", status="draft",
             depends_on=[], interface=[], events=[], invariants=[], roadmap=[
             ACRecord(id="AC-wip.1.1", statement="s", test="t::f",
                      priority="P0", status="open")])

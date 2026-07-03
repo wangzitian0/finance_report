@@ -117,7 +117,7 @@ availability* ("can a user reach the app?"). Deployed-service incident routing
   model-dominant → live on staging).
 - **`platform`** — the *in-process* middleware substrate (event bus, rate limiter).
   `runtime` is the complementary *outbound* substrate (the edges to the external
-  world). Distinct concerns; sibling kernels.
+  world). Distinct concerns; sibling `infra` packages.
 - **`observability`** — telemetry is itself a dependency `runtime` declares/asserts,
   but its own emit/query logic stays in `observability`.
 

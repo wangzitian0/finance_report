@@ -102,8 +102,9 @@ ports via `from src.platform.base import EventBus, DomainEvent`, the adapters vi
 `from src.platform import OutboxEventBus`.
 
 Dependency rule (DAG, down only): the package imports nothing registered — only
-the unregistered `src.database` (Base/`AsyncSession`). That is why its `klass` is
-**`kernel`** (a leaf): a `platform` consumer like `counter` may import it as a
+the unregistered `src.database` (Base/`AsyncSession`). That is why the central
+layer map places it in **`infra`** (L1, a leaf): a consumer like `counter`
+(`middleware`, L2) may import it as a
 strictly downward edge. See [`contract.py`](./contract.py) for the full rationale.
 
 ## Public vs internal

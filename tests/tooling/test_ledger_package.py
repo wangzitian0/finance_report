@@ -147,7 +147,7 @@ def test_ledger_only_all_is_the_published_language():
 
     assert sorted(CONTRACT.interface) == sorted(ledger_pkg.__all__)
     assert CONTRACT.name == "ledger"
-    assert CONTRACT.klass == "core"
+    assert CONTRACT.klass == "domain"
     assert CONTRACT.implementations["be"] == "apps/backend/src/ledger"
 
 

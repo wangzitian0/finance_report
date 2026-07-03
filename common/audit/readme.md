@@ -65,8 +65,11 @@ Three-step sequence, each a separate merge-gated PR:
   `apps/backend/src/audit/<domain>`, `apps/frontend/src/lib/{money,ratio,quantity}`
   → `apps/frontend/src/lib/audit/<domain>` (frontend `unit_price` mirror doesn't
   exist yet — unrelated P2 follow-up). All ~85 consumer files (routers, services,
-  models, schemas, the frontend app tree) repointed to the new paths. `klass`
-  flipped `platform` → `kernel`; `implementations`/`interface` populated
+  models, schemas, the frontend app tree) repointed to the new paths. The
+  package's layer changed with the move (at the time, a `klass` flip
+  `platform` → `kernel`; today placement is `infra`, resolved from the central
+  `PACKAGE_LAYER` map — contracts no longer self-declare a `klass`);
+  `implementations`/`interface` populated
   (10 value-object classes, flat re-export). Old locations deleted entirely — no
   re-export shim, no residue.
 - **Step 2 (done here)** — transferred AC *ownership* of the value-language
