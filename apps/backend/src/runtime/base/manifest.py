@@ -107,7 +107,21 @@ DEPENDENCY_MANIFEST = DependencyManifest(
         ),
         Dependency(
             name="llm",
-            env_vars=frozenset({"AI_API_KEY", "AI_PROVIDER", "AI_BASE_URL"}),
+            env_vars=frozenset(
+                {
+                    "AI_PROVIDER",
+                    # Every alias of the key/base-url fields is a dependency env
+                    # var (no alias smuggling past the guardrail).
+                    "AI_API_KEY",
+                    "ZAI_API_KEY",
+                    "GLM_API_KEY",
+                    "OPENROUTER_API_KEY",
+                    "GEMINI_API_KEY",
+                    "AI_BASE_URL",
+                    "ZAI_BASE_URL",
+                    "OPENROUTER_BASE_URL",
+                }
+            ),
             kind=DependencyKind.MODEL_DOMINANT,
             required_in=_ALL,
             summary="The AI provider used for statement extraction (AI_*); "

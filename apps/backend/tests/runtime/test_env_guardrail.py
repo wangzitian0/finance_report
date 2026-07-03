@@ -60,6 +60,36 @@ def test_every_declared_env_var_binds_to_a_settings_field() -> None:
             assert env_var in all_keys, f"{dep.name}: declared {env_var} has no Settings field"
 
 
+def test_check_reports_orphaned_manifest_declarations() -> None:
+    """The manifest→settings direction is part of check_env_classification itself
+    (not just this test file), so callers get the full reconciliation from one API."""
+    from src.runtime import Dependency, DependencyKind, DependencyManifest, EnvTier
+
+    stray = DependencyManifest(
+        (
+            Dependency(
+                name="ghost",
+                kind=DependencyKind.CODE_DOMINANT,
+                required_in=frozenset({EnvTier.PRODUCTION}),
+                env_vars=frozenset({"GHOST_BACKEND_URL"}),
+                summary="declared but bound to nothing",
+            ),
+        )
+    )
+    errors = check_env_classification(Settings, manifest=stray)
+    assert any("GHOST_BACKEND_URL" in e for e in errors)
+
+
+def test_dependency_field_aliases_are_all_declared() -> None:
+    """No alias smuggling: every env alias of a dependency-owned field is declared
+    in the manifest — a new alias cannot ride in on an already-declared sibling."""
+    declared = {env_var for dep in DEPENDENCY_MANIFEST for env_var in dep.env_vars}
+    for field_name in Settings.model_fields:
+        keys = settings_env_keys(Settings, field_name)
+        if keys & declared:
+            assert keys <= declared, f"{field_name}: undeclared aliases {sorted(keys - declared)}"
+
+
 def test_classification_categories_are_the_documented_set() -> None:
     """Categories mirror the charter's 'feature/security/domain stay with config'."""
     assert set(NON_DEPENDENCY_ENV_FIELDS.values()) <= NON_DEPENDENCY_CATEGORIES

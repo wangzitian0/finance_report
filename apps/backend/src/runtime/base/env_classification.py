@@ -107,8 +107,11 @@ def check_env_classification(
     declared = frozenset(env_var for dep in manifest for env_var in dep.env_vars)
     errors: list[str] = []
 
+    all_settings_keys: set[str] = set()
     for field_name in settings_cls.model_fields:
-        is_dependency = bool(settings_env_keys(settings_cls, field_name) & declared)
+        keys = settings_env_keys(settings_cls, field_name)
+        all_settings_keys |= keys
+        is_dependency = bool(keys & declared)
         is_registered = field_name in registered
         if is_dependency and is_registered:
             errors.append(
@@ -120,6 +123,16 @@ def check_env_classification(
                 f"{field_name}: unclassified env var — declare it in the DependencyManifest "
                 "(external backend) or register it in NON_DEPENDENCY_ENV_FIELDS with a category"
             )
+        if is_dependency and not keys <= declared:
+            # No alias smuggling: a new alias on a dependency-owned field must be
+            # declared too, or it would ride in on an already-declared sibling.
+            errors.append(
+                f"{field_name}: undeclared alias(es) {sorted(keys - declared)} on a "
+                "dependency-owned field — declare every alias in Dependency.env_vars"
+            )
+
+    for env_var in sorted(declared - all_settings_keys):
+        errors.append(f"{env_var}: declared in the DependencyManifest but no Settings field reads it")
 
     for field_name, category in registered.items():
         if field_name not in settings_cls.model_fields:
