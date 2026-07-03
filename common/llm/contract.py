@@ -51,7 +51,6 @@ from common.meta.package_contract import (
 
 CONTRACT = PackageContract(
     name="llm",
-    klass="platform",
     status="active",
     # LLM-LED: the only tier whose proof set covers the graded-eval ACs
     # (AC-llm.8.*, proof=eval) alongside the deterministic property proofs; the
