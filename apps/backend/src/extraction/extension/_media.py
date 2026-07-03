@@ -11,7 +11,6 @@ from src.extraction.extension._base import (
     ExtractionError,
     logger,
 )
-from src.services.storage import redact_presigned_url
 
 # Bound from the bare published root (config publishes no named symbols).
 settings = src.config.settings
@@ -121,7 +120,7 @@ class _MediaMixin:
                     logger.warning(
                         "PDF page rendering failed, falling back to external PDF URL",
                         error=str(render_error),
-                        url=redact_presigned_url(file_url),
+                        url=_redact_presigned_url(file_url),
                     )
                 else:
                     raise
@@ -206,7 +205,7 @@ class _MediaMixin:
         if file_url:
             logger.warning(
                 "Rejected internal/private file URL for AI extraction",
-                url=redact_presigned_url(file_url),
+                url=_redact_presigned_url(file_url),
             )
         raise ExtractionError(
             f"No valid file content or accessible URL provided for {file_type} extraction. "
@@ -215,3 +214,11 @@ class _MediaMixin:
 
     def _requires_pdf_file_url_for_vision(self, file_type: str) -> bool:
         return file_type == "pdf" and self._is_zai_provider()
+
+
+def _redact_presigned_url(url: str) -> str:
+    # Imported lazily: src.services.storage pulls boto3 at module level, which
+    # the minimal tooling env (that imports this package root) does not install.
+    from src.services.storage import redact_presigned_url
+
+    return redact_presigned_url(url)

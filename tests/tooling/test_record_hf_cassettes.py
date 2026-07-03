@@ -12,9 +12,10 @@ from decimal import Decimal
 
 import importlib.util as _ilu
 from pathlib import Path as _P
-_spec = _ilu.spec_from_file_location(
-    "record_hf_cassettes", _P(__file__).resolve().parents[2] / "tools/_lib/record_hf_cassettes.py"
-)
+_REC_PATH = _P(__file__).resolve().parents[2] / "tools/_lib/record_hf_cassettes.py"
+assert _REC_PATH.is_file(), f"recorder script missing: {_REC_PATH}"
+_spec = _ilu.spec_from_file_location("record_hf_cassettes", _REC_PATH)
+assert _spec is not None and _spec.loader is not None, f"unloadable: {_REC_PATH}"
 rec = _ilu.module_from_spec(_spec)
 _spec.loader.exec_module(rec)
 
