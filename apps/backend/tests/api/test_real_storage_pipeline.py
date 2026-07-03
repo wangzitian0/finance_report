@@ -2,7 +2,7 @@
 
 Until now every counted test stubbed the storage seam (DummyStorage /
 monkeypatched boto3), so a regression in the real ``StorageService`` wiring —
-upload, persist, load-back — shipped undetected (EPIC-008 AC8.25). These tests
+upload, persist, load-back — shipped undetected (EPIC-008 AC8.26). These tests
 run the REAL service and the REAL upload→store→parse pipeline against an
 in-memory S3: no stub, no monkeypatched StorageService, no service container.
 
@@ -36,7 +36,7 @@ EXPECTED_TOTAL_EXPENSES = Decimal("5600.00")
 def real_s3(monkeypatch: pytest.MonkeyPatch):
     """moto-backed S3: the real boto3 client in StorageService hits an
     in-memory backend. Only env-level config is touched — the service itself
-    is never stubbed or patched (AC8.25.1)."""
+    is never stubbed or patched (AC8.26.1)."""
     monkeypatch.setattr(settings, "s3_endpoint", None)
     monkeypatch.setattr(settings, "s3_access_key", "testing")
     monkeypatch.setattr(settings, "s3_secret_key", "testing")
@@ -70,8 +70,8 @@ async def _upload_csv(db, test_user) -> statements_router.BankStatementResponse:
     )
 
 
-async def test_AC8_25_1_upload_parses_through_real_storage_round_trip(real_s3, db, test_user):
-    """AC8.25.1: the CSV fixture uploads through the real StorageService into
+async def test_AC8_26_1_upload_parses_through_real_storage_round_trip(real_s3, db, test_user):
+    """AC8.26.1: the CSV fixture uploads through the real StorageService into
     in-memory S3, the pipeline parses it, and the stored object read back via
     the real get_object is byte-identical to the fixture."""
     user_id = test_user.id
@@ -99,8 +99,8 @@ async def test_AC8_25_1_upload_parses_through_real_storage_round_trip(real_s3, d
     assert gross == EXPECTED_TOTAL_INCOME + EXPECTED_TOTAL_EXPENSES
 
 
-async def test_AC8_25_2_retry_loads_source_back_through_real_storage(real_s3, db, test_user):
-    """AC8.25.2: the retry path re-fetches the source document through the
+async def test_AC8_26_2_retry_loads_source_back_through_real_storage(real_s3, db, test_user):
+    """AC8.26.2: the retry path re-fetches the source document through the
     real get_object (the load-back leg the in-process first parse skips), and
     deleting the stored object makes retry fail — proving the pipeline truly
     reads storage, not a cached copy (the interception proof)."""
