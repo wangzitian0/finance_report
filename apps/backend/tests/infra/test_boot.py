@@ -544,3 +544,87 @@ class TestBootloaderVaultSecrets:
 
         assert status.status == "error"
         assert "Permission denied" in status.message
+
+
+def test_AC_runtime_3_1_required_checks_cover_the_tier_declaration():
+    """AC-runtime.3.1 (#1577): the probed + unprobed split is exactly
+    DEPENDENCY_MANIFEST.required_for(tier) — the set comes from the manifest,
+    not a hardcoded per-mode list."""
+    from src.runtime import DEPENDENCY_MANIFEST, EnvTier
+
+    for tier in EnvTier:
+        probed, unprobed = Bootloader._required_checks(tier)
+        assert set(probed) | set(unprobed) == DEPENDENCY_MANIFEST.required_for(tier)
+        assert not set(probed) & set(unprobed)
+
+
+class TestManifestDrivenValidate:
+    """AC-runtime.3.1 (#1577) — FULL mode derives its checks from the manifest."""
+
+    def test_github_ci_tier_has_no_unprobed_requirements(self):
+        """Everything github_ci requires already has a probe adapter."""
+        from src.runtime import EnvTier
+
+        probed, unprobed = Bootloader._required_checks(EnvTier.GITHUB_CI)
+        assert set(probed) == {"database", "object_storage", "llm"}
+        assert unprobed == []
+
+    def test_production_tier_names_the_unprobed_requirements(self):
+        """Declared-required deps without a probe are visible (never silently skipped)."""
+        from src.runtime import EnvTier
+
+        probed, unprobed = Bootloader._required_checks(EnvTier.PRODUCTION)
+        assert set(probed) == {"database", "object_storage", "llm"}
+        assert unprobed == sorted(["cache", "workflow_engine", "telemetry", "analytics", "market_data"])
+
+    async def test_full_mode_probes_the_manifest_set_for_the_tier(
+        self, mock_settings, mock_db_check, mock_minio_check, mock_openrouter_check
+    ):
+        from src.runtime import EnvTier
+
+        mock_db_check.return_value = ServiceStatus("database", "ok", "OK")
+        mock_minio_check.return_value = ServiceStatus("minio", "ok", "OK")
+        mock_openrouter_check.return_value = ServiceStatus("ai_provider", "ok", "OK")
+
+        with patch.object(Bootloader, "_check_vault_secrets") as mock_vault:
+            mock_vault.return_value = ServiceStatus("vault_secrets", "ok", "OK")
+            result = await Bootloader.validate(BootMode.FULL, tier=EnvTier.GITHUB_CI)
+
+        assert result is True
+        mock_db_check.assert_called_once()
+        mock_minio_check.assert_called_once()
+        mock_openrouter_check.assert_called_once()
+
+    async def test_full_mode_warns_for_unprobed_required_deps(
+        self, mock_settings, mock_db_check, mock_minio_check, mock_openrouter_check, mock_logger
+    ):
+        """On a tier requiring unprobed deps, FULL passes but surfaces them loudly (#1580)."""
+        from src.runtime import EnvTier
+
+        mock_db_check.return_value = ServiceStatus("database", "ok", "OK")
+        mock_minio_check.return_value = ServiceStatus("minio", "ok", "OK")
+        mock_openrouter_check.return_value = ServiceStatus("ai_provider", "ok", "OK")
+
+        with patch.object(Bootloader, "_check_vault_secrets") as mock_vault:
+            mock_vault.return_value = ServiceStatus("vault_secrets", "ok", "OK")
+            result = await Bootloader.validate(BootMode.FULL, tier=EnvTier.PRODUCTION)
+
+        assert result is True
+        warned = " ".join(str(call) for call in mock_logger.warning.call_args_list)
+        assert "no probe adapter" in warned and "cache" in warned
+
+    async def test_full_mode_absent_required_dep_fails(self, mock_settings, mock_db_check, mock_logger):
+        from src.runtime import EnvTier
+
+        mock_db_check.return_value = ServiceStatus("database", "error", "Connection refused")
+        with (
+            patch.object(Bootloader, "_check_s3", new_callable=AsyncMock) as mock_s3,
+            patch.object(Bootloader, "_check_openrouter", new_callable=AsyncMock) as mock_openrouter,
+            patch.object(Bootloader, "_check_vault_secrets") as mock_vault,
+        ):
+            mock_s3.return_value = ServiceStatus("minio", "ok", "OK")
+            mock_openrouter.return_value = ServiceStatus("ai_provider", "ok", "OK")
+            mock_vault.return_value = ServiceStatus("vault_secrets", "ok", "OK")
+            result = await Bootloader.validate(BootMode.FULL, tier=EnvTier.STAGING)
+
+        assert result is False

@@ -18,10 +18,13 @@ from enum import Enum
 from src.config import PROTECTED_ENVIRONMENTS, settings
 from src.observability import get_logger
 from src.runtime import (
+    DEPENDENCY_MANIFEST,
     DatabaseCheck,
     DependencyStatus,
+    EnvTier,
     LlmCheck,
     ObjectStorageCheck,
+    resolve_env_tier,
 )
 
 logger = get_logger(__name__)
@@ -53,12 +56,38 @@ class Bootloader:
     """Handles environment validation and service connectivity checks."""
 
     @staticmethod
-    async def validate(mode: BootMode = BootMode.CRITICAL) -> bool:
+    def _required_checks(tier: EnvTier) -> tuple[dict[str, str], list[str]]:
+        """Split ``DEPENDENCY_MANIFEST.required_for(tier)`` into (probed, unprobed).
+
+        ``probed`` maps dependency name → the ``Bootloader`` check-method name;
+        ``unprobed`` (sorted) names the declared-required dependencies that have
+        no probe adapter yet (#1580) — surfaced as warnings, never silently
+        skipped. The dependency set comes from the manifest, not a hardcoded
+        per-mode list (invariant 2, #1577).
+        """
+        probe_methods = {
+            "database": "_check_database",
+            "object_storage": "_check_s3",
+            "llm": "_check_openrouter",
+        }
+        required = DEPENDENCY_MANIFEST.required_for(tier)
+        probed = {name: probe_methods[name] for name in required if name in probe_methods}
+        unprobed = sorted(required - probed.keys())
+        return probed, unprobed
+
+    @staticmethod
+    async def validate(mode: BootMode = BootMode.CRITICAL, tier: EnvTier | None = None) -> bool:
         """Run validation checks. Returns True if passed, False if failed.
 
-        If mode is CRITICAL, this may call sys.exit(1) on failure.
+        If mode is CRITICAL, this may call sys.exit(1) on failure. ``tier``
+        defaults to the running environment (``resolve_env_tier``); FULL mode
+        asserts the manifest-declared dependency set for that tier.
         """
-        logger.info("Bootloader starting validation", mode=mode.value)
+        if tier is None:
+            tier = resolve_env_tier(
+                settings.environment, github_actions=os.getenv("GITHUB_ACTIONS", "").lower() == "true"
+            )
+        logger.info("Bootloader starting validation", mode=mode.value, tier=tier.value)
 
         # 1. Static Configuration Check (Always run)
         if not Bootloader._check_static_config():
@@ -74,13 +103,25 @@ class Bootloader:
         # 2. Connectivity Checks
         results = []
 
-        # Database (Always checked in Critical/Full)
+        # Database (Always checked in Critical/Full — Gate 2 stays DB-only)
         results.append(await Bootloader._check_database())
 
         if mode == BootMode.FULL:
-            # Add optional services for Full smoke test
-            results.append(await Bootloader._check_s3())
-            results.append(await Bootloader._check_openrouter())
+            # Gate 3: the dependency set is the manifest's declaration for this
+            # tier, not a hardcoded list (#1577).
+            probed, unprobed = Bootloader._required_checks(tier)
+            for name, method_name in sorted(probed.items()):
+                if name == "database":
+                    continue  # already probed above
+                results.append(await getattr(Bootloader, method_name)())
+            for name in unprobed:
+                # Declared-required but no probe adapter yet (#1580): loudly
+                # visible, never a silent skip (invariant 2 pending for these).
+                logger.warning(
+                    "Declared-required dependency has no probe adapter yet (#1580); presence not asserted",
+                    service=name,
+                    tier=tier.value,
+                )
             results.append(Bootloader._check_vault_secrets())
 
         # 3. Report Results
