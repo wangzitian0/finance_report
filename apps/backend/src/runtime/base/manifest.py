@@ -87,7 +87,20 @@ DEPENDENCY_MANIFEST = DependencyManifest(
         ),
         Dependency(
             name="object_storage",
-            env_vars=frozenset({"S3_ENDPOINT", "S3_ACCESS_KEY", "S3_SECRET_KEY", "S3_BUCKET", "S3_REGION"}),
+            env_vars=frozenset(
+                {
+                    "S3_ENDPOINT",
+                    "S3_ACCESS_KEY",
+                    "S3_SECRET_KEY",
+                    "S3_BUCKET",
+                    "S3_REGION",
+                    # The optional public-bucket client is the same backend.
+                    "S3_PUBLIC_ENDPOINT",
+                    "S3_PUBLIC_ACCESS_KEY",
+                    "S3_PUBLIC_SECRET_KEY",
+                    "S3_PUBLIC_BUCKET",
+                }
+            ),
             kind=DependencyKind.CODE_DOMINANT,
             required_in=_ALL,
             summary="S3-compatible object storage for uploaded statements (S3_*).",
