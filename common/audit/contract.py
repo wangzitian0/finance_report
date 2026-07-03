@@ -65,7 +65,6 @@ CONTRACT = PackageContract(
     # (``klass="kernel"``). depends_on stays empty: the domains depend on each
     # other internally (an implementation detail within audit), not on anything
     # outside audit.
-    klass="kernel",
     status="active",
     # The number governor is deterministic value-language + invariant checking, no
     # LLM: a pure-code (CODE-ONLY) package, like ``meta`` and the value packages.

@@ -66,7 +66,9 @@ def test_AC_counter_1_2_base_layer_is_pure():
         bad = {
             m
             for m in _imported_modules(path)
-            if m.startswith("src.counter.extension")  # base must not reach its own extension
+            if m.startswith(
+                "src.counter.extension"
+            )  # base must not reach its own extension
             or "sqlalchemy" in m
             or m == "src.database"
         }
@@ -82,7 +84,7 @@ def test_AC_counter_1_1_only_all_is_the_published_language():
 
     assert sorted(CONTRACT.interface) == sorted(counter_pkg.__all__)
     assert CONTRACT.name == "counter"
-    assert CONTRACT.klass == "platform"
+    assert CONTRACT.klass == "middleware"
     assert CONTRACT.implementations["be"] == "apps/backend/src/counter"
 
 

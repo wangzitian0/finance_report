@@ -150,7 +150,7 @@ def test_escaping_be_path_reported_not_crashed(synthetic_repo: Path) -> None:
     pkg = _write_package(
         _src(synthetic_repo),
         "escaper",
-        klass="kernel",
+        klass="infra",
         all_names=["E"],
         interface=["E"],
     )
@@ -161,7 +161,7 @@ def test_escaping_be_path_reported_not_crashed(synthetic_repo: Path) -> None:
         impl_dir=cpc._contained_impl_dir("../escape", synthetic_repo),
         contract=pkg.contract,
     )
-    errors = cpc.check_package(pkg, {"escaper": "kernel"}, synthetic_repo)
+    errors = cpc.check_package(pkg, {"escaper": "infra"}, synthetic_repo)
     assert any("implementations['be'] is missing" in e for e in errors)
 
 
@@ -172,22 +172,22 @@ def test_interface_must_equal_all_passes_when_aligned(synthetic_repo: Path) -> N
     pkg = _write_package(
         _src(synthetic_repo),
         "aligned",
-        klass="kernel",
+        klass="infra",
         all_names=["A", "B"],
         interface=["B", "A"],
     )
-    assert check_package(pkg, {"aligned": "kernel"}, synthetic_repo) == []
+    assert check_package(pkg, {"aligned": "infra"}, synthetic_repo) == []
 
 
 def test_interface_mismatch_is_reported(synthetic_repo: Path) -> None:
     pkg = _write_package(
         _src(synthetic_repo),
         "drift",
-        klass="kernel",
+        klass="infra",
         all_names=["A", "B"],
         interface=["A"],
     )
-    errors = check_package(pkg, {"drift": "kernel"}, synthetic_repo)
+    errors = check_package(pkg, {"drift": "infra"}, synthetic_repo)
     assert any("interface != __all__" in e for e in errors)
 
 
@@ -200,7 +200,7 @@ def test_unresolved_invariant_and_roadmap_refs_are_reported(
     pkg = _write_package(
         _src(synthetic_repo),
         "refs",
-        klass="kernel",
+        klass="infra",
         all_names=["X"],
         interface=["X"],
         invariants=[Invariant(id="INV1", statement="s", test="no/such/file.py::f")],
@@ -214,7 +214,7 @@ def test_unresolved_invariant_and_roadmap_refs_are_reported(
             )
         ],
     )
-    errors = check_package(pkg, {"refs": "kernel"}, synthetic_repo)
+    errors = check_package(pkg, {"refs": "infra"}, synthetic_repo)
     assert any("invariant 'INV1'" in e for e in errors)
     assert any("roadmap 'AC1'" in e for e in errors)
 
@@ -246,14 +246,14 @@ def test_upward_edge_is_forbidden(synthetic_repo: Path) -> None:
     pkg = _write_package(
         src,
         "platlow",
-        klass="platform",
+        klass="middleware",
         all_names=["P"],
         interface=["P"],
         depends_on=["corehigh"],
         extra_module=("uses.py", "from src.corehigh import thing  # noqa\n"),
     )
     errors = check_package(
-        pkg, {"platlow": "platform", "corehigh": "core"}, synthetic_repo
+        pkg, {"platlow": "middleware", "corehigh": "domain"}, synthetic_repo
     )
     assert any("upward import of 'corehigh'" in e for e in errors)
 
@@ -264,14 +264,14 @@ def test_undeclared_sideways_edge_is_forbidden(synthetic_repo: Path) -> None:
     pkg = _write_package(
         src,
         "coreundeclared",
-        klass="core",
+        klass="domain",
         all_names=["C"],
         interface=["C"],
         depends_on=[],  # kerneldep deliberately omitted
         extra_module=("uses.py", "import src.kerneldep\n"),
     )
     errors = check_package(
-        pkg, {"coreundeclared": "core", "kerneldep": "kernel"}, synthetic_repo
+        pkg, {"coreundeclared": "domain", "kerneldep": "infra"}, synthetic_repo
     )
     assert any("not in" in e and "depends_on" in e for e in errors)
 
@@ -281,7 +281,7 @@ def test_declared_downward_edge_is_allowed(synthetic_repo: Path) -> None:
     pkg = _write_package(
         src,
         "coreok",
-        klass="core",
+        klass="domain",
         all_names=["C"],
         interface=["C"],
         depends_on=["kerneldep"],
@@ -291,7 +291,7 @@ def test_declared_downward_edge_is_allowed(synthetic_repo: Path) -> None:
         ),
     )
     errors = check_package(
-        pkg, {"coreok": "core", "kerneldep": "kernel"}, synthetic_repo
+        pkg, {"coreok": "domain", "kerneldep": "infra"}, synthetic_repo
     )
     assert errors == []
 
@@ -303,15 +303,13 @@ def test_same_class_declared_edge_is_allowed(synthetic_repo: Path) -> None:
     pkg = _write_package(
         src,
         "kernA",
-        klass="kernel",
+        klass="infra",
         all_names=["A"],
         interface=["A"],
         depends_on=["kernB"],
         extra_module=("uses.py", "from src.kernB import thing  # noqa\n"),
     )
-    errors = check_package(
-        pkg, {"kernA": "kernel", "kernB": "kernel"}, synthetic_repo
-    )
+    errors = check_package(pkg, {"kernA": "infra", "kernB": "infra"}, synthetic_repo)
     assert errors == [], errors
 
 
@@ -319,10 +317,20 @@ def test_dependency_cycle_is_forbidden(synthetic_repo: Path) -> None:
     src = _src(synthetic_repo)
     # two same-class packages depending on each other -> a cycle, rejected globally.
     a = _write_package(
-        src, "cycA", klass="kernel", all_names=["A"], interface=["A"], depends_on=["cycB"]
+        src,
+        "cycA",
+        klass="infra",
+        all_names=["A"],
+        interface=["A"],
+        depends_on=["cycB"],
     )
     b = _write_package(
-        src, "cycB", klass="kernel", all_names=["B"], interface=["B"], depends_on=["cycA"]
+        src,
+        "cycB",
+        klass="infra",
+        all_names=["B"],
+        interface=["B"],
+        depends_on=["cycA"],
     )
     offenders = cpc._check_no_dependency_cycle([a, b])
     assert any("dependency cycle" in e for e in offenders), offenders
@@ -332,7 +340,7 @@ def test_base_layer_must_not_import_own_extension(synthetic_repo: Path) -> None:
     # a package split into base/ + extension/ where base reaches into its own
     # extension/ -> rejected (base must stay pure; edges live in extension).
     pkg = _write_package(
-        _src(synthetic_repo), "layered", klass="kernel", all_names=["L"], interface=["L"]
+        _src(synthetic_repo), "layered", klass="infra", all_names=["L"], interface=["L"]
     )
     impl = pkg.impl_dir
     (impl / "base").mkdir()
@@ -355,10 +363,12 @@ def test_base_layer_must_not_import_own_extension(synthetic_repo: Path) -> None:
     # each offender is "<path>: <message>"; take the path part, then its basename
     # (the message itself contains "extension/", so split on ":" before "/").
     flagged = {o.split(":")[0].split("/")[-1] for o in offenders}
-    assert {"abs_dotted.py", "abs_pkg.py", "abs_import.py", "rel.py"} <= flagged, offenders
+    assert {"abs_dotted.py", "abs_pkg.py", "abs_import.py", "rel.py"} <= flagged, (
+        offenders
+    )
     # a package without the two-layer split is skipped (additive).
     plain = _write_package(
-        _src(synthetic_repo), "plain", klass="kernel", all_names=["P"], interface=["P"]
+        _src(synthetic_repo), "plain", klass="infra", all_names=["P"], interface=["P"]
     )
     assert cpc._check_layer_purity(plain) == []
 
@@ -391,20 +401,20 @@ def test_run_reports_no_packages_when_empty(synthetic_repo: Path) -> None:
 
 def test_discover_and_run_pass_for_clean_package(synthetic_repo: Path) -> None:
     _write_package(
-        _src(synthetic_repo), "clean", klass="kernel", all_names=["K"], interface=["K"]
+        _src(synthetic_repo), "clean", klass="infra", all_names=["K"], interface=["K"]
     )
     discovered = discover_packages(synthetic_repo)
     assert {p.name for p in discovered} == {"clean"}
     ok, messages = run(synthetic_repo)
     assert ok is True
-    assert any("clean (class kernel)" in m for m in messages)
+    assert any("clean (class infra)" in m for m in messages)
 
 
 def test_run_fails_for_dirty_package(synthetic_repo: Path) -> None:
     _write_package(
         _src(synthetic_repo),
         "dirty",
-        klass="kernel",
+        klass="infra",
         all_names=["A", "B"],
         interface=["A"],
     )
@@ -417,12 +427,20 @@ def test_run_reports_dependency_cycle(synthetic_repo: Path) -> None:
     # Integration: two same-class packages depending on each other -> run() (not
     # just the helper) must surface the cycle, proving run() wires the check in.
     _write_package(
-        _src(synthetic_repo), "cycX", klass="kernel", all_names=["X"],
-        interface=["X"], depends_on=["cycY"],
+        _src(synthetic_repo),
+        "cycX",
+        klass="infra",
+        all_names=["X"],
+        interface=["X"],
+        depends_on=["cycY"],
     )
     _write_package(
-        _src(synthetic_repo), "cycY", klass="kernel", all_names=["Y"],
-        interface=["Y"], depends_on=["cycX"],
+        _src(synthetic_repo),
+        "cycY",
+        klass="infra",
+        all_names=["Y"],
+        interface=["Y"],
+        depends_on=["cycX"],
     )
     ok, messages = run(synthetic_repo)
     assert ok is False
@@ -436,7 +454,7 @@ def test_main_passes_on_clean_repo(
     synthetic_repo: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     _write_package(
-        _src(synthetic_repo), "clean", klass="kernel", all_names=["K"], interface=["K"]
+        _src(synthetic_repo), "clean", klass="infra", all_names=["K"], interface=["K"]
     )
     rc = main(["--repo-root", str(synthetic_repo)])
     assert rc == 0
@@ -449,7 +467,7 @@ def test_main_fails_on_dirty_repo(
     _write_package(
         _src(synthetic_repo),
         "dirty",
-        klass="kernel",
+        klass="infra",
         all_names=["A", "B"],
         interface=["A"],
     )
@@ -483,7 +501,7 @@ def _pkg(**overrides: object) -> PackageContract:
     """Build a minimal PackageContract with valid defaults, overriding per test."""
     kwargs: dict[str, object] = {
         "name": "p",
-        "klass": "kernel",
+        "klass": "infra",
         "depends_on": [],
         "interface": [],
         "events": [],

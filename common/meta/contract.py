@@ -26,12 +26,13 @@ from common.meta.package_contract import (
 
 CONTRACT = PackageContract(
     name="meta",
-    klass="platform",
     status="active",
     # The package-model gate is deterministic code (AST + set comparison), no
     # LLM: a pure-code (CODE-ONLY) package. It also OWNS the authority-tier rules below.
     tier="CODE-ONLY",
-    depends_on=["authority"],
+    # L0 depends on nothing: the tier vocabulary (base/authority_matrix.py) and
+    # the five-layer topology (base/layering.py) are meta's own base modules.
+    depends_on=[],
     roles=["base", "extension", "data"],
     units=[
         # base — the pure model: the PackageContract aggregate root + its value

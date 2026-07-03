@@ -13,12 +13,13 @@ from common.meta.package_contract import ACRecord, Invariant, PackageContract
 
 CONTRACT = PackageContract(
     name="authority",
-    klass="kernel",
     status="active",
     # The package defines the tier vocabulary; it is pure deterministic code
     # (AST/text, no LLM): CODE-ONLY.
     tier="CODE-ONLY",
-    depends_on=[],
+    # The tier vocabulary's machine source moved to L0 (meta/base/authority_matrix.py,
+    # re-exported here as a compat shim) — a declared downward edge.
+    depends_on=["meta"],
     roles=["matrix", "classifier", "gates"],
     implementations={"be": "common/authority", "fe": None},
     interface=[

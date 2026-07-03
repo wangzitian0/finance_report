@@ -15,7 +15,6 @@ from common.meta.package_contract import Invariant, PackageContract
 
 CONTRACT = PackageContract(
     name="coverage",
-    klass="kernel",
     status="active",
     tier="CODE-ONLY",
     depends_on=[],

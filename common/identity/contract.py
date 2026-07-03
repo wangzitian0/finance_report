@@ -53,7 +53,6 @@ from common.meta.package_contract import (
 
 CONTRACT = PackageContract(
     name="identity",
-    klass="core",
     status="active",
     # Deterministic auth/user domain, no LLM: a pure-code (CODE-ONLY) package.
     # Every AC in the roadmap inherits this tier.

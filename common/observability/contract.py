@@ -22,7 +22,6 @@ from common.meta.package_contract import ACRecord, Invariant, PackageContract
 
 CONTRACT = PackageContract(
     name="observability",
-    klass="kernel",
     status="active",
     tier="CODE-ONLY",
     depends_on=["config"],

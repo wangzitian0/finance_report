@@ -59,7 +59,6 @@ from common.meta.package_contract import (
 
 CONTRACT = PackageContract(
     name="platform",
-    klass="kernel",
     status="active",
     # Deterministic event/outbox substrate, no LLM: a pure-code (CODE-ONLY) package.
     # Every AC in the roadmap inherits this tier.

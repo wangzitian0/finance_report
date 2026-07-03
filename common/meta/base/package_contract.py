@@ -12,9 +12,10 @@ governance is *computed*, not hand-maintained.
 This module is the meta package's ``base`` layer: pure model, stdlib + pydantic
 only by design (importable from the governance gate and from a package's
 ``contract.py`` without pulling app/framework dependencies). The authority-tier
-vocabulary and the tier->proof matrix come from the stdlib-only
-:mod:`common.authority.authority_matrix` (the single machine source, also imported
-by the lightweight SSOT tooling that must NOT pull pydantic).
+vocabulary and the tier->proof matrix come from the stdlib-only sibling
+:mod:`common.meta.base.authority_matrix`, and the five-layer topology from
+:mod:`common.meta.base.layering` (both single machine sources, also imported by
+the lightweight SSOT tooling that must NOT pull pydantic).
 
 DDD building-block taxonomy
 ---------------------------
@@ -44,23 +45,28 @@ from typing import Literal
 
 from pydantic import BaseModel, model_validator
 
-# The tier vocabulary + matrix live in one source: common.authority.authority_matrix.
-# Import only what this model uses (the field types + the validator's matrix).
-from common.authority.authority_matrix import (
+# The tier vocabulary + matrix and the five-layer topology each live in one
+# stdlib-only sibling source. Import only what this model uses.
+from common.meta.base.authority_matrix import (
     ACProofKind,
     PackageTier,
     TIER_DEFAULT_PROOF_KIND,
     TIER_VALID_PROOF_KINDS,
 )
+from common.meta.base.layering import LAYER_RANK, PACKAGE_LAYER, PackageClass
 
-#: A package class. The three orthogonal kinds in the model:
-#: - ``kernel``   — leaf value-language reused everywhere (e.g. ``money``);
-#:                  depends on nothing in the app.
-#: - ``platform`` — a reusable horizontal capability (e.g. ``counter``);
-#:                  depends only on kernels.
-#: - ``core``     — a vertical domain slice (e.g. ``ledger``);
-#:                  may depend on platform + kernel packages.
-PackageClass = Literal["core", "platform", "kernel"]
+__all__ = [
+    "ACRecord",
+    "Invariant",
+    "Kind",
+    "KIND_LAYER",
+    "LAYER_RANK",
+    "PACKAGE_LAYER",
+    "PackageClass",
+    "PackageContract",
+    "SPLIT",
+    "Unit",
+]
 
 #: AC priority, mirroring the EPIC AC tables (P0 highest).
 Priority = Literal["P0", "P1", "P2"]
@@ -219,7 +225,10 @@ class PackageContract(BaseModel):
 
     Fields:
         name:            the package name (matches its ``common/<name>/`` dir).
-        klass:           ``core`` / ``platform`` / ``kernel`` (the dependency tier).
+        klass:           the five-layer placement (``meta`` < ``infra`` <
+                         ``middleware`` < ``domain`` < ``app``), resolved from
+                         :data:`PACKAGE_LAYER`; declared only for packages
+                         outside the central map.
         status:          ``draft`` / ``active`` / ``deprecated`` (package lifecycle).
         tier:            the package's permanent authority tier (:data:`PackageTier`);
                          ``None`` = undecided, allowed only while ``status="draft"``.
@@ -242,7 +251,11 @@ class PackageContract(BaseModel):
     """
 
     name: str
-    klass: PackageClass
+    #: The package's layer in the five-layer topology. Placement is global
+    #: topology owned by L0: a package in :data:`PACKAGE_LAYER` needs no
+    #: declaration (the map resolves it, and a declared value must agree); a
+    #: package not in the map (synthetic/test contracts) must declare one.
+    klass: PackageClass | None = None
     depends_on: list[str]
     interface: list[str]
     events: list[str]
@@ -256,6 +269,33 @@ class PackageContract(BaseModel):
     roles: list[str] = []
     units: list[Unit] = []
     implementations: dict[str, str | None] = {}
+
+    @model_validator(mode="after")
+    def _layer_resolves_from_the_central_map(self) -> PackageContract:
+        """Resolve ``klass`` from :data:`PACKAGE_LAYER` (L0 owns placement).
+
+        Three cases: mapped + undeclared -> the map fills it in; mapped +
+        declared -> the declaration must agree (a self-claim never outranks the
+        topology); unmapped + undeclared -> unplaceable, rejected.
+        """
+        mapped = PACKAGE_LAYER.get(self.name)
+        if self.klass is None:
+            if mapped is None:
+                raise ValueError(
+                    f"package {self.name!r}: no layer. Add the package to "
+                    "PACKAGE_LAYER (common/meta/base/layering.py) — placement "
+                    "is global topology owned by L0 — or declare klass "
+                    "explicitly for a package outside the map."
+                )
+            self.klass = mapped
+        elif mapped is not None and self.klass != mapped:
+            raise ValueError(
+                f"package {self.name!r}: declared klass {self.klass!r} "
+                f"contradicts PACKAGE_LAYER ({mapped!r}). The central map in "
+                "common/meta/base/layering.py is the single placement source; "
+                "fix the map or drop the declaration."
+            )
+        return self
 
     @model_validator(mode="after")
     def _tier_decided_and_proofs_match(self) -> PackageContract:

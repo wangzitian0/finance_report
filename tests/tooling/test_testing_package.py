@@ -28,7 +28,7 @@ def test_AC_testing_1_1_only_all_is_the_published_language():
 
     assert sorted(CONTRACT.interface) == sorted(testing_pkg.__all__)
     assert CONTRACT.name == "testing"
-    assert CONTRACT.klass == "kernel"
+    assert CONTRACT.klass == "infra"
     assert CONTRACT.implementations["be"] == "common/testing"
 
 

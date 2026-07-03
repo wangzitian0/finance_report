@@ -28,7 +28,6 @@ from common.meta.package_contract import ACRecord, PackageContract
 
 CONTRACT = PackageContract(
     name="runtime",
-    klass="kernel",
     status="active",
     tier="CODE-ONLY",
     depends_on=[],

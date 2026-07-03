@@ -88,7 +88,6 @@ from common.meta.package_contract import (
 
 CONTRACT = PackageContract(
     name="ledger",
-    klass="core",
     status="active",
     # Deterministic double-entry arithmetic + persistence, no LLM: a pure-code
     # (CODE-ONLY) package.

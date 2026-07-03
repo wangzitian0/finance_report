@@ -42,15 +42,22 @@ tier annotation — only the relocated cassette *fixture data*
 
 from __future__ import annotations
 
-from common.meta.package_contract import ACRecord, Invariant, Kind, PackageContract, Unit
+from common.meta.package_contract import (
+    ACRecord,
+    Invariant,
+    Kind,
+    PackageContract,
+    Unit,
+)
 
 CONTRACT = PackageContract(
     name="testing",
-    klass="kernel",
     status="active",
     # Deterministic test/fixture helpers, no LLM in the package: CODE-ONLY.
     tier="CODE-ONLY",
-    depends_on=["money"],
+    # L1 is business-agnostic: no edge into the L2 value language. money's
+    # conformance machinery is discovered at tool-time, not imported.
+    depends_on=[],
     roles=[],
     # No base/extension split yet, so these are taxonomy-only (no module path;
     # the gate skips placement for units with no module, same as money's VOs).
@@ -292,7 +299,9 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-testing.6.4",
-            statement=("Mari generator generates interest section (Was EPIC-009 AC9.6.4)."),
+            statement=(
+                "Mari generator generates interest section (Was EPIC-009 AC9.6.4)."
+            ),
             test="tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_6_4_mari_generator_renders_interest_details_section",
             priority="P2",
             status="done",
@@ -306,14 +315,18 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-testing.7.1",
-            statement=("Main script supports --source parameter (Was EPIC-009 AC9.7.1)."),
+            statement=(
+                "Main script supports --source parameter (Was EPIC-009 AC9.7.1)."
+            ),
             test="tests/tooling/test_pdf_fixture_tooling_coverage.py::test_AC9_7_1_AC9_7_2_main_generates_selected_source",
             priority="P2",
             status="done",
         ),
         ACRecord(
             id="AC-testing.7.2",
-            statement=("Main script supports --output parameter (Was EPIC-009 AC9.7.2)."),
+            statement=(
+                "Main script supports --output parameter (Was EPIC-009 AC9.7.2)."
+            ),
             test="tests/tooling/test_pdf_fixture_tooling_coverage.py::test_AC9_7_1_AC9_7_2_main_generates_all_sources_with_default_output",
             priority="P2",
             status="done",
@@ -337,7 +350,9 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-testing.8.2",
-            statement=("Validator rejects missing or drifting real-format contracts (Was EPIC-009 AC9.8.2)."),
+            statement=(
+                "Validator rejects missing or drifting real-format contracts (Was EPIC-009 AC9.8.2)."
+            ),
             test="tests/tooling/test_pdf_fixture_real_format_contract.py::test_AC9_8_2_validator_rejects_missing_or_drifting_real_format_contract",
             priority="P2",
             status="done",

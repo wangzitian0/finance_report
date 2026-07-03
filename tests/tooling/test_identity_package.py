@@ -123,7 +123,7 @@ def test_identity_interface_equals_published_language():
 
     assert sorted(CONTRACT.interface) == sorted(identity_pkg.__all__)
     assert CONTRACT.name == "identity"
-    assert CONTRACT.klass == "core"
+    assert CONTRACT.klass == "domain"
     assert CONTRACT.implementations["be"] == "apps/backend/src/identity"
 
 
