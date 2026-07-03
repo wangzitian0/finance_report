@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from src.llm.common import (
+from src.llm.base import (
     Modality,
     ModelSpec,
     ProtocolFamily,

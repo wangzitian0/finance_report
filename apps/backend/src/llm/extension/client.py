@@ -1,7 +1,7 @@
 """litellm-backed transport (EPIC-023 EPIC A).
 
 ``litellm_stream`` is the single chokepoint that talks to litellm; everything
-provider-specific is resolved by :mod:`src.llm.routing`, and ``drop_params=True``
+provider-specific is resolved by :mod:`src.llm.extension.routing`, and ``drop_params=True``
 lets litellm silently drop fields a given model rejects (e.g. Z.AI/GLM rejecting
 ``seed`` — the quirk that previously needed bespoke handling). Provider/model
 selection is shared via :func:`resolve_provider_and_model`; the service-facing
@@ -16,7 +16,16 @@ from typing import Any
 
 import litellm
 
-from src.llm.cassette import (
+from src.llm.base import (
+    ConfigSource,
+    LLMConfigError,
+    LLMError,
+    Message,
+    ProtocolFamily,
+    ProviderRef,
+    ReasoningEffort,
+)
+from src.llm.extension.cassette import (
     Cassette as _Cassette,
     CassetteMiss,
     CassetteMode,
@@ -28,16 +37,7 @@ from src.llm.cassette import (
     current_mode,
     fingerprint,
 )
-from src.llm.common import (
-    ConfigSource,
-    LLMConfigError,
-    LLMError,
-    Message,
-    ProtocolFamily,
-    ProviderRef,
-    ReasoningEffort,
-)
-from src.llm.routing import build_call
+from src.llm.extension.routing import build_call
 from src.observability import get_logger
 
 logger = get_logger(__name__)

@@ -11,7 +11,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 
 from src.deps import CurrentUserId, DbSession
-from src.llm.catalog import LitellmCatalog
+from src.llm.extension.catalog import LitellmCatalog
 from src.models.chat import ChatMessage, ChatSession, ChatSessionStatus
 from src.observability import get_logger
 from src.platform import get_owned_or_404, raise_bad_request, raise_not_found, raise_service_unavailable

@@ -29,7 +29,7 @@ def test_AC26_9_1_band_boundaries() -> None:
 def test_AC26_9_1_test_shape_classifies_code_vs_llm(tmp_path: Path) -> None:
     """AC26.9.1: a cassette/replay test is LLM; a structured test is CODE; missing is unknown."""
     llm_file = tmp_path / "test_x_replay.py"
-    llm_file.write_text("from src.llm.cassette import CassetteMode\n", encoding="utf-8")
+    llm_file.write_text("from src.llm.extension.cassette import CassetteMode\n", encoding="utf-8")
     code_file = tmp_path / "test_y.py"
     code_file.write_text("def test_y():\n    assert 1 + 1 == 2\n", encoding="utf-8")
     index = {"test_x_replay.py": [llm_file], "test_y.py": [code_file]}
@@ -51,7 +51,7 @@ def test_AC26_9_1_basename_collisions_disambiguate_or_stay_unknown(tmp_path: Pat
     b = tmp_path / "web" / "test_dup.py"
     a.parent.mkdir(parents=True)
     b.parent.mkdir(parents=True)
-    a.write_text("from src.llm.cassette import CassetteMode\n", encoding="utf-8")  # LLM
+    a.write_text("from src.llm.extension.cassette import CassetteMode\n", encoding="utf-8")  # LLM
     b.write_text("def test_dup():\n    assert True\n", encoding="utf-8")  # CODE
     index = {"test_dup.py": [a, b]}
     cache: dict[Path, bool] = {}

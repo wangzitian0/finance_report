@@ -77,7 +77,7 @@ class Encrypted:
     """A provider secret at rest: ciphertext plus the key version that sealed it.
 
     ``key_version`` lets the DB layer (EPIC B) tell, during a key rotation pass,
-    which rows still hold the old key. See :mod:`src.llm.common.secrets`.
+    which rows still hold the old key. See :mod:`src.llm.base.secrets`.
     """
 
     ciphertext: str
@@ -88,7 +88,7 @@ class Encrypted:
 class ProviderRef:
     """A configured provider instance with its API key already decrypted.
 
-    This is the projection a :class:`~src.llm.common.config_source.ConfigSource`
+    This is the projection a :class:`~src.llm.base.config_source.ConfigSource`
     hands to the client; persistence and encryption live below the contract.
     """
 

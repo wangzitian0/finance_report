@@ -27,16 +27,16 @@ from pathlib import Path
 
 import pytest
 
-import src.llm.client as client_mod
-from src.llm.cassette import (
+import src.llm.extension.client as client_mod
+from src.llm.base import LLMError, ProtocolFamily, ProviderRef
+from src.llm.extension.cassette import (
     CassetteMiss,
     CassetteMode,
     CassetteStore,
     CassetteTag,
     fingerprint,
 )
-from src.llm.client import litellm_stream
-from src.llm.common import LLMError, ProtocolFamily, ProviderRef
+from src.llm.extension.client import litellm_stream
 from src.services.ai_streaming import accumulate_stream
 
 FIXTURE_CASSETTE_DIR = Path(__file__).resolve().parents[4] / "common" / "testing" / "fixtures" / "llm_cassettes"
@@ -334,7 +334,7 @@ async def test_AC23_6_5_model_id_swap_resolves_same_cassette(monkeypatch, commit
 async def test_AC23_6_3_record_correctness_requires_validator(monkeypatch, tmp_path):
     """AC23.6.3: a correctness streaming cassette refuses to record without a
     ground-truth validator (freezing an unvalidated answer is the trap)."""
-    from src.llm.cassette import CassetteValidationError
+    from src.llm.extension.cassette import CassetteValidationError
 
     monkeypatch.setattr(client_mod.litellm, "acompletion", _fake_stream("anything"))
     store = CassetteStore(directory=tmp_path / "c")
@@ -381,7 +381,7 @@ async def test_AC23_6_3_record_correctness_refuses_wrong_answer(monkeypatch, tmp
     """AC23.6.3: a correctness cassette refuses to record (CassetteValidationError)
     when the accumulated text fails ground-truth validation — never freezes a
     wrong answer — and writes nothing."""
-    from src.llm.cassette import CassetteValidationError
+    from src.llm.extension.cassette import CassetteValidationError
 
     monkeypatch.setattr(client_mod.litellm, "acompletion", _fake_stream("wrong answer"))
     store = CassetteStore(directory=tmp_path / "c")
@@ -403,7 +403,7 @@ async def test_AC23_6_3_record_correctness_refuses_wrong_answer(monkeypatch, tmp
 async def test_AC23_6_3_record_correctness_validator_error_refuses(monkeypatch, tmp_path):
     """AC23.6.3: a validator that RAISES refuses the record (wrapped as
     CassetteValidationError), not silently freezing the response."""
-    from src.llm.cassette import CassetteValidationError
+    from src.llm.extension.cassette import CassetteValidationError
 
     def boom(_response: dict) -> bool:
         raise RuntimeError("validator blew up")

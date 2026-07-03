@@ -6,7 +6,7 @@ from datetime import date
 
 import pytest
 
-from src.llm.usage import LlmUsageMeter, estimate_tokens
+from src.llm.base.usage import LlmUsageMeter, estimate_tokens
 
 pytestmark = pytest.mark.no_db
 

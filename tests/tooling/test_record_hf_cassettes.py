@@ -10,7 +10,13 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from common.testing.fixtures.pdf import record_hf_cassettes as rec
+import importlib.util as _ilu
+from pathlib import Path as _P
+_spec = _ilu.spec_from_file_location(
+    "record_hf_cassettes", _P(__file__).resolve().parents[2] / "tools/_lib/record_hf_cassettes.py"
+)
+rec = _ilu.module_from_spec(_spec)
+_spec.loader.exec_module(rec)
 
 
 def test_iso_date_normalises_both_hf_schemas() -> None:

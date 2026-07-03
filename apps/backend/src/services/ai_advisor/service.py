@@ -19,8 +19,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.money import to_money
 from src.config import settings
-from src.llm.common import ReasoningEffort, Scene, SceneBinding
-from src.llm.factory import get_config_source
+from src.llm.base import ReasoningEffort, Scene, SceneBinding
+from src.llm.extension.factory import get_config_source
 from src.models.account import AccountType
 from src.models.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 from src.prompts.ai_advisor import get_ai_advisor_prompt

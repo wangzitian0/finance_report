@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 
 from src.config import settings
-from src.llm.common import ProtocolFamily, Scene
-from src.llm.env_config import EnvConfigSource
+from src.llm.base import ProtocolFamily, Scene
+from src.llm.extension.env_config import EnvConfigSource
 
 
 @pytest.fixture

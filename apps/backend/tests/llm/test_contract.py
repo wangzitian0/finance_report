@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator, Sequence
 
-from src.llm.common import (
+from src.llm.base import (
     CatalogProvider,
     ChatResult,
     ConfigSource,
@@ -98,7 +98,7 @@ def test_AC23_1_5_modality_round_trips_via_model_spec():
 
 def test_AC23_1_5_error_hierarchy_carries_retryable_semantics():
     """AC23.1.5: the error contract — config/budget never retry; all derive from LLMError."""
-    from src.llm.common import LLMBudgetExceeded, LLMConfigError, LLMError, ModelCatalogError
+    from src.llm.base import LLMBudgetExceeded, LLMConfigError, LLMError, ModelCatalogError
 
     budget = LLMBudgetExceeded("over daily budget")
     assert isinstance(budget, LLMError)

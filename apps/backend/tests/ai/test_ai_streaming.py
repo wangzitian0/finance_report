@@ -10,10 +10,10 @@ from __future__ import annotations
 
 import pytest
 
-import src.llm.client as client_mod
+import src.llm.extension.client as client_mod
 import src.services.ai_streaming as ai_streaming
 from src.config import settings
-from src.llm.common import LLMError, ProtocolFamily, ProviderRef
+from src.llm.base import LLMError, ProtocolFamily, ProviderRef
 from src.services.ai_streaming import AIStreamError, accumulate_stream, stream_ai_chat, stream_ai_json
 
 pytestmark = pytest.mark.no_db
@@ -164,7 +164,7 @@ async def test_stream_fails_closed_with_multiple_providers(monkeypatch):
 async def test_AC23_4_7_records_request_and_token_usage(litellm_stub, monkeypatch):
     """AC23.4.7: a completed live stream counts one request + (estimated) tokens, and
     never sends stream_options (Z.AI rejects unknown params)."""
-    from src.llm.usage import LlmUsageMeter
+    from src.llm.base.usage import LlmUsageMeter
 
     meter = LlmUsageMeter()
     monkeypatch.setattr(ai_streaming, "get_usage_meter", lambda: meter)

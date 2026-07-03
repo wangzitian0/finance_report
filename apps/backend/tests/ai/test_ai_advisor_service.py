@@ -957,7 +957,7 @@ async def test_AC23_4_5_advisor_uses_user_bound_model_and_threads_user_id(
     bound model is tried first, and its reasoning/max_tokens + user_id reach the transport."""
     from uuid import uuid4
 
-    from src.llm.common import ReasoningEffort, Scene, SceneBinding
+    from src.llm.base import ReasoningEffort, Scene, SceneBinding
 
     service = AIAdvisorService()
     service.primary_model = "env-primary"
@@ -989,7 +989,7 @@ async def test_AC23_4_5_advisor_provider_resolution_is_user_scoped(monkeypatch: 
     """AC23.4.5: stream_ai_chat resolves the provider via get_config_source(user_id)."""
     from uuid import uuid4
 
-    from src.llm.common import ProtocolFamily, ProviderRef
+    from src.llm.base import ProtocolFamily, ProviderRef
     from src.services import ai_streaming
 
     uid = uuid4()

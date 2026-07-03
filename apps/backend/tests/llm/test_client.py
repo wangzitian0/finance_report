@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import pytest
 
-import src.llm.client as client_mod
-from src.llm.client import litellm_stream, resolve_provider_and_model
-from src.llm.common import LLMConfigError, LLMError, ProtocolFamily, ProviderRef
+import src.llm.extension.client as client_mod
+from src.llm.base import LLMConfigError, LLMError, ProtocolFamily, ProviderRef
+from src.llm.extension.client import litellm_stream, resolve_provider_and_model
 
 
 class _Delta:
@@ -84,7 +84,7 @@ async def test_AC23_2_2_stream_sets_drop_params_and_passes_seed_extra_body(captu
 
 async def test_AC23_2_4_reasoning_max_tokens_temperature_passthrough(captured):
     """AC23.2.4: per-scene knobs (reasoning depth, max_tokens, temperature) reach litellm."""
-    from src.llm.common import ReasoningEffort
+    from src.llm.base import ReasoningEffort
 
     async for _ in litellm_stream(
         [{"role": "user", "content": "hi"}],
@@ -226,8 +226,8 @@ class _FakeResponse:
 async def test_AC23_5_4_cassette_completion_off_mode_does_a_live_litellm_call(monkeypatch, tmp_path):
     """AC23.5.4: cassette_completion in off mode performs the real (mocked) litellm
     call and projects the response dict; no cassette is written."""
-    from src.llm.cassette import CassetteMode, CassetteRecorder, CassetteStore
-    from src.llm.client import cassette_completion
+    from src.llm.extension.cassette import CassetteMode, CassetteRecorder, CassetteStore
+    from src.llm.extension.client import cassette_completion
 
     async def fake_acompletion(**kwargs):
         return _FakeResponse({"choices": [{"message": {"content": "ok"}}]})
@@ -251,8 +251,8 @@ async def test_AC23_5_4_cassette_completion_record_then_replay_roundtrips(monkey
     """AC23.5.4 + AC23.5.2: record performs the live call and freezes it; a later
     replay serves it back with no live call (the model id may differ — keying is
     model-id-agnostic)."""
-    from src.llm.cassette import CassetteMode, CassetteRecorder, CassetteStore
-    from src.llm.client import cassette_completion
+    from src.llm.extension.cassette import CassetteMode, CassetteRecorder, CassetteStore
+    from src.llm.extension.client import cassette_completion
 
     async def fake_acompletion(**kwargs):
         return _FakeResponse({"text": "frozen"})
@@ -289,8 +289,8 @@ async def test_AC23_5_4_cassette_completion_record_then_replay_roundtrips(monkey
 
 async def test_AC23_5_4_cassette_completion_record_wraps_provider_error(monkeypatch, tmp_path):
     """AC23.5.4: a provider failure during a record live call is normalised to LLMError."""
-    from src.llm.cassette import CassetteMode, CassetteRecorder, CassetteStore
-    from src.llm.client import cassette_completion
+    from src.llm.extension.cassette import CassetteMode, CassetteRecorder, CassetteStore
+    from src.llm.extension.client import cassette_completion
 
     async def boom(**kwargs):
         raise ValueError("bad request")
@@ -310,9 +310,9 @@ async def test_AC23_5_4_cassette_completion_record_wraps_provider_error(monkeypa
 async def test_AC23_5_4_cassette_completion_all_decode_params_and_dict_response(monkeypatch, tmp_path):
     """AC23.5.4: reasoning/seed/extra_body/timeout knobs reach the live call and a
     plain-dict response (no model_dump) is returned as-is."""
-    from src.llm.cassette import CassetteMode, CassetteRecorder, CassetteStore
-    from src.llm.client import cassette_completion
-    from src.llm.common import ReasoningEffort
+    from src.llm.base import ReasoningEffort
+    from src.llm.extension.cassette import CassetteMode, CassetteRecorder, CassetteStore
+    from src.llm.extension.client import cassette_completion
 
     captured_kwargs: dict = {}
 
@@ -342,8 +342,8 @@ async def test_AC23_5_4_cassette_completion_all_decode_params_and_dict_response(
 async def test_AC23_5_4_cassette_completion_stringifies_opaque_response(monkeypatch, tmp_path):
     """AC23.5.4: an opaque response (no model_dump, not a dict) is projected to a
     text payload so any provider shape is freezable."""
-    from src.llm.cassette import CassetteMode, CassetteRecorder, CassetteStore
-    from src.llm.client import cassette_completion
+    from src.llm.extension.cassette import CassetteMode, CassetteRecorder, CassetteStore
+    from src.llm.extension.client import cassette_completion
 
     async def fake_acompletion(**kwargs):
         return 12345  # opaque, neither pydantic nor dict
@@ -363,8 +363,8 @@ async def test_AC23_5_4_cassette_completion_stringifies_opaque_response(monkeypa
 async def test_AC23_5_4_cassette_completion_passes_through_llmerror(monkeypatch, tmp_path):
     """AC23.5.4: an LLMError raised by the transport is re-raised unchanged (not
     re-wrapped), preserving its retryable verdict."""
-    from src.llm.cassette import CassetteMode, CassetteRecorder, CassetteStore
-    from src.llm.client import cassette_completion
+    from src.llm.extension.cassette import CassetteMode, CassetteRecorder, CassetteStore
+    from src.llm.extension.client import cassette_completion
 
     async def raise_llmerror(**kwargs):
         raise LLMError("already normalised", retryable=True)
@@ -388,7 +388,7 @@ def test_AC23_9_1_litellm_aiohttp_transport_disabled_prevents_session_leak():
     litellm's aiohttp transport lazily creates an aiohttp ClientSession per
     request handler and never closes it, leaking an "Unclosed client session"
     on every acompletion (#1442). Routing through the httpx transport litellm
-    manages itself avoids the leak. ``src.llm.client`` is imported at module top,
+    manages itself avoids the leak. ``src.llm.extension.client`` is imported at module top,
     so the hardening has already run.
 
     Asserts only the public, documented ``litellm.disable_aiohttp_transport`` flag

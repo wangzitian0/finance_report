@@ -1,7 +1,7 @@
 """Model catalogue integration via ``LitellmCatalog`` (EPIC-006 AC6.11.x).
 
 EPIC-023 retired the remote-fetch ``services/ai_models`` catalogue in favour of the
-local, deterministic :class:`~src.llm.catalog.LitellmCatalog` (configured models +
+local, deterministic :class:`~src.llm.extension.catalog.LitellmCatalog` (configured models +
 litellm pricing). The AC6.11.x criteria — originally written against the remote
 catalogue — are re-anchored here onto the catalogue's surviving behaviours.
 """
@@ -11,8 +11,8 @@ from __future__ import annotations
 import pytest
 
 from src.config import settings
-from src.llm.catalog import LitellmCatalog
-from src.llm.common import Modality
+from src.llm.base import Modality
+from src.llm.extension.catalog import LitellmCatalog
 
 pytestmark = pytest.mark.asyncio
 

@@ -14,7 +14,7 @@ import json
 
 import pytest
 
-from src.llm.cassette import (
+from src.llm.extension.cassette import (
     CASSETTE_DIR,
     Cassette,
     CassetteMiss,
@@ -60,7 +60,7 @@ def test_AC23_5_1_mode_defaults_to_off(monkeypatch):
 def test_AC23_5_1_unknown_mode_fails_closed(monkeypatch):
     """AC23.5.1: an unknown mode is a config error, not a silent fall-through to a
     network call."""
-    from src.llm.common import LLMConfigError
+    from src.llm.base import LLMConfigError
 
     monkeypatch.setenv("LLM_CASSETTE_MODE", "bogus")
     with pytest.raises(LLMConfigError):

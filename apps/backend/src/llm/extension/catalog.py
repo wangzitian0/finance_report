@@ -13,9 +13,12 @@ from decimal import Decimal, InvalidOperation
 
 import litellm
 
-from src.config import settings
-from src.llm.common import Modality, ModelSpec
-from src.llm.env_config import _PROVIDER_ENV_ID
+import src.config
+from src.llm.base import Modality, ModelSpec
+from src.llm.extension.env_config import _PROVIDER_ENV_ID
+
+# Bound from the bare published root (config publishes no named symbols).
+settings = src.config.settings
 
 # Configured roles -> the modalities each accepts. Vision/OCR models accept text
 # plus the document modalities (image, pdf, file); text models are text-only.

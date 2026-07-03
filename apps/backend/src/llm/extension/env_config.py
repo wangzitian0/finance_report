@@ -9,8 +9,11 @@ configuration and behaviour is preserved. EPIC B replaces it with a
 
 from __future__ import annotations
 
-from src.config import settings
-from src.llm.common import ProtocolFamily, ProviderRef, Scene, SceneBinding
+import src.config
+from src.llm.base import ProtocolFamily, ProviderRef, Scene, SceneBinding
+
+# Bound from the bare published root (config publishes no named symbols).
+settings = src.config.settings
 
 _PROVIDER_ENV_ID = "env"
 
@@ -25,7 +28,7 @@ _FAMILY_BY_PROVIDER: dict[str, ProtocolFamily] = {
 }
 
 
-def _protocol_for(provider: str) -> ProtocolFamily:
+def protocol_for(provider: str) -> ProtocolFamily:
     return _FAMILY_BY_PROVIDER.get(provider.strip().lower(), ProtocolFamily.OPENAI_COMPATIBLE)
 
 
@@ -39,7 +42,7 @@ class EnvConfigSource:
         return ProviderRef(
             id=_PROVIDER_ENV_ID,
             label=settings.ai_provider,
-            protocol=_protocol_for(settings.ai_provider),
+            protocol=protocol_for(settings.ai_provider),
             api_key=api_key,
             api_base=settings.ai_base_url or None,
         )

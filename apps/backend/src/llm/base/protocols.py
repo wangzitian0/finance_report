@@ -1,8 +1,8 @@
 """Service-facing protocols implemented by the litellm layer (EPIC A).
 
 Scenes call these; they never see a provider id or model string directly — the
-:class:`~src.llm.common.config_source.ConfigSource` resolves a
-:class:`~src.llm.common.types.Scene` to a concrete model behind the protocol.
+:class:`~src.llm.base.config_source.ConfigSource` resolves a
+:class:`~src.llm.base.types.Scene` to a concrete model behind the protocol.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator, Sequence
 from typing import Protocol, runtime_checkable
 
-from src.llm.common.types import ChatResult, Message, Modality, ModelSpec, ReasoningEffort, Scene
+from src.llm.base.types import ChatResult, Message, Modality, ModelSpec, ReasoningEffort, Scene
 
 
 @runtime_checkable

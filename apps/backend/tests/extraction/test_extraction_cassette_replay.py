@@ -29,7 +29,7 @@ from pathlib import Path
 
 import pytest
 
-from src.llm.cassette import CassetteMode, current_mode
+from src.llm.extension.cassette import CassetteMode, current_mode
 from src.services.ai_streaming import accumulate_stream, stream_ai_json
 
 # These drive the real LLM transport, so they run only in record mode (freeze the

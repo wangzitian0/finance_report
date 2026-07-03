@@ -6,10 +6,10 @@ from decimal import Decimal
 
 import pytest
 
-import src.llm.catalog as catalog_mod
+import src.llm.extension.catalog as catalog_mod
 from src.config import settings
-from src.llm.catalog import LitellmCatalog
-from src.llm.common import Modality
+from src.llm.base import Modality
+from src.llm.extension.catalog import LitellmCatalog
 
 
 @pytest.fixture(autouse=True)

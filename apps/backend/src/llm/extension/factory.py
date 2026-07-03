@@ -11,10 +11,10 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from src.llm.common import ConfigSource, ProviderRef, Scene, SceneBinding
-from src.llm.db_config import DbConfigSource
-from src.llm.env_config import EnvConfigSource
-from src.llm.usage import LlmUsageMeter
+from src.llm.base import ConfigSource, ProviderRef, Scene, SceneBinding
+from src.llm.base.usage import LlmUsageMeter
+from src.llm.extension.db_config import DbConfigSource
+from src.llm.extension.env_config import EnvConfigSource
 
 
 class LayeredConfigSource:
@@ -68,7 +68,7 @@ def get_config_source(user_id: UUID | None = None) -> ConfigSource:
 
     ``user_id is None`` resolves the deployment default only (used by background /
     user-less paths). The DB layer is all-or-nothing per scope (see
-    :class:`~src.llm.db_config.DbConfigSource`); the env fallback is all-or-nothing
+    :class:`~src.llm.extension.db_config.DbConfigSource`); the env fallback is all-or-nothing
     against the DB (see :class:`LayeredConfigSource`).
     """
     return LayeredConfigSource(DbConfigSource(user_id=user_id), EnvConfigSource())

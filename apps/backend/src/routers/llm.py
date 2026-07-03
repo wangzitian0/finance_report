@@ -17,11 +17,11 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 
 from src.deps import CurrentUserId, DbSession
-from src.llm.catalog import LitellmCatalog
-from src.llm.common import Modality
-from src.llm.common.errors import LLMConfigError
-from src.llm.common.secrets import build_cipher
-from src.llm.factory import get_config_source
+from src.llm.base import Modality
+from src.llm.base.errors import LLMConfigError
+from src.llm.base.secrets import build_cipher
+from src.llm.extension.catalog import LitellmCatalog
+from src.llm.extension.factory import get_config_source
 from src.models.llm_config import LlmProvider, LlmSceneBinding
 from src.observability import get_logger
 from src.platform import get_owned_or_404, raise_bad_request, raise_conflict, raise_not_found, raise_service_unavailable

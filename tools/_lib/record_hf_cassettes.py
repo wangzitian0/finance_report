@@ -20,7 +20,7 @@ Re-record only on change via a manifest (source bytes sha + prompt sha); orphans
 
 Run from repo root with the coding token in direnv::
 
-    GLM_CODING_TOKEN=… python common/testing/fixtures/pdf/record_hf_cassettes.py
+    GLM_CODING_TOKEN=… python tools/_lib/record_hf_cassettes.py
 
 Recorder only — makes live GLM calls and writes fixtures; never imported by tests.
 """
@@ -43,11 +43,13 @@ from typing import Any
 # data-shaping helpers (and their tests) import cleanly where those heavy deps aren't
 # installed (e.g. the tooling-coverage CI env).
 
-ROOT = Path(__file__).resolve().parents[4]
-sys.path.insert(0, str(ROOT / "apps/backend"))  # for src.* (the cassette/prompt modules)
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(
+    0, str(ROOT / "apps/backend")
+)  # for src.* (the cassette/prompt modules)
 sys.path.insert(0, str(ROOT))  # for the tools.* package
 
-from src.llm.cassette import fingerprint  # noqa: E402
+from src.llm.extension.cassette import fingerprint  # noqa: E402
 from src.prompts.statement import SYSTEM_PROMPT  # noqa: E402
 from tools._lib.fixtures.extraction_pii_mask import mask_extraction, source_ref  # noqa: E402
 
@@ -104,7 +106,12 @@ def fetch_sources() -> list[tuple[str, Path, Path]]:  # pragma: no cover
             pdf, js = dst / f"{stem}.pdf", dst / f"{stem}.json"
             for ext, local in (("pdf", pdf), ("json", js)):
                 if not local.exists():
-                    p = hf_hub_download(HF_REPO, repo_type="dataset", filename=f"train/{t}/{stem}.{ext}", local_dir=str(dst / "_hf"))
+                    p = hf_hub_download(
+                        HF_REPO,
+                        repo_type="dataset",
+                        filename=f"train/{t}/{stem}.{ext}",
+                        local_dir=str(dst / "_hf"),
+                    )
                     shutil.copy(p, local)
             out.append((f"{t}/{stem}", pdf, js))
     return out
@@ -125,16 +132,23 @@ def render_jpeg_pages(pdf_bytes: bytes) -> list[str]:  # pragma: no cover
             im = Image.open(io.BytesIO(pix.tobytes("png"))).convert("RGB")
             buf = io.BytesIO()
             im.save(buf, "JPEG", quality=JPEG_QUALITY)
-            urls.append("data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode())
+            urls.append(
+                "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+            )
         return urls
     finally:
         doc.close()
 
 
 def build_messages(image_urls: list[str]) -> list[dict[str, Any]]:
-    content: list[dict[str, Any]] = [{"type": "text", "text": "Extract this bank statement (all pages)."}]
+    content: list[dict[str, Any]] = [
+        {"type": "text", "text": "Extract this bank statement (all pages)."}
+    ]
     content += [{"type": "image_url", "image_url": {"url": u}} for u in image_urls]
-    return [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": content}]
+    return [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": content},
+    ]
 
 
 def strip_request_images(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -176,11 +190,20 @@ def glm_extract(messages: list[dict[str, Any]], token: str) -> str:  # pragma: n
     for delay in (0, *RETRY_BACKOFF_S):
         if delay:
             time.sleep(delay)
-        r = httpx.post(CODING_URL, headers={"Authorization": f"Bearer {token}"}, json=body, timeout=600)
+        r = httpx.post(
+            CODING_URL,
+            headers={"Authorization": f"Bearer {token}"},
+            json=body,
+            timeout=600,
+        )
         if r.status_code == 200:
             return r.json()["choices"][0]["message"]["content"] or ""
         last = f"{r.status_code} {r.text[:120]}"
-        if not re.search(r"50[23]|429|high demand|UNAVAILABLE|overloaded|rate|1210|Invalid API parameter", last, re.I):
+        if not re.search(
+            r"50[23]|429|high demand|UNAVAILABLE|overloaded|rate|1210|Invalid API parameter",
+            last,
+            re.I,
+        ):
             raise RuntimeError(f"GLM error: {last}")
     raise RuntimeError(f"GLM failed after retries: {last}")
 
@@ -200,12 +223,19 @@ def _row_amount(r: dict) -> Decimal:
     amt = _num(r.get("transaction_amount"))
     if amt is not None:
         return abs(amt)
-    credit, debit = _num(r.get("credit")) or Decimal(0), _num(r.get("debit")) or Decimal(0)
+    credit, debit = (
+        _num(r.get("credit")) or Decimal(0),
+        _num(r.get("debit")) or Decimal(0),
+    )
     return credit if credit else debit
 
 
 def _row_balance(r: dict) -> Decimal | None:
-    return _num(r.get("balance")) if r.get("balance") is not None else _num(r.get("available_balance"))
+    return (
+        _num(r.get("balance"))
+        if r.get("balance") is not None
+        else _num(r.get("available_balance"))
+    )
 
 
 def build_truth(hf_json: dict, *, modality: str) -> dict:
@@ -214,7 +244,11 @@ def build_truth(hf_json: dict, *, modality: str) -> dict:
     internally inconsistent) -> ``balance_reconciles: false`` exempts AC23.7."""
     tx = hf_json.get("transactions", [])
     rows = [
-        {"date": _iso_date(r.get("date", "")), "description": str(r.get("description", "")), "amount": str(_row_amount(r))}
+        {
+            "date": _iso_date(r.get("date", "")),
+            "description": str(r.get("description", "")),
+            "amount": str(_row_amount(r)),
+        }
         for r in tx
     ]
     first_bal = _row_balance(tx[0]) if tx else None
@@ -264,7 +298,12 @@ def main() -> int:  # pragma: no cover
         src_sha = _sha(pdf_bytes)
         prior = manifest.get(key)
         fp_exists = prior and (CASSETTE_DIR / f"{prior['cassette_fp']}.json").exists()
-        if prior and prior["source_sha"] == src_sha and prior["prompt_sha"] == prompt_sha and fp_exists:
+        if (
+            prior
+            and prior["source_sha"] == src_sha
+            and prior["prompt_sha"] == prompt_sha
+            and fp_exists
+        ):
             print(f"SKIP   {key}")
             skipped += 1
             continue
@@ -292,7 +331,11 @@ def main() -> int:  # pragma: no cover
             "messages": strip_request_images(messages),
             "decode_params": decode_params,
         }
-        fp = fingerprint(role="vision", messages=stored_request["messages"], decode_params=decode_params)
+        fp = fingerprint(
+            role="vision",
+            messages=stored_request["messages"],
+            decode_params=decode_params,
+        )
         cassette = {
             "fingerprint": fp,
             "role": "vision",
@@ -301,15 +344,27 @@ def main() -> int:  # pragma: no cover
             "request": stored_request,
             "response": {"stream_text": json.dumps(masked, ensure_ascii=False)},
         }
-        (CASSETTE_DIR / f"{fp}.json").write_text(json.dumps(cassette, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        (CASSETTE_DIR / f"{fp}.json").write_text(
+            json.dumps(cassette, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
         modality = "vision" if "Scanned" in key else "text"
-        truth = build_truth(json.loads(hf_json_path.read_text(encoding="utf-8")), modality=modality)
-        (TRUTH_DIR / f"{fp}.truth.json").write_text(json.dumps(truth, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        manifest[key] = {"source_sha": src_sha, "prompt_sha": prompt_sha, "cassette_fp": fp}
+        truth = build_truth(
+            json.loads(hf_json_path.read_text(encoding="utf-8")), modality=modality
+        )
+        (TRUTH_DIR / f"{fp}.truth.json").write_text(
+            json.dumps(truth, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+        manifest[key] = {
+            "source_sha": src_sha,
+            "prompt_sha": prompt_sha,
+            "cassette_fp": fp,
+        }
         MANIFEST.parent.mkdir(parents=True, exist_ok=True)
         MANIFEST.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
         recorded += 1
-        print(f"REC    {key} -> {fp[:14]} ({len(masked.get('transactions', []))} txns, masked)")
+        print(
+            f"REC    {key} -> {fp[:14]} ({len(masked.get('transactions', []))} txns, masked)"
+        )
 
     print(f"\nDONE: recorded {recorded}, skipped {skipped}, of {len(sources)}")
     return 0

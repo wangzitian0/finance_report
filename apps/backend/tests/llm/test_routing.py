@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from src.llm.common import ProtocolFamily, ProviderRef
-from src.llm.routing import build_call
+from src.llm.base import ProtocolFamily, ProviderRef
+from src.llm.extension.routing import build_call
 
 
 def _provider(protocol: ProtocolFamily, api_base: str | None = None) -> ProviderRef:

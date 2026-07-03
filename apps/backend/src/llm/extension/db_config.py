@@ -16,15 +16,25 @@ avoids resolving a user binding's model against a deployment-default provider.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from src.database import async_session_maker, get_test_session_maker
-from src.llm.common import Encrypted, ProviderRef, Scene, SceneBinding
-from src.llm.common.secrets import SecretCipher, build_cipher
-from src.models.llm_config import LlmProvider, LlmSceneBinding
+from src.llm.base import Encrypted, ProviderRef, Scene, SceneBinding
+from src.llm.base.secrets import SecretCipher, build_cipher
+
+if TYPE_CHECKING:
+    from src.models.llm_config import LlmProvider
+
+
+def _orm():  # imported lazily: llm_config itself imports src.llm.base, and the
+    # parent-package __init__ would recurse into this module (init cycle).
+    from src.models.llm_config import LlmProvider, LlmSceneBinding
+
+    return LlmProvider, LlmSceneBinding
 
 
 class DbConfigSource:
@@ -62,6 +72,7 @@ class DbConfigSource:
         )
 
     async def _scope(self, session) -> UUID | None:
+        LlmProvider, _ = _orm()
         """The effective scope to read from.
 
         The user's own id when they own at least one provider; otherwise ``None``
@@ -78,6 +89,7 @@ class DbConfigSource:
         return self._user_id if count > 0 else None
 
     async def list_providers(self) -> list[ProviderRef]:
+        LlmProvider, _ = _orm()
         async with self._maker() as session:
             scope = await self._scope(session)
             rows = (await session.execute(select(LlmProvider).where(LlmProvider.user_id == scope))).scalars().all()
@@ -87,6 +99,7 @@ class DbConfigSource:
             return [self._to_ref(row, cipher) for row in rows]
 
     async def get_provider(self, provider_id: str) -> ProviderRef | None:
+        LlmProvider, _ = _orm()
         try:
             pid = UUID(provider_id)
         except (ValueError, TypeError):
@@ -104,6 +117,7 @@ class DbConfigSource:
         return self._to_ref(row, self._cipher())
 
     async def get_binding(self, scene: Scene) -> SceneBinding | None:
+        LlmProvider, LlmSceneBinding = _orm()
         async with self._maker() as session:
             scope = await self._scope(session)
             row = (
@@ -128,6 +142,7 @@ class DbConfigSource:
         )
 
     async def is_configured(self) -> bool:
+        LlmProvider, _ = _orm()
         """True when this scope can serve: the user owns a provider, or a
         deployment default exists."""
         async with self._maker() as session:

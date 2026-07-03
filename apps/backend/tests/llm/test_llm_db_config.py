@@ -13,10 +13,10 @@ import pytest
 from cryptography.fernet import Fernet
 
 from src.config import settings
-from src.llm.common import FernetCipher, ProtocolFamily, ReasoningEffort, Scene
-from src.llm.db_config import DbConfigSource
-from src.llm.env_config import EnvConfigSource
-from src.llm.factory import LayeredConfigSource
+from src.llm.base import FernetCipher, ProtocolFamily, ReasoningEffort, Scene
+from src.llm.extension.db_config import DbConfigSource
+from src.llm.extension.env_config import EnvConfigSource
+from src.llm.extension.factory import LayeredConfigSource
 from src.models.llm_config import LlmProvider, LlmSceneBinding
 
 

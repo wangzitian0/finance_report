@@ -6,7 +6,7 @@ import pytest
 from cryptography.fernet import Fernet
 
 from src.config import settings
-from src.llm.common import FernetCipher, LLMConfigError, build_cipher
+from src.llm.base import FernetCipher, LLMConfigError, build_cipher
 
 
 def _key() -> str:
@@ -64,7 +64,7 @@ def test_AC23_1_3_rotation_is_single_pass_old_ciphertext_still_decrypts():
 
 def test_AC23_1_3_rotate_fails_closed_on_a_corrupt_value():
     """AC23.1.3: rotating a value no key can decrypt fails closed, not silently."""
-    from src.llm.common import Encrypted
+    from src.llm.base import Encrypted
 
     cipher = FernetCipher([_key()])
     with pytest.raises(LLMConfigError):

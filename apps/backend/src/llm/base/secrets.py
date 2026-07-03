@@ -22,9 +22,12 @@ from typing import Protocol, runtime_checkable
 
 from cryptography.fernet import Fernet, InvalidToken, MultiFernet
 
-from src.config import settings
-from src.llm.common.errors import LLMConfigError
-from src.llm.common.types import Encrypted
+import src.config
+from src.llm.base.errors import LLMConfigError
+from src.llm.base.types import Encrypted
+
+# Bound from the bare published root (config publishes no named symbols).
+settings = src.config.settings
 
 
 @runtime_checkable

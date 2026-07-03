@@ -233,7 +233,7 @@ async def propose_categories(
     and clamped by code, graceful ``None`` fallback per transaction on any error.
     Only descriptions and directions are sent — never amounts.
     """
-    from src.llm.cassette import CassetteMode, current_mode
+    from src.llm.extension.cassette import CassetteMode, current_mode
     from src.services.ai_streaming import AIStreamError, accumulate_stream, stream_ai_json
 
     if not settings.ai_api_key and current_mode() is CassetteMode.OFF:

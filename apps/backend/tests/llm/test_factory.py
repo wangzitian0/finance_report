@@ -7,7 +7,7 @@ A fresh meter per call would reset the running request/token totals, so
 
 from __future__ import annotations
 
-import src.llm.factory as factory
+import src.llm.extension.factory as factory
 
 
 def test_usage_meter_is_a_process_singleton() -> None:

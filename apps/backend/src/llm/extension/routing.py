@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from src.llm.common import ProtocolFamily, ProviderRef
+from src.llm.base import ProtocolFamily, ProviderRef
 
 # litellm's provider token per protocol family. openai-compatible (Z.AI/GLM,
 # DeepSeek, local vLLM, …) all ride the OpenAI wire format with a custom api_base.

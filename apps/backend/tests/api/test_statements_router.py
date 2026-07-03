@@ -28,7 +28,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from src.identity import User
-from src.llm.common import Modality, ModelSpec
+from src.llm.base import Modality, ModelSpec
 from src.models.account import Account, AccountType
 from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 from src.models.evidence import EvidenceEdge, EvidenceNode

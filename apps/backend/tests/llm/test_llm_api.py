@@ -14,7 +14,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.identity import User
-from src.llm.common import FernetCipher, Scene
+from src.llm.base import FernetCipher, Scene
 
 pytestmark = pytest.mark.asyncio
 
@@ -69,7 +69,7 @@ async def test_AC23_4_2_provider_create_encrypts_and_never_returns_key(
     row = (await db.execute(select(LlmProvider).where(LlmProvider.id == created["id"]))).scalar_one()
     assert "sk-secret-123" not in row.api_key_ciphertext
     # The ciphertext still round-trips back to the original secret.
-    from src.llm.common import Encrypted
+    from src.llm.base import Encrypted
 
     assert (
         cipher.decrypt(Encrypted(ciphertext=row.api_key_ciphertext, key_version=row.api_key_version)) == "sk-secret-123"
@@ -228,7 +228,7 @@ async def test_AC23_4_5_user_binding_drives_resolution(
         json={"bindings": [{"scene": "advisor.chat", "provider_id": provider["id"], "model": "glm-4.6"}]},
     )
 
-    from src.llm.factory import get_config_source
+    from src.llm.extension.factory import get_config_source
 
     binding = await get_config_source(test_user.id).get_binding(Scene.ADVISOR_CHAT)
     assert binding is not None

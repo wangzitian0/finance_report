@@ -36,7 +36,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from src.llm.common import LLMConfigError, LLMError, Message
+from src.llm.base import LLMConfigError, LLMError, Message
 from src.observability import get_logger
 
 logger = get_logger(__name__)
@@ -194,7 +194,7 @@ def _canonical_request(
 ) -> dict[str, Any]:
     """The semantic request payload — model id deliberately excluded.
 
-    ``role`` is the modality role (e.g. the :class:`~src.llm.common.types.Scene`
+    ``role`` is the modality role (e.g. the :class:`~src.llm.base.types.Scene`
     value or ``"text"``/``"vision"``), NOT the model id, so swapping models keeps
     the key stable while a different call site / modality produces a different key.
     """
