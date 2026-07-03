@@ -65,6 +65,19 @@ CORPUS_FINGERPRINTS: tuple[str, ...] = (
 
 ZERO_TXN_FINGERPRINT = "05d7858b5baa76e92d75f39b2c7d101d16aac776c608488affc21a14c1f754c1"
 
+# Known-unpostable rows per cassette: frozen extraction outputs are committed
+# verbatim, and two of them carry a row that cannot become a Layer-2
+# AtomicTransaction (amount None / amount == 0, which the DB's
+# ck_atomic_transactions_amount_positive rejects). The loader drops these
+# LOUDLY: any drop not in this exact allowlist fails the manifest test, so a
+# re-recorded cassette that silently loses pricing on more rows is caught.
+KNOWN_UNPOSTABLE_ROWS: dict[str, int] = {
+    # vision / generic_hf 170-txn statement: one amount == 0 row
+    "5f1ef733e543f140966bfaadc1be1e2acc012ef4ca7394379228cd9896a5d934": 1,
+    # text / generic_hf 161-txn statement: one amount == None row
+    "69e9b2c1b2fb563811851dbd3a33096b68ef8f39261a0951fa3b7a5dcf7d4484": 1,
+}
+
 
 @dataclass(frozen=True)
 class CorpusCase:
@@ -77,6 +90,7 @@ class CorpusCase:
     institution: str
     opening_balance: Decimal
     rows: tuple[dict, ...]
+    unpostable_rows: int
 
     @property
     def short_id(self) -> str:
@@ -103,18 +117,22 @@ def load_corpus_case(fingerprint: str) -> CorpusCase:
     # with an explicit ``direction``; text cassettes emit signed amounts where
     # the sign IS the direction. Both normalise to (abs Decimal, direction).
     rows = []
+    unpostable = 0
     for index, txn in enumerate(payload["transactions"]):
-        if txn["amount"] is None:
-            # Raw extraction artifact: the frozen LLM output can carry a row it
-            # failed to price. Unpostable — Layer-2 requires a positive amount.
+        if txn["amount"] is None or Decimal(str(txn["amount"])) == 0:
+            # Raw extraction artifact: the frozen output can carry a row it
+            # failed to price (None) or a zero-amount row — neither can become
+            # a Layer-2 AtomicTransaction (ck_atomic_transactions_amount_positive).
+            # Counted, not silent: the manifest test pins the exact per-case
+            # count via KNOWN_UNPOSTABLE_ROWS.
+            unpostable += 1
             continue
         amount = Decimal(str(txn["amount"]))
-        if amount == 0:
-            # Zero-amount rows have no ledger effect and violate the
-            # ck_atomic_transactions_amount_positive DB constraint.
-            continue
         if "direction" in txn:
-            direction = TransactionDirection.IN if str(txn["direction"]).upper() == "IN" else TransactionDirection.OUT
+            raw_direction = str(txn["direction"]).upper()
+            if raw_direction not in ("IN", "OUT"):
+                raise ValueError(f"{fingerprint[:8]}: unknown direction {txn['direction']!r} in cassette row {index}")
+            direction = TransactionDirection.IN if raw_direction == "IN" else TransactionDirection.OUT
         else:
             direction = TransactionDirection.IN if amount >= 0 else TransactionDirection.OUT
         rows.append(
@@ -135,6 +153,7 @@ def load_corpus_case(fingerprint: str) -> CorpusCase:
         institution=payload.get("institution") or truth["institution_class"].title(),
         opening_balance=Decimal(str(payload["opening_balance"])),
         rows=rows,
+        unpostable_rows=unpostable,
     )
 
 
@@ -171,6 +190,15 @@ def test_corpus_manifest_is_diverse():
         for row in case.rows:
             assert isinstance(row["amount"], Decimal)
             assert row["direction"] in (TransactionDirection.IN, TransactionDirection.OUT)
+
+    # Unpostable rows (amount None / zero in the frozen output) are dropped by
+    # the loader but never silently: the per-case count must equal the exact
+    # committed allowlist, so a re-recorded cassette losing pricing on more
+    # rows — or an allowlist entry going stale — fails here.
+    actual_unpostable = {case.fingerprint: case.unpostable_rows for case in cases if case.unpostable_rows}
+    assert actual_unpostable == KNOWN_UNPOSTABLE_ROWS, (
+        f"unpostable-row drift: expected {KNOWN_UNPOSTABLE_ROWS}, got {actual_unpostable}"
+    )
 
 
 @pytest.mark.e2e
