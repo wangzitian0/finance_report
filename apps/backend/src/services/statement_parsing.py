@@ -484,8 +484,14 @@ async def parse_statement_background(
         service = ExtractionService()
         try:
             checkpoint("extraction_started")
+            # file_path must be the STORAGE key, not the display filename: it
+            # is persisted as UploadedDocument.file_path, which the retry /
+            # reparse paths hand straight to storage.get_object. With the bare
+            # filename every post-success reparse 404'd against storage
+            # (caught by the #1520 real-storage pipeline test). The display
+            # name travels separately as original_filename.
             parsed_statement, transactions = await service.parse_document(
-                file_path=Path(filename),
+                file_path=Path(storage_key),
                 institution=institution,
                 user_id=user_id,
                 file_type=file_type,
