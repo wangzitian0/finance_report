@@ -10,6 +10,16 @@ services:
   backend:
     pull_policy: build      # build locally; never pull a ghcr :latest
     restart: "no"           # ephemeral: no restart loops to mask failures/teardown
+    environment:
+      # Placeholder provider wiring (#1589): with an empty key the app reports
+      # "LLM unconfigured" and the dismissible FirstRunModal covers every page
+      # on every full navigation, blocking browser-driven E2E clicks. The
+      # in-runner stack's job is to validate app WIRING without real provider
+      # calls — so wire a non-real key and point the base URL at an
+      # unroutable address: no llm-marked spec runs here, and an accidental
+      # provider call fails instantly instead of spending quota.
+      ZAI_API_KEY: e2e-in-runner-placeholder-key
+      AI_BASE_URL: http://127.0.0.1:9/unroutable
 
   frontend:
     pull_policy: build
