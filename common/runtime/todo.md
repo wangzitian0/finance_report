@@ -41,7 +41,7 @@ invariants land (TDD).
   - [x] **#1520** — the real `StorageService`/boto3 runs in the fast path
         against moto's in-memory S3 (upload → byte-identical read-back, plus
         the retry load-back leg — which caught a live reparse storage-key bug).
-        Owned by EPIC-008 as AC8.25.1–.2
+        Owned by EPIC-008 as AC8.26.1–.2
         (`tests/api/test_real_storage_pipeline.py`, #1601); runtime invariant 4
         delegates to those proofs. `DummyStorage` unit tests stay for cheap
         router edge cases.
@@ -75,7 +75,7 @@ backend through one owned module, not scattered clients.
 | Dependency | Manifest | Probe adapter | Call-site convergence | CI/local substitute | Gap |
 |---|---|---|---|---|---|
 | Postgres (`database`) | ✅ all 6 tiers | ✅ `DatabaseCheck` | ✅ `create_engine` only in `apps/backend/src/database.py` | real Postgres container (sqlite is a config-contract escape hatch only) | — |
-| S3 (`object_storage`) | ✅ all 6 tiers | ✅ `ObjectStorageCheck` | ✅ boto3 only in `apps/backend/src/services/storage.py`; callers (e.g. `extraction/_media.py`) go through it | minio in compose; real `StorageService` pipeline vs moto in-memory S3 (#1520, AC8.25.1–.2); `DummyStorage` remains for cheap router edge cases only | — |
+| S3 (`object_storage`) | ✅ all 6 tiers | ✅ `ObjectStorageCheck` | ✅ boto3 only in `apps/backend/src/services/storage.py`; callers (e.g. `extraction/_media.py`) go through it | minio in compose; real `StorageService` pipeline vs moto in-memory S3 (#1520, AC8.26.1–.2); `DummyStorage` remains for cheap router edge cases only | — |
 | LLM (`llm`) | ✅ model-dominant, real on staging/prod | ✅ `LlmCheck`, no `skipped` | ✅ `src/llm/` (client + cassette) | input-keyed cassette replay in CI/preview (AC-llm.6.2), real provider on staging/prod | — |
 | Redis (`cache`) | ✅ staging/prod | ✅ `RedisCheck` (TCP PING) | — | — | — |
 | Prefect (`workflow_engine`) | ✅ staging/prod | ✅ `WorkflowEngineCheck` | in-process fallback in app-owned tiers | — | — |
@@ -87,7 +87,7 @@ Cross-cutting: every enforcement invariant is now wired — `boot.validate` FULL
 is manifest-driven (#1577), the config↔manifest guardrail is fail-closed
 (#1579), every declared dependency has a probe (#1580), the smoke asserts the
 declared set via `/health?full=1` (#1578), and the substitutes fake the backend,
-never the adapter (#1520 moto — AC8.25.*, #1581 input-keyed cassette — AC-llm.6.2). The remaining
+never the adapter (#1520 moto — AC8.26.*, #1581 input-keyed cassette — AC-llm.6.2). The remaining
 declared-but-unprobed state can only reappear if a manifest entry lands before
 its probe — `test_every_tier_declaration_is_smoke_assertable` fails in that
 case.
