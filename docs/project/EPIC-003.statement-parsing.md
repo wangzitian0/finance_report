@@ -135,7 +135,8 @@ or HK-like report classification, measurement, presentation, or disclosure.
 
 The tier→proof matrix forbids `evidence` proofs under an LLM-LED package, so
 these {tier:HU} rows keep their EPIC home (the ledger cutover's frontend-row
-precedent). Extraction's failed-case audit trail stays registered in
+precedent). Extraction's failed-case audit trail (`AC-extraction.9.1` in the contract
+roadmap) stays registered in
 [`extraction_failed_case_registry`](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/audit-failed-cases.yaml).
 
 | AC ID | Description | Test Function | Test File | Priority |

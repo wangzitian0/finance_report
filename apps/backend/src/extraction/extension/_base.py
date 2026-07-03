@@ -1,6 +1,8 @@
 """Shared extraction constants, date parsing, and ExtractionError."""
 
+from collections.abc import AsyncIterator
 from datetime import date, datetime
+from typing import Any
 
 from src.observability import get_logger
 
@@ -63,7 +65,7 @@ class ExtractionError(Exception):
     pass
 
 
-def stream_ai_json(*args, **kwargs):
+def stream_ai_json(*args: Any, **kwargs: Any) -> AsyncIterator[str]:
     """Thin lazy proxy over ``src.services.ai_streaming.stream_ai_json``.
 
     Module-level so tests can monkeypatch it (via this module or the modules
@@ -76,7 +78,7 @@ def stream_ai_json(*args, **kwargs):
     return ai_streaming.stream_ai_json(*args, **kwargs)
 
 
-async def accumulate_stream(*args, **kwargs):
+async def accumulate_stream(*args: Any, **kwargs: Any) -> str:
     """Thin lazy proxy over ``src.services.ai_streaming.accumulate_stream`` (see above)."""
     from src.services import ai_streaming
 
