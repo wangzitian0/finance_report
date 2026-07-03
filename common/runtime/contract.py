@@ -50,6 +50,7 @@ CONTRACT = PackageContract(
         "ObjectStorageCheck",
         "ProbeResult",
         "check_env_classification",
+        "resolve_env_tier",
     ],
     events=[],
     invariants=[],
@@ -92,6 +93,19 @@ CONTRACT = PackageContract(
                 "unclassified new env var fails CI (fail-closed guardrail, #1579)."
             ),
             test="apps/backend/tests/runtime/test_env_guardrail.py::test_every_config_env_var_is_classified",
+            priority="P1",
+            status="done",
+        ),
+        # ── manifest-driven validate (#1577) ──
+        ACRecord(
+            id="AC-runtime.3.1",
+            statement=(
+                "boot.validate FULL derives its dependency set from "
+                "DEPENDENCY_MANIFEST.required_for(resolve_env_tier(...)) — a declared-required "
+                "probed dependency that is absent fails validate; a declared-required dependency "
+                "without a probe adapter is a visible warning (#1580), never a silent skip (#1577)."
+            ),
+            test="apps/backend/tests/infra/test_boot.py::test_AC_runtime_3_1_required_checks_cover_the_tier_declaration",
             priority="P1",
             status="done",
         ),

@@ -185,6 +185,10 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 > env var is either one of a declared dependency's env vars in the
 > `DependencyManifest` or a reasoned non-dependency entry — an unclassified new
 > env var fails CI, so a new external backend cannot bypass the manifest.
+> Its enforcement sibling is `AC-runtime.3.1` (#1577): `boot.validate` FULL
+> derives the dependency set from `DEPENDENCY_MANIFEST.required_for(tier)`
+> (tier resolved from `ENVIRONMENT` via `resolve_env_tier`, unknown → strictest)
+> instead of a hardcoded per-mode list.
 
 ### AC7.7: Health Checks — migrated to the `runtime` package
 

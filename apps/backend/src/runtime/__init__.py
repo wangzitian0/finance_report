@@ -25,7 +25,7 @@ from src.runtime.base.manifest import (
     Dependency,
     DependencyManifest,
 )
-from src.runtime.base.tiers import APP_OWNED_TIERS, VPS_TIERS, EnvTier
+from src.runtime.base.tiers import APP_OWNED_TIERS, VPS_TIERS, EnvTier, resolve_env_tier
 from src.runtime.extension.adapters import (
     DatabaseCheck,
     LlmCheck,
@@ -48,4 +48,5 @@ __all__ = [
     "ObjectStorageCheck",
     "ProbeResult",
     "check_env_classification",
+    "resolve_env_tier",
 ]
