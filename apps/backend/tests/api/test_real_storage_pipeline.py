@@ -46,8 +46,14 @@ def real_s3(monkeypatch: pytest.MonkeyPatch):
     # the AI leg it fails in milliseconds instead of retrying a live provider.
     monkeypatch.setattr(settings, "ai_api_key", "test-placeholder-key")
     monkeypatch.setattr(settings, "ai_base_url", "http://127.0.0.1:9/unroutable")
+    # StorageService caches bucket existence at class level, but mock_aws
+    # resets the in-memory backend per test — clear the cache so each test
+    # re-creates its bucket instead of trusting a stale check (Copilot on
+    # #1601: otherwise the second test in a worker is order-dependent).
+    StorageService._checked_buckets.clear()
     with mock_aws():
         yield
+    StorageService._checked_buckets.clear()
 
 
 async def _upload_csv(db, test_user) -> statements_router.BankStatementResponse:
