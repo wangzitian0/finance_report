@@ -194,15 +194,16 @@ E2E_ROWS: tuple[E2ERow, ...] = (
     E2ERow(
         "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py",
         needs=(),
-        audited=True,
+        audited=False,
         reason=(
-            "#1547: CSV-kind upload only — no AI/OCR provider call, no market-data, "
-            "no Vault-only secret. The PR #1562 in-runner 404 was diagnosed as a "
-            "stack config bug, not a test dependency: docker-compose.ci-e2e.yml "
-            "built the frontend with NEXT_PUBLIC_API_URL ending in /api, so every "
-            "browser-side fetch double-prefixed (/api/api/...) and the edge nginx "
-            "forwarded an /api-prefixed path the backend does not route. Fixed by "
-            "using the bare origin, matching every deployed environment."
+            "#1547 lineage: no provider/market/Vault dependency. The PR #1562 "
+            "in-runner 404 was root-caused (double-/api NEXT_PUBLIC_API_URL in "
+            "docker-compose.ci-e2e.yml) and fixed, but PR #1587 then hit a "
+            "deterministic (2/2) in-runner-only failure one step later: the "
+            "'Upload & Parse Statement' click times out with the element "
+            "reported visible/enabled/stable — a re-render/interception class "
+            "issue; the same flow passes on staging. Tracked in issue #1589; "
+            "flip this row when that run is green."
         ),
     ),
     E2ERow(
