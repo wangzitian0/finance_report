@@ -79,9 +79,10 @@ New components default to `ci-critical`, so a tree is only ever down-tiered to
 `best-effort` by an explicit, reviewable diff (per the anti-bypass guard). The
 tier is the lever for the guiding rule: *gate at high coverage iff CI-critical*.
 
-> **Library layering**: reusable coverage/CI implementation lives under
-> `common/` (`common/coverage`, `common/ci`); the top-level `tools/*.py` are thin
-> command wrappers. The legacy duplicate `tools/_lib/ci` and `tools/_lib/coverage`
+> **Library layering**: reusable coverage/CI implementation lives in the
+> packages that own it (`common/coverage`, `common/testing`, `common/runtime`,
+> `common/meta/extension`); the top-level `tools/*.py` are thin command
+> wrappers. The legacy duplicate `tools/_lib/ci` and `tools/_lib/coverage`
 > trees have been consolidated into `common/` — there is one gated library tree.
 
 ### Artifact preflight (#414)
