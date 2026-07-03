@@ -194,15 +194,15 @@ E2E_ROWS: tuple[E2ERow, ...] = (
     E2ERow(
         "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py",
         needs=(),
-        audited=False,
+        audited=True,
         reason=(
-            "#1547 candidate: CSV-kind upload only — no AI/OCR provider call, no "
-            "market-data, no Vault-only secret. First in-runner attempt (PR #1562) "
-            "failed live: POST /api/statements/upload returned a structured backend "
-            "404 in the ephemeral stack while the same flow passes on staging — the "
-            "in-runner proxy/route mismatch must be diagnosed before pre-merge "
-            "admission. The matrix now makes that iteration a per-PR 15-minute "
-            "loop instead of a staging deploy cycle."
+            "#1547: CSV-kind upload only — no AI/OCR provider call, no market-data, "
+            "no Vault-only secret. The PR #1562 in-runner 404 was diagnosed as a "
+            "stack config bug, not a test dependency: docker-compose.ci-e2e.yml "
+            "built the frontend with NEXT_PUBLIC_API_URL ending in /api, so every "
+            "browser-side fetch double-prefixed (/api/api/...) and the edge nginx "
+            "forwarded an /api-prefixed path the backend does not route. Fixed by "
+            "using the bare origin, matching every deployed environment."
         ),
     ),
     E2ERow(
@@ -268,26 +268,41 @@ E2E_ROWS: tuple[E2ERow, ...] = (
     E2ERow(
         "tests/e2e/test_version_check.py",
         needs=(),
-        audited=False,
-        reason="Pending audit (#1547 follow-up): asserts deployed sha vs expected release.",
+        audited=True,
+        reason=(
+            "Audited (#1547 follow-up): API-only GET /api/health comparing git_sha "
+            "with EXPECTED_SHA — both provided by the in-runner stack (GIT_COMMIT_SHA "
+            "baked into images, EXPECTED_SHA set by the preview job)."
+        ),
     ),
     E2ERow(
         "tests/e2e/test_ac_authority_tiers_epic026.py",
         needs=(),
-        audited=False,
-        reason="Pending audit (#1547 follow-up).",
+        audited=True,
+        reason=(
+            "Audited (#1547 follow-up): pure registry/ratchet validation over local "
+            "files — no network, no fixtures, zero external dependencies."
+        ),
     ),
     E2ERow(
         "tests/e2e/test_application_ai_advisor_epic021.py",
         needs=(),
-        audited=False,
-        reason="Pending audit (#1547 follow-up): advisor flow may exercise a live LLM path.",
+        audited=True,
+        reason=(
+            "Audited (#1547 follow-up): despite the name, this validates EPIC/SSOT "
+            "document contracts only — it never exercises the advisor runtime or "
+            "any LLM path."
+        ),
     ),
     E2ERow(
         "tests/e2e/test_llm_provider_abstraction_epic023.py",
         needs=(),
-        audited=False,
-        reason="Pending audit (#1547 follow-up).",
+        audited=True,
+        reason=(
+            "Audited (#1547 follow-up): static definition/document validation of the "
+            "provider-abstraction contract (types, scenes, rotation) — reads files, "
+            "never invokes the LLM layer."
+        ),
     ),
 )
 
