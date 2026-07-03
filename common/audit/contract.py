@@ -329,6 +329,49 @@ CONTRACT = PackageContract(
         ),
         # ── group 30: Quantity + ExchangeRate (was EPIC-012 AC12.30.*) ──
         ACRecord(
+            id="AC-audit.21.1",
+            statement=(
+                "CurrencyBalances holds one balance per currency with no scalar "
+                "accessor (a multi-currency statement is structurally inexpressible "
+                "as a scalar) and round-trips the StatementSummary.currency_balances "
+                "JSONB shape; closes the representation gap behind #1139/#1123"
+            ),  # was EPIC-002 AC2.21.1
+            test="tests/tooling/test_money_value_type.py::test_AC2_21_1_multi_currency_balance_is_not_a_scalar",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.22.1",
+            statement=(
+                "StatementSummary.typed_currency_balances() reads the per-currency "
+                "JSONB as a typed CurrencyBalances (no scalar collapse)"
+            ),  # was EPIC-002 AC2.22.1
+            test="apps/backend/tests/audit/money/test_money_backend_module.py::test_AC2_22_1_statement_summary_typed_currency_balances",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.22.2",
+            statement=(
+                "Reconciliation per-currency balance check routes through "
+                "same-currency Money; per-currency totals are byte-identical to the "
+                "legacy arithmetic (incl. '*'/non-ISO fallback)"
+            ),  # was EPIC-002 AC2.22.2
+            test="apps/backend/tests/audit/money/test_money_adopt.py::test_AC2_22_2_per_currency_validation_totals_unchanged",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.22.4",
+            statement=(
+                "TransferLeg.money exposes a leg's value as a typed Money "
+                "(same-currency-only combination)"
+            ),  # was EPIC-002 AC2.22.4
+            test="apps/backend/tests/audit/money/test_money_backend_module.py::test_AC2_22_4_transfer_leg_exposes_typed_money",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
             id="AC-audit.30.1",
             statement=(
                 "Quantity(value, unit) rejects float/bool, is "

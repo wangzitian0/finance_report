@@ -232,15 +232,15 @@ def test_AC12_30_3_convert_rejects_naked_decimal_rate():
         convert(Money(Decimal("100.00"), "USD"), Decimal("1.35"))  # type: ignore[arg-type]
 
 
-# ── AC2.21.1: per-currency balance container ────────────────────────────
+# ── AC-audit.21.1: per-currency balance container ────────────────────────────
 @ac_proof(
     proof_id="test_currency_balances_multi_currency",
-    ac_ids=["AC2.21.1"],
+    ac_ids=["AC-audit.21.1"],
     ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_21_1_multi_currency_balance_is_not_a_scalar():
-    """AC2.21.1: a multi-currency balance is per-currency, never a scalar."""
+    """AC-audit.21.1: a multi-currency balance is per-currency, never a scalar."""
     balances = CurrencyBalances(
         (
             CurrencyBalance(
@@ -266,12 +266,12 @@ def test_AC2_21_1_multi_currency_balance_is_not_a_scalar():
 
 @ac_proof(
     proof_id="test_currency_balances_reject_mismatch",
-    ac_ids=["AC2.21.1"],
+    ac_ids=["AC-audit.21.1"],
     ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_21_1_balance_rejects_currency_mismatch_and_duplicates():
-    """AC2.21.1: a bucket's amounts must match its currency; no duplicate currencies."""
+    """AC-audit.21.1: a bucket's amounts must match its currency; no duplicate currencies."""
     from common.audit.money.errors import MoneyError
 
     # Wrong type for opening/closing fails with a typed MoneyError, not AttributeError.
@@ -300,12 +300,12 @@ def test_AC2_21_1_balance_rejects_currency_mismatch_and_duplicates():
 
 @ac_proof(
     proof_id="test_currency_balances_jsonb_round_trip",
-    ac_ids=["AC2.21.1"],
+    ac_ids=["AC-audit.21.1"],
     ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_21_1_currency_balances_jsonb_round_trip():
-    """AC2.21.1: CurrencyBalances round-trips the StatementSummary JSONB shape."""
+    """AC-audit.21.1: CurrencyBalances round-trips the StatementSummary JSONB shape."""
     rows = [
         {"currency": "USD", "opening": "100.00", "closing": "150.00"},
         {"currency": "SGD", "opening": "200.00", "closing": "250.00"},
@@ -350,12 +350,12 @@ def test_AC2_19_money_surface_helpers_and_comparisons():
 
 @ac_proof(
     proof_id="test_currency_balances_surface",
-    ac_ids=["AC2.21.1"],
+    ac_ids=["AC-audit.21.1"],
     ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_21_1_currency_balances_surface_and_parsing():
-    """AC2.21.1: container iteration, lookup miss, and amount parsing variants."""
+    """AC-audit.21.1: container iteration, lookup miss, and amount parsing variants."""
     bal = CurrencyBalance(
         Currency("USD"), Money(Decimal("1"), "USD"), Money(Decimal("2"), "USD")
     )

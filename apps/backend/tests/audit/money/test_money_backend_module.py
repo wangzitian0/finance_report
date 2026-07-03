@@ -4,11 +4,11 @@ Proves the backend's own ``src.audit.money`` "end" conforms to the shared standa
 that the first materiality call-sites are routed through the value types in a
 behaviour-preserving way:
 
-- AC2.22.1 — ``StatementSummary.typed_currency_balances()`` reads the per-currency
+- AC-audit.22.1 — ``StatementSummary.typed_currency_balances()`` reads the per-currency
   JSONB as a typed ``CurrencyBalances`` (no scalar collapse).
-- AC2.22.4 — ``TransferLeg.money`` exposes a leg's value as a typed ``Money``.
+- AC-audit.22.4 — ``TransferLeg.money`` exposes a leg's value as a typed ``Money``.
 
-(AC2.22.2 reconciliation + AC-money.22.3 reporting hot-path arithmetic adoption
+(AC-audit.22.2 reconciliation + AC-money.22.3 reporting hot-path arithmetic adoption
 are proven separately in ``test_money_adopt.py``; AC-money.22.3 has migrated into
 the money package roadmap. Routing them through Money's ISO-4217 validation needs
 non-ISO-currency-tolerant handling, hence the dedicated byte-identical adoption
@@ -110,15 +110,15 @@ def test_AC2_19_1_backend_money_module_iso_parity():
     assert ISO_4217_CODES == set(_VECTORS["iso4217"])
 
 
-# ── AC2.22.4: fx_transfer leg routed through Money ──────────────────────
+# ── AC-audit.22.4: fx_transfer leg routed through Money ──────────────────────
 @ac_proof(
     proof_id="test_transfer_leg_money",
-    ac_ids=["AC2.22.4"],
+    ac_ids=["AC-audit.22.4"],
     ci_tier="pr_ci",
     issue="#1171",
 )
 def test_AC2_22_4_transfer_leg_exposes_typed_money():
-    """AC2.22.4: TransferLeg.money is the leg value as Money (same amount/currency)."""
+    """AC-audit.22.4: TransferLeg.money is the leg value as Money (same amount/currency)."""
     leg = TransferLeg(
         user_id=uuid4(),
         account_id=uuid4(),
@@ -142,15 +142,15 @@ def test_AC2_22_4_transfer_leg_exposes_typed_money():
         _ = leg.money + other.money
 
 
-# ── AC2.22.1: StatementSummary per-currency balances are typed ──────────
+# ── AC-audit.22.1: StatementSummary per-currency balances are typed ──────────
 @ac_proof(
     proof_id="test_statement_summary_typed_balances",
-    ac_ids=["AC2.22.1"],
+    ac_ids=["AC-audit.22.1"],
     ci_tier="pr_ci",
     issue="#1171",
 )
 def test_AC2_22_1_statement_summary_typed_currency_balances():
-    """AC2.22.1: typed_currency_balances reads the JSONB as per-currency Money."""
+    """AC-audit.22.1: typed_currency_balances reads the JSONB as per-currency Money."""
     stmt = StatementSummary()
     stmt.currency_balances = [
         {"currency": "USD", "opening": "100.00", "closing": "150.00"},

@@ -120,9 +120,10 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 > AC2.22.* / AC2.23.*): `AC-money.22.3` · `AC-money.23.1`
 > *(AC2.22.3 and AC2.23.1 removed — canonical copies are the two `AC-money.*` ids above)*
 >
-> The pure value-type ACs `AC2.19.*` / `AC2.20.*` / `AC2.21.*` (and `AC2.22.1` /
-> `AC2.22.2` / `AC2.22.4`) stay defined below — they anchor the money contract's
-> `invariants[].test` proof edges, so re-homing them is a separate cutover.
+> The pure value-type ACs (was the AC2.19/2.20/2.21/2.22 groups) are
+> fully re-homed into the audit package roadmap as `AC-audit.19.*` /
+> `AC-audit.20.*` / `AC-audit.21.1` / `AC-audit.22.*` — no value-type rows
+> remain in this EPIC.
 >
 > **Account management** (was AC2.1.*):
 > `AC-ledger.1.1` · `AC-ledger.1.2` · `AC-ledger.1.3` · `AC-ledger.1.4` · `AC-ledger.1.5` · `AC-ledger.1.6`
@@ -385,7 +386,7 @@ retained in [#548](https://github.com/wangzitian0/finance_report/issues/548):
 - [x] `apps/backend/src/schemas/journal.py` - Journal schemas
 - [x] `apps/backend/tests/test_accounting.py` - Unit tests
 - [x] Update `docs/ssot/schema.md` - ER diagram (implicit via models)
-- [x] Update `docs/ssot/accounting.md` - API documentation (implicit via service)
+- [x] Update `docs/ssot/accounting.md (retired -> common/ledger/readme.md)` - API documentation (implicit via service)
 - [x] `apps/frontend/src/app/(main)/accounts/page.tsx` - Account management
 - [x] `apps/frontend/src/app/(main)/journal/page.tsx` - Journal entries
 
@@ -470,7 +471,6 @@ banker's-rounding-vs-`decimal.js`-HALF_UP divergence).
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC2.21.1 | `CurrencyBalances` holds one balance per currency with no scalar accessor (a multi-currency statement is structurally inexpressible as a scalar) and round-trips the `StatementSummary.currency_balances` JSONB shape; closes the representation gap behind #1139/#1123 | `test_AC2_21_1_multi_currency_balance_is_not_a_scalar` (+ siblings) | `tests/tooling/test_money_value_type.py` | P0 |
 
 ### AC2.22: Materiality adoption ([#1171](https://github.com/wangzitian0/finance_report/issues/1171))
 
@@ -488,14 +488,11 @@ and there is no regression on currencies outside the active ISO set.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC2.22.1 | `StatementSummary.typed_currency_balances()` reads the per-currency JSONB as a typed `CurrencyBalances` (no scalar collapse) | `test_AC2_22_1_statement_summary_typed_currency_balances` | `apps/backend/tests/audit/money/test_money_backend_module.py` | P1 |
-| AC2.22.2 | Reconciliation per-currency balance check routes through same-currency `Money`; per-currency totals are byte-identical to the legacy arithmetic (incl. `"*"`/non-ISO fallback) | `test_AC2_22_2_per_currency_validation_totals_unchanged` (+ `balance_check`) | `apps/backend/tests/audit/money/test_money_adopt.py` | P0 |
-| AC2.22.4 | `TransferLeg.money` exposes a leg's value as a typed `Money` (same-currency-only combination) | `test_AC2_22_4_transfer_leg_exposes_typed_money` | `apps/backend/tests/audit/money/test_money_backend_module.py` | P1 |
 
 > **Migrated**: net-worth restatement via the `convert` primitive moved to the `money`
 > package roadmap — its proof is a money-package statement. Owned by, and sourced from,
 > [`common/audit/contract.py`](../../common/audit/contract.py)'s `roadmap`.
-> *(AC2.22.3 removed — canonical copy is `AC-money.22.3` in `common/audit/contract.py`)*
+> *(the remaining 2.21/2.22-group rows migrated to `AC-audit.21.1` / `AC-audit.22.*`; the 22.3 row's canonical copy is `AC-money.22.3` — all in `common/audit/contract.py`)*
 
 > The L2/L3 *score-baseline* promotion of the money invariants stays in #1103.
 > The existing reporting net-worth E2E tests (internal-transfer fee / FX ledger)
