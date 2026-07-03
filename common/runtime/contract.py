@@ -15,7 +15,8 @@ silent ``skipped`` status. The *migrate* phase homes the smoke-test / health
 ACs here: EPIC-008 AC8.1.1–.4 → ``AC-runtime.1.*`` (smoke / service reachability /
 DB connectivity) and EPIC-007 AC7.7.1–.2 → ``AC-runtime.7.*`` (``/health``
 dependency-presence), each ``test=`` resolving to its existing proof; the package
-tier (CODE-ONLY) gives ``proof_kind=exact``. (Step 3 / cleanup absorbs the
+tier (CODE-LED — the roadmap includes cassette-driven substitute proofs, e.g.
+the #1520 pipeline replay; deterministic ACs keep ``proof_kind=exact``). (Step 3 / cleanup absorbs the
 env-smoke-test SSOT prose into ``readme.md`` and retires the doc.) Remaining as a
 future feature (not this migration): manifest-driven
 ``validate`` for *all* declared dependencies per env tier + smoke↔declaration
@@ -29,7 +30,7 @@ from common.meta.package_contract import ACRecord, PackageContract
 CONTRACT = PackageContract(
     name="runtime",
     status="active",
-    tier="CODE-ONLY",
+    tier="CODE-LED",
     depends_on=[],
     roles=[],
     implementations={"be": "apps/backend/src/runtime", "fe": None},
@@ -122,18 +123,6 @@ CONTRACT = PackageContract(
                 "so invariant 2 (absent ⇒ fail) is enforceable across the whole manifest (#1580)."
             ),
             test="apps/backend/tests/runtime/test_probe_adapters.py::test_AC_runtime_4_1_every_declared_dependency_has_a_probe_adapter",
-            priority="P1",
-            status="done",
-        ),
-        # ── model-dominant substitute is input-keyed (invariant 5, #1581) ──
-        ACRecord(
-            id="AC-runtime.5.1",
-            statement=(
-                "The LLM cassette substitute is input-keyed (fingerprint = sha256 of role + messages "
-                "+ decode params): a changed input is a replay MISS and a hard failure, never a "
-                "stale-but-passing replay (invariant 5, #1581)."
-            ),
-            test="apps/backend/tests/llm/test_streaming_cassette.py::test_AC23_6_2_replay_miss_is_hard_failure",
             priority="P1",
             status="done",
         ),
