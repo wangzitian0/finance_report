@@ -15,6 +15,10 @@ from src.runtime.base.check import (
     DependencyStatus,
     ProbeResult,
 )
+from src.runtime.base.env_classification import (
+    NON_DEPENDENCY_ENV_FIELDS,
+    check_env_classification,
+)
 from src.runtime.base.kind import DependencyKind
 from src.runtime.base.manifest import (
     DEPENDENCY_MANIFEST,
@@ -31,6 +35,7 @@ from src.runtime.extension.adapters import (
 __all__ = [
     "APP_OWNED_TIERS",
     "DEPENDENCY_MANIFEST",
+    "NON_DEPENDENCY_ENV_FIELDS",
     "VPS_TIERS",
     "DatabaseCheck",
     "Dependency",
@@ -42,4 +47,5 @@ __all__ = [
     "LlmCheck",
     "ObjectStorageCheck",
     "ProbeResult",
+    "check_env_classification",
 ]

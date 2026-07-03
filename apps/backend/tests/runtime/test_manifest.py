@@ -48,14 +48,17 @@ def test_every_dependency_is_backed_by_a_real_config_setting() -> None:
 
 def test_runtime_owns_the_dependency_env_vars_bound_to_config() -> None:
     # runtime is the SSOT for *which* env vars configure each external dependency;
-    # config owns the mechanism (Settings reads them). Every declared env var maps
-    # to a real Settings field (env-var name -> snake_case attribute).
+    # config owns the mechanism (Settings reads them). Every declared env var is
+    # read by a real Settings field (directly or via an alias choice).
+    from src.config import Settings
+    from src.runtime.base.env_classification import settings_env_keys
+
+    all_keys = {key for field in Settings.model_fields for key in settings_env_keys(Settings, field)}
     for dep in DEPENDENCY_MANIFEST:
         assert dep.env_vars, dep.name
         for env_var in dep.env_vars:
             assert env_var.isupper(), f"{dep.name}: env var {env_var!r} should be UPPER_SNAKE"
-            attr = env_var.lower()
-            assert hasattr(settings, attr), f"{dep.name}: settings.{attr} missing for {env_var}"
+            assert env_var in all_keys, f"{dep.name}: no Settings field reads {env_var}"
 
 
 def test_every_dependency_is_required_somewhere_no_silent_optional() -> None:

@@ -38,9 +38,13 @@ invariants land (TDD).
         (retire the `DummyStorage` wrapper stub).
   - [ ] **#1581** — LLM recording is input-keyed: changed input ⇒ recording
         miss, never a stale replay.
-- [ ] **#1579 — Guardrail**: a new external-dependency env var in `config.py`
-      without a manifest entry fails CI (declared-vs-actual reconciliation, same
-      pattern as `check_pr_ci_evidence` / `check_package_directory_coverage`).
+- [x] **#1579 — Guardrail**: a new external-dependency env var in `config.py`
+      without a manifest entry fails CI. Shipped as
+      `base/env_classification.py` (`check_env_classification` +
+      `NON_DEPENDENCY_ENV_FIELDS`, AC-runtime.2.1): every `Settings` field is
+      either a declared dependency env var or a reasoned non-dependency entry —
+      fail-closed. Also surfaced + declared the stray `S3_PUBLIC_*` vars under
+      `object_storage`.
 - [ ] **#1580 — Probes for the 5 declared-but-unprobed dependencies**: cache
       (Redis), workflow_engine (Prefect), telemetry (OTel), analytics
       (OpenPanel), market_data (Yahoo) each get a `DependencyCheck` adapter.
@@ -62,9 +66,9 @@ backend through one owned module, not scattered clients.
 | OpenPanel (`analytics`) | ✅ staging/prod | ❌ | ✅ `src/observability/`; frontend via `lib/api.ts` | — | #1580 |
 | Yahoo (`market_data`) | ✅ prod only | ❌ | ✅ `services/market_data/` | — | #1580 |
 
-Cross-cutting: enforcement is not yet manifest-driven (#1577), smoke parity is
-unenforced (#1578), and nothing stops a new `config.py` dependency from
-bypassing the manifest (#1579).
+Cross-cutting: enforcement is not yet manifest-driven (#1577) and smoke parity
+is unenforced (#1578). A new `config.py` dependency can no longer bypass the
+manifest (#1579, AC-runtime.2.1).
 
 ## Notes
 

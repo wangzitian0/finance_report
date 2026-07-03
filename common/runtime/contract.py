@@ -37,6 +37,7 @@ CONTRACT = PackageContract(
     interface=[
         "APP_OWNED_TIERS",
         "DEPENDENCY_MANIFEST",
+        "NON_DEPENDENCY_ENV_FIELDS",
         "VPS_TIERS",
         "DatabaseCheck",
         "Dependency",
@@ -48,6 +49,7 @@ CONTRACT = PackageContract(
         "LlmCheck",
         "ObjectStorageCheck",
         "ProbeResult",
+        "check_env_classification",
     ],
     events=[],
     invariants=[],
@@ -79,6 +81,18 @@ CONTRACT = PackageContract(
             statement="Database connectivity is proven through a create+read cycle. Was EPIC-008 AC8.1.4.",
             test="apps/backend/tests/e2e/test_core_journeys.py::test_database_connectivity",
             priority="P0",
+            status="done",
+        ),
+        # ── config↔manifest env-var guardrail (#1579) ──
+        ACRecord(
+            id="AC-runtime.2.1",
+            statement=(
+                "Every config.py env var is classified: a declared dependency env var in the "
+                "DependencyManifest, or a reasoned NON_DEPENDENCY_ENV_FIELDS entry — an "
+                "unclassified new env var fails CI (fail-closed guardrail, #1579)."
+            ),
+            test="apps/backend/tests/runtime/test_env_guardrail.py::test_every_config_env_var_is_classified",
+            priority="P1",
             status="done",
         ),
         # ── /health dependency-presence (was EPIC-007 AC7.7.1–.2) ──
