@@ -173,6 +173,31 @@ CONTRACT = PackageContract(
                 "::test_bare_directory_with_no_exception_is_rejected"
             ),
         ),
+        # ── authority-tier vocabulary + gates folded in (was the `authority` package) ──
+        Invariant(
+            id="one-vocabulary-two-views",
+            statement=(
+                "The detected band scale (authority_classifier.BANDS) IS the "
+                "declared tier scale (authority_matrix.PACKAGE_TIERS) — one "
+                "vocabulary for both views, so they cannot drift."
+            ),
+            test=(
+                "tests/tooling/test_authority_classifier.py"
+                "::test_AC26_9_1_band_boundaries"
+            ),
+        ),
+        Invariant(
+            id="declared-reconciles-with-detected",
+            statement=(
+                "A shipped package's declared tier agrees with its detected "
+                "CODE/LLM band at the enforceable ends (CODE-ONLY ⟹ no LLM test; "
+                "LLM-ONLY ⟹ no deterministic test)."
+            ),
+            test=(
+                "tests/tooling/test_migration_safety_gates.py"
+                "::test_reconcile_flags_llm_test_under_code_only"
+            ),
+        ),
     ],
     roadmap=[
         # The governance gate's building-block behavior — meta's domain. Each AC
@@ -393,6 +418,108 @@ CONTRACT = PackageContract(
             ),
             priority="P1",
             status="done",
+        ),
+        # ── authority-tier SYSTEM ACs (EPIC-026), folded from the `authority` package ──
+        ACRecord(
+            id="AC-authority.1.1",
+            statement=(
+                "common/authority/readme.md is the single registered owner of the "
+                "tier vocabulary, the cross-tier MUST rules, and the tier->proof "
+                "matrix (internalized from the retired docs/ssot/authority-tiers.md)."
+            ),
+            test=(
+                "tests/tooling/test_ac_authority_tiers.py"
+                "::test_AC26_1_1_ssot_defines_five_tiers_and_proof_matrix"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-authority.2.1",
+            statement=(
+                "A {tier:XX} marker at an AC's definition site flows tier into its "
+                "registry value (stripped from the description); an undeclared or "
+                "invalid code is ignored, not an error."
+            ),
+            test=(
+                "tests/tooling/test_ac_authority_tiers.py"
+                "::test_AC26_2_1_tier_marker_flows_into_registry_value"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-authority.3.1",
+            statement=(
+                "The tier ratchet is shrink-only: a new/changed AC absent from the "
+                "untagged-debt baseline must declare a tier, and --update never "
+                "launders fresh untagged debt."
+            ),
+            test=(
+                "tests/tooling/test_ac_authority_tiers.py"
+                "::test_AC26_3_1_tier_ratchet_is_shrink_only_and_blocks_new_debt"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-authority.4.1",
+            statement=(
+                "The first-batch EPICs (003/006/021/023) are fully tier-tagged and "
+                "off the untagged-debt baseline."
+            ),
+            test=(
+                "tests/tooling/test_ac_authority_tiers.py"
+                "::test_AC26_4_1_first_batch_epics_fully_tagged_and_off_baseline"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-authority.5.1",
+            statement=(
+                "A {proof:KIND} marker flows into the registry as proof_kind "
+                "(defaulting to the tier's canonical kind); the gate enforces the "
+                "tier->proof matrix for tier-tagged ACs (LLM-LED/LLM-ONLY never "
+                "exact, HU is evidence)."
+            ),
+            test=(
+                "tests/tooling/test_ac_proof_kind.py"
+                "::test_AC26_5_1_proof_kind_marker_flows_and_gate_enforces_matrix"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-authority.6.1",
+            statement=(
+                "The first-batch LLM-LED/HU/LLM-ONLY ACs each declare a matrix-valid "
+                "proof_kind; the LLM-LED ones carry invariant/property proofs (the "
+                "balance-chain + #1254 dedup-conservation properties)."
+            ),
+            test=(
+                "tests/tooling/test_ac_proof_kind.py"
+                "::test_AC26_6_1_first_batch_lp_acs_carry_invariant_proof"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-authority.7.1",
+            statement=(
+                "CODE-ONLY / financial-truth modules are statically proven free of "
+                "LLM-layer imports (check_tier_imports, AST, direct-imports-only); "
+                "a glob that resolves to no file also fails so the set can't shrink."
+            ),
+            test=(
+                "tests/tooling/test_tier_imports.py"
+                "::test_AC26_7_1_real_tree_has_no_llm_imports_in_protected_modules"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
         ),
     ],
 )

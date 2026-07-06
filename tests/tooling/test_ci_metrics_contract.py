@@ -18,7 +18,7 @@ from common.meta.extension.metrics_contract import (  # noqa: E402
     main,
     run_contract,
 )
-from common.coverage.policy import CoverageComponent  # noqa: E402
+from common.testing.coverage.policy import CoverageComponent  # noqa: E402
 
 
 def _write(root: Path, relative_path: str, content: str = "x = 1\n") -> Path:

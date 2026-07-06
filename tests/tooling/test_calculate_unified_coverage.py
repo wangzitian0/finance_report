@@ -1,4 +1,4 @@
-"""Tests for common.coverage.calculate_unified_coverage.
+"""Tests for common.testing.coverage.calculate_unified_coverage.
 Covers unified coverage calculation across backend, frontend, common, and tools,
 including blacklist pattern exclusions and threshold enforcement.
 """
@@ -11,7 +11,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from common.coverage import calculate_unified_coverage as cuc  # noqa: E402
+from common.testing.coverage import calculate_unified_coverage as cuc  # noqa: E402
 
 
 @pytest.fixture(autouse=True)

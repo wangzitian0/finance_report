@@ -7,7 +7,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from common.coverage.policy import COMPONENTS, ROOT_DIR, CoverageComponent
+from common.testing.coverage.policy import COMPONENTS, ROOT_DIR, CoverageComponent
 
 CODE_EXTENSIONS = {".py", ".ts", ".tsx", ".js", ".jsx"}
 DISCOVERED_APP_ROOTS = ("apps", "packages")
@@ -123,7 +123,7 @@ def _validate_policy_shape(
     missing_roots = find_uncovered_source_roots(repo_root, components)
     if missing_roots:
         errors.append(
-            "source roots are not governed by common/coverage/policy.py: "
+            "source roots are not governed by common/testing/coverage/policy.py: "
             + ", ".join(missing_roots)
         )
 

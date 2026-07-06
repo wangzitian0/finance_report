@@ -10,18 +10,18 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from common.coverage import (
+from common.testing.coverage import (
     build_unified_lcov,  # noqa: E402
     check_policy,  # noqa: E402
 )
-from common.coverage.check_policy import (  # noqa: E402
+from common.testing.coverage.check_policy import (  # noqa: E402
     audit_unregistered_sources,
     compare_component,
     main,
     run_audit,
     tracked_source_files,
 )
-from common.coverage.policy import (  # noqa: E402
+from common.testing.coverage.policy import (  # noqa: E402
     CoverageComponent,
     find_unregistered_sources,
     is_registered_source,
@@ -349,7 +349,7 @@ def test_unregistered_guard_exempts_tests_config_and_non_product_trees():
 
 def test_is_registered_source_distinguishes_covered_from_orphan():
     assert is_registered_source("apps/backend/src/main.py") is True
-    assert is_registered_source("common/coverage/policy.py") is True
+    assert is_registered_source("common/testing/coverage/policy.py") is True
     assert is_registered_source("apps/newservice/handler.py") is False
 
 

@@ -36,7 +36,7 @@ from typing import Any
 
 from common.testing.generate_ac_registry import build_registry_entries
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_BASELINE = REPO_ROOT / "docs" / "ssot" / "ac-tier-baseline.json"
 
 

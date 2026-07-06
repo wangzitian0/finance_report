@@ -1,4 +1,4 @@
-"""Tests for common.coverage.merge_lcov.
+"""Tests for common.testing.coverage.merge_lcov.
 LCOV merge correctly unions coverage across test shards.
 """
 
@@ -9,7 +9,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from common.coverage import merge_lcov as ml  # noqa: E402
+from common.testing.coverage import merge_lcov as ml  # noqa: E402
 
 LCOV_A = """\
 SF:/repo/src/a.py

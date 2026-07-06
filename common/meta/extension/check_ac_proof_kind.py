@@ -40,10 +40,10 @@ import sys
 from pathlib import Path
 
 from common.testing.ac_registry_format import sort_key
-from common.authority.authority_matrix import TIER_VALID_PROOF_KINDS
+from common.meta.base.authority_matrix import TIER_VALID_PROOF_KINDS
 from common.testing.generate_ac_registry import AC_PROOF_KINDS, build_registry_entries
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 # tier -> the set of proof kinds the SSOT matrix accepts for that tier. The prose
 # source of truth is common/authority/readme.md; its single MACHINE mirror is

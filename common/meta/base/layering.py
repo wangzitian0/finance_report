@@ -61,9 +61,7 @@ PACKAGE_LAYER: dict[str, PackageClass] = {
     "meta": "meta",
     # L1 — business-agnostic foundations.
     "audit": "infra",
-    "authority": "infra",
     "config": "infra",
-    "coverage": "infra",
     "llm": "infra",
     "observability": "infra",
     "platform": "infra",

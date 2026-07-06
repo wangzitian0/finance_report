@@ -5,8 +5,8 @@ from textwrap import dedent
 
 import pytest
 
-from common.coverage.check_source_coverage_matrix import SourceCoverageResult
-from common.coverage import check_source_coverage_matrix as source_matrix
+from common.testing.coverage.check_source_coverage_matrix import SourceCoverageResult
+from common.testing.coverage import check_source_coverage_matrix as source_matrix
 
 
 def _write_repo_fixture(tmp_path: Path) -> Path:

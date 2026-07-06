@@ -53,7 +53,7 @@ and additional banks / XLSX / OCR ingest.
   tests -> CI artifact. Do not commit generated audit snapshots in routine
   feature PRs; removed archive inventory is retained in
   [issue #548](https://github.com/wangzitian0/finance_report/issues/548).
-- Coverage policy is owned by `common/coverage/policy.py`.
+- Coverage policy is owned by `common/testing/coverage/policy.py`.
 - Project status metrics should be generated or validated, not hand-maintained.
   See [issue #455](https://github.com/wangzitian0/finance_report/issues/455).
 
