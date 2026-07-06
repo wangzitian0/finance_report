@@ -85,6 +85,9 @@ jobs:
 
   audit-replay:
     name: AI/OCR Audit Replay
+    permissions:
+      contents: read
+      issues: write
     needs: [resolve-target]
     # Comprehensive audit corpus, record-only: it must never block production
     # promotion (AC8.13.157). The single gate body lives in the reusable

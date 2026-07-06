@@ -386,7 +386,7 @@ jobs:
 
           echo "🚀 Starting E2E Pipeline for $APP_URL"
           mkdir -p test-results
-          
+
           run_timed_phase "Phase 1: Smoke Check (Shell)" \
             bash tools/smoke_test.sh "$APP_URL" staging
 
@@ -397,7 +397,7 @@ jobs:
               --mode staging \
               --json-report test-results/staging-tier2-http.json \
               --junit-xml test-results/staging-tier2-http.xml
-          
+
           # Parallelize non-LLM tests only. Real AI/OCR calls are run once below
           # to avoid four workers hitting the provider at the same time.
           run_timed_phase "Phase 2: Core Flow Validation (Python)" \
@@ -668,6 +668,9 @@ jobs:
 
   ai-ocr-gate:
     name: Staging AI/OCR Gate
+    permissions:
+      contents: read
+      issues: write
     needs: [build-and-deploy, provider-gate]
     if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.ai_ocr_required == 'true' && needs.provider-gate.outputs.provider_status == 'pass' }}
     # Record-only entrance to the shared reusable gate (EPIC-008 AC8.13.153): a
@@ -897,6 +900,9 @@ jobs:
   # On-demand staging AI/OCR diagnostic jobs
   manual-ai-ocr-gate:
     name: Staging AI/OCR Gate
+    permissions:
+      contents: read
+      issues: write
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'staging-ai-ocr-gate' }}
     # Fail-fast entrance to the shared reusable gate (EPIC-008 AC8.13.153) for
     # on-demand diagnostics.
