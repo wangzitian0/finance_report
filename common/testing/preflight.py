@@ -87,7 +87,7 @@ CHECKS: tuple[Check, ...] = (
     ),
     Check(
         name="taxonomy-drift",
-        globs=("*.md", "docs/ssot/*.yaml", "tests/*.py", "common/*", "tools/*.py"),
+        globs=("*.md", "docs/ssot/*.yaml", "tests/*.py", "common/*.py", "tools/*.py"),
         commands=((PY, "tools/check_taxonomy_drift.py"),),
         why="prose/tests changed: retired package-taxonomy vocabulary must not be presented as current (AC-meta.vocab.1)",
     ),

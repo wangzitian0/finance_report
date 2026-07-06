@@ -9,7 +9,7 @@
 >
 > The **audit** package's value-language core (L1 `infra` in the five-layer
 > map). It imports the `ratio` package
-> (`MoneyTolerance` is a `Ratio`) — a declared, acyclic **same-package-family** edge, which
+> (`MoneyTolerance` is a `Ratio`) — a declared, acyclic **same-layer** edge, which
 > the package model allows ("never up, never sideways-cyclic").
 
 ## Why
