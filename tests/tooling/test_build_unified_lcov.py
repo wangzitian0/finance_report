@@ -8,11 +8,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from common.coverage.build_unified_lcov import (  # noqa: E402
+from common.testing.coverage.build_unified_lcov import (  # noqa: E402
     build_unified_lcov,
     repo_relative_source,
 )
-from common.coverage.policy import CoverageComponent  # noqa: E402
+from common.testing.coverage.policy import CoverageComponent  # noqa: E402
 
 
 def _component(

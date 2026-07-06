@@ -76,8 +76,8 @@ cleanup that backfills `family` / `kind` and binds child clauses.
 | [observability.md](./observability.md) | `observability` | Structured logging and OTLP rationale |
 | [runtime-incident-response.md](./runtime-incident-response.md) | `runtime_incident_response` | Runtime incident triage and stability-proof routing |
 | [tdd.md](./tdd.md) | `tdd-transformation` | EPIC -> AC -> test workflow |
-| [common/authority/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/authority/readme.md) | `authority_tiers` | AC authority tiers (CODE-ONLY/CODE-LED/HU/LLM-LED/LLM-ONLY) and the tier->valid-proof matrix — internalized into the `authority` package (migration-standard step 3) |
-| [coverage.md](./coverage.md) | `coverage` | Coverage metric semantics; code owner is `common/coverage/policy.py` |
+| [common/meta/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/meta/readme.md) | `authority_tiers` | AC authority tiers (CODE-ONLY/CODE-LED/HU/LLM-LED/LLM-ONLY) and the tier->valid-proof matrix — folded into the `meta` package (migration-standard step 3) |
+| [coverage.md](./coverage.md) | `coverage` | Coverage metric semantics; code owner is `common/testing/coverage/policy.py` |
 | [frontend-patterns.md](./frontend-patterns.md) | `frontend-patterns` | Frontend integration rules and proof references (incl. browser auth/session) |
 | [schema.md](./schema.md) | `schema` | Data-layer rationale and migration guardrails; mutable inventory is generated |
 | [migration-risk.yaml](./migration-risk.yaml) | `migration_risk_classification` | Alembic migration risk levels and required release proof notes |

@@ -41,7 +41,7 @@ import ast
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 # --- The contract (mirror of common/authority/readme.md "Cross-tier MUST
 # --- rules", rule 2). Keep these in sync with the SSOT subsection.

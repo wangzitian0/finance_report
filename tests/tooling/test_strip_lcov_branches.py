@@ -10,7 +10,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from common.coverage import strip_lcov_branches as slb  # noqa: E402
+from common.testing.coverage import strip_lcov_branches as slb  # noqa: E402
 
 
 def test_AC8_13_66_strip_lcov_branches_preserves_line_records(tmp_path):

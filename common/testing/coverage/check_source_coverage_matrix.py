@@ -12,7 +12,7 @@ from typing import Any
 
 import yaml
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_MATRIX = REPO_ROOT / "docs" / "ssot" / "source-coverage-matrix.yaml"
 VALID_PROOF_LEVELS = {"pr_deterministic", "post_merge_llm_ocr", "manual_trusted", "gap"}
 ISSUE_RE = re.compile(r"^#\d+$")

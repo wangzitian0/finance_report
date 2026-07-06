@@ -9,7 +9,7 @@ from pathlib import Path
 # Import the matrix from the stdlib-only source (NOT package_contract, which
 # pulls pydantic) so this generator stays importable in the lightweight CI lint
 # env (`uv run --with pyyaml ...`).
-from common.authority.authority_matrix import (
+from common.meta.base.authority_matrix import (
     AC_PROOF_KINDS as _AC_PROOF_KINDS,
     AC_TIERS as _AC_TIERS,
     TIER_DEFAULT_PROOF_KIND as _TIER_DEFAULT_PROOF_KIND,

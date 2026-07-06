@@ -101,7 +101,7 @@ def classify_stage(path: str) -> str | None:
 # fails the --check-matrix drift gate. Seed rollout: three packages.
 # ---------------------------------------------------------------------------
 
-PACKAGE_TEST_DECLARATIONS: tuple[str, ...] = ("runtime", "ledger", "coverage")
+PACKAGE_TEST_DECLARATIONS: tuple[str, ...] = ("runtime", "ledger", "testing")
 
 
 def package_test_ownership() -> dict[str, str]:

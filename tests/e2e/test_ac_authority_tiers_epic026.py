@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from common.authority import check_ac_tier_baseline as tier_gate
+from common.meta.extension import check_ac_tier_baseline as tier_gate
 from common.testing import generate_ac_registry as gar
 
 ROOT = Path(__file__).resolve().parents[2]

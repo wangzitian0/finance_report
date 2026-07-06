@@ -14,7 +14,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from common.coverage import policy as coverage_policy  # noqa: E402
+from common.testing.coverage import policy as coverage_policy  # noqa: E402
 from common.testing import ac_registry_format, ac_traceability_refs  # noqa: E402
 from common.testing import test_isolation  # noqa: E402
 
@@ -99,10 +99,10 @@ def test_AC8_13_56_tools_coverage_component_is_a_governed_source_root():
     # Coverage/CI library implementations now live under common (consolidated
     # from tools/_lib): they are measured by the common component.
     common = coverage_policy.get_component("common")
-    assert "common/coverage/calculate_unified_coverage.py" in common.expected_sources(
+    assert "common/testing/coverage/calculate_unified_coverage.py" in common.expected_sources(
         ROOT
     )
-    assert "common/coverage/strip_lcov_branches.py" in common.expected_sources(ROOT)
+    assert "common/testing/coverage/strip_lcov_branches.py" in common.expected_sources(ROOT)
 
 
 def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
@@ -117,22 +117,22 @@ def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
 
     assert (
         build_tool.main
-        is importlib.import_module("common.coverage.build_unified_lcov").main
+        is importlib.import_module("common.testing.coverage.build_unified_lcov").main
     )
     assert (
         calc_tool.main
-        is importlib.import_module("common.coverage.calculate_unified_coverage").main
+        is importlib.import_module("common.testing.coverage.calculate_unified_coverage").main
     )
     assert (
-        analyzer_tool.main is importlib.import_module("common.coverage.analyzer").main
+        analyzer_tool.main is importlib.import_module("common.testing.coverage.analyzer").main
     )
-    assert merge_tool.main is importlib.import_module("common.coverage.merge_lcov").main
+    assert merge_tool.main is importlib.import_module("common.testing.coverage.merge_lcov").main
     assert (
         strip_tool.main
-        is importlib.import_module("common.coverage.strip_lcov_branches").main
+        is importlib.import_module("common.testing.coverage.strip_lcov_branches").main
     )
     assert (
-        policy_tool.main is importlib.import_module("common.coverage.check_policy").main
+        policy_tool.main is importlib.import_module("common.testing.coverage.check_policy").main
     )
     assert (
         metrics_tool.main

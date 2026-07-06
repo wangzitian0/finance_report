@@ -71,7 +71,7 @@ were snapshots, not current truth.
 | Security and engineering red lines | [red-lines.md](../agents/red-lines.md), executable guardrail tests |
 | AC registry generation and orphan/stub checks | `tools/generate_ac_registry.py`, `tools/lint_doc_consistency.py` |
 | AC proof quality | `tools/check_ac_index.py`, CI traceability artifact |
-| Coverage policy | [coverage.md](../ssot/coverage.md), `common/coverage/policy.py` |
+| Coverage policy | [coverage.md](../ssot/coverage.md), `common/testing/coverage/policy.py` |
 | Development and SOP commands | [development.md](../ssot/development.md), `make`, `moon`, and `tools/` entry points |
 
 Historical details remain available in git history and removed-archive issue

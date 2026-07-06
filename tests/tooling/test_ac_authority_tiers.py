@@ -14,7 +14,7 @@ from pathlib import Path
 
 import yaml
 
-from common.authority import check_ac_tier_baseline as tier_gate
+from common.meta.extension import check_ac_tier_baseline as tier_gate
 from common.testing import generate_ac_registry as gar
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -33,9 +33,9 @@ def test_AC26_1_1_ssot_defines_five_tiers_and_proof_matrix() -> None:
     The tier vocabulary was internalized from the retired
     ``docs/ssot/authority-tiers.md`` into the ``authority`` package's readme
     (migration-standard step 3 "SSOT internalized"), so the single owner is now
-    ``common/authority/readme.md`` and the manifest concept points at the package.
+    ``common/meta/readme.md`` and the manifest concept points at the package.
     """
-    doc = (ROOT / "common/authority/readme.md").read_text(encoding="utf-8")
+    doc = (ROOT / "common/meta/readme.md").read_text(encoding="utf-8")
     manifest = yaml.safe_load(
         (ROOT / "docs/ssot/MANIFEST.yaml").read_text(encoding="utf-8")
     )
@@ -58,7 +58,7 @@ def test_AC26_1_1_ssot_defines_five_tiers_and_proof_matrix() -> None:
 
     # Single owner registered in the manifest now points at the package.
     concept = manifest["concepts"]["authority_tiers"]
-    assert concept["owner"] == "common/authority/readme.md"
+    assert concept["owner"] == "common/meta/readme.md"
 
 
 def test_AC26_2_1_tier_marker_flows_into_registry_value(tmp_path, monkeypatch) -> None:

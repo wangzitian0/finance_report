@@ -95,9 +95,6 @@ concepts:
       - common/identity/readme.md
       - common/identity/contract.py
       - apps/backend/src/identity/__init__.py
-      - common/authority/readme.md
-      - common/authority/contract.py
-      - common/authority/__init__.py
       - common/ledger/contract.py
       - docs/project/EPIC-025.dry-ssot-simplification.md
     proofs:
@@ -759,7 +756,7 @@ concepts:
       - tools/generate_critical_proof_matrix.py
 
   authority_tiers:
-    owner: common/authority/readme.md
+    owner: common/meta/readme.md
     family: tdd
     kind: concept
     parent: tdd_workflow
@@ -774,14 +771,14 @@ concepts:
       - docs/project/EPIC-026.ac-authority-tiers.md
       - docs/ssot/ac-tier-baseline.json
       - common/testing/generate_ac_registry.py
-      - common/authority/authority_matrix.py
-      - common/authority/check_ac_tier_baseline.py
+      - common/meta/base/authority_matrix.py
+      - common/meta/extension/check_ac_tier_baseline.py
       - tools/check_ac_tier_baseline.py
-      - common/authority/check_tier_ast_literal.py
+      - common/meta/extension/check_tier_ast_literal.py
       - common/meta/extension/check_epic_package_dual.py
       - common/meta/extension/check_draft_packages.py
-      - common/authority/authority_classifier.py
-      - common/authority/check_authority_reconcile.py
+      - common/meta/extension/authority_classifier.py
+      - common/meta/extension/check_authority_reconcile.py
 
   ac_tier_baseline:
     owner: docs/ssot/ac-tier-baseline.json
@@ -791,8 +788,8 @@ concepts:
     authority: machine_generated
     description: Shrink-only untagged-AC debt baseline for the authority-tier ratchet (tools/check_ac_tier_baseline.py); lists ACs that predate the tier attribute and may stay untagged, so new/changed ACs must declare a tier while legacy debt ratchets down.
     cross_refs:
-      - common/authority/readme.md
-      - common/authority/check_ac_tier_baseline.py
+      - common/meta/readme.md
+      - common/meta/extension/check_ac_tier_baseline.py
       - tools/check_ac_tier_baseline.py
       - tests/tooling/test_ac_authority_tiers.py
 
@@ -804,7 +801,7 @@ concepts:
     authority: machine_generated
     description: Registered draft packages for the migration-safety draft gate (tools/check_draft_packages.py); a draft package leaves its authority tier undecided, so listing it here makes adding one a reviewed act and a draft must carry no done ACs.
     cross_refs:
-      - common/authority/readme.md
+      - common/meta/readme.md
       - common/meta/extension/check_draft_packages.py
       - tools/check_draft_packages.py
       - tests/tooling/test_migration_safety_gates.py
