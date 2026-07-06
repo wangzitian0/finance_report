@@ -618,7 +618,7 @@ vectors) but adopted on the backend first.
 > Migrated `AC-audit.33.<s>` ids (homed in the package roadmap):
 > `AC-audit.33.1` · `AC-audit.33.2` · `AC-audit.33.3`
 
-### AC12.34: Ledger module — `Entry` value object + vertical-slice template ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
+### AC12.34: Ledger module — `Entry` value object + vertical-slice template — migrated to the `ledger` package ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
 
 The first **vertical domain module** (`src/ledger`) as the template every other
 domain followed: files converged into the then-role folders (`types/` nouns,
@@ -628,14 +628,20 @@ core noun `Entry` makes the double-entry balance invariant a **type** — an
 unbalanced entry is unconstructable (`UnbalancedEntryError`), replacing scattered
 runtime `abs(debit-credit) < 0.01` checks.
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.34.1 | `Entry`/`Leg` make double-entry a value object: a balanced transfer/multi-leg entry constructs; an unbalanced one raises `UnbalancedEntryError`; balance is checked **per currency**; legs must be positive `Money`; empty entries raise | `test_AC12_34_1_balanced_entry_constructs` (+ siblings) | `apps/backend/tests/ledger/test_entry.py` | P1 |
-| AC12.34.2 | The ledger module converges by layer — `base/` (the `Entry`/`Leg` nouns) + `extension/` (the `post_entry` verb + the journal `Repository` adapter) + `data/` (the balance projection) — and exports `Entry`/`Leg`/`post_entry`/`UnbalancedEntryError` (the retired `types/`/`ops/`/`store/` dirs are gone; cutover #1420 slice 3a) | `test_AC12_34_2_ledger_module_converges_by_role` | `tests/tooling/test_ledger_module.py` | P1 |
-| AC12.34.3 | Layer-DAG rule: the model layer imports no service (no upward edge / import cycle); `derive_confidence_tier` lives in the model and the service re-exports it (the old `models.journal → services.confidence_tier` cycle is removed) | `test_AC12_34_3_model_layer_never_imports_a_service`, `test_AC12_34_3_confidence_tier_lives_in_model_layer` | `tests/tooling/test_ledger_module.py` | P1 |
-| AC12.34.4 | Adoption: investment buy/sell/dividend build typed `Entry` and post via `ledger.post_entry` instead of hand-rolling balanced `lines_data` dicts (the legacy `create_journal_entry`/`_post_and_load` path is gone from the service) {tier:CODE-ONLY} | `test_AC12_34_4_investment_postings_use_ledger_post` | `tests/tooling/test_ledger_module.py` | P1 |
-| AC12.34.5 | Every computed/transfer posting path gates balance through `Entry`: opening-balance, fx-revaluation, and processing-account transfers construct an `Entry` before persisting (fx-revaluation and processing-account previously wrote raw `JournalLine`s with no balance validation at all). The remaining raw site `review_queue` validates via `validate_journal_balance`/`_posting_invariants`; `reconciliation_audit` is a deterministic audit fixture {tier:CODE-ONLY} | `test_AC12_34_5_remaining_posting_paths_guard_balance_with_entry` | `tests/tooling/test_ledger_module.py` | P1 |
-| AC12.34.6 | The journal write pipeline (`create_journal_entry`/`post_journal_entry`/`void_journal_entry` + validators) lives in the ledger package (`ledger/extension/repository.py`, behind the `JournalRepository` port); `ledger.extension.post` depends down on it instead of up on `services.accounting`. After the package cutover (#1420 slice 3a) NO `services.accounting` re-export shim survives — callers import the pipeline + `ValidationError` from the published ledger interface (`from src.ledger import ...`), zero residue {tier:CODE-ONLY} | `test_AC12_34_6_ledger_owns_posting_pipeline_no_upward_edge` | `tests/tooling/test_ledger_module.py` | P1 |
+> **The ACs of this group are no longer defined here.** The rows (were
+> AC12.34.* rows .1–.6) migrated into the `ledger` package and are owned
+> by, and sourced directly from,
+> [`common/ledger/contract.py`](../../common/ledger/contract.py)'s `roadmap`
+> under the package-scoped numeric `AC-ledger.<group>.<seq>` id scheme (the
+> leading "12" is dropped and the group/seq preserved, so `AC12.34.<s>`
+> becomes `AC-ledger.34.<s>`). `common/ssot/generate_ac_registry.py` reads
+> package-contract roadmaps additively, so the AC index counts them without an
+> EPIC-table mirror. This note references the new ids (keeping the
+> registry↔EPIC link intact) but defines none of them — the contract is the
+> single definition source.
+>
+> Migrated `AC-ledger.34.<s>` ids (homed in the package roadmap):
+> `AC-ledger.34.1` · `AC-ledger.34.2` · `AC-ledger.34.3` · `AC-ledger.34.4` · `AC-ledger.34.5` · `AC-ledger.34.6`
 
 ### AC12.35: ORM read layer returns value types — boundary push ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
 

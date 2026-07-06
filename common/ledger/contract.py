@@ -1580,6 +1580,111 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        # AC-ledger.* migrated from EPIC-012 groups 12.34 (#1419-pattern AC move).
+        ACRecord(
+            id="AC-ledger.34.1",
+            statement=(
+                "Entry/Leg make double-entry a value object: a balanced "
+                "transfer/multi-leg entry constructs; an unbalanced one raises "
+                "UnbalancedEntryError; balance is checked **per currency**; legs "
+                "must be positive Money; empty entries raise. Was EPIC-012 "
+                "AC12.34.1."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_entry.py"
+                "::test_AC12_34_1_balanced_entry_constructs"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.34.2",
+            statement=(
+                "The ledger module converges by layer — base/ (the Entry/Leg "
+                "nouns) + extension/ (the post_entry verb + the journal "
+                "Repository adapter) + data/ (the balance projection) — and "
+                "exports Entry/Leg/post_entry/UnbalancedEntryError (the retired "
+                "types//ops//store/ dirs are gone; cutover #1420 slice 3a). Was "
+                "EPIC-012 AC12.34.2."
+            ),
+            test=(
+                "tests/tooling/test_ledger_module.py"
+                "::test_AC12_34_2_ledger_module_converges_by_role"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.34.3",
+            statement=(
+                "Layer-DAG rule: the model layer imports no service (no upward "
+                "edge / import cycle); derive_confidence_tier lives in the model "
+                "and the service re-exports it (the old models.journal → "
+                "services.confidence_tier cycle is removed). Was EPIC-012 "
+                "AC12.34.3."
+            ),
+            test=(
+                "tests/tooling/test_ledger_module.py"
+                "::test_AC12_34_3_model_layer_never_imports_a_service"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.34.4",
+            statement=(
+                "Adoption: investment buy/sell/dividend build typed Entry and "
+                "post via ledger.post_entry instead of hand-rolling balanced "
+                "lines_data dicts (the legacy create_journal_entry/_post_and_load "
+                "path is gone from the service). Was EPIC-012 AC12.34.4."
+            ),
+            test=(
+                "tests/tooling/test_ledger_module.py"
+                "::test_AC12_34_4_investment_postings_use_ledger_post"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.34.5",
+            statement=(
+                "Every computed/transfer posting path gates balance through "
+                "Entry: opening-balance, fx-revaluation, and processing-account "
+                "transfers construct an Entry before persisting (fx-revaluation "
+                "and processing-account previously wrote raw JournalLines with no "
+                "balance validation at all). The remaining raw site review_queue "
+                "validates via validate_journal_balance/_posting_invariants; "
+                "reconciliation_audit is a deterministic audit fixture. Was "
+                "EPIC-012 AC12.34.5."
+            ),
+            test=(
+                "tests/tooling/test_ledger_module.py"
+                "::test_AC12_34_5_remaining_posting_paths_guard_balance_with_entry"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.34.6",
+            statement=(
+                "The journal write pipeline "
+                "(create_journal_entry/post_journal_entry/void_journal_entry + "
+                "validators) lives in the ledger package "
+                "(ledger/extension/repository.py, behind the JournalRepository "
+                "port); ledger.extension.post depends down on it instead of up on "
+                "services.accounting. After the package cutover (#1420 slice 3a) "
+                "NO services.accounting re-export shim survives — callers import "
+                "the pipeline + ValidationError from the published ledger "
+                "interface (from src.ledger import ...), zero residue. Was "
+                "EPIC-012 AC12.34.6."
+            ),
+            test=(
+                "tests/tooling/test_ledger_module.py"
+                "::test_AC12_34_6_ledger_owns_posting_pipeline_no_upward_edge"
+            ),
+            priority="P1",
+            status="done",
+        ),
     ],
 )
 
