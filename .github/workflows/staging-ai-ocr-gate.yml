@@ -204,7 +204,7 @@ jobs:
               # becomes a visible issue with no new secret. Dedup so re-runs of a
               # standing regression do not spam.
               alert_title="[staging-ai-ocr] real-provider regression: ${ai_ocr_status}"
-              existing="$(gh issue list --state open --search "in:title ${alert_title}" --json number --jq '.[0].number' 2>/dev/null || true)"
+              existing="$(gh issue list --state open --search "in:title ${alert_title}" --json number --jq '.[0].number // empty' 2>/dev/null || true)"
               if [ -z "$existing" ]; then
                 gh issue create --title "$alert_title" --label "surface: ai-ocr" \
                   --body "Post-merge staging AI/OCR gate regressed (\`${ai_ocr_status}\`) on ${APP_URL} at run ${GITHUB_RUN_ID:-?} (${EXPECTED_SHA:-?}). Real-provider parse quality dropped — cassette replay cannot catch this class. See the run's step summary for which corpus docs failed." \
