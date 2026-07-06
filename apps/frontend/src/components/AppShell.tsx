@@ -60,7 +60,7 @@ function AppShellContent({ children }: AppShellProps) {
                 <main
                     id="main-content"
                     tabIndex={-1}
-                    className="min-h-[calc(100vh-4rem)] pb-20 md:pb-0"
+                    className="min-h-[calc(100dvh-4rem)] pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0"
                 >
                     {children}
                 </main>

@@ -242,7 +242,7 @@ export default function StatementReviewPage() {
         : null;
 
     return (
-        <div className="flex min-h-[calc(100vh-2rem)] w-full max-w-full min-w-0 flex-col overflow-x-hidden p-4 md:p-6 2xl:h-[calc(100vh-2rem)]">
+        <div className="flex min-h-[calc(100dvh-2rem)] w-full max-w-full min-w-0 flex-col overflow-x-hidden p-4 md:p-6 2xl:h-[calc(100dvh-2rem)]">
             <div className="mb-4 flex min-w-0 max-w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <Link href={returnHref} className="flex min-w-0 items-center gap-1 text-sm text-muted hover:text-[var(--foreground)]">
                     <ChevronLeft className="h-4 w-4" aria-hidden="true" />

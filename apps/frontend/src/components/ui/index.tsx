@@ -49,12 +49,12 @@ export function IconButton({
   return (
     <Button
       variant={variant}
-      className={cx("inline-flex h-9 w-9 items-center justify-center p-2", className)}
+      className={cx("inline-flex h-11 w-11 items-center justify-center p-2", className)}
       {...props}
       aria-label={label}
       title={title ?? label}
     >
-      <Icon className="h-4 w-4" aria-hidden="true" />
+      <Icon className="h-5 w-5" aria-hidden="true" />
     </Button>
   );
 }

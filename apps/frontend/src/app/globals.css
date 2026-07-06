@@ -103,6 +103,21 @@ body {
   font-family: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Suppress the default grey tap flash on Android/iOS; focus-visible +
+     component hover/active states already convey interaction (#1607). */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* iOS Safari auto-zooms the page whenever a focused control is under 16px,
+   leaving the user scrolled sideways. Form controls carry `text-sm`/`text-xs`
+   in dense layouts, so pin them to 16px on phone widths to kill the zoom
+   without changing desktop density (#1607). */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }
 
 .pwa-safe-area-shell {
