@@ -126,8 +126,21 @@ CONTRACT = PackageContract(
         Unit(
             name="get_exchange_rate", kind=Kind.DOMAIN_SERVICE, module="extension/fx.py"
         ),
-        # ── extension (reserved): crawler sync + the extraction event subscriber ──
+        # convert_amount/convert_money/convert_to_base: thin lookup+math
+        # bridges over get_exchange_rate (lookup) + audit.money.convert
+        # (math, rate passed in — ruling 5, audit never looks up a rate).
+        # The average-rate variant (fx.py's average_start/average_end,
+        # backed by get_average_rate) is not yet ported; those callers stay
+        # on services/fx.py until it is.
+        Unit(name="convert_amount", kind=Kind.DOMAIN_SERVICE, module="extension/fx.py"),
+        Unit(name="convert_money", kind=Kind.DOMAIN_SERVICE, module="extension/fx.py"),
+        Unit(
+            name="convert_to_base", kind=Kind.DOMAIN_SERVICE, module="extension/fx.py"
+        ),
+        # ── extension (reserved): crawler sync, average-rate lookup, and the
+        # extraction event subscriber ──
         Unit(name="sync_market_data", kind=Kind.DOMAIN_SERVICE),
+        Unit(name="get_average_rate", kind=Kind.DOMAIN_SERVICE),
         Unit(name="ingest_statement_price", kind=Kind.DOMAIN_SERVICE),
         # ── data (reserved): read-models consumed by portfolio/reporting/reconciliation ──
         Unit(name="LatestPriceView", kind=Kind.PROJECTION),
@@ -137,11 +150,11 @@ CONTRACT = PackageContract(
     # This commit's real, working surface: the pure base/ model, resolve()
     # (implementation-pure, physically in extension/ per KIND_LAYER), the
     # repository port + its read-only SQL adapter (querying the 4 legacy
-    # tables), the two user-scoped write-side recorders, and the FX lookup
-    # wrapper. The remaining 2 domain-services (crawler sync,
-    # extraction-event ingest) + 2 data projections are reserved units
-    # above — they join the interface once a later commit implements them
-    # for real.
+    # tables), the two user-scoped write-side recorders, and the FX
+    # lookup + convert_* wrappers. The remaining 3 domain-services (crawler
+    # sync, average-rate lookup, extraction-event ingest) + 2 data
+    # projections are reserved units above — they join the interface once a
+    # later commit implements them for real.
     interface=[
         "Authority",
         "ObservationRepository",
@@ -152,6 +165,9 @@ CONTRACT = PackageContract(
         "PricingError",
         "ResolutionPolicy",
         "SqlObservationRepository",
+        "convert_amount",
+        "convert_money",
+        "convert_to_base",
         "get_exchange_rate",
         "record_manual_valuation",
         "record_override",
