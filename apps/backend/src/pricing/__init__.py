@@ -7,19 +7,22 @@ observations*. See ``common/pricing/contract.py`` for the full model and the
 boundary rulings (FX split with audit, the extraction event-ingest boundary,
 bitemporal semantics, append-only overrides).
 
-This commit ships the pure ``base/`` layer only (subject identity, the
-append-only ``PriceObservation`` aggregate, the ``resolve()`` domain service,
-the repository port) — real and tested, but not yet wired to storage. The
-``extension/`` domain services (crawler sync, manual entry/override, FX rate
-lookup, the extraction-event subscriber) and the ``data/`` projections are
-reserved (declared in the contract's ``units`` with no module path) for the
-commit that moves ``fx.py``/``market_data``/``assets.py``'s actual logic in.
+This commit ships the pure ``base/`` layer (subject identity, the append-only
+``PriceObservation`` aggregate, the repository port), ``resolve()``
+(implementation-pure, physically in ``extension/`` per ``KIND_LAYER``), and
+``SqlObservationRepository`` (a read-only adapter over the 4 legacy tables —
+schema-preserving on purpose, so it can land ahead of unifying them into one
+physical store). The write-side ``extension/`` domain services (crawler sync,
+manual entry/override recording, FX rate lookup, the extraction-event
+subscriber) and the ``data/`` projections are reserved (declared in the
+contract's ``units`` with no module path) for a later commit.
 """
 
 from __future__ import annotations
 
 from src.pricing.base import (
     Authority,
+    ObservationRepository,
     ObservationSource,
     PriceableSubject,
     PriceObservation,
@@ -27,15 +30,17 @@ from src.pricing.base import (
     PricingError,
     ResolutionPolicy,
 )
-from src.pricing.extension import resolve
+from src.pricing.extension import SqlObservationRepository, resolve
 
 __all__ = [
     "Authority",
+    "ObservationRepository",
     "ObservationSource",
     "PriceObservation",
     "PriceObserved",
     "PriceableSubject",
     "PricingError",
     "ResolutionPolicy",
+    "SqlObservationRepository",
     "resolve",
 ]

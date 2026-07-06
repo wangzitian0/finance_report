@@ -93,15 +93,18 @@ CONTRACT = PackageContract(
         # KIND_LAYER places every DOMAIN_SERVICE in extension/ with no
         # exception, so it's placed there physically despite being pure.
         Unit(name="resolve", kind=Kind.DOMAIN_SERVICE, module="extension/resolve.py"),
-        # The split block (mechanism B) is RESERVED (taxonomy-only — a
-        # REPOSITORY unit's port+impl are validated as an all-or-nothing
-        # pair, so a port-only commit cannot pin one) until P2 wires the
-        # extension/ adapter against real storage and moves fx.py/
-        # market_data's logic in. The port already exists as real source
-        # (``base/repository.py``, a ``Protocol`` ``resolve()`` is tested
-        # against) — it just isn't a published/roadmap unit yet.
-        Unit(name="ObservationRepository", kind=Kind.REPOSITORY),
-        # ── extension (reserved): crawlers, manual entry/override API,
+        # The split block (mechanism B): port in base/, adapter in extension/.
+        # The adapter is schema-preserving on purpose — it queries the 4
+        # legacy tables (FxRate/StockPrice/MarketDataOverride/
+        # ManualValuationSnapshot) directly rather than waiting on a unified
+        # physical store, so it can land ahead of that migration.
+        Unit(
+            name="ObservationRepository",
+            kind=Kind.REPOSITORY,
+            module="base/repository.py",
+            impl="extension/repository.py",
+        ),
+        # ── extension (reserved): crawlers, manual entry/override write API,
         # FX-specific lookup services, and the extraction event subscriber ──
         Unit(name="sync_market_data", kind=Kind.DOMAIN_SERVICE),
         Unit(name="record_manual_valuation", kind=Kind.DOMAIN_SERVICE),
@@ -113,21 +116,22 @@ CONTRACT = PackageContract(
         Unit(name="StalenessView", kind=Kind.PROJECTION),
     ],
     implementations={"be": "apps/backend/src/pricing", "fe": None},
-    # This commit's real, working surface: the pure base/ model (subject
-    # identity, the append-only observation aggregate, the policy VO, the
-    # event type, the error hierarchy) plus resolve() (implementation-pure,
-    # physically in extension/ per KIND_LAYER). The repository port + its
-    # extension/ adapter and the 5 domain-services + 2 data projections are
-    # reserved units above — they (and ObservationRepository) join the
-    # interface once P2 implements the adapter for real.
+    # This commit's real, working surface: the pure base/ model, resolve()
+    # (implementation-pure, physically in extension/ per KIND_LAYER), and the
+    # repository port + its read-only SQL adapter (querying the 4 legacy
+    # tables). The remaining 5 write-side domain-services + 2 data
+    # projections are reserved units above — they join the interface once a
+    # later commit implements them for real.
     interface=[
         "Authority",
+        "ObservationRepository",
         "ObservationSource",
         "PriceObservation",
         "PriceObserved",
         "PriceableSubject",
         "PricingError",
         "ResolutionPolicy",
+        "SqlObservationRepository",
         "resolve",
     ],
     events=["PriceObserved"],
