@@ -145,6 +145,7 @@ explicit AC IDs for the behavior.
 | `tests/tooling/test_required_env_keys_contract.py` | `docs/ssot/ci-cd.md` (#1623 manifest<->config env-key drift contract) |
 | `tests/tooling/test_critical_value_proof_ratchet.py` | `docs/ssot/ci-cd.md` (#1623 value-asserting ratchet for critical outcomes) |
 | `tests/tooling/test_cassette_replay_wired.py` | `docs/ssot/ci-cd.md` (#1623 lock: cassette-replay net cannot silently skip) |
+| `tests/tooling/test_browser_invariant_events_valid.py` | `docs/ssot/ci-cd.md` (#1623 lock: e2e browser-invariant events stay real, not vacuous) |
 | `tests/tooling/test_brokerage_prompt_contract.py` | `common/extraction/readme.md` |
 | `tests/tooling/test_check_env_keys.py` | `docs/ssot/development.md` |
 | `tests/tooling/test_check_manifest.py` | `docs/ssot/MANIFEST.yaml` |
