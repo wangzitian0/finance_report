@@ -655,7 +655,7 @@ class TestClassificationService:
         assert results[0].account_id == new_account.id
 
     async def test_apply_rules_is_idempotent_for_existing_transaction_rule_version(self, db, test_user):
-        """AC11.12.1: Re-running the same rule does not duplicate Layer 3 classifications."""
+        """AC-extraction.212.1: Re-running the same rule does not duplicate Layer 3 classifications."""
         service = ClassificationService()
 
         account = Account(

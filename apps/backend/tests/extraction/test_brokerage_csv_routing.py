@@ -39,7 +39,7 @@ BANK_TRANSACTION_CSV = b"""Transaction Date,Reference,Debit Amount,Credit Amount
 
 
 def test_classify_brokerage_csv_distinguishes_schemas():
-    """AC17.32.1 AC17.32.2 AC17.32.3: header classifier separates the three CSV shapes."""
+    """AC-extraction.332.1 AC-extraction.332.2 AC-extraction.332.3: header classifier separates the three CSV shapes."""
     assert classify_brokerage_csv(["Symbol", "Quantity", "Market Value", "Currency"]) == "positions"
     assert classify_brokerage_csv(["Side", "Symbol", "Fill Quantity", "Fill Price", "Total"]) == "trade_history"
     assert classify_brokerage_csv(["Transaction Date", "Debit Amount", "Credit Amount"]) is None
@@ -47,7 +47,7 @@ def test_classify_brokerage_csv_distinguishes_schemas():
 
 
 def test_parse_brokerage_positions_csv_rows_uses_decimal():
-    """AC17.32.1: positions CSV rows map to Decimal-backed position dicts."""
+    """AC-extraction.332.1: positions CSV rows map to Decimal-backed position dicts."""
     headers = ["Symbol", "Quantity", "Market Value", "Currency"]
     rows = [
         {"Symbol": "AAA", "Quantity": "10", "Market Value": "1,000.00", "Currency": "usd"},
@@ -62,11 +62,11 @@ def test_parse_brokerage_positions_csv_rows_uses_decimal():
     assert pos["currency"] == "USD"
 
 
-# --- AC17.32.1: positions CSV reaches brokerage import path -----------------
+# --- AC-extraction.332.1: positions CSV reaches brokerage import path -----------------
 
 
 async def test_AC17_32_1_brokerage_positions_csv_produces_positions_payload():
-    """AC17.32.1: Brokerage positions CSV is mapped into a ``positions`` payload.
+    """AC-extraction.332.1: Brokerage positions CSV is mapped into a ``positions`` payload.
 
     The payload must satisfy the brokerage import contract (parse_brokerage_positions
     yields snapshots) instead of failing with a bank "No valid transactions" error.
@@ -86,11 +86,11 @@ async def test_AC17_32_1_brokerage_positions_csv_produces_positions_payload():
     assert snapshots[0].currency == "USD"
 
 
-# --- AC17.32.2: trade-history CSV gives an actionable error -----------------
+# --- AC-extraction.332.2: trade-history CSV gives an actionable error -----------------
 
 
 async def test_AC17_32_2_brokerage_trade_history_csv_raises_actionable_error():
-    """AC17.32.2: Trade-history CSV raises an actionable unsupported error.
+    """AC-extraction.332.2: Trade-history CSV raises an actionable unsupported error.
 
     It must NOT surface the misleading generic bank parse failure.
     """
@@ -104,17 +104,17 @@ async def test_AC17_32_2_brokerage_trade_history_csv_raises_actionable_error():
 
 
 def test_parse_brokerage_csv_payload_rejects_trade_history():
-    """AC17.32.2: trade-history schema raises the typed unsupported error."""
+    """AC-extraction.332.2: trade-history schema raises the typed unsupported error."""
     headers = ["Side", "Symbol", "Fill Quantity", "Fill Price", "Total"]
     with pytest.raises(UnsupportedBrokerageCsvError, match="trade-history"):
         parse_brokerage_csv_payload(headers, [], institution="Interactive Brokers")
 
 
-# --- AC17.32.3: bank CSV parsing is unaffected ------------------------------
+# --- AC-extraction.332.3: bank CSV parsing is unaffected ------------------------------
 
 
 async def test_AC17_32_3_bank_csv_unaffected_by_brokerage_detection():
-    """AC17.32.3: Bank transaction CSV parsing is unchanged (no regression)."""
+    """AC-extraction.332.3: Bank transaction CSV parsing is unchanged (no regression)."""
     service = ExtractionService()
     payload = await service._parse_csv_content(BANK_TRANSACTION_CSV, "DBS")
 

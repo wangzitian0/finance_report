@@ -1688,5 +1688,167 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        # AC-extraction.* migrated from EPIC-011 groups 11.13, 11.15 (#1419-pattern AC move).
+        ACRecord(
+            id="AC-extraction.212.1",
+            statement=(
+                "Re-applying the same rule version to the same atomic "
+                "transaction is idempotent and returns the existing "
+                "classification without inserting duplicates. Was EPIC-011 "
+                "AC11.12.1."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_classification_service.py"
+                "::test_apply_rules_is_idempotent_for_existing_transaction_rule_version"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.213.1",
+            statement=(
+                "Parsing populates Layer 1/2 by default, without any feature-flag "
+                "override. Was EPIC-011 AC11.13.1."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_dual_write_layer2.py"
+                "::test_dual_write_enabled_by_default"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.215.3",
+            statement=(
+                "Custody account resolves from a Layer-2 atomic transaction via "
+                "the conform (DWD-native). Was EPIC-011 AC11.15.3."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_statement_summary_conform.py"
+                "::test_resolve_custody_account_from_atomic_txn"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.215.4",
+            statement=(
+                "The resolver returns None when the source statement has no "
+                "confirmed custody account. Was EPIC-011 AC11.15.4."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_statement_summary_conform.py"
+                "::test_resolve_returns_none_without_account"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.215.5",
+            statement=(
+                "The resolver normalizes a {'documents': [...]} source-documents "
+                "wrapper. Was EPIC-011 AC11.15.5."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_statement_summary_conform.py"
+                "::test_resolve_handles_dict_wrapper_source_documents"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.215.6",
+            statement=(
+                "The resolver skips junk entries, non-bank-statement sources, and "
+                "invalid UUIDs. Was EPIC-011 AC11.15.6."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_statement_summary_conform.py"
+                "::test_resolve_ignores_invalid_and_non_bank_sources"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.215.7",
+            statement=(
+                "A non-list/non-dict source_documents value resolves to None. Was "
+                "EPIC-011 AC11.15.7."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_statement_summary_conform.py"
+                "::test_resolve_returns_none_for_non_list_source_documents"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.215.8",
+            statement=(
+                "The first source document (in order) with a confirmed account "
+                "wins. Was EPIC-011 AC11.15.8."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_statement_summary_conform.py"
+                "::test_resolve_preserves_source_document_order"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.215.9",
+            statement=(
+                "A known source document with no confirmed custody account "
+                "resolves to None. Was EPIC-011 AC11.15.9."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_statement_summary_conform.py"
+                "::test_resolve_returns_none_when_no_source_has_account"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        # AC-extraction.* migrated from EPIC-017 groups 17.32 (#1419-pattern AC move).
+        ACRecord(
+            id="AC-extraction.332.1",
+            statement=(
+                "Brokerage positions CSV is mapped into a positions payload (not "
+                "a bank parse failure) so it reaches the brokerage import path. "
+                "Was EPIC-017 AC17.32.1."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_brokerage_csv_routing.py"
+                "::test_AC17_32_1_brokerage_positions_csv_produces_positions_payload"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.332.2",
+            statement=(
+                "Brokerage trade-history CSV raises an actionable unsupported- "
+                "document error, not the generic bank 'No valid transactions' "
+                "failure. Was EPIC-017 AC17.32.2."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_brokerage_csv_routing.py"
+                "::test_AC17_32_2_brokerage_trade_history_csv_raises_actionable_error"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.332.3",
+            statement=(
+                "Bank transaction CSV parsing is unaffected by brokerage CSV "
+                "detection (no regression). Was EPIC-017 AC17.32.3."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_brokerage_csv_routing.py"
+                "::test_AC17_32_3_bank_csv_unaffected_by_brokerage_detection"
+            ),
+            priority="P1",
+            status="done",
+        ),
     ],
 )
