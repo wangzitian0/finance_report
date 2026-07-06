@@ -324,7 +324,10 @@ concepts:
 
   net_worth_valuation_snapshots:
     owner: docs/ssot/assets.md#manual-valuation-snapshots
-    description: Point-in-time manual valuation snapshots for non-ledger net worth components.
+    description: >-
+      Point-in-time manual valuation snapshots for non-ledger net worth
+      components. Legacy model; retires into the pricing package's unified
+      observation model (#1610) — ownership moves at that cutover.
     cross_refs:
       - docs/ssot/reporting.md
       - docs/ssot/schema.md
@@ -332,7 +335,10 @@ concepts:
   # ── Market data ────────────────────────────────────────────────────────
   market_data:
     owner: docs/ssot/market_data.md
-    description: FX rates, stock prices, data sources, and sync schedule.
+    description: >-
+      FX rates, stock prices, data sources, and sync schedule. Legacy model;
+      internalizes into the pricing package (#1610) — ownership moves at that
+      cutover.
     cross_refs:
       - docs/ssot/reporting.md
 

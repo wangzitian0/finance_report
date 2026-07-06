@@ -73,11 +73,18 @@ PACKAGE_LAYER: dict[str, PackageClass] = {
     # (money/ratio/quantity/unit_price) folded into audit (#1419), so those
     # names are gone from the map — audit (L1) owns the financial base types.
     "counter": "middleware",
-    # L3 — vertical business slices.
+    # L3 — vertical business slices. advisor / portfolio / pricing / reporting
+    # are forward placements: their cutovers (#1425 / #1422 / #1610 / #1424)
+    # have not shipped a contract.py yet, so the map pins their layer ahead of
+    # time (the shell-ahead rule above) — they are future packages, not dead ones.
+    "advisor": "domain",
     "extraction": "domain",
     "identity": "domain",
     "ledger": "domain",
+    "portfolio": "domain",
+    "pricing": "domain",
     "reconciliation": "domain",
+    "reporting": "domain",
     # L4 — the deliverables.
     "backend": "app",
     "frontend": "app",

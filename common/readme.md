@@ -5,34 +5,53 @@ surfaces. A package is a DDD bounded context; each one is a directory
 `common/<pkg>/` holding its `readme.md` (ubiquitous language), `contract.py` (a
 machine-checkable `PackageContract`), and `todo.md` (its worklist). The running
 code is a conforming *implementation* the contract points at — under
-`apps/backend/src/<pkg>` and/or `apps/frontend/src/lib/<pkg>`.
+`apps/backend/src/<pkg>` and/or `apps/frontend/src/lib/<pkg>` (a project-wide
+shared package implements directly in `common/<pkg>/`, e.g. `meta`).
 
 ## The package model in a paragraph
 
 `common/<pkg>/` is the authoritative **spec + review surface**; the apps hold the
-**implementations**. A package declares one `klass` (`kernel` < `platform` <
-`core`) that fixes its place in a down-only dependency DAG, converges its files by
-**role** (`types`/`ops`/`store`/`api`), and publishes exactly its
-`__init__.__all__` (which must equal `contract.interface`). Governance is
-**computed from contracts, not authored**: `tools/check_package_contract.py`
-discovers every `common/*/contract.py`, checks the implementation against it
-(interface == `__all__`, every invariant/roadmap test resolves, no forbidden
-dependency edge), and the AC registry sources each package's ACs straight from
-its `roadmap` — so a package's ACs are never mirrored into an EPIC table. The
-model **self-hosts**: the meta package that defines all of this is
-[`common/meta/`](./meta/readme.md), checked by the very gate it
-ships.
+**implementations**. Placement in the five-layer topology (`meta` < `infra` <
+`middleware` < `domain` < `app`) is global and owned by L0's central map
+(`common/meta/base/layering.py` `PACKAGE_LAYER`), fixing a down-only dependency
+DAG. Internally a package converges into three **layers** — `base` (pure core,
+no I/O) / `extension` (impure cross-package edges) / `data` (read-model sink) —
+and publishes exactly its `__init__.__all__` (which must equal
+`contract.interface`). Governance is **computed from contracts, not authored**:
+`check_package_contract` discovers every `common/*/contract.py`, checks the
+implementation against it (interface == `__all__`, every invariant/roadmap test
+resolves, no forbidden dependency edge), and the AC registry sources each
+package's ACs straight from its `roadmap` — so a package's ACs are never
+mirrored into an EPIC table. The model **self-hosts**: the meta package that
+defines all of this is [`common/meta/`](./meta/readme.md), checked by the very
+gate it ships.
 
 ## Map
 
-- [`common/meta/`](./meta/readme.md) — the meta package: the
-  package-model spec, `PackageContract`, and the governance gate.
-- [`common/counter/`](./counter/readme.md) — the first worked example
-  (`platform`): the canonical minimal template every new package copies
-  (`readme.md` + `contract.py` + `todo.md`).
+Contract-carrying packages, by layer (see
+[`meta/migration-standard.md`](./meta/migration-standard.md) for each package's
+scope):
+
+- **L0 meta** — [`meta/`](./meta/readme.md): the package-model spec,
+  `PackageContract`, and the governance gate.
+- **L1 infra** — [`audit/`](./audit/readme.md) (financial base types +
+  `ExchangeRate` conversion math + numeric governance; absorbed the old
+  money/ratio/quantity/unit_price value packages),
+  [`authority/`](./authority/readme.md), [`config/`](./config/readme.md),
+  [`coverage/`](./coverage/readme.md), [`llm/`](./llm/readme.md),
+  [`observability/`](./observability/readme.md),
+  [`platform/`](./platform/readme.md) (event-bus/outbox substrate,
+  historically labelled *middleware*), [`runtime/`](./runtime/readme.md),
+  [`testing/`](./testing/readme.md).
+- **L2 middleware** — [`counter/`](./counter/readme.md): the first worked
+  example, the canonical minimal template every new package copies.
+- **L3 domain** — [`extraction/`](./extraction/readme.md),
+  [`identity/`](./identity/readme.md), [`ledger/`](./ledger/readme.md).
+  Pending cutovers (forward-placed in `PACKAGE_LAYER`, no `contract.py` yet):
+  `pricing` (#1610, the one price/valuation SSOT — lands before portfolio),
+  `portfolio` (#1422), `reconciliation` (#1423), `reporting` (#1424),
+  `advisor` (#1425).
 - [`common/todo.md`](./todo.md) — the cross-package / migration worklist.
 
-The other `common/*` directories (`ci`, `ssot`, `coverage`, `money`, `ratio`,
-`quantity`, `unit_price`, `observability`, `shell`, `testing`, …) are existing
-shared code; they adopt a full `contract.py` as the model rolls out (see the
-phase table in [`todo.md`](./todo.md)).
+`common/ssot/` is legacy shared code outside the package model; it dissolves as
+the remaining cutovers land (phase table in [`todo.md`](./todo.md)).
