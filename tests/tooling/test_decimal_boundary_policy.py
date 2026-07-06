@@ -20,10 +20,10 @@ def _read(path: Path) -> str:
 
 
 @ac_proof(
-    proof_id="test_decimal_boundary_policy", ac_ids=["AC12.31.1"], ci_tier="pr_ci"
+    proof_id="test_decimal_boundary_policy", ac_ids=["AC-audit.31.1"], ci_tier="pr_ci"
 )
 def test_AC12_31_1_decimal_boundary_policy_is_mece_and_enforced():
-    """AC12.31.1: raw Decimal is an explicit boundary, not domain semantics."""
+    """AC-audit.31.1: raw Decimal is an explicit boundary, not domain semantics."""
     ssot = _read(Path("common/audit/readme.md"))
     for phrase in [
         "Raw Decimal boundary policy",
@@ -57,11 +57,11 @@ def test_AC12_31_1_decimal_boundary_policy_is_mece_and_enforced():
 
 @ac_proof(
     proof_id="test_decimal_boundary_migrated_hotspots",
-    ac_ids=["AC12.31.3"],
+    ac_ids=["AC-audit.31.3"],
     ci_tier="pr_ci",
 )
 def test_AC12_31_3_migrated_hotspots_use_base_packages():
-    """AC12.31.3: migrated money/quantity/frontend hotspots stay behind base packages."""
+    """AC-audit.31.3: migrated money/quantity/frontend hotspots stay behind base packages."""
     quantity_service_files = [
         Path("apps/backend/src/services/assets.py"),
         Path("apps/backend/src/services/investment_accounting.py"),
@@ -74,9 +74,9 @@ def test_AC12_31_3_migrated_hotspots_use_base_packages():
     for path in quantity_service_files:
         src = _read(path)
         # value type via direct import OR a model .quantity_qty accessor (#3 push)
-        assert "from src.audit.quantity import Quantity" in src or ".quantity_qty" in src, (
-            f"{path} must use Quantity (import or .quantity_qty accessor)"
-        )
+        assert (
+            "from src.audit.quantity import Quantity" in src or ".quantity_qty" in src
+        ), f"{path} must use Quantity (import or .quantity_qty accessor)"
         assert "quantized_quantity_value" not in src
         assert "quantity_is_zero" not in src
         assert "quantity_zero_value" not in src

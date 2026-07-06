@@ -112,7 +112,7 @@ async def test_transaction_currency_must_match_position_currency(
     chart,
     svc: InvestmentAccountingService,
 ):
-    """AC12.35.2: a transaction in a currency other than the position's raises a clean
+    """AC-audit.35.2: a transaction in a currency other than the position's raises a clean
     domain error (not a raw CurrencyMismatchError) once Money arithmetic is used."""
     await svc.post_buy(
         db,

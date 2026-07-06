@@ -1,4 +1,4 @@
-"""Base-package boundary codec guards (EPIC-012 AC12.31.4)."""
+"""Base-package boundary codec guards (AC-audit.31.4 (was EPIC-012 group 31, row .4))."""
 
 from __future__ import annotations
 
@@ -25,11 +25,11 @@ def _ensure_backend_src_importable() -> None:
 
 @ac_proof(
     proof_id="test_base_package_common_boundary_codecs",
-    ac_ids=["AC12.31.4"],
+    ac_ids=["AC-audit.31.4"],
     ci_tier="pr_ci",
 )
 def test_AC12_31_4_common_boundary_codecs_round_trip_strings_and_db_fields():
-    """AC12.31.4: common base packages own JSON-string and DB Decimal codecs."""
+    """AC-audit.31.4: common base packages own JSON-string and DB Decimal codecs."""
     from common.audit.money import (
         ExchangeRate,
         InvalidMoneyPayloadError,
@@ -132,11 +132,11 @@ def test_AC12_31_4_common_boundary_codecs_round_trip_strings_and_db_fields():
 
 @ac_proof(
     proof_id="test_base_package_backend_boundary_codecs",
-    ac_ids=["AC12.31.4"],
+    ac_ids=["AC-audit.31.4"],
     ci_tier="pr_ci",
 )
 def test_AC12_31_4_backend_boundary_codecs_match_common_surface():
-    """AC12.31.4: backend runtime copies expose the same boundary codec surface."""
+    """AC-audit.31.4: backend runtime copies expose the same boundary codec surface."""
     _ensure_backend_src_importable()
     from src.audit.money import (
         ExchangeRate,
@@ -193,11 +193,11 @@ def test_AC12_31_4_backend_boundary_codecs_match_common_surface():
 
 @ac_proof(
     proof_id="test_base_package_wire_codec_shared_api",
-    ac_ids=["AC12.31.4"],
+    ac_ids=["AC-audit.31.4"],
     ci_tier="pr_ci",
 )
 def test_AC12_31_4_wire_codecs_are_declared_in_shared_api():
-    """AC12.31.4: language-neutral vectors declare the cross-end wire codec surface."""
+    """AC-audit.31.4: language-neutral vectors declare the cross-end wire codec surface."""
     money_api = set(
         json.loads((REPO / "common/audit/money/conformance/vectors.json").read_text())[
             "shared_api"
@@ -209,9 +209,9 @@ def test_AC12_31_4_wire_codecs_are_declared_in_shared_api():
         ]
     )
     quantity_api = set(
-        json.loads((REPO / "common/audit/quantity/conformance/vectors.json").read_text())[
-            "shared_api"
-        ]
+        json.loads(
+            (REPO / "common/audit/quantity/conformance/vectors.json").read_text()
+        )["shared_api"]
     )
 
     assert {
