@@ -27,9 +27,9 @@ contract, same as ``counter``. ``roadmap`` groups 1-8 migrated from EPIC-009
 EPIC-023's cassette-layer ACs (AC23.5/AC23.6/AC23.7, plus the graded-eval
 AC23.8) deliberately do NOT migrate here, even though AC23.5-.7 carry a
 ``{tier:CODE-ONLY}`` annotation in EPIC-023 prose: this package's own
-governance gate (``common/authority/check_authority_reconcile.py``) DETECTS a
+governance gate (``common/meta/extension/check_authority_reconcile.py``) DETECTS a
 package's tier from what its roadmap-AC tests actually exercise, and
-``common/authority/authority_classifier.py`` classifies *any* test that
+``common/meta/extension/authority_classifier.py`` classifies *any* test that
 drives the cassette/replay harness as the ``LLM`` band by design (the
 harness is inherently LLM-facing infrastructure, not domain-agnostic testing
 capability, no matter how deterministic/mocked its assertions are). A
@@ -76,6 +76,17 @@ CONTRACT = PackageContract(
                 "tests/tooling/test_testing_package.py"
                 "::test_AC_testing_1_1_package_contract_gate_passes_for_testing"
             ),
+        ),
+        # ── coverage tooling folded in (was the `coverage` package) ──
+        Invariant(
+            id="registered-source-missing-from-lcov-fails",
+            statement="The coverage policy fails when a registered source file is missing from the lcov report, so uncovered source is never silently dropped.",
+            test="tests/tooling/test_coverage_policy.py::test_compare_component_fails_when_source_file_is_missing_from_lcov",
+        ),
+        Invariant(
+            id="source-set-recursive-with-exclusions",
+            statement="The expected coverage source set recursively includes all eligible files except the declared exclusions.",
+            test="tests/tooling/test_coverage_policy.py::test_expected_sources_recursively_include_all_eligible_files_except_exclusions",
         ),
     ],
     roadmap=[
@@ -368,4 +379,12 @@ CONTRACT = PackageContract(
             status="done",
         ),
     ],
+)
+
+# Test roots folded in from the `coverage` package (now common/testing/coverage/).
+TEST_ROOTS: tuple[str, ...] = (
+    "tests/tooling/test_coverage_policy.py",
+    "tests/tooling/test_coverage_analyzer.py",
+    "tests/tooling/test_calculate_unified_coverage.py",
+    "tests/tooling/test_coverage_artifact_preflight.py",
 )

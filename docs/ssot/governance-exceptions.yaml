@@ -273,7 +273,7 @@ code_owned_surfaces:
     owner: apps/backend/pyproject.toml
     reason: >-
       Backend coverage thresholds and source tree are owned by pyproject.toml
-      plus common/coverage/policy.py; docs link to the policy instead of copying
+      plus common/testing/coverage/policy.py; docs link to the policy instead of copying
       mutable numeric values.
     issue: https://github.com/wangzitian0/finance_report/issues/524
   - id: frontend-coverage-threshold

@@ -1,4 +1,4 @@
-"""Tests for common.coverage.analyzer.
+"""Tests for common.testing.coverage.analyzer.
 
 Tests the coverage analysis functions:
 - parse_missing_lines: Parse missing lines from coverage report
@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from common.coverage.analyzer import (
+from common.testing.coverage.analyzer import (
     generate_recommendations,
     identify_common_patterns,
     parse_missing_lines,
@@ -278,7 +278,7 @@ class TestGenerateRecommendations:
 class TestRunCoverageReport:
     def test_run_coverage_report_returns_string(self, monkeypatch):
         import subprocess
-        from common.coverage.analyzer import run_coverage_report
+        from common.testing.coverage.analyzer import run_coverage_report
 
         fake = type("R", (), {"stdout": "cov output", "stderr": "", "returncode": 0})()
         monkeypatch.setattr(subprocess, "run", lambda *a, **kw: fake)
@@ -288,7 +288,7 @@ class TestRunCoverageReport:
 
     def test_run_coverage_report_with_html_format(self, monkeypatch):
         import subprocess
-        from common.coverage.analyzer import run_coverage_report
+        from common.testing.coverage.analyzer import run_coverage_report
 
         fake = type("R", (), {"stdout": "html report", "stderr": "", "returncode": 0})()
         monkeypatch.setattr(subprocess, "run", lambda *a, **kw: fake)
@@ -299,7 +299,7 @@ class TestRunCoverageReport:
 class TestAnalyzeModuleCoverage:
     def test_analyze_module_coverage_returns_list(self, monkeypatch):
         import subprocess
-        from common.coverage.analyzer import analyze_module_coverage
+        from common.testing.coverage.analyzer import analyze_module_coverage
 
         fake = type("R", (), {"stdout": "", "stderr": "", "returncode": 0})()
         monkeypatch.setattr(subprocess, "run", lambda *a, **kw: fake)
@@ -315,7 +315,7 @@ class TestMain:
     def test_main_no_missing_lines(self, monkeypatch, capsys):
         import subprocess
         import sys
-        from common.coverage.analyzer import main
+        from common.testing.coverage.analyzer import main
 
         fake = type(
             "R", (), {"stdout": "clean output", "stderr": "", "returncode": 0}
@@ -330,7 +330,7 @@ class TestMain:
     def test_main_with_missing_lines(self, monkeypatch, capsys):
         import subprocess
         import sys
-        from common.coverage.analyzer import main
+        from common.testing.coverage.analyzer import main
 
         fake_output = "src/service.py:10: missing branch coverage\nsrc/service.py:20: except error"
         fake = type("R", (), {"stdout": fake_output, "stderr": "", "returncode": 0})()
@@ -344,7 +344,7 @@ class TestMain:
     def test_main_with_suggest_flag(self, monkeypatch, capsys):
         import subprocess
         import sys
-        from common.coverage.analyzer import main
+        from common.testing.coverage.analyzer import main
 
         fake_output = "\n".join(
             [
@@ -361,7 +361,7 @@ class TestMain:
     def test_main_with_missing_lines_and_pattern_counts(self, monkeypatch, capsys):
         import subprocess
         import sys
-        from common.coverage.analyzer import main
+        from common.testing.coverage.analyzer import main
 
         fake_output = "\n".join(
             [f"src/s.py:{i}: missing except error raise" for i in range(10)]
@@ -377,7 +377,7 @@ class TestMain:
     def test_main_suggest_with_pattern_counts(self, monkeypatch, capsys):
         import subprocess
         import sys
-        from common.coverage.analyzer import main
+        from common.testing.coverage.analyzer import main
 
         fake_output = "\n".join(
             [
@@ -395,13 +395,13 @@ class TestMain:
     def test_main_high_avg_coverage_branch(self, monkeypatch, capsys):
         import subprocess
         import sys
-        from common.coverage.analyzer import main
+        from common.testing.coverage.analyzer import main
 
         fake = type("R", (), {"stdout": "", "stderr": "", "returncode": 0})()
         monkeypatch.setattr(subprocess, "run", lambda *a, **kw: fake)
         monkeypatch.setattr(sys, "argv", ["coverage_analyzer.py"])
         monkeypatch.setattr(
-            "common.coverage.analyzer.analyze_module_coverage",
+            "common.testing.coverage.analyzer.analyze_module_coverage",
             lambda: [("accounting", 99.0), ("auth", 99.0)],
         )
         main()

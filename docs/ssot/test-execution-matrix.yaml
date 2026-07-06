@@ -48,13 +48,13 @@ ownership:
   - path: apps/backend/tests/ledger/
     package: ledger
   - path: tests/tooling/test_calculate_unified_coverage.py
-    package: coverage
+    package: testing
   - path: tests/tooling/test_coverage_analyzer.py
-    package: coverage
+    package: testing
   - path: tests/tooling/test_coverage_artifact_preflight.py
-    package: coverage
+    package: testing
   - path: tests/tooling/test_coverage_policy.py
-    package: coverage
+    package: testing
   - path: tests/tooling/test_ledger_module.py
     package: ledger
   - path: tests/tooling/test_ledger_package.py

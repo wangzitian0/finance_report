@@ -34,6 +34,14 @@ class _Chunk:
         self.choices = [_Choice(c)]
 
 
+@pytest.fixture(autouse=True)
+def _force_live_transport(monkeypatch):
+    """Facade->litellm WIRE-integration tests mock litellm BELOW the transport;
+    LLM_LIVE is the layer's sanctioned seam so the stub is reached instead of
+    the cassette decision (#1597)."""
+    monkeypatch.setenv("LLM_LIVE", "1")
+
+
 @pytest.fixture
 def litellm_stub(monkeypatch):
     """Capture litellm kwargs and serve canned stream chunks."""

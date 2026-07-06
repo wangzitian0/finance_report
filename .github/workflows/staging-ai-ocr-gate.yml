@@ -80,6 +80,11 @@ jobs:
           EXPECTED_SHA_RAW: ${{ inputs.expected_sha }}
           BLOCKING: ${{ inputs.blocking }}
           CORPUS: ${{ inputs.corpus }}
+          # #1623: the record-only real-provider gate had no teeth — a live
+          # AI/OCR regression was written to the step summary and nobody saw it.
+          # Post a SeaTalk alert when it regresses. Empty until the webhook
+          # secret is provisioned (operator follow-up); the step is a no-op then.
+          SEATALK_ALERT_WEBHOOK: ${{ secrets.SEATALK_ALERT_WEBHOOK }}
         run: |
           # Normalize a full 40-hex commit SHA down to the 7-char tag used by the
           # published images; leave a vX.Y.Z release version_ref untouched.
@@ -193,6 +198,15 @@ jobs:
             fi
             if [ "$status" -ne 0 ]; then
               echo "::warning::Staging AI/OCR gate '${ai_ocr_status}' recorded as right-shifted regression; not blocking release-critical delivery."
+              # #1623: give the record-only gate teeth — notify humans that the
+              # real-provider run regressed (cassette replay can't catch model
+              # quality drift, so this is the only signal for that class).
+              if [ -n "${SEATALK_ALERT_WEBHOOK:-}" ]; then
+                curl -sS -X POST "$SEATALK_ALERT_WEBHOOK" \
+                  -H 'Content-Type: application/json' \
+                  -d "{\"tag\":\"text\",\"text\":{\"content\":\"[finance_report] Staging AI/OCR gate regressed: ${ai_ocr_status} on ${APP_URL} (run ${GITHUB_RUN_ID:-?}). Real-provider parse quality dropped — needs a look.\"}}" \
+                  || echo "::warning::SeaTalk alert dispatch failed (non-fatal)."
+              fi
             fi
             exit 0
           }

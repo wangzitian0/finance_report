@@ -31,7 +31,7 @@ unified_coverage = total_covered_lines / total_executable_lines
 - `integration` and Tier-1 `e2e` backend tests are now executed as dedicated CI stages (`backend-integration`, `backend-e2e-tier1`) and run as behavior-only gates.
   They are intentionally excluded from unified coverage merge in this PR; LCOV is not collected in these stages until policy explicitly opts in.
 - AC metrics are separate by design: AC pass rate and AC traceability are behavior/reference gates, not line-coverage arithmetic.
-- `common/coverage/policy.py` plus policy-aware auditors ensure these exact four scopes remain the unified denominator.
+- `common/testing/coverage/policy.py` plus policy-aware auditors ensure these exact four scopes remain the unified denominator.
 
 **Unified CI Gate**: No-regression baseline comparison (zero tolerance for drops), plus a source tree vs LCOV policy audit. No fixed minimum unified threshold is enforced.
 
@@ -51,7 +51,7 @@ GitHub event, commit, run attempt, toolchain versions, and input file hashes.
 
 ## Components
 
-The authoritative component/file policy lives in `common/coverage/policy.py`. Coverage tools must emit LCOV source paths that match that policy:
+The authoritative component/file policy lives in `common/testing/coverage/policy.py`. Coverage tools must emit LCOV source paths that match that policy:
 
 | Component | Source Root | LCOV Path Prefix | Main Report | Tier |
 |-----------|-------------|------------------|-------------|------|
@@ -64,7 +64,7 @@ The authoritative component/file policy lives in `common/coverage/policy.py`. Co
 
 ### Coverage tiers (#923)
 
-Each component carries an explicit `tier` on `common/coverage/policy.py::CoverageComponent`:
+Each component carries an explicit `tier` on `common/testing/coverage/policy.py::CoverageComponent`:
 
 - **`ci-critical`** (backend, frontend, common): application and shared-library
   trees whose silent failure can false-green the pipeline or break a
@@ -108,7 +108,7 @@ green.
 `tools/check_coverage_policy.py` therefore also runs a **registration guard**
 (`audit_unregistered_sources`): every tracked `.py`/`.ts`/`.tsx` file must be
 either under a component source root **or** matched by an explicit exempt
-pattern in `common/coverage/policy.py::COVERAGE_EXEMPT_PATTERNS` (tests, config,
+pattern in `common/testing/coverage/policy.py::COVERAGE_EXEMPT_PATTERNS` (tests, config,
 migrations, agent skills, docs, the vendored submodule). Adding an unlisted code
 directory fails the audit until the author either moves it under a covered root
 or registers it in that list via a reviewable diff. You cannot skip coverage by
@@ -371,7 +371,7 @@ python tools/calculate_unified_coverage.py
 
 ### Coverage policy audit fails after adding a module
 
-The new source file must either appear in the matching LCOV report or be explicitly excluded in `common/coverage/policy.py`. Prefer adding tests/import coverage for real modules. Only exclude generated, type-only, test-only, or entrypoint files.
+The new source file must either appear in the matching LCOV report or be explicitly excluded in `common/testing/coverage/policy.py`. Prefer adding tests/import coverage for real modules. Only exclude generated, type-only, test-only, or entrypoint files.
 
 ### CI fails with coverage error
 
@@ -416,7 +416,7 @@ Coverage scope is deny-list based within each governed source root. The governed
 roots are `apps/backend/src`, `apps/frontend/src`, `common`, and `tools`.
 
 Every eligible source file under those roots is expected in LCOV unless it is
-explicitly excluded by `common/coverage/policy.py`. CI must not silently shrink
+explicitly excluded by `common/testing/coverage/policy.py`. CI must not silently shrink
 the denominator by scanning only selected packages, directories, or files. New
 source roots discovered by the metrics contract must be added to the coverage
 policy before CI can pass.

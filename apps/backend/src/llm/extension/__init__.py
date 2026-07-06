@@ -23,7 +23,6 @@ from src.llm.extension.cassette import (
     CassetteStore,
     CassetteTag,
     CassetteValidationError,
-    current_mode,
     fingerprint,
     miss_summary,
 )
@@ -50,7 +49,6 @@ __all__ = [
     "LayeredConfigSource",
     "LitellmCall",
     "build_call",
-    "current_mode",
     "fingerprint",
     "get_config_source",
     "get_usage_meter",

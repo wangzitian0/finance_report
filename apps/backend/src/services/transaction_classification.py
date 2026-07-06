@@ -233,14 +233,7 @@ async def propose_categories(
     and clamped by code, graceful ``None`` fallback per transaction on any error.
     Only descriptions and directions are sent — never amounts.
     """
-    from src.llm import CassetteMode, current_mode
     from src.services.ai_streaming import AIStreamError, accumulate_stream, stream_ai_json
-
-    if not settings.ai_api_key and current_mode() is CassetteMode.OFF:
-        # Replay/record modes go through the cassette layer (zero key, zero
-        # network in replay), so the key guard only applies in off mode.
-        logger.debug("transaction classification skipped: no API key configured")
-        return [None] * len(transactions)
 
     catalog = ", ".join(c.value for c in policy.catalog)
     lines = "\n".join(

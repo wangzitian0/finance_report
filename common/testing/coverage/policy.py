@@ -9,7 +9,7 @@ from fnmatch import fnmatch
 from pathlib import Path
 
 
-ROOT_DIR = Path(__file__).resolve().parents[2]
+ROOT_DIR = Path(__file__).resolve().parents[3]
 
 
 # --- Coverage tiers (#923) ----------------------------------------------------

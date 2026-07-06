@@ -425,21 +425,6 @@ async def test_AC23_6_3_record_correctness_validator_error_refuses(monkeypatch, 
             pass
 
 
-async def test_AC23_6_3_record_default_mode_from_env(monkeypatch, tmp_path):
-    """AC-llm.6.3: with no explicit cassette_mode, the bridge reads LLM_CASSETTE_MODE
-    (here 'record') so the CI replay step / make llm-record drive it via the env."""
-    monkeypatch.setenv("LLM_CASSETTE_MODE", "record")
-    monkeypatch.setattr(client_mod.litellm, "acompletion", _fake_stream("env-driven"))
-    store = CassetteStore(directory=tmp_path / "c")
-    out = await accumulate_stream(
-        litellm_stream(
-            _TEXT_MESSAGES,
-            provider=_provider(),
-            model_id="glm-5.1",
-            temperature=0.0,
-            max_tokens=512,
-            cassette_store=store,
-            cassette_mode=None,
-        )
-    )
-    assert out == "env-driven"
+# (The former "record mode from LLM_CASSETTE_MODE" test died with the env
+# (#1597): with no explicit cassette_mode the TRANSPARENT layer decides per
+# request — covered by tests/llm/test_transparent_cassette.py.)

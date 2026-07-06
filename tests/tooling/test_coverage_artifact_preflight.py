@@ -23,8 +23,8 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from common.coverage import calculate_unified_coverage as cuc  # noqa: E402
-from common.coverage.policy import (  # noqa: E402
+from common.testing.coverage import calculate_unified_coverage as cuc  # noqa: E402
+from common.testing.coverage.policy import (  # noqa: E402
     CI_CRITICAL,
     BEST_EFFORT,
     COMPONENT_BY_NAME,

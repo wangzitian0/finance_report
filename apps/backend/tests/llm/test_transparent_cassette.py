@@ -61,7 +61,7 @@ def no_network(monkeypatch):
     return calls
 
 
-async def _run(*, store, provider=None, provider_resolver=None):
+async def _run(*, store, provider=None, provider_resolver=None, **cassette_kwargs):
     chunks = []
     async for c in litellm_stream(
         MESSAGES,
@@ -70,6 +70,7 @@ async def _run(*, store, provider=None, provider_resolver=None):
         model_id="glm-test",
         max_tokens=64,
         cassette_store=store,
+        **cassette_kwargs,
     ):
         chunks.append(c)
     return "".join(chunks)
@@ -188,3 +189,34 @@ async def test_served_keys_are_tracked_for_orphan_detection(frozen, no_network, 
     _engage(monkeypatch)
     await _run(store=frozen)
     assert KEY in frozen.served_keys()
+
+
+@pytest.mark.asyncio
+async def test_auto_record_enforces_the_correctness_red_line(store, no_network, monkeypatch):
+    """AC-llm.10.8: transparent auto-record enforces the correctness red line: a
+    correctness-tagged request is refused without a ground-truth validator, and a
+    response failing validation is NEVER frozen."""
+    from src.llm.extension.cassette import CassetteTag, CassetteValidationError
+
+    _engage(monkeypatch)
+    with pytest.raises(CassetteValidationError):
+        await _run(store=store, provider=_provider(), cassette_tag=CassetteTag.CORRECTNESS)
+    assert store.get(KEY) is None  # nothing frozen without a validator
+
+    with pytest.raises(CassetteValidationError):
+        await _run(
+            store=store,
+            provider=_provider(),
+            cassette_tag=CassetteTag.CORRECTNESS,
+            cassette_validator=lambda response: False,
+        )
+    assert store.get(KEY) is None  # a failing response is never frozen
+
+    out = await _run(
+        store=store,
+        provider=_provider(),
+        cassette_tag=CassetteTag.CORRECTNESS,
+        cassette_validator=lambda response: response["stream_text"] == "LIVE-RESPONSE",
+    )
+    assert out == "LIVE-RESPONSE"
+    assert store.get(KEY) is not None  # a validated response freezes normally

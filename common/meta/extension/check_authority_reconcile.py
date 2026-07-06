@@ -28,10 +28,10 @@ import argparse
 import sys
 from pathlib import Path
 
-from common.authority.authority_classifier import band, build_test_index, classify_test_files
+from common.meta.extension.authority_classifier import band, build_test_index, classify_test_files
 from common.testing.generate_ac_registry import package_contract_meta
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 def _detect(meta: dict, index: dict, cache: dict) -> tuple[int, int, float, str]:

@@ -14,6 +14,15 @@ from src.llm.base import LLMConfigError, LLMError, ProtocolFamily, ProviderRef
 from src.llm.extension.client import litellm_stream, resolve_provider_and_model
 
 
+@pytest.fixture(autouse=True)
+def _live_transport(monkeypatch):
+    """These tests exercise the RAW transport with litellm mocked below it.
+    LLM_LIVE is the layer's sanctioned in-layer seam: it forces the live
+    passthrough so the mocks are reached instead of the cassette decision
+    (#1597 — the only place allowed to bypass is the layer testing itself)."""
+    monkeypatch.setenv("LLM_LIVE", "1")
+
+
 class _Delta:
     def __init__(self, content: str | None) -> None:
         self.content = content

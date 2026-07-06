@@ -36,7 +36,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from src.llm.base import LLMConfigError, LLMError, Message
+from src.llm.base import LLMError, Message
 from src.observability import get_logger
 
 logger = get_logger(__name__)
@@ -68,7 +68,6 @@ def _find_cassette_dir() -> Path:
 CASSETTE_DIR = _find_cassette_dir()
 
 # Env var selecting the mode; CI defaults to replay, local dev to off.
-CASSETTE_MODE_ENV = "LLM_CASSETTE_MODE"
 
 # Fields that never affect the response semantically — stripped before hashing so
 # a re-record with a new timestamp / request id does not change the key. This is
@@ -176,26 +175,6 @@ def in_ci() -> bool:
     return _env_flag("CI")
 
 
-def legacy_mode_env_set() -> bool:
-    """A process-level LLM_CASSETTE_MODE is the pre-#1596 contract; honored for
-    compatibility until the downstream forks are deleted (#1597)."""
-    return bool(os.environ.get(CASSETTE_MODE_ENV, "").strip())
-
-
-def current_mode() -> CassetteMode:
-    """The active cassette mode from ``LLM_CASSETTE_MODE`` (default ``off``).
-
-    Unknown values fail closed with a config error rather than silently behaving
-    like ``off`` (which would let a CI misconfiguration call the network)."""
-    raw = os.environ.get(CASSETTE_MODE_ENV, CassetteMode.OFF.value).strip().lower()
-    try:
-        return CassetteMode(raw)
-    except ValueError as exc:
-        raise LLMConfigError(
-            f"Invalid {CASSETTE_MODE_ENV}={raw!r}; expected one of {', '.join(m.value for m in CassetteMode)}"
-        ) from exc
-
-
 def _hash_image_bytes(data: bytes | bytearray | memoryview) -> str:
     return f"{_IMAGE_BYTES_TAG}:{hashlib.sha256(bytes(data)).hexdigest()}"
 
@@ -296,6 +275,17 @@ class Cassette:
         )
 
 
+#: Session-wide record of every cassette served in this process — the orphan
+#: gate's substrate (#1596 AC-llm.10.6): a committed cassette that NO suite run
+#: ever serves is a changed-prompt leftover. Per-process (xdist workers each
+#: dump their own set via the harness sessionfinish hook).
+_SESSION_SERVED: set[str] = set()
+
+
+def session_served_keys() -> frozenset[str]:
+    return frozenset(_SESSION_SERVED)
+
+
 class CassetteStore:
     """Read/write committed cassette JSON files keyed by fingerprint.
 
@@ -322,6 +312,7 @@ class CassetteStore:
 
     def mark_served(self, key: str) -> None:
         self._served.add(key)
+        _SESSION_SERVED.add(key)
 
     def served_keys(self) -> frozenset[str]:
         return frozenset(self._served)
@@ -367,7 +358,8 @@ class CassetteRecorder:
 
     @property
     def mode(self) -> CassetteMode:
-        return self._mode if self._mode is not None else current_mode()
+        # No process-level mode env (#1597): explicit arg (in-layer seam) or live.
+        return self._mode if self._mode is not None else CassetteMode.OFF
 
     @property
     def misses(self) -> list[str]:
@@ -395,6 +387,9 @@ class CassetteRecorder:
             if cassette is None:
                 self._misses.append(key)
                 raise CassetteMiss(key, scene=role)
+            # Orphan-gate accounting (#1597): explicit-seam replays count as
+            # serves too, or the gate would misread in-layer fixtures as orphans.
+            self._store.mark_served(key)
             return cassette.response
 
         # record: real provider call + persist (validated for correctness tags).
