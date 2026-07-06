@@ -20,6 +20,7 @@ run in ``ci.yml backend-e2e-tier1``.
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -43,9 +44,12 @@ GROUND_TRUTH_DIR = CASSETTE_DIR / "ground_truth"
 # homogenize. Registered in common/llm/contract.py roadmap group 10.
 # ---------------------------------------------------------------------------
 def _declare_served(fingerprint: str) -> None:
-    out = Path("test-results")
+    # Per-process file (no shared-file appends under xdist) anchored to this
+    # file (no CWD assumption); the CI orphan gate globs served-cassettes*.txt.
+    out = Path(__file__).resolve().parents[2] / "test-results"
     out.mkdir(exist_ok=True)
-    with (out / "served-cassettes.txt").open("a", encoding="utf-8") as fh:
+    path = out / f"served-cassettes-{os.getpid()}.txt"
+    with path.open("a", encoding="utf-8") as fh:
         fh.write(f"{fingerprint}\n")
 
 

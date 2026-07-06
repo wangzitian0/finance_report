@@ -506,7 +506,7 @@ jobs:
           name: backend-shard-${{ matrix.shard }}-test-context
           path: |
             apps/backend/test-results/backend-shard-${{ matrix.shard }}.xml
-            apps/backend/test-results/served-cassettes.txt
+            apps/backend/test-results/served-cassettes*.txt
             apps/backend/coverage-backend-${{ matrix.shard }}.lcov
           retention-days: 14
 
@@ -584,7 +584,7 @@ jobs:
           name: backend-integration-test-context
           path: |
             apps/backend/test-results/backend-integration.xml
-            apps/backend/test-results/served-cassettes.txt
+            apps/backend/test-results/served-cassettes*.txt
           retention-days: 14
 
       - name: Stage Contribution Summary (Behavioral proof only)
@@ -700,7 +700,7 @@ jobs:
           name: backend-tier1-e2e-test-context
           path: |
             apps/backend/test-results/backend-tier1-e2e.xml
-            apps/backend/test-results/served-cassettes.txt
+            apps/backend/test-results/served-cassettes*.txt
           retention-days: 14
 
       - name: Stage Contribution Summary (Behavioral proof only)
@@ -1465,7 +1465,7 @@ jobs:
               for p in (cassette_dir / "ground_truth").glob("*.truth.json")
           }
           served = set()
-          for f in Path("cassette-usage").rglob("served-cassettes.txt"):
+          for f in Path("cassette-usage").rglob("served-cassettes*.txt"):
               served |= {line.strip() for line in f.read_text().splitlines() if line.strip()}
           orphans = sorted(committed - served - truth_paired)
           print(

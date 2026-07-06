@@ -65,19 +65,22 @@ def pytest_configure(config):
 def pytest_sessionfinish(session, exitstatus):
     """Dump the cassettes this process served (orphan-gate substrate, #1597).
 
-    xdist workers each run this hook in their own process; append-mode keeps
-    every worker's contribution. CI merges the shard artifacts in the finish
-    job and fails on any committed cassette no job ever served.
+    xdist workers each run this hook in their own process; each writes its OWN
+    ``served-cassettes-<pid>.txt`` (no shared-file appends to interleave) under
+    a path anchored to this file (no CWD assumption). CI merges the shard
+    artifacts in the finish job and fails on any committed cassette no job
+    ever served.
     """
     from src.llm.extension.cassette import session_served_keys
 
     served = session_served_keys()
     if not served:
         return
-    out = Path("test-results")
+    out = Path(__file__).resolve().parents[1] / "test-results"
     out.mkdir(exist_ok=True)
-    with (out / "served-cassettes.txt").open("a", encoding="utf-8") as fh:
-        fh.write("".join(f"{k}\n" for k in sorted(served)))
+    (out / f"served-cassettes-{os.getpid()}.txt").write_text(
+        "".join(f"{k}\n" for k in sorted(served)), encoding="utf-8"
+    )
 
 
 # --- AC behavioral-evidence emission ---
