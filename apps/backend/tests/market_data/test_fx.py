@@ -570,13 +570,13 @@ async def test_convert_amount(db: AsyncSession):
 
 @ac_proof(
     proof_id="test_fx_convert_amount_uses_typed_money_exchange_rate",
-    ac_ids=["AC12.31.2"],
+    ac_ids=["AC-audit.31.2"],
     ci_tier="pr_ci",
 )
 async def test_AC12_31_2_convert_amount_routes_through_money_exchange_rate(
     db: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ):
-    """AC12.31.2: service boundary wraps storage Decimal in Money + ExchangeRate."""
+    """AC-audit.31.2: service boundary wraps storage Decimal in Money + ExchangeRate."""
     rate = FxRate(
         base_currency="USD",
         quote_currency="SGD",

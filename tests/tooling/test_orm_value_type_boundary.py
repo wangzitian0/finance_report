@@ -37,11 +37,11 @@ def _read(path: str) -> str:
 
 @ac_proof(
     proof_id="test_managed_position_money_accessors",
-    ac_ids=["AC12.35.1"],
+    ac_ids=["AC-audit.35.1"],
     ci_tier="pr_ci",
 )
 def test_AC12_35_1_managed_position_exposes_typed_accessors():
-    """AC12.35.1: ManagedPosition exposes Money/Quantity read accessors at the ORM boundary."""
+    """AC-audit.35.1: ManagedPosition exposes Money/Quantity read accessors at the ORM boundary."""
     src = _read("apps/backend/src/models/layer3.py")
     assert "from src.audit.money import Money" in src
     assert "from src.audit.quantity import Quantity" in src
@@ -56,11 +56,11 @@ def test_AC12_35_1_managed_position_exposes_typed_accessors():
 
 @ac_proof(
     proof_id="test_investment_accounting_reads_typed",
-    ac_ids=["AC12.35.2"],
+    ac_ids=["AC-audit.35.2"],
     ci_tier="pr_ci",
 )
 def test_AC12_35_2_investment_accounting_reads_position_via_accessors():
-    """AC12.35.2: investment accounting updates position state via the typed accessors,
+    """AC-audit.35.2: investment accounting updates position state via the typed accessors,
     not by re-wrapping raw Decimal columns."""
     src = _read("apps/backend/src/services/investment_accounting.py")
     assert "position.cost_basis_money" in src
@@ -74,11 +74,11 @@ def test_AC12_35_2_investment_accounting_reads_position_via_accessors():
 
 @ac_proof(
     proof_id="test_portfolio_holdings_money_native",
-    ac_ids=["AC12.35.3"],
+    ac_ids=["AC-audit.35.3"],
     ci_tier="pr_ci",
 )
 def test_AC12_35_3_portfolio_holdings_value_flows_as_money():
-    """AC12.35.3: portfolio holdings valuation flows as Money end-to-end via a
+    """AC-audit.35.3: portfolio holdings valuation flows as Money end-to-end via a
     Money-native FX convert + the ManagedPosition accessors (no Decimal FX branch)."""
     fx = _read("apps/backend/src/services/fx.py")
     assert "async def convert_money(" in fx, (
@@ -99,11 +99,11 @@ def test_AC12_35_3_portfolio_holdings_value_flows_as_money():
 
 @ac_proof(
     proof_id="test_managed_position_raw_reads_forbidden",
-    ac_ids=["AC12.35.4"],
+    ac_ids=["AC-audit.35.4"],
     ci_tier="pr_ci",
 )
 def test_AC12_35_4_no_raw_managed_position_money_reads_in_migrated_files():
-    """AC12.35.4 (ratchet): the migrated business files read ManagedPosition money
+    """AC-audit.35.4 (ratchet): the migrated business files read ManagedPosition money
     only via the typed accessors — no raw position.cost_basis/unrealized_pnl/
     realized_pnl reads remain (writes `position.x = ...` at the storage edge stay
     allowed). This forbids the old raw-Decimal pattern from creeping back."""
@@ -119,11 +119,11 @@ def test_AC12_35_4_no_raw_managed_position_money_reads_in_migrated_files():
 
 @ac_proof(
     proof_id="test_journal_line_money_accessor",
-    ac_ids=["AC12.37.1"],
+    ac_ids=["AC-audit.37.1"],
     ci_tier="pr_ci",
 )
 def test_AC12_37_1_journal_line_exposes_money_accessor():
-    """AC12.37.1: JournalLine exposes a typed `money` read accessor at the ORM
+    """AC-audit.37.1: JournalLine exposes a typed `money` read accessor at the ORM
     boundary (lines are immutable; amount/currency columns stay storage)."""
     src = _read("apps/backend/src/models/journal.py")
     assert "from src.audit.money import Money" in src
@@ -132,11 +132,11 @@ def test_AC12_37_1_journal_line_exposes_money_accessor():
 
 @ac_proof(
     proof_id="test_reconciliation_config_sums_money",
-    ac_ids=["AC12.37.2"],
+    ac_ids=["AC-audit.37.2"],
     ci_tier="pr_ci",
 )
 def test_AC12_37_2_reconciliation_config_sums_lines_as_money():
-    """AC12.37.2: reconciliation entry-amount helpers sum journal lines via the
+    """AC-audit.37.2: reconciliation entry-amount helpers sum journal lines via the
     typed `line.money` accessor + `Money.sum` (currency-checked), not a raw
     currency-blind `sum(line.amount)`."""
     src = _read("apps/backend/src/services/reconciliation_config.py")
@@ -147,11 +147,11 @@ def test_AC12_37_2_reconciliation_config_sums_lines_as_money():
 
 @ac_proof(
     proof_id="test_income_statement_converts_money_native",
-    ac_ids=["AC12.37.3"],
+    ac_ids=["AC-audit.37.3"],
     ci_tier="pr_ci",
 )
 def test_AC12_37_3_income_statement_fx_is_money_native():
-    """AC12.37.3: the income-statement slow-path FX converts journal lines via the
+    """AC-audit.37.3: the income-statement slow-path FX converts journal lines via the
     Money-native `convert_money(line.money, ...)`, not raw `convert_amount(line.amount)`."""
     src = _read("apps/backend/src/services/reporting/income_statement.py")
     assert "convert_money(" in src
@@ -172,11 +172,11 @@ _CURRENCY_BLIND_LINE_SUM = re.compile(r"\bsum\([^)]*\bline\.amount\b")
 
 @ac_proof(
     proof_id="test_journal_line_currency_single_ssot",
-    ac_ids=["AC12.38.1"],
+    ac_ids=["AC-audit.38.1"],
     ci_tier="pr_ci",
 )
 def test_AC12_38_1_journal_line_currency_resolves_to_base_ssot():
-    """AC12.38.1: JournalLine currency resolves to the single `settings.base_currency`
+    """AC-audit.38.1: JournalLine currency resolves to the single `settings.base_currency`
     SSOT — accessor fallback + column default — with no hard-coded base literal."""
     src = _read("apps/backend/src/models/journal.py")
     assert "from src.config import settings" in src
@@ -188,11 +188,11 @@ def test_AC12_38_1_journal_line_currency_resolves_to_base_ssot():
 
 @ac_proof(
     proof_id="test_balance_core_typed_money",
-    ac_ids=["AC12.38.2"],
+    ac_ids=["AC-audit.38.2"],
     ci_tier="pr_ci",
 )
 def test_AC12_38_2_balance_core_sums_money():
-    """AC12.38.2: the journal balance core computes via `line.money` + `Money.sum`
+    """AC-audit.38.2: the journal balance core computes via `line.money` + `Money.sum`
     (currency-checked), not a raw currency-blind Decimal sum."""
     src = _read("apps/backend/src/ledger/base/validators.py")
     assert "def _line_base_amount(line: JournalLine) -> Money" in src
@@ -202,11 +202,11 @@ def test_AC12_38_2_balance_core_sums_money():
 
 @ac_proof(
     proof_id="test_annualized_income_line_money",
-    ac_ids=["AC12.38.3"],
+    ac_ids=["AC-audit.38.3"],
     ci_tier="pr_ci",
 )
 def test_AC12_38_3_annualized_income_reads_line_money():
-    """AC12.38.3: annualized income reads `line.money` (single SSOT) instead of the
+    """AC-audit.38.3: annualized income reads `line.money` (single SSOT) instead of the
     per-site `line.currency or account.currency or target` fallback."""
     src = _read("apps/backend/src/services/annualized_income.py")
     assert "line.money" in src
@@ -215,11 +215,11 @@ def test_AC12_38_3_annualized_income_reads_line_money():
 
 @ac_proof(
     proof_id="test_no_currency_blind_line_amount_sum",
-    ac_ids=["AC12.38.4"],
+    ac_ids=["AC-audit.38.4"],
     ci_tier="pr_ci",
 )
 def test_AC12_38_4_no_currency_blind_line_amount_sum():
-    """AC12.38.4 (ratchet): no service/ledger code performs a raw `sum(...)` over
+    """AC-audit.38.4 (ratchet): no service/ledger code performs a raw `sum(...)` over
     `line.amount` — currency-blind cross-currency addition must go through
     `Money.sum`. Scoped to `sum(...)` argument contexts only, so list/generator
     comprehensions built for serialization, manual fast-path rate multiplies, and

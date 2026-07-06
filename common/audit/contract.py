@@ -573,5 +573,296 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # AC-audit.* migrated from EPIC-012 groups 12.31, 12.35, 12.37, 12.38 (#1419-pattern AC move).
+        ACRecord(
+            id="AC-audit.31.1",
+            statement=(
+                "The SSOT declares a MECE raw-Decimal boundary policy: allowed at "
+                "base packages, DB/schema/API contracts, parser/provider "
+                "adapters, generated code, and tests/fixtures; forbidden as naked "
+                "business semantics in migrated service/application hot paths. "
+                "Was EPIC-012 AC12.31.1."
+            ),
+            test=(
+                "tests/tooling/test_decimal_boundary_policy.py"
+                "::test_AC12_31_1_decimal_boundary_policy_is_mece_and_enforced"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.31.2",
+            statement=(
+                "The FX service preserves the legacy Decimal return contract for "
+                "DB/API callers but routes cross-currency conversion through "
+                "Money(amount, source) plus ExchangeRate(source, target, rate). "
+                "Was EPIC-012 AC12.31.2."
+            ),
+            test=(
+                "apps/backend/tests/market_data/test_fx.py"
+                "::test_AC12_31_2_convert_amount_routes_through_money_exchange_rate"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.31.3",
+            statement=(
+                "Migrated quantity/reporting/application hotspots use Quantity "
+                "helpers instead of naked quantity-zero comparisons or quantity * "
+                "price, and frontend app pages do not import decimal.js types "
+                "directly. Was EPIC-012 AC12.31.3."
+            ),
+            test=(
+                "tests/tooling/test_decimal_boundary_policy.py"
+                "::test_AC12_31_3_migrated_hotspots_use_base_packages"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.31.4",
+            statement=(
+                "Base packages own boundary codecs: JSON/wire serialization uses "
+                "decimal strings, DB adapters return exact Decimal storage "
+                "fields, and Python/backend/frontend exports expose the canonical "
+                "codec surface instead of scattering ad-hoc conversions. Was "
+                "EPIC-012 AC12.31.4."
+            ),
+            test=(
+                "tests/tooling/test_base_package_boundary_codecs.py"
+                "::test_AC12_31_4_common_boundary_codecs_round_trip_strings_and_db_fields"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.31.5",
+            statement=(
+                "Migration cleanup removes duplicated money/percent adapters: "
+                "tests and fixtures use the shared common.testing.money_amount "
+                "Money adapter, backend services use the shared Money rounding "
+                "adapter directly, and frontend "
+                "portfolio/reporting/reconciliation percent call-sites use "
+                "canonical Ratio format helpers directly. Was EPIC-012 AC12.31.5."
+            ),
+            test=(
+                "tests/tooling/test_base_package_migration_cleanup.py"
+                "::test_AC12_31_5_money_fixture_helpers_route_through_base_package"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.31.6",
+            statement=(
+                "Post-merge cleanup retires remaining base-package drift: "
+                "confidence percent display calls Ratio helpers directly and SSOT "
+                "FX examples use Money/ExchangeRate instead of hand-rolled "
+                "Decimal conversion. Was EPIC-012 AC12.31.6."
+            ),
+            test=(
+                "tests/tooling/test_base_package_migration_cleanup.py"
+                "::test_AC12_31_6_confidence_percent_wrapper_is_retired"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.31.7",
+            statement=(
+                "Backend Quantity migration cleanup keeps Quantity objects in "
+                "service calculations, removes service-local and package-level "
+                "Decimal-to-Decimal quantity facades, and permits raw Decimal "
+                "only at DB/model/SQL boundaries. Was EPIC-012 AC12.31.7."
+            ),
+            test=(
+                "tests/tooling/test_base_package_migration_cleanup.py"
+                "::test_AC12_31_7_backend_quantity_business_code_uses_value_type"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.35.1",
+            statement=(
+                "ManagedPosition exposes typed read accessors at the ORM boundary "
+                "— cost_basis_money/unrealized_pnl_money/realized_pnl_money → "
+                "Money (nullable PnL coalesces to zero) and quantity_qty → "
+                "Quantity — built from the raw amount + currency columns (the "
+                "audit package's src.audit.money/src.audit.quantity, no service "
+                "import). Was EPIC-012 AC12.35.1."
+            ),
+            test=(
+                "tests/tooling/test_orm_value_type_boundary.py"
+                "::test_AC12_35_1_managed_position_exposes_typed_accessors"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.35.2",
+            statement=(
+                "Investment accounting updates position state through the typed "
+                "accessors "
+                "(position.cost_basis_money/realized_pnl_money/quantity_qty) with "
+                "Money/Quantity arithmetic instead of re-wrapping raw Decimal "
+                "columns; writes back .amount/.value only at the storage edge. "
+                "Was EPIC-012 AC12.35.2."
+            ),
+            test=(
+                "tests/tooling/test_orm_value_type_boundary.py"
+                "::test_AC12_35_2_investment_accounting_reads_position_via_accessors"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.35.3",
+            statement=(
+                "The FX boundary is Money-native: fx.convert_money(money, target) "
+                "-> Money wraps convert_amount, and portfolio holdings valuation "
+                "flows as Money end-to-end (UnitPrice(price) * "
+                "position.quantity_qty → fx.convert_money → Money P&L), "
+                "collapsing the if currency != base Decimal branch. Was EPIC-012 "
+                "AC12.35.3."
+            ),
+            test=(
+                "tests/tooling/test_orm_value_type_boundary.py"
+                "::test_AC12_35_3_portfolio_holdings_value_flows_as_money"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.35.4",
+            statement=(
+                "Ratchet: the migrated business files (portfolio, "
+                "investment_accounting, assets, performance_report, "
+                "reporting/portfolio_market) read ManagedPosition money only via "
+                "the typed accessors — no raw "
+                "position.cost_basis/unrealized_pnl/realized_pnl reads remain "
+                "(column writes position.x = … at the storage edge stay allowed), "
+                "so the old raw-Decimal pattern cannot creep back. Was EPIC-012 "
+                "AC12.35.4."
+            ),
+            test=(
+                "tests/tooling/test_orm_value_type_boundary.py"
+                "::test_AC12_35_4_no_raw_managed_position_money_reads_in_migrated_files"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.37.1",
+            statement=(
+                "JournalLine exposes a typed money read accessor (Money(amount, "
+                "currency), currency mirroring the column's 'SGD' default for "
+                "unflushed rows) at the ORM boundary; the raw amount/currency "
+                "columns remain the storage edge. Was EPIC-012 AC12.37.1."
+            ),
+            test=(
+                "tests/tooling/test_orm_value_type_boundary.py"
+                "::test_AC12_37_1_journal_line_exposes_money_accessor"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.37.2",
+            statement=(
+                "The reconciliation entry-amount helpers "
+                "(entry_total_amount/entry_bank_side_amount) sum journal lines "
+                "via line.money + Money.sum (currency-checked) instead of a raw "
+                "currency-blind sum(line.amount). Was EPIC-012 AC12.37.2."
+            ),
+            test=(
+                "tests/tooling/test_orm_value_type_boundary.py"
+                "::test_AC12_37_2_reconciliation_config_sums_lines_as_money"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.37.3",
+            statement=(
+                "The income-statement slow-path FX converts journal lines through "
+                "the Money-native convert_money(line.money, …) (incl. average- "
+                "rate + spot fallbacks) instead of raw "
+                "convert_amount(line.amount, line.currency, …). (The pre-fetched- "
+                "rate fast path stays a raw Decimal multiply by design; "
+                "serialization edges and the balance core legitimately read raw "
+                "columns). Was EPIC-012 AC12.37.3."
+            ),
+            test=(
+                "tests/tooling/test_orm_value_type_boundary.py"
+                "::test_AC12_37_3_income_statement_fx_is_money_native"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.38.1",
+            statement=(
+                "JournalLine currency resolves to the single "
+                "settings.base_currency SSOT — .money accessor fallback + column "
+                "default lambda: settings.base_currency — with no hard-coded base "
+                "literal ('SGD'). Was EPIC-012 AC12.38.1."
+            ),
+            test=(
+                "tests/tooling/test_orm_value_type_boundary.py"
+                "::test_AC12_38_1_journal_line_currency_resolves_to_base_ssot"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.38.2",
+            statement=(
+                "The journal balance core (_line_base_amount → Money, "
+                "validate_journal_balance → Money.sum) computes balance currency- "
+                "checked; single-currency entries balance identically, a cross- "
+                "currency line set without fx_rate raises instead of silently "
+                "summing. Was EPIC-012 AC12.38.2."
+            ),
+            test=(
+                "tests/tooling/test_orm_value_type_boundary.py"
+                "::test_AC12_38_2_balance_core_sums_money"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.38.3",
+            statement=(
+                "Annualized-income (and the fx-revaluation + processing-account "
+                "balance sums) read line.money / sum via Money.sum, dropping the "
+                "per-site or account.currency or target currency fallback (only "
+                "the impossible currency-None path differs; the column is non- "
+                "null). Was EPIC-012 AC12.38.3."
+            ),
+            test=(
+                "tests/tooling/test_orm_value_type_boundary.py"
+                "::test_AC12_38_3_annualized_income_reads_line_money"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.38.4",
+            statement=(
+                "Ratchet: no service/ledger code sums journal-line amounts raw "
+                "(sum(line.amount …) / line.amount for …); currency-blind "
+                "addition must use Money.sum. Manual fast-path rate multiplies "
+                "and single-value serialization reads are not sums and stay raw. "
+                "Was EPIC-012 AC12.38.4."
+            ),
+            test=(
+                "tests/tooling/test_orm_value_type_boundary.py"
+                "::test_AC12_38_4_no_currency_blind_line_amount_sum"
+            ),
+            priority="P1",
+            status="done",
+        ),
     ],
 )

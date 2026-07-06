@@ -548,7 +548,7 @@ the previous naked-`Decimal` rate boundary.
 > Migrated `AC-audit.30.<s>` ids (homed in the package roadmap):
 > `AC-audit.30.1` · `AC-audit.30.2` · `AC-audit.30.3` · `AC-audit.30.4`
 
-### AC12.31: Decimal Boundary Policy and Migration
+### AC12.31: Decimal Boundary Policy and Migration — migrated to the `audit` package
 
 Raw `Decimal` remains the storage/interchange substrate, but it is no longer a
 domain concept by itself. The base-element narrow waists own business semantics:
@@ -556,15 +556,20 @@ domain concept by itself. The base-element narrow waists own business semantics:
 `Quantity` for shares/units/contracts. New service code must either cross an
 explicit boundary or use the typed value package.
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.31.1 | The SSOT declares a MECE raw-`Decimal` boundary policy: allowed at base packages, DB/schema/API contracts, parser/provider adapters, generated code, and tests/fixtures; forbidden as naked business semantics in migrated service/application hot paths | `test_AC12_31_1_decimal_boundary_policy_is_mece_and_enforced` | `tests/tooling/test_decimal_boundary_policy.py` | P1 |
-| AC12.31.2 | The FX service preserves the legacy `Decimal` return contract for DB/API callers but routes cross-currency conversion through `Money(amount, source)` plus `ExchangeRate(source, target, rate)` | `test_AC12_31_2_convert_amount_routes_through_money_exchange_rate` | `apps/backend/tests/market_data/test_fx.py` | P1 |
-| AC12.31.3 | Migrated quantity/reporting/application hotspots use `Quantity` helpers instead of naked quantity-zero comparisons or `quantity * price`, and frontend app pages do not import `decimal.js` types directly | `test_AC12_31_3_migrated_hotspots_use_base_packages` | `tests/tooling/test_decimal_boundary_policy.py` | P1 |
-| AC12.31.4 | Base packages own boundary codecs: JSON/wire serialization uses decimal strings, DB adapters return exact `Decimal` storage fields, and Python/backend/frontend exports expose the canonical codec surface instead of scattering ad-hoc conversions | `test_AC12_31_4_common_boundary_codecs_round_trip_strings_and_db_fields`, `test_AC12_31_4_backend_boundary_codecs_match_common_surface`, `test_AC12_31_4_frontend_boundary_codecs_round_trip_json_strings`, `test_AC12_31_4_frontend_boundary_codecs_reject_malformed_payloads` | `tests/tooling/test_base_package_boundary_codecs.py`, `apps/frontend/src/lib/baseBoundaryCodecs.test.ts` | P1 |
-| AC12.31.5 | Migration cleanup removes duplicated money/percent adapters: tests and fixtures use the shared `common.testing.money_amount` Money adapter, backend services use the shared Money rounding adapter directly, and frontend portfolio/reporting/reconciliation percent call-sites use canonical Ratio format helpers directly | `test_AC12_31_5_money_fixture_helpers_route_through_base_package`, `test_AC12_31_5_frontend_percent_formatters_are_not_duplicated`, `test_AC12_31_5_backend_money_adapters_are_not_duplicated` | `tests/tooling/test_base_package_migration_cleanup.py` | P1 |
-| AC12.31.6 | Post-merge cleanup retires remaining base-package drift: confidence percent display calls Ratio helpers directly and SSOT FX examples use `Money`/`ExchangeRate` instead of hand-rolled Decimal conversion | `test_AC12_31_6_confidence_percent_wrapper_is_retired`, `test_AC12_31_6_ssot_fx_examples_use_money_exchange_rate` | `tests/tooling/test_base_package_migration_cleanup.py` | P1 |
-| AC12.31.7 | Backend Quantity migration cleanup keeps `Quantity` objects in service calculations, removes service-local and package-level Decimal-to-Decimal quantity facades, and permits raw `Decimal` only at DB/model/SQL boundaries | `test_AC12_31_7_backend_quantity_business_code_uses_value_type`, `test_AC12_31_7_backend_quantity_value_type_handles_storage_edges` | `tests/tooling/test_base_package_migration_cleanup.py` | P1 |
+> **The ACs of this group are no longer defined here.** The rows (were
+> AC12.31.* rows .1–.7) migrated into the `audit` package and are owned
+> by, and sourced directly from,
+> [`common/audit/contract.py`](../../common/audit/contract.py)'s `roadmap`
+> under the package-scoped numeric `AC-audit.<group>.<seq>` id scheme (the
+> leading "12" is dropped and the group/seq preserved, so `AC12.31.<s>`
+> becomes `AC-audit.31.<s>`). `common/ssot/generate_ac_registry.py` reads
+> package-contract roadmaps additively, so the AC index counts them without an
+> EPIC-table mirror. This note references the new ids (keeping the
+> registry↔EPIC link intact) but defines none of them — the contract is the
+> single definition source.
+>
+> Migrated `AC-audit.31.<s>` ids (homed in the package roadmap):
+> `AC-audit.31.1` · `AC-audit.31.2` · `AC-audit.31.3` · `AC-audit.31.4` · `AC-audit.31.5` · `AC-audit.31.6` · `AC-audit.31.7`
 
 ### AC12.32: UnitPrice — money-per-quantity composite value type — migrated to the `audit` package ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
 
@@ -637,7 +642,7 @@ runtime `abs(debit-credit) < 0.01` checks.
 | AC12.34.5 | Every computed/transfer posting path gates balance through `Entry`: opening-balance, fx-revaluation, and processing-account transfers construct an `Entry` before persisting (fx-revaluation and processing-account previously wrote raw `JournalLine`s with no balance validation at all). The remaining raw site `review_queue` validates via `validate_journal_balance`/`_posting_invariants`; `reconciliation_audit` is a deterministic audit fixture {tier:CODE-ONLY} | `test_AC12_34_5_remaining_posting_paths_guard_balance_with_entry` | `tests/tooling/test_ledger_module.py` | P1 |
 | AC12.34.6 | The journal write pipeline (`create_journal_entry`/`post_journal_entry`/`void_journal_entry` + validators) lives in the ledger package (`ledger/extension/repository.py`, behind the `JournalRepository` port); `ledger.extension.post` depends down on it instead of up on `services.accounting`. After the package cutover (#1420 slice 3a) NO `services.accounting` re-export shim survives — callers import the pipeline + `ValidationError` from the published ledger interface (`from src.ledger import ...`), zero residue {tier:CODE-ONLY} | `test_AC12_34_6_ledger_owns_posting_pipeline_no_upward_edge` | `tests/tooling/test_ledger_module.py` | P1 |
 
-### AC12.35: ORM read layer returns value types — boundary push ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
+### AC12.35: ORM read layer returns value types — boundary push — migrated to the `audit` package ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
 
 The read/model layer hands business code typed values (`Money`/`Quantity`) so
 services stop pulling raw `Decimal` off rows and wrapping it ad-hoc with
@@ -646,12 +651,20 @@ accessors. API response shapes are unchanged (serialized from the value at the
 edge). Pilot: `ManagedPosition` + `investment_accounting` (single-currency, no FX);
 other models/services follow incrementally.
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.35.1 | `ManagedPosition` exposes typed read accessors at the ORM boundary — `cost_basis_money`/`unrealized_pnl_money`/`realized_pnl_money` → `Money` (nullable PnL coalesces to zero) and `quantity_qty` → `Quantity` — built from the raw amount + currency columns (the audit package's `src.audit.money`/`src.audit.quantity`, no service import) {tier:CODE-ONLY} | `test_AC12_35_1_managed_position_exposes_typed_accessors` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
-| AC12.35.2 | Investment accounting updates position state through the typed accessors (`position.cost_basis_money`/`realized_pnl_money`/`quantity_qty`) with `Money`/`Quantity` arithmetic instead of re-wrapping raw `Decimal` columns; writes back `.amount`/`.value` only at the storage edge {tier:CODE-ONLY} | `test_AC12_35_2_investment_accounting_reads_position_via_accessors` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
-| AC12.35.3 | The FX boundary is Money-native: `fx.convert_money(money, target) -> Money` wraps `convert_amount`, and portfolio holdings valuation flows as `Money` end-to-end (`UnitPrice(price) * position.quantity_qty` → `fx.convert_money` → `Money` P&L), collapsing the `if currency != base` Decimal branch {tier:CODE-ONLY} | `test_AC12_35_3_portfolio_holdings_value_flows_as_money` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
-| AC12.35.4 | Ratchet: the migrated business files (`portfolio`, `investment_accounting`, `assets`, `performance_report`, `reporting/portfolio_market`) read `ManagedPosition` money only via the typed accessors — no raw `position.cost_basis`/`unrealized_pnl`/`realized_pnl` reads remain (column writes `position.x = …` at the storage edge stay allowed), so the old raw-`Decimal` pattern cannot creep back {tier:CODE-ONLY} | `test_AC12_35_4_no_raw_managed_position_money_reads_in_migrated_files` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
+> **The ACs of this group are no longer defined here.** The rows (were
+> AC12.35.* rows .1–.4) migrated into the `audit` package and are owned
+> by, and sourced directly from,
+> [`common/audit/contract.py`](../../common/audit/contract.py)'s `roadmap`
+> under the package-scoped numeric `AC-audit.<group>.<seq>` id scheme (the
+> leading "12" is dropped and the group/seq preserved, so `AC12.35.<s>`
+> becomes `AC-audit.35.<s>`). `common/ssot/generate_ac_registry.py` reads
+> package-contract roadmaps additively, so the AC index counts them without an
+> EPIC-table mirror. This note references the new ids (keeping the
+> registry↔EPIC link intact) but defines none of them — the contract is the
+> single definition source.
+>
+> Migrated `AC-audit.35.<s>` ids (homed in the package roadmap):
+> `AC-audit.35.1` · `AC-audit.35.2` · `AC-audit.35.3` · `AC-audit.35.4`
 
 ### AC12.36: Shared Decimal-scalar codec — one SSOT per layer — migrated to the `audit` package ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
 
@@ -679,7 +692,7 @@ imports no base package, so the family stays bounded — not a fifth base packag
 > Migrated `AC-audit.36.<s>` ids (homed in the package roadmap):
 > `AC-audit.36.1` · `AC-audit.36.2`
 
-### AC12.37: `JournalLine.money` accessor — boundary push Phase 2 ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
+### AC12.37: `JournalLine.money` accessor — boundary push Phase 2 — migrated to the `audit` package ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
 
 After the `ManagedPosition` pilot (AC12.35), the next-largest raw-`Decimal` read
 surface is `JournalLine.amount` (~40 service reads). Journal lines are immutable
@@ -687,22 +700,39 @@ surface is `JournalLine.amount` (~40 service reads). Journal lines are immutable
 lines as `Money` (currency-checked) instead of raw currency-blind `Decimal`. Migrated
 incrementally by area; the forbid-ratchet follows once the surface is covered.
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.37.1 | `JournalLine` exposes a typed `money` read accessor (`Money(amount, currency)`, currency mirroring the column's "SGD" default for unflushed rows) at the ORM boundary; the raw `amount`/`currency` columns remain the storage edge {tier:CODE-ONLY} | `test_AC12_37_1_journal_line_exposes_money_accessor` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
-| AC12.37.2 | The reconciliation entry-amount helpers (`entry_total_amount`/`entry_bank_side_amount`) sum journal lines via `line.money` + `Money.sum` (currency-checked) instead of a raw currency-blind `sum(line.amount)` {tier:CODE-ONLY} | `test_AC12_37_2_reconciliation_config_sums_lines_as_money` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
-| AC12.37.3 | The income-statement slow-path FX converts journal lines through the Money-native `convert_money(line.money, …)` (incl. average-rate + spot fallbacks) instead of raw `convert_amount(line.amount, line.currency, …)`. (The pre-fetched-rate fast path stays a raw `Decimal` multiply by design; serialization edges and the balance core legitimately read raw columns) {tier:CODE-ONLY} | `test_AC12_37_3_income_statement_fx_is_money_native` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
+> **The ACs of this group are no longer defined here.** The rows (were
+> AC12.37.* rows .1–.3) migrated into the `audit` package and are owned
+> by, and sourced directly from,
+> [`common/audit/contract.py`](../../common/audit/contract.py)'s `roadmap`
+> under the package-scoped numeric `AC-audit.<group>.<seq>` id scheme (the
+> leading "12" is dropped and the group/seq preserved, so `AC12.37.<s>`
+> becomes `AC-audit.37.<s>`). `common/ssot/generate_ac_registry.py` reads
+> package-contract roadmaps additively, so the AC index counts them without an
+> EPIC-table mirror. This note references the new ids (keeping the
+> registry↔EPIC link intact) but defines none of them — the contract is the
+> single definition source.
+>
+> Migrated `AC-audit.37.<s>` ids (homed in the package roadmap):
+> `AC-audit.37.1` · `AC-audit.37.2` · `AC-audit.37.3`
 
-### AC12.38: Currency as a single base SSOT + typed balance core (Phase C) ([#1339](https://github.com/wangzitian0/finance_report/issues/1339))
+### AC12.38: Currency as a single base SSOT + typed balance core (Phase C) — migrated to the `audit` package ([#1339](https://github.com/wangzitian0/finance_report/issues/1339))
 
 Currency was resolved ad-hoc in ≥3 divergent ways (`or "SGD"`, `or settings.base_currency`, `or account.currency or target`). Phase C consolidates to **one** resolution — `settings.base_currency`, read only via `line.money` — and migrates the journal balance core + the remaining currency-blind line sums to `Money.sum`, so cross-currency addition becomes a typed error instead of a silent bug. A ratchet forbids new currency-blind `sum(line.amount)`.
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.38.1 | `JournalLine` currency resolves to the single `settings.base_currency` SSOT — `.money` accessor fallback + column default `lambda: settings.base_currency` — with no hard-coded base literal (`"SGD"`) {tier:CODE-ONLY} | `test_AC12_38_1_journal_line_currency_resolves_to_base_ssot` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
-| AC12.38.2 | The journal balance core (`_line_base_amount` → `Money`, `validate_journal_balance` → `Money.sum`) computes balance currency-checked; single-currency entries balance identically, a cross-currency line set without `fx_rate` raises instead of silently summing {tier:CODE-ONLY} | `test_AC12_38_2_balance_core_sums_money` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
-| AC12.38.3 | Annualized-income (and the fx-revaluation + processing-account balance sums) read `line.money` / sum via `Money.sum`, dropping the per-site `or account.currency or target` currency fallback (only the impossible currency-`None` path differs; the column is non-null) {tier:CODE-ONLY} | `test_AC12_38_3_annualized_income_reads_line_money` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
-| AC12.38.4 | Ratchet: no service/ledger code sums journal-line amounts raw (`sum(line.amount …)` / `line.amount for …`); currency-blind addition must use `Money.sum`. Manual fast-path rate multiplies and single-value serialization reads are not sums and stay raw {tier:CODE-ONLY} | `test_AC12_38_4_no_currency_blind_line_amount_sum` | `tests/tooling/test_orm_value_type_boundary.py` | P1 |
+> **The ACs of this group are no longer defined here.** The rows (were
+> AC12.38.* rows .1–.4) migrated into the `audit` package and are owned
+> by, and sourced directly from,
+> [`common/audit/contract.py`](../../common/audit/contract.py)'s `roadmap`
+> under the package-scoped numeric `AC-audit.<group>.<seq>` id scheme (the
+> leading "12" is dropped and the group/seq preserved, so `AC12.38.<s>`
+> becomes `AC-audit.38.<s>`). `common/ssot/generate_ac_registry.py` reads
+> package-contract roadmaps additively, so the AC index counts them without an
+> EPIC-table mirror. This note references the new ids (keeping the
+> registry↔EPIC link intact) but defines none of them — the contract is the
+> single definition source.
+>
+> Migrated `AC-audit.38.<s>` ids (homed in the package roadmap):
+> `AC-audit.38.1` · `AC-audit.38.2` · `AC-audit.38.3` · `AC-audit.38.4`
 
 ### AC12.39: Editable base reporting currency — DB-backed app config (Phase D) ([#1340](https://github.com/wangzitian0/finance_report/issues/1340))
 

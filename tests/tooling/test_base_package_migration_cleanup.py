@@ -71,11 +71,11 @@ def _ensure_backend_src_importable() -> None:
 
 @ac_proof(
     proof_id="test_base_package_money_fixture_cleanup",
-    ac_ids=["AC12.31.5"],
+    ac_ids=["AC-audit.31.5"],
     ci_tier="pr_ci",
 )
 def test_AC12_31_5_money_fixture_helpers_route_through_base_package():
-    """AC12.31.5: E2E/fixture money adapters use one shared Money-backed helper."""
+    """AC-audit.31.5: E2E/fixture money adapters use one shared Money-backed helper."""
     helper = _read(Path("common/testing/base_values.py"))
     assert "from common.audit.money import FloatNotAllowedError, Money" in helper
     assert "Money(Decimal(str(value)), currency).quantize().amount" in helper
@@ -103,11 +103,11 @@ def test_AC12_31_5_money_fixture_helpers_route_through_base_package():
 
 @ac_proof(
     proof_id="test_base_package_frontend_percent_cleanup",
-    ac_ids=["AC12.31.5"],
+    ac_ids=["AC-audit.31.5"],
     ci_tier="pr_ci",
 )
 def test_AC12_31_5_frontend_percent_formatters_are_not_duplicated():
-    """AC12.31.5: frontend percent display/calculation calls Ratio format helpers directly."""
+    """AC-audit.31.5: frontend percent display/calculation calls Ratio format helpers directly."""
     for path in FRONTEND_PERCENT_FILES:
         src = _read(path)
         assert "@/lib/audit/ratio/format" in src, (
@@ -133,11 +133,11 @@ def test_AC12_31_5_frontend_percent_formatters_are_not_duplicated():
 
 @ac_proof(
     proof_id="test_base_package_backend_money_adapter_cleanup",
-    ac_ids=["AC12.31.5"],
+    ac_ids=["AC-audit.31.5"],
     ci_tier="pr_ci",
 )
 def test_AC12_31_5_backend_money_adapters_are_not_duplicated():
-    """AC12.31.5: backend services use the shared Money rounding adapter directly."""
+    """AC-audit.31.5: backend services use the shared Money rounding adapter directly."""
     for path in BACKEND_MONEY_ADAPTER_FILES:
         src = _read(path)
         assert re.search(r"from src\.audit\.money import [^\n]*to_money", src), (
@@ -157,11 +157,11 @@ def test_AC12_31_5_backend_money_adapters_are_not_duplicated():
 
 @ac_proof(
     proof_id="test_base_package_confidence_percent_wrapper_retired",
-    ac_ids=["AC12.31.6"],
+    ac_ids=["AC-audit.31.6"],
     ci_tier="pr_ci",
 )
 def test_AC12_31_6_confidence_percent_wrapper_is_retired():
-    """AC12.31.6: confidence UI calls Ratio formatting directly, with no local percent facade."""
+    """AC-audit.31.6: confidence UI calls Ratio formatting directly, with no local percent facade."""
     confidence = _read(Path("apps/frontend/src/lib/confidence.ts"))
     confidence_test = _read(Path("apps/frontend/src/__tests__/confidence.test.ts"))
     page = _read(Path("apps/frontend/src/app/(main)/confidence/page.tsx"))
@@ -180,11 +180,11 @@ def test_AC12_31_6_confidence_percent_wrapper_is_retired():
 
 @ac_proof(
     proof_id="test_base_package_ssot_fx_examples_use_money_exchange_rate",
-    ac_ids=["AC12.31.6"],
+    ac_ids=["AC-audit.31.6"],
     ci_tier="pr_ci",
 )
 def test_AC12_31_6_ssot_fx_examples_use_money_exchange_rate():
-    """AC12.31.6: SSOT examples teach the base-package FX primitive, not Decimal math.
+    """AC-audit.31.6: SSOT examples teach the base-package FX primitive, not Decimal math.
 
     market_data.md is pre-migration (internalizes into the `pricing` package,
     #1610); when that cutover lands, repoint this check at the package's doc.
@@ -199,11 +199,11 @@ def test_AC12_31_6_ssot_fx_examples_use_money_exchange_rate():
 
 @ac_proof(
     proof_id="test_base_package_backend_quantity_value_type_cleanup",
-    ac_ids=["AC12.31.7"],
+    ac_ids=["AC-audit.31.7"],
     ci_tier="pr_ci",
 )
 def test_AC12_31_7_backend_quantity_business_code_uses_value_type():
-    """AC12.31.7: backend services hold Quantity objects in business calculations."""
+    """AC-audit.31.7: backend services hold Quantity objects in business calculations."""
     quantity_api = _read(Path("apps/backend/src/audit/quantity/__init__.py"))
     for helper in [
         "quantized_quantity_value",
@@ -262,11 +262,11 @@ def test_AC12_31_7_backend_quantity_business_code_uses_value_type():
 
 @ac_proof(
     proof_id="test_base_package_backend_quantity_value_type_storage_edges",
-    ac_ids=["AC12.31.7"],
+    ac_ids=["AC-audit.31.7"],
     ci_tier="pr_ci",
 )
 def test_AC12_31_7_backend_quantity_value_type_handles_storage_edges():
-    """AC12.31.7: Quantity itself owns storage-edge rounding and zero semantics."""
+    """AC-audit.31.7: Quantity itself owns storage-edge rounding and zero semantics."""
     _ensure_backend_src_importable()
 
     from src.audit.quantity import FloatNotAllowedError, Quantity
