@@ -194,7 +194,7 @@ async def _internal_transfer_adjustment(
                     conversion_date=conversion.conversion_date,
                 )
                 continue
-            converted_fee = to_money(Decimal(str(classification.fee_amount)) * fee_rate)
+            converted_fee = to_money(classification.fee_amount * fee_rate)
             fee_total += converted_fee
             # Attribute the fee to the account it was effectively paid from so it can
             # be materialised as a real expense line (#1162 CR2).

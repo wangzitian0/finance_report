@@ -46,8 +46,14 @@ _ALLOCATION_METADATA_KEYS = {
 }
 
 
-def _restate_unrounded(amount: Decimal, rate: Decimal) -> Decimal:
-    """Match reporting's aggregate conversion convention (sum unrounded products)."""
+def _restate_unrounded(amount: Decimal | int | float | str, rate: Decimal) -> Decimal:
+    """Match reporting's aggregate conversion convention (sum unrounded products).
+
+    ``amount`` comes from SQL aggregation rows and can be DB-driver numeric types;
+    normalize through ``str`` before ``Decimal`` to avoid binary-float artifacts.
+    ``float`` is accepted only for compatibility with driver-returned numerics;
+    callers should prefer ``Decimal``/string sources.
+    """
     return Decimal(str(amount)) * rate
 
 
