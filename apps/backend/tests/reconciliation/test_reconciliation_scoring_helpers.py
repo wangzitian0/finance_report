@@ -12,7 +12,7 @@ from uuid import uuid4
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.services.reconciliation import (
+from src.reconciliation import (
     DEFAULT_CONFIG,
     _find_many_to_one_candidates,
     _find_normal_candidates,

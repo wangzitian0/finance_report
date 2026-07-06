@@ -26,7 +26,7 @@ from common.testing.ac_proof import ac_proof
 
 from src.audit.money import Currency, CurrencyMismatchError, ExchangeRate, Money, convert
 from src.models.statement_summary import StatementSummary
-from src.services.fx_transfer import TransferLeg
+from src.reconciliation.extension.fx_transfer import TransferLeg
 
 pytestmark = pytest.mark.no_db
 

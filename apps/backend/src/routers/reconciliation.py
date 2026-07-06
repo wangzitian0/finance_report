@@ -16,6 +16,8 @@ from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_summary import StatementSummary
 from src.observability import get_logger, log_financial_mutation
 from src.platform import get_owned_or_404, raise_bad_request, raise_not_found
+from src.reconciliation import execute_matching, get_reconciliation_stats
+from src.reconciliation.extension.anomaly import detect_anomalies
 from src.schemas.reconciliation import (
     AnomalyResponse,
     BatchAcceptRequest,
@@ -30,8 +32,6 @@ from src.schemas.reconciliation import (
     ReconciliationStatusEnum,
     UnmatchedTransactionsResponse,
 )
-from src.services.anomaly import detect_anomalies
-from src.services.reconciliation import execute_matching, get_reconciliation_stats
 from src.services.review_queue import (
     accept_match as accept_match_service,
     batch_accept as batch_accept_service,

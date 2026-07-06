@@ -14,9 +14,9 @@ from decimal import Decimal
 
 import pytest
 
+from src.reconciliation import _within_combination_tolerance
+from src.reconciliation.base.config import DEFAULT_CONFIG
 from src.services.allocation import _build_allocation
-from src.services.reconciliation import _within_combination_tolerance
-from src.services.reconciliation_config import DEFAULT_CONFIG
 from src.services.reporting._core import _line_total
 
 

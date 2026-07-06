@@ -6,13 +6,13 @@ from collections.abc import Iterable
 from datetime import date, timedelta
 from decimal import Decimal
 from itertools import combinations
+import os
 from uuid import UUID
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.config import settings
 from src.extraction.extension.statement_summary import resolve_custody_account_id
 from src.ledger import (
     create_transfer_in_entry,
@@ -24,7 +24,7 @@ from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntr
 from src.models.layer2 import AtomicTransaction
 from src.models.reconciliation import ReconciliationMatch, ReconciliationMatchJournalEntry, ReconciliationStatus
 from src.observability import get_logger, record_reconciliation_match_outcome
-from src.services.reconciliation_config import (  # noqa: F401
+from src.reconciliation.base.config import (  # noqa: F401
     DEFAULT_CONFIG,
     MAX_COMBINATION_CANDIDATES,
     MatchCandidate,
@@ -36,7 +36,7 @@ from src.services.reconciliation_config import (  # noqa: F401
     is_entry_balanced,
     load_reconciliation_config,
 )
-from src.services.reconciliation_scoring import (  # noqa: F401
+from src.reconciliation.extension.scoring import (  # noqa: F401
     ai_semantic_score,
     extract_merchant_tokens,
     is_cross_period,
@@ -48,7 +48,11 @@ from src.services.reconciliation_scoring import (  # noqa: F401
     score_pattern,
     weighted_total,
 )
-from src.services.reconciliation_stats import ReconciliationStats, get_reconciliation_stats  # noqa: F401
+from src.reconciliation.extension.phases import (
+    run_many_to_one_phase,
+    run_normal_matching_phase,
+    run_transfer_detection_phase,
+)
 from src.services.source_type_priority import promote_entry_source_type
 
 logger = get_logger(__name__)
@@ -148,7 +152,13 @@ async def calculate_match_score(
     total = weighted_total(scores, config)
 
     # EPIC-018 Phase 3: Hybrid scoring for ambiguous matches (60-84 range)
-    if settings.enable_ai_reconciliation and 60 <= total <= 84:
+    enable_ai_reconciliation = os.getenv("ENABLE_AI_RECONCILIATION", "false").lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    if enable_ai_reconciliation and 60 <= total <= 84:
         primary_entry = entries[0] if entries else None
         if primary_entry:
             date_diff = abs((transaction.txn_date - primary_entry.entry_date).days)
@@ -521,303 +531,57 @@ async def execute_matching(
         return score
 
     # Phase 1: Transfer Detection (BEFORE normal matching)
-    # Detect transfers and create Processing account entries per common/ledger/readme.md
-    for txn in transactions:
-        if txn.id in matched_txn_ids:
-            continue
+    await run_transfer_detection_phase(
+        db,
+        transactions=transactions,
+        matched_txn_ids=matched_txn_ids,
+        matches=matches,
+        user_id=user_id,
+        get_existing_active_match=_get_existing_active_match,
+    )
 
-        # Detect transfer pattern (keywords-based detection)
-        if detect_transfer_pattern(txn.description):
-            try:
-                # Idempotency check: skip if this transaction already has an active match
-                existing_transfer_match = await _get_existing_active_match(db, txn.id)
-                if existing_transfer_match:
-                    logger.warning(
-                        "Transfer already matched - skipping duplicate match creation",
-                        txn_id=str(txn.id),
-                        existing_match_id=str(existing_transfer_match.id),
-                    )
-                    matched_txn_ids.add(txn.id)
-                    continue
+    await run_many_to_one_phase(
+        db,
+        transactions=transactions,
+        matched_txn_ids=matched_txn_ids,
+        matches=matches,
+        get_candidates_for_date=get_candidates_for_date,
+        get_cached_pattern_score=get_cached_pattern_score,
+        entries_by_id=entries_by_id,
+        config=config,
+        user_id=user_id,
+        get_existing_active_match=_get_existing_active_match,
+        calculate_match_score=calculate_match_score,
+        build_many_to_one_groups=build_many_to_one_groups,
+        prune_candidates=prune_candidates,
+        is_entry_balanced=is_entry_balanced,
+        candidate_is_better=_candidate_is_better,
+        mark_auto_accepted=_mark_auto_accepted_entry_reconciled,
+    )
 
-                # Resolve the custody (source) account from the StatementSummary conform
-                # (the atomic txn has no statement_id).
-                source_account_id = await resolve_custody_account_id(db, txn)
-
-                # Skip transfer detection if the source statement has no linked account
-                if source_account_id is None:
-                    logger.warning(
-                        "Transfer detected but source statement has no linked account - skipping Processing entry",
-                        txn_id=str(txn.id),
-                    )
-                    continue
-                # Create Processing account entry based on direction
-                if txn.direction == "OUT":
-                    transfer_entry = await create_transfer_out_entry(
-                        db=db,
-                        user_id=user_id,
-                        source_account_id=source_account_id,
-                        amount=txn.amount,
-                        txn_date=txn.txn_date,
-                        description=txn.description,
-                    )
-                    matched_txn_ids.add(txn.id)
-
-                    # Create reconciliation match for transfer OUT
-                    match = ReconciliationMatch(
-                        atomic_txn_id=txn.id,
-                        journal_entry_ids=[str(transfer_entry.id)],
-                        match_score=100,  # Transfer detection is exact match
-                        score_breakdown={"transfer_out": 100.0},
-                        status=ReconciliationStatus.AUTO_ACCEPTED,
-                    )
-                    db.add(match)
-                    matches.append(match)
-
-                    if transfer_entry.status != JournalEntryStatus.VOID:
-                        transfer_entry.status = JournalEntryStatus.RECONCILED
-
-                    logger.info(
-                        "Transfer OUT detected and Processing entry created",
-                        txn_id=str(txn.id),
-                        entry_id=str(transfer_entry.id),
-                        amount=str(txn.amount),
-                    )
-                elif txn.direction == "IN":
-                    transfer_entry = await create_transfer_in_entry(
-                        db=db,
-                        user_id=user_id,
-                        dest_account_id=source_account_id,
-                        amount=txn.amount,
-                        txn_date=txn.txn_date,
-                        description=txn.description,
-                    )
-                    matched_txn_ids.add(txn.id)
-
-                    # Create reconciliation match for transfer IN
-                    match = ReconciliationMatch(
-                        atomic_txn_id=txn.id,
-                        journal_entry_ids=[str(transfer_entry.id)],
-                        match_score=100,  # Transfer detection is exact match
-                        score_breakdown={"transfer_in": 100.0},
-                        status=ReconciliationStatus.AUTO_ACCEPTED,
-                    )
-                    db.add(match)
-                    matches.append(match)
-
-                    if transfer_entry.status != JournalEntryStatus.VOID:
-                        transfer_entry.status = JournalEntryStatus.RECONCILED
-
-                    logger.info(
-                        "Transfer IN detected and Processing entry created",
-                        txn_id=str(txn.id),
-                        entry_id=str(transfer_entry.id),
-                        amount=str(txn.amount),
-                    )
-            except Exception as e:
-                logger.error(
-                    "Failed to create Processing account entry for transfer",
-                    txn_id=str(txn.id),
-                    direction=txn.direction,
-                    error=str(e),
-                )
-                # Continue to normal matching if transfer entry creation fails
-
-    # Many-to-one matching
-    # Skip transactions already matched in Phase 1 (transfer detection)
-    groups = build_many_to_one_groups(transactions)
-    for group in groups:
-        # Skip groups where all transactions are already matched (e.g., transfers)
-        if all(txn.id in matched_txn_ids for txn in group):
-            continue
-        group_total = sum((txn.amount for txn in group), Decimal("0.00"))
-        group_date = max(txn.txn_date for txn in group)
-        candidates = get_candidates_for_date(group_date)
-        if not candidates:
-            continue
-        candidates = prune_candidates(
-            candidates,
-            txn_date=group_date,
-            target_amount=group_total,
-        )
-
-        best_candidate: MatchCandidate | None = None
-        best_entry: JournalEntry | None = None
-        # Optimization: pre-calculate pattern score once for the group
-        history_score = await get_cached_pattern_score(group[0])
-
-        for entry in candidates:
-            if not is_entry_balanced(entry):
-                continue
-
-            candidate = await calculate_match_score(
-                db,
-                group[0],
-                [entry],
-                config,
-                user_id=user_id,
-                is_multi=True,
-                is_many_to_one=True,
-                amount_override=group_total,
-                history_score_override=history_score,
-            )
-            candidate.breakdown["group_total"] = float(group_total)
-            if candidate.score >= config.pending_review and _candidate_is_better(
-                candidate, best_candidate, entries_by_id
-            ):
-                best_candidate = candidate
-                best_entry = entry
-
-        if best_candidate and best_entry:
-            status = (
-                ReconciliationStatus.AUTO_ACCEPTED
-                if best_candidate.score >= config.auto_accept
-                else ReconciliationStatus.PENDING_REVIEW
-            )
-            for txn in group:
-                if txn.id in matched_txn_ids:
-                    continue
-                existing_match = await _get_existing_active_match(db, txn.id)
-                if existing_match:
-                    existing_je_ids = set(existing_match.journal_entry_ids or [])
-                    new_je_ids = set(best_candidate.journal_entry_ids or [])
-                    if existing_je_ids == new_je_ids:
-                        matched_txn_ids.add(txn.id)
-                        continue
-                    existing_match.status = ReconciliationStatus.SUPERSEDED
-
-                match_kwargs = {
-                    "journal_entry_ids": best_candidate.journal_entry_ids,
-                    "match_score": best_candidate.score,
-                    "score_breakdown": best_candidate.breakdown,
-                    "status": status,
-                }
-                match_kwargs["atomic_txn_id"] = txn.id
-
-                match = ReconciliationMatch(**match_kwargs)
-                db.add(match)
-
-                if existing_match:
-                    await db.flush()
-                    existing_match.superseded_by_id = match.id
-
-                matches.append(match)
-                matched_txn_ids.add(txn.id)
-                if status == ReconciliationStatus.AUTO_ACCEPTED:
-                    if best_entry.status != JournalEntryStatus.VOID:
-                        _mark_auto_accepted_entry_reconciled(best_entry)
-
-    # Phase 2: Normal Matching (existing logic)
-    # Skip transactions already matched in Phase 1 (transfer detection)
-    for txn in transactions:
-        if txn.id in matched_txn_ids:
-            continue
-        candidates = get_candidates_for_date(txn.txn_date)
-        if not candidates:
-            continue
-        candidates = prune_candidates(
-            candidates,
-            txn_date=txn.txn_date,
-            target_amount=txn.amount,
-        )
-
-        best_match: MatchCandidate | None = None
-        # Optimization: use cached history score
-        history_score = await get_cached_pattern_score(txn)
-
-        for entry in candidates:
-            if not is_entry_balanced(entry):
-                continue
-
-            candidate = await calculate_match_score(
-                db, txn, [entry], config, user_id=user_id, history_score_override=history_score
-            )
-            if _candidate_is_better(candidate, best_match, entries_by_id):
-                best_match = candidate
-
-        for entry_a, entry_b in combinations(candidates, 2):
-            if not (is_entry_balanced(entry_a) and is_entry_balanced(entry_b)):
-                continue
-            combined = entry_bank_side_amount(entry_a, txn.direction) + entry_bank_side_amount(entry_b, txn.direction)
-            if not _within_combination_tolerance(combined, txn, config):
-                continue
-            candidate = await calculate_match_score(
-                db,
-                txn,
-                [entry_a, entry_b],
-                config,
-                user_id=user_id,
-                is_multi=True,
-                history_score_override=history_score,
-            )
-            candidate.breakdown["multi_entry"] = 1
-            if _candidate_is_better(candidate, best_match, entries_by_id):
-                best_match = candidate
-
-        for entry_a, entry_b, entry_c in combinations(candidates, 3):
-            if not (is_entry_balanced(entry_a) and is_entry_balanced(entry_b) and is_entry_balanced(entry_c)):
-                continue
-            combined = (
-                entry_bank_side_amount(entry_a, txn.direction)
-                + entry_bank_side_amount(entry_b, txn.direction)
-                + entry_bank_side_amount(entry_c, txn.direction)
-            )
-            if not _within_combination_tolerance(combined, txn, config):
-                continue
-            candidate = await calculate_match_score(
-                db,
-                txn,
-                [entry_a, entry_b, entry_c],
-                config,
-                user_id=user_id,
-                is_multi=True,
-                history_score_override=history_score,
-            )
-            candidate.breakdown["multi_entry"] = 2
-            if _candidate_is_better(candidate, best_match, entries_by_id):
-                best_match = candidate
-
-        if not best_match or best_match.score < config.pending_review:
-            continue
-
-        existing_match = await _get_existing_active_match(db, txn.id)
-        if existing_match:
-            existing_je_ids = set(existing_match.journal_entry_ids or [])
-            new_je_ids = set(best_match.journal_entry_ids or [])
-            if existing_je_ids == new_je_ids:
-                continue
-            existing_match.status = ReconciliationStatus.SUPERSEDED
-
-        status = (
-            ReconciliationStatus.AUTO_ACCEPTED
-            if best_match.score >= config.auto_accept
-            else ReconciliationStatus.PENDING_REVIEW
-        )
-        match_kwargs = {
-            "journal_entry_ids": best_match.journal_entry_ids,
-            "match_score": best_match.score,
-            "score_breakdown": best_match.breakdown,
-            "status": status,
-        }
-        match_kwargs["atomic_txn_id"] = txn.id
-
-        match = ReconciliationMatch(**match_kwargs)
-        db.add(match)
-
-        if existing_match:
-            await db.flush()
-            existing_match.superseded_by_id = match.id
-
-        matches.append(match)
-
-        if status == ReconciliationStatus.AUTO_ACCEPTED and best_match.journal_entry_ids:
-            entry_ids = [UUID(entry_id) for entry_id in best_match.journal_entry_ids]
-            result = await db.execute(
-                select(JournalEntry).where(JournalEntry.id.in_(entry_ids)).where(JournalEntry.user_id == user_id)
-            )
-            for entry in result.scalars():
-                if entry.status != JournalEntryStatus.VOID:
-                    _mark_auto_accepted_entry_reconciled(entry)
+    await run_normal_matching_phase(
+        db,
+        transactions=transactions,
+        matched_txn_ids=matched_txn_ids,
+        matches=matches,
+        get_candidates_for_date=lambda txn_date: [
+            c
+            for c in all_candidates
+            if txn_date - timedelta(days=config.date_days) <= c.entry_date <= txn_date + timedelta(days=config.date_days)
+        ],
+        get_cached_pattern_score=get_cached_pattern_score,
+        entries_by_id=entries_by_id,
+        config=config,
+        user_id=user_id,
+        get_existing_active_match=_get_existing_active_match,
+        calculate_match_score=calculate_match_score,
+        candidate_is_better=_candidate_is_better,
+        prune_candidates=prune_candidates,
+        is_entry_balanced=is_entry_balanced,
+        within_combination_tolerance=_within_combination_tolerance,
+        entry_bank_side_amount=entry_bank_side_amount,
+        mark_auto_accepted=_mark_auto_accepted_entry_reconciled,
+    )
 
     # Phase 3: Auto-Pair Transfers (AFTER all matching complete)
     # Find and pair transfers automatically per common/ledger/readme.md

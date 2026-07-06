@@ -1,7 +1,7 @@
 """AC4.14.11 / AC4.14.12 — ledger auto-discovery of cross-currency transfer legs.
 
 #1123 AC2 (live consumption). These tests exercise
-``src.services.fx_transfer_discovery.discover_fx_conversions`` against a seeded DB
+``src.reconciliation.extension.fx_transfer_discovery.discover_fx_conversions`` against a seeded DB
 session: a real cross-currency internal transfer booked only as RAW asset-account
 journal lines (no pre-recorded ``fx_conversions`` row) must be auto-discovered and
 materialised as an in-memory :class:`FxConversion` linking both legs — but only
@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
-from src.services.fx_transfer_discovery import discover_fx_conversions
+from src.reconciliation.extension.fx_transfer_discovery import discover_fx_conversions
 
 _RATE_SGD_PER_USD = Decimal("1.360000")
 _TXN_DATE = date(2025, 6, 15)

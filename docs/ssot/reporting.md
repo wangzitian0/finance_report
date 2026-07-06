@@ -769,7 +769,7 @@ A matched cross-currency transfer (see
 is therefore classified **net-zero** (#1123 AC3): the transfer-**in** leg is *not*
 income and the matching transfer-**out** leg is *not* expense. The only net-worth
 impact is the transfer **fee**, which is a real external outflow. Implemented by
-`classify_internal_transfer` (`services/fx_transfer.py`): `net_worth_delta = −fee`
+`classify_internal_transfer` (`reconciliation/extension/fx_transfer.py`): `net_worth_delta = −fee`
 for an internal transfer, `income − expense` otherwise.
 
 This classification is **wired into report generation** (#1123 AC3, live):

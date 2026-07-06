@@ -14,7 +14,7 @@
 | `Stage2Status` on match | `apps/backend/src/models/reconciliation.py` — `ReconciliationMatch.status` |
 | `pending_review` usage | `apps/backend/src/routers/statements.py`, `apps/backend/src/routers/reconciliation.py` |
 | Balance-chain validation | `apps/backend/src/services/statement_validation.py` |
-| Consistency checks | `apps/backend/src/services/consistency_checks.py` |
+| Consistency checks | `apps/backend/src/reconciliation/extension/consistency_checks.py` |
 
 ---
 

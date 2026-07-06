@@ -20,7 +20,7 @@ from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.models.layer2 import AtomicTransaction
 from src.models.reconciliation import ReconciliationStatus
-from src.services.reconciliation import execute_matching
+from src.reconciliation import execute_matching
 
 
 @pytest.fixture

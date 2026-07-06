@@ -7,7 +7,7 @@ from datetime import date
 import pytest
 
 from src.models.account import AccountType
-from src.services import reconciliation_audit as audit
+from src.reconciliation.extension import reconciliation_audit as audit
 
 
 def test_AC4_10_1_backend_reconciliation_audit_writes_reports(tmp_path) -> None:

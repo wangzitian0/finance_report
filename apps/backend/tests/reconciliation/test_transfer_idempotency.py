@@ -23,7 +23,7 @@ from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
-from src.services.reconciliation import execute_matching
+from src.reconciliation import execute_matching
 
 
 class TestTransferDetectionIdempotency:

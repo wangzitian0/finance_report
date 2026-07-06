@@ -6,18 +6,18 @@ import re
 from datetime import date
 from decimal import Decimal
 from difflib import SequenceMatcher
+import os
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config import settings
 from src.models.account import AccountType
 from src.models.journal import JournalEntry
 from src.models.layer2 import AtomicTransaction
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.observability import get_logger
-from src.services.reconciliation_config import ReconciliationConfig
+from src.reconciliation.base.config import ReconciliationConfig
 
 logger = get_logger(__name__)
 
@@ -260,7 +260,7 @@ async def ai_semantic_score(
     try:
         stream = stream_ai_json(
             messages=messages,
-            model=settings.primary_model,
+            model=os.getenv("PRIMARY_MODEL", "gemini-2.0-flash"),
             timeout=30.0,
         )
         content = await accumulate_stream(stream)
@@ -275,7 +275,7 @@ async def ai_semantic_score(
         logger.debug(
             "AI semantic score computed",
             score=score,
-            model=settings.primary_model,
+            model=os.getenv("PRIMARY_MODEL", "gemini-2.0-flash"),
         )
 
         return max(0, min(100, score))

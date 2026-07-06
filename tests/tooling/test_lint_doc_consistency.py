@@ -128,7 +128,7 @@ def test_AC14_1_8_reconciliation_thresholds_are_code_owned(tmp_path) -> None:
 ### Reconciliation Thresholds
 
 Runtime values are owned by apps/backend/config/reconciliation.yaml and
-apps/backend/src/services/reconciliation.py through DEFAULT_CONFIG and
+apps/backend/src/reconciliation/extension/matching.py through DEFAULT_CONFIG and
 load_reconciliation_config. Overrides use RECONCILIATION_AUTO_ACCEPT_THRESHOLD
 and RECONCILIATION_REVIEW_THRESHOLD.
 """,

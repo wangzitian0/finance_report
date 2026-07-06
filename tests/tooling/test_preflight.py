@@ -40,7 +40,7 @@ class TestSelectChecks:
         names = [
             c.name
             for c in preflight.select_checks(
-                ["apps/backend/src/services/reconciliation.py"]
+                ["apps/backend/src/reconciliation/extension/matching.py"]
             )
         ]
         assert "app-boundary" in names
