@@ -61,6 +61,7 @@ class SqlObservationRepository:
         )
         return [
             PriceObservation(
+                id=row.id,
                 subject=subject,
                 value=row.rate,
                 as_of=row.rate_date,
@@ -86,6 +87,7 @@ class SqlObservationRepository:
         )
         observations = [
             PriceObservation(
+                id=row.id,
                 subject=subject,
                 value=row.price,
                 as_of=row.price_date,
@@ -111,6 +113,7 @@ class SqlObservationRepository:
             )
             observations.extend(
                 PriceObservation(
+                    id=row.id,
                     subject=subject,
                     value=row.price,
                     as_of=row.price_date,
@@ -150,6 +153,7 @@ class SqlObservationRepository:
         # ruling 3) falls out of resolve() rather than a second mechanism.
         return [
             PriceObservation(
+                id=row.id,
                 subject=subject,
                 value=row.value,
                 as_of=row.as_of_date,

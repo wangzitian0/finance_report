@@ -50,6 +50,27 @@ async def test_fx_candidates_come_from_fx_rate_table(db: AsyncSession):
     assert obs.authority is Authority.CRAWLER
 
 
+async def test_observation_id_matches_the_underlying_row_not_a_random_uuid(db: AsyncSession):
+    """PriceObservation.id must be the real row id — an aggregate root's
+    identity is meaningless if every read mints a fresh random one."""
+    row = FxRate(
+        base_currency="USD",
+        quote_currency="SGD",
+        rate=Decimal("1.35"),
+        rate_date=date(2026, 1, 1),
+        source="test",
+    )
+    db.add(row)
+    await db.commit()
+    await db.refresh(row)
+
+    repo = SqlObservationRepository(db)
+    subject = PriceableSubject.currency_pair("USD", "SGD")
+    candidates = await repo.candidates(subject, date(2026, 6, 1))
+
+    assert candidates[0].id == row.id
+
+
 async def test_fx_candidates_exclude_rows_after_as_of(db: AsyncSession):
     db.add_all(
         [

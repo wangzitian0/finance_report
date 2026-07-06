@@ -13,12 +13,13 @@ This commit ships the pure ``base/`` layer (subject identity, the append-only
 ``SqlObservationRepository`` (a read-only adapter over the 4 legacy tables —
 schema-preserving on purpose, so it can land ahead of unifying them into one
 physical store), the two user-scoped write recorders
-(``record_manual_valuation``/``record_override``), and ``get_exchange_rate``
-+ the ``convert_*`` trio + ``get_average_rate`` (thin FX-specific wrappers
-over the same subject+resolve path). The remaining ``extension/`` domain
-services (crawler sync, the extraction-event subscriber) and the ``data/``
-projections are reserved (declared in the contract's ``units`` with no
-module path) for a later commit.
+(``record_manual_valuation``/``record_override`` — each also publishes
+``PriceObserved`` through the platform outbox, atomically with the write),
+and ``get_exchange_rate`` + the ``convert_*`` trio + ``get_average_rate``
+(thin FX-specific wrappers over the same subject+resolve path). The
+remaining ``extension/`` domain services (crawler sync, the extraction-event
+subscriber) and the ``data/`` projections are reserved (declared in the
+contract's ``units`` with no module path) for a later commit.
 """
 
 from __future__ import annotations

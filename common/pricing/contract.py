@@ -106,7 +106,11 @@ CONTRACT = PackageContract(
         ),
         # record_manual_valuation/record_override are the write-side
         # counterpart to the read adapter above: they persist into the same
-        # 2 user-scoped legacy tables the adapter reads back uniformly.
+        # 2 user-scoped legacy tables the adapter reads back uniformly, and
+        # each publishes PriceObserved through the platform outbox in the
+        # SAME db session as the write (the counter.record_increment
+        # pattern) — the event is atomic with the state change by
+        # construction, not a separate best-effort notification.
         Unit(
             name="record_manual_valuation",
             kind=Kind.DOMAIN_SERVICE,
@@ -151,8 +155,10 @@ CONTRACT = PackageContract(
     # This commit's real, working surface: the pure base/ model, resolve()
     # (implementation-pure, physically in extension/ per KIND_LAYER), the
     # repository port + its read-only SQL adapter (querying the 4 legacy
-    # tables), the two user-scoped write-side recorders, and the FX
-    # lookup + convert_* + average-rate wrappers. The remaining 2
+    # tables), the two user-scoped write-side recorders (which also publish
+    # PriceObserved through the platform outbox, atomically with the write —
+    # pricing is a real producer on the bus, not just a declared event type),
+    # and the FX lookup + convert_* + average-rate wrappers. The remaining 2
     # domain-services (crawler sync, extraction-event ingest) + 2 data
     # projections are reserved units above — they join the interface once a
     # later commit implements them for real.

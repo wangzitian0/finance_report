@@ -10,15 +10,22 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
+import sqlalchemy as sa
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.layer3 import ManualValuationSnapshot
+from src.platform import Outbox
+from src.pricing.base.events import EVENT_TYPE
 from src.pricing.base.observation import Authority, ObservationSource
 from src.pricing.extension.manual import record_manual_valuation, record_override
 from src.pricing.extension.repository import SqlObservationRepository
 
 pytestmark = pytest.mark.asyncio
+
+
+async def _outbox_rows(db: AsyncSession):
+    return (await db.execute(sa.select(Outbox).order_by(Outbox.id))).scalars().all()
 
 
 async def test_record_manual_valuation_returns_a_manual_observation(db: AsyncSession, test_user):
@@ -103,3 +110,74 @@ async def test_record_override_is_resolvable_immediately(db: AsyncSession, test_
     candidates = await repo.candidates(observation.subject, date(2026, 6, 15), user_id=test_user.id)
     assert len(candidates) == 1
     assert candidates[0].value == Decimal("185.50")
+
+
+async def test_record_manual_valuation_enqueues_price_observed_atomically(db: AsyncSession, test_user):
+    """The outbox row lands in the same transaction as the snapshot (record_increment pattern)."""
+    observation = await record_manual_valuation(
+        db,
+        test_user.id,
+        component_type="property_value",
+        liquidity_class="illiquid",
+        as_of=date(2026, 6, 1),
+        value=Decimal("500000"),
+        currency="SGD",
+        source="user-entry",
+    )
+    await db.commit()
+
+    rows = await _outbox_rows(db)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.event_type == EVENT_TYPE  # "pricing.PriceObserved"
+    assert row.source_pkg == "pricing"
+    assert row.payload["observation_id"] == str(observation.id)
+    assert row.payload["subject_kind"] == "component"
+    assert row.payload["subject_key"] == "property_value"
+    assert row.payload["source"] == "manual"
+
+
+async def test_record_manual_valuation_rollback_leaves_neither_snapshot_nor_event(db: AsyncSession, test_user):
+    user_id = test_user.id  # captured before rollback expires the fixture object
+    await record_manual_valuation(
+        db,
+        user_id,
+        component_type="property_value",
+        liquidity_class="illiquid",
+        as_of=date(2026, 6, 1),
+        value=Decimal("500000"),
+        currency="SGD",
+        source="user-entry",
+    )
+    await db.flush()
+    await db.rollback()
+
+    heads = (
+        (await db.execute(select(ManualValuationSnapshot).where(ManualValuationSnapshot.user_id == user_id)))
+        .scalars()
+        .all()
+    )
+    assert heads == []
+    assert await _outbox_rows(db) == []
+
+
+async def test_record_override_enqueues_price_observed(db: AsyncSession, test_user):
+    observation = await record_override(
+        db,
+        test_user.id,
+        asset_identifier="AAPL",
+        as_of=date(2026, 6, 1),
+        price=Decimal("185.50"),
+        currency="USD",
+    )
+    await db.commit()
+
+    rows = await _outbox_rows(db)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.event_type == EVENT_TYPE
+    assert row.source_pkg == "pricing"
+    assert row.payload["observation_id"] == str(observation.id)
+    assert row.payload["subject_kind"] == "security"
+    assert row.payload["subject_key"] == "AAPL"
+    assert row.payload["source"] == "override"

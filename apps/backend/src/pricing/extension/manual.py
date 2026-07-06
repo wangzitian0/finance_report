@@ -9,6 +9,12 @@ the crawler sources is ``SqlObservationRepository``'s job
 Presentation classification (``liquidity_class``, notes, reminders) is an
 asset-lifecycle/UI concern pricing does not own — callers supply it; pricing
 only persists the observation fact and its versioning.
+
+Both also publish ``PriceObserved`` through the platform outbox, in the same
+``db`` session as the write (the ``counter.record_increment`` pattern): the
+outbox row is enqueued, never dispatched, here — the caller's own commit is
+what makes the event atomic with the state change, and the relay delivers it
+post-commit.
 """
 
 from __future__ import annotations
@@ -29,8 +35,13 @@ from src.models.layer3 import (
     ManualValuationSnapshot,
 )
 from src.models.portfolio import MarketDataOverride, PriceSource
+from src.platform import OutboxEventBus
+from src.pricing.base.events import PriceObserved
 from src.pricing.base.observation import Authority, ObservationSource, PriceObservation
 from src.pricing.base.subject import PriceableSubject
+
+#: The ``source_pkg`` tag every pricing event carries in the shared outbox.
+SOURCE_PKG = "pricing"
 
 
 async def record_manual_valuation(
@@ -93,8 +104,21 @@ async def record_manual_valuation(
         await db.flush()
     await db.refresh(snapshot)
 
+    subject = PriceableSubject.component(component_type)
+    bus = OutboxEventBus(db, source_pkg=SOURCE_PKG)
+    bus.publish(
+        PriceObserved.create(
+            observation_id=snapshot.id,
+            subject=subject,
+            as_of=snapshot.as_of_date,
+            source=ObservationSource.MANUAL,
+            occurred_at=snapshot.created_at,
+        )
+    )
+
     return PriceObservation(
-        subject=PriceableSubject.component(component_type),
+        id=snapshot.id,
+        subject=subject,
         value=snapshot.value,
         as_of=snapshot.as_of_date,
         observed_at=snapshot.created_at,
@@ -135,8 +159,21 @@ async def record_override(
     await db.flush()
     await db.refresh(override)
 
+    subject = PriceableSubject.security(asset_identifier)
+    bus = OutboxEventBus(db, source_pkg=SOURCE_PKG)
+    bus.publish(
+        PriceObserved.create(
+            observation_id=override.id,
+            subject=subject,
+            as_of=override.price_date,
+            source=ObservationSource.OVERRIDE,
+            occurred_at=override.created_at,
+        )
+    )
+
     return PriceObservation(
-        subject=PriceableSubject.security(asset_identifier),
+        id=override.id,
+        subject=subject,
         value=override.price,
         as_of=override.price_date,
         observed_at=override.created_at,
