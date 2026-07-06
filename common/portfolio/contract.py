@@ -45,7 +45,7 @@ below for how that overlap is resolved.
 
 from __future__ import annotations
 
-from common.meta.package_contract import Invariant, Kind, PackageContract, Unit
+from common.meta.package_contract import ACRecord, Invariant, Kind, PackageContract, Unit
 
 CONTRACT = PackageContract(
     name="portfolio",
@@ -172,9 +172,113 @@ CONTRACT = PackageContract(
             ),
         ),
     ],
-    # Filled by the EPIC-011/017 portfolio-AC migration (a later commit in
-    # PR1); the package goes status="active" with its authority tier decided
-    # there, per this repo's established precedent (migrate ownership only
-    # after the physical fold is complete — see #1548/AC-audit.* migration).
-    roadmap=[],
+    # The package is still draft because the read-side holdings/P&L cutover is
+    # blocked on #1643, but the write-side accounting slice is real and owns its
+    # migrated ACs here already (the EPIC table no longer mirrors them).
+    roadmap=[
+        ACRecord(
+            id="AC-portfolio.accounting.1",
+            statement=(
+                "post_buy posts a balanced ledger entry, creates the opening "
+                "InvestmentLot, and increases the ManagedPosition cost basis and quantity."
+            ),
+            test=(
+                "apps/backend/tests/portfolio/test_investment_accounting.py"
+                "::test_buy_transaction_creates_balanced_journal_entry_and_lot"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.lot.1",
+            statement=(
+                "post_sell consumes InvestmentLots by the configured FIFO cost-basis "
+                "method and never sells more than the remaining quantity."
+            ),
+            test=(
+                "apps/backend/tests/portfolio/test_investment_accounting.py"
+                "::test_sell_transaction_uses_fifo_and_records_realized_gain"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.lot.2",
+            statement=(
+                "post_sell supports average-cost disposal and persists the AVGCOST "
+                "method on the realized transaction and remaining position."
+            ),
+            test=(
+                "apps/backend/tests/portfolio/test_investment_accounting.py"
+                "::test_sell_transaction_uses_average_cost_for_realized_pnl"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.position.1",
+            statement=(
+                "A sell updates ManagedPosition quantity and disposal status without "
+                "ever driving an open position quantity below zero."
+            ),
+            test=(
+                "apps/backend/tests/portfolio/test_investment_accounting.py"
+                "::test_sell_transaction_uses_lifo_loss_and_disposes_position"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.dividend.1",
+            statement=(
+                "post_dividend posts cash plus dividend income and persists a "
+                "DividendIncome record for the position."
+            ),
+            test=(
+                "apps/backend/tests/portfolio/test_investment_accounting.py"
+                "::test_dividend_transaction_posts_income_and_dividend_record"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.dividend.2",
+            statement=(
+                "post_dividend splits withholding tax into separate cash and tax "
+                "expense legs while keeping the ledger entry balanced."
+            ),
+            test=(
+                "apps/backend/tests/portfolio/test_investment_accounting.py"
+                "::test_dividend_transaction_posts_withholding_tax"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.accounting.2",
+            statement=(
+                "Investment accounting rejects invalid buy, sell, and dividend "
+                "inputs before writing portfolio or ledger state."
+            ),
+            test=(
+                "apps/backend/tests/portfolio/test_investment_accounting.py"
+                "::test_investment_accounting_rejects_invalid_transactions"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.accounting.3",
+            statement=(
+                "Investment accounting helper lookups reject missing positions and "
+                "inactive or wrong-type accounts with clean domain errors."
+            ),
+            test=(
+                "apps/backend/tests/portfolio/test_investment_accounting.py"
+                "::test_investment_accounting_rejects_invalid_account_and_position_helpers"
+            ),
+            priority="P1",
+            status="done",
+        ),
+    ],
 )
