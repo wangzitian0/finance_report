@@ -159,15 +159,26 @@ code, tests, issues, and git history.
 | AC11.10.10 | Backend scheduler runs daily market data sync at the nightly Asia/Singapore close-refresh window | `test_next_market_data_sync_at_uses_nightly_sgt_schedule()` | `market_data/test_scheduler.py` | P0 |
 | AC11.10.11 | Staging E2E covers report-time market data refresh from an authenticated ordinary-user path without manual sync | `test_market_data_provider_sync_feeds_fx_and_stock_price_paths()` | `tests/e2e/test_market_data_price_paths.py` | P0 |
 
-### AC11.13: 4-Layer Migration — Stage 1 Dual-Write Activation
+### AC11.13: 4-Layer Migration — Stage 1 Dual-Write Activation — migrated to the `extraction` package
 
 Stage 1 of the 4-layer cutover turns dual-write ON by default: every parsed
 statement populates Layer 1/2 (`UploadedDocument` + `AtomicTransaction`)
 alongside legacy Layer 0, with an env opt-out preserved for rollback.
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC11.13.1 | Parsing populates Layer 1/2 by default, without any feature-flag override | `test_dual_write_enabled_by_default()` | `extraction/test_dual_write_layer2.py` | P0 |
+> **The ACs of this group are no longer defined here.** The rows (were
+> AC11.13.* rows .1–.1) migrated into the `extraction` package and are owned
+> by, and sourced directly from,
+> [`common/extraction/contract.py`](../../common/extraction/contract.py)'s `roadmap`
+> under the package-scoped numeric `AC-extraction.<group>.<seq>` id scheme
+> (`AC11.13.<s>` becomes
+> `AC-extraction.213.<s>`). `common/ssot/generate_ac_registry.py` reads
+> package-contract roadmaps additively, so the AC index counts them without an
+> EPIC-table mirror. This note references the new ids (keeping the
+> registry↔EPIC link intact) but defines none of them — the contract is the
+> single definition source.
+>
+> Migrated `AC-extraction.213.<s>` ids (homed in the package roadmap):
+> `AC-extraction.213.1`
 
 ### AC11.14: 4-Layer Migration — Stage 2a Layer 0→2 Backfill (RETIRED in Stage 3)
 
@@ -178,7 +189,7 @@ alongside legacy Layer 0, with an env opt-out preserved for rollback.
 > `StatementSummary` conform directly, so there is no Layer-0 source to backfill
 > from. The backfill acceptance criteria are obsolete and have been removed.
 
-### AC11.15: 4-Layer Migration — StatementSummary Conform (custody account)
+### AC11.15: 4-Layer Migration — StatementSummary Conform (custody account) — migrated to the `extraction` package
 
 The durable `StatementSummary` conform binds an uploaded statement document to its
 custody account (DIM) and carries the confirmed statement envelope (period,
@@ -187,15 +198,20 @@ reconciliation transfer detection needs. As of Stage 3 the ingestion pipeline
 writes the conform directly (the legacy `BankStatement`→`StatementSummary` sync
 was removed with the `bank_statements` table).
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC11.15.3 | Custody account resolves from a Layer-2 atomic transaction via the conform (DWD-native) | `test_resolve_custody_account_from_atomic_txn()` | `extraction/test_statement_summary_conform.py` | P0 |
-| AC11.15.4 | The resolver returns None when the source statement has no confirmed custody account | `test_resolve_returns_none_without_account()` | `extraction/test_statement_summary_conform.py` | P0 |
-| AC11.15.5 | The resolver normalizes a `{"documents": [...]}` source-documents wrapper | `test_resolve_handles_dict_wrapper_source_documents()` | `extraction/test_statement_summary_conform.py` | P0 |
-| AC11.15.6 | The resolver skips junk entries, non-bank-statement sources, and invalid UUIDs | `test_resolve_ignores_invalid_and_non_bank_sources()` | `extraction/test_statement_summary_conform.py` | P0 |
-| AC11.15.7 | A non-list/non-dict source_documents value resolves to None | `test_resolve_returns_none_for_non_list_source_documents()` | `extraction/test_statement_summary_conform.py` | P0 |
-| AC11.15.8 | The first source document (in order) with a confirmed account wins | `test_resolve_preserves_source_document_order()` | `extraction/test_statement_summary_conform.py` | P0 |
-| AC11.15.9 | A known source document with no confirmed custody account resolves to None | `test_resolve_returns_none_when_no_source_has_account()` | `extraction/test_statement_summary_conform.py` | P0 |
+> **The ACs of this group are no longer defined here.** The rows (were
+> AC11.15.* rows .3–.9) migrated into the `extraction` package and are owned
+> by, and sourced directly from,
+> [`common/extraction/contract.py`](../../common/extraction/contract.py)'s `roadmap`
+> under the package-scoped numeric `AC-extraction.<group>.<seq>` id scheme
+> (`AC11.15.<s>` becomes
+> `AC-extraction.215.<s>`). `common/ssot/generate_ac_registry.py` reads
+> package-contract roadmaps additively, so the AC index counts them without an
+> EPIC-table mirror. This note references the new ids (keeping the
+> registry↔EPIC link intact) but defines none of them — the contract is the
+> single definition source.
+>
+> Migrated `AC-extraction.215.<s>` ids (homed in the package roadmap):
+> `AC-extraction.215.3` · `AC-extraction.215.4` · `AC-extraction.215.5` · `AC-extraction.215.6` · `AC-extraction.215.7` · `AC-extraction.215.8` · `AC-extraction.215.9`
 
 ### AC11.16: 4-Layer Migration — Balance-aware Layer 2 dedup
 
@@ -412,7 +428,13 @@ representative fixture expansion needed before the overall
 
 ### Acceptance Criteria — Layer 3 Classification Service
 
+> **Partially migrated.** The idempotency row (was AC11.12.* row .1) is homed in the
+> `extraction` package roadmap as `AC-extraction.212.1`
+> ([`common/extraction/contract.py`](../../common/extraction/contract.py));
+> AC11.12.2 stays here for now — its row-level `{tier:CODE-LED}` is stricter
+> than the extraction package tier (LLM-LED), so moving it would downgrade its
+> proof authority (a package-boundary decision, not a mechanical move).
+
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC11.12.1 | Re-applying the same rule version to the same atomic transaction is idempotent and returns the existing classification without inserting duplicates | `test_apply_rules_is_idempotent_for_existing_transaction_rule_version` | `extraction/test_classification_service.py` | P0 |
 | AC11.12.2 | Classification priority is deterministic across rule type and descending rule version {tier:CODE-LED} {proof:property} | `test_classification_priority_keyword_over_regex`, `test_same_type_rules_prefer_newer_version` | `extraction/test_classification_service.py` | P0 |

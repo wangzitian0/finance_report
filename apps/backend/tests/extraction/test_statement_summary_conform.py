@@ -79,7 +79,7 @@ class TestStatementSummaryConform:
         assert summary.closing_balance == Decimal("1200.00")
 
     async def test_resolve_custody_account_from_atomic_txn(self, db, test_user):
-        """AC11.15.3: custody account resolves from an atomic txn via the conform (DWD-native)."""
+        """AC-extraction.215.3: custody account resolves from an atomic txn via the conform (DWD-native)."""
         account = await _make_account(db, test_user.id)
         doc = UploadedDocument(
             user_id=test_user.id,
@@ -136,7 +136,7 @@ class TestStatementSummaryConform:
         )
 
     async def test_resolve_handles_dict_wrapper_source_documents(self, db, test_user):
-        """AC11.15.5: a {"documents": [...]} wrapper is normalized before resolution."""
+        """AC-extraction.215.5: a {"documents": [...]} wrapper is normalized before resolution."""
         account = await _make_account(db, test_user.id)
         doc = await self._confirmed_doc(db, test_user.id, file_hash="hash-wrap", account_id=account.id)
         atomic = self._atomic(
@@ -149,7 +149,7 @@ class TestStatementSummaryConform:
         assert await resolve_custody_account_id(db, atomic) == account.id
 
     async def test_resolve_ignores_invalid_and_non_bank_sources(self, db, test_user):
-        """AC11.15.6: junk entries, non-bank doc types, and invalid UUIDs are skipped."""
+        """AC-extraction.215.6: junk entries, non-bank doc types, and invalid UUIDs are skipped."""
         atomic = self._atomic(
             test_user.id,
             source_documents=[
@@ -165,7 +165,7 @@ class TestStatementSummaryConform:
         assert await resolve_custody_account_id(db, atomic) is None
 
     async def test_resolve_returns_none_when_no_source_has_account(self, db, test_user):
-        """AC11.15.9: a known source document with no confirmed custody account resolves to None."""
+        """AC-extraction.215.9: a known source document with no confirmed custody account resolves to None."""
         doc = await self._confirmed_doc(db, test_user.id, file_hash="hash-noacct", account_id=None)
         atomic = self._atomic(
             test_user.id,
@@ -177,14 +177,14 @@ class TestStatementSummaryConform:
         assert await resolve_custody_account_id(db, atomic) is None
 
     async def test_resolve_returns_none_for_non_list_source_documents(self, db, test_user):
-        """AC11.15.7: a non-list/non-dict source_documents value resolves to None."""
+        """AC-extraction.215.7: a non-list/non-dict source_documents value resolves to None."""
         atomic = self._atomic(test_user.id, source_documents="weird", dedup_hash="dedup-weird")
         db.add(atomic)
         await db.commit()
         assert await resolve_custody_account_id(db, atomic) is None
 
     async def test_resolve_preserves_source_document_order(self, db, test_user):
-        """AC11.15.8: the first source document (in order) with a confirmed account wins."""
+        """AC-extraction.215.8: the first source document (in order) with a confirmed account wins."""
         second = Account(user_id=test_user.id, name="OCBC", type=AccountType.ASSET, currency="SGD")
         db.add(second)
         await db.flush()
@@ -204,7 +204,7 @@ class TestStatementSummaryConform:
         assert await resolve_custody_account_id(db, atomic) == second.id
 
     async def test_resolve_returns_none_without_source_documents(self, db, test_user):
-        """AC11.15.4: resolver returns None when the atomic txn has no source documents."""
+        """AC-extraction.215.4: resolver returns None when the atomic txn has no source documents."""
         atomic = AtomicTransaction(
             user_id=test_user.id,
             txn_date=date(2024, 1, 15),
@@ -221,7 +221,7 @@ class TestStatementSummaryConform:
         assert await resolve_custody_account_id(db, atomic) is None
 
     async def test_resolve_returns_none_without_account(self, db, test_user):
-        """AC11.15.4: resolver returns None when the source statement has no custody account."""
+        """AC-extraction.215.4: resolver returns None when the source statement has no custody account."""
         atomic = AtomicTransaction(
             user_id=test_user.id,
             txn_date=date(2024, 1, 15),
