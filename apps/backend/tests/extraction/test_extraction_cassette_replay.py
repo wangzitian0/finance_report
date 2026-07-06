@@ -6,15 +6,10 @@ is exercised in CI WITHOUT a key or network. The frozen responses are REAL GLM
 (glm-5.2 / glm-4.6v) completions recorded via the GLM coding plan; in replay
 they are served from committed cassettes (zero key, zero network).
 
-Recording (operator-only, needs the provider key):
+Recording (operator-only, needs the provider key): `make llm-record ARGS='tests/extraction/test_extraction_cassette_replay.py'`
 
-    AI_PROVIDER=zai AI_BASE_URL=https://api.z.ai/api/coding/paas/v4 \\
-    AI_API_KEY=$GLM_CODING_TOKEN PRIMARY_MODEL=glm-5.2 \\
-    LLM_CASSETTE_MODE=record \\
-        uv run pytest tests/extraction/test_extraction_cassette_replay.py
-
-Tests with no cassette yet stay `pytest.skip`-marked (per-test, not module-wide)
-so PR CI stays green and the not-yet-recorded path is unmistakably flagged.
+A missing cassette is a hard MISS failure (never a skip) — in CI it goes RED
+with the actionable re-record summary; locally with a provider key it auto-records.
 
 Boundary: these assert provider-agnostic response *handling* + the balance/dedup
 invariants through the parse pipeline. Provider-specific correctness on unseen
@@ -24,29 +19,15 @@ documents remains the staging ``-m llm`` live gate's job (untouched here).
 from __future__ import annotations
 
 import json
-import os
 from decimal import Decimal
 from pathlib import Path
 
-import pytest
-
-from src.llm.extension.cassette import CassetteMode, current_mode
 from src.services.ai_streaming import accumulate_stream, stream_ai_json
 
-# These drive the real LLM transport against the committed cassettes. The module
-# used to skipif itself out when LLM_CASSETTE_MODE was unset — but NO CI lane
-# ever set it, so the documented "extraction-unit replay in PR CI" gate silently
-# never ran anywhere (#1614). The tests now default THEMSELVES to replay (zero
-# network, no key) instead of skipping; an explicit LLM_CASSETTE_MODE=record
-# (``make llm-record``) still wins so re-recording keeps working. Scoped per-test
-# via monkeypatch so the mode never leaks into other tests in the same worker.
-
-
-@pytest.fixture(autouse=True)
-def _default_to_replay(monkeypatch):
-    if current_mode() is CassetteMode.OFF:
-        monkeypatch.setenv("LLM_CASSETTE_MODE", CassetteMode.REPLAY.value)
-
+# No mode fork (#1597): the cassette layer decides per request — a committed
+# cassette serves everywhere (zero key, zero network); a MISS is a hard failure
+# in CI and auto-records locally when a provider key exists. Re-record existing
+# cassettes with the layer refresh knob: `make llm-record`.
 
 # --- Deterministic, anonymised inputs (synthetic; no real financial data). ---
 # The fingerprint keys on (role + messages + decode params), so these MUST stay
@@ -119,15 +100,9 @@ async def test_AC23_6_extraction_text_happy_path_via_replay() -> None:
 _VISION_PDF = Path(__file__).resolve().parents[1] / "fixtures" / "vision" / "simple_statement.pdf"
 
 
-@pytest.mark.skipif(
-    os.environ.get("LLM_VISION_REPLAY") != "1",
-    reason=(
-        "vision replay is BROKEN, not just gated: the extraction request now "
-        "fingerprints to a key no committed cassette carries (#1614) — the "
-        "request drifted since recording. Re-record with a real key "
-        "(make llm-record), then remove this gate."
-    ),
-)
+# The #1614 LLM_VISION_REPLAY gate is gone: the drifted vision cassette was
+# re-recorded against the current request fingerprint (a29eeada…), so this test
+# serves frozen again — zero key, zero network, no skip.
 async def test_AC23_6_extraction_vision_happy_path_via_replay() -> None:
     """Text+image (vision) extraction happy-path through the default-config vision
     path (OCR_MODEL == VISION_MODEL == glm-4.6v), in replay.

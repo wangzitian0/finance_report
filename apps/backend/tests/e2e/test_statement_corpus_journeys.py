@@ -20,6 +20,7 @@ run in ``ci.yml backend-e2e-tier1``.
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -35,12 +36,23 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 CASSETTE_DIR = REPO_ROOT / "common" / "testing" / "fixtures" / "llm_cassettes"
 GROUND_TRUTH_DIR = CASSETTE_DIR / "ground_truth"
 
+
 # ---------------------------------------------------------------------------
 # The corpus manifest (AC-llm.11.1). 10 maximally-diverse fingerprints, chosen for
 # axis coverage rather than volume — the diversity invariants are asserted by
 # test_corpus_manifest_is_diverse so the set cannot silently shrink or
 # homogenize. Registered in common/llm/contract.py roadmap group 10.
 # ---------------------------------------------------------------------------
+def _declare_served(fingerprint: str) -> None:
+    # Per-process file (no shared-file appends under xdist) anchored to this
+    # file (no CWD assumption); the CI orphan gate globs served-cassettes*.txt.
+    out = Path(__file__).resolve().parents[2] / "test-results"
+    out.mkdir(exist_ok=True)
+    path = out / f"served-cassettes-{os.getpid()}.txt"
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(f"{fingerprint}\n")
+
+
 CORPUS_FINGERPRINTS: tuple[str, ...] = (
     # text / generic / happy_path — minimal signed-amount baseline
     "d69fbafcecb481e614651b1178a5fb9d9e3724718ef7bf623502120bcd27db30",
@@ -111,6 +123,11 @@ class CorpusCase:
 def load_corpus_case(fingerprint: str) -> CorpusCase:
     """Build a seedable case from a cassette + its ground-truth metadata."""
     cassette = json.loads((CASSETTE_DIR / f"{fingerprint}.json").read_text())
+    # Orphan-gate accounting (#1597): this suite consumes cassettes as FIXTURE
+    # DATA (not through the llm transport), so it declares its usage into the
+    # same served-cassettes manifest the harness dumps — otherwise the CI orphan
+    # gate would misread the corpus as changed-prompt leftovers.
+    _declare_served(fingerprint)
     truth = json.loads((GROUND_TRUTH_DIR / f"{fingerprint}.truth.json").read_text())
     payload = json.loads(cassette["response"]["stream_text"])
 

@@ -23,7 +23,6 @@ from src.llm.extension.cassette import (
     CassetteStore,
     CassetteTag,
     CassetteValidationError,
-    current_mode,
     fingerprint,
     miss_summary,
 )
@@ -49,22 +48,6 @@ async def _live(_response: dict | None = None):
 
 
 # --- mode resolution ---
-
-
-def test_AC23_5_1_mode_defaults_to_off(monkeypatch):
-    """AC-llm.5.1: with no env set, the cassette layer is off (normal live call)."""
-    monkeypatch.delenv("LLM_CASSETTE_MODE", raising=False)
-    assert current_mode() is CassetteMode.OFF
-
-
-def test_AC23_5_1_unknown_mode_fails_closed(monkeypatch):
-    """AC-llm.5.1: an unknown mode is a config error, not a silent fall-through to a
-    network call."""
-    from src.llm.base import LLMConfigError
-
-    monkeypatch.setenv("LLM_CASSETTE_MODE", "bogus")
-    with pytest.raises(LLMConfigError):
-        current_mode()
 
 
 # --- replay (no network, no key) ---
@@ -149,7 +132,10 @@ async def test_AC23_5_4_re_record_is_idempotent(record_recorder, temp_store):
 
 
 async def test_AC23_5_4_off_mode_is_plain_live_call(temp_store):
-    """AC-llm.5.4: off mode performs the live call and writes nothing."""
+    """AC-llm.5.1 / AC-llm.5.4: without an explicit ``cassette_mode`` seam the
+    recorder is off — plain live call, nothing written (no process-level mode
+    env exists anymore; the transparent decision is the engaged layer's,
+    AC-llm.10.x)."""
     recorder = _make_recorder(temp_store, CassetteMode.OFF)
     out = await recorder.call(_live, role=_ROLE, messages=_MESSAGES, decode_params=_DECODE)
     assert out == _RESPONSE
