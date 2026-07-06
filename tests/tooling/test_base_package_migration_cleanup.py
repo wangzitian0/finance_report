@@ -110,7 +110,9 @@ def test_AC12_31_5_frontend_percent_formatters_are_not_duplicated():
     """AC12.31.5: frontend percent display/calculation calls Ratio format helpers directly."""
     for path in FRONTEND_PERCENT_FILES:
         src = _read(path)
-        assert "@/lib/audit/ratio/format" in src, f"{path} must use Ratio format helpers"
+        assert "@/lib/audit/ratio/format" in src, (
+            f"{path} must use Ratio format helpers"
+        )
         assert "function formatReturnPercent(" not in src
         assert "function formatAllocationPercent(" not in src
         assert "function formatPercent(" not in src
@@ -182,7 +184,11 @@ def test_AC12_31_6_confidence_percent_wrapper_is_retired():
     ci_tier="pr_ci",
 )
 def test_AC12_31_6_ssot_fx_examples_use_money_exchange_rate():
-    """AC12.31.6: SSOT examples teach the base-package FX primitive, not Decimal math."""
+    """AC12.31.6: SSOT examples teach the base-package FX primitive, not Decimal math.
+
+    market_data.md is pre-migration (internalizes into the `pricing` package,
+    #1610); when that cutover lands, repoint this check at the package's doc.
+    """
     for path in [Path("docs/ssot/market_data.md"), Path("docs/ssot/reporting.md")]:
         src = _read(path)
         assert "ExchangeRate(" in src, f"{path} must show typed FX rates"
@@ -217,9 +223,9 @@ def test_AC12_31_7_backend_quantity_business_code_uses_value_type():
         src = _read(path)
         # value type used by direct import OR via a model .quantity_qty accessor
         # (the #3 boundary push: reporting reads Quantity off the ORM accessor).
-        assert "from src.audit.quantity import Quantity" in src or ".quantity_qty" in src, (
-            f"{path} must use the Quantity value type (import or .quantity_qty accessor)"
-        )
+        assert (
+            "from src.audit.quantity import Quantity" in src or ".quantity_qty" in src
+        ), f"{path} must use the Quantity value type (import or .quantity_qty accessor)"
         for needle in forbidden_local_adapters:
             assert needle not in src, (
                 f"{path} still defines local Quantity adapter {needle}"

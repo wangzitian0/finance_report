@@ -3,9 +3,10 @@
 The ``counter`` package is the first worked example of the package model. These
 tests prove its **structural invariants** (declared in
 ``common/counter/contract.py`` ``invariants`` and resolved by
-``check_package_contract`` via ``invariants[].test``): roles converge, the
-layers stay pure (types/ops never reach the ORM/session or up into store/api),
-the published language equals ``__all__``, and the governance gate passes. They
+``check_package_contract`` via ``invariants[].test``): the base/extension/data
+layers stay pure (``base`` never reaches the ORM/session or up into
+``extension``/``data``), the published language equals ``__all__``, and the
+governance gate passes. They
 are invariant proofs, NOT AC critical-proofs, so they carry no ``@ac_proof``
 (the domain ACs are proven by the tests under ``apps/backend/tests/counter/``).
 """

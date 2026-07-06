@@ -286,7 +286,7 @@ redacted, and Decimal-safe.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC17.13.1 | Portfolio management owns holdings, lots, dividends, fees, prices, freshness, and source links as framework policy inputs, but does not own final US/HK report presentation decisions | `test_AC17_13_1_portfolio_supplies_facts_not_framework_conclusions` | `tests/tooling/test_framework_reporting_epic_contract.py` | P0 |
+| AC17.13.1 | Portfolio management owns holdings, lots, dividends, fees, and source links, and relays price/freshness facts (owned by the `pricing` package, #1610) as framework policy inputs, but does not own final US/HK report presentation decisions | `test_AC17_13_1_portfolio_supplies_facts_not_framework_conclusions` | `tests/tooling/test_framework_reporting_epic_contract.py` | P0 |
 
 ### AC17.14: Unified Portfolio Allocation Surface
 
