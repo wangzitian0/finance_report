@@ -26,8 +26,8 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
-
 from common.testing.ac_proof import ac_proof
+
 from src.models.layer2 import TransactionDirection
 from tests.factories import seed_parsed_statement
 
