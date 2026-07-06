@@ -19,8 +19,8 @@ behaviors and each AC still carries its own tier.
 
 The crucial payoff: **an AC's tier dictates what KIND of proof is valid for it**,
 tying the testing strategy to intent. The tier vocabulary, the cross-tier MUST
-rules, and the tier→valid-proof matrix are owned by the `authority` package
-([common/meta/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/meta/readme.md));
+rules, and the tier→valid-proof matrix are owned by the `meta` package (converged from `authority` in #1626;
+[common/meta/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/meta/readme.md));
 this EPIC references that contract rather than restating it.
 
 ---
@@ -48,8 +48,8 @@ this EPIC references that contract rather than restating it.
 - **First batch**: tag the EPICs central to the strict↔LLM design discussion.
 
 ### Actions
-1. Author the tier vocabulary (now internalized into the `authority` package,
-   [common/meta/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/meta/readme.md));
+1. Author the tier vocabulary (now internalized into the `meta` package
+   after the #1626 authority→meta converge, [common/meta/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/meta/readme.md));
    register it in `docs/ssot/MANIFEST.yaml` (`authority_tiers`).
 2. Extend the EPIC AC declaration with a `{tier:XX}` marker and teach
    `tools/generate_ac_registry.py` to lift it into the AC value.
@@ -107,7 +107,7 @@ this EPIC references that contract rather than restating it.
 
 > **`AC-authority.1.1`, `AC-authority.2.1`, `AC-authority.3.1`, `AC-authority.4.1`,
 > `AC-authority.5.1`, `AC-authority.6.1`, and `AC-authority.7.1` are defined in the
-> `authority` package, not here.** The authority-tier *system* ACs (phases 1–3) are
+> `meta` package (converged from `authority`, #1626), not here.** The authority-tier *system* ACs (phases 1–3) are
 > homed in [`common/meta/contract.py`](../../common/meta/contract.py)'s
 > `roadmap` under the package-scoped id scheme — the contract is their single
 > definition source (resolved by `check_package_contract`). This EPIC stays the
