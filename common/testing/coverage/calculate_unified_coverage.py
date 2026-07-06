@@ -416,13 +416,23 @@ def print_low_coverage_files(rows: list[dict], threshold: float) -> None:
         )
 
 
+# Run-to-run measurement jitter: one covered line in an ~11k-line component
+# moves the rounded percent by 0.01 — enough to flip a strict `current <
+# baseline` compare and red a main run with no code change (seen after the
+# #1631 re-baseline: common flapped 93.46<->93.47). Dips within this epsilon
+# are noise, not regressions; the baseline-PR bot quantizes its rises the same
+# way (ci.yml "Open unified coverage baseline PR").
+REGRESSION_EPSILON_PCT = 0.05
+
+
 def _format_regression_error(
     *,
     baseline_path: Path,
     regressions: list[tuple[str, float, float]],
 ) -> str:
     lines = [
-        "❌ Coverage regression detected by local deterministic gate.",
+        "❌ Coverage regression detected by local deterministic gate "
+        f"(beyond the ±{REGRESSION_EPSILON_PCT:g}% jitter epsilon).",
         f"   Baseline: {baseline_path}",
     ]
     for name, current, baseline in regressions:
@@ -535,8 +545,10 @@ def main(argv: list[str] | tuple[str, ...] = ()) -> None:
         try:
             preflight_components = resolve_required_components(required_spec)
         except ValueError as exc:
-            print(f"\n❌ Invalid --require-artifacts/{REQUIRED_COMPONENTS_ENV}: {exc}",
-                  file=sys.stderr)
+            print(
+                f"\n❌ Invalid --require-artifacts/{REQUIRED_COMPONENTS_ENV}: {exc}",
+                file=sys.stderr,
+            )
             sys.exit(2)
     else:
         preflight_components = PREFLIGHT_COMPONENTS
@@ -607,7 +619,7 @@ def main(argv: list[str] | tuple[str, ...] = ()) -> None:
             regressions: list[tuple[str, float, float]] = []
             unified_current = round(unified["coverage_percent"], 2)
             unified_floor = round(float(baseline_unified), 2)
-            if unified_current < unified_floor:
+            if unified_current < unified_floor - REGRESSION_EPSILON_PCT:
                 regressions.append(("unified", unified_current, unified_floor))
 
             # Component breakdown comparison (if available)
@@ -632,7 +644,7 @@ def main(argv: list[str] | tuple[str, ...] = ()) -> None:
             for component_name, current_data, baseline_data in components_to_check:
                 current_percent = round(float(current_data["coverage_percent"]), 2)
                 baseline_percent = round(float(baseline_data["coverage_percent"]), 2)
-                if current_percent < baseline_percent:
+                if current_percent < baseline_percent - REGRESSION_EPSILON_PCT:
                     regressions.append(
                         (component_name, current_percent, baseline_percent)
                     )
