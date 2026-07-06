@@ -23,8 +23,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from common.meta.extension.app_boundary import (
     APP_REMAINDER_SUBDIRS,
     cross_boundary_edges,
@@ -36,11 +34,15 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 BASELINE = REPO_ROOT / "docs/ssot/app-boundary-baseline.json"
 
 
-def _make_pkg(backend_src: Path, name: str, all_symbols: list[str], internal_body: str = "") -> None:
+def _make_pkg(
+    backend_src: Path, name: str, all_symbols: list[str], internal_body: str = ""
+) -> None:
     pkg = backend_src / name
     (pkg / "extension").mkdir(parents=True, exist_ok=True)
     (pkg / "__init__.py").write_text(f"__all__ = {all_symbols!r}\n", encoding="utf-8")
-    (pkg / "extension" / "internal.py").write_text(internal_body or "SECRET = 1\n", encoding="utf-8")
+    (pkg / "extension" / "internal.py").write_text(
+        internal_body or "SECRET = 1\n", encoding="utf-8"
+    )
 
 
 def test_inbound_leak_detected(tmp_path: Path) -> None:
@@ -65,7 +67,9 @@ def test_inbound_published_symbol_is_allowed(tmp_path: Path) -> None:
     src = tmp_path / "apps/backend/src"
     (src / "services").mkdir(parents=True)
     _make_pkg(src, "extraction", ["PublicThing"])
-    (src / "services" / "ok.py").write_text("from src.extraction import PublicThing\n", encoding="utf-8")
+    (src / "services" / "ok.py").write_text(
+        "from src.extraction import PublicThing\n", encoding="utf-8"
+    )
     edges = cross_boundary_edges(
         backend_src=src,
         carved={"extraction": "extraction"},
@@ -97,7 +101,9 @@ def test_carved_to_shared_infra_is_not_an_edge(tmp_path: Path) -> None:
     src = tmp_path / "apps/backend/src"
     (src / "database").mkdir(parents=True)  # NOT in APP_REMAINDER_SUBDIRS
     _make_pkg(src, "ledger", ["Account"])
-    (src / "ledger" / "extension" / "repo.py").write_text("from src.database import get_session\n", encoding="utf-8")
+    (src / "ledger" / "extension" / "repo.py").write_text(
+        "from src.database import get_session\n", encoding="utf-8"
+    )
     edges = cross_boundary_edges(
         backend_src=src,
         carved={"ledger": "ledger"},
@@ -117,8 +123,9 @@ def test_real_repo_edges_are_all_baselined() -> None:
     current = set(discover_and_compute_edges(REPO_ROOT))
     baseline = load_baseline(BASELINE)
     new = current - baseline
-    assert not new, "NEW cross-boundary edge(s) not in baseline (add via --update only to SHRINK):\n" + "\n".join(
-        sorted(new)
+    assert not new, (
+        "NEW cross-boundary edge(s) not in baseline (add via --update only to SHRINK):\n"
+        + "\n".join(sorted(new))
     )
 
 
@@ -128,4 +135,34 @@ def test_baseline_has_no_stale_entries() -> None:
     current = set(discover_and_compute_edges(REPO_ROOT))
     baseline = load_baseline(BASELINE)
     stale = baseline - current
-    assert not stale, f"baseline has {len(stale)} stale entrie(s) — run --update to prune:\n" + "\n".join(sorted(stale))
+    assert not stale, (
+        f"baseline has {len(stale)} stale entrie(s) — run --update to prune:\n"
+        + "\n".join(sorted(stale))
+    )
+
+
+def test_gate_passes_on_the_real_repo() -> None:
+    """The shipped gate is green against the committed baseline."""
+    from common.meta.extension.check_app_boundary import main
+
+    assert main(["--repo-root", str(REPO_ROOT)]) == 0
+
+
+def test_gate_fails_when_a_new_edge_appears(tmp_path: Path, monkeypatch) -> None:
+    """A brand-new inbound leak not in the baseline fails the gate (ratchet)."""
+    import json
+
+    from common.meta.extension import check_app_boundary
+
+    monkeypatch.setattr(
+        check_app_boundary,
+        "discover_and_compute_edges",
+        lambda _root: [
+            "in::apps/backend/src/services/new_leak.py::src.extraction.extension.x::SECRET"
+        ],
+    )
+    (tmp_path / "docs/ssot").mkdir(parents=True)
+    (tmp_path / "docs/ssot/app-boundary-baseline.json").write_text(
+        json.dumps([]), encoding="utf-8"
+    )
+    assert check_app_boundary.main(["--repo-root", str(tmp_path)]) == 1
