@@ -141,6 +141,10 @@ explicit AC IDs for the behavior.
 | `apps/frontend/src/hooks/__tests__/useFocusTrap.test.tsx` | `docs/ssot/frontend-patterns.md` |
 | `tests/tooling/test_agent_runtime_symlinks.py` | `docs/agents/orchestration.md` |
 | `tests/tooling/test_audit_router_contracts.py` | `docs/reference/router-contract-maturity.md` |
+| `tests/tooling/test_csp_script_src_contract.py` | `docs/ssot/ci-cd.md` (#1623 CSP script-src allowlist contract) |
+| `tests/tooling/test_required_env_keys_contract.py` | `docs/ssot/ci-cd.md` (#1623 manifest<->config env-key drift contract) |
+| `tests/tooling/test_critical_value_proof_ratchet.py` | `docs/ssot/ci-cd.md` (#1623 value-asserting ratchet for critical outcomes) |
+| `tests/tooling/test_cassette_replay_wired.py` | `docs/ssot/ci-cd.md` (#1623 lock: cassette-replay net cannot silently skip) |
 | `tests/tooling/test_brokerage_prompt_contract.py` | `common/extraction/readme.md` |
 | `tests/tooling/test_check_env_keys.py` | `docs/ssot/development.md` |
 | `tests/tooling/test_check_manifest.py` | `docs/ssot/MANIFEST.yaml` |
