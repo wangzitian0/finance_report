@@ -68,8 +68,9 @@ coupling to the already-carved packages in `docs/ssot/app-boundary-baseline.json
 (monotonic: new edges fail CI). **This count is the migration burndown** — it
 drops as each domain is carved out.
 
-- **Now: 22 edges** — 8 inbound (remainder → a carved package's unpublished
-  internal), 14 outbound (a carved package → the app remainder, upward-layer).
+- **Now: 23 edges** — 9 inbound (remainder → a carved package's unpublished
+  internal, incl. a deep module import from `models/_registry.py`), 14 outbound
+  (a carved package → the app remainder, upward-layer).
 - The 14 outbound edges concentrate in `extraction` (→ `services.ai_streaming` /
   `chain_repair` / `storage` / `pii_redaction` / `promotion_gate` / `assets` /
   `source_type_priority`). They reveal deps `extraction` never internalized:

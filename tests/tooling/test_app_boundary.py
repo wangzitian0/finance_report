@@ -34,15 +34,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 BASELINE = REPO_ROOT / "docs/ssot/app-boundary-baseline.json"
 
 
-def _make_pkg(
-    backend_src: Path, name: str, all_symbols: list[str], internal_body: str = ""
-) -> None:
+def _make_pkg(backend_src: Path, name: str, all_symbols: list[str], internal_body: str = "") -> None:
     pkg = backend_src / name
     (pkg / "extension").mkdir(parents=True, exist_ok=True)
     (pkg / "__init__.py").write_text(f"__all__ = {all_symbols!r}\n", encoding="utf-8")
-    (pkg / "extension" / "internal.py").write_text(
-        internal_body or "SECRET = 1\n", encoding="utf-8"
-    )
+    (pkg / "extension" / "internal.py").write_text(internal_body or "SECRET = 1\n", encoding="utf-8")
 
 
 def test_inbound_leak_detected(tmp_path: Path) -> None:
@@ -67,9 +63,7 @@ def test_inbound_published_symbol_is_allowed(tmp_path: Path) -> None:
     src = tmp_path / "apps/backend/src"
     (src / "services").mkdir(parents=True)
     _make_pkg(src, "extraction", ["PublicThing"])
-    (src / "services" / "ok.py").write_text(
-        "from src.extraction import PublicThing\n", encoding="utf-8"
-    )
+    (src / "services" / "ok.py").write_text("from src.extraction import PublicThing\n", encoding="utf-8")
     edges = cross_boundary_edges(
         backend_src=src,
         carved={"extraction": "extraction"},
@@ -101,9 +95,7 @@ def test_carved_to_shared_infra_is_not_an_edge(tmp_path: Path) -> None:
     src = tmp_path / "apps/backend/src"
     (src / "database").mkdir(parents=True)  # NOT in APP_REMAINDER_SUBDIRS
     _make_pkg(src, "ledger", ["Account"])
-    (src / "ledger" / "extension" / "repo.py").write_text(
-        "from src.database import get_session\n", encoding="utf-8"
-    )
+    (src / "ledger" / "extension" / "repo.py").write_text("from src.database import get_session\n", encoding="utf-8")
     edges = cross_boundary_edges(
         backend_src=src,
         carved={"ledger": "ledger"},
@@ -123,22 +115,18 @@ def test_real_repo_edges_are_all_baselined() -> None:
     current = set(discover_and_compute_edges(REPO_ROOT))
     baseline = load_baseline(BASELINE)
     new = current - baseline
-    assert not new, (
-        "NEW cross-boundary edge(s) not in baseline (add via --update only to SHRINK):\n"
-        + "\n".join(sorted(new))
+    assert not new, "NEW cross-boundary edge(s) not in baseline (add via --update only to SHRINK):\n" + "\n".join(
+        sorted(new)
     )
 
 
 def test_baseline_has_no_stale_entries() -> None:
-    """The baseline only-shrinks: an entry that no longer exists should be pruned
-    (keeps the burndown honest). Warn-level today via a soft assert on the count."""
+    """The baseline only-shrinks: an entry that no longer exists must be pruned
+    (keeps the burndown honest) — a hard failure, run --update to prune."""
     current = set(discover_and_compute_edges(REPO_ROOT))
     baseline = load_baseline(BASELINE)
     stale = baseline - current
-    assert not stale, (
-        f"baseline has {len(stale)} stale entrie(s) — run --update to prune:\n"
-        + "\n".join(sorted(stale))
-    )
+    assert not stale, f"baseline has {len(stale)} stale entries — run --update to prune:\n" + "\n".join(sorted(stale))
 
 
 def test_gate_passes_on_the_real_repo() -> None:
@@ -157,12 +145,28 @@ def test_gate_fails_when_a_new_edge_appears(tmp_path: Path, monkeypatch) -> None
     monkeypatch.setattr(
         check_app_boundary,
         "discover_and_compute_edges",
-        lambda _root: [
-            "in::apps/backend/src/services/new_leak.py::src.extraction.extension.x::SECRET"
-        ],
+        lambda _root: ["in::apps/backend/src/services/new_leak.py::src.extraction.extension.x::SECRET"],
     )
     (tmp_path / "docs/ssot").mkdir(parents=True)
-    (tmp_path / "docs/ssot/app-boundary-baseline.json").write_text(
-        json.dumps([]), encoding="utf-8"
-    )
+    (tmp_path / "docs/ssot/app-boundary-baseline.json").write_text(json.dumps([]), encoding="utf-8")
     assert check_app_boundary.main(["--repo-root", str(tmp_path)]) == 1
+
+
+def test_update_refuses_to_grow_an_existing_baseline(tmp_path: Path, monkeypatch) -> None:
+    """--update is shrink-only: it will not bless a new edge into an existing baseline
+    (bootstrap only when the file is missing)."""
+    import json
+
+    from common.meta.extension import check_app_boundary
+
+    edge = "in::apps/backend/src/services/x.py::src.extraction.extension.y::Z"
+    monkeypatch.setattr(check_app_boundary, "discover_and_compute_edges", lambda _root: [edge])
+    base = tmp_path / "docs/ssot/app-boundary-baseline.json"
+    base.parent.mkdir(parents=True)
+    base.write_text(json.dumps([]), encoding="utf-8")  # existing baseline, empty
+    assert check_app_boundary.main(["--repo-root", str(tmp_path), "--update"]) == 1
+    assert json.loads(base.read_text()) == []  # unchanged — growth refused
+
+    base.unlink()  # missing → bootstrap allowed
+    assert check_app_boundary.main(["--repo-root", str(tmp_path), "--update"]) == 0
+    assert json.loads(base.read_text()) == [edge]

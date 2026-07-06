@@ -76,9 +76,21 @@ def cross_boundary_edges(
             if len(parts) < 2:
                 continue
             target = parts[1]
-            if not in_carved and target in carved_names and len(parts) >= 3 and name and name != "*":
-                if name not in published.get(carved[target], set()):
-                    inbound.append(f"in::{rel}::{module}::{name}")
+            if not in_carved and target in carved_names:
+                # Inbound: the remainder reaching a carved package. Mirror the core
+                # deep-import rule uniformly (root or deep path):
+                #   - `from src.<carved>[.sub] import N`  → N must be published;
+                #     a wildcard or an unpublished name (incl. a root import of a
+                #     submodule) is a leak.
+                #   - `import src.<carved>.<sub>`          → a plain deep module
+                #     import can never name a published symbol, so it is a leak;
+                #     only the bare `import src.<carved>` root is allowed.
+                pub = published.get(carved[target], set())
+                if name is not None:
+                    if name == "*" or name not in pub:
+                        inbound.append(f"in::{rel}::{module}::{name}")
+                elif len(parts) > 2:
+                    inbound.append(f"in::{rel}::{module}::<import>")
             elif in_carved and target in APP_REMAINDER_SUBDIRS:
                 outbound.append(f"out::{rel}::{module}::{name or '*'}")
     return sorted(set(inbound)) + sorted(set(outbound))

@@ -1,4 +1,5 @@
 [
+  "in::apps/backend/src/models/_registry.py::src.identity.extension.sql::<import>",
   "in::apps/backend/src/routers/evidence.py::src.extraction.extension.evidence_lineage::DEFAULT_MAX_DEPTH",
   "in::apps/backend/src/routers/evidence.py::src.extraction.extension.evidence_lineage::EvidenceTraversalStep",
   "in::apps/backend/src/services/chain_repair.py::src.extraction.base.validation::ChainBreak",

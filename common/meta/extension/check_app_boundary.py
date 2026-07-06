@@ -29,7 +29,6 @@ from common.meta.extension.app_boundary import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-BASELINE_PATH = REPO_ROOT / "docs/ssot/app-boundary-baseline.json"
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -38,7 +37,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--update",
         action="store_true",
-        help="Regenerate the baseline from the current tree (only to record REMOVED edges).",
+        help="Regenerate the baseline from the current tree. Shrink-only: refuses to "
+        "GROW an existing baseline (a new edge must be routed through the interface, "
+        "not blessed). Bootstraps when the baseline file is missing.",
     )
     return parser.parse_args(argv)
 
@@ -50,6 +51,26 @@ def main(argv: list[str] | None = None) -> int:
     current = sorted(set(discover_and_compute_edges(repo_root)))
 
     if args.update:
+        # Shrink-only: an existing baseline may be pruned (removed edges) but never
+        # grown — that would silently bless a new leak. Only a missing baseline
+        # bootstraps to whatever is in the tree.
+        if baseline_path.exists():
+            grew = sorted(set(current) - load_baseline(baseline_path))
+            if grew:
+                for edge in grew:
+                    print(
+                        f"::error title=App-boundary --update refused::{edge} — --update "
+                        "will not GROW the baseline (that would bless a new edge). Route "
+                        "it through the published interface, or move the code into the "
+                        "owning package.",
+                        file=sys.stderr,
+                    )
+                print(
+                    f"[APP-BOUNDARY] --update REFUSED: would add {len(grew)} edge(s). "
+                    "Delete the baseline to intentionally re-bootstrap.",
+                    file=sys.stderr,
+                )
+                return 1
         dump_baseline(baseline_path, current)
         print(f"[APP-BOUNDARY] baseline updated: {len(current)} edge(s).")
         return 0
@@ -82,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
         print(
-            f"[APP-BOUNDARY] FAILED: {len(stale)} stale baseline entrie(s) — run --update.",
+            f"[APP-BOUNDARY] FAILED: {len(stale)} stale baseline entries — run --update.",
             file=sys.stderr,
         )
         return 1
