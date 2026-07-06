@@ -559,7 +559,7 @@ aliases, but posting and balance validation must remain framework-neutral.
 - Account model supports multi-currency configuration
 - JournalLine records original currency amount and exchange rate for each line
 - User can set personal base currency (default SGD)
-- When entry currency != base currency, `fx_rate` is required; API can accept manual input or query `services/market_data/` (automation extended in EPIC-005)
+- When entry currency != base currency, `fx_rate` is required; API can accept manual input or query `services/market_data/` (automation extended in EPIC-005; rate lookup moves to the `pricing` package under the migration, #1610)
 - Reports convert based on user's base currency
 - Historical exchange rate records (for retrospective calculations)
 

@@ -2,6 +2,13 @@
 
 > **SSOT Key**: `assets`
 > **Core Definition**: Investment position lifecycle — reconciliation from atomic broker data, managed position tracking, and depreciation calculations.
+>
+> **Migration note**: under the package migration
+> (`common/meta/migration-standard.md`) the `assets` service dissolves: the
+> valuation slice (incl. `ManualValuationSnapshot`, see below) moves to the
+> **`pricing`** package (#1610) and position math moves to **`portfolio`**
+> (#1422). Until those cutovers land, this doc remains the doc of record for
+> the shipped code.
 
 ---
 
@@ -182,6 +189,11 @@ migration code; link to the generated DB reference from docs.
 <a id="manual-valuation-snapshots"></a>
 
 ### Manual Valuation Snapshots
+
+> **Migration note**: `ManualValuationSnapshot` retires into the `pricing`
+> package's unified append-only observation model (a manual valuation becomes
+> a high-authority `PriceObservation`; #1610). The section below describes the
+> shipped pre-migration behavior.
 
 Manual snapshots cover property value, mortgage or loan balance, CPF/provident
 fund balances, retirement accounts, personal social-security account balances,

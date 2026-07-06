@@ -123,7 +123,7 @@ verifiable.
 ### AC-counter — Package model: the `counter` worked example (a package = DDD bounded context)
 
 > The package model (a package = a DDD bounded context: `readme.md` +
-> `PackageContract` + `types/ops/store/api` roles + `__all__` published language,
+> `PackageContract` + `base/extension/data` layers (formerly `types/ops/store/api` roles) + `__all__` published language,
 > governance computed from contracts) is specified by the meta package itself in
 > [../../common/meta/readme.md](../../common/meta/readme.md). The
 > `counter` platform package is its first worked example.

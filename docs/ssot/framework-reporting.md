@@ -83,7 +83,8 @@ Code-owned contract surfaces:
   deterministic v1 US-like/HK-like matrix, builds framework-neutral facts from
   existing user accounts, atomic positions, manual valuations, dividends, and
   market-data evidence from synced `StockPrice` rows and manual
-  `MarketDataOverride` rows, then derives read-only policy results. When both
+  `MarketDataOverride` rows (pre-migration models; both consolidate into the
+  `pricing` package's unified observation model, #1610), then derives read-only policy results. When both
   price sources exist, the latest price date is used and same-date manual
   overrides take precedence.
 - Package API: `GET /api/reports/package/framework-policy` returns the selected

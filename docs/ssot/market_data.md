@@ -2,6 +2,14 @@
 
 > **SSOT Key**: `market_data`
 > **Core Definition**: FX rates and stock prices data sources, sync schedule, and caching strategy.
+>
+> **Migration note**: this doc describes the **pre-migration** model. The
+> `FxRate` / `StockPrice` / `MarketDataOverride` split and the `fx` /
+> `market_data` services consolidate into the **`pricing`** package (one
+> price/valuation SSOT — unified observations + resolution; issue #1610,
+> `common/meta/migration-standard.md`). This doc internalizes into that
+> package at its cutover; until then it remains the doc of record for the
+> shipped code.
 
 ---
 

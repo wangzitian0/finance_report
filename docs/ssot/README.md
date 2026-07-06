@@ -95,8 +95,8 @@ cleanup that backfills `family` / `kind` and binds child clauses.
 | [reporting.md](./reporting.md) | `reporting` | Report calculation rationale and proof links |
 | [framework-reporting.md](./framework-reporting.md) | `framework_reporting` | US/HK target-backward policy layer for personal report packages |
 | [ai.md](./ai.md) | `ai` | Application-layer AI Advisor contract, policy, and safety rationale |
-| [assets.md](./assets.md) | `assets` | Asset lifecycle rationale and code/test links |
-| [market_data.md](./market_data.md) | `market_data` | Market data source rationale and fallback policy |
+| [assets.md](./assets.md) | `assets` | Asset lifecycle rationale and code/test links — pre-migration; splits into the `pricing` (#1610) and `portfolio` (#1422) packages |
+| [market_data.md](./market_data.md) | `market_data` | Market data source rationale and fallback policy — pre-migration; internalizes into the `pricing` package (#1610) |
 | [source-type-priority.md](./source-type-priority.md) | `source-type-priority` | Trust hierarchy rationale; priority should migrate to code/common |
 | [confirmation-workflow.md](./confirmation-workflow.md) | `confirmation-workflow` | Review lifecycle rationale; state machine should migrate to code/common |
 | [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md) | `processing_account` | In-transit funds model and proof references — internalized into the `ledger` package (migration-standard step 3) |
