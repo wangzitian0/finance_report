@@ -41,6 +41,13 @@ GROUND_TRUTH_DIR = CASSETTE_DIR / "ground_truth"
 # test_corpus_manifest_is_diverse so the set cannot silently shrink or
 # homogenize. Registered in common/llm/contract.py roadmap group 10.
 # ---------------------------------------------------------------------------
+def _declare_served(fingerprint: str) -> None:
+    out = Path("test-results")
+    out.mkdir(exist_ok=True)
+    with (out / "served-cassettes.txt").open("a", encoding="utf-8") as fh:
+        fh.write(f"{fingerprint}\n")
+
+
 CORPUS_FINGERPRINTS: tuple[str, ...] = (
     # text / generic / happy_path — minimal signed-amount baseline
     "d69fbafcecb481e614651b1178a5fb9d9e3724718ef7bf623502120bcd27db30",
@@ -111,6 +118,11 @@ class CorpusCase:
 def load_corpus_case(fingerprint: str) -> CorpusCase:
     """Build a seedable case from a cassette + its ground-truth metadata."""
     cassette = json.loads((CASSETTE_DIR / f"{fingerprint}.json").read_text())
+    # Orphan-gate accounting (#1597): this suite consumes cassettes as FIXTURE
+    # DATA (not through the llm transport), so it declares its usage into the
+    # same served-cassettes manifest the harness dumps — otherwise the CI orphan
+    # gate would misread the corpus as changed-prompt leftovers.
+    _declare_served(fingerprint)
     truth = json.loads((GROUND_TRUTH_DIR / f"{fingerprint}.truth.json").read_text())
     payload = json.loads(cassette["response"]["stream_text"])
 

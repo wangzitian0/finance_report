@@ -275,6 +275,17 @@ class Cassette:
         )
 
 
+#: Session-wide record of every cassette served in this process — the orphan
+#: gate's substrate (#1596 AC-llm.10.6): a committed cassette that NO suite run
+#: ever serves is a changed-prompt leftover. Per-process (xdist workers each
+#: dump their own set via the harness sessionfinish hook).
+_SESSION_SERVED: set[str] = set()
+
+
+def session_served_keys() -> frozenset[str]:
+    return frozenset(_SESSION_SERVED)
+
+
 class CassetteStore:
     """Read/write committed cassette JSON files keyed by fingerprint.
 
@@ -301,6 +312,7 @@ class CassetteStore:
 
     def mark_served(self, key: str) -> None:
         self._served.add(key)
+        _SESSION_SERVED.add(key)
 
     def served_keys(self) -> frozenset[str]:
         return frozenset(self._served)

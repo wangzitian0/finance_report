@@ -62,6 +62,24 @@ def pytest_configure(config):
         os.environ["LLM_CASSETTE_REFRESH"] = "1"
 
 
+def pytest_sessionfinish(session, exitstatus):
+    """Dump the cassettes this process served (orphan-gate substrate, #1597).
+
+    xdist workers each run this hook in their own process; append-mode keeps
+    every worker's contribution. CI merges the shard artifacts in the finish
+    job and fails on any committed cassette no job ever served.
+    """
+    from src.llm.extension.cassette import session_served_keys
+
+    served = session_served_keys()
+    if not served:
+        return
+    out = Path("test-results")
+    out.mkdir(exist_ok=True)
+    with (out / "served-cassettes.txt").open("a", encoding="utf-8") as fh:
+        fh.write("".join(f"{k}\n" for k in sorted(served)))
+
+
 # --- AC behavioral-evidence emission ---
 # Lets a backend test attach a measured (code, score, metric, comment,
 # provenance) record per AC to its junit result. The repo-root path is appended
