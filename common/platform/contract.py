@@ -256,7 +256,7 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-platform.1.4",
             statement=(
-                "The platform package converges by role and its published "
+                "The platform package converges into the base/extension layering and its published "
                 "language equals contract.interface; check_package_contract "
                 "validates platform with no violations."
             ),

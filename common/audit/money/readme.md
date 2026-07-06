@@ -7,8 +7,9 @@
 > [`conformance/vectors.json`](./conformance/vectors.json). Worklist:
 > [`todo.md`](./todo.md).
 >
-> A **`kernel` value language**. It imports the `ratio` kernel package
-> (`MoneyTolerance` is a `Ratio`) — a declared, acyclic **same-class** edge, which
+> The **audit** package's value-language core (L1 `infra` in the five-layer
+> map). It imports the `ratio` package
+> (`MoneyTolerance` is a `Ratio`) — a declared, acyclic **same-layer** edge, which
 > the package model allows ("never up, never sideways-cyclic").
 
 ## Why

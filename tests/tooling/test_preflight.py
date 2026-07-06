@@ -24,6 +24,10 @@ class TestSelectChecks:
         assert "ssot-ownership" in names
         assert "doc-consistency" in names  # docs/* also matches
 
+    def test_markdown_edit_selects_taxonomy_drift(self):
+        names = [c.name for c in preflight.select_checks(["common/ledger/readme.md"])]
+        assert "taxonomy-drift" in names
+
     def test_service_edit_selects_format_and_transaction_boundary(self):
         names = [
             c.name

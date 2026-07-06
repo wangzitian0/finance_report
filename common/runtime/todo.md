@@ -8,7 +8,7 @@ invariants land (TDD).
 ## Done (the construct → switch → cleanup migration, was #1554)
 
 - [x] Package created on the model: `readme.md` + `contract.py` + `todo.md`,
-      governed by `check_package_contract` as a `kernel` leaf.
+      governed by `check_package_contract` as a `kernel` leaf (then-klass, since retired).
 - [x] **Manifest (base)** — `DependencyManifest` declares the external
       dependencies (database, object_storage, llm, cache, workflow_engine,
       telemetry, analytics, market_data) with their `Kind` and required tiers.

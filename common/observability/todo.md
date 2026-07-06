@@ -6,7 +6,7 @@ The package-local worklist. Cross-package migration lives in
 ## Done
 
 - [x] Migrated to the package model: ships `contract.py`, governed by
-      `check_package_contract` as a `kernel` package (`depends_on=["config"]` —
+      `check_package_contract` as a `kernel` package (then-klass, since retired; `depends_on=["config"]` —
       the OTEL runtime reads the backend config singleton) with invariants pinned
       to its tests.
 - [x] Curated a published `__all__` surface and set `contract.interface`: the BE

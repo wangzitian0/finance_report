@@ -621,7 +621,8 @@ vectors) but adopted on the backend first.
 ### AC12.34: Ledger module — `Entry` value object + vertical-slice template ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
 
 The first **vertical domain module** (`src/ledger`) as the template every other
-domain follows: files converge by role (`types/` nouns, `ops/` verbs), and the
+domain followed: files converged into the then-role folders (`types/` nouns,
+`ops/` verbs; since re-layered into `base/extension`), and the
 project's layer-DAG rule is enforced (model layer never imports a service). Its
 core noun `Entry` makes the double-entry balance invariant a **type** — an
 unbalanced entry is unconstructable (`UnbalancedEntryError`), replacing scattered

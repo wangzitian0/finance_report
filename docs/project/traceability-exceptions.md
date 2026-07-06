@@ -147,6 +147,7 @@ explicit AC IDs for the behavior.
 | `tests/tooling/test_check_package_contract.py` | `common/meta/readme.md` |
 | `tests/tooling/test_check_package_directory_coverage.py` | `common/meta/readme.md` |
 | `tests/tooling/test_app_boundary.py` | `common/meta/migration-standard.md` |
+| `tests/tooling/test_taxonomy_drift.py` | `common/meta/migration-standard.md` |
 | `tests/tooling/test_check_ssot_ownership.py` | `docs/ssot/MANIFEST.yaml` |
 | `tests/tooling/test_five_layer_model.py` | `common/meta/readme.md` |
 | `tests/tooling/test_counter_package.py` | `common/meta/readme.md` |

@@ -6,7 +6,7 @@ The package-local worklist. Cross-package migration lives in
 ## Done
 
 - [x] Migrated to the package model: ships `contract.py`, governed by
-      `check_package_contract` as a `kernel` leaf (`depends_on=[]`)
+      `check_package_contract` as a `kernel` leaf (then-klass, since retired; `depends_on=[]`)
       with invariants pinned to its tests.
 
 ## Next

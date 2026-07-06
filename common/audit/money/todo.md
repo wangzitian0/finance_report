@@ -20,6 +20,6 @@ The package-local worklist. Cross-package migration lives in
 
 ## Done (class)
 
-- [x] Classed `kernel` (the value-language layer). It imports `ratio` as a
+- [x] Classed `kernel` (then-klass, since retired; audit L1 today) — the value-language layer. It imports `ratio` as a
       declared, acyclic same-class edge — allowed by the package model's
       "never up, never sideways-cyclic" rule (no longer forced to `platform`).

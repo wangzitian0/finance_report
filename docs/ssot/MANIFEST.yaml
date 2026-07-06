@@ -80,7 +80,7 @@ concepts:
 
   package_model:
     owner: common/meta/readme.md#package-model
-    description: A package = a DDD bounded context (readme.md + PackageContract + base/extension/data layers carrying DDD building-block units + __all__ published language); three classes core/platform/kernel; governance is computed from contracts by check_package_contract. The model self-hosts in the common/meta package (base = model, extension = gate, data = projection).
+    description: A package = a DDD bounded context (readme.md + PackageContract + base/extension/data layers carrying DDD building-block units + __all__ published language); placement resolved from the central five-layer map `PACKAGE_LAYER` (`meta < infra < middleware < domain < app`; defined in `common/meta/base/layering.py`); governance is computed from contracts by check_package_contract. The model self-hosts in the common/meta package (base = model, extension = gate, data = projection).
     family: platform
     kind: concept
     authority: documented_contract

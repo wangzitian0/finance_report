@@ -7,7 +7,7 @@
 > [`conformance/vectors.json`](./conformance/vectors.json). Worklist:
 > [`todo.md`](./todo.md).
 >
-> A **`kernel`** value language. It imports `ratio` (a `Ratio` can scale a
+> An **audit** value language (L1 `infra`). It imports `ratio` (a `Ratio` can scale a
 > `Quantity`) — a declared, acyclic same-class edge, which the package model allows.
 
 ## Why

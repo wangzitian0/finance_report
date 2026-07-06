@@ -375,5 +375,24 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # The taxonomy migrated in place, so its retired vocabulary lingers in
+        # prose; the drift gate makes "old words presented as current" a CI
+        # failure instead of a periodic manual audit.
+        ACRecord(
+            id="AC-meta.vocab.1",
+            statement=(
+                "Retired taxonomy vocabulary (klass kernel/platform/core, "
+                "types/ops/store/api roles, asset_evaluation) presented as "
+                "current truth in docs/SSOT/EPIC/test prose fails the "
+                "taxonomy-drift gate; a mention passes only with a nearby "
+                "historical marker (formerly/replaces/retired/...)."
+            ),
+            test=(
+                "tests/tooling/test_taxonomy_drift.py"
+                "::test_AC_meta_vocab_1_repo_is_clean"
+            ),
+            priority="P1",
+            status="done",
+        ),
     ],
 )
