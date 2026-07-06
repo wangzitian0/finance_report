@@ -46,7 +46,7 @@ def test_AC12_30_4_frontend_quantity_formatting_is_not_exported_from_money():
 )
 def test_AC12_30_4_backend_quantity_hot_paths_use_quantity_type():
     """AC-audit.30.4: targeted backend quantity paths use Quantity for quantity semantics."""
-    investment = _read(Path("apps/backend/src/services/investment_accounting.py"))
+    investment = _read(Path("apps/backend/src/portfolio/extension/accounting.py"))
     assert "from src.audit.quantity import Quantity" in investment
     assert (
         "trade_quantity = Quantity(quantity, INVESTMENT_QUANTITY_UNIT).quantize()"

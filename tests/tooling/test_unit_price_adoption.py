@@ -30,7 +30,7 @@ def _read(path: Path) -> str:
 )
 def test_AC12_32_3_investment_accounting_uses_unit_price():
     """AC-audit.32.3: investment accounting prices via UnitPrice, not local Decimal helpers."""
-    src = _read(Path("apps/backend/src/services/investment_accounting.py"))
+    src = _read(Path("apps/backend/src/portfolio/extension/accounting.py"))
     assert "from src.audit.unit_price import UnitPrice" in src
     # typed call sites replace the raw quantity*price / amount/quantity glue
     assert "buy_price * trade_quantity" in src

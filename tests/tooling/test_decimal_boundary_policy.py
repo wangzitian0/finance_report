@@ -64,7 +64,7 @@ def test_AC12_31_3_migrated_hotspots_use_base_packages():
     """AC-audit.31.3: migrated money/quantity/frontend hotspots stay behind base packages."""
     quantity_service_files = [
         Path("apps/backend/src/services/assets.py"),
-        Path("apps/backend/src/services/investment_accounting.py"),
+        Path("apps/backend/src/portfolio/extension/accounting.py"),
         Path("apps/backend/src/services/market_data"),
         Path("apps/backend/src/services/reporting"),
     ]
@@ -90,7 +90,7 @@ def test_AC12_31_3_migrated_hotspots_use_base_packages():
     # market value is UnitPrice(price) * quantity, no raw quantity*price.
     assert "position_quantity = position.quantity_qty.quantize()" in reporting
 
-    investment = _read(Path("apps/backend/src/services/investment_accounting.py"))
+    investment = _read(Path("apps/backend/src/portfolio/extension/accounting.py"))
     assert (
         "trade_quantity = Quantity(quantity, INVESTMENT_QUANTITY_UNIT).quantize()"
         in investment

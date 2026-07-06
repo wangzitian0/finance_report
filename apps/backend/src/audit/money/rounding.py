@@ -12,7 +12,7 @@ cross-language standard, #1171); ``src.utils`` re-exports ``to_money``/
 
 Out of scope (deliberately use their own quantization):
 - FX rates and security prices: 6 dp (``services/market_data/``).
-- Share quantities: 6 dp (``services/investment_accounting.py``).
+- Share quantities: 6 dp (``portfolio/extension/accounting.py``).
 - Percentages / performance ratios (XIRR, TWR, MWR, allocation %): not currency.
 """
 

@@ -43,7 +43,7 @@ def test_AC12_33_3_zero_denominator_branching_routes_through_ratio():
 )
 def test_AC12_33_3_money_predicates_and_sum_adopted():
     """AC-audit.33.3: investment accounting uses Money predicates + Money.sum."""
-    src = _read("apps/backend/src/services/investment_accounting.py")
+    src = _read("apps/backend/src/portfolio/extension/accounting.py")
     assert "gross.is_positive()" in src
     assert "net.is_positive()" in src
     assert "Money.sum(" in src

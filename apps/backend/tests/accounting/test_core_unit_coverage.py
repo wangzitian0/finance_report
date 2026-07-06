@@ -12,11 +12,11 @@ import pytest
 from pydantic import ValidationError as PydanticValidationError
 
 from src.models.journal import Direction, JournalEntrySourceType
-from src.schemas.journal import JournalEntryCreate, JournalLineCreate
-from src.services.investment_accounting import (
+from src.portfolio import (
     InvestmentAccountingService,
     InvestmentAccountingValidationError,
 )
+from src.schemas.journal import JournalEntryCreate, JournalLineCreate
 from src.services.reporting_calc import (
     _provenance_from_source_type,
     _quantize_money,

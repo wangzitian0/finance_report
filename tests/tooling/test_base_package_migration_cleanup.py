@@ -36,13 +36,13 @@ FRONTEND_PERCENT_FILES = [
 ]
 
 BACKEND_MONEY_ADAPTER_FILES = [
-    Path("apps/backend/src/services/investment_accounting.py"),
+    Path("apps/backend/src/portfolio/extension/accounting.py"),
     Path("apps/backend/src/services/performance_report.py"),
 ]
 
 BACKEND_QUANTITY_ADAPTER_FILES = [
     Path("apps/backend/src/services/assets.py"),
-    Path("apps/backend/src/services/investment_accounting.py"),
+    Path("apps/backend/src/portfolio/extension/accounting.py"),
     Path("apps/backend/src/services/market_data"),
     Path("apps/backend/src/services/portfolio.py"),
     Path("apps/backend/src/services/reporting"),
@@ -239,7 +239,7 @@ def test_AC12_31_7_backend_quantity_business_code_uses_value_type():
                 f"{path} still calls package-level Decimal facade {helper}"
             )
 
-    investment = _read(Path("apps/backend/src/services/investment_accounting.py"))
+    investment = _read(Path("apps/backend/src/portfolio/extension/accounting.py"))
     assert (
         "trade_quantity = Quantity(quantity, INVESTMENT_QUANTITY_UNIT).quantize()"
         in investment
