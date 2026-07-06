@@ -483,7 +483,7 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-llm.6.3",
-            statement="`record` performs the real (here mocked) streaming call, accumulates the full text, freezes a cassette idempotently (no diff churn) and yields the text so the caller still works; a `correctness` streaming cassette refuses to record without a validator; the mode defaults to `LLM_CASSETTE_MODE`",  # was AC23.6.3
+            statement="`record` performs the real (here mocked) streaming call, accumulates the full text, freezes a cassette idempotently (no diff churn) and yields the text so the caller still works; a `correctness` streaming cassette refuses to record without a validator (no process-level mode env exists — #1597)",  # was AC23.6.3
             test="apps/backend/tests/llm/test_streaming_cassette.py::test_AC23_6_3_record_accumulates_and_writes_cassette",
             priority="P1",
             status="done",
