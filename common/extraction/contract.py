@@ -1690,6 +1690,21 @@ CONTRACT = PackageContract(
         ),
         # AC-extraction.* migrated from EPIC-011 groups 11.13, 11.15 (#1419-pattern AC move).
         ACRecord(
+            id="AC-extraction.212.1",
+            statement=(
+                "Re-applying the same rule version to the same atomic "
+                "transaction is idempotent and returns the existing "
+                "classification without inserting duplicates. Was EPIC-011 "
+                "AC11.12.1."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_classification_service.py"
+                "::test_apply_rules_is_idempotent_for_existing_transaction_rule_version"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
             id="AC-extraction.213.1",
             statement=(
                 "Parsing populates Layer 1/2 by default, without any feature-flag "
@@ -1833,21 +1848,6 @@ CONTRACT = PackageContract(
                 "::test_AC17_32_3_bank_csv_unaffected_by_brokerage_detection"
             ),
             priority="P1",
-            status="done",
-        ),
-        ACRecord(
-            id="AC-extraction.212.1",
-            statement=(
-                "Re-applying the same rule version to the same atomic "
-                "transaction is idempotent and returns the existing "
-                "classification without inserting duplicates. Was EPIC-011 "
-                "AC11.12.1."
-            ),
-            test=(
-                "apps/backend/tests/extraction/test_classification_service.py"
-                "::test_apply_rules_is_idempotent_for_existing_transaction_rule_version"
-            ),
-            priority="P0",
             status="done",
         ),
     ],

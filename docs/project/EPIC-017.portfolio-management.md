@@ -457,7 +457,7 @@ unchanged for non-brokerage schemas.
 > [`common/extraction/contract.py`](../../common/extraction/contract.py)'s `roadmap`
 > under the package-scoped numeric `AC-extraction.<group>.<seq>` id scheme
 > (`AC17.32.<s>` becomes
-> `AC-extraction.332.<s>`). `common/ssot/generate_ac_registry.py` reads
+> `AC-extraction.332.<s>`). `common/testing/generate_ac_registry.py` reads
 > package-contract roadmaps additively, so the AC index counts them without an
 > EPIC-table mirror. This note references the new ids (keeping the
 > registry↔EPIC link intact) but defines none of them — the contract is the
