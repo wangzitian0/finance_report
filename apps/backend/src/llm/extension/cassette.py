@@ -387,6 +387,9 @@ class CassetteRecorder:
             if cassette is None:
                 self._misses.append(key)
                 raise CassetteMiss(key, scene=role)
+            # Orphan-gate accounting (#1597): explicit-seam replays count as
+            # serves too, or the gate would misread in-layer fixtures as orphans.
+            self._store.mark_served(key)
             return cassette.response
 
         # record: real provider call + persist (validated for correctness tags).

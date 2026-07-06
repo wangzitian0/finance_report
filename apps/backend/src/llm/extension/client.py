@@ -406,6 +406,8 @@ async def litellm_stream(
         if cassette is None:
             # Hard fail — no network fallback (replay needs no key, makes no call).
             raise CassetteMiss(key, scene=role)
+        # Orphan-gate accounting (#1597): explicit-seam replays are serves too.
+        store.mark_served(key)
         text = str(cassette.response.get(_STREAM_TEXT_KEY, ""))
         # Synthesise the stream from the frozen text as a single chunk; the caller
         # accumulates it back to the same string it would have streamed live.
