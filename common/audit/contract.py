@@ -757,7 +757,7 @@ CONTRACT = PackageContract(
             id="AC-audit.37.1",
             statement=(
                 "JournalLine exposes a typed money read accessor (Money(amount, "
-                "currency), currency mirroring the column's 'SGD' default for "
+                "currency), currency mirroring the column's configured base-currency default for "
                 "unflushed rows) at the ORM boundary; the raw amount/currency "
                 "columns remain the storage edge. Was EPIC-012 AC12.37.1."
             ),

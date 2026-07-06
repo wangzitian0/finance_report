@@ -1,4 +1,4 @@
-"""Base-package boundary codec guards (EPIC-012 AC-audit.31.4)."""
+"""Base-package boundary codec guards (AC-audit.31.4 (was EPIC-012 group 31, row .4))."""
 
 from __future__ import annotations
 
