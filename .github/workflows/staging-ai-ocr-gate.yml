@@ -61,6 +61,7 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
+      issues: write  # #1623: open the GitHub-issue fallback alert on regression
     outputs:
       ai_ocr_status: ${{ steps.staging_ai_ocr_tests.outputs.ai_ocr_status || 'not-run' }}
       ai_ocr_exit_code: ${{ steps.staging_ai_ocr_tests.outputs.ai_ocr_exit_code || '0' }}
@@ -80,11 +81,9 @@ jobs:
           EXPECTED_SHA_RAW: ${{ inputs.expected_sha }}
           BLOCKING: ${{ inputs.blocking }}
           CORPUS: ${{ inputs.corpus }}
-          # #1623: the record-only real-provider gate had no teeth — a live
-          # AI/OCR regression was written to the step summary and nobody saw it.
-          # Post a SeaTalk alert when it regresses. Empty until the webhook
-          # secret is provisioned (operator follow-up); the step is a no-op then.
-          SEATALK_ALERT_WEBHOOK: ${{ secrets.SEATALK_ALERT_WEBHOOK }}
+          # #1623: open the GitHub-issue fallback alert with the built-in token
+          # when the record-only gate regresses (no new secret needed).
+          GH_TOKEN: ${{ github.token }}
         run: |
           # Normalize a full 40-hex commit SHA down to the 7-char tag used by the
           # published images; leave a vX.Y.Z release version_ref untouched.
@@ -198,14 +197,20 @@ jobs:
             fi
             if [ "$status" -ne 0 ]; then
               echo "::warning::Staging AI/OCR gate '${ai_ocr_status}' recorded as right-shifted regression; not blocking release-critical delivery."
-              # #1623: give the record-only gate teeth — notify humans that the
-              # real-provider run regressed (cassette replay can't catch model
-              # quality drift, so this is the only signal for that class).
-              if [ -n "${SEATALK_ALERT_WEBHOOK:-}" ]; then
-                curl -sS -X POST "$SEATALK_ALERT_WEBHOOK" \
-                  -H 'Content-Type: application/json' \
-                  -d "{\"tag\":\"text\",\"text\":{\"content\":\"[finance_report] Staging AI/OCR gate regressed: ${ai_ocr_status} on ${APP_URL} (run ${GITHUB_RUN_ID:-?}). Real-provider parse quality dropped — needs a look.\"}}" \
-                  || echo "::warning::SeaTalk alert dispatch failed (non-fatal)."
+              # #1623: give the record-only gate teeth. This gate runs in GitHub
+              # Actions, which the SigNoz->Feishu alert bridge does not watch, so
+              # use the documented GitHub-issue fallback (Infra-012 P2): a
+              # real-provider regression (a class cassette replay cannot catch)
+              # becomes a visible issue with no new secret. Dedup so re-runs of a
+              # standing regression do not spam.
+              alert_title="[staging-ai-ocr] real-provider regression: ${ai_ocr_status}"
+              existing="$(gh issue list --state open --search "in:title ${alert_title}" --json number --jq '.[0].number // empty' 2>/dev/null || true)"
+              if [ -z "$existing" ]; then
+                gh issue create --title "$alert_title" --label "surface: ai-ocr" \
+                  --body "Post-merge staging AI/OCR gate regressed (\`${ai_ocr_status}\`) on ${APP_URL} at run ${GITHUB_RUN_ID:-?} (${EXPECTED_SHA:-?}). Real-provider parse quality dropped — cassette replay cannot catch this class. See the run's step summary for which corpus docs failed." \
+                  || echo "::warning::GitHub-issue alert creation failed (non-fatal)."
+              else
+                echo "::notice::open staging-ai-ocr regression issue #${existing} already exists; not duplicating."
               fi
             fi
             exit 0
