@@ -1442,7 +1442,7 @@ jobs:
       # three summary steps below are non-gating reporting and all carry
       # continue-on-error so a step-summary write can never fail the merge gate.
       - name: Download backend test contexts (cassette orphan gate)
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: "backend-*test-context"
           path: cassette-usage

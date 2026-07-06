@@ -95,9 +95,7 @@ CONTRACT = PackageContract(
         ),
         # ── extension: domain services + factory ──
         # the single litellm chokepoint's provider routing
-        Unit(
-            name="build_call", kind=Kind.DOMAIN_SERVICE, module="extension/routing.py"
-        ),
+        Unit(name="build_call", kind=Kind.DOMAIN_SERVICE, module="extension/routing.py"),
         # the input-keyed record/replay mechanism (cache output by input)
         Unit(
             name="CassetteStore",
@@ -130,7 +128,6 @@ CONTRACT = PackageContract(
         "CASSETTE_DIR",
         "Cassette",
         "CassetteMiss",
-        "CassetteMode",
         "CassetteRecorder",
         "CassetteStore",
         "CassetteTag",
@@ -164,7 +161,6 @@ CONTRACT = PackageContract(
         "build_call",
         "build_cipher",
         "cassette_completion",
-        "current_mode",
         "estimate_tokens",
         "estimate_tokens_from_chars",
         "fingerprint",
@@ -181,13 +177,8 @@ CONTRACT = PackageContract(
     invariants=[
         Invariant(
             id="interface-equals-published-language",
-            statement=(
-                "The published language (contract.interface) equals __init__.__all__."
-            ),
-            test=(
-                "tests/tooling/test_llm_package.py"
-                "::test_AC_llm_1_1_only_all_is_the_published_language"
-            ),
+            statement=("The published language (contract.interface) equals __init__.__all__."),
+            test=("tests/tooling/test_llm_package.py::test_AC_llm_1_1_only_all_is_the_published_language"),
         ),
         Invariant(
             id="converges-by-layer",
@@ -195,18 +186,12 @@ CONTRACT = PackageContract(
                 "The package converges into base/ (frozen contract + usage entity) "
                 "+ extension/ (adapters) + data/ (reserved projections)."
             ),
-            test=(
-                "tests/tooling/test_llm_package.py::test_AC_llm_1_2_converges_by_layer"
-            ),
+            test=("tests/tooling/test_llm_package.py::test_AC_llm_1_2_converges_by_layer"),
         ),
         Invariant(
             id="base-layer-pure",
-            statement=(
-                "base/ never imports the package's own extension/, the ORM, or litellm."
-            ),
-            test=(
-                "tests/tooling/test_llm_package.py::test_AC_llm_1_3_base_layer_is_pure"
-            ),
+            statement=("base/ never imports the package's own extension/, the ORM, or litellm."),
+            test=("tests/tooling/test_llm_package.py::test_AC_llm_1_3_base_layer_is_pure"),
         ),
         Invariant(
             id="no-litellm-at-root",
@@ -215,10 +200,7 @@ CONTRACT = PackageContract(
                 "imports litellm — the litellm surface is lazy (PEP 562), so "
                 "minimal tooling environments can load the package."
             ),
-            test=(
-                "tests/tooling/test_llm_package.py"
-                "::test_AC_llm_1_4_root_import_is_litellm_free"
-            ),
+            test=("tests/tooling/test_llm_package.py::test_AC_llm_1_4_root_import_is_litellm_free"),
         ),
         Invariant(
             id="runtime-classifies-llm-implements",
@@ -228,18 +210,12 @@ CONTRACT = PackageContract(
                 "cassette/replay implementation — it just declares the LLM "
                 "dependency and probes presence."
             ),
-            test=(
-                "tests/tooling/test_llm_package.py"
-                "::test_AC_llm_1_5_cassette_mechanism_only_in_llm"
-            ),
+            test=("tests/tooling/test_llm_package.py::test_AC_llm_1_5_cassette_mechanism_only_in_llm"),
         ),
         Invariant(
             id="passes-own-governance-gate",
             statement="check_package_contract validates llm with no violations.",
-            test=(
-                "tests/tooling/test_llm_package.py"
-                "::test_AC_llm_1_6_package_contract_gate_passes_for_llm"
-            ),
+            test=("tests/tooling/test_llm_package.py::test_AC_llm_1_6_package_contract_gate_passes_for_llm"),
         ),
     ],
     # The EPIC-023 ACs, migrated per Decision A (standard-preserving move; the
@@ -435,8 +411,8 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-llm.5.1",
-            statement="`LLM_CASSETTE_MODE` selects `replay` / `record` / `off`; it defaults to `off` (live, local dev) and an unknown value fails closed with `LLMConfigError` rather than silently calling the network",  # was AC23.5.1
-            test="apps/backend/tests/llm/test_cassette.py::test_AC23_5_1_mode_defaults_to_off",
+            statement="No process-level mode env exists (#1597 deleted `LLM_CASSETTE_MODE`): with no explicit `cassette_mode` seam the recorder is off (plain live call, nothing written); the transparent per-request decision belongs to the engaged layer (AC-llm.10.x)",  # was AC23.5.1
+            test="apps/backend/tests/llm/test_cassette.py::test_AC23_5_4_off_mode_is_plain_live_call",
             priority="P1",
             status="done",
             proof_kind="property",
@@ -653,7 +629,7 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-llm.10.8",
             statement="The transparent auto-record path enforces the same correctness red line as explicit recording: a correctness-tagged cassette is refused without a ground-truth validator, and a response failing validation is never frozen",
-            test="apps/backend/tests/llm/test_transparent_cassette.py::test_miss_with_key_records_locally",
+            test="apps/backend/tests/llm/test_transparent_cassette.py::test_auto_record_enforces_the_correctness_red_line",
             priority="P0",
             status="done",
             proof_kind="property",

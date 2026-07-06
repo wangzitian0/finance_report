@@ -35,6 +35,7 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 CASSETTE_DIR = REPO_ROOT / "common" / "testing" / "fixtures" / "llm_cassettes"
 GROUND_TRUTH_DIR = CASSETTE_DIR / "ground_truth"
 
+
 # ---------------------------------------------------------------------------
 # The corpus manifest (AC-llm.11.1). 10 maximally-diverse fingerprints, chosen for
 # axis coverage rather than volume — the diversity invariants are asserted by

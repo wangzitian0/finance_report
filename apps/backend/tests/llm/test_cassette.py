@@ -132,7 +132,10 @@ async def test_AC23_5_4_re_record_is_idempotent(record_recorder, temp_store):
 
 
 async def test_AC23_5_4_off_mode_is_plain_live_call(temp_store):
-    """AC-llm.5.4: off mode performs the live call and writes nothing."""
+    """AC-llm.5.1 / AC-llm.5.4: without an explicit ``cassette_mode`` seam the
+    recorder is off — plain live call, nothing written (no process-level mode
+    env exists anymore; the transparent decision is the engaged layer's,
+    AC-llm.10.x)."""
     recorder = _make_recorder(temp_store, CassetteMode.OFF)
     out = await recorder.call(_live, role=_ROLE, messages=_MESSAGES, decode_params=_DECODE)
     assert out == _RESPONSE
