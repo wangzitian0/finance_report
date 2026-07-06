@@ -177,7 +177,7 @@ CONTRACT = PackageContract(
     # migrated ACs here already (the EPIC table no longer mirrors them).
     roadmap=[
         ACRecord(
-            id="AC-portfolio.accounting.1",
+            id="AC-portfolio.1.1",
             statement=(
                 "post_buy posts a balanced ledger entry, creates the opening "
                 "InvestmentLot, and increases the ManagedPosition cost basis and quantity."
@@ -190,7 +190,7 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
-            id="AC-portfolio.lot.1",
+            id="AC-portfolio.2.1",
             statement=(
                 "post_sell consumes InvestmentLots by the configured FIFO cost-basis "
                 "method and never sells more than the remaining quantity."
@@ -203,7 +203,7 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
-            id="AC-portfolio.lot.2",
+            id="AC-portfolio.2.2",
             statement=(
                 "post_sell supports average-cost disposal and persists the AVGCOST "
                 "method on the realized transaction and remaining position."
@@ -216,7 +216,7 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
-            id="AC-portfolio.position.1",
+            id="AC-portfolio.3.1",
             statement=(
                 "A sell updates ManagedPosition quantity and disposal status without "
                 "ever driving an open position quantity below zero."
@@ -229,7 +229,7 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
-            id="AC-portfolio.dividend.1",
+            id="AC-portfolio.4.1",
             statement=(
                 "post_dividend posts cash plus dividend income and persists a "
                 "DividendIncome record for the position."
@@ -242,7 +242,7 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
-            id="AC-portfolio.dividend.2",
+            id="AC-portfolio.4.2",
             statement=(
                 "post_dividend splits withholding tax into separate cash and tax "
                 "expense legs while keeping the ledger entry balanced."
@@ -255,7 +255,7 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
-            id="AC-portfolio.accounting.2",
+            id="AC-portfolio.1.2",
             statement=(
                 "Investment accounting rejects invalid buy, sell, and dividend "
                 "inputs before writing portfolio or ledger state."
@@ -268,7 +268,7 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
-            id="AC-portfolio.accounting.3",
+            id="AC-portfolio.1.3",
             statement=(
                 "Investment accounting helper lookups reject missing positions and "
                 "inactive or wrong-type accounts with clean domain errors."

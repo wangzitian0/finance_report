@@ -97,14 +97,14 @@ be treated as current work.
 
 ### AC17.1: Holdings & P&L Tracking
 
-> **Partially migrated.** The write-side accounting/cost-basis rows (were
-> AC17.1.2/.3/.4, AC17.5.1/.2/.3, and AC17.6.1/.2) are now owned directly by
+> **Partially migrated.** The write-side accounting/cost-basis rows formerly
+> tracked in this EPIC are now owned directly by
 > the `portfolio` package roadmap in
 > [`common/portfolio/contract.py`](../../common/portfolio/contract.py) as
-> `AC-portfolio.accounting.1` · `AC-portfolio.accounting.2` ·
-> `AC-portfolio.accounting.3` · `AC-portfolio.dividend.1` ·
-> `AC-portfolio.dividend.2` · `AC-portfolio.lot.1` ·
-> `AC-portfolio.lot.2` · `AC-portfolio.position.1`. The remaining rows below
+> `AC-portfolio.1.1` · `AC-portfolio.1.2` ·
+> `AC-portfolio.1.3` · `AC-portfolio.4.1` ·
+> `AC-portfolio.4.2` · `AC-portfolio.2.1` ·
+> `AC-portfolio.2.2` · `AC-portfolio.3.1`. The remaining rows below
 > stay with the legacy EPIC owner until their read-side/package cutover lands.
 
 | ID | Test Case | Test Function | File | Priority |
@@ -170,12 +170,12 @@ be treated as current work.
 
 ### AC17.5: Investment Accounting (Journal Entries)
 
-> **Partially migrated.** The write-side accounting rows (were AC17.5.1/.2/.3)
-> are homed in the `portfolio` package roadmap as
-> `AC-portfolio.accounting.1` · `AC-portfolio.accounting.2` ·
-> `AC-portfolio.accounting.3` · `AC-portfolio.dividend.1` ·
-> `AC-portfolio.dividend.2` · `AC-portfolio.lot.1` ·
-> `AC-portfolio.lot.2` · `AC-portfolio.position.1`
+> **Partially migrated.** The write-side accounting rows are homed in the
+> `portfolio` package roadmap as
+> `AC-portfolio.1.1` · `AC-portfolio.1.2` ·
+> `AC-portfolio.1.3` · `AC-portfolio.4.1` ·
+> `AC-portfolio.4.2` · `AC-portfolio.2.1` ·
+> `AC-portfolio.2.2` · `AC-portfolio.3.1`
 > ([`common/portfolio/contract.py`](../../common/portfolio/contract.py)); the
 > remaining rows below stay with their own owners.
 
@@ -189,9 +189,9 @@ be treated as current work.
 
 ### AC17.6: Integration & End-to-End
 
-> **Partially migrated.** The investment-accounting lifecycle rows (were
-> AC17.6.1/.2) are now package-owned as `AC-portfolio.lot.1` and
-> `AC-portfolio.dividend.1`
+> **Partially migrated.** The investment-accounting lifecycle rows are now
+> package-owned as `AC-portfolio.2.1` and
+> `AC-portfolio.4.1`
 > ([`common/portfolio/contract.py`](../../common/portfolio/contract.py)).
 > The API/E2E rows below remain EPIC-owned.
 
