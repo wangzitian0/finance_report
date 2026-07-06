@@ -98,6 +98,14 @@ def _target_currency_pair(currency: str | None) -> list[str]:
     return [f"{target}/{base}"]
 
 
+def _framework_policy_decisions_by_source_id(policy: FrameworkPolicyResult) -> dict[str, Any]:
+    decisions_by_source_id: dict[str, Any] = {}
+    for decision in policy.decisions:
+        for anchor in decision.evidence_anchors:
+            decisions_by_source_id[str(anchor.source_id)] = decision
+    return decisions_by_source_id
+
+
 async def _ensure_report_market_data_fresh(
     db: DbSession,
     user_id: CurrentUserId,
@@ -267,25 +275,38 @@ async def _personal_report_package_section_payloads(
     *,
     db: DbSession,
     user_id: CurrentUserId,
+    framework_id: PersonalReportingFrameworkId,
     start_date: date,
     end_date: date,
     as_of_date: date,
     currency: str,
     include_restricted: bool = False,
+    decisions_by_source_id: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    balance_sheet_payload = await generate_balance_sheet(
+    # Deferred import: framework_report imports from reporting.balance_sheet/income_statement
+    # which share the same router dependency chain — importing at module level would create a cycle.
+    from src.services.reporting.framework_report import (
+        assemble_framework_balance_sheet,
+        assemble_framework_income_statement,
+    )
+
+    balance_sheet_payload = await assemble_framework_balance_sheet(
         db,
         user_id,
+        framework_id=framework_id,
         as_of_date=as_of_date,
         currency=currency,
         include_restricted=include_restricted,
+        decisions_by_source_id=decisions_by_source_id,
     )
-    income_statement_payload = await generate_income_statement(
+    income_statement_payload = await assemble_framework_income_statement(
         db,
         user_id,
+        framework_id=framework_id,
         start_date=start_date,
         end_date=end_date,
         currency=currency,
+        decisions_by_source_id=decisions_by_source_id,
     )
     cash_flow_payload = await generate_cash_flow(
         db,
@@ -358,14 +379,17 @@ async def _build_personal_report_package_snapshot_data(
         report_period_end=end_date,
         as_of_date=as_of_date,
     )
+    decisions_by_source_id = _framework_policy_decisions_by_source_id(policy)
     section_payloads = await _personal_report_package_section_payloads(
         db=db,
         user_id=user_id,
+        framework_id=framework_id,
         start_date=start_date,
         end_date=end_date,
         as_of_date=as_of_date,
         currency=currency,
         include_restricted=include_restricted,
+        decisions_by_source_id=decisions_by_source_id,
     )
     readiness_payload = _jsonable(readiness)
     status_value = _package_snapshot_status(readiness_payload).value

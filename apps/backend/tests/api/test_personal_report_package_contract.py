@@ -355,7 +355,9 @@ async def _patch_package_snapshot_inputs(
             },
         )
 
-    async def fake_sections(*_args, **_kwargs):
+    async def fake_sections(*_args, **kwargs):
+        decisions_by_source_id = kwargs["decisions_by_source_id"]
+        assert decisions_by_source_id["stmt-1"].evidence_anchors[0].source_id == "stmt-1"
         return _package_snapshot_sections(section_label)
 
     monkeypatch.setattr("src.routers.reports.get_personal_report_package_readiness", fake_readiness)

@@ -13,6 +13,8 @@ from src.models.journal import Direction
 from src.models.layer4 import ReportType
 from src.schemas.provenance import DataProvenance
 
+_FRAMEWORK_POLICY_LINE_MAPPING_TARGETS = frozenset({"balance_sheet", "income_statement", "cash_flow", "notes"})
+
 
 def _validate_internal_action_href(value: str) -> str:
     if not value.startswith("/") or value.startswith("//") or "://" in value:
@@ -332,6 +334,51 @@ class PersonalReportingFrameworkId(str, Enum):
     HKFRS_LIKE = "personal_hkfrs_like"
 
 
+class ReportLineId(str, Enum):
+    """Enumerated canonical L1 reporting lines for personal report packages."""
+
+    # Assets
+    CASH_AND_CASH_EQUIVALENTS = "assets.cash_and_cash_equivalents"
+    MARKETABLE_SECURITIES = "assets.marketable_securities"
+    FINANCIAL_ASSETS_AT_FAIR_VALUE = "assets.financial_assets_at_fair_value"
+    INVESTMENTS_FUNDS = "assets.investments.funds"
+    RESTRICTED_COMPENSATION = "assets.restricted_compensation"
+    INVESTMENT_PROPERTY = "assets.investment_property"
+    BIOLOGICAL_ASSETS = "assets.biological_assets"
+    MANUAL_PRIVATE_ASSETS = "assets.manual_private_assets"
+
+    # Liabilities
+    FINANCIAL_LIABILITIES = "liabilities.financial_liabilities"
+
+    # Equity
+    FX_TRANSLATION = "equity.fx_translation"
+
+    # Income
+    DIVIDENDS_AND_INTEREST = "income.dividends_and_interest"
+    UNREALIZED_INVESTMENT_GAIN_LOSS = "income.unrealized_investment_gain_loss"
+    FAIR_VALUE_CHANGE_IN_FINANCIAL_ASSETS = "income.fair_value_change_in_financial_assets"
+    FX_GAIN_LOSS = "income.fx_gain_loss"
+
+    # Expenses
+    INVESTMENT_FEES = "expenses.investment_fees"
+
+    # Cash Flow
+    ENDING_CASH = "cash.ending_cash"
+    INVESTING_FEES = "investing.fees"
+    INTERNAL_TRANSFERS = "cash.internal_transfers"
+
+    # Notes
+    FUND_LIQUIDITY = "notes.fund_liquidity"
+    TAX_HOOKS = "notes.tax_hooks"
+    RESTRICTED_ASSET_TREATMENT = "notes.restricted_asset_treatment"
+    MANUAL_VALUATION_BASIS = "notes.manual_valuation_basis"
+    LIABILITY_COVERAGE = "notes.liability_coverage"
+    TRANSFER_MATCHING = "notes.transfer_matching"
+    TAX_RELEVANT_ITEMS = "notes.tax_relevant_items"
+    US_LIKE_MARKET_PRICE_BASIS = "notes.us_like_market_price_basis"
+    HK_LIKE_FAIR_VALUE_BASIS = "notes.hk_like_fair_value_basis"
+
+
 class PolicyDimension(str, Enum):
     """Required decision dimensions for every framework policy conclusion."""
 
@@ -396,6 +443,8 @@ class FrameworkPolicyFact(BaseModel):
     currency: str | None = Field(default=None, min_length=3, max_length=3)
     event_date: date | None = None
     anchors: list[FrameworkPolicyEvidenceAnchor] = Field(default_factory=list)
+    holding_intent: str | None = None
+    horizon: str | None = None
 
 
 class FrameworkPolicyDecision(BaseModel):
@@ -466,6 +515,23 @@ class FrameworkPolicyMatrix(BaseModel):
     version: str
     rules: list[FrameworkPolicyMatrixRule]
 
+    @model_validator(mode="after")
+    def validate_rules_line_mappings(self) -> "FrameworkPolicyMatrix":
+        from src.services.reporting.l1_registry import is_valid_line_for_framework
+
+        for rule in self.rules:
+            for target, line_id in rule.line_mappings.items():
+                if target not in _FRAMEWORK_POLICY_LINE_MAPPING_TARGETS:
+                    raise ValueError(
+                        f"Rule for domain {rule.domain.value} maps to unknown statement target '{target}'; "
+                        f"allowed: {', '.join(sorted(_FRAMEWORK_POLICY_LINE_MAPPING_TARGETS))}"
+                    )
+                if not is_valid_line_for_framework(line_id, self.framework_id):
+                    raise ValueError(
+                        f"Rule for domain {rule.domain.value} maps to '{line_id}' which is not a registered L1 line valid in framework '{self.framework_id.value}'"
+                    )
+        return self
+
 
 class FrameworkPolicyResult(BaseModel):
     """Read-only target-backward policy result consumed by readiness and reporting."""
@@ -490,6 +556,20 @@ class FrameworkPolicyResult(BaseModel):
         ]
         if incomplete:
             raise ValueError(f"missing required policy dimensions: {', '.join(sorted(set(incomplete)))}")
+
+        from src.services.reporting.l1_registry import is_valid_line_for_framework
+
+        for decision in self.decisions:
+            for target, line_id in decision.line_mappings.items():
+                if target not in _FRAMEWORK_POLICY_LINE_MAPPING_TARGETS:
+                    raise ValueError(
+                        f"Decision line mapping uses unknown statement target '{target}'; "
+                        f"allowed: {', '.join(sorted(_FRAMEWORK_POLICY_LINE_MAPPING_TARGETS))}"
+                    )
+                if not is_valid_line_for_framework(line_id, self.framework_id):
+                    raise ValueError(
+                        f"Line mapping '{line_id}' is not a registered L1 line valid in framework '{self.framework_id.value}'"
+                    )
         return self
 
 

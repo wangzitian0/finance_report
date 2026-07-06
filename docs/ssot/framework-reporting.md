@@ -190,3 +190,46 @@ recognition, measurement, or framework-specific classification rules.
 
 EPIC-020 owns framework target policy. It does not parse settlements, post
 journal entries, maintain lots, or render UI.
+
+## 8. L1 Reporting-Line Registry (US ∪ HK)
+
+To prevent free-form string drift across statements, exports, and E2E checks, report lines are defined in a central L1 registry. Each line has a unique identifier, statement, section, applicable frameworks, and presentation ordering (lower is earlier).
+
+Framework report assembly consumes deterministic L2-to-L1 mappings and must not
+invent a report line for a known source line that lacks a registered policy
+mapping. Portfolio holdings are the one balance-sheet split required before L1
+aggregation: a broker ledger line that carries position cost basis is split into
+portfolio cost basis (framework securities L1) and residual broker cash (cash
+L1), while the market-value adjustment aggregates onto the same framework
+securities L1. This keeps the L1 securities amount at market value without
+double-counting broker cash.
+
+| Line ID | Frameworks | Statement | Section | Order (US) | Order (HK) |
+|---|---|---|---|---|---|
+| `assets.cash_and_cash_equivalents` | US, HK | balance_sheet | assets | 10 | 10 |
+| `assets.marketable_securities` | US | balance_sheet | assets | 20 | 999 |
+| `assets.financial_assets_at_fair_value` | HK | balance_sheet | assets | 999 | 20 |
+| `assets.investments.funds` | US, HK | balance_sheet | assets | 30 | 30 |
+| `assets.restricted_compensation` | US, HK | balance_sheet | assets | 40 | 40 |
+| `assets.investment_property` | HK | balance_sheet | assets | 999 | 50 |
+| `assets.biological_assets` | HK | balance_sheet | assets | 999 | 60 |
+| `assets.manual_private_assets` | US, HK | balance_sheet | assets | 70 | 70 |
+| `liabilities.financial_liabilities` | US, HK | balance_sheet | liabilities | 10 | 10 |
+| `equity.fx_translation` | US, HK | balance_sheet | equity | 10 | 10 |
+| `income.dividends_and_interest` | US, HK | income_statement | income | 10 | 10 |
+| `income.unrealized_investment_gain_loss` | US | income_statement | income | 20 | 999 |
+| `income.fair_value_change_in_financial_assets` | HK | income_statement | income | 999 | 20 |
+| `income.fx_gain_loss` | US, HK | income_statement | income | 30 | 30 |
+| `expenses.investment_fees` | US, HK | income_statement | expenses | 10 | 10 |
+| `cash.ending_cash` | US, HK | cash_flow | cash | 10 | 10 |
+| `investing.fees` | US, HK | cash_flow | investing | 10 | 10 |
+| `cash.internal_transfers` | US, HK | cash_flow | cash | 20 | 20 |
+| `notes.fund_liquidity` | US, HK | notes | notes | 10 | 10 |
+| `notes.tax_hooks` | US, HK | notes | notes | 20 | 20 |
+| `notes.restricted_asset_treatment` | US, HK | notes | notes | 30 | 30 |
+| `notes.manual_valuation_basis` | US, HK | notes | notes | 40 | 40 |
+| `notes.liability_coverage` | US, HK | notes | notes | 50 | 50 |
+| `notes.transfer_matching` | US, HK | notes | notes | 60 | 60 |
+| `notes.tax_relevant_items` | US, HK | notes | notes | 70 | 70 |
+| `notes.us_like_market_price_basis` | US | notes | notes | 80 | 999 |
+| `notes.hk_like_fair_value_basis` | HK | notes | notes | 999 | 80 |
