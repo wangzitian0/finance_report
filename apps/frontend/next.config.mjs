@@ -19,7 +19,11 @@ const securityHeaders = [
             "img-src 'self' data: blob:",
             "font-src 'self' data:",
             "style-src 'self' 'unsafe-inline'",
-            "script-src 'self' 'unsafe-inline'",
+            // The OpenPanel analytics SDK (EPIC-024) loads its script from the
+            // self-hosted host (Analytics.tsx DEFAULT_OPENPANEL_API_URL). Without
+            // it here the browser blocks op1.js and telemetry silently dies
+            // (#1623). connect-src already covers *.zitian.party for the beacon POSTs.
+            "script-src 'self' 'unsafe-inline' https://openpanel.zitian.party",
             "connect-src 'self' https://*.zitian.party",
             "form-action 'self'",
         ].join('; '),
