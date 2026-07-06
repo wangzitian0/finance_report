@@ -26,6 +26,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
+from common.testing.ac_proof import ac_proof
 
 from src.models.layer2 import TransactionDirection
 from tests.factories import seed_parsed_statement
@@ -201,6 +202,15 @@ def test_corpus_manifest_is_diverse():
     )
 
 
+@ac_proof(
+    "extraction-corpus-journeys-pr",
+    ac_ids=["AC-llm.11.2"],
+    scope="behavioral",
+    ci_tier="pr_ci",
+    trust_mode="deterministic_pr",
+    source_classes=["bank_statement"],
+    issue="#1613",
+)
 @pytest.mark.e2e
 @pytest.mark.parametrize("fingerprint", CORPUS_FINGERPRINTS, ids=lambda fp: fp[:8])
 async def test_corpus_statement_full_journey(client, db, test_user, fingerprint):

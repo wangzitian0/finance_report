@@ -781,8 +781,9 @@ def test_AC8_13_49_staging_ai_ocr_contract_outputs_files_and_counts() -> None:
         "tests/e2e/test_four_asset_net_worth_golden_path.py",
         "tests/e2e/test_personal_financial_report_package.py",
         "tests/e2e/test_statement_upload_e2e.py",
-        "STAGING_AI_OCR_EXPECTED_UPLOADS=9",
-        "STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS=9",
+        "tests/e2e/test_institution_statement_journeys.py",
+        "STAGING_AI_OCR_EXPECTED_UPLOADS=13",
+        "STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS=13",
         "STAGING_AI_OCR_EXPECTED_BROKERAGE_IMPORTS=4",
         "STAGING_AI_OCR_EXPECTED_REPORT_VERIFICATIONS=2",
     ):
@@ -798,6 +799,7 @@ def test_AC8_13_50_critical_llm_post_merge_proofs_are_in_ai_ocr_gates() -> None:
     assert proof_files == [
         "tests/e2e/test_brokerage_upload_to_portfolio_value.py",
         "tests/e2e/test_four_asset_net_worth_golden_path.py",
+        "tests/e2e/test_institution_statement_journeys.py",
         "tests/e2e/test_personal_financial_report_package.py",
         "tests/e2e/test_statement_full_journey.py",
     ]

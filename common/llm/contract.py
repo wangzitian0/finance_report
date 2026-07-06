@@ -681,5 +681,42 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        # ── group 12: per-institution live-extraction journeys (staging) ──
+        # Provider-backed audit-replay corpus (#1613): one minimal journey per
+        # shipped fixture institution not already covered by the canary/full
+        # journey, so provider drift against a statement SHAPE is recorded
+        # evidence. Live-provider proofs: proof_kind=eval.
+        ACRecord(
+            id="AC-llm.12.1",
+            statement="A CMB (Chinese bank layout) generated statement completes upload -> live extraction -> approve -> balanced balance sheet on the deployed staging environment",
+            test="tests/e2e/test_institution_statement_journeys.py::test_cmb_statement_journey",
+            priority="P1",
+            status="done",
+            proof_kind="eval",
+        ),
+        ACRecord(
+            id="AC-llm.12.2",
+            statement="A MariBank (digital bank layout) generated statement completes upload -> live extraction -> approve -> balanced balance sheet on the deployed staging environment",
+            test="tests/e2e/test_institution_statement_journeys.py::test_maribank_statement_journey",
+            priority="P1",
+            status="done",
+            proof_kind="eval",
+        ),
+        ACRecord(
+            id="AC-llm.12.3",
+            statement="A Pingan (Chinese-font bank layout) generated statement completes upload -> live extraction -> approve -> balanced balance sheet on the deployed staging environment",
+            test="tests/e2e/test_institution_statement_journeys.py::test_pingan_statement_journey",
+            priority="P1",
+            status="done",
+            proof_kind="eval",
+        ),
+        ACRecord(
+            id="AC-llm.12.4",
+            statement="The committed GXS PDF + expected-JSON pair grades live extraction on staging: the journey completes and the extracted opening/closing balances equal the expected values exactly (Decimal) with at least the expected transaction count",
+            test="tests/e2e/test_institution_statement_journeys.py::test_gxs_statement_journey_matches_expected_balances",
+            priority="P1",
+            status="done",
+            proof_kind="eval",
+        ),
     ],
 )

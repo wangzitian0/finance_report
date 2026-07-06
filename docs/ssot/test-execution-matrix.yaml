@@ -18,6 +18,9 @@ rules:
   - path: apps/backend/tests/e2e/test_statement_corpus_journeys.py
     stage: backend_tier1_api_e2e
     ci_required: true
+  - path: apps/backend/tests/e2e/test_epic025_dry_ssot_e2e.py
+    stage: backend_tier1_api_e2e
+    ci_required: true
   - path: apps/backend/tests/
     stage: backend_ci
     ci_required: true

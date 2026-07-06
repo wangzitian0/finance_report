@@ -65,6 +65,12 @@ REPLAY_COUNTERS = {
         "brokerage_imports": 0,
         "report_verifications": 0,
     },
+    "tests/e2e/test_institution_statement_journeys.py": {
+        "uploads": 4,
+        "parse_completions": 4,
+        "brokerage_imports": 0,
+        "report_verifications": 0,
+    },
 }
 
 

@@ -685,6 +685,7 @@ jobs:
             tests/e2e/test_core_journeys.py \
             tests/e2e/test_seeded_statement_journey.py \
             tests/e2e/test_statement_corpus_journeys.py \
+            tests/e2e/test_epic025_dry_ssot_e2e.py \
             -m "e2e and not slow and not integration and not perf" \
             "${pytest_extra_args[@]}" \
             --junit-xml=test-results/backend-tier1-e2e.xml

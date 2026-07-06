@@ -13,8 +13,6 @@ from __future__ import annotations
 import os
 import re
 import shutil
-import subprocess
-import sys
 import tempfile
 import time
 from pathlib import Path
@@ -22,6 +20,7 @@ from pathlib import Path
 import pytest
 from common.testing.ac_proof import ac_proof
 from conftest import fail_or_skip_ai_ocr_gate
+from pdf_fixture_paths import generated_pdf_path
 from playwright.async_api import Page, expect
 
 APP_URL: str = os.getenv("APP_URL", "http://localhost:3000")
@@ -41,9 +40,7 @@ def _statement_row(page: Page, institution: str):
     return page.locator(".relative.block").filter(has_text=institution).first
 
 
-def test_parsed_status_badge_pattern_accepts_user_facing_ready_to_review_label() -> (
-    None
-):
+def test_parsed_status_badge_pattern_accepts_user_facing_ready_to_review_label() -> None:
     """EPIC-003 EPIC-004 EPIC-008 EPIC-009 EPIC-013 EPIC-016 EPIC-018.
 
     Parsed upload rows may use the user-facing review label.
@@ -53,49 +50,13 @@ def test_parsed_status_badge_pattern_accepts_user_facing_ready_to_review_label()
 
 
 def _get_dbs_pdf_path() -> Path:
-    """
-    Locate (or generate) the pre-built DBS mock PDF fixture.
-    Search order:
-      1. output/dbs/test_dbs_{YYMM}.pdf   — current-month build
-      2. output/dbs/test_dbs_*.pdf        — any prior build
-      3. generate_pdf_fixtures.py         — on-the-fly generation
-    environments that lack the pdf_fixtures dependencies (reportlab, yaml).
-    """
-    from datetime import datetime
+    """Locate (or generate) the DBS mock PDF via the shared path helper.
 
-    root = Path(__file__).resolve().parents[2]
-    dbs_dir = root / "tools" / "_lib" / "pdf_fixtures" / "output" / "dbs"
-    yymm = datetime.now().strftime("%y%m")
-    prebuilt = dbs_dir / f"test_dbs_{yymm}.pdf"
-    if prebuilt.exists():
-        return prebuilt
-    if dbs_dir.exists():
-        pdfs = sorted(dbs_dir.glob("test_dbs_*.pdf"))
-        if pdfs:
-            return pdfs[-1]
-
-    script = root / "tools" / "generate_pdf_fixtures.py"
-    if not script.exists():
-        pytest.skip(
-            f"PDF fixture generator not found: {script} — skipping full-journey E2E. "
-            "Run: python tools/generate_pdf_fixtures.py --source dbs"
-        )
-    result = subprocess.run(
-        [sys.executable, str(script), "--source", "dbs"],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        pytest.skip(
-            f"PDF fixture generation failed (missing deps?) — skipping full-journey E2E.\n"
-            f"{result.stdout}\n{result.stderr}"
-        )
-    pdfs = sorted(dbs_dir.glob("test_dbs_*.pdf")) if dbs_dir.exists() else []
-    if not pdfs:
-        pytest.skip(
-            f"PDF generation script exited 0 but produced no output in {dbs_dir} — skipping."
-        )
-    return pdfs[-1]
+    The previous inline copy globbed the retired tools/_lib/pdf_fixtures
+    output path, so the runtime-generation fallback wrote files the glob
+    never saw and the journey silently skipped (#1541 fixture migration).
+    """
+    return generated_pdf_path("dbs")
 
 
 def _unique_pdf_copy(src: Path) -> Path:
@@ -146,36 +107,26 @@ async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> No
     await page.wait_for_load_state("domcontentloaded")
 
     if "/login" in page.url:
-        pytest.fail(
-            f"Redirected to /login despite authenticated_page fixture. URL: {page.url}"
-        )
+        pytest.fail(f"Redirected to /login despite authenticated_page fixture. URL: {page.url}")
 
-    await page.locator('[data-testid="uploader-institution-statement"]').fill(
-        INSTITUTION_LABEL
-    )
+    await page.locator('[data-testid="uploader-institution-statement"]').fill(INSTITUTION_LABEL)
     # Fetch the default model from the backend API and select it explicitly.
     # Selecting by value ensures we always use the backend-configured OCR model.
     models_resp = await page.evaluate(
         "async () => { const r = await fetch('/api/llm/catalog?modality=image'); return r.json(); }"
     )
-    default_model: str = (
-        models_resp.get("default_model") or models_resp["models"][0]["id"]
-    )
+    default_model: str = models_resp.get("default_model") or models_resp["models"][0]["id"]
     model_select = page.locator('[data-testid="uploader-model-statement"]')
     await expect(model_select).to_be_visible(timeout=15_000)
     await expect(model_select).not_to_have_value("", timeout=15_000)
     await model_select.select_option(value=default_model)
     await page.set_input_files('[data-testid="uploader-file-statement"]', str(pdf_path))
-    await expect(page.locator("p.font-medium", has_text=pdf_path.name)).to_be_visible(
-        timeout=5_000
-    )
+    await expect(page.locator("p.font-medium", has_text=pdf_path.name)).to_be_visible(timeout=5_000)
 
-    async with (
-        page.expect_response(
-            lambda r: "/api/statements/upload" in r.url,
-            timeout=120_000,  # Upload + AI model validation may take up to 120s on cold-start
-        ) as resp_info
-    ):
+    async with page.expect_response(
+        lambda r: "/api/statements/upload" in r.url,
+        timeout=120_000,  # Upload + AI model validation may take up to 120s on cold-start
+    ) as resp_info:
         await page.get_by_role("button", name="Upload & Parse Statement").click()
     upload_resp = await resp_info.value
     assert upload_resp.status in (200, 201, 202), (
@@ -191,9 +142,7 @@ async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> No
     await expect(statement_row).to_be_visible(timeout=15_000)
 
     parsed_badge = statement_row.locator("span.badge", has_text=PARSED_STATUS_BADGE_RE)
-    rejected_badge = statement_row.locator(
-        "span.badge", has_text=re.compile(r"^Rejected$", re.I)
-    )
+    rejected_badge = statement_row.locator("span.badge", has_text=re.compile(r"^Rejected$", re.I))
     # Poll the statement API by ID until parsed, but fail fast with the stored
     # validation error if the AI/OCR provider rejects parsing.
     # This avoids waiting the full PARSING_TIMEOUT_MS when the AI service fails.
@@ -209,10 +158,7 @@ async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> No
             f"GET /api/statements/{statement_id} returned {api_resp.status} — response body: {await api_resp.text()}"
         )
         last_statement = await api_resp.json()
-        if (
-            last_statement.get("status") == "rejected"
-            or await rejected_badge.is_visible()
-        ):
+        if last_statement.get("status") == "rejected" or await rejected_badge.is_visible():
             fail_or_skip_ai_ocr_gate(
                 "Statement parsing failed (status=rejected) — AI service may be "
                 "unavailable or misconfigured on the test environment.",
@@ -235,44 +181,32 @@ async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> No
     # waits can resolve before the Next.js router commits the URL change.
     await expect(page).to_have_url(re.compile(r"/statements/[^/]+$"), timeout=15_000)
 
-    await expect(page.get_by_text("Transactions", exact=False)).to_be_visible(
-        timeout=10_000
-    )
+    await expect(page.get_by_text("Transactions", exact=False)).to_be_visible(timeout=10_000)
     await expect(page.locator("table tbody tr").first).to_be_visible(timeout=10_000)
 
     # === AC8.13.4: Start Review → approve via ConfirmDialog ===
     await page.get_by_role("link", name=re.compile("Start Review")).click()
-    await expect(page).to_have_url(
-        re.compile(r"/statements/[^/]+/review$"), timeout=15_000
-    )
+    await expect(page).to_have_url(re.compile(r"/statements/[^/]+/review$"), timeout=15_000)
     await page.get_by_role("button", name="Approve").click()
     dialog = page.locator('[role="dialog"]')
     await expect(dialog).to_be_visible(timeout=5_000)
     confirm_button = dialog.get_by_role("button", name="Approve")
     await expect(confirm_button).to_be_visible(timeout=3_000)
     await confirm_button.click()
-    await expect(page).to_have_url(
-        re.compile(r"/statements/[^/?]+(?:\?.*)?$"), timeout=15_000
-    )
-    await expect(page.locator("span.badge", has_text="approved")).to_be_visible(
-        timeout=15_000
-    )
+    await expect(page).to_have_url(re.compile(r"/statements/[^/?]+(?:\?.*)?$"), timeout=15_000)
+    await expect(page.locator("span.badge", has_text="approved")).to_be_visible(timeout=15_000)
 
     await page.goto(_get_url("/upload"))
     await expect(page).to_have_url(re.compile(r"/upload$"), timeout=15_000)
     approved_row = _statement_row(page, INSTITUTION_LABEL)
     await expect(approved_row).to_be_visible(timeout=15_000)
-    await expect(
-        approved_row.locator("span.badge", has_text=re.compile(r"^Approved$", re.I))
-    ).to_be_visible(timeout=15_000)
+    await expect(approved_row.locator("span.badge", has_text=re.compile(r"^Approved$", re.I))).to_be_visible(
+        timeout=15_000
+    )
 
     # === AC8.13.5: Balance sheet report loads ===
     await page.goto(_get_url("/reports/balance-sheet"))
     await page.wait_for_load_state("domcontentloaded")
 
-    await expect(page.get_by_text("Balance Sheet", exact=False).first).to_be_visible(
-        timeout=10_000
-    )
-    await expect(page.get_by_text("Assets", exact=False).first).to_be_visible(
-        timeout=10_000
-    )
+    await expect(page.get_by_text("Balance Sheet", exact=False).first).to_be_visible(timeout=10_000)
+    await expect(page.get_by_text("Assets", exact=False).first).to_be_visible(timeout=10_000)

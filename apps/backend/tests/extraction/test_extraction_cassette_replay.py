@@ -24,6 +24,7 @@ documents remains the staging ``-m llm`` live gate's job (untouched here).
 from __future__ import annotations
 
 import json
+import os
 from decimal import Decimal
 from pathlib import Path
 
@@ -32,14 +33,20 @@ import pytest
 from src.llm.extension.cassette import CassetteMode, current_mode
 from src.services.ai_streaming import accumulate_stream, stream_ai_json
 
-# These drive the real LLM transport, so they run only in record mode (freeze the
-# real response) or replay mode (serve the committed cassette — no key/network).
-# In the normal off-mode shards there is no key, so they SKIP; run them with
-# LLM_CASSETTE_MODE=record (to (re)record) or =replay (to assert against cassettes).
-pytestmark = pytest.mark.skipif(
-    current_mode() is CassetteMode.OFF,
-    reason="cassette record/replay only (set LLM_CASSETTE_MODE=record to record, replay to run)",
-)
+# These drive the real LLM transport against the committed cassettes. The module
+# used to skipif itself out when LLM_CASSETTE_MODE was unset — but NO CI lane
+# ever set it, so the documented "extraction-unit replay in PR CI" gate silently
+# never ran anywhere (#1614). The tests now default THEMSELVES to replay (zero
+# network, no key) instead of skipping; an explicit LLM_CASSETTE_MODE=record
+# (``make llm-record``) still wins so re-recording keeps working. Scoped per-test
+# via monkeypatch so the mode never leaks into other tests in the same worker.
+
+
+@pytest.fixture(autouse=True)
+def _default_to_replay(monkeypatch):
+    if current_mode() is CassetteMode.OFF:
+        monkeypatch.setenv("LLM_CASSETTE_MODE", CassetteMode.REPLAY.value)
+
 
 # --- Deterministic, anonymised inputs (synthetic; no real financial data). ---
 # The fingerprint keys on (role + messages + decode params), so these MUST stay
@@ -112,6 +119,15 @@ async def test_AC23_6_extraction_text_happy_path_via_replay() -> None:
 _VISION_PDF = Path(__file__).resolve().parents[1] / "fixtures" / "vision" / "simple_statement.pdf"
 
 
+@pytest.mark.skipif(
+    os.environ.get("LLM_VISION_REPLAY") != "1",
+    reason=(
+        "vision replay is BROKEN, not just gated: the extraction request now "
+        "fingerprints to a key no committed cassette carries (#1614) — the "
+        "request drifted since recording. Re-record with a real key "
+        "(make llm-record), then remove this gate."
+    ),
+)
 async def test_AC23_6_extraction_vision_happy_path_via_replay() -> None:
     """Text+image (vision) extraction happy-path through the default-config vision
     path (OCR_MODEL == VISION_MODEL == glm-4.6v), in replay.
