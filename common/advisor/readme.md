@@ -123,7 +123,7 @@ from src.advisor import is_write_request, is_prompt_injection, is_sensitive_requ
 # These are checked inside chat_stream before any LLM call:
 is_write_request("Create a journal entry for rent")  # True → refused
 is_prompt_injection("Ignore previous instructions")  # True → refused
-is_sensitive_request("My NRIC is S1234567A")         # True → refused
+is_sensitive_request("My account number is 1234567890")  # True → refused
 ```
 
 ## Cache

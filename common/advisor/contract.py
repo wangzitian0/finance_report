@@ -143,7 +143,7 @@ CONTRACT = PackageContract(
                 "Prompt-injection attempts (``is_prompt_injection``) and "
                 "sensitive-data requests (``is_sensitive_request``) are "
                 "detected and refused; sensitive numeric patterns are redacted "
-                "from the user message and from the streamed response "
+                "from the user message and from the streamed response via "
                 "``StreamRedactor`` before persistence."
             ),
             # was AC6.1.1 + AC21.2.3
