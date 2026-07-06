@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import date
 from decimal import Decimal
 from uuid import UUID
@@ -447,7 +448,6 @@ def derive_framework_policy_result(
 def _parse_notes_metadata(notes: str | None) -> tuple[str | None, str | None]:
     if not notes:
         return None, None
-    import re
 
     intent_match = re.search(r"holding_intent:\s*(\w+)", notes, re.IGNORECASE)
     horizon_match = re.search(r"horizon:\s*(\w+)", notes, re.IGNORECASE)

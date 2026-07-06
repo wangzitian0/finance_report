@@ -20,6 +20,10 @@ class RegisteredReportLine:
     label: str
 
 
+# Sentinel order value: line does not belong to this framework's presentation.
+_NOT_APPLICABLE_ORDER: int = 999
+
+
 L1_REGISTRY: dict[ReportLineId, RegisteredReportLine] = {
     ReportLineId.CASH_AND_CASH_EQUIVALENTS: RegisteredReportLine(
         line_id=ReportLineId.CASH_AND_CASH_EQUIVALENTS,
@@ -36,7 +40,7 @@ L1_REGISTRY: dict[ReportLineId, RegisteredReportLine] = {
         statement="balance_sheet",
         section="assets",
         order_us=20,
-        order_hk=999,
+        order_hk=_NOT_APPLICABLE_ORDER,
         label="Marketable securities",
     ),
     ReportLineId.FINANCIAL_ASSETS_AT_FAIR_VALUE: RegisteredReportLine(
@@ -44,7 +48,7 @@ L1_REGISTRY: dict[ReportLineId, RegisteredReportLine] = {
         frameworks={PersonalReportingFrameworkId.HKFRS_LIKE},
         statement="balance_sheet",
         section="assets",
-        order_us=999,
+        order_us=_NOT_APPLICABLE_ORDER,
         order_hk=20,
         label="Financial assets at fair value",
     ),
@@ -71,7 +75,7 @@ L1_REGISTRY: dict[ReportLineId, RegisteredReportLine] = {
         frameworks={PersonalReportingFrameworkId.HKFRS_LIKE},
         statement="balance_sheet",
         section="assets",
-        order_us=999,
+        order_us=_NOT_APPLICABLE_ORDER,
         order_hk=50,
         label="Investment property",
     ),
@@ -80,7 +84,7 @@ L1_REGISTRY: dict[ReportLineId, RegisteredReportLine] = {
         frameworks={PersonalReportingFrameworkId.HKFRS_LIKE},
         statement="balance_sheet",
         section="assets",
-        order_us=999,
+        order_us=_NOT_APPLICABLE_ORDER,
         order_hk=60,
         label="Biological assets",
     ),
@@ -126,7 +130,7 @@ L1_REGISTRY: dict[ReportLineId, RegisteredReportLine] = {
         statement="income_statement",
         section="income",
         order_us=20,
-        order_hk=999,
+        order_hk=_NOT_APPLICABLE_ORDER,
         label="Unrealized investment gain/loss",
     ),
     ReportLineId.FAIR_VALUE_CHANGE_IN_FINANCIAL_ASSETS: RegisteredReportLine(
@@ -134,7 +138,7 @@ L1_REGISTRY: dict[ReportLineId, RegisteredReportLine] = {
         frameworks={PersonalReportingFrameworkId.HKFRS_LIKE},
         statement="income_statement",
         section="income",
-        order_us=999,
+        order_us=_NOT_APPLICABLE_ORDER,
         order_hk=20,
         label="Fair value change in financial assets",
     ),
@@ -252,7 +256,7 @@ L1_REGISTRY: dict[ReportLineId, RegisteredReportLine] = {
         statement="notes",
         section="notes",
         order_us=80,
-        order_hk=999,
+        order_hk=_NOT_APPLICABLE_ORDER,
         label="US-like Market Price Basis Note",
     ),
     ReportLineId.HK_LIKE_FAIR_VALUE_BASIS: RegisteredReportLine(
@@ -260,7 +264,7 @@ L1_REGISTRY: dict[ReportLineId, RegisteredReportLine] = {
         frameworks={PersonalReportingFrameworkId.HKFRS_LIKE},
         statement="notes",
         section="notes",
-        order_us=999,
+        order_us=_NOT_APPLICABLE_ORDER,
         order_hk=80,
         label="HK-like Fair Value Basis Note",
     ),

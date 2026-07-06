@@ -274,6 +274,8 @@ async def _personal_report_package_section_payloads(
     currency: str,
     include_restricted: bool = False,
 ) -> dict[str, Any]:
+    # Deferred import: framework_report imports from reporting.balance_sheet/income_statement
+    # which share the same router dependency chain — importing at module level would create a cycle.
     from src.services.reporting.framework_report import (
         assemble_framework_balance_sheet,
         assemble_framework_income_statement,

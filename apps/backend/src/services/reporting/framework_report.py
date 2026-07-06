@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import structlog
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
@@ -16,6 +17,8 @@ from src.services.reporting.balance_sheet import generate_balance_sheet
 from src.services.reporting.income_statement import generate_income_statement
 from src.services.reporting.l1_registry import get_framework_ordered_lines, is_valid_line_for_framework
 from src.services.reporting_calc import _combine_provenance, _quantize_money, _worst_confidence_tier
+
+logger = structlog.get_logger(__name__)
 
 
 def _map_l2_line(
@@ -69,6 +72,13 @@ def _map_l2_line(
         else:
             return ReportLineId.ENDING_CASH.value
 
+    logger.warning(
+        "unmapped_l2_line_fallback",
+        statement=statement,
+        line_type=str(line_type),
+        source_type=source_type,
+        msg="L2 line did not match any known statement; defaulting to cash",
+    )
     return ReportLineId.CASH_AND_CASH_EQUIVALENTS.value
 
 
@@ -100,6 +110,8 @@ async def assemble_framework_balance_sheet(
         db,
         user_id,
         framework_id=framework_id,
+        # Approximate 1-year lookback for policy derivation context.
+        # Not calendar-year precise for leap years, but sufficient for policy matching.
         report_period_start=as_of_date - timedelta(days=365),
         report_period_end=as_of_date,
         as_of_date=as_of_date,
@@ -126,8 +138,8 @@ async def assemble_framework_balance_sheet(
         contributors = mapped_groups.get(reg.line_id.value, [])
         amount = sum((c["amount"] for c in contributors), Decimal("0.00"))
 
-        confidence_tier = _worst_confidence_tier(c.get("confidence_tier") for c in contributors)
-        provenance = _combine_provenance(c.get("provenance") for c in contributors)
+        confidence_tier = _worst_confidence_tier([c.get("confidence_tier") for c in contributors])
+        provenance = _combine_provenance([c.get("provenance") for c in contributors])
 
         line_dict = {
             "account_id": UUID(int=0),  # Synthetic L1 consolidated line ID
@@ -228,8 +240,8 @@ async def assemble_framework_income_statement(
         contributors = mapped_groups.get(reg.line_id.value, [])
         amount = sum((c["amount"] for c in contributors), Decimal("0.00"))
 
-        confidence_tier = _worst_confidence_tier(c.get("confidence_tier") for c in contributors)
-        provenance = _combine_provenance(c.get("provenance") for c in contributors)
+        confidence_tier = _worst_confidence_tier([c.get("confidence_tier") for c in contributors])
+        provenance = _combine_provenance([c.get("provenance") for c in contributors])
 
         line_dict = {
             "account_id": UUID(int=0),
