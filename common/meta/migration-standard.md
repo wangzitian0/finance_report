@@ -22,19 +22,19 @@ substrate:
 | package | base deps | extension deps | own info (base) | governance domain (extension) |
 |---|---|---|---|---|
 | **meta** | — | (reads every contract) | DDD domain/package structure, interfaces, tooling | every package is well-formed: structure / deps / acyclic / migration progress |
-| **audit** | — | ledger, extraction, portfolio, reporting, asset_evaluation | financial base types (Money/Ratio/Quantity/UnitPrice + the `ExchangeRate` **conversion math**) + invariants + confidence/provenance + trace records | global numeric correctness + accounting consistency + end-to-end traceability |
+| **audit** | — | ledger, extraction, portfolio, reporting, pricing | financial base types (Money/Ratio/Quantity/UnitPrice + `convert(money, rate)` **conversion arithmetic**, rate passed as an argument — audit never looks up a rate) + invariants + confidence/provenance + trace records | global numeric correctness + accounting consistency + end-to-end traceability |
 | **platform** | — | — | event bus / outbox / workflow / pipeline / counter / identity (the substrate historically labelled *middleware*, #1427) | how domain packages plug in: delivery atomicity, auth boundary |
 | **llm** | — | platform | provider abstraction, cassette, stream | LLM calls are deterministically replayable; no secret in argv |
 | **extraction** | audit | platform, llm | auto-extracted types (Statement/Transaction/Confidence/Dedup) | source→fact balance chain, dedup conservation |
-| **portfolio** | audit | platform, asset_evaluation | investment positions (Position/InvestmentLot/InvestmentTransaction/Dividend/CostBasis) | position quantity ≥ 0, cost-basis consistency; consumes prices, does not own them |
-| **asset_evaluation** | audit | platform | **one price/valuation SSOT** for every asset kind — `AssetValuation` (asset_key, as-of, source, currency, value, version) unifying FX rates + market prices + manual valuations; crawler-fetch + manual entry + manual correction | exactly one current value per (asset, date, source); corrections are versioned, never overwritten; FX **rate data** lives here (the conversion math stays in `audit`) |
-| **reconciliation** | audit, extraction, portfolio | platform, ledger, asset_evaluation | matching/review (Match/Review/Correction/ProcessingAccount) | record↔evidence consistency, two-stage review, in-transit visibility |
+| **portfolio** | audit | platform, pricing | investment positions (Position/InvestmentLot/InvestmentTransaction/Dividend/CostBasis) | position quantity ≥ 0, cost-basis consistency; consumes prices, does not own them |
+| **pricing** | audit | platform | **the price/valuation observation + resolution SSOT** — `PriceObservation` (subject, as_of, observed_at, source, authority) is append-only; `PriceableSubject` unifies the currency-pair/security/component key vocabularies; `resolve(subject, as_of, policy)` is the domain service (not a lookup) | exactly one resolved value per (subject, as_of, policy); overrides never mutate/delete (Axiom A); bitemporal — a late backfill never changes what `resolve` returned at an earlier knowledge time |
+| **reconciliation** | audit, extraction, portfolio | platform, ledger, pricing | matching/review (Match/Review/Correction/ProcessingAccount) | record↔evidence consistency, two-stage review, in-transit visibility |
 | **ledger** | audit | reconciliation | double-entry (Account/JournalEntry/Line/Balance) | debits = credits (See: common/ledger/readme.md#entry-balance), only reconciled facts post |
-| **reporting** | audit | ledger, portfolio, asset_evaluation | reports (ReportPackage/FrameworkPolicy/Snapshot/Readiness) | report lines reconcile, framework 1:1 |
-| **advisor** | audit | platform, llm, reporting, portfolio, asset_evaluation | AI advisor (Session/Suggestion/AnnualizedIncome) | advice never becomes a ledger number unchecked |
+| **reporting** | audit | ledger, portfolio, pricing | reports (ReportPackage/FrameworkPolicy/Snapshot/Readiness) | report lines reconcile, framework 1:1 |
+| **advisor** | audit | platform, llm, reporting, portfolio, pricing | AI advisor (Session/Suggestion/AnnualizedIncome) | advice never becomes a ledger number unchecked |
 
 **Financial data flow:** `(extraction [auto] + portfolio [manual]) → reconciliation → ledger → reporting → advisor`.
-**Shared valuation:** `asset_evaluation` is orthogonal to the flow — a single price/valuation SSOT the flow consumes (portfolio marks positions to market, reconciliation checks per-currency balances, reporting restates net worth). It replaces the pre-migration split across `FxRate` / `StockPrice` / `MarketDataOverride` / `ManualValuationSnapshot` and the `fx` / `market_data` / `assets` services.
+**Shared valuation:** `pricing` is orthogonal to the flow — a single observation+resolution SSOT the flow consumes (portfolio marks positions to market, reconciliation checks per-currency balances, reporting restates net worth). It replaces the pre-migration split across `FxRate` / `StockPrice` / `MarketDataOverride` / `ManualValuationSnapshot` and the `fx` / `market_data` / `assets` services — but statement-extracted unit prices stay in `extraction` (document-fact, provenance chain); extraction publishes a `PriceObserved` event and pricing ingests an id-referenced copy (no shared transaction, no FK).
 
 **meta / audit symmetry** — both are foundational *and* governing, one for **form**,
 one for **number**: everyone's `base` depends on `meta.base` (the package model)
@@ -251,7 +251,7 @@ extension is visible, not hidden.
    three-layer rule (additive; existing packages keep working). (0b)
 2. **value → audit** fold (its own PR).
 3. **ledger** (the prototype domain-layer cutover, already has a legacy `.contract.md`).
-4. **extraction / asset_evaluation / portfolio / reconciliation / reporting** (the flow; asset_evaluation before portfolio, which now consumes it).
+4. **extraction / pricing / portfolio / reconciliation / reporting** (the flow; pricing before portfolio, which now consumes it).
 5. **advisor / llm / platform / identity**.
 6. **audit** consistency closeout (global invariants + cross-package ACs).
 7. **Cleanup** — delete residual EPIC tables / SSOT, retire the central
