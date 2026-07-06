@@ -3,8 +3,6 @@
   "in::apps/backend/src/routers/evidence.py::src.extraction.extension.evidence_lineage::DEFAULT_MAX_DEPTH",
   "in::apps/backend/src/routers/evidence.py::src.extraction.extension.evidence_lineage::EvidenceTraversalStep",
   "in::apps/backend/src/services/chain_repair.py::src.extraction.base.validation::ChainBreak",
-  "in::apps/backend/src/services/fx.py::src.audit.money::MoneyError",
-  "in::apps/backend/src/services/fx.py::src.audit.money::convert",
   "in::apps/backend/src/services/market_data/_base.py::src.audit.unit_price::UNIT_PRICE_QUANTUM",
   "in::apps/backend/src/services/reporting/_core.py::src.audit.money.adopt::restate_unrounded",
   "in::apps/backend/src/services/reporting/internal_transfer.py::src.audit.money.adopt::restate",
