@@ -405,6 +405,11 @@ def derive_framework_policy_result(
             gaps.append(_gap_for_fact(fact))
             continue
 
+        line_mappings = dict(rule.line_mappings)
+        if fact.domain == PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE and fact.instrument_type == "property":
+            if framework_id == PersonalReportingFrameworkId.HKFRS_LIKE and fact.holding_intent == "investment":
+                line_mappings["balance_sheet"] = "assets.investment_property"
+
         decisions.append(
             FrameworkPolicyDecision(
                 domain=fact.domain,
@@ -413,7 +418,7 @@ def derive_framework_policy_result(
                 classification=rule.policy_by_dimension[PolicyDimension.CLASSIFICATION],
                 presentation=rule.policy_by_dimension[PolicyDimension.PRESENTATION],
                 disclosure=rule.policy_by_dimension[PolicyDimension.DISCLOSURE],
-                line_mappings=rule.line_mappings,
+                line_mappings=line_mappings,
                 evidence_anchors=fact.anchors,
                 accepted_value=rule.domain.value,
             )
@@ -437,6 +442,18 @@ def derive_framework_policy_result(
         decisions=decisions,
         gaps=gaps,
     )
+
+
+def _parse_notes_metadata(notes: str | None) -> tuple[str | None, str | None]:
+    if not notes:
+        return None, None
+    import re
+
+    intent_match = re.search(r"holding_intent:\s*(\w+)", notes, re.IGNORECASE)
+    horizon_match = re.search(r"horizon:\s*(\w+)", notes, re.IGNORECASE)
+    intent = intent_match.group(1).lower() if intent_match else None
+    horizon = horizon_match.group(1).lower() if horizon_match else None
+    return intent, horizon
 
 
 async def framework_policy_facts_for_user(
@@ -576,6 +593,7 @@ async def framework_policy_facts_for_user(
             continue
         seen_manual.add(manual_key)
         domain, instrument_type = _manual_domain_and_instrument(snapshot)
+        intent, horizon = _parse_notes_metadata(snapshot.notes)
         facts.append(
             FrameworkPolicyFact(
                 fact_id=f"manual_valuation_snapshot:{snapshot.id}",
@@ -592,6 +610,8 @@ async def framework_policy_facts_for_user(
                         description=snapshot.source,
                     )
                 ],
+                holding_intent=intent,
+                horizon=horizon,
             )
         )
 

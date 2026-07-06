@@ -267,22 +267,30 @@ async def _personal_report_package_section_payloads(
     *,
     db: DbSession,
     user_id: CurrentUserId,
+    framework_id: PersonalReportingFrameworkId,
     start_date: date,
     end_date: date,
     as_of_date: date,
     currency: str,
     include_restricted: bool = False,
 ) -> dict[str, Any]:
-    balance_sheet_payload = await generate_balance_sheet(
+    from src.services.reporting.framework_report import (
+        assemble_framework_balance_sheet,
+        assemble_framework_income_statement,
+    )
+
+    balance_sheet_payload = await assemble_framework_balance_sheet(
         db,
         user_id,
+        framework_id=framework_id,
         as_of_date=as_of_date,
         currency=currency,
         include_restricted=include_restricted,
     )
-    income_statement_payload = await generate_income_statement(
+    income_statement_payload = await assemble_framework_income_statement(
         db,
         user_id,
+        framework_id=framework_id,
         start_date=start_date,
         end_date=end_date,
         currency=currency,
@@ -361,6 +369,7 @@ async def _build_personal_report_package_snapshot_data(
     section_payloads = await _personal_report_package_section_payloads(
         db=db,
         user_id=user_id,
+        framework_id=framework_id,
         start_date=start_date,
         end_date=end_date,
         as_of_date=as_of_date,
