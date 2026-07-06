@@ -15,10 +15,11 @@ The five layers:
   inverts the dependency at tool-time (CI scans every contract); nothing at
   runtime imports upward.
 - ``infra``      (L1) — business-agnostic foundations: config, audit,
-  authority, observability, testing, coverage, governance, runtime, llm,
-  platform (the event-bus ports). L1 does not know what money is.
-- ``middleware`` (L2) — the shared domain kernel: the value language
-  (money/ratio/quantity/unit_price) and generic capabilities (counter).
+  authority, observability, testing, coverage, runtime, llm,
+  platform (the event-bus ports).
+- ``middleware`` (L2) — the shared domain kernel: generic capabilities
+  (counter). The value language (money/ratio/quantity/unit_price) folded
+  into audit (#1419).
 - ``domain``     (L3) — vertical business slices: ledger, identity,
   extraction, reconciliation.
 - ``app``        (L4) — the deliverables: apps/backend, apps/frontend.
@@ -63,7 +64,6 @@ PACKAGE_LAYER: dict[str, PackageClass] = {
     "authority": "infra",
     "config": "infra",
     "coverage": "infra",
-    "governance": "infra",
     "llm": "infra",
     "observability": "infra",
     "platform": "infra",
