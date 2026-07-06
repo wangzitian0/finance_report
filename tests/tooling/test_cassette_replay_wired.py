@@ -1,44 +1,40 @@
-"""Lock: the LLM cassette-replay safety net cannot silently revert to skip (#1623).
+"""Lock: the real-statement corpus stays a reconciled pr_ci proof (#1623).
 
-#1614 was a whole class of extraction tests that carried a `skipif` on
-LLM_CASSETTE_MODE and silently skipped everywhere (no CI lane ever set the
-mode), so the "extraction LLM path is exercised in PR CI" gate ran nowhere. The
-fix made the tests default THEMSELVES to replay. This locks that fix: if the
-default-to-replay fixture is removed, the tests would skip again — so assert it
-stays, and assert the corpus journey stays a pr_ci proof (which the
-ci_tier<->JUnit reconciliation then forces to actually run).
+#1614 was a class of cassette-backed extraction tests that silently skipped in
+CI. The durable guard is behavioral, not a text mirror: the real-statement
+corpus journey must stay a ``ci_tier="pr_ci"`` @ac_proof whose file classifies
+into a PR-evidence stage — because then the ci_tier<->JUnit reconciliation
+(check_pr_ci_evidence, where skipped-only is a hard fail) forces it to actually
+RUN pre-merge. If it stopped running or lost its pr_ci tier, that gate goes red.
 """
 
 from __future__ import annotations
 
-from pathlib import Path
+from common.testing.matrix import PR_EVIDENCE_STAGES, classify_stage
 
-ROOT = Path(__file__).resolve().parents[2]
-REPLAY_TEST = (
-    ROOT
-    / "apps"
-    / "backend"
-    / "tests"
-    / "extraction"
-    / "test_extraction_cassette_replay.py"
-)
-CORPUS_TEST = (
-    ROOT / "apps" / "backend" / "tests" / "e2e" / "test_statement_corpus_journeys.py"
-)
+CORPUS_FILE_HINT = "test_statement_corpus_journeys.py"
 
 
-def test_extraction_cassette_tests_default_to_replay_not_skip() -> None:
-    src = REPLAY_TEST.read_text(encoding="utf-8")
-    assert "autouse=True" in src and "_default_to_replay" in src, (
-        "the extraction cassette tests must keep the autouse default-to-replay "
-        "fixture, or they silently skip in CI again (#1614)."
+def _corpus_proofs() -> list[dict]:
+    from common.testing.ac_graph import build_proofs_only
+    from common.testing.generate_critical_proof_matrix import build_matrix_from_graph
+
+    proofs = build_matrix_from_graph(build_proofs_only()).get("proofs", [])
+    return [p for p in proofs if CORPUS_FILE_HINT in p.get("file", "")]
+
+
+def test_corpus_is_a_reconciled_pr_ci_proof() -> None:
+    corpus = _corpus_proofs()
+    assert corpus, (
+        "no @ac_proof found for the real-statement corpus journey "
+        f"({CORPUS_FILE_HINT}) — the cassette-replay safety net is unanchored."
     )
-    assert "CassetteMode.REPLAY" in src, "replay mode must be the default when unset"
-
-
-def test_corpus_journey_stays_a_pr_ci_proof() -> None:
-    src = CORPUS_TEST.read_text(encoding="utf-8")
-    assert "@ac_proof(" in src and 'ci_tier="pr_ci"' in src, (
-        "the real-statement corpus journey must stay a pr_ci @ac_proof so the "
-        "ci_tier<->JUnit reconciliation forces it to run pre-merge."
-    )
+    pr_ci = [p for p in corpus if p.get("ci_tier") == "pr_ci"]
+    assert pr_ci, "the corpus journey must stay a pr_ci proof so it runs pre-merge."
+    for proof in pr_ci:
+        stage = classify_stage(proof["file"])
+        assert stage in PR_EVIDENCE_STAGES, (
+            f"corpus proof {proof['id']} is pr_ci but its file classifies to "
+            f"{stage!r}, which the ci_tier<->JUnit reconciliation does not cover — "
+            "it could silently stop running. Map its path into a PR-evidence stage."
+        )
