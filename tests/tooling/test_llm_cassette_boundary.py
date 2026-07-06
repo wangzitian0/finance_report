@@ -26,7 +26,8 @@ _ALLOWED = (
     "tools/_lib/record_hf_cassettes.py",
     # governance INTROSPECTION: the authority classifier detects LLM-band tests
     # by recognising these very tokens — it reads names, it never uses the layer.
-    "common/authority/authority_classifier.py",
+    # (moved from common/authority/ by the authority→meta convergence, #1626)
+    "common/meta/extension/authority_classifier.py",
     "tests/tooling/test_authority_classifier.py",
     # facade->litellm WIRE-integration tests (mock below the transport; use the
     # layer's LIVE seam to reach their stubs).
