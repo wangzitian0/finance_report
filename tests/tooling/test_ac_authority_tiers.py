@@ -33,7 +33,7 @@ def test_AC26_1_1_ssot_defines_five_tiers_and_proof_matrix() -> None:
     The tier vocabulary was internalized from the retired
     ``docs/ssot/authority-tiers.md`` into the ``authority`` package's readme
     (migration-standard step 3 "SSOT internalized"), so the single owner is now
-    ``common/authority/readme.md`` and the manifest concept points at the package.
+    ``common/meta/readme.md`` and the manifest concept points at the package.
     """
     doc = (ROOT / "common/meta/readme.md").read_text(encoding="utf-8")
     manifest = yaml.safe_load(

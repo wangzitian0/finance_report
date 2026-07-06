@@ -269,7 +269,7 @@ The recipe for moving a module (and its EPIC-table ACs) into the package model.
 
 > One package owning the whole authority-tier concept: the **prose SSOT for the
 > *meaning* of the tiers** (this file) **and** the machine implementation +
-> enforcement (the matrix, classifier, and gates under `common/authority/`). This
+> enforcement (the matrix, classifier, and gates under `common/meta` (base for the matrix, extension for the gates)). This
 > readme is the single registered owner of the tier vocabulary, the cross-tier
 > MUST rules, and the tier→proof matrix — internalized here from the retired
 > `docs/ssot/authority-tiers.md` per the package-migration standard
@@ -395,7 +395,7 @@ the convention so it is a correct template to copy for LLM-LED/LLM-ONLY packages
 
 This matrix is the operative contract: which proof shape is *valid* evidence for
 an AC under a package at each tier. Its single machine source is
-`TIER_VALID_PROOF_KINDS` in `common/authority/authority_matrix.py` (the same
+`TIER_VALID_PROOF_KINDS` in `common/meta/base/authority_matrix.py` (the same
 matrix `PackageContract` and `check_ac_proof_kind` both enforce).
 
 | Tier | Valid proof | NOT valid |
@@ -431,7 +431,7 @@ deterministic core and the LLM surface:
 
 Rule 2 ("CODE-ONLY stays pure") has a *structural* half that is checkable statically:
 a deterministic financial-truth (CODE-ONLY) module MUST NOT **import** the LLM layer.
-`tools/check_tier_imports.py` (impl `common/authority/check_tier_imports.py`) makes
+`tools/check_tier_imports.py` (impl `common/meta/extension/check_tier_imports.py`) makes
 this a deterministic gate, AST-based and direct-import-only, complementing the
 per-AC `{proof:KIND}` gate. On `main` today no protected module imports the LLM
 layer, so the gate starts GREEN — it is a guard against regression.
@@ -554,7 +554,7 @@ into four bands:
 Because the bit is detected, the band is **computed, not argued** — so it serves
 as a **cross-check on the declared `PackageContract.tier`**: a package declared on
 the hard side (`CODE-ONLY`/`CODE-LED`) but measuring `LLM` ACs is drift. The base
-library is `common/authority/authority_classifier.py`; `tools/authority_counter.py`
+library is `common/meta/extension/authority_classifier.py`; `tools/authority_counter.py`
 prints the live view on demand (no committed snapshot). This cross-check is
 **enforced** by `tools/check_authority_reconcile.py`, which fails CI at the
 enforceable ends (declared `CODE-ONLY` ⟹ no `LLM` test; `LLM-ONLY` ⟹ no
@@ -566,7 +566,7 @@ financial truth crosses a CODE-ONLY oracle; an `LLM` AC must have a cassette).
 The **target** model — like every migrated package — is to converge by **layer**
 (base / extension / data) rather than by role. `authority` is **not there yet**:
 its `contract.py` still declares legacy `roles=["matrix", "classifier", "gates"]`
-and the files are physically flat under `common/authority/`. The base/extension
+and the files are physically flat under `common/meta` (base for the matrix, extension for the gates). The base/extension
 split below is therefore the **conceptual/intended** layering each file maps onto;
 the role-to-layer migration is still pending.
 
