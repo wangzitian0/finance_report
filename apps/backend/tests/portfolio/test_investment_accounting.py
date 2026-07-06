@@ -13,7 +13,7 @@ from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntryStatus
 from src.models.layer3 import CostBasisMethod, PositionStatus
 from src.models.portfolio import DividendIncome, InvestmentLot, InvestmentTransaction
-from src.services.investment_accounting import InvestmentAccountingService, InvestmentAccountingValidationError
+from src.portfolio import InvestmentAccountingService, InvestmentAccountingValidationError
 
 
 @pytest.fixture

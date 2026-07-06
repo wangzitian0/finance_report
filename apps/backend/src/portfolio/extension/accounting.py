@@ -1,4 +1,21 @@
-"""Brokerage investment transaction accounting service."""
+"""Brokerage investment transaction accounting service.
+
+Moved verbatim from ``services/investment_accounting.py`` (standard-preserving
+move, Decision A — #1416/#1422). ``InvestmentAccountingService`` composes
+``ledger.post_entry`` for the write side: ``post_buy``/``post_sell``/
+``post_dividend`` each post a balanced ``Entry`` and update the position's
+own aggregate (``ManagedPosition``/``InvestmentLot``/``InvestmentTransaction``/
+``DividendIncome``) in the same transaction — one domain writes its own
+aggregate, ledger posts on receipt, no shared FK (Decision B).
+
+``InvestmentAccountingResult`` holds ORM references (``InvestmentTransaction``/
+``JournalEntry``/``ManagedPosition``), so — like those entities — it stays
+taxonomy-only in the contract rather than base/-declared: the base-layer-pure
+invariant forbids ORM types in ``base/``, and these ORM types are themselves
+deferred to Stage-4 (same deferral extraction/ledger already made).
+"""
+
+from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
@@ -22,16 +39,9 @@ from src.models.portfolio import (
     InvestmentTransaction,
     InvestmentTransactionType,
 )
+from src.portfolio.base.errors import InvestmentAccountingValidationError
 
 INVESTMENT_QUANTITY_UNIT = "units"
-
-
-class InvestmentAccountingError(Exception):
-    """Base exception for investment accounting errors."""
-
-
-class InvestmentAccountingValidationError(InvestmentAccountingError):
-    """Raised when an investment transaction cannot be posted."""
 
 
 @dataclass(frozen=True)

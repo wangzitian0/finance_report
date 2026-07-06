@@ -83,15 +83,19 @@ CONTRACT = PackageContract(
         Unit(name="CostBasisMethod", kind=Kind.VALUE_OBJECT),
         Unit(name="InvestmentTransactionType", kind=Kind.VALUE_OBJECT),
         Unit(name="DividendType", kind=Kind.VALUE_OBJECT),
-        # ── extension (reserved — P2): the write-side accounting service ──
-        # post_buy/post_sell/post_dividend compose ledger.post_entry;
-        # InvestmentAccountingResult holds ORM references (InvestmentTransaction/
-        # JournalEntry/ManagedPosition) so it lives here, not base/ (the
-        # base-layer-pure invariant forbids ORM types in base/).
-        Unit(name="InvestmentAccountingResult", kind=Kind.DOMAIN_SERVICE),
-        Unit(name="post_buy", kind=Kind.DOMAIN_SERVICE),
-        Unit(name="post_sell", kind=Kind.DOMAIN_SERVICE),
-        Unit(name="post_dividend", kind=Kind.DOMAIN_SERVICE),
+        # ── extension: the write-side accounting service ──
+        # post_buy/post_sell/post_dividend (methods, not separate units)
+        # compose ledger.post_entry. InvestmentAccountingResult holds ORM
+        # references (InvestmentTransaction/JournalEntry/ManagedPosition) —
+        # taxonomy-only (no module=) for the same reason those entities are:
+        # the base-layer-pure invariant forbids ORM types in base/, and these
+        # ORM types are themselves deferred to Stage-4.
+        Unit(name="InvestmentAccountingResult", kind=Kind.VALUE_OBJECT),
+        Unit(
+            name="InvestmentAccountingService",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/accounting.py",
+        ),
         # ── extension (reserved — P3): the read-side holdings/P&L queries ──
         # + the repository port/adapter split the issue's DoD calls for
         # (currently raw AsyncSession in services/portfolio.py).
@@ -115,14 +119,18 @@ CONTRACT = PackageContract(
         Unit(name="PortfolioSummaryResponse", kind=Kind.PROJECTION),
     ],
     implementations={"be": "apps/backend/src/portfolio", "fe": None},
-    # This commit's real, working surface: the 6 plain-exception error types.
-    # Everything else above is reserved (taxonomy-only or no module=) until a
-    # later commit moves the real implementation in — same incremental
-    # pattern the pricing cutover (#1610, PR #1617) used.
+    # This commit's real, working surface: the 6 plain-exception error types
+    # plus InvestmentAccountingService (post_buy/post_sell/post_dividend) and
+    # its InvestmentAccountingResult. Everything else above is reserved
+    # (taxonomy-only or no module=) until a later commit moves the real
+    # implementation in — same incremental pattern the pricing cutover
+    # (#1610, PR #1617) used.
     interface=[
         "AssetNotFoundError",
         "InvalidDateRangeError",
         "InvestmentAccountingError",
+        "InvestmentAccountingResult",
+        "InvestmentAccountingService",
         "InvestmentAccountingValidationError",
         "PortfolioError",
         "PortfolioNotFoundError",
