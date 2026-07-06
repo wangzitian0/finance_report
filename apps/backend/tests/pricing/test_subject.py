@@ -10,7 +10,7 @@ empty, #1610 P5) — see ``docs/project/traceability-exceptions.md``.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
@@ -76,7 +76,7 @@ def test_price_observation_rejects_a_float_value():
             subject=PriceableSubject.security("AAPL"),
             value=1.5,
             as_of=date(2026, 6, 1),
-            observed_at=datetime(2026, 6, 1, 12),
+            observed_at=datetime(2026, 6, 1, 12, tzinfo=UTC),
             source=ObservationSource.CRAWLER,
             authority=Authority.CRAWLER,
         )
@@ -88,7 +88,7 @@ def test_price_observation_rejects_a_non_positive_value():
             subject=PriceableSubject.security("AAPL"),
             value=Decimal("0"),
             as_of=date(2026, 6, 1),
-            observed_at=datetime(2026, 6, 1, 12),
+            observed_at=datetime(2026, 6, 1, 12, tzinfo=UTC),
             source=ObservationSource.CRAWLER,
             authority=Authority.CRAWLER,
         )
@@ -100,7 +100,21 @@ def test_price_observation_rejects_a_non_finite_value():
             subject=PriceableSubject.security("AAPL"),
             value=Decimal("NaN"),
             as_of=date(2026, 6, 1),
-            observed_at=datetime(2026, 6, 1, 12),
+            observed_at=datetime(2026, 6, 1, 12, tzinfo=UTC),
+            source=ObservationSource.CRAWLER,
+            authority=Authority.CRAWLER,
+        )
+
+
+def test_price_observation_rejects_a_naive_observed_at():
+    """A naive datetime would raise TypeError the moment resolve() compares
+    it against an aware one (e.g. a DB-sourced observation)."""
+    with pytest.raises(InvalidObservationError):
+        PriceObservation(
+            subject=PriceableSubject.security("AAPL"),
+            value=Decimal("100"),
+            as_of=date(2026, 6, 1),
+            observed_at=datetime(2026, 6, 1, 12),  # no tzinfo
             source=ObservationSource.CRAWLER,
             authority=Authority.CRAWLER,
         )
@@ -112,7 +126,7 @@ def test_price_observation_allows_observed_at_later_than_as_of():
         subject=PriceableSubject.security("AAPL"),
         value=Decimal("100"),
         as_of=date(2026, 1, 1),
-        observed_at=datetime(2026, 6, 1, 12),
+        observed_at=datetime(2026, 6, 1, 12, tzinfo=UTC),
         source=ObservationSource.STATEMENT,
         authority=Authority.STATEMENT,
     )

@@ -12,8 +12,9 @@ empty, #1610 P5) — see ``docs/project/traceability-exceptions.md``.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from uuid import UUID
 
 import pytest
 
@@ -34,7 +35,11 @@ def _observation(
     source: ObservationSource = ObservationSource.CRAWLER,
     authority: Authority = Authority.CRAWLER,
     subject: PriceableSubject = SUBJECT,
+    id: UUID | None = None,
 ) -> PriceObservation:
+    if observed_at.tzinfo is None:
+        observed_at = observed_at.replace(tzinfo=UTC)
+    kwargs = {"id": id} if id is not None else {}
     return PriceObservation(
         subject=subject,
         value=Decimal(value),
@@ -43,6 +48,7 @@ def _observation(
         source=source,
         authority=authority,
         currency="USD",
+        **kwargs,
     )
 
 
@@ -166,3 +172,18 @@ def test_raises_no_observation_error_for_an_empty_candidate_list():
 
     with pytest.raises(NoObservationError):
         resolve(SUBJECT, date(2026, 6, 1), ResolutionPolicy(), [])
+
+
+def test_tie_break_falls_back_to_id_when_authority_as_of_and_observed_at_all_collide():
+    """A genuine timestamp collision (e.g. two crawler ticks in one batch) must
+    still resolve deterministically — never depend on the candidates list's
+    incoming order (Copilot review, PR #1617)."""
+    from src.pricing.extension.resolve import resolve
+
+    same_moment = datetime(2026, 6, 1, 9, tzinfo=UTC)
+    lower_id = _observation(value="100", as_of=date(2026, 6, 1), observed_at=same_moment, id=UUID(int=1))
+    higher_id = _observation(value="101", as_of=date(2026, 6, 1), observed_at=same_moment, id=UUID(int=2))
+
+    # Order must not matter — try both permutations.
+    assert resolve(SUBJECT, date(2026, 6, 1), ResolutionPolicy(), [lower_id, higher_id]) is higher_id
+    assert resolve(SUBJECT, date(2026, 6, 1), ResolutionPolicy(), [higher_id, lower_id]) is higher_id

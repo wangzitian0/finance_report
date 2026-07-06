@@ -28,8 +28,12 @@ def resolve(
     requested date, ``authority >= policy.min_authority``, and — when
     ``policy.max_age_days`` is set — within that many days of the requested
     date. Among eligible candidates the winner is the one with, in order:
-    highest authority, then latest ``as_of``, then latest ``observed_at``
-    (deterministic — no two distinct observations tie on all three).
+    highest authority, then latest ``as_of``, then latest ``observed_at``,
+    then highest ``id`` — total-ordered even if two observations otherwise
+    tie (``observed_at`` is wall-clock time and can genuinely collide, e.g.
+    two crawler ticks recorded in the same batch); ``id`` carries no meaning
+    of its own, it exists purely so ``resolve()`` never depends on the
+    candidate list's incoming order.
 
     Raises :class:`NoObservationError` when no candidate is eligible.
     """
@@ -43,4 +47,4 @@ def resolve(
     ]
     if not eligible:
         raise NoObservationError(f"no eligible observation for {subject.kind}:{subject.key} as of {as_of}")
-    return max(eligible, key=lambda c: (c.authority, c.as_of, c.observed_at))
+    return max(eligible, key=lambda c: (c.authority, c.as_of, c.observed_at, c.id))

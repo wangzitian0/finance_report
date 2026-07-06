@@ -73,3 +73,8 @@ class PriceObservation:
             raise InvalidObservationError("observation value must be finite")
         if self.value <= 0:
             raise InvalidObservationError("observation value must be positive")
+        if self.observed_at.tzinfo is None:
+            raise InvalidObservationError(
+                "observed_at must be timezone-aware — a naive datetime would raise "
+                "TypeError the moment resolve() compares it against an aware one"
+            )
