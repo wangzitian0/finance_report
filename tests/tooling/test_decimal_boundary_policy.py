@@ -65,7 +65,7 @@ def test_AC12_31_3_migrated_hotspots_use_base_packages():
     quantity_service_files = [
         Path("apps/backend/src/services/assets.py"),
         Path("apps/backend/src/portfolio/extension/accounting.py"),
-        Path("apps/backend/src/services/market_data"),
+        Path("apps/backend/src/services/market_data_discovery.py"),
         Path("apps/backend/src/services/reporting"),
     ]
     naked_quantity_zero = re.compile(

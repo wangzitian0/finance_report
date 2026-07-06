@@ -31,7 +31,6 @@ from src.services.market_data._providers import (
     _yahoo_chart_params,
 )
 from src.services.market_data._store import (
-    _active_stock_symbols,
     _derive_from_bridge_rates,
     _fallback_last_success_at,
     _is_sync_scope_fresh,
@@ -46,7 +45,6 @@ from src.services.market_data._store import (
     _load_stored_stock_price,
     _load_stored_stock_price_on_date,
     _load_sync_state,
-    _observed_fx_pairs,
     _persist_fx_rate,
     _persist_stock_price,
     _stored_fx_rate_dates,
@@ -118,7 +116,6 @@ __all__ = [
     "_STOCK_SYNC_SPEC",
     "_StoredFxRate",
     "_StoredStockPrice",
-    "_active_stock_symbols",
     "_date_to_epoch",
     "_default_start_date",
     "_derive_from_bridge_rates",
@@ -161,7 +158,6 @@ __all__ = [
     "_normalize_utc",
     "_observation_date",
     "_observations_by_date",
-    "_observed_fx_pairs",
     "_parse_fx_pair",
     "_parse_stooq_close_rows",
     "_parse_stooq_fx_csv_series",

@@ -43,7 +43,7 @@ BACKEND_MONEY_ADAPTER_FILES = [
 BACKEND_QUANTITY_ADAPTER_FILES = [
     Path("apps/backend/src/services/assets.py"),
     Path("apps/backend/src/portfolio/extension/accounting.py"),
-    Path("apps/backend/src/services/market_data"),
+    Path("apps/backend/src/services/market_data_discovery.py"),
     Path("apps/backend/src/services/portfolio.py"),
     Path("apps/backend/src/services/reporting"),
 ]
