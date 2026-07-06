@@ -117,10 +117,17 @@ CONTRACT = PackageContract(
             kind=Kind.DOMAIN_SERVICE,
             module="extension/manual.py",
         ),
-        # ── extension (reserved): crawler sync, FX-specific lookup services,
-        # and the extraction event subscriber ──
+        # get_exchange_rate is a thin FX-specific wrapper: the identity rate
+        # (a currency against itself) is a business rule that doesn't belong
+        # in subject-agnostic resolve(); everything else routes through the
+        # same PriceableSubject + resolve() path every other subject kind
+        # uses. Caching and the lazy crawler-fallback (fx.py's lazy_load)
+        # are deliberately deferred — see extension/fx.py's docstring.
+        Unit(
+            name="get_exchange_rate", kind=Kind.DOMAIN_SERVICE, module="extension/fx.py"
+        ),
+        # ── extension (reserved): crawler sync + the extraction event subscriber ──
         Unit(name="sync_market_data", kind=Kind.DOMAIN_SERVICE),
-        Unit(name="get_exchange_rate", kind=Kind.DOMAIN_SERVICE),
         Unit(name="ingest_statement_price", kind=Kind.DOMAIN_SERVICE),
         # ── data (reserved): read-models consumed by portfolio/reporting/reconciliation ──
         Unit(name="LatestPriceView", kind=Kind.PROJECTION),
@@ -130,10 +137,11 @@ CONTRACT = PackageContract(
     # This commit's real, working surface: the pure base/ model, resolve()
     # (implementation-pure, physically in extension/ per KIND_LAYER), the
     # repository port + its read-only SQL adapter (querying the 4 legacy
-    # tables), and the two user-scoped write-side recorders. The remaining 3
-    # domain-services (crawler sync, FX lookup, extraction-event ingest) + 2
-    # data projections are reserved units above — they join the interface
-    # once a later commit implements them for real.
+    # tables), the two user-scoped write-side recorders, and the FX lookup
+    # wrapper. The remaining 2 domain-services (crawler sync,
+    # extraction-event ingest) + 2 data projections are reserved units
+    # above — they join the interface once a later commit implements them
+    # for real.
     interface=[
         "Authority",
         "ObservationRepository",
@@ -144,6 +152,7 @@ CONTRACT = PackageContract(
         "PricingError",
         "ResolutionPolicy",
         "SqlObservationRepository",
+        "get_exchange_rate",
         "record_manual_valuation",
         "record_override",
         "resolve",

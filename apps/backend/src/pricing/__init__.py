@@ -12,12 +12,12 @@ This commit ships the pure ``base/`` layer (subject identity, the append-only
 (implementation-pure, physically in ``extension/`` per ``KIND_LAYER``),
 ``SqlObservationRepository`` (a read-only adapter over the 4 legacy tables —
 schema-preserving on purpose, so it can land ahead of unifying them into one
-physical store), and the two user-scoped write recorders
-(``record_manual_valuation``/``record_override``). The remaining
-``extension/`` domain services (crawler sync, FX rate lookup, the
-extraction-event subscriber) and the ``data/`` projections are reserved
-(declared in the contract's ``units`` with no module path) for a later
-commit.
+physical store), the two user-scoped write recorders
+(``record_manual_valuation``/``record_override``), and ``get_exchange_rate``
+(a thin FX-specific wrapper over the same subject+resolve path). The
+remaining ``extension/`` domain services (crawler sync, the extraction-event
+subscriber) and the ``data/`` projections are reserved (declared in the
+contract's ``units`` with no module path) for a later commit.
 """
 
 from __future__ import annotations
@@ -34,6 +34,7 @@ from src.pricing.base import (
 )
 from src.pricing.extension import (
     SqlObservationRepository,
+    get_exchange_rate,
     record_manual_valuation,
     record_override,
     resolve,
@@ -49,6 +50,7 @@ __all__ = [
     "PricingError",
     "ResolutionPolicy",
     "SqlObservationRepository",
+    "get_exchange_rate",
     "record_manual_valuation",
     "record_override",
     "resolve",
