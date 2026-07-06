@@ -205,7 +205,7 @@ export default function HoldingDetailPage() {
               onClick={() =>
                 setActiveTab(value as "overview" | "dividends" | "realized")
               }
-              className={`rounded border px-3 py-1.5 text-sm ${activeTab === value ? "border-[var(--accent)] text-[var(--accent)]" : "border-[var(--border)] text-muted"}`}
+              className={`inline-flex min-h-[44px] items-center rounded border px-3 py-2.5 text-sm ${activeTab === value ? "border-[var(--accent)] text-[var(--accent)]" : "border-[var(--border)] text-muted"}`}
             >
               {label}
             </button>

@@ -93,7 +93,7 @@ export default function BalanceSheetPage() {
       <div key={node.account_id} role="treeitem" aria-level={depth + 1} aria-selected={false} aria-expanded={hasChildren ? isExpanded : undefined}>
         <div className="flex items-center justify-between px-3 py-2 text-sm rounded-md hover:bg-[var(--background-muted)]/50" style={{ paddingLeft: depth * 16 + 12 }}>
           <div className="flex items-center gap-2">
-            {hasChildren && <button onClick={() => toggle(node.account_id)} className="w-5 h-5 rounded-md bg-[var(--background-muted)] text-xs flex items-center justify-center">{isExpanded ? "–" : "+"}</button>}
+            {hasChildren && <button onClick={() => toggle(node.account_id)} aria-label={isExpanded ? `Collapse ${node.name}` : `Expand ${node.name}`} className="-my-2 flex h-11 w-11 items-center justify-center text-base leading-none text-[var(--foreground-muted)] hover:text-[var(--foreground)]"><span className="flex h-5 w-5 items-center justify-center rounded-md bg-[var(--background-muted)] text-xs" aria-hidden="true">{isExpanded ? "–" : "+"}</span></button>}
             <span>{node.name}</span>
             <ProvenanceBadge provenance={node.provenance} />
           </div>
