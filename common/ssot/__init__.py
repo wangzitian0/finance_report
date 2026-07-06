@@ -1,1 +1,0 @@
-"""SSOT helper modules."""

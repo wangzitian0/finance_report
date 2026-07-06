@@ -24,7 +24,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects import postgresql
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 BACKEND_ROOT = REPO_ROOT / "apps" / "backend"
 OUTPUT_PATH = REPO_ROOT / "docs" / "reference" / "db-schema.md"
 
