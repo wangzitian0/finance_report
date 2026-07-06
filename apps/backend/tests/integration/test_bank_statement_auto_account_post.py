@@ -19,7 +19,7 @@ from src.extraction.extension.service import ExtractionService
 from src.models.account import Account, AccountType
 from src.models.journal import JournalEntry, JournalEntryStatus
 from src.models.statement_enums import BankStatementStatus
-from src.services.statement_posting import try_auto_approve_high_confidence_statement
+from src.extraction.extension.statement_posting import try_auto_approve_high_confidence_statement
 
 
 def _balanced_bank_payload() -> dict:

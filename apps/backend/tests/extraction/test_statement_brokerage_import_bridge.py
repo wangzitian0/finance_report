@@ -16,8 +16,8 @@ from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
-from src.services import statement_parsing
-from src.services.statement_parsing import (
+from src.extraction.extension import statement_parsing
+from src.extraction.extension.statement_parsing import (
     _count_brokerage_positions,
     _filter_failure_handler_kwargs,
     parse_statement_background,
@@ -524,9 +524,9 @@ async def test_parse_statement_background_imports_brokerage_positions(client, db
         summary._extracted_payload = _brokerage_payload()
         return summary, []
 
-    monkeypatch.setattr("src.services.statement_parsing.ExtractionService.parse_document", fake_parse_document)
+    monkeypatch.setattr("src.extraction.extension.statement_parsing.ExtractionService.parse_document", fake_parse_document)
     monkeypatch.setattr(
-        "src.services.statement_parsing.StorageService.generate_presigned_url",
+        "src.extraction.extension.statement_parsing.StorageService.generate_presigned_url",
         lambda *args, **kwargs: "https://example.com/moomoo-positions.pdf",
     )
 
@@ -632,9 +632,9 @@ async def test_parse_statement_background_routes_brokerage_to_review_without_imp
         summary._extracted_payload = _brokerage_payload()
         return summary, []
 
-    monkeypatch.setattr("src.services.statement_parsing.ExtractionService.parse_document", fake_parse_document)
+    monkeypatch.setattr("src.extraction.extension.statement_parsing.ExtractionService.parse_document", fake_parse_document)
     monkeypatch.setattr(
-        "src.services.statement_parsing.StorageService.generate_presigned_url",
+        "src.extraction.extension.statement_parsing.StorageService.generate_presigned_url",
         lambda *args, **kwargs: "https://example.com/moomoo-review.pdf",
     )
 

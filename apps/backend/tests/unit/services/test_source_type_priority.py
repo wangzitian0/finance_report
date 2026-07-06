@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 
 from src.models.journal import JournalEntry, JournalEntrySourceType
-from src.services.source_type_priority import (
+from src.audit import (
     SourceTypeDowngradeError,
     is_user_data_source_type,
     normalize_source_type,

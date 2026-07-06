@@ -30,7 +30,7 @@ from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AtomicPosition
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
-from src.services.statement_parsing import route_brokerage_for_review_if_present
+from src.extraction.extension.statement_parsing import route_brokerage_for_review_if_present
 
 _ASSET = "GATED_TEST_STOCK"
 

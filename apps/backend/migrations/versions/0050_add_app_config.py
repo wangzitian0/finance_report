@@ -4,7 +4,7 @@ Creates a single key/value ``app_config`` table so app-level settings (starting
 with the base reporting currency) can be overridden at runtime instead of being
 env-only. ``key`` is unique so each setting has exactly one row; the effective
 value is "persisted row else ``settings.base_currency``" (see
-``src.services.app_config.get_effective_base_currency``).
+``src.config_app.get_effective_base_currency``).
 """
 
 from __future__ import annotations

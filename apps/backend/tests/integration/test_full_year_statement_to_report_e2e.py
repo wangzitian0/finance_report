@@ -23,8 +23,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.extraction.extension.service import ExtractionService
 from src.models.account import Account, AccountType
 from src.services.reporting import generate_balance_sheet, generate_cash_flow, generate_income_statement
-from src.services.statement_posting import auto_create_posted_entries_for_statement
-from src.services.statement_validation import approve_statement
+from src.extraction.extension.statement_posting import auto_create_posted_entries_for_statement
+from src.extraction.extension.statement_validation import approve_statement
 
 # A full year of distinct, non-overlapping monthly statement periods (the
 # period-overlap posting guard requires distinct ranges per account).

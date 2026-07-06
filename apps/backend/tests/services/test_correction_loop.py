@@ -12,7 +12,7 @@ from uuid import uuid4
 import pytest
 
 from src.models.correction import CorrectionLog
-from src.services.correction_loop import (
+from src.extraction.extension.correction_loop import (
     CorrectionLoopService,
     CorrectionRecord,
     build_corpus_from_corrections,

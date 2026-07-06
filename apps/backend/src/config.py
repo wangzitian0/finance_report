@@ -687,7 +687,7 @@ class Settings(BaseSettings):
         """Parsed Fernet keys for provider-secret encryption (newest first).
 
         Empty when ``LLM_ENCRYPTION_KEYS`` is unset, which means DB-backed
-        provider secrets cannot be stored (see ``src/llm/common/secrets.py``).
+        provider secrets cannot be stored (see ``src/llm/base/secrets.py``).
         """
         return parse_comma_list(self.llm_encryption_keys, [])
 

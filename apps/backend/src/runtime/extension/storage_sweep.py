@@ -19,7 +19,7 @@ from src.config import settings
 from src.database import async_session_maker
 from src.models.layer1 import UploadedDocument
 from src.observability import get_logger
-from src.services import StorageError, StorageService
+from src.runtime import StorageError, StorageService
 
 logger = get_logger(__name__)
 

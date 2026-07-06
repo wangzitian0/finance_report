@@ -15,7 +15,7 @@ from src.schemas.provenance import DataProvenance
 from src.services.fx import (
     FxWarning,
 )
-from src.services.fx_revaluation import RevaluationError, calculate_unrealized_fx_gains
+from src.ledger.extension.fx_revaluation import RevaluationError, calculate_unrealized_fx_gains
 from src.services.reporting._core import (
     _aggregate_account_confidence_tiers,
     _aggregate_account_provenance,
@@ -212,7 +212,7 @@ async def generate_balance_sheet(
     # include_trust_signals so per-point net-worth time series skip the extra scan.
     opening_balance_warnings: list[FxWarning] = []
     if include_trust_signals:
-        from src.services.accounting import get_opening_balance_readiness
+        from src.ledger.extension.accounting import get_opening_balance_readiness
 
         readiness = await get_opening_balance_readiness(db, user_id)
         if readiness.get("needs_opening_balance"):

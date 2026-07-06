@@ -75,7 +75,7 @@ backend through one owned module, not scattered clients.
 | Dependency | Manifest | Probe adapter | Call-site convergence | CI/local substitute | Gap |
 |---|---|---|---|---|---|
 | Postgres (`database`) | ✅ all 6 tiers | ✅ `DatabaseCheck` | ✅ `create_engine` only in `apps/backend/src/database.py` | real Postgres container (sqlite is a config-contract escape hatch only) | — |
-| S3 (`object_storage`) | ✅ all 6 tiers | ✅ `ObjectStorageCheck` | ✅ boto3 only in `apps/backend/src/services/storage.py`; callers (e.g. `extraction/_media.py`) go through it | minio in compose; real `StorageService` pipeline vs moto in-memory S3 (#1520, AC8.26.1–.2); `DummyStorage` remains for cheap router edge cases only | — |
+| S3 (`object_storage`) | ✅ all 6 tiers | ✅ `ObjectStorageCheck` | ✅ boto3 only in `apps/backend/src/runtime/extension/storage.py`; callers (e.g. `extraction/_media.py`) go through it | minio in compose; real `StorageService` pipeline vs moto in-memory S3 (#1520, AC8.26.1–.2); `DummyStorage` remains for cheap router edge cases only | — |
 | LLM (`llm`) | ✅ model-dominant, real on staging/prod | ✅ `LlmCheck`, no `skipped` | ✅ `src/llm/` (client + cassette) | input-keyed cassette replay in CI/preview (AC-llm.6.2), real provider on staging/prod | — |
 | Redis (`cache`) | ✅ staging/prod | ✅ `RedisCheck` (TCP PING) | — | — | — |
 | Prefect (`workflow_engine`) | ✅ staging/prod | ✅ `WorkflowEngineCheck` | in-process fallback in app-owned tiers | — | — |

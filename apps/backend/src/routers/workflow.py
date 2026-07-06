@@ -12,7 +12,7 @@ from src.schemas.workflow import (
     WorkflowEventStatusUpdate,
     WorkflowStatusResponse,
 )
-from src.services.workflow_events import (
+from src.platform.extension.workflow_events import (
     get_workflow_status,
     list_workflow_events_response,
     update_workflow_event_status,

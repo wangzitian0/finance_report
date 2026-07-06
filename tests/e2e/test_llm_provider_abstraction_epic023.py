@@ -1,7 +1,7 @@
 """Product E2E owner for EPIC-023 (LLM provider abstraction).
 
 Mirrors the EPIC-021 owner pattern: a marker-`e2e` contract test that anchors the
-EPIC to its shipped surface. PR1 ships the *contract* (`src/llm/base`, formerly `src/llm/common`) and the
+EPIC to its shipped surface. PR1 ships the *contract* (`src/llm/base`, formerly `src/llm/base`) and the
 secret cipher, so the owner asserts that the EPIC doc, the SSOT vocabulary, and
 the code module express the three orthogonal axes and the single-pass secret
 rotation that the litellm migration (PR2/PR3) builds on.

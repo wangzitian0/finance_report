@@ -95,7 +95,7 @@ CONTRACT = PackageContract(
     # audit/config are the only registered packages the impl imports. Both are
     # lower-layer (infra, L1) than ledger (domain, L3), so the edges are
     # downward. (money folded into audit — issue #1419.)
-    depends_on=["audit", "config"],
+    depends_on=["audit", "config", "observability"],
     roles=["base", "extension", "data"],
     units=[
         # base — the pure double-entry core.

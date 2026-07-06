@@ -46,7 +46,7 @@ async def post_opening_balance_entry(
     from src.audit.money import Money, to_money
     from src.audit.money.currency import normalize_currency_code
     from src.ledger import Entry, Leg
-    from src.services.account_service import get_or_create_opening_balance_equity_account
+    from src.ledger.extension.account_service import get_or_create_opening_balance_equity_account
 
     if not balances:
         raise ValidationError("At least one opening balance is required")

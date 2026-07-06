@@ -13,7 +13,7 @@ from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 from src.models.market_data import FxRate
 from src.services.fx import FxRateError
-from src.services.fx_revaluation import (
+from src.ledger.extension.fx_revaluation import (
     AccountRevaluation,
     RevaluationError,
     calculate_account_balance_in_currency,
@@ -448,7 +448,7 @@ class TestCalculateUnrealizedFxForAccount:
         with pytest.raises(RevaluationError, match="Missing FX rate for EUR/SGD"):
             await calculate_unrealized_fx_for_account(db, eur_account, date(2025, 1, 31), "SGD")
 
-    @patch("src.services.fx_revaluation.get_exchange_rate")
+    @patch("src.ledger.extension.fx_revaluation.get_exchange_rate")
     async def test_handles_fx_rate_error_exception(
         self, mock_get_rate, db: AsyncSession, test_user_id, usd_asset_account, sgd_asset_account
     ):
@@ -854,7 +854,7 @@ class TestCalculateUnrealizedFxGainsNoneFiltering:
         from unittest.mock import AsyncMock, patch
 
         with patch(
-            "src.services.fx_revaluation.calculate_unrealized_fx_for_account",
+            "src.ledger.extension.fx_revaluation.calculate_unrealized_fx_for_account",
             new_callable=AsyncMock,
         ) as mock_calc:
             mock_calc.return_value = None

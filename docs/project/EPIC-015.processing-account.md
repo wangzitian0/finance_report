@@ -172,10 +172,10 @@ Balance ≠ 0  → Pending Review ⚠️
 - [x] `apps/backend/migrations/versions/c955c65dcc1f_add_is_system_to_accounts.py` - Migration
 - [x] `apps/backend/src/models/account.py` - is_system flag added
 - [x] `apps/backend/src/schemas/account.py` - is_system schema field
-- [x] `apps/backend/src/services/account_service.py` - System account handling (31 lines)
+- [x] `apps/backend/src/ledger/extension/account_service.py` - System account handling (31 lines)
 - [x] `apps/backend/src/services/processing_account.py` (487 lines) - Core service
 - [x] `apps/backend/src/services/reconciliation.py` - 3-phase flow integration (128 lines added)
-- [x] `apps/backend/src/services/accounting.py` - Import/export updates (9 lines)
+- [x] `apps/backend/src/ledger/extension/accounting.py` - Import/export updates (9 lines)
 - [x] `apps/backend/tests/accounting/test_processing_account.py` (811 lines) - Unit tests (33 tests)
 - [x] `apps/backend/tests/reconciliation/test_transfer_integration.py` (569 lines) - Integration tests (7 tests)
 

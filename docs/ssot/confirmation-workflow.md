@@ -13,7 +13,7 @@
 | `Stage1Status` enum | `apps/backend/src/models/statement_enums.py` (enum); `apps/backend/src/models/statement_summary.py` — `StatementSummary.stage1_status` (nullable; `None` at upload, set during review workflow) |
 | `Stage2Status` on match | `apps/backend/src/models/reconciliation.py` — `ReconciliationMatch.status` |
 | `pending_review` usage | `apps/backend/src/routers/statements.py`, `apps/backend/src/routers/reconciliation.py` |
-| Balance-chain validation | `apps/backend/src/services/statement_validation.py` |
+| Balance-chain validation | `apps/backend/src/extraction/extension/statement_validation.py` |
 | Consistency checks | `apps/backend/src/services/consistency_checks.py` |
 
 ---

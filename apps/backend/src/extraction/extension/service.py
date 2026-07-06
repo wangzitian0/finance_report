@@ -52,7 +52,7 @@ from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
 from src.observability import record_financial_invariant_violation
-from src.services.chain_repair import RegionReExtractor, repair_under_extraction
+from src.extraction.extension.chain_repair import RegionReExtractor, repair_under_extraction
 
 # Bound from the bare published root (config publishes no named symbols).
 settings = src.config.settings

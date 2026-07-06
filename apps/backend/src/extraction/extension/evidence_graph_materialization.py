@@ -16,7 +16,7 @@ from src.models.journal import JournalEntry, JournalEntrySourceType, JournalLine
 from src.models.layer1 import UploadedDocument
 from src.models.layer2 import AtomicTransaction, AtomicTransactionSourceDocument
 from src.models.statement_summary import StatementSummary
-from src.services.source_type_priority import STATEMENT_SOURCE_TYPES
+from src.audit import STATEMENT_SOURCE_TYPES
 
 DEFAULT_MATERIALIZATION_WRITE_CAP = 25
 

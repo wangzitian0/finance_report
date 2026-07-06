@@ -34,7 +34,7 @@ from src.schemas.workflow import (
     WorkflowStatusResponse,
 )
 from src.services.report_readiness import get_personal_report_package_readiness
-from src.services.workflow_event_builders import (  # noqa: F401
+from src.platform.extension.workflow_event_builders import (  # noqa: F401
     PACKAGE_WORKFLOW_SOURCE_ID,
     build_readiness_blocker_event_payload,
     build_report_state_event_payload,

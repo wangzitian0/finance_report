@@ -15,8 +15,8 @@ from prefect import flow
 
 from src.database import async_session_maker
 from src.observability import get_logger, run_with_async_parse_tracking
-from src.services import StorageService
-from src.services.statement_parsing import parse_statement_background
+from src.runtime import StorageService
+from src.extraction.extension.statement_parsing import parse_statement_background
 
 logger = get_logger(__name__)
 

@@ -33,13 +33,13 @@ from src.services import promotion_gate as _promotion_gate  # noqa: E402, F401
 def _load_reconciliation_module():
     """Load reconciliation without importing src.services package exports."""
     previous_services = sys.modules.get("src.services")
-    previous_accounting = sys.modules.get("src.services.accounting")
+    previous_accounting = sys.modules.get("src.ledger.extension.accounting")
     previous_logger = sys.modules.get("src.observability")
     # The processing-account transfer verbs were folded into the ledger package
     # (#1420 slice 3b): reconciliation now imports them from ``src.ledger`` instead
     # of ``src.services.processing_account``, so we stub ``src.ledger`` here.
     previous_ledger = sys.modules.get("src.ledger")
-    previous_source_type_priority = sys.modules.get("src.services.source_type_priority")
+    previous_source_type_priority = sys.modules.get("src.audit.source_type_priority")
     previous_statement_summary = sys.modules.get("src.extraction.extension.statement_summary")
 
     # A dedicated stub exception (not bare ValueError) so production
@@ -51,7 +51,7 @@ def _load_reconciliation_module():
 
     services_package = ModuleType("src.services")
     services_package.__path__ = []  # type: ignore[attr-defined]
-    accounting_module = ModuleType("src.services.accounting")
+    accounting_module = ModuleType("src.ledger.extension.accounting")
     accounting_module.ValidationError = _StubValidationError
     accounting_module.validate_journal_balance = Mock()
     logger_module = ModuleType("src.observability")
@@ -64,17 +64,17 @@ def _load_reconciliation_module():
     ledger_module.create_transfer_out_entry = AsyncMock()
     ledger_module.detect_transfer_pattern = Mock(return_value=False)
     ledger_module.find_transfer_pairs = AsyncMock(return_value=[])
-    source_type_priority_module = ModuleType("src.services.source_type_priority")
+    source_type_priority_module = ModuleType("src.audit.source_type_priority")
     source_type_priority_module.promote_entry_source_type = Mock(return_value=False)
     source_type_priority_module.source_type_rank = Mock(return_value=0)
     statement_summary_module = ModuleType("src.extraction.extension.statement_summary")
     statement_summary_module.resolve_custody_account_id = AsyncMock(return_value=None)
 
     sys.modules["src.services"] = services_package
-    sys.modules["src.services.accounting"] = accounting_module
+    sys.modules["src.ledger.extension.accounting"] = accounting_module
     sys.modules["src.observability"] = logger_module
     sys.modules["src.ledger"] = ledger_module
-    sys.modules["src.services.source_type_priority"] = source_type_priority_module
+    sys.modules["src.audit.source_type_priority"] = source_type_priority_module
     sys.modules["src.extraction.extension.statement_summary"] = statement_summary_module
 
     # reconciliation.py was split into focused submodules; load them (in dependency
@@ -121,9 +121,9 @@ def _load_reconciliation_module():
         else:
             sys.modules["src.services"] = previous_services
         if previous_accounting is None:
-            sys.modules.pop("src.services.accounting", None)
+            sys.modules.pop("src.ledger.extension.accounting", None)
         else:
-            sys.modules["src.services.accounting"] = previous_accounting
+            sys.modules["src.ledger.extension.accounting"] = previous_accounting
         if previous_logger is None:
             sys.modules.pop("src.observability", None)
         else:
@@ -133,9 +133,9 @@ def _load_reconciliation_module():
         else:
             sys.modules["src.ledger"] = previous_ledger
         if previous_source_type_priority is None:
-            sys.modules.pop("src.services.source_type_priority", None)
+            sys.modules.pop("src.audit.source_type_priority", None)
         else:
-            sys.modules["src.services.source_type_priority"] = (
+            sys.modules["src.audit.source_type_priority"] = (
                 previous_source_type_priority
             )
         if previous_statement_summary is None:

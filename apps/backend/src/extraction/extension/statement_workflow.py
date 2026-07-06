@@ -13,8 +13,8 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.statement_summary import StatementSummary
-from src.services.statement_posting import auto_create_posted_entries_for_statement
-from src.services.statement_validation import approve_statement, reject_statement
+from src.extraction.extension.statement_posting import auto_create_posted_entries_for_statement
+from src.extraction.extension.statement_validation import approve_statement, reject_statement
 
 
 async def approve_statement_workflow(db: AsyncSession, statement_id: UUID, user_id: UUID) -> int:

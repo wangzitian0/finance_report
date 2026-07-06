@@ -23,7 +23,7 @@ from unittest.mock import AsyncMock
 
 from src.extraction.base.validation import detect_balance_chain_break, validate_balance
 from src.extraction.extension.service import ExtractionService
-from src.services.chain_repair import (
+from src.extraction.extension.chain_repair import (
     ChainRepairResult,
     repair_under_extraction,
 )

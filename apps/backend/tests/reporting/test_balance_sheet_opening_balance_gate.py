@@ -21,7 +21,7 @@ from src.models.journal import (
     JournalEntryStatus,
     JournalLine,
 )
-from src.services.accounting import post_opening_balance_entry
+from src.ledger.extension.accounting import post_opening_balance_entry
 from src.services.reporting import generate_balance_sheet
 from src.services.reporting.net_worth import get_net_worth_allocation_schedule
 

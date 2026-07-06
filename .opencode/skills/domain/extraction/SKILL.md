@@ -28,7 +28,7 @@ flowchart TB
 
 ## Confidence Scoring (SSOT V2 weights)
 
-Authoritative weights live in `apps/backend/src/services/validation.py::compute_confidence_score`:
+Authoritative weights live in `apps/backend/src/extraction/extension/statement_validation.py::compute_confidence_score`:
 
 | Factor | Weight | Criteria |
 |--------|--------|----------|
@@ -76,5 +76,5 @@ To prevent floating-point errors:
 - **Models**: `apps/backend/src/models/statement.py`
 - **Schemas**: `apps/backend/src/schemas/extraction.py`
 - **Logic**: `apps/backend/src/services/extraction.py`
-- **Validation**: `apps/backend/src/services/validation.py`
-- **Storage**: `apps/backend/src/services/storage.py`
+- **Validation**: `apps/backend/src/extraction/extension/statement_validation.py`
+- **Storage**: `apps/backend/src/runtime/extension/storage.py`

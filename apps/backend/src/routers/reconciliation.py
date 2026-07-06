@@ -32,14 +32,14 @@ from src.schemas.reconciliation import (
 )
 from src.services.anomaly import detect_anomalies
 from src.services.reconciliation import execute_matching, get_reconciliation_stats
-from src.services.review_queue import (
+from src.extraction.extension.review_queue import (
     accept_match as accept_match_service,
     batch_accept as batch_accept_service,
     create_entry_from_txn,
     get_pending_items,
     reject_match as reject_match_service,
 )
-from src.services.source_type_priority import STATEMENT_SOURCE_TYPES
+from src.audit import STATEMENT_SOURCE_TYPES
 
 router = APIRouter(prefix="/reconciliation", tags=["reconciliation"])
 logger = get_logger(__name__)

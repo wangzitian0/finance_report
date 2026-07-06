@@ -16,7 +16,7 @@ from sqlalchemy import func, select
 from src.identity import User
 from src.models.account import Account
 from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.services.test_account_purge import (
+from tests.support.account_purge import (
     DEFAULT_TEST_EMAIL_PATTERN,
     is_safe_purge_environment,
     owned_tables_in_delete_order,

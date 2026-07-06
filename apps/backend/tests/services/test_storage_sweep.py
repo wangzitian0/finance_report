@@ -14,12 +14,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
 from src.models.layer1 import DocumentType, UploadedDocument
-from src.services import StorageError
-from src.services.storage_sweep import (
+from src.runtime.extension.storage_sweep import (
     _list_storage_keys,
     run_storage_sweep,
     sweep_orphaned_storage_objects,
 )
+from src.runtime import StorageError
 
 
 def _orphan_min_age() -> timedelta:
@@ -59,8 +59,8 @@ async def test_sweep_deletes_orphaned_object(db: AsyncSession, test_user):
     mock_keys = [(orphan_key, _old_timestamp())]
 
     with (
-        patch("src.services.storage_sweep.StorageService") as MockStorage,
-        patch("src.services.storage_sweep._list_storage_keys", return_value=mock_keys),
+        patch("src.runtime.extension.storage_sweep.StorageService") as MockStorage,
+        patch("src.runtime.extension.storage_sweep._list_storage_keys", return_value=mock_keys),
     ):
         mock_storage_instance = MagicMock()
         MockStorage.return_value = mock_storage_instance
@@ -90,8 +90,8 @@ async def test_sweep_skips_known_db_objects(db: AsyncSession, test_user):
     mock_keys = [(known_key, _old_timestamp())]
 
     with (
-        patch("src.services.storage_sweep.StorageService") as MockStorage,
-        patch("src.services.storage_sweep._list_storage_keys", return_value=mock_keys),
+        patch("src.runtime.extension.storage_sweep.StorageService") as MockStorage,
+        patch("src.runtime.extension.storage_sweep._list_storage_keys", return_value=mock_keys),
     ):
         mock_storage_instance = MagicMock()
         MockStorage.return_value = mock_storage_instance
@@ -109,8 +109,8 @@ async def test_sweep_skips_recent_objects(db: AsyncSession, test_user):
     mock_keys = [(recent_key, _recent_timestamp())]
 
     with (
-        patch("src.services.storage_sweep.StorageService") as MockStorage,
-        patch("src.services.storage_sweep._list_storage_keys", return_value=mock_keys),
+        patch("src.runtime.extension.storage_sweep.StorageService") as MockStorage,
+        patch("src.runtime.extension.storage_sweep._list_storage_keys", return_value=mock_keys),
     ):
         mock_storage_instance = MagicMock()
         MockStorage.return_value = mock_storage_instance
@@ -124,7 +124,7 @@ async def test_sweep_skips_recent_objects(db: AsyncSession, test_user):
 
 async def test_sweep_skips_when_no_bucket_configured():
     """AC-extraction.8.4: Storage sweep is a no-op when no S3 bucket is configured."""
-    with patch("src.services.storage_sweep.settings") as mock_settings:
+    with patch("src.runtime.extension.storage_sweep.settings") as mock_settings:
         mock_settings.s3_bucket = None
 
         deleted = await sweep_orphaned_storage_objects()
@@ -135,9 +135,9 @@ async def test_sweep_skips_when_no_bucket_configured():
 async def test_sweep_returns_zero_when_no_objects():
     """AC-extraction.8.5: Storage sweep returns zero when no statement objects exist."""
     with (
-        patch("src.services.storage_sweep.settings") as mock_settings,
-        patch("src.services.storage_sweep._list_storage_keys", return_value=[]),
-        patch("src.services.storage_sweep.StorageService"),
+        patch("src.runtime.extension.storage_sweep.settings") as mock_settings,
+        patch("src.runtime.extension.storage_sweep._list_storage_keys", return_value=[]),
+        patch("src.runtime.extension.storage_sweep.StorageService"),
     ):
         mock_settings.s3_bucket = "test-bucket"
 
@@ -149,10 +149,10 @@ async def test_sweep_returns_zero_when_no_objects():
 async def test_sweep_handles_storage_list_error():
     """AC-extraction.8.6: Storage sweep handles storage listing failures without deletions."""
     with (
-        patch("src.services.storage_sweep.settings") as mock_settings,
-        patch("src.services.storage_sweep.StorageService"),
+        patch("src.runtime.extension.storage_sweep.settings") as mock_settings,
+        patch("src.runtime.extension.storage_sweep.StorageService"),
         patch(
-            "src.services.storage_sweep._list_storage_keys",
+            "src.runtime.extension.storage_sweep._list_storage_keys",
             side_effect=StorageError("connection error"),
         ),
     ):
@@ -168,8 +168,8 @@ async def test_sweep_handles_delete_error(db: AsyncSession):
     mock_keys = [(orphan_key, _old_timestamp())]
 
     with (
-        patch("src.services.storage_sweep.StorageService") as MockStorage,
-        patch("src.services.storage_sweep._list_storage_keys", return_value=mock_keys),
+        patch("src.runtime.extension.storage_sweep.StorageService") as MockStorage,
+        patch("src.runtime.extension.storage_sweep._list_storage_keys", return_value=mock_keys),
     ):
         mock_storage_instance = MagicMock()
         mock_storage_instance.delete_object.side_effect = StorageError("Delete failed")
@@ -240,8 +240,8 @@ async def test_run_storage_sweep_exits_on_stop_event():
         return 0
 
     with (
-        patch("src.services.storage_sweep.settings") as mock_settings,
-        patch("src.services.storage_sweep.sweep_orphaned_storage_objects", side_effect=mock_sweep),
+        patch("src.runtime.extension.storage_sweep.settings") as mock_settings,
+        patch("src.runtime.extension.storage_sweep.sweep_orphaned_storage_objects", side_effect=mock_sweep),
     ):
         mock_settings.enable_storage_sweep = True
         mock_settings.storage_sweep_interval_seconds = 86400
@@ -257,9 +257,9 @@ async def test_run_storage_sweep_logs_when_objects_deleted():
         return 5
 
     with (
-        patch("src.services.storage_sweep.settings") as mock_settings,
+        patch("src.runtime.extension.storage_sweep.settings") as mock_settings,
         patch(
-            "src.services.storage_sweep.sweep_orphaned_storage_objects",
+            "src.runtime.extension.storage_sweep.sweep_orphaned_storage_objects",
             side_effect=mock_sweep_with_deletions,
         ),
     ):
@@ -281,8 +281,8 @@ async def test_run_storage_sweep_handles_exception():
         return 0
 
     with (
-        patch("src.services.storage_sweep.settings") as mock_settings,
-        patch("src.services.storage_sweep.sweep_orphaned_storage_objects", side_effect=maybe_raise),
+        patch("src.runtime.extension.storage_sweep.settings") as mock_settings,
+        patch("src.runtime.extension.storage_sweep.sweep_orphaned_storage_objects", side_effect=maybe_raise),
     ):
         mock_settings.enable_storage_sweep = True
         mock_settings.storage_sweep_interval_seconds = 0.001
@@ -296,8 +296,8 @@ async def test_run_storage_sweep_disabled_by_feature_flag():
     stop_event = asyncio.Event()
 
     with (
-        patch("src.services.storage_sweep.settings") as mock_settings,
-        patch("src.services.storage_sweep.sweep_orphaned_storage_objects") as mock_sweep,
+        patch("src.runtime.extension.storage_sweep.settings") as mock_settings,
+        patch("src.runtime.extension.storage_sweep.sweep_orphaned_storage_objects") as mock_sweep,
     ):
         mock_settings.enable_storage_sweep = False
         await run_storage_sweep(stop_event)
@@ -339,9 +339,9 @@ async def test_sweep_reads_grace_period_from_config(db: AsyncSession, test_user)
 
     # With a 1h grace period the 2h-old orphan is out of grace -> deleted.
     with (
-        patch("src.services.storage_sweep.StorageService") as MockStorage,
-        patch("src.services.storage_sweep._list_storage_keys", return_value=mock_keys),
-        patch("src.services.storage_sweep.settings") as mock_settings,
+        patch("src.runtime.extension.storage_sweep.StorageService") as MockStorage,
+        patch("src.runtime.extension.storage_sweep._list_storage_keys", return_value=mock_keys),
+        patch("src.runtime.extension.storage_sweep.settings") as mock_settings,
     ):
         mock_settings.s3_bucket = "test-bucket"
         mock_settings.storage_sweep_grace_period_hours = 1
@@ -352,9 +352,9 @@ async def test_sweep_reads_grace_period_from_config(db: AsyncSession, test_user)
 
     # With a 24h grace period the same 2h-old orphan is within grace -> preserved.
     with (
-        patch("src.services.storage_sweep.StorageService") as MockStorage,
-        patch("src.services.storage_sweep._list_storage_keys", return_value=mock_keys),
-        patch("src.services.storage_sweep.settings") as mock_settings,
+        patch("src.runtime.extension.storage_sweep.StorageService") as MockStorage,
+        patch("src.runtime.extension.storage_sweep._list_storage_keys", return_value=mock_keys),
+        patch("src.runtime.extension.storage_sweep.settings") as mock_settings,
     ):
         mock_settings.s3_bucket = "test-bucket"
         mock_settings.storage_sweep_grace_period_hours = 24
@@ -381,9 +381,9 @@ async def test_run_storage_sweep_reads_interval_from_config():
         return 0
 
     with (
-        patch("src.services.storage_sweep.settings") as mock_settings,
-        patch("src.services.storage_sweep.sweep_orphaned_storage_objects", side_effect=mock_sweep),
-        patch("src.services.storage_sweep.asyncio.wait_for", side_effect=fake_wait_for),
+        patch("src.runtime.extension.storage_sweep.settings") as mock_settings,
+        patch("src.runtime.extension.storage_sweep.sweep_orphaned_storage_objects", side_effect=mock_sweep),
+        patch("src.runtime.extension.storage_sweep.asyncio.wait_for", side_effect=fake_wait_for),
     ):
         mock_settings.enable_storage_sweep = True
         mock_settings.storage_sweep_interval_seconds = 12345

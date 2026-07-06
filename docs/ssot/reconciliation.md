@@ -431,7 +431,7 @@ pending --> flagged: Needs manual review
 |-----------|----------|
 | Model | `apps/backend/src/models/statement_enums.py` (Stage1Status), `apps/backend/src/models/statement_summary.py` (StatementSummary) |
 | Model | `apps/backend/src/models/consistency_check.py` |
-| Service | `apps/backend/src/services/statement_validation.py` |
+| Service | `apps/backend/src/extraction/extension/statement_validation.py` |
 | Service | `apps/backend/src/services/consistency_checks.py` |
 | Router | `apps/backend/src/routers/statements.py` |
 | Frontend | `apps/frontend/src/app/(main)/statements/[id]/review/page.tsx` |

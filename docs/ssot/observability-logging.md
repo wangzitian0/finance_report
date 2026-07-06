@@ -13,7 +13,7 @@
 - `apps/backend/src/observability/` - Shared audit/security event helpers and risky-field redaction (the `observability` package)
 - `apps/backend/src/identity/extension/auth.py` + `apps/backend/src/identity/extension/observability.py` - Authenticated `user_id` log-context binding and auth-failure warnings (the `identity` package, #1428)
 - `apps/backend/src/routers/journal.py` - Journal post/void mutation audit events
-- `apps/backend/src/services/statement_parsing.py` - Async parse progress and brokerage import checkpoints
+- `apps/backend/src/extraction/extension/statement_parsing.py` - Async parse progress and brokerage import checkpoints
 - `apps/backend/src/routers/llm.py` - LLM config + model catalog request/response logging (EPIC-023; replaced `routers/ai_models.py`)
 - `apps/backend/src/extraction/extension/service.py` - Model selection and HTTP error logging
 - `apps/backend/src/services/ai_provider_models.py` - Cache and model lookup logging

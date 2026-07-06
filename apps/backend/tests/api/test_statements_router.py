@@ -48,16 +48,14 @@ from src.schemas.review import (
     ResolveConflictsRequest,
     Stage1ApprovalRequest,
 )
-from src.services import (
-    StorageError,
-    statement_parsing as statement_parsing_mod,
-    statement_pipeline,
-    statement_validation as statement_validation_mod,
-)
-from src.services.review_queue import accept_match as accept_match_service, create_entry_from_txn
-from src.services.source_type_priority import STATEMENT_SOURCE_TYPES
-from src.services.statement_parsing import handle_parse_failure
-from src.services.statement_posting import (
+from src.extraction.extension import statement_parsing as statement_parsing_mod
+from src.extraction.extension import statement_pipeline
+from src.extraction.extension import statement_validation as statement_validation_mod
+from src.runtime import StorageError
+from src.extraction.extension.review_queue import accept_match as accept_match_service, create_entry_from_txn
+from src.audit import STATEMENT_SOURCE_TYPES
+from src.extraction.extension.statement_parsing import handle_parse_failure
+from src.extraction.extension.statement_posting import (
     is_high_confidence_auto_approve_candidate,
     try_auto_approve_high_confidence_statement,
 )

@@ -12,7 +12,7 @@ import pytest
 from botocore.exceptions import ClientError
 
 from src.services.ai_advisor import StreamRedactor
-from src.services.storage import StorageError, StorageService
+from src.runtime import StorageError, StorageService
 
 
 def test_stream_redactor_small_chunks():

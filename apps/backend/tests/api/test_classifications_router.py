@@ -9,7 +9,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 
 from src.models.layer3 import TransactionClassification
-from src.services.transaction_classification import CategoryProposal, TransactionCategory
+from src.extraction.extension.transaction_classification import CategoryProposal, TransactionCategory
 from tests.factories import AtomicTransactionFactory
 
 
@@ -25,7 +25,7 @@ def stub_proposer(monkeypatch):
     async def proposer(transactions, policy):
         return [CategoryProposal(category=TransactionCategory.SALARY.value, confidence=95) for _ in transactions]
 
-    monkeypatch.setattr("src.services.transaction_classification.propose_categories", proposer)
+    monkeypatch.setattr("src.extraction.extension.transaction_classification.propose_categories", proposer)
     return proposer
 
 
@@ -79,7 +79,7 @@ async def test_AC18_17_2_tail_txns_are_reattempted_without_duplication(
     async def low_conf_proposer(transactions, policy):
         return [CategoryProposal(category=TransactionCategory.SALARY.value, confidence=10) for _ in transactions]
 
-    monkeypatch.setattr("src.services.transaction_classification.propose_categories", low_conf_proposer)
+    monkeypatch.setattr("src.extraction.extension.transaction_classification.propose_categories", low_conf_proposer)
     await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="??? mystery")
     await db.commit()
 

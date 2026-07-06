@@ -50,7 +50,7 @@ from src.services.reporting import (
     generate_income_statement,
     get_category_breakdown,
 )
-from src.services.workflow_events import get_workflow_status
+from src.platform.extension.workflow_events import get_workflow_status
 
 
 class AIAdvisorError(Exception):

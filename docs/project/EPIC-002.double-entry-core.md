@@ -57,7 +57,7 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 
 ### Business Logic (Backend) ✅
 
-- [x] `services/accounting.py` - Accounting core
+- [x] `ledger/extension/accounting.py` - Accounting core
   - [x] `validate_journal_balance()` - Debit/credit balance validation
   - [x] `post_journal_entry()` - Posting logic
   - [x] `calculate_account_balance()` - Account balance calculation
@@ -311,7 +311,7 @@ class TestVoidRequest:         # 2 tests
 ### Test Coverage: 73%+ ✅
 
 ```
-src/services/accounting.py      91%
+src/ledger/extension/accounting.py      91%
 src/schemas/account.py         100%
 src/schemas/journal.py         100%
 src/models/account.py           97%
@@ -379,7 +379,7 @@ retained in [#548](https://github.com/wangzitian0/finance_report/issues/548):
 
 - [x] `apps/backend/src/models/account.py` - Account model
 - [x] `apps/backend/src/models/journal.py` - JournalEntry & JournalLine models
-- [x] `apps/backend/src/services/accounting.py` - Accounting service
+- [x] `apps/backend/src/ledger/extension/accounting.py` - Accounting service
 - [x] `apps/backend/src/routers/accounts.py` - Account API endpoints
 - [x] `apps/backend/src/routers/journal.py` - Journal API endpoints
 - [x] `apps/backend/src/schemas/account.py` - Account schemas

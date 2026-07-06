@@ -17,7 +17,7 @@ from src.models.reconciliation import ReconciliationMatchJournalEntry
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
 from src.services.reconciliation import execute_matching
-from src.services.source_type_priority import SourceTypeDowngradeError, promote_entry_source_type
+from src.audit import SourceTypeDowngradeError, promote_entry_source_type
 
 pytestmark = pytest.mark.asyncio
 

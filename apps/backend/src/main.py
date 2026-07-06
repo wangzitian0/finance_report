@@ -74,8 +74,8 @@ from src.schemas.errors import (
     error_code_for_status,
 )
 from src.services.market_data_scheduler import run_market_data_scheduler
-from src.services.statement_parsing_supervisor import run_parsing_supervisor
-from src.services.storage_sweep import run_storage_sweep
+from src.extraction.extension.statement_parsing_supervisor import run_parsing_supervisor
+from src.runtime.extension.storage_sweep import run_storage_sweep
 
 # Initialize logging early
 configure_logging()

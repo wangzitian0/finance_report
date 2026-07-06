@@ -40,9 +40,9 @@ from src.services.consistency_checks import (
     resolve_check,
     run_all_consistency_checks,
 )
-from src.services.review_queue import accept_match as accept_match_service, get_stage2_queue
-from src.services.source_type_priority import STATEMENT_SOURCE_TYPES
-from src.services.statement_validation import resolve_statement_conflicts, resolve_statement_transactions
+from src.extraction.extension.review_queue import accept_match as accept_match_service, get_stage2_queue
+from src.audit import STATEMENT_SOURCE_TYPES
+from src.extraction.extension.statement_validation import resolve_statement_conflicts, resolve_statement_transactions
 
 logger = get_logger(__name__)
 

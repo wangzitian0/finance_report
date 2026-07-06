@@ -22,7 +22,7 @@ from moto import mock_aws
 import src.routers.statements as statements_router
 from src.config import settings
 from src.models.statement_enums import BankStatementStatus
-from src.services.storage import StorageService
+from src.runtime import StorageService
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 CSV_FIXTURE = REPO_ROOT / "tests" / "e2e" / "fixtures" / "vision_hard_gate_statement.csv"

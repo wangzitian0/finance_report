@@ -130,8 +130,8 @@ def test_AC12_34_5_remaining_posting_paths_guard_balance_with_entry():
     # External callers import the published ledger Entry; in-package edges import
     # the base type directly. Both forms still prove "an Entry guards balance".
     for path, entry_import in (
-        ("apps/backend/src/services/accounting.py", "from src.ledger import Entry"),
-        ("apps/backend/src/services/fx_revaluation.py", "from src.ledger import Entry"),
+        ("apps/backend/src/ledger/extension/accounting.py", "from src.ledger import Entry"),
+        ("apps/backend/src/ledger/extension/fx_revaluation.py", "from src.ledger import Entry"),
         (
             "apps/backend/src/ledger/extension/processing.py",
             "from src.ledger.base.types.entry import Entry",
@@ -159,10 +159,10 @@ def test_AC12_34_6_ledger_owns_posting_pipeline_no_upward_edge():
     assert (SRC / "ledger/extension/repository.py").exists()
     post = _read("apps/backend/src/ledger/extension/post.py")
     assert "from src.ledger.extension.repository import" in post
-    assert "from src.services.accounting import" not in post, (
+    assert "from src.ledger.extension.accounting import" not in post, (
         "ledger.extension must not import upward into services.accounting"
     )
-    acct = _read("apps/backend/src/services/accounting.py")
+    acct = _read("apps/backend/src/ledger/extension/accounting.py")
     # the re-export shim is GONE: accounting no longer re-publishes the pipeline,
     # and the pipeline defs do not live here.
     assert "from src.ledger.store.posting import" not in acct

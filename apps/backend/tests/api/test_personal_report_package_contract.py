@@ -62,7 +62,7 @@ from src.services.report_traceability import (
     _ledger_anchor_detail,
     _source_document_details,
 )
-from src.services.review_queue import create_entry_from_txn
+from src.extraction.extension.review_queue import create_entry_from_txn
 from tests.factories import UserFactory
 
 

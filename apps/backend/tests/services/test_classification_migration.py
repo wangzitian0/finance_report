@@ -23,9 +23,9 @@ from src.models.account import Account, AccountType
 from src.models.journal import JournalEntry, JournalLine
 from src.models.layer3 import TransactionClassification
 from src.services.reporting import generate_income_statement
-from src.services.statement_posting import auto_create_posted_entries_for_statement
-from src.services.statement_validation import approve_statement
-from src.services.transaction_classification import (
+from src.extraction.extension.statement_posting import auto_create_posted_entries_for_statement
+from src.extraction.extension.statement_validation import approve_statement
+from src.extraction.extension.transaction_classification import (
     POLICY_VERSIONS,
     CategoryProposal,
     ClassificationPolicy,
@@ -56,7 +56,7 @@ def stub_proposer(monkeypatch):
     async def proposer(transactions, policy):
         return [_STUB_PROPOSALS.get(t.description) for t in transactions]
 
-    monkeypatch.setattr("src.services.transaction_classification.propose_categories", proposer)
+    monkeypatch.setattr("src.extraction.extension.transaction_classification.propose_categories", proposer)
     return proposer
 
 
@@ -149,7 +149,7 @@ async def test_AC18_16_1_new_policy_version_never_restates_covered_periods(
 ):
     """AC18.16.1: publishing policy v2 (effective 2026-07-01) leaves June's
     as-reported income statement byte-identical; only July classifies under v2."""
-    import src.services.transaction_classification as tc
+    import src.extraction.extension.transaction_classification as tc
 
     bank = await _bank(db, test_user.id)
     await _ingest_month(db, test_user.id, bank, "2026-06", opening=Decimal("0.00"), closing=SALARY - RENT)
@@ -276,7 +276,7 @@ async def test_AC18_16_3_flag_off_never_evaluates_policy_even_for_pre_epoch_txns
     """CR #1555: with the flag off, posting a statement whose transactions predate
     every policy's effective_from must NOT raise — the flag gate comes before any
     policy evaluation (flag off = today's behaviour, unconditionally)."""
-    import src.services.transaction_classification as tc
+    import src.extraction.extension.transaction_classification as tc
     from src.config import settings
 
     monkeypatch.setattr(settings, "enable_ai_classification", False)
@@ -303,7 +303,7 @@ async def test_AC18_16_6_uncovered_txn_dates_skip_classification_not_crash_posti
 ):
     """CR #1555: flag ON, a transaction dated before every policy's effective_from
     is SKIPPED (stays in the Uncategorized tail) — it must never crash posting."""
-    import src.services.transaction_classification as tc
+    import src.extraction.extension.transaction_classification as tc
 
     narrow = ClassificationPolicy(
         version=1,
@@ -330,6 +330,6 @@ async def test_AC18_16_6_uncovered_txn_dates_skip_classification_not_crash_posti
 def test_AC18_16_6_initial_policy_covers_all_history():
     """CR #1555: the DEFAULT initial basis covers all prior history (pre-2020
     statements are normal), so real imports never hit the uncovered edge."""
-    from src.services.transaction_classification import policy_for
+    from src.extraction.extension.transaction_classification import policy_for
 
     assert policy_for(date(1999, 1, 1)).version == 1

@@ -15,7 +15,7 @@ from src.schemas.metrics import (
     CorrectionLoopReplayResponse,
 )
 from src.services.confidence_metric import ConfidenceMetricService
-from src.services.correction_loop import CorrectionLoopService
+from src.extraction.extension.correction_loop import CorrectionLoopService
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
 _service = ConfidenceMetricService()

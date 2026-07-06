@@ -30,7 +30,7 @@ from src.ledger.base.validators import (
 )
 from src.models.account import Account
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
-from src.services.source_type_priority import normalize_source_type
+from src.audit import normalize_source_type
 
 
 async def validate_line_account_ownership(

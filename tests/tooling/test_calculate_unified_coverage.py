@@ -188,7 +188,7 @@ DA:3,5
 LH:2
 LF:3
 end_of_record
-SF:apps/backend/src/services/accounting.py
+SF:apps/backend/src/ledger/extension/accounting.py
 DA:10,3
 DA:11,3
 LH:2

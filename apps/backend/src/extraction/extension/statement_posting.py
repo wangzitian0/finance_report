@@ -18,10 +18,10 @@ from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntr
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
-from src.services.review_queue import create_entry_from_txn
-from src.services.source_type_priority import STATEMENT_SOURCE_TYPES, promote_entry_source_type
-from src.services.statement_validation import approve_statement, resolve_statement_transactions
-from src.services.transaction_classification import classify_by_effective_policy
+from src.extraction.extension.review_queue import create_entry_from_txn
+from src.audit import STATEMENT_SOURCE_TYPES, promote_entry_source_type
+from src.extraction.extension.statement_validation import approve_statement, resolve_statement_transactions
+from src.extraction.extension.transaction_classification import classify_by_effective_policy
 
 HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD = 85
 

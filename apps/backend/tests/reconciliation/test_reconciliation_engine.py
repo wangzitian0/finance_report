@@ -28,7 +28,7 @@ from src.services.reconciliation import (
     execute_matching,
     normalize_text,
 )
-from src.services.review_queue import (
+from src.extraction.extension.review_queue import (
     accept_match,
     batch_accept,
     create_entry_from_txn,
@@ -437,7 +437,7 @@ async def test_execute_matching_many_to_one_group(db: AsyncSession, test_user) -
 
 async def test_batch_accept_no_ids(db: AsyncSession):
     """Test batch_accept with empty list."""
-    from src.services.review_queue import batch_accept
+    from src.extraction.extension.review_queue import batch_accept
 
     result = await batch_accept(db, [], user_id=uuid4())
     assert result == []

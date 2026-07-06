@@ -49,22 +49,22 @@ from src.schemas.review import (
     Stage1ApprovalResponse,
     StatementReviewResponse,
 )
-from src.services import StorageError, StorageService
-from src.services.brokerage_statement_payload import (
+from src.runtime import StorageError, StorageService
+from src.extraction.extension.brokerage_statement_payload import (
     _brokerage_import_not_ready_reason,
     _brokerage_payload_from_persisted_extraction,
     _brokerage_payload_from_statement,
 )
-from src.services.statement_pipeline import submit_parse_pipeline
-from src.services.statement_posting import auto_create_posted_entries_for_statement, resolve_statement_posting_account
-from src.services.statement_validation import (
+from src.extraction.extension.statement_pipeline import submit_parse_pipeline
+from src.extraction.extension.statement_posting import auto_create_posted_entries_for_statement, resolve_statement_posting_account
+from src.extraction.extension.statement_validation import (
     edit_and_approve,
     pending_stage1_review_filter,
     resolve_statement_transactions,
     set_opening_balance,
     validate_balance_chain,
 )
-from src.services.statement_workflow import approve_statement_workflow, reject_statement_workflow
+from src.extraction.extension.statement_workflow import approve_statement_workflow, reject_statement_workflow
 
 router = APIRouter(prefix="/statements", tags=["statements"])
 

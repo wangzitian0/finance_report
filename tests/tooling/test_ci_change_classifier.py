@@ -321,7 +321,7 @@ def test_AC8_13_104_staging_ai_ocr_runs_only_for_provider_risk_paths() -> None:
         "apps/backend/src/config.py",
         "apps/backend/src/extraction/extension/prompts/statement.py",
         "apps/backend/src/extraction/extension/service.py",
-        "apps/backend/src/services/statement_parsing_supervisor.py",
+        "apps/backend/src/extraction/extension/statement_parsing_supervisor.py",
         "apps/backend/src/services/ai_advisor.py",
         "apps/backend/src/routers/statements.py",
         "tests/e2e/test_statement_full_journey.py",

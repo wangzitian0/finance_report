@@ -131,7 +131,7 @@ async def test_journal_router_coverage_errors(client: AsyncClient, db: AsyncSess
 
 async def test_accounts_coverage_errors(client: AsyncClient):
     """Test accounts router error paths."""
-    from src.services.account_service import AccountNotFoundError
+    from src.ledger.extension.account_service import AccountNotFoundError
 
     # 1. Get non-existent
     resp = await client.get(f"/accounts/{uuid4()}")

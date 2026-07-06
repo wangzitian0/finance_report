@@ -30,7 +30,7 @@ from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
 from src.models.reconciliation import ReconciliationStatus
 from src.models.statement_summary import StatementSummary
-from src.services.review_queue import (
+from src.extraction.extension.review_queue import (
     accept_match,
     batch_accept,
     create_entry_from_txn,
@@ -605,7 +605,7 @@ async def test_create_entry_from_txn_raises_when_generated_entry_unbalanced(db, 
     )
     await db.commit()
 
-    with patch("src.services.review_queue.validate_journal_balance", side_effect=ValidationError("not balanced")):
+    with patch("src.extraction.extension.review_queue.validate_journal_balance", side_effect=ValidationError("not balanced")):
         with pytest.raises(ValueError, match="Generated entry does not balance"):
             await create_entry_from_txn(db, txn, user_id=test_user.id)
 
