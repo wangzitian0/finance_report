@@ -556,7 +556,8 @@ Framework policy result:
   `result_id` fingerprints the selected framework, matrix version, period, full
   decision content, and gap content. The endpoint derives the result from existing accounts, atomic
   positions, manual valuations, dividends, synced `StockPrice` rows, and manual
-  `MarketDataOverride` rows. It must not mutate source records, journal entries,
+  `MarketDataOverride` rows (pre-migration models; both consolidate into the
+  `pricing` package's unified observation model, #1610). It must not mutate source records, journal entries,
   portfolio lots, market data, or report snapshots.
 - Package assembly must consume this policy result and must not infer
   framework-specific report lines directly from raw portfolio market value.

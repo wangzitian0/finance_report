@@ -56,6 +56,10 @@ Accounting Equation Verification: Reports must comply with accounting equation
 
 ### Multi-Currency Handling (Backend)
 
+> **Migration note**: `services/fx.py` splits under the package migration —
+> conversion *math* stays in `audit`; rate *lookup* moves to the `pricing`
+> package (#1610). The checklist below records the shipped pre-migration state.
+
 - [x] `services/fx.py` - Exchange rate service
   - [x] `get_exchange_rate()` - Get exchange rate
   - [x] `convert_to_base()` - Convert to base currency
@@ -429,7 +433,7 @@ fetching and normalizing it inline. Monetary values stay decimal strings.
 
 - [schema.md](../ssot/schema.md) - Account and journal entry tables
 - [reporting.md](../ssot/reporting.md) - Report calculation rules
-- [market_data.md](../ssot/market_data.md) - Exchange rate data source
+- [market_data.md](../ssot/market_data.md) - Exchange rate data source (pre-migration; internalizes into the `pricing` package, #1610)
 
 ---
 

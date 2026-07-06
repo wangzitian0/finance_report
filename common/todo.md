@@ -5,16 +5,23 @@ The horizontal worklist for migrating to the target architecture in
 keeps its own `common/<pkg>/todo.md`; this file tracks the migration *between*
 packages and the phase order. Umbrella issue: **#1416**.
 
-## Target: 10 packages
+## Target: ~10 packages
 
-Two governors + middleware + the financial flow (see the standard for each
-package's base/extension/data + entities + governance domain):
+Two governors + the technical substrate + the shared valuation SSOT + the
+financial flow (see the standard for each package's base/extension/data +
+entities + governance domain):
 
 - **meta** — governs *form* (structure/deps/acyclic/progress).
 - **audit** — governs *number* (= the old `value` folded in: financial base types
-  + accounting consistency + traceability).
-- **middleware** — event bus / outbox / workflow / pipeline / counter / identity.
+  + `ExchangeRate` conversion *math* + accounting consistency + traceability).
+- **platform** — event bus / outbox / workflow / pipeline / counter / identity
+  (the substrate historically labelled *middleware*, #1427).
 - **llm** — provider abstraction / cassette / stream.
+- **pricing** — one price/valuation SSOT, orthogonal to the flow (#1610):
+  unified `PriceObservation` + `PriceableSubject` + `resolve(subject, as_of,
+  policy)`, replacing `FxRate` / `StockPrice` / `MarketDataOverride` /
+  `ManualValuationSnapshot` and the `fx` / `market_data` / `assets` services.
+  Sequenced before `portfolio`, which consumes it.
 - financial flow: `(extraction [auto] + portfolio [manual]) → reconciliation → ledger → reporting → advisor`.
 
 Internal layering is **base↓ / extension↑ / data** (replaces kernel/platform/core
@@ -26,11 +33,11 @@ and types/ops/store/api). ACs are `AC-<pkg>.<entity>.<seq>` in each contract's
 | phase | scope | issue · status |
 |-------|-------|----------------|
 | 0a | standard doc + `governance→meta` rename | #1414 ✅ |
-| 0b | `counter` → base/extension/data template + gate three-layer rule (additive) | #1418 ⬜ |
-| 1 | `value → audit` fold | #1419 ⬜ |
-| 2 | `ledger` | #1420 ⬜ |
-| 3 | `extraction` #1421 · `portfolio` #1422 · `reconciliation` #1423 · `reporting` #1424 | ⬜ |
-| 4 | `advisor` #1425 · `llm` #1426 · `middleware` #1427 · `identity` #1428 | ⬜ |
+| 0b | `counter` → base/extension/data template + gate three-layer rule (additive) | #1418 ✅ |
+| 1 | `value → audit` fold | #1419 ✅ |
+| 2 | `ledger` | #1420 ✅ |
+| 3 | `extraction` #1421 ✅ · `pricing` #1610 ⬜ · `portfolio` #1422 ⬜ (after pricing) · `reconciliation` #1423 ⬜ · `reporting` #1424 ⬜ | partial |
+| 4 | `advisor` #1425 ⬜ · `llm` #1426 ✅ · `platform` #1427 ✅ · `identity` #1428 ✅ | partial |
 | 5 | `audit` consistency closeout (global invariants + cross-package ACs) | #1429 ⬜ |
 | 6 | cleanup — delete residual EPIC tables / SSOT; retire the central `docs/ssot/MANIFEST.yaml`/registry gates once meta's data layer is the computed index | #1430 ⬜ |
 
@@ -44,7 +51,10 @@ A package cutover is one atomic PR that:
 3. internalizes the package's owned SSOT (into readme/contract; removed from `docs/ssot/` + `docs/ssot/MANIFEST.yaml`);
 4. migrates its tests (every `invariants[].test` / `roadmap[].test` resolves);
 5. repoints consumers to the published `interface` (`__all__`), not submodules;
-6. is green (`check_package_contract` + the package's own invariants).
+6. **removes the original** — pre-migration modules are deleted, not copied: no
+   leftover code, re-export shim, test, or import of the old path remains
+   (a lingering original means the package is NOT migrated);
+7. is green (`check_package_contract` + the package's own invariants).
 
 Different packages may be old-or-new during the migration; a single package is
 never left half in both an EPIC and a roadmap.

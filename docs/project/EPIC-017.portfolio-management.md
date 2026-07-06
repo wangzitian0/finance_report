@@ -397,7 +397,7 @@ scope decisions are:
 | Portfolio is self-developed, not outsourced to a portfolio SaaS | `vision.md` decision 1 and this EPIC objective |
 | XIRR/TWR/MWR, allocation, dividends, and cost basis are in portfolio scope | AC17.1-AC17.3, AC17.5-AC17.6, AC17.10-AC17.11 |
 | Brokerage statements are uploaded and parsed through the statement pipeline | AC17.4, EPIC-003/EPIC-013 extraction SSOT |
-| Manual price update remains valid for low-frequency holdings; provider sync is governed separately | AC17.1.6, [market_data.md](../ssot/market_data.md), AC11.10 |
+| Manual price update remains valid for low-frequency holdings; provider sync is governed separately | AC17.1.6, [market_data.md](../ssot/market_data.md), AC11.10 — under the package migration, price/valuation data ownership moves to the `pricing` package (#1610); portfolio consumes prices, it does not own them |
 | Report-ready investment schedule is consumed by the personal report package | AC17.10 and EPIC-005 package contract |
 | Framework-specific report presentation for portfolio facts is not owned here | [framework-reporting.md](../ssot/framework-reporting.md), EPIC-020, AC17.13 |
 

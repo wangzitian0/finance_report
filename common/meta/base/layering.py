@@ -50,7 +50,7 @@ LAYER_RANK: dict[str, int] = {
 
 #: The central placement map — package name -> layer. This is the topology's
 #: single source of truth, ahead of contracts existing: shell directories that
-#: have not shipped a ``contract.py`` yet (money, llm, extraction, …) are
+#: have not shipped a ``contract.py`` yet are
 #: placed here so their eventual contract needs no self-claim and cannot land
 #: in the wrong layer. ``check_package_contract`` requires every discovered
 #: package to resolve a layer from this map (or, for names not mapped, an
@@ -69,12 +69,10 @@ PACKAGE_LAYER: dict[str, PackageClass] = {
     "platform": "infra",
     "runtime": "infra",
     "testing": "infra",
-    # L2 — the shared domain kernel (value language + generic capabilities).
+    # L2 — the shared domain kernel (generic capabilities). The value language
+    # (money/ratio/quantity/unit_price) folded into audit (#1419), so those
+    # names are gone from the map — audit (L1) owns the financial base types.
     "counter": "middleware",
-    "money": "middleware",
-    "quantity": "middleware",
-    "ratio": "middleware",
-    "unit_price": "middleware",
     # L3 — vertical business slices.
     "extraction": "domain",
     "identity": "domain",
