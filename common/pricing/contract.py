@@ -104,11 +104,22 @@ CONTRACT = PackageContract(
             module="base/repository.py",
             impl="extension/repository.py",
         ),
-        # ── extension (reserved): crawlers, manual entry/override write API,
-        # FX-specific lookup services, and the extraction event subscriber ──
+        # record_manual_valuation/record_override are the write-side
+        # counterpart to the read adapter above: they persist into the same
+        # 2 user-scoped legacy tables the adapter reads back uniformly.
+        Unit(
+            name="record_manual_valuation",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/manual.py",
+        ),
+        Unit(
+            name="record_override",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/manual.py",
+        ),
+        # ── extension (reserved): crawler sync, FX-specific lookup services,
+        # and the extraction event subscriber ──
         Unit(name="sync_market_data", kind=Kind.DOMAIN_SERVICE),
-        Unit(name="record_manual_valuation", kind=Kind.DOMAIN_SERVICE),
-        Unit(name="record_override", kind=Kind.DOMAIN_SERVICE),
         Unit(name="get_exchange_rate", kind=Kind.DOMAIN_SERVICE),
         Unit(name="ingest_statement_price", kind=Kind.DOMAIN_SERVICE),
         # ── data (reserved): read-models consumed by portfolio/reporting/reconciliation ──
@@ -117,11 +128,12 @@ CONTRACT = PackageContract(
     ],
     implementations={"be": "apps/backend/src/pricing", "fe": None},
     # This commit's real, working surface: the pure base/ model, resolve()
-    # (implementation-pure, physically in extension/ per KIND_LAYER), and the
+    # (implementation-pure, physically in extension/ per KIND_LAYER), the
     # repository port + its read-only SQL adapter (querying the 4 legacy
-    # tables). The remaining 5 write-side domain-services + 2 data
-    # projections are reserved units above — they join the interface once a
-    # later commit implements them for real.
+    # tables), and the two user-scoped write-side recorders. The remaining 3
+    # domain-services (crawler sync, FX lookup, extraction-event ingest) + 2
+    # data projections are reserved units above — they join the interface
+    # once a later commit implements them for real.
     interface=[
         "Authority",
         "ObservationRepository",
@@ -132,6 +144,8 @@ CONTRACT = PackageContract(
         "PricingError",
         "ResolutionPolicy",
         "SqlObservationRepository",
+        "record_manual_valuation",
+        "record_override",
         "resolve",
     ],
     events=["PriceObserved"],
