@@ -1,7 +1,7 @@
 """Producer-side wiring for brokerage POSITION extraction (issue #1139, covers #1088).
 
-Registered ACs: AC17.4.9 (AC-B1), AC17.4.10 (AC-B2), AC17.4.11 (AC-B5),
-AC17.4.12 (AC-B4/AC-B6) under EPIC-017 AC17.4.
+Registered ACs: AC-extraction.304.9 (AC-B1), AC-extraction.304.10 (AC-B2), AC-extraction.304.11 (AC-B5),
+AC-extraction.304.12 (AC-B4/AC-B6) under EPIC-017 AC17.4.
 
 These tests cover the producer half that was previously missing: routing a brokerage
 document to a positions-emitting prompt BEFORE the model call (AC-B1), the brokerage
@@ -96,7 +96,7 @@ def _synthetic_ibkr_multicurrency_payload() -> dict:
 
 
 def test_AC_B1_looks_like_brokerage_document_routes_by_filename_and_institution():
-    """AC17.4.9 (AC-B1): Pre-call brokerage routing decides from filename/institution keywords."""
+    """AC-extraction.304.9 (AC-B1): Pre-call brokerage routing decides from filename/institution keywords."""
     assert looks_like_brokerage_document(filename="moomoo-2506.pdf", institution=None)
     assert looks_like_brokerage_document(filename="statement.pdf", institution="Futu Securities")
     assert looks_like_brokerage_document(filename="activity.csv", institution="Interactive Brokers")
@@ -106,7 +106,7 @@ def test_AC_B1_looks_like_brokerage_document_routes_by_filename_and_institution(
 
 
 def test_AC_B1_get_parsing_prompt_selects_positions_prompt_for_brokerage():
-    """AC17.4.9/AC17.4.10 (AC-B1/AC-B2): Brokerage routing selects the positions prompt; bank stays unchanged."""
+    """AC-extraction.304.9/AC-extraction.304.10 (AC-B1/AC-B2): Brokerage routing selects the positions prompt; bank stays unchanged."""
     brokerage_prompt = get_parsing_prompt("Moomoo", document_kind="brokerage")
     assert brokerage_prompt.startswith(BROKERAGE_POSITIONS_PROMPT)
     assert '"positions"' in brokerage_prompt
@@ -119,7 +119,7 @@ def test_AC_B1_get_parsing_prompt_selects_positions_prompt_for_brokerage():
 
 
 async def test_AC_B1_extract_financial_data_uses_brokerage_prompt_before_model_call(monkeypatch):
-    """AC17.4.9 (AC-B1): The brokerage prompt is selected pre-call from the upload filename."""
+    """AC-extraction.304.9 (AC-B1): The brokerage prompt is selected pre-call from the upload filename."""
     service = ExtractionService()
     service.api_key = "test-key"
     captured: dict[str, str] = {}
@@ -142,7 +142,7 @@ async def test_AC_B1_extract_financial_data_uses_brokerage_prompt_before_model_c
 
 
 async def test_AC_B1_extract_financial_data_keeps_bank_prompt_for_bank_upload(monkeypatch):
-    """AC17.4.9 (AC-B1): A bank upload keeps the unchanged bank prompt (no producer reroute)."""
+    """AC-extraction.304.9 (AC-B1): A bank upload keeps the unchanged bank prompt (no producer reroute)."""
     service = ExtractionService()
     service.api_key = "test-key"
     captured: dict[str, str] = {}
@@ -168,7 +168,7 @@ async def test_AC_B1_extract_financial_data_keeps_bank_prompt_for_bank_upload(mo
 
 
 def test_AC_B2_positions_prompt_payload_is_understood_by_consumer_parser():
-    """AC17.4.10 (AC-B2): positions[] emitted under the new schema flows into AtomicPosition snapshots."""
+    """AC-extraction.304.10 (AC-B2): positions[] emitted under the new schema flows into AtomicPosition snapshots."""
     payload = {
         "institution": "Moomoo",
         "snapshot_date": "2026-06-30",
@@ -198,7 +198,7 @@ def test_AC_B2_positions_prompt_payload_is_understood_by_consumer_parser():
 
 
 async def test_AC_B5_zero_position_brokerage_doc_raises_visible_review_flag(db, test_user):
-    """AC17.4.11 (AC-B5): A brokerage doc with zero positions is surfaced as a review flag, not buried."""
+    """AC-extraction.304.11 (AC-B5): A brokerage doc with zero positions is surfaced as a review flag, not buried."""
     statement_id = uuid4()
     statement = StatementSummaryFactory.build(
         id=statement_id,
@@ -235,7 +235,7 @@ async def test_AC_B5_zero_position_brokerage_doc_raises_visible_review_flag(db, 
 
 
 async def test_AC_B4_AC_B6_moomoo_positions_table_extracts_and_imports(client, db, test_user, monkeypatch):
-    """AC17.4.12 (AC-B4/AC-B6) (#1088): Moomoo holdings TABLE -> extracted positions -> imported AtomicPositions.
+    """AC-extraction.304.12 (AC-B4/AC-B6) (#1088): Moomoo holdings TABLE -> extracted positions -> imported AtomicPositions.
 
     AtomicPosition row count must equal the holdings-table row count, with exact market_value.
     The parsed payload is loaded from a recorded fixture and injected via the extraction seam,
@@ -335,7 +335,7 @@ async def test_AC_B4_AC_B6_moomoo_positions_table_extracts_and_imports(client, d
 
 
 async def test_AC_B6_positions_payload_imports_via_service(db, test_user):
-    """AC17.4.12 (AC-B6): The recorded moomoo positions fixture imports the full table via the service."""
+    """AC-extraction.304.12 (AC-B6): The recorded moomoo positions fixture imports the full table via the service."""
     service = BrokeragePositionImportService()
     fixture = _synthetic_moomoo_positions_payload()
 
@@ -364,7 +364,7 @@ async def test_AC_B6_positions_payload_imports_via_service(db, test_user):
 
 
 def test_AC_B3_multi_currency_brokerage_emits_per_currency_balances():
-    """AC17.4.13 (AC-B3): A multi-currency brokerage snapshot yields one NAV bucket per currency.
+    """AC-extraction.304.13 (AC-B3): A multi-currency brokerage snapshot yields one NAV bucket per currency.
 
     USD = 2124 + 2276 = 4400, HKD = 80500, SGD = 3810. The currencies must NOT be
     cross-summed into a single scalar (88710) — each currency is an independent
@@ -390,7 +390,7 @@ def test_AC_B3_multi_currency_brokerage_emits_per_currency_balances():
 
 
 async def test_AC_B3_parse_document_persists_currency_balances_without_cross_sum(test_user):
-    """AC17.4.13 (AC-B3): parse_document persists the per-currency NAV array on the statement.
+    """AC-extraction.304.13 (AC-B3): parse_document persists the per-currency NAV array on the statement.
 
     The scalar opening/closing stay None for the position snapshot (no running-balance
     chain), while ``currency_balances`` carries the independent per-currency NAV — the

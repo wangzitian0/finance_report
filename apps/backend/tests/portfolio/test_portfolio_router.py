@@ -258,7 +258,7 @@ async def test_get_holdings_defaults_to_future_imported_snapshot(
     test_user,
     investment_account,
 ):
-    """AC8.13.10: Default holdings endpoint returns latest imported snapshot."""
+    """AC-extraction.813.10: Default holdings endpoint returns latest imported snapshot."""
     future_date = date.today() + timedelta(days=12)
     position = ManagedPosition(
         user_id=test_user.id,
@@ -300,7 +300,7 @@ async def test_get_holdings_explicit_date_does_not_use_future_snapshot(
     test_user,
     investment_account,
 ):
-    """AC8.13.10: Explicit holdings date remains date-bounded."""
+    """AC-extraction.813.10: Explicit holdings date remains date-bounded."""
     future_date = date.today() + timedelta(days=12)
     position = ManagedPosition(
         user_id=test_user.id,

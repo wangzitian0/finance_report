@@ -133,7 +133,7 @@ def test_validate_balance_tolerance():
 
 
 def test_validate_balance_normalizes_signed_outflows():
-    """AC8.13.10/Issue #409: Balance validation treats direction as the sign source."""
+    """AC-extraction.813.10/Issue #409: Balance validation treats direction as the sign source."""
     extracted = {
         "opening_balance": "100.00",
         "closing_balance": "80.00",
@@ -147,7 +147,7 @@ def test_validate_balance_normalizes_signed_outflows():
 
 
 def test_validate_balance_infers_non_standard_signed_outflows():
-    """AC8.13.10/Issue #409: Non-standard debit directions normalize to OUT."""
+    """AC-extraction.813.10/Issue #409: Non-standard debit directions normalize to OUT."""
     extracted = {
         "opening_balance": "100.00",
         "closing_balance": "80.00",
@@ -188,7 +188,7 @@ def test_compute_confidence_score_large_transaction_count():
 
 
 def test_compute_confidence_score_normalizes_signed_outflow_progression():
-    """AC8.13.10/Issue #409: Running-balance scoring normalizes signed OUT rows."""
+    """AC-extraction.813.10/Issue #409: Running-balance scoring normalizes signed OUT rows."""
     extracted = {
         "institution": "Moomoo",
         "currency": "SGD",

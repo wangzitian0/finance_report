@@ -235,7 +235,7 @@ class TestModels:
         assert hasattr(StatementSummary, "status")
 
     def test_atomic_transaction_columns(self):
-        """AC4.6.8: AtomicTransaction exposes dedup, source, and balance_after columns."""
+        """AC-extraction.406.8: AtomicTransaction exposes dedup, source, and balance_after columns."""
         from src.models.layer2 import AtomicTransaction
 
         assert hasattr(AtomicTransaction, "dedup_hash")

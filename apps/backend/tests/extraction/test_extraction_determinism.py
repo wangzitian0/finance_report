@@ -196,7 +196,7 @@ class TestRepeatedParseDeterminism:
     @pytest.mark.parametrize(
         "payload,expected_status",
         [
-            # AC20.9.2 (#1352) supersedes the #1141 "balance-invalid -> PARSED/review"
+            # AC-extraction.2009.2 (#1352) supersedes the #1141 "balance-invalid -> PARSED/review"
             # resting state: a bank statement whose chain does not reconcile is now a
             # BLOCKING-gate quarantine to REJECTED. Brokerage still rests in PARSED.
             (_BANK_BALANCE_INVALID, BankStatementStatus.REJECTED),
@@ -205,7 +205,7 @@ class TestRepeatedParseDeterminism:
         ids=["bank_balance_invalid->rejected", "brokerage->parsed"],
     )
     async def test_routing_is_consistent_per_payload_class(self, db, test_user, payload, expected_status):
-        """AC-extraction.113.3 / AC-extraction.121.5 / AC20.9.2: each payload class routes to one stable status across N parses.
+        """AC-extraction.113.3 / AC-extraction.121.5 / AC-extraction.2009.2: each payload class routes to one stable status across N parses.
 
         Post-#1352 a balance-invalid bank statement is deterministically quarantined
         to REJECTED on every parse (the LLM-LED blocking gate); a brokerage statement still
@@ -221,7 +221,7 @@ class TestRepeatedParseDeterminism:
         )
 
     async def test_AC20_9_2_balance_invalid_parse_is_quarantined(self, db, test_user):
-        """AC20.9.2 (#1352, supersedes AC-extraction.121.2): a balance-invalid bank parse is quarantined.
+        """AC-extraction.2009.2 (#1352, supersedes AC-extraction.121.2): a balance-invalid bank parse is quarantined.
 
         The prior #1141 reviewable resting state (`PARSED` + `pending_review`) is gone:
         an extraction whose balance chain does not reconcile cannot persist as trusted

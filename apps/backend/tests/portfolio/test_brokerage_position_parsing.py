@@ -623,7 +623,7 @@ async def test_brokerage_import_endpoint(client, db):
 
 
 async def test_statement_scoped_brokerage_import_uses_parsed_transactions(client, db, test_user):
-    """AC8.13.10/Issue #404: Parsed brokerage statements can import portfolio positions."""
+    """AC-extraction.813.10/Issue #404: Parsed brokerage statements can import portfolio positions."""
     statement = await _seed_statement(
         db,
         test_user.id,
@@ -666,7 +666,7 @@ async def test_statement_scoped_brokerage_import_uses_parsed_transactions(client
 
 
 async def test_statement_scoped_brokerage_import_uses_persisted_extraction_positions(client, db, test_user):
-    """AC8.13.10/AC17.4.7: Statement import recovers structured OCR positions from metadata."""
+    """AC-extraction.813.10/AC-extraction.304.7: Statement import recovers structured OCR positions from metadata."""
     file_hash = "issue-653-moomoo-structured"
     statement = await _seed_statement(
         db,
@@ -717,7 +717,7 @@ async def test_statement_scoped_brokerage_import_uses_persisted_extraction_posit
 
 
 async def test_statement_import_flows_to_holdings_and_balance_sheet(client, db, test_user):
-    """AC8.13.10/AC17.4.6/AC17.5.4: Parsed brokerage import reaches holdings and balance sheet."""
+    """AC-extraction.813.10/AC17.4.6/AC17.5.4: Parsed brokerage import reaches holdings and balance sheet."""
     statement = await _seed_statement(
         db,
         test_user.id,
@@ -786,7 +786,7 @@ async def test_statement_import_flows_to_holdings_and_balance_sheet(client, db, 
 
 
 async def test_statement_scoped_brokerage_import_requires_parsed_status(client, db, test_user):
-    """AC8.13.10/Issue #404: Position import cannot run before OCR parsing completes."""
+    """AC-extraction.813.10/Issue #404: Position import cannot run before OCR parsing completes."""
     statement = await _seed_statement(
         db,
         test_user.id,
@@ -809,7 +809,7 @@ async def test_statement_scoped_brokerage_import_explains_internal_state_transit
     db,
     test_user,
 ):
-    """AC8.13.10/Issue #409: Import errors distinguish parsed-data routing stalls."""
+    """AC-extraction.813.10/Issue #409: Import errors distinguish parsed-data routing stalls."""
     statement = await _seed_statement(
         db,
         test_user.id,
@@ -838,7 +838,7 @@ async def test_statement_scoped_brokerage_import_explains_internal_state_transit
 
 
 async def test_statement_scoped_brokerage_import_explains_provider_parse_failure(client, db, test_user):
-    """AC8.13.10/Issue #409: Import errors distinguish provider parsing failures."""
+    """AC-extraction.813.10/Issue #409: Import errors distinguish provider parsing failures."""
     statement = await _seed_statement(
         db,
         test_user.id,
@@ -859,14 +859,14 @@ async def test_statement_scoped_brokerage_import_explains_provider_parse_failure
 
 
 async def test_statement_scoped_brokerage_import_returns_404_for_missing_statement(client):
-    """AC8.13.10/Issue #404: Statement-scoped brokerage import is user-scoped."""
+    """AC-extraction.813.10/Issue #404: Statement-scoped brokerage import is user-scoped."""
     response = await client.post(f"/statements/{uuid4()}/brokerage/import")
 
     assert response.status_code == 404
 
 
 def test_brokerage_payload_from_statement_preserves_outflows_and_empty_metadata():
-    """AC8.13.10/Issue #404: Statement payload keeps signed cash events deterministic."""
+    """AC-extraction.813.10/Issue #404: Statement payload keeps signed cash events deterministic."""
     statement = StatementSummary(
         id=uuid4(),
         user_id=uuid4(),

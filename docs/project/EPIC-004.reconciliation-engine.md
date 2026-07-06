@@ -157,6 +157,12 @@ Automatically match bank transactions with journal entries, implementing intelli
 
 ### AC4.6: Source Type Conflict & Transfer Detection
 
+> **Partially migrated.** The extraction-owned rows (were AC4.6.* rows
+> .8) are homed in the `extraction` package roadmap as
+> `AC-extraction.406.8`
+> ([`common/extraction/contract.py`](../../common/extraction/contract.py));
+> the remaining rows below stay with their own owners.
+
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC4.6.1 | 0.1 USD boundary: amount delta = 0.10 USD passes, 0.11 USD fails | `test_amount_tolerance_0_10_boundary` | `reconciliation/test_reconciliation_scoring.py` | P0 |
@@ -166,7 +172,6 @@ Automatically match bank transactions with journal entries, implementing intelli
 | AC4.6.5 | Reconciliation score considers source_type weight (manual > auto) | `test_source_type_weight_in_scoring` | `reconciliation/test_reconciliation_scoring.py` | P1 |
 | AC4.6.6 | Duplicate guard respects running balance: same date/description/amount/direction with different `balance_after` are NOT flagged as duplicate candidates | `test_duplicate_guard_distinguishes_by_balance_after` | `review/test_statement_validation.py` | P1 |
 | AC4.6.7 | Duplicate guard still flags same date/description/amount/direction when `balance_after` is equal or absent (ambiguous, needs review) | `test_duplicate_guard_flags_when_balance_after_equal_or_absent` | `review/test_statement_validation.py` | P1 |
-| AC4.6.8 | `AtomicTransaction` persists the extracted `balance_after` so the conflict guard can disambiguate distinct-but-identical transactions | `test_upsert_persists_balance_after` | `extraction/test_deduplication.py` | P1 |
 | AC4.6.9 | Layer-2 reconciliation writes atomic_txn_id and supports transfer-pair logging. | `test_execute_matching_many_to_one_layer2_sets_atomic_txn_id` | `reconciliation/test_reconciliation_engine.py` | P1 |
 
 ### AC4.8: Archive Baseline Benchmark Ownership
@@ -325,10 +330,15 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 
 ### AC4.7: Recovered Coverage
 
+> **Partially migrated.** The extraction-owned rows (were AC4.7.* rows
+> .2) are homed in the `extraction` package roadmap as
+> `AC-extraction.407.2`
+> ([`common/extraction/contract.py`](../../common/extraction/contract.py));
+> the remaining rows below stay with their own owners.
+
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC4.7.1 | POST /corrections persists a correction and /corrections/stats reflects it. | `test_post_create_correction_and_stats` | `api/test_corrections_router.py` | P1 |
-| AC4.7.2 | get_few_shot_examples respects default limit and caches results. | `test_get_few_shot_examples_cache_hit_and_limit` | `extraction/test_correction_service_cache.py` | P1 |
 | AC4.7.3 | Reconciliation phase-2 – 3-entry combo exceeding tolerance is skipped. | `test_execute_matching_three_entry_combination_skips_unbalanced_member` | `reconciliation/test_reconciliation_engine.py` | P1 |
 | AC4.7.4 | Reconciliation phase-2 – atomic match and transfer pair logging in layer-2. | `test_execute_matching_layer2_atomic_match_and_transfer_pair_logging` | `reconciliation/test_reconciliation_engine.py` | P1 |
 
@@ -362,6 +372,12 @@ and **AC4** (FX P&L) are deferred to a follow-up EPIC — they require a linked-
 event model and accounting-layer changes beyond this representation slice.
 See: docs/ssot/reconciliation.md#per-currency-balance-reconciliation
 
+> **Partially migrated.** The extraction-owned rows (were AC4.13.* rows
+> .6) are homed in the `extraction` package roadmap as
+> `AC-extraction.413.6`
+> ([`common/extraction/contract.py`](../../common/extraction/contract.py));
+> the remaining rows below stay with their own owners.
+
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC4.13.1 | A multi-currency statement reconciles each currency independently and never cross-sums currencies | `test_AC1_per_currency_reconcile_does_not_cross_sum` | `accounting/test_validation.py` | P0 |
@@ -369,7 +385,6 @@ See: docs/ssot/reconciliation.md#per-currency-balance-reconciliation
 | AC4.13.3 | A single-currency statement passes via the degenerate one-currency path (scalar-only payload) | `test_AC1_single_currency_degenerate_path_still_passes` | `accounting/test_validation.py` | P0 |
 | AC4.13.4 | The degenerate single-currency path still detects a balance mismatch | `test_AC1_single_currency_degenerate_path_detects_mismatch` | `accounting/test_validation.py` | P1 |
 | AC4.13.5 | `CurrencyBalance` schema carries (currency, opening, closing) as Decimal with normalized ISO currency | `test_AC1_currency_balance_schema_round_trips_decimals` | `accounting/test_validation.py` | P1 |
-| AC4.13.6 | `currency_balances` JSONB persists a per-currency balance array additively to the scalar columns | `test_AC1_currency_balances_jsonb_round_trips` | `extraction/test_statement_summary_conform.py` | P1 |
 | AC4.13.7 | A transaction in a currency with no declared balance bucket is surfaced as an orphan per-currency result (not silently dropped) | `test_AC1_orphan_currency_transaction_is_surfaced_not_dropped` | `accounting/test_validation.py` | P0 |
 | AC4.13.8 | Duplicate currencies in the `balances` array are rejected (not silently collapsed) so per-currency nets stay unambiguous | `test_AC1_duplicate_currency_in_balances_is_rejected` | `accounting/test_validation.py` | P1 |
 | AC4.13.9 {tier:CODE-ONLY} | A multi-currency **bank** statement persists its per-currency `currency_balances` and lets the per-currency check govern `balance_validated` (parity with the brokerage per-currency path #1139), instead of collapsing to one scalar currency; a single-currency bank statement keeps the unchanged scalar path (#1502) | `test_AC4_13_9_bank_currency_balances_emitted_only_when_multi_currency`, `test_AC4_13_9_bank_multi_currency_statement_persists_balances_and_per_currency_governs` | `accounting/test_validation.py`, `extraction/test_bank_multi_currency_balances.py` | P0 |

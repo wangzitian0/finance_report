@@ -73,7 +73,7 @@ class TestInvalidParseNotPersisted:
 
     async def test_parse_document_bank_balance_mismatch_records_validation_error(self, service, tmp_path):
         """
-        AC-extraction.2.4 (+AC20.9.2 #1352): Bank statement balance mismatches preserve a typed
+        AC-extraction.2.4 (+AC-extraction.2009.2 #1352): Bank statement balance mismatches preserve a typed
         validation_error and are quarantined to REJECTED by the LLM-LED blocking gate.
         """
         pdf_file = tmp_path / "test.pdf"
@@ -106,7 +106,7 @@ class TestInvalidParseNotPersisted:
 
             # An unreconciled balance chain is now BLOCKING: the extraction cannot
             # persist as trusted truth, so it is quarantined to REJECTED with a typed
-            # reason code preserved in validation_error (AC20.9.2 supersedes the prior
+            # reason code preserved in validation_error (AC-extraction.2009.2 supersedes the prior
             # PARSED/review resting state).
             from src.models.statement_enums import BankStatementStatus
 

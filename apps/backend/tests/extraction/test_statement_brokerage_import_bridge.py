@@ -89,7 +89,7 @@ def _brokerage_payload_json_safe() -> dict:
 
 
 def test_looks_like_brokerage_payload_detection_paths():
-    """AC17.4.7: Brokerage detection handles structured, nested, and non-broker payloads."""
+    """AC-extraction.304.7: Brokerage detection handles structured, nested, and non-broker payloads."""
     assert looks_like_brokerage_payload({"positions": []}, filename="unknown.pdf")
     assert looks_like_brokerage_payload(
         {"statement": {"holdings": []}},
@@ -104,7 +104,7 @@ def test_looks_like_brokerage_payload_detection_paths():
 
 
 def test_count_brokerage_positions_handles_empty_and_nested_payloads():
-    """AC17.4.7: Brokerage import counts top-level and nested parsed position arrays."""
+    """AC-extraction.304.7: Brokerage import counts top-level and nested parsed position arrays."""
     assert _count_brokerage_positions({"positions": [{}, {}]}) == 2
     assert _count_brokerage_positions({"statement": {"holdings": [{}]}}) == 1
     assert _count_brokerage_positions({"statement": {"positions": [{}, {}, {}]}}) == 3
@@ -113,7 +113,7 @@ def test_count_brokerage_positions_handles_empty_and_nested_payloads():
 
 
 def test_filter_failure_handler_kwargs_returns_original_when_signature_unavailable(monkeypatch):
-    """AC17.4.7: Parse failure compatibility shim tolerates opaque handlers."""
+    """AC-extraction.304.7: Parse failure compatibility shim tolerates opaque handlers."""
     payload = {"message": "parse failed", "future_arg": "preserved"}
 
     def raise_value_error(_callable):
@@ -125,7 +125,7 @@ def test_filter_failure_handler_kwargs_returns_original_when_signature_unavailab
 
 
 def test_filter_failure_handler_kwargs_keeps_payload_for_var_keyword_handler(monkeypatch):
-    """AC17.4.7: Parse failure compatibility shim preserves kwargs-capable handlers."""
+    """AC-extraction.304.7: Parse failure compatibility shim preserves kwargs-capable handlers."""
     payload = {"message": "parse failed", "future_arg": "preserved"}
 
     async def accepts_kwargs(*_args, **_kwargs):
@@ -137,7 +137,7 @@ def test_filter_failure_handler_kwargs_keeps_payload_for_var_keyword_handler(mon
 
 
 def test_filter_failure_handler_kwargs_drops_unknown_keys_for_fixed_handler(monkeypatch):
-    """AC17.4.7: Parse failure compatibility shim filters unknown kwargs."""
+    """AC-extraction.304.7: Parse failure compatibility shim filters unknown kwargs."""
     payload = {"message": "parse failed", "future_arg": "dropped"}
 
     async def fixed_handler(_statement, _db, *, message):
@@ -149,7 +149,7 @@ def test_filter_failure_handler_kwargs_drops_unknown_keys_for_fixed_handler(monk
 
 
 def test_parse_brokerage_positions_skips_malformed_moomoo_subscription_row():
-    """AC17.4.7: Malformed brokerage rows are ignored instead of imported as positions."""
+    """AC-extraction.304.7: Malformed brokerage rows are ignored instead of imported as positions."""
     snapshots = parse_brokerage_positions(
         {
             "institution": "Moomoo",
@@ -166,7 +166,7 @@ def test_parse_brokerage_positions_skips_malformed_moomoo_subscription_row():
 
 
 async def test_parse_document_preserves_brokerage_payload_for_background_import(test_user):
-    """AC17.4.7: Extraction keeps structured brokerage payloads available for import."""
+    """AC-extraction.304.7: Extraction keeps structured brokerage payloads available for import."""
     service = ExtractionService()
     payload = _brokerage_payload()
     service.extract_financial_data = AsyncMock(return_value=payload)
@@ -191,7 +191,7 @@ async def test_parse_document_preserves_brokerage_payload_for_background_import(
 
 
 async def test_parse_document_skips_non_bank_rows_in_brokerage_payload(test_user):
-    """AC17.4.7: Brokerage transaction-like rows do not block position import handoff."""
+    """AC-extraction.304.7: Brokerage transaction-like rows do not block position import handoff."""
     service = ExtractionService()
     payload = {
         "institution": "Moomoo",
@@ -218,7 +218,7 @@ async def test_parse_document_skips_non_bank_rows_in_brokerage_payload(test_user
 
 
 async def test_parse_document_normalizes_signed_outflows_before_brokerage_routing():
-    """AC8.13.10/Issue #409: Signed OUT brokerage rows do not stall parsed routing."""
+    """AC-extraction.813.10/Issue #409: Signed OUT brokerage rows do not stall parsed routing."""
     service = ExtractionService()
     service.extract_financial_data = AsyncMock(
         return_value={
@@ -266,7 +266,7 @@ async def test_parse_document_normalizes_signed_outflows_before_brokerage_routin
 
 
 async def test_parse_document_infers_direction_from_signed_brokerage_amounts():
-    """AC8.13.10/Issue #409: Non-standard debit directions normalize deterministically."""
+    """AC-extraction.813.10/Issue #409: Non-standard debit directions normalize deterministically."""
     service = ExtractionService()
     service.extract_financial_data = AsyncMock(
         return_value={
@@ -304,7 +304,7 @@ async def test_parse_document_infers_direction_from_signed_brokerage_amounts():
 
 
 async def test_parse_document_routes_brokerage_balance_mismatch_to_parsed():
-    """AC8.13.10/Issue #409: Brokerage payloads do not stall after OCR balance mismatch."""
+    """AC-extraction.813.10/Issue #409: Brokerage payloads do not stall after OCR balance mismatch."""
     service = ExtractionService()
     service.extract_financial_data = AsyncMock(
         return_value={
@@ -352,7 +352,7 @@ async def test_parse_document_routes_brokerage_balance_mismatch_to_parsed():
 
 
 async def test_route_brokerage_for_review_ignores_bank_payload(db, test_user):
-    """AC17.4.7/#1408: Bank statement payloads are not routed for brokerage review."""
+    """AC-extraction.304.7/#1408: Bank statement payloads are not routed for brokerage review."""
     statement = _parsed_statement(test_user.id, "bank-hash")
     statement.stage1_status = None
 
@@ -371,7 +371,7 @@ async def test_route_brokerage_for_review_ignores_bank_payload(db, test_user):
 
 
 async def test_route_brokerage_for_review_records_zero_position_payload(db, test_user):
-    """AC17.4.7/#1408: Recognized brokerage payloads with no positions stay visible and route to review."""
+    """AC-extraction.304.7/#1408: Recognized brokerage payloads with no positions stay visible and route to review."""
     statement_id = uuid4()
     statement = StatementSummaryFactory.build(
         id=statement_id,
@@ -404,7 +404,7 @@ async def test_route_brokerage_for_review_records_zero_position_payload(db, test
 
 
 async def test_route_brokerage_for_review_uses_nested_statement_institution(db, test_user, monkeypatch):
-    """AC17.4.7/#1408: Review routing reads broker identity from nested statement metadata."""
+    """AC-extraction.304.7/#1408: Review routing reads broker identity from nested statement metadata."""
     statement = _parsed_statement(test_user.id, "nested-broker-hash")
     db.add(statement)
     await db.commit()
@@ -438,7 +438,7 @@ async def test_route_brokerage_for_review_uses_nested_statement_institution(db, 
 
 
 async def test_route_brokerage_for_review_stops_when_failed_statement_is_missing():
-    """AC17.4.7/#1408: Review-routing failure handling tolerates deleted statements.
+    """AC-extraction.304.7/#1408: Review-routing failure handling tolerates deleted statements.
 
     If the routing commit raises, the function rolls back and tries to attach a
     validation note to a re-fetched row; when that row is gone it must exit cleanly.
@@ -488,7 +488,7 @@ async def test_route_brokerage_for_review_stops_when_failed_statement_is_missing
 
 
 async def test_parse_statement_background_imports_brokerage_positions(client, db, test_user, monkeypatch):
-    """AC17.4.7/AC17.5.4/AC8.13.10: Background brokerage import reaches reports."""
+    """AC-extraction.304.7/AC17.5.4/AC-extraction.813.10: Background brokerage import reaches reports."""
     statement_id = uuid4()
     user_id = test_user.id
     file_hash = "brokerage-success-hash"

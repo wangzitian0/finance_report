@@ -1410,7 +1410,7 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-extraction.121.2",
-            statement="_Superseded by AC20.9.2 (#1352)._ A parsed bank statement that fails balance reconciliation is now BLOCKING: it is quarantined to `REJECTED` (not `PARSED`/review) with `stage1_status=REJECTED` and a typed `validation_error` reason code.",  # was AC13.21.2
+            statement="_Superseded by AC-extraction.2009.2 (#1352)._ A parsed bank statement that fails balance reconciliation is now BLOCKING: it is quarantined to `REJECTED` (not `PARSED`/review) with `stage1_status=REJECTED` and a typed `validation_error` reason code.",  # was AC13.21.2
             test="apps/backend/tests/extraction/test_extraction_determinism.py::test_AC20_9_2_balance_invalid_parse_is_quarantined",
             priority="P0",
             status="done",
@@ -1434,7 +1434,7 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-extraction.121.5",
-            statement="_Superseded by AC20.9.2 (#1352)._ The same balance-mismatch payload routes deterministically across N parses to the same status — now `REJECTED` (the LLM-LED blocking gate), not `PARSED`.",  # was AC13.21.5
+            statement="_Superseded by AC-extraction.2009.2 (#1352)._ The same balance-mismatch payload routes deterministically across N parses to the same status — now `REJECTED` (the LLM-LED blocking gate), not `PARSED`.",  # was AC13.21.5
             test="apps/backend/tests/extraction/test_extraction_determinism.py::test_routing_is_consistent_per_payload_class",
             priority="P0",
             status="done",
@@ -1848,6 +1848,332 @@ CONTRACT = PackageContract(
                 "::test_AC17_32_3_bank_csv_unaffected_by_brokerage_detection"
             ),
             priority="P1",
+            status="done",
+        ),
+        # Row-level moves out of mixed EPIC groups (per-EPIC hundred-block
+        # ids: EPIC-004->4xx, EPIC-008->8xx, EPIC-011->2xx, EPIC-016->16xx,
+        # EPIC-017->3xx, EPIC-020->20xx; seq preserved).
+        ACRecord(
+            id="AC-extraction.406.8",
+            statement=(
+                "AtomicTransaction persists the extracted balance_after so the "
+                "conflict guard can disambiguate distinct-but-identical "
+                "transactions. Was EPIC-004 AC4.6.8."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_deduplication.py"
+                "::test_upsert_persists_balance_after"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.407.2",
+            statement=(
+                "get_few_shot_examples respects default limit and caches results. "
+                "Was EPIC-004 AC4.7.2."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_correction_service_cache.py"
+                "::test_get_few_shot_examples_cache_hit_and_limit"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.413.6",
+            statement=(
+                "currency_balances JSONB persists a per-currency balance array "
+                "additively to the scalar columns. Was EPIC-004 AC4.13.6."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_statement_summary_conform.py"
+                "::test_AC1_currency_balances_jsonb_round_trips"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.812.6",
+            statement=(
+                "OCR/vision provider fallback, timeout, and empty-response errors "
+                "are deterministic. Was EPIC-008 AC8.12.6."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_extraction_error_paths.py"
+                "::test_extract_financial_data_shared_ocr_vision_skips_layout_parser"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.812.4",
+            statement=(
+                "PDF with private URL logs warning and raises ExtractionError "
+                "(lines 393->403, 416->426). Was EPIC-008 AC8.12.4."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_extraction_error_paths.py"
+                "::test_extract_financial_data_pdf_private_url_raises"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.812.5",
+            statement=(
+                "Image with private URL logs warning and raises ExtractionError "
+                "(else branch 416->426). Was EPIC-008 AC8.12.5."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_extraction_error_paths.py"
+                "::test_extract_financial_data_image_private_url_raises"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.813.10",
+            statement=(
+                "Multi-brokerage PDF upload → position import → latest portfolio "
+                "value. Was EPIC-008 AC8.13.10."
+            ),
+            test=(
+                "tests/e2e/test_brokerage_upload_to_portfolio_value.py"
+                "::test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.216.1",
+            statement=(
+                "Distinct running balances hash differently; identical/absent "
+                "balances collapse. Was EPIC-011 AC11.16.1."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_deduplication.py"
+                "::test_running_balance_distinguishes_identical_transactions"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1622.8",
+            statement=(
+                "A statement routed to parsed/review carries stage1_status = "
+                "pending_review explicitly (never NULL). Was EPIC-016 AC16.22.8."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_extraction_flow.py"
+                "::test_parsed_statement_sets_stage1_pending_review"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1622.9",
+            statement=(
+                "UploadedDocument.status advances to completed once a successful "
+                "parse is persisted (no longer stuck at uploaded). Was EPIC-016 "
+                "AC16.22.9."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_dual_write_layer2.py"
+                "::test_dual_write_marks_document_completed"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1622.10",
+            statement=(
+                "A hard parse failure persists an UploadedDocument (status "
+                "failed) so the uploaded raw file stays traceable from the "
+                "rejected statement. Was EPIC-016 AC16.22.10."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_extraction_error_paths.py"
+                "::test_handle_parse_failure_persists_failed_document_lineage"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.304.7",
+            statement=("Upload Parse-to-Import Bridge. Was EPIC-017 AC17.4.7."),
+            test=(
+                "apps/backend/tests/extraction/test_statement_brokerage_import_bridge.py"
+                "::test_parse_statement_background_imports_brokerage_positions"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.304.9",
+            statement=(
+                "AC-B1 Producer routing: brokerage docs select the positions "
+                "prompt before the model call (filename/institution), bank docs "
+                "keep the bank prompt. Was EPIC-017 AC17.4.9."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_brokerage_position_extraction_wiring.py"
+                "::test_AC_B1_looks_like_brokerage_document_routes_by_filename_and_institution"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.304.10",
+            statement=(
+                "AC-B2 Brokerage positions output schema flows into "
+                "AtomicPosition-ready snapshots via the existing consumer parser. "
+                "Was EPIC-017 AC17.4.10."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_brokerage_position_extraction_wiring.py"
+                "::test_AC_B2_positions_prompt_payload_is_understood_by_consumer_parser"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.304.11",
+            statement=(
+                "AC-B5 Zero-position brokerage doc is surfaced as a visible "
+                "review flag (stage1 pending-review + note). Was EPIC-017 "
+                "AC17.4.11."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_brokerage_position_extraction_wiring.py"
+                "::test_AC_B5_zero_position_brokerage_doc_raises_visible_review_flag"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.304.12",
+            statement=(
+                "AC-B4/B6 Moomoo holdings TABLE extracts and imports: "
+                "AtomicPosition rows == table rows with exact market_value "
+                "(#1088). Was EPIC-017 AC17.4.12."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_brokerage_position_extraction_wiring.py"
+                "::test_AC_B4_AC_B6_moomoo_positions_table_extracts_and_imports"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.304.13",
+            statement=(
+                "AC-B3 A multi-currency brokerage statement persists a per- "
+                "currency NAV array (currency_balances) instead of collapsing to "
+                "a single scalar opening/closing: each currency's NAV is the sum "
+                "of that currency's positions, every currency round-trips "
+                "independently, and no currency is cross-summed into another "
+                "(#1139). Was EPIC-017 AC17.4.13."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_brokerage_position_extraction_wiring.py"
+                "::test_AC_B3_multi_currency_brokerage_emits_per_currency_balances"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.2009.2",
+            statement=(
+                "LLM-LED tier (event→L2) balance-chain failure is a BLOCKING "
+                "runtime gate: a bank-statement extraction whose chain does not "
+                "reconcile (opening + ΣIN − ΣOUT ≠ closing beyond the Decimal "
+                "tolerance) is quarantined to the rejected terminal state with a "
+                "typed reason code and never reaches parsed/trusted report-input "
+                "state; code may reject, never author. Was EPIC-020 AC20.9.2."
+            ),
+            test=(
+                "apps/backend/tests/llm/test_llm_led_blocking_gate.py"
+                "::test_AC20_9_2_imbalanced_bank_extraction_is_quarantined_not_parsed"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.2009.3",
+            statement=(
+                "LLM-LED tier dedup-conservation failure is an INDEPENDENT "
+                "blocking gate: a within-document dedup collapse (post-dedup row "
+                "count ≠ conserved pre-dedup count) quarantines the extraction "
+                "with a reason code DISTINCT from the balance-chain reason. Was "
+                "EPIC-020 AC20.9.3."
+            ),
+            test=(
+                "apps/backend/tests/llm/test_llm_led_blocking_gate.py"
+                "::test_AC20_9_3_within_doc_dedup_collapse_is_quarantined"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.2009.4",
+            statement=(
+                "LLM-LED tier gate is fail-closed: when a balance invariant "
+                "cannot be evaluated because a bank statement is missing an "
+                "opening or closing balance, the extraction never reaches "
+                "parsed/trusted state (the parse path refuses it) and the pure "
+                "gate quarantines the unevaluable case with a typed reason, "
+                "rather than silently passing on a zero-default chain. Was "
+                "EPIC-020 AC20.9.4."
+            ),
+            test=(
+                "apps/backend/tests/llm/test_llm_led_blocking_gate.py"
+                "::test_AC20_9_4_unevaluable_balance_fails_closed_not_parsed"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.2009.5",
+            statement=(
+                "The prior 'imbalanced bank statement → parsed/review' behavior "
+                "no longer exists: routing a true balance-chain failure no longer "
+                "returns parsed. Was EPIC-020 AC20.9.5."
+            ),
+            test=(
+                "apps/backend/tests/llm/test_llm_led_blocking_gate.py"
+                "::test_AC20_9_5_imbalanced_no_longer_routes_to_parsed_review"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.2009.6",
+            statement=(
+                "No false reject: a balanced, dedup-consistent bank-statement "
+                "extraction still flows through to its prior parsed/approved "
+                "resting state unchanged by the gate. Was EPIC-020 AC20.9.6."
+            ),
+            test=(
+                "apps/backend/tests/llm/test_llm_led_blocking_gate.py"
+                "::test_AC20_9_6_valid_extraction_passes_gate_unchanged"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.2009.7",
+            statement=(
+                "Each LLM-LED gate failure mode emits a distinct structured "
+                "reason code and a distinct PII-free metric kind (balance vs "
+                "dedup vs unevaluable), with no institution name or account "
+                "identifier in the signal. Was EPIC-020 AC20.9.7."
+            ),
+            test=(
+                "apps/backend/tests/llm/test_llm_led_blocking_gate.py"
+                "::test_AC20_9_7_each_failure_mode_has_distinct_reason_and_metric"
+            ),
+            priority="P0",
             status="done",
         ),
     ],

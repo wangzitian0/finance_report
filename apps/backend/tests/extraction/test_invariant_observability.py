@@ -127,11 +127,11 @@ def test_AC26_8_1_recorder_is_safe_noop_without_instrument(monkeypatch) -> None:
 
 
 async def test_AC26_8_1_balance_invalid_parse_quarantines_and_emits_metric(monkeypatch) -> None:
-    """AC26.8.1 (+AC20.9.2 #1352): a balance-invalid bank parse emits the detection metric.
+    """AC26.8.1 (+AC-extraction.2009.2 #1352): a balance-invalid bank parse emits the detection metric.
 
     The AC26.8.1 detection counter (`balance_mismatch`) still fires at detection time.
     Since #1352 the routing is no longer "PARSED/review": the LLM-LED blocking gate quarantines
-    the extraction to REJECTED (AC20.9.2). The detection observability and the blocking
+    the extraction to REJECTED (AC-extraction.2009.2). The detection observability and the blocking
     gate are independent — this asserts both: the metric fires AND the status is REJECTED.
     """
     service = ExtractionService()
@@ -172,13 +172,13 @@ async def test_AC26_8_1_balance_invalid_parse_quarantines_and_emits_metric(monke
         db=None,  # no persistence; we only assert routing + metric
     )
 
-    # BLOCKING (AC20.9.2): balance-invalid bank statement -> REJECTED quarantine.
+    # BLOCKING (AC-extraction.2009.2): balance-invalid bank statement -> REJECTED quarantine.
     assert statement.status == BankStatementStatus.REJECTED
     assert statement.balance_validated is False
     assert statement.validation_error is not None
     assert len(transactions) == 1
 
     # Detection (AC26.8.1) still fires: the balance-mismatch counter is queryable,
-    # and the blocking gate adds its own distinct quarantine counter (AC20.9.7).
+    # and the blocking gate adds its own distinct quarantine counter (AC-extraction.2009.7).
     assert ("balance_mismatch", "bank") in recorded
     assert ("llm_led_gate_quarantine_balance", "bank") in recorded

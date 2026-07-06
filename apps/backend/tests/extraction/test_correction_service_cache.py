@@ -16,7 +16,7 @@ def _clear():
 
 
 async def test_get_few_shot_examples_cache_hit_and_limit(db, test_user):
-    """AC4.7.2: get_few_shot_examples respects default limit and caches results."""
+    """AC-extraction.407.2: get_few_shot_examples respects default limit and caches results."""
     for i in range(12):
         txn = await AtomicTransactionFactory.create_async(
             db,

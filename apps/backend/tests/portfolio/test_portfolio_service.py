@@ -166,7 +166,7 @@ async def test_AC22_13_1_explicit_as_of_holdings_preserve_snapshot_provenance(db
 
 
 async def test_get_holdings_defaults_to_latest_future_brokerage_snapshot(db, test_user, svc, account):
-    """AC8.13.10/Issue #424: Latest holdings include current-month brokerage snapshots."""
+    """AC-extraction.813.10/Issue #424: Latest holdings include current-month brokerage snapshots."""
     future_snapshot_date = date.today() + timedelta(days=12)
     position = ManagedPosition(
         user_id=test_user.id,
@@ -201,7 +201,7 @@ async def test_get_holdings_defaults_to_latest_future_brokerage_snapshot(db, tes
 
 
 async def test_get_holdings_explicit_as_of_date_does_not_use_future_snapshot(db, test_user, svc, account):
-    """AC8.13.10/Issue #424: Explicit historical holdings remain date bounded."""
+    """AC-extraction.813.10/Issue #424: Explicit historical holdings remain date bounded."""
     position = ManagedPosition(
         user_id=test_user.id,
         account_id=account.id,

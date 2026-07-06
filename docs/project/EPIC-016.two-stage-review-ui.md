@@ -87,6 +87,12 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 ## 📏 Acceptance Criteria
 ### 🟢 Must Have
 
+> **Partially migrated.** The extraction-owned rows (were AC16.22.* rows
+> .8/.9/.10) are homed in the `extraction` package roadmap as
+> `AC-extraction.1622.8` · `AC-extraction.1622.9` · `AC-extraction.1622.10`
+> ([`common/extraction/contract.py`](../../common/extraction/contract.py));
+> the remaining rows below stay with their own owners.
+
 | AC ID | Standard | Verification | Weight |
 |------|------|----------|------|
 | AC16.1.1 | **Balance validation tolerance = 0.001 USD** | `test_validate_balance_chain_within_tolerance()` | 🔴 Critical |
@@ -438,9 +444,6 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 | AC16.22.5 | Stage 1 tolerance is 0.001 USD (not 0.10 USD from Stage 2) | `test_validate_balance_chain_within_tolerance` | `review/test_statement_validation.py` | P0 |
 | AC16.22.6 | All service methods mutating `pending_review` enforce `user_id` ownership | `test_get_statement_for_update_wrong_user_raises` | `review/test_statement_validation.py` | P1 |
 | AC16.22.7 | Stage 1 approval tolerance and extraction/reconciliation scoring tolerance remain separate documented policies | `test_ac16_22_7_tolerance_policy_constants_are_intentional` | `review/test_tolerance_policy.py` | P0 |
-| AC16.22.8 | A statement routed to `parsed`/review carries `stage1_status = pending_review` explicitly (never NULL) | `test_parsed_statement_sets_stage1_pending_review` | `extraction/test_extraction_flow.py` | P1 |
-| AC16.22.9 | `UploadedDocument.status` advances to `completed` once a successful parse is persisted (no longer stuck at `uploaded`) | `test_dual_write_marks_document_completed` | `extraction/test_dual_write_layer2.py` | P1 |
-| AC16.22.10 | A hard parse failure persists an `UploadedDocument` (status `failed`) so the uploaded raw file stays traceable from the rejected statement | `test_handle_parse_failure_persists_failed_document_lineage` | `extraction/test_extraction_error_paths.py` | P1 |
 
 ### AC16.25 — Mobile Review UX Hardening
 
