@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ProviderForm } from "@/components/llm/ProviderForm";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import {
   deleteLlmProvider,
@@ -54,6 +55,8 @@ export default function LlmSettingsPage() {
   const { showToast } = useToast();
 
   const [providers, setProviders] = useState<LlmProviderResponse[]>([]);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [deletingProvider, setDeletingProvider] = useState(false);
   const [catalog, setCatalog] = useState<LlmModelResponse[]>([]);
   const [saved, setSaved] = useState<LlmSceneBindingItem[] | null>(null);
   const [draft, setDraft] = useState<LlmSceneBindingItem[] | null>(null);
@@ -138,14 +141,21 @@ export default function LlmSettingsPage() {
     setError(null);
   };
 
-  const handleDeleteProvider = async (id: string) => {
+  // id is passed in from the dialog's onConfirm, which only fires while the
+  // dialog is open (pendingDeleteId set) and its confirm button is enabled
+  // (not already deleting) — so no re-entry guard is needed here.
+  const confirmDeleteProvider = async (id: string) => {
     setError(null);
+    setDeletingProvider(true);
     try {
       await deleteLlmProvider(id);
       showToast("Provider deleted", "success");
       await loadAll();
+      setPendingDeleteId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete provider");
+    } finally {
+      setDeletingProvider(false);
     }
   };
 
@@ -229,7 +239,7 @@ export default function LlmSettingsPage() {
                   type="button"
                   className="btn-secondary text-sm"
                   aria-label={`Delete provider ${provider.label}`}
-                  onClick={() => handleDeleteProvider(provider.id)}
+                  onClick={() => setPendingDeleteId(provider.id)}
                 >
                   Delete
                 </button>
@@ -395,6 +405,19 @@ export default function LlmSettingsPage() {
           )}
         </div>
       </form>
+
+      <ConfirmDialog
+        isOpen={pendingDeleteId !== null}
+        title="Delete provider?"
+        message={`Delete "${providers.find((p) => p.id === pendingDeleteId)?.label ?? "this provider"}"? Scenes bound to it fall back to the environment default. This cannot be undone.`}
+        confirmLabel="Delete provider"
+        confirmVariant="danger"
+        loading={deletingProvider}
+        onConfirm={() => {
+          if (pendingDeleteId) void confirmDeleteProvider(pendingDeleteId);
+        }}
+        onCancel={() => setPendingDeleteId(null)}
+      />
     </div>
   );
 }

@@ -182,7 +182,7 @@ function ReplayCard({ replay }: { replay: CorrectionLoopReplayResponse }) {
       </p>
 
       {summary.hasHoldout ? (
-        <div className="mt-4 grid grid-cols-2 gap-3 text-center">
+        <div className="mt-4 grid grid-cols-1 gap-3 text-center sm:grid-cols-2">
           <div className="rounded-md bg-[var(--background-muted)] p-3">
             <p className="text-2xl font-semibold tabular-nums">{summary.before}</p>
             <p className="mt-1 text-xs text-muted">Before the loop</p>

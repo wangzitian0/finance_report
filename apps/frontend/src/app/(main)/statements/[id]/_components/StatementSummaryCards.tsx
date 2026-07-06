@@ -1,5 +1,6 @@
 import { BankStatement } from "@/lib/types";
 import { formatCurrencyLocale } from "@/lib/audit/money";
+import { confidenceLabel } from "@/lib/statusLabels";
 
 interface StatementSummaryCardsProps {
     statement: BankStatement;
@@ -30,6 +31,11 @@ export function StatementSummaryCards({ statement }: StatementSummaryCardsProps)
                 }`}>
                     {statement.confidence_score ?? "—"}%
                 </div>
+                {statement.confidence_score !== null && statement.confidence_score !== undefined && (
+                    <div className="text-xs text-muted mt-0.5">
+                        {confidenceLabel(statement.confidence_score)}
+                    </div>
+                )}
             </div>
             <div className="card p-4">
                 <div className="text-xs text-muted mb-1">Balance Validation</div>

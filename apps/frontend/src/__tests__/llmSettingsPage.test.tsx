@@ -229,6 +229,10 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /Delete provider OpenRouter/i })
     );
+    // #1609: destructive delete now goes through a confirmation dialog.
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Delete provider" })
+    );
 
     await waitFor(() => expect(mockedDelete).toHaveBeenCalledWith("prov-1"));
     await waitFor(() =>
@@ -248,9 +252,31 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /Delete provider OpenRouter/i })
     );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Delete provider" })
+    );
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent("Delete boom")
     );
+  });
+
+  it("#1609 does not delete until the confirmation is accepted", async () => {
+    primeHappyLoad();
+    mockedDelete.mockResolvedValue(undefined);
+    render(<LlmSettingsPage />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /Delete provider OpenRouter/i })).toBeInTheDocument());
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Delete provider OpenRouter/i })
+    );
+    // The confirm dialog is shown and nothing has been deleted yet.
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(mockedDelete).not.toHaveBeenCalled();
+
+    // Cancelling closes the dialog without deleting.
+    fireEvent.click(screen.getByRole("button", { name: /Cancel/i }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(mockedDelete).not.toHaveBeenCalled();
   });
 
   it("toggles the add-provider form and reloads after creating one", async () => {
