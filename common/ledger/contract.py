@@ -1604,7 +1604,7 @@ CONTRACT = PackageContract(
                 "nouns) + extension/ (the post_entry verb + the journal "
                 "Repository adapter) + data/ (the balance projection) — and "
                 "exports Entry/Leg/post_entry/UnbalancedEntryError (the retired "
-                "types//ops//store/ dirs are gone; cutover #1420 slice 3a). Was "
+                "types/ops/store  dirs are gone; cutover #1420 slice 3a). Was "
                 "EPIC-012 AC12.34.2."
             ),
             test=(

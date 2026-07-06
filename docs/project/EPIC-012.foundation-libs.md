@@ -634,7 +634,7 @@ runtime `abs(debit-credit) < 0.01` checks.
 > [`common/ledger/contract.py`](../../common/ledger/contract.py)'s `roadmap`
 > under the package-scoped numeric `AC-ledger.<group>.<seq>` id scheme (the
 > leading "12" is dropped and the group/seq preserved, so `AC12.34.<s>`
-> becomes `AC-ledger.34.<s>`). `common/ssot/generate_ac_registry.py` reads
+> becomes `AC-ledger.34.<s>`). `common/testing/generate_ac_registry.py` reads
 > package-contract roadmaps additively, so the AC index counts them without an
 > EPIC-table mirror. This note references the new ids (keeping the
 > registry↔EPIC link intact) but defines none of them — the contract is the
