@@ -1441,12 +1441,18 @@ jobs:
       # The finish job's merge authority is the "Check job status" step alone. The
       # three summary steps below are non-gating reporting and all carry
       # continue-on-error so a step-summary write can never fail the merge gate.
+      # Orphan enforcement only makes sense when the backend suites actually ran:
+      # on lightweight (docs/ci-only) pushes the heavy jobs are skipped, no
+      # served-manifest artifacts exist, and every non-truth-paired cassette
+      # would read as a false orphan (seen on main 8cdfde41: served=0, orphans=5).
       - name: Download backend test contexts (cassette orphan gate)
+        if: ${{ needs.backend.result == 'success' }}
         uses: actions/download-artifact@v8
         with:
           pattern: "backend-*test-context"
           path: cassette-usage
       - name: Cassette orphan gate
+        if: ${{ needs.backend.result == 'success' }}
         run: |
           # #1596 AC-llm.10.6 / #1597: every committed cassette must be JUSTIFIED —
           # either SERVED by at least one backend test job, or paired with a
