@@ -18,9 +18,10 @@ import pytest
 # only installs: pytest, pytest-cov, pyyaml, pydantic, pydantic-settings.
 # (sqlalchemy and the full src.* package tree are NOT available there.)
 #
-# We use patch.dict(sys.modules, ...) started at module load and stopped via
-# a session-scoped autouse fixture so the stubs don't permanently mutate the
-# global interpreter state beyond this test module.
+# We use patch.dict(sys.modules, ...) scoped tightly around the import: the
+# imported seed_fx_rates module keeps the stubbed symbols it bound at import
+# time, while sys.modules is restored immediately so the stubs never leak
+# into other tooling tests collected after this file.
 # ---------------------------------------------------------------------------
 _settings_stub = SimpleNamespace(database_url="postgresql+asyncpg://localhost/test")
 _sqla_stub = MagicMock()
@@ -42,21 +43,18 @@ _MODULE_STUBS: dict[str, object] = {
     "src.models.market_data": _src_models_market_data_stub,
 }
 
-# Start the patcher at module-load time (must precede seed_fx_rates import)
-_sys_modules_patcher = patch.dict(sys.modules, _MODULE_STUBS)
-_sys_modules_patcher.start()
+# Patch sys.modules only for the duration of the import (seed_fx_rates binds
+# the stubbed symbols at import time; all its imports are top-level).
+with patch.dict(sys.modules, _MODULE_STUBS):
+    from tools._lib.market_data import seed_fx_rates  # noqa: E402 — must come inside the sys.modules stubs
 
-# ---------------------------------------------------------------------------
-from tools._lib.market_data import seed_fx_rates  # noqa: E402 — must come after sys.modules stubs
+# patch.dict's exit rollback also drops keys ADDED inside the block — including
+# the just-imported module itself. Re-register it so test-time
+# patch("tools._lib.market_data.seed_fx_rates....") targets THIS module object
+# instead of triggering a fresh import against the real (unstubbed) deps.
+sys.modules["tools._lib.market_data.seed_fx_rates"] = seed_fx_rates
 
 seed_fx_rates.settings = _settings_stub
-
-
-@pytest.fixture(scope="session", autouse=True)
-def _stop_sys_modules_patcher():
-    """Stop the sys.modules patch after the entire test session completes."""
-    yield
-    _sys_modules_patcher.stop()
 
 
 class TestGetDatabaseUrl:
