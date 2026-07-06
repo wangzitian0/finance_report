@@ -270,6 +270,7 @@ export default function JournalEntryForm({ isOpen, onClose, onSuccess }: Journal
                                             type="button"
                                             onClick={() => remove(index)}
                                             className="btn-ghost p-2 text-muted hover:text-[var(--error)]"
+                                            aria-label={`Remove line ${index + 1}`}
                                         >
                                             <svg
                                                 className="w-4 h-4"

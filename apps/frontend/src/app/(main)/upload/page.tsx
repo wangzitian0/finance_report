@@ -45,6 +45,7 @@ export default function UploadPage() {
     const [polling, setPolling] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deletingStatementId, setDeletingStatementId] = useState<string | null>(null);
+    const [deleting, setDeleting] = useState(false);
 
     const fetchStatements = useCallback(async () => {
         try {
@@ -82,7 +83,8 @@ export default function UploadPage() {
     };
 
     const handleDeleteConfirm = async () => {
-        if (!deletingStatementId) return;
+        if (!deletingStatementId || deleting) return;
+        setDeleting(true);
         try {
             await apiFetch(`/api/statements/${deletingStatementId}`, { method: "DELETE" });
             showToast("Statement deleted successfully", "success");
@@ -91,6 +93,8 @@ export default function UploadPage() {
             fetchStatements();
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to delete statement");
+        } finally {
+            setDeleting(false);
         }
     };
 
@@ -307,6 +311,7 @@ export default function UploadPage() {
                 isOpen={deleteDialogOpen}
                 onCancel={() => { setDeleteDialogOpen(false); setDeletingStatementId(null); }}
                 onConfirm={handleDeleteConfirm}
+                loading={deleting}
                 title="Delete Statement"
                 message="Are you sure you want to delete this statement? This action cannot be undone."
                 confirmLabel="Delete Statement"

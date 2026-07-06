@@ -19,8 +19,8 @@ export function StatementTransactionsTable({ statement }: StatementTransactionsT
                     <p className="text-sm">No transactions found</p>
                 </div>
             ) : (
-                <div className="max-h-[600px] overflow-auto">
-                    <table className="w-full text-sm">
+                <div className="max-h-[600px] overflow-auto overflow-x-auto">
+                    <table className="w-full min-w-[640px] text-sm">
                         <thead>
                             <tr className="border-b border-[var(--border)] bg-[var(--background-muted)]">
                                 <th scope="col" className="text-left px-4 py-3 font-medium">Date</th>

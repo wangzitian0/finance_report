@@ -156,7 +156,18 @@ describe("StatementSummaryCards", () => {
         expect(screen.getByText("Opening Balance")).toBeInTheDocument();
         expect(screen.getByText("Closing Balance")).toBeInTheDocument();
         expect(screen.getByText("92%")).toBeInTheDocument();
+        // #1609: confidence is not color-only — a text label backs the colour.
+        expect(screen.getByText("Good")).toBeInTheDocument();
         expect(screen.getByText("Verified")).toBeInTheDocument();
+    });
+
+    it("#1609 labels mid and low confidence with text, not colour alone", () => {
+        const { rerender } = render(
+            <StatementSummaryCards statement={{ ...baseStatement, confidence_score: 70 }} />,
+        );
+        expect(screen.getByText("Fair — review advised")).toBeInTheDocument();
+        rerender(<StatementSummaryCards statement={{ ...baseStatement, confidence_score: 40 }} />);
+        expect(screen.getByText("Low — review required")).toBeInTheDocument();
     });
 
     it("renders Parsing validation state and em-dash confidence when null", () => {

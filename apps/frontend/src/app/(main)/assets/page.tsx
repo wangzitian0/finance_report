@@ -298,7 +298,7 @@ export default function AssetsPage() {
                                 ))}
                             </select>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div className="grid gap-1">
                                 <label htmlFor="valuation-date" className="text-xs font-medium text-muted">As of date</label>
                                 <input
@@ -324,7 +324,7 @@ export default function AssetsPage() {
                                 />
                             </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div className="grid gap-1">
                                 <label htmlFor="valuation-value" className="text-xs font-medium text-muted">Value</label>
                                 <input

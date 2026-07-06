@@ -20,6 +20,7 @@ import {
   toDecimal,
 } from "@/lib/audit/money";
 import { percentNumberFromParts } from "@/lib/audit/ratio/format";
+import { coverageLabel } from "@/lib/statusLabels";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { BarChart } from "@/components/charts/BarChart";
 import { NetWorthTimeSeriesChart } from "@/components/charts/NetWorthTimeSeriesChart";
@@ -398,6 +399,9 @@ export default function HomePage() {
                               style={{ color: barColor }}
                             >
                               {pct}%
+                              <span className="ml-1 font-normal">
+                                {coverageLabel(pct)}
+                              </span>
                             </span>
                           </div>
                           <div className="h-2 rounded-full bg-[var(--background-muted)] overflow-hidden">
@@ -443,7 +447,7 @@ export default function HomePage() {
                     ? formatDateDisplay(annualizedIncome.as_of)
                     : "—"}
                 </p>
-                <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
+                <div className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
                   <div>
                     <p className="text-xs text-muted">Salary</p>
                     <p className="font-medium">
