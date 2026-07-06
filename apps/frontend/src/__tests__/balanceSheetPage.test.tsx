@@ -203,7 +203,7 @@ describe("BalanceSheetPage", () => {
     render(<BalanceSheetPage />)
 
     await waitFor(() => expect(screen.getByText("Wallet")).toBeInTheDocument())
-    fireEvent.click(screen.getByRole("button", { name: "–" }))
+    fireEvent.click(screen.getByRole("button", { name: /Collapse/i }))
     expect(screen.queryByText("Wallet")).not.toBeInTheDocument()
   })
 
