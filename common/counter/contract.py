@@ -79,7 +79,7 @@ CONTRACT = PackageContract(
             test="apps/backend/tests/counter/test_count.py::test_count_rejects_negative",
         ),
         # Structural guarantees live as invariants (no authority tier, not
-        # matrix-constrained) — see common/authority/readme.md. The roadmap
+        # matrix-constrained) — see common/meta/readme.md. The roadmap
         # below holds only the package's DOMAIN behavior, which inherits the
         # package tier.
         Invariant(

@@ -2,7 +2,7 @@
 """Gate: reconcile a package's DECLARED authority tier against its DETECTED band.
 
 The authority tier has two views over one CODE↔LLM spectrum
-(``common/authority/authority_matrix.py``):
+(``common/meta/base/authority_matrix.py``):
 
 - **declared** — ``PackageContract.tier`` (the package's authorial intent);
 - **detected** — the band the ``authority_classifier`` measures from the shapes

@@ -149,7 +149,7 @@ def test_AC20_9_1_reporting_pipeline_declares_layer_authority_tiers() -> None:
     assert "exact / property test" in epic  # CODE-ONLY
     # LLM authority confined to the LLM-LED layer; CODE-LED is code-authoritative (CODE-ONLY today).
     assert "CODE-ONLY today" in epic
-    assert "common/authority/readme.md" in epic
+    assert "common/meta/readme.md" in epic
 
 
 def test_AC2_18_1_canonical_ledger_is_framework_neutral() -> None:

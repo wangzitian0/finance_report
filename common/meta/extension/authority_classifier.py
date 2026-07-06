@@ -1,6 +1,6 @@
 """CODE / LLM authority classifier + per-package counter (EPIC-026 AC26.9).
 
-Model (see common/authority/readme.md):
+Model (see common/meta/readme.md):
 - Every AC is one bit, **detected from its test shape** (not declared):
     * ``LLM``  — the test exercises the record/replay (cassette) harness.
     * ``CODE`` — a structured-input deterministic test, no LLM in the loop.

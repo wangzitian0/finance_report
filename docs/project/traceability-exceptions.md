@@ -170,7 +170,7 @@ explicit AC IDs for the behavior.
 | `apps/backend/tests/pricing/test_resolve.py` | `common/pricing/contract.py` |
 | `apps/backend/tests/pricing/test_subject.py` | `common/pricing/contract.py` |
 | `tests/tooling/test_coverage_analyzer.py` | `docs/ssot/coverage.md` |
-| `tests/tooling/test_migration_safety_gates.py` | `common/authority/readme.md` |
+| `tests/tooling/test_migration_safety_gates.py` | `common/meta/readme.md` |
 | `tests/tooling/test_delivery_gates_contract.py` | `docs/ssot/delivery-gates.yaml` |
 | `tests/tooling/test_env_contract_boundary.py` | `docs/ssot/observability.md`, `docs/ssot/environments.md` |
 | `tests/tooling/test_github_workflow_timing_summary.py` | `docs/ssot/ci-cd.md` |

@@ -157,9 +157,9 @@ verifiable.
 > [EPIC-009](./EPIC-009.pdf-fixture-generation.md)'s PDF fixture generation
 > ACs. EPIC-023's cassette layer/streaming-bridge/integrity-gate ACs
 > (AC23.5/AC23.6/AC23.7) do NOT migrate here despite their EPIC-authored
-> `{tier:CODE-ONLY}` annotation: `common/authority/authority_classifier.py`
+> `{tier:CODE-ONLY}` annotation: `common/meta/extension/authority_classifier.py`
 > detects any cassette/replay-harness test as the `LLM` band regardless of
-> how deterministic its assertions are, which `common/authority/
+> how deterministic its assertions are, which `common/meta/extension/
 > check_authority_reconcile.py` enforces against `testing`'s single
 > package-wide `CODE-ONLY` tier — see `common/testing/contract.py`'s module
 > docstring.
