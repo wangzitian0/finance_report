@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useState, useRef } from "react";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 
 interface ConfirmDialogProps {
     isOpen: boolean;
@@ -56,18 +57,19 @@ export default function ConfirmDialog({
 
     useEffect(() => {
         if (!isOpen) return;
-        
+
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === "Escape" && !loading) {
                 handleCancel();
             }
         };
-        
+
         document.addEventListener("keydown", handleKeyDown);
         return () => document.removeEventListener("keydown", handleKeyDown);
     }, [isOpen, loading, handleCancel]);
 
     useFocusTrap(dialogRef, isOpen);
+    useBodyScrollLock(isOpen);
 
     if (!isOpen) return null;
 
@@ -92,12 +94,12 @@ export default function ConfirmDialog({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div 
-                className="fixed inset-0 bg-black/60" 
+            <div
+                className="fixed inset-0 bg-black/60"
                 onClick={handleBackdropClick}
                 aria-hidden="true"
             />
-            <div 
+            <div
                 ref={dialogRef}
                 role="dialog"
                 aria-modal="true"

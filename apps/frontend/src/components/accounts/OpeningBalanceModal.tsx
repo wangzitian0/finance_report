@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { apiFetch } from "@/lib/api";
 import { compareAmounts } from "@/lib/audit/money";
 import { Account } from "@/lib/types";
@@ -35,6 +36,7 @@ function defaultEntryDate(): string {
 export default function OpeningBalanceModal({ isOpen, onClose, onSuccess, accounts }: OpeningBalanceModalProps) {
     const dialogRef = useRef<HTMLDivElement>(null);
     useFocusTrap(dialogRef, isOpen);
+    useBodyScrollLock(isOpen);
 
     const [entryDate, setEntryDate] = useState(defaultEntryDate);
     const [memo, setMemo] = useState("Opening balances");
@@ -109,14 +111,14 @@ export default function OpeningBalanceModal({ isOpen, onClose, onSuccess, accoun
                 role="dialog"
                 aria-modal="true"
                 aria-label="Set opening balances"
-                className="relative z-10 flex max-h-[90vh] w-full max-w-lg flex-col card animate-slide-up"
+                className="relative z-10 flex max-h-[90dvh] w-full max-w-lg flex-col card animate-slide-up"
             >
                 <div className="card-header">
                     <h2 className="text-lg font-semibold">Set opening balances</h2>
                 </div>
 
                 <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-                    <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-6">
+                    <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-6">
                         <p className="text-sm text-muted">
                             Tell us what each account was worth on your start date. We&apos;ll record the bookkeeping
                             entry for you, so your reports are complete from day one — no journal entries required.

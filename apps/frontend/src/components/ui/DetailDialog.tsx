@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef } from "react";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 
 interface DetailDialogProps {
     isOpen: boolean;
@@ -27,35 +28,36 @@ export default function DetailDialog({
 
     useEffect(() => {
         if (!isOpen) return;
-        
+
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === "Escape") {
                 handleClose();
             }
         };
-        
+
         document.addEventListener("keydown", handleKeyDown);
         return () => document.removeEventListener("keydown", handleKeyDown);
     }, [isOpen, handleClose]);
 
     useFocusTrap(dialogRef, isOpen);
+    useBodyScrollLock(isOpen);
 
     if (!isOpen) return null;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div 
-                className="fixed inset-0 bg-black/60 animate-fade-in" 
+            <div
+                className="fixed inset-0 bg-black/60 animate-fade-in"
                 onClick={handleClose}
                 aria-hidden="true"
             />
-            
-            <div 
+
+            <div
                 ref={dialogRef}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby={titleId}
-                className={`relative z-10 w-full ${maxWidth} card animate-slide-up flex flex-col max-h-[90vh]`}
+                className={`relative z-10 w-full ${maxWidth} card animate-slide-up flex flex-col max-h-[90dvh]`}
             >
                 <div className="card-header flex items-center justify-between">
                     <h2 id={titleId} className="text-lg font-semibold">{title}</h2>
@@ -71,7 +73,7 @@ export default function DetailDialog({
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-6">
+                <div className="flex-1 overflow-y-auto overscroll-contain p-6">
                     {children}
                 </div>
             </div>
