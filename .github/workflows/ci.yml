@@ -1220,6 +1220,10 @@ jobs:
     name: Open Unified Coverage Baseline PR
     needs: [changes, unified-coverage]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.pr_required == 'true' && needs.unified-coverage.result == 'success'
+    # Best-effort post-merge automation: opening/refreshing the baseline PR must
+    # never fail the main CI run. A red run here has been silently blocking
+    # release-image promotion (the promote step gates on a green main CI run).
+    continue-on-error: true
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -1260,7 +1264,11 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add unified-coverage.json
           git commit -m "chore(ci): update unified coverage baseline"
-          git push --force-with-lease origin "HEAD:$BASELINE_BRANCH"
+          # Plain --force, not --force-with-lease: the runner's shallow checkout
+          # never fetches this branch, so the lease has no remote-tracking ref to
+          # compare against and git rejects every push with "stale info". This is
+          # a dedicated single-writer bot branch, so a force push is safe.
+          git push --force origin "HEAD:$BASELINE_BRANCH"
 
           pr_body="$(mktemp)"
           cat > "$pr_body" <<'EOF'
