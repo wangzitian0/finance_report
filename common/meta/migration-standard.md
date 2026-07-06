@@ -244,6 +244,35 @@ The win is real only if `base` layers stay clean and `extension` layers stay
 (cross-package edge count) as a metric, so coupling that creeps back into a fat
 extension is visible, not hidden.
 
+### The L4 `backend` super-package + the app-boundary ratchet
+
+During the migration most of the flow is still un-carved: the remainder of
+`apps/backend/src` (`services/` / `routers/` / `prompts/`) is, conceptually, the
+**L4 `backend` app super-package** — one holding pen that shrinks as each domain
+is carved out. It is not yet a discovered package (its multi-subdir remainder
+shape does not fit the "one package = one `src/<name>`" assumption of
+`check_package_contract`), so that gate's deep-import rule is **blind** to the
+coupling between the remainder and the already-carved packages.
+
+`check_app_boundary` (`common/meta/extension/check_app_boundary.py`) closes that
+blind spot, fail-closed, on a **monotonic baseline**
+(`docs/ssot/app-boundary-baseline.json`) of two edge kinds:
+
+- **inbound** — the remainder importing a carved package's *unpublished internal*
+  (an encapsulation leak: a "completed" package silently losing its boundary);
+- **outbound** — a carved package importing the app remainder (an L1/L3 → L4
+  **upward-layer** edge — the chain that stops a carved package from being
+  liftable; clear these *first* when carving a domain out).
+
+The baseline may only **shrink**: a new edge in either direction fails CI. Its
+size is the real migration burndown — carving a domain out of the super-package
+removes its edges from the baseline, driving it toward zero.
+
+> Follow-up (own PR): once `check_package_contract` learns a *remainder-aware*
+> package (a package whose `impl_dir` contains more-specific packages' dirs),
+> `backend` gets a real `common/backend/contract.py` and this gate folds into the
+> core deep-import scan. Until then it is a standalone ratchet.
+
 ## Migration order
 
 1. **Step 0** — this standard (0a) + refactor `counter` into base/extension/data

@@ -32,6 +32,15 @@ class TestSelectChecks:
         assert "backend-format" in names
         assert "transaction-boundary" in names
 
+    def test_backend_source_edit_selects_app_boundary(self):
+        names = [
+            c.name
+            for c in preflight.select_checks(
+                ["apps/backend/src/services/reconciliation.py"]
+            )
+        ]
+        assert "app-boundary" in names
+
     def test_migration_edit_selects_migration_risk(self):
         names = [
             c.name

@@ -178,6 +178,13 @@ CHECKS: tuple[Check, ...] = (
         why="tooling/common changed: run tests/tooling (tool-wrapper sys.path contract + dispatchers)",
     ),
     Check(
+        name="app-boundary",
+        globs=("apps/backend/src/*.py",),
+        commands=((PY, "tools/check_app_boundary.py"),),
+        why="backend source changed: the L4 backend super-package edge ratchet — no NEW "
+        "cross-boundary edge (remainder↔carved package) may appear; the baseline only shrinks",
+    ),
+    Check(
         name="frontend",
         globs=("apps/frontend/*",),
         commands=(

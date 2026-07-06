@@ -69,3 +69,23 @@ never left half in both an EPIC and a roadmap.
   surface (no cycle); `data` is metadata only. Rule: *never up, never sideways-cyclic*.
 - Adding a package adds no central index edit — shipping `common/<pkg>/contract.py`
   registers it with the governance gate.
+
+## App-boundary burndown (the L4 `backend` super-package)
+
+The un-carved remainder of `apps/backend/src` (`services/` / `routers/` /
+`prompts/`) is the L4 `backend` super-package. `check_app_boundary` freezes its
+coupling to the already-carved packages in `docs/ssot/app-boundary-baseline.json`
+(monotonic: new edges fail CI). **This count is the migration burndown** — it
+drops as each domain is carved out.
+
+- **Now: 23 edges** — 9 inbound (remainder → a carved package's unpublished
+  internal, incl. a deep module import from `models/_registry.py`), 14 outbound
+  (a carved package → the app remainder, upward-layer).
+- The 14 outbound edges concentrate in `extraction` (→ `services.ai_streaming` /
+  `chain_repair` / `storage` / `pii_redaction` / `promotion_gate` / `assets` /
+  `source_type_priority`). They reveal deps `extraction` never internalized:
+  `ai_streaming` / `storage` / `pii_redaction` belong in lower packages
+  (llm / runtime / audit); `chain_repair` / `promotion_gate` / `assets` are domain
+  logic. **Clear outbound before inbound** when carving a domain out.
+- Target: baseline → 0 when `reconciliation` / `reporting` / `portfolio` /
+  `advisor` / `asset` are carved and the remainder is empty.
