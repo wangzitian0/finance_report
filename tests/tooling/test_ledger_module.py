@@ -22,9 +22,11 @@ def _read(path: str) -> str:
     return (REPO / path).read_text(encoding="utf-8")
 
 
-@ac_proof(proof_id="test_ledger_module_shape", ac_ids=["AC12.34.2"], ci_tier="pr_ci")
+@ac_proof(
+    proof_id="test_ledger_module_shape", ac_ids=["AC-ledger.34.2"], ci_tier="pr_ci"
+)
 def test_AC12_34_2_ledger_module_converges_by_role():
-    """AC12.34.2: ledger converges by layer — base/ (the Entry/Leg nouns), extension/
+    """AC-ledger.34.2: ledger converges by layer — base/ (the Entry/Leg nouns), extension/
     (the post_entry verb + the journal Repository adapter), data/ (the balance
     projection) — and exports Entry/Leg/post_entry/UnbalancedEntryError."""
     assert (SRC / "ledger/base/types/entry.py").exists()
@@ -40,10 +42,12 @@ def test_AC12_34_2_ledger_module_converges_by_role():
 
 
 @ac_proof(
-    proof_id="test_models_have_no_service_deps", ac_ids=["AC12.34.3"], ci_tier="pr_ci"
+    proof_id="test_models_have_no_service_deps",
+    ac_ids=["AC-ledger.34.3"],
+    ci_tier="pr_ci",
 )
 def test_AC12_34_3_model_layer_never_imports_a_service():
-    """AC12.34.3: the model layer has no upward edge into services (DAG rule).
+    """AC-ledger.34.3: the model layer has no upward edge into services (DAG rule).
 
     Previously models/journal.py imported services.confidence_tier inside a
     property — a model→service cycle. That edge is gone; this guard prevents any
@@ -65,10 +69,12 @@ def test_AC12_34_3_model_layer_never_imports_a_service():
 
 
 @ac_proof(
-    proof_id="test_confidence_tier_relocated", ac_ids=["AC12.34.3"], ci_tier="pr_ci"
+    proof_id="test_confidence_tier_relocated",
+    ac_ids=["AC-ledger.34.3"],
+    ci_tier="pr_ci",
 )
 def test_AC12_34_3_confidence_tier_lives_in_model_layer():
-    """AC12.34.3: derive_confidence_tier moved to the model; service re-exports it."""
+    """AC-ledger.34.3: derive_confidence_tier moved to the model; service re-exports it."""
     journal = _read("apps/backend/src/models/journal.py")
     assert "def derive_confidence_tier(" in journal
     shim = _read("apps/backend/src/services/confidence_tier.py")
@@ -79,11 +85,11 @@ def test_AC12_34_3_confidence_tier_lives_in_model_layer():
 
 @ac_proof(
     proof_id="test_ledger_investment_postings_adoption",
-    ac_ids=["AC12.34.4"],
+    ac_ids=["AC-ledger.34.4"],
     ci_tier="pr_ci",
 )
 def test_AC12_34_4_investment_postings_use_ledger_post():
-    """AC12.34.4: investment buy/sell/dividend post via Entry + post_entry."""
+    """AC-ledger.34.4: investment buy/sell/dividend post via Entry + post_entry."""
     src = _read("apps/backend/src/services/investment_accounting.py")
     assert "from src.ledger import Entry, Leg, post_entry" in src
     assert "Entry.transfer(" in src  # buy
@@ -103,11 +109,11 @@ def test_AC12_34_4_investment_postings_use_ledger_post():
 
 @ac_proof(
     proof_id="test_ledger_all_posting_paths_balance_guaranteed",
-    ac_ids=["AC12.34.5"],
+    ac_ids=["AC-ledger.34.5"],
     ci_tier="pr_ci",
 )
 def test_AC12_34_5_remaining_posting_paths_guard_balance_with_entry():
-    """AC12.34.5: the raw-ORM posting paths gate balance through Entry.
+    """AC-ledger.34.5: the raw-ORM posting paths gate balance through Entry.
 
     opening-balance, fx-revaluation, and processing-account transfers each
     construct an Entry before persisting (fx-revaluation previously had no balance
@@ -140,11 +146,11 @@ def test_AC12_34_5_remaining_posting_paths_guard_balance_with_entry():
 
 @ac_proof(
     proof_id="test_ledger_owns_posting_pipeline",
-    ac_ids=["AC12.34.6"],
+    ac_ids=["AC-ledger.34.6"],
     ci_tier="pr_ci",
 )
 def test_AC12_34_6_ledger_owns_posting_pipeline_no_upward_edge():
-    """AC12.34.6: the journal write pipeline lives in the ledger package
+    """AC-ledger.34.6: the journal write pipeline lives in the ledger package
     (``ledger/extension/repository.py``); ``ledger.extension.post`` depends down on it
     (not up on services.accounting), and after the package cutover NO ``services.accounting``
     re-export shim survives — callers import the pipeline from the published ledger

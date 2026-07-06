@@ -19,9 +19,9 @@ def _m(x: str, ccy: str = "USD") -> Money:
     return Money(Decimal(x), ccy)
 
 
-@ac_proof(proof_id="test_entry_balances", ac_ids=["AC12.34.1"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_entry_balances", ac_ids=["AC-ledger.34.1"], ci_tier="pr_ci")
 def test_AC12_34_1_balanced_entry_constructs():
-    """AC12.34.1: a balanced transfer / multi-leg entry constructs."""
+    """AC-ledger.34.1: a balanced transfer / multi-leg entry constructs."""
     e = Entry.transfer(debit=A, credit=B, money=_m("10.00"))
     assert len(e.legs) == 2
     # 3-leg balanced (sell shape: dr cash = cr cost + cr pnl)
@@ -33,9 +33,9 @@ def test_AC12_34_1_balanced_entry_constructs():
     assert len(e3.legs) == 3
 
 
-@ac_proof(proof_id="test_entry_unbalanced_raises", ac_ids=["AC12.34.1"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_entry_unbalanced_raises", ac_ids=["AC-ledger.34.1"], ci_tier="pr_ci")
 def test_AC12_34_1_unbalanced_entry_is_unconstructable():
-    """AC12.34.1: an unbalanced entry cannot be constructed."""
+    """AC-ledger.34.1: an unbalanced entry cannot be constructed."""
     with pytest.raises(UnbalancedEntryError):
         Entry.of(
             Leg(A, Direction.DEBIT, _m("100.00")),
@@ -48,9 +48,9 @@ def test_AC12_34_1_unbalanced_entry_is_unconstructable():
         Entry.of(Leg(A, Direction.DEBIT, _m("10.00")))
 
 
-@ac_proof(proof_id="test_entry_per_currency", ac_ids=["AC12.34.1"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_entry_per_currency", ac_ids=["AC-ledger.34.1"], ci_tier="pr_ci")
 def test_AC12_34_1_balance_is_checked_per_currency():
-    """AC12.34.1: balance is per currency, not a currency-blind sum."""
+    """AC-ledger.34.1: balance is per currency, not a currency-blind sum."""
     # each currency balances on its own
     ok = Entry.of(
         Leg(A, Direction.DEBIT, _m("10.00", "USD")),
@@ -67,17 +67,17 @@ def test_AC12_34_1_balance_is_checked_per_currency():
         )
 
 
-@ac_proof(proof_id="test_entry_leg_positive", ac_ids=["AC12.34.1"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_entry_leg_positive", ac_ids=["AC-ledger.34.1"], ci_tier="pr_ci")
 def test_AC12_34_1_legs_must_be_positive():
-    """AC12.34.1: a leg amount must be positive (no zero/negative lines)."""
+    """AC-ledger.34.1: a leg amount must be positive (no zero/negative lines)."""
     with pytest.raises(UnbalancedEntryError):
         Leg(A, Direction.DEBIT, _m("0.00"))
     with pytest.raises(UnbalancedEntryError):
         Leg(A, Direction.DEBIT, _m("-1.00"))
 
 
-@ac_proof(proof_id="test_entry_leg_direction", ac_ids=["AC12.34.1"], ci_tier="pr_ci")
+@ac_proof(proof_id="test_entry_leg_direction", ac_ids=["AC-ledger.34.1"], ci_tier="pr_ci")
 def test_AC12_34_1_leg_direction_must_be_typed():
-    """AC12.34.1: a non-Direction direction is rejected (no silent credit)."""
+    """AC-ledger.34.1: a non-Direction direction is rejected (no silent credit)."""
     with pytest.raises(TypeError):
         Leg(A, "DEBIT", _m("10.00"))  # type: ignore[arg-type]
