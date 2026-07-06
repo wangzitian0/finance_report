@@ -11,7 +11,6 @@ from uuid import UUID
 from sqlalchemy import case, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit.money.adopt import restate_unrounded
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.models.layer3 import (
@@ -45,6 +44,11 @@ _ALLOCATION_METADATA_KEYS = {
     "allocation_liquidity_class",
     "allocation_source_type",
 }
+
+
+def _restate_unrounded(amount: Decimal, rate: Decimal) -> Decimal:
+    """Match reporting's aggregate conversion convention (sum unrounded products)."""
+    return Decimal(str(amount)) * rate
 
 
 def _build_account_lines(
@@ -431,7 +435,7 @@ async def _aggregate_net_income_sql(
         fx_rate = fx_rate_map.get(currency_upper)
         if fx_rate is None:
             raise ReportError(f"Missing FX rate for {currency_upper}/{target_currency} - data consistency error")
-        converted = restate_unrounded(row.total, currency_upper, fx_rate, target_currency)
+        converted = _restate_unrounded(row.total, fx_rate)
         # Net income sign convention: both income and expense types are credit-normal.
         # - Income CREDIT = +, Income DEBIT = -
         # - Expense DEBIT = - (expenses reduce net income), Expense CREDIT = +

@@ -11,7 +11,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.money import to_money
-from src.audit.money.adopt import restate
 from src.models.fx_conversion import FxConversion
 from src.observability import ErrorIds, get_logger
 from src.services.fx import (
@@ -195,7 +194,7 @@ async def _internal_transfer_adjustment(
                     conversion_date=conversion.conversion_date,
                 )
                 continue
-            converted_fee = restate(classification.fee_amount, fee_currency, fee_rate, target_currency)
+            converted_fee = to_money(Decimal(str(classification.fee_amount)) * fee_rate)
             fee_total += converted_fee
             # Attribute the fee to the account it was effectively paid from so it can
             # be materialised as a real expense line (#1162 CR2).
