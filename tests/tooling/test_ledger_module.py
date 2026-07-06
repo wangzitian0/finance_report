@@ -90,7 +90,7 @@ def test_AC12_34_3_confidence_tier_lives_in_model_layer():
 )
 def test_AC12_34_4_investment_postings_use_ledger_post():
     """AC-ledger.34.4: investment buy/sell/dividend post via Entry + post_entry."""
-    src = _read("apps/backend/src/services/investment_accounting.py")
+    src = _read("apps/backend/src/portfolio/extension/accounting.py")
     assert "from src.ledger import Entry, Leg, post_entry" in src
     assert "Entry.transfer(" in src  # buy
     assert "Entry.of(" in src  # sell + dividend

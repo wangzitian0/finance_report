@@ -16,7 +16,7 @@ REPO = Path(__file__).resolve().parents[2]
 # Business files where ManagedPosition money is fully migrated to typed accessors.
 MIGRATED_MANAGED_POSITION_FILES = [
     "apps/backend/src/services/portfolio.py",
-    "apps/backend/src/services/investment_accounting.py",
+    "apps/backend/src/portfolio/extension/accounting.py",
     "apps/backend/src/services/assets.py",
     "apps/backend/src/services/performance_report.py",
     "apps/backend/src/services/reporting/portfolio_market.py",
@@ -62,7 +62,7 @@ def test_AC12_35_1_managed_position_exposes_typed_accessors():
 def test_AC12_35_2_investment_accounting_reads_position_via_accessors():
     """AC-audit.35.2: investment accounting updates position state via the typed accessors,
     not by re-wrapping raw Decimal columns."""
-    src = _read("apps/backend/src/services/investment_accounting.py")
+    src = _read("apps/backend/src/portfolio/extension/accounting.py")
     assert "position.cost_basis_money" in src
     assert "position.realized_pnl_money" in src
     assert "position.quantity_qty" in src
