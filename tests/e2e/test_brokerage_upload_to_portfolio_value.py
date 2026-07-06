@@ -1,7 +1,7 @@
 """
 Tier 3 Browser/API E2E: Multi-brokerage upload to latest portfolio value.
 
-Issue #404 / AC8.13.10:
+Issue #404 / AC-extraction.813.10:
 Upload multiple brokerage PDFs through the configured real OCR path, import
 positions from the parsed statements, and verify the latest portfolio value is
 visible through product APIs.
@@ -67,7 +67,9 @@ def _unique_pdf_copy(src: Path) -> Path:
 
 async def _default_image_model(client: httpx.AsyncClient) -> str:
     response = await client.get(_api_url("/llm/catalog?modality=image"))
-    assert response.status_code == 200, f"model catalog request failed: {response.status_code} {response.text}"
+    assert response.status_code == 200, (
+        f"model catalog request failed: {response.status_code} {response.text}"
+    )
     payload = response.json()
     return payload.get("default_model") or payload["models"][0]["id"]
 
@@ -86,7 +88,9 @@ async def _upload_brokerage_pdf(
             data={"institution": institution, "model": model},
             files={"file": (pdf_path.name, fh, "application/pdf")},
         )
-    assert response.status_code in (200, 201, 202), f"{source} upload failed: {response.status_code} {response.text}"
+    assert response.status_code in (200, 201, 202), (
+        f"{source} upload failed: {response.status_code} {response.text}"
+    )
     statement_id = response.json().get("id")
     assert statement_id, f"{source} upload response missing id: {response.text}"
     return str(statement_id)
@@ -101,11 +105,11 @@ def _transaction_count(payload: dict | None) -> int | None:
     return None
 
 
-def _statement_poll_failure_message(statement_id: str, last_payload: dict | None) -> str:
+def _statement_poll_failure_message(
+    statement_id: str, last_payload: dict | None
+) -> str:
     if not last_payload:
-        return (
-            f"statement {statement_id} did not reach parsed within {PARSING_TIMEOUT_MS}ms; no poll payload was returned"
-        )
+        return f"statement {statement_id} did not reach parsed within {PARSING_TIMEOUT_MS}ms; no poll payload was returned"
 
     status = last_payload.get("status")
     progress = last_payload.get("parsing_progress")
@@ -113,7 +117,12 @@ def _statement_poll_failure_message(statement_id: str, last_payload: dict | None
     validation_error = last_payload.get("validation_error")
     balance_validated = last_payload.get("balance_validated")
 
-    if status in {"uploaded", "parsing"} and progress == 100 and tx_count and tx_count > 0:
+    if (
+        status in {"uploaded", "parsing"}
+        and progress == 100
+        and tx_count
+        and tx_count > 0
+    ):
         reason = "internal state-transition failure after OCR extraction"
     elif progress == 100 and tx_count == 0:
         reason = "provider parsing completed without importable transactions"
@@ -132,7 +141,9 @@ def _statement_poll_failure_message(statement_id: str, last_payload: dict | None
 
 def _balance_sheet_asset_lines(balance_sheet: dict) -> list[dict]:
     assets = balance_sheet.get("assets")
-    assert isinstance(assets, list), f"balance sheet missing asset lines: {balance_sheet}"
+    assert isinstance(assets, list), (
+        f"balance sheet missing asset lines: {balance_sheet}"
+    )
     return [line for line in assets if isinstance(line, dict)]
 
 
@@ -145,7 +156,9 @@ def _market_valuation_lines(balance_sheet: dict) -> list[dict]:
 
 
 def _line_total(lines: list[dict]) -> Decimal:
-    return money_amount(sum((money_amount(line.get("amount", "0")) for line in lines), Decimal("0.00")))
+    return money_amount(
+        sum((money_amount(line.get("amount", "0")) for line in lines), Decimal("0.00"))
+    )
 
 
 def _portfolio_valuation_failure_message(
@@ -158,14 +171,17 @@ def _portfolio_valuation_failure_message(
     asset_lines = _balance_sheet_asset_lines(balance_sheet)
     valuation_lines = _market_valuation_lines(balance_sheet)
     valuation_total = _line_total(valuation_lines)
-    non_portfolio_asset_total = _line_total([line for line in asset_lines if line not in valuation_lines])
+    non_portfolio_asset_total = _line_total(
+        [line for line in asset_lines if line not in valuation_lines]
+    )
     relevant_asset_lines = [
         {
             "name": line.get("name"),
             "amount": str(line.get("amount")),
         }
         for line in asset_lines
-        if line in valuation_lines or money_amount(line.get("amount", "0")) < Decimal("0.00")
+        if line in valuation_lines
+        or money_amount(line.get("amount", "0")) < Decimal("0.00")
     ]
 
     return (
@@ -187,8 +203,12 @@ def _assert_portfolio_market_valuation_covered(
     imported_positions: Decimal,
     balance_sheet: dict,
 ) -> None:
-    total_market_value = money_amount(sum((money_amount(item["market_value"]) for item in holdings), Decimal("0.00")))
-    assert total_market_value > Decimal("0.00"), f"holdings have no market value: {holdings}"
+    total_market_value = money_amount(
+        sum((money_amount(item["market_value"]) for item in holdings), Decimal("0.00"))
+    )
+    assert total_market_value > Decimal("0.00"), (
+        f"holdings have no market value: {holdings}"
+    )
 
     valuation_lines = _market_valuation_lines(balance_sheet)
     valuation_total = _line_total(valuation_lines)
@@ -201,10 +221,14 @@ def _assert_portfolio_market_valuation_covered(
 
     assert valuation_lines, failure_message
     assert valuation_total >= total_market_value, failure_message
-    assert money_amount(balance_sheet["net_worth_adjustment_gain_loss"]) > Decimal("0.00"), failure_message
+    assert money_amount(balance_sheet["net_worth_adjustment_gain_loss"]) > Decimal(
+        "0.00"
+    ), failure_message
 
 
-async def _wait_for_parsed_statement(client: httpx.AsyncClient, statement_id: str) -> dict:
+async def _wait_for_parsed_statement(
+    client: httpx.AsyncClient, statement_id: str
+) -> dict:
     deadline = asyncio.get_event_loop().time() + PARSING_TIMEOUT_MS / 1000
     last_payload: dict | None = None
     while asyncio.get_event_loop().time() < deadline:
@@ -229,7 +253,7 @@ async def _wait_for_parsed_statement(client: httpx.AsyncClient, statement_id: st
 def test_statement_poll_failure_message_flags_state_transition_stall() -> None:
     """EPIC-003 EPIC-008 EPIC-009.
 
-    AC8.13.10/Issue #409: E2E timeout distinguishes parsed-data routing stalls.
+    AC-extraction.813.10/Issue #409: E2E timeout distinguishes parsed-data routing stalls.
     """
     message = _statement_poll_failure_message(
         "stmt-409",
@@ -301,7 +325,7 @@ def test_portfolio_valuation_gate_failure_diagnostics_are_actionable() -> None:
 
 @ac_proof(
     "brokerage-pdf-to-portfolio-value",
-    ac_ids=["AC8.13.10"],
+    ac_ids=["AC-extraction.813.10"],
     scope="behavioral",
     ci_tier="post_merge_environment",
     trust_mode="llm_ocr_post_merge",
@@ -319,10 +343,12 @@ async def test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_p
 ) -> None:
     """EPIC-003 EPIC-005 EPIC-008 EPIC-009 EPIC-017.
 
-    AC8.13.10: two brokerage PDFs -> real OCR -> positions -> balance sheet value.
+    AC-extraction.813.10: two brokerage PDFs -> real OCR -> positions -> balance sheet value.
     """
     headers = await _auth_headers(authenticated_page_unique)
-    async with httpx.AsyncClient(headers=headers, verify=False, timeout=120.0) as client:
+    async with httpx.AsyncClient(
+        headers=headers, verify=False, timeout=120.0
+    ) as client:
         model = await _default_image_model(client)
         uploads = [
             ("moomoo", "Moomoo E2E Portfolio"),
@@ -340,17 +366,24 @@ async def test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_p
                 )
             )
 
-        parsed_statements = [await _wait_for_parsed_statement(client, statement_id) for statement_id in statement_ids]
+        parsed_statements = [
+            await _wait_for_parsed_statement(client, statement_id)
+            for statement_id in statement_ids
+        ]
         assert len(parsed_statements) == 2
 
         imported_positions = Decimal("0")
         for parsed_statement in parsed_statements:
-            response = await client.post(_api_url(f"/statements/{parsed_statement['id']}/brokerage/import"))
+            response = await client.post(
+                _api_url(f"/statements/{parsed_statement['id']}/brokerage/import")
+            )
             assert response.status_code == 200, (
                 f"brokerage import failed for {parsed_statement['id']}: {response.status_code} {response.text}"
             )
             payload = response.json()
-            assert payload["parsed_positions"] > 0, f"no positions imported for {parsed_statement['id']}: {payload}"
+            assert payload["parsed_positions"] > 0, (
+                f"no positions imported for {parsed_statement['id']}: {payload}"
+            )
             imported_positions += Decimal(str(payload["parsed_positions"]))
 
         holdings_response = await client.get(_api_url("/portfolio/holdings"))
@@ -358,9 +391,13 @@ async def test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_p
             f"holdings check failed: {holdings_response.status_code} {holdings_response.text}"
         )
         holdings = holdings_response.json()
-        assert len(holdings) >= int(imported_positions), f"missing imported holdings: {holdings}"
+        assert len(holdings) >= int(imported_positions), (
+            f"missing imported holdings: {holdings}"
+        )
 
-        balance_response = await client.get(_api_url(f"/reports/balance-sheet?as_of_date={date.today().isoformat()}"))
+        balance_response = await client.get(
+            _api_url(f"/reports/balance-sheet?as_of_date={date.today().isoformat()}")
+        )
         assert balance_response.status_code == 200, (
             f"balance sheet check failed: {balance_response.status_code} {balance_response.text}"
         )

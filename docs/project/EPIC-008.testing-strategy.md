@@ -264,16 +264,25 @@ job inventories or scenario counts into this EPIC.
 
 ### AC8.12: Provider Error-Path Unit Gates
 
+> **Partially migrated.** The extraction-owned rows (were AC8.12.* rows
+> .6/.4/.5) are homed in the `extraction` package roadmap as
+> `AC-extraction.812.6` · `AC-extraction.812.4` · `AC-extraction.812.5`
+> ([`common/extraction/contract.py`](../../common/extraction/contract.py));
+> the remaining rows below stay with their own owners.
+
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC8.12.6 | OCR/vision provider fallback, timeout, and empty-response errors are deterministic | `test_extract_financial_data_shared_ocr_vision_skips_layout_parser`, `test_extract_financial_data_dedicated_ocr_failure_falls_back_to_vision` | `apps/backend/tests/extraction/test_extraction_error_paths.py` | P1 |
 | AC8.12.1 | Liability accounts return -net_balance so coverage hits else branch. | `test_returns_negated_balance_for_liability_account` | `reporting/test_fx_revaluation.py` | P1 |
 | AC8.12.2 | SQLAlchemyError on flush is wrapped in RevaluationError. | `test_flush_error_raises_revaluation_error` | `reporting/test_fx_revaluation.py` | P1 |
 | AC8.12.3 | Accounts that return None from calculate_unrealized_fx_for_account are skipped. | `test_none_revaluation_skipped` | `reporting/test_fx_revaluation.py` | P1 |
-| AC8.12.4 | PDF with private URL logs warning and raises ExtractionError (lines 393->403, 416->426). | `test_extract_financial_data_pdf_private_url_raises` | `extraction/test_extraction_error_paths.py` | P1 |
-| AC8.12.5 | Image with private URL logs warning and raises ExtractionError (else branch 416->426). | `test_extract_financial_data_image_private_url_raises` | `extraction/test_extraction_error_paths.py` | P1 |
 
 ### AC8.13: Tier 3 Browser E2E — Full Statement Journey
+
+> **Partially migrated.** The extraction-owned rows (were AC8.13.* rows
+> .10) are homed in the `extraction` package roadmap as
+> `AC-extraction.813.10`
+> ([`common/extraction/contract.py`](../../common/extraction/contract.py));
+> the remaining rows below stay with their own owners.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
@@ -286,7 +295,6 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.7 | Strict full statement journey fails on rejected AI/OCR parsing | `test_dbs_statement_full_journey` | `tests/e2e/test_statement_full_journey.py` | P0 |
 | AC8.13.8 | Strict upload readiness E2E does not accept rejected statements | `test_statement_upload_full_flow` | `tests/e2e/test_statement_upload_e2e.py` | P0 |
 | AC8.13.9 | Production release runs prod-safe read-only E2E smoke | `test_production_*` | `tests/e2e/test_production_readonly_smoke.py` | P0 |
-| AC8.13.10 | Multi-brokerage PDF upload → position import → latest portfolio value | `test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value`, `test_statement_import_flows_to_holdings_and_balance_sheet`, `test_parse_document_routes_brokerage_balance_mismatch_to_parsed`, `test_parse_document_backfills_generated_brokerage_positions_from_pdf_text`, `test_pdf_text_fallback_closes_pymupdf_document` | `tests/e2e/test_brokerage_upload_to_portfolio_value.py`, `apps/backend/tests/portfolio/test_brokerage_position_parsing.py`, `apps/backend/tests/extraction/test_statement_brokerage_import_bridge.py`, `apps/backend/tests/unit/services/test_brokerage_generated_fallback.py` | P0 |
 | AC8.13.11 | Staging health check diagnoses API route 404 with route probes | `test_AC8_13_11_health_check_diagnoses_staging_api_route_404` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.12 | AI/OCR gate failures include statement validation context | `test_AC8_13_12_ai_ocr_gate_failure_includes_statement_context` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.13 | Staging deploy uses workflow-level singleton concurrency plus an in-job FIFO guard to prevent duplicate concurrent staging mutation and bounds E2E gate duration with phase timing logs | `test_AC8_13_13_staging_deploy_fast_fail_guardrails`, `test_AC8_13_13_post_merge_train_waits_only_for_older_active_runs` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
@@ -723,10 +731,10 @@ Product E2E ownership index:
 | `tests/e2e/test_ac_authority_tiers_epic026.py` | EPIC-026 authority-tier pipeline product owner E2E; AC-authority.2.1/AC-authority.3.1/AC-authority.4.1 references live in the test file |
 | `tests/e2e/test_application_ai_advisor_epic021.py` | Application AI Advisor product owner E2E; AC21.1 references live in the test file |
 | `tests/e2e/test_auth_flows.py` | Deployed auth flow E2E; AC references live in the test file |
-| `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | Critical proof: AC8.13.10 |
+| `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | Critical proof: AC-extraction.813.10 |
 | `tests/e2e/test_core_journeys.py` | Deployed core journey E2E; AC references live in the test file |
 | `tests/e2e/test_e2e_flows.py` | Deployed extended flow E2E; AC references live in the test file |
-| `tests/e2e/test_four_asset_net_worth_golden_path.py` | Critical proof: AC8.13.42, AC8.13.10, AC5.7.3, AC11.9.1-AC11.9.3, AC17.5.4 |
+| `tests/e2e/test_four_asset_net_worth_golden_path.py` | Critical proof: AC8.13.42, AC-extraction.813.10, AC5.7.3, AC11.9.1-AC11.9.3, AC17.5.4 |
 | `tests/e2e/test_llm_provider_abstraction_epic023.py` | LLM provider abstraction product owner E2E; EPIC-023 / AC23.1 references live in the test file |
 | `tests/e2e/test_frontend_observability_epic024.py` | EPIC-024 frontend browser observability product owner E2E; AC24.1.1 reference lives in the test file |
 | `tests/e2e/test_market_data_price_paths.py` | Critical proof: AC11.10.7, AC11.10.11 |

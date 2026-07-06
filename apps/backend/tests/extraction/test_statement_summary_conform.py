@@ -45,7 +45,7 @@ async def _make_summary(db: AsyncSession, user_id, *, file_hash: str, account_id
 
 class TestStatementSummaryConform:
     async def test_AC1_currency_balances_jsonb_round_trips(self, db, test_user):
-        """AC4.13.6 (#1123 AC1): ``currency_balances`` JSONB persists a per-currency balance array.
+        """AC-extraction.413.6 (#1123 AC1): ``currency_balances`` JSONB persists a per-currency balance array.
 
         Additive to the scalar ``opening_balance`` / ``closing_balance`` columns,
         which stay populated for the single-currency degenerate case and

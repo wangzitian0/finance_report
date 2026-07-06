@@ -30,7 +30,7 @@ SGD
 
 
 def test_generated_moomoo_pdf_text_fallback_emits_subscription_position():
-    """AC8.13.10/AC17.4.12: Generated Moomoo PDF text can backfill a missing model position."""
+    """AC-extraction.813.10/AC-extraction.304.12: Generated Moomoo PDF text can backfill a missing model position."""
     payload = _generated_brokerage_positions_payload_from_text(
         MOOMOO_GENERATED_TEXT,
         filename="test_moomoo_2606_24697.pdf",
@@ -54,7 +54,7 @@ def test_generated_moomoo_pdf_text_fallback_emits_subscription_position():
 
 
 def test_generated_futu_pdf_text_fallback_emits_valuation_position():
-    """AC8.13.10/AC17.4.12: Generated Futu PDF text can backfill a missing model position."""
+    """AC-extraction.813.10/AC-extraction.304.12: Generated Futu PDF text can backfill a missing model position."""
     text = """
 Futu Securities - Monthly Statement
 Statement Period: June 2026
@@ -95,7 +95,7 @@ SGD
 
 
 async def test_parse_document_backfills_generated_brokerage_positions_from_pdf_text(monkeypatch):
-    """AC8.13.10/AC17.4.12: Generated brokerage PDFs do not fail open when the model emits empty positions."""
+    """AC-extraction.813.10/AC-extraction.304.12: Generated brokerage PDFs do not fail open when the model emits empty positions."""
     service = ExtractionService()
 
     async def empty_model_payload(*args, **kwargs):
@@ -139,7 +139,7 @@ async def test_parse_document_backfills_generated_brokerage_positions_from_pdf_t
 
 
 def test_pdf_text_fallback_closes_pymupdf_document(monkeypatch):
-    """AC8.13.10/AC17.4.12: Generated brokerage PDF fallback closes PyMuPDF documents."""
+    """AC-extraction.813.10/AC-extraction.304.12: Generated brokerage PDF fallback closes PyMuPDF documents."""
     closed = False
 
     class FakePage:

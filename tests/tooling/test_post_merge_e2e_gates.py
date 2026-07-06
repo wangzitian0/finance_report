@@ -3468,7 +3468,7 @@ def test_AC8_13_119_delivery_resource_leak_hardening_is_contracted() -> None:
 
 
 def test_AC8_13_10_multi_brokerage_upload_to_portfolio_value_gate() -> None:
-    """AC8.13.10: Staging proves multi-brokerage upload through latest value."""
+    """AC-extraction.813.10: Staging proves multi-brokerage upload through latest value."""
     reusable = read(".github/workflows/staging-ai-ocr-gate.yml")
     brokerage = read("tests/e2e/test_brokerage_upload_to_portfolio_value.py")
     statements_router = read("apps/backend/src/routers/statements.py")

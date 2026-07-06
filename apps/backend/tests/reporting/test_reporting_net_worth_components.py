@@ -213,7 +213,7 @@ async def test_portfolio_market_value_counts_when_ledger_has_no_cost_basis(db: A
 
 
 async def test_current_balance_sheet_uses_latest_future_brokerage_snapshot(db: AsyncSession, test_user):
-    """AC8.13.10: Current balance sheet includes latest imported brokerage snapshots."""
+    """AC-extraction.813.10: Current balance sheet includes latest imported brokerage snapshots."""
     report_date = date.today()
     snapshot_date = (
         date(report_date.year + 1, 1, 31)

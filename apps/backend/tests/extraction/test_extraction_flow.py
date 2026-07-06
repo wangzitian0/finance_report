@@ -82,7 +82,7 @@ class TestExtractionServiceFlow:
             assert len(events) == 0
 
     async def test_parsed_statement_sets_stage1_pending_review(self, service, tmp_path):
-        """AC16.22.8: a statement routed to parsed/review carries stage1_status=pending_review
+        """AC-extraction.1622.8: a statement routed to parsed/review carries stage1_status=pending_review
         explicitly, so the pending-review queue does not depend on a NULL fallback."""
         csv_file = tmp_path / "review.csv"
         csv_file.write_bytes(b"dummy csv")

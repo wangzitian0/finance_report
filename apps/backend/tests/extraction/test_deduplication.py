@@ -73,7 +73,7 @@ class TestDeduplicationService:
         assert hash_result == hash_empty_ref
 
     def test_running_balance_distinguishes_identical_transactions(self):
-        """AC11.16.1: two otherwise-identical txns with different running balances hash differently;
+        """AC-extraction.216.1: two otherwise-identical txns with different running balances hash differently;
         identical running balances (or none) collapse."""
         service = DeduplicationService()
         user_id = uuid4()
@@ -260,7 +260,7 @@ class TestDeduplicationService:
         assert txn.source_documents[0]["doc_type"] == DocumentType.BANK_STATEMENT.value
 
     async def test_upsert_persists_balance_after(self, db, test_user):
-        """AC4.6.8: upsert_atomic_transaction persists the extracted balance_after so the
+        """AC-extraction.406.8: upsert_atomic_transaction persists the extracted balance_after so the
         Stage-1 conflict guard can disambiguate distinct-but-identical transactions."""
         service = DeduplicationService()
 
@@ -283,7 +283,7 @@ class TestDeduplicationService:
         assert reloaded.balance_after == Decimal("3966.50")
 
     async def test_upsert_backfills_balance_after_on_legacy_null_row(self, db, test_user):
-        """AC4.6.8: a legacy row whose dedup hash already encoded the running balance but left
+        """AC-extraction.406.8: a legacy row whose dedup hash already encoded the running balance but left
         balance_after NULL (pre-migration) gets it backfilled when the same transaction is
         re-parsed, so previously-stuck statements benefit from the guard fix."""
         service = DeduplicationService()

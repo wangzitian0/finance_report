@@ -24,7 +24,7 @@ async def mock_stream_generator(content: str):
 
 
 async def test_handle_parse_failure_persists_failed_document_lineage(db, test_user):
-    """AC16.22.10: a hard parse failure persists an UploadedDocument(failed) so the uploaded raw
+    """AC-extraction.1622.10: a hard parse failure persists an UploadedDocument(failed) so the uploaded raw
     file stays traceable from the rejected statement (#982). The document is normally created on
     success in dual_write; a failure happens before that, so without this the raw file is orphaned.
     """
@@ -221,7 +221,7 @@ async def test_extract_financial_data_uses_ocr_first_pipeline():
 
 
 async def test_extract_financial_data_shared_ocr_vision_skips_layout_parser():
-    """AC8.12.6: Shared OCR/vision model uses one vision call and skips layout parsing.
+    """AC-extraction.812.6: Shared OCR/vision model uses one vision call and skips layout parsing.
 
     AC-extraction.118.1: the configured vision fallback model is appended after the primary
     so more than one model is attempted on the vision path (#1034).
@@ -296,7 +296,7 @@ async def test_vision_path_falls_back_to_secondary_model_on_non_retryable_error(
 
 
 def test_ocr_model_selection_helpers_deduplicate_vision_models():
-    """AC8.12.6: OCR/vision helper rules avoid duplicate provider calls.
+    """AC-extraction.812.6: OCR/vision helper rules avoid duplicate provider calls.
 
     AC-extraction.118.1: configured vision fallbacks are appended to the vision model list,
     deduplicated and order-preserving, so more than one model is attempted on the
@@ -344,7 +344,7 @@ def test_vision_extraction_models_without_fallbacks_returns_primary_only():
 
 
 def test_render_pdf_pages_rejects_empty_content():
-    """AC8.12.6: PDF vision rendering fails fast when no bytes are available."""
+    """AC-extraction.812.6: PDF vision rendering fails fast when no bytes are available."""
     service = ExtractionService()
 
     with pytest.raises(ExtractionError, match="requires file content"):
@@ -352,7 +352,7 @@ def test_render_pdf_pages_rejects_empty_content():
 
 
 def test_build_vision_media_payloads_rejects_non_url_pdf_input(monkeypatch):
-    """AC8.12.6: Z.AI PDF vision payloads require rendered content or an external URL."""
+    """AC-extraction.812.6: Z.AI PDF vision payloads require rendered content or an external URL."""
     from src.config import settings
 
     monkeypatch.setattr(settings, "ai_provider", "zai")
@@ -396,7 +396,7 @@ def test_build_vision_media_payloads_gemini_sends_native_pdf_not_rendered_images
 
 
 def test_build_vision_media_payloads_reraises_render_error_without_external_url(monkeypatch):
-    """AC8.12.6: Render failures without a safe external URL do not silently continue."""
+    """AC-extraction.812.6: Render failures without a safe external URL do not silently continue."""
     from src.config import settings
 
     monkeypatch.setattr(settings, "ai_provider", "zai")
@@ -417,7 +417,7 @@ def test_build_vision_media_payloads_reraises_render_error_without_external_url(
 
 
 async def test_extract_ocr_markdown_surfaces_layout_http_error(monkeypatch):
-    """AC8.12.6: Dedicated OCR layout HTTP failures include status and body."""
+    """AC-extraction.812.6: Dedicated OCR layout HTTP failures include status and body."""
     service = ExtractionService()
     service.api_key = "test-key"
 
@@ -450,7 +450,7 @@ async def test_extract_ocr_markdown_surfaces_layout_http_error(monkeypatch):
 
 
 async def test_extract_json_with_models_handles_httpx_timeout():
-    """AC8.12.6: Native httpx timeouts are summarized like provider timeouts."""
+    """AC-extraction.812.6: Native httpx timeouts are summarized like provider timeouts."""
     import httpx
 
     service = ExtractionService()
@@ -470,7 +470,7 @@ async def test_extract_json_with_models_handles_httpx_timeout():
 
 
 async def test_ai_parse_csv_empty_mapping_response():
-    """AC8.12.6: AI CSV mapping rejects empty model responses."""
+    """AC-extraction.812.6: AI CSV mapping rejects empty model responses."""
     service = ExtractionService()
     service.api_key = "test-key"
 
@@ -490,7 +490,7 @@ async def test_ai_parse_csv_empty_mapping_response():
 
 
 async def test_extract_financial_data_dedicated_ocr_failure_falls_back_to_vision():
-    """AC8.12.6: Dedicated OCR failure falls back to ordered vision extraction models."""
+    """AC-extraction.812.6: Dedicated OCR failure falls back to ordered vision extraction models."""
     service = ExtractionService()
     service.api_key = "test-key"
     service.ocr_model = "layout-ocr-model"
@@ -1407,7 +1407,7 @@ async def test_dual_write_layer2_integrity_error_is_non_fatal():
 
 
 async def test_extract_financial_data_pdf_private_url_raises():
-    """AC8.12.4 – PDF with private URL logs warning and raises ExtractionError (lines 393->403, 416->426)."""
+    """AC-extraction.812.4 – PDF with private URL logs warning and raises ExtractionError (lines 393->403, 416->426)."""
     service = ExtractionService()
     service.api_key = "test-key"
 
@@ -1421,7 +1421,7 @@ async def test_extract_financial_data_pdf_private_url_raises():
 
 
 async def test_extract_financial_data_image_private_url_raises():
-    """AC8.12.5 – Image with private URL logs warning and raises ExtractionError (else branch 416->426)."""
+    """AC-extraction.812.5 – Image with private URL logs warning and raises ExtractionError (else branch 416->426)."""
     service = ExtractionService()
     service.api_key = "test-key"
 

@@ -142,15 +142,15 @@ Notes:
 
 ### AC20.9: Reporting Pipeline Authority Tiers
 
+> **Partially migrated.** The extraction-owned rows (were AC20.9.* rows
+> .2/.3/.4/.5/.6/.7) are homed in the `extraction` package roadmap as
+> `AC-extraction.2009.2` · `AC-extraction.2009.3` · `AC-extraction.2009.4` · `AC-extraction.2009.5` · `AC-extraction.2009.6` · `AC-extraction.2009.7`
+> ([`common/extraction/contract.py`](../../common/extraction/contract.py));
+> the remaining rows below stay with their own owners.
+
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC20.9.1 | EPIC-020 declares the three reporting-pipeline layers (`event → L2`, `L2 → L1`, `L1 → report`) each with a locked EPIC-026 tier (LLM-LED / CODE-LED / CODE-ONLY) and its valid proof obligation; LLM authority is confined to the LLM-LED layer and code holds final authority where a number becomes financial truth {tier:CODE-ONLY}{proof:property} | `test_AC20_9_1_reporting_pipeline_declares_layer_authority_tiers` | `tests/tooling/test_framework_reporting_epic_contract.py` | P0 |
-| AC20.9.2 | LLM-LED tier (event→L2) balance-chain failure is a BLOCKING runtime gate: a bank-statement extraction whose chain does not reconcile (`opening + ΣIN − ΣOUT ≠ closing` beyond the Decimal tolerance) is quarantined to the `rejected` terminal state with a typed reason code and never reaches `parsed`/trusted report-input state; code may reject, never author {tier:LLM-LED}{proof:property} | `test_AC20_9_2_imbalanced_bank_extraction_is_quarantined_not_parsed`, `test_AC20_9_2_quarantined_extraction_absent_from_trusted_report_input` | `tests/extraction/test_llm_led_blocking_gate.py` | P0 |
-| AC20.9.3 | LLM-LED tier dedup-conservation failure is an INDEPENDENT blocking gate: a within-document dedup collapse (post-dedup row count ≠ conserved pre-dedup count) quarantines the extraction with a reason code DISTINCT from the balance-chain reason {tier:LLM-LED}{proof:property} | `test_AC20_9_3_within_doc_dedup_collapse_is_quarantined`, `test_AC20_9_3_dedup_reason_code_distinct_from_balance` | `tests/extraction/test_llm_led_blocking_gate.py` | P0 |
-| AC20.9.4 | LLM-LED tier gate is fail-closed: when a balance invariant cannot be evaluated because a bank statement is missing an opening or closing balance, the extraction never reaches `parsed`/trusted state (the parse path refuses it) and the pure gate quarantines the unevaluable case with a typed reason, rather than silently passing on a zero-default chain {tier:LLM-LED}{proof:property} | `test_AC20_9_4_unevaluable_balance_fails_closed_not_parsed`, `test_AC20_9_4_unevaluable_is_pure_gate_decision` | `tests/extraction/test_llm_led_blocking_gate.py` | P0 |
-| AC20.9.5 | The prior "imbalanced bank statement → `parsed`/review" behavior no longer exists: routing a true balance-chain failure no longer returns `parsed` {tier:LLM-LED}{proof:property} | `test_AC20_9_5_imbalanced_no_longer_routes_to_parsed_review` | `tests/extraction/test_llm_led_blocking_gate.py` | P0 |
-| AC20.9.6 | No false reject: a balanced, dedup-consistent bank-statement extraction still flows through to its prior `parsed`/`approved` resting state unchanged by the gate {tier:LLM-LED}{proof:property} | `test_AC20_9_6_valid_extraction_passes_gate_unchanged` | `tests/extraction/test_llm_led_blocking_gate.py` | P0 |
-| AC20.9.7 | Each LLM-LED gate failure mode emits a distinct structured reason code and a distinct PII-free metric kind (balance vs dedup vs unevaluable), with no institution name or account identifier in the signal {tier:LLM-LED}{proof:property} | `test_AC20_9_7_each_failure_mode_has_distinct_reason_and_metric`, `test_AC20_9_7_gate_reason_codes_carry_no_pii` | `tests/extraction/test_llm_led_blocking_gate.py` | P0 |
 | AC20.9.8 | A db-backed quarantine persists the terminal `rejected` status to the statement row (and writes no Layer-2 financial rows) instead of leaving the upload stuck in `parsing` {tier:CODE-ONLY} | `test_AC20_9_8_quarantined_statement_persists_rejected_not_stuck_parsing` | `tests/extraction/test_llm_led_blocking_gate.py` | P0 |
 
 ## Implementation Order

@@ -1,4 +1,4 @@
-"""LLM-LED tier (event→L2) blocking invariant gate (EPIC-020 AC20.9.2-.7, #1352).
+"""LLM-LED tier (event→L2) blocking invariant gate (EPIC-020 AC-extraction.2009.2-.7, #1352).
 
 EPIC-020 AC20.9.1 locks the ``event → L2`` layer to the **LLM-LED** tier: the LLM
 emits the parsed statement and deterministic CODE does enum + balance/dedup sanity
@@ -33,7 +33,7 @@ from src.services.promotion_gate import (
 class LlmLedQuarantineReason(str, Enum):
     """Typed, queryable reason an LLM-LED extraction was quarantined.
 
-    Each value is a distinct reason code (AC20.9.7) carrying NO institution name or
+    Each value is a distinct reason code (AC-extraction.2009.7) carrying NO institution name or
     account identifier (PII-free) — only the invariant class that failed.
     """
 
@@ -42,7 +42,7 @@ class LlmLedQuarantineReason(str, Enum):
     BALANCE_INVARIANT_UNEVALUABLE = "llm_led_balance_invariant_unevaluable"
 
 
-# Map each quarantine reason to its distinct, bounded metric kind (AC20.9.7). These
+# Map each quarantine reason to its distinct, bounded metric kind (AC-extraction.2009.7). These
 # are the *blocking-gate* counters, deliberately distinct from the pre-existing
 # detection-only kinds ("balance_mismatch", "chain_break", "dedup_within_doc_collapse")
 # so a quarantine (truth blocked) is queryable apart from a logged-only detection.
@@ -112,7 +112,7 @@ def evaluate_llm_led_extraction_gate(
     signals). Returns a quarantine verdict with a typed reason, or the pass-through
     verdict when every gated invariant holds.
 
-    Order and independence (AC20.9.3): the dedup-conservation gate is evaluated
+    Order and independence (AC-extraction.2009.3): the dedup-conservation gate is evaluated
     INDEPENDENTLY of the balance gate and reported with a DISTINCT reason code. It
     is checked first so a statement that fails *both* still surfaces the dedup
     violation (a silently-lost row makes the balance signal untrustworthy anyway).
@@ -126,7 +126,7 @@ def evaluate_llm_led_extraction_gate(
       chain (#981), so ``is_brokerage`` exempts them from the balance gate (their
       NAV self-check remains the detection-time signal it already was).
 
-    ``balance_evaluable`` is the fail-closed input (AC20.9.4): ``False`` means the
+    ``balance_evaluable`` is the fail-closed input (AC-extraction.2009.4): ``False`` means the
     balance invariant could not be computed (e.g. a bank statement missing an
     opening or closing balance), which quarantines rather than passing on the
     zero-default chain. It is ignored for brokerage payloads.
@@ -138,14 +138,14 @@ def evaluate_llm_led_extraction_gate(
     own note (AC3.2.5). Such a statement is not silently passing, so blocking it
     would be a false reject; the dedup gate still applies to it.
     """
-    # Independent dedup-conservation gate (AC20.9.3) — all document classes.
+    # Independent dedup-conservation gate (AC-extraction.2009.3) — all document classes.
     if within_doc_collapse > 0:
         return LpGateVerdict(
             quarantined=True,
             reason=LlmLedQuarantineReason.DEDUP_CONSERVATION_VIOLATION,
         )
 
-    # Balance-chain gate (AC20.9.2 / .4) — bank statements only, and never for an
+    # Balance-chain gate (AC-extraction.2009.2 / .4) — bank statements only, and never for an
     # explicitly-flagged incomplete review marker.
     if not is_brokerage and not balance_gate_exempt:
         if not balance_evaluable:

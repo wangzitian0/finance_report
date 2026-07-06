@@ -960,7 +960,7 @@ async def test_execute_matching_many_to_one_skips_unbalanced_entry(db: AsyncSess
 
 
 async def test_execute_matching_many_to_one_keeps_same_existing_match(db: AsyncSession, test_user) -> None:
-    """AC4.6.8: Many-to-one keeps existing match when journal entry IDs are unchanged."""
+    """AC-extraction.406.8: Many-to-one keeps existing match when journal entry IDs are unchanged."""
     user_id = test_user.id
     summary = await _seed_summary(db, owner_id=user_id, base_date=date(2024, 8, 1))
     txn = _atomic(

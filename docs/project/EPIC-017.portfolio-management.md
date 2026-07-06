@@ -143,6 +143,12 @@ be treated as current work.
 
 ### AC17.4: Brokerage Statement Parsing
 
+> **Partially migrated.** The extraction-owned rows (were AC17.4.* rows
+> .7/.9/.10/.11/.12/.13) are homed in the `extraction` package roadmap as
+> `AC-extraction.304.7` · `AC-extraction.304.9` · `AC-extraction.304.10` · `AC-extraction.304.11` · `AC-extraction.304.12` · `AC-extraction.304.13`
+> ([`common/extraction/contract.py`](../../common/extraction/contract.py));
+> the remaining rows below stay with their own owners.
+
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC17.4.1 | Moomoo Statement Parsing | `test_parse_moomoo_fixture_subscription_positions` | `portfolio/test_brokerage_position_parsing.py` | P0 |
@@ -151,13 +157,7 @@ be treated as current work.
 | AC17.4.4 | Broker Auto-Detection (Moomoo) | `test_detect_broker_moomoo_futu_and_interactive_brokers` | `portfolio/test_brokerage_position_parsing.py` | P1 |
 | AC17.4.5 | Broker Auto-Detection (Futu) | `test_detect_broker_moomoo_futu_and_interactive_brokers` | `portfolio/test_brokerage_position_parsing.py` | P1 |
 | AC17.4.6 | Brokerage Import Endpoint | `test_brokerage_import_endpoint`, `test_statement_import_flows_to_holdings_and_balance_sheet` | `portfolio/test_brokerage_position_parsing.py` | P1 |
-| AC17.4.7 | Upload Parse-to-Import Bridge | `test_parse_statement_background_imports_brokerage_positions`, `test_parse_document_routes_brokerage_balance_mismatch_to_parsed` | `extraction/test_statement_brokerage_import_bridge.py` | P0 |
 | AC17.4.8 | Concurrent Auto/Manual Brokerage Import Idempotency | `test_AC17_4_8_brokerage_import_survives_concurrent_auto_and_manual_import` | `portfolio/test_brokerage_position_parsing.py` | P0 |
-| AC17.4.9 | AC-B1 Producer routing: brokerage docs select the positions prompt before the model call (filename/institution), bank docs keep the bank prompt | `test_AC_B1_looks_like_brokerage_document_routes_by_filename_and_institution`, `test_AC_B1_get_parsing_prompt_selects_positions_prompt_for_brokerage`, `test_AC_B1_extract_financial_data_uses_brokerage_prompt_before_model_call`, `test_AC_B1_extract_financial_data_keeps_bank_prompt_for_bank_upload` | `extraction/test_brokerage_position_extraction_wiring.py` | P0 |
-| AC17.4.10 | AC-B2 Brokerage positions output schema flows into AtomicPosition-ready snapshots via the existing consumer parser | `test_AC_B2_positions_prompt_payload_is_understood_by_consumer_parser` | `extraction/test_brokerage_position_extraction_wiring.py` | P0 |
-| AC17.4.11 | AC-B5 Zero-position brokerage doc is surfaced as a visible review flag (stage1 pending-review + note) | `test_AC_B5_zero_position_brokerage_doc_raises_visible_review_flag` | `extraction/test_brokerage_position_extraction_wiring.py` | P1 |
-| AC17.4.12 | AC-B4/B6 Moomoo holdings TABLE extracts and imports: AtomicPosition rows == table rows with exact market_value (#1088) | `test_AC_B4_AC_B6_moomoo_positions_table_extracts_and_imports`, `test_AC_B6_positions_payload_imports_via_service`, `test_generated_moomoo_pdf_text_fallback_emits_subscription_position`, `test_generated_futu_pdf_text_fallback_emits_valuation_position`, `test_parse_document_backfills_generated_brokerage_positions_from_pdf_text`, `test_pdf_text_fallback_closes_pymupdf_document` | `extraction/test_brokerage_position_extraction_wiring.py`, `unit/services/test_brokerage_generated_fallback.py` | P0 |
-| AC17.4.13 | AC-B3 A multi-currency brokerage statement persists a per-currency NAV array (`currency_balances`) instead of collapsing to a single scalar opening/closing: each currency's NAV is the sum of that currency's positions, every currency round-trips independently, and no currency is cross-summed into another (#1139) | `test_AC_B3_multi_currency_brokerage_emits_per_currency_balances`, `test_AC_B3_parse_document_persists_currency_balances_without_cross_sum` | `extraction/test_brokerage_position_extraction_wiring.py` | P0 |
 | AC17.4.14 {tier:CODE-ONLY} | Importing brokerage positions links the statement to the broker ASSET account it reconciles into: after `POST /statements/{id}/brokerage/import` the statement's `account_id` is set to that account (was left `None`, breaking source→account traceability), so a brokerage source is anchored to its account exactly like a bank statement (#1484) | `test_AC17_4_14_brokerage_import_links_statement_to_broker_account` | `portfolio/test_brokerage_position_parsing.py` | P1 |
 
 ### AC17.5: Investment Accounting (Journal Entries)
@@ -348,12 +348,12 @@ EPIC-008 remains the owner of the provider-backed staging AI/OCR gate.
 
 | Product path step | EPIC owner | AC owner | Executable proof | File | CI tier |
 |---|---|---|---|---|---|
-| Upload Moomoo/Futu brokerage PDF through `/api/statements/upload` | EPIC-008 / EPIC-013 | AC8.13.10 | `test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value` | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | Post-merge staging AI/OCR gate |
-| Background parse detects brokerage payload and imports positions without a manual API call | EPIC-017 | AC17.4.7 / AC17.5.4 / AC8.13.10 | `test_parse_statement_background_imports_brokerage_positions` | `apps/backend/tests/extraction/test_statement_brokerage_import_bridge.py` | Backend shard |
-| Brokerage-style OCR balance mismatches remain parsed and visible instead of stalling | EPIC-008 / EPIC-017 | AC8.13.10 | `test_parse_document_routes_brokerage_balance_mismatch_to_parsed` | `apps/backend/tests/extraction/test_statement_brokerage_import_bridge.py` | Backend shard |
+| Upload Moomoo/Futu brokerage PDF through `/api/statements/upload` | EPIC-008 / EPIC-013 | AC-extraction.813.10 | `test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value` | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | Post-merge staging AI/OCR gate |
+| Background parse detects brokerage payload and imports positions without a manual API call | EPIC-017 | AC-extraction.304.7 / AC17.5.4 / AC-extraction.813.10 | `test_parse_statement_background_imports_brokerage_positions` | `apps/backend/tests/extraction/test_statement_brokerage_import_bridge.py` | Backend shard |
+| Brokerage-style OCR balance mismatches remain parsed and visible instead of stalling | EPIC-008 / EPIC-017 | AC-extraction.813.10 | `test_parse_document_routes_brokerage_balance_mismatch_to_parsed` | `apps/backend/tests/extraction/test_statement_brokerage_import_bridge.py` | Backend shard |
 | Concurrent auto parse import and manual statement import share the same deduped position instead of failing with a duplicate-key 500 | EPIC-017 | AC17.4.8 | `test_AC17_4_8_brokerage_import_survives_concurrent_auto_and_manual_import` | `apps/backend/tests/portfolio/test_brokerage_position_parsing.py` | Backend shard |
-| Statement-scoped import creates holdings | EPIC-017 | AC17.4.6 / AC8.13.10 | `test_statement_import_flows_to_holdings_and_balance_sheet` | `apps/backend/tests/portfolio/test_brokerage_position_parsing.py` | Backend shard |
-| Imported holdings affect balance sheet value | EPIC-005 / EPIC-017 | AC17.5.4 / AC8.13.10 | `test_statement_import_flows_to_holdings_and_balance_sheet` | `apps/backend/tests/portfolio/test_brokerage_position_parsing.py` | Backend shard |
+| Statement-scoped import creates holdings | EPIC-017 | AC17.4.6 / AC-extraction.813.10 | `test_statement_import_flows_to_holdings_and_balance_sheet` | `apps/backend/tests/portfolio/test_brokerage_position_parsing.py` | Backend shard |
+| Imported holdings affect balance sheet value | EPIC-005 / EPIC-017 | AC17.5.4 / AC-extraction.813.10 | `test_statement_import_flows_to_holdings_and_balance_sheet` | `apps/backend/tests/portfolio/test_brokerage_position_parsing.py` | Backend shard |
 | User completes import and navigates to portfolio value | EPIC-017 | AC17.8.1 / AC17.8.2 / AC17.8.4 | `AC17.8.1 AC17.8.2 AC17.8.4 completes parsed statement import and portfolio value navigation` | `apps/frontend/src/__tests__/brokerageImportCompletionFlow.test.tsx` | Frontend test |
 
 Provider-backed gate details live in

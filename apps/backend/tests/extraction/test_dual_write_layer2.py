@@ -106,7 +106,7 @@ class TestDualWriteLayer2:
         assert uploaded_doc.extraction_metadata is None
 
     async def test_dual_write_marks_document_completed(self, db, test_user, mock_ai_response, sample_file_content):
-        """AC16.22.9: a successfully parsed-and-persisted document advances to status=completed
+        """AC-extraction.1622.9: a successfully parsed-and-persisted document advances to status=completed
         instead of staying stuck at 'uploaded'."""
         service = ExtractionService()
 
@@ -131,7 +131,7 @@ class TestDualWriteLayer2:
     async def test_dual_write_persists_pending_review_onto_reused_envelope(
         self, db, test_user, mock_ai_response, sample_file_content
     ):
-        """AC16.22.8: in the real flow the upload pre-creates a StatementSummary envelope, so
+        """AC-extraction.1622.8: in the real flow the upload pre-creates a StatementSummary envelope, so
         dual_write reconciles onto that reused row. The freshly-computed stage1_status=pending_review
         must be persisted there, not dropped (the no-db unit path hid this)."""
         service = ExtractionService()
@@ -170,7 +170,7 @@ class TestDualWriteLayer2:
     async def test_dual_write_persists_brokerage_extraction_metadata(
         self, db, test_user, sample_file_content, monkeypatch
     ):
-        """AC17.4.7: Brokerage dual-write keeps structured OCR positions available for import."""
+        """AC-extraction.304.7: Brokerage dual-write keeps structured OCR positions available for import."""
 
         service = ExtractionService()
         file_hash = hashlib.sha256(sample_file_content).hexdigest()
