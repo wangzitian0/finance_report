@@ -241,16 +241,71 @@ async def browser() -> AsyncGenerator[Browser, None]:
         await browser.close()
 
 
+# Content-agnostic browser correctness invariants (#1623): every e2e that drives
+# a page transitively asserts the app did not throw an uncaught JS error and did
+# not violate its own CSP on any visited page. This is NOT layout/style testing —
+# it catches whole classes (a blocked analytics script, a crashing component)
+# regardless of which page. Benign, environment-injected noise is allowlisted;
+# a test that intentionally triggers an error opts out with
+# @pytest.mark.allow_browser_errors.
+_BENIGN_BROWSER_NOISE = (
+    # Cloudflare edge-injects its insights beacon; not app-owned, not our CSP.
+    "cloudflareinsights.com",
+    "static.cloudflareinsights.com",
+)
+
+
+def _is_csp_violation(text: str) -> bool:
+    t = text.lower()
+    return "content security policy" in t or "content-security-policy" in t
+
+
+def _is_benign(text: str) -> bool:
+    return any(n in text for n in _BENIGN_BROWSER_NOISE)
+
+
 @pytest.fixture
-async def context(browser: Browser) -> AsyncGenerator[BrowserContext, None]:
-    """Create browser context."""
+async def context(
+    browser: Browser, request: pytest.FixtureRequest
+) -> AsyncGenerator[BrowserContext, None]:
+    """Create browser context with global correctness-invariant capture."""
     context = await browser.new_context(
         ignore_https_errors=True,  # Allow self-signed certs
         viewport={"width": 1280, "height": 720},
         base_url=TestConfig.APP_URL,
     )
+
+    csp_violations: list[str] = []
+    page_errors: list[str] = []
+
+    def _on_console(msg) -> None:
+        if (
+            msg.type == "error"
+            and _is_csp_violation(msg.text)
+            and not _is_benign(msg.text)
+        ):
+            csp_violations.append(msg.text)
+
+    def _on_weberror(err) -> None:
+        text = str(getattr(err, "error", err))
+        if not _is_benign(text):
+            page_errors.append(text)
+
+    context.on("console", _on_console)
+    context.on("weberror", _on_weberror)
+
     yield context
     await context.close()
+
+    if request.node.get_closest_marker("allow_browser_errors"):
+        return
+    assert not csp_violations, (
+        "CSP violation(s) during this test — a script the app loads is blocked by "
+        "its own Content-Security-Policy:\n  " + "\n  ".join(csp_violations[:5])
+    )
+    assert not page_errors, "Uncaught JS error(s) on a visited page:\n  " + "\n  ".join(
+        page_errors[:5]
+    )
 
 
 @pytest.fixture
