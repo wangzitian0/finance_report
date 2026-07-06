@@ -1254,29 +1254,47 @@ jobs:
           fi
 
           git switch -C "$BASELINE_BRANCH"
-          # Quantized-rise guard: raw covered_lines jitter ±1 between runs, so a
-          # byte-level diff churns a baseline PR on every main push. Only act
-          # when a ROUNDED percent actually rose (drops are the regression
-          # gate's job and never fold into the baseline silently).
+          # Quantized rise-only MERGE: raw covered_lines jitter ±1 between runs,
+          # so a byte-level diff churns a baseline PR on every main push. Fold
+          # in ONLY the components whose ROUNDED percent rose; a component
+          # whose percent dipped keeps its old baseline triple, so jitter (or a
+          # real drop inside the gate's epsilon) can never walk the committed
+          # baseline downward while something else rises. The written unified
+          # triple may then not equal the breakdown sums — sound, because the
+          # regression gate compares each recorded percent independently.
           if ! python3 - <<'PY'
           import json, sys
           old = json.load(open("unified-coverage.json"))
           new = json.load(open("coverage-context/unified-coverage.json"))
-          def percents(d):
-              out = {"unified": round(float(d.get("coverage_percent", 0)), 2)}
-              for name, comp in d.get("breakdown", {}).items():
-                  out[name] = round(float(comp.get("coverage_percent", 0)), 2)
-              return out
-          o, n = percents(old), percents(new)
-          rises = {k: (o.get(k), v) for k, v in n.items() if v > o.get(k, 0)}
-          print(f"baseline percents: {o} -> {n}; rises: {rises or 'none'}")
-          sys.exit(0 if rises else 1)
+          def pct(d):
+              return round(float(d.get("coverage_percent", 0)), 2)
+          merged = dict(new)
+          merged["breakdown"] = dict(new.get("breakdown", {}))
+          rises, kept = {}, []
+          for name, comp in list(merged["breakdown"].items()):
+              o = old.get("breakdown", {}).get(name)
+              if o is None or pct(comp) > pct(o):
+                  rises[name] = (pct(o) if o else None, pct(comp))
+              else:
+                  merged["breakdown"][name] = o
+                  kept.append(name)
+          if pct(new) > pct(old):
+              rises["unified"] = (pct(old), pct(new))
+          else:
+              for key in ("total_lines", "covered_lines", "coverage_percent"):
+                  merged[key] = old.get(key, merged.get(key))
+              kept.append("unified")
+          print(f"rises: {rises or 'none'}; kept old baseline for: {kept or 'none'}")
+          if not rises:
+              sys.exit(1)
+          with open("unified-coverage.json", "w") as f:
+              json.dump(merged, f, indent=2)
+              f.write("\n")
           PY
           then
             echo "No rounded-percent rise — line-count jitter only; skipping baseline PR."
             exit 0
           fi
-          cp coverage-context/unified-coverage.json unified-coverage.json
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
