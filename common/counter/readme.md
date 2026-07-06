@@ -67,19 +67,23 @@ await db.commit()
 overall = await read_count(db, key=CounterKey("report.generated"))   # Count
 ```
 
-## Roles (files converge by role)
+## Layers (base / extension)
 
-| role | what lives here |
-|------|-----------------|
-| `types/` | `CounterKey`, `Count`, `Incremented` (a platform `DomainEvent`) + typed errors (pure; no I/O) |
-| `ops/` | `increment` (publishes `Incremented` through an `EventBus`) and `get_count` (per-user/global), over the store **port** |
-| `store/` | `CounterRepository` (a `typing.Protocol` port) + `SqlCounterRepository`/`CounterTally` (the SQLAlchemy adapter — the only role that touches the ORM) |
-| `api/` | `read_count` (thin async read) and `record_increment` (atomic write: tally bump + outbox event in one transaction) |
+The implementation converges into the package model's internal layers
+(the then-role folders `types/ops/store/api` were re-layered in #1418):
 
-Dependency rule (DAG, down only): `api → ops → {types, store}`, and the package
-depends downward on the `platform` package (the `DomainEvent`/`EventBus`/outbox
-substrate) — declared in `contract.depends_on`. The ORM/`AsyncSession` lives only
-in `store`/`api` and never leaks into `types`/`ops`.
+| layer | what lives here |
+|-------|-----------------|
+| `base/types/` | `CounterKey`, `Count`, `Incremented` (a platform `DomainEvent`) + typed errors (pure; no I/O) |
+| `base/ops/` | `increment` (publishes `Incremented` through an `EventBus`) and `get_count` (per-user/global), over the repository **port** |
+| `base/repository.py` | `CounterRepository` (a `typing.Protocol` port — mechanism B's base half) |
+| `extension/sql.py` | `SqlCounterRepository`/`CounterTally` (the SQLAlchemy adapter — the only module that touches the ORM) |
+| `extension/api/` | `read_count` (thin async read) and `record_increment` (atomic write: tally bump + outbox event in one transaction) |
+
+Dependency rule (DAG, down only): `extension → base` and never back, and the
+package depends downward on the `platform` package (the
+`DomainEvent`/`EventBus`/outbox substrate) — declared in `contract.depends_on`.
+The ORM/`AsyncSession` lives only in `extension` and never leaks into `base`.
 
 ## Public vs internal
 

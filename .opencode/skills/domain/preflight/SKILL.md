@@ -30,6 +30,7 @@ Exit code is non-zero if any gate fails; the summary names which one.
 | `docs/project/EPIC*.md`, `docs/ac_registry*.yaml`, `docs/infra_registry*.yaml` | `generate_ac_registry.py` → `check_ac_index.py` |
 | `docs/ssot/*` | `check_ssot_ownership.py`, `check_manifest.py` |
 | `docs/*`, `mkdocs.yml`, `vision.md`, `README.md` | `lint_doc_consistency.py` |
+| `*.md`, `docs/ssot/*.yaml`, `tests/*.py`, `common/*`, `tools/*.py` | `check_taxonomy_drift.py` (retired taxonomy vocabulary gate, AC-meta.vocab.1) |
 | `apps/backend/*schema*.py` | `validate_schemas.py` |
 | `apps/backend/migrations/*` | `check_migration_risk.py` |
 | `.env*` | `check_env_keys.py` |

@@ -86,6 +86,12 @@ CHECKS: tuple[Check, ...] = (
         why="docs changed: nav coverage + cross-reference consistency",
     ),
     Check(
+        name="taxonomy-drift",
+        globs=("*.md", "docs/ssot/*.yaml", "tests/*.py", "common/*", "tools/*.py"),
+        commands=((PY, "tools/check_taxonomy_drift.py"),),
+        why="prose/tests changed: retired package-taxonomy vocabulary must not be presented as current (AC-meta.vocab.1)",
+    ),
+    Check(
         name="schema-validate",
         globs=("apps/backend/*schema*.py", "apps/backend/*schemas*.py"),
         commands=((PY, "tools/validate_schemas.py"),),

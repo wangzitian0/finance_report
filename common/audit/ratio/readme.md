@@ -7,7 +7,7 @@
 > [`conformance/vectors.json`](./conformance/vectors.json). Worklist:
 > [`todo.md`](./todo.md).
 >
-> A **`kernel` leaf** — it depends on nothing in the app, and is reused by
+> An **audit value-language leaf** (L1 `infra`) — it depends on nothing in the app, and is reused by
 > `money` and `quantity`.
 
 ## Why

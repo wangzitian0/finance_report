@@ -5,7 +5,7 @@ The package-local worklist. Cross-package migration lives in
 
 ## Done
 
-- [x] First worked example of the package model (`types`/`ops`/`store`/`api`,
+- [x] First worked example of the package model (the then-role folders `types`/`ops`/`store`/`api`,
       `PackageContract`, `__all__` published language).
 - [x] Become the `common/`-centric template: spec (`readme.md` + `contract.py` +
       `todo.md`) under `common/counter/`, implementation under

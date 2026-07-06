@@ -190,17 +190,20 @@ The recipe for moving a module (and its EPIC-table ACs) into the package model.
 [`contract.py`](../counter/contract.py).** One PR per package; `base=main`.
 
 1. **Name the bounded context and its axes.** Pick the package `name` (its
-   `common/<name>/` dir), the `klass` (`kernel` < `platform` < `core` — its
-   position in the import DAG), and the authority **tier**
+   `common/<name>/` dir), its **layer** — add the package to `PACKAGE_LAYER` in
+   [`base/layering.py`](./base/layering.py) (`meta < infra < middleware <
+   domain < app`; placement is L0-owned global topology, so the contract does
+   not self-claim a klass) — and the authority **tier**
    ([`authority` package](../authority/readme.md): CODE-ONLY/CODE-LED/LLM-LED/LLM-ONLY — how
    the module is built). If the tier is genuinely undecided, ship `status="draft"`
    with `tier=None` and resolve it before going `active` (the shipped-package
    rule). **One package = one tier**; a module mixing deterministic + LLM-emitted
    behavior is two packages.
 
-2. **Write `contract.py`.** One `PackageContract(...)` with `name`, `klass`,
+2. **Write `contract.py`.** One `PackageContract(...)` with `name`,
    `status`, `tier`, `depends_on` (down-only edges), `units` (the DDD building
-   blocks, each `Unit(kind=…, module=…)`; `roles` is the legacy form),
+   blocks, each `Unit(kind=…, module=…)`; `roles` is the legacy form) — no
+   `klass`: the model resolves it from `PACKAGE_LAYER` —
    `implementations` (`be`/`fe` paths), `interface` (must equal the BE
    `__init__.__all__`), `events`, `invariants`, `roadmap`.
 

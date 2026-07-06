@@ -10,7 +10,7 @@ The package-local worklist. Cross-package migration lives in
 - [x] Three-end parity (`common/` canonical + BE/FE mirrors) enforced by
       `conformance/vectors.json`.
 - [x] Migrated to the package model: ships `contract.py`, governed by
-      `check_package_contract`. Classed `kernel` (a true leaf — depends on nothing).
+      `check_package_contract`. Classed `kernel` (then-klass, since retired; a true leaf — depends on nothing).
 
 ## Next
 

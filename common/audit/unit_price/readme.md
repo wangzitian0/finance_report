@@ -7,7 +7,7 @@
 > [`conformance/vectors.json`](./conformance/vectors.json). Worklist:
 > [`todo.md`](./todo.md).
 >
-> A **`kernel`** value language. It imports `money` and `quantity` (a `UnitPrice`
+> An **audit** value language (L1 `infra`). It imports `money` and `quantity` (a `UnitPrice`
 > is money per unit) — declared, acyclic same-class edges, which the model allows.
 
 ## Why
