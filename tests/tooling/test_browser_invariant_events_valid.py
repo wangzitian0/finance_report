@@ -12,16 +12,34 @@ This asserts the event names the fixture subscribes to are real context events.
 
 from __future__ import annotations
 
-import inspect
 import re
 from pathlib import Path
-
-import playwright._impl._browser_context as _pw_ctx
 
 ROOT = Path(__file__).resolve().parents[2]
 CONFTEST = ROOT / "tests" / "e2e" / "conftest.py"
 
 REQUIRED_EVENTS = {"console", "weberror"}
+
+# Events Playwright's BrowserContext actually emits (playwright is not on the
+# tooling job's path, so this is a static allowlist rather than an import).
+# Notably: uncaught page errors surface as context "weberror" (NOT "pageerror",
+# which is a Page-only event) and console messages as "console".
+VALID_BROWSER_CONTEXT_EVENTS = frozenset(
+    {
+        "backgroundpage",
+        "close",
+        "console",
+        "dialog",
+        "download",
+        "page",
+        "request",
+        "requestfailed",
+        "requestfinished",
+        "response",
+        "serviceworker",
+        "weberror",
+    }
+)
 
 
 def _context_subscribed_events() -> set[str]:
@@ -29,13 +47,8 @@ def _context_subscribed_events() -> set[str]:
     return set(re.findall(r'context\.on\(\s*"([a-z_]+)"', src))
 
 
-def _playwright_context_events() -> str:
-    return inspect.getsource(_pw_ctx)
-
-
 def test_conftest_subscribes_to_the_invariant_events() -> None:
-    subscribed = _context_subscribed_events()
-    missing = REQUIRED_EVENTS - subscribed
+    missing = REQUIRED_EVENTS - _context_subscribed_events()
     assert not missing, (
         f"tests/e2e/conftest.py no longer subscribes context.on to {missing} — the "
         "browser correctness invariant would catch nothing while staying green."
@@ -43,10 +56,9 @@ def test_conftest_subscribes_to_the_invariant_events() -> None:
 
 
 def test_subscribed_events_are_real_browser_context_events() -> None:
-    pw_src = _playwright_context_events()
     for event in _context_subscribed_events():
-        assert f'"{event}"' in pw_src or f"'{event}'" in pw_src, (
-            f"conftest subscribes context.on({event!r}) but Playwright's "
-            "BrowserContext does not emit it — the invariant is silently vacuous. "
-            "Console/pageerror are Page events; use console/weberror on the context."
+        assert event in VALID_BROWSER_CONTEXT_EVENTS, (
+            f"conftest subscribes context.on({event!r}) but BrowserContext does not "
+            "emit it — the invariant is silently vacuous. Console/pageerror are Page "
+            "events; use console/weberror on the context."
         )
