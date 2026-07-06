@@ -106,7 +106,7 @@ function TabItem({ tab, isActive, onClose, onClick }: TabItemProps) {
             </Link>
             <button
                 onClick={onClose}
-                className={`mr-1 inline-flex h-11 w-11 items-center justify-center rounded hover:bg-surface-muted transition-opacity ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"}`}
+                className={`mr-1 inline-flex h-11 w-11 items-center justify-center rounded hover:bg-surface-muted transition-opacity ${isActive ? "opacity-100" : "invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 focus-visible:visible focus-visible:opacity-100"}`}
                 aria-label={`Close ${tab.label} tab`}
             >
                 <X className="w-4 h-4" aria-hidden="true" />
