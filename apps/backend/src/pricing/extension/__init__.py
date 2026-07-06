@@ -6,15 +6,14 @@ exception, so it lives here despite touching no database),
 ``SqlObservationRepository`` (the read-only adapter over the 4 legacy
 tables), the two user-scoped write recorders
 (``record_manual_valuation``/``record_override``), and
-``get_exchange_rate`` + the ``convert_*`` trio (thin FX-specific wrappers
-over the same subject+resolve path — caching, the crawler lazy-fallback,
-and the average-rate variant are deliberately deferred, see
-``extension/fx.py``).
+``get_exchange_rate`` + the ``convert_*`` trio + ``get_average_rate`` (thin
+FX-specific wrappers over the same subject+resolve path — caching and the
+crawler lazy-fallback are deliberately deferred, see ``extension/fx.py``).
 
-Reserved for a later commit: crawler sync (``services/market_data/``),
-average-rate lookup, and the ``extraction`` ``PriceObserved``-ingest
-subscriber. See ``common/pricing/contract.py`` — these are declared as
-taxonomy-only reserved units (no module path) until then.
+Reserved for a later commit: crawler sync (``services/market_data/``) and
+the ``extraction`` ``PriceObserved``-ingest subscriber. See
+``common/pricing/contract.py`` — these are declared as taxonomy-only
+reserved units (no module path) until then.
 """
 
 from __future__ import annotations
@@ -23,6 +22,7 @@ from src.pricing.extension.fx import (
     convert_amount,
     convert_money,
     convert_to_base,
+    get_average_rate,
     get_exchange_rate,
 )
 from src.pricing.extension.manual import record_manual_valuation, record_override
@@ -34,6 +34,7 @@ __all__ = [
     "convert_amount",
     "convert_money",
     "convert_to_base",
+    "get_average_rate",
     "get_exchange_rate",
     "record_manual_valuation",
     "record_override",

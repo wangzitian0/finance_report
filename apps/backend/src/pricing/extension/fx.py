@@ -20,10 +20,10 @@ Deliberately NOT carried over from ``services/fx.py`` yet:
   pricing yet (``sync_market_data`` is still a reserved unit). Adding it here
   would either duplicate the crawler call or reach back into the old
   ``services/market_data`` module, which this package must not depend on.
-- **The average-rate variant** (``fx.py``'s ``average_start``/``average_end``,
-  backed by ``get_average_rate``) — that function hasn't been ported to
-  pricing yet either. Callers that need it stay on ``services/fx.py`` until
-  it is.
+- **``fx_warnings``** — ``fx.py``'s side-channel that lets a caller learn it
+  got the period-end fallback instead of a true average. Deferred until a
+  real (repointed) caller needs to surface it; adding an unused parameter
+  now would be speculative.
 """
 
 from __future__ import annotations
@@ -67,6 +67,36 @@ async def get_exchange_rate(
     candidates = await repo.candidates(subject, rate_date)
     observation = resolve(subject, rate_date, ResolutionPolicy(), candidates)
     return observation.value
+
+
+async def get_average_rate(
+    db: AsyncSession,
+    base_currency: str,
+    quote_currency: str,
+    start_date: date,
+    end_date: date,
+) -> Decimal:
+    """The mean rate observed in ``[start_date, end_date]``, falling back to
+    ``get_exchange_rate(end_date)`` when nothing was observed in the range.
+
+    Computed over the repository's own candidates (not a separate SQL AVG
+    query) — the repository's one job stays "what observations exist"; the
+    averaging is pricing's own business logic, same as ``resolve()``.
+    """
+    base = normalize_currency_code(base_currency)
+    quote = normalize_currency_code(quote_currency)
+    if base == quote:
+        return Decimal("1")
+    if start_date > end_date:
+        raise PricingError("start_date must be on or before end_date")
+
+    subject = PriceableSubject.currency_pair(base, quote)
+    repo = SqlObservationRepository(db)
+    candidates = await repo.candidates(subject, end_date)
+    in_range = [c.value for c in candidates if c.as_of >= start_date]
+    if not in_range:
+        return await get_exchange_rate(db, base, quote, end_date)
+    return sum(in_range) / len(in_range)
 
 
 def _convert_money_amount(amount: Decimal, source: str, target: str, rate: Decimal) -> Decimal:

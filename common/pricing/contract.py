@@ -129,18 +129,19 @@ CONTRACT = PackageContract(
         # convert_amount/convert_money/convert_to_base: thin lookup+math
         # bridges over get_exchange_rate (lookup) + audit.money.convert
         # (math, rate passed in — ruling 5, audit never looks up a rate).
-        # The average-rate variant (fx.py's average_start/average_end,
-        # backed by get_average_rate) is not yet ported; those callers stay
-        # on services/fx.py until it is.
         Unit(name="convert_amount", kind=Kind.DOMAIN_SERVICE, module="extension/fx.py"),
         Unit(name="convert_money", kind=Kind.DOMAIN_SERVICE, module="extension/fx.py"),
         Unit(
             name="convert_to_base", kind=Kind.DOMAIN_SERVICE, module="extension/fx.py"
         ),
-        # ── extension (reserved): crawler sync, average-rate lookup, and the
-        # extraction event subscriber ──
+        # get_average_rate: the mean of the repository's own candidates in a
+        # date range (not a separate SQL AVG query) — the repository stays
+        # "what observations exist"; averaging is pricing's own logic.
+        Unit(
+            name="get_average_rate", kind=Kind.DOMAIN_SERVICE, module="extension/fx.py"
+        ),
+        # ── extension (reserved): crawler sync and the extraction event subscriber ──
         Unit(name="sync_market_data", kind=Kind.DOMAIN_SERVICE),
-        Unit(name="get_average_rate", kind=Kind.DOMAIN_SERVICE),
         Unit(name="ingest_statement_price", kind=Kind.DOMAIN_SERVICE),
         # ── data (reserved): read-models consumed by portfolio/reporting/reconciliation ──
         Unit(name="LatestPriceView", kind=Kind.PROJECTION),
@@ -151,8 +152,8 @@ CONTRACT = PackageContract(
     # (implementation-pure, physically in extension/ per KIND_LAYER), the
     # repository port + its read-only SQL adapter (querying the 4 legacy
     # tables), the two user-scoped write-side recorders, and the FX
-    # lookup + convert_* wrappers. The remaining 3 domain-services (crawler
-    # sync, average-rate lookup, extraction-event ingest) + 2 data
+    # lookup + convert_* + average-rate wrappers. The remaining 2
+    # domain-services (crawler sync, extraction-event ingest) + 2 data
     # projections are reserved units above — they join the interface once a
     # later commit implements them for real.
     interface=[
@@ -168,6 +169,7 @@ CONTRACT = PackageContract(
         "convert_amount",
         "convert_money",
         "convert_to_base",
+        "get_average_rate",
         "get_exchange_rate",
         "record_manual_valuation",
         "record_override",
