@@ -34,11 +34,9 @@ from src.llm.extension.cassette import (
     CassetteTag,
     CassetteValidationError,
     _canonical_request,
-    current_mode,
     fingerprint,
     in_ci,
     layer_engaged,
-    legacy_mode_env_set,
     live_forced,
     refresh_requested,
 )
@@ -129,7 +127,16 @@ def _base_kwargs(
         # Native param so drop_params can strip it for models that reject seed.
         kwargs["seed"] = seed
     if extra_body:
-        kwargs["extra_body"] = dict(extra_body)
+        # Wire-level protocol filter (#1597): do_sample/thinking are semantic
+        # request knobs that always live in the fingerprint, but only
+        # OpenAI-compatible providers accept them on the wire — Gemini/Anthropic
+        # reject unknown request fields with HTTP 400.
+        body = dict(extra_body)
+        if provider.protocol is not ProtocolFamily.OPENAI_COMPATIBLE:
+            body.pop("do_sample", None)
+            body.pop("thinking", None)
+        if body:
+            kwargs["extra_body"] = body
     return kwargs
 
 
@@ -249,7 +256,7 @@ async def litellm_stream(
     layer entirely, so PR CI never exercised the LLM path. This routes the stream
     through that layer while preserving streaming for the caller.
 
-    Modes (``cassette_mode``, default ``LLM_CASSETTE_MODE`` via ``current_mode()``):
+    Explicit ``cassette_mode`` (IN-LAYER test seam only; no process env):
 
     - ``off`` — EXACT prior behaviour: a live ``litellm.acompletion(stream=True)``
       passthrough, deltas yielded as they arrive. Prod/staging run ``off`` so the
@@ -299,7 +306,9 @@ async def litellm_stream(
     # ------- Transparent per-request decision (#1596) -------
     # No explicit legacy mode anywhere: the LAYER decides per request; downstream
     # cannot know (and never says) whether the response is real or frozen.
-    if cassette_mode is None and not legacy_mode_env_set():
+    # The explicit cassette_mode arg is the IN-LAYER test seam only (#1597);
+    # no process env selects modes anymore — the layer decides per request.
+    if cassette_mode is None:
         if live_forced() or not layer_engaged():
             # Explicit LIVE (staging -m llm gates, prod) or the layer is simply
             # not engaged (app runtime): exact live passthrough, store untouched.
@@ -341,10 +350,26 @@ async def litellm_stream(
         if live_provider is None or not live_provider.api_key:
             raise CassetteMiss(t_key, scene=t_role)
 
+        if cassette_tag is CassetteTag.CORRECTNESS and cassette_validator is None:
+            raise CassetteValidationError(
+                f"correctness cassette (role={t_role}) requires a ground-truth validator to record"
+            )
         parts: list[str] = []
         async for content in _litellm_stream_live(await _live_kwargs()):
             parts.append(content)
         text = "".join(parts)
+        if cassette_tag is CassetteTag.CORRECTNESS:
+            try:
+                ok = bool(cassette_validator({_STREAM_TEXT_KEY: text}))
+            except Exception as exc:  # noqa: BLE001 - any validator error refuses the record
+                raise CassetteValidationError(
+                    f"correctness validation raised for role={t_role}: {type(exc).__name__}"
+                ) from exc
+            if not ok:
+                raise CassetteValidationError(
+                    f"correctness cassette (role={t_role}, key={t_key}) refused: response failed "
+                    "ground-truth validation; recording it would freeze a wrong answer"
+                )
         request = _canonical_request(role=t_role, messages=messages, decode_params=t_decode)
         t_store.put(
             _Cassette(key=t_key, role=t_role, tag=cassette_tag, request=request, response={_STREAM_TEXT_KEY: text})
@@ -356,7 +381,8 @@ async def litellm_stream(
         return
 
     # ------- Legacy explicit-mode contract (compat until #1597 deletes it) -------
-    mode = cassette_mode if cassette_mode is not None else current_mode()
+    # In-layer seam only: cassette_mode is None was handled above (transparent).
+    mode = cassette_mode if cassette_mode is not None else CassetteMode.OFF
 
     if mode is CassetteMode.OFF:
         # OFF: the prior passthrough, byte-for-byte. Keeps prod/staging live & real.

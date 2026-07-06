@@ -18,7 +18,6 @@ from src.config import settings
 from src.llm import (
     LLMConfigError,
     LLMError,
-    ProtocolFamily,
     ProviderRef,
     ReasoningEffort,
     estimate_tokens,
@@ -141,24 +140,21 @@ async def _stream_ai_base(
             provider, model = await resolve_provider_and_model(get_config_source(user_id), model)
         except LLMConfigError as exc:
             raise AIStreamError(str(exc), retryable=False) from exc
-    else:
-        provider = await _resolve_provider(api_key, base_url, user_id)
+    # All other paths resolve LAZILY inside the llm layer (a cassette HIT never
+    # needs credentials); an explicit api_key still resolves through the same
+    # lazy closure on first network need.
 
-    # do_sample/thinking are Z.AI/GLM (OpenAI-compatible) extra_body knobs. Other
-    # families (Gemini, Anthropic) reject unknown request fields with a 400, so
-    # only forward them to OpenAI-compatible providers. They change the request
-    # body (and thus the cassette fingerprint), so setting them forces provider
-    # resolution; the common knob-less path stays lazy — a cassette HIT inside
-    # the llm layer never needs credentials.
+    # do_sample/thinking are semantic request knobs: they are ALWAYS part of the
+    # request (and thus the cassette fingerprint), independent of the provider.
+    # Wire-level protocol filtering (only OpenAI-compatible providers accept
+    # them; Gemini/Anthropic 400 on unknown fields) happens inside the llm
+    # layer at live-call time, where the provider is actually resolved — so the
+    # knob-carrying path stays lazy and a cassette HIT needs no credentials.
     extra_body: dict[str, Any] = {}
-    if do_sample is not None or thinking is not None:
-        if provider is None:
-            provider = await _lazy_provider()
-        if provider.protocol is ProtocolFamily.OPENAI_COMPATIBLE:
-            if do_sample is not None:
-                extra_body["do_sample"] = do_sample
-            if thinking is not None:
-                extra_body["thinking"] = thinking
+    if do_sample is not None:
+        extra_body["do_sample"] = do_sample
+    if thinking is not None:
+        extra_body["thinking"] = thinking
 
     def _metric_provider_label() -> str:
         prov = provider or (resolved_lazily[0] if resolved_lazily else None)

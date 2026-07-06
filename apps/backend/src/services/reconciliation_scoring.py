@@ -248,7 +248,6 @@ async def ai_semantic_score(
         stream_ai_json,
     )
 
-
     prompt = build_reconciliation_prompt(
         txn_description=txn_description,
         entry_memo=entry_memo,

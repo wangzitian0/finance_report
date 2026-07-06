@@ -23,7 +23,6 @@ from src.llm.extension.cassette import (
     CassetteStore,
     CassetteTag,
     CassetteValidationError,
-    current_mode,
     fingerprint,
     miss_summary,
 )
@@ -49,22 +48,6 @@ async def _live(_response: dict | None = None):
 
 
 # --- mode resolution ---
-
-
-def test_AC23_5_1_mode_defaults_to_off(monkeypatch):
-    """AC-llm.5.1: with no env set, the cassette layer is off (normal live call)."""
-    monkeypatch.delenv("LLM_CASSETTE_MODE", raising=False)
-    assert current_mode() is CassetteMode.OFF
-
-
-def test_AC23_5_1_unknown_mode_fails_closed(monkeypatch):
-    """AC-llm.5.1: an unknown mode is a config error, not a silent fall-through to a
-    network call."""
-    from src.llm.base import LLMConfigError
-
-    monkeypatch.setenv("LLM_CASSETTE_MODE", "bogus")
-    with pytest.raises(LLMConfigError):
-        current_mode()
 
 
 # --- replay (no network, no key) ---

@@ -1,33 +1,20 @@
-"""Classify proposer vs the REAL GLM response shape (EPIC-018 AC18.15.3, #1560).
+"""Classify proposer vs the REAL GLM response shape (EPIC-018 AC18.15.3, #1560/#1597).
 
-Two layers:
-1. ``test_record_or_replay_real_provider`` — cassette record/replay through the
-   real transport (skips when ``LLM_CASSETTE_MODE`` is off, like the extraction
-   replay tests). Recording (operator-only, needs the provider key):
+No mode forks and no cassette-file reading (#1597): the test simply calls the
+proposer; the llm layer serves the committed frozen GLM response per request.
+Deleting the cassette turns this RED in CI (hard miss) — never a skip. Re-record
+with the layer refresh knob:
 
-       AI_PROVIDER=zai AI_BASE_URL=https://api.z.ai/api/coding/paas/v4 \
-       AI_API_KEY=$GLM_CODING_TOKEN PRIMARY_MODEL=glm-5.2 \
-       LLM_CASSETTE_MODE=record uv run pytest tests/services/test_classification_cassette.py
-
-2. ``test_frozen_real_response_parses_in_plain_ci`` — runs in NORMAL CI shards
-   (no cassette mode, no network): loads the committed cassette JSON and pushes
-   the frozen REAL provider response through the proposer's parse path. This is
-   the gate that would have caught the staging fenced-JSON failure in CI.
+    AI_PROVIDER=zai AI_BASE_URL=https://api.z.ai/api/coding/paas/v4 \
+    AI_API_KEY=$GLM_CODING_TOKEN PRIMARY_MODEL=glm-5.2 \
+    make llm-record ARGS='tests/services/test_classification_cassette.py'
 """
 
 from __future__ import annotations
 
-import json
-
 import pytest
 
-from src.llm.extension.cassette import CASSETTE_DIR, CassetteMode, current_mode
-from src.services.transaction_classification import (
-    POLICY_VERSIONS,
-    TransactionCategory,
-    _recover_json_array,
-    propose_categories,
-)
+from src.services.transaction_classification import POLICY_VERSIONS, propose_categories
 from tests.factories import AtomicTransactionFactory
 
 # Deterministic inputs: the cassette fingerprint keys on the exact messages, so
@@ -37,7 +24,6 @@ _FIXED_TXNS = [
     ("NTUC FairPrice groceries", "OUT"),
 ]
 _POLICY = POLICY_VERSIONS[0]
-_PROMPT_MARKER = "Classify each personal-finance transaction"
 
 
 def _fixed_transactions():
@@ -51,64 +37,15 @@ def _fixed_transactions():
     return txns
 
 
-@pytest.mark.skipif(
-    current_mode() is CassetteMode.OFF,
-    reason="cassette record/replay only (LLM_CASSETTE_MODE=record to record, replay to run)",
-)
 @pytest.mark.asyncio
-async def test_record_or_replay_real_provider():
-    """AC18.15.3: the proposer handles the real provider's response shape."""
+async def test_AC18_15_3_real_provider_response_shape_parses():
+    """AC18.15.3: the proposer handles the real provider's frozen response shape —
+    served transparently by the llm layer (the test cannot tell real from frozen)."""
     proposals = await propose_categories(_fixed_transactions(), _POLICY)
     assert len(proposals) == 2
-    assert any(p is not None for p in proposals), "real provider response must parse"
+    assert any(p is not None for p in proposals), "the real provider response must parse"
+    catalog = {c.value for c in _POLICY.catalog}
     for p in proposals:
         if p is not None:
-            assert p.category in {c.value for c in _POLICY.catalog}
+            assert p.category in catalog
             assert 0 <= p.confidence <= 100
-
-
-# The cassette FILENAME is the request fingerprint (hash over role + messages +
-# decode params), so pinning it pins the exact deterministic inputs above. A
-# re-record with changed inputs writes a NEW file — update this constant then.
-_CASSETTE_FINGERPRINT = "985c01908f41ad079e84c49c2b9865d214080309dfe983695720d0a9787716b3"
-
-
-def _load_pinned_cassette() -> dict | None:
-    path = CASSETTE_DIR / f"{_CASSETTE_FINGERPRINT}.json"
-    if not path.is_file():
-        return None
-    data = json.loads(path.read_text(encoding="utf-8"))
-    request = json.dumps(data.get("request", {}))
-    # belt: the pinned file really is THIS prompt over THESE fixed inputs
-    assert _PROMPT_MARKER in request
-    for desc, _ in _FIXED_TXNS:
-        assert desc in request, f"pinned cassette does not contain fixed input {desc!r}"
-    return data
-
-
-def test_frozen_real_response_parses_in_plain_ci():
-    """AC18.15.3: the COMMITTED real GLM response parses through the proposer's
-    parse path in a normal CI shard (no cassette mode, zero network) — the exact
-    gate the staging fenced-JSON failure needed. If the cassette is ever
-    re-recorded into a shape the parser can't handle, this fails in CI."""
-    cassette = _load_pinned_cassette()
-    assert cassette is not None, (
-        "classify cassette missing — record it: AI_PROVIDER=zai "
-        "AI_BASE_URL=https://api.z.ai/api/coding/paas/v4 AI_API_KEY=$GLM_CODING_TOKEN "
-        "PRIMARY_MODEL=glm-5.2 LLM_CASSETTE_MODE=record "
-        "uv run pytest tests/services/test_classification_cassette.py"
-    )
-    content = str(cassette.get("response", {}).get("stream_text") or "")
-    assert content.strip(), "cassette has an empty frozen response"
-
-    # the proposer's exact parse path: strict json first, then array recovery
-    try:
-        parsed = json.loads(content)
-    except json.JSONDecodeError:
-        parsed = _recover_json_array(content)
-    assert isinstance(parsed, list) and parsed, (
-        f"frozen REAL provider response did not parse (len={len(content)}, fenced={content.lstrip().startswith('`')})"
-    )
-    catalog = {c.value for c in TransactionCategory}
-    valid = [item for item in parsed if isinstance(item, dict) and str(item.get("category", "")) in catalog]
-    assert valid, "no catalog-valid proposal in the frozen response"

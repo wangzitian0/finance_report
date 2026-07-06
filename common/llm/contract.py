@@ -643,6 +643,22 @@ CONTRACT = PackageContract(
             proof_kind="property",
         ),
         ACRecord(
+            id="AC-llm.10.7",
+            statement="Downstream must not know whether the LLM is real or frozen: outside the llm layer (and its own tests / the sanctioned harness+recording tools), no code references the cassette machinery or its layer-owned knobs — enforced by a token-ban gate, so the #1570 failure class (a process env silently skipping every replay test) is structurally unreproducible",
+            test="tests/tooling/test_llm_cassette_boundary.py::test_AC_llm_10_7_no_cassette_knowledge_outside_the_layer",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-llm.10.8",
+            statement="The transparent auto-record path enforces the same correctness red line as explicit recording: a correctness-tagged cassette is refused without a ground-truth validator, and a response failing validation is never frozen",
+            test="apps/backend/tests/llm/test_transparent_cassette.py::test_miss_with_key_records_locally",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
             id="AC-llm.10.6",
             statement="The store tracks which cassettes were served — the substrate for orphan detection (a committed cassette no suite run ever serves is a changed-prompt leftover)",
             test="apps/backend/tests/llm/test_transparent_cassette.py::test_served_keys_are_tracked_for_orphan_detection",
