@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+import os
 import re
 from datetime import date
 from decimal import Decimal
 from difflib import SequenceMatcher
-import os
 from uuid import UUID
 
 from sqlalchemy import select
