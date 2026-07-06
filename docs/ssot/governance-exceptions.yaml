@@ -77,7 +77,7 @@ exceptions:
       deletion is merged.
 
   # SSOT internalized: the authority-tier vocabulary moved out of docs/ssot/
-  # into the authority package that owns it (common/authority/readme.md), per
+  # into the authority package that owns it (now common/meta/readme.md after the #1626 converge), per
   # the package-migration standard step 3 "SSOT internalized". The MANIFEST
   # `authority_tiers` concept now points there, so docs/ssot/authority-tiers.md
   # is deleted; its deletion shows up as a changed SSOT file with no owner. This
@@ -85,7 +85,8 @@ exceptions:
   - target: finance_report:docs/ssot/authority-tiers.md
     issue: https://github.com/wangzitian0/finance_report/issues/1459
     reason: >-
-      authority-tiers.md internalized into common/authority/readme.md (the
+      authority-tiers.md internalized into the authority readme, now
+      common/meta/readme.md after the #1626 converge (the
       authority package owns the tier vocabulary + tier->proof matrix); the
       MANIFEST authority_tiers owner now points there. Remove this exception
       once the deletion is merged.

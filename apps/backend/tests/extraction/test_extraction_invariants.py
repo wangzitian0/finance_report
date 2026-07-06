@@ -3,7 +3,7 @@
 EPIC-026 phase 2 — the extraction ACs in EPIC-003 are tier **LLM-LED**: the LLM emits
 the parsed statement, and deterministic CODE only validates / gatekeeps it (it can
 reject or flag, never produce). Per the tier->proof matrix
-(``common/authority/readme.md``), an LLM-LED AC is proven by an
+(``common/meta/readme.md``), an LLM-LED AC is proven by an
 **invariant/property** test of that gatekeeper, NOT by an exact golden assertion
 on the LLM output (which is non-reproducible).
 

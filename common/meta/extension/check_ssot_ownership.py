@@ -62,7 +62,7 @@ MUST_BE_ABSENT: list[Path] = [
     # observability.logging-improvements.md renamed to observability-logging.md
     REPO_ROOT / "docs" / "ssot" / "observability.logging-improvements.md",
     # authority-tiers.md internalized into the authority package
-    # (common/authority/readme.md) per migration-standard step 3 "SSOT internalized".
+    # (common/meta/readme.md) per migration-standard step 3 "SSOT internalized".
     REPO_ROOT / "docs" / "ssot" / "authority-tiers.md",
     # extraction.md internalized into the extraction package
     # (common/extraction/readme.md) per migration-standard step 3 "SSOT internalized"
