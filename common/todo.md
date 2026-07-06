@@ -36,7 +36,7 @@ and types/ops/store/api). ACs are `AC-<pkg>.<entity>.<seq>` in each contract's
 | 0b | `counter` → base/extension/data template + gate three-layer rule (additive) | #1418 ✅ |
 | 1 | `value → audit` fold | #1419 ✅ |
 | 2 | `ledger` | #1420 ✅ |
-| 3 | `extraction` #1421 ✅ · `pricing` #1610 ⬜ · `portfolio` #1422 ⬜ (after pricing) · `reconciliation` #1423 ⬜ · `reporting` #1424 ⬜ | partial |
+| 3 | `extraction` #1421 ✅ (DoD step 6 residue — legacy statement_*.py still imported from services/, tracked by #1603) · `pricing` #1610 ⬜ · `portfolio` #1422 ⬜ (after pricing) · `reconciliation` #1423 ⬜ · `reporting` #1424 ⬜ | partial |
 | 4 | `advisor` #1425 ⬜ · `llm` #1426 ✅ · `platform` #1427 ✅ · `identity` #1428 ✅ | partial |
 | 5 | `audit` consistency closeout (global invariants + cross-package ACs) | #1429 ⬜ |
 | 6 | cleanup — delete residual EPIC tables / SSOT; retire the central `docs/ssot/MANIFEST.yaml`/registry gates once meta's data layer is the computed index | #1430 ⬜ |
