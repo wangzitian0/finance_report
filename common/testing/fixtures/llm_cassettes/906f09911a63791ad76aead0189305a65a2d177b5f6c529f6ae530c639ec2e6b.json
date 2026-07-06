@@ -1,0 +1,18 @@
+{
+  "fingerprint": "906f09911a63791ad76aead0189305a65a2d177b5f6c529f6ae530c639ec2e6b",
+  "request": {
+    "decode_params": {},
+    "messages": [
+      {
+        "content": "x",
+        "role": "user"
+      }
+    ],
+    "role": "text"
+  },
+  "response": {
+    "stream_text": "{\"ok\": true}"
+  },
+  "role": "text",
+  "tag": "flow-only"
+}

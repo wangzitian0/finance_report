@@ -80,7 +80,7 @@ test:
 # baseline together:
 #   python tools/check_cassette_graded_eval.py --update
 llm-record:
-	cd apps/backend && LLM_CASSETTE_MODE=record uv run pytest tests/unit/llm/test_cassette.py tests/unit/llm/test_streaming_cassette.py --llm-record $(ARGS)
+	cd apps/backend && LLM_CASSETTE_REFRESH=1 uv run pytest tests/llm/test_cassette.py tests/llm/test_streaming_cassette.py --llm-record $(ARGS)
 
 env-check:
 	python tools/check_env_keys.py

@@ -40,23 +40,26 @@ if _REPO_ROOT not in sys.path:
 logger = get_logger(__name__)
 
 
-# --- LLM cassette record/replay (EPIC-023 AC-llm.5) ---
-# ``--llm-record`` (or ``LLM_CASSETTE_MODE=record``) flips the cassette layer into
-# record mode for the run; ``make llm-record`` passes the flag. Without it the
-# mode is whatever ``LLM_CASSETTE_MODE`` says (replay in CI, off in local dev), so
-# normal test runs never touch the network or need an API key.
+# --- LLM cassette layer (transparent per-request decision, #1596/#1597) ---
+# The HARNESS engages the layer exactly once; individual tests never know (and
+# never say) whether a response is real or frozen. Per request, inside the layer:
+# HIT serves the frozen response; a MISS is a hard failure in CI (never a skip or
+# a silent network call) and auto-records locally when a provider key exists.
+# ``--llm-record`` (``make llm-record``) maps to the layer-owned refresh knob so
+# an operator can re-record existing cassettes; refresh is refused in CI.
 def pytest_addoption(parser):
     parser.addoption(
         "--llm-record",
         action="store_true",
         default=False,
-        help="Run LLM cassette-backed tests in record mode (real provider call + write cassette).",
+        help="Re-record LLM cassettes (layer refresh knob; real provider call + write cassette).",
     )
 
 
 def pytest_configure(config):
+    os.environ.setdefault("LLM_CASSETTE_ENGAGE", "1")
     if config.getoption("--llm-record"):
-        os.environ["LLM_CASSETTE_MODE"] = "record"
+        os.environ["LLM_CASSETTE_REFRESH"] = "1"
 
 
 # --- AC behavioral-evidence emission ---

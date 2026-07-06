@@ -248,9 +248,6 @@ async def ai_semantic_score(
         stream_ai_json,
     )
 
-    if not settings.ai_api_key:
-        logger.debug("AI reconciliation skipped: no API key configured")
-        return 50
 
     prompt = build_reconciliation_prompt(
         txn_description=txn_description,

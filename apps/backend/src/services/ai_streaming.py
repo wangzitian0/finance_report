@@ -16,13 +16,11 @@ from uuid import UUID
 
 from src.config import settings
 from src.llm import (
-    CassetteMode,
     LLMConfigError,
     LLMError,
     ProtocolFamily,
     ProviderRef,
     ReasoningEffort,
-    current_mode,
     estimate_tokens,
     estimate_tokens_from_chars,
     get_config_source,
@@ -127,19 +125,15 @@ async def _stream_ai_base(
     litellm owns the transport. ``user_id`` scopes provider resolution to that
     user's configured provider (else deployment default, else env).
     """
-    if current_mode() is CassetteMode.REPLAY:
-        # Replay serves the committed cassette from litellm_stream, keyed on
-        # (role + messages + decode params) — provider-agnostic. Skip provider
-        # resolution so CI replays with NO key and NO configured provider; the
-        # dummy ref satisfies the signature and is never used for a network call.
-        provider = ProviderRef(
-            id="replay",
-            label="replay",
-            protocol=protocol_for(settings.ai_provider),
-            api_key="replay",
-            api_base=None,
-        )
-    elif api_key is None and user_id is not None:
+    resolved_lazily: list[ProviderRef] = []
+
+    async def _lazy_provider() -> ProviderRef:
+        prov = await _resolve_provider(api_key, base_url, user_id)
+        resolved_lazily.append(prov)
+        return prov
+
+    provider: ProviderRef | None = None
+    if api_key is None and user_id is not None:
         # Per-user path: honour a binding's ``provider_id/model`` qualifier so a
         # user with several providers resolves the exact one (the scene-less
         # ``_resolve_provider`` fails closed on >1). ``model`` becomes the bare model.
@@ -152,13 +146,28 @@ async def _stream_ai_base(
 
     # do_sample/thinking are Z.AI/GLM (OpenAI-compatible) extra_body knobs. Other
     # families (Gemini, Anthropic) reject unknown request fields with a 400, so
-    # only forward them to OpenAI-compatible providers.
+    # only forward them to OpenAI-compatible providers. They change the request
+    # body (and thus the cassette fingerprint), so setting them forces provider
+    # resolution; the common knob-less path stays lazy — a cassette HIT inside
+    # the llm layer never needs credentials.
     extra_body: dict[str, Any] = {}
-    if provider.protocol is ProtocolFamily.OPENAI_COMPATIBLE:
-        if do_sample is not None:
-            extra_body["do_sample"] = do_sample
-        if thinking is not None:
-            extra_body["thinking"] = thinking
+    if do_sample is not None or thinking is not None:
+        if provider is None:
+            provider = await _lazy_provider()
+        if provider.protocol is ProtocolFamily.OPENAI_COMPATIBLE:
+            if do_sample is not None:
+                extra_body["do_sample"] = do_sample
+            if thinking is not None:
+                extra_body["thinking"] = thinking
+
+    def _metric_provider_label() -> str:
+        prov = provider or (resolved_lazily[0] if resolved_lazily else None)
+        # "frozen" = the llm layer served a cassette; bounded label, never PII.
+        return prov.protocol.value if prov is not None else "frozen"
+
+    def _log_provider() -> tuple[str, str]:
+        prov = provider or (resolved_lazily[0] if resolved_lazily else None)
+        return (prov.label, prov.id) if prov is not None else ("frozen", "-")
 
     completion_chars = 0
     # AC-observability.10.4: time the provider call and emit a latency+outcome metric on
@@ -169,6 +178,7 @@ async def _stream_ai_base(
         async for content in litellm_stream(
             messages,
             provider=provider,
+            provider_resolver=_lazy_provider if provider is None else None,
             model_id=model,
             max_tokens=max_tokens,
             temperature=temperature,
@@ -184,15 +194,16 @@ async def _stream_ai_base(
         record_ai_provider_call(
             # `provider.label` is user-editable free text (PII + unbounded
             # cardinality); the protocol family is a bounded StrEnum — safe label.
-            provider=provider.protocol.value,
+            provider=_metric_provider_label(),
             model=model,
             outcome="error",
             duration_ms=round((time.perf_counter() - provider_call_start) * 1000, 2),
         )
+        _label, _pid = _log_provider()
         logger.error(
             "AI provider streaming failed",
-            provider=provider.label,  # resolved provider (DB or env), not the env AI_PROVIDER
-            provider_id=provider.id,
+            provider=_label,  # resolved provider (DB or env), not the env AI_PROVIDER
+            provider_id=_pid,
             model=model,
             mode=mode_label,
             error=str(exc),
@@ -203,7 +214,7 @@ async def _stream_ai_base(
         record_ai_provider_call(
             # Bounded protocol-family label (see error path above) — never the
             # user-editable provider.label.
-            provider=provider.protocol.value,
+            provider=_metric_provider_label(),
             model=model,
             outcome="success",
             duration_ms=round((time.perf_counter() - provider_call_start) * 1000, 2),

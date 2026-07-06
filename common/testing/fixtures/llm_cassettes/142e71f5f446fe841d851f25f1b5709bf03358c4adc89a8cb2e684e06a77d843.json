@@ -1,0 +1,22 @@
+{
+  "fingerprint": "142e71f5f446fe841d851f25f1b5709bf03358c4adc89a8cb2e684e06a77d843",
+  "request": {
+    "decode_params": {
+      "max_tokens": 256,
+      "reasoning_effort": "medium",
+      "temperature": 0.0
+    },
+    "messages": [
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "role": "text"
+  },
+  "response": {
+    "stream_text": "Hello"
+  },
+  "role": "text",
+  "tag": "flow-only"
+}
