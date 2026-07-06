@@ -195,6 +195,15 @@ journal entries, maintain lots, or render UI.
 
 To prevent free-form string drift across statements, exports, and E2E checks, report lines are defined in a central L1 registry. Each line has a unique identifier, statement, section, applicable frameworks, and presentation ordering (lower is earlier).
 
+Framework report assembly consumes deterministic L2-to-L1 mappings and must not
+invent a report line for a known source line that lacks a registered policy
+mapping. Portfolio holdings are the one balance-sheet split required before L1
+aggregation: a broker ledger line that carries position cost basis is split into
+portfolio cost basis (framework securities L1) and residual broker cash (cash
+L1), while the market-value adjustment aggregates onto the same framework
+securities L1. This keeps the L1 securities amount at market value without
+double-counting broker cash.
+
 | Line ID | Frameworks | Statement | Section | Order (US) | Order (HK) |
 |---|---|---|---|---|---|
 | `assets.cash_and_cash_equivalents` | US, HK | balance_sheet | assets | 10 | 10 |
@@ -224,4 +233,3 @@ To prevent free-form string drift across statements, exports, and E2E checks, re
 | `notes.tax_relevant_items` | US, HK | notes | notes | 70 | 70 |
 | `notes.us_like_market_price_basis` | US | notes | notes | 80 | 999 |
 | `notes.hk_like_fair_value_basis` | HK | notes | notes | 999 | 80 |
-

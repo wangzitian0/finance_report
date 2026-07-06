@@ -13,6 +13,8 @@ from src.models.journal import Direction
 from src.models.layer4 import ReportType
 from src.schemas.provenance import DataProvenance
 
+_FRAMEWORK_POLICY_LINE_MAPPING_TARGETS = frozenset({"balance_sheet", "income_statement", "cash_flow", "notes"})
+
 
 def _validate_internal_action_href(value: str) -> str:
     if not value.startswith("/") or value.startswith("//") or "://" in value:
@@ -519,6 +521,11 @@ class FrameworkPolicyMatrix(BaseModel):
 
         for rule in self.rules:
             for target, line_id in rule.line_mappings.items():
+                if target not in _FRAMEWORK_POLICY_LINE_MAPPING_TARGETS:
+                    raise ValueError(
+                        f"Rule for domain {rule.domain.value} maps to unknown statement target '{target}'; "
+                        f"allowed: {', '.join(sorted(_FRAMEWORK_POLICY_LINE_MAPPING_TARGETS))}"
+                    )
                 if not is_valid_line_for_framework(line_id, self.framework_id):
                     raise ValueError(
                         f"Rule for domain {rule.domain.value} maps to '{line_id}' which is not a registered L1 line valid in framework '{self.framework_id.value}'"
@@ -554,6 +561,11 @@ class FrameworkPolicyResult(BaseModel):
 
         for decision in self.decisions:
             for target, line_id in decision.line_mappings.items():
+                if target not in _FRAMEWORK_POLICY_LINE_MAPPING_TARGETS:
+                    raise ValueError(
+                        f"Decision line mapping uses unknown statement target '{target}'; "
+                        f"allowed: {', '.join(sorted(_FRAMEWORK_POLICY_LINE_MAPPING_TARGETS))}"
+                    )
                 if not is_valid_line_for_framework(line_id, self.framework_id):
                     raise ValueError(
                         f"Line mapping '{line_id}' is not a registered L1 line valid in framework '{self.framework_id.value}'"

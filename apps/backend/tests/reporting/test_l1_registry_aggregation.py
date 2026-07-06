@@ -2,6 +2,7 @@
 
 from datetime import date
 from decimal import Decimal
+from uuid import uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,7 +10,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.identity import User
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
-from src.models.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass, ManualValuationSnapshot
+from src.models.layer2 import AssetType, AtomicPosition
+from src.models.layer3 import (
+    CostBasisMethod,
+    ManagedPosition,
+    ManualValuationComponentType,
+    ManualValuationLiquidityClass,
+    ManualValuationSnapshot,
+    PositionStatus,
+)
 from src.schemas.reporting import FrameworkPolicyDecision, PersonalReportingFrameworkId, PolicyFactDomain, ReportLineId
 from src.services.reporting.framework_report import (
     assemble_framework_balance_sheet,
@@ -20,6 +29,7 @@ from src.services.reporting.l1_registry import (
     get_registered_line,
     is_valid_line_for_framework,
 )
+from src.services.reporting_calc import ReportError
 
 
 @pytest.mark.no_db
@@ -226,8 +236,112 @@ async def test_framework_income_statement_aggregation(
     assert us_is["net_income"] == Decimal("5000.00")
 
 
+async def test_AC20_9_1_portfolio_cost_basis_and_adjustment_stay_on_securities_l1(
+    db: AsyncSession,
+    test_user: User,
+) -> None:
+    """AC20.9.1: broker cost basis and market adjustment aggregate to framework securities lines."""
+    report_date = date(2026, 5, 31)
+    brokerage = Account(
+        user_id=test_user.id,
+        name="Brokerage",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    equity = Account(
+        user_id=test_user.id,
+        name="Owner Equity",
+        type=AccountType.EQUITY,
+        currency="SGD",
+    )
+    db.add_all([brokerage, equity])
+    await db.flush()
+
+    entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=report_date,
+        status=JournalEntryStatus.POSTED,
+        source_type=JournalEntrySourceType.MANUAL,
+        memo="Brokerage funding with cash residual",
+    )
+    db.add(entry)
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=brokerage.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("1200.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=equity.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("1200.00"),
+                currency="SGD",
+            ),
+        ]
+    )
+    db.add_all(
+        [
+            ManagedPosition(
+                user_id=test_user.id,
+                account_id=brokerage.id,
+                asset_identifier="NVDA",
+                quantity=Decimal("10"),
+                cost_basis=Decimal("1000.00"),
+                currency="SGD",
+                acquisition_date=report_date,
+                status=PositionStatus.ACTIVE,
+                cost_basis_method=CostBasisMethod.FIFO,
+            ),
+            AtomicPosition(
+                user_id=test_user.id,
+                snapshot_date=report_date,
+                asset_identifier="NVDA",
+                broker=brokerage.name,
+                quantity=Decimal("10"),
+                market_value=Decimal("1500.00"),
+                currency="SGD",
+                asset_type=AssetType.STOCK,
+                dedup_hash=f"l1-portfolio-{uuid4().hex}",
+                source_documents={},
+            ),
+        ]
+    )
+    await db.flush()
+
+    us_bs = await assemble_framework_balance_sheet(
+        db,
+        test_user.id,
+        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+        as_of_date=report_date,
+        currency="SGD",
+        include_restricted=True,
+    )
+    hk_bs = await assemble_framework_balance_sheet(
+        db,
+        test_user.id,
+        framework_id=PersonalReportingFrameworkId.HKFRS_LIKE,
+        as_of_date=report_date,
+        currency="SGD",
+        include_restricted=True,
+    )
+
+    us_assets = {asset_line["line_id"]: asset_line for asset_line in us_bs["assets"]}
+    hk_assets = {asset_line["line_id"]: asset_line for asset_line in hk_bs["assets"]}
+    assert us_assets["assets.marketable_securities"]["amount"] == Decimal("1500.00")
+    assert hk_assets["assets.financial_assets_at_fair_value"]["amount"] == Decimal("1500.00")
+    assert us_assets["assets.cash_and_cash_equivalents"]["amount"] == Decimal("200.00")
+    assert hk_assets["assets.cash_and_cash_equivalents"]["amount"] == Decimal("200.00")
+    assert us_bs["total_assets"] == Decimal("1700.00")
+    assert hk_bs["total_assets"] == Decimal("1700.00")
+
+
 def test_map_l2_line_branches() -> None:
-    """Verify all fallback and conditional paths in _map_l2_line."""
+    """Verify mapping paths are deterministic and fail closed when no L1 policy exists."""
     from src.services.reporting.framework_report import _map_l2_line
 
     # 1. Map via decision source_id
@@ -246,7 +360,7 @@ def test_map_l2_line_branches() -> None:
     res = _map_l2_line(line, mapping, PersonalReportingFrameworkId.US_GAAP_LIKE, "balance_sheet")
     assert res == "assets.cash_and_cash_equivalents"
 
-    # 2. Portfolio adjustment - balance_sheet US vs HK
+    # 2. Portfolio cost basis/adjustment - balance_sheet US vs HK
     line_p = {"allocation_source_type": "portfolio_market_adjustment"}
     assert (
         _map_l2_line(line_p, {}, PersonalReportingFrameworkId.US_GAAP_LIKE, "balance_sheet")
@@ -266,44 +380,23 @@ def test_map_l2_line_branches() -> None:
         _map_l2_line(line_p, {}, PersonalReportingFrameworkId.HKFRS_LIKE, "income_statement")
         == "income.fair_value_change_in_financial_assets"
     )
+    line_cost = {"allocation_source_type": "portfolio_cost_basis"}
+    assert (
+        _map_l2_line(line_cost, {}, PersonalReportingFrameworkId.US_GAAP_LIKE, "balance_sheet")
+        == "assets.marketable_securities"
+    )
 
-    # 4. Fallbacks - balance_sheet asset vs liability vs other
-    assert (
-        _map_l2_line({"type": AccountType.ASSET}, {}, PersonalReportingFrameworkId.US_GAAP_LIKE, "balance_sheet")
-        == "assets.cash_and_cash_equivalents"
-    )
-    assert (
-        _map_l2_line({"type": AccountType.LIABILITY}, {}, PersonalReportingFrameworkId.US_GAAP_LIKE, "balance_sheet")
-        == "liabilities.financial_liabilities"
-    )
+    # 4. Equity is the only structural balance-sheet fallback in the current registry.
     assert (
         _map_l2_line({"type": AccountType.EQUITY}, {}, PersonalReportingFrameworkId.US_GAAP_LIKE, "balance_sheet")
         == "equity.fx_translation"
     )
 
-    # 5. Fallbacks - income_statement income vs other
-    assert (
-        _map_l2_line({"type": AccountType.INCOME}, {}, PersonalReportingFrameworkId.US_GAAP_LIKE, "income_statement")
-        == "income.dividends_and_interest"
-    )
-    assert (
-        _map_l2_line({"type": AccountType.EXPENSE}, {}, PersonalReportingFrameworkId.US_GAAP_LIKE, "income_statement")
-        == "expenses.investment_fees"
-    )
-
-    # 6. Fallbacks - cash_flow expense vs other
-    assert (
-        _map_l2_line({"type": AccountType.EXPENSE}, {}, PersonalReportingFrameworkId.US_GAAP_LIKE, "cash_flow")
-        == "investing.fees"
-    )
-    assert (
-        _map_l2_line({"type": AccountType.ASSET}, {}, PersonalReportingFrameworkId.US_GAAP_LIKE, "cash_flow")
-        == "cash.ending_cash"
-    )
-    assert (
+    # 5. Known source lines without policy mappings must not be guessed into L1 lines.
+    with pytest.raises(ReportError, match="No registered L1 mapping"):
+        _map_l2_line({"type": AccountType.ASSET}, {}, PersonalReportingFrameworkId.US_GAAP_LIKE, "balance_sheet")
+    with pytest.raises(ReportError, match="Unsupported framework report statement"):
         _map_l2_line({}, {}, PersonalReportingFrameworkId.US_GAAP_LIKE, "invalid_statement")
-        == "assets.cash_and_cash_equivalents"
-    )
 
 
 def test_registry_lookups_and_invalid_inputs() -> None:

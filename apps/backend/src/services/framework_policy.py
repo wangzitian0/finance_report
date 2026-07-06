@@ -385,6 +385,8 @@ def _account_domain_and_instrument(account: Account) -> tuple[PolicyFactDomain, 
         return PolicyFactDomain.LIABILITY, "loan"
     if account.type == AccountType.INCOME:
         return PolicyFactDomain.DIVIDEND_INTEREST, "interest"
+    if account.type == AccountType.EXPENSE:
+        return PolicyFactDomain.BROKERAGE_FEE, "brokerage_fee"
     return None
 
 

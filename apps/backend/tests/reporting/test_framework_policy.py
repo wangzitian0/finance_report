@@ -11,6 +11,7 @@ from src.schemas.reporting import (
     FrameworkPolicyDecision,
     FrameworkPolicyEvidenceAnchor,
     FrameworkPolicyFact,
+    FrameworkPolicyMatrix,
     FrameworkPolicyResult,
     PersonalReportingFrameworkId,
     PolicyDimension,
@@ -76,6 +77,7 @@ def test_AC20_3_1_policy_result_validation_names_missing_dimensions() -> None:
         FrameworkPolicyResult(
             result_id="policy-result:test",
             framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+            matrix_version="test",
             report_period_start=date(2026, 5, 1),
             report_period_end=date(2026, 5, 31),
             generated_at=date(2026, 6, 1),
@@ -117,6 +119,54 @@ def test_AC20_4_1_policy_rule_defaults_preserve_explicit_empty_lists() -> None:
     assert rule.required_evidence == []
     assert rule.disclosure_requirements == []
     assert rule.blocker_conditions == []
+
+
+def test_policy_matrix_rejects_unknown_line_mapping_target() -> None:
+    rule = _rule(
+        domain=PolicyFactDomain.CASH,
+        supported_instrument_types=["cash"],
+        recognition="Recognize cash.",
+        measurement="Measure cash.",
+        classification="Cash asset.",
+        presentation="Cash line.",
+        disclosure="No additional disclosure.",
+        line_mappings={"balence_sheet": "assets.cash_and_cash_equivalents"},
+        required_evidence=[],
+        disclosure_requirements=[],
+        blocker_conditions=[],
+    )
+
+    with pytest.raises(ValidationError, match="unknown statement target 'balence_sheet'"):
+        FrameworkPolicyMatrix(
+            framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+            version="test",
+            rules=[rule],
+        )
+
+
+def test_policy_result_rejects_unknown_line_mapping_target() -> None:
+    decision = FrameworkPolicyDecision(
+        domain=PolicyFactDomain.CASH,
+        recognition="Recognize cash from reviewed source evidence.",
+        measurement="Measure cash at nominal amount.",
+        classification="Cash asset.",
+        presentation="Balance sheet cash.",
+        disclosure="No additional disclosure.",
+        line_mappings={"balence_sheet": "assets.cash_and_cash_equivalents"},
+        evidence_anchors=[_anchor()],
+    )
+
+    with pytest.raises(ValidationError, match="unknown statement target 'balence_sheet'"):
+        FrameworkPolicyResult(
+            result_id="policy-result:test",
+            framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+            matrix_version="test",
+            report_period_start=date(2026, 5, 1),
+            report_period_end=date(2026, 5, 31),
+            generated_at=date(2026, 6, 1),
+            required_statements=["balance_sheet"],
+            decisions=[decision],
+        )
 
 
 def test_AC20_4_1_policy_matrix_covers_required_v1_domains_and_dimensions() -> None:
