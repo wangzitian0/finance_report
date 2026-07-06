@@ -613,6 +613,66 @@ class TestBaselineComparison:
             cuc.main()
         assert exc.value.code == 0
 
+    def test_within_epsilon_jitter_is_not_a_regression(self, tmp_path, monkeypatch):
+        """A sub-epsilon dip (one covered line of run-to-run jitter) must NOT red
+        the gate: with REGRESSION_EPSILON_PCT=0.05, 83.14% vs baseline 83.15%
+        is measurement noise, not a regression (the flap seen on main after the
+        #1631 re-baseline: common flipped 93.46<->93.47 with no code change)."""
+        baseline_file = tmp_path / "baseline.json"
+        baseline_data = {
+            "coverage_percent": 83.15,
+            "total_lines": 10000,
+            "covered_lines": 8315,
+            "breakdown": {
+                "backend": {
+                    "total_lines": 5000,
+                    "covered_lines": 4700,
+                    "coverage_percent": 94.0,
+                },
+                "frontend": {
+                    "total_lines": 3000,
+                    "covered_lines": 2494,
+                    "coverage_percent": 83.13,
+                },
+                "tools": {
+                    "total_lines": 2000,
+                    "covered_lines": 1662,
+                    "coverage_percent": 83.10,
+                },
+            },
+        }
+        baseline_file.write_text(json.dumps(baseline_data))
+        monkeypatch.setenv("BASELINE_FILE", str(baseline_file))
+        monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
+
+        # One covered line less in tools: 1661/2000 = 83.05 (-0.05, at epsilon)
+        # and unified 8314/10000 = 83.14 (-0.01, within epsilon).
+        current = {
+            "backend": {
+                "total_lines": 5000,
+                "covered_lines": 4700,
+                "coverage_percent": 94.0,
+            },
+            "frontend": {
+                "total_lines": 3000,
+                "covered_lines": 2494,
+                "coverage_percent": 83.13,
+            },
+            "tools": {
+                "total_lines": 2000,
+                "covered_lines": 1661,
+                "coverage_percent": 83.05,
+            },
+        }
+        monkeypatch.setattr(cuc, "get_backend_coverage", lambda: current["backend"])
+        monkeypatch.setattr(cuc, "get_frontend_coverage", lambda: current["frontend"])
+        monkeypatch.setattr(cuc, "get_tools_coverage", lambda: current["tools"])
+
+        with pytest.raises(SystemExit) as exc:
+            cuc.main()
+        assert exc.value.code == 0
+
     def test_fails_when_unified_drops_below_baseline(
         self, tmp_path, monkeypatch, capfd
     ):

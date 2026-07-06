@@ -2874,12 +2874,14 @@ def test_AC8_13_143_unified_coverage_updates_baseline_through_pr_not_direct_main
         in baseline_block
     )
     assert "BASELINE_BRANCH: automation/unified-coverage-baseline" in baseline_block
-    assert "git diff --quiet -- unified-coverage.json" in baseline_block
-    # Plain --force (not --force-with-lease): the shallow CI checkout never fetches
-    # the bot branch, so a lease has no remote-tracking ref and git rejects every
-    # push with "stale info". It is a single-writer bot branch, and the push still
-    # targets $BASELINE_BRANCH (never main — asserted below), so the AC's real
-    # invariant (baseline updates via PR, not a direct main push) holds.
+    # Quantized-rise guard (replaces the old byte-level `git diff --quiet`,
+    # which churned a baseline PR on every ±1 covered-line jitter) and a plain
+    # --force push (not leased: the shallow CI checkout never fetches the bot
+    # branch, so a lease has no remote-tracking ref and rejects with "stale
+    # info"; single-writer bot branch, and the push still targets
+    # $BASELINE_BRANCH — never main, asserted below — so the AC's real
+    # invariant, baseline updates via PR, holds).
+    assert "if v > o.get(k, 0)" in baseline_block
     assert 'git push --force origin "HEAD:$BASELINE_BRANCH"' in baseline_block
     assert "gh pr create" in baseline_block
     assert "gh pr edit" in baseline_block

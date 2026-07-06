@@ -1254,17 +1254,35 @@ jobs:
           fi
 
           git switch -C "$BASELINE_BRANCH"
-          cp coverage-context/unified-coverage.json unified-coverage.json
-          if git diff --quiet -- unified-coverage.json; then
-            echo "Unified coverage baseline is unchanged."
+          # Quantized-rise guard: raw covered_lines jitter ±1 between runs, so a
+          # byte-level diff churns a baseline PR on every main push. Only act
+          # when a ROUNDED percent actually rose (drops are the regression
+          # gate's job and never fold into the baseline silently).
+          if ! python3 - <<'PY'
+          import json, sys
+          old = json.load(open("unified-coverage.json"))
+          new = json.load(open("coverage-context/unified-coverage.json"))
+          def percents(d):
+              out = {"unified": round(float(d.get("coverage_percent", 0)), 2)}
+              for name, comp in d.get("breakdown", {}).items():
+                  out[name] = round(float(comp.get("coverage_percent", 0)), 2)
+              return out
+          o, n = percents(old), percents(new)
+          rises = {k: (o.get(k), v) for k, v in n.items() if v > o.get(k, 0)}
+          print(f"baseline percents: {o} -> {n}; rises: {rises or 'none'}")
+          sys.exit(0 if rises else 1)
+          PY
+          then
+            echo "No rounded-percent rise — line-count jitter only; skipping baseline PR."
             exit 0
           fi
+          cp coverage-context/unified-coverage.json unified-coverage.json
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add unified-coverage.json
           git commit -m "chore(ci): update unified coverage baseline"
-          # Plain --force, not --force-with-lease: the runner's shallow checkout
+          # Plain --force, not a leased push: the runner's shallow checkout
           # never fetches this branch, so the lease has no remote-tracking ref to
           # compare against and git rejects every push with "stale info". This is
           # a dedicated single-writer bot branch, so a force push is safe.
