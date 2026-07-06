@@ -66,6 +66,11 @@ PATH_RULES: tuple[PathRule, ...] = (
         "backend_tier1_api_e2e",
         True,
     ),
+    PathRule(
+        "apps/backend/tests/e2e/test_epic025_dry_ssot_e2e.py",
+        "backend_tier1_api_e2e",
+        True,
+    ),
     PathRule("apps/backend/tests/", "backend_ci", True),
     PathRule(
         "apps/frontend/playwright/inline-edit-happy-path.spec.ts",
@@ -195,6 +200,16 @@ E2E_ROWS: tuple[E2ERow, ...] = (
         reason="Fixture-seeded core journeys; original in-runner preview set.",
     ),
     E2ERow(
+        "tests/e2e/test_epic022_ia_shell.py",
+        needs=(),
+        audited=True,
+        reason=(
+            "EPIC-022 everyday-user shell proof, relocated from the dead "
+            "apps/backend/tests/e2e copy (backend_ci marker deselected it); "
+            "authenticated browser + frontend shell only, no provider."
+        ),
+    ),
+    E2ERow(
         "tests/e2e/test_e2e_flows.py",
         needs=(),
         audited=True,
@@ -245,6 +260,15 @@ E2E_ROWS: tuple[E2ERow, ...] = (
         needs=(NEEDS_LLM_PROVIDER,),
         audited=True,
         reason="Real AI/OCR provider (llm marker); supplemental staging corpus.",
+    ),
+    E2ERow(
+        "tests/e2e/test_institution_statement_journeys.py",
+        needs=(NEEDS_LLM_PROVIDER,),
+        audited=True,
+        reason=(
+            "Real AI/OCR provider (llm marker); per-institution statement "
+            "shapes (cmb/mari/pingan/gxs) in the audit-replay corpus (#1613)."
+        ),
     ),
     E2ERow(
         "tests/e2e/test_ai_provider_connectivity.py",
@@ -420,13 +444,14 @@ WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
         marker=BACKEND_TIER1_MARKER,
         # Tier-1 file set: core API journeys + the provider-free seeded
         # statement journeys (AC8.21) + the extraction-corpus journeys
-        # (AC8.25). Browser-dependent specs (test_auth_flows, test_e2e_flows,
-        # test_epic022_ia, test_epic025_dry_ssot_e2e) need a frontend and stay
-        # out of this API-only lane.
+        # (AC-llm.11) + the EPIC-025 reporting-extraction API proof.
+        # Browser-dependent specs (test_auth_flows, test_e2e_flows) need a
+        # frontend and stay out of this API-only lane.
         paths=(
             "tests/e2e/test_core_journeys.py",
             "tests/e2e/test_seeded_statement_journey.py",
             "tests/e2e/test_statement_corpus_journeys.py",
+            "tests/e2e/test_epic025_dry_ssot_e2e.py",
         ),
         anchor="--junit-xml=test-results/backend-tier1-e2e.xml",
     ),

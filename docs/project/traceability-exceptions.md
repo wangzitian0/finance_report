@@ -51,6 +51,7 @@ These files are test infrastructure, not behavior proof.
 | `tests/tooling/__init__.py` | Package marker |
 | `tests/tooling/conftest.py` | Shared tooling-test fixtures |
 | `tests/e2e/conftest.py` | Shared top-level E2E fixtures |
+| `tests/e2e/pdf_fixture_paths.py` | Shared helper (not a test): PDF fixture path resolution for provider-backed journeys (#1613) |
 | `apps/backend/tests/unit/conftest.py` | Shared unit fixtures |
 | `apps/frontend/src/__tests__/helpers/renderReviewComponent.tsx` | Shared frontend render helper |
 
