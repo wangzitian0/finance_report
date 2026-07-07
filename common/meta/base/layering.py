@@ -71,10 +71,12 @@ PACKAGE_LAYER: dict[str, PackageClass] = {
     # (money/ratio/quantity/unit_price) folded into audit (#1419), so those
     # names are gone from the map — audit (L1) owns the financial base types.
     "counter": "middleware",
-    # L3 — vertical business slices. advisor / portfolio / pricing / reporting
-    # are forward placements: their cutovers (#1425 / #1422 / #1610 / #1424)
-    # have not shipped a contract.py yet, so the map pins their layer ahead of
-    # time (the shell-ahead rule above) — they are future packages, not dead ones.
+    # L3 — vertical business slices. All four now have a shipped contract.py:
+    # advisor / portfolio are "active"; pricing / reporting are still "draft"
+    # (their cutovers #1610 / #1424 are in flight). The map does not wait for a
+    # contract to exist before pinning a package's layer (the shell-ahead rule
+    # above still applies to any future package placed here before its
+    # contract.py lands) — these four are simply past that stage already.
     "advisor": "domain",
     "extraction": "domain",
     "identity": "domain",

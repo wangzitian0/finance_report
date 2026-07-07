@@ -1,7 +1,7 @@
 # `quantity` — Decimal quantity + unit value language (kernel package)
 
 > The quantity/unit value type. Model spec:
-> [`../governance/readme.md`](../governance/readme.md). Machine contract:
+> [`../../meta/readme.md`](../../meta/readme.md). Machine contract:
 > [`contract.py`](./contract.py). Language-neutral interface + conformance:
 > [`contract/quantity.contract.md`](./contract/quantity.contract.md) +
 > [`conformance/vectors.json`](./conformance/vectors.json). Worklist:
