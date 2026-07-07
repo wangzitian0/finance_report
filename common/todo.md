@@ -81,11 +81,14 @@ drops as each domain is carved out.
 - **Now: 23 edges** — 9 inbound (remainder → a carved package's unpublished
   internal, incl. a deep module import from `models/_registry.py`), 14 outbound
   (a carved package → the app remainder, upward-layer).
-- The 14 outbound edges concentrate in `extraction` (→ `services.ai_streaming` /
-  `chain_repair` / `storage` / `pii_redaction` / `promotion_gate` / `assets` /
+- The outbound edges concentrate in `extraction` (→ `services.ai_streaming` /
+  `chain_repair` / `storage` / `pii_redaction` / `assets` /
   `source_type_priority`). They reveal deps `extraction` never internalized:
   `ai_streaming` / `storage` / `pii_redaction` belong in lower packages
-  (llm / runtime / audit); `chain_repair` / `promotion_gate` / `assets` are domain
+  (llm / runtime / audit); `chain_repair` / `assets` are domain
   logic. **Clear outbound before inbound** when carving a domain out.
+  (`promotion_gate` cleared by #1667 — relocated into `audit.promotion`,
+  consumed by `extraction`/`reconciliation`/`ledger` through the published
+  interface instead of a `services.*` reach-through.)
 - Target: baseline → 0 when `reconciliation` / `reporting` / `portfolio` /
   `advisor` / `asset` are carved and the remainder is empty.

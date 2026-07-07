@@ -30,6 +30,16 @@ from src.audit.money.convert import convert
 from src.audit.money.currency import normalize_currency_code
 from src.audit.money.errors import InvalidCurrencyError, MoneyError
 from src.audit.money.rounding import to_money
+from src.audit.promotion import (
+    RECONCILIATION_AUTO_ACCEPT_SCORE,
+    RECONCILIATION_REVIEW_SCORE,
+    STATEMENT_BALANCE_TOLERANCE,
+    InvariantResult,
+    PromotionDecision,
+    PromotionVerdict,
+    evaluate_promotion,
+    tier_rank,
+)
 from src.audit.quantity import Quantity, Unit
 from src.audit.ratio import Ratio
 from src.audit.unit_price import UnitPrice
@@ -60,8 +70,16 @@ __all__ = [
     "ExchangeRate",
     "Money",
     "MoneyTolerance",
+    "RECONCILIATION_AUTO_ACCEPT_SCORE",
+    "RECONCILIATION_REVIEW_SCORE",
+    "STATEMENT_BALANCE_TOLERANCE",
     "STATEMENT_SOURCE_TYPES",
     "SourceTypeDowngradeError",
+    "InvariantResult",
+    "PromotionDecision",
+    "PromotionVerdict",
+    "evaluate_promotion",
+    "tier_rank",
     "Quantity",
     "Ratio",
     "Unit",

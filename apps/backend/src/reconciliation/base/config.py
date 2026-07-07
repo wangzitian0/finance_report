@@ -7,13 +7,16 @@ from dataclasses import dataclass, replace
 from decimal import Decimal
 from pathlib import Path
 
-from src.audit import source_type_rank
+from src.audit import (
+    RECONCILIATION_AUTO_ACCEPT_SCORE,
+    RECONCILIATION_REVIEW_SCORE,
+    source_type_rank,
+)
 from src.audit.money import Money
 from src.ledger import ValidationError, validate_journal_balance
 from src.models.account import AccountType
 from src.models.journal import Direction, JournalEntry
 from src.observability import get_logger
-from src.services.promotion_gate import RECONCILIATION_AUTO_ACCEPT_SCORE, RECONCILIATION_REVIEW_SCORE
 
 logger = get_logger(__name__)
 
@@ -140,7 +143,7 @@ def load_reconciliation_config(force_reload: bool = False) -> ReconciliationConf
         try:
             import yaml
         except ImportError:
-            yaml = None
+            yaml = None  # type: ignore[assignment]
 
         if yaml:
             try:
