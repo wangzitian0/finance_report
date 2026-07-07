@@ -4,15 +4,17 @@
 ``common/*/contract.py`` and validates whatever it finds. That makes it easy to
 add a package, but it means a directory dropped into ``common/`` WITHOUT a
 ``contract.py`` is invisible to it -- exactly how ``common/ci``, ``common/shell``,
-and ``common/ssot`` accumulated as undeclared "junk drawers" that this repo spent
-five PRs dissolving back into real packages (#1564-#1568).
+and ``common/ssot`` accumulated as undeclared "junk drawers" before they were
+dissolved back into real packages (#1564-#1568, #1430).
 
 This gate closes that gap from the other direction: it enumerates every
 directory directly under ``common/`` and requires each one to either ship a
 ``contract.py`` or be a documented, reasoned entry in
-:data:`UNGOVERNED_EXCEPTIONS` (a pending SSOT-only domain, or leftover files with
-no clean package fit yet). A brand-new directory with neither is rejected, so the
-junk-drawer pattern cannot silently recur.
+:data:`UNGOVERNED_EXCEPTIONS`. The migration clean-up in #1430 retired the last
+residual exception (``common/ssot``), so the list is now empty and a
+shrink-only ratchet: a brand-new directory with neither a ``contract.py`` nor
+an exception entry is rejected, so the junk-drawer pattern cannot silently
+recur, and the list may not silently regrow.
 
 stdlib only (no pyyaml/pydantic) so the gate runs anywhere, including the
 lightweight CI lint environment.
@@ -31,16 +33,9 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 IGNORED_DIR_NAMES = {"__pycache__"}
 
 # Directories under common/ that are deliberately, not accidentally, ungoverned
-# today. Each entry names the reason so the exception can be audited and
-# eventually retired (once the directory ships a contract.py or is dissolved).
-UNGOVERNED_EXCEPTIONS: dict[str, str] = {
-    "ssot": (
-        "Leftover from the common/ci + common/ssot dissolution (#1564-#1568): "
-        "houses three generator scripts with no clean package fit yet "
-        "(generate_api_reference.py, generate_db_schema_reference.py, "
-        "generate_openapi_spec.py) -- not a bounded context itself."
-    ),
-}
+# today. Shrink-only ratchet: the migration clean-up in #1430 retires the last
+# residual ``common/ssot`` escape hatch, so new entries should be exceptional.
+UNGOVERNED_EXCEPTIONS: dict[str, str] = {}
 
 
 def discover_common_dirs(repo_root: Path) -> list[str]:

@@ -13,7 +13,7 @@ empty; discovery sites import this module explicitly instead:
 * ``migrations/env.py``      — Alembic autogenerate target metadata
 * ``tests/conftest.py``      — per-worker ``create_all`` schema build
 * ``src/main.py``            — eager mapper registration at app startup
-* ``common/ssot/generate_db_schema_reference.py`` — schema reference generation
+* ``common/meta/extension/generate_db_schema_reference.py`` — schema reference generation
 
 This is NOT a re-export facade: it publishes no symbols (``__all__`` is empty).
 Other code must import each model from its owning module

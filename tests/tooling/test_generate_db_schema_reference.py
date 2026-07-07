@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from common.ssot import generate_db_schema_reference as gdsr
+from common.meta.extension import generate_db_schema_reference as gdsr
 from sqlalchemy import (
     CheckConstraint,
     Column,
