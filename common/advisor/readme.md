@@ -102,7 +102,8 @@ once the god-file `service.py` is split in PR2:
 ## Usage
 
 ```python
-from src.advisor import AIAdvisorService, ChatStream
+from src.services.ai_advisor import AIAdvisorService
+from src.services.ai_advisor.service import ChatStream
 
 service = AIAdvisorService()
 chat: ChatStream = await service.chat_stream(db, user_id=user.id, message="Why is my net worth down?")
@@ -118,7 +119,7 @@ render citations and action chips immediately.
 ## Guardrails
 
 ```python
-from src.advisor import is_write_request, is_prompt_injection, is_sensitive_request
+from src.services.ai_advisor import is_write_request, is_prompt_injection, is_sensitive_request
 
 # These are checked inside chat_stream before any LLM call:
 is_write_request("Create a journal entry for rent")  # True → refused

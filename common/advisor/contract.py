@@ -1,11 +1,14 @@
 """The ``advisor`` package's machine-checkable :class:`PackageContract`.
 
 This is the authoritative spec the governance gate
-(``tools/check_package_contract.py``) validates the BE implementation against:
-``interface`` must equal the implementation's ``__all__``
-(``implementations["be"]`` = ``apps/backend/src/advisor``); every
-``invariants[].test`` and ``roadmap[].test`` must resolve to a real test
-function; ``depends_on`` must not introduce a forbidden upward/sideways edge.
+(``tools/check_package_contract.py``) validates the BE implementation against.
+In this PR1 slice ``implementations["be"]`` is ``None`` (the code still lives
+at ``apps/backend/src/services/ai_advisor``), so the gate skips the
+``interface == __all__`` check; PR2 moves the code to
+``apps/backend/src/advisor``, sets ``implementations["be"]`` accordingly, and
+the check then applies. Every ``invariants[].test`` and ``roadmap[].test``
+must resolve to a real test function; ``depends_on`` must not introduce a
+forbidden upward/sideways edge.
 
 ## What this package is
 
@@ -23,8 +26,11 @@ positions) and streams a grounded, cited, disclaimer-tagged response.
   call is made.  The guardrail is also applied on the streaming path via
   `StreamRedactor`.  This is the package's non-negotiable invariant.
 * **bounded context** — the advisor reads reconciliation/reporting/portfolio
-  via their own published interfaces (cross-domain read, never FK or
-  shared transaction).  It never touches the ledger write side.
+  data as part of the same read-only request (currently the same
+  `AsyncSession` as the chat-message insert — see ``AC-advisor.txn.1``,
+  still ``open``: the target is reading via each package's *published*
+  interface once reconciliation/reporting/portfolio ship contracts, never a
+  cross-domain FK).  It never touches the ledger write side.
 * **LLM via ``llm``** — all provider calls go through the ``llm`` package
   (`SceneBinding` / `CassetteStore`); the advisor owns no raw HTTP surface.
 * **session ownership** — a `ChatSession` is owned by exactly one user;
@@ -51,7 +57,6 @@ from __future__ import annotations
 
 from common.meta.package_contract import (
     ACRecord,
-    Invariant,
     Kind,
     PackageContract,
     Unit,
