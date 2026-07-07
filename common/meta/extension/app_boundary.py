@@ -110,6 +110,15 @@ def _carved_and_published(repo_root: Path) -> tuple[dict[str, str], dict[str, se
         if impl is None or not str(impl).startswith(str(backend_src) + "/"):
             continue
         sub = impl.relative_to(backend_src).parts[0]
+        if sub in APP_REMAINDER_SUBDIRS:
+            # Not yet physically carved out of the app-remainder super-package —
+            # its implementation still lives *inside* services/routers/prompts
+            # (a contract-first migration slice, e.g. `apps/backend/src/services/
+            # reporting`). `sub` would otherwise collide with the remainder
+            # subdir name itself and corrupt every edge computed against it.
+            # Nothing to track until the code physically moves to its own
+            # top-level dir, same as every other carved package.
+            continue
         carved[sub] = pkg.name
         if (impl / "__init__.py").exists():
             published[pkg.name] = set(_package_all(impl))
