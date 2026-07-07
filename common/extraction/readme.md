@@ -13,7 +13,7 @@
 > The machine-readable audit-failed case registry is a sibling data file:
 > [`audit-failed-cases.yaml`](./audit-failed-cases.yaml). The conforming backend
 > implementation lives at
-> [`apps/backend/src/services/extraction/`](../../apps/backend/src/services/extraction)
+> [`apps/backend/src/extraction/`](../../apps/backend/src/extraction)
 > and its siblings (the code cutover #1421 homes them under the package shape).
 
 This document defines the Single Source of Truth for the document extraction feature.
@@ -358,12 +358,12 @@ S3_PRESIGN_EXPIRY_SECONDS=300
   per-currency self-check (`opening + ΣIN − ΣOUT ≠ closing`), but the underlying
   cause is **recall**, which is probabilistic (LLM). Around that soft metric the
   system runs a deterministic seam: `detect_balance_chain_break`
-  (`src/services/validation.py`) walks the ordered transactions' running
+  (`src/extraction/base/validation.py`) walks the ordered transactions' running
   `balance_after` chain and returns the exact index where
   `balance_after[i-1] + signed_amount[i] != balance_after[i]` (within
   `BALANCE_TOLERANCE`), pinpointing where a row went missing. When the
   whole-document re-extract still does not reconcile, `repair_under_extraction`
-  (`src/services/chain_repair.py`) fires the **repair-pass hook** once: it only
+  (`src/extraction/extension/chain_repair.py`) fires the **repair-pass hook** once: it only
   triggers when the self-check fails *and* the detector finds a region, then asks
   an **injectable** `RegionReExtractor` backend to re-extract just that region,
   keeping the repaired payload only if it reconciles (else the original is kept,
@@ -376,7 +376,7 @@ S3_PRESIGN_EXPIRY_SECONDS=300
 - **Bucket auto-create**: storage ensures the bucket exists before upload.
 - **Orphan cleanup**: if DB persistence fails after upload, the uploaded object is deleted.
 - **Periodic orphan sweep**: old statement storage objects without matching DB records are deleted by
-  `src/services/storage_sweep.py`; EPIC-003 AC3.8 owns the behavior tests. The grace period
+  `src/runtime/extension/storage_sweep.py`; EPIC-003 AC3.8 owns the behavior tests. The grace period
   (`STORAGE_SWEEP_GRACE_PERIOD_HOURS`, default 24h) and run interval
   (`STORAGE_SWEEP_INTERVAL_SECONDS`, default 86400s = daily) are config-driven (issue #356);
   objects younger than the grace period are never deleted.
@@ -493,9 +493,9 @@ Coverage checks compare monthly statement periods within each account/currency:
 |------|---------|
 | `src/models/statement_enums.py`, `src/models/statement_summary.py` | SQLAlchemy models and enums |
 | `src/schemas/extraction.py` | Pydantic schemas |
-| `src/services/extraction/` (`service.py`, `_ocr.py`, `_llm_led_gate.py`, …) | Core extraction logic |
-| `src/services/validation.py` | Validation, confidence scoring, running-balance chain-break detector (`detect_balance_chain_break`) |
-| `src/services/chain_repair.py` | Under-extraction repair-pass hook (`repair_under_extraction`, injectable `RegionReExtractor`) |
-| `src/services/storage.py` | Object storage uploads + presigned URLs |
-| `src/prompts/statement.py` | Parsing prompt templates |
+| `src/extraction/extension/` (`service.py`, `_ocr.py`, `_llm_led_gate.py`, …) | Core extraction logic |
+| `src/extraction/base/validation.py` | Validation, confidence scoring, running-balance chain-break detector (`detect_balance_chain_break`) |
+| `src/extraction/extension/chain_repair.py` | Under-extraction repair-pass hook (`repair_under_extraction`, injectable `RegionReExtractor`) |
+| `src/runtime/extension/storage.py` | Object storage uploads + presigned URLs |
+| `src/extraction/extension/prompts/statement.py` | Parsing prompt templates |
 | `common/testing/fixtures/llm_cassettes/*.json` | Frozen LLM responses for cassette replay (synthetic; the single retained extraction-test mechanism) |

@@ -17,8 +17,8 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import src.config
 from src.audit.money import Money
-from src.config import settings
 from src.ledger import Entry, Leg
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
@@ -26,6 +26,7 @@ from src.observability import get_logger
 from src.services.fx import FxRateError, get_exchange_rate
 
 logger = get_logger(__name__)
+settings = src.config.settings
 
 REVALUATION_ACCOUNT_TYPES = (AccountType.ASSET, AccountType.LIABILITY)
 

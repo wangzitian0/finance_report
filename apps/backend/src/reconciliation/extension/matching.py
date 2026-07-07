@@ -13,6 +13,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.audit import promote_entry_source_type
 from src.ledger import (
     detect_transfer_pattern,
     find_transfer_pairs,
@@ -50,7 +51,6 @@ from src.reconciliation.extension.scoring import (  # noqa: F401
     score_pattern,
     weighted_total,
 )
-from src.services.source_type_priority import promote_entry_source_type
 
 logger = get_logger(__name__)
 

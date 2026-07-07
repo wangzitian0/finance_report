@@ -13,6 +13,10 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from src.database import create_session_maker_from_db
+from src.extraction.extension.statement_parsing import parse_statement_background
+from src.extraction.extension.statement_parsing_supervisor import (
+    run_parsing_supervisor,
+)
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
 from src.routers.statements import (
@@ -22,11 +26,7 @@ from src.routers.statements import (
     retry_statement_parsing,
     upload_statement,
 )
-from src.services.statement_parsing import parse_statement_background
-from src.services.statement_parsing_supervisor import (
-    run_parsing_supervisor,
-)
-from src.services.storage import StorageError, StorageService
+from src.runtime import StorageError, StorageService
 from tests.factories import StatementSummaryFactory
 
 
@@ -121,10 +121,10 @@ async def test_parsing_supervisor_error_path(monkeypatch):
         stop_event.set()
         return 0
 
-    monkeypatch.setattr("src.services.statement_parsing_supervisor.reset_stale_parsing_jobs", failing_reset)
+    monkeypatch.setattr("src.extraction.extension.statement_parsing_supervisor.reset_stale_parsing_jobs", failing_reset)
 
     # Use a small timeout to avoid hanging
-    patch_target = "src.services.statement_parsing_supervisor.PARSING_SUPERVISOR_INTERVAL_SECONDS"
+    patch_target = "src.extraction.extension.statement_parsing_supervisor.PARSING_SUPERVISOR_INTERVAL_SECONDS"
     with patch(patch_target, 0.01):
         await run_parsing_supervisor(stop_event)
 
@@ -273,7 +273,7 @@ async def test_parse_statement_background_error_paths(db, test_user, monkeypatch
         from src.extraction.extension.service import ExtractionError
 
         mock_parse = AsyncMock(side_effect=ExtractionError("Parse Fail"))
-        monkeypatch.setattr("src.services.statement_parsing.ExtractionService.parse_document", mock_parse)
+        monkeypatch.setattr("src.extraction.extension.statement_parsing.ExtractionService.parse_document", mock_parse)
 
         await parse_statement_background(
             statement_id=sid,
@@ -300,7 +300,7 @@ async def test_parse_statement_background_error_paths(db, test_user, monkeypatch
         mock_storage.generate_presigned_url.return_value = "http://url"
 
         mock_parse = AsyncMock(side_effect=Exception("Unknown"))
-        monkeypatch.setattr("src.services.statement_parsing.ExtractionService.parse_document", mock_parse)
+        monkeypatch.setattr("src.extraction.extension.statement_parsing.ExtractionService.parse_document", mock_parse)
 
         await parse_statement_background(
             statement_id=sid,

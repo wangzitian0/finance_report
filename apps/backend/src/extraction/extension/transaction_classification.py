@@ -28,7 +28,8 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config import settings
+import src.config
+from src.extraction.extension.classification import ClassificationService
 from src.models.account import AccountType
 from src.models.layer2 import AtomicTransaction
 from src.models.layer3 import (
@@ -38,9 +39,9 @@ from src.models.layer3 import (
     TransactionClassification,
 )
 from src.observability import get_logger
-from src.services.classification import ClassificationService
 
 logger = get_logger(__name__)
+settings = src.config.settings
 
 POLICY_RULE_NAME = "llm-category-policy"
 
@@ -346,7 +347,7 @@ async def _ensure_policy_rule(db: AsyncSession, user_id: UUID, policy: Classific
 
 
 async def _resolve_category_account(db: AsyncSession, user_id: UUID, category: TransactionCategory, currency: str):
-    from src.services.review_queue import get_or_create_account
+    from src.extraction.extension.review_queue import get_or_create_account
 
     name, account_type = CATEGORY_ACCOUNTS[category]
     return await get_or_create_account(db, name=name, account_type=account_type, currency=currency, user_id=user_id)

@@ -16,9 +16,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 @pytest.mark.asyncio
 async def test_validation_does_not_pass_vacuously_when_closing_balance_missing(db: AsyncSession, test_user):
+    from src.extraction.extension.statement_validation import validate_balance_chain
     from src.models.statement_enums import BankStatementStatus
     from src.models.statement_summary import StatementSummary
-    from src.services.statement_validation import validate_balance_chain
 
     statement = StatementSummary(
         user_id=test_user.id,

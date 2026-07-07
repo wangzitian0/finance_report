@@ -27,7 +27,19 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
+from src.audit import STATEMENT_SOURCE_TYPES
 from src.extraction import ExtractionError
+from src.extraction.extension import (
+    statement_parsing as statement_parsing_mod,
+    statement_pipeline,
+    statement_validation as statement_validation_mod,
+)
+from src.extraction.extension.review_queue import create_entry_from_txn
+from src.extraction.extension.statement_parsing import handle_parse_failure
+from src.extraction.extension.statement_posting import (
+    is_high_confidence_auto_approve_candidate,
+    try_auto_approve_high_confidence_statement,
+)
 from src.identity import User
 from src.llm.base import Modality, ModelSpec
 from src.models.account import Account, AccountType
@@ -39,7 +51,9 @@ from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
+from src.reconciliation.extension.review_queue import accept_match as accept_match_service
 from src.routers import review as review_router, statements as statements_router
+from src.runtime import StorageError
 from src.schemas import StatementDecisionRequest
 from src.schemas.review import (
     BatchApproveRequest,
@@ -47,19 +61,6 @@ from src.schemas.review import (
     ResolveCheckRequest,
     ResolveConflictsRequest,
     Stage1ApprovalRequest,
-)
-from src.services import (
-    StorageError,
-    statement_parsing as statement_parsing_mod,
-    statement_pipeline,
-    statement_validation as statement_validation_mod,
-)
-from src.services.review_queue import accept_match as accept_match_service, create_entry_from_txn
-from src.services.source_type_priority import STATEMENT_SOURCE_TYPES
-from src.services.statement_parsing import handle_parse_failure
-from src.services.statement_posting import (
-    is_high_confidence_auto_approve_candidate,
-    try_auto_approve_high_confidence_statement,
 )
 from tests.factories import AccountFactory, UserFactory
 from tests.ledger._ledger_helpers import create_valid_posted_entry

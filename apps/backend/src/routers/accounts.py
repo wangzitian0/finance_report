@@ -19,6 +19,13 @@ from src.ledger import (
     get_unpaired_transfers,
     list_processing_transfer_legs,
 )
+from src.ledger.data.account_coverage import DEFAULT_STALE_AFTER_DAYS, get_account_statement_coverage
+from src.ledger.extension import account_service
+from src.ledger.extension.account_service import AccountNotFoundError
+from src.ledger.extension.accounting import (
+    get_opening_balance_readiness,
+    post_opening_balance_entry,
+)
 from src.models.account import AccountType
 from src.models.journal import JournalLine
 from src.observability import get_logger
@@ -35,15 +42,6 @@ from src.schemas import (
 )
 from src.schemas.account import OpeningBalanceReadinessResponse, OpeningBalanceRequest
 from src.schemas.journal import JournalEntryResponse
-from src.services import (
-    AccountNotFoundError,
-    account_service,
-)
-from src.services.account_coverage import DEFAULT_STALE_AFTER_DAYS, get_account_statement_coverage
-from src.services.accounting import (
-    get_opening_balance_readiness,
-    post_opening_balance_entry,
-)
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 logger = get_logger(__name__)

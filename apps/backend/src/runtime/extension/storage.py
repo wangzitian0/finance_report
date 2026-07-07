@@ -11,10 +11,11 @@ import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
-from src.config import settings
+import src.config
 from src.observability import get_logger
 
 logger = get_logger(__name__)
+settings = src.config.settings
 
 
 class StorageError(Exception):

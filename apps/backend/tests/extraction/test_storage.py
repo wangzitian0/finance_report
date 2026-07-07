@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from botocore.exceptions import ClientError
 
-from src.services.storage import StorageError, StorageService, redact_presigned_url
+from src.runtime import StorageError, StorageService, redact_presigned_url
 
 
 @pytest.fixture
@@ -122,7 +122,7 @@ def test_upload_bytes_creates_missing_bucket(mock_boto_client, monkeypatch):
 
 def test_upload_bytes_creates_bucket_with_region(mock_boto_client, monkeypatch):
     """Missing bucket should include region configuration when needed."""
-    from src.services import storage as storage_module
+    from src.runtime.extension import storage as storage_module
 
     mock_s3 = MagicMock()
     mock_s3.head_bucket.side_effect = ClientError({"Error": {"Code": "404", "Message": "Not Found"}}, "head_bucket")
@@ -154,7 +154,7 @@ def test_upload_bytes_bucket_access_denied(mock_boto_client):
 
 def test_public_client_init(mock_boto_client, monkeypatch):
     """Test public client initialization."""
-    from src.services import storage as storage_module
+    from src.runtime.extension import storage as storage_module
 
     monkeypatch.setattr(storage_module.settings, "s3_public_endpoint", "https://public.s3")
     monkeypatch.setattr(storage_module.settings, "s3_public_access_key", "pub_key")
@@ -173,7 +173,7 @@ def test_public_client_init(mock_boto_client, monkeypatch):
 
 def test_generate_presigned_url_public(mock_boto_client, monkeypatch):
     """Test generating public presigned URL."""
-    from src.services import storage as storage_module
+    from src.runtime.extension import storage as storage_module
 
     monkeypatch.setattr(storage_module.settings, "s3_public_endpoint", "https://public.s3")
 
@@ -196,7 +196,7 @@ def test_generate_presigned_url_public(mock_boto_client, monkeypatch):
 
 def test_public_url_fallback(mock_boto_client, monkeypatch):
     """Test that missing public client raises StorageError."""
-    from src.services import storage as storage_module
+    from src.runtime.extension import storage as storage_module
 
     # Mock logger
     mock_logger = MagicMock()

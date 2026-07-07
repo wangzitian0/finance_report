@@ -4,13 +4,13 @@ from uuid import uuid4
 
 import pytest
 
-from src.extraction.extension.prompts.statement import get_parsing_prompt
-from src.services.correction_service import (
+from src.extraction.extension.correction_service import (
     clear_all_correction_cache,
     get_correction_stats,
     get_few_shot_examples,
     record_correction,
 )
+from src.extraction.extension.prompts.statement import get_parsing_prompt
 from tests.factories import (
     AccountFactory,
     AtomicTransactionFactory,

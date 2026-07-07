@@ -14,10 +14,13 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config import settings
-from src.ledger import ValidationError, create_journal_entry, post_journal_entry
+import src.config
+from src.ledger.base.validators import ValidationError
+from src.ledger.extension.repository import create_journal_entry, post_journal_entry
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
+
+settings = src.config.settings
 
 __all__ = [
     "get_opening_balance_readiness",
@@ -46,7 +49,7 @@ async def post_opening_balance_entry(
     from src.audit.money import Money, to_money
     from src.audit.money.currency import normalize_currency_code
     from src.ledger import Entry, Leg
-    from src.services.account_service import get_or_create_opening_balance_equity_account
+    from src.ledger.extension.account_service import get_or_create_opening_balance_equity_account
 
     if not balances:
         raise ValidationError("At least one opening balance is required")

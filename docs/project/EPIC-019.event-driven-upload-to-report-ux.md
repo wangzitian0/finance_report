@@ -510,7 +510,7 @@ test — a Tier-3-only regression had to hit a real staging deploy to be caught.
 Potential service boundaries:
 
 ```text
-apps/backend/src/services/workflow_events.py
+apps/backend/src/platform/extension/workflow_events.py
 apps/backend/src/routers/workflow.py
 apps/backend/src/schemas/workflow.py
 ```

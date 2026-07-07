@@ -9,7 +9,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.audit import STATEMENT_SOURCE_TYPES
 from src.deps import CurrentUserId, DbSession, Pagination
+from src.extraction import create_entry_from_txn
 from src.models.journal import Direction, JournalEntry
 from src.models.layer2 import AtomicTransaction
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
@@ -18,6 +20,12 @@ from src.observability import get_logger, log_financial_mutation
 from src.platform import get_owned_or_404, raise_bad_request, raise_not_found
 from src.reconciliation import execute_matching, get_reconciliation_stats
 from src.reconciliation.extension.anomaly import detect_anomalies
+from src.reconciliation.extension.review_queue import (
+    accept_match as accept_match_service,
+    batch_accept as batch_accept_service,
+    get_pending_items,
+    reject_match as reject_match_service,
+)
 from src.schemas.reconciliation import (
     AnomalyResponse,
     BatchAcceptRequest,
@@ -32,14 +40,6 @@ from src.schemas.reconciliation import (
     ReconciliationStatusEnum,
     UnmatchedTransactionsResponse,
 )
-from src.services.review_queue import (
-    accept_match as accept_match_service,
-    batch_accept as batch_accept_service,
-    create_entry_from_txn,
-    get_pending_items,
-    reject_match as reject_match_service,
-)
-from src.services.source_type_priority import STATEMENT_SOURCE_TYPES
 
 router = APIRouter(prefix="/reconciliation", tags=["reconciliation"])
 logger = get_logger(__name__)

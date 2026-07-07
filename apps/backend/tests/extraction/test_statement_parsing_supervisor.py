@@ -4,12 +4,12 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 from src.database import create_session_maker_from_db
-from src.models.statement_enums import BankStatementStatus
-from src.services.statement_parsing_supervisor import (
+from src.extraction.extension.statement_parsing_supervisor import (
     PARSING_STALE_THRESHOLD,
     reset_stale_parsing_jobs,
     run_parsing_supervisor,
 )
+from src.models.statement_enums import BankStatementStatus
 from tests.factories import StatementSummaryFactory
 
 
@@ -73,7 +73,7 @@ async def test_run_parsing_supervisor_stops(monkeypatch):
         return 0
 
     monkeypatch.setattr(
-        "src.services.statement_parsing_supervisor.reset_stale_parsing_jobs",
+        "src.extraction.extension.statement_parsing_supervisor.reset_stale_parsing_jobs",
         fake_reset,
     )
 

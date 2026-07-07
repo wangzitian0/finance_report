@@ -5,9 +5,11 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
+from src.audit import STATEMENT_SOURCE_TYPES
 from src.audit.money import InvalidCurrencyError
 from src.deps import CurrentUserId, DbSession
 from src.extraction.extension.currency_resolution import resolve_transaction_currency
+from src.extraction.extension.statement_validation import resolve_statement_conflicts, resolve_statement_transactions
 from src.models.consistency_check import CheckStatus, CheckType
 from src.models.journal import JournalEntry, JournalEntryStatus
 from src.models.layer2 import AtomicTransaction
@@ -22,6 +24,7 @@ from src.reconciliation.extension.consistency_checks import (
     resolve_check,
     run_all_consistency_checks,
 )
+from src.reconciliation.extension.review_queue import accept_match as accept_match_service, get_stage2_queue
 from src.schemas.review import (
     BatchApproveRequest,
     BatchApproveResponse,
@@ -40,9 +43,6 @@ from src.schemas.review import (
     Stage2ReviewQueueResponse,
 )
 from src.services.confidence_tier import derive_reconciliation_score_tier
-from src.services.review_queue import accept_match as accept_match_service, get_stage2_queue
-from src.services.source_type_priority import STATEMENT_SOURCE_TYPES
-from src.services.statement_validation import resolve_statement_conflicts, resolve_statement_transactions
 
 logger = get_logger(__name__)
 

@@ -352,7 +352,7 @@ class Settings(BaseSettings):
     )
     # EPIC-019: when set, upload→report parsing is submitted as a durable Prefect
     # flow run instead of an in-process asyncio task. Unset (CI/local/preview) →
-    # in-process fallback, no Prefect dependency. See services/statement_pipeline.py.
+    # in-process fallback, no Prefect dependency. See extraction/extension/statement_pipeline.py.
     prefect_api_url: str | None = Field(
         default=None,
         validation_alias="PREFECT_API_URL",
@@ -687,7 +687,7 @@ class Settings(BaseSettings):
         """Parsed Fernet keys for provider-secret encryption (newest first).
 
         Empty when ``LLM_ENCRYPTION_KEYS`` is unset, which means DB-backed
-        provider secrets cannot be stored (see ``src/llm/common/secrets.py``).
+        provider secrets cannot be stored (see ``src/llm/base/secrets.py``).
         """
         return parse_comma_list(self.llm_encryption_keys, [])
 

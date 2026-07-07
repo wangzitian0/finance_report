@@ -86,7 +86,7 @@ def test_AC18_13_4_thresholds_are_centrally_owned_and_consumed_by_services():
     assert RECONCILIATION_REVIEW_SCORE == 60
 
     import src.reconciliation as reconciliation
-    from src.services import statement_validation
+    from src.extraction.extension import statement_validation
 
     assert statement_validation.BALANCE_TOLERANCE is STATEMENT_BALANCE_TOLERANCE
     assert reconciliation.DEFAULT_CONFIG.auto_accept == RECONCILIATION_AUTO_ACCEPT_SCORE

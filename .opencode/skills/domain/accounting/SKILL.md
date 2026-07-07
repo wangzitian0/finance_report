@@ -164,6 +164,6 @@ def void_entry(entry: JournalEntry, reason: str) -> JournalEntry:
 
 ## Source Files
 
-- **Logic**: `apps/backend/src/services/accounting.py`
+- **Logic**: `apps/backend/src/ledger/extension/accounting.py`
 - **Models**: `apps/backend/src/models/journal.py`
 - **Schemas**: `apps/backend/src/schemas/journal.py`

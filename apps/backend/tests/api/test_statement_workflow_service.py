@@ -11,7 +11,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import src.routers.statements as statements_router
-from src.services import statement_workflow
+from src.extraction.extension import statement_workflow
 
 
 class _FakeSession:

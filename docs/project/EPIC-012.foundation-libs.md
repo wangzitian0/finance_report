@@ -436,7 +436,7 @@ consolidated here. The removed inventory is retained in
 | Logging | `src/observability/logger.py` | ✅ Structlog + OTEL export |
 | Config | `src/config.py` | ✅ Pydantic Settings |
 | Database | `src/database.py` | ⚠️ Needs pool config |
-| Storage | `src/services/storage.py` | ✅ S3/MinIO abstraction |
+| Storage | `src/runtime/extension/storage.py` | ✅ S3/MinIO abstraction |
 | Rate Limit | `src/identity/extension/rate_limit.py` | ⚠️ Auth-only (identity package, #1428) |
 | Dependencies | `src/deps.py` | ✅ DbSession, CurrentUserId |
 | Boot | `src/boot.py` | ✅ Health checks |

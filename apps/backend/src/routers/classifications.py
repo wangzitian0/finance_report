@@ -16,7 +16,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from src.deps import CurrentUserId, DbSession
-from src.services.transaction_classification import backfill_classifications
+from src.extraction.extension.transaction_classification import backfill_classifications
 
 router = APIRouter(prefix="/classifications", tags=["classifications"])
 

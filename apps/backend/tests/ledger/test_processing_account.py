@@ -41,7 +41,7 @@ class TestProcessingAccountCreation:
     async def test_processing_account_hidden_from_list(self, db: AsyncSession, test_user):
         """AC-ledger.71.3 · Processing account is hidden from list_accounts."""
         user_id = test_user.id
-        from src.services.account_service import list_accounts
+        from src.ledger.extension.account_service import list_accounts
 
         # Create Processing account
         await get_or_create_processing_account(db, user_id)

@@ -2,7 +2,7 @@
 
 These shape the per-user LLM configuration surface: provider instances (API key
 write-only — it is encrypted at rest and **never** returned), the dynamic model
-catalogue, and the scene→model bindings. Enums are reused from ``src/llm/common``
+catalogue, and the scene→model bindings. Enums are reused from ``src/llm/base``
 so the API and the runtime contract can never drift.
 """
 

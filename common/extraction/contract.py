@@ -51,7 +51,7 @@ CONTRACT = PackageContract(
     # vision-LLM path (the authority classifier bands cassette-driven tests as
     # LLM). Non-eval ACs carry proof_kind=property.
     tier="LLM-LED",
-    depends_on=["audit", "platform", "observability", "config"],
+    depends_on=["audit", "config", "identity", "ledger", "observability", "platform", "runtime"],
     roles=["base", "extension", "data"],
     units=[
         # ── base: the pure validation/confidence calculus lives in
@@ -115,6 +115,7 @@ CONTRACT = PackageContract(
         "SYSTEM_PROMPT",
         "build_csv_mapping_prompt",
         "compute_confidence_score",
+        "create_entry_from_txn",
         "detect_balance_chain_break",
         "dual_write_layer2",
         "get_parsing_prompt",

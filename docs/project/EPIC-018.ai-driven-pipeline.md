@@ -103,7 +103,7 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 
 #### 1.2 Classification Service: Implement ML_MODEL Rule Type
 - [x] Implement `RuleType.ML_MODEL` match logic in `ClassificationService.evaluate_rule()`
-  - File: `apps/backend/src/services/classification.py`
+  - File: `apps/backend/src/extraction/extension/classification.py`
   - Logic: Read `suggested_category` from `BankStatementTransaction` → apply confidence threshold
   - Threshold: `category_confidence ≥ 0.7` → accept AI suggestion
   - Currently 91 lines, `ML_MODEL` case returns `False` → make it functional
@@ -113,7 +113,7 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 
 #### 1.3 Journal Entry: Read Classification Before Uncategorized Fallback
 - [x] Modify `create_entry_from_txn()` to check classification results before defaulting to Uncategorized
-  - File: `apps/backend/src/services/review_queue.py` (lines 264-359)
+  - File: `apps/backend/src/extraction/extension/review_queue.py` (lines 264-359)
   - Current: `get_or_create_account(db, name="Income - Uncategorized")` / `"Expense - Uncategorized"`
   - Target: Check `TransactionClassification` for the transaction → use classified account if exists → fallback to Uncategorized
   - Account naming: `"Income - {category}"` or `"Expense - {category}"` (e.g., `"Expense - Food & Dining"`)

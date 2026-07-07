@@ -458,7 +458,7 @@ async def test_list_anomalies_returns_list(db: AsyncSession, test_user) -> None:
 
 async def test_accept_match_already_accepted_is_idempotent(db: AsyncSession, test_user) -> None:
     """Accepting an already-accepted match should return it unchanged (idempotent)."""
-    from src.services.review_queue import accept_match as accept_match_service
+    from src.reconciliation.extension.review_queue import accept_match as accept_match_service
 
     statement = await _create_statement(db, test_user.id)
     txn = await _create_transaction(db, statement, amount=Decimal("15.00"), status=None)
@@ -480,7 +480,7 @@ async def test_accept_match_already_accepted_is_idempotent(db: AsyncSession, tes
 
 async def test_reject_match_already_rejected_is_idempotent(db: AsyncSession, test_user) -> None:
     """Rejecting an already-rejected match should return it unchanged (idempotent)."""
-    from src.services.review_queue import reject_match as reject_match_service
+    from src.reconciliation.extension.review_queue import reject_match as reject_match_service
 
     statement = await _create_statement(db, test_user.id)
     txn = await _create_transaction(db, statement, amount=Decimal("16.00"), status=None)
@@ -523,7 +523,7 @@ async def test_build_match_response_with_invalid_uuid_in_entry_ids(db: AsyncSess
 
 async def test_accept_match_amount_mismatch_raises(db: AsyncSession, test_user) -> None:
     """Accept match should raise ValueError when entry amounts don't match transaction."""
-    from src.services.review_queue import accept_match as accept_match_service
+    from src.reconciliation.extension.review_queue import accept_match as accept_match_service
 
     statement = await _create_statement(db, test_user.id)
     txn = await _create_transaction(db, statement, amount=Decimal("100.00"), status=None)
@@ -571,7 +571,7 @@ async def test_accept_match_amount_mismatch_raises(db: AsyncSession, test_user) 
 
 async def test_accept_match_amount_within_tolerance(db: AsyncSession, test_user) -> None:
     """Accept match should succeed when amounts match within tolerance."""
-    from src.services.review_queue import accept_match as accept_match_service
+    from src.reconciliation.extension.review_queue import accept_match as accept_match_service
 
     statement = await _create_statement(db, test_user.id)
     txn = await _create_transaction(db, statement, amount=Decimal("100.00"), status=None)
@@ -618,7 +618,7 @@ async def test_accept_match_amount_within_tolerance(db: AsyncSession, test_user)
 
 async def test_accept_match_skip_validation_bypasses_check(db: AsyncSession, test_user) -> None:
     """Accept match with skip_amount_validation=True should bypass validation."""
-    from src.services.review_queue import accept_match as accept_match_service
+    from src.reconciliation.extension.review_queue import accept_match as accept_match_service
 
     statement = await _create_statement(db, test_user.id)
     txn = await _create_transaction(db, statement, amount=Decimal("100.00"), status=None)
@@ -666,7 +666,7 @@ async def test_accept_match_skip_validation_bypasses_check(db: AsyncSession, tes
 
 async def test_batch_accept_skips_low_score_matches(db: AsyncSession, test_user) -> None:
     """batch_accept should skip matches below min_score threshold."""
-    from src.services.review_queue import batch_accept
+    from src.reconciliation.extension.review_queue import batch_accept
 
     statement = await _create_statement(db, test_user.id)
     # Create a low-score match
@@ -694,7 +694,7 @@ async def test_batch_accept_skips_low_score_matches(db: AsyncSession, test_user)
 
 async def test_create_entry_from_txn_uses_statement_account(db: AsyncSession, test_user) -> None:
     """create_entry_from_txn should use statement's linked account when available."""
-    from src.services.review_queue import create_entry_from_txn
+    from src.extraction.extension.review_queue import create_entry_from_txn
 
     # Create a bank account to link to the statement
     bank_account = Account(
@@ -722,7 +722,7 @@ async def test_create_entry_from_txn_uses_statement_account(db: AsyncSession, te
 
 async def test_create_entry_from_txn_rejects_other_user_transaction(db: AsyncSession, test_user) -> None:
     """create_entry_from_txn should reject transactions from other users."""
-    from src.services.review_queue import create_entry_from_txn
+    from src.extraction.extension.review_queue import create_entry_from_txn
 
     # Create a statement + transaction for a different user
     other_user_id = (await UserFactory.create_async(db)).id

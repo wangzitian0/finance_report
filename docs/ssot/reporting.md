@@ -10,7 +10,7 @@
 | Dimension | Physical Location (SSOT) | Description |
 |-----------|--------------------------|-------------|
 | **Report Logic** | `apps/backend/src/services/reporting.py` | Report generation |
-| **FX Revaluation** | `apps/backend/src/services/fx_revaluation.py` | Historical-cost unrealized FX calculation |
+| **FX Revaluation** | `apps/backend/src/ledger/extension/fx_revaluation.py` | Historical-cost unrealized FX calculation |
 | **FX Rates** | `apps/backend/src/services/fx.py` | Spot and average-rate lookup, fallback warnings |
 | **Report Templates** | `apps/frontend/src/app/reports/` | Report pages and layouts |
 | **Visual Components** | `apps/frontend/src/components/charts/` | Chart components |

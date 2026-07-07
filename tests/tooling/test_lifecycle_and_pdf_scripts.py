@@ -206,7 +206,7 @@ def test_AC16_13_11_get_changed_files_maps_backend_modules(monkeypatch):
         [
             "M apps/backend/src/config.py\nD apps/backend/src/old.py\n",
             "",
-            "M apps/backend/src/services/accounting.py\n",
+            "M apps/backend/src/ledger/extension/accounting.py\n",
         ]
     )
 
@@ -216,7 +216,7 @@ def test_AC16_13_11_get_changed_files_maps_backend_modules(monkeypatch):
     monkeypatch.setattr(tl.subprocess, "run", fake_run)
     modules = tl._get_changed_files()
     assert "src.config" in modules
-    assert "src.services.accounting" in modules
+    assert "src.ledger.extension.accounting" in modules
 
 
 def test_AC16_13_12_generate_statement_builds_pdf_rows(monkeypatch, tmp_path):
