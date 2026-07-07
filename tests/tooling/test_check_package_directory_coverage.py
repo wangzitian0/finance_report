@@ -49,7 +49,9 @@ def test_directory_with_contract_passes(tmp_path: Path) -> None:
     assert gate.check_directory_coverage(tmp_path) == []
 
 
-def test_documented_exception_passes_without_contract(tmp_path: Path, monkeypatch) -> None:
+def test_documented_exception_passes_without_contract(
+    tmp_path: Path, monkeypatch
+) -> None:
     """A directory named in UNGOVERNED_EXCEPTIONS passes even with no contract.py."""
     _make_bare_dir(tmp_path, "wip_domain")
     monkeypatch.setitem(
@@ -71,6 +73,26 @@ def test_pycache_is_ignored(tmp_path: Path) -> None:
     """__pycache__ residue under common/ is never flagged."""
     (tmp_path / "common" / "__pycache__").mkdir(parents=True)
     assert gate.check_directory_coverage(tmp_path) == []
+
+
+def test_dir_holding_only_stale_pycache_is_ignored(tmp_path: Path) -> None:
+    """A deleted package can leave stale, untracked __pycache__ behind on an
+    existing checkout (Python never cleans it up when the source is removed
+    from git) -- exactly what happened to common/ssot/ after #1650/#1651.
+    That local debris must not fail the gate for every other developer."""
+    stale = tmp_path / "common" / "retired_pkg" / "sub" / "__pycache__"
+    stale.mkdir(parents=True)
+    (stale / "mod.cpython-312.pyc").write_bytes(b"\x00")
+    assert gate.check_directory_coverage(tmp_path) == []
+
+
+def test_dir_with_real_file_alongside_pycache_is_still_governed(tmp_path: Path) -> None:
+    """A real package still needs a contract.py even if it also has caches."""
+    _make_bare_dir(tmp_path, "half_stale")
+    (tmp_path / "common" / "half_stale" / "__pycache__").mkdir()
+    errors = gate.check_directory_coverage(tmp_path)
+    assert len(errors) == 1
+    assert errors[0].startswith("common/half_stale/")
 
 
 def test_main_passes_quietly_on_real_repo(capsys) -> None:

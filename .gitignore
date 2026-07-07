@@ -2,6 +2,10 @@ tmp/
 .env
 .envrc
 
+# Local AI-harness config backups (may carry live API keys) — previously
+# protected only by a personal, unshared .git/info/exclude entry.
+openclaw_*.json
+
 # MkDocs build output
 site/
 

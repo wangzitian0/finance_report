@@ -1,6 +1,6 @@
 # `platform` — domain EventBus via the transactional outbox (meta-layer capability #1)
 
-> Package model: [`../governance/readme.md`](../governance/readme.md). Machine
+> Package model: [`../meta/readme.md`](../meta/readme.md). Machine
 > contract: [`contract.py`](./contract.py). Worklist: [`todo.md`](./todo.md).
 >
 > This `common/platform/` directory is the **spec + review surface**; the
