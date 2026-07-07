@@ -21,8 +21,13 @@ README -> EPIC -> AC -> test
   entry points, and links to generated reports.
 - **EPIC documents** in `docs/project/EPIC-*.md` describe scope and acceptance
   criteria.
-- **AC registries** are generated indexes materialized from EPIC documents plus
-  explicit overrides: `docs/ac_registry.yaml`, `docs/infra_registry.yaml`, and
+- **AC homes**: a **migrated package** owns its ACs as `AC-<pkg>.<group>.<seq>`
+  in that package's `contract.py` `roadmap` (aggregated by `meta`'s data layer,
+  never mirrored back into an EPIC table — see
+  [`common/meta/migration-standard.md`](common/meta/migration-standard.md)).
+  Legacy, not-yet-migrated modules still materialize ACs from EPIC documents
+  into the generated registries: `docs/ac_registry.yaml`,
+  `docs/infra_registry.yaml`, plus explicit overrides in
   `docs/ac_registry_overrides.yaml`.
 - **Tests** are the proof. A referenced AC is not enough; behavior must be
   asserted by real tests.
@@ -64,7 +69,7 @@ Use these sources instead:
 - Traceability gate: `python tools/check_ac_index.py`
 - E2E EPIC closure gate: `python tools/check_e2e_epic_traceability.py`
 - Coverage baseline data: `unified-coverage.json`
-- Coverage policy owner: `common/coverage/policy.py`
+- Coverage policy owner: `common/testing/coverage/policy.py`
 
 The Coveralls badge is main-branch reporting only. Pull requests do not publish
 Coveralls status contexts; merge readiness follows the `finish` check and the
@@ -284,7 +289,8 @@ apps/
 ├── backend/     # FastAPI + SQLAlchemy + PostgreSQL
 └── frontend/    # Next.js + TypeScript
 
-common/          # Shared libraries for CI, coverage, SSOT, fixtures, and dev helpers
+common/          # The package model: per-domain packages (meta, testing, runtime,
+                 # ledger, extraction, llm, ...) each owning its contract + roadmap ACs
 tools/           # Command entry points that delegate to common libraries
 docs/project/    # EPICs and project audit reports
 docs/ssot/       # Rationale docs that link to code owners and proof tests
