@@ -86,8 +86,10 @@ Reference: [docs/ssot/tdd.md](../ssot/tdd.md) ·
 **Cross-cutting contract checks** (each owned by
 [red-lines.md](./red-lines.md) §Engineering Integrity — listed here only as the
 work-order reminder): sync the `repo/` submodule (`infra2`) when a change adds
-env vars; every `sa.Enum` carries an explicit `name=`; `NEXT_PUBLIC_` variables
-are baked as `ARG`/`ENV` in `apps/frontend/Dockerfile`.
+env vars; every `sa.Enum` carries an explicit `name=`
+(See: [docs/ssot/schema.md#enum-naming](../ssot/schema.md#enum-naming));
+`NEXT_PUBLIC_` variables are baked as `ARG`/`ENV` in
+`apps/frontend/Dockerfile`.
 
 ---
 
