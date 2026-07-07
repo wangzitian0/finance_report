@@ -53,8 +53,8 @@ CONTRACT = PackageContract(
     # placement in the five-layer topology, #1595); see
     # common/meta/base/layering.py, which already lists portfolio as
     # "domain" (L3).
-    status="draft",
-    tier=None,
+    status="active",
+    tier="CODE-ONLY",
     depends_on=["audit", "ledger", "pricing", "platform", "observability", "config"],
     roles=["base", "extension", "data"],
     units=[
@@ -172,9 +172,10 @@ CONTRACT = PackageContract(
             ),
         ),
     ],
-    # The package is still draft because the read-side holdings/P&L cutover is
-    # blocked on #1643, but the write-side accounting slice is real and owns its
-    # migrated ACs here already (the EPIC table no longer mirrors them).
+    # The write-side accounting slice is real, tested, and CODE-ONLY (money/
+    # ledger postings, no LLM), so the package ships active with that tier
+    # decided now; the read-side holdings/P&L cutover (still blocked on #1643)
+    # lands as reserved (taxonomy-only, no module=) units above.
     roadmap=[
         ACRecord(
             id="AC-portfolio.1.1",
