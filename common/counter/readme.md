@@ -1,7 +1,7 @@
 # `counter` — per-(user, key) tallies (middleware package)
 
 > The **canonical worked example of the package model** (a package = DDD bounded
-> context). Model spec: [`../governance/readme.md`](../governance/readme.md).
+> context). Model spec: [`../meta/readme.md`](../meta/readme.md).
 > Machine contract: [`contract.py`](./contract.py). Worklist: [`todo.md`](./todo.md).
 >
 > This `common/counter/` directory is the **spec + review surface**; the

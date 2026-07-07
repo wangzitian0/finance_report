@@ -38,6 +38,21 @@ IGNORED_DIR_NAMES = {"__pycache__"}
 UNGOVERNED_EXCEPTIONS: dict[str, str] = {}
 
 
+def _has_real_content(dir_path: Path) -> bool:
+    """True if the tree holds any file outside a ``__pycache__`` directory.
+
+    A package directory deleted from git can leave stale, untracked
+    ``__pycache__`` bytecode behind on a developer's existing checkout (Python
+    does not clean these up when the source is removed). Such a directory is
+    dead local debris, not an undeclared package, so it must not fail the gate.
+    """
+    return any(
+        "__pycache__" not in path.relative_to(dir_path).parts
+        for path in dir_path.rglob("*")
+        if path.is_file()
+    )
+
+
 def discover_common_dirs(repo_root: Path) -> list[str]:
     """Every directory directly under common/, excluding caches and dotdirs."""
     common_dir = repo_root / "common"
@@ -47,6 +62,7 @@ def discover_common_dirs(repo_root: Path) -> list[str]:
         if p.is_dir()
         and p.name not in IGNORED_DIR_NAMES
         and not p.name.startswith(".")
+        and _has_real_content(p)
     )
 
 
@@ -85,7 +101,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  - {error}", file=sys.stderr)
         return 1
 
-    print("[DIRECTORY COVERAGE] PASSED: every common/ directory is governed or excepted.")
+    print(
+        "[DIRECTORY COVERAGE] PASSED: every common/ directory is governed or excepted."
+    )
     return 0
 
 

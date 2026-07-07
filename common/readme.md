@@ -36,21 +36,21 @@ scope):
   `PackageContract`, and the governance gate.
 - **L1 infra** — [`audit/`](./audit/readme.md) (financial base types +
   `ExchangeRate` conversion math + numeric governance; absorbed the old
-  money/ratio/quantity/unit_price value packages),
-  [`authority/`](./authority/readme.md), [`config/`](./config/readme.md),
-  [`coverage/`](./coverage/readme.md), [`llm/`](./llm/readme.md),
-  [`observability/`](./observability/readme.md),
+  money/ratio/quantity/unit_price value packages), [`config/`](./config/readme.md),
+  [`llm/`](./llm/readme.md), [`observability/`](./observability/readme.md),
   [`platform/`](./platform/readme.md) (event-bus/outbox substrate,
   historically labelled *middleware*), [`runtime/`](./runtime/readme.md),
-  [`testing/`](./testing/readme.md).
+  [`testing/`](./testing/readme.md) (absorbed the old `authority` and
+  `coverage` packages, #1626).
 - **L2 middleware** — [`counter/`](./counter/readme.md): the first worked
   example, the canonical minimal template every new package copies.
-- **L3 domain** — [`extraction/`](./extraction/readme.md),
-  [`identity/`](./identity/readme.md), [`ledger/`](./ledger/readme.md).
-  Pending cutovers (forward-placed in `PACKAGE_LAYER`, no `contract.py` yet):
-  `pricing` (#1610, the one price/valuation SSOT — lands before portfolio),
-  `portfolio` (#1422), `reconciliation` (#1423), `reporting` (#1424),
-  `advisor` (#1425).
+- **L3 domain** — [`advisor/`](./advisor/readme.md),
+  [`extraction/`](./extraction/readme.md), [`identity/`](./identity/readme.md),
+  [`ledger/`](./ledger/readme.md), [`portfolio/`](./portfolio/readme.md),
+  [`reconciliation/`](./reconciliation/readme.md). Still `status="draft"`
+  (contract + readme shipped, roadmap not yet populated): [`pricing/`](./pricing/readme.md)
+  (#1610, the one price/valuation SSOT — lands before portfolio),
+  [`reporting/`](./reporting/readme.md) (#1424).
 - [`common/todo.md`](./todo.md) — the cross-package / migration worklist.
 
 The old `common/ci` / `common/shell` / `common/ssot` junk drawers are retired.

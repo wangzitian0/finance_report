@@ -15,8 +15,9 @@ The five layers:
   inverts the dependency at tool-time (CI scans every contract); nothing at
   runtime imports upward.
 - ``infra``      (L1) — business-agnostic foundations: config, audit,
-  authority, observability, testing, coverage, runtime, llm,
-  platform (the event-bus ports).
+  observability, testing, runtime, llm, platform (the event-bus ports).
+  ``authority`` converged into ``meta`` and ``coverage`` into ``testing``
+  (#1626) — neither is a standalone package any more.
 - ``middleware`` (L2) — the shared domain kernel: generic capabilities
   (counter). The value language (money/ratio/quantity/unit_price) folded
   into audit (#1419).
@@ -71,10 +72,10 @@ PACKAGE_LAYER: dict[str, PackageClass] = {
     # (money/ratio/quantity/unit_price) folded into audit (#1419), so those
     # names are gone from the map — audit (L1) owns the financial base types.
     "counter": "middleware",
-    # L3 — vertical business slices. advisor / portfolio / pricing / reporting
-    # are forward placements: their cutovers (#1425 / #1422 / #1610 / #1424)
-    # have not shipped a contract.py yet, so the map pins their layer ahead of
-    # time (the shell-ahead rule above) — they are future packages, not dead ones.
+    # L3 — vertical business slices. advisor / portfolio / reconciliation all
+    # shipped their contract.py (#1425 / #1422 / #1423); pricing / reporting
+    # have a contract.py but are still status="draft" (#1610 / #1424 in
+    # flight) — the map already pins their layer ahead of the roadmap filling in.
     "advisor": "domain",
     "extraction": "domain",
     "identity": "domain",
