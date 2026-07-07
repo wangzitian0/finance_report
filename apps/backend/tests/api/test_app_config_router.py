@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.money import Currency
 from src.config import settings
-from src.services.app_config import get_effective_base_currency
+from src.config_app import get_effective_base_currency
 
 pytestmark = pytest.mark.asyncio
 

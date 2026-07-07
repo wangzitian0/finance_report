@@ -217,8 +217,8 @@ class _MediaMixin:
 
 
 def _redact_presigned_url(url: str) -> str:
-    # Imported lazily: src.services.storage pulls boto3 at module level, which
+    # Imported lazily: src.runtime.extension.storage pulls boto3 at module level, which
     # the minimal tooling env (that imports this package root) does not install.
-    from src.services.storage import redact_presigned_url
+    from src.runtime import redact_presigned_url
 
     return redact_presigned_url(url)

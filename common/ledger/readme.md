@@ -33,7 +33,7 @@
 
 | Dimension | Physical Location (SSOT) | Description |
 |-----------|--------------------------|-------------|
-| **Bookkeeping Logic** | `apps/backend/src/services/accounting.py` | Core business |
+| **Bookkeeping Logic** | `apps/backend/src/ledger/extension/accounting.py` | Core business |
 | **Model Definition** | `apps/backend/src/models/journal.py` | ORM |
 | **Validation Rules** | `apps/backend/src/schemas/journal.py` | Pydantic |
 

@@ -16,6 +16,13 @@ from pathlib import Path
 import pytest
 from sqlalchemy import func, select
 
+from src.extraction.extension.transaction_classification import (
+    CategoryProposal,
+    ClassificationPolicy,
+    TransactionCategory,
+    classify_transactions,
+    policy_for,
+)
 from src.models.account import Account, AccountType
 from src.models.layer3 import (
     ClassificationRule,
@@ -23,16 +30,9 @@ from src.models.layer3 import (
     RuleType,
     TransactionClassification,
 )
-from src.services.transaction_classification import (
-    CategoryProposal,
-    ClassificationPolicy,
-    TransactionCategory,
-    classify_transactions,
-    policy_for,
-)
 from tests.factories import AtomicTransactionFactory
 
-MODULE_PATH = Path("src/services/transaction_classification.py")
+MODULE_PATH = Path("src/extraction/extension/transaction_classification.py")
 
 
 def _policy(**overrides) -> ClassificationPolicy:
@@ -318,8 +318,8 @@ def test_AC18_15_8_production_consumers_are_the_declared_seams():
             elif isinstance(node, ast.Import) and any("transaction_classification" in a.name for a in node.names):
                 importers.append(str(path))
     assert sorted(importers) == [
+        "src/extraction/extension/statement_posting.py",
         "src/routers/classifications.py",
-        "src/services/statement_posting.py",
     ]
 
 
@@ -338,7 +338,7 @@ async def test_AC18_15_3_proposer_parses_and_clamps_model_json(monkeypatch):
     """AC18.15.3: the LLM boundary parses prompt-driven JSON and clamps confidence;
     code, not the model, owns the resulting values."""
     from src.config import settings
-    from src.services import transaction_classification as tc
+    from src.extraction.extension import transaction_classification as tc
 
     monkeypatch.setattr(settings, "ai_api_key", "test-key")
     txns = [
@@ -366,7 +366,7 @@ async def test_AC18_15_3_proposer_parses_and_clamps_model_json(monkeypatch):
 async def test_AC18_15_3_proposer_fails_safe_to_none(monkeypatch):
     """AC18.15.3: malformed model output or a missing key degrades to None per txn."""
     from src.config import settings
-    from src.services import transaction_classification as tc
+    from src.extraction.extension import transaction_classification as tc
 
     txns = [AtomicTransactionFactory.build(user_id=None, description="X")]
 
@@ -413,7 +413,7 @@ async def test_AC18_15_3_proposer_recovers_fenced_or_prose_wrapped_arrays(monkey
     staging: json.loads failed at char 0 => every txn degraded to no_proposal).
     The boundary recovers the balanced top-level array instead of giving up."""
     from src.config import settings
-    from src.services import transaction_classification as tc
+    from src.extraction.extension import transaction_classification as tc
 
     monkeypatch.setattr(settings, "ai_api_key", "test-key")
     txns = [AtomicTransactionFactory.build(user_id=None, description="ACME PAYROLL")]
@@ -438,7 +438,7 @@ async def test_AC18_15_3_prompt_forbids_markdown_fences(monkeypatch):
     instruction the statement prompts use, so recovery is the fallback, not the
     norm. Asserted on the captured request, not on module source (CR #1560)."""
     from src.config import settings
-    from src.services import transaction_classification as tc
+    from src.extraction.extension import transaction_classification as tc
 
     monkeypatch.setattr(settings, "ai_api_key", "test-key")
     captured: dict = {}
@@ -468,7 +468,7 @@ def test_AC18_17_1_no_classify_writer_is_defined_but_uninvoked():
     # Alias-aware (CR #1572): a seam imported as `... import X as Y` counts via Y,
     # and attribute calls count only through an import of THIS module — unrelated
     # same-named attributes elsewhere do not satisfy the gate.
-    seam_module = "src.services.transaction_classification"
+    seam_module = "src.extraction.extension.transaction_classification"
     entry_seams = ("classify_by_effective_policy", "backfill_classifications")
 
     def seam_calls(tree: ast.AST) -> set[str]:

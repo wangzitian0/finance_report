@@ -20,7 +20,9 @@ from src.schemas.account import (
     AccountCoverageListResponse,
     AccountCoverageResponse,
 )
-from src.services.statement_validation import BALANCE_TOLERANCE
+from src.services.promotion_gate import STATEMENT_BALANCE_TOLERANCE
+
+BALANCE_TOLERANCE = STATEMENT_BALANCE_TOLERANCE
 
 DEFAULT_STALE_AFTER_DAYS = 45
 CRITICAL_SEVERITY = "critical"

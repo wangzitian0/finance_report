@@ -13,7 +13,7 @@
 | `Stage1Status` enum | `apps/backend/src/models/statement_enums.py` (enum); `apps/backend/src/models/statement_summary.py` — `StatementSummary.stage1_status` (nullable; `None` at upload, set during review workflow) |
 | `Stage2Status` on match | `apps/backend/src/models/reconciliation.py` — `ReconciliationMatch.status` |
 | `pending_review` usage | `apps/backend/src/routers/statements.py`, `apps/backend/src/routers/reconciliation.py` |
-| Balance-chain validation | `apps/backend/src/services/statement_validation.py` |
+| Balance-chain validation | `apps/backend/src/extraction/extension/statement_validation.py` |
 | Consistency checks | `apps/backend/src/reconciliation/extension/consistency_checks.py` |
 
 ---
@@ -167,7 +167,7 @@ dispatches escalations is a separate EPIC.
 ### Correction Feedback Loop (drives the proportion down)
 
 The North-Star metric (EPIC-018 AC18.12) measures the low-confidence proportion;
-this is the mechanism that *moves* it. Owned by `services/correction_loop.py`
+this is the mechanism that *moves* it. Owned by `extraction/extension/correction_loop.py`
 (EPIC-018 AC18.14, issue #931):
 
 - Every human correction that overrode an AI proposal is labeled signal, recorded

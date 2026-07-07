@@ -28,6 +28,7 @@ from fastapi import status
 from httpx import AsyncClient
 from sqlalchemy import select
 
+from src.audit import STATEMENT_SOURCE_TYPES
 from src.identity import User
 from src.models.account import Account, AccountType
 from src.models.journal import JournalEntry
@@ -37,7 +38,6 @@ from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
 from src.schemas.reconciliation import ReconciliationStatusEnum
-from src.services.source_type_priority import STATEMENT_SOURCE_TYPES
 
 
 async def create_test_statement(db, user: User, **kwargs) -> StatementSummary:

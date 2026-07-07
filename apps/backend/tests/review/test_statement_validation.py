@@ -7,12 +7,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
-from src.models.account import Account, AccountType
-from src.models.layer1 import DocumentType, UploadedDocument
-from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.models.statement_enums import BankStatementStatus, Stage1Status
-from src.models.statement_summary import StatementSummary
-from src.services.statement_validation import (
+from src.extraction.extension.statement_validation import (
     BALANCE_TOLERANCE,
     _has_unresolved_statement_conflicts,
     approve_statement,
@@ -22,6 +17,11 @@ from src.services.statement_validation import (
     set_opening_balance,
     validate_balance_chain,
 )
+from src.models.account import Account, AccountType
+from src.models.layer1 import DocumentType, UploadedDocument
+from src.models.layer2 import AtomicTransaction, TransactionDirection
+from src.models.statement_enums import BankStatementStatus, Stage1Status
+from src.models.statement_summary import StatementSummary
 
 
 def _conflict_txn(
@@ -81,7 +81,7 @@ DEFAULT_ACCOUNT_NAME = "Statement Validation Default Account"
 
 def test_AC18_13_5_balance_chain_decision_routes_through_promotion_gate():
     """AC18.13.5: Stage-1 balance approval is disposed by the promotion gate, preserving the exact messages."""
-    from src.services.statement_validation import _raise_if_balance_chain_invalid
+    from src.extraction.extension.statement_validation import _raise_if_balance_chain_invalid
 
     ok = {"opening_match": True, "closing_match": True, "opening_delta": "0", "closing_delta": "0"}
     _raise_if_balance_chain_invalid(ok)  # both invariants pass -> authoritative -> no raise

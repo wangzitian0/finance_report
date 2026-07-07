@@ -23,11 +23,11 @@ import structlog
 from sqlalchemy import delete, select
 from sqlalchemy.exc import PendingRollbackError
 
+from src.extraction.extension.statement_parsing import _ensure_failed_document_lineage, handle_parse_failure
 from src.identity import User
 from src.models.layer1 import UploadedDocument
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
-from src.services.statement_parsing import _ensure_failed_document_lineage, handle_parse_failure
 from tests.factories import StatementSummaryFactory
 
 pytestmark = pytest.mark.asyncio

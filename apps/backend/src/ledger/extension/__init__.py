@@ -8,6 +8,8 @@ the :class:`~src.ledger.base.repository.JournalRepository` port this layer satis
 
 from __future__ import annotations
 
+from src.ledger.extension.accounting import get_opening_balance_readiness
+from src.ledger.extension.fx_revaluation import RevaluationError, calculate_unrealized_fx_gains
 from src.ledger.extension.post import post_entry
 from src.ledger.extension.processing import (
     create_transfer_in_entry,
@@ -27,11 +29,14 @@ from src.ledger.extension.repository import (
 )
 
 __all__ = [
+    "RevaluationError",
     "SqlJournalRepository",
+    "calculate_unrealized_fx_gains",
     "create_journal_entry",
     "create_transfer_in_entry",
     "create_transfer_out_entry",
     "find_transfer_pairs",
+    "get_opening_balance_readiness",
     "get_or_create_processing_account",
     "get_processing_balance",
     "get_unpaired_transfers",

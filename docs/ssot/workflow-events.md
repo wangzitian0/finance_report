@@ -17,7 +17,7 @@
 |---|---|
 | Event and session model | `apps/backend/src/models/workflow.py` |
 | Event and session schemas | `apps/backend/src/schemas/workflow.py` |
-| Derivation/upsert service | `apps/backend/src/services/workflow_events.py` |
+| Derivation/upsert service | `apps/backend/src/platform/extension/workflow_events.py` |
 | Compact status/events API | `apps/backend/src/routers/workflow.py` |
 | Report package readiness fact source | `GET /api/reports/package/readiness` in `apps/backend/src/services/report_readiness.py` |
 | Header badge, Event inbox, Status feed | `apps/frontend/src/components/workflow/WorkflowNotifications.tsx` |

@@ -11,7 +11,7 @@
 | Dimension | Physical Location (SSOT) | Description |
 |-----------|--------------------------|-------------|
 | **Enum Definition** | `apps/backend/src/models/journal.py` → `JournalEntrySourceType` | ORM enum values for journal source provenance |
-| **Trust Logic** | `apps/backend/src/services/source_type_priority.py` | Promotion, no-downgrade, and source-aware tie-break helpers |
+| **Trust Logic** | `apps/backend/src/audit/source_type_priority.py` | Promotion, no-downgrade, and source-aware tie-break helpers |
 | **Router Usage** | `apps/backend/src/routers/journal.py` | `source_type` set on entry creation |
 
 > **Implementation Status**: The four-value user-data trust hierarchy is implemented:

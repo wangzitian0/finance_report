@@ -69,7 +69,7 @@ Automatically match bank transactions with journal entries, implementing intelli
 
 ### Review Queue (Backend)
 
-- [x] `services/review_queue.py` - Review queue management
+- [x] `reconciliation/extension/review_queue.py` - Review queue management (journal-entry creation itself lives in `extraction/extension/review_queue.py`, since `AtomicTransaction` is extraction's aggregate)
   - [x] `get_pending_items()` - Get pending items (pagination, sorting)
   - [x] `accept_match()` - Accept match
   - [x] `reject_match()` - Reject match
@@ -249,7 +249,7 @@ See: common/ledger/readme.md#decimal-rule
 
 - [x] `apps/backend/src/models/reconciliation.py`
 - [x] `apps/backend/src/reconciliation/extension/matching.py`
-- [x] `apps/backend/src/services/review_queue.py`
+- [x] `apps/backend/src/reconciliation/extension/review_queue.py`
 - [x] `apps/backend/src/reconciliation/extension/anomaly.py`
 - [x] `apps/backend/src/routers/reconciliation.py`
 - [x] `apps/frontend/app/reconciliation/page.tsx`

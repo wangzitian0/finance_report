@@ -4,7 +4,7 @@ Adds two additive, deployment-scoped tables for DB-backed LLM configuration:
 
 - ``llm_providers``: a configured provider instance per row. The API key is
   stored encrypted (Fernet ciphertext + the key fingerprint that sealed it; see
-  ``src/llm/common/secrets.py``), never as plaintext.
+  ``src/llm/base/secrets.py``), never as plaintext.
 - ``llm_scene_bindings``: one row per scene (unique) pinning which provider+model
   serves it, plus per-scene reasoning depth / free-tier preference / fallbacks.
 

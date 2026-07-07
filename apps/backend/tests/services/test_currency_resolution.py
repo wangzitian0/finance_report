@@ -26,7 +26,7 @@ from src.extraction.extension.currency_resolution import (
     resolve_ingest_currency,
     resolve_transaction_currency,
 )
-from src.services.review_queue import create_entry_from_txn
+from src.extraction.extension.review_queue import create_entry_from_txn
 
 pytestmark = pytest.mark.no_db
 

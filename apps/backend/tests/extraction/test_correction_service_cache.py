@@ -1,6 +1,6 @@
 import pytest
 
-from src.services.correction_service import (
+from src.extraction.extension.correction_service import (
     clear_all_correction_cache,
     get_few_shot_examples,
     record_correction,

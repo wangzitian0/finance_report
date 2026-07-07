@@ -189,7 +189,9 @@ def test_epic_010_observability_docs_and_templates() -> None:
     # substring "default" outright (which now false-positives on the telemetry block).
     for secret_key in ("SECRET_KEY", "S3_SECRET_KEY", "S3_ACCESS_KEY"):
         secret_line = next(
-            line for line in app_template.splitlines() if line.startswith(f"{secret_key}=")
+            line
+            for line in app_template.splitlines()
+            if line.startswith(f"{secret_key}=")
         )
         assert secret_line.endswith('{{ else }}""{{ end }}'), (
             f"{secret_key} must fall back to empty (Vault-sourced), not a baked default: {secret_line}"
@@ -211,7 +213,13 @@ def test_epic_012_and_014_tooling_contracts() -> None:
         REPO_ROOT / "apps" / "backend" / "src" / "schemas" / "review.py"
     )
     statement_parsing = _read(
-        REPO_ROOT / "apps" / "backend" / "src" / "services" / "statement_parsing.py"
+        REPO_ROOT
+        / "apps"
+        / "backend"
+        / "src"
+        / "extraction"
+        / "extension"
+        / "statement_parsing.py"
     )
     pyproject = _read(REPO_ROOT / "apps" / "backend" / "pyproject.toml")
     precommit = _read(REPO_ROOT / ".pre-commit-config.yaml")

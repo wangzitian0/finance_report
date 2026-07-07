@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.services.transaction_classification import POLICY_VERSIONS, propose_categories
+from src.extraction.extension.transaction_classification import POLICY_VERSIONS, propose_categories
 from tests.factories import AtomicTransactionFactory
 
 # Deterministic inputs: the cassette fingerprint keys on the exact messages, so

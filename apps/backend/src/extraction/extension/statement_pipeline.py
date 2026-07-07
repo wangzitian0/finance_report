@@ -24,12 +24,13 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config import settings
+import src.config
 from src.database import create_session_maker_from_db
+from src.extraction.extension.statement_parsing import parse_statement_background
 from src.observability import get_logger, run_with_async_parse_tracking
-from src.services.statement_parsing import parse_statement_background
 
 logger = get_logger(__name__)
+settings = src.config.settings
 
 # Prefect deployment name "<flow-name>/<deployment-name>".
 PARSE_DEPLOYMENT = "parse-statement/parse-statement"

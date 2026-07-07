@@ -26,13 +26,7 @@ from src.models.workflow import (
     WorkflowSession,
     WorkflowSessionStatus,
 )
-from src.schemas.workflow import (
-    WorkflowEventCreate,
-    WorkflowEventResponse,
-    WorkflowPrimaryState,
-    WorkflowReportReadinessState,
-)
-from src.services.workflow_events import (
+from src.platform.extension.workflow_events import (
     _insert_workflow_event_conflict_safe,
     _workflow_event_from_payload,
     build_uploaded_statement_event_payload,
@@ -44,6 +38,12 @@ from src.services.workflow_events import (
     sync_workflow_events_for_user,
     update_workflow_event_status,
     upsert_workflow_event,
+)
+from src.schemas.workflow import (
+    WorkflowEventCreate,
+    WorkflowEventResponse,
+    WorkflowPrimaryState,
+    WorkflowReportReadinessState,
 )
 
 ROOT_DIR = Path(__file__).resolve().parents[4]
@@ -704,7 +704,7 @@ async def test_AC19_12_3_report_readiness_events_follow_package_readiness_withou
     async def fake_readiness(_db, **_kwargs):
         return current_payload
 
-    monkeypatch.setattr("src.services.workflow_events.get_personal_report_package_readiness", fake_readiness)
+    monkeypatch.setattr("src.platform.extension.workflow_events.get_personal_report_package_readiness", fake_readiness)
 
     await sync_workflow_events_for_user(db, user_id=test_user.id)
     blocked_event = (
@@ -801,7 +801,7 @@ async def test_AC19_12_3_sync_archives_last_resolved_blocker_when_no_derived_pay
     async def fake_readiness(_db, **_kwargs):
         return current_payload
 
-    monkeypatch.setattr("src.services.workflow_events.get_personal_report_package_readiness", fake_readiness)
+    monkeypatch.setattr("src.platform.extension.workflow_events.get_personal_report_package_readiness", fake_readiness)
 
     await sync_workflow_events_for_user(db, user_id=test_user.id)
     blocked_event = (
@@ -843,7 +843,7 @@ async def test_AC19_12_3_ready_package_status_wins_over_long_lived_upload_proces
             "blockers": [],
         }
 
-    monkeypatch.setattr("src.services.workflow_events.get_personal_report_package_readiness", fake_readiness)
+    monkeypatch.setattr("src.platform.extension.workflow_events.get_personal_report_package_readiness", fake_readiness)
 
     status = await get_workflow_status(db, user_id=test_user.id)
 
@@ -878,7 +878,7 @@ async def test_AC19_12_4_readiness_blocker_events_are_user_action_scoped(db, tes
             ],
         }
 
-    monkeypatch.setattr("src.services.workflow_events.get_personal_report_package_readiness", fake_readiness)
+    monkeypatch.setattr("src.platform.extension.workflow_events.get_personal_report_package_readiness", fake_readiness)
 
     await sync_workflow_events_for_user(db, user_id=test_user.id)
     events = (
@@ -1171,7 +1171,7 @@ async def test_AC19_2_7_events_session_summary_agrees_with_status_when_blocked(
             ],
         }
 
-    monkeypatch.setattr("src.services.workflow_events.get_personal_report_package_readiness", fake_readiness)
+    monkeypatch.setattr("src.platform.extension.workflow_events.get_personal_report_package_readiness", fake_readiness)
 
     # A blocked active session derived from a balance-validation blocker.
     await sync_workflow_events_for_user(db, user_id=test_user.id)
@@ -1227,7 +1227,7 @@ async def test_AC19_2_7_events_read_computes_readiness_once(
         }
 
     monkeypatch.setattr(
-        "src.services.workflow_events.get_personal_report_package_readiness",
+        "src.platform.extension.workflow_events.get_personal_report_package_readiness",
         counting_readiness,
     )
 

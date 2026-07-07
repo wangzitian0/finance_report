@@ -11,10 +11,10 @@ from sqlalchemy.exc import IntegrityError
 
 from src.extraction.extension.deduplication import dual_write_layer2
 from src.extraction.extension.service import ExtractionError, ExtractionService
+from src.extraction.extension.statement_parsing import handle_parse_failure
 from src.models.layer1 import DocumentStatus, UploadedDocument
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
-from src.services.statement_parsing import handle_parse_failure
 from tests.factories import StatementSummaryFactory
 
 
@@ -678,7 +678,7 @@ def test_validate_external_url_invalid_cases():
 
 
 async def test_handle_parse_failure(db, test_user):
-    from src.services.statement_parsing import handle_parse_failure
+    from src.extraction.extension.statement_parsing import handle_parse_failure
 
     sid = uuid4()
     statement = StatementSummaryFactory.build(
@@ -701,8 +701,8 @@ async def test_handle_parse_failure(db, test_user):
 
 async def test_parse_statement_background_storage_error(db, test_user, monkeypatch):
     from src.database import create_session_maker_from_db
-    from src.services.statement_parsing import parse_statement_background
-    from src.services.storage import StorageError
+    from src.extraction.extension.statement_parsing import parse_statement_background
+    from src.runtime import StorageError
 
     sid = uuid4()
     uid = test_user.id
@@ -797,7 +797,7 @@ class TestSanitizeAccountLast4:
 
 
 async def test_handle_parse_failure_truncates_long_message(db, test_user):
-    from src.services.statement_parsing import handle_parse_failure
+    from src.extraction.extension.statement_parsing import handle_parse_failure
 
     sid = uuid4()
     statement = StatementSummaryFactory.build(
@@ -823,7 +823,7 @@ async def test_handle_parse_failure_after_db_error(db, test_user):
     """Handler recovers from a session with pending rollback error."""
     from sqlalchemy import text
 
-    from src.services.statement_parsing import handle_parse_failure
+    from src.extraction.extension.statement_parsing import handle_parse_failure
 
     sid = uuid4()
     statement = StatementSummaryFactory.build(
@@ -856,7 +856,7 @@ async def test_handle_parse_failure_after_db_error(db, test_user):
 
 
 async def test_handle_parse_failure_none_message(db, test_user):
-    from src.services.statement_parsing import handle_parse_failure
+    from src.extraction.extension.statement_parsing import handle_parse_failure
 
     sid = uuid4()
     statement = StatementSummaryFactory.build(

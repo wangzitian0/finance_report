@@ -5,7 +5,7 @@ currency editable at runtime. ``settings.base_currency`` (``src.config``) is an
 env-only default; this single-row, key/value ``app_config`` table lets an
 operator override app-level settings (starting with the base currency) without
 redeploying. The effective value is "persisted row else env default" — see
-``src.services.app_config.get_effective_base_currency``.
+``src.config_app.get_effective_base_currency``.
 
 The table is a generic ``key -> value`` store (text columns) so future app-level
 settings reuse the same row shape; ``key`` is unique so each setting has exactly

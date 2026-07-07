@@ -7,11 +7,11 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from src.audit import normalize_source_type
 from src.config import settings
 from src.models.journal import Direction, JournalEntrySourceType, JournalEntryStatus
 from src.schemas.base import BaseResponse, ListResponse
 from src.services.confidence_tier import ConfidenceTier
-from src.services.source_type_priority import normalize_source_type
 
 
 class JournalLineBase(BaseModel):

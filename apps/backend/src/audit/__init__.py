@@ -15,6 +15,8 @@ in this ``__all__`` (#1421, #1610).
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from src.audit.money import (
     Currency,
     CurrencyBalance,
@@ -32,6 +34,19 @@ from src.audit.quantity import Quantity, Unit
 from src.audit.ratio import Ratio
 from src.audit.unit_price import UnitPrice
 
+if TYPE_CHECKING:
+    from src.audit.source_type_priority import (
+        STATEMENT_SOURCE_TYPES,
+        SourceTypeDowngradeError,
+        is_user_data_source_type,
+        normalize_source_type,
+        promote_entries_source_type,
+        promote_entry_source_type,
+        source_type_rank,
+        source_type_tiebreak_key,
+        statement_source_values,
+    )
+
 __all__ = [
     "CurrencyBalance",
     "CurrencyBalances",
@@ -45,8 +60,39 @@ __all__ = [
     "ExchangeRate",
     "Money",
     "MoneyTolerance",
+    "STATEMENT_SOURCE_TYPES",
+    "SourceTypeDowngradeError",
     "Quantity",
     "Ratio",
     "Unit",
     "UnitPrice",
+    "is_user_data_source_type",
+    "normalize_source_type",
+    "promote_entries_source_type",
+    "promote_entry_source_type",
+    "source_type_rank",
+    "source_type_tiebreak_key",
+    "statement_source_values",
 ]
+
+_SOURCE_TYPE_NAMES = {
+    "STATEMENT_SOURCE_TYPES",
+    "SourceTypeDowngradeError",
+    "is_user_data_source_type",
+    "normalize_source_type",
+    "promote_entries_source_type",
+    "promote_entry_source_type",
+    "source_type_rank",
+    "source_type_tiebreak_key",
+    "statement_source_values",
+}
+
+
+def __getattr__(name: str):
+    if name in _SOURCE_TYPE_NAMES:
+        from src.audit import source_type_priority as _mod
+
+        value = getattr(_mod, name)
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module 'src.audit' has no attribute {name!r}")

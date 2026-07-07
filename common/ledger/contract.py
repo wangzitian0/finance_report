@@ -95,7 +95,7 @@ CONTRACT = PackageContract(
     # audit/config are the only registered packages the impl imports. Both are
     # lower-layer (infra, L1) than ledger (domain, L3), so the edges are
     # downward. (money folded into audit — issue #1419.)
-    depends_on=["audit", "config"],
+    depends_on=["audit", "config", "observability"],
     roles=["base", "extension", "data"],
     units=[
         # base — the pure double-entry core.
@@ -141,17 +141,20 @@ CONTRACT = PackageContract(
         "LedgerError",
         "Leg",
         "ProcessingAccount",
+        "RevaluationError",
         "SqlJournalRepository",
         "TransferPair",
         "UnbalancedEntryError",
         "ValidationError",
         "calculate_account_balance",
         "calculate_account_balances",
+        "calculate_unrealized_fx_gains",
         "create_journal_entry",
         "create_transfer_in_entry",
         "create_transfer_out_entry",
         "detect_transfer_pattern",
         "find_transfer_pairs",
+        "get_opening_balance_readiness",
         "get_or_create_processing_account",
         "get_processing_balance",
         "get_unpaired_transfers",

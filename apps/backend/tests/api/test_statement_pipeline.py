@@ -15,7 +15,7 @@ from uuid import uuid4
 
 import pytest
 
-from src.services import statement_pipeline
+from src.extraction.extension import statement_pipeline
 
 pytestmark = pytest.mark.no_db
 

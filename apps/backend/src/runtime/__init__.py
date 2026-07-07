@@ -36,6 +36,7 @@ from src.runtime.extension.adapters import (
     TelemetryCheck,
     WorkflowEngineCheck,
 )
+from src.runtime.extension.storage import StorageError, StorageService, redact_presigned_url
 
 __all__ = [
     "APP_OWNED_TIERS",
@@ -55,8 +56,11 @@ __all__ = [
     "ObjectStorageCheck",
     "ProbeResult",
     "RedisCheck",
+    "StorageError",
+    "StorageService",
     "TelemetryCheck",
     "WorkflowEngineCheck",
     "check_env_classification",
+    "redact_presigned_url",
     "resolve_env_tier",
 ]

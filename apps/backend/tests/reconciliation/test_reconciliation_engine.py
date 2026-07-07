@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.extraction.extension.review_queue import create_entry_from_txn, get_or_create_account
 from src.identity import User
 from src.ledger import validate_journal_balance
 from src.models.account import Account, AccountType
@@ -28,13 +29,7 @@ from src.reconciliation import (
     normalize_text,
 )
 from src.reconciliation.extension.anomaly import detect_anomalies
-from src.services.review_queue import (
-    accept_match,
-    batch_accept,
-    create_entry_from_txn,
-    get_or_create_account,
-    reject_match,
-)
+from src.reconciliation.extension.review_queue import accept_match, batch_accept, reject_match
 from tests.ledger._ledger_helpers import create_valid_posted_entry
 
 
@@ -437,8 +432,6 @@ async def test_execute_matching_many_to_one_group(db: AsyncSession, test_user) -
 
 async def test_batch_accept_no_ids(db: AsyncSession):
     """Test batch_accept with empty list."""
-    from src.services.review_queue import batch_accept
-
     result = await batch_accept(db, [], user_id=uuid4())
     assert result == []
 

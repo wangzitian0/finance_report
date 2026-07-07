@@ -9,10 +9,10 @@ from unittest.mock import patch
 
 from sqlalchemy import select
 
+from src.extraction.extension.classification import ClassificationService
 from src.models.account import Account, AccountType
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.layer3 import ClassificationRule, RuleType, TransactionClassification
-from src.services.classification import ClassificationService
 from tests.factories import AtomicTransactionFactory
 
 
@@ -354,7 +354,7 @@ class TestClassificationService:
         await db.flush()
 
         # 4. Apply Rules - should handle invalid regex gracefully
-        with patch("src.services.classification.logger") as mock_logger:
+        with patch("src.extraction.extension.classification.logger") as mock_logger:
             results = await service.apply_rules(db, test_user.id, [txn])
 
             # 5. Verify - no match and warning was logged

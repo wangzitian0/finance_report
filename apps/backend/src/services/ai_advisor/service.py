@@ -22,6 +22,7 @@ from src.config import settings
 from src.llm import ReasoningEffort, Scene, SceneBinding, get_config_source
 from src.models.account import AccountType
 from src.models.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
+from src.platform.extension.workflow_events import get_workflow_status
 from src.prompts.ai_advisor import get_ai_advisor_prompt
 from src.reconciliation import get_reconciliation_stats
 from src.schemas.chat import AdvisorSuggestion, ChatActionChip, ChatCitation, ChatResponseMetadata
@@ -50,7 +51,6 @@ from src.services.reporting import (
     generate_income_statement,
     get_category_breakdown,
 )
-from src.services.workflow_events import get_workflow_status
 
 
 class AIAdvisorError(Exception):
