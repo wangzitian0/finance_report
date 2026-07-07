@@ -9,8 +9,9 @@
 > unlike a fully carved package, it has not yet been physically relocated to
 > `apps/backend/src/reporting/`.
 >
-> **Status: `draft`** (units declared over the existing implementation; the
-> roadmap is empty — see [Status](#status) below).
+> **Status: `active`, `tier="CODE-ONLY"`** (flipped in migration closeout
+> wave 2, #1663 — see [Status](#status) below). Physical relocation out of
+> `services/` is still pending; that doesn't block the AC/tier decision.
 
 ## Why
 
@@ -54,12 +55,12 @@ value types).
 
 ## Status
 
-`status="draft"`, `tier=None`, `roadmap=[]` — the generators above are
-implemented and declared in [`contract.py`](./contract.py)'s `units`, but the
-package doesn't yet carry its own ACs: they remain in
-`docs/project/EPIC-005.reporting-visualization.md` pending the mass AC
-migration (tracked in the migration closeout series, umbrella #1416). The
-physical move from `apps/backend/src/services/reporting/` into
-`apps/backend/src/reporting/` is also still pending. The package goes
-`status="active"` once its roadmap is populated and an authority tier is
-decided.
+`status="active"`, `tier="CODE-ONLY"`, `roadmap` has 12 ACs: the opening-
+balance confidence-tier gate (migrated from EPIC-002, which never owned this
+behavior — it's report assembly, not double-entry posting) and the full
+EPIC-020 framework-aware personal reporting set (all `proof_kind` in
+`{exact, property}`, both valid under `CODE-ONLY`). EPIC-005's larger AC set
+still lands in a follow-up commit once the `services/` -> package-home move
+is complete — the tier decision above doesn't depend on that landing first.
+The physical move from `apps/backend/src/services/reporting/` into
+`apps/backend/src/reporting/` is also still pending.

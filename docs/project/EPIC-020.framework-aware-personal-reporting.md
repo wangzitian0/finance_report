@@ -93,18 +93,89 @@ Notes:
 ## Acceptance Criteria
 
 > **Fully migrated** (migration closeout wave 2, #1663). Every row that used
-> to live here (were AC20.1.* / AC20.2.* / AC20.3.* / AC20.4.* / AC20.5.* /
-> AC20.6.* / AC20.7.* / AC20.8.* / AC20.9.* rows) moved to a package roadmap
-> per the standard's "AC is the migration unit" rule — none stayed
-> EPIC-owned, so this table is gone rather than reduced. This note
-> references the new ids (keeping the registry↔EPIC link intact) but
-> defines none of them — the contract is the single definition source.
->
-> Migrated to [`common/reporting/contract.py`](../../common/reporting/contract.py)'s
-> `roadmap`: `AC-reporting.framework.1` · `AC-reporting.lanes.1` ·
-> `AC-reporting.target.1` · `AC-reporting.policy.1` ·
-> `AC-reporting.policy.2` · `AC-reporting.ai.1` · `AC-reporting.framework.2` ·
-> `AC-reporting.pipeline.1` · `AC-reporting.pipeline.2`.
+> to live in the per-section tables below (were AC20.1.* / AC20.2.* /
+> AC20.3.* / AC20.4.* / AC20.5.* / AC20.6.* / AC20.7.* / AC20.8.* /
+> AC20.9.* rows) moved to a package roadmap per the standard's "AC is the
+> migration unit" rule. The section headings and scope prose stay — they
+> describe the product goal, not the machine-checkable AC — but each
+> table is replaced by a pointer to its new home; this note references the
+> new ids (keeping the registry↔EPIC link intact) but defines none of them.
+
+### AC20.1: Framework Target Registry
+
+Framework reporting SSOT defines `personal_us_gaap_like` and
+`personal_hkfrs_like`, excludes CN/CAS v1, and states that outputs are
+personal management reports rather than statutory filings.
+
+> Migrated to [`common/reporting/contract.py`](../../common/reporting/contract.py)'s `roadmap`: `AC-reporting.framework.1`.
+
+### AC20.2: MECE Direction Ownership
+
+Framework reporting SSOT and EPIC-020 define the six-lane fact-forward/
+target-backward architecture with distinct owners and outputs, mutually
+exclusive and collectively covering.
+
+> Migrated to [`common/reporting/contract.py`](../../common/reporting/contract.py)'s `roadmap`: `AC-reporting.lanes.1`.
+
+### AC20.3: Target-backward Report Requirements
+
+Framework target package requirements enumerate required statements,
+report line mappings, policy dimensions, evidence anchors, disclosure
+requirements, and blocker conditions before report assembly.
+
+> Migrated to [`common/reporting/contract.py`](../../common/reporting/contract.py)'s `roadmap`: `AC-reporting.target.1`.
+
+### AC20.4: Personal Finance Policy Matrix
+
+The v1 policy matrix covers cash, listed securities, funds, dividends,
+brokerage fees, FX, restricted compensation, property, mortgage, and
+private/manual assets across recognition, measurement, classification,
+presentation, and disclosure.
+
+> Migrated to [`common/reporting/contract.py`](../../common/reporting/contract.py)'s `roadmap`: `AC-reporting.policy.1`.
+
+### AC20.5: Read-Only Policy Result
+
+Framework policy consumes canonical ledger, portfolio facts, evidence
+readiness, and framework target without mutating source records, journal
+entries, portfolio lots, market data, or report snapshots; it does not
+parse settlements.
+
+> Migrated to [`common/reporting/contract.py`](../../common/reporting/contract.py)'s `roadmap`: `AC-reporting.policy.2`.
+
+### AC20.6: AI Measurement and Disclosure Boundary
+
+AI measurement/disclosure suggestions can affect trusted output only after
+becoming structured fields with source anchor, confidence tier, review
+state, policy field name, and accepted value; package UI requires explicit
+framework selection before loading framework-scoped output.
+
+> Migrated to [`common/reporting/contract.py`](../../common/reporting/contract.py)'s `roadmap`: `AC-reporting.ai.1`.
+
+### AC20.7: Framework-Differentiated Proof Path
+
+The same settlement and portfolio fixture must be able to produce US-like and HK-like personal report packages with framework-specific line mappings, notes, source anchors, export metadata, and readiness blockers.
+
+> Migrated to [`common/reporting/contract.py`](../../common/reporting/contract.py)'s `roadmap`: `AC-reporting.framework.2`.
+
+### AC20.8: L2→L1 Line-Mapping Completeness
+
+Every L2 category — each `AssetType` and each `ManualValuationComponentType`
+— resolves to a concrete L1 report line via the framework policy matrix in
+both `personal_us_gaap_like` and `personal_hkfrs_like`; a known category
+landing in the `UNSUPPORTED`/gap path fails the gate, so report assembly
+never improvises a line for a known category.
+
+> Migrated to [`common/reporting/contract.py`](../../common/reporting/contract.py)'s `roadmap`: `AC-reporting.pipeline.1`.
+
+### AC20.9: Reporting Pipeline Authority Tiers
+
+EPIC-020 declares the three reporting-pipeline layers (`event → L2`,
+`L2 → L1`, `L1 → report`) each with a locked EPIC-026 tier and its valid
+proof obligation; LLM authority is confined to the LLM-LED layer and code
+holds final authority where a number becomes financial truth.
+
+> Migrated to [`common/reporting/contract.py`](../../common/reporting/contract.py)'s `roadmap`: `AC-reporting.pipeline.2`.
 >
 > Migrated to [`common/extraction/contract.py`](../../common/extraction/contract.py)'s
 > `roadmap` (its test lives in the same extraction-owned file as the group's
