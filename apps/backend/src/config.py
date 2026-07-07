@@ -352,7 +352,7 @@ class Settings(BaseSettings):
     )
     # EPIC-019: when set, upload→report parsing is submitted as a durable Prefect
     # flow run instead of an in-process asyncio task. Unset (CI/local/preview) →
-    # in-process fallback, no Prefect dependency. See services/statement_pipeline.py.
+    # in-process fallback, no Prefect dependency. See extraction/extension/statement_pipeline.py.
     prefect_api_url: str | None = Field(
         default=None,
         validation_alias="PREFECT_API_URL",

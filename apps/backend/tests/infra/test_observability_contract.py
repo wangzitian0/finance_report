@@ -163,7 +163,7 @@ def test_production_renderer_outputs_structured_json(monkeypatch) -> None:
 def test_AC10_8_4_high_volume_fx_audit_noise_uses_debug_level() -> None:
     """AC-observability.8.4: High-volume staging audit noise is debug-only by default."""
     database = _read(REPO_ROOT / "apps" / "backend" / "src" / "database.py")
-    fx_revaluation = _read(REPO_ROOT / "apps" / "backend" / "src" / "services" / "fx_revaluation.py")
+    fx_revaluation = _read(REPO_ROOT / "apps" / "backend" / "src" / "ledger" / "extension" / "fx_revaluation.py")
     reporting = _read(REPO_ROOT / "apps" / "backend" / "src" / "services" / "reporting")
 
     assert "echo=settings.debug" in database
