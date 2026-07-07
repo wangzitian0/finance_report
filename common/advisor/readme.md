@@ -81,7 +81,7 @@ The advisor aggregates context from:
 | `reconciliation` | Pending review count, reconciliation stats | `src.services.reconciliation` |
 | `portfolio` | Positions, unrealised P&L | `src.services.portfolio` |
 | `market_data` | Scope status, prices | `src.services.market_data` |
-| `workflow_events` | Action-required counts | `src.services.workflow_events` |
+| `workflow_events` | Action-required counts | `src.platform.extension.workflow_events` |
 
 All reads are in the same `AsyncSession` transaction as the chat message
 insert (the advisor's own transaction — `AC-advisor.txn.1`).  The advisor

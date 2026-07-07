@@ -97,7 +97,13 @@ def test_AC12_22_2_background_task_payload_schemas_are_module_owned() -> None:
         REPO_ROOT / "apps" / "backend" / "src" / "routers" / "statements.py"
     )
     statement_parsing_path = (
-        REPO_ROOT / "apps" / "backend" / "src" / "services" / "statement_parsing.py"
+        REPO_ROOT
+        / "apps"
+        / "backend"
+        / "src"
+        / "extraction"
+        / "extension"
+        / "statement_parsing.py"
     )
 
     payload_schema_names = {

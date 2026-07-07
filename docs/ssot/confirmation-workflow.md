@@ -167,7 +167,7 @@ dispatches escalations is a separate EPIC.
 ### Correction Feedback Loop (drives the proportion down)
 
 The North-Star metric (EPIC-018 AC18.12) measures the low-confidence proportion;
-this is the mechanism that *moves* it. Owned by `services/correction_loop.py`
+this is the mechanism that *moves* it. Owned by `extraction/extension/correction_loop.py`
 (EPIC-018 AC18.14, issue #931):
 
 - Every human correction that overrode an AI proposal is labeled signal, recorded
