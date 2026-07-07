@@ -20,10 +20,15 @@ def _static_all(path: Path) -> list[str]:
     tree = ast.parse(path.read_text(encoding="utf-8"))
     for node in tree.body:
         if isinstance(node, ast.Assign):
-            for target in node.targets:
-                if isinstance(target, ast.Name) and target.id == "__all__":
-                    value = ast.literal_eval(node.value)
-                    return [str(item) for item in value]
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        else:
+            continue
+        for target in targets:
+            if isinstance(target, ast.Name) and target.id == "__all__" and node.value is not None:
+                value = ast.literal_eval(node.value)
+                return [str(item) for item in value]
     raise AssertionError(f"missing __all__ in {path}")
 
 
