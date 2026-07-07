@@ -10,9 +10,9 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from common.testing.coverage import (
-    build_unified_lcov,  # noqa: E402
-    check_policy,  # noqa: E402
+from common.testing.coverage import (  # noqa: E402
+    build_unified_lcov,
+    check_policy,
 )
 from common.testing.coverage.check_policy import (  # noqa: E402
     audit_unregistered_sources,
@@ -340,7 +340,7 @@ def test_unregistered_guard_exempts_tests_config_and_non_product_trees():
         "apps/frontend/vitest.config.ts",
         "apps/frontend/vitest.setup.ts",
         "apps/backend/migrations/versions/0001_x.py",
-        ".opencode/skills/professional/qa-testing/scripts/gen.py",
+        ".opencode/skills/domain/development/scripts/gen.py",
         "docs/hooks.py",
         "newpkg/foo.go",  # not a tracked source extension we measure
     ]
