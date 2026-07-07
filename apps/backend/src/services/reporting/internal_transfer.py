@@ -14,11 +14,7 @@ from src.audit.money import to_money
 from src.audit.money.adopt import restate
 from src.models.fx_conversion import FxConversion
 from src.observability import ErrorIds, get_logger
-from src.services.fx import (
-    FxRateError,
-    get_exchange_rate,
-)
-from src.services.fx_transfer import (
+from src.reconciliation.extension.fx_transfer import (
     DEFAULT_RATE_TOLERANCE,
     DEFAULT_TIME_WINDOW,
     FxTransferError,
@@ -26,7 +22,11 @@ from src.services.fx_transfer import (
     classify_internal_transfer,
     pair_fx_legs,
 )
-from src.services.fx_transfer_discovery import discover_fx_conversions
+from src.reconciliation.extension.fx_transfer_discovery import discover_fx_conversions
+from src.services.fx import (
+    FxRateError,
+    get_exchange_rate,
+)
 
 logger = get_logger(__name__)
 

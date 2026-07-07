@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 
 from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.services.anomaly import detect_anomalies
+from src.reconciliation.extension.anomaly import detect_anomalies
 
 
 @pytest.fixture

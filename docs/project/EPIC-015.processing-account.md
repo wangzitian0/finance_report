@@ -69,7 +69,7 @@ Balance ≠ 0  → Pending Review ⚠️
 - [x] Test coverage: 33 tests, 97% line coverage
 
 ### Task 1.4: Reconciliation Integration
-- [x] Modified `services/reconciliation.py` (128 lines added)
+- [x] Modified `reconciliation/extension/matching.py` (128 lines added)
   - [x] Phase 1: Transfer Detection (lines 766-866) - BEFORE normal matching
   - [x] Phase 2: Normal Matching (lines 867-989) - Existing logic preserved
   - [x] Phase 3: Auto-Pairing (lines 990-1020) - AFTER all matching
@@ -174,7 +174,7 @@ Balance ≠ 0  → Pending Review ⚠️
 - [x] `apps/backend/src/schemas/account.py` - is_system schema field
 - [x] `apps/backend/src/services/account_service.py` - System account handling (31 lines)
 - [x] `apps/backend/src/services/processing_account.py` (487 lines) - Core service
-- [x] `apps/backend/src/services/reconciliation.py` - 3-phase flow integration (128 lines added)
+- [x] `apps/backend/src/reconciliation/extension/matching.py` - 3-phase flow integration (128 lines added)
 - [x] `apps/backend/src/services/accounting.py` - Import/export updates (9 lines)
 - [x] `apps/backend/tests/accounting/test_processing_account.py` (811 lines) - Unit tests (33 tests)
 - [x] `apps/backend/tests/reconciliation/test_transfer_integration.py` (569 lines) - Integration tests (7 tests)

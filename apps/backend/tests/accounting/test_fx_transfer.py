@@ -1,7 +1,7 @@
 """AC4.14.x — FX / cross-currency transfers as linked multi-leg events.
 
 #1123 AC2/AC3/AC4 (assurance #1103). Deterministic, Decimal-only tests for the
-accounting-layer primitives in ``src.services.fx_transfer``:
+accounting-layer primitives in ``src.reconciliation.extension.fx_transfer``:
 
 - AC2: pairing an out-leg in ccyA with an in-leg in ccyB via implied-rate-within-
   tolerance, same owner, opposite direction, time window.
@@ -19,7 +19,7 @@ import pytest
 from common.testing.ac_proof import ac_proof
 
 from src.models.journal import JournalEntrySourceType
-from src.services.fx_transfer import (
+from src.reconciliation.extension.fx_transfer import (
     REVALUATION_SOURCE_TYPE,
     FxTransferError,
     TransferLeg,
