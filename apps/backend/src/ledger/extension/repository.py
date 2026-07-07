@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 import src.config
+from src.audit import normalize_source_type
 from src.ledger.base.validators import (
     ValidationError,
     validate_fx_rates,
@@ -30,7 +31,6 @@ from src.ledger.base.validators import (
 )
 from src.models.account import Account
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
-from src.audit import normalize_source_type
 
 
 async def validate_line_account_ownership(

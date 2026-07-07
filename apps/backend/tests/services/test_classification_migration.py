@@ -19,10 +19,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction.extension.service import ExtractionService
-from src.models.account import Account, AccountType
-from src.models.journal import JournalEntry, JournalLine
-from src.models.layer3 import TransactionClassification
-from src.services.reporting import generate_income_statement
 from src.extraction.extension.statement_posting import auto_create_posted_entries_for_statement
 from src.extraction.extension.statement_validation import approve_statement
 from src.extraction.extension.transaction_classification import (
@@ -32,6 +28,10 @@ from src.extraction.extension.transaction_classification import (
     TransactionCategory,
     backfill_classifications,
 )
+from src.models.account import Account, AccountType
+from src.models.journal import JournalEntry, JournalLine
+from src.models.layer3 import TransactionClassification
+from src.services.reporting import generate_income_statement
 
 SALARY = Decimal("5000.00")
 RENT = Decimal("1500.00")

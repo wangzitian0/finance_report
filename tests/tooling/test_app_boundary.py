@@ -79,7 +79,7 @@ def test_outbound_upward_layer_detected(tmp_path: Path) -> None:
     (src / "services").mkdir(parents=True)
     _make_pkg(src, "extraction", ["PublicThing"])
     (src / "extraction" / "extension" / "reaches_up.py").write_text(
-        "from src.runtime.extension.storage import redact\n", encoding="utf-8"
+        "from src.services.storage import redact\n", encoding="utf-8"
     )
     edges = cross_boundary_edges(
         backend_src=src,
@@ -87,7 +87,7 @@ def test_outbound_upward_layer_detected(tmp_path: Path) -> None:
         published={"extraction": {"PublicThing"}},
         repo_root=tmp_path,
     )
-    assert any(e.startswith("out::") and "src.runtime.extension.storage" in e for e in edges)
+    assert any(e.startswith("out::") and "src.services.storage" in e for e in edges)
 
 
 def test_carved_to_shared_infra_is_not_an_edge(tmp_path: Path) -> None:

@@ -6,16 +6,16 @@ from fastapi import APIRouter, HTTPException, Query, status
 
 from src.deps import CurrentUserId, DbSession
 from src.models.workflow import WorkflowEventStatus
+from src.platform.extension.workflow_events import (
+    get_workflow_status,
+    list_workflow_events_response,
+    update_workflow_event_status,
+)
 from src.schemas.workflow import (
     WorkflowEventListResponse,
     WorkflowEventResponse,
     WorkflowEventStatusUpdate,
     WorkflowStatusResponse,
-)
-from src.platform.extension.workflow_events import (
-    get_workflow_status,
-    list_workflow_events_response,
-    update_workflow_event_status,
 )
 
 router = APIRouter(prefix="/workflow", tags=["workflow"])

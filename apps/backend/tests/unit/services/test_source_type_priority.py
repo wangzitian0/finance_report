@@ -4,7 +4,6 @@ from uuid import uuid4
 
 import pytest
 
-from src.models.journal import JournalEntry, JournalEntrySourceType
 from src.audit import (
     SourceTypeDowngradeError,
     is_user_data_source_type,
@@ -15,6 +14,7 @@ from src.audit import (
     source_type_tiebreak_key,
     statement_source_values,
 )
+from src.models.journal import JournalEntry, JournalEntrySourceType
 
 
 def test_normalize_source_type_defaults_and_legacy_values() -> None:

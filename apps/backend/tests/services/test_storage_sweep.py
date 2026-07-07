@@ -14,12 +14,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
 from src.models.layer1 import DocumentType, UploadedDocument
+from src.runtime import StorageError
 from src.runtime.extension.storage_sweep import (
     _list_storage_keys,
     run_storage_sweep,
     sweep_orphaned_storage_objects,
 )
-from src.runtime import StorageError
 
 
 def _orphan_min_age() -> timedelta:

@@ -28,7 +28,8 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config import settings
+import src.config
+from src.extraction.extension.classification import ClassificationService
 from src.models.account import AccountType
 from src.models.layer2 import AtomicTransaction
 from src.models.layer3 import (
@@ -38,9 +39,9 @@ from src.models.layer3 import (
     TransactionClassification,
 )
 from src.observability import get_logger
-from src.extraction.extension.classification import ClassificationService
 
 logger = get_logger(__name__)
+settings = src.config.settings
 
 POLICY_RULE_NAME = "llm-category-policy"
 

@@ -14,10 +14,12 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config import settings
+import src.config
 from src.ledger import ValidationError, create_journal_entry, post_journal_entry
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
+
+settings = src.config.settings
 
 __all__ = [
     "get_opening_balance_readiness",

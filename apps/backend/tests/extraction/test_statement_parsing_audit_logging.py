@@ -8,11 +8,11 @@ from unittest.mock import MagicMock
 from uuid import uuid4
 
 from src.database import create_session_maker_from_db
+from src.extraction.extension import statement_parsing
 from src.extraction.extension.service import ExtractionError
+from src.extraction.extension.statement_parsing import parse_statement_background, route_brokerage_for_review_if_present
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
-from src.extraction.extension import statement_parsing
-from src.extraction.extension.statement_parsing import parse_statement_background, route_brokerage_for_review_if_present
 from tests.factories import StatementSummaryFactory
 
 

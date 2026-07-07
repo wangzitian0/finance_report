@@ -23,13 +23,6 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.ledger import ValidationError
-from src.models.account import Account, AccountType
-from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus
-from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.models.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
-from src.models.reconciliation import ReconciliationStatus
-from src.models.statement_summary import StatementSummary
 from src.extraction.extension.review_queue import (
     accept_match,
     batch_accept,
@@ -38,6 +31,13 @@ from src.extraction.extension.review_queue import (
     get_pending_items,
     reject_match,
 )
+from src.ledger import ValidationError
+from src.models.account import Account, AccountType
+from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus
+from src.models.layer2 import AtomicTransaction, TransactionDirection
+from src.models.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
+from src.models.reconciliation import ReconciliationStatus
+from src.models.statement_summary import StatementSummary
 from tests.factories import (
     AccountFactory,
     AtomicTransactionFactory,
@@ -605,7 +605,9 @@ async def test_create_entry_from_txn_raises_when_generated_entry_unbalanced(db, 
     )
     await db.commit()
 
-    with patch("src.extraction.extension.review_queue.validate_journal_balance", side_effect=ValidationError("not balanced")):
+    with patch(
+        "src.extraction.extension.review_queue.validate_journal_balance", side_effect=ValidationError("not balanced")
+    ):
         with pytest.raises(ValueError, match="Generated entry does not balance"):
             await create_entry_from_txn(db, txn, user_id=test_user.id)
 

@@ -18,6 +18,7 @@ from src.extraction.extension.brokerage_positions import (
     detect_broker,
     parse_brokerage_positions,
 )
+from src.extraction.extension.brokerage_statement_payload import _brokerage_payload_from_statement
 from src.models.account import Account, AccountType
 from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AssetType, AtomicPosition, AtomicTransaction, TransactionDirection
@@ -26,7 +27,6 @@ from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
 from src.schemas.portfolio import BrokerageImportRequest, BrokerageImportResponse
 from src.services.assets import AssetService
-from src.extraction.extension.brokerage_statement_payload import _brokerage_payload_from_statement
 
 
 async def _seed_statement(

@@ -11,13 +11,13 @@ from uuid import uuid4
 
 import pytest
 
-from src.models.correction import CorrectionLog
 from src.extraction.extension.correction_loop import (
     CorrectionLoopService,
     CorrectionRecord,
     build_corpus_from_corrections,
     replay_low_confidence_reduction,
 )
+from src.models.correction import CorrectionLog
 
 
 def _correction(*, description=None, original=None, corrected="Office Supplies") -> CorrectionLog:

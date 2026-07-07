@@ -17,6 +17,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.extraction.extension.brokerage_positions import BrokeragePositionImportService
+from src.extraction.extension.brokerage_statement_payload import (
+    _brokerage_import_not_ready_reason,
+    _brokerage_payload_from_persisted_extraction,
+    _brokerage_payload_from_statement,
+)
+from src.extraction.extension.statement_pipeline import submit_parse_pipeline
+from src.extraction.extension.statement_posting import (
+    auto_create_posted_entries_for_statement,
+    resolve_statement_posting_account,
+)
+from src.extraction.extension.statement_validation import (
+    edit_and_approve,
+    pending_stage1_review_filter,
+    resolve_statement_transactions,
+    set_opening_balance,
+    validate_balance_chain,
+)
+from src.extraction.extension.statement_workflow import approve_statement_workflow, reject_statement_workflow
 from src.llm import LitellmCatalog, Modality
 from src.models.account import Account, AccountType
 from src.models.layer1 import UploadedDocument
@@ -31,6 +49,7 @@ from src.platform import (
     raise_service_unavailable,
     raise_too_large,
 )
+from src.runtime import StorageError, StorageService
 from src.schemas import (
     AtomicTransactionResponse,
     BankStatementListResponse,
@@ -49,22 +68,6 @@ from src.schemas.review import (
     Stage1ApprovalResponse,
     StatementReviewResponse,
 )
-from src.runtime import StorageError, StorageService
-from src.extraction.extension.brokerage_statement_payload import (
-    _brokerage_import_not_ready_reason,
-    _brokerage_payload_from_persisted_extraction,
-    _brokerage_payload_from_statement,
-)
-from src.extraction.extension.statement_pipeline import submit_parse_pipeline
-from src.extraction.extension.statement_posting import auto_create_posted_entries_for_statement, resolve_statement_posting_account
-from src.extraction.extension.statement_validation import (
-    edit_and_approve,
-    pending_stage1_review_filter,
-    resolve_statement_transactions,
-    set_opening_balance,
-    validate_balance_chain,
-)
-from src.extraction.extension.statement_workflow import approve_statement_workflow, reject_statement_workflow
 
 router = APIRouter(prefix="/statements", tags=["statements"])
 

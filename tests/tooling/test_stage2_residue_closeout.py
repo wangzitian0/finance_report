@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
@@ -8,26 +9,22 @@ SERVICES = SRC / "services"
 
 RESIDUE_MOVES = {
     "statement_parsing.py": SRC / "extraction/extension/statement_parsing.py",
-    "statement_parsing_supervisor.py": SRC
-    / "extraction/extension/statement_parsing_supervisor.py",
+    "statement_parsing_supervisor.py": SRC / "extraction/extension/statement_parsing_supervisor.py",
     "statement_pipeline.py": SRC / "extraction/extension/statement_pipeline.py",
     "statement_flow.py": SRC / "extraction/extension/statement_flow.py",
     "statement_validation.py": SRC / "extraction/extension/statement_validation.py",
     "statement_posting.py": SRC / "extraction/extension/statement_posting.py",
     "statement_workflow.py": SRC / "extraction/extension/statement_workflow.py",
-    "brokerage_statement_payload.py": SRC
-    / "extraction/extension/brokerage_statement_payload.py",
+    "brokerage_statement_payload.py": SRC / "extraction/extension/brokerage_statement_payload.py",
     "chain_repair.py": SRC / "extraction/extension/chain_repair.py",
     "classification.py": SRC / "extraction/extension/classification.py",
-    "transaction_classification.py": SRC
-    / "extraction/extension/transaction_classification.py",
+    "transaction_classification.py": SRC / "extraction/extension/transaction_classification.py",
     "correction_loop.py": SRC / "extraction/extension/correction_loop.py",
     "correction_service.py": SRC / "extraction/extension/correction_service.py",
     "review_queue.py": SRC / "extraction/extension/review_queue.py",
     "storage_sweep.py": SRC / "runtime/extension/storage_sweep.py",
     "workflow_events.py": SRC / "platform/extension/workflow_events.py",
-    "workflow_event_builders.py": SRC
-    / "platform/extension/workflow_event_builders.py",
+    "workflow_event_builders.py": SRC / "platform/extension/workflow_event_builders.py",
     "accounting.py": SRC / "ledger/extension/accounting.py",
     "account_service.py": SRC / "ledger/extension/account_service.py",
     "account_coverage.py": SRC / "ledger/data/account_coverage.py",
@@ -80,10 +77,17 @@ def test_stage2_residue_old_service_imports_are_gone() -> None:
             continue
         if path == Path(__file__):
             continue
-        text = path.read_text(encoding="utf-8")
-        for old_path in OLD_IMPORT_PATHS:
-            if old_path in text:
-                offenders.append(f"{path.relative_to(REPO)} -> {old_path}")
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module:
+                modules = [node.module]
+            elif isinstance(node, ast.Import):
+                modules = [alias.name for alias in node.names]
+            else:
+                continue
+            for module in modules:
+                if module in OLD_IMPORT_PATHS:
+                    offenders.append(f"{path.relative_to(REPO)} -> {module}")
     assert not offenders, "old service imports remain:\n" + "\n".join(sorted(offenders))
 
 

@@ -38,9 +38,13 @@ if TYPE_CHECKING:
     from src.audit.source_type_priority import (
         STATEMENT_SOURCE_TYPES,
         SourceTypeDowngradeError,
+        is_user_data_source_type,
         normalize_source_type,
+        promote_entries_source_type,
         promote_entry_source_type,
         source_type_rank,
+        source_type_tiebreak_key,
+        statement_source_values,
     )
 
 __all__ = [
@@ -62,17 +66,25 @@ __all__ = [
     "Ratio",
     "Unit",
     "UnitPrice",
+    "is_user_data_source_type",
     "normalize_source_type",
+    "promote_entries_source_type",
     "promote_entry_source_type",
     "source_type_rank",
+    "source_type_tiebreak_key",
+    "statement_source_values",
 ]
 
 _SOURCE_TYPE_NAMES = {
     "STATEMENT_SOURCE_TYPES",
     "SourceTypeDowngradeError",
+    "is_user_data_source_type",
     "normalize_source_type",
+    "promote_entries_source_type",
     "promote_entry_source_type",
     "source_type_rank",
+    "source_type_tiebreak_key",
+    "statement_source_values",
 }
 
 

@@ -35,11 +35,11 @@ from src.extraction.extension.prompts.statement import (
     get_parsing_prompt,
 )
 from src.extraction.extension.service import ExtractionService
+from src.extraction.extension.statement_parsing import parse_statement_background, route_brokerage_for_review_if_present
 from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AtomicPosition
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
-from src.extraction.extension.statement_parsing import parse_statement_background, route_brokerage_for_review_if_present
 from tests.factories import StatementSummaryFactory
 
 
@@ -282,7 +282,9 @@ async def test_AC_B4_AC_B6_moomoo_positions_table_extracts_and_imports(client, d
         summary._extracted_payload = fixture
         return summary, []
 
-    monkeypatch.setattr("src.extraction.extension.statement_parsing.ExtractionService.parse_document", fake_parse_document)
+    monkeypatch.setattr(
+        "src.extraction.extension.statement_parsing.ExtractionService.parse_document", fake_parse_document
+    )
     monkeypatch.setattr(
         "src.extraction.extension.statement_parsing.StorageService.generate_presigned_url",
         lambda *args, **kwargs: "https://example.com/moomoo-positions-2506.pdf",

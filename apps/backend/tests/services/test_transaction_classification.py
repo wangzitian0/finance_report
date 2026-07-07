@@ -16,13 +16,6 @@ from pathlib import Path
 import pytest
 from sqlalchemy import func, select
 
-from src.models.account import Account, AccountType
-from src.models.layer3 import (
-    ClassificationRule,
-    ClassificationStatus,
-    RuleType,
-    TransactionClassification,
-)
 from src.extraction.extension.transaction_classification import (
     CategoryProposal,
     ClassificationPolicy,
@@ -30,9 +23,16 @@ from src.extraction.extension.transaction_classification import (
     classify_transactions,
     policy_for,
 )
+from src.models.account import Account, AccountType
+from src.models.layer3 import (
+    ClassificationRule,
+    ClassificationStatus,
+    RuleType,
+    TransactionClassification,
+)
 from tests.factories import AtomicTransactionFactory
 
-MODULE_PATH = Path("src/services/transaction_classification.py")
+MODULE_PATH = Path("src/extraction/extension/transaction_classification.py")
 
 
 def _policy(**overrides) -> ClassificationPolicy:
@@ -318,8 +318,8 @@ def test_AC18_15_8_production_consumers_are_the_declared_seams():
             elif isinstance(node, ast.Import) and any("transaction_classification" in a.name for a in node.names):
                 importers.append(str(path))
     assert sorted(importers) == [
+        "src/extraction/extension/statement_posting.py",
         "src/routers/classifications.py",
-        "src/services/statement_posting.py",
     ]
 
 

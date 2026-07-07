@@ -16,6 +16,7 @@ from sqlalchemy import func, select
 from src.identity import User
 from src.models.account import Account
 from src.models.layer2 import AtomicTransaction, TransactionDirection
+from tests.factories import AccountFactory, JournalEntryFactory, UserFactory
 from tests.support.account_purge import (
     DEFAULT_TEST_EMAIL_PATTERN,
     is_safe_purge_environment,
@@ -23,7 +24,6 @@ from tests.support.account_purge import (
     purge_test_accounts,
     select_test_user_ids,
 )
-from tests.factories import AccountFactory, JournalEntryFactory, UserFactory
 
 
 async def _make_user(db, email: str) -> User:

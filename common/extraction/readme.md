@@ -13,7 +13,7 @@
 > The machine-readable audit-failed case registry is a sibling data file:
 > [`audit-failed-cases.yaml`](./audit-failed-cases.yaml). The conforming backend
 > implementation lives at
-> [`apps/backend/src/extraction/`](../../apps/backend/src/services/extraction)
+> [`apps/backend/src/extraction/`](../../apps/backend/src/extraction)
 > and its siblings (the code cutover #1421 homes them under the package shape).
 
 This document defines the Single Source of Truth for the document extraction feature.
@@ -358,7 +358,7 @@ S3_PRESIGN_EXPIRY_SECONDS=300
   per-currency self-check (`opening + ΣIN − ΣOUT ≠ closing`), but the underlying
   cause is **recall**, which is probabilistic (LLM). Around that soft metric the
   system runs a deterministic seam: `detect_balance_chain_break`
-  (`src/extraction/extension/statement_validation.py`) walks the ordered transactions' running
+  (`src/extraction/base/validation.py`) walks the ordered transactions' running
   `balance_after` chain and returns the exact index where
   `balance_after[i-1] + signed_amount[i] != balance_after[i]` (within
   `BALANCE_TOLERANCE`), pinpointing where a row went missing. When the
@@ -494,7 +494,7 @@ Coverage checks compare monthly statement periods within each account/currency:
 | `src/models/statement_enums.py`, `src/models/statement_summary.py` | SQLAlchemy models and enums |
 | `src/schemas/extraction.py` | Pydantic schemas |
 | `src/extraction/extension/` (`service.py`, `_ocr.py`, `_llm_led_gate.py`, …) | Core extraction logic |
-| `src/extraction/extension/statement_validation.py` | Validation, confidence scoring, running-balance chain-break detector (`detect_balance_chain_break`) |
+| `src/extraction/base/validation.py` | Validation, confidence scoring, running-balance chain-break detector (`detect_balance_chain_break`) |
 | `src/extraction/extension/chain_repair.py` | Under-extraction repair-pass hook (`repair_under_extraction`, injectable `RegionReExtractor`) |
 | `src/runtime/extension/storage.py` | Object storage uploads + presigned URLs |
 | `src/extraction/extension/prompts/statement.py` | Parsing prompt templates |

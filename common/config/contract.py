@@ -1,12 +1,13 @@
 """The ``config`` package's machine-checkable :class:`PackageContract`.
 
 ``config`` is internal tooling — env-key + schema-validation helpers
-(``env_keys``, ``schema_validation``) plus the published runtime ``settings``
-handle. The contract governs it as an ``infra`` leaf (L1, ``depends_on=["audit"]``)
+(``env_keys``, ``schema_validation``) — not a domain bounded context, so it
+publishes no curated symbol language (``interface=[]``); callers import its
+modules directly. The contract governs it as an ``infra`` leaf (L1, ``depends_on=[]``)
 with an invariant pinned to its test. (The DAG import-scan only inspects
 ``src.<pkg>`` imports, so for a ``common/``-implemented package leaf-purity is a
 declared, not a scanned, property.)
-A broader curated published-language surface is a future cleanup.
+A curated published-language surface is a future cleanup.
 """
 
 from __future__ import annotations
@@ -17,10 +18,10 @@ CONTRACT = PackageContract(
     name="config",
     status="active",
     tier="CODE-ONLY",
-    depends_on=["audit"],
+    depends_on=[],
     roles=["env_keys", "schema_validation"],
     implementations={"be": "common/config", "fe": None},
-    interface=["settings"],
+    interface=[],
     events=[],
     invariants=[
         Invariant(

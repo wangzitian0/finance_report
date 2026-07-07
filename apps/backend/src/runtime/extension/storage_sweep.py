@@ -15,13 +15,14 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.config import settings
+import src.config
 from src.database import async_session_maker
 from src.models.layer1 import UploadedDocument
 from src.observability import get_logger
 from src.runtime import StorageError, StorageService
 
 logger = get_logger(__name__)
+settings = src.config.settings
 
 STATEMENT_PREFIX = "statements/"
 

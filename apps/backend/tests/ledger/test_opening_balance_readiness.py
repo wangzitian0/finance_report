@@ -10,8 +10,8 @@ from decimal import Decimal
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.account import Account, AccountType
 from src.ledger.extension.accounting import get_opening_balance_readiness, post_opening_balance_entry
+from src.models.account import Account, AccountType
 
 from ._ledger_helpers import create_valid_posted_entry
 

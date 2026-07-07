@@ -13,6 +13,10 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from src.database import create_session_maker_from_db
+from src.extraction.extension.statement_parsing import parse_statement_background
+from src.extraction.extension.statement_parsing_supervisor import (
+    run_parsing_supervisor,
+)
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
 from src.routers.statements import (
@@ -21,10 +25,6 @@ from src.routers.statements import (
     list_statement_transactions,
     retry_statement_parsing,
     upload_statement,
-)
-from src.extraction.extension.statement_parsing import parse_statement_background
-from src.extraction.extension.statement_parsing_supervisor import (
-    run_parsing_supervisor,
 )
 from src.runtime import StorageError, StorageService
 from tests.factories import StatementSummaryFactory

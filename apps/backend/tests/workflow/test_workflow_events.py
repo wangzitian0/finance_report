@@ -26,12 +26,6 @@ from src.models.workflow import (
     WorkflowSession,
     WorkflowSessionStatus,
 )
-from src.schemas.workflow import (
-    WorkflowEventCreate,
-    WorkflowEventResponse,
-    WorkflowPrimaryState,
-    WorkflowReportReadinessState,
-)
 from src.platform.extension.workflow_events import (
     _insert_workflow_event_conflict_safe,
     _workflow_event_from_payload,
@@ -44,6 +38,12 @@ from src.platform.extension.workflow_events import (
     sync_workflow_events_for_user,
     update_workflow_event_status,
     upsert_workflow_event,
+)
+from src.schemas.workflow import (
+    WorkflowEventCreate,
+    WorkflowEventResponse,
+    WorkflowPrimaryState,
+    WorkflowReportReadinessState,
 )
 
 ROOT_DIR = Path(__file__).resolve().parents[4]

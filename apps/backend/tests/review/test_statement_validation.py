@@ -7,11 +7,6 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
-from src.models.account import Account, AccountType
-from src.models.layer1 import DocumentType, UploadedDocument
-from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.models.statement_enums import BankStatementStatus, Stage1Status
-from src.models.statement_summary import StatementSummary
 from src.extraction.extension.statement_validation import (
     BALANCE_TOLERANCE,
     _has_unresolved_statement_conflicts,
@@ -22,6 +17,11 @@ from src.extraction.extension.statement_validation import (
     set_opening_balance,
     validate_balance_chain,
 )
+from src.models.account import Account, AccountType
+from src.models.layer1 import DocumentType, UploadedDocument
+from src.models.layer2 import AtomicTransaction, TransactionDirection
+from src.models.statement_enums import BankStatementStatus, Stage1Status
+from src.models.statement_summary import StatementSummary
 
 
 def _conflict_txn(

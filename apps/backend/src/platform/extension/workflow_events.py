@@ -20,6 +20,16 @@ from src.models.workflow import (
     WorkflowSession,
     WorkflowSessionStatus,
 )
+from src.platform.extension.workflow_event_builders import (  # noqa: F401
+    PACKAGE_WORKFLOW_SOURCE_ID,
+    build_readiness_blocker_event_payload,
+    build_report_state_event_payload,
+    build_review_completed_event_payload,
+    build_review_required_event_payload,
+    build_statement_parsing_failed_event_payload,
+    build_uploaded_statement_event_payload,
+    build_workflow_dedupe_key,
+)
 from src.schemas.workflow import (
     WorkflowEventCountsResponse,
     WorkflowEventCreate,
@@ -34,16 +44,6 @@ from src.schemas.workflow import (
     WorkflowStatusResponse,
 )
 from src.services.report_readiness import get_personal_report_package_readiness
-from src.platform.extension.workflow_event_builders import (  # noqa: F401
-    PACKAGE_WORKFLOW_SOURCE_ID,
-    build_readiness_blocker_event_payload,
-    build_report_state_event_payload,
-    build_review_completed_event_payload,
-    build_review_required_event_payload,
-    build_statement_parsing_failed_event_payload,
-    build_uploaded_statement_event_payload,
-    build_workflow_dedupe_key,
-)
 
 ACTIVE_WORKFLOW_SESSION_DEDUPE_KEY = "active-upload-to-report"
 MUTABLE_DERIVED_EVENT_SOURCE_TYPES = {"bank_statement", "readiness_blocker", "report_package"}

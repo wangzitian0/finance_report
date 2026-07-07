@@ -10,6 +10,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.extraction.extension.review_queue import (
+    accept_match,
+    batch_accept,
+    create_entry_from_txn,
+    get_or_create_account,
+    reject_match,
+)
 from src.identity import User
 from src.ledger import validate_journal_balance
 from src.models.account import Account, AccountType
@@ -27,13 +34,6 @@ from src.services.reconciliation import (
     build_many_to_one_groups,
     execute_matching,
     normalize_text,
-)
-from src.extraction.extension.review_queue import (
-    accept_match,
-    batch_accept,
-    create_entry_from_txn,
-    get_or_create_account,
-    reject_match,
 )
 from tests.ledger._ledger_helpers import create_valid_posted_entry
 

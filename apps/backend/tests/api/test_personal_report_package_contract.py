@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.deps import PaginationParams
 from src.extraction.extension.deduplication import dual_write_layer2
 from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
+from src.extraction.extension.review_queue import create_entry_from_txn
 from src.identity import User
 from src.models.account import Account, AccountType
 from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
@@ -62,7 +63,6 @@ from src.services.report_traceability import (
     _ledger_anchor_detail,
     _source_document_details,
 )
-from src.extraction.extension.review_queue import create_entry_from_txn
 from tests.factories import UserFactory
 
 

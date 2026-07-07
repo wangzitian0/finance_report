@@ -8,9 +8,9 @@ persisted.
 
 from fastapi import APIRouter
 
+from src.config_app import get_effective_base_currency, set_base_currency
 from src.deps import CurrentUserId, DbSession
 from src.schemas.app_config import BaseCurrencyResponse, BaseCurrencyUpdate
-from src.config_app import get_effective_base_currency, set_base_currency
 
 router = APIRouter(prefix="/app-config", tags=["app-config"])
 

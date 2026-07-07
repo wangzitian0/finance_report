@@ -28,7 +28,7 @@ flowchart TB
 
 ## Confidence Scoring (SSOT V2 weights)
 
-Authoritative weights live in `apps/backend/src/extraction/extension/statement_validation.py::compute_confidence_score`:
+Authoritative weights live in `apps/backend/src/extraction/base/validation.py::compute_confidence_score`:
 
 | Factor | Weight | Criteria |
 |--------|--------|----------|

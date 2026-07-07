@@ -119,9 +119,13 @@ CONTRACT = PackageContract(
         "Quantity",
         "Unit",
         "UnitPrice",
+        "is_user_data_source_type",
         "normalize_source_type",
+        "promote_entries_source_type",
         "promote_entry_source_type",
         "source_type_rank",
+        "source_type_tiebreak_key",
+        "statement_source_values",
     ],
     events=[],
     # The number-governor guarantees, each pinned to an existing, already-green
