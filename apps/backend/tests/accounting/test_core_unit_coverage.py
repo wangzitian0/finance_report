@@ -117,7 +117,7 @@ class TestJournalEntrySchema:
 
 
 class TestInvestmentValidation:
-    """AC17.1.2: investment transaction amount validation guards."""
+    """AC-portfolio.1.2: investment transaction amount validation guards."""
 
     def test_validate_positive_rejects_zero(self):
         service = InvestmentAccountingService()
