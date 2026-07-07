@@ -66,7 +66,7 @@ async def run_many_to_one_phase(
                 amount_override=group_total,
                 history_score_override=history_score,
             )
-            candidate.breakdown["group_total"] = float(group_total)
+            candidate.breakdown["group_total"] = str(group_total)
             if candidate.score >= config.pending_review and candidate_is_better(
                 candidate, best_candidate, entries_by_id
             ):

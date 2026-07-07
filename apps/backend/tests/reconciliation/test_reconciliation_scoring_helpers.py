@@ -305,7 +305,7 @@ class TestFindManyToOneCandidates:
         assert rep_txn in (txn_a, txn_b)
         assert candidate.score >= DEFAULT_CONFIG.pending_review
         assert candidate.breakdown.get("many_to_one_bonus") == 10.0
-        assert candidate.breakdown.get("group_total") == 100.0
+        assert candidate.breakdown.get("group_total") == "100.00"
 
     def test_find_many_to_one_candidates_no_batch_keywords(self) -> None:
         """Non-batch transactions don't form groups."""

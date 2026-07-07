@@ -33,7 +33,7 @@ class SqlReconciliationRepository(ReconciliationRepository):
             .where(AtomicTransaction.id.notin_(subquery))
             .order_by(AtomicTransaction.txn_date)
         )
-        if limit:
+        if limit is not None:
             query = query.limit(limit)
         result = await self._db.execute(query)
         return list(result.scalars().all())

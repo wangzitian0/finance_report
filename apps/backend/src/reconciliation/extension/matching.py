@@ -354,7 +354,7 @@ def _find_many_to_one_candidates(
             candidate = MatchCandidate(
                 journal_entry_ids=[str(entry.id)],
                 score=total,
-                breakdown={**scores, "group_total": float(group_total)},
+                breakdown={**scores, "group_total": str(group_total)},
             )
             if candidate.score >= config.pending_review and (
                 best_candidate is None or candidate.score > best_candidate.score
