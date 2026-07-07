@@ -81,11 +81,15 @@ The SSOT ownership map is: **[docs/ssot/MANIFEST.yaml](docs/ssot/MANIFEST.yaml)*
 **EPIC → ACx.y.z → Test → Code → Doc**
 
 0. Frame the work with a **MECE** breakdown: mutually exclusive task slices, collectively exhaustive coverage of the stated goal, explicit dependencies, and explicit out-of-scope items.
-1. Anchor to an EPIC in `docs/project/`
-2. Register ACs in `docs/ac_registry.yaml` (feature) or `docs/infra_registry.yaml` (infra)
+1. Anchor to an EPIC in `docs/project/` (the horizontal goal)
+2. Define ACs where they live: a **migrated package** owns its ACs as
+   `AC-<pkg>.<group>.<seq>` in that package's `contract.py` `roadmap` — never
+   mirrored back into an EPIC table. Only legacy, not-yet-migrated modules
+   still register ACs in `docs/ac_registry.yaml` (feature) or
+   `docs/infra_registry.yaml` (infra)
 3. Write **failing** tests referencing AC IDs (🔴 red)
 4. Write minimal code to pass tests (🟢 green)
-5. Update SSOT docs
+5. Update the owning package contract/readme (or SSOT docs for legacy modules)
 
 Details: [docs/agents/orchestration.md](docs/agents/orchestration.md) · [docs/ssot/tdd.md](docs/ssot/tdd.md)
 
@@ -123,18 +127,22 @@ Full policy: **[docs/contributing/branch-policy.md](docs/contributing/branch-pol
 
 ## 🤖 Agent Architecture
 
-Full guide: **[docs/agents/orchestration.md](docs/agents/orchestration.md)**
+Full guide: **[docs/agents/orchestration.md](docs/agents/orchestration.md)** ·
+Per-runtime agents & MCP baseline: **[.claude/README.md](.claude/README.md)**
 
-| Agent | Cost | When |
-|-------|------|------|
-| **Sisyphus** | — | Main orchestrator |
-| `explore` | FREE | Parallel codebase exploration |
-| `librarian` | FREE | External docs |
-| `frontend-ui-ux-engineer` | MEDIUM | Mandatory for CSS/styling |
-| `multimodal-looker` | MEDIUM | Image/PDF |
-| `oracle` | EXPENSIVE | Architecture decisions |
+- The **main loop of the runtime you are in** is the orchestrator. Named
+  subagents are per-runtime mechanics (Claude Code: `.claude/agents/`;
+  OpenCode: `.opencode/oh-my-openagent.json`) — use the runtime's own list,
+  and never hard-require an agent another runtime does not have.
+- Delegate read-only fan-out (codebase search, external docs) to the cheap
+  search agents; reserve the expensive tier for genuinely hard advisory
+  reasoning. Parallelism is bounded by write conflicts, not by compute cost
+  (vision.md, Good Taste 6).
+- UI work: behavior is proven by tests; **visual quality is judged by human
+  eyes and simulators** — no agent sign-off substitutes for either.
 
-Skills: [.opencode/skills/](.opencode/skills/) · Config: [.opencode/oh-my-openagent.json](.opencode/oh-my-openagent.json)
+Skills: [.opencode/skills/](.opencode/skills/) (canonical library; other
+runtimes symlink into it — see [.claude/README.md](.claude/README.md))
 
 ---
 
