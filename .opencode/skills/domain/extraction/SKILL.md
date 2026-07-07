@@ -73,8 +73,8 @@ To prevent floating-point errors:
 
 ## Source Files
 
-- **Models**: `apps/backend/src/models/statement.py`
+- **Models**: `apps/backend/src/models/statement_summary.py`
 - **Schemas**: `apps/backend/src/schemas/extraction.py`
-- **Logic**: `apps/backend/src/services/extraction.py`
+- **Logic**: `apps/backend/src/extraction/` (moved from `services/extraction.py` in the package cutover, #1421)
 - **Validation**: `apps/backend/src/extraction/extension/statement_validation.py`
 - **Storage**: `apps/backend/src/runtime/extension/storage.py`

@@ -16,8 +16,8 @@
 - `apps/backend/src/extraction/extension/statement_parsing.py` - Async parse progress and brokerage import checkpoints
 - `apps/backend/src/routers/llm.py` - LLM config + model catalog request/response logging (EPIC-023; replaced `routers/ai_models.py`)
 - `apps/backend/src/extraction/extension/service.py` - Model selection and HTTP error logging
-- `apps/backend/src/services/ai_provider_models.py` - Cache and model lookup logging
-- `apps/backend/src/services/ai_provider_streaming.py` - Enhanced AI provider API error logging
+- `apps/backend/src/llm/extension/client.py` - Cache and model lookup logging (renamed from `ai_provider_models.py` into the `llm` package)
+- `apps/backend/src/services/ai_streaming.py` - Enhanced AI provider API error logging (renamed from `ai_provider_streaming.py`; not yet moved out of `services/`)
 - `.github/workflows/deploy.yml` - Post-merge staging audit input inventory and phase summary
 - `.github/workflows/deploy.yml` - Manual staging AI/OCR audit input inventory
 

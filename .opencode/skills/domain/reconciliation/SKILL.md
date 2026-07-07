@@ -107,6 +107,6 @@ scoring:
 
 ## Source Files
 
-- **Logic**: `apps/backend/src/services/reconciliation.py`
+- **Logic**: `apps/backend/src/reconciliation/extension/matching.py` (moved from `services/reconciliation.py` in the package cutover, #1423)
 - **Config**: `apps/backend/config/reconciliation.yaml`
 - **Models**: `apps/backend/src/models/reconciliation.py`

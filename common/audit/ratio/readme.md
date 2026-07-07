@@ -1,7 +1,7 @@
 # `ratio` — Decimal ratio / percentage value language (kernel package)
 
 > The ratio/percentage value type. Model spec:
-> [`../governance/readme.md`](../governance/readme.md). Machine contract:
+> [`../../meta/readme.md`](../../meta/readme.md). Machine contract:
 > [`contract.py`](./contract.py). Language-neutral interface + conformance:
 > [`contract/ratio.contract.md`](./contract/ratio.contract.md) +
 > [`conformance/vectors.json`](./conformance/vectors.json). Worklist:

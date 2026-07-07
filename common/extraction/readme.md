@@ -213,7 +213,7 @@ not balance proof and must not satisfy the auto-approve precondition.
 
 ## Brokerage Position Import
 
-Brokerage extraction feeds Layer 2 `AtomicPosition` through `apps/backend/src/services/brokerage_positions.py`.
+Brokerage extraction feeds Layer 2 `AtomicPosition` through `apps/backend/src/extraction/extension/brokerage_positions.py`.
 
 ### Producer routing & positions output schema (#1139)
 
