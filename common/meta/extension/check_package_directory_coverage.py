@@ -10,9 +10,11 @@ dissolved back into real packages (#1564-#1568, #1430).
 This gate closes that gap from the other direction: it enumerates every
 directory directly under ``common/`` and requires each one to either ship a
 ``contract.py`` or be a documented, reasoned entry in
-:data:`UNGOVERNED_EXCEPTIONS` (a pending SSOT-only domain, or leftover files with
-no clean package fit yet). A brand-new directory with neither is rejected, so the
-junk-drawer pattern cannot silently recur.
+:data:`UNGOVERNED_EXCEPTIONS`. The migration clean-up in #1430 retired the last
+residual exception (``common/ssot``), so the list is now empty and a
+shrink-only ratchet: a brand-new directory with neither a ``contract.py`` nor
+an exception entry is rejected, so the junk-drawer pattern cannot silently
+recur, and the list may not silently regrow.
 
 stdlib only (no pyyaml/pydantic) so the gate runs anywhere, including the
 lightweight CI lint environment.
