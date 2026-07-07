@@ -109,6 +109,7 @@ INFRA2_WORKFLOW_FILES = (
     ".github/workflows/docs.yml",
     ".github/workflows/infra-ci.yml",
     ".github/workflows/ops-checks.yml",
+    ".github/workflows/preview-teardown.yml",
     ".github/workflows/reconcile-iac-inputs.yml",
 )
 

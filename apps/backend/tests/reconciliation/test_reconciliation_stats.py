@@ -15,7 +15,7 @@ import pytest
 from src.models.account import Account, AccountType
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
-from src.services.reconciliation import get_reconciliation_stats
+from src.reconciliation import get_reconciliation_stats
 
 
 def _make_atomic(user_id, *, txn_date, description, amount, direction=TransactionDirection.IN):

@@ -3,7 +3,8 @@
 ``check_package_contract`` discovers packages additively (globs
 ``common/*/contract.py``), so it never notices a directory with NO
 ``contract.py`` -- exactly how ``common/ci``, ``common/shell``, and
-``common/ssot`` accumulated as undeclared junk drawers (#1564-#1568).
+``common/ssot`` accumulated as undeclared junk drawers before the cleanup
+finished (#1564-#1568, #1430).
 ``check_package_directory_coverage`` closes that gap: it enumerates every
 directory directly under ``common/`` and fails on one that ships neither a
 ``contract.py`` nor a documented entry in ``UNGOVERNED_EXCEPTIONS``.
@@ -35,6 +36,11 @@ def test_real_repo_passes() -> None:
     """The actual repository has no ungoverned, undocumented common/ directory."""
     errors = gate.check_directory_coverage(REPO_ROOT)
     assert errors == [], "\n".join(errors)
+
+
+def test_residual_exception_list_is_empty() -> None:
+    """#1430: the repo no longer needs a common/ junk-drawer exception list."""
+    assert gate.UNGOVERNED_EXCEPTIONS == {}
 
 
 def test_directory_with_contract_passes(tmp_path: Path) -> None:

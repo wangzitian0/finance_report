@@ -11,7 +11,7 @@ from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
-from src.services.reconciliation import (
+from src.reconciliation import (
     DEFAULT_CONFIG,
     auto_accept,
     build_many_to_one_groups,
@@ -94,7 +94,8 @@ def test_load_reconciliation_config_reads_yaml_and_env(monkeypatch: pytest.Monke
 
 def test_load_reconciliation_config_malformed_yaml(monkeypatch):
     """Test that malformed YAML falls back to defaults."""
-    from src.services import reconciliation, reconciliation_config
+    import src.reconciliation as reconciliation
+    from src.reconciliation.base import config as reconciliation_config
 
     class MockPath:
         def exists(self):
@@ -123,7 +124,8 @@ def test_load_reconciliation_config_no_yaml_module(monkeypatch):
     """Test that missing yaml module falls back to defaults."""
     import sys
 
-    from src.services import reconciliation, reconciliation_config
+    import src.reconciliation as reconciliation
+    from src.reconciliation.base import config as reconciliation_config
 
     # Mock Path to say file exists
     class MockPath:

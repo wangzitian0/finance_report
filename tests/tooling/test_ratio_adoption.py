@@ -20,7 +20,7 @@ BACKEND_RATIO_ADOPTION_FILES = [
     Path("apps/backend/src/services/allocation.py"),
     Path("apps/backend/src/services/performance_report.py"),
     Path("apps/backend/src/services/reporting"),
-    Path("apps/backend/src/services/reconciliation_stats.py"),
+    Path("apps/backend/src/reconciliation/data/stats.py"),
 ]
 
 FRONTEND_RATIO_ADOPTION_FILES = [
@@ -103,7 +103,7 @@ def test_AC12_9_3_backend_adoption_keeps_ratio_typed_until_boundary():
     assert "def _ratio_or_zero(" not in portfolio
     assert "def _percent_or_zero(" not in portfolio
 
-    reconciliation = _read(Path("apps/backend/src/services/reconciliation_stats.py"))
+    reconciliation = _read(Path("apps/backend/src/reconciliation/data/stats.py"))
     assert "Decimal(matched)" not in reconciliation
     assert "Decimal(total)" not in reconciliation
 

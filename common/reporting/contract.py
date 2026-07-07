@@ -27,6 +27,7 @@ CONTRACT = PackageContract(
         "platform",
         "observability",
         "config",
+        "reconciliation",
     ],
     roles=["base", "extension", "data"],
     units=[

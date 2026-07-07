@@ -30,7 +30,7 @@ from src.models.layer3 import ClassificationRule, ClassificationStatus, RuleType
 from src.models.reconciliation import ReconciliationMatch, ReconciliationMatchJournalEntry, ReconciliationStatus
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
-from src.services.reconciliation import sync_reconciliation_match_journal_entry_links
+from src.reconciliation import sync_reconciliation_match_journal_entry_links
 
 BACKEND_DIR = Path(__file__).parent.parent.parent
 MIGRATION_PATH = BACKEND_DIR / "migrations" / "versions" / "0034_audit_anchor_referential_integrity.py"

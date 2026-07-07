@@ -50,7 +50,7 @@ Automatically match bank transactions with journal entries, implementing intelli
 
 ### Matching Algorithm (Backend)
 
-- [x] `services/reconciliation.py` - Reconciliation engine
+- [x] `reconciliation/extension/matching.py` - Reconciliation engine
   - [x] `calculate_match_score()` - Composite scoring
   - [x] `find_candidates()` - Find candidate journal entries
   - [x] `execute_matching()` - Batch matching execution
@@ -77,7 +77,7 @@ Automatically match bank transactions with journal entries, implementing intelli
 
 ### Anomaly Detection (Backend)
 
-- [x] `services/anomaly.py` - Anomaly detection
+- [x] `reconciliation/extension/anomaly.py` - Anomaly detection
   - [x] Amount anomaly (> 10x monthly average)
   - [x] Frequency anomaly (same merchant > 5 transactions/day)
   - [x] Time anomaly (large amounts during non-business hours)
@@ -248,9 +248,9 @@ See: common/ledger/readme.md#decimal-rule
 ## 🔗 Deliverables
 
 - [x] `apps/backend/src/models/reconciliation.py`
-- [x] `apps/backend/src/services/reconciliation.py`
+- [x] `apps/backend/src/reconciliation/extension/matching.py`
 - [x] `apps/backend/src/services/review_queue.py`
-- [x] `apps/backend/src/services/anomaly.py`
+- [x] `apps/backend/src/reconciliation/extension/anomaly.py`
 - [x] `apps/backend/src/routers/reconciliation.py`
 - [x] `apps/frontend/app/reconciliation/page.tsx`
 - [x] `apps/backend/tests/reconciliation/` - Test suite
@@ -401,7 +401,7 @@ slice adds:
   `{user_id, from_account, amount_from, currency_from, to_account, amount_to,
   currency_to, rate, fee, fee_currency, conversion_date}` — recording a paired
   multi-leg FX event (**AC2**);
-- a deterministic pairing function (`services/fx_transfer.py::pair_fx_legs`) that
+- a deterministic pairing function (`reconciliation/extension/fx_transfer.py::pair_fx_legs`) that
   matches an out-leg in currency A with an in-leg in currency B for the **same
   owner**, **opposite direction**, within a **time window**, where
   `amount_from ≈ amount_to × market_rate` within a Decimal tolerance (**AC2**);
@@ -417,7 +417,7 @@ slice adds:
   `fx_conversions` row whose legs are anchored to journal entries excludes those
   legs from income/expense aggregation, so the net-worth/income report reflects the
   internal transfer as net-zero minus the fee, proven end to end (**AC3 E2E**);
-- **ledger-based auto-discovery** (`services/fx_transfer_discovery.py::discover_fx_conversions`,
+- **ledger-based auto-discovery** (`reconciliation/extension/fx_transfer_discovery.py::discover_fx_conversions`,
   consumed by `_internal_transfer_adjustment`): candidate cross-currency transfer
   leg pairs are discovered directly from RAW asset-account journal lines — no
   pre-recorded `fx_conversions` row required — by reinterpreting each asset line as

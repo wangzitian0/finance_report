@@ -12,7 +12,7 @@ from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
-from src.services.consistency_checks import (
+from src.reconciliation.extension.consistency_checks import (
     detect_anomalies_batch,
     detect_duplicates,
     detect_transfer_pairs,
@@ -592,7 +592,7 @@ class TestDetectAnomaliesEdgeCases:
         await db.flush()
 
         with patch(
-            "src.services.consistency_checks.detect_anomalies",
+            "src.reconciliation.extension.consistency_checks.detect_anomalies",
             new=AsyncMock(
                 return_value=[SimpleNamespace(anomaly_type="REPEATED_DESCRIPTION", message="x", severity="low")]
             ),

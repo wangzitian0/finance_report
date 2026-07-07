@@ -2,6 +2,12 @@
   "in::apps/backend/src/models/_registry.py::src.identity.extension.sql::<import>",
   "in::apps/backend/src/routers/evidence.py::src.extraction.extension.evidence_lineage::DEFAULT_MAX_DEPTH",
   "in::apps/backend/src/routers/evidence.py::src.extraction.extension.evidence_lineage::EvidenceTraversalStep",
+  "in::apps/backend/src/routers/reconciliation.py::src.reconciliation.extension.anomaly::detect_anomalies",
+  "in::apps/backend/src/routers/review.py::src.reconciliation.extension.consistency_checks::get_pending_checks",
+  "in::apps/backend/src/routers/review.py::src.reconciliation.extension.consistency_checks::has_unresolved_checks",
+  "in::apps/backend/src/routers/review.py::src.reconciliation.extension.consistency_checks::list_checks",
+  "in::apps/backend/src/routers/review.py::src.reconciliation.extension.consistency_checks::resolve_check",
+  "in::apps/backend/src/routers/review.py::src.reconciliation.extension.consistency_checks::run_all_consistency_checks",
   "in::apps/backend/src/services/chain_repair.py::src.extraction.base.validation::ChainBreak",
   "in::apps/backend/src/services/market_data/_base.py::src.audit.unit_price::UNIT_PRICE_QUANTUM",
   "out::apps/backend/src/extraction/extension/_base.py::src.services::ai_streaming",
@@ -17,5 +23,13 @@
   "out::apps/backend/src/extraction/extension/service.py::src.services.chain_repair::RegionReExtractor",
   "out::apps/backend/src/extraction/extension/service.py::src.services.chain_repair::repair_under_extraction",
   "out::apps/backend/src/ledger/extension/repository.py::src.services.source_type_priority::normalize_source_type",
-  "out::apps/backend/src/observability/audit.py::src.services.pii_redaction::detect_pii"
+  "out::apps/backend/src/observability/audit.py::src.services.pii_redaction::detect_pii",
+  "out::apps/backend/src/reconciliation/base/config.py::src.services.promotion_gate::RECONCILIATION_AUTO_ACCEPT_SCORE",
+  "out::apps/backend/src/reconciliation/base/config.py::src.services.promotion_gate::RECONCILIATION_REVIEW_SCORE",
+  "out::apps/backend/src/reconciliation/base/config.py::src.services.source_type_priority::source_type_rank",
+  "out::apps/backend/src/reconciliation/extension/matching.py::src.services.source_type_priority::promote_entry_source_type",
+  "out::apps/backend/src/reconciliation/extension/scoring.py::src.prompts.reconciliation::build_reconciliation_prompt",
+  "out::apps/backend/src/reconciliation/extension/scoring.py::src.services.ai_streaming::AIStreamError",
+  "out::apps/backend/src/reconciliation/extension/scoring.py::src.services.ai_streaming::accumulate_stream",
+  "out::apps/backend/src/reconciliation/extension/scoring.py::src.services.ai_streaming::stream_ai_json"
 ]

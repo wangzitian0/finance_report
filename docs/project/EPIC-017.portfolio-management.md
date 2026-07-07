@@ -96,12 +96,20 @@ be treated as current work.
 > **Coverage**: See `apps/backend/tests/portfolio/`
 
 ### AC17.1: Holdings & P&L Tracking
+
+> **Partially migrated.** The write-side accounting/cost-basis rows formerly
+> tracked in this EPIC are now owned directly by
+> the `portfolio` package roadmap in
+> [`common/portfolio/contract.py`](../../common/portfolio/contract.py) as
+> `AC-portfolio.1.1` · `AC-portfolio.1.2` ·
+> `AC-portfolio.1.3` · `AC-portfolio.4.1` ·
+> `AC-portfolio.4.2` · `AC-portfolio.2.1` ·
+> `AC-portfolio.2.2` · `AC-portfolio.3.1`. The remaining rows below
+> stay with the legacy EPIC owner until their read-side/package cutover lands.
+
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC17.1.1 | Holdings Summary | `test_get_holdings_happy_path` | `portfolio/test_portfolio_service.py` | P0 |
-| AC17.1.2 | FIFO Cost Basis | `test_sell_transaction_uses_fifo_and_records_realized_gain` | `portfolio/test_investment_accounting.py` | P0 |
-| AC17.1.3 | LIFO Cost Basis | `test_sell_transaction_uses_lifo_loss_and_disposes_position` | `portfolio/test_investment_accounting.py` | P0 |
-| AC17.1.4 | Average Cost Basis | `test_sell_transaction_uses_average_cost_for_realized_pnl` | `portfolio/test_investment_accounting.py` | P0 |
 | AC17.1.5 | Unrealized P&L Calculation | `test_unrealized_pnl_happy_path` | `portfolio/test_portfolio_service.py` | P0 |
 | AC17.1.6 | Manual Price Update | `test_update_prices_happy` | `portfolio/test_portfolio_service.py` | P1 |
 | AC17.1.7 | Portfolio summary happy path returns correct counts and totals. | `test_portfolio_summary_happy` | `portfolio/test_portfolio_service.py` | P1 |
@@ -162,11 +170,17 @@ be treated as current work.
 
 ### AC17.5: Investment Accounting (Journal Entries)
 
+> **Partially migrated.** The write-side accounting rows are homed in the
+> `portfolio` package roadmap as
+> `AC-portfolio.1.1` · `AC-portfolio.1.2` ·
+> `AC-portfolio.1.3` · `AC-portfolio.4.1` ·
+> `AC-portfolio.4.2` · `AC-portfolio.2.1` ·
+> `AC-portfolio.2.2` · `AC-portfolio.3.1`
+> ([`common/portfolio/contract.py`](../../common/portfolio/contract.py)); the
+> remaining rows below stay with their own owners.
+
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC17.5.1 | Buy Transaction → Journal Entry | `test_buy_transaction_creates_balanced_journal_entry_and_lot` | `portfolio/test_investment_accounting.py` | P0 |
-| AC17.5.2 | Sell Transaction → Journal Entry + Realized P&L | `test_sell_transaction_uses_fifo_and_records_realized_gain`, `test_sell_transaction_uses_average_cost_for_realized_pnl` | `portfolio/test_investment_accounting.py` | P0 |
-| AC17.5.3 | Dividend → Journal Entry → Income Statement | `test_dividend_transaction_posts_income_and_dividend_record` | `portfolio/test_investment_accounting.py` | P0 |
 | AC17.5.4 | Unrealized P&L → Balance Sheet | `test_unrealized_pnl_happy_path`, `test_statement_import_flows_to_holdings_and_balance_sheet` | `portfolio/test_portfolio_service.py`, `portfolio/test_brokerage_position_parsing.py` | P0 |
 | AC17.5.5 | Quantity == 0 -> return market_value directly. | `test_get_latest_price_zero_quantity` | `portfolio/test_portfolio_service.py` | P1 |
 | AC17.5.6 | No price data -> AssetNotFoundError. | `test_get_latest_price_no_data` | `portfolio/test_portfolio_service.py` | P1 |
@@ -175,10 +189,14 @@ be treated as current work.
 
 ### AC17.6: Integration & End-to-End
 
+> **Partially migrated.** The investment-accounting lifecycle rows are now
+> package-owned as `AC-portfolio.2.1` and
+> `AC-portfolio.4.1`
+> ([`common/portfolio/contract.py`](../../common/portfolio/contract.py)).
+> The API/E2E rows below remain EPIC-owned.
+
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC17.6.1 | Full Buy/Sell Cycle | `test_sell_transaction_uses_fifo_and_records_realized_gain` | `portfolio/test_investment_accounting.py` | P0 |
-| AC17.6.2 | Dividend Accrual to Income | `test_dividend_transaction_posts_income_and_dividend_record` | `portfolio/test_investment_accounting.py` | P0 |
 | AC17.6.3 | GET /portfolio/holdings with as_of_date filter returns 200. | `test_get_holdings_with_date_filter` | `portfolio/test_portfolio_router.py` | P1 |
 | AC17.6.4 | GET /portfolio/holdings with include_disposed=true returns 200. | `test_get_holdings_include_disposed` | `portfolio/test_portfolio_router.py` | P1 |
 | AC17.6.5 | GET /portfolio/performance without period returns metrics. | `test_get_performance_without_period` | `portfolio/test_portfolio_router.py` | P1 |

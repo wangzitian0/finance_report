@@ -78,7 +78,7 @@ async def test_buy_transaction_creates_balanced_journal_entry_and_lot(
     chart,
     svc: InvestmentAccountingService,
 ):
-    """AC17.5.1: Buy transactions increase investments and reduce brokerage cash."""
+    """AC-portfolio.1.1: Buy transactions increase investments and reduce brokerage cash."""
     result = await svc.post_buy(
         db,
         user_id=test_user.id,
@@ -145,7 +145,7 @@ async def test_sell_transaction_uses_fifo_and_records_realized_gain(
     chart,
     svc: InvestmentAccountingService,
 ):
-    """AC17.1.2 AC17.5.2 AC17.6.1: Sell transactions consume FIFO lots and record realized P&L."""
+    """AC-portfolio.2.1: Sell transactions consume FIFO lots and record realized P&L."""
     await svc.post_buy(
         db,
         user_id=test_user.id,
@@ -212,7 +212,7 @@ async def test_sell_transaction_uses_average_cost_for_realized_pnl(
     chart,
     svc: InvestmentAccountingService,
 ):
-    """AC17.1.4 AC17.5.2: Average cost basis is explicit and persisted on sell transactions."""
+    """AC-portfolio.2.2: Average cost basis is explicit and persisted on sell transactions."""
     await svc.post_buy(
         db,
         user_id=test_user.id,
@@ -262,7 +262,7 @@ async def test_sell_transaction_uses_lifo_loss_and_disposes_position(
     chart,
     svc: InvestmentAccountingService,
 ):
-    """AC17.1.3 AC17.5.2 AC17.6.1: LIFO sells can realize losses and close positions."""
+    """AC-portfolio.3.1: LIFO sells can realize losses and close positions."""
     await svc.post_buy(
         db,
         user_id=test_user.id,
@@ -329,7 +329,7 @@ async def test_dividend_transaction_posts_income_and_dividend_record(
     chart,
     svc: InvestmentAccountingService,
 ):
-    """AC17.5.3/AC17.6.2: Dividends create cash, income, and DividendIncome records."""
+    """AC-portfolio.4.1: Dividends create cash, income, and DividendIncome records."""
     buy = await svc.post_buy(
         db,
         user_id=test_user.id,
@@ -383,7 +383,7 @@ async def test_dividend_transaction_posts_withholding_tax(
     chart,
     svc: InvestmentAccountingService,
 ):
-    """AC17.5.3/AC17.6.2: Withholding tax splits dividend cash and tax expense."""
+    """AC-portfolio.4.2: Withholding tax splits dividend cash and tax expense."""
     await svc.post_buy(
         db,
         user_id=test_user.id,
@@ -421,7 +421,7 @@ async def test_investment_accounting_rejects_invalid_transactions(
     chart,
     svc: InvestmentAccountingService,
 ):
-    """AC17.5.1/AC17.5.2/AC17.5.3: Invalid transaction inputs are rejected."""
+    """AC-portfolio.1.2: Invalid transaction inputs are rejected."""
     with pytest.raises(InvestmentAccountingValidationError, match="buy amount must be positive"):
         await svc.post_buy(
             db,
@@ -520,7 +520,7 @@ async def test_investment_accounting_rejects_invalid_transactions(
 async def test_investment_accounting_rejects_invalid_account_and_position_helpers(
     svc: InvestmentAccountingService,
 ):
-    """AC17.5.1/AC17.5.2: Ledger helpers reject invalid accounts and missing positions."""
+    """AC-portfolio.1.3: Ledger helpers reject invalid accounts and missing positions."""
     user_id = uuid4()
     account_id = uuid4()
 

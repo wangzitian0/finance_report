@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.services.anomaly import detect_anomalies
+from src.reconciliation.extension.anomaly import detect_anomalies
 
 TRANSFER_TOLERANCE = Decimal("0.001")
 TRANSFER_DATE_TOLERANCE_DAYS = 3

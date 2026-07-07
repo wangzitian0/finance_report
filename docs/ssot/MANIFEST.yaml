@@ -138,7 +138,7 @@ concepts:
       - docs/reference/api-overview.md
       - docs/hooks.py
       - tools/generate_db_schema_reference.py
-      - common/ssot/generate_db_schema_reference.py
+      - common/meta/extension/generate_db_schema_reference.py
       - common/ledger/readme.md
       - docs/ssot/reconciliation.md
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 from types import ModuleType
 
-from common.ssot import generate_api_reference as gar
+from common.platform import generate_api_reference as gar
 
 
 def test_render_openapi_reference_uses_openapi_shape() -> None:

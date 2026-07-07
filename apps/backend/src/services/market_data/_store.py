@@ -4,22 +4,14 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 from decimal import Decimal
-from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit.quantity import Quantity
-from src.config import settings
-from src.models.account import Account
-from src.models.journal import JournalEntry, JournalLine
-from src.models.layer2 import AtomicPosition
-from src.models.layer3 import ManagedPosition, PositionStatus
 from src.models.market_data import FxRate, MarketDataSyncState, StockPrice
 from src.services.market_data._base import (
     _FRESHNESS_THRESHOLD,
-    MARKET_DATA_QUANTITY_UNIT,
     logger,
 )
 from src.services.market_data._types import (
@@ -447,51 +439,3 @@ async def _stored_fx_rate_dates_for_scope(
 ) -> set[date]:
     base, quote_currency = scope
     return await _stored_fx_rate_dates(db, base, quote_currency, start_date, end_date)
-
-
-async def _active_stock_symbols(db: AsyncSession, user_id: UUID | None) -> list[str]:
-    stmt = (
-        select(ManagedPosition.asset_identifier)
-        .where(ManagedPosition.status == PositionStatus.ACTIVE)
-        .where(ManagedPosition.quantity != Quantity.zero(MARKET_DATA_QUANTITY_UNIT).quantize().value)
-        .order_by(ManagedPosition.asset_identifier)
-    )
-    if user_id is not None:
-        stmt = stmt.where(ManagedPosition.user_id == user_id)
-    result = await db.execute(stmt)
-    return sorted({_normalize_symbol(row[0]) for row in result.all() if row[0]})
-
-
-async def _observed_fx_pairs(
-    db: AsyncSession,
-    user_id: UUID | None,
-    *,
-    include_default: bool = True,
-) -> list[str]:
-    base = _normalize_currency(settings.base_currency)
-    default_counterparty = "USD" if base != "USD" else "SGD"
-    currencies: set[str] = {base}
-    if include_default:
-        currencies.add(default_counterparty)
-
-    account_stmt = select(Account.currency)
-    if user_id is not None:
-        account_stmt = account_stmt.where(Account.user_id == user_id)
-    currencies.update(_normalize_currency(row[0]) for row in (await db.execute(account_stmt)).all() if row[0])
-
-    line_stmt = select(JournalLine.currency).join(JournalEntry, JournalEntry.id == JournalLine.journal_entry_id)
-    if user_id is not None:
-        line_stmt = line_stmt.where(JournalEntry.user_id == user_id)
-    currencies.update(_normalize_currency(row[0]) for row in (await db.execute(line_stmt)).all() if row[0])
-
-    position_stmt = select(ManagedPosition.currency)
-    if user_id is not None:
-        position_stmt = position_stmt.where(ManagedPosition.user_id == user_id)
-    currencies.update(_normalize_currency(row[0]) for row in (await db.execute(position_stmt)).all() if row[0])
-
-    snapshot_stmt = select(AtomicPosition.currency)
-    if user_id is not None:
-        snapshot_stmt = snapshot_stmt.where(AtomicPosition.user_id == user_id)
-    currencies.update(_normalize_currency(row[0]) for row in (await db.execute(snapshot_stmt)).all() if row[0])
-
-    return [f"{currency}/{base}" for currency in sorted(currencies) if currency != base]

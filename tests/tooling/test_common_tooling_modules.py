@@ -184,9 +184,11 @@ def test_AC8_13_57_ssot_tools_delegate_to_common_implementations():
         "tools.check_manifest": "common.meta.extension.check_manifest",
         "tools.check_ssot_ownership": "common.meta.extension.check_ssot_ownership",
         "tools.generate_ac_registry": "common.testing.generate_ac_registry",
+        "tools.generate_api_reference": "common.platform.generate_api_reference",
         "tools.generate_db_schema_reference": (
-            "common.ssot.generate_db_schema_reference"
+            "common.meta.extension.generate_db_schema_reference"
         ),
+        "tools.generate_openapi_spec": "common.platform.generate_openapi_spec",
         "tools.lint_doc_consistency": "common.testing.lint_doc_consistency",
     }
 

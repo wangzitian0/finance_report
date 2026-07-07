@@ -17,7 +17,7 @@ from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AtomicTransaction
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_summary import StatementSummary
-from src.services.reconciliation import (
+from src.reconciliation import (
     DEFAULT_CONFIG,
     MatchCandidate,
     ReconciliationConfig,
@@ -747,7 +747,7 @@ async def test_execute_matching_skip_unbalanced(db: AsyncSession, test_user):
         amount=Decimal("100.00"),
     )
 
-    with patch("src.services.reconciliation.is_entry_balanced", return_value=False):
+    with patch("src.reconciliation.extension.matching.is_entry_balanced", return_value=False):
         matches = await execute_matching(db, user_id=user_id)
     assert len(matches) == 0
 
@@ -833,7 +833,7 @@ def test_load_reconciliation_config_yaml_import_error():
 
 
 def test_auto_accept_helper():
-    from src.services.reconciliation import auto_accept
+    from src.reconciliation import auto_accept
 
     assert auto_accept(85, DEFAULT_CONFIG) is True
     assert auto_accept(84, DEFAULT_CONFIG) is False
@@ -1188,7 +1188,7 @@ async def test_transfer_entry_creation_failure(db: AsyncSession):
     await db.commit()
 
     with patch(
-        "src.services.reconciliation.create_transfer_out_entry",
+        "src.reconciliation.extension.phases.transfer_detection.create_transfer_out_entry",
         side_effect=Exception("DB Error"),
     ):
         # Should not crash — falls through to normal matching
@@ -1487,7 +1487,7 @@ async def test_find_transfer_pairs_exception_non_fatal(db: AsyncSession, test_us
     await db.commit()
 
     with patch(
-        "src.services.reconciliation.find_transfer_pairs",
+        "src.reconciliation.extension.matching.find_transfer_pairs",
         side_effect=Exception("Pair search failed"),
     ):
         # Should not crash — non-fatal error is logged
@@ -1570,7 +1570,7 @@ async def test_many_to_one_pending_review_status(db: AsyncSession):
 
     # Use config with very high auto_accept to ensure PENDING_REVIEW
     with patch(
-        "src.services.reconciliation.load_reconciliation_config",
+        "src.reconciliation.load_reconciliation_config",
         return_value=ReconciliationConfig(
             weight_amount=Decimal("0.40"),
             weight_date=Decimal("0.25"),
@@ -1724,7 +1724,7 @@ async def test_normal_matching_pending_review(db: AsyncSession, test_user):
 
     # Use config with very high auto_accept but low pending_review
     with patch(
-        "src.services.reconciliation.load_reconciliation_config",
+        "src.reconciliation.load_reconciliation_config",
         return_value=ReconciliationConfig(
             weight_amount=Decimal("0.40"),
             weight_date=Decimal("0.25"),
@@ -1752,7 +1752,7 @@ def test_build_many_to_one_groups_empty_description():
     """Cover line 457: build_many_to_one_groups skips txns with empty description."""
     from types import SimpleNamespace
 
-    from src.services.reconciliation import build_many_to_one_groups
+    from src.reconciliation import build_many_to_one_groups
 
     txn1 = SimpleNamespace(description="", txn_date=date(2024, 1, 1), amount=Decimal("50.00"))
     txn2 = SimpleNamespace(description="", txn_date=date(2024, 1, 1), amount=Decimal("50.00"))
@@ -1925,7 +1925,7 @@ async def test_execute_matching_layer2_pending_review(db: AsyncSession):
     await db.commit()
 
     with patch(
-        "src.services.reconciliation.load_reconciliation_config",
+        "src.reconciliation.load_reconciliation_config",
         return_value=ReconciliationConfig(
             weight_amount=Decimal("0.40"),
             weight_date=Decimal("0.25"),
@@ -2019,7 +2019,9 @@ async def test_execute_matching_multi_entry_unbalanced_skip(db: AsyncSession, te
     await db.commit()
 
     # The combinations(candidates, 2) check should skip (entry_a, entry_b) because entry_b is marked unbalanced
-    with patch("src.services.reconciliation.is_entry_balanced", side_effect=lambda entry: entry.id != entry_b.id):
+    with patch(
+        "src.reconciliation.extension.matching.is_entry_balanced", side_effect=lambda entry: entry.id != entry_b.id
+    ):
         matches = await execute_matching(db, user_id=user_id)
     # entry_a alone (50) doesn't match txn (100) well; unbalanced pair is skipped
     # Result depends on scoring but the key is the code path is exercised
@@ -2098,7 +2100,7 @@ async def test_calculate_match_score_no_history_override(db: AsyncSession):
 async def test_get_pending_layer2_transactions_with_limit(db: AsyncSession):
     """Cover lines 568-581: _get_pending_layer2_transactions with limit."""
     from src.models.layer2 import AtomicTransaction
-    from src.services.reconciliation import _get_pending_layer2_transactions
+    from src.reconciliation import _get_pending_layer2_transactions
 
     user_id = uuid4()
     user = User(id=user_id, email=f"l2-limit-{uuid4()}@example.com", hashed_password="hashed")
@@ -2132,7 +2134,7 @@ async def test_get_pending_layer2_transactions_with_limit(db: AsyncSession):
 async def test_get_existing_active_match_layer2(db: AsyncSession):
     """Cover _get_existing_active_match returning None then the active match."""
     from src.models.layer2 import AtomicTransaction
-    from src.services.reconciliation import _get_existing_active_match
+    from src.reconciliation import _get_existing_active_match
 
     user_id = uuid4()
     user = User(id=user_id, email=f"match-l2-{uuid4()}@example.com", hashed_password="hashed")
@@ -2177,7 +2179,7 @@ async def test_AC10_10_4_reconciliation_match_outcome_metric_emitted(db: AsyncSe
 
     outcomes: list[str] = []
     monkeypatch.setattr(
-        "src.services.reconciliation.record_reconciliation_match_outcome",
+        "src.reconciliation.extension.matching.record_reconciliation_match_outcome",
         lambda *, outcome: outcomes.append(outcome),
     )
 

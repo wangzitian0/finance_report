@@ -52,12 +52,14 @@ async def test_AC10_8_2_parse_checkpoints_and_failure_logs_are_structured(db, te
     success = await _create_statement(db, user_id, file_hash="success-hash")
     mock_info = MagicMock()
     mock_error = MagicMock()
+    mock_warning = MagicMock()
 
     async def fake_parse_document(*_args, **_kwargs):
         return _parsed_statement(user_id, "success-hash"), []
 
     monkeypatch.setattr(statement_parsing.logger, "info", mock_info)
     monkeypatch.setattr(statement_parsing.logger, "error", mock_error)
+    monkeypatch.setattr(statement_parsing.logger, "warning", mock_warning)
     monkeypatch.setattr(statement_parsing.ExtractionService, "parse_document", fake_parse_document)
     monkeypatch.setattr(
         statement_parsing.StorageService,
@@ -108,6 +110,7 @@ async def test_AC10_8_2_parse_checkpoints_and_failure_logs_are_structured(db, te
         raise ExtractionError("provider failed without raw document content")
 
     mock_error.reset_mock()
+    mock_warning.reset_mock()
     monkeypatch.setattr(statement_parsing.ExtractionService, "parse_document", fail_parse_document)
 
     await parse_statement_background(
@@ -124,7 +127,7 @@ async def test_AC10_8_2_parse_checkpoints_and_failure_logs_are_structured(db, te
         request_id="req-failure",
     )
 
-    failed = next(call.kwargs for call in mock_error.call_args_list if call.args[0] == "statement.parse.failed")
+    failed = next(call.kwargs for call in mock_warning.call_args_list if call.args[0] == "statement.parse.failed")
     assert failed["audit_event"] == "statement.parse.failed"
     assert failed["statement_id"] == str(failure.id)
     assert failed["request_id"] == "req-failure"

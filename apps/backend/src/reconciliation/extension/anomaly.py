@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.layer2 import AtomicTransaction
-from src.services.reconciliation import extract_merchant_tokens
+from src.reconciliation.extension.scoring import extract_merchant_tokens
 
 
 @dataclass

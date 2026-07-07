@@ -7,7 +7,7 @@ issue #1556):
    test path belongs to and whether that stage is CI-required. The checked-in
    ``docs/ssot/test-execution-matrix.yaml`` is a *generated view* of these
    rules (``emit_execution_matrix_yaml``); a tooling contract test fails when
-   the two drift. Consumers (``common/ssot/check_ac_traceability.py``) keep
+   the two drift. Consumers (``common/testing/check_ac_traceability.py``) keep
    reading the generated YAML, so AC-traceability behavior is unchanged.
 
 2. **E2E ownership rows** (``E2E_ROWS``): every root E2E spec gets a named row
@@ -47,7 +47,7 @@ class PathRule:
 
 
 # Order matters: the first (most specific) match wins, mirroring the
-# longest-prefix semantics in common/ssot/check_ac_traceability.py.
+# longest-prefix semantics in common/testing/check_ac_traceability.py.
 PATH_RULES: tuple[PathRule, ...] = (
     PathRule(
         "apps/backend/tests/e2e/test_auth_flows.py", "backend_ui_e2e_local", False

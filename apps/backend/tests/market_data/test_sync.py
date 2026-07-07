@@ -13,6 +13,7 @@ from src.models.layer2 import AtomicPosition
 from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.models.market_data import FxRate, MarketDataSyncState, StockPrice
 from src.services import market_data
+from src.services.market_data_discovery import active_stock_symbols, observed_fx_pairs
 from src.services.portfolio import PortfolioService
 
 
@@ -340,7 +341,7 @@ async def test_observed_fx_pairs_include_default_and_non_base_business_currency(
     )
     await db.commit()
 
-    pairs = await market_data._observed_fx_pairs(db, test_user.id)
+    pairs = await observed_fx_pairs(db, test_user.id)
 
     assert pairs == ["HKD/SGD", "USD/SGD"]
 
@@ -397,7 +398,7 @@ async def test_active_stock_symbols_use_active_nonzero_holdings(
     )
     await db.commit()
 
-    assert await market_data._active_stock_symbols(db, test_user.id) == ["AAPL"]
+    assert await active_stock_symbols(db, test_user.id) == ["AAPL"]
 
 
 async def test_sync_stock_prices_records_missing_trading_days(

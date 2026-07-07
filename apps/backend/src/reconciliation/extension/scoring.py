@@ -11,15 +11,16 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config import settings
+import src.config
 from src.models.account import AccountType
 from src.models.journal import JournalEntry
 from src.models.layer2 import AtomicTransaction
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.observability import get_logger
-from src.services.reconciliation_config import ReconciliationConfig
+from src.reconciliation.base.config import ReconciliationConfig
 
 logger = get_logger(__name__)
+settings = src.config.settings
 
 
 def normalize_text(value: str) -> str:

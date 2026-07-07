@@ -19,11 +19,9 @@ from src.ledger import detect_transfer_pattern
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.services.reconciliation import (
-    DEFAULT_CONFIG,
-    ReconciliationConfig,
-    _find_many_to_one_candidates,
-    _find_normal_candidates,
+from src.reconciliation.base.config import DEFAULT_CONFIG, ReconciliationConfig
+from src.reconciliation.extension.matching import _find_many_to_one_candidates, _find_normal_candidates
+from src.reconciliation.extension.scoring import (
     score_amount,
     score_business_logic,
     score_date,
