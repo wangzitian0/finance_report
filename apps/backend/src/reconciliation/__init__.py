@@ -14,6 +14,15 @@ from src.reconciliation.base import (
     load_reconciliation_config,
 )
 from src.reconciliation.data import ReconciliationStats, get_reconciliation_stats
+from src.reconciliation.extension.fx_transfer import (
+    DEFAULT_RATE_TOLERANCE,
+    DEFAULT_TIME_WINDOW,
+    FxTransferError,
+    TransferLeg,
+    classify_internal_transfer,
+    pair_fx_legs,
+)
+from src.reconciliation.extension.fx_transfer_discovery import discover_fx_conversions
 from src.reconciliation.extension.matching import (
     _find_many_to_one_candidates,
     _find_normal_candidates,
@@ -48,6 +57,13 @@ __all__ = [
     "MatchCandidate",
     "ReconciliationConfig",
     "ReconciliationStats",
+    "DEFAULT_RATE_TOLERANCE",
+    "DEFAULT_TIME_WINDOW",
+    "FxTransferError",
+    "TransferLeg",
+    "classify_internal_transfer",
+    "discover_fx_conversions",
+    "pair_fx_legs",
     "_candidate_is_better",
     "_find_many_to_one_candidates",
     "_find_normal_candidates",

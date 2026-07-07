@@ -15,7 +15,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
-from src.ledger import ValidationError, create_journal_entry, post_journal_entry
+from src.ledger.base.validators import ValidationError
+from src.ledger.extension.repository import create_journal_entry, post_journal_entry
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 

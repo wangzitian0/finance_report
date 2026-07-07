@@ -150,24 +150,23 @@ Delegate ONLY for:
 
 ```
 .opencode/skills/
-├── domain/              # Project-specific (from SSOT)
-│   ├── accounting/      # Double-entry bookkeeping
-│   ├── reconciliation/  # Statement matching
-│   ├── reporting/       # Financial statements
-│   ├── extraction/      # Document parsing
-│   ├── schema/          # Database models
-│   ├── development/     # Moon commands, CI/CD
-│   └── infra-operations/ # Deployment, secrets, debugging
-├── professional/        # Reusable expertise
-│   ├── backend-development/
-│   ├── frontend-react/
-│   ├── qa-testing/
-│   ├── ui-ux-design/
-│   ├── product-management/
-│   └── auditor/
-└── meta/
-    └── skill-writer/
+└── domain/              # Project-specific operational knowledge
+    ├── accounting/      # Double-entry bookkeeping
+    ├── reconciliation/  # Statement matching
+    ├── reporting/       # Financial statements
+    ├── extraction/      # Document parsing
+    ├── schema/          # Database models
+    ├── development/     # Moon commands, CI/CD
+    ├── preflight/       # Pre-push verification
+    ├── ac-workflow/     # EPIC → AC → test ritual
+    ├── github-operations/   # PR/CI mechanics
+    ├── secrets-management/  # Env vars, Vault, multi-env
+    └── infra-operations/    # Deployment, debugging
 ```
+
+Generic-expertise skill packs (backend/frontend/QA/PM/UI datasets) were removed
+in #1657: frontier models carry that knowledge natively, and version-specific
+questions route to live docs (context7 MCP) instead of frozen snapshots.
 
 ---
 

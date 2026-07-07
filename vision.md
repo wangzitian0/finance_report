@@ -84,6 +84,10 @@ Our hard constraints are managed as risk, not absolutes.
   adopting the discipline of US public-company reporting. Public companies have
   already generalized the fancy operations; we align to that standard rather
   than invent our own. Minor representational gaps are tolerable.
+- **Process hygiene**: the same stave discipline applies to how we build. Real
+  financial data — amounts, balances, account numbers, holder names — never
+  appears in issues, PRs, commits, logs, or reports; development artifacts are
+  a public surface, and one leaked statement is a catastrophically short stave.
 
 ### Axiom D — The model generalizes; code guarantees the number; key nodes keep slack
 
@@ -104,6 +108,25 @@ We are an AI-driven product, and the division of labor is drawn on purpose:
   sub-cent drift or a transient hiccup. The slack lives in *thresholds and flow* —
   whether to auto-accept or escalate — never in the correctness of the number
   itself. Brittleness from over-specified detail is a defect, not rigor.
+
+### Axiom E — Production trust is part of the product
+
+A system that guards the user's numbers must also guard itself, by the same
+standard it applies to data:
+
+- **The system observes itself and fails closed.** A deployed tier declares
+  what it requires; when a required dependency is absent, it refuses to look
+  healthy. An unobserved production surface is treated exactly like
+  low-confidence data — it is the part we do not yet trust, and the mission is
+  to shrink it.
+- **Required-in-production is an SLA commitment.** Declaring a dependency
+  required is a promise that someone watches it continuously — its absence is
+  discovered by the system within minutes, not by the next release's smoke
+  test days later.
+- **Alerting is judged by actionability.** One incident reads as one thread
+  with its evidence attached. A storm of technically-true alerts that nobody
+  can act on protects nothing; noise is a defect of the net, not of the
+  operator's attention.
 
 ## North-Star Metric
 
@@ -158,6 +181,16 @@ trade-off rules say *what* to choose; these say whether the thing is built well.
 4. **Simplicity is the standard.** One function, one thing, done well and
    short; past three levels of nesting, fix the function, not the symptom.
    Over-specified complexity is a defect, not rigor. (Axiom D.)
+5. **A safety net that can silently degrade is not a safety net.** Prove a
+   behavior against a real oracle, then lock the proof so no later change can
+   hollow it out. A gate that can go vacuous while staying green is worse than
+   no gate — it keeps spending trust it no longer earns. (Axiom E, pointed at
+   our own tests and gates.)
+6. **Human judgment is the scarce resource.** Machine time is cheap; the
+   user's review bandwidth is not. Parallel work is bounded by write conflicts,
+   not by compute cost. Behavior is proven by tests; visual quality is judged
+   by human eyes on real screens. Spend compute freely to save judgment, never
+   the reverse.
 
 These govern *how* a change is built; when they still leave the choice
 ambiguous, run the Decision Filter.
