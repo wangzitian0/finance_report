@@ -1,7 +1,7 @@
 # `unit_price` — money-per-unit value language (kernel package)
 
 > The unit-price value type. Model spec:
-> [`../governance/readme.md`](../governance/readme.md). Machine contract:
+> [`../../meta/readme.md`](../../meta/readme.md). Machine contract:
 > [`contract.py`](./contract.py). Language-neutral interface + conformance:
 > [`contract/unit_price.contract.md`](./contract/unit_price.contract.md) +
 > [`conformance/vectors.json`](./conformance/vectors.json). Worklist:

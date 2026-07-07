@@ -1,7 +1,7 @@
 # `config` — env-key + schema validation helpers (infra tooling package)
 
 > Internal tooling, not a domain bounded context. Model spec:
-> [`../governance/readme.md`](../governance/readme.md). Machine contract:
+> [`../meta/readme.md`](../meta/readme.md). Machine contract:
 > [`contract.py`](./contract.py). Worklist: [`todo.md`](./todo.md).
 
 ## What

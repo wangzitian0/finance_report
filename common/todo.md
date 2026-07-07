@@ -36,12 +36,15 @@ and types/ops/store/api). ACs are `AC-<pkg>.<entity>.<seq>` in each contract's
 | 0b | `counter` → base/extension/data template + gate three-layer rule (additive) | #1418 ✅ |
 | 1 | `value → audit` fold | #1419 ✅ |
 | 2 | `ledger` | #1420 ✅ |
-| 3 | `extraction` #1421 ✅ · `pricing` #1610 ⬜ · `portfolio` #1422 ⬜ (after pricing) · `reconciliation` #1423 ⬜ · `reporting` #1424 ⬜ | partial |
-| 4 | `advisor` #1425 ⬜ · `llm` #1426 ✅ · `platform` #1427 ✅ · `identity` #1428 ✅ | partial |
+| 3 | `extraction` #1421 ✅ · `portfolio` #1422 ✅ · `reconciliation` #1423 ✅ · `reporting` #1424 ✅ (contract shipped, still `status="draft"` — roadmap not populated) · `pricing` #1610 ⬜ (PR2 in flight) | partial |
+| 4 | `advisor` #1425 ✅ · `llm` #1426 ✅ · `platform` #1427 ✅ · `identity` #1428 ✅ | done |
 | 5 | `audit` consistency closeout (global invariants + cross-package ACs) | #1429 ⬜ |
-| 6 | cleanup — delete residual EPIC tables / SSOT; retire the central `docs/ssot/MANIFEST.yaml`/registry gates once meta's data layer is the computed index | #1430 ⬜ |
+| 6 | cleanup — delete residual EPIC tables / SSOT; retire the central `docs/ssot/MANIFEST.yaml`/registry gates once meta's data layer is the computed index | tracked as a 3-wave closeout: #1662 (finish cutovers + doc-sync) → #1663 (EPIC AC migration) → #1664 (SSOT/index retirement); #1430 closed early on the directory-coverage-only reading |
 
-All tracked under umbrella **#1416**.
+All tracked under umbrella **#1416**. Every package listed above ships a
+`contract.py` — "✅" here means the cutover PR merged, not that the roadmap or
+readme is complete; see [`common/readme.md`](./readme.md#map) for each
+package's live `status`.
 
 ## Definition of Done per package (from the standard)
 
@@ -78,17 +81,17 @@ coupling to the already-carved packages in `docs/ssot/app-boundary-baseline.json
 (monotonic: new edges fail CI). **This count is the migration burndown** — it
 drops as each domain is carved out.
 
-- **Now: 23 edges** — 9 inbound (remainder → a carved package's unpublished
-  internal, incl. a deep module import from `models/_registry.py`), 14 outbound
-  (a carved package → the app remainder, upward-layer).
-- The outbound edges concentrate in `extraction` (→ `services.ai_streaming` /
-  `chain_repair` / `storage` / `pii_redaction` / `assets` /
-  `source_type_priority`). They reveal deps `extraction` never internalized:
-  `ai_streaming` / `storage` / `pii_redaction` belong in lower packages
-  (llm / runtime / audit); `chain_repair` / `assets` are domain
-  logic. **Clear outbound before inbound** when carving a domain out.
-  (`promotion_gate` cleared by #1667 — relocated into `audit.promotion`,
-  consumed by `extraction`/`reconciliation`/`ledger` through the published
-  interface instead of a `services.*` reach-through.)
+- The baseline count moves as domains are carved and more edges are discovered;
+  read `docs/ssot/app-boundary-baseline.json` directly (or its generated
+  summary) for the live edge count and per-package breakdown rather than
+  copying a snapshot number here — it goes stale immediately.
+- Outbound edges (a carved package → the app remainder, upward-layer) have
+  historically concentrated in `extraction`. They reveal deps `extraction`
+  never internalized: things like `ai_streaming` / `storage` / `pii_redaction`
+  belong in lower packages (llm / runtime / audit); `chain_repair` /
+  `assets` are domain logic. **Clear outbound before inbound** when carving a
+  domain out. (`promotion_gate` cleared by #1667 — relocated into
+  `audit.promotion`, consumed by `extraction`/`reconciliation`/`ledger`
+  through the published interface instead of a `services.*` reach-through.)
 - Target: baseline → 0 when `reconciliation` / `reporting` / `portfolio` /
   `advisor` / `asset` are carved and the remainder is empty.
