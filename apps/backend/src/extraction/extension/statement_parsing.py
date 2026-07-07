@@ -313,7 +313,7 @@ async def handle_parse_failure(
                 original_filename=original_filename or file_hash,
             )
         await db.commit()
-        logger.error(
+        logger.warning(
             "statement.parse.failed",
             audit_event="statement.parse.failed",
             request_id=request_id,

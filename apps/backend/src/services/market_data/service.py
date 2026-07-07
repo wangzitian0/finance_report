@@ -17,11 +17,9 @@ from src.services.market_data._base import (
 )
 from src.services.market_data._providers import _FX_SYNC_SPEC, _STOCK_SYNC_SPEC
 from src.services.market_data._store import (
-    _active_stock_symbols,
     _derive_from_bridge_rates,
     _is_sync_scope_fresh,
     _load_stored_direct_or_inverse,
-    _observed_fx_pairs,
     _persist_fx_rate,
     _sync_scope_status,
     _upsert_sync_state,
@@ -43,6 +41,7 @@ from src.services.market_data._util import (
     _parse_fx_pair,
     _stock_scope,
 )
+from src.services.market_data_discovery import active_stock_symbols, observed_fx_pairs
 
 
 async def _sync_market_observation_series(
@@ -148,7 +147,7 @@ async def sync_fx_rates(
 ) -> MarketDataSyncResult:
     """Incrementally fill FX rows for explicit or observed business pairs."""
     sync_end = end_date or date.today()
-    sync_pairs = list(pairs) if pairs is not None else await _observed_fx_pairs(db, user_id)
+    sync_pairs = list(pairs) if pairs is not None else await observed_fx_pairs(db, user_id)
     return await _sync_market_observation_series(
         db,
         raw_scopes=sync_pairs,
@@ -171,7 +170,7 @@ async def sync_stock_prices(
     sync_symbols = (
         sorted({_normalize_symbol(symbol) for symbol in symbols})
         if symbols is not None
-        else await _active_stock_symbols(db, user_id)
+        else await active_stock_symbols(db, user_id)
     )
     return await _sync_market_observation_series(
         db,
@@ -194,7 +193,7 @@ async def ensure_market_data_fresh(
     """Refresh observed market data once when the last successful sync is older than 24h."""
     checked_at = _normalize_utc(now or datetime.now(UTC))
     sync_end = end_date or date.today()
-    fx_pairs = set(await _observed_fx_pairs(db, user_id, include_default=include_default_fx))
+    fx_pairs = set(await observed_fx_pairs(db, user_id, include_default=include_default_fx))
     fx_pairs.update(extra_fx_pairs or [])
     stale_pairs: list[str] = []
     for raw_pair in fx_pairs:
@@ -211,7 +210,7 @@ async def ensure_market_data_fresh(
         ):
             stale_pairs.append(scope)
 
-    stock_symbols = await _active_stock_symbols(db, user_id)
+    stock_symbols = await active_stock_symbols(db, user_id)
     stale_symbols: list[str] = []
     for symbol in stock_symbols:
         scope = _stock_scope(symbol)
@@ -271,7 +270,7 @@ async def get_market_data_status(
     statuses: list[MarketDataScopeStatus] = []
 
     sync_pairs = (
-        list(pairs) if pairs is not None else await _observed_fx_pairs(db, user_id, include_default=include_default_fx)
+        list(pairs) if pairs is not None else await observed_fx_pairs(db, user_id, include_default=include_default_fx)
     )
     for raw_pair in sorted(set(sync_pairs)):
         base, quote_currency = _parse_fx_pair(raw_pair)
@@ -289,7 +288,7 @@ async def get_market_data_status(
     sync_symbols = (
         sorted({_normalize_symbol(symbol) for symbol in symbols})
         if symbols is not None
-        else await _active_stock_symbols(db, user_id)
+        else await active_stock_symbols(db, user_id)
     )
     for symbol in sync_symbols:
         if not symbol:
