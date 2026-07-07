@@ -16,8 +16,7 @@
         "domain/extraction",
         "domain/infra-operations",
         "domain/secrets-management",
-        "domain/github-operations",
-        "professional/backend-development"
+        "domain/github-operations"
       ]
     },
     "prometheus": {
@@ -56,8 +55,7 @@
         "domain/extraction",
         "domain/infra-operations",
         "domain/secrets-management",
-        "domain/github-operations",
-        "professional/backend-development"
+        "domain/github-operations"
       ]
     },
     "explore": {
