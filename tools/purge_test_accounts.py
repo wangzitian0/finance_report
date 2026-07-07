@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Purge throwaway test/QA accounts from a staging database (#997 item 4).
 
-Thin operator CLI around ``apps/backend/tests/support/account_purge``. The deletion logic,
+Thin operator CLI around ``src.services.test_account_purge``. The deletion logic,
 its safety model, and the email predicate live in that library (and are unit
 tested); this wrapper only owns argument parsing, the environment guard, the DB
 session, and the final commit.
@@ -38,7 +38,7 @@ for _path in (ROOT_DIR, BACKEND_DIR):
 import src.models._registry  # noqa: E402, F401  -- register every ORM mapper before relationship config
 from src.config import settings  # noqa: E402
 from src.database import async_session_maker  # noqa: E402
-from tests.support.account_purge import (  # noqa: E402
+from src.services.test_account_purge import (  # noqa: E402
     DEFAULT_TEST_EMAIL_PATTERN,
     is_safe_purge_environment,
     purge_test_accounts,

@@ -32,7 +32,6 @@ RESIDUE_MOVES = {
     "storage.py": SRC / "runtime/extension/storage.py",
     "source_type_priority.py": SRC / "audit/source_type_priority.py",
     "app_config.py": SRC / "config_app.py",
-    "test_account_purge.py": REPO / "apps/backend/tests/support/account_purge.py",
 }
 
 OLD_IMPORT_PATHS = {
@@ -60,7 +59,6 @@ OLD_IMPORT_PATHS = {
     "src.services.fx_revaluation",
     "src.services.storage",
     "src.services.app_config",
-    "src.services.test_account_purge",
 }
 
 

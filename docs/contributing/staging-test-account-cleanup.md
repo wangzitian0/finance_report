@@ -5,8 +5,8 @@ QA and E2E runs leave behind disposable accounts (`qa.*@example.com`,
 databases. `tools/purge_test_accounts.py` reclaims them safely.
 
 This is the operator runbook. The deletion logic, safety model, and email
-predicate live in `apps/backend/tests/support/account_purge.py` and are unit
-tested (EPIC-008 AC8.17).
+predicate live in `apps/backend/src/services/test_account_purge.py` and are
+unit tested (EPIC-008 AC8.17).
 
 ## What it does
 
