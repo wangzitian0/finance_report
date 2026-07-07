@@ -61,21 +61,20 @@ def test_AC_reporting_1_2_cutover_inventory_is_declared():
         assert (REPORTING / rel).exists(), f"declared reporting module missing: {rel}"
 
     declared_names = {unit.name for unit in CONTRACT.units}
-    assert "ReportingReadRepository" in declared_names
-    assert "ReportSnapshotProjection" in declared_names
+    assert declared_names >= {"ReportingReadRepository", "ReportSnapshotProjection"}
 
 
 def test_AC_reporting_1_3_manual_valuation_is_not_published_reporting_surface():
     """Invariant manual-valuation-excluded-from-reporting-language: reporting does not publish manual valuation APIs."""
     from common.reporting.contract import CONTRACT
 
-    published = _static_all(REPORTING / "__init__.py")
-    assert "manual_valuation" not in published
-    assert "record_manual_valuation" not in published
-    assert "manual_valuation.py" in {
-        p.name for p in REPORTING.glob("*.py")
-    }, "current inventory still includes manual_valuation.py until pricing cutover removes it"
-    assert "ManualValuationSnapshot" not in {unit.name for unit in CONTRACT.units}
+    published = set(_static_all(REPORTING / "__init__.py"))
+    assert published.isdisjoint({"manual_valuation", "record_manual_valuation"})
+    reporting_py_files = {p.name for p in REPORTING.glob("*.py")}
+    assert reporting_py_files >= {"manual_valuation.py"}, (
+        "current inventory still includes manual_valuation.py until pricing cutover removes it"
+    )
+    assert {unit.name for unit in CONTRACT.units}.isdisjoint({"ManualValuationSnapshot"})
 
 
 def test_AC_reporting_1_4_package_contract_gate_passes():
