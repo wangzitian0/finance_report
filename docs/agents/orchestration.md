@@ -1,8 +1,8 @@
 # Agent Orchestration
 
 > **SSOT Key**: `agent_orchestration`
-> **Audience**: AI agents (Sisyphus and sub-agents).
-> Defines delegation rules, STAR problem-solving framework, and deliverable scope.
+> **Audience**: AI agents in any runtime (Claude Code, OpenCode, Codex, Gemini).
+> Defines the deliverable contract, the development work order, and delegation.
 
 ---
 
@@ -35,44 +35,6 @@
 9. ⏸️ **STOP. Wait for user decision.** (Agents never merge.)
 
 **User Workflow**: Review → Approve / Request changes / Reject → **User merges PR**.
-
----
-
-## 🛠️ Problem Solving Framework (STAR)
-
-Use this cascade **before processing any task**:
-
-### 1. Situation (Context Assessment)
-- **Anchor Project**: Bind to a project in `docs/project/`
-- **Current State**: Describe system status and problem impact
-- **Truth Check**: Read relevant `docs/ssot/` topics; identify gap between current and ideal
-
-### 2. Tasks (Multi-Dimensional Breakdown)
-- Break down based on Situation
-- Assign to layers: **Backend** (`apps/backend/`) / **Frontend** (`apps/frontend/`) / **Infra** (`repo/` submodule)
-- Apply **MECE task framing** before implementation:
-  - **Mutually exclusive**: each task slice has one owner and does not overlap with another slice's code, AC, or proof responsibility.
-  - **Collectively exhaustive**: the task set covers every stated user outcome, acceptance criterion, and vision-critical proof path.
-  - **Dependencies explicit**: blockers, prerequisites, parallelizable work, and follow-up work are named before execution.
-  - **Out of scope explicit**: adjacent issues, hygiene work, and deferred risks are parked deliberately rather than mixed into the main task.
-
-### 3. Actions (Execution Steps)
-- Define specific action sequence for each task
-- **Contract Validation**:
-  - **Infra Check**: Sync `repo` submodule (`infra2`) when adding env vars
-  - **DB Check**: Ensure explicit `name` for Enums and check migration length
-  - **Next.js Check**: Add `NEXT_PUBLIC_` variables to `Dockerfile` `ARG`
-- **Closed-Loop Changes**: Code change → Update SSOT → Verify → Update README
-
-### 4. Result (Verification)
-- **Self-Check**: Compare against project goals in [Project Vision](../target.md)
-- **Engineering Audit**:
-  - [ ] **MECE Task Frame**: Are task slices non-overlapping, complete for the stated goal, and clear about dependencies and out-of-scope work?
-  - [ ] **Submodule Sync**: Did I update `infra2` for config changes?
-  - [ ] **Enum Naming**: Are all `sa.Enum` fields explicitly named?
-  - [ ] **Next.js Bake**: Are `NEXT_PUBLIC_` variables added to `Dockerfile` `ARG`?
-- **Evidence Loop**: Use verification methods from SSOT "The Proof" sections
-- **Update Docs**: Update README, Project docs, SSOT as needed
 
 ---
 
@@ -121,52 +83,35 @@ behavior is anchored to a goal and proven by a test). The **mechanism** for
 Reference: [docs/ssot/tdd.md](../ssot/tdd.md) ·
 [package migration standard](../../common/meta/migration-standard.md)
 
+**Cross-cutting contract checks** (each owned by
+[red-lines.md](./red-lines.md) §Engineering Integrity — listed here only as the
+work-order reminder): sync the `repo/` submodule (`infra2`) when a change adds
+env vars; every `sa.Enum` carries an explicit `name=`
+(See: [docs/ssot/schema.md#enum-naming](../ssot/schema.md#enum-naming));
+`NEXT_PUBLIC_` variables are baked as `ARG`/`ENV` in
+`apps/frontend/Dockerfile`.
+
 ---
 
-## Three-Layer Agent System
+## Delegation
 
-**Orchestrator → Agents → Skills**
+The **main loop of the runtime you are in** is the orchestrator; named
+subagents are per-runtime mechanics. The per-runtime agent lists, model
+routing, and MCP baseline are owned by [`.claude/README.md`](../../.claude/README.md)
+(bridge doc covering all four runtimes); the skill library and its admission
+rule ("project-specific facts only") are owned by
+[`.opencode/README.md`](../../.opencode/README.md).
 
-### Configured Agents
+Judgment, not config (vision.md, Good Taste 6):
 
-| Agent | Cost | When to Use |
-|-------|------|-------------|
-| **Sisyphus** | — | Main orchestrator; handles most tasks directly via skills |
-| `explore` | FREE | Codebase exploration, parallel grep (use in background) |
-| `librarian` | FREE | External docs, OSS examples (use in background) |
-| `frontend-ui-ux-engineer` | MEDIUM | **Mandatory** for visual/styling changes |
-| `multimodal-looker` | MEDIUM | Image/PDF analysis |
-| `oracle` | EXPENSIVE | Architecture decisions, debugging (use sparingly) |
-
-### Sisyphus Delegation Rules
-
-Delegate ONLY for:
-1. **Parallel exploration** → `explore` + `librarian` (background, parallel)
-2. **Visual changes** → `frontend-ui-ux-engineer` (mandatory for CSS/styling)
-3. **Image/PDF analysis** → `multimodal-looker`
-4. **Architecture decisions** → `oracle`
-
-### Skill Categories
-
-```
-.opencode/skills/
-└── domain/              # Project-specific operational knowledge
-    ├── accounting/      # Double-entry bookkeeping
-    ├── reconciliation/  # Statement matching
-    ├── reporting/       # Financial statements
-    ├── extraction/      # Document parsing
-    ├── schema/          # Database models
-    ├── development/     # Moon commands, CI/CD
-    ├── preflight/       # Pre-push verification
-    ├── ac-workflow/     # EPIC → AC → test ritual
-    ├── github-operations/   # PR/CI mechanics
-    ├── secrets-management/  # Env vars, Vault, multi-env
-    └── infra-operations/    # Deployment, debugging
-```
-
-Generic-expertise skill packs (backend/frontend/QA/PM/UI datasets) were removed
-in #1657: frontier models carry that knowledge natively, and version-specific
-questions route to live docs (context7 MCP) instead of frozen snapshots.
+- Delegate read-only fan-out — codebase search, external docs — to the cheap
+  search agents, in parallel and in the background.
+- Reserve the expensive advisory tier for genuinely hard design/debugging
+  questions that justify the cost.
+- Parallelism is bounded by **write conflicts**, not compute cost: never two
+  writers on one surface.
+- UI work: behavior is proven by tests; **visual quality is judged by human
+  eyes and simulators** — no agent sign-off substitutes for either.
 
 ---
 
