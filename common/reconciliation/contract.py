@@ -6,8 +6,8 @@ from common.meta.package_contract import ACRecord, Invariant, Kind, PackageContr
 
 CONTRACT = PackageContract(
     name="reconciliation",
-    status="draft",
-    tier=None,
+    status="active",
+    tier="CODE-ONLY",
     depends_on=["audit", "extraction", "portfolio", "ledger", "platform", "pricing", "observability", "config"],
     roles=["base", "extension", "data"],
     units=[
@@ -48,6 +48,10 @@ CONTRACT = PackageContract(
         "MatchCandidate",
         "ReconciliationConfig",
         "ReconciliationStats",
+        "_candidate_is_better",
+        "_find_many_to_one_candidates",
+        "_find_normal_candidates",
+        "_find_transfer_candidates",
         "_get_existing_active_match",
         "_get_pending_layer2_transactions",
         "_within_combination_tolerance",

@@ -26,9 +26,7 @@ class SqlReconciliationRepository(ReconciliationRepository):
         user_id: UUID,
         limit: int | None = None,
     ) -> list[AtomicTransaction]:
-        subquery = select(ReconciliationMatch.atomic_txn_id).where(
-            ReconciliationMatch.atomic_txn_id.isnot(None)
-        )
+        subquery = select(ReconciliationMatch.atomic_txn_id).where(ReconciliationMatch.atomic_txn_id.isnot(None))
         query = (
             select(AtomicTransaction)
             .where(AtomicTransaction.user_id == user_id)

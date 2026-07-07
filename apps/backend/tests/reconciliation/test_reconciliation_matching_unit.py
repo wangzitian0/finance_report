@@ -747,7 +747,7 @@ async def test_execute_matching_skip_unbalanced(db: AsyncSession, test_user):
         amount=Decimal("100.00"),
     )
 
-    with patch("src.reconciliation.is_entry_balanced", return_value=False):
+    with patch("src.reconciliation.extension.matching.is_entry_balanced", return_value=False):
         matches = await execute_matching(db, user_id=user_id)
     assert len(matches) == 0
 
@@ -1188,7 +1188,7 @@ async def test_transfer_entry_creation_failure(db: AsyncSession):
     await db.commit()
 
     with patch(
-        "src.reconciliation.create_transfer_out_entry",
+        "src.reconciliation.extension.phases.transfer_detection.create_transfer_out_entry",
         side_effect=Exception("DB Error"),
     ):
         # Should not crash — falls through to normal matching
@@ -1487,7 +1487,7 @@ async def test_find_transfer_pairs_exception_non_fatal(db: AsyncSession, test_us
     await db.commit()
 
     with patch(
-        "src.reconciliation.find_transfer_pairs",
+        "src.reconciliation.extension.matching.find_transfer_pairs",
         side_effect=Exception("Pair search failed"),
     ):
         # Should not crash — non-fatal error is logged
@@ -2019,7 +2019,9 @@ async def test_execute_matching_multi_entry_unbalanced_skip(db: AsyncSession, te
     await db.commit()
 
     # The combinations(candidates, 2) check should skip (entry_a, entry_b) because entry_b is marked unbalanced
-    with patch("src.reconciliation.is_entry_balanced", side_effect=lambda entry: entry.id != entry_b.id):
+    with patch(
+        "src.reconciliation.extension.matching.is_entry_balanced", side_effect=lambda entry: entry.id != entry_b.id
+    ):
         matches = await execute_matching(db, user_id=user_id)
     # entry_a alone (50) doesn't match txn (100) well; unbalanced pair is skipped
     # Result depends on scoring but the key is the code path is exercised
@@ -2177,7 +2179,7 @@ async def test_AC10_10_4_reconciliation_match_outcome_metric_emitted(db: AsyncSe
 
     outcomes: list[str] = []
     monkeypatch.setattr(
-        "src.reconciliation.record_reconciliation_match_outcome",
+        "src.reconciliation.extension.matching.record_reconciliation_match_outcome",
         lambda *, outcome: outcomes.append(outcome),
     )
 

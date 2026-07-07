@@ -564,7 +564,9 @@ async def execute_matching(
         get_candidates_for_date=lambda txn_date: [
             c
             for c in all_candidates
-            if txn_date - timedelta(days=config.date_days) <= c.entry_date <= txn_date + timedelta(days=config.date_days)
+            if txn_date - timedelta(days=config.date_days)
+            <= c.entry_date
+            <= txn_date + timedelta(days=config.date_days)
         ],
         get_cached_pattern_score=get_cached_pattern_score,
         entries_by_id=entries_by_id,

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import re
 from datetime import date
 from decimal import Decimal
@@ -12,6 +11,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import src.config
 from src.models.account import AccountType
 from src.models.journal import JournalEntry
 from src.models.layer2 import AtomicTransaction
@@ -20,6 +20,7 @@ from src.observability import get_logger
 from src.reconciliation.base.config import ReconciliationConfig
 
 logger = get_logger(__name__)
+settings = src.config.settings
 
 
 def normalize_text(value: str) -> str:
@@ -260,7 +261,7 @@ async def ai_semantic_score(
     try:
         stream = stream_ai_json(
             messages=messages,
-            model=os.getenv("PRIMARY_MODEL", "gemini-2.0-flash"),
+            model=settings.primary_model,
             timeout=30.0,
         )
         content = await accumulate_stream(stream)
@@ -275,7 +276,7 @@ async def ai_semantic_score(
         logger.debug(
             "AI semantic score computed",
             score=score,
-            model=os.getenv("PRIMARY_MODEL", "gemini-2.0-flash"),
+            model=settings.primary_model,
         )
 
         return max(0, min(100, score))

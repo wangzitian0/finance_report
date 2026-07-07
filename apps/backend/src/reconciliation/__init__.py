@@ -7,6 +7,7 @@ from src.reconciliation.base import (
     MAX_COMBINATION_CANDIDATES,
     MatchCandidate,
     ReconciliationConfig,
+    _candidate_is_better,
     entry_bank_side_amount,
     entry_total_amount,
     is_entry_balanced,
@@ -14,6 +15,9 @@ from src.reconciliation.base import (
 )
 from src.reconciliation.data import ReconciliationStats, get_reconciliation_stats
 from src.reconciliation.extension.matching import (
+    _find_many_to_one_candidates,
+    _find_normal_candidates,
+    _find_transfer_candidates,
     _get_existing_active_match,
     _get_pending_layer2_transactions,
     _within_combination_tolerance,
@@ -44,6 +48,10 @@ __all__ = [
     "MatchCandidate",
     "ReconciliationConfig",
     "ReconciliationStats",
+    "_candidate_is_better",
+    "_find_many_to_one_candidates",
+    "_find_normal_candidates",
+    "_find_transfer_candidates",
     "_get_existing_active_match",
     "_get_pending_layer2_transactions",
     "_within_combination_tolerance",
