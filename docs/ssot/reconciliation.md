@@ -9,8 +9,8 @@
 
 | Dimension | Physical Location (SSOT) | Description |
 |-----------|--------------------------|-------------|
-| **Matching Algorithm** | `apps/backend/src/services/reconciliation.py` | Core logic |
-| **Scoring Config** | `apps/backend/config/reconciliation.yaml`, `apps/backend/src/services/reconciliation.py` (`DEFAULT_CONFIG`, `load_reconciliation_config`) | Weight, threshold, and tolerance parameters |
+| **Matching Algorithm** | `apps/backend/src/reconciliation/extension/matching.py` | Core logic |
+| **Scoring Config** | `apps/backend/config/reconciliation.yaml`, `apps/backend/src/reconciliation/extension/matching.py` (`DEFAULT_CONFIG`, `load_reconciliation_config`) | Weight, threshold, and tolerance parameters |
 | **Model Definition** | `apps/backend/src/models/reconciliation.py` | ORM |
 
 ---
@@ -22,7 +22,7 @@
 ### <a id="thresholds"></a>Reconciliation Thresholds
 
 Runtime threshold values are code/config-owned. The default values live in
-`apps/backend/src/services/reconciliation.py` (`DEFAULT_CONFIG`) and are loaded
+`apps/backend/src/reconciliation/extension/matching.py` (`DEFAULT_CONFIG`) and are loaded
 from `apps/backend/config/reconciliation.yaml` when present. Environment
 overrides are applied by `load_reconciliation_config()`:
 `RECONCILIATION_AUTO_ACCEPT_THRESHOLD` and `RECONCILIATION_REVIEW_THRESHOLD`.
@@ -224,7 +224,7 @@ This prevents split entries, clearing lines, tax lines, and payable/receivable l
 
 EPIC-004 production-quality claims require an audit-grade expected-vs-actual
 run, not only individual scoring examples. The harness in
-`apps/backend/src/services/reconciliation_audit.py` builds deterministic golden
+`apps/backend/src/reconciliation/extension/reconciliation_audit.py` builds deterministic golden
 scenarios for exact matches, similar matches, unrelated transactions,
 review-band routing, transfer-shaped transactions, many-to-one settlement,
 one-to-many fee splits, and cross-period timing. The command
@@ -328,7 +328,7 @@ currency_to, rate, fee, fee_currency, conversion_date}`).
    `currency_from / currency_to`, matching `services/fx.get_exchange_rate`).
 
 Implemented by `pair_fx_legs` / `build_fx_conversion`
-(`services/fx_transfer.py`); rate orientation matches `services/fx.py`. (#1123 AC2)
+(`reconciliation/extension/fx_transfer.py`); rate orientation matches `services/fx.py`. (#1123 AC2)
 
 **Ledger-based auto-discovery (#1123 AC2 live).** A transfer that is recorded
 only as RAW journal lines — with no pre-seeded `fx_conversions` row — is still
@@ -432,7 +432,7 @@ pending --> flagged: Needs manual review
 | Model | `apps/backend/src/models/statement_enums.py` (Stage1Status), `apps/backend/src/models/statement_summary.py` (StatementSummary) |
 | Model | `apps/backend/src/models/consistency_check.py` |
 | Service | `apps/backend/src/extraction/extension/statement_validation.py` |
-| Service | `apps/backend/src/services/consistency_checks.py` |
+| Service | `apps/backend/src/reconciliation/extension/consistency_checks.py` |
 | Router | `apps/backend/src/routers/statements.py` |
 | Frontend | `apps/frontend/src/app/(main)/statements/[id]/review/page.tsx` |
 | Frontend | `apps/frontend/src/components/review/Stage2ReviewQueue.tsx` |

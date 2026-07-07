@@ -53,5 +53,6 @@ scope):
   `advisor` (#1425).
 - [`common/todo.md`](./todo.md) — the cross-package / migration worklist.
 
-`common/ssot/` is legacy shared code outside the package model; it dissolves as
-the remaining cutovers land (phase table in [`todo.md`](./todo.md)).
+The old `common/ci` / `common/shell` / `common/ssot` junk drawers are retired.
+New shared tooling now lives in the package that owns the contract, and
+`check_package_directory_coverage` fails any new undeclared `common/<dir>/`.

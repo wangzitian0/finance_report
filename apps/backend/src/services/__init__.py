@@ -18,10 +18,8 @@ _SUBMODULES = {
     "ai_advisor",
     "ai_streaming",
     "allocation",
-    "anomaly",
     "assets",
     "confidence_tier",
-    "consistency_checks",
     "fx",
     "investment_accounting",
     "market_data",
@@ -29,8 +27,6 @@ _SUBMODULES = {
     "performance",
     "pii_redaction",
     "portfolio",
-    "reconciliation",
-    "reconciliation_audit",
     "report_readiness",
     "reporting",
     "reporting_snapshot",
@@ -43,7 +39,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "ReportError": ("reporting", "ReportError"),
     "convert_amount": ("fx", "convert_amount"),
     "convert_to_base": ("fx", "convert_to_base"),
-    "execute_matching": ("reconciliation", "execute_matching"),
     "generate_balance_sheet": ("reporting", "generate_balance_sheet"),
     "generate_cash_flow": ("reporting", "generate_cash_flow"),
     "generate_income_statement": ("reporting", "generate_income_statement"),
@@ -51,7 +46,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "get_average_rate": ("fx", "get_average_rate"),
     "get_category_breakdown": ("reporting", "get_category_breakdown"),
     "get_exchange_rate": ("fx", "get_exchange_rate"),
-    "load_reconciliation_config": ("reconciliation", "load_reconciliation_config"),
 }
 
 __all__ = sorted(_SUBMODULES | set(_EXPORTS))

@@ -139,7 +139,7 @@ def test_AC12_37_2_reconciliation_config_sums_lines_as_money():
     """AC-audit.37.2: reconciliation entry-amount helpers sum journal lines via the
     typed `line.money` accessor + `Money.sum` (currency-checked), not a raw
     currency-blind `sum(line.amount)`."""
-    src = _read("apps/backend/src/services/reconciliation_config.py")
+    src = _read("apps/backend/src/reconciliation/base/config.py")
     assert "line.money" in src
     assert "Money.sum(" in src
     assert "sum(line.amount" not in src

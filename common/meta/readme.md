@@ -150,14 +150,13 @@ edit: a new package is governed the moment it ships a `common/<pkg>/contract.py`
 That additive discovery has a blind spot: a directory with **no** `contract.py`
 is invisible to `check_package_contract`, not rejected — exactly how
 `common/ci`, `common/shell`, and `common/ssot` accumulated as undeclared junk
-drawers before being dissolved back into real packages (#1564-#1568).
+drawers before being dissolved back into real packages (#1564-#1568, #1430).
 `tools/check_package_directory_coverage.py` (logic in
 [`extension/check_package_directory_coverage.py`](./extension/check_package_directory_coverage.py))
 closes that gap from the other direction: every directory directly under
 `common/` must ship a `contract.py` **or** be a documented, reasoned entry in
-`UNGOVERNED_EXCEPTIONS` (today: `ssot`, and the two pending-cutover SSOT-only
-domains `extraction` / `llm`) — so a new junk drawer fails the gate instead of
-silently accumulating.
+`UNGOVERNED_EXCEPTIONS` (now empty after the migration cleanup) — so a new junk
+drawer fails the gate instead of silently accumulating.
 
 ## Examples
 

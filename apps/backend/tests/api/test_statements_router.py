@@ -34,7 +34,7 @@ from src.extraction.extension import (
     statement_pipeline,
     statement_validation as statement_validation_mod,
 )
-from src.extraction.extension.review_queue import accept_match as accept_match_service, create_entry_from_txn
+from src.extraction.extension.review_queue import create_entry_from_txn
 from src.extraction.extension.statement_parsing import handle_parse_failure
 from src.extraction.extension.statement_posting import (
     is_high_confidence_auto_approve_candidate,
@@ -51,6 +51,7 @@ from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
+from src.reconciliation.extension.review_queue import accept_match as accept_match_service
 from src.routers import review as review_router, statements as statements_router
 from src.runtime import StorageError
 from src.schemas import StatementDecisionRequest

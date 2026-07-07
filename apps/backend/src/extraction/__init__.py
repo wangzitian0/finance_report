@@ -56,6 +56,7 @@ from src.extraction.extension.evidence_graph_materialization import (
 from src.extraction.extension.evidence_lineage import EvidenceLineageService
 from src.extraction.extension.prompts.csv_mapping import build_csv_mapping_prompt
 from src.extraction.extension.prompts.statement import SYSTEM_PROMPT, get_parsing_prompt
+from src.extraction.extension.review_queue import create_entry_from_txn
 from src.extraction.extension.service import ExtractionError, ExtractionService
 from src.extraction.extension.statement_summary import resolve_custody_account_id
 
@@ -71,6 +72,7 @@ __all__ = [
     "SYSTEM_PROMPT",
     "build_csv_mapping_prompt",
     "compute_confidence_score",
+    "create_entry_from_txn",
     "detect_balance_chain_break",
     "dual_write_layer2",
     "get_parsing_prompt",

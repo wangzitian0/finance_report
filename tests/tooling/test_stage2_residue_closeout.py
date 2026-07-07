@@ -92,10 +92,13 @@ def test_stage2_residue_old_service_imports_are_gone() -> None:
 
 
 def test_stage2_residue_docs_and_comments_use_current_paths() -> None:
+    stale_extraction_path = "apps/backend/src/services/extraction/"
+    current_extraction_path = "apps/backend/src/extraction/"
     extraction_readme = (REPO / "common/extraction/readme.md").read_text(encoding="utf-8")
-    assert "apps/backend/src/services/extraction/" not in extraction_readme
-    assert "apps/backend/src/extraction/" in extraction_readme
+    assert stale_extraction_path not in extraction_readme
+    assert current_extraction_path in extraction_readme
 
+    stale_llm_path = "src/llm/common"
     for relpath in (
         "apps/backend/migrations/versions/0043_llm_provider_config.py",
         "apps/backend/src/config.py",
@@ -103,4 +106,4 @@ def test_stage2_residue_docs_and_comments_use_current_paths() -> None:
         "apps/backend/src/schemas/llm.py",
     ):
         text = (REPO / relpath).read_text(encoding="utf-8")
-        assert "src/llm/common" not in text, f"stale llm/common path remains in {relpath}"
+        assert stale_llm_path not in text, f"stale llm/common path remains in {relpath}"

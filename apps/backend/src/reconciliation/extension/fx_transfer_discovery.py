@@ -1,6 +1,6 @@
 """Ledger-based discovery of cross-currency internal-transfer leg pairs.
 
-#1123 AC2 (live consumption). The :mod:`src.services.fx_transfer` primitives can
+#1123 AC2 (live consumption). The :mod:`src.reconciliation.extension.fx_transfer` primitives can
 *pair* two already-known :class:`TransferLeg` objects, and
 :func:`src.services.reporting._internal_transfer_adjustment` can *consume* a
 pre-recorded ``fx_conversions`` row. This module closes the gap between them: it
@@ -48,7 +48,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.account import Account, AccountType
 from src.models.fx_conversion import FxConversion
 from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
-from src.services.fx_transfer import (
+from src.reconciliation.extension.fx_transfer import (
     DEFAULT_RATE_TOLERANCE,
     DEFAULT_TIME_WINDOW,
     FxLegPair,

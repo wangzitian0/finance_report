@@ -13,7 +13,7 @@ for path in (ROOT_DIR, BACKEND_DIR):
         sys.path.insert(0, str(path))
 
 import src.models._registry  # noqa: E402, F401  -- register every ORM mapper before relationship config
-from src.services.reconciliation_audit import main  # noqa: E402
+from src.reconciliation.extension.reconciliation_audit import main  # noqa: E402
 
 
 if __name__ == "__main__":  # pragma: no cover

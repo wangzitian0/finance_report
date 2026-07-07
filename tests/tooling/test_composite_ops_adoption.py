@@ -32,7 +32,7 @@ def test_AC12_33_3_zero_denominator_branching_routes_through_ratio():
     assert "Ratio.fraction_or_zero(value, total_market_value)" in perf
     assert "else Ratio.zero()" not in perf
 
-    stats = _read("apps/backend/src/services/reconciliation_stats.py")
+    stats = _read("apps/backend/src/reconciliation/data/stats.py")
     assert "Ratio.fraction_or_zero(matched, total)" in stats
 
 

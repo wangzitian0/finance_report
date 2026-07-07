@@ -5,12 +5,12 @@ AC4.6.1 AC4.6.2: Score thresholds and amount boundaries are enforced.
 
 from __future__ import annotations
 
-import importlib.util
+import importlib
 import sys
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
@@ -31,117 +31,8 @@ from src.services import promotion_gate as _promotion_gate  # noqa: E402, F401
 
 
 def _load_reconciliation_module():
-    """Load reconciliation without importing src.services package exports."""
-    previous_services = sys.modules.get("src.services")
-    previous_accounting = sys.modules.get("src.ledger.extension.accounting")
-    previous_logger = sys.modules.get("src.observability")
-    # The processing-account transfer verbs were folded into the ledger package
-    # (#1420 slice 3b): reconciliation now imports them from ``src.ledger`` instead
-    # of ``src.services.processing_account``, so we stub ``src.ledger`` here.
-    previous_ledger = sys.modules.get("src.ledger")
-    previous_source_type_priority = sys.modules.get("src.audit.source_type_priority")
-    previous_statement_summary = sys.modules.get("src.extraction.extension.statement_summary")
-
-    # A dedicated stub exception (not bare ValueError) so production
-    # ``except ValidationError`` blocks catch only this type — an unrelated
-    # ValueError must still surface, exactly as it would against the real
-    # ``src.ledger.ValidationError``.
-    class _StubValidationError(Exception):
-        pass
-
-    services_package = ModuleType("src.services")
-    services_package.__path__ = []  # type: ignore[attr-defined]
-    accounting_module = ModuleType("src.ledger.extension.accounting")
-    accounting_module.ValidationError = _StubValidationError
-    accounting_module.validate_journal_balance = Mock()
-    logger_module = ModuleType("src.observability")
-    logger_module.get_logger = Mock(return_value=Mock())
-    logger_module.record_reconciliation_match_outcome = Mock()
-    ledger_module = ModuleType("src.ledger")
-    ledger_module.ValidationError = _StubValidationError
-    ledger_module.validate_journal_balance = Mock()
-    ledger_module.create_transfer_in_entry = AsyncMock()
-    ledger_module.create_transfer_out_entry = AsyncMock()
-    ledger_module.detect_transfer_pattern = Mock(return_value=False)
-    ledger_module.find_transfer_pairs = AsyncMock(return_value=[])
-    source_type_priority_module = ModuleType("src.audit.source_type_priority")
-    source_type_priority_module.promote_entry_source_type = Mock(return_value=False)
-    source_type_priority_module.source_type_rank = Mock(return_value=0)
-    statement_summary_module = ModuleType("src.extraction.extension.statement_summary")
-    statement_summary_module.resolve_custody_account_id = AsyncMock(return_value=None)
-
-    sys.modules["src.services"] = services_package
-    sys.modules["src.ledger.extension.accounting"] = accounting_module
-    sys.modules["src.observability"] = logger_module
-    sys.modules["src.ledger"] = ledger_module
-    sys.modules["src.audit.source_type_priority"] = source_type_priority_module
-    sys.modules["src.extraction.extension.statement_summary"] = statement_summary_module
-
-    # reconciliation.py was split into focused submodules; load them (in dependency
-    # order: config -> scoring -> stats) under their real names so reconciliation's
-    # re-export imports resolve inside this isolated environment.
-    split_submodules = (
-        "reconciliation_config",
-        "reconciliation_scoring",
-        "reconciliation_stats",
-    )
-    services_dir = REPO_ROOT / "apps" / "backend" / "src" / "services"
-    previous_submodules = {
-        name: sys.modules.get(f"src.services.{name}") for name in split_submodules
-    }
-    try:
-        for submodule_name in split_submodules:
-            sub_spec = importlib.util.spec_from_file_location(
-                f"src.services.{submodule_name}", services_dir / f"{submodule_name}.py"
-            )
-            assert sub_spec is not None and sub_spec.loader is not None
-            sub_module = importlib.util.module_from_spec(sub_spec)
-            sys.modules[f"src.services.{submodule_name}"] = sub_module
-            sub_spec.loader.exec_module(sub_module)
-
-        spec = importlib.util.spec_from_file_location(
-            "_reconciliation_under_test",
-            services_dir / "reconciliation.py",
-        )
-        assert spec is not None
-        assert spec.loader is not None
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[spec.name] = module
-        spec.loader.exec_module(module)
-        return module
-    finally:
-        for submodule_name in split_submodules:
-            previous = previous_submodules[submodule_name]
-            if previous is None:
-                sys.modules.pop(f"src.services.{submodule_name}", None)
-            else:
-                sys.modules[f"src.services.{submodule_name}"] = previous
-        if previous_services is None:
-            sys.modules.pop("src.services", None)
-        else:
-            sys.modules["src.services"] = previous_services
-        if previous_accounting is None:
-            sys.modules.pop("src.ledger.extension.accounting", None)
-        else:
-            sys.modules["src.ledger.extension.accounting"] = previous_accounting
-        if previous_logger is None:
-            sys.modules.pop("src.observability", None)
-        else:
-            sys.modules["src.observability"] = previous_logger
-        if previous_ledger is None:
-            sys.modules.pop("src.ledger", None)
-        else:
-            sys.modules["src.ledger"] = previous_ledger
-        if previous_source_type_priority is None:
-            sys.modules.pop("src.audit.source_type_priority", None)
-        else:
-            sys.modules["src.audit.source_type_priority"] = (
-                previous_source_type_priority
-            )
-        if previous_statement_summary is None:
-            sys.modules.pop("src.extraction.extension.statement_summary", None)
-        else:
-            sys.modules["src.extraction.extension.statement_summary"] = previous_statement_summary
+    """Load reconciliation matching module under the package-model location."""
+    return importlib.import_module("src.reconciliation.extension.matching")
 
 
 reconciliation_module = _load_reconciliation_module()

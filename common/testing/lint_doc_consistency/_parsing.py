@@ -114,7 +114,7 @@ FRONTEND_RAW_FETCH_ALLOWED_FILES = {
 
 RECONCILIATION_THRESHOLD_REQUIRED_TOKENS = (
     "apps/backend/config/reconciliation.yaml",
-    "apps/backend/src/services/reconciliation.py",
+    "apps/backend/src/reconciliation/extension/matching.py",
     "DEFAULT_CONFIG",
     "load_reconciliation_config",
     "RECONCILIATION_AUTO_ACCEPT_THRESHOLD",

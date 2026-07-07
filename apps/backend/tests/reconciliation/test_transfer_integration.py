@@ -28,7 +28,7 @@ from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
-from src.services.reconciliation import execute_matching
+from src.reconciliation import execute_matching
 
 
 async def _seed_statement(

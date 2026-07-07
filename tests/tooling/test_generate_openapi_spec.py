@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from common.ssot import generate_openapi_spec as gen
+from common.platform import generate_openapi_spec as gen
 
 
 def test_AC12_28_1_generator_emits_types_from_openapi(monkeypatch) -> None:

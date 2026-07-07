@@ -7,7 +7,7 @@ from uuid import uuid4
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalLine
 from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.services.reconciliation import DEFAULT_CONFIG, calculate_match_score
+from src.reconciliation import DEFAULT_CONFIG, calculate_match_score
 
 
 async def test_AC4_9_1_entry_total_uses_bank_side_line_for_outflow(db):

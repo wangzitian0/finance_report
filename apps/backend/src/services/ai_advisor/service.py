@@ -24,6 +24,7 @@ from src.models.account import AccountType
 from src.models.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 from src.platform.extension.workflow_events import get_workflow_status
 from src.prompts.ai_advisor import get_ai_advisor_prompt
+from src.reconciliation import get_reconciliation_stats
 from src.schemas.chat import AdvisorSuggestion, ChatActionChip, ChatCitation, ChatResponseMetadata
 from src.services.ai_advisor._base import CHAT_METADATA_SAFE_HREFS, CONFIDENCE_WORST_ORDER, MAX_CONTEXT_MESSAGES, logger
 from src.services.ai_advisor._cache import _CACHE
@@ -43,7 +44,6 @@ from src.services.ai_advisor._guardrails import (
 from src.services.ai_streaming import stream_ai_chat
 from src.services.market_data import MarketDataScopeStatus, get_market_data_status
 from src.services.portfolio import PortfolioNotFoundError, PortfolioService
-from src.services.reconciliation import get_reconciliation_stats
 from src.services.report_readiness import get_personal_report_package_readiness
 from src.services.reporting import (
     ReportError,

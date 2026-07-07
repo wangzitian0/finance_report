@@ -115,6 +115,7 @@ CONTRACT = PackageContract(
         "SYSTEM_PROMPT",
         "build_csv_mapping_prompt",
         "compute_confidence_score",
+        "create_entry_from_txn",
         "detect_balance_chain_break",
         "dual_write_layer2",
         "get_parsing_prompt",

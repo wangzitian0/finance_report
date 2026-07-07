@@ -69,8 +69,8 @@ PROTECTED_MODULE_GLOBS: tuple[str, ...] = (
     # FX (deterministic conversion / revaluation / transfer math)
     "apps/backend/src/services/fx.py",
     "apps/backend/src/ledger/extension/fx_revaluation.py",
-    "apps/backend/src/services/fx_transfer.py",
-    "apps/backend/src/services/fx_transfer_discovery.py",
+    "apps/backend/src/reconciliation/extension/fx_transfer.py",
+    "apps/backend/src/reconciliation/extension/fx_transfer_discovery.py",
     # portfolio / performance / allocation deterministic calc
     "apps/backend/src/services/portfolio.py",
     "apps/backend/src/services/performance.py",

@@ -10,13 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.extraction.extension.review_queue import (
-    accept_match,
-    batch_accept,
-    create_entry_from_txn,
-    get_or_create_account,
-    reject_match,
-)
+from src.extraction.extension.review_queue import create_entry_from_txn, get_or_create_account
 from src.identity import User
 from src.ledger import validate_journal_balance
 from src.models.account import Account, AccountType
@@ -26,8 +20,7 @@ from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.market_data import FxRate
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_summary import StatementSummary
-from src.services.anomaly import detect_anomalies
-from src.services.reconciliation import (
+from src.reconciliation import (
     DEFAULT_CONFIG,
     MatchCandidate,
     auto_accept,
@@ -35,6 +28,8 @@ from src.services.reconciliation import (
     execute_matching,
     normalize_text,
 )
+from src.reconciliation.extension.anomaly import detect_anomalies
+from src.reconciliation.extension.review_queue import accept_match, batch_accept, reject_match
 from tests.ledger._ledger_helpers import create_valid_posted_entry
 
 
@@ -437,8 +432,6 @@ async def test_execute_matching_many_to_one_group(db: AsyncSession, test_user) -
 
 async def test_batch_accept_no_ids(db: AsyncSession):
     """Test batch_accept with empty list."""
-    from src.extraction.extension.review_queue import batch_accept
-
     result = await batch_accept(db, [], user_id=uuid4())
     assert result == []
 
@@ -451,7 +444,7 @@ async def test_execute_matching_no_transactions(db: AsyncSession):
 
 async def test_find_candidates(db: AsyncSession, test_user):
     """Test find_candidates standalone helper."""
-    from src.services.reconciliation import find_candidates, load_reconciliation_config
+    from src.reconciliation import find_candidates, load_reconciliation_config
 
     user_id = test_user.id
     config = load_reconciliation_config()
@@ -908,9 +901,11 @@ async def test_execute_matching_reuses_pattern_score_cache(db: AsyncSession, tes
     await db.commit()
 
     with (
-        patch("src.services.reconciliation.detect_transfer_pattern", return_value=False),
-        patch("src.services.reconciliation.find_transfer_pairs", new_callable=AsyncMock, return_value=[]),
-        patch("src.services.reconciliation.score_pattern", new_callable=AsyncMock, return_value=0.0) as mock_score,
+        patch("src.reconciliation.extension.matching.detect_transfer_pattern", return_value=False),
+        patch("src.reconciliation.extension.matching.find_transfer_pairs", new_callable=AsyncMock, return_value=[]),
+        patch(
+            "src.reconciliation.extension.matching.score_pattern", new_callable=AsyncMock, return_value=0.0
+        ) as mock_score,
     ):
         await execute_matching(db, user_id=user_id)
 
@@ -951,8 +946,8 @@ async def test_execute_matching_many_to_one_skips_unbalanced_entry(db: AsyncSess
     await db.commit()
 
     with (
-        patch("src.services.reconciliation.find_transfer_pairs", new_callable=AsyncMock, return_value=[]),
-        patch("src.services.reconciliation.is_entry_balanced", return_value=False),
+        patch("src.reconciliation.extension.matching.find_transfer_pairs", new_callable=AsyncMock, return_value=[]),
+        patch("src.reconciliation.extension.matching.is_entry_balanced", return_value=False),
     ):
         matches = await execute_matching(db, user_id=user_id)
 
@@ -990,13 +985,17 @@ async def test_execute_matching_many_to_one_keeps_same_existing_match(db: AsyncS
     )
 
     with (
-        patch("src.services.reconciliation.build_many_to_one_groups", return_value=[[txn, txn]]),
-        patch("src.services.reconciliation.prune_candidates", return_value=[object()]),
-        patch("src.services.reconciliation.is_entry_balanced", return_value=True),
-        patch("src.services.reconciliation.calculate_match_score", new_callable=AsyncMock, return_value=candidate),
-        patch("src.services.reconciliation.detect_transfer_pattern", return_value=False),
-        patch("src.services.reconciliation.find_transfer_pairs", new_callable=AsyncMock, return_value=[]),
-        patch("src.services.reconciliation.entry_total_amount", return_value=Decimal("100.00")),
+        patch("src.reconciliation.extension.matching.build_many_to_one_groups", return_value=[[txn, txn]]),
+        patch("src.reconciliation.extension.matching.prune_candidates", return_value=[object()]),
+        patch("src.reconciliation.extension.matching.is_entry_balanced", return_value=True),
+        patch(
+            "src.reconciliation.extension.matching.calculate_match_score",
+            new_callable=AsyncMock,
+            return_value=candidate,
+        ),
+        patch("src.reconciliation.extension.matching.detect_transfer_pattern", return_value=False),
+        patch("src.reconciliation.extension.matching.find_transfer_pairs", new_callable=AsyncMock, return_value=[]),
+        patch("src.reconciliation.extension.matching.entry_total_amount", return_value=Decimal("100.00")),
     ):
         matches = await execute_matching(db, user_id=user_id)
 
@@ -1031,13 +1030,17 @@ async def test_execute_matching_many_to_one_layer2_sets_atomic_txn_id(db: AsyncS
     candidate = MatchCandidate(journal_entry_ids=[str(entry.id)], score=95, breakdown={"amount": 100.0})
 
     with (
-        patch("src.services.reconciliation.detect_transfer_pattern", return_value=False),
-        patch("src.services.reconciliation.find_transfer_pairs", new_callable=AsyncMock, return_value=[]),
-        patch("src.services.reconciliation.build_many_to_one_groups", return_value=[[txn]]),
-        patch("src.services.reconciliation.prune_candidates", return_value=[entry]),
-        patch("src.services.reconciliation.is_entry_balanced", return_value=True),
-        patch("src.services.reconciliation.calculate_match_score", new_callable=AsyncMock, return_value=candidate),
-        patch("src.services.reconciliation.score_pattern", new_callable=AsyncMock, return_value=0.0),
+        patch("src.reconciliation.extension.matching.detect_transfer_pattern", return_value=False),
+        patch("src.reconciliation.extension.matching.find_transfer_pairs", new_callable=AsyncMock, return_value=[]),
+        patch("src.reconciliation.extension.matching.build_many_to_one_groups", return_value=[[txn]]),
+        patch("src.reconciliation.extension.matching.prune_candidates", return_value=[entry]),
+        patch("src.reconciliation.extension.matching.is_entry_balanced", return_value=True),
+        patch(
+            "src.reconciliation.extension.matching.calculate_match_score",
+            new_callable=AsyncMock,
+            return_value=candidate,
+        ),
+        patch("src.reconciliation.extension.matching.score_pattern", new_callable=AsyncMock, return_value=0.0),
     ):
         matches = await execute_matching(db, user_id=user_id)
 
@@ -1086,17 +1089,21 @@ async def test_execute_matching_three_entry_combination_skips_unbalanced_member(
     low_score = MatchCandidate(journal_entry_ids=[str(entry_a.id)], score=0, breakdown={"amount": 0.0})
 
     with (
-        patch("src.services.reconciliation.detect_transfer_pattern", return_value=False),
-        patch("src.services.reconciliation.find_transfer_pairs", new_callable=AsyncMock, return_value=[]),
-        patch("src.services.reconciliation.build_many_to_one_groups", return_value=[]),
-        patch("src.services.reconciliation.prune_candidates", return_value=[entry_a, entry_b, entry_c]),
+        patch("src.reconciliation.extension.matching.detect_transfer_pattern", return_value=False),
+        patch("src.reconciliation.extension.matching.find_transfer_pairs", new_callable=AsyncMock, return_value=[]),
+        patch("src.reconciliation.extension.matching.build_many_to_one_groups", return_value=[]),
+        patch("src.reconciliation.extension.matching.prune_candidates", return_value=[entry_a, entry_b, entry_c]),
         patch(
-            "src.services.reconciliation.is_entry_balanced",
+            "src.reconciliation.extension.matching.is_entry_balanced",
             side_effect=lambda e: e.id != entry_c.id,
         ),
-        patch("src.services.reconciliation.calculate_match_score", new_callable=AsyncMock, return_value=low_score),
-        patch("src.services.reconciliation.entry_total_amount", return_value=Decimal("1.00")),
-        patch("src.services.reconciliation.score_pattern", new_callable=AsyncMock, return_value=0.0),
+        patch(
+            "src.reconciliation.extension.matching.calculate_match_score",
+            new_callable=AsyncMock,
+            return_value=low_score,
+        ),
+        patch("src.reconciliation.extension.matching.entry_total_amount", return_value=Decimal("1.00")),
+        patch("src.reconciliation.extension.matching.score_pattern", new_callable=AsyncMock, return_value=0.0),
     ):
         matches = await execute_matching(db, user_id=user_id)
 
@@ -1152,11 +1159,19 @@ async def test_execute_matching_layer2_atomic_match_and_transfer_pair_logging(
 
     candidate = MatchCandidate(journal_entry_ids=[str(entry.id)], score=99, breakdown={"amount": 100.0})
     with (
-        patch("src.services.reconciliation.detect_transfer_pattern", return_value=False),
-        patch("src.services.reconciliation.build_many_to_one_groups", return_value=[]),
-        patch("src.services.reconciliation.calculate_match_score", new_callable=AsyncMock, return_value=candidate),
-        patch("src.services.reconciliation.find_transfer_pairs", new_callable=AsyncMock, return_value=[("a", "b")]),
-        patch("src.services.reconciliation.score_pattern", new_callable=AsyncMock, return_value=0.0),
+        patch("src.reconciliation.extension.matching.detect_transfer_pattern", return_value=False),
+        patch("src.reconciliation.extension.matching.build_many_to_one_groups", return_value=[]),
+        patch(
+            "src.reconciliation.extension.matching.calculate_match_score",
+            new_callable=AsyncMock,
+            return_value=candidate,
+        ),
+        patch(
+            "src.reconciliation.extension.matching.find_transfer_pairs",
+            new_callable=AsyncMock,
+            return_value=[("a", "b")],
+        ),
+        patch("src.reconciliation.extension.matching.score_pattern", new_callable=AsyncMock, return_value=0.0),
     ):
         matches = await execute_matching(db, user_id=user_id)
 

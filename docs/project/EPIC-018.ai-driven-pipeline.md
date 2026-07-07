@@ -176,7 +176,7 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 
 #### 3.1 AI Semantic Scoring
 - [x] Add `ai_semantic_score()` method to reconciliation service
-  - File: `apps/backend/src/services/reconciliation.py`
+  - File: `apps/backend/src/reconciliation/extension/matching.py`
   - Trigger: Only for candidates scoring 60-84 (review queue range)
   - Input: Transaction description pair (bank statement + journal entry memo)
   - Output: Semantic similarity score (0-100) from AI
