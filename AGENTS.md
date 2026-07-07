@@ -78,7 +78,7 @@ The SSOT ownership map is: **[docs/ssot/MANIFEST.yaml](docs/ssot/MANIFEST.yaml)*
 
 ## 🔄 Mandatory Work Order
 
-**EPIC → ACx.y.z → Test → Code → Doc**
+**EPIC → AC → Test → Code → Doc**
 
 0. Frame the work with a **MECE** breakdown: mutually exclusive task slices, collectively exhaustive coverage of the stated goal, explicit dependencies, and explicit out-of-scope items.
 1. Anchor to an EPIC in `docs/project/` (the horizontal goal)

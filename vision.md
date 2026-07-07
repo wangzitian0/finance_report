@@ -87,7 +87,7 @@ Our hard constraints are managed as risk, not absolutes.
 - **Process hygiene**: the same stave discipline applies to how we build. Real
   financial data — amounts, balances, account numbers, holder names — never
   appears in issues, PRs, commits, logs, or reports; development artifacts are
-  public surface, and one leaked statement is a catastrophically short stave.
+  a public surface, and one leaked statement is a catastrophically short stave.
 
 ### Axiom D — The model generalizes; code guarantees the number; key nodes keep slack
 
