@@ -45,7 +45,7 @@ pytestmark = pytest.mark.no_db
     ],
 )
 def test_AC12_40_1_attaches_explicit_currency(candidates, expected):
-    """AC12.40.1: the first valid ISO-4217 candidate is attached, normalized."""
+    """AC-audit.40.1: AC12.40.1: the first valid ISO-4217 candidate is attached, normalized."""
     resolved = resolve_ingest_currency(*candidates)
     assert resolved.code == expected
     assert resolved.unresolved is False
@@ -66,7 +66,7 @@ def test_AC12_40_1_attaches_explicit_currency(candidates, expected):
     ],
 )
 def test_AC12_40_2_flags_unresolved_instead_of_silent_default(candidates):
-    """AC12.40.2: no valid currency -> flagged unresolved with a non-trusted placeholder.
+    """AC-audit.40.2: AC12.40.2: no valid currency -> flagged unresolved with a non-trusted placeholder.
 
     Critically it must NOT silently default to a base currency like SGD.
     """
@@ -90,7 +90,7 @@ def test_AC12_40_2_placeholder_cannot_masquerade_as_real_currency():
 
 @ac_proof(proof_id="test_promotion_gate_blocks_unresolved", ac_ids=["AC12.40.4"], ci_tier="pr_ci", issue="#1341")
 async def test_AC12_40_4_promotion_gate_blocks_unresolved_currency():
-    """AC12.40.4: an unresolved transaction cannot be promoted to a JournalLine.
+    """AC-audit.40.4: AC12.40.4: an unresolved transaction cannot be promoted to a JournalLine.
 
     The guard fires before any DB access, so ``db=None`` is sufficient to prove the
     block: if the guard were absent the call would instead fail trying to use the DB.
@@ -159,7 +159,7 @@ class _FakeSession:
 
 @ac_proof(proof_id="test_reviewer_resolves_currency_audited", ac_ids=["AC12.40.3"], ci_tier="pr_ci", issue="#1341")
 async def test_AC12_40_3_reviewer_resolves_currency_with_audit():
-    """AC12.40.3: a reviewer sets an ISO-4217 currency; who/when/value are recorded."""
+    """AC-audit.40.3: AC12.40.3: a reviewer sets an ISO-4217 currency; who/when/value are recorded."""
     user_id = uuid4()
     txn = SimpleNamespace(
         id=uuid4(),

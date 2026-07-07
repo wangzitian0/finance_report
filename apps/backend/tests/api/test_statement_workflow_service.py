@@ -28,7 +28,7 @@ class _FakeSession:
 
 
 async def test_statement_workflow_service(monkeypatch):
-    """AC25.2.1: approve/reject workflows own the commit + Stage-1 transition as one
+    """AC-extraction.2502.1: AC25.2.1: approve/reject workflows own the commit + Stage-1 transition as one
     ordered unit, and the router delegates to them (no inline approve/reject+commit)."""
     statement_id = uuid4()
     user_id = uuid4()

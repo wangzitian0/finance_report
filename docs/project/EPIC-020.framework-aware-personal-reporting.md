@@ -78,7 +78,7 @@ code holds final authority everywhere a number becomes financial truth.
 | Layer | What it decides | Tier | Who emits the used artifact | Proof obligation | Enforcing gate |
 |---|---|---|---|---|---|
 | **event → L2** | classify a financial event (category, direction) — polymorphic | **LLM-LED** (LLM-led) | LLM emits the classification; code does enum + balance/dedup sanity and may reject, never author | invariant / property + eval + provenance; **no exact-golden** | LLM cassette balance-chain drift gate (`tools/check_llm_cassettes.py`, AC-llm.7.1) |
-| **L2 → L1** | map an L2 category to a report line | **CODE-LED** (code-led) — CODE-ONLY today | code's deterministic rule table emits the line; LLM only fills ambiguous knobs (`holding_intent` / `horizon`, `OTHER` disambiguation) and code validates | assert the **code's** decision, not the LLM output | L2→L1 completeness gate (`test_framework_policy_coverage.py`, AC20.8.1) |
+| **L2 → L1** | map an L2 category to a report line | **CODE-LED** (code-led) — CODE-ONLY today | code's deterministic rule table emits the line; LLM only fills ambiguous knobs (`holding_intent` / `horizon`, `OTHER` disambiguation) and code validates | assert the **code's** decision, not the LLM output | L2→L1 completeness gate (`test_framework_policy_coverage.py`, `AC-reporting.pipeline.1`) |
 | **L1 → report** | aggregate by the L1 registry into statements | **CODE-ONLY** (pure code) | code sums by registry; no LLM in the path; bit-reproducible | exact / property test | pending — L1 registry + exact-aggregation test (tracked separately) |
 
 Notes:
@@ -92,66 +92,24 @@ Notes:
 
 ## Acceptance Criteria
 
-### AC20.1: Framework Target Registry
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC20.1.1 | Framework reporting SSOT defines `personal_us_gaap_like` and `personal_hkfrs_like`, excludes CN/CAS v1, and states that outputs are personal management reports rather than statutory filings | `test_AC20_1_1_framework_registry_defines_us_hk_personal_targets` | `tests/tooling/test_framework_reporting_epic_contract.py` | P0 |
-
-### AC20.2: MECE Direction Ownership
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC20.2.1 | Framework reporting SSOT and EPIC-020 define the six-lane fact-forward/target-backward architecture with distinct owners and outputs | `test_AC20_2_1_mece_direction_matrix_declares_distinct_owner_lanes` | `tests/tooling/test_framework_reporting_epic_contract.py` | P0 |
-
-### AC20.3: Target-backward Report Requirements
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC20.3.1 | Framework target package requirements enumerate required statements, report line mappings, policy dimensions, evidence anchors, disclosure requirements, and blocker conditions before report assembly | `test_AC20_3_1_framework_target_contract_is_report_output_backward` | `tests/tooling/test_framework_reporting_epic_contract.py` | P0 |
-
-### AC20.4: Personal Finance Policy Matrix
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC20.4.1 | The v1 policy matrix covers cash, listed securities, funds, dividends, brokerage fees, FX, restricted compensation, property, mortgage, and private/manual assets across recognition, measurement, classification, presentation, and disclosure | `test_AC20_4_1_policy_matrix_covers_personal_finance_domains` | `tests/tooling/test_framework_reporting_epic_contract.py` | P0 |
-
-### AC20.5: Read-Only Policy Result
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC20.5.1 | Framework policy consumes canonical ledger, portfolio facts, evidence readiness, and framework target without mutating source records, journal entries, portfolio lots, market data, or report snapshots | `test_AC20_5_1_policy_layer_is_read_only_between_facts_and_report` | `tests/tooling/test_framework_reporting_epic_contract.py` | P0 |
-
-### AC20.6: AI Measurement and Disclosure Boundary
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC20.6.1 | AI measurement/disclosure suggestions can affect trusted output only after becoming structured fields with source anchor, confidence tier, review state, policy field name, and accepted value; package UI requires explicit framework selection before loading framework-scoped output | `test_AC20_6_1_ai_suggestions_require_structured_reviewed_policy_fields`, `test_AC20_6_1_ai_suggestions_require_reviewed_policy_fields_for_readiness`, `AC20.6.1 requires explicit framework selection before loading framework-scoped package output` | `tests/tooling/test_framework_reporting_epic_contract.py`, `reporting/test_framework_package_integration.py`, `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
-
-### AC20.7: Framework-Differentiated Proof Path
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC20.7.1 | The same settlement and portfolio fixture must be able to produce US-like and HK-like personal report packages with framework-specific line mappings, notes, source anchors, export metadata, and readiness blockers | `test_AC20_7_1_same_fixture_must_drive_framework_differentiated_reports`, `test_AC20_7_1_same_settlement_fixture_drives_us_hk_report_policy_outputs`, `AC20.6.1 AC20.7.1 loads readiness and policy result with the selected framework` | `tests/tooling/test_framework_reporting_epic_contract.py`, `reporting/test_framework_policy.py`, `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
-
-### AC20.8: L2→L1 Line-Mapping Completeness
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC20.8.1 | Every L2 category — each `AssetType` and each `ManualValuationComponentType` — resolves to a concrete L1 report line via the framework policy matrix in both `personal_us_gaap_like` and `personal_hkfrs_like`; a known category landing in the `UNSUPPORTED`/gap path fails the gate, so report assembly never improvises a line for a known category (`BOND`/`OTHER` regression covered) {tier:CODE-ONLY}{proof:property} | `test_AC20_8_1_every_asset_type_maps_to_an_l1_line`, `test_AC20_8_1_every_manual_component_maps_to_an_l1_line`, `test_AC20_8_1_bond_and_other_are_mapped_not_gaps` | `reporting/test_framework_policy_coverage.py` | P0 |
-
-### AC20.9: Reporting Pipeline Authority Tiers
-
-> **Partially migrated.** The extraction-owned rows (were AC20.9.* rows
-> .2/.3/.4/.5/.6/.7) are homed in the `extraction` package roadmap as
-> `AC-extraction.2009.2` · `AC-extraction.2009.3` · `AC-extraction.2009.4` · `AC-extraction.2009.5` · `AC-extraction.2009.6` · `AC-extraction.2009.7`
-> ([`common/extraction/contract.py`](../../common/extraction/contract.py));
-> the remaining rows below stay with their own owners.
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC20.9.1 | EPIC-020 declares the three reporting-pipeline layers (`event → L2`, `L2 → L1`, `L1 → report`) each with a locked EPIC-026 tier (LLM-LED / CODE-LED / CODE-ONLY) and its valid proof obligation; LLM authority is confined to the LLM-LED layer and code holds final authority where a number becomes financial truth; L1 report assembly iterates the registered L1 lines, aggregates Decimal source lines exactly, keeps portfolio cost basis plus market adjustment on the framework securities L1, and fails closed rather than improvising an unmapped known source line {tier:CODE-ONLY}{proof:property} | `test_AC20_9_1_reporting_pipeline_declares_layer_authority_tiers`, `test_AC20_9_1_framework_balance_sheet_exact_aggregation`, `test_AC20_9_1_portfolio_cost_basis_and_adjustment_stay_on_securities_l1` | `tests/tooling/test_framework_reporting_epic_contract.py`, `reporting/test_l1_registry_aggregation.py` | P0 |
-| AC20.9.8 | A db-backed quarantine persists the terminal `rejected` status to the statement row (and writes no Layer-2 financial rows) instead of leaving the upload stuck in `parsing` {tier:CODE-ONLY} | `test_AC20_9_8_quarantined_statement_persists_rejected_not_stuck_parsing` | `tests/extraction/test_llm_led_blocking_gate.py` | P0 |
+> **Fully migrated** (migration closeout wave 2, #1663). Every row that used
+> to live here (were AC20.1.* / AC20.2.* / AC20.3.* / AC20.4.* / AC20.5.* /
+> AC20.6.* / AC20.7.* / AC20.8.* / AC20.9.* rows) moved to a package roadmap
+> per the standard's "AC is the migration unit" rule — none stayed
+> EPIC-owned, so this table is gone rather than reduced. This note
+> references the new ids (keeping the registry↔EPIC link intact) but
+> defines none of them — the contract is the single definition source.
+>
+> Migrated to [`common/reporting/contract.py`](../../common/reporting/contract.py)'s
+> `roadmap`: `AC-reporting.framework.1` · `AC-reporting.lanes.1` ·
+> `AC-reporting.target.1` · `AC-reporting.policy.1` ·
+> `AC-reporting.policy.2` · `AC-reporting.ai.1` · `AC-reporting.framework.2` ·
+> `AC-reporting.pipeline.1` · `AC-reporting.pipeline.2`.
+>
+> Migrated to [`common/extraction/contract.py`](../../common/extraction/contract.py)'s
+> `roadmap` (its test lives in the same extraction-owned file as the group's
+> other members, not in `reporting`): `AC-extraction.2009.2` through
+> `AC-extraction.2009.8` (`.2`–`.7` migrated in a prior PR; `.8` in this one).
 
 ## Implementation Order
 
