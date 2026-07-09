@@ -12,7 +12,7 @@ EPIC_020 = "docs/project/EPIC-020.framework-aware-personal-reporting.md"
 
 
 def test_AC20_1_1_framework_registry_defines_us_hk_personal_targets() -> None:
-    """AC20.1.1: Framework registry defines US/HK personal targets without statutory claims."""
+    """AC-reporting.framework.1: AC20.1.1: Framework registry defines US/HK personal targets without statutory claims."""
     ssot = read(FRAMEWORK_SSOT)
     epic = read(EPIC_020)
 
@@ -28,7 +28,7 @@ def test_AC20_1_1_framework_registry_defines_us_hk_personal_targets() -> None:
 
 
 def test_AC20_2_1_mece_direction_matrix_declares_distinct_owner_lanes() -> None:
-    """AC20.2.1: Six-lane fact-forward and target-backward ownership is explicit."""
+    """AC-reporting.lanes.1: AC20.2.1: Six-lane fact-forward and target-backward ownership is explicit."""
     ssot = read(FRAMEWORK_SSOT)
     epic = read(EPIC_020)
 
@@ -49,7 +49,7 @@ def test_AC20_2_1_mece_direction_matrix_declares_distinct_owner_lanes() -> None:
 
 
 def test_AC20_3_1_framework_target_contract_is_report_output_backward() -> None:
-    """AC20.3.1: Framework target contract works backward from report outputs."""
+    """AC-reporting.target.1: AC20.3.1: Framework target contract works backward from report outputs."""
     ssot = read(FRAMEWORK_SSOT)
     epic = read(EPIC_020)
 
@@ -61,7 +61,7 @@ def test_AC20_3_1_framework_target_contract_is_report_output_backward() -> None:
 
 
 def test_AC20_4_1_policy_matrix_covers_personal_finance_domains() -> None:
-    """AC20.4.1: Policy matrix covers core personal finance domains and policy dimensions."""
+    """AC-reporting.policy.1: AC20.4.1: Policy matrix covers core personal finance domains and policy dimensions."""
     ssot = read(FRAMEWORK_SSOT)
     epic = read(EPIC_020)
 
@@ -88,7 +88,7 @@ def test_AC20_4_1_policy_matrix_covers_personal_finance_domains() -> None:
 
 
 def test_AC20_5_1_policy_layer_is_read_only_between_facts_and_report() -> None:
-    """AC20.5.1: Policy consumes facts and must not mutate source ledgers or reports."""
+    """AC-reporting.policy.2: AC20.5.1: Policy consumes facts and must not mutate source ledgers or reports."""
     ssot = read(FRAMEWORK_SSOT)
     epic = read(EPIC_020)
 

@@ -34,7 +34,10 @@ class TestSortKey:
         assert gar.sort_key("AC1.1.10") > gar.sort_key("AC1.1.9")
 
     def test_package_ids_sort_after_legacy_and_by_package(self):
-        assert gar.sort_key("AC-counter.1.1") == (1, "counter", 1, 1)
+        # group is a string (a package's group may be a word-entity slug like
+        # "guardrail", not a number), so a numeric group like "1" is asserted
+        # as a string here too.
+        assert gar.sort_key("AC-counter.1.1") == (1, "counter", "1", 1)
         # Package ids sort after every legacy numeric id...
         assert gar.sort_key("AC-counter.1.1") > gar.sort_key("AC999.9.9")
         # ...then by (package, group, seq).
@@ -45,6 +48,13 @@ class TestSortKey:
             "AC-counter.2.1",
             "AC-platform.1.2",
         ]
+
+    def test_word_entity_group_sorts_and_orders(self):
+        # A word-entity group (e.g. "guardrail") is a legitimate package
+        # convention (advisor, reconciliation, reporting all use it) and must
+        # not crash sort_key or be silently dropped from the registry.
+        assert gar.sort_key("AC-advisor.guardrail.3") == (1, "advisor", "guardrail", 3)
+        assert gar.sort_key("AC-advisor.guardrail.3") > gar.sort_key("AC999.9.9")
 
 
 class TestExtractAcs:

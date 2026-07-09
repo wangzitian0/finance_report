@@ -70,7 +70,7 @@ async def _accounts(db, user_id) -> tuple[Account, Account]:
 
 @pytest.mark.asyncio
 async def test_AC2_16_4_balance_sheet_degrades_tier_and_warns_when_opening_balance_missing(db, test_user) -> None:
-    """AC2.16.4: a HIGH-tier balance sheet is degraded to LOW and warns when the
+    """AC-reporting.opening-balance.1: AC2.16.4: a HIGH-tier balance sheet is degraded to LOW and warns when the
     opening balance is missing — the total is structurally incomplete."""
     cash, income = await _accounts(db, test_user.id)
     await _post_high_confidence_activity(db, test_user.id, cash=cash, income=income)
@@ -86,7 +86,7 @@ async def test_AC2_16_4_balance_sheet_degrades_tier_and_warns_when_opening_balan
 
 @pytest.mark.asyncio
 async def test_AC2_16_4_balance_sheet_clears_warning_once_opening_balance_recorded(db, test_user) -> None:
-    """AC2.16.4: recording an opening balance clears the warning."""
+    """AC-reporting.opening-balance.2: AC2.16.4: recording an opening balance clears the warning."""
     cash, income = await _accounts(db, test_user.id)
     await _post_high_confidence_activity(db, test_user.id, cash=cash, income=income)
     await post_opening_balance_entry(
@@ -106,7 +106,7 @@ async def test_AC2_16_4_balance_sheet_clears_warning_once_opening_balance_record
 
 @pytest.mark.asyncio
 async def test_AC2_16_4_net_worth_allocation_surfaces_opening_balance_warning(db, test_user) -> None:
-    """AC2.16.4: the net-worth allocation surface carries the same signal."""
+    """AC-reporting.opening-balance.3: AC2.16.4: the net-worth allocation surface carries the same signal."""
     cash, income = await _accounts(db, test_user.id)
     await _post_high_confidence_activity(db, test_user.id, cash=cash, income=income)
 

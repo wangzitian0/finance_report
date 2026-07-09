@@ -343,7 +343,7 @@ async def test_AC19_7_1_readiness_deduplicates_normalized_market_data_symbols(
 
 @pytest.mark.no_db
 def test_AC20_6_1_ai_suggestions_require_reviewed_policy_fields_for_readiness() -> None:
-    """AC20.6.1: AI suggestions and incomplete policy fields become readiness blocker codes."""
+    """AC-reporting.ai.1: AC20.6.1: AI suggestions and incomplete policy fields become readiness blocker codes."""
     decision = FrameworkPolicyDecision.model_construct(
         domain=PolicyFactDomain.LISTED_SECURITY,
         recognition="Recognize listed holding from broker evidence.",

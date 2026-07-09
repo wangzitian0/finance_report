@@ -386,7 +386,7 @@ async def test_pending_review_queue_returns_items(db: AsyncSession, test_user) -
 
 
 async def test_accept_reject_batch_accept(db: AsyncSession, test_user) -> None:
-    """[AC4.3.3] Test batch accept functionality."""
+    """AC-reconciliation.review-queue.2: [AC4.3.3] Test batch accept functionality."""
     account = Account(
         user_id=test_user.id, name="Mapped Reconciliation Account", type=AccountType.ASSET, currency="SGD"
     )

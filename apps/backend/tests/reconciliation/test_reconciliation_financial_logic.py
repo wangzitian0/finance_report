@@ -11,7 +11,7 @@ from src.reconciliation import DEFAULT_CONFIG, calculate_match_score
 
 
 async def test_AC4_9_1_entry_total_uses_bank_side_line_for_outflow(db):
-    """AC4.9.1: Matching amount uses the bank/cash line for bank outflows."""
+    """AC-reconciliation.bank-side-amount.1: AC4.9.1: Matching amount uses the bank/cash line for bank outflows."""
     bank = Account(id=uuid4(), user_id=uuid4(), name="Checking", type=AccountType.ASSET, currency="SGD")
     expense = Account(id=uuid4(), user_id=bank.user_id, name="Expense", type=AccountType.EXPENSE, currency="SGD")
     clearing = Account(id=uuid4(), user_id=bank.user_id, name="Clearing", type=AccountType.ASSET, currency="SGD")

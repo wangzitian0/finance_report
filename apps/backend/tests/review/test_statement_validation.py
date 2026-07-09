@@ -51,7 +51,7 @@ class TestDuplicateGuardBalanceAfter:
     """The Stage-1 conflict guard must stay consistent with the dedup disambiguator."""
 
     def test_duplicate_guard_distinguishes_by_balance_after(self):
-        """AC4.6.6: Two transactions identical in date/description/amount/direction but with
+        """AC-reconciliation.source-type-transfer.5: AC4.6.6: Two transactions identical in date/description/amount/direction but with
         different running balances (balance_after) are NOT flagged as duplicate candidates --
         the dedup layer already deemed them distinct, so the guard must not re-collapse them."""
         txns = [
@@ -61,7 +61,7 @@ class TestDuplicateGuardBalanceAfter:
         assert _has_unresolved_statement_conflicts(txns) is False
 
     def test_duplicate_guard_flags_when_balance_after_equal_or_absent(self):
-        """AC4.6.7: Identical transactions with equal or absent balance_after remain flagged
+        """AC-reconciliation.source-type-transfer.6: AC4.6.7: Identical transactions with equal or absent balance_after remain flagged
         as duplicate candidates (genuinely ambiguous -> needs human review)."""
         equal_balance = [
             _conflict_txn(balance_after=Decimal("5000.00")),

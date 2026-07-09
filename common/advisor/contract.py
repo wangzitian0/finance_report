@@ -160,7 +160,7 @@ CONTRACT = PackageContract(
             proof_kind="property",
         ),
         ACRecord(
-            id="AC-advisor.guardrail.3",
+            id="AC-advisor.guardrail.13",
             statement=(
                 "``StreamRedactor`` withholds emission of a chunk smaller than "
                 "its configured tail size, accumulating it in an internal "

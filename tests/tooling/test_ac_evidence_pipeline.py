@@ -363,8 +363,9 @@ def test_committed_baseline_matches_schema():
     path = REPO_ROOT / "docs" / "ssot" / "ac-score-baseline.jsonl"
     baseline = baseline_format.load_jsonl(path)
     assert baseline["version"] == 1
-    assert "AC4.1.4" in baseline["acs"]
-    assert 0.0 <= baseline["acs"]["AC4.1.4"]["score"] <= 1.0
+    # was AC4.1.4, migrated to the reconciliation package roadmap (#1663)
+    assert "AC-reconciliation.matching-core.4" in baseline["acs"]
+    assert 0.0 <= baseline["acs"]["AC-reconciliation.matching-core.4"]["score"] <= 1.0
 
     # Conflict-free storage contract: one JSON object per line, sorted by ac_id.
     raw_lines = [

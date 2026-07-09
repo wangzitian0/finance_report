@@ -2735,7 +2735,7 @@ async def test_get_stage2_review_queue_empty(db, test_user):
 
 
 async def test_get_stage2_review_queue_with_pending_match(db, test_user):
-    """AC4.9.4: Given a statement with a pending-review reconciliation match,
+    """AC-reconciliation.bank-side-amount.4: AC4.9.4: Given a statement with a pending-review reconciliation match,
     When get_stage2_review_queue is called,
     Then it returns the match in pending_matches with tier derived from match_score.
     """
@@ -3443,7 +3443,7 @@ async def test_batch_approve_matches_creates_missing_entry_once(db, test_user):
 
 
 async def test_accept_match_retry_is_idempotent_after_success(db, test_user):
-    """AC4.9.2: Retrying an accepted match must not mutate version or duplicate posting side effects."""
+    """AC-reconciliation.bank-side-amount.2: AC4.9.2: Retrying an accepted match must not mutate version or duplicate posting side effects."""
     account = await create_statement_account(db, test_user.id, "DBS Accept Retry")
     statement = build_statement(test_user.id, "hash_accept_retry", 90)
     statement.status = BankStatementStatus.APPROVED
@@ -3550,7 +3550,7 @@ async def test_batch_approve_matches_reuses_existing_source_entry(db, test_user)
 
 
 async def test_create_entry_from_txn_auto_post_rejects_inactive_statement_account(db, test_user):
-    """AC4.9.3: Auto-posted statement entries must satisfy regular posting account invariants."""
+    """AC-reconciliation.bank-side-amount.3: AC4.9.3: Auto-posted statement entries must satisfy regular posting account invariants."""
     account = await create_statement_account(db, test_user.id, "DBS Inactive Statement Account")
     account.is_active = False
     statement = build_statement(test_user.id, "hash_batch_inactive_account", 90)

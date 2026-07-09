@@ -16,7 +16,7 @@ from src.services.ai_advisor import StreamRedactor
 
 
 def test_stream_redactor_small_chunks():
-    """AC2.12.5 - Stream redactor accumulates small chunks in buffer"""
+    """AC-advisor.guardrail.13: AC2.12.5 - Stream redactor accumulates small chunks in buffer"""
     redactor = StreamRedactor(tail_size=10)
 
     result1 = redactor.process("Hello")

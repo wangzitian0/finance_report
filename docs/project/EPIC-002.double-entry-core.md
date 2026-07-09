@@ -105,10 +105,12 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 > the contract is the single definition source. The **non-double-entry** rows of
 > the AC2.13–AC2.23 range stay defined below, because they are not ledger ACs: the
 > frontend UI ACs `AC2.15.8` / `AC2.16.3` / `AC2.17.1` (the ledger package is
-> `fe=None`), the reporting-layer tier-degrade `AC2.16.4`, the cross-EPIC
-> framework-boundary doc-contract `AC2.18.1`, and the Money value-type extension
-> `AC2.19.*`–`AC2.22.*` (owned by the `money` kernel). Slice 3c-iii is the final AC
-> batch of the #1420 cutover.
+> `fe=None`), the cross-EPIC framework-boundary doc-contract `AC2.18.1`, and the
+> Money value-type extension `AC2.19.*`–`AC2.22.*` (owned by the `money` kernel).
+> Slice 3c-iii is the final AC batch of the #1420 cutover. *(AC2.16 group's
+> reporting-layer row and AC2.12's stream-redaction row removed — migration
+> closeout wave 2, #1663 — canonical copies are in the `reporting` and
+> `advisor` package roadmaps; see their own notes below.)*
 >
 > The two Money *leftovers* whose anchor test proves a money-package statement — the
 > net-worth restatement via the `convert` primitive and the narrow-waist `float`-ban
@@ -170,7 +172,7 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 > **Guided opening balances — backend** (was the AC2.15.* backend rows; the frontend `AC2.15.8` stays in EPIC-002):
 > `AC-ledger.15.1` · `AC-ledger.15.2` · `AC-ledger.15.3` · `AC-ledger.15.4` · `AC-ledger.15.5` · `AC-ledger.15.6` · `AC-ledger.15.7`
 >
-> **Opening-balance readiness — backend** (was the AC2.16.* backend detection rows; the frontend `AC2.16.3` and reporting `AC2.16.4` stay in EPIC-002):
+> **Opening-balance readiness — backend** (was the AC2.16.* backend detection rows; the frontend `AC2.16.3` stays in EPIC-002; *the AC2.16 group's reporting-layer row removed* — migrated to `reporting`, #1663):
 > `AC-ledger.16.1` · `AC-ledger.16.2`
 
 ### AC2.17: Account Management UI Responsiveness
@@ -189,16 +191,15 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 > listed in the disclaimer above and defined in
 > [`common/ledger/contract.py`](../../common/ledger/contract.py)'s `roadmap`.
 
-### Retained in EPIC-002 (not a ledger AC)
+### Was in AC2.12 (not a ledger AC — since migrated)
 
-`AC2.12.5` was mis-filed in the AC2.12 multi-currency group, but it covers
-stream-redaction (PII chunk buffering), not double-entry — so it is **not**
-migrated into `ledger` (which would mis-home a storage AC). It stays defined here
-pending a proper re-home to a storage/observability package.
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC2.12.5 | Stream redactor accumulates small chunks in buffer | `test_stream_redactor_small_chunks` | `infra/test_infra_edge_cases.py` | P1 |
+*(AC2.12's stream-redaction row removed.)* It was mis-filed in the AC2.12
+multi-currency group — it covers stream-redaction (PII chunk buffering), not
+double-entry — so it was **not** migrated into `ledger` (which would have
+mis-homed a storage AC). `StreamRedactor` is already `advisor`'s own
+guardrail unit, so it moved (migration closeout wave 2, #1663) to
+[`common/advisor/contract.py`](../../common/advisor/contract.py)'s
+`roadmap` as `AC-advisor.guardrail.13`.
 
 > **AC2.13 (User-Scoped Ledger Integrity) and AC2.14 (Database Ledger Invariant
 > Floor)** were genuine double-entry groups and migrated wholesale into the
@@ -219,7 +220,7 @@ A user with pre-existing assets/liabilities can establish year-start balances vi
 |----|-----------|---------------|------|----------|
 | AC2.15.8 | The Accounts page offers a guided opening-balance flow: a non-accountant enters an as-of date and a starting balance per eligible (active, non-income/expense) account, and the UI posts the balances map to `POST /api/accounts/opening-balances` — never hand-written journal lines — validating positive two-decimal amounts and surfacing backend errors instead of silently closing | `AC2.15.8 lists only eligible accounts and hides income/expense and inactive ones`, `AC2.15.8 posts a balances map without requiring hand-written journal lines`, `AC2.15.8 blocks submission until at least one positive balance is entered`, `AC2.15.8 rejects non-positive or over-precise amounts before calling the API`, `AC2.15.8 surfaces a backend error instead of closing` | `apps/frontend/src/__tests__/openingBalanceModal.test.tsx` | P1 |
 
-### AC2.16: Opening-Balance Readiness Nudge ([#949](https://github.com/wangzitian0/finance_report/issues/949)) — frontend & reporting ACs only
+### AC2.16: Opening-Balance Readiness Nudge ([#949](https://github.com/wangzitian0/finance_report/issues/949)) — frontend AC only
 
 The everyday-user persona who already owns assets/liabilities on day one can post
 real activity without ever recording a starting position, yielding a balance
@@ -228,14 +229,20 @@ that gap before the numbers are trusted.
 
 > The backend ledger-activity detection ACs in the `AC2.16.*` range migrated into
 > the `ledger` package as `AC-ledger.16.*` (#1420 slice 3c-iii). The **frontend**
-> nudge `AC2.16.3` (ledger is `fe=None`) and the **reporting-layer** tier-degrade
-> `AC2.16.4` (a report-assembly property, not a double-entry posting one) stay
-> defined here.
+> nudge `AC2.16.3` stays here (ledger is `fe=None`). *(The AC2.16 group's
+> reporting-layer row removed — a report-assembly property, not a
+> double-entry posting one; migrated to `reporting`, migration closeout
+> wave 2, #1663 — see below.)*
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC2.16.3 | The Accounts page shows a warning nudge (with a CTA that opens the guided flow) when opening balances are missing, and hides it once they are recorded | `AC2.16.3 shows a readiness nudge and opens the modal when opening balances are missing`, `AC2.16.3 hides the readiness nudge when opening balances are already recorded` | `apps/frontend/src/__tests__/accountsPage.test.tsx` | P1 |
-| AC2.16.4 {tier:CODE-ONLY} | The balance sheet and net-worth allocation degrade their aggregate confidence tier to `LOW` and emit an `opening_balance_warnings` entry when the user needs an opening balance, so a structurally-incomplete total is never presented as trusted (HIGH); once an opening balance is recorded the degrade and warning clear | `test_AC2_16_4_balance_sheet_degrades_tier_and_warns_when_opening_balance_missing`, `test_AC2_16_4_balance_sheet_clears_warning_once_opening_balance_recorded`, `test_AC2_16_4_net_worth_allocation_surfaces_opening_balance_warning` | `apps/backend/tests/reporting/test_balance_sheet_opening_balance_gate.py` | P1 |
+
+> **Migrated**: the balance sheet and net-worth allocation confidence-tier
+> degrade (was the AC2.16 group's reporting-layer row) is report assembly,
+> not double-entry posting or frontend UI, so it moved to
+> [`common/reporting/contract.py`](../../common/reporting/contract.py)'s
+> `roadmap` as `AC-reporting.opening-balance.1` / `.2` / `.3`.
 
 ## 📏 Acceptance Criteria
 

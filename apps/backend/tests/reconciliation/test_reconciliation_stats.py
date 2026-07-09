@@ -94,7 +94,7 @@ async def test_get_reconciliation_stats_basic(db, test_user):
 
 
 async def test_get_reconciliation_stats_dedups_multiple_accepted_matches(db, test_user):
-    """Two accepted matches on the same atomic txn count as one matched txn.
+    """AC-reconciliation.stats.1: Two accepted matches on the same atomic txn count as one matched txn.
 
     ``matched`` counts DISTINCT atomic transactions, so multiple active accepted
     matches on a single transaction must not inflate the count or push

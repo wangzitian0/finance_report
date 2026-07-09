@@ -26,7 +26,7 @@ from src.schemas.streaming import (
 
 
 def test_AC6_33_1_chat_envelope_minimal_headers() -> None:
-    """AC6.33.1: Chat envelope with only a session id emits the session header."""
+    """AC-advisor.envelope.1: AC6.33.1: Chat envelope with only a session id emits the session header."""
     session_id = uuid4()
     envelope = ChatStreamEnvelope(session_id=session_id)
 
@@ -40,7 +40,7 @@ def test_AC6_33_1_chat_envelope_minimal_headers() -> None:
 
 
 def test_AC6_33_2_chat_envelope_includes_model_and_metadata_headers() -> None:
-    """AC6.33.2: Model + grounding metadata are exposed and CORS-listed in order."""
+    """AC-advisor.envelope.2: AC6.33.2: Model + grounding metadata are exposed and CORS-listed in order."""
     session_id = uuid4()
     metadata = ChatResponseMetadata(
         grounded=True,
@@ -70,7 +70,7 @@ def test_AC6_33_2_chat_envelope_includes_model_and_metadata_headers() -> None:
 
 
 def test_AC6_33_3_chat_envelope_omits_empty_advisor_metadata() -> None:
-    """AC6.33.3: Empty grounding metadata is not exposed (wire output unchanged)."""
+    """AC-advisor.envelope.3: AC6.33.3: Empty grounding metadata is not exposed (wire output unchanged)."""
     envelope = ChatStreamEnvelope(
         session_id=uuid4(),
         model_name="m",
@@ -84,7 +84,7 @@ def test_AC6_33_3_chat_envelope_omits_empty_advisor_metadata() -> None:
 
 
 def test_AC6_33_4_chat_envelope_rejects_invalid_advisor_metadata() -> None:
-    """AC6.33.4: Advisor metadata is validated against the typed model."""
+    """AC-advisor.envelope.4: AC6.33.4: Advisor metadata is validated against the typed model."""
     with pytest.raises(ValidationError):
         ChatStreamEnvelope.model_validate(
             {
@@ -146,7 +146,7 @@ def test_AC6_33_9_export_envelope_accepts_normal_filename() -> None:
 
 @pytest.mark.no_db
 async def test_AC6_33_7_chat_router_uses_envelope_media_type_and_headers() -> None:
-    """AC6.33.7: chat_message builds its response from the typed envelope.
+    """AC-advisor.envelope.5: AC6.33.7: chat_message builds its response from the typed envelope.
 
     Wire output is unchanged: text/plain body, X-Session-Id header, and a
     dict-shaped advisor metadata payload is still coerced into the typed header.

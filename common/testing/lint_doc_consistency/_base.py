@@ -77,12 +77,14 @@ TEST_FILE_SUFFIXES = (
 )
 
 # Matches BOTH AC id grammars (mirrors common.testing.ac_traceability_refs):
-# legacy ``AC{epic}.{n}.{n}`` and package-scoped ``AC-{package}.{n}.{n}``. The
-# ``epic`` group is set only for the legacy form (``pkg`` for the package form),
-# so consumers needing the EPIC number must check ``group("epic")`` is not None.
+# legacy ``AC{epic}.{n}.{n}`` and package-scoped ``AC-{package}.{group}.{n}``,
+# where ``group`` is either numeric or a word-entity slug (e.g. ``guardrail``,
+# ``fx-transfer``). The ``epic`` group is set only for the legacy form (``pkg``
+# for the package form), so consumers needing the EPIC number must check
+# ``group("epic")`` is not None.
 AC_PATTERN = re.compile(
-    r"\bAC(?:(?P<epic>\d+)|-(?P<pkg>[a-z][a-z0-9_]*))"
-    r"\.(?P<scenario>\d+)\.(?P<case>\d+)\b"
+    r"\bAC(?:(?P<epic>\d+)\.\d+\.\d+"
+    r"|-(?P<pkg>[a-z][a-z0-9_]*)\.[a-z0-9][a-z0-9_-]*\.\d+)\b"
 )
 
 # Lines in EPIC docs that document AC IDs as removed/duplicated/

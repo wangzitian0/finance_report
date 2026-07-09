@@ -153,7 +153,7 @@ def test_load_reconciliation_config_no_yaml_module(monkeypatch):
 
 
 def test_normalize_and_description_scoring(ac_evidence) -> None:
-    """[AC4.1.4] Test description similarity."""
+    """AC-reconciliation.matching-core.4: [AC4.1.4] Test description similarity."""
     assert normalize_text("  ACME-CO.  ") == "acme co"
     assert score_description(None, "value") == 0.0
     assert score_description("   ", "value") == 0.0
@@ -224,7 +224,7 @@ def test_build_many_to_one_groups_skips_empty_descriptions() -> None:
 
 
 def test_score_amount_branches(ac_evidence) -> None:
-    """[AC4.1.1] [AC4.1.3] Test score_amount logic."""
+    """AC-reconciliation.matching-core.1: [AC4.1.1] [AC4.1.3] Test score_amount logic."""
     config = DEFAULT_CONFIG
     # Exact Match [AC4.1.1]
     exact = score_amount(Decimal("100.00"), Decimal("100.00"), config)
@@ -255,7 +255,7 @@ def test_score_amount_branches(ac_evidence) -> None:
 
 
 def test_amount_tolerance_0_10_boundary(ac_evidence) -> None:
-    """AC4.6.1: Absolute amount delta of 0.10 passes, but 0.11 fails."""
+    """AC-reconciliation.source-type-transfer.1: AC4.6.1: Absolute amount delta of 0.10 passes, but 0.11 fails."""
     config = DEFAULT_CONFIG
 
     inside = score_amount(Decimal("10.00"), Decimal("10.10"), config)
@@ -274,7 +274,7 @@ def test_amount_tolerance_0_10_boundary(ac_evidence) -> None:
 
 
 def test_score_date_branches(ac_evidence) -> None:
-    """[AC4.1.2] Test score_date logic."""
+    """AC-reconciliation.matching-core.2: [AC4.1.2] Test score_date logic."""
     config = DEFAULT_CONFIG
     # Exact Date
     assert score_date(date(2024, 1, 1), date(2024, 1, 1), config) == 100.0
@@ -325,6 +325,7 @@ def test_score_business_logic_variants(direction: str, types: list[AccountType],
 
 
 def test_weighted_total_and_balance_helpers() -> None:
+    """AC-reconciliation.score.1."""
     scores = {
         "amount": 100.0,
         "date": 100.0,
@@ -479,6 +480,7 @@ async def test_score_pattern_variants(db: AsyncSession, test_user) -> None:
 
 
 async def test_calculate_match_score_many_to_one_bonus(db: AsyncSession) -> None:
+    """AC-reconciliation.group-matching.2."""
     user_id = uuid4()
     bank = Account(
         id=uuid4(),

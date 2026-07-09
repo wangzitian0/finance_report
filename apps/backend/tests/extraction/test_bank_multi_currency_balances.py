@@ -46,7 +46,7 @@ def _multi_currency_bank_payload() -> dict:
 
 
 async def test_AC4_13_9_bank_multi_currency_statement_persists_balances_and_per_currency_governs(test_user):
-    """AC4.13.9: the per-currency array is persisted (not collapsed) and, because each
+    """AC-reconciliation.per-currency-balance.9: AC4.13.9: the per-currency array is persisted (not collapsed) and, because each
     currency reconciles, the statement is balance-validated even though a cross-summed
     scalar check would be meaningless."""
     service = ExtractionService()

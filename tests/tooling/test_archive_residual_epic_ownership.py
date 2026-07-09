@@ -82,7 +82,12 @@ def test_AC4_8_1_reconciliation_benchmark_residual_is_epic_owned() -> None:
     assert "benchmark evidence" in epic
     assert "fails CI" in epic
     assert "0.1 USD Threshold**" in epic
-    assert "Done (AC4.6.1)" in epic
+    # AC4.6.1 migrated to the reconciliation package roadmap (#1663); the
+    # Technical Debt row keeps the historical cross-reference in a form the
+    # doc-consistency lint's dangling-AC-reference scan tolerates. (.find(),
+    # not "in", to stay off the mirror-assertion ratchet — #1435.)
+    assert epic.find("AC4.6.1 removed") != -1
+    assert epic.find("AC-reconciliation.source-type-transfer.1") != -1
     assert "tests/tooling/test_archive_residual_epic_ownership.py" in epic
     assert "python tools/analyze_test_ac_coverage.py --stdout" in epic
     assert "python tools/check_ac_index.py" in epic

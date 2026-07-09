@@ -282,7 +282,7 @@ def test_validate_balance_incomplete_transaction():
 
 
 def test_AC1_per_currency_reconcile_does_not_cross_sum():
-    """AC4.13.1 (#1123 AC1): A multi-currency statement reconciles each currency independently.
+    """AC-reconciliation.per-currency-balance.1: AC4.13.1 (#1123 AC1): A multi-currency statement reconciles each currency independently.
 
     Each currency's running balance is checked with its OWN
     ``open_ccy + ΣIN_ccy − ΣOUT_ccy ≈ close_ccy`` invariant. The currencies must
@@ -315,7 +315,7 @@ def test_AC1_per_currency_reconcile_does_not_cross_sum():
 
 
 def test_AC1_per_currency_reconcile_flags_only_offending_currency():
-    """AC4.13.2 (#1123 AC1): A mismatch in one currency does not contaminate the others.
+    """AC-reconciliation.per-currency-balance.2: AC4.13.2 (#1123 AC1): A mismatch in one currency does not contaminate the others.
 
     USD is short by 50; SGD is correct. The per-currency result marks only USD
     invalid and keeps SGD valid — never collapsing them into one aggregate flag.
@@ -341,7 +341,7 @@ def test_AC1_per_currency_reconcile_flags_only_offending_currency():
 
 
 def test_AC1_single_currency_degenerate_path_still_passes():
-    """AC4.13.3 (#1123 AC1): A single-currency statement passes via the degenerate path.
+    """AC-reconciliation.per-currency-balance.3: AC4.13.3 (#1123 AC1): A single-currency statement passes via the degenerate path.
 
     With only the scalar ``opening_balance`` / ``closing_balance`` present (no
     ``balances`` array — today's payloads), per-currency validation falls back to
@@ -363,7 +363,7 @@ def test_AC1_single_currency_degenerate_path_still_passes():
 
 
 def test_AC1_single_currency_degenerate_path_detects_mismatch():
-    """AC4.13.4 (#1123 AC1): The degenerate single-currency path still catches mismatches."""
+    """AC-reconciliation.per-currency-balance.4: AC4.13.4 (#1123 AC1): The degenerate single-currency path still catches mismatches."""
     extracted = {
         "currency": "SGD",
         "opening_balance": "100.00",
@@ -378,7 +378,7 @@ def test_AC1_single_currency_degenerate_path_detects_mismatch():
 
 
 def test_AC1_currency_balance_schema_round_trips_decimals():
-    """AC4.13.5 (#1123 AC1): ``CurrencyBalance`` carries (currency, opening, closing) as Decimal."""
+    """AC-reconciliation.per-currency-balance.5: AC4.13.5 (#1123 AC1): ``CurrencyBalance`` carries (currency, opening, closing) as Decimal."""
     from src.schemas.extraction import CurrencyBalance
 
     bal = CurrencyBalance(currency="usd", opening="1000.00", closing="1200.50")
@@ -389,7 +389,7 @@ def test_AC1_currency_balance_schema_round_trips_decimals():
 
 
 def test_AC1_orphan_currency_transaction_is_surfaced_not_dropped():
-    """AC4.13.7 (#1123 AC1): A transaction in an undeclared currency is surfaced, not dropped.
+    """AC-reconciliation.per-currency-balance.6: AC4.13.7 (#1123 AC1): A transaction in an undeclared currency is surfaced, not dropped.
 
     EUR appears in a transaction but has no declared balance bucket. Without
     surfacing it, the EUR money would vanish and the statement could appear to
@@ -419,7 +419,7 @@ def test_AC1_orphan_currency_transaction_is_surfaced_not_dropped():
 
 
 def test_AC1_duplicate_currency_in_balances_is_rejected():
-    """AC4.13.8 (#1123 AC1): Duplicate currencies in ``balances`` are rejected, not collapsed.
+    """AC-reconciliation.per-currency-balance.7: AC4.13.8 (#1123 AC1): Duplicate currencies in ``balances`` are rejected, not collapsed.
 
     Two SGD buckets would make ``nets`` ambiguous (keyed by currency), so the
     validator rejects the payload with ``balance_computable=False`` rather than
@@ -444,7 +444,7 @@ def test_AC1_duplicate_currency_in_balances_is_rejected():
 
 
 def test_AC4_13_9_bank_currency_balances_emitted_only_when_multi_currency():
-    """AC4.13.9 (#1502): a bank payload declaring >1 currency yields the per-currency
+    """AC-reconciliation.per-currency-balance.8: AC4.13.9 (#1502): a bank payload declaring >1 currency yields the per-currency
     array (JSONB-ready string amounts); a single-currency / scalar-only payload
     returns None so the existing scalar path is unchanged."""
     multi = {

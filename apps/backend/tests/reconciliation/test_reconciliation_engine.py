@@ -98,7 +98,7 @@ def _atomic(
 
 
 def test_auto_accept_threshold(ac_evidence) -> None:
-    """[AC4.3.1] [AC4.3.2] Auto-accept helper respects the threshold."""
+    """AC-reconciliation.score.2: [AC4.3.1] [AC4.3.2] Auto-accept helper respects the threshold."""
     at_threshold = auto_accept(DEFAULT_CONFIG.auto_accept, DEFAULT_CONFIG)
     below_review = auto_accept(DEFAULT_CONFIG.pending_review - 1, DEFAULT_CONFIG)
     assert at_threshold
@@ -230,7 +230,7 @@ async def test_execute_matching_no_candidates(db: AsyncSession, test_user):
 
 
 async def test_transfer_pair_not_double_counted(db: AsyncSession, test_user) -> None:
-    """AC4.6.2: Matching transfer OUT/IN within 3 days uses Processing entries only."""
+    """AC-reconciliation.source-type-transfer.2: AC4.6.2: Matching transfer OUT/IN within 3 days uses Processing entries only."""
     user_id = test_user.id
     checking = Account(
         user_id=user_id,
@@ -361,7 +361,7 @@ async def test_execute_matching_pending_review_and_unmatched(db: AsyncSession, t
 
 
 async def test_execute_matching_many_to_one_group(db: AsyncSession, test_user) -> None:
-    """[AC4.2.1] Batch-like transactions should reconcile via many-to-one grouping."""
+    """AC-reconciliation.group-matching.1: [AC4.2.1] Batch-like transactions should reconcile via many-to-one grouping."""
     user_id = test_user.id
     bank = Account(
         user_id=user_id,
@@ -461,7 +461,7 @@ async def test_find_candidates(db: AsyncSession, test_user):
 
 
 async def test_execute_matching_multi_entry_combinations(db: AsyncSession, test_user) -> None:
-    """[AC4.2.3] Multi-entry combinations should produce the best match (One-to-Many)."""
+    """AC-reconciliation.group-matching.3: [AC4.2.3] Multi-entry combinations should produce the best match (One-to-Many)."""
     user_id = test_user.id
     bank = Account(
         user_id=user_id,
@@ -662,7 +662,7 @@ async def test_create_entry_from_txn_requires_fx_rate_for_foreign_statement_curr
 
 
 async def test_review_queue_actions_and_entry_creation(db: AsyncSession) -> None:
-    """Review queue operations update match and transaction status."""
+    """AC-reconciliation.review-queue.1: Review queue operations update match and transaction status."""
     user_id = uuid4()
     user = User(
         id=user_id,
@@ -801,7 +801,7 @@ async def test_review_queue_actions_and_entry_creation(db: AsyncSession) -> None
 
 
 async def test_detect_anomalies_flags_expected_patterns(db: AsyncSession, test_user) -> None:
-    """[AC4.5.1] Anomaly detection flags large, frequent, and new merchants."""
+    """AC-reconciliation.anomaly-detection.1: [AC4.5.1] Anomaly detection flags large, frequent, and new merchants."""
     user_id = test_user.id
     summary = await _seed_summary(db, owner_id=user_id, base_date=date(2024, 3, 4))
 
@@ -955,7 +955,7 @@ async def test_execute_matching_many_to_one_skips_unbalanced_entry(db: AsyncSess
 
 
 async def test_execute_matching_many_to_one_keeps_same_existing_match(db: AsyncSession, test_user) -> None:
-    """AC-extraction.406.8: Many-to-one keeps existing match when journal entry IDs are unchanged."""
+    """AC-reconciliation.match.1: AC-extraction.406.8: Many-to-one keeps existing match when journal entry IDs are unchanged."""
     user_id = test_user.id
     summary = await _seed_summary(db, owner_id=user_id, base_date=date(2024, 8, 1))
     txn = _atomic(
@@ -1003,7 +1003,7 @@ async def test_execute_matching_many_to_one_keeps_same_existing_match(db: AsyncS
 
 
 async def test_execute_matching_many_to_one_layer2_sets_atomic_txn_id(db: AsyncSession, monkeypatch, test_user) -> None:
-    """AC4.6.9: Layer-2 reconciliation writes atomic_txn_id and supports transfer-pair logging."""
+    """AC-reconciliation.source-type-transfer.7: AC4.6.9: Layer-2 reconciliation writes atomic_txn_id and supports transfer-pair logging."""
     user_id = test_user.id
 
     txn = AtomicTransaction(
@@ -1049,7 +1049,7 @@ async def test_execute_matching_many_to_one_layer2_sets_atomic_txn_id(db: AsyncS
 
 
 async def test_execute_matching_three_entry_combination_skips_unbalanced_member(db: AsyncSession, test_user) -> None:
-    """AC4.7.3: Reconciliation phase-2 – 3-entry combo exceeding tolerance is skipped."""
+    """AC-reconciliation.recovered-coverage.2: AC4.7.3: Reconciliation phase-2 – 3-entry combo exceeding tolerance is skipped."""
     user_id = test_user.id
     summary = await _seed_summary(db, owner_id=user_id, base_date=date(2024, 9, 12))
 
@@ -1113,7 +1113,7 @@ async def test_execute_matching_three_entry_combination_skips_unbalanced_member(
 async def test_execute_matching_layer2_atomic_match_and_transfer_pair_logging(
     db: AsyncSession, monkeypatch, test_user
 ) -> None:
-    """AC4.7.4: Reconciliation phase-2 – atomic match and transfer pair logging in layer-2."""
+    """AC-reconciliation.recovered-coverage.3: AC4.7.4: Reconciliation phase-2 – atomic match and transfer pair logging in layer-2."""
     user_id = test_user.id
 
     entry = JournalEntry(
