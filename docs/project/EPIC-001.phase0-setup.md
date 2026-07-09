@@ -81,14 +81,16 @@ Set up a runnable Monorepo development environment, complete user authentication
 | AC1.2.3 | SQLAlchemy + Alembic config valid | `test_missing_migrations_check()`, `test_single_head()` | `infra/test_schema_drift.py`, `infra/test_migrations.py` |
 | AC1.2.4 | Health endpoint returns success | `test_health_when_all_services_healthy()` | `infra/test_main.py` |
 
-> **AC1.2.2** ("Auth integration works") cited three tests: `test_register_success`
-> and `test_login_success` were already migrated to
+> (AC1.2.2 removed, canonical: "Auth integration works" cited three tests —
+> `test_register_success` and `test_login_success` were already migrated to
 > [`common/identity/contract.py`](../../common/identity/contract.py) as
 > `AC-identity.2.1`/`.2.2`; the third, `test_auth_valid_user`, migrated to
-> `AC-identity.2.4` (migration closeout wave 3, #1416). **AC1.2.5** ("structlog
-> logging configured", `test_configure_logging_basic`) was already fully
-> migrated to `AC-observability.1.5` — this row was a stale duplicate,
-> removed with no new migration needed.
+> `AC-identity.2.4`, migration closeout wave 3, #1416.)
+>
+> (AC1.2.5 removed, duplicate: "structlog logging configured"
+> (`test_configure_logging_basic`) was already fully migrated to
+> `AC-observability.1.5` — this row was a stale duplicate, no new migration
+> needed.)
 
 ### AC1.3: Frontend Skeleton Requirements
 
@@ -132,11 +134,11 @@ Set up a runnable Monorepo development environment, complete user authentication
 |----|-------------|---------------|------|
 | AC1.6.1 | Pre-commit hooks configuration present | `test_epic_001_pre_commit_config_exists()` | `infra/test_epic_001_contracts.py` |
 
-> **AC1.6.2** ("`get_pending_stage1_review` returns empty when no pending
-> statements") migrated into the `extraction` package as **`AC-extraction.13.1`**
-> — owned by, and sourced directly from,
+> (AC1.6.2 removed, canonical: "`get_pending_stage1_review` returns empty when
+> no pending statements" migrated into the `extraction` package as
+> **`AC-extraction.13.1`** — owned by, and sourced directly from,
 > [`common/extraction/contract.py`](../../common/extraction/contract.py)'s
-> `roadmap` (migration closeout wave 3, #1416).
+> `roadmap`, migration closeout wave 3, #1416.)
 
 ### AC1.7: Auth Endpoint Behavioral Coverage
 
@@ -165,22 +167,24 @@ Set up a runnable Monorepo development environment, complete user authentication
 
 ### AC1.9: First-Run Ledger Journey Coverage
 
-> **AC1.9.1** ("a new user can register, log in, create first ledger accounts,
-> post a first manual entry, and preserve the accounting equation") migrated
-> into the `ledger` package as **`AC-ledger.77.1`** — owned by, and sourced
-> directly from, [`common/ledger/contract.py`](../../common/ledger/contract.py)'s
-> `roadmap` (migration closeout wave 3, #1416); the journey's defining assertion
-> is the ledger's accounting equation, so ledger is the home package even
-> though the journey starts through identity's register/login endpoints.
+> (AC1.9.1 removed, canonical: "a new user can register, log in, create first
+> ledger accounts, post a first manual entry, and preserve the accounting
+> equation" migrated into the `ledger` package as **`AC-ledger.77.1`** — owned
+> by, and sourced directly from,
+> [`common/ledger/contract.py`](../../common/ledger/contract.py)'s `roadmap`,
+> migration closeout wave 3, #1416; the journey's defining assertion is the
+> ledger's accounting equation, so ledger is the home package even though the
+> journey starts through identity's register/login endpoints.)
 
 ### AC1.10: Auth & Browser Security Hardening
 
-> **AC1.10.1** ("protected runtime startup rejects missing/default/short/
-> local-development config") migrated into the `runtime` package as
-> **`AC-runtime.21.1`** through **`.6`** (one record per `Bootloader.
-> _check_static_config` rejection branch) — owned by, and sourced directly
-> from, [`common/runtime/contract.py`](../../common/runtime/contract.py)'s
-> `roadmap` (migration closeout wave 3, #1416).
+> (AC1.10.1 removed, canonical: "protected runtime startup rejects
+> missing/default/short/local-development config" migrated into the `runtime`
+> package as **`AC-runtime.21.1`** through **`.6`** (one record per
+> `Bootloader._check_static_config` rejection branch) — owned by, and sourced
+> directly from,
+> [`common/runtime/contract.py`](../../common/runtime/contract.py)'s
+> `roadmap`, migration closeout wave 3, #1416.)
 >
 > **AC1.10.3**'s backend half (`test_AC1_10_3_get_me_accepts_httponly_cookie`)
 > migrated to [`common/identity/contract.py`](../../common/identity/contract.py)'s
