@@ -313,5 +313,49 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── group journeys: E2E auth/session proof (migrated from EPIC-008
+        # AC8.2.1/.7.1-3/.19.2, migration closeout continuation, #1663) ──
+        ACRecord(
+            id="AC-identity.journeys.1",
+            statement="A new user can register and log in end to end through the deployed API.",
+            test="apps/backend/tests/e2e/test_core_journeys.py::test_register_and_login_flow",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-identity.journeys.2",
+            statement=(
+                "API authentication failures (missing/invalid credentials) return a "
+                "clean 401/422, not a 500."
+            ),
+            test="apps/backend/tests/e2e/test_core_journeys.py::test_api_authentication_failures",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-identity.journeys.3",
+            statement="Unauthenticated requests to protected endpoints are blocked with 401.",
+            test="apps/backend/tests/e2e/test_core_journeys.py::test_unauthorized_access_blocked",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-identity.journeys.4",
+            statement="A user's session (JWT/cookie) is created, reused, and honored consistently across requests.",
+            test="apps/backend/tests/e2e/test_core_journeys.py::test_user_session_management",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-identity.journeys.5",
+            statement=(
+                "The frontend registration E2E targets the mode-toggle register control "
+                "by test id and switches into register mode without a strict-mode "
+                "locator failure."
+            ),
+            test="tests/e2e/test_auth_flows.py::test_full_registration_flow",
+            priority="P1",
+            status="done",
+        ),
     ],
 )
