@@ -318,7 +318,7 @@ Covers **AC1** (per-currency balances + per-currency reconciliation) and **AC5**
 (SSOT) of #1123. **AC2** (FX leg pairing), **AC3** (internal-transfer net-worth),
 and **AC4** (FX P&L) are deferred to a follow-up EPIC — they require a linked-leg
 event model and accounting-layer changes beyond this representation slice.
-See: docs/ssot/reconciliation.md#per-currency-balance-reconciliation
+See: `common/reconciliation/readme.md#per-currency-balance-reconciliation`
 
 > **Fully migrated.** The extraction-owned row (was AC4.13's group-6 row) is homed in the `extraction` package roadmap as
 > `AC-extraction.413.6`
