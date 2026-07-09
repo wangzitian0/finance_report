@@ -26,7 +26,7 @@ SCRIPT = (
 
 def _run(
     event_name: str, workflow_run_sha: str, latest_main_sha: str
-) -> subprocess.CompletedProcess:
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["bash", str(SCRIPT), event_name, workflow_run_sha, latest_main_sha],
         capture_output=True,
