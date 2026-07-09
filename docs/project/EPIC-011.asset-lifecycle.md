@@ -245,21 +245,8 @@ the `StatementSummary` conform (DWD) instead of `bank_statements.account_id`
 
 ### AC11.18: 4-Layer Migration — Financial Fact Schema Invariants
 
-Financial source facts and derived snapshots reject invalid financial states at
-the database layer before reporting, readiness checks, or export paths need to
-guess around them. The invariant set covers positive financial facts, statement
-envelope completeness, deterministic asset and market-data uniqueness, and
-latest-report snapshot guards. Short positions remain valid: negative position
-quantity is allowed, while market value and cost facts stay non-negative.
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC11.18.1 | Positive source fact constraints reject zero/negative transaction amounts and manual-valuation values, while positions are signed — a short carries negative quantity AND negative market value (#1448) | `test_AC11_18_1_positive_source_fact_constraints()` | `infra/test_financial_fact_schema_invariants.py` | P0 |
-| AC11.18.2 | Approved statement summaries require account, currency, period, and balance fields, and statement periods cannot be inverted | `test_AC11_18_2_statement_summary_approved_completeness_and_period_order()` | `infra/test_financial_fact_schema_invariants.py` | P0 |
-| AC11.18.3 | Managed positions, investment lots, and investment facts enforce deterministic uniqueness and disposal/acquisition ordering; positions are signed and may carry negative quantity/cost basis for shorts (#1448) | `test_AC11_18_3_portfolio_fact_constraints_and_managed_position_uniqueness()` | `infra/test_financial_fact_schema_invariants.py` | P0 |
-| AC11.18.4 | Latest report snapshots cannot conflict for the same logical report scope and report date ranges cannot be inverted | `test_AC11_18_4_report_snapshot_latest_scope_and_date_constraints()` | `infra/test_financial_fact_schema_invariants.py` | P0 |
-| AC11.18.5 | Market-data facts enforce positive rates/prices and stock prices are unique by symbol, currency, provider source, and date | `test_AC11_18_5_market_data_constraints_and_stock_price_uniqueness()` | `infra/test_financial_fact_schema_invariants.py` | P0 |
-| AC11.18.6 | The constraint migration declares preflight checks and migration-risk classification for existing data compatibility | `test_AC11_18_6_migration_preflights_and_risk_contract_are_declared()` | `infra/test_financial_fact_schema_invariants.py` | P0 |
+> This group's rows removed — migrated to the `audit` package roadmap as
+> `AC-audit.42.1-6` (migration closeout continuation, #1663 / #1709).
 
 ### AC11.19: Append-Only Manual Valuation Facts (Axiom A)
 

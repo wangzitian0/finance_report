@@ -418,13 +418,8 @@ decision site to call the gate, and persisting the verdict on the version node,
 are incremental follow-ups; this AC owns the contract and the threshold
 consolidation.
 
-| ID | Phase | Description | Test | File | Priority |
-|----|-------|-------------|------|------|----------|
-| AC18.13.1 | Gate | A failed deterministic invariant rejects the version regardless of confidence, with a queryable reason (failing invariant + delta vs tolerance) | `test_AC18_13_1_failed_invariant_is_rejected_with_queryable_reason()` | `services/test_promotion_gate.py` | P1 |
-| AC18.13.2 | Gate | Invariants pass but confidence below threshold yields a non-authoritative review candidate | `test_AC18_13_2_invariants_pass_but_low_confidence_is_review()` | `services/test_promotion_gate.py` | P1 |
-| AC18.13.3 | Gate | Invariants pass and confidence meets threshold yields authoritative; the same contract carries both tier and reconciliation-score confidence | `test_AC18_13_3_invariants_pass_and_confidence_met_is_authoritative()` | `services/test_promotion_gate.py` | P1 |
-| AC18.13.4 | Consolidation | The previously-scattered thresholds (balance 0.001, reconciliation 85/60) are named, centrally owned, and consumed by the services | `test_AC18_13_4_thresholds_are_centrally_owned_and_consumed_by_services()` | `services/test_promotion_gate.py` | P1 |
-| AC18.13.5 | Wired | Stage-1 statement balance-chain approval is disposed by the promotion gate (balance checks as invariants), making the gate load-bearing for a real decision while preserving behavior | `test_AC18_13_5_balance_chain_decision_routes_through_promotion_gate()` | `review/test_statement_validation.py` | P1 |
+> This group's rows removed — migrated to the `audit` package roadmap as
+> `AC-audit.41.1-5` (migration closeout continuation, #1663 / #1709).
 
 ### AC18.14: Correction Feedback Loop — Corrections Drive The Proportion Down
 

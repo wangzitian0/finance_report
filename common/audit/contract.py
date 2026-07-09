@@ -1035,5 +1035,166 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        # ── group 41: financial-invariant promotion gate (physically relocated
+        # to apps/backend/src/audit/promotion/, #1667; migrated from EPIC-018
+        # AC18.13, migration closeout continuation, #1663 / #1709) ──
+        ACRecord(
+            id="AC-audit.41.1",
+            statement=(
+                "A failed deterministic invariant rejects the version "
+                "regardless of confidence, with a queryable reason (failing "
+                "invariant + delta vs tolerance). Was EPIC-018 AC18.13.1."
+            ),
+            test=(
+                "apps/backend/tests/audit/promotion/test_promotion_gate.py"
+                "::test_AC18_13_1_failed_invariant_is_rejected_with_queryable_reason"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.41.2",
+            statement=(
+                "Invariants pass but confidence is below threshold yields a "
+                "non-authoritative review candidate. Was EPIC-018 AC18.13.2."
+            ),
+            test=(
+                "apps/backend/tests/audit/promotion/test_promotion_gate.py"
+                "::test_AC18_13_2_invariants_pass_but_low_confidence_is_review"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.41.3",
+            statement=(
+                "Invariants pass and confidence meets threshold yields "
+                "authoritative; the same contract carries both tier and "
+                "reconciliation-score confidence. Was EPIC-018 AC18.13.3."
+            ),
+            test=(
+                "apps/backend/tests/audit/promotion/test_promotion_gate.py"
+                "::test_AC18_13_3_invariants_pass_and_confidence_met_is_authoritative"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.41.4",
+            statement=(
+                "The previously-scattered thresholds (balance 0.001, "
+                "reconciliation 85/60) are named, centrally owned, and "
+                "consumed by the services. Was EPIC-018 AC18.13.4."
+            ),
+            test=(
+                "apps/backend/tests/audit/promotion/test_promotion_gate.py"
+                "::test_AC18_13_4_thresholds_are_centrally_owned_and_consumed_by_services"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.41.5",
+            statement=(
+                "Stage-1 statement balance-chain approval is disposed by the "
+                "promotion gate (balance checks as invariants), making the "
+                "gate load-bearing for a real decision while preserving "
+                "behavior. Was EPIC-018 AC18.13.5."
+            ),
+            test=(
+                "apps/backend/tests/review/test_statement_validation.py"
+                "::test_AC18_13_5_balance_chain_decision_routes_through_promotion_gate"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group 42: financial fact schema invariants (migrated from EPIC-011
+        # AC11.18, migration closeout continuation, #1663 / #1709) ──
+        ACRecord(
+            id="AC-audit.42.1",
+            statement=(
+                "Positive source fact constraints reject zero/negative "
+                "transaction amounts and manual-valuation values, while "
+                "positions are signed — a short carries negative quantity AND "
+                "negative market value (#1448). Was EPIC-011 AC11.18.1."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_financial_fact_schema_invariants.py"
+                "::test_AC11_18_1_positive_source_fact_constraints"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.42.2",
+            statement=(
+                "Approved statement summaries require account, currency, "
+                "period, and balance fields, and statement periods cannot be "
+                "inverted. Was EPIC-011 AC11.18.2."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_financial_fact_schema_invariants.py"
+                "::test_AC11_18_2_statement_summary_approved_completeness_and_period_order"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.42.3",
+            statement=(
+                "Managed positions, investment lots, and investment facts "
+                "enforce deterministic uniqueness and disposal/acquisition "
+                "ordering; positions are signed and may carry negative "
+                "quantity/cost basis for shorts (#1448). Was EPIC-011 AC11.18.3."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_financial_fact_schema_invariants.py"
+                "::test_AC11_18_3_portfolio_fact_constraints_and_managed_position_uniqueness"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.42.4",
+            statement=(
+                "Latest report snapshots cannot conflict for the same logical "
+                "report scope and report date ranges cannot be inverted. Was "
+                "EPIC-011 AC11.18.4."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_financial_fact_schema_invariants.py"
+                "::test_AC11_18_4_report_snapshot_latest_scope_and_date_constraints"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.42.5",
+            statement=(
+                "Market-data facts enforce positive rates/prices and stock "
+                "prices are unique by symbol, currency, provider source, and "
+                "date. Was EPIC-011 AC11.18.5."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_financial_fact_schema_invariants.py"
+                "::test_AC11_18_5_market_data_constraints_and_stock_price_uniqueness"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.42.6",
+            statement=(
+                "The constraint migration declares preflight checks and "
+                "migration-risk classification for existing data "
+                "compatibility. Was EPIC-011 AC11.18.6."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_financial_fact_schema_invariants.py"
+                "::test_AC11_18_6_migration_preflights_and_risk_contract_are_declared"
+            ),
+            priority="P0",
+            status="done",
+        ),
     ],
 )
