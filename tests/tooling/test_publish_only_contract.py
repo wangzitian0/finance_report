@@ -27,6 +27,7 @@ _PUBLISH_TRIGGERS = (
 
 
 def test_AC7_12_4_release_branches_trigger_the_publish_workflow():
+    """AC-meta.infra-boundary.3: AC7.12.4: ci.yml's push branches include release/** so release commits publish a :<sha> image."""
     ci = read(".github/workflows/ci.yml")
     # Target the actual `branches:` line(s), not a stray mention in a comment, so the
     # contract can't false-pass (Copilot CR).
@@ -40,6 +41,7 @@ def test_AC7_12_4_release_branches_trigger_the_publish_workflow():
 
 
 def test_AC7_12_4_image_push_publishes_for_main_release_and_dispatch():
+    """AC-meta.infra-boundary.4: AC7.12.4: container-image push: conditions cover main, release branches, and workflow_dispatch."""
     ci = read(".github/workflows/ci.yml")
     push_lines = [ln for ln in ci.splitlines() if ln.strip().startswith("push: ${{")]
     assert push_lines, (
@@ -69,6 +71,7 @@ def test_AC7_12_4_image_push_publishes_for_main_release_and_dispatch():
 
 
 def test_AC7_12_4_persistent_preview_is_on_demand_not_per_pr():
+    """AC-meta.infra-boundary.5: AC7.12.4: the persistent Dokploy preview is on-demand only; the in-runner e2e gate stays automatic."""
     pr = read(".github/workflows/preview.yml")
     # deploy-preview runs only via manual workflow_dispatch — no per-PR auto-deploy (P1a-2).
     deploy_block = pr.split("  deploy-preview:", 1)[1].split("\n  e2e:", 1)[0]

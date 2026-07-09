@@ -1975,7 +1975,7 @@ def test_AC8_13_67_production_release_preserves_version_metadata() -> None:
 
 
 def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
-    """AC7.10.1 - AC7.10.5: Production release promotes staging-validated SHA image and fails closed on drift."""
+    """AC-meta.release-pipeline.1: AC7.10.1 - AC7.10.5: Production release promotes staging-validated SHA image and fails closed on drift."""
     workflow = read(".github/workflows/release.yml")
     # Tag promotion stays in deploy.yml's promote job; the release line moved to
     # release.yml (#1354 / AC8.13.154).
