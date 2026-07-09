@@ -2214,5 +2214,19 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        ACRecord(
+            id="AC-extraction.13.1",
+            statement=(
+                "get_pending_stage1_review returns an empty list for a user with "
+                "no pending-review statements. Was EPIC-001 AC1.6.2 (migration "
+                "closeout wave 3, #1416)."
+            ),
+            test=(
+                "apps/backend/tests/review/test_statement_validation.py"
+                "::test_returns_empty_when_none_pending"
+            ),
+            priority="P1",
+            status="done",
+        ),
     ],
 )

@@ -120,7 +120,7 @@ async def test_get_me_success(client, test_user):
 
 
 async def test_AC1_10_3_get_me_accepts_httponly_cookie(public_client, test_user):
-    """AC1.10.3: Auth dependency accepts the HttpOnly session cookie without localStorage bearer use."""
+    """AC-identity.2.5: AC1.10.3: Auth dependency accepts the HttpOnly session cookie without localStorage bearer use."""
     from src.identity import create_access_token
 
     token = create_access_token(data={"sub": str(test_user.id)})

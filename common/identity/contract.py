@@ -300,6 +300,32 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
+            id="AC-identity.2.4",
+            statement=(
+                "A valid JWT (bearer or cookie) grants 200 on a protected endpoint "
+                "(GET /accounts). Was EPIC-001 AC1.2.2 (migration closeout wave 3, "
+                "#1416)."
+            ),
+            test="apps/backend/tests/identity/test_auth.py::test_auth_valid_user",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-identity.2.5",
+            statement=(
+                "The auth dependency accepts the HttpOnly session cookie directly "
+                "(no bearer header required) for GET /auth/me. Was EPIC-001 "
+                "AC1.10.3 (migration closeout wave 3, #1416); the row's frontend-"
+                "storage half stays in the EPIC (no backend package home)."
+            ),
+            test=(
+                "apps/backend/tests/identity/test_auth_router.py"
+                "::test_AC1_10_3_get_me_accepts_httponly_cookie"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
             id="AC-identity.1.3",
             statement=(
                 "The /users management endpoints expose authenticated current-user "

@@ -145,7 +145,7 @@ class TestBootloaderStaticConfig:
         assert result is True
 
     def test_AC1_10_1_static_config_rejects_default_secret_key_in_production(self, mock_settings):
-        """AC1.10.1: Production startup refuses the development JWT secret."""
+        """AC-runtime.21.1: AC1.10.1: Production startup refuses the development JWT secret."""
         mock_settings.environment = "production"
         mock_settings.secret_key = "dev_secret_key_change_in_prod"
 
@@ -154,7 +154,7 @@ class TestBootloaderStaticConfig:
         assert result is False
 
     def test_AC1_10_1_static_config_rejects_short_secret_key_in_staging(self, mock_settings):
-        """AC1.10.1: Staging startup requires a high-entropy JWT secret."""
+        """AC-runtime.21.2: AC1.10.1: Staging startup requires a high-entropy JWT secret."""
         mock_settings.environment = "staging"
         mock_settings.secret_key = "short-secret"
 
@@ -163,7 +163,7 @@ class TestBootloaderStaticConfig:
         assert result is False
 
     def test_AC1_10_1_static_config_rejects_default_db_in_protected_env(self, mock_settings):
-        """AC1.10.1: Protected runtimes cannot boot with local development DB defaults."""
+        """AC-runtime.21.3: AC1.10.1: Protected runtimes cannot boot with local development DB defaults."""
         mock_settings.environment = "production"
         mock_settings.secret_key = "a" * 32
         mock_settings.database_url = "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report"
@@ -173,7 +173,7 @@ class TestBootloaderStaticConfig:
         assert result is False
 
     def test_AC1_10_1_static_config_rejects_default_s3_secret_in_production_like_url(self, mock_settings):
-        """AC1.10.1: Public app URLs are treated as protected even if ENV is misnamed."""
+        """AC-runtime.21.4: AC1.10.1: Public app URLs are treated as protected even if ENV is misnamed."""
         mock_settings.environment = "preview"
         mock_settings.secret_key = "a" * 32
         mock_settings.database_url = "postgresql+asyncpg://finance:secure@db.internal/finance_report"
@@ -185,7 +185,7 @@ class TestBootloaderStaticConfig:
         assert result is False
 
     def test_AC1_10_1_static_config_rejects_blank_secret_key_in_production(self, mock_settings):
-        """AC1.10.1: Protected environments require a configured JWT secret."""
+        """AC-runtime.21.5: AC1.10.1: Protected environments require a configured JWT secret."""
         mock_settings.environment = "production"
         mock_settings.secret_key = "   "
 
@@ -194,7 +194,7 @@ class TestBootloaderStaticConfig:
         assert result is False
 
     def test_AC1_10_1_static_config_allows_development_default_secret_key(self, mock_settings):
-        """AC1.10.1: Local development keeps convenient defaults."""
+        """AC-runtime.21.6: AC1.10.1: Local development keeps convenient defaults."""
         mock_settings.environment = "development"
         mock_settings.secret_key = "dev_secret_key_change_in_prod"
 

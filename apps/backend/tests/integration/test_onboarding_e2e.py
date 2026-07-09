@@ -13,7 +13,7 @@ async def test_AC1_9_1_first_run_registration_account_entry_journey(
     public_client: AsyncClient,
     db: AsyncSession,
 ) -> None:
-    """AC1.9.1: A new user can register, log in, create accounts, post first entry, and remain balanced."""
+    """AC-ledger.77.1: AC1.9.1: A new user can register, log in, create accounts, post first entry, and remain balanced."""
     email = "first-run-ledger@example.com"
     password = "CorrectHorseBatteryStaple1!"
 
