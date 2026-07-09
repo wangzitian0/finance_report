@@ -60,7 +60,7 @@ CONTRACT = PackageContract(
     # observability: get_logger/structured logs from base+extension; config:
     # bare-root settings binding (env_config/catalog/secrets). The platform
     # event bus becomes an edge only when UsageRecorded is actually published.
-    depends_on=["observability", "config"],
+    depends_on=["observability"],
     roles=["base", "extension", "data"],
     units=[
         # ── base: the frozen value language (mechanism A) ──

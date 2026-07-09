@@ -52,6 +52,7 @@ def _write_package(
     roadmap: list[ACRecord] | None = None,
     extra_module: tuple[str, str] | None = None,
     tier: str = "CODE-ONLY",
+    status: str = "active",
 ) -> DiscoveredPackage:
     """Materialize a package in the package model: a ``common/<name>/contract.py``
     spec pointing at a BE implementation under ``apps/backend/src/<name>``.
@@ -75,6 +76,7 @@ def _write_package(
         name=name,
         klass=klass,  # type: ignore[arg-type]
         tier=tier,  # type: ignore[arg-type]
+        status=status,  # type: ignore[arg-type]
         depends_on=depends_on or [],
         interface=interface,
         events=[],
@@ -311,6 +313,128 @@ def test_same_class_declared_edge_is_allowed(synthetic_repo: Path) -> None:
     )
     errors = check_package(pkg, {"kernA": "infra", "kernB": "infra"}, synthetic_repo)
     assert errors == [], errors
+
+
+# --- (c2) unused dependency declarations (contract-honesty gate, #1674) ------
+#
+# _check_no_forbidden_edge only ever caught an import missing its declaration.
+# The reverse — a depends_on entry with zero real imports — was invisible, so
+# contracts drifted to describe the *target* design instead of current reality
+# (16 such edges found across the repo in the 2026-07-09 audit). An ACTIVE
+# package with a real implementation must keep the declared graph honest; a
+# DRAFT package (or one with no implementation yet) is allowed to describe
+# where it's going before the code catches up.
+
+
+def test_unused_dependency_declaration_is_forbidden_for_active_package(
+    synthetic_repo: Path,
+) -> None:
+    src = _src(synthetic_repo)
+    _write_package(src, "kernB", klass="infra", all_names=["B"], interface=["B"])
+    pkg = _write_package(
+        src,
+        "kernA",
+        klass="infra",
+        all_names=["A"],
+        interface=["A"],
+        depends_on=["kernB"],  # declared but never imported below
+    )
+    errors = check_package(pkg, {"kernA": "infra", "kernB": "infra"}, synthetic_repo)
+    assert any("kernB" in e and "no import" in e for e in errors), errors
+
+
+def test_unused_dependency_declaration_allowed_for_draft_package(
+    synthetic_repo: Path,
+) -> None:
+    src = _src(synthetic_repo)
+    _write_package(src, "kernB", klass="infra", all_names=["B"], interface=["B"])
+    pkg = _write_package(
+        src,
+        "kernA",
+        klass="infra",
+        all_names=["A"],
+        interface=["A"],
+        depends_on=["kernB"],
+        status="draft",
+    )
+    errors = check_package(pkg, {"kernA": "infra", "kernB": "infra"}, synthetic_repo)
+    assert not any("no import" in e for e in errors), errors
+
+
+def test_used_dependency_declaration_has_no_unused_violation(
+    synthetic_repo: Path,
+) -> None:
+    """A declared edge with a real import must not be flagged 'unused' — this
+    is the companion happy path to the two tests above."""
+    src = _src(synthetic_repo)
+    _write_package(src, "kernB", klass="infra", all_names=["B"], interface=["B"])
+    pkg = _write_package(
+        src,
+        "kernA",
+        klass="infra",
+        all_names=["A"],
+        interface=["A"],
+        depends_on=["kernB"],
+        extra_module=("uses.py", "from src.kernB import thing  # noqa\n"),
+    )
+    errors = check_package(pkg, {"kernA": "infra", "kernB": "infra"}, synthetic_repo)
+    assert not any("no import" in e for e in errors), errors
+
+
+# --- (c3) common.<pkg> imports must be scanned too (#1674) -------------------
+#
+# common-implemented packages (meta/config/testing) are importable as
+# common.<name>, not src.<name>. The pre-fix scan only ever recognised the
+# src. prefix, so a real edge between two common-implemented packages was
+# invisible to both the undeclared-edge check and the new unused check.
+
+
+def test_common_prefix_edge_is_detected_as_undeclared(synthetic_repo: Path) -> None:
+    src = _src(synthetic_repo)
+    low_dir = src / "common" / "commonlow"
+    low_dir.mkdir(parents=True)
+    (low_dir / "__init__.py").write_text("__all__ = ['L']\n", encoding="utf-8")
+    low_contract = PackageContract(
+        name="commonlow",
+        klass="infra",  # type: ignore[arg-type]
+        tier="CODE-ONLY",  # type: ignore[arg-type]
+        depends_on=[],
+        interface=["L"],
+        events=[],
+        invariants=[],
+        roadmap=[],
+        implementations={"be": "common/commonlow", "fe": None},
+    )
+    low = DiscoveredPackage(
+        name="commonlow", spec_dir=low_dir, impl_dir=low_dir, contract=low_contract
+    )
+
+    hi_dir = src / "common" / "commonhi"
+    hi_dir.mkdir(parents=True)
+    (hi_dir / "__init__.py").write_text("__all__ = ['H']\n", encoding="utf-8")
+    (hi_dir / "uses.py").write_text(
+        "from common.commonlow import L  # noqa\n", encoding="utf-8"
+    )
+    hi_contract = PackageContract(
+        name="commonhi",
+        klass="infra",  # type: ignore[arg-type]
+        tier="CODE-ONLY",  # type: ignore[arg-type]
+        depends_on=[],  # undeclared on purpose
+        interface=["H"],
+        events=[],
+        invariants=[],
+        roadmap=[],
+        implementations={"be": "common/commonhi", "fe": None},
+    )
+    hi = DiscoveredPackage(
+        name="commonhi", spec_dir=hi_dir, impl_dir=hi_dir, contract=hi_contract
+    )
+
+    prefixes = cpc._registered_prefixes([low, hi], synthetic_repo)
+    errors = cpc._check_no_forbidden_edge(
+        hi, {"commonlow": "infra", "commonhi": "infra"}, prefixes
+    )
+    assert any("commonlow" in e and "depends_on" in e for e in errors), errors
 
 
 def test_dependency_cycle_is_forbidden(synthetic_repo: Path) -> None:

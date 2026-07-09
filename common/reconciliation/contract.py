@@ -14,16 +14,11 @@ CONTRACT = PackageContract(
     name="reconciliation",
     status="active",
     tier="CODE-ONLY",
-    depends_on=[
-        "audit",
-        "extraction",
-        "portfolio",
-        "ledger",
-        "platform",
-        "pricing",
-        "observability",
-        "config",
-    ],
+    # #1674 contract-honesty audit (2026-07-09): portfolio/platform/pricing/config
+    # were declared but had zero real imports — removed. Re-add each with its
+    # first real import, not before (a declared-but-unused edge now fails
+    # check_package_contract).
+    depends_on=["audit", "extraction", "ledger", "observability"],
     roles=["base", "extension", "data"],
     units=[
         Unit(name="ReconciliationMatch", kind=Kind.AGGREGATE_ROOT),

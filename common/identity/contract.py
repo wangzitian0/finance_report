@@ -65,7 +65,7 @@ CONTRACT = PackageContract(
     # (src.database / src.deps are unregistered backend infra, out of scope for
     # the edge rule; the former flat src.logger / src.utils now live inside the
     # observability / platform packages, so those imports are governed edges.)
-    depends_on=["platform", "observability", "config"],
+    depends_on=["platform", "observability"],
     roles=["base", "extension"],
     units=[
         # base — the auth value objects (the published wire language).

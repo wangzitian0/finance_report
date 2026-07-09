@@ -8,12 +8,16 @@ home #1428 relocates the shared logging helpers into. The stdlib OpenPanel query
 CLI (``openpanel_query``) stays here in ``common/observability`` as a triage tool
 run via ``tools/`` wrappers (its invariant is pinned below).
 
-``depends_on=["config"]``: the OTEL runtime reads the backend config singleton via
-its bare published root (``import src.config``), the one registered-package edge it
-declares (a same-layer ``infra`` -> ``infra`` edge, acyclic). The formerly flat
-``src.logger`` / ``src.telemetry_metrics`` / ``src.analytics`` modules and the
-``ErrorIds`` vocabulary now live inside this package; its one remaining import of
-unregistered backend infrastructure is ``src.services.pii_redaction``.
+``depends_on=[]``: the OTEL runtime reads the backend config singleton via its
+bare published root (``import src.config``) — but ``src.config`` (the app's
+``Settings`` singleton at ``apps/backend/src/config.py``) is not the same thing
+as the registered ``config`` *package* (``common/config``, whose real interface
+is ``env_keys``/``schema_validation``); this package declares no registered-package
+edge for it, since none exists (#1674 corrected this — the two "config"s share a
+name, not an identity). The formerly flat ``src.logger`` / ``src.telemetry_metrics``
+/ ``src.analytics`` modules and the ``ErrorIds`` vocabulary now live inside this
+package; its remaining imports of unregistered backend infrastructure are
+``src.config`` and ``src.services.pii_redaction``.
 """
 
 from __future__ import annotations
@@ -24,7 +28,7 @@ CONTRACT = PackageContract(
     name="observability",
     status="active",
     tier="CODE-ONLY",
-    depends_on=["config"],
+    depends_on=[],
     implementations={"be": "apps/backend/src/observability", "fe": None},
     interface=[
         "INVARIANT_VIOLATION_KINDS",
