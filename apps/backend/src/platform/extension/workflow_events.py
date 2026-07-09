@@ -1,5 +1,6 @@
 """Deterministic user-facing workflow event derivation."""
 
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select
@@ -43,7 +44,42 @@ from src.schemas.workflow import (
     WorkflowSessionSummaryResponse,
     WorkflowStatusResponse,
 )
-from src.services.report_readiness import get_personal_report_package_readiness
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+    # This module always calls the provider as (db: AsyncSession, user_id:
+    # UUID) — see _get_readiness_provider()'s call site — so it is typed to
+    # that exact signature, not an unconstrained Callable[..., Awaitable[dict]].
+    ReadinessProvider = Callable[[AsyncSession, UUID], Awaitable[dict]]
+
+# `platform` is L1 infra — it must never import reporting-domain logic directly
+# (issue #1676: this file previously imported `services.report_readiness`
+# module-level, the sole L1-infra→business upward edge in
+# docs/ssot/app-boundary-baseline.json). The personal-report-package readiness
+# lookup is genuinely reporting-domain logic; platform only needs *a* callable
+# with this shape, not that specific implementation. The app composition root
+# (`main.py`, itself L4 — allowed to import everything) registers the real
+# function at startup; tests register it directly since they don't run the
+# app's lifespan.
+_readiness_provider: "ReadinessProvider | None" = None
+
+
+def register_readiness_provider(provider: "ReadinessProvider") -> None:
+    """Wire the personal-report-package readiness lookup (see module note above)."""
+    global _readiness_provider
+    _readiness_provider = provider
+
+
+def _get_readiness_provider() -> "ReadinessProvider":
+    if _readiness_provider is None:
+        raise RuntimeError(
+            "workflow_events.register_readiness_provider() was never called — "
+            "main.py wires it at startup (issue #1676); a test exercising this "
+            "path must call it too."
+        )
+    return _readiness_provider
+
 
 ACTIVE_WORKFLOW_SESSION_DEDUPE_KEY = "active-upload-to-report"
 MUTABLE_DERIVED_EVENT_SOURCE_TYPES = {"bank_statement", "readiness_blocker", "report_package"}
@@ -333,7 +369,7 @@ async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> d
         elif statement.stage1_status in {Stage1Status.APPROVED, Stage1Status.REJECTED, Stage1Status.EDITED}:
             derived_payloads.append(build_review_completed_event_payload(statement, filename))
 
-    package_readiness = await get_personal_report_package_readiness(db, user_id=user_id)
+    package_readiness = await _get_readiness_provider()(db, user_id=user_id)
     for blocker in package_readiness.get("blockers", []):
         derived_payloads.append(build_readiness_blocker_event_payload(blocker))
     report_state_payload = build_report_state_event_payload(package_readiness)

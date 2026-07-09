@@ -55,6 +55,7 @@ from src.platform.extension import (
     raise_too_large,
     raise_too_many_requests,
     raise_unauthorized,
+    register_readiness_provider,
 )
 
 __all__ = [
@@ -81,4 +82,5 @@ __all__ = [
     "raise_too_large",
     "raise_too_many_requests",
     "raise_unauthorized",
+    "register_readiness_provider",
 ]

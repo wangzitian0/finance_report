@@ -134,6 +134,7 @@ CONTRACT = PackageContract(
         "raise_too_large",
         "raise_too_many_requests",
         "raise_unauthorized",
+        "register_readiness_provider",
     ],
     events=[],
     invariants=[

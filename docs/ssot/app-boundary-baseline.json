@@ -56,7 +56,6 @@
   "out::apps/backend/src/ledger/extension/fx_revaluation.py::src.services.fx::FxRateError",
   "out::apps/backend/src/ledger/extension/fx_revaluation.py::src.services.fx::get_exchange_rate",
   "out::apps/backend/src/observability/audit.py::src.services.pii_redaction::detect_pii",
-  "out::apps/backend/src/platform/extension/workflow_events.py::src.services.report_readiness::get_personal_report_package_readiness",
   "out::apps/backend/src/reconciliation/extension/scoring.py::src.prompts.reconciliation::build_reconciliation_prompt",
   "out::apps/backend/src/reconciliation/extension/scoring.py::src.services.ai_streaming::AIStreamError",
   "out::apps/backend/src/reconciliation/extension/scoring.py::src.services.ai_streaming::accumulate_stream",
