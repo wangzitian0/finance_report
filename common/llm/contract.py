@@ -98,6 +98,13 @@ CONTRACT = PackageContract(
         Unit(
             name="build_call", kind=Kind.DOMAIN_SERVICE, module="extension/routing.py"
         ),
+        # the single chokepoint for the non-chat OCR/layout-parsing HTTP call
+        # (#1670): a separate endpoint litellm does not wrap.
+        Unit(
+            name="ocr_layout_call",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/ocr_client.py",
+        ),
         # the input-keyed record/replay mechanism (cache output by input)
         Unit(
             name="CassetteStore",
@@ -170,6 +177,7 @@ CONTRACT = PackageContract(
         "get_usage_meter",
         "litellm_stream",
         "miss_summary",
+        "ocr_layout_call",
         "protocol_for",
         "resolve_provider_and_model",
     ],

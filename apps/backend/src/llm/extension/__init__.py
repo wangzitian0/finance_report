@@ -33,6 +33,7 @@ from src.llm.extension.factory import (
     get_config_source,
     get_usage_meter,
 )
+from src.llm.extension.ocr_client import ocr_layout_call
 from src.llm.extension.routing import LitellmCall, build_call
 
 __all__ = [
@@ -53,5 +54,6 @@ __all__ = [
     "get_config_source",
     "get_usage_meter",
     "miss_summary",
+    "ocr_layout_call",
     "protocol_for",
 ]

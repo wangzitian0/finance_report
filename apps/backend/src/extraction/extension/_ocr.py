@@ -3,11 +3,8 @@
 import httpx
 
 import src.config
-from src.extraction.extension._base import (
-    ExtractionError,
-    logger,
-)
-from src.observability import safe_error_message
+from src.extraction.extension._base import ExtractionError
+from src.llm import LLMError, ocr_layout_call
 
 # Bound from the bare published root (config publishes no named symbols).
 settings = src.config.settings
@@ -41,53 +38,21 @@ class _OcrMixin:
         file_type: str,
         mime_type: str,
     ) -> str:
-        """Run dedicated OCR/layout parsing and return Markdown text."""
+        """Run dedicated OCR/layout parsing and return Markdown text.
+
+        The HTTP call itself is `llm`'s ``ocr_layout_call`` (#1670) — a
+        non-chat endpoint litellm does not wrap, so it gets its own
+        chokepoint in the `llm` package rather than a raw httpx call here.
+        """
         file_input = self._build_ai_file_input(file_content, file_url, file_type, mime_type)
-        layout_url = f"{self.base_url.rstrip('/')}/{settings.ai_layout_parsing_path.lstrip('/')}"
-        payload = {
-            "model": self.ocr_model,
-            "file": file_input,
-            "return_crop_images": False,
-            "need_layout_visualization": False,
-        }
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-
-        logger.info(
-            "Sending document to OCR layout parser",
-            provider=settings.ai_provider,
-            model=self.ocr_model,
-            file_type=file_type,
-            data_source="base64" if file_input.startswith("data:") else "url",
-        )
-
-        async with httpx.AsyncClient(timeout=httpx.Timeout(180.0, connect=10.0, read=180.0)) as client:
-            response = await client.post(layout_url, headers=headers, json=payload)
-
-        if response.status_code != 200:
-            safe_summary = safe_error_message(response.text)
-            logger.error(
-                "OCR layout parsing failed",
-                provider=settings.ai_provider,
+        try:
+            return await ocr_layout_call(
+                base_url=self.base_url,
+                layout_parsing_path=settings.ai_layout_parsing_path,
+                api_key=self.api_key,
                 model=self.ocr_model,
-                status_code=response.status_code,
-                safe_error_message=safe_summary,
+                file_input=file_input,
+                timeout=httpx.Timeout(180.0, connect=10.0, read=180.0),
             )
-            raise ExtractionError(f"OCR layout parsing failed: HTTP {response.status_code}: {safe_summary}")
-
-        result = response.json()
-        markdown = result.get("md_results")
-        if isinstance(markdown, list):
-            markdown = "\n\n".join(str(item) for item in markdown if item)
-        if not isinstance(markdown, str) or not markdown.strip():
-            raise ExtractionError("OCR layout parsing returned empty Markdown")
-
-        logger.info(
-            "OCR layout parsing completed",
-            provider=settings.ai_provider,
-            model=self.ocr_model,
-            markdown_length=len(markdown),
-        )
-        return markdown
+        except LLMError as exc:
+            raise ExtractionError(str(exc)) from exc

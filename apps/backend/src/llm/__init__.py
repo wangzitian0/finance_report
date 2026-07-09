@@ -72,6 +72,7 @@ from src.llm.extension import (
     get_config_source,
     get_usage_meter,
     miss_summary,
+    ocr_layout_call,
     protocol_for,
 )
 
@@ -136,6 +137,7 @@ __all__ = [
     "get_usage_meter",
     "litellm_stream",
     "miss_summary",
+    "ocr_layout_call",
     "protocol_for",
     "resolve_provider_and_model",
 ]
