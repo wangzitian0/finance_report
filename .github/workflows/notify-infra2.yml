@@ -24,6 +24,7 @@ on:
 
 permissions:
   contents: read
+  issues: write # #1686 phase 0: GitHub-issue fallback alert when the dispatch fails
 
 concurrency:
   # Collapse bursts of main pushes into one in-flight dispatch; the infra2 receiver also
@@ -42,13 +43,36 @@ jobs:
         env:
           INFRA2_PAT: ${{ secrets.INFRA2_PAT }}
           GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
           WORKFLOW_RUN_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
 
-          if [[ -z "${INFRA2_PAT:-}" ]]; then
-            echo "::error::INFRA2_PAT is required to dispatch the report-branch-main deploy to infra2."
+          # #1686 phase 0: a failed dispatch previously only showed up as a red
+          # run in the Actions tab, which nobody watches — main stayed green and
+          # infra2 silently never redeployed report-branch-main. Use the same
+          # documented GitHub-issue fallback (Infra-012 P2) #1632 wired for the
+          # staging AI/OCR gate: dedup by title, no new alerting channel, still
+          # fail the job (this is a real break, not a right-shifted regression).
+          alert_and_fail() {
+            local reason="$1"
+            local detail="$2"
+            echo "::error::${detail}"
+            local alert_title="[notify-infra2] report-branch-main dispatch failed: ${reason}"
+            local existing
+            existing="$(gh issue list --state open --search "in:title ${alert_title}" --json number --jq '.[0].number // empty' 2>/dev/null || true)"
+            if [ -z "$existing" ]; then
+              gh issue create --title "$alert_title" --label "surface: ci" \
+                --body "${detail} (run ${GITHUB_RUN_ID:-?}). infra2's report-branch-main preview slot did not redeploy for this main push." \
+                || echo "::warning::GitHub-issue alert creation failed (non-fatal)."
+            else
+              echo "::notice::open notify-infra2 failure issue #${existing} already exists; not duplicating."
+            fi
             exit 1
+          }
+
+          if [[ -z "${INFRA2_PAT:-}" ]]; then
+            alert_and_fail "missing-pat" "INFRA2_PAT is required to dispatch the report-branch-main deploy to infra2."
           fi
 
           latest_main_sha="$(
@@ -60,15 +84,13 @@ jobs:
               | jq -r '.object.sha // ""'
           )"
           if [[ -z "${latest_main_sha:-}" ]]; then
-            echo "::error::Could not resolve current main SHA before infra2 dispatch."
-            exit 1
+            alert_and_fail "unresolved-sha" "Could not resolve current main SHA before infra2 dispatch."
           fi
 
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_run" ]]; then
             dispatch_sha="${WORKFLOW_RUN_SHA:-}"
             if [[ -z "${dispatch_sha:-}" ]]; then
-              echo "::error::No workflow_run head SHA resolved for report-branch-main deploy."
-              exit 1
+              alert_and_fail "unresolved-workflow-run-sha" "No workflow_run head SHA resolved for report-branch-main deploy."
             fi
             if [[ "$dispatch_sha" != "$latest_main_sha" ]]; then
               echo "Skipping stale CI completion: workflow_run_sha=$dispatch_sha latest_main_sha=$latest_main_sha"
@@ -94,6 +116,5 @@ jobs:
           # GitHub returns 204 No Content on a successful dispatch.
           if [[ "$http_status" != "204" ]]; then
             sed 's/^/  /' /tmp/infra2_dispatch_resp 2>/dev/null || true
-            echo "::error::infra2 repository_dispatch failed (expected HTTP 204). Check INFRA2_PAT scope/expiry."
-            exit 1
+            alert_and_fail "http-${http_status}" "infra2 repository_dispatch failed (expected HTTP 204, got ${http_status}). Check INFRA2_PAT scope/expiry."
           fi
