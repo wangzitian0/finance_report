@@ -77,7 +77,10 @@ def test_AC26_9_1_counter_runs_over_repo_and_is_well_formed() -> None:
         # llm_share is computed over KNOWN (code+llm), so 0..100.
         assert 0 <= bucket["llm_share"] <= 100
     # Sanity: the AI-heavy extraction/provider EPICs are detected as carrying LLM ACs.
-    assert result["packages"].get("EPIC-006", {}).get("llm", 0) > 0
+    # (classify_repo only scans EPIC-doc AC tables, not package roadmaps — EPIC-006's
+    # own LLM-tagged rows migrated to the advisor package in #1663, so this checks
+    # EPIC-018 instead, which is not part of that migration.)
+    assert result["packages"].get("EPIC-018", {}).get("llm", 0) > 0
 
 
 def test_AC26_9_1_counter_renders_live_table(tmp_path: Path) -> None:
