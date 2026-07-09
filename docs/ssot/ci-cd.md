@@ -36,7 +36,7 @@ main-only: unified-coverage ─→ unified-coverage-baseline-pr (not required by
 | **schema-migrations** | Run Alembic `upgrade head` followed by `alembic check` against an ephemeral Postgres service before merge | `needs: [changes]` |
 | **backend** (Shards 1-5) | Backend fast-path tests only: `-m "not slow and not e2e and not integration"` | `needs: [changes]` |
 | **backend-integration** | Backend integration stage (`-m "integration"`), deterministic service-backed behavior checks | `needs: [changes]` |
-| **backend-e2e-tier1** | Backend Tier-1 API E2E stage: the exact file set is generated, not hand-listed here — see the `backend_tier1_api_e2e` rows in [`docs/ssot/test-execution-matrix.yaml`](test-execution-matrix.yaml) (the SSOT view of `common/testing/matrix.py#WORKFLOW_PYTEST_CONTRACTS`; includes the extraction-corpus journeys, `AC-llm.11`, registered in `common/llm/contract.py`) — with `-m e2e`, executed with explicit marker override. PR runs stay fail-fast; push/main runs report the full Tier-1 failure set. | `needs: [changes]` |
+| **backend-e2e-tier1** | Backend Tier-1 API E2E stage: the exact file set is generated, not hand-listed here — see the `backend_tier1_api_e2e` rows in [`docs/ssot/test-execution-matrix.yaml`](test-execution-matrix.yaml) (the SSOT view of `common/testing/matrix.py#PATH_RULES`; includes the extraction-corpus journeys, `AC-llm.11`, registered in `common/llm/contract.py`) — with `-m "e2e and not slow and not integration and not perf"`. PR runs stay fail-fast; push/main runs report the full Tier-1 failure set. | `needs: [changes]` |
 | **frontend-build** | Frontend TypeScript typecheck + production build when heavy CI is required | `needs: [changes]` |
 | **frontend-vitest** | Frontend Vitest coverage and JUnit evidence when heavy CI is required | `needs: [changes]` |
 | **frontend-playwright** | Provider-free frontend browser UI proof when heavy CI is required | `needs: [changes]` |
@@ -276,7 +276,7 @@ be reverse-engineered from `.github/workflows/ci.yml` on every audit.
 |---|---|---|---|
 | `smoke` | root `pytest.ini`, `tests/e2e/pytest.ini` | `(smoke or e2e) and not llm` (PR preview) | Selector |
 | `e2e` | root `pytest.ini`, `apps/backend/pyproject.toml`, `tests/e2e/pytest.ini` | `e2e and not slow and not integration and not perf` (backend-tier1); `(smoke or e2e) and not llm` (PR preview) | Selector |
-| `llm` | root `pytest.ini`, `apps/backend/pyproject.toml`, `tests/e2e/pytest.ini` | staging AI/OCR gate marker; excluded everywhere else (`and not llm`) | Selector |
+| `llm` | root `pytest.ini`, `tests/e2e/pytest.ini` (not registered in `apps/backend/pyproject.toml`) | staging AI/OCR gate marker; excluded everywhere else (`and not llm`) | Selector |
 | `prod_safe` | root `pytest.ini`, `tests/e2e/pytest.ini` | production read-only smoke marker | Selector |
 | `slow` | `apps/backend/pyproject.toml` | excluded from `backend` and `backend-e2e-tier1` (`not slow`) | Selector (exclusion) |
 | `integration` | `apps/backend/pyproject.toml` | `backend-integration` job (`-m integration`) | Selector |

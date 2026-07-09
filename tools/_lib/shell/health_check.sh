@@ -3,10 +3,11 @@
 #
 # Ownership: this script's RESPONSIBILITY (post-deploy health probing) is
 # infra's, not app's — it physically lives here only because deploy.yml/
-# release.yml invoke it in-repo (#1535, surfaced by the #876 app/infra
-# boundary work). Do not add app-domain logic here; behavioral changes to
-# what "healthy" means belong in infra2's deploy contract, not a local edit.
-# Relocating to infra2 is tracked in #1535, not yet done.
+# release.yml invoke the thin `tools/health_check.sh` wrapper, which execs
+# into this file (#1535, surfaced by the #876 app/infra boundary work). Do
+# not add app-domain logic here; behavioral changes to what "healthy" means
+# belong in infra2's deploy contract, not a local edit. Relocating to
+# infra2 is tracked in #1535, not yet done.
 #
 # Usage:
 #   ./tools/health_check.sh <health_url> <environment> [max_attempts] [image_tag]
