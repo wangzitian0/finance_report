@@ -40,7 +40,7 @@ from common.testing.ac_traceability_refs import AC_PATTERN, classify_reference_f
 from common.testing.test_surface import DEFAULT_AC_TEST_DIRS, default_ac_test_dirs
 
 try:
-    from common.testing.ac_registry_format import load_registry_entries
+    from common.meta.extension.ac_registry_format import load_registry_entries
 except ImportError:  # pragma: no cover - import guard
     print("ERROR: PyYAML not installed. Run: pip install pyyaml", file=sys.stderr)
     sys.exit(1)
@@ -181,7 +181,7 @@ def collect_references(test_files: list[Path]) -> dict[str, ACReferenceStats]:
 
 def _ac_sort_key(ac_id: str) -> tuple:
     """Sort ACs over both id grammars (AC1.2.10 after AC1.2.9; package ids last)."""
-    from common.testing.ac_registry_format import sort_key
+    from common.meta.extension.ac_registry_format import sort_key
 
     return sort_key(ac_id)
 

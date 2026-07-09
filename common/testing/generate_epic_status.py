@@ -43,7 +43,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from common.testing.ac_registry_format import load_registry_entries
+from common.meta.extension.ac_registry_format import load_registry_entries
 from common.testing.analyze_test_ac_coverage import (
     AnalysisResult,
     _is_deprecated_description,

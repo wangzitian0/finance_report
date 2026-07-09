@@ -69,7 +69,7 @@ Use these sources instead:
 - Traceability gate: `python tools/check_ac_index.py`
 - E2E EPIC closure gate: `python tools/check_e2e_epic_traceability.py`
 - Coverage baseline data: `unified-coverage.json`
-- Coverage policy owner: `common/testing/coverage/policy.py`
+- Coverage policy owner: `common/meta/extension/coverage/policy.py`
 
 The Coveralls badge is main-branch reporting only. Pull requests do not publish
 Coveralls status contexts; merge readiness follows the `finish` check and the

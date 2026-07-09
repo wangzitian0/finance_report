@@ -76,7 +76,7 @@ def load_registry_entries(path: Path) -> list[dict[str, Any]]:
         return []
     payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     if payload.get("generated_from_epics"):
-        from common.testing import generate_ac_registry
+        from common.meta.extension import generate_ac_registry
 
         registry_kind = str(payload.get("kind") or _infer_registry_kind(path))
         return generate_ac_registry.materialized_entries(

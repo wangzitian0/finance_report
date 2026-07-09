@@ -17,8 +17,8 @@ import argparse
 import sys
 from pathlib import Path
 
-from common.testing.ac_registry_format import sort_key
-from common.testing.generate_ac_registry import (
+from common.meta.extension.ac_registry_format import sort_key
+from common.meta.extension.generate_ac_registry import (
     EPIC_DIR,
     _epic_files,
     _extract_ac_definition,

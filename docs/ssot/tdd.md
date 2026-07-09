@@ -401,7 +401,7 @@ python tools/check_ssot_ownership.py
 ```
 
 Coverage is governed by `docs/ssot/coverage.md` and
-`common/testing/coverage/policy.py`. The current policy is no-regression from
+`common/meta/extension/coverage/policy.py`. The current policy is no-regression from
 `unified-coverage.json`; this TDD document intentionally links to code-owned
 thresholds instead of copying mutable percentage values.
 

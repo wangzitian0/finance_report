@@ -265,7 +265,7 @@ gates:
     task_category: coverage_fan_in
     workflow: .github/workflows/ci.yml
     job: unified-coverage
-    owner: common/testing/coverage/policy.py
+    owner: common/meta/extension/coverage/policy.py
     triggers: [push, pull_request, workflow_dispatch]
     required_by_finish: true
     blocks_workflow: true

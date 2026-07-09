@@ -140,7 +140,7 @@ about a package is *derived from its contract*:
     port/adapter (B), and `data` is a sink nothing imports — additive, so legacy
     role-folder packages keep passing.
 - The AC registry sources a package's ACs **directly from its `roadmap`**:
-  `common/testing/generate_ac_registry.py` reads `common/*/contract.py` roadmaps
+  `common/meta/extension/generate_ac_registry.py` reads `common/*/contract.py` roadmaps
   additively (alongside the EPIC tables), so a package's ACs live in its contract
   and are **never mirrored** into an EPIC table.
 
@@ -471,7 +471,7 @@ CONTRACT = PackageContract(
 )
 ```
 
-`common/testing/generate_ac_registry.py` reads this package tier statically (AST) and
+`common/meta/extension/generate_ac_registry.py` reads this package tier statically (AST) and
 stamps it onto every AC in the package's `roadmap`, so the registry value carries
 the inherited tier.
 

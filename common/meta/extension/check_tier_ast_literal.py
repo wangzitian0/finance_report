@@ -24,7 +24,7 @@ import sys
 from pathlib import Path
 
 from common.meta.base.authority_matrix import PACKAGE_TIERS
-from common.testing.generate_ac_registry import package_contract_meta
+from common.meta.extension.generate_ac_registry import package_contract_meta
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 

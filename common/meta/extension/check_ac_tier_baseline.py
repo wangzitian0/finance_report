@@ -2,7 +2,7 @@
 """Ratchet gate for AC authority-tier coverage.
 
 Every acceptance criterion should eventually declare an authority *tier* (one of
-:data:`common.testing.generate_ac_registry.AC_TIERS`) — the property that says who
+:data:`common.meta.extension.generate_ac_registry.AC_TIERS`) — the property that says who
 holds final decision authority over the behavior the AC describes, and therefore
 what KIND of proof is valid for it (SSOT: ``common/meta/readme.md``).
 
@@ -34,7 +34,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from common.testing.generate_ac_registry import build_registry_entries
+from common.meta.extension.generate_ac_registry import build_registry_entries
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_BASELINE = REPO_ROOT / "docs" / "ssot" / "ac-tier-baseline.json"
@@ -59,7 +59,7 @@ def load_baseline(path: Path) -> set[str]:
 
 def write_baseline(path: Path, untagged: set[str]) -> None:
     """Persist the untagged-debt baseline as sorted JSON."""
-    from common.testing.ac_registry_format import sort_key
+    from common.meta.extension.ac_registry_format import sort_key
 
     payload: dict[str, Any] = {
         "_comment": (
@@ -83,7 +83,7 @@ def evaluate(baseline: set[str], untagged: set[str]) -> dict[str, list[str]]:
     - ``resolved``: in the baseline but tagged now (informational; shrink the
       baseline with ``--update``).
     """
-    from common.testing.ac_registry_format import sort_key
+    from common.meta.extension.ac_registry_format import sort_key
 
     new_untagged = sorted(untagged - baseline, key=sort_key)
     resolved = sorted(baseline - untagged, key=sort_key)

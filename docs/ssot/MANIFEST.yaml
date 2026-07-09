@@ -781,7 +781,7 @@ concepts:
       - common/extraction/readme.md
       - docs/project/EPIC-026.ac-authority-tiers.md
       - docs/ssot/ac-tier-baseline.json
-      - common/testing/generate_ac_registry.py
+      - common/meta/extension/generate_ac_registry.py
       - common/meta/base/authority_matrix.py
       - common/meta/extension/check_ac_tier_baseline.py
       - tools/check_ac_tier_baseline.py

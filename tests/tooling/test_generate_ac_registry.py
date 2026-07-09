@@ -5,8 +5,8 @@ extraction, deduplication, classification (feature vs infra), and YAML output.
 
 from pathlib import Path
 
-from common.testing import generate_ac_registry as gar
-from common.testing.ac_registry_format import load_registry_entries
+from common.meta.extension import generate_ac_registry as gar
+from common.meta.extension.ac_registry_format import load_registry_entries
 
 
 class TestSortKey:

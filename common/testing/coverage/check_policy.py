@@ -8,7 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from common.testing.coverage.policy import (
+from common.meta.extension.coverage.policy import (
     COMPONENTS,
     ROOT_DIR,
     CoverageComponent,
@@ -90,7 +90,7 @@ def audit_unregistered_sources(repo_root: Path = ROOT_DIR) -> int:
             f"::error title=Unregistered source tree::{len(orphans)} tracked source "
             "file(s) live outside every coverage component and are not exempt; "
             "move them under a covered root or register them in "
-            "common/testing/coverage/policy.py::COVERAGE_EXEMPT_PATTERNS"
+            "common/meta/extension/coverage/policy.py::COVERAGE_EXEMPT_PATTERNS"
         )
         for path in orphans[:50]:
             print(f"  unregistered: {path}")

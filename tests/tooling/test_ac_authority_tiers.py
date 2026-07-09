@@ -15,7 +15,7 @@ from pathlib import Path
 import yaml
 
 from common.meta.extension import check_ac_tier_baseline as tier_gate
-from common.testing import generate_ac_registry as gar
+from common.meta.extension import generate_ac_registry as gar
 
 ROOT = Path(__file__).resolve().parents[2]
 

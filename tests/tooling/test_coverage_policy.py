@@ -21,7 +21,7 @@ from common.testing.coverage.check_policy import (  # noqa: E402
     run_audit,
     tracked_source_files,
 )
-from common.testing.coverage.policy import (  # noqa: E402
+from common.meta.extension.coverage.policy import (  # noqa: E402
     CoverageComponent,
     find_unregistered_sources,
     is_registered_source,
@@ -349,7 +349,7 @@ def test_unregistered_guard_exempts_tests_config_and_non_product_trees():
 
 def test_is_registered_source_distinguishes_covered_from_orphan():
     assert is_registered_source("apps/backend/src/main.py") is True
-    assert is_registered_source("common/testing/coverage/policy.py") is True
+    assert is_registered_source("common/meta/extension/coverage/policy.py") is True
     assert is_registered_source("apps/newservice/handler.py") is False
 
 

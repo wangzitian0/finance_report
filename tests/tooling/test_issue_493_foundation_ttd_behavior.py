@@ -18,7 +18,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 from common.config import env_keys as check_env_keys  # noqa: E402
 from common.config import schema_validation as validate_schemas  # noqa: E402
-from common.testing import generate_ac_registry as gar  # noqa: E402
+from common.meta.extension import generate_ac_registry as gar  # noqa: E402
 
 
 def _read(path: Path) -> str:

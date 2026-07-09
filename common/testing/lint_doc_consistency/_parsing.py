@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 try:
-    from common.testing.ac_registry_format import load_registry_entries
+    from common.meta.extension.ac_registry_format import load_registry_entries
 except ImportError:  # pragma: no cover - environment guard
     print(
         "ERROR: PyYAML not installed. Run: pip install pyyaml",

@@ -12,7 +12,7 @@ from common.testing.coverage.build_unified_lcov import (  # noqa: E402
     build_unified_lcov,
     repo_relative_source,
 )
-from common.testing.coverage.policy import CoverageComponent  # noqa: E402
+from common.meta.extension.coverage.policy import CoverageComponent  # noqa: E402
 
 
 def _component(
