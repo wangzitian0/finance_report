@@ -16,7 +16,7 @@ CI_CD_SSOT = REPO_ROOT / "docs" / "ssot" / "ci-cd.md"
 TDD_SSOT = REPO_ROOT / "docs" / "ssot" / "tdd.md"
 TRACEABILITY_EXCEPTIONS = REPO_ROOT / "docs" / "project" / "traceability-exceptions.md"
 MKDOCS_CONFIG = REPO_ROOT / "mkdocs.yml"
-RECONCILIATION_SSOT = REPO_ROOT / "docs" / "ssot" / "reconciliation.md"
+RECONCILIATION_SSOT = REPO_ROOT / "common" / "reconciliation" / "readme.md"
 FRONTEND_SRC = REPO_ROOT / "apps" / "frontend" / "src"
 
 TEST_ROOTS = [

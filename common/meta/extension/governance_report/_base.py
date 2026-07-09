@@ -46,7 +46,19 @@ PROOF_MARKERS = (
     "platform/",
 )
 SSOT_FILE_SUFFIXES = {".md", ".yaml", ".yml", ".json"}
-SSOT_FILE_EXCLUDES = {"README.md", "MANIFEST.yaml", "template.md"}
+SSOT_FILE_EXCLUDES = {
+    "README.md",
+    "MANIFEST.yaml",
+    "template.md",
+    # Pointer stubs left behind by migration closeout wave 3 (#1664): content
+    # moved into the named package readme, but the file stays as a redirect
+    # for old relative links. Not orphaned — intentionally unowned by design.
+    "reconciliation.md",
+    "ai.md",
+    "reporting.md",
+    "assets.md",
+    "market_data.md",
+}
 RATIO_EPSILON = 1e-9
 PROTECTED_RATIO_LABELS = {
     "manifest_family_coverage": "Manifest family coverage",

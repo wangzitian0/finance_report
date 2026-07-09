@@ -11,7 +11,10 @@ def read(path: str) -> str:
 def test_AC17_10_1_AC17_10_2_investment_performance_schedule_api_contract() -> None:
     """AC17.10.1 AC17.10.2: EPIC-017 owns the investment performance schedule API contract."""
     epic = read("docs/project/EPIC-017.portfolio-management.md")
-    reporting = read("docs/ssot/reporting.md")
+    # Migrated from docs/ssot/reporting.md into the reporting package readme
+    # (migration closeout wave 3, #1664); docs/ssot/reporting.md is now a
+    # pointer stub.
+    reporting = read("common/reporting/readme.md")
 
     for text in (epic, reporting):
         assert "GET /api/portfolio/performance/report-schedule" in text

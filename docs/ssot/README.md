@@ -91,12 +91,12 @@ cleanup that backfills `family` / `kind` and binds child clauses.
 |---|---|---|
 | [common/extraction/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md) | `extraction` | Statement parsing rationale and code/test links — internalized into the `extraction` package (migration-standard step 3) |
 | [common/testing/README.md#pdf-fixtures](https://github.com/wangzitian0/finance_report/blob/main/common/testing/README.md#pdf-fixtures) | `pdf_fixtures` | Synthetic PDF fixture commands, local-only input policy, and font fallback — internalized into the `testing` package (migration-standard step 3) |
-| [reconciliation.md](./reconciliation.md) | `reconciliation` | Matching rationale; thresholds should migrate to code/common |
-| [reporting.md](./reporting.md) | `reporting` | Report calculation rationale and proof links |
-| [framework-reporting.md](./framework-reporting.md) | `framework_reporting` | US/HK target-backward policy layer for personal report packages |
-| [ai.md](./ai.md) | `ai` | Application-layer AI Advisor contract, policy, and safety rationale |
-| [assets.md](./assets.md) | `assets` | Asset lifecycle rationale and code/test links — pre-migration; splits into the `pricing` (#1610) and `portfolio` (#1422) packages |
-| [market_data.md](./market_data.md) | `market_data` | Market data source rationale and fallback policy — pre-migration; internalizes into the `pricing` package (#1610) |
+| [reconciliation.md](./reconciliation.md) | `reconciliation` | **Migrated** (wave 3, #1664) — pointer stub; owner is [`common/reconciliation/readme.md`](https://github.com/wangzitian0/finance_report/blob/main/common/reconciliation/readme.md) |
+| [reporting.md](./reporting.md) | `reporting` | **Migrated** (wave 3, #1664) — pointer stub; owner is [`common/reporting/readme.md`](https://github.com/wangzitian0/finance_report/blob/main/common/reporting/readme.md) |
+| [framework-reporting.md](./framework-reporting.md) | `framework_reporting` | US/HK target-backward policy layer for personal report packages — future `reporting`-package candidate, not yet internalized |
+| [ai.md](./ai.md) | `ai` | **Migrated** (wave 3, #1664) — pointer stub; owner is [`common/advisor/readme.md`](https://github.com/wangzitian0/finance_report/blob/main/common/advisor/readme.md) |
+| [assets.md](./assets.md) | `assets` | **Migrated** (wave 3, #1664) — pointer stub; owners are [`common/portfolio/readme.md`](https://github.com/wangzitian0/finance_report/blob/main/common/portfolio/readme.md) (position math, #1422) and [`common/pricing/readme.md`](https://github.com/wangzitian0/finance_report/blob/main/common/pricing/readme.md) (manual valuation, #1610) |
+| [market_data.md](./market_data.md) | `market_data` | **Migrated** (wave 3, #1664) — pointer stub; owner is [`common/pricing/readme.md`](https://github.com/wangzitian0/finance_report/blob/main/common/pricing/readme.md) |
 | [source-type-priority.md](./source-type-priority.md) | `source-type-priority` | Trust hierarchy rationale; priority should migrate to code/common |
 | [confirmation-workflow.md](./confirmation-workflow.md) | `confirmation-workflow` | Review lifecycle rationale; state machine should migrate to code/common |
 | [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md) | `processing_account` | In-transit funds model and proof references — internalized into the `ledger` package (migration-standard step 3) |
@@ -104,7 +104,63 @@ cleanup that backfills `family` / `kind` and binds child clauses.
 | [common/extraction/audit-failed-cases.yaml](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/audit-failed-cases.yaml) | [`extraction_failed_case_registry`](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/audit-failed-cases.yaml) | Machine-readable audit-failed parsing case registry and parser-expansion boundary — internalized into the `extraction` package |
 | [source-coverage-matrix.yaml](./source-coverage-matrix.yaml) | [`source_coverage_matrix`](./source-coverage-matrix.yaml) | Machine-readable source-class coverage, proof levels, review requirements, and traceability targets |
 
-## Proof Reports
+## Cross-Cutting Classification (migration closeout wave 3, #1664)
+
+Every remaining `docs/ssot/*.md` domain doc is now explicitly classified —
+either genuinely horizontal (no single package owns it) or a real future
+package-internalization candidate not yet done. This satisfies the
+"internalize into the owning package, or explicitly classify as
+cross-cutting with a recorded owner" requirement without silently leaving
+docs unclassified. A "candidate" row is **not** internalized yet — do not
+read it as done.
+
+| Document | Classification | Recorded owner |
+|---|---|---|
+| [ci-cd.md](./ci-cd.md) | Horizontal infra | Repo-wide CI/CD pipeline; no single package owns workflow structure |
+| [deployment.md](./deployment.md) | Horizontal infra | Repo-wide Dokploy/VPS deployment model; no single package |
+| [development.md](./development.md) | Horizontal infra | Repo-wide dev workflow / moon commands / toolchain; no single package |
+| [environments.md](./environments.md) | Horizontal infra | Repo-wide environment taxonomy and isolation; no single package |
+| [tdd.md](./tdd.md) | Horizontal infra | EPIC→AC→test workflow methodology; `meta` governs *form*, but this doc is process narrative, not a `meta` contract fact |
+| [coverage.md](./coverage.md) | Already code-owned | `common/testing/coverage/policy.py` is the fact owner; this doc is rationale-only (correctly modeled — no action needed) |
+| [schema.md](./schema.md) | Deferred | Fate is an **explicit open decision from #1420** (ledger decoupling: money/value → Shared-Kernel out of ledger) — not resolved by this pass |
+| [frontend-patterns.md](./frontend-patterns.md) | Horizontal infra | Spans every package's frontend implementation (raw-fetch ban, auth/session); no single package owner |
+| [observability.md](./observability.md), [observability-logging.md](./observability-logging.md) | Future package candidate | Natural owner is [`common/observability/readme.md`](https://github.com/wangzitian0/finance_report/blob/main/common/observability/readme.md) — not yet internalized |
+| [runtime-incident-response.md](./runtime-incident-response.md) | Horizontal infra | Ops runbook spanning all packages; references `observability` for query patterns but isn't owned by it |
+| [workflow-events.md](./workflow-events.md) | Future package candidate | Natural owner is [`common/platform/readme.md`](https://github.com/wangzitian0/finance_report/blob/main/common/platform/readme.md) (event bus / outbox) — not yet internalized |
+| [evidence-lineage.md](./evidence-lineage.md) | Horizontal infra (for now) | Spans `extraction`/`reconciliation`/`reporting` traceability; no single owner without a cross-package graph package |
+| [confirmation-workflow.md](./confirmation-workflow.md) | Future package candidate | Natural owner is [`common/extraction/readme.md`](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md) (statement review lifecycle) — not yet internalized |
+| [source-type-priority.md](./source-type-priority.md) | Future package candidate | Natural owner is [`common/extraction/readme.md`](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md) (trust hierarchy) — not yet internalized |
+| [env-reference.generated.md](./env-reference.generated.md) | Generated | Machine-generated by `tools/generate_env_reference.py`; not hand-owned |
+
+## Gate Data Directory (migration closeout wave 3, #1664, Part B)
+
+**Decision: `docs/ssot/` stays the gate-data directory.** All 13 yaml/json
+gate-input files (`ac-score-baseline.jsonl`, `ac-tier-baseline.json`,
+`app-boundary-baseline.json`, `protection-floor.json`,
+`critical-proof-outcomes.yaml`, `source-coverage-matrix.yaml`,
+`migration-risk.yaml`, `draft-package-baseline.json`,
+`governance-exceptions.yaml`, `github-action-runtime.yaml`,
+`ci-gate-inventory.yaml`, `delivery-gates.yaml`,
+`test-execution-matrix.yaml`) stay in place rather than moving into
+`common/meta/data/` or an owning package's `data/` layer.
+
+One of them (`ci-gate-inventory.yaml`) also follows a **cross-repo shared
+convention**: the sibling `repo/` submodule keeps its own, separate
+`repo/docs/ssot/ci-gate-inventory.yaml` at the identical relative path,
+validated by its own `repo/tools/ci_gate_audit.py` against the same schema
+(`repo/docs/project/Infra-016.ci_gate_inventory.md`). The two files are
+independent (not cross-read), but relocating this repo's copy off
+`docs/ssot/<name>` would break the shared-path convention the two repos rely
+on to stay comparable — a cross-repo coordination change, not a
+single-repo doc cleanup, and explicitly out of scope for this PR.
+
+The other 11 are heavily read by `tests/tooling/` and `tools/` gate scripts
+by their current path; a move would require updating every consumer in the
+same PR with no test coverage gap, which is a large, high-blast-radius
+change for a documentation-cleanup PR to carry. `meta`'s data layer becoming
+the *computed* index (Part C of #1664) is the point at which physically
+relocating these makes sense — retiring `MANIFEST.yaml`/the registry and
+moving the gate-data files are the same cutover, not two.
 
 | Report | Purpose |
 |---|---|

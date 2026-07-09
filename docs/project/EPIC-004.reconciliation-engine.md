@@ -367,8 +367,8 @@ slice adds:
 
 Generalized invariant: **net worth changes only via external in/out + market
 moves + FX revaluation; internal transfers cancel (minus fees).**
-See: docs/ssot/reconciliation.md#fx-cross-currency-transfer-pairing,
-docs/ssot/reporting.md#internal-transfer-net-worth-neutrality,
+See: `common/reconciliation/readme.md#fx-cross-currency-transfer-pairing`,
+`common/reporting/readme.md#internal-transfer-net-worth-neutrality`,
 docs/ssot/schema.md (`fx_conversions`).
 
 > Migrated to [`common/reconciliation/contract.py`](../../common/reconciliation/contract.py)'s `roadmap` (migration closeout wave 2, #1663): `AC-reconciliation.fx-transfer.1` through `.14`.
