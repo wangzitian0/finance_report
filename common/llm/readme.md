@@ -369,7 +369,7 @@ cassettes are balance-exempt (`balance_reconciles: false`) and field-graded only
 
 > SSOT owner for the **corpus E2E tier**: the committed extraction corpus,
 > seeded end-to-end through the statement pipeline in PR CI. Registered as
-> roadmap group 10 in [`contract.py`](contract.py); tests live in
+> roadmap group 11 in [`contract.py`](contract.py); tests live in
 > `apps/backend/tests/e2e/test_statement_corpus_journeys.py` and run in the
 > `ci.yml backend-e2e-tier1` merge gate.
 
@@ -380,7 +380,7 @@ One corpus, four consuming gates — each answers a different question:
 | Cassette integrity (AC23.7, [§5](#cassettes)) | PR CI `lint` | Is each frozen extraction output internally CONSISTENT (balance chain ties)? |
 | Graded field eval (AC23.8, [§6](#cassette-graded-eval)) | PR CI `lint` + `tooling-coverage` | Is each extraction output ACCURATE per field vs ground truth (raise-only floor)? |
 | Extraction-unit replay (AC23.6) | PR CI backend shards (the module defaults itself to replay; text modality — the vision case is gated on re-recording, #1614) | Does the extraction service still produce this output from the frozen provider seam? |
-| **Corpus E2E journeys (AC-llm.11)** | PR CI `backend-e2e-tier1` | Does each extraction output survive the full downstream pipeline — review → conflict resolution → approve → reconcile → balance sheet? |
+| **Corpus E2E journeys (AC-llm.11)** | PR CI `backend-e2e-tier1` | Does each extraction output survive the full downstream pipeline — review → conflict resolution → approve → reconcile → balance sheet → income statement — with report VALUES tying to the corpus data, not just the flow completing? |
 
 The corpus E2E tier seeds a 10-fingerprint maximally-diverse manifest
 (text+vision, real bank/brokerage + synthetic HF, 0→170-transaction scales,
@@ -390,6 +390,21 @@ because only it carries `direction`; truth files record unsigned magnitudes.
 Diversity invariants and an exact unpostable-row allowlist are asserted in
 code (AC-llm.11.1) so the corpus can neither silently shrink nor silently
 drop rows.
+
+**Report-value acceptance (AC-llm.11.4, #1681/#1686)**: the balance sheet
+assertion (AC-llm.11.2) and the income statement assertion (AC-llm.11.4)
+together are the corpus's report-correctness proof — not just "the journey
+completed" but "the numbers are right". The income statement identity holds
+universally (every institution class, not a name-dependent heuristic)
+because `auto_create_posted_entries_for_statement` always posts a
+transaction's contra side to an Income or Expense account (a classified
+category or the Income/Expense "Uncategorized" default), so
+`total_income − total_expenses` equals the posting account's net movement by
+double-entry construction. Cash flow's `ending_cash` is deliberately NOT
+asserted here: `generate_cash_flow` classifies "cash" accounts by a
+name-keyword heuristic (`cash`/`bank`/`checking`/`savings`/…) that brokerage-
+class corpus accounts (Moomoo, Futu) do not match — a follow-up under #1681
+needs a classification-aware assertion, not a blanket one.
 
 **Division of labour with staging**: PR CI proves the pipeline on committed
 extraction artifacts (zero provider spend, deterministic); the staging

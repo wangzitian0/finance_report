@@ -221,7 +221,7 @@ def test_corpus_manifest_is_diverse():
 
 @ac_proof(
     "extraction-corpus-journeys-pr",
-    ac_ids=["AC-llm.11.2"],
+    ac_ids=["AC-llm.11.2", "AC-llm.11.4"],
     scope="behavioral",
     ci_tier="pr_ci",
     trust_mode="deterministic_pr",
@@ -231,11 +231,13 @@ def test_corpus_manifest_is_diverse():
 @pytest.mark.e2e
 @pytest.mark.parametrize("fingerprint", CORPUS_FINGERPRINTS, ids=lambda fp: fp[:8])
 async def test_corpus_statement_full_journey(client, db, test_user, fingerprint):
-    """EPIC-023 / AC-llm.11.2: every corpus extraction output completes the downstream journey.
+    """EPIC-023 / AC-llm.11.2 / AC-llm.11.4: every corpus extraction output completes
+    the downstream journey and its report values tie to the corpus data.
 
     GIVEN a corpus cassette's frozen extraction output seeded as a parsed statement
-    WHEN driving transactions → review → approve → reconciliation → balance sheet via the API
-    THEN each stage reports the exact corpus-derived numbers with zero provider calls.
+    WHEN driving transactions → review → approve → reconciliation → reports via the API
+    THEN each stage reports the exact corpus-derived numbers with zero provider calls,
+    including the balance sheet AND income statement.
     """
     case = load_corpus_case(fingerprint)
     seeded = await seed_parsed_statement(
@@ -314,6 +316,34 @@ async def test_corpus_statement_full_journey(client, db, test_user, fingerprint)
         assert account_id in lines, f"[{case.short_id}] posting account missing from balance sheet assets"
         assert lines[account_id] == case.net_movement, (
             f"[{case.short_id}] balance sheet shows {lines[account_id]}, corpus net movement is {case.net_movement}"
+        )
+
+    # AC-llm.11.4: the income statement ties to the same corpus data by a
+    # double-entry identity, not a name heuristic. auto_create_posted_entries
+    # always posts the transaction's contra side to an Income or Expense
+    # account (a classified category, or the Income/Expense "Uncategorized"
+    # default) — never equity or another asset — so total_income minus
+    # total_expenses equals the posting account's net movement exactly, for
+    # every corpus case regardless of institution class or category
+    # granularity. (Cash-flow's ending_cash is NOT asserted here: it only
+    # includes accounts whose auto-created name matches a cash-keyword
+    # heuristic in generate_cash_flow, which brokerage-class corpus accounts
+    # do not — see #1681 follow-up.)
+    if n:
+        period_start = min(row["date"] for row in case.rows)
+        period_end = max(row["date"] for row in case.rows)
+        income_resp = await client.get(
+            "/reports/income-statement",
+            params={"start_date": period_start.isoformat(), "end_date": period_end.isoformat()},
+        )
+        assert income_resp.status_code == 200, income_resp.text
+        income = income_resp.json()
+        net_income = Decimal(str(income["total_income"])) - Decimal(str(income["total_expenses"]))
+        assert net_income == case.net_movement, (
+            f"[{case.short_id}] income statement net {net_income} != corpus net movement {case.net_movement}"
+        )
+        assert Decimal(str(income["net_income"])) == case.net_movement, (
+            f"[{case.short_id}] reported net_income {income['net_income']} != corpus net movement {case.net_movement}"
         )
 
 
