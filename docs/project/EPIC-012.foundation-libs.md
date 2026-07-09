@@ -103,7 +103,7 @@ diverging across the codebase and across ends.
 > [`common/audit/contract.py`](../../common/audit/contract.py)'s `roadmap`
 > under the package-scoped numeric `AC-audit.<group>.<seq>` id scheme (the
 > leading "12" is dropped and the group/seq preserved, so `AC12.9.<s>` becomes
-> `AC-audit.9.<s>`). `common/testing/generate_ac_registry.py` reads
+> `AC-audit.9.<s>`). `common/meta/extension/generate_ac_registry.py` reads
 > package-contract roadmaps additively, so the AC index counts them without an
 > EPIC-table mirror. This note references the new ids (keeping the
 > registry↔EPIC link intact) but defines none of them — the contract is the
@@ -131,7 +131,7 @@ diverging across the codebase and across ends.
 > [`common/config/contract.py`](../../common/config/contract.py)'s `roadmap`
 > under the package-scoped numeric `AC-config.<group>.<seq>` id scheme (the
 > leading "12" is dropped and the group/seq preserved, so `AC12.18.<s>` becomes
-> `AC-config.18.<s>`). `common/testing/generate_ac_registry.py` reads package-contract
+> `AC-config.18.<s>`). `common/meta/extension/generate_ac_registry.py` reads package-contract
 > roadmaps additively, so the AC index counts them without an EPIC-table mirror.
 > This note references the new ids (keeping the registry↔EPIC link intact) but
 > defines none of them — the contract is the single definition source.
@@ -457,7 +457,7 @@ the previous naked-`Decimal` rate boundary.
 > [`common/audit/contract.py`](../../common/audit/contract.py)'s `roadmap`
 > under the package-scoped numeric `AC-audit.<group>.<seq>` id scheme (the
 > leading "12" is dropped and the group/seq preserved, so `AC12.30.<s>` becomes
-> `AC-audit.30.<s>`). `common/testing/generate_ac_registry.py` reads
+> `AC-audit.30.<s>`). `common/meta/extension/generate_ac_registry.py` reads
 > package-contract roadmaps additively, so the AC index counts them without an
 > EPIC-table mirror. This note references the new ids (keeping the
 > registry↔EPIC link intact) but defines none of them — the contract is the
@@ -480,7 +480,7 @@ explicit boundary or use the typed value package.
 > [`common/audit/contract.py`](../../common/audit/contract.py)'s `roadmap`
 > under the package-scoped numeric `AC-audit.<group>.<seq>` id scheme (the
 > leading "12" is dropped and the group/seq preserved, so `AC12.31.<s>`
-> becomes `AC-audit.31.<s>`). `common/testing/generate_ac_registry.py` reads
+> becomes `AC-audit.31.<s>`). `common/meta/extension/generate_ac_registry.py` reads
 > package-contract roadmaps additively, so the AC index counts them without an
 > EPIC-table mirror. This note references the new ids (keeping the
 > registry↔EPIC link intact) but defines none of them — the contract is the
@@ -506,7 +506,7 @@ duplicated local `quantize` helper as raw `Decimal` glue.
 > [`common/audit/contract.py`](../../common/audit/contract.py)'s `roadmap`
 > under the package-scoped numeric `AC-audit.<group>.<seq>` id scheme (the
 > leading "12" is dropped and the group/seq preserved, so `AC12.32.<s>` becomes
-> `AC-audit.32.<s>`). `common/testing/generate_ac_registry.py` reads
+> `AC-audit.32.<s>`). `common/meta/extension/generate_ac_registry.py` reads
 > package-contract roadmaps additively, so the AC index counts them without an
 > EPIC-table mirror. This note references the new ids (keeping the
 > registry↔EPIC link intact) but defines none of them — the contract is the
@@ -532,7 +532,7 @@ vectors) but adopted on the backend first.
 > directly from, [`common/audit/contract.py`](../../common/audit/contract.py)'s
 > `roadmap` under the package-scoped numeric `AC-audit.<group>.<seq>` id scheme
 > (the leading "12" is dropped and the group/seq preserved, so `AC12.33.<s>`
-> becomes `AC-audit.33.<s>`). `common/testing/generate_ac_registry.py` reads
+> becomes `AC-audit.33.<s>`). `common/meta/extension/generate_ac_registry.py` reads
 > package-contract roadmaps additively, so the AC index counts them without an
 > EPIC-table mirror. This note references the new ids (keeping the
 > registry↔EPIC link intact) but defines none of them — the contract is the
@@ -557,7 +557,7 @@ runtime `abs(debit-credit) < 0.01` checks.
 > [`common/ledger/contract.py`](../../common/ledger/contract.py)'s `roadmap`
 > under the package-scoped numeric `AC-ledger.<group>.<seq>` id scheme (the
 > leading "12" is dropped and the group/seq preserved, so `AC12.34.<s>`
-> becomes `AC-ledger.34.<s>`). `common/testing/generate_ac_registry.py` reads
+> becomes `AC-ledger.34.<s>`). `common/meta/extension/generate_ac_registry.py` reads
 > package-contract roadmaps additively, so the AC index counts them without an
 > EPIC-table mirror. This note references the new ids (keeping the
 > registry↔EPIC link intact) but defines none of them — the contract is the
@@ -581,7 +581,7 @@ other models/services follow incrementally.
 > [`common/audit/contract.py`](../../common/audit/contract.py)'s `roadmap`
 > under the package-scoped numeric `AC-audit.<group>.<seq>` id scheme (the
 > leading "12" is dropped and the group/seq preserved, so `AC12.35.<s>`
-> becomes `AC-audit.35.<s>`). `common/testing/generate_ac_registry.py` reads
+> becomes `AC-audit.35.<s>`). `common/meta/extension/generate_ac_registry.py` reads
 > package-contract roadmaps additively, so the AC index counts them without an
 > EPIC-table mirror. This note references the new ids (keeping the
 > registry↔EPIC link intact) but defines none of them — the contract is the
@@ -607,7 +607,7 @@ imports no base package, so the family stays bounded — not a fifth base packag
 > directly from, [`common/audit/contract.py`](../../common/audit/contract.py)'s
 > `roadmap` under the package-scoped numeric `AC-audit.<group>.<seq>` id scheme
 > (the leading "12" is dropped and the group/seq preserved, so `AC12.36.<s>`
-> becomes `AC-audit.36.<s>`). `common/testing/generate_ac_registry.py` reads
+> becomes `AC-audit.36.<s>`). `common/meta/extension/generate_ac_registry.py` reads
 > package-contract roadmaps additively, so the AC index counts them without an
 > EPIC-table mirror. This note references the new ids (keeping the
 > registry↔EPIC link intact) but defines none of them — the contract is the
@@ -630,7 +630,7 @@ incrementally by area; the forbid-ratchet follows once the surface is covered.
 > [`common/audit/contract.py`](../../common/audit/contract.py)'s `roadmap`
 > under the package-scoped numeric `AC-audit.<group>.<seq>` id scheme (the
 > leading "12" is dropped and the group/seq preserved, so `AC12.37.<s>`
-> becomes `AC-audit.37.<s>`). `common/testing/generate_ac_registry.py` reads
+> becomes `AC-audit.37.<s>`). `common/meta/extension/generate_ac_registry.py` reads
 > package-contract roadmaps additively, so the AC index counts them without an
 > EPIC-table mirror. This note references the new ids (keeping the
 > registry↔EPIC link intact) but defines none of them — the contract is the
@@ -649,7 +649,7 @@ Currency was resolved ad-hoc in ≥3 divergent ways (`or "SGD"`, `or settings.ba
 > [`common/audit/contract.py`](../../common/audit/contract.py)'s `roadmap`
 > under the package-scoped numeric `AC-audit.<group>.<seq>` id scheme (the
 > leading "12" is dropped and the group/seq preserved, so `AC12.38.<s>`
-> becomes `AC-audit.38.<s>`). `common/testing/generate_ac_registry.py` reads
+> becomes `AC-audit.38.<s>`). `common/meta/extension/generate_ac_registry.py` reads
 > package-contract roadmaps additively, so the AC index counts them without an
 > EPIC-table mirror. This note references the new ids (keeping the
 > registry↔EPIC link intact) but defines none of them — the contract is the

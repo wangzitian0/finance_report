@@ -44,7 +44,7 @@ import yaml
 
 from common.testing.ac_score_baseline_format import load_jsonl
 from common.testing.ac_traceability_refs import AC_PATTERN, classify_reference_file
-from common.testing.generate_ac_registry import build_registry_entries
+from common.meta.extension.generate_ac_registry import build_registry_entries
 from common.testing.generate_critical_proof_matrix import (
     CollectedProof,
     collect_proofs,

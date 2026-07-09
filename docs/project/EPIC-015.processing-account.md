@@ -90,7 +90,7 @@ Balance ≠ 0  → Pending Review ⚠️
 > [`common/ledger/contract.py`](../../common/ledger/contract.py)'s `roadmap` under
 > the package-scoped `AC-ledger.<group>.<seq>` id scheme (groups 71–76 are the
 > reserved processing block; groups 1–70 are held for the EPIC-002/012 double-entry
-> ACs that land in slices 3c-ii/iii). `common/testing/generate_ac_registry.py` reads
+> ACs that land in slices 3c-ii/iii). `common/meta/extension/generate_ac_registry.py` reads
 > package-contract roadmaps additively, so the AC index counts them without an
 > EPIC-table mirror. This note references the new ids (keeping the registry↔EPIC
 > link intact) but defines none of them — the contract is the single definition

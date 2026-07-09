@@ -99,7 +99,7 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 > is dropped and the sequence preserved, so `AC2.<g>.<s>` becomes
 > `AC-ledger.<g>.<s>`; groups 1–12 are slice 3c-ii, 13–16 are slice 3c-iii, and
 > 71–76 are the EPIC-015 processing block from slice 3c-i).
-> `common/testing/generate_ac_registry.py` reads package-contract roadmaps additively,
+> `common/meta/extension/generate_ac_registry.py` reads package-contract roadmaps additively,
 > so the AC index counts them without an EPIC-table mirror. This note references
 > the new ids (keeping the registry↔EPIC link intact) but defines none of them —
 > the contract is the single definition source. The **non-double-entry** rows of
@@ -457,7 +457,7 @@ banker's-rounding-vs-`decimal.js`-HALF_UP divergence).
 > [`common/audit/contract.py`](../../common/audit/contract.py)'s `roadmap`
 > under the package-scoped numeric `AC-audit.<group>.<seq>` id scheme (the
 > leading "2" is dropped and the group/seq preserved, so `AC2.19.<s>` becomes
-> `AC-audit.19.<s>`). `common/testing/generate_ac_registry.py` reads
+> `AC-audit.19.<s>`). `common/meta/extension/generate_ac_registry.py` reads
 > package-contract roadmaps additively, so the AC index counts them without an
 > EPIC-table mirror. This note references the new ids (keeping the
 > registry↔EPIC link intact) but defines none of them — the contract is the

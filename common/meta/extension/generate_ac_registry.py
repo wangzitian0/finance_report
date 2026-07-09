@@ -14,7 +14,7 @@ from common.meta.base.authority_matrix import (
     AC_TIERS as _AC_TIERS,
     TIER_DEFAULT_PROOF_KIND as _TIER_DEFAULT_PROOF_KIND,
 )
-from common.testing.ac_registry_format import (
+from common.meta.extension.ac_registry_format import (
     PKG_AC_PATTERN,
     epic_group_key,
     load_registry_entries,

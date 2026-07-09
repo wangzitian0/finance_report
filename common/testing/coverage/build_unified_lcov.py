@@ -7,7 +7,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from common.testing.coverage.policy import COMPONENTS, ROOT_DIR, CoverageComponent
+from common.meta.extension.coverage.policy import COMPONENTS, ROOT_DIR, CoverageComponent
 from common.testing.coverage.strip_lcov_branches import is_branch_record
 
 

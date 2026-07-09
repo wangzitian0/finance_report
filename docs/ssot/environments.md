@@ -213,7 +213,7 @@ This App doc does not enumerate those values.
 | Environment | Tests Run | Purpose | Duration |
 |-------------|-----------|---------|----------|
 | **Local Dev** | None (manual testing) | Fast iteration | — |
-| **Local CI** | Unit + integration with coverage policy from `common/testing/coverage/policy.py` | Pre-push validation | ~30s |
+| **Local CI** | Unit + integration with coverage policy from `common/meta/extension/coverage/policy.py` | Pre-push validation | ~30s |
 | **GitHub CI** | Lint, AC traceability, unit + integration with unified coverage for heavy changes | Quality gate | ~7min heavy / lightweight skips heavy jobs |
 | **PR Preview** | Runner-local health check + non-LLM E2E; optional manual Dokploy inspection | Merge validation + opt-in inspection | ~3-5min when enabled |
 | **Staging** | Image deploy, smoke, non-LLM E2E, performance; AI/OCR regression recorded separately | **Deployment validation** + recorded full-provider validation | ~6min deploy + variable AI/OCR replay |

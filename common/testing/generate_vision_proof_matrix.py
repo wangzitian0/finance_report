@@ -42,7 +42,7 @@ except ImportError:  # pragma: no cover - import guard
     print("ERROR: PyYAML not installed. Run: pip install pyyaml", file=sys.stderr)
     sys.exit(1)
 
-from common.testing.ac_registry_format import load_registry_entries, sort_key
+from common.meta.extension.ac_registry_format import load_registry_entries, sort_key
 from common.testing.ac_traceability_refs import AC_PATTERN, classify_reference_file
 from common.testing.test_surface import default_ac_test_dirs
 

@@ -17,7 +17,7 @@ import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from common.testing.ac_registry_format import load_registry_entries
+from common.meta.extension.ac_registry_format import load_registry_entries
 
 ROOT = Path(__file__).resolve().parents[2]
 AC_RE = re.compile(r"\bAC(\d+)\.(\d+)\.(\d+)\b")

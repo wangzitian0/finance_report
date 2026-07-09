@@ -24,7 +24,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from common.testing.coverage import calculate_unified_coverage as cuc  # noqa: E402
-from common.testing.coverage.policy import (  # noqa: E402
+from common.meta.extension.coverage.policy import (  # noqa: E402
     CI_CRITICAL,
     BEST_EFFORT,
     COMPONENT_BY_NAME,

@@ -7,7 +7,7 @@ line counts are diagnostic helpers only and do not define the enforced metric.
 
 Scope is deny-list based inside each governed source root: every file matching
 the component extensions is expected in LCOV unless it is explicitly excluded
-by ``common.testing.coverage.policy``. New source roots are caught by the CI metrics
+by ``common.meta.extension.coverage.policy``. New source roots are caught by the CI metrics
 contract before this calculator runs.
 
 Output: unified-coverage.json with:
@@ -24,7 +24,7 @@ import os
 import sys
 from pathlib import Path
 
-from common.testing.coverage.policy import (
+from common.meta.extension.coverage.policy import (
     COMPONENT_BY_NAME,
     COMPONENTS,
     CoverageComponent,

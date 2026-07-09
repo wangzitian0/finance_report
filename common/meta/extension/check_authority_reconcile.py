@@ -29,7 +29,7 @@ import sys
 from pathlib import Path
 
 from common.meta.extension.authority_classifier import band, build_test_index, classify_test_files
-from common.testing.generate_ac_registry import package_contract_meta
+from common.meta.extension.generate_ac_registry import package_contract_meta
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 

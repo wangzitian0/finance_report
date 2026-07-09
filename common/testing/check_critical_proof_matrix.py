@@ -23,7 +23,7 @@ from typing import Any
 
 import yaml
 
-from common.testing.ac_registry_format import load_registry_entries
+from common.meta.extension.ac_registry_format import load_registry_entries
 from common.testing.ac_traceability_refs import AC_PATTERN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
