@@ -16,6 +16,11 @@ import pytest
 from playwright.async_api import Browser, BrowserContext, Page, async_playwright
 
 from tests.e2e.auth_cookie import build_auth_cookie
+from tests.e2e.critical_skip_gate import (
+    CRITICAL_MARKER,
+    critical_skip_failure_message,
+    should_convert_skip_to_failure,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -93,18 +98,14 @@ def fail_or_skip_ai_ocr_gate(
 def pytest_runtest_makereport(item, call):
     outcome = yield
     report = outcome.get_result()
-    if (
-        _strict_e2e_gates_enabled()
-        and report.skipped
-        and item.get_closest_marker("critical") is not None
-        and report.when in {"setup", "call"}
+    if should_convert_skip_to_failure(
+        strict_gates_enabled=_strict_e2e_gates_enabled(),
+        skipped=report.skipped,
+        has_critical_marker=item.get_closest_marker(CRITICAL_MARKER) is not None,
+        when=report.when,
     ):
         report.outcome = "failed"
-        report.longrepr = (
-            f"Critical E2E gate skipped: {item.nodeid}. "
-            "Critical deploy usability checks must fail instead of skip when "
-            "STRICT_E2E_GATES=true."
-        )
+        report.longrepr = critical_skip_failure_message(item.nodeid)
 
 
 class AuthState:

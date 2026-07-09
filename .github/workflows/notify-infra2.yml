@@ -39,6 +39,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      # #1534: needed so tools/_lib/shell/resolve_report_main_dispatch_sha.sh
+      # (the extracted, testable dispatch-decision script) exists on the
+      # runner — this job previously did no repo checkout at all, since the
+      # inline bash conditional it replaces needed no file from the repo.
+      - uses: actions/checkout@v7
       - name: Dispatch repository_dispatch to infra2
         env:
           INFRA2_PAT: ${{ secrets.INFRA2_PAT }}
@@ -87,17 +92,15 @@ jobs:
             alert_and_fail "unresolved-sha" "Could not resolve current main SHA before infra2 dispatch."
           fi
 
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_run" ]]; then
-            dispatch_sha="${WORKFLOW_RUN_SHA:-}"
-            if [[ -z "${dispatch_sha:-}" ]]; then
-              alert_and_fail "unresolved-workflow-run-sha" "No workflow_run head SHA resolved for report-branch-main deploy."
-            fi
-            if [[ "$dispatch_sha" != "$latest_main_sha" ]]; then
-              echo "Skipping stale CI completion: workflow_run_sha=$dispatch_sha latest_main_sha=$latest_main_sha"
-              exit 0
-            fi
-          else
-            dispatch_sha="$latest_main_sha"
+          # #1534: the SHA-resolution/stale-completion decision lives in a
+          # standalone, real-execution-testable script (not inline bash) —
+          # see tools/_lib/shell/resolve_report_main_dispatch_sha.sh and
+          # tests/tooling/test_report_main_dispatch.py.
+          if ! dispatch_sha="$(tools/_lib/shell/resolve_report_main_dispatch_sha.sh "${GITHUB_EVENT_NAME}" "${WORKFLOW_RUN_SHA:-}" "$latest_main_sha")"; then
+            alert_and_fail "unresolved-workflow-run-sha" "No workflow_run head SHA resolved for report-branch-main deploy."
+          fi
+          if [[ -z "$dispatch_sha" ]]; then
+            exit 0 # stale CI completion; the resolver already logged why to stderr
           fi
 
           payload="$(jq -nc --arg sha "$dispatch_sha" \
