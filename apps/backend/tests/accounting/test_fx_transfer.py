@@ -81,7 +81,7 @@ def test_AC2_pairs_out_ccyA_with_in_ccyB_within_rate_tolerance(ac_evidence):
     assert swapped is not None
     assert swapped.out_leg.account_id == out_leg.account_id
     ac_evidence(
-        ac_id="AC4.14.1",
+        ac_id="AC-reconciliation.fx-transfer.1",
         score=1.0,
         metric="fx_legs_pair_when_implied_rate_within_tolerance",
         provenance="deterministic",
@@ -106,7 +106,7 @@ def test_AC2_implied_rate_outside_tolerance_does_not_pair(ac_evidence):
     # A tight in-tolerance market rate still pairs.
     assert pair_fx_legs(out_leg, in_leg, Decimal("1.364000")) is not None
     ac_evidence(
-        ac_id="AC4.14.2",
+        ac_id="AC-reconciliation.fx-transfer.2",
         score=1.0,
         metric="fx_legs_do_not_pair_outside_rate_tolerance",
         provenance="deterministic",
@@ -150,7 +150,7 @@ def test_AC2_non_candidate_legs_do_not_pair(ac_evidence):
     same_out, same_in = _legs(user_id=out_leg.user_id, out_account=acct, in_account=acct)
     assert pair_fx_legs(same_out, same_in, _MARKET_RATE) is None
     ac_evidence(
-        ac_id="AC4.14.3",
+        ac_id="AC-reconciliation.fx-transfer.3",
         score=1.0,
         metric="non_candidate_fx_legs_rejected",
         provenance="deterministic",
@@ -179,7 +179,7 @@ def test_AC3_internal_transfer_classified_net_zero(ac_evidence):
     unpaired = classify_internal_transfer(None)
     assert unpaired.is_internal_transfer is False
     ac_evidence(
-        ac_id="AC4.14.4",
+        ac_id="AC-reconciliation.fx-transfer.4",
         score=1.0,
         metric="internal_transfer_income_and_expense_are_zero",
         provenance="deterministic",
@@ -209,7 +209,7 @@ def test_AC3_net_worth_unchanged_by_internal_transfer_minus_fee(ac_evidence):
     with_fee = classify_internal_transfer(pair, fee=Decimal("3.75"))
     assert with_fee.net_worth_delta == Decimal("-3.75")
     ac_evidence(
-        ac_id="AC4.14.5",
+        ac_id="AC-reconciliation.fx-transfer.5",
         score=1.0,
         metric="net_worth_delta_equals_negative_fee",
         provenance="deterministic",
@@ -245,7 +245,7 @@ def test_AC4_same_day_round_trip_nets_zero_pnl_minus_fee(ac_evidence):
     )
     assert pnl_with_fee == Decimal("-1.20")
     ac_evidence(
-        ac_id="AC4.14.6",
+        ac_id="AC-reconciliation.fx-transfer.6",
         score=1.0,
         metric="same_day_round_trip_realized_pnl_is_negative_fee",
         provenance="deterministic",
@@ -271,7 +271,7 @@ def test_AC4_revaluation_pnl_routed_through_fx_revaluation_source_type(ac_eviden
     assert REVALUATION_SOURCE_TYPE is JournalEntrySourceType.FX_REVALUATION
     assert REVALUATION_SOURCE_TYPE.value == "fx_revaluation"
     ac_evidence(
-        ac_id="AC4.14.7",
+        ac_id="AC-reconciliation.fx-transfer.7",
         score=1.0,
         metric="fx_pnl_routes_through_fx_revaluation_source_type",
         provenance="deterministic",
@@ -308,7 +308,7 @@ def test_AC2_fx_conversion_model_round_trips_decimals(ac_evidence):
     assert conversion.to_account_id == in_leg.account_id
     assert conversion.conversion_date == out_leg.occurred_at.date()
     ac_evidence(
-        ac_id="AC4.14.8",
+        ac_id="AC-reconciliation.fx-transfer.8",
         score=1.0,
         metric="fx_conversion_model_round_trips_decimal_and_iso_currency",
         provenance="deterministic",

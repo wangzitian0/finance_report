@@ -219,7 +219,7 @@ async def test_AC3_internal_transfer_excluded_from_income_statement_e2e(db: Asyn
     assert sum((Decimal(str(t["total_expenses"])) for t in report["trends"]), Decimal("0")) == _FEE_SGD
 
     ac_evidence(
-        ac_id="AC4.14.9",
+        ac_id="AC-reconciliation.fx-transfer.9",
         score=1.0,
         metric="income_statement_excludes_internal_transfer_legs_fee_only",
         provenance="deterministic",
@@ -258,7 +258,7 @@ async def test_AC3_internal_transfer_net_income_fee_only_e2e(db: AsyncSession, t
     assert report["net_income"] == Decimal("4997.50")
 
     ac_evidence(
-        ac_id="AC4.14.10",
+        ac_id="AC-reconciliation.fx-transfer.10",
         score=1.0,
         metric="balance_sheet_net_income_excludes_internal_transfer_fee_only",
         provenance="deterministic",

@@ -195,7 +195,7 @@ async def test_AC2_raw_ledger_internal_transfer_autodiscovered_e2e(db: AsyncSess
     assert balance_sheet["net_income"] == _SALARY_SGD
 
     ac_evidence(
-        ac_id="AC4.14.13",
+        ac_id="AC-reconciliation.fx-transfer.13",
         score=1.0,
         metric="raw_ledger_transfer_autodiscovered_and_excluded_fee_only",
         provenance="deterministic",
@@ -287,7 +287,7 @@ async def test_AC4_same_day_round_trip_nets_zero_pnl_through_live_report(db: Asy
     assert report["net_income"] == Decimal("0.00")
 
     ac_evidence(
-        ac_id="AC4.14.14",
+        ac_id="AC-reconciliation.fx-transfer.14",
         score=1.0,
         metric="same_day_round_trip_nets_zero_realized_pnl_through_live_report",
         provenance="deterministic",

@@ -163,7 +163,7 @@ def test_normalize_and_description_scoring(ac_evidence) -> None:
     # Emit measured behavioral evidence for the ratchet gate. The score is the
     # measured similarity (0-100) normalised to [0,1] — not a hand-assigned grade.
     ac_evidence(
-        ac_id="AC4.1.4",
+        ac_id="AC-reconciliation.matching-core.4",
         score=similarity / 100.0,
         metric="description_similarity_pct",
         comment=(f"score_description('Coffee Shop','coffee shop')={similarity:.1f}/100"),
@@ -238,7 +238,7 @@ def test_score_amount_branches(ac_evidence) -> None:
     assert score_amount(Decimal("100.00"), Decimal("160.00"), config) == 40.0
     # Measured evidence: exact-match amount score (100/100) normalised to [0,1].
     ac_evidence(
-        ac_id="AC4.1.1",
+        ac_id="AC-reconciliation.matching-core.1",
         score=exact / 100.0,
         metric="amount_score_pct",
         comment=f"score_amount(100.00, 100.00)={exact:.1f}/100 (exact match)",
@@ -246,7 +246,7 @@ def test_score_amount_branches(ac_evidence) -> None:
     )
     # Measured evidence: in-tolerance amount score (0.40 delta -> 90/100).
     ac_evidence(
-        ac_id="AC4.1.3",
+        ac_id="AC-reconciliation.matching-core.3",
         score=tolerance / 100.0,
         metric="amount_score_pct",
         comment=f"score_amount(100.00, 100.40)={tolerance:.1f}/100 (within tolerance)",
@@ -265,7 +265,7 @@ def test_amount_tolerance_0_10_boundary(ac_evidence) -> None:
     # Measured evidence: the boundary holds (delta 0.10 scores 90, delta 0.11
     # drops below). Score is 1.0 iff both sides of the boundary behave.
     ac_evidence(
-        ac_id="AC4.6.1",
+        ac_id="AC-reconciliation.source-type-transfer.1",
         score=1.0 if (inside == 90.0 and outside < 90.0) else 0.0,
         metric="amount_tolerance_boundary_holds",
         comment=f"delta 0.10 -> {inside:.1f}/100, delta 0.11 -> {outside:.1f}/100",
@@ -286,7 +286,7 @@ def test_score_date_branches(ac_evidence) -> None:
     assert score_date(date(2024, 1, 1), date(2024, 2, 1), config) == 0.0
     # Measured evidence: a 2-day gap scores 90/100 on the fuzzy-date curve.
     ac_evidence(
-        ac_id="AC4.1.2",
+        ac_id="AC-reconciliation.matching-core.2",
         score=fuzzy / 100.0,
         metric="date_score_pct",
         comment=f"score_date(2024-01-01, 2024-01-03)={fuzzy:.1f}/100 (2-day gap)",

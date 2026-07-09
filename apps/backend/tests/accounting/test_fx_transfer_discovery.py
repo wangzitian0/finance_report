@@ -139,7 +139,7 @@ async def test_AC2_discover_pairs_unambiguous_cross_currency_legs_from_ledger(db
     assert discovered[0].pair.implied_rate == Decimal("1.36")
 
     ac_evidence(
-        ac_id="AC4.14.11",
+        ac_id="AC-reconciliation.fx-transfer.11",
         score=1.0,
         metric="cross_currency_transfer_legs_discovered_from_raw_ledger",
         provenance="deterministic",
@@ -202,7 +202,7 @@ async def test_AC2_discover_skips_ambiguous_candidate_legs(db: AsyncSession, tes
     assert discovered == [], "ambiguous candidate legs must not be paired"
 
     ac_evidence(
-        ac_id="AC4.14.12",
+        ac_id="AC-reconciliation.fx-transfer.12",
         score=1.0,
         metric="ambiguous_transfer_legs_not_paired",
         provenance="deterministic",
