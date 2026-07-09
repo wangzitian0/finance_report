@@ -9,7 +9,7 @@ versions may propose; the gate (strong code) disposes.
 
 from decimal import Decimal
 
-from src.services.promotion_gate import (
+from src.audit.promotion import (
     RECONCILIATION_AUTO_ACCEPT_SCORE,
     RECONCILIATION_REVIEW_SCORE,
     STATEMENT_BALANCE_TOLERANCE,

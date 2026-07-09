@@ -55,11 +55,12 @@ value types).
 
 ## Status
 
-`status="active"`, `tier="CODE-ONLY"`, `roadmap` has 12 ACs: the opening-
+`status="active"`, `tier="CODE-ONLY"`, `roadmap` has 14 ACs: the opening-
 balance confidence-tier gate (migrated from EPIC-002, which never owned this
-behavior — it's report assembly, not double-entry posting) and the full
-EPIC-020 framework-aware personal reporting set (all `proof_kind` in
-`{exact, property}`, both valid under `CODE-ONLY`). EPIC-005's larger AC set
+behavior — it's report assembly, not double-entry posting), the full
+EPIC-020 framework-aware personal reporting set, and the EPIC-025 DRY/SSOT
+reporting-calculation-extraction pair (`dry-ssot.1`/`.2`) — all `proof_kind`
+in `{exact, property}`, valid under `CODE-ONLY`. EPIC-005's larger AC set
 still lands in a follow-up commit once the `services/` -> package-home move
 is complete — the tier decision above doesn't depend on that landing first.
 The physical move from `apps/backend/src/services/reporting/` into

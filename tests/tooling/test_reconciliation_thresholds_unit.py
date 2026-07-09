@@ -25,10 +25,6 @@ from src.models.reconciliation import (  # noqa: E402
     ReconciliationStatus,
 )
 
-# Pre-cache real submodule deps so the isolated reconciliation load (which stubs
-# src.services) can still resolve them after the split into reconciliation_config etc.
-from src.services import promotion_gate as _promotion_gate  # noqa: E402, F401
-
 
 def _load_reconciliation_module():
     """Load reconciliation matching module under the package-model location."""

@@ -8,10 +8,13 @@ structure conforms to, ``audit.base`` is the **value language** that everyone's
 numbers are expressed in: the cross-runtime Shared-Kernel value types
 (``Money`` / ``Currency`` / ``ExchangeRate`` / ``MoneyTolerance`` /
 ``CurrencyBalances`` / ``Ratio`` / ``Quantity`` / ``Unit`` / ``UnitPrice``), plus
-— in a later fold — audit's own base value objects (financial invariants,
-confidence / provenance, trace records). ``audit.extension`` will then reach the
-financial flow (``ledger`` / ``extraction`` / ``portfolio`` / ``reporting``) to
-assert global numeric correctness (issue #1419, umbrella #1416; closeout #1429).
+audit's own first base value objects: the promotion gate (``InvariantResult`` /
+``PromotionDecision`` / ``PromotionVerdict`` / ``evaluate_promotion`` /
+``tier_rank``, relocated from ``services/promotion_gate.py`` by #1667). The rest
+of audit's own base value objects (confidence / provenance, trace records) still
+arrive in a later fold. ``audit.extension`` will then reach the financial flow
+(``ledger`` / ``extraction`` / ``portfolio`` / ``reporting``) to assert global
+numeric correctness (issue #1419, umbrella #1416; closeout #1429).
 
 Scope of THIS contract (the physical fold — see ``readme.md`` §Migration state):
 
@@ -75,10 +78,12 @@ CONTRACT = PackageContract(
     # The Shared Kernel value language audit governs, declared as value-object
     # units (the taxonomy; no module path — audit has no physical base/extension
     # split of its own yet, and the canonical code lives in the value packages'
-    # cross-runtime reference, so the gate skips placement). audit's OWN base value
-    # objects (financial invariants, confidence/provenance, trace records) arrive
-    # in a later fold and are tracked in readme.md/todo.md, not declared as vapor
-    # units here.
+    # cross-runtime reference, so the gate skips placement). The promotion-gate
+    # units below DO declare a module path (they physically live at
+    # apps/backend/src/audit/promotion/gate.py, #1667) — audit's first owned
+    # base module. The rest of audit's own base value objects (confidence/
+    # provenance, trace records) still arrive in a later fold and are tracked
+    # in readme.md/todo.md, not declared as vapor units here.
     units=[
         Unit(name="Money", kind=Kind.VALUE_OBJECT),
         Unit(name="Currency", kind=Kind.VALUE_OBJECT),
@@ -90,6 +95,25 @@ CONTRACT = PackageContract(
         Unit(name="Quantity", kind=Kind.VALUE_OBJECT),
         Unit(name="Unit", kind=Kind.VALUE_OBJECT),
         Unit(name="UnitPrice", kind=Kind.VALUE_OBJECT),
+        # The first slice of audit's OWN base value objects (the "later fold"
+        # this file's docstring flagged): the promotion gate (#930, relocated
+        # from services/promotion_gate.py by #1667). Confidence/provenance/
+        # trace records still arrive in a later fold (#1429).
+        Unit(
+            name="InvariantResult", kind=Kind.VALUE_OBJECT, module="promotion/gate.py"
+        ),
+        Unit(
+            name="PromotionDecision", kind=Kind.VALUE_OBJECT, module="promotion/gate.py"
+        ),
+        Unit(
+            name="PromotionVerdict", kind=Kind.VALUE_OBJECT, module="promotion/gate.py"
+        ),
+        Unit(
+            name="evaluate_promotion",
+            kind=Kind.DOMAIN_SERVICE,
+            module="promotion/gate.py",
+        ),
+        Unit(name="tier_rank", kind=Kind.DOMAIN_SERVICE, module="promotion/gate.py"),
     ],
     implementations={
         "be": "apps/backend/src/audit",
@@ -115,6 +139,14 @@ CONTRACT = PackageContract(
         "SourceTypeDowngradeError",
         "CurrencyBalance",
         "CurrencyBalances",
+        "RECONCILIATION_AUTO_ACCEPT_SCORE",
+        "RECONCILIATION_REVIEW_SCORE",
+        "STATEMENT_BALANCE_TOLERANCE",
+        "InvariantResult",
+        "PromotionDecision",
+        "PromotionVerdict",
+        "evaluate_promotion",
+        "tier_rank",
         "Ratio",
         "Quantity",
         "Unit",
@@ -197,6 +229,18 @@ CONTRACT = PackageContract(
             test=(
                 "tests/tooling/test_money_narrow_waist_guard.py"
                 "::test_AC2_23_1_money_modules_are_float_free"
+            ),
+        ),
+        Invariant(
+            id="promotion-gate-invariants-first",
+            statement=(
+                "evaluate_promotion() rejects on a single failed deterministic "
+                "invariant regardless of confidence; confidence only gates "
+                "promotion once every invariant passes (#930, Axiom B)."
+            ),
+            test=(
+                "apps/backend/tests/audit/promotion/test_promotion_gate.py"
+                "::test_AC18_13_1_failed_invariant_is_rejected_with_queryable_reason"
             ),
         ),
     ],

@@ -13,10 +13,10 @@ from uuid import UUID
 from sqlalchemy import and_, desc, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit import STATEMENT_BALANCE_TOLERANCE, InvariantResult, evaluate_promotion
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
-from src.services.promotion_gate import STATEMENT_BALANCE_TOLERANCE, InvariantResult, evaluate_promotion
 
 # Single-owned by the promotion gate (#930); kept as a local alias for readability.
 BALANCE_TOLERANCE = STATEMENT_BALANCE_TOLERANCE

@@ -10,6 +10,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit import STATEMENT_BALANCE_TOLERANCE
 from src.models.account import Account
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
@@ -20,7 +21,6 @@ from src.schemas.account import (
     AccountCoverageListResponse,
     AccountCoverageResponse,
 )
-from src.services.promotion_gate import STATEMENT_BALANCE_TOLERANCE
 
 BALANCE_TOLERANCE = STATEMENT_BALANCE_TOLERANCE
 
