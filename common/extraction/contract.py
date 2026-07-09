@@ -27,10 +27,13 @@ extracted fact to its source document.
 * ``confidence_metric`` / ``confidence_tier`` (journal-confidence metric
   snapshots) are NOT this package's — they read ledger's aggregates and stay
   in ``services/`` pending the reporting/observability re-home.
-* No ``llm`` edge yet: the OCR/vision call sites still reach the provider via
-  their own httpx path; routing them through ``src.llm`` (threading
-  ``user_id``, the AC-llm.4.5 documented follow-up) ADDS ``llm`` to
-  ``depends_on`` when it lands.
+* The OCR layout-parsing call routes through ``src.llm``'s ``ocr_layout_call``
+  chokepoint (#1670), which is why ``llm`` is now a declared dependency. The
+  JSON/vision call sites already went through ``llm`` via
+  ``services.ai_streaming``. Threading per-user provider binding (``user_id``)
+  into these OCR/vision/json call sites — so a BYO-provider user's own model
+  is used, not just the deployment default — is a separate, still-pending
+  follow-up (AC-llm.4.5), independent of the ``llm`` dependency edge itself.
 """
 
 from __future__ import annotations
@@ -51,7 +54,7 @@ CONTRACT = PackageContract(
     # vision-LLM path (the authority classifier bands cassette-driven tests as
     # LLM). Non-eval ACs carry proof_kind=property.
     tier="LLM-LED",
-    depends_on=["audit", "identity", "ledger", "observability", "platform", "runtime"],
+    depends_on=["audit", "identity", "ledger", "llm", "observability", "platform", "runtime"],
     roles=["base", "extension", "data"],
     units=[
         # ── base: the pure validation/confidence calculus lives in
