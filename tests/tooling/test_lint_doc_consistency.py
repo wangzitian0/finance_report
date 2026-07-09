@@ -102,7 +102,7 @@ def test_module_readmes_are_thin_reports_duplicate_sections(tmp_path) -> None:
 
 
 def test_AC14_1_7_generated_analysis_snapshots_are_absent(tmp_path) -> None:
-    """AC14.1.7: Generated analysis snapshots are not checked into docs/project."""
+    """AC-meta.doc-consistency.1: Generated analysis snapshots are not checked into docs/project."""
     snapshot = tmp_path / "docs" / "project" / "test-ac-coverage-report.md"
     snapshot.parent.mkdir(parents=True)
     snapshot.write_text("# generated\n", encoding="utf-8")
@@ -121,7 +121,7 @@ def test_AC14_1_7_generated_analysis_snapshots_absent_passes(tmp_path) -> None:
 
 
 def test_AC14_1_8_reconciliation_thresholds_are_code_owned(tmp_path) -> None:
-    """AC14.1.8: Reconciliation threshold prose points to code/config owners."""
+    """AC-meta.doc-consistency.2: Reconciliation threshold prose points to code/config owners."""
     doc = tmp_path / "reconciliation.md"
     doc.write_text(
         """
@@ -159,7 +159,7 @@ def test_AC14_1_8_reconciliation_thresholds_report_unreadable_doc() -> None:
 
 
 def test_AC14_1_10_frontend_raw_fetch_is_limited_to_api_wrapper(tmp_path) -> None:
-    """AC14.1.10: Frontend raw fetch is limited to the API wrapper."""
+    """AC-meta.doc-consistency.3: Frontend raw fetch is limited to the API wrapper."""
     src = tmp_path / "apps" / "frontend" / "src"
     api = src / "lib" / "api.ts"
     page = src / "app" / "page.tsx"

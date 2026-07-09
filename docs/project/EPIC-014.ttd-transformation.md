@@ -112,10 +112,10 @@ To-be:
   [#824](https://github.com/wangzitian0/finance_report/issues/824).
   - Each cleanup is selected from `python tools/report_ssot_governance.py` (not
     subjective review) and names the metric threshold it reduces:
-    - AC14.1.14 reduces `finance_report.orphan_ssot_files` to zero.
-    - AC14.1.15 keeps `finance_report.machine_owner_entries_missing_proof` at
+    - AC-meta.ssot-governance.4 (AC14.1.14 removed, canonical id moved to `common/meta/contract.py`) reduces `finance_report.orphan_ssot_files` to zero.
+    - AC-meta.ssot-governance.5 (AC14.1.15 removed, canonical id moved to `common/meta/contract.py`) keeps `finance_report.machine_owner_entries_missing_proof` at
       zero.
-    - AC14.1.23 reduces `finance_report.high_risk_entries_missing_proof` from
+    - AC-meta.ssot-governance.8 (AC14.1.23 removed, canonical id moved to `common/meta/contract.py`) reduces `finance_report.high_risk_entries_missing_proof` from
       `2` to zero by binding the flagged high-risk `platform` concepts
       (`container_naming`, `test_optimization`) to their existing proof tests.
       Metadata-only backfill (`family` / `kind` / `proofs`); no concept is moved
@@ -261,35 +261,17 @@ Historical work-progress reports and test-organization audits were removed from 
 
 ---
 
-## 🧪 Infra Test Cases (Coverage Enforcement)
+## AC14.1: Coverage Enforcement Tooling — migrated to the `meta` package
 
-> **Registry**: `docs/infra_registry.yaml`
-> **Coverage**: See `apps/backend/tests/infra/`
-
-### AC14.1: Coverage Enforcement Tooling
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC14.1.1 | Backend coverage ≥ 90% enforced locally via `pyproject.toml` (CI uses `--cov-fail-under=0`; target: 99%; local pre-push enforcement threshold: 90%) | `test_coverage_threshold_enforced` | `infra/test_coverage_enforcement.py` | P0 |
-| AC14.1.2 | Pre-commit mypy hook blocks type errors before commit | `test_mypy_precommit_blocks_type_errors` | `infra/test_precommit_hooks.py` | P0 |
-| AC14.1.3 | validate_schemas.py exits non-zero when Pydantic fields lack Field() descriptions | `test_validate_schemas_fails_missing_desc` | `infra/test_validate_schemas.py` | P0 |
-| AC14.1.4 | check_env_keys.py detects missing keys across secrets.ctmpl, config.py, .env.example | `test_env_keys_three_way_sync` | `infra/test_check_env_keys.py` | P0 |
-| AC14.1.5 | smoke_test.sh runs successfully against local docker environment | `test_smoke_test_local_pass` | `infra/test_smoke_test.py` | P1 |
-| AC14.1.6 | generate_ac_registry.py produces zero ghost ACs and zero overlap between feature and infra registries | `test_ac_registry_no_ghost_no_overlap` | `tests/tooling/test_issue_493_foundation_ttd_behavior.py` | P1 |
-| AC14.1.7 | Generated analysis snapshots are not checked into `docs/project/`; live coverage and mismatch data come from tools or CI artifacts | `test_AC14_1_7_generated_analysis_snapshots_are_absent` | `tests/tooling/test_lint_doc_consistency.py` | P0 |
-| AC14.1.8 | Reconciliation threshold prose points to code/config owners instead of claiming Markdown is the single authority | `test_AC14_1_8_reconciliation_thresholds_are_code_owned` | `tests/tooling/test_lint_doc_consistency.py` | P0 |
-| AC14.1.9 | SSOT manifest `#anchor` owners and cross-references resolve to actual Markdown anchors | `test_AC14_1_9_manifest_anchor_refs_must_exist` | `tests/tooling/test_check_manifest.py` | P0 |
-| AC14.1.10 | Frontend source cannot call raw `fetch()` outside `apps/frontend/src/lib/api.ts` | `test_AC14_1_10_frontend_raw_fetch_is_limited_to_api_wrapper` | `tests/tooling/test_lint_doc_consistency.py` | P0 |
-| AC14.1.11 | GitHub issue templates require phenomenon, reproduction, minimal fix, rationale, and acceptance criteria sections with valid repository labels | `test_AC14_1_11_issue_templates_require_diagnostic_fix_and_acceptance_sections` | `tests/tooling/test_issue_template_contract.py` | P1 |
-| AC14.1.12 | SSOT governance metrics report finance_report and infra2 manifest shape, proof coverage, and future gate candidates without blocking CI | `test_AC14_1_12_report_covers_finance_and_infra2_manifest_shapes` | `tests/tooling/test_ssot_governance_report.py` | P1 |
-| AC14.1.13 | SSOT governance gates block changed-file and changed-manifest-entry debt, explain #823/HLS ownership, and support issue-linked temporary exceptions | `test_AC14_1_13_incremental_gate_only_blocks_changed_ssot_debt` | `tests/tooling/test_ssot_governance_report.py` | P1 |
-| AC14.1.14 | Threshold cleanup for #824 reduces `finance_report.orphan_ssot_files` to zero by binding orphan SSOT files to parent concepts without runtime behavior changes | `test_AC14_1_14_finance_report_orphan_ssot_files_are_manifest_owned` | `tests/tooling/test_ssot_governance_report.py` | P1 |
-| AC14.1.15 | Threshold cleanup for #824 migrates representative machine-owned FR SSOT entries to explicit `family`, `kind`, `proofs`, and inbound SSOT Markdown links so `finance_report.machine_owner_entries_missing_proof` stays zero | `test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof` | `tests/tooling/test_ssot_governance_report.py` | P1 |
-| AC14.1.16 | SSOT governance gates keep protected per-system governance ratios non-decreasing and protected debt counts non-increasing against the base ref | `test_AC14_1_16_ssot_governance_ratios_cannot_regress` | `tests/tooling/test_ssot_governance_report.py` | P1 |
-| AC14.1.17 | DB schema inventory is generated from SQLAlchemy metadata, published by the MkDocs build, CI-checked for deterministic generation, gitignored as generated output, and linked from macro SSOT/domain docs instead of hand-maintained table/column/API catalogs | `test_AC14_1_17_render_db_schema_reference_uses_sqlalchemy_metadata`, `test_AC14_1_17_generated_db_schema_reference_is_ci_checked` | `tests/tooling/test_generate_db_schema_reference.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P1 |
-| AC14.1.18 | FR (EPIC-014) and infra2 (Infra-006) each document a 6-8 family SSOT HLS model with explicit concept/clause boundaries, the family map covers every MANIFEST.yaml-inferred family, the HLS checklist links #821/#822/#823/#824, and the definition does not move or re-own any SSOT concept | `test_AC14_1_18_fr_hls_family_model_is_documented_and_consistent`, `test_AC14_1_18_infra2_hls_family_model_is_documented_and_consistent`, `test_AC14_1_18_hls_checklist_links_governance_loop_issues`, `test_AC14_1_18_documentation_only_does_not_re_own_concepts` | `tests/tooling/test_ssot_hls_family_model.py` | P1 |
-| AC14.1.20 | Unified coverage aggregation (#414) runs an artifact preflight that fails explicitly and names the offending component LCOV when a CI-critical artifact is missing or empty, instead of silently treating it as 0% and producing a misleading unified number | `test_AC14_1_20_preflight_fails_when_ci_critical_artifact_missing`, `test_AC14_1_20_preflight_fails_when_ci_critical_artifact_empty`, `test_AC14_1_20_main_fails_fast_with_named_missing_artifact` | `tests/tooling/test_coverage_artifact_preflight.py` | P0 |
-| AC14.1.21 | Coverage components (#923) carry an explicit `tier` (`ci-critical` vs `best-effort`); the artifact preflight enforces presence only for `ci-critical` tiers so a missing best-effort `tools` artifact does not hard-fail the aggregation while application and shared-library trees stay strictly gated | `test_AC14_1_21_tools_component_is_best_effort_tier`, `test_AC14_1_21_app_and_common_components_are_ci_critical_tier`, `test_AC14_1_21_preflight_skips_best_effort_missing_artifact` | `tests/tooling/test_coverage_artifact_preflight.py` | P1 |
-| AC14.1.19 | A single parseable vision-to-proof matrix is mechanically generated from vision.md anchors, EPIC `Vision Anchor` declarations, the AC registries, and test references (mapping `vision anchor -> EPIC -> AC -> test`), published as a YAML artifact plus a MkDocs page, and `--check` fails on drift (supersedes #442, #480) | `test_AC14_1_19_matrix_parses_vision_anchors_from_vision_md`, `test_AC14_1_19_matrix_maps_vision_to_ac_to_test`, `test_AC14_1_19_rendered_yaml_is_parseable_and_deterministic`, `test_AC14_1_19_checked_in_artifacts_exist_and_are_generated`, `test_AC14_1_19_check_passes_when_artifacts_are_current`, `test_AC14_1_19_check_fails_on_drift`, `test_AC14_1_19_check_fails_when_artifact_missing` | `tests/tooling/test_generate_vision_proof_matrix.py` | P1 |
-| AC14.1.22 | README EPIC status/completion is generated from the AC registries and test reports (not hand-written) into a delimited block, reports automated AC coverage, placeholder/stub debt, manual-gate debt, and blockers as separate categories, omits mutable live CI/deploy run status, tolerates an absent `unified-coverage.json`, and is guarded by a generate-with-`--check` drift gate | `test_AC14_1_22_completions_split_four_categories_separately`, `test_AC14_1_22_render_block_has_separate_columns_and_no_live_run_status`, `test_AC14_1_22_render_block_tolerates_absent_unified_coverage`, `test_AC14_1_22_load_unified_coverage_read_if_present`, `test_AC14_1_22_splice_requires_markers`, `test_AC14_1_22_check_passes_when_block_current`, `test_AC14_1_22_check_fails_on_drift`, `test_AC14_1_22_check_fails_when_markers_missing`, `test_AC14_1_22_committed_readme_block_is_current` | `tests/tooling/test_generate_epic_status.py` | P1 |
-| AC14.1.23 | Threshold cleanup for #824 reduces `finance_report.high_risk_entries_missing_proof` to zero by binding the flagged high-risk platform concepts (`container_naming`, `test_optimization`) to existing proof tests under the #821 `platform` family without runtime behavior changes | `test_AC14_1_23_high_risk_ssot_entries_bind_proof_under_platform_family` | `tests/tooling/test_ssot_governance_report.py` | P1 |
+> **The 23 AC14.1.* rows of this group are no longer defined here.** They
+> migrated (migration closeout wave 2, #1663) into
+> [`common/meta/contract.py`](../../common/meta/contract.py)'s `roadmap`,
+> split by topic into `AC-meta.foundation-tooling.*`, `AC-meta.registry.*`,
+> `AC-meta.doc-consistency.*`, `AC-meta.ssot-governance.*`,
+> `AC-meta.issue-templates.*`, `AC-meta.generated-refs.*`, and
+> `AC-meta.coverage-tiers.*` (the leading "14" is dropped; the original
+> AC14.1.<n> id is kept as a trailing comment on each migrated record).
+> `common/meta/extension/generate_ac_registry.py` reads package-contract
+> roadmaps additively, so the AC index counts them without an EPIC-table
+> mirror. This note references the ids for traceability but defines none of
+> them — the contract is the single definition source.
