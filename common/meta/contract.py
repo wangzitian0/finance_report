@@ -716,7 +716,7 @@ CONTRACT = PackageContract(
             status="done",
         ),
         # ── migration-risk: database migration risk governance (was EPIC-007
-        # AC7.11, migration closeout wave 3, #1416) ──
+        # AC7.11, migration closeout wave 3, #1663) ──
         ACRecord(
             id="AC-meta.migration-risk.1",
             statement=(
@@ -788,7 +788,7 @@ CONTRACT = PackageContract(
             status="done",
         ),
         # ── release-pipeline: promote-not-rebuild release integrity (was
-        # EPIC-007 AC7.10, migration closeout wave 3, #1416) ──
+        # EPIC-007 AC7.10, migration closeout wave 3, #1663) ──
         ACRecord(
             id="AC-meta.release-pipeline.1",
             statement=(
@@ -813,7 +813,7 @@ CONTRACT = PackageContract(
             proof_kind="property",
         ),
         # ── infra-boundary: delivery app/infra-boundary calibration (was
-        # EPIC-007 AC7.12, #876, migration closeout wave 3, #1416) ──
+        # EPIC-007 AC7.12, #876, migration closeout wave 3, #1663) ──
         ACRecord(
             id="AC-meta.infra-boundary.1",
             statement=(

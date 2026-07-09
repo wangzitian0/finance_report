@@ -238,12 +238,12 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 > one test, `test_AC7_10_production_release_promotes_not_rebuilds`, and
 > migrated together into [`common/meta/contract.py`](../../common/meta/contract.py)'s
 > `roadmap` as `AC-meta.release-pipeline.1`, migration closeout wave 3,
-> #1416.)
+> #1663.)
 
 ### AC7.11: Database Migration Risk Governance
 
 > Migrated to [`common/meta/contract.py`](../../common/meta/contract.py)'s
-> `roadmap` (migration closeout wave 3, #1416): `AC-meta.migration-risk.1`
+> `roadmap` (migration closeout wave 3, #1663): `AC-meta.migration-risk.1`
 > through `.5`. Migration risk governance is a repo-wide CI/release gate, not
 > a specific backend domain's behavior, so it's homed in `meta` alongside the
 > other repo-mechanical governance gates (doc-consistency, ssot-governance,
@@ -260,7 +260,7 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 >
 > All eight records live in
 > [`common/meta/contract.py`](../../common/meta/contract.py)'s `roadmap`
-> (migration closeout wave 3, #1416) — one record per underlying test
+> (migration closeout wave 3, #1663) — one record per underlying test
 > function.
 
 ### AC7.13: Preview rollout proof & half-update safety (#756, #758)
