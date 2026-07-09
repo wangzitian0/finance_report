@@ -13,6 +13,10 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+# src.* lives under apps/backend, not repo root — needed for the
+# tools.check_env_keys / tools.validate_schemas delegation check below (#1669
+# moved their common_module targets into apps/backend/src/runtime).
+sys.path.insert(0, str(ROOT / "apps" / "backend"))
 
 from common.meta.extension.coverage import policy as coverage_policy  # noqa: E402
 from common.meta.extension import ac_registry_format  # noqa: E402

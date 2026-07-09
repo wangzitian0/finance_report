@@ -4,7 +4,10 @@ import pytest
 from pathlib import Path
 import sys
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+# src.* lives under apps/backend, not repo root (#1669 moved this module out of
+# the repo-root-relative common/config into apps/backend/src/runtime).
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "apps" / "backend"))
 
 from src.runtime.extension.schema_validation import (
     get_project_root,
