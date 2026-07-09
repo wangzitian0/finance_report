@@ -873,9 +873,10 @@ concepts:
 
   # ── Source type priority ──────────────────────────────────────────────
   source_type_priority:
-    owner: docs/ssot/source-type-priority.md
+    owner: common/audit/readme.md#source-type-trust-hierarchy-provenance
     description: Data trust hierarchy and source_type enum conflict resolution.
     cross_refs:
+      - docs/ssot/source-type-priority.md
       - docs/ssot/reconciliation.md
       - common/extraction/readme.md
 

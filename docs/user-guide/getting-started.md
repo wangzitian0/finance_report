@@ -79,7 +79,8 @@ Match your recorded entries with bank statement transactions:
 3. Manually review pending matches (score 60-84)
 4. Handle unmatched transactions
 
-See [Bank Reconciliation](reconciliation.md) for the complete workflow.
+See [Bank Reconciliation](reconciliation.md) for the complete workflow. See:
+`common/reconciliation/readme.md#thresholds` for the threshold definitions.
 
 ## Understanding Double-Entry Bookkeeping
 

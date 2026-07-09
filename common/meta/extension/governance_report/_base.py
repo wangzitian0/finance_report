@@ -58,6 +58,7 @@ SSOT_FILE_EXCLUDES = {
     "reporting.md",
     "assets.md",
     "market_data.md",
+    "source-type-priority.md",
 }
 RATIO_EPSILON = 1e-9
 PROTECTED_RATIO_LABELS = {
