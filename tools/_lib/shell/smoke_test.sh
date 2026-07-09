@@ -2,6 +2,13 @@
 # Smoke tests for Finance Report
 # Usage: bash tools/smoke_test.sh [BASE_URL] [MODE]
 #
+# Ownership: this script's RESPONSIBILITY (deployment connectivity smoke) is
+# infra's, not app's — it physically lives here only because deploy.yml/
+# release.yml/preview.yml invoke it in-repo (#1535, surfaced by the #876
+# app/infra boundary work). Do not add app-domain logic here; behavioral
+# changes to what "smoke" means belong in infra2's deploy contract, not a
+# local edit. Relocating to infra2 is tracked in #1535, not yet done.
+#
 # Arguments:
 #   BASE_URL: The root URL of the application (default: http://localhost:3000)
 #   MODE:     The environment mode: 'prod', 'staging', 'dev' (default: prod)
@@ -26,7 +33,7 @@ check_endpoint() {
     local expected="${3:-}"
     local method="${4:-GET}"
     local data="${5:-}"
-    
+
     local curl_opts=("-sS" "-w" "\n%{http_code}")
     if [ "$method" != "GET" ]; then
         curl_opts+=("-X" "$method")
@@ -59,7 +66,7 @@ check_endpoint() {
             return 0
         fi
     fi
-    
+
     echo "✗ $name (failed)"
     echo "  URL: $url"
     echo "  Method: $method"
@@ -132,7 +139,7 @@ if [ -n "${EXPECTED_SHA:-}" ]; then
     # Use python for parsing if jq is not guaranteed, or simple grep/sed
     HEALTH_RESP=$(curl -sS "$BASE_URL/api/health")
     ACTUAL_SHA=$(echo "$HEALTH_RESP" | grep -o '"git_sha":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
-    
+
     if [ "$ACTUAL_SHA" = "$EXPECTED_SHA" ]; then
         echo "✓ Git SHA matches: $ACTUAL_SHA"
     else
@@ -174,7 +181,7 @@ curl -sS -I -X OPTIONS "$BASE_URL/api/ping" \
 check_endpoint "DB Connectivity" "$BASE_URL/api/health" "\"status\":\"healthy\"" || FAILED=1
 
 # 3. S3 Endpoint Validation (Network isolation check)
-# Fetch the S3 endpoint the backend is using (if exposed via a debug/config endpoint, 
+# Fetch the S3 endpoint the backend is using (if exposed via a debug/config endpoint,
 # or just check if it can be reached from the runner)
 # Note: In PR environments, backend might use 127.0.0.1 inside but needs public URL outside.
 echo "ℹ️  S3 Endpoint check: Backend is configured to use 127.0.0.1 (standardized)"
@@ -218,18 +225,18 @@ check_endpoint "Login Page" "$BASE_URL/login" || FAILED=1
 # --- Write/Mutation Checks (Staging/Dev Only) ---
 if [ "$MODE" = "dev" ] || [ "$MODE" = "staging" ]; then
     echo "--- Write Checks ($MODE) ---"
-    
+
     # Test ping/pong toggle (safe mutation without auth)
     BEFORE_STATE="$(curl -sS "$BASE_URL/api/ping" | grep -o '"state":"[^"]*"' || echo '')"
     check_endpoint "Ping Toggle (POST)" "$BASE_URL/api/ping/toggle" "" "POST" || FAILED=1
     AFTER_STATE="$(curl -sS "$BASE_URL/api/ping" | grep -o '"state":"[^"]*"' || echo '')"
-    
+
     if [ -n "$BEFORE_STATE" ] && [ -n "$AFTER_STATE" ] && [ "$BEFORE_STATE" != "$AFTER_STATE" ]; then
         echo "✓ State Changed ($BEFORE_STATE → $AFTER_STATE)"
     elif [ -z "$BEFORE_STATE" ]; then
         echo "ℹ️  Ping state verification skipped (state was empty before)"
     fi
-    
+
     echo "ℹ️  Complex authenticated write tests delegated to Python E2E suite"
 else
     echo "--- Write Checks ---"

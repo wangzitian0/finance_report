@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 # Health Check Script - Unified health check logic for all environments
 #
+# Ownership: this script's RESPONSIBILITY (post-deploy health probing) is
+# infra's, not app's — it physically lives here only because deploy.yml/
+# release.yml invoke it in-repo (#1535, surfaced by the #876 app/infra
+# boundary work). Do not add app-domain logic here; behavioral changes to
+# what "healthy" means belong in infra2's deploy contract, not a local edit.
+# Relocating to infra2 is tracked in #1535, not yet done.
+#
 # Usage:
 #   ./tools/health_check.sh <health_url> <environment> [max_attempts] [image_tag]
 #
@@ -118,12 +125,12 @@ MAX_SHA_MISMATCH_ATTEMPTS="${HEALTH_CHECK_MAX_SHA_MISMATCH_ATTEMPTS:-24}"
 
 while (( attempt <= MAX_ATTEMPTS )); do
   echo "[WAITING] Health check attempt $attempt/$MAX_ATTEMPTS..."
-  
+
   http_code=$(curl -s -o "$response_file" -w "%{http_code}" "$HEALTH_URL" 2>"$error_file" || echo "000")
-  
+
   if [[ "$http_code" == "000" ]]; then
     echo "[WARNING] Connection failed (attempt $attempt/$MAX_ATTEMPTS)"
-    
+
     if (( attempt == MAX_ATTEMPTS )); then
       timeout=$((MAX_ATTEMPTS * 10))
       echo ""
@@ -144,18 +151,18 @@ while (( attempt <= MAX_ATTEMPTS )); do
       echo "========================================="
       exit 1
     fi
-    
+
     sleep 10
     ((attempt++))
     continue
   fi
-  
+
   if ! check_http_code "$http_code" "200" "Health check" 2>/dev/null; then
     echo "[WARNING] HTTP $http_code (attempt $attempt/$MAX_ATTEMPTS)"
     if [[ "$http_code" == "404" ]] && (( attempt == 1 || attempt % 6 == 0 || attempt == MAX_ATTEMPTS )); then
       print_health_route_probe "$attempt" "$http_code"
     fi
-    
+
     if (( attempt == MAX_ATTEMPTS )); then
       timeout=$((MAX_ATTEMPTS * 10))
       echo ""
@@ -173,20 +180,20 @@ while (( attempt <= MAX_ATTEMPTS )); do
       echo "========================================="
       exit 1
     fi
-    
+
     sleep 10
     ((attempt++))
     continue
   fi
-  
+
   health_response=$(cat "$response_file" 2>/dev/null || echo "")
-  
+
   if validate_health_response "$health_response"; then
     # Verify Git SHA if provided
     if [[ -n "$IMAGE_TAG" ]]; then
       # Extract git_sha from response using safe_jq
       actual_sha=$(echo "$health_response" | jq -r '.git_sha // .version // ""')
-      
+
       # Handle short/long SHA comparison (prefix match)
       if [[ "$actual_sha" != "$IMAGE_TAG"* ]] && [[ "$IMAGE_TAG" != "$actual_sha"* ]]; then
         if [[ "$actual_sha" == "$LAST_MISMATCH_SHA" ]]; then
@@ -199,7 +206,7 @@ while (( attempt <= MAX_ATTEMPTS )); do
         echo "  Stable mismatch attempts: $SHA_MISMATCH_ATTEMPTS/$MAX_SHA_MISMATCH_ATTEMPTS"
         echo "  Expected: $IMAGE_TAG"
         echo "  Got:      $actual_sha"
-        
+
         if (( SHA_MISMATCH_ATTEMPTS >= MAX_SHA_MISMATCH_ATTEMPTS || attempt == MAX_ATTEMPTS )); then
            echo ""
            echo "========================================="
@@ -214,7 +221,7 @@ while (( attempt <= MAX_ATTEMPTS )); do
            echo "========================================="
            exit 1
         fi
-        
+
         sleep 10
         ((attempt++))
         continue
@@ -238,10 +245,10 @@ while (( attempt <= MAX_ATTEMPTS )); do
     echo "========================================="
     exit 0
   fi
-  
+
   echo "[WARNING] Backend is unhealthy (attempt $attempt/$MAX_ATTEMPTS)"
   echo "Response: $health_response"
-  
+
   if (( attempt == MAX_ATTEMPTS )); then
     timeout=$((MAX_ATTEMPTS * 10))
     echo ""
@@ -262,7 +269,7 @@ while (( attempt <= MAX_ATTEMPTS )); do
     echo "========================================="
     exit 1
   fi
-  
+
   sleep 10
   ((attempt++))
 done
