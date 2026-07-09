@@ -48,7 +48,10 @@ from src.schemas.workflow import (
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
-    ReadinessProvider = Callable[..., Awaitable[dict]]
+    # This module always calls the provider as (db: AsyncSession, user_id:
+    # UUID) — see _get_readiness_provider()'s call site — so it is typed to
+    # that exact signature, not an unconstrained Callable[..., Awaitable[dict]].
+    ReadinessProvider = Callable[[AsyncSession, UUID], Awaitable[dict]]
 
 # `platform` is L1 infra — it must never import reporting-domain logic directly
 # (issue #1676: this file previously imported `services.report_readiness`
