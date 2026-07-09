@@ -715,5 +715,77 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── migration-risk: database migration risk governance (was EPIC-007
+        # AC7.11, migration closeout wave 3, #1416) ──
+        ACRecord(
+            id="AC-meta.migration-risk.1",
+            statement=(
+                "Every backend Alembic migration is covered by a "
+                "machine-readable migration risk manifest."
+            ),
+            test=(
+                "tests/tooling/test_migration_risk_contract.py"
+                "::test_AC7_11_1_migration_risk_manifest_covers_backend_migrations"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.migration-risk.2",
+            statement=(
+                "High and critical migration risk entries require release "
+                "proof notes covering staging validation, production "
+                "preflight, and a rollback/expand-contract strategy."
+            ),
+            test=(
+                "tests/tooling/test_migration_risk_contract.py"
+                "::test_AC7_11_2_high_and_critical_migrations_require_release_proof"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.migration-risk.3",
+            statement=(
+                "A destructive upgrade operation cannot be classified below "
+                "critical risk."
+            ),
+            test=(
+                "tests/tooling/test_migration_risk_contract.py"
+                "::test_AC7_11_3_destructive_migrations_must_be_classified_critical"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.migration-risk.4",
+            statement=(
+                "CI lint and the production release dry-run both execute the "
+                "migration risk contract and publish its release context."
+            ),
+            test=(
+                "tests/tooling/test_migration_risk_contract.py"
+                "::test_AC7_11_4_ci_and_release_dry_run_execute_migration_risk_contract"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.migration-risk.5",
+            statement=(
+                "Risk is auto-classified from each migration's upgrade() body "
+                "(destructive->critical, data-mutation->high, "
+                "compatibility-sensitive->medium, else low); low/medium "
+                "migrations need no manifest entry, while auto-classified "
+                "high/critical migrations require an explicit release-proof "
+                "entry."
+            ),
+            test=(
+                "tests/tooling/test_migration_risk_contract.py"
+                "::test_AC7_11_5_low_and_medium_migrations_are_auto_classified"
+            ),
+            priority="P0",
+            status="done",
+        ),
     ],
 )
