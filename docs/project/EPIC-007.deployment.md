@@ -175,11 +175,14 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 ### AC7.6: Backend Configuration & Secrets Sync
 
-> **AC7.6.1**'s test (`test_config_sync_with_env_example`) was already fully
-> migrated to [`common/runtime/contract.py`](../../common/runtime/contract.py)'s
-> `roadmap` as `AC-runtime.18.2` (was EPIC-012 AC12.18.2) — this row was a
-> stale duplicate, removed. **AC7.6.2** (required secrets documented) has no
-> automated test (manual verification only) and stays here.
+> (AC7.6.1 removed, duplicate: its test, `test_config_sync_with_env_example`,
+> was already fully migrated to
+> [`common/runtime/contract.py`](../../common/runtime/contract.py)'s `roadmap`
+> as `AC-runtime.18.2` — this row was a stale duplicate.)
+
+| ID | Requirement | Test Function | File | Priority |
+|----|-------------|---------------|------|----------|
+| AC7.6.2 | Required secrets documented | Manual verification | `.env.example` | P0 |
 
 > The config↔manifest env-var guardrail lives in the `runtime` package roadmap
 > (`common/runtime/contract.py`) as `AC-runtime.2.1` (#1579): every `config.py`
@@ -224,11 +227,10 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 | AC7.9.5 | API functional (manual) | `curl https://report.${INTERNAL_DOMAIN}/api/health` | Smoke tests | P0 |
 | AC7.9.6 | Secrets in Vault (manual) | No secrets in Dokploy env vars | Manual verification | P0 |
 
-> **AC7.9.7** (`test_health_when_all_services_healthy`) and **AC7.9.8**
-> (`TestConfigContract`) were already fully migrated to
-> [`common/runtime/contract.py`](../../common/runtime/contract.py)'s `roadmap`
-> as `AC-runtime.7.1` and `AC-runtime.18.2` respectively — both rows were
-> stale duplicates, removed.
+> (AC7.9.7 removed, duplicate: `test_health_when_all_services_healthy` was already migrated to `AC-runtime.7.1`.)
+> (AC7.9.8 removed, duplicate: `TestConfigContract` was already migrated to `AC-runtime.18.2`.)
+>
+> Both live in [`common/runtime/contract.py`](../../common/runtime/contract.py)'s `roadmap`.
 
 ### AC7.10: Promote and Release Pipeline Integrity
 
