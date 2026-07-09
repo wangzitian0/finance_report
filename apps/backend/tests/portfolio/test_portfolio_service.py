@@ -986,7 +986,7 @@ async def test_portfolio_summary_zero_cost(db, test_user, svc, account):
 
 
 async def test_update_prices_happy(db, test_user, svc, active_position):
-    """AC17.5.1: Update market prices happy path creates override.
+    """AC-pricing.providers.1: AC17.5.1: Update market prices happy path creates override.
 
     Verify that update_market_prices creates a MarketDataOverride record.
     """

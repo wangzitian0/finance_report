@@ -12,7 +12,7 @@ from src.services.market_data_scheduler import MARKET_DATA_SYNC_TZ, next_market_
 
 
 def test_next_market_data_sync_at_uses_nightly_sgt_schedule() -> None:
-    """AC11.10.10: Nightly sync is scheduled for 22:00 Asia/Singapore."""
+    """AC-pricing.marketdata.10: AC11.10.10: Nightly sync is scheduled for 22:00 Asia/Singapore."""
     before = datetime(2026, 1, 6, 21, 0, tzinfo=MARKET_DATA_SYNC_TZ)
     after = datetime(2026, 1, 6, 23, 0, tzinfo=MARKET_DATA_SYNC_TZ)
 

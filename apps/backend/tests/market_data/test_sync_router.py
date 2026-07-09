@@ -18,7 +18,7 @@ async def test_market_data_sync_endpoints_return_counts(
     client: AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC11.10.5: Market data sync endpoints return scheduler-friendly counts."""
+    """AC-pricing.marketdata.5: AC11.10.5: Market data sync endpoints return scheduler-friendly counts."""
 
     async def fake_stock_sync(*_args, **_kwargs) -> market_data.MarketDataSyncResult:
         return market_data.MarketDataSyncResult(

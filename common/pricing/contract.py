@@ -59,17 +59,20 @@ pricing, never the reverse.
 
 from __future__ import annotations
 
-from common.meta.package_contract import Invariant, Kind, PackageContract, Unit
+from common.meta.package_contract import ACRecord, Invariant, Kind, PackageContract, Unit
 
 CONTRACT = PackageContract(
     name="pricing",
     # klass is not declared here — it resolves from PACKAGE_LAYER (L0 owns
     # placement in the five-layer topology, #1595); see
     # common/meta/base/layering.py, which lists pricing as "domain" (L3).
-    # Draft until the EPIC-011/005/017 pricing-owned ACs land in `roadmap`.
-    status="draft",
-    tier=None,
-    depends_on=["audit", "platform", "observability", "config"],
+    status="active",
+    tier="CODE-ONLY",
+    # "config" was dropped from this list (migration closeout continuation,
+    # #1663 / #1710): src.config is a bare top-level module, not a registered
+    # package, so it's never governed by depends_on — no other package
+    # declares it either despite importing it directly.
+    depends_on=["audit", "platform", "observability"],
     roles=["base", "extension", "data"],
     units=[
         # ── base: the pure observation + subject-identity + policy language ──
@@ -284,8 +287,277 @@ CONTRACT = PackageContract(
             ),
         ),
     ],
-    # Filled by the EPIC-011/005/017 pricing-AC migration (a later commit in
-    # PR1); the package goes status="active" with its authority tier decided
-    # there.
-    roadmap=[],
+    roadmap=[
+        # ── group marketdata: daily FX/stock market data sync (was EPIC-011
+        # AC11.10, migration closeout continuation, #1663 / #1710) ──
+        ACRecord(
+            id="AC-pricing.marketdata.1",
+            statement=(
+                "Stock price sync fetches daily prices for active holdings "
+                "and stores idempotent rows. Was EPIC-011 AC11.10.1."
+            ),
+            test=(
+                "apps/backend/tests/pricing/market_data/test_sync.py"
+                "::test_sync_stock_prices_inserts_missing_daily_rows_and_is_idempotent"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.marketdata.2",
+            statement=(
+                "FX sync fetches explicit or observed pairs incrementally, "
+                "with USD/base as the default non-empty pair. Was EPIC-011 "
+                "AC11.10.2."
+            ),
+            test=(
+                "apps/backend/tests/pricing/market_data/test_sync.py"
+                "::test_sync_fx_rates_starts_after_last_stored_date"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.marketdata.3",
+            statement=(
+                "Missing trading days are recorded as misses without "
+                "failing the whole sync. Was EPIC-011 AC11.10.3."
+            ),
+            test=(
+                "apps/backend/tests/pricing/market_data/test_sync.py"
+                "::test_sync_stock_prices_records_missing_trading_days"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.marketdata.4",
+            statement=(
+                "Primary and secondary providers are cross-validated and "
+                "disagreements are not silently persisted. Was EPIC-011 "
+                "AC11.10.4."
+            ),
+            test=(
+                "apps/backend/tests/pricing/market_data/test_sync.py"
+                "::test_stock_provider_disagreement_is_reported_without_persisting"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.marketdata.5",
+            statement=(
+                "Market data sync endpoints expose FX and stock sync status "
+                "for scheduler/E2E callers. Was EPIC-011 AC11.10.5."
+            ),
+            test=(
+                "apps/backend/tests/market_data/test_sync_router.py"
+                "::test_market_data_sync_endpoints_return_counts"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.marketdata.6",
+            statement=(
+                "Portfolio valuation prefers synced stock prices over stale "
+                "brokerage snapshots. Was EPIC-011 AC11.10.6."
+            ),
+            test=(
+                "apps/backend/tests/pricing/market_data/test_sync.py"
+                "::test_portfolio_uses_synced_stock_price_before_atomic_snapshot"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.marketdata.7",
+            statement=(
+                "E2E gates cover provider-backed FX sync and stock-price "
+                "portfolio valuation paths. Was EPIC-011 AC11.10.7."
+            ),
+            test=(
+                "tests/e2e/test_market_data_price_paths.py"
+                "::test_market_data_provider_sync_feeds_fx_and_stock_price_paths"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.marketdata.8",
+            statement=(
+                "Long historical market data sync uses bounded range "
+                "provider requests instead of per-day provider calls. Was "
+                "EPIC-011 AC11.10.8."
+            ),
+            test=(
+                "apps/backend/tests/pricing/market_data/test_sync.py"
+                "::test_sync_stock_prices_fetches_decade_range_once"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.marketdata.9",
+            statement=(
+                "Report reads check market data freshness and trigger at "
+                "most one immediate refresh when the last successful sync "
+                "is older than 24 hours. Was EPIC-011 AC11.10.9."
+            ),
+            test=(
+                "apps/backend/tests/pricing/market_data/test_sync.py"
+                "::test_market_data_freshness_sync_runs_once_after_24h"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.marketdata.10",
+            statement=(
+                "Backend scheduler runs daily market data sync at the "
+                "nightly Asia/Singapore close-refresh window. Was EPIC-011 "
+                "AC11.10.10."
+            ),
+            test=(
+                "apps/backend/tests/market_data/test_scheduler.py"
+                "::test_next_market_data_sync_at_uses_nightly_sgt_schedule"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.marketdata.11",
+            statement=(
+                "Staging E2E covers report-time market data refresh from an "
+                "authenticated ordinary-user path without manual sync. Was "
+                "EPIC-011 AC11.10.11."
+            ),
+            test=(
+                "tests/e2e/test_market_data_price_paths.py"
+                "::test_market_data_provider_sync_feeds_fx_and_stock_price_paths"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        # ── group manualvaluation: append-only manual valuation facts,
+        # Axiom A (was EPIC-011 AC11.19, migration closeout continuation,
+        # #1663 / #1710) ──
+        ACRecord(
+            id="AC-pricing.manualvaluation.1",
+            statement=(
+                "Correcting a manual valuation appends a new version and "
+                "preserves the prior fact unedited as a retrievable "
+                "superseded version. Was EPIC-011 AC11.19.1."
+            ),
+            test=(
+                "apps/backend/tests/assets/test_manual_valuation_snapshots.py"
+                "::test_AC11_19_1_manual_valuation_correction_appends_version_and_preserves_history"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.manualvaluation.2",
+            statement=(
+                "Heads-only reads use the current version so a corrected "
+                "valuation is never double-counted in net worth or "
+                "listings. Was EPIC-011 AC11.19.2."
+            ),
+            test=(
+                "apps/backend/tests/assets/test_manual_valuation_snapshots.py"
+                "::test_AC11_19_2_corrected_valuation_is_not_double_counted_in_net_worth"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group providers: manual price update + provider symbol/ticker
+        # handling (was EPIC-017 AC17.1.6/AC17.15/AC17.33, migration
+        # closeout continuation, #1663 / #1710) ──
+        ACRecord(
+            id="AC-pricing.providers.1",
+            statement=(
+                "A manual price update creates a MarketDataOverride record "
+                "for the given asset/date, independent of provider sync. "
+                "Was EPIC-017 AC17.1.6."
+            ),
+            test=(
+                "apps/backend/tests/portfolio/test_portfolio_service.py"
+                "::test_update_prices_happy"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.providers.2",
+            statement=(
+                "_looks_like_ticker accepts real tickers/FX pairs and "
+                "rejects fund-name free text. Was EPIC-017 AC17.15.1."
+            ),
+            test=(
+                "apps/backend/tests/pricing/market_data/test_provider_parsers.py"
+                "::test_looks_like_ticker_accepts_real_tickers_rejects_free_text"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.providers.3",
+            statement=(
+                "A non-ticker identifier short-circuits the Yahoo stock "
+                "fetch with no HTTP call. Was EPIC-017 AC17.15.2."
+            ),
+            test=(
+                "apps/backend/tests/pricing/market_data/test_provider_parsers.py"
+                "::test_yahoo_stock_fetch_short_circuits_for_non_ticker"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.providers.4",
+            statement=(
+                "HK numeric exchange codes map to the Yahoo <4-digit>.HK "
+                "symbol while US tickers and already-suffixed symbols pass "
+                "through unchanged. Was EPIC-017 AC17.33.1."
+            ),
+            test=(
+                "apps/backend/tests/pricing/market_data/test_provider_parsers.py"
+                "::test_AC17_33_1_yahoo_stock_symbol_maps_hk_numeric_codes"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.providers.5",
+            statement=(
+                "HK numeric codes resolve to the Stooq <4-digit>.hk symbol "
+                "while US tickers stay .us. Was EPIC-017 AC17.33.2."
+            ),
+            test=(
+                "apps/backend/tests/pricing/market_data/test_provider_parsers.py"
+                "::test_AC17_33_2_stooq_stock_symbol_maps_hk_numeric_codes"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group provenance: normalized data-provenance vocabulary, pricing
+        # share of a dual-package row (was EPIC-022 AC22.13.1, migration
+        # closeout continuation, #1663 / #1710) ──
+        ACRecord(
+            id="AC-pricing.provenance.1",
+            statement=(
+                "Manual valuation component items expose a provenance field "
+                "constrained to the shared Imported/Manual/Derived "
+                "vocabulary. Was EPIC-022 AC22.13.1 (pricing's "
+                "ManualValuationSnapshot share of a dual-package row; the "
+                "portfolio and reporting shares stay with their own owners)."
+            ),
+            test=(
+                "apps/backend/tests/assets/test_manual_valuation_snapshots.py"
+                "::test_AC22_13_1_valuation_component_item_uses_normalized_provenance_type"
+            ),
+            priority="P1",
+            status="done",
+        ),
+    ],
 )
