@@ -89,7 +89,9 @@ drops as each domain is carved out.
   historically concentrated in `extraction`. They reveal deps `extraction`
   never internalized: things like `ai_streaming` / `storage` / `pii_redaction`
   belong in lower packages (llm / runtime / audit); `chain_repair` /
-  `promotion_gate` / `assets` are domain logic. **Clear outbound before
-  inbound** when carving a domain out.
+  `assets` are domain logic. **Clear outbound before inbound** when carving a
+  domain out. (`promotion_gate` cleared by #1667 — relocated into
+  `audit.promotion`, consumed by `extraction`/`reconciliation`/`ledger`
+  through the published interface instead of a `services.*` reach-through.)
 - Target: baseline → 0 when `reconciliation` / `reporting` / `portfolio` /
   `advisor` / `asset` are carved and the remainder is empty.

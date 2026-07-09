@@ -6,14 +6,18 @@ import os
 from dataclasses import dataclass, replace
 from decimal import Decimal
 from pathlib import Path
+from types import ModuleType
 
-from src.audit import source_type_rank
+from src.audit import (
+    RECONCILIATION_AUTO_ACCEPT_SCORE,
+    RECONCILIATION_REVIEW_SCORE,
+    source_type_rank,
+)
 from src.audit.money import Money
 from src.ledger import ValidationError, validate_journal_balance
 from src.models.account import AccountType
 from src.models.journal import Direction, JournalEntry
 from src.observability import get_logger
-from src.services.promotion_gate import RECONCILIATION_AUTO_ACCEPT_SCORE, RECONCILIATION_REVIEW_SCORE
 
 logger = get_logger(__name__)
 
@@ -137,14 +141,15 @@ def load_reconciliation_config(force_reload: bool = False) -> ReconciliationConf
     config_path = Path(__file__).resolve().parents[2] / "config" / "reconciliation.yaml"
 
     if config_path.exists():
+        _yaml: ModuleType | None
         try:
-            import yaml
+            import yaml as _yaml
         except ImportError:
-            yaml = None
+            _yaml = None
 
-        if yaml:
+        if _yaml is not None:
             try:
-                raw = yaml.safe_load(config_path.read_text()) or {}
+                raw = _yaml.safe_load(config_path.read_text()) or {}
                 scoring = raw.get("scoring", {})
                 weights = scoring.get("weights", {})
                 thresholds = scoring.get("thresholds", {})

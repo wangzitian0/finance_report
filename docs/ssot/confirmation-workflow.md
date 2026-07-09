@@ -110,8 +110,8 @@ The following diagram shows how a bank statement travels from upload through to 
 
 | Context | Tolerance | Source |
 |---------|-----------|--------|
-| Stage 1 balance chain validation | 0.001 USD | `promotion_gate.STATEMENT_BALANCE_TOLERANCE` (#930) |
-| Stage 2 reconciliation auto-accept / review | 85 / 60 | `promotion_gate.RECONCILIATION_AUTO_ACCEPT_SCORE` / `promotion_gate.RECONCILIATION_REVIEW_SCORE` (#930) |
+| Stage 1 balance chain validation | 0.001 USD | `src.audit.promotion.STATEMENT_BALANCE_TOLERANCE` (#930) |
+| Stage 2 reconciliation auto-accept / review | 85 / 60 | `src.audit.promotion.RECONCILIATION_AUTO_ACCEPT_SCORE` / `src.audit.promotion.RECONCILIATION_REVIEW_SCORE` (#930) |
 | Stage 2 reconciliation match (amount score) | 0.10 USD | AGENTS.md, reconciliation.md |
 | Reconciliation statistics comparison | 1% | AGENTS.md |
 
@@ -145,7 +145,8 @@ AC18.12), not the per-node badge.
 
 The single deterministic contract that decides whether a versioned fact (see
 [schema.md → Append-Only Fact Versioning](schema.md)) may become authoritative.
-Owned by `services/promotion_gate.py` (EPIC-018 AC18.13, issue #930):
+Owned by `src.audit.promotion` (EPIC-018 AC18.13, issue #930; relocated from
+`services/promotion_gate.py` by #1667):
 
 > **authoritative ⇔ invariants_pass ∧ confidence ≥ τ**
 

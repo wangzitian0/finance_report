@@ -37,6 +37,7 @@ repos:
           - pydantic>=2.7.0
           - sqlalchemy>=2.0.30
           - types-redis
+          - types-PyYAML
         # follow-imports=silent: type-check only the staged files, using imported
         # modules for types without reporting their (pre-existing) errors. Without
         # this, editing any file that transitively imports the service graph fails

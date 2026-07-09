@@ -22,7 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
-from src.services.promotion_gate import (
+from src.audit import (
     STATEMENT_BALANCE_TOLERANCE,
     InvariantResult,
     PromotionDecision,
