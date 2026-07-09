@@ -56,8 +56,15 @@ CONTRACT = PackageContract(
     # Deterministic test/fixture helpers, no LLM in the package: CODE-ONLY.
     tier="CODE-ONLY",
     # L1 is business-agnostic: no edge into the L2 value language. money's
-    # conformance machinery is discovered at tool-time, not imported.
-    depends_on=[],
+    # conformance machinery is discovered at tool-time, not imported (the
+    # common.audit.money import in base_values.py reaches the Shared-Kernel
+    # canonical mirror, not the registered `audit` package's own BE
+    # implementation — a different prefix, so it resolves outside this edge).
+    # `meta` IS a real, declared edge: generate_ac_registry.py/contract.py
+    # import common.meta.* for the AC-registry schema (#1674 made this visible
+    # — it was a dark edge before the scan learned to recognise common.<pkg>
+    # imports, not just src.<pkg>).
+    depends_on=["meta"],
     roles=[],
     # No base/extension split yet, so these are taxonomy-only (no module path;
     # the gate skips placement for units with no module, same as money's VOs).

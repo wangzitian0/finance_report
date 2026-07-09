@@ -17,7 +17,22 @@ is to delete the mirror: **the contract is the single source**, governance is
 
 Two cross-cutting governors (parallel peers, not super-packages) + the value
 foundation + the shared valuation SSOT + the financial data flow + the technical
-substrate:
+substrate. **This is the financial-domain core, not the whole registry**: 6 more
+business-agnostic infra leaves (`config`, `counter`, `identity`, `observability`,
+`runtime`, `testing`) exist alongside these ~10 and are governed the same way —
+they're omitted from the table below because they carry no domain vocabulary of
+their own to describe, not because they're second-class.
+`common/meta/base/layering.py::PACKAGE_LAYER` is the actual current-membership
+list (17 packages as of 2026-07-09); this table is target *design intent* for
+the financial-domain packages specifically, and **the table's `extension deps`
+column is not always what `depends_on` says today** — a package's `contract.py`
+declares only edges with a real import behind them (`check_package_contract`
+fails an unused declaration as of #1674), so a package earlier in its cutover
+legitimately depends on less than this table describes until the rest of the
+design lands (e.g. `portfolio`/`reconciliation` are write-side-only today; their
+`pricing`/`platform` edges here are not yet real code). Treat this table as
+*where a package's contract is heading*, and the contract + the gate as *what's
+true right now*:
 
 | package | base deps | extension deps | own info (base) | governance domain (extension) |
 |---|---|---|---|---|

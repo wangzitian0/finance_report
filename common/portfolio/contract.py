@@ -34,13 +34,17 @@ below for how that overlap is resolved.
   (``PositionStatus``/``CostBasisMethod``/``InvestmentTransactionType``/
   ``DividendType``) are declared alongside them on the ORM model files, so
   they're taxonomy-only here too, for the same reason.
-* Cross-package edges: ``audit`` (Money/Quantity/UnitPrice base types),
-  ``ledger`` (``post_entry`` — portfolio writes only its own aggregate in one
-  transaction, then posts a balanced ``Entry``; no shared transaction),
-  ``pricing`` (price/FX resolution — portfolio never looks up a rate itself).
-  Both ``ledger`` and ``pricing`` are L3 domain siblings; the edge is
-  acyclic and sideways (``portfolio → ledger``, ``portfolio → pricing``,
-  never the reverse).
+* Cross-package edges today (#1674 contract-honesty audit, 2026-07-09): only
+  ``audit`` (Money/Quantity/UnitPrice base types) and ``ledger`` (``post_entry``
+  — portfolio writes only its own aggregate in one transaction, then posts a
+  balanced ``Entry``; no shared transaction) have real imports — this is the
+  **write side only** (#1422). The design above (``pricing.resolve`` consumption,
+  ``platform`` event publish, ``observability`` logging) is real intent, not yet
+  real code: portfolio's read-side queries and pricing consumption are blocked
+  on #1641 and land in #1643/#1610 P2. ``depends_on`` declares only what is
+  wired *today*; re-add ``pricing``/``platform``/``observability`` there with
+  their first real import, not before (a declared-but-unused edge fails
+  ``check_package_contract`` as of #1674).
 """
 
 from __future__ import annotations
@@ -55,7 +59,7 @@ CONTRACT = PackageContract(
     # "domain" (L3).
     status="active",
     tier="CODE-ONLY",
-    depends_on=["audit", "ledger", "pricing", "platform", "observability", "config"],
+    depends_on=["audit", "ledger"],
     roles=["base", "extension", "data"],
     units=[
         # ── base: real value objects — plain exceptions, no ORM references ──

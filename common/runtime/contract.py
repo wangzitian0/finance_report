@@ -31,7 +31,10 @@ CONTRACT = PackageContract(
     name="runtime",
     status="active",
     tier="CODE-ONLY",
-    depends_on=["config", "observability"],
+    # #1674: "config" was declared but its only import was src.config (the app
+    # Settings singleton) — not the registered config package (common/config,
+    # env_keys/schema_validation), which runtime never actually imports.
+    depends_on=["observability"],
     roles=[],
     implementations={"be": "apps/backend/src/runtime", "fe": None},
     interface=[

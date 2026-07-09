@@ -185,6 +185,43 @@ def discover_packages(repo_root: Path = REPO_ROOT) -> list[DiscoveredPackage]:
     return found
 
 
+def _registered_prefixes(
+    packages: list[DiscoveredPackage], repo_root: Path
+) -> dict[str, str]:
+    """Package name -> its real dotted import prefix.
+
+    Most packages implement under ``apps/backend/src/<name>`` (importable as
+    ``src.<name>``); a few (meta, config, testing) implement directly under
+    ``common/<name>`` (importable as ``common.<name>``). :func:`_impl_module_prefix`
+    already derives the right one from the directory location — this just builds
+    the name -> prefix map once so the edge scan can recognise *either* form
+    instead of assuming ``src.`` (the pre-#1674 blind spot that made a real
+    ``common.<pkg>`` edge invisible to both the undeclared- and unused-edge
+    checks). A package with no implementation yet has nothing to scan for, so it
+    is omitted.
+    """
+    prefixes: dict[str, str] = {}
+    for p in packages:
+        if p.impl_dir is not None and p.impl_dir.exists():
+            prefixes[p.name] = _impl_module_prefix(p.impl_dir, repo_root)
+    return prefixes
+
+
+def _target_package_from_module(mod: str, prefixes: dict[str, str]) -> str | None:
+    """The registered package name that owns dotted module ``mod``, or ``None``.
+
+    Matches the package's own prefix exactly or a ``prefix.`` submodule — e.g.
+    ``src.counter`` and ``src.counter.base.tally`` both resolve to ``counter``;
+    ``common.testing`` and ``common.testing.base_values`` both resolve to
+    ``testing``. A module that matches no known prefix (a stdlib/third-party
+    import, or a package with no implementation to have a prefix for) is ``None``.
+    """
+    for name, prefix in prefixes.items():
+        if mod == prefix or mod.startswith(prefix + "."):
+            return name
+    return None
+
+
 def _load_contract(
     contract_path: Path, repo_root: Path = REPO_ROOT
 ) -> PackageContract | None:
@@ -255,23 +292,25 @@ def _resolve_test(ref: str, repo_root: Path) -> str | None:
     return None
 
 
-def _check_no_forbidden_edge(
-    pkg: DiscoveredPackage, registered: dict[str, str]
-) -> list[str]:
-    """No module in ``pkg`` may import a registered package of a higher class.
-
-    ``registered`` maps package name -> class. We scan every ``.py`` under the
-    package for ``import src.<other>`` / ``from src.<other> import`` and flag any
-    target package whose rank exceeds this package's rank (an upward edge), or an
-    import of a package not declared in ``depends_on`` (a sideways/undeclared
-    edge). Self-imports are always allowed.
+def _iter_cross_package_imports(pkg: DiscoveredPackage, prefixes: dict[str, str]):
+    """Yield ``(file, target_package_name)`` for every cross-package import
+    found under ``pkg``'s implementation, resolved against ``prefixes`` (see
+    :func:`_registered_prefixes` / :func:`_target_package_from_module`). Shared
+    scan so the forbidden-edge check and the unused-dependency check (#1674)
+    agree on exactly what counts as "an import of package X" — one AST walk,
+    one resolution rule, both directions of honesty.
     """
-    offenders: list[str] = []
     if pkg.impl_dir is None or not pkg.impl_dir.exists():
-        return offenders
-    my_rank = _CLASS_RANK[pkg.contract.klass]
-    allowed = set(pkg.contract.depends_on)
+        return
     for py in sorted(pkg.impl_dir.rglob("*.py")):
+        if py == pkg.impl_dir / "contract.py":
+            # A common-implemented package (meta/config/testing) self-hosts:
+            # impl_dir == spec_dir, so its own contract.py — which every package's
+            # contract.py imports common.meta.package_contract just to declare
+            # CONTRACT = PackageContract(...) — would otherwise be scanned as
+            # "the implementation" and falsely read as a real edge to meta. The
+            # contract-declaration boilerplate is not a governed dependency.
+            continue
         tree = ast.parse(py.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             mods: list[str] = []
@@ -280,24 +319,110 @@ def _check_no_forbidden_edge(
             elif isinstance(node, ast.Import):
                 mods = [a.name for a in node.names]
             for mod in mods:
-                if not mod.startswith("src."):
+                target = _target_package_from_module(mod, prefixes)
+                if target is None or target == pkg.name:
                     continue
-                target = mod.split(".")[1]
-                if target == pkg.name or target not in registered:
-                    continue
-                target_rank = _CLASS_RANK[registered[target]]
-                rel = py.relative_to(REPO_ROOT)
-                if target_rank > my_rank:
-                    offenders.append(
-                        f"{rel}: upward import of '{target}' "
-                        f"(class {registered[target]}) from '{pkg.name}' "
-                        f"(class {pkg.contract.klass})"
-                    )
-                elif target not in allowed:
-                    offenders.append(
-                        f"{rel}: imports '{target}' which is not in "
-                        f"depends_on={sorted(allowed)}"
-                    )
+                yield py, target
+
+
+# Documented, issue-tracked rank exceptions — deliberately narrow, not a general
+# escape hatch. Mirrors the existing "Port-exception decision (counter)" pattern
+# in this module's header docstring: a known violation gets a cited reason and a
+# tracked fix, not a silent pass.
+_KNOWN_UPWARD_EXCEPTIONS: dict[tuple[str, str], str] = {
+    ("meta", "testing"): (
+        "meta's governance extension (check_ac_proof_kind.py + 6 siblings) "
+        "imports common.testing.generate_ac_registry / ac_registry_format / "
+        "coverage.policy for AC-registry generation and coverage policy — logic "
+        "that arguably belongs in meta (the AC-index aggregator) itself, not "
+        "borrowed upward from testing. This edge was invisible before #1674 "
+        "generalized the scan past the src. prefix to also see common.<pkg> "
+        "imports; tracked for relocation into meta as its own atomic PR "
+        "(issue #1679), not bundled into the honesty-gate change that surfaced it."
+    ),
+}
+
+
+def _check_no_forbidden_edge(
+    pkg: DiscoveredPackage,
+    registered: dict[str, str],
+    prefixes: dict[str, str] | None = None,
+) -> list[str]:
+    """No module in ``pkg`` may import a registered package of a higher class.
+
+    ``registered`` maps package name -> class. We scan every ``.py`` under the
+    package for a cross-package import (recognising each target's real prefix —
+    ``src.<other>`` normally, ``common.<other>`` for a common-implemented
+    package like meta/config/testing; see :func:`_registered_prefixes`) and flag
+    any target whose rank exceeds this package's rank (an upward edge), or an
+    import of a package not declared in ``depends_on`` (a sideways/undeclared
+    edge). Self-imports are always allowed. ``prefixes=None`` falls back to
+    assuming every registered name is importable as ``src.<name>`` — the
+    pre-#1674 behaviour, for callers that have not computed the real map.
+    A handful of known, issue-tracked upward edges are exempted — see
+    :data:`_KNOWN_UPWARD_EXCEPTIONS`.
+    """
+    offenders: list[str] = []
+    if pkg.impl_dir is None or not pkg.impl_dir.exists():
+        return offenders
+    my_rank = _CLASS_RANK[pkg.contract.klass]
+    allowed = set(pkg.contract.depends_on)
+    resolved_prefixes = (
+        prefixes if prefixes is not None else {n: f"src.{n}" for n in registered}
+    )
+    for py, target in _iter_cross_package_imports(pkg, resolved_prefixes):
+        if target not in registered:
+            continue
+        target_rank = _CLASS_RANK[registered[target]]
+        rel = py.relative_to(REPO_ROOT)
+        if target_rank > my_rank:
+            if (pkg.name, target) in _KNOWN_UPWARD_EXCEPTIONS:
+                continue
+            offenders.append(
+                f"{rel}: upward import of '{target}' "
+                f"(class {registered[target]}) from '{pkg.name}' "
+                f"(class {pkg.contract.klass})"
+            )
+        elif target not in allowed:
+            offenders.append(
+                f"{rel}: imports '{target}' which is not in "
+                f"depends_on={sorted(allowed)}"
+            )
+    return offenders
+
+
+def _check_unused_dependency(
+    pkg: DiscoveredPackage,
+    registered: dict[str, str],
+    prefixes: dict[str, str] | None = None,
+) -> list[str]:
+    """A ``depends_on`` entry with zero real imports describes a *target*, not
+    the current graph — the reverse blind spot of :func:`_check_no_forbidden_edge`
+    (#1674). 16 such edges were found repo-wide in the 2026-07-09 audit: contracts
+    written to the design the package is migrating *toward*, never cleaned up
+    once code did or didn't catch up.
+
+    Only enforced for a ``status="active"`` package with a real implementation
+    to scan. A ``draft`` package (or one with no implementation yet) is allowed
+    to declare where it's going before the code exists — that is a stated
+    target, not a false claim about today.
+    """
+    offenders: list[str] = []
+    if pkg.contract.status != "active":
+        return offenders
+    if pkg.impl_dir is None or not pkg.impl_dir.exists():
+        return offenders
+    resolved_prefixes = (
+        prefixes if prefixes is not None else {n: f"src.{n}" for n in registered}
+    )
+    used = {target for _, target in _iter_cross_package_imports(pkg, resolved_prefixes)}
+    impl_rel = pkg.impl_dir.relative_to(REPO_ROOT)
+    for dep in sorted(pkg.contract.depends_on):
+        if dep not in used:
+            offenders.append(
+                f"depends_on includes '{dep}' but no import of it exists under "
+                f"{impl_rel} — wire the dependency or remove the declaration"
+            )
     return offenders
 
 
@@ -711,6 +836,7 @@ def check_package(
     published: dict[str, list[str]] | None = None,
     table_owner: dict[str, str] | None = None,
     model_owner: dict[str, str] | None = None,
+    prefixes: dict[str, str] | None = None,
 ) -> list[str]:
     """Return the list of contract violations for one package (empty == OK).
 
@@ -755,7 +881,13 @@ def check_package(
 
     # (c) no forbidden dependency edge (DAG rule)
     errors.extend(
-        f"[{pkg.name}] {e}" for e in _check_no_forbidden_edge(pkg, registered)
+        f"[{pkg.name}] {e}" for e in _check_no_forbidden_edge(pkg, registered, prefixes)
+    )
+
+    # (c2) no unused dependency declaration (#1674 contract-honesty gate): the
+    # declared graph must describe reality, not just the target design.
+    errors.extend(
+        f"[{pkg.name}] {e}" for e in _check_unused_dependency(pkg, registered, prefixes)
     )
 
     # (d) building-block layering (additive — only for packages using the split):
@@ -789,6 +921,11 @@ def run(repo_root: Path = REPO_ROOT) -> tuple[bool, list[str]]:
     """Validate every discovered package; return (ok, messages)."""
     packages = discover_packages(repo_root)
     registered = {p.name: p.contract.klass for p in packages}
+    # Every registered package's real import prefix (src.<name> or, for a
+    # common-implemented package like meta/config/testing, common.<name>) — see
+    # _registered_prefixes. Used by both the forbidden-edge and unused-dependency
+    # checks so neither is blind to a common.<pkg> edge (#1674).
+    prefixes = _registered_prefixes(packages, repo_root)
     # Cross-package maps for the one-transaction-per-domain checks (issue #1460):
     # each package's published __all__ (the import edge) and the ORM table/model
     # ownership (the FK edge).
@@ -808,6 +945,7 @@ def run(repo_root: Path = REPO_ROOT) -> tuple[bool, list[str]]:
             published=published,
             table_owner=table_owner,
             model_owner=model_owner,
+            prefixes=prefixes,
         )
         if errs:
             all_errors.extend(errs)
