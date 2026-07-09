@@ -712,7 +712,7 @@ Product E2E ownership index:
 | `tests/e2e/test_epic022_ia_shell.py` | EPIC-022 everyday-user IA shell product owner E2E (in-runner preview lane); AC22.1 references live in the test file |
 | `tests/e2e/test_institution_statement_journeys.py` | Per-institution live-extraction staging journeys (audit-replay corpus, #1613); ACs live in the `llm` package roadmap (AC-llm.12.1 AC-llm.12.2 AC-llm.12.3 AC-llm.12.4, `common/llm/contract.py`) |
 | `apps/backend/tests/e2e/test_epic025_dry_ssot_e2e.py` | EPIC-025 DRY/SSOT product owner E2E; `AC-reporting.dry-ssot.1` (reporting_calc extraction is behavior-preserving, `common/reporting/contract.py`) references live in the test file |
-| `apps/backend/tests/e2e/test_statement_corpus_journeys.py` | Extraction-corpus merge-tier E2E; ACs live in the `llm` package roadmap (AC-llm.11.1 AC-llm.11.2 AC-llm.11.3 AC-llm.11.4, `common/llm/contract.py`) |
+| `apps/backend/tests/e2e/test_statement_corpus_journeys.py` | Extraction-corpus merge-tier E2E; ACs live in the `llm` package roadmap (AC-llm.11.1 AC-llm.11.2 AC-llm.11.3 AC-llm.11.4 AC-llm.11.5 AC-llm.11.6, `common/llm/contract.py`) |
 | `tests/e2e/test_ac_authority_tiers_epic026.py` | EPIC-026 authority-tier pipeline product owner E2E; AC-authority.2.1/AC-authority.3.1/AC-authority.4.1 references live in the test file |
 | `tests/e2e/test_application_ai_advisor_epic021.py` | Application AI Advisor product owner E2E; AC21.1 references live in the test file |
 | `tests/e2e/test_auth_flows.py` | Deployed auth flow E2E; AC references live in the test file |
