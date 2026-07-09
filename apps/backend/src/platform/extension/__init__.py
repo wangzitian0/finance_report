@@ -40,7 +40,10 @@ from src.platform.extension.sql import (
     Outbox,
     SqlOutboxRepository,
 )
-from src.platform.extension.workflow_events import register_readiness_provider
+from src.platform.extension.workflow_events import (
+    get_workflow_status,
+    register_readiness_provider,
+)
 
 __all__ = [
     "STATUS_PENDING",
@@ -55,6 +58,7 @@ __all__ = [
     "RecordingEventBus",
     "SqlOutboxRepository",
     "get_owned_or_404",
+    "get_workflow_status",
     "paginate",
     "raise_bad_request",
     "raise_conflict",
