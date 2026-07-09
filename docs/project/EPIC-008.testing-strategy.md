@@ -739,7 +739,7 @@ Product E2E ownership index:
 | `tests/e2e/test_four_asset_net_worth_golden_path.py` | Critical proof: AC8.13.42, AC-extraction.813.10, AC5.7.3, AC11.9.1-AC11.9.3, AC17.5.4 |
 | `tests/e2e/test_llm_provider_abstraction_epic023.py` | LLM provider abstraction product owner E2E; EPIC-023 / AC23.1 references live in the test file |
 | `tests/e2e/test_frontend_observability_epic024.py` | EPIC-024 frontend browser observability product owner E2E; AC24.1.1 reference lives in the test file |
-| `tests/e2e/test_market_data_price_paths.py` | Critical proof: AC11.10.7, AC11.10.11 |
+| `tests/e2e/test_market_data_price_paths.py` | Critical proof; ACs live in the `pricing` package roadmap (`AC-pricing.marketdata.7`, `AC-pricing.marketdata.11`, `common/pricing/contract.py`) |
 | `tests/e2e/test_personal_financial_report_package.py` | Critical proof: AC5.1.1, AC5.1.4, AC5.2.3, AC5.3.1, AC5.8.1, AC5.12.4, AC5.13.4-AC5.13.5, AC11.8.3, AC11.9.1-AC11.9.3, AC11.11.1-AC11.11.2, AC17.10.1-AC17.10.2, AC17.12.1-AC17.12.3, AC8.13.83-AC8.13.85, AC8.13.87-AC8.13.88 |
 | `tests/e2e/test_production_readonly_smoke.py` | Production-readonly smoke E2E; AC references live in the test file |
 | `tests/e2e/test_statement_full_journey.py` | Critical proof: AC8.13.1-AC8.13.5 |

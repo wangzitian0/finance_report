@@ -21,7 +21,7 @@ async def test_sync_stock_prices_inserts_missing_daily_rows_and_is_idempotent(
     db: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC11.10.1: Stock sync stores daily rows once and skips existing rows on rerun."""
+    """AC-pricing.marketdata.1: AC11.10.1: Stock sync stores daily rows once and skips existing rows on rerun."""
 
     async def fake_fetch(symbol: str, start_date: date, end_date: date) -> market_data.ValidatedMarketObservationSeries:
         return market_data.ValidatedMarketObservationSeries(
@@ -74,7 +74,7 @@ async def test_sync_stock_prices_fetches_decade_range_once(
     db: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC11.10.8: Long history sync uses one provider range request per symbol."""
+    """AC-pricing.marketdata.8: AC11.10.8: Long history sync uses one provider range request per symbol."""
     start = date(2016, 1, 1)
     end = date(2026, 1, 1)
     calls: list[tuple[str, date, date]] = []
@@ -115,7 +115,7 @@ async def test_sync_fx_rates_starts_after_last_stored_date(
     db: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC11.10.2: FX sync starts after the last stored date for each explicit pair."""
+    """AC-pricing.marketdata.2: AC11.10.2: FX sync starts after the last stored date for each explicit pair."""
     db.add(
         FxRate(
             base_currency="USD",
@@ -406,7 +406,7 @@ async def test_sync_stock_prices_records_missing_trading_days(
     db: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC11.10.3: Missing provider days are counted without failing the sync."""
+    """AC-pricing.marketdata.3: AC11.10.3: Missing provider days are counted without failing the sync."""
 
     async def fake_fetch(
         _symbol: str, _start_date: date, _end_date: date
@@ -464,7 +464,7 @@ async def test_stock_provider_disagreement_is_reported_without_persisting(
     db: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC11.10.4: Provider disagreement is visible and not silently persisted."""
+    """AC-pricing.marketdata.4: AC11.10.4: Provider disagreement is visible and not silently persisted."""
 
     async def fake_fetch(
         symbol: str, start_date: date, _end_date: date
@@ -505,7 +505,7 @@ async def test_portfolio_uses_synced_stock_price_before_atomic_snapshot(
     db: AsyncSession,
     test_user,
 ) -> None:
-    """AC11.10.6: Portfolio valuation prefers synced stock prices over stale snapshots."""
+    """AC-pricing.marketdata.6: AC11.10.6: Portfolio valuation prefers synced stock prices over stale snapshots."""
     account = Account(
         user_id=test_user.id,
         name="Brokerage",
@@ -748,7 +748,7 @@ async def test_market_data_freshness_sync_runs_once_after_24h(
     test_user,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC11.10.9: Report freshness checks trigger one immediate sync after 24h."""
+    """AC-pricing.marketdata.9: AC11.10.9: Report freshness checks trigger one immediate sync after 24h."""
     account = Account(
         user_id=test_user.id,
         name="USD Brokerage",

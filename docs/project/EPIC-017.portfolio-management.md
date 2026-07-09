@@ -111,7 +111,13 @@ be treated as current work.
 |----|-----------|---------------|------|----------|
 | AC17.1.1 | Holdings Summary | `test_get_holdings_happy_path` | `portfolio/test_portfolio_service.py` | P0 |
 | AC17.1.5 | Unrealized P&L Calculation | `test_unrealized_pnl_happy_path` | `portfolio/test_portfolio_service.py` | P0 |
-| AC17.1.6 | Manual Price Update | `test_update_prices_happy` | `portfolio/test_portfolio_service.py` | P1 |
+
+> *(AC17.1.6 "Manual Price Update" removed — migrated to the `pricing`
+> package roadmap as `AC-pricing.providers.1`, migration closeout
+> continuation, #1663 / #1710)*
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
 | AC17.1.7 | Portfolio summary happy path returns correct counts and totals. | `test_portfolio_summary_happy` | `portfolio/test_portfolio_service.py` | P1 |
 | AC17.1.8 | Summary includes both active and disposed positions. | `test_portfolio_summary_with_disposed` | `portfolio/test_portfolio_service.py` | P1 |
 | AC17.1.9 | Zero total cost -> net_pnl_percent = 0. | `test_portfolio_summary_zero_cost` | `portfolio/test_portfolio_service.py` | P1 |
@@ -330,10 +336,9 @@ snapshot). The unpriced-drop skip is intentionally kept at `debug` to honor the
 high-volume audit-noise contract (AC-observability.8.4); surfacing dropped positions to the
 user (e.g. a report blocker) is tracked as follow-up. Issue #1035.
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC17.15.1 | `_looks_like_ticker` accepts real tickers/FX pairs and rejects fund-name free text | `test_looks_like_ticker_accepts_real_tickers_rejects_free_text` | `apps/backend/tests/market_data/test_provider_parsers.py` | P1 |
-| AC17.15.2 | A non-ticker identifier short-circuits the Yahoo stock fetch with no HTTP call | `test_yahoo_stock_fetch_short_circuits_for_non_ticker` | `apps/backend/tests/market_data/test_provider_parsers.py` | P1 |
+> This group's rows removed — migrated to the `pricing` package roadmap as
+> `AC-pricing.providers.2-3` (migration closeout continuation, #1663 /
+> #1710).
 
 ### AC17.30: List Endpoint Pagination
 
@@ -415,7 +420,7 @@ scope decisions are:
 | Portfolio is self-developed, not outsourced to a portfolio SaaS | `vision.md` decision 1 and this EPIC objective |
 | XIRR/TWR/MWR, allocation, dividends, and cost basis are in portfolio scope | AC17.1-AC17.3, AC17.5-AC17.6, AC17.10-AC17.11 |
 | Brokerage statements are uploaded and parsed through the statement pipeline | AC17.4, EPIC-003/EPIC-013 extraction SSOT |
-| Manual price update remains valid for low-frequency holdings; provider sync is governed separately | AC17.1.6, [market_data.md](../ssot/market_data.md), AC11.10 — under the package migration, price/valuation data ownership moves to the `pricing` package (#1610); portfolio consumes prices, it does not own them |
+| Manual price update remains valid for low-frequency holdings; provider sync is governed separately | `AC-pricing.providers.1`, `AC-pricing.marketdata.1-11` (`common/pricing/contract.py`) — price/valuation data ownership moved to the `pricing` package (#1610); portfolio consumes prices, it does not own them |
 | Report-ready investment schedule is consumed by the personal report package | AC17.10 and EPIC-005 package contract |
 | Framework-specific report presentation for portfolio facts is not owned here | [framework-reporting.md](../ssot/framework-reporting.md), EPIC-020, AC17.13 |
 
@@ -495,10 +500,10 @@ actual currency. The outbound provider symbol is now exchange-qualified
 (`<4-digit>.HK`) without changing the stored symbol scope, and a new broker
 account adopts the currency of the holding that created it.
 
+> *(AC17.33.1 removed and AC17.33.2 removed — Yahoo/Stooq HK numeric-code symbol mapping migrated to the `pricing` package roadmap as `AC-pricing.providers.4-5`, migration closeout continuation, #1663 / #1710)*
+
 | AC ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC17.33.1 | HK numeric exchange codes map to the Yahoo `<4-digit>.HK` symbol while US tickers and already-suffixed symbols pass through unchanged {tier:CODE-ONLY} | `test_AC17_33_1_yahoo_stock_symbol_maps_hk_numeric_codes` | `market_data/test_provider_parsers.py` | P1 |
-| AC17.33.2 | HK numeric codes resolve to the Stooq `<4-digit>.hk` symbol while US tickers stay `.us` {tier:CODE-ONLY} | `test_AC17_33_2_stooq_stock_symbol_maps_hk_numeric_codes` | `market_data/test_provider_parsers.py` | P1 |
 | AC17.33.3 | An auto-created broker account adopts the holding's currency instead of a hardcoded USD {tier:CODE-ONLY} | `test_AC17_33_3_broker_account_uses_snapshot_currency_not_hardcoded_usd` | `portfolio/test_brokerage_position_parsing.py` | P1 |
 
 ### AC17.34: Signed (Short) Positions ([#1448](https://github.com/wangzitian0/finance_report/issues/1448))
