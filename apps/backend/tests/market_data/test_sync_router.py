@@ -198,7 +198,7 @@ async def test_report_endpoint_runs_market_data_freshness_check(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """AC11.10.9: Report reads check market data freshness before generating output."""
-    calls: list[str] = []
+    calls: list[date] = []
 
     async def fake_ensure(_db, *, fx_pairs, stock_symbols, end_date: date) -> market_data.MarketDataFreshnessResult:
         del fx_pairs, stock_symbols

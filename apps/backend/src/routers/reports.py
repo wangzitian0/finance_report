@@ -121,7 +121,7 @@ async def _ensure_report_market_data_fresh(
         stock_symbols = await active_stock_symbols(db, user_id)
         await ensure_market_data_fresh(
             db,
-            fx_pairs=fx_pairs,
+            fx_pairs=list(fx_pairs),
             stock_symbols=stock_symbols,
             end_date=end_date,
         )
