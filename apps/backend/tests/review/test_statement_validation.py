@@ -451,7 +451,7 @@ class TestGetPendingStage1Review:
         assert stmt_approved.id not in ids
 
     async def test_returns_empty_when_none_pending(self, db, user_id):
-        """AC1.6.2 get_pending_stage1_review returns empty when no pending statements."""
+        """AC-extraction.13.1: AC1.6.2 get_pending_stage1_review returns empty when no pending statements."""
         result = await get_pending_stage1_review(db, user_id)
         assert result == []
 
