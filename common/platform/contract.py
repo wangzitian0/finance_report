@@ -124,6 +124,7 @@ CONTRACT = PackageContract(
         "RecordingEventBus",
         "SubscriberRegistry",
         "get_owned_or_404",
+        "get_workflow_status",
         "paginate",
         "raise_bad_request",
         "raise_conflict",
