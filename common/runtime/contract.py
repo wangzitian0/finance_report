@@ -25,7 +25,7 @@ parity — see ``todo.md``.
 
 from __future__ import annotations
 
-from common.meta.package_contract import ACRecord, PackageContract
+from common.meta.package_contract import ACRecord, Invariant, PackageContract
 
 CONTRACT = PackageContract(
     name="runtime",
@@ -61,7 +61,14 @@ CONTRACT = PackageContract(
         "resolve_env_tier",
     ],
     events=[],
-    invariants=[],
+    invariants=[
+        # ── folded in from the retired config package (#1669) ──
+        Invariant(
+            id="env-key-extraction-robust",
+            statement="Parsing env keys from a missing source file yields an empty set, not an error, so the consistency check degrades gracefully.",
+            test="tests/tooling/test_check_env_keys.py::test_returns_empty_set_for_missing_file",
+        ),
+    ],
     roadmap=[
         # ── Smoke tests / service reachability (was EPIC-008 AC8.1.1–.4) ──
         ACRecord(
@@ -155,6 +162,153 @@ CONTRACT = PackageContract(
             statement="/health returns 503 when a declared dependency is absent (invariant 2). Was EPIC-007 AC7.7.2.",
             test="apps/backend/tests/infra/test_main.py::test_health_returns_503_on_database_failure",
             priority="P0",
+            status="done",
+        ),
+        # ── folded in from the retired config package (#1669) — group numbers
+        # preserved from the original EPIC-012 lineage (AC12.18.* / AC12.20.*
+        # -> AC-config.18.*/.20.* -> AC-runtime.18.*/.20.*) so the history stays
+        # traceable; they don't collide with runtime's own groups 1-7. ──
+        ACRecord(
+            id="AC-runtime.18.1",
+            statement=(
+                "PRIMARY_MODEL follows the expected provider pattern (the zai "
+                "GLM model-id form). Was EPIC-012 AC12.18.1."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_config_contract.py"
+                "::test_primary_model_format"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.18.2",
+            statement=(
+                "The config.py default for PRIMARY_MODEL matches the .env.example "
+                "documentation (config↔docs sync). Was EPIC-012 AC12.18.2."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_config_contract.py"
+                "::test_config_sync_with_env_example"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.18.3",
+            statement=(
+                "BASE_CURRENCY is a valid ISO 4217 currency code (3 uppercase "
+                "alphabetic chars). Was EPIC-012 AC12.18.3."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_config_contract.py"
+                "::test_base_currency_format"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.18.4",
+            statement=(
+                "S3_BUCKET follows S3 naming conventions (lowercase, 3-63 chars, "
+                "hyphen-safe). Was EPIC-012 AC12.18.4."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_config_contract.py"
+                "::test_s3_bucket_format"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.18.5",
+            statement=(
+                "JWT_ALGORITHM is one of the allowed secure algorithms "
+                "(HS256/RS256). Was EPIC-012 AC12.18.5."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_config_contract.py"
+                "::test_jwt_algorithm_allowed"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.18.6",
+            statement=(
+                "DATABASE_URL follows the expected async driver format "
+                "(postgresql+asyncpg, or sqlite for tests). Was EPIC-012 AC12.18.6."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_config_contract.py"
+                "::test_database_url_format"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.20.1",
+            statement=(
+                "DB_POOL_SIZE config field exists with the expected default. "
+                "Was EPIC-012 AC12.20.1."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_config_contract.py"
+                "::test_db_pool_size_config_default"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.20.2",
+            statement=(
+                "DB_POOL_MAX_OVERFLOW config field exists with the expected "
+                "default. Was EPIC-012 AC12.20.2."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_config_contract.py"
+                "::test_db_pool_max_overflow_config_default"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.20.3",
+            statement=(
+                "Pool config values are within a valid range (pool_size >= 1, "
+                "max_overflow >= 0). Was EPIC-012 AC12.20.3."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_config_contract.py"
+                "::test_db_pool_config_valid_range"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.20.4",
+            statement=(
+                "The DB_POOL_SIZE env var overrides the pool-size setting. "
+                "Was EPIC-012 AC12.20.4."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_config_contract.py"
+                "::test_db_pool_size_env_override"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.20.5",
+            statement=(
+                "The DB_POOL_MAX_OVERFLOW env var overrides the max-overflow "
+                "setting. Was EPIC-012 AC12.20.5."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_config_contract.py"
+                "::test_db_pool_size_env_override"
+            ),
+            priority="P1",
             status="done",
         ),
     ],

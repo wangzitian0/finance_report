@@ -491,8 +491,8 @@ concepts:
       - .env.example
       - apps/backend/src/config.py
       - repo/finance_report/finance_report/10.app/secrets.ctmpl
-      - common/config/env_keys.py
-      - common/config/schema_validation.py
+      - apps/backend/src/runtime/extension/env_keys.py
+      - apps/backend/src/runtime/extension/schema_validation.py
       - tools/check_env_keys.py
       - tools/validate_schemas.py
       - tools/generate_env_reference.py

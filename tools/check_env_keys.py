@@ -7,10 +7,12 @@ import sys
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
+BACKEND_DIR = ROOT_DIR / "apps" / "backend"
+for path in (ROOT_DIR, BACKEND_DIR):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
 
-from common.config.env_keys import main  # noqa: E402
+from src.runtime.extension.env_keys import main  # noqa: E402
 
 
 if __name__ == "__main__":  # pragma: no cover

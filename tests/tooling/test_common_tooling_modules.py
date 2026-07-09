@@ -100,10 +100,13 @@ def test_AC8_13_56_tools_coverage_component_is_a_governed_source_root():
     # Coverage/CI library implementations now live under common (consolidated
     # from tools/_lib): they are measured by the common component.
     common = coverage_policy.get_component("common")
-    assert "common/testing/coverage/calculate_unified_coverage.py" in common.expected_sources(
+    assert (
+        "common/testing/coverage/calculate_unified_coverage.py"
+        in common.expected_sources(ROOT)
+    )
+    assert "common/testing/coverage/strip_lcov_branches.py" in common.expected_sources(
         ROOT
     )
-    assert "common/testing/coverage/strip_lcov_branches.py" in common.expected_sources(ROOT)
 
 
 def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
@@ -122,18 +125,25 @@ def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
     )
     assert (
         calc_tool.main
-        is importlib.import_module("common.testing.coverage.calculate_unified_coverage").main
+        is importlib.import_module(
+            "common.testing.coverage.calculate_unified_coverage"
+        ).main
     )
     assert (
-        analyzer_tool.main is importlib.import_module("common.testing.coverage.analyzer").main
+        analyzer_tool.main
+        is importlib.import_module("common.testing.coverage.analyzer").main
     )
-    assert merge_tool.main is importlib.import_module("common.testing.coverage.merge_lcov").main
+    assert (
+        merge_tool.main
+        is importlib.import_module("common.testing.coverage.merge_lcov").main
+    )
     assert (
         strip_tool.main
         is importlib.import_module("common.testing.coverage.strip_lcov_branches").main
     )
     assert (
-        policy_tool.main is importlib.import_module("common.testing.coverage.check_policy").main
+        policy_tool.main
+        is importlib.import_module("common.testing.coverage.check_policy").main
     )
     assert (
         metrics_tool.main
@@ -144,7 +154,10 @@ def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
 @pytest.mark.parametrize(
     ("tool_module", "implementation_module"),
     [
-        ("tools.analyze_pdf_fixture", "common.testing.fixtures.pdf.analyzers.analyze_pdf"),
+        (
+            "tools.analyze_pdf_fixture",
+            "common.testing.fixtures.pdf.analyzers.analyze_pdf",
+        ),
         (
             "tools.generate_pdf_fixtures",
             "common.testing.fixtures.pdf.generate_pdf_fixtures",
@@ -213,7 +226,9 @@ def test_AC8_13_58_ci_tools_delegate_to_common_implementations():
         "tools.resolve_release_coordinate": "common.runtime.release_coordinate",
         "tools.verify_release_evidence": "common.runtime.release_evidence",
         "tools.verify_release_images": "common.runtime.release_images",
-        "tools.wait_post_merge_train_turn": ("common.runtime.wait_post_merge_train_turn"),
+        "tools.wait_post_merge_train_turn": (
+            "common.runtime.wait_post_merge_train_turn"
+        ),
     }
 
     for tool_module, common_module in command_modules.items():
@@ -226,8 +241,8 @@ def test_AC8_13_58_ci_tools_delegate_to_common_implementations():
 def test_AC8_13_59_config_validation_tools_delegate_to_common_implementations():
     """AC8.13.59: Config validation commands live under tools and delegate to common."""
     command_modules = {
-        "tools.check_env_keys": "common.config.env_keys",
-        "tools.validate_schemas": "common.config.schema_validation",
+        "tools.check_env_keys": "src.runtime.extension.env_keys",
+        "tools.validate_schemas": "src.runtime.extension.schema_validation",
     }
 
     for tool_module, common_module in command_modules.items():

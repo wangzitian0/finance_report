@@ -36,10 +36,12 @@ scope):
   `PackageContract`, and the governance gate.
 - **L1 infra** — [`audit/`](./audit/readme.md) (financial base types +
   `ExchangeRate` conversion math + numeric governance; absorbed the old
-  money/ratio/quantity/unit_price value packages), [`config/`](./config/readme.md),
+  money/ratio/quantity/unit_price value packages),
   [`llm/`](./llm/readme.md), [`observability/`](./observability/readme.md),
   [`platform/`](./platform/readme.md) (event-bus/outbox substrate,
-  historically labelled *middleware*), [`runtime/`](./runtime/readme.md),
+  historically labelled *middleware*), [`runtime/`](./runtime/readme.md)
+  (absorbed the old `config` package — env-key/schema-validation helpers,
+  #1669),
   [`testing/`](./testing/readme.md) (absorbed the old `authority` and
   `coverage` packages, #1626).
 - **L2 middleware** — [`counter/`](./counter/readme.md): the first worked

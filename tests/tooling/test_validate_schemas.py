@@ -1,4 +1,4 @@
-"""Tests for common.config.schema_validation"""
+"""Tests for src.runtime.extension.schema_validation"""
 
 import pytest
 from pathlib import Path
@@ -6,7 +6,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from common.config.schema_validation import (
+from src.runtime.extension.schema_validation import (
     get_project_root,
     SchemaVisitor,
     parse_file_for_schemas,
@@ -489,7 +489,7 @@ class TestPrintReportEdgeCases:
     def test_prints_file_path_and_class(self, capsys, tmp_path, monkeypatch):
         """print_report shows file path relative to root and class (lines 193-197)."""
         monkeypatch.setattr(
-            "common.config.schema_validation.get_project_root", lambda: tmp_path
+            "src.runtime.extension.schema_validation.get_project_root", lambda: tmp_path
         )
         config_result = {
             "visitor": SchemaVisitor(),
@@ -606,7 +606,7 @@ class TestGenerateFixSuggestionsEdgeCases:
 class TestMain:
     def test_main_exits_0_when_valid(self, monkeypatch, tmp_path):
         """main() exits 0 when no issues found (lines 247-269)."""
-        from common.config.schema_validation import main
+        from src.runtime.extension.schema_validation import main
 
         config_file = tmp_path / "apps" / "backend" / "src" / "config.py"
         config_file.parent.mkdir(parents=True, exist_ok=True)
@@ -624,7 +624,7 @@ class UserSchema:
 """)
 
         monkeypatch.setattr(
-            "common.config.schema_validation.get_project_root", lambda: tmp_path
+            "src.runtime.extension.schema_validation.get_project_root", lambda: tmp_path
         )
         monkeypatch.setattr(sys, "argv", ["validate_schemas.py"])
 
@@ -634,7 +634,7 @@ class UserSchema:
 
     def test_main_exits_1_when_issues(self, monkeypatch, tmp_path):
         """main() exits 1 when issues found."""
-        from common.config.schema_validation import main
+        from src.runtime.extension.schema_validation import main
 
         config_file = tmp_path / "apps" / "backend" / "src" / "config.py"
         config_file.parent.mkdir(parents=True, exist_ok=True)
@@ -646,7 +646,7 @@ class Settings:
         schemas_dir.mkdir(parents=True, exist_ok=True)
 
         monkeypatch.setattr(
-            "common.config.schema_validation.get_project_root", lambda: tmp_path
+            "src.runtime.extension.schema_validation.get_project_root", lambda: tmp_path
         )
         monkeypatch.setattr(sys, "argv", ["validate_schemas.py"])
 
@@ -656,7 +656,7 @@ class Settings:
 
     def test_main_with_fix_flag(self, monkeypatch, tmp_path):
         """main() with --fix flag generates suggestions (lines 266-267)."""
-        from common.config.schema_validation import main
+        from src.runtime.extension.schema_validation import main
 
         config_file = tmp_path / "apps" / "backend" / "src" / "config.py"
         config_file.parent.mkdir(parents=True, exist_ok=True)
@@ -668,7 +668,7 @@ class Settings:
         schemas_dir.mkdir(parents=True, exist_ok=True)
 
         monkeypatch.setattr(
-            "common.config.schema_validation.get_project_root", lambda: tmp_path
+            "src.runtime.extension.schema_validation.get_project_root", lambda: tmp_path
         )
         monkeypatch.setattr(sys, "argv", ["validate_schemas.py", "--fix"])
 

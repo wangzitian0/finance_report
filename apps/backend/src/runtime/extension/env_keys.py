@@ -30,8 +30,13 @@ from pathlib import Path
 
 
 def get_project_root() -> Path:
-    """Get project root directory."""
-    return Path(__file__).resolve().parents[2]
+    """Get project root directory.
+
+    Moved here from common/config/env_keys.py (#1669): the file now lives at
+    apps/backend/src/runtime/extension/, five levels below repo root
+    (extension -> runtime -> src -> backend -> apps -> root), not two.
+    """
+    return Path(__file__).resolve().parents[5]
 
 
 def parse_secrets_ctmpl(path: Path) -> set[str]:
@@ -142,9 +147,7 @@ def parse_config_py(path: Path) -> dict[str, dict]:
         default = match.group(3)
         default_text = default or ""
 
-        if "Field(" in default_text and default_text.count("(") > default_text.count(
-            ")"
-        ):
+        if "Field(" in default_text and default_text.count("(") > default_text.count(")"):
             balance = default_text.count("(") - default_text.count(")")
             cursor = index + 1
             while cursor < len(lines) and balance > 0:
@@ -179,9 +182,7 @@ def parse_config_py(path: Path) -> dict[str, dict]:
     return fields
 
 
-def check_consistency(
-    ctmpl_keys: set[str], config_fields: dict[str, dict], env_example_keys: set[str]
-) -> dict:
+def check_consistency(ctmpl_keys: set[str], config_fields: dict[str, dict], env_example_keys: set[str]) -> dict:
     """Check consistency across all 3 sources."""
     config_env_names = {f["env_name"] for f in config_fields.values()}
     accepted_config_env_names = set().union(
@@ -206,9 +207,7 @@ def check_consistency(
     in_example_not_in_config = env_example_keys - accepted_config_env_names
     # Filter out known non-backend keys (e.g. NEXT_PUBLIC_)
     suspicious_extra_keys = {
-        k
-        for k in in_example_not_in_config
-        if not k.startswith("NEXT_PUBLIC_") and not k.startswith("DOKPLOY_")
+        k for k in in_example_not_in_config if not k.startswith("NEXT_PUBLIC_") and not k.startswith("DOKPLOY_")
     }
 
     return {
@@ -219,8 +218,7 @@ def check_consistency(
         "missing_in_config": in_ctmpl_not_in_config,
         "undocumented_in_example": in_config_not_in_example,
         "suspicious_extra_keys": suspicious_extra_keys,
-        "is_consistent": (len(in_ctmpl_not_in_config) == 0)
-        and (len(in_config_not_in_example) == 0),
+        "is_consistent": (len(in_ctmpl_not_in_config) == 0) and (len(in_config_not_in_example) == 0),
     }
 
 
@@ -280,9 +278,7 @@ def generate_fix_suggestions(result: dict) -> None:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Environment variable consistency check"
-    )
+    parser = argparse.ArgumentParser(description="Environment variable consistency check")
     parser.add_argument("--diff", action="store_true", help="Show detailed diff")
     parser.add_argument("--fix", action="store_true", help="Generate fix suggestions")
     args = parser.parse_args()
@@ -294,9 +290,7 @@ def main():
     env_example_path = root / ".env.example"
 
     print(f"Project root: {root}")
-    print(
-        f"secrets.ctmpl: {ctmpl_path.relative_to(root) if ctmpl_path.exists() else 'NOT FOUND'}"
-    )
+    print(f"secrets.ctmpl: {ctmpl_path.relative_to(root) if ctmpl_path.exists() else 'NOT FOUND'}")
     print(f"config.py:     {config_path.relative_to(root)}")
     print(f".env.example:  {env_example_path.relative_to(root)}")
 
