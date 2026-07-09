@@ -95,7 +95,7 @@ def test_AC6_33_4_chat_envelope_rejects_invalid_advisor_metadata() -> None:
 
 
 def test_AC6_33_5_export_envelope_builds_attachment_headers() -> None:
-    """AC6.33.5: Export envelope declares media type + attachment disposition."""
+    """AC-reporting.export-envelope.1: AC6.33.5: Export envelope declares media type + attachment disposition."""
     csv_env = ExportStreamEnvelope(media_type=ExportStreamMediaType.CSV, filename="balance-sheet-2026-01-01.csv")
     json_env = ExportStreamEnvelope(media_type=ExportStreamMediaType.JSON, filename="snapshot.json")
 
@@ -106,7 +106,7 @@ def test_AC6_33_5_export_envelope_builds_attachment_headers() -> None:
 
 
 def test_AC6_33_6_export_envelope_rejects_unknown_media_type() -> None:
-    """AC6.33.6: Export media type is constrained to the declared wire types."""
+    """AC-reporting.export-envelope.2: AC6.33.6: Export media type is constrained to the declared wire types."""
     with pytest.raises(ValidationError):
         ExportStreamEnvelope(media_type="application/pdf", filename="x.pdf")  # type: ignore[arg-type]
 
@@ -124,7 +124,7 @@ def test_AC6_33_6_export_envelope_rejects_unknown_media_type() -> None:
     ],
 )
 def test_AC6_33_9_export_envelope_rejects_unsafe_filename(bad_filename: str) -> None:
-    """AC6.33.9: Export filename rejects header-injection / disposition-breaking chars.
+    """AC-reporting.export-envelope.4: AC6.33.9: Export filename rejects header-injection / disposition-breaking chars.
 
     The filename is interpolated into the Content-Disposition header, so CR/LF,
     double-quotes, semicolons, and path separators must be rejected rather than

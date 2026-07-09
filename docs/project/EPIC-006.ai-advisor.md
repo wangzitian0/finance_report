@@ -141,18 +141,7 @@ Clearly labeled "for reference only"
 
 ### AC6.11: Model Catalog Integration
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-> _EPIC-023 retired the remote-fetch `services/ai_models` catalogue; AC6.11.x are
-> re-anchored onto the local `LitellmCatalog` (configured models + litellm pricing)
-> that supersedes it._
-
-| AC6.11.1 | Model catalogue integration: lists the configured models with pricing/capability fields. {tier:CODE-ONLY} | `test_AC6_11_1_catalog_lists_configured_models` | `ai/test_model_catalog.py` | P1 |
-| AC6.11.2 | Model validation integration: a known model resolves, an unknown one is rejected. {tier:CODE-ONLY} | `test_AC6_11_2_unknown_model_rejected` | `ai/test_model_catalog.py` | P1 |
-| AC6.11.3 | The catalogue is local/deterministic — repeated calls agree, no remote fetch. {tier:CODE-ONLY} | `test_AC6_11_3_catalog_is_local_deterministic` | `ai/test_model_catalog.py` | P1 |
-| AC6.11.4 | Filtering models with both modality and free_only filters composed. {tier:CODE-ONLY} | `test_AC6_11_4_catalog_modality_and_free_filters` | `ai/test_model_catalog.py` | P1 |
-| AC6.11.5 | Per-model modality lookup: the vision/OCR model accepts image input. {tier:CODE-ONLY} | `test_AC6_11_5_model_modality_lookup` | `ai/test_model_catalog.py` | P1 |
-| AC6.11.6 | `get` resolves a model id whether bare or provider-qualified. {tier:CODE-ONLY} | `test_AC6_11_6_catalog_get_bare_or_qualified` | `ai/test_model_catalog.py` | P1 |
+> Migrated to [`common/llm/contract.py`](../../common/llm/contract.py)'s `roadmap` (migration closeout wave 3, #1416): `AC-llm.13.1` through `.6`. EPIC-023 retired the remote-fetch `services/ai_models` catalogue; these criteria are re-anchored onto the local `LitellmCatalog` (configured models + litellm pricing) that supersedes it.
 
 ### AC6.12: Must-Have Acceptance Criteria Traceability
 
@@ -480,11 +469,18 @@ depend on. `X-Advisor-Metadata` is validated against `ChatResponseMetadata`
 before serialization. See `docs/ssot/ai.md` (chat) and `docs/ssot/reporting.md`
 (export).
 
-> **Chat-side rows migrated** to [`common/advisor/contract.py`](../../common/advisor/contract.py)'s `roadmap` (migration closeout wave 2, #1663): `AC-advisor.envelope.1` through `.5` (`.1`-`.4` new, `.7` renumbered `.5`). **Export-side rows retained** (below) — `ExportStreamEnvelope` is reporting/export surface, not advisor; a maintainer should route these to a `reporting` package roadmap in a future pass.
+> **Chat-side rows migrated** to [`common/advisor/contract.py`](../../common/advisor/contract.py)'s `roadmap` (migration closeout wave 2, #1663): `AC-advisor.envelope.1` through `.5` (`.1`-`.4` new, `.7` renumbered `.5`). **Export-side rows migrated** to [`common/reporting/contract.py`](../../common/reporting/contract.py)'s `roadmap` (migration closeout wave 3, #1416): `AC-reporting.export-envelope.1` through `.4`.
+
+### AC6.34: Non-Goal Traceability Anchor
+
+This EPIC's `non-goals-not-robo-advisor` vision anchor (`vision.md`) is owned
+solely by EPIC-006, and the vision↔registry gate (`common/testing/check_ac_index.py`)
+only resolves EPIC-numbered AC ids from this table — it cannot see package-scoped
+`AC-<pkg>.*` ids. Every other AC6.x behavior above has migrated into
+`common/advisor/contract.py`'s roadmap (plus `llm`/`reporting` for AC6.11/AC6.33's
+export half); this single row keeps the non-goal traceable and cites the same
+guardrail test backing `AC-advisor.guardrail.1`.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC6.33.5 | Export envelope declares media type + attachment disposition. {tier:CODE-ONLY} | `test_AC6_33_5_export_envelope_builds_attachment_headers` | `ai/test_streaming_contract.py` | P0 |
-| AC6.33.6 | Export envelope rejects unknown media types. {tier:CODE-ONLY} | `test_AC6_33_6_export_envelope_rejects_unknown_media_type` | `ai/test_streaming_contract.py` | P0 |
-| AC6.33.8 | /reports/export wire headers match the typed export envelope. {tier:CODE-ONLY} | `test_AC6_33_8_export_response_matches_typed_envelope` | `reporting/test_reports_router.py` | P0 |
-| AC6.33.9 | Export filename rejects CR/LF, double-quote, semicolon, and path separators (header-injection safe). {tier:CODE-ONLY} | `test_AC6_33_9_export_envelope_rejects_unsafe_filename` | `ai/test_streaming_contract.py` | P0 |
+| AC6.34.1 | A write/mutation request (create/post/delete/void/modify a journal or ledger entry) is refused before any LLM call, so the advisor never auto-executes a trade or ledger action — it is a decision-support advisor, not a robo-advisor. {tier:CODE-ONLY} | `test_chat_stream_refusal_branches` | `ai/test_ai_advisor_service.py` | P0 |

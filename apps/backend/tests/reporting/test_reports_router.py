@@ -341,7 +341,7 @@ async def test_export_endpoint(client, test_data_setup_reports):
 
 
 async def test_AC6_33_8_export_response_matches_typed_envelope(client, test_data_setup_reports):
-    """AC6.33.8: /reports/export emits the media type + attachment header declared by the typed envelope."""
+    """AC-reporting.export-envelope.3: AC6.33.8: /reports/export emits the media type + attachment header declared by the typed envelope."""
     from src.schemas.streaming import ExportStreamEnvelope, ExportStreamMediaType
 
     await test_data_setup_reports()

@@ -754,5 +754,52 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="eval",
         ),
+        # ── group 13: model catalogue integration (EPIC-006 AC6.11.x, closeout
+        # wave 3, #1416) — EPIC-023 retired the remote-fetch services/ai_models
+        # catalogue; these criteria are re-anchored onto LitellmCatalog, the
+        # local/deterministic configured-models + litellm-pricing catalogue
+        # that superseded it ──
+        ACRecord(
+            id="AC-llm.13.1",
+            statement="LitellmCatalog.list_models lists the configured models, each carrying pricing/capability fields (is_free, modalities)",
+            test="apps/backend/tests/ai/test_model_catalog.py::test_AC6_11_1_catalog_lists_configured_models",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-llm.13.2",
+            statement="LitellmCatalog.get resolves a known configured model and returns None for an unknown model id",
+            test="apps/backend/tests/ai/test_model_catalog.py::test_AC6_11_2_unknown_model_rejected",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-llm.13.3",
+            statement="LitellmCatalog.list_models is local and deterministic — repeated calls agree and never hit a remote endpoint",
+            test="apps/backend/tests/ai/test_model_catalog.py::test_AC6_11_3_catalog_is_local_deterministic",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-llm.13.4",
+            statement="LitellmCatalog.list_models composes its modality and free_only filters — every result satisfies both simultaneously",
+            test="apps/backend/tests/ai/test_model_catalog.py::test_AC6_11_4_catalog_modality_and_free_filters",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-llm.13.5",
+            statement="LitellmCatalog.get's per-model modality lookup confirms the vision/OCR model accepts image input",
+            test="apps/backend/tests/ai/test_model_catalog.py::test_AC6_11_5_model_modality_lookup",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-llm.13.6",
+            statement="LitellmCatalog.get resolves the same model spec whether given a bare model id or a provider-qualified one",
+            test="apps/backend/tests/ai/test_model_catalog.py::test_AC6_11_6_catalog_get_bare_or_qualified",
+            priority="P1",
+            status="done",
+        ),
     ],
 )
