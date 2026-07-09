@@ -31,6 +31,7 @@ def load(path: str) -> dict:
 
 
 def test_AC7_12_3_deploy_compose_pull_not_build():
+    """AC-meta.infra-boundary.1: AC7.12.3: the staging/prod deploy compose cannot local-build app services."""
     services = load(APP_COMPOSE)["services"]
     for name in APP_SERVICES:
         svc = services[name]
@@ -45,6 +46,7 @@ def test_AC7_12_3_deploy_compose_pull_not_build():
 
 
 def test_AC7_12_3_data_dirs_survive_redeploy():
+    """AC-meta.infra-boundary.2: AC7.12.3: postgres/redis data dirs bind-mount via ${DATA_PATH}, not a named volume."""
     for path, data_dir in DATA_COMPOSES.items():
         services = load(path)["services"]
         mounts = [

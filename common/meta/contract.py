@@ -787,5 +787,144 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        # ── release-pipeline: promote-not-rebuild release integrity (was
+        # EPIC-007 AC7.10, migration closeout wave 3, #1416) ──
+        ACRecord(
+            id="AC-meta.release-pipeline.1",
+            statement=(
+                "The production release workflow promotes the staging-"
+                "validated `:<sha>` image to `vX.Y.Z` via `docker buildx "
+                "imagetools create` instead of rebuilding from source; fails "
+                "closed if no staging-validated SHA image exists or if the "
+                "promoted digest differs from the staging-verified digest; "
+                "records the released commit, source CI run, and promoted "
+                "image digest in the workflow summary; keeps the SSOTs "
+                "(ci-cd.md, deployment.md) documenting the promote-not-"
+                "rebuild consistency ladder; and retains a `workflow_dispatch` "
+                "dry-run that proves the release/promote path without "
+                "mutating production."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC7_10_production_release_promotes_not_rebuilds"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        # ── infra-boundary: delivery app/infra-boundary calibration (was
+        # EPIC-007 AC7.12, #876, migration closeout wave 3, #1416) ──
+        ACRecord(
+            id="AC-meta.infra-boundary.1",
+            statement=(
+                "The staging/prod deploy compose (infra2 10.app/compose.yaml) "
+                "cannot local-build the app services (no build:, "
+                "pull_policy: always)."
+            ),
+            test=(
+                "tests/tooling/test_deploy_compose_contract.py"
+                "::test_AC7_12_3_deploy_compose_pull_not_build"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.infra-boundary.2",
+            statement=(
+                "The postgres/redis data dirs are bind-mounted via "
+                "${DATA_PATH} (not a named volume Dokploy wipes on redeploy)."
+            ),
+            test=(
+                "tests/tooling/test_deploy_compose_contract.py"
+                "::test_AC7_12_3_data_dirs_survive_redeploy"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.infra-boundary.3",
+            statement=(
+                "ci.yml's on.push.branches includes release/** so a release-"
+                "branch commit publishes a :<sha> image."
+            ),
+            test=(
+                "tests/tooling/test_publish_only_contract.py"
+                "::test_AC7_12_4_release_branches_trigger_the_publish_workflow"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.infra-boundary.4",
+            statement=(
+                "The container-image push: conditions cover main, release-"
+                "branch, and workflow_dispatch triggers."
+            ),
+            test=(
+                "tests/tooling/test_publish_only_contract.py"
+                "::test_AC7_12_4_image_push_publishes_for_main_release_and_dispatch"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.infra-boundary.5",
+            statement=(
+                "The persistent Dokploy preview (deploy-preview) runs only "
+                "via manual workflow_dispatch, never per-PR auto-deploy, "
+                "while the in-runner e2e merge gate stays automatic."
+            ),
+            test=(
+                "tests/tooling/test_publish_only_contract.py"
+                "::test_AC7_12_4_persistent_preview_is_on_demand_not_per_pr"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.infra-boundary.6",
+            statement=(
+                "environments.md defines the derived data-lane contract for "
+                "deploy_v2(service, type, version_ref, iac_ref) — the current "
+                "data sources/defaults and the four data red lines (a PR sha "
+                "never runs on prod data; prod data is anonymized before "
+                "leaving prod; non-prod object storage holds no real "
+                "uploads; a backup is not an anonymized snapshot)."
+            ),
+            test=(
+                "tests/tooling/test_data_red_lines_contract.py"
+                "::test_AC7_12_6_environments_define_data_axis_and_red_lines"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.infra-boundary.7",
+            statement=(
+                "The root SSOT does not drift back to the retired public-"
+                "axis deploy primitive; the data lane stays derived from "
+                "the deploy_v2 coordinate."
+            ),
+            test=(
+                "tests/tooling/test_data_red_lines_contract.py"
+                "::test_AC7_12_6_deploy_v2_data_lane_is_derived_not_public_axis"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.infra-boundary.8",
+            statement=(
+                "The published :<sha> frontend image is environment-"
+                "independent (same-origin /api, no concrete environment "
+                "domain baked in)."
+            ),
+            test=(
+                "tests/tooling/test_frontend_same_origin_contract.py"
+                "::test_AC7_12_8_published_frontend_image_has_no_baked_env_domain"
+            ),
+            priority="P0",
+            status="done",
+        ),
     ],
 )

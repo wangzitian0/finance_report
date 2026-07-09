@@ -234,13 +234,11 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 ### AC7.10: Promote and Release Pipeline Integrity
 
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC7.10.1 | `deploy.yml` promotes the staging-validated image to `vX.Y.Z` instead of rebuilding from source | `test_AC7_10_production_release_promotes_not_rebuilds` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
-| AC7.10.2 | Release fails closed if no staging-validated SHA image exists or if digests differ | `test_AC7_10_production_release_promotes_not_rebuilds` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
-| AC7.10.3 | Workflow summary records released commit, source CI run, promoted image digest, and no rebuild | `test_AC7_10_production_release_promotes_not_rebuilds` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
-| AC7.10.4 | Deployment and CI SSOTs document the promote-not-rebuild consistency ladder | `test_AC7_10_production_release_promotes_not_rebuilds` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
-| AC7.10.5 | Retain `workflow_dispatch` dry-run to prove the release/promote path without mutating production | `test_AC7_10_production_release_promotes_not_rebuilds` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+> (AC7.10.1 / .2 / .3 / .4 / .5 removed, canonical: all five rows are proven by
+> one test, `test_AC7_10_production_release_promotes_not_rebuilds`, and
+> migrated together into [`common/meta/contract.py`](../../common/meta/contract.py)'s
+> `roadmap` as `AC-meta.release-pipeline.1`, migration closeout wave 3,
+> #1416.)
 
 ### AC7.11: Database Migration Risk Governance
 
@@ -253,14 +251,17 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 ### AC7.12: Delivery App/Infra-boundary calibration (#876)
 
-> Framework doc-of-record lives in issue #876 (G1–P3). This table tracks only ACs that already have a test; the rest land with their implementing PRs.
-
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC7.12.3 | The staging/prod deploy compose (infra2 `10.app/compose.yaml`) cannot local-build the app services (no `build:`, `pull_policy: always`), and the postgres/redis data dirs are bind-mounted via `${DATA_PATH}` (not a named volume Dokploy wipes on redeploy) | `test_AC7_12_3_deploy_compose_pull_not_build`, `test_AC7_12_3_data_dirs_survive_redeploy` | `tests/tooling/test_deploy_compose_contract.py` | P0 |
-| AC7.12.4 | App publishes the artifact: `ci.yml` pushes `:<sha>` for `main` and release-branch (`release/**`) commits, `workflow_dispatch` can publish an arbitrary sha on demand, and the persistent Dokploy preview is on-demand only (`deploy-preview` runs via `workflow_dispatch`, not per-PR auto) while the in-runner `e2e` gate stays automatic | `test_AC7_12_4_release_branches_trigger_the_publish_workflow`, `test_AC7_12_4_image_push_publishes_for_main_release_and_dispatch`, `test_AC7_12_4_persistent_preview_is_on_demand_not_per_pr` | `tests/tooling/test_publish_only_contract.py` | P1 |
-| AC7.12.6 | SSOT (`environments.md`) defines the derived data-lane contract for `deploy_v2(service, type, version_ref, iac_ref)`, the current data sources/defaults (empty / staging / anonymized prod snapshot / prod), and the four data red lines (RL-DATA-1..4): a PR sha never runs on prod data; prod data is anonymized before leaving prod; non-prod object storage holds no real uploads; a backup is not an anonymized snapshot | `test_AC7_12_6_environments_define_data_axis_and_red_lines`, `test_AC7_12_6_deploy_v2_data_lane_is_derived_not_public_axis` | `tests/tooling/test_data_red_lines_contract.py` | P1 |
-| AC7.12.8 | The published `:<sha>` front-end image is environment-independent (same-origin `/api`, no environment domain baked in); a contract test fails if a concrete environment domain appears in the published image | `test_AC7_12_8_published_frontend_image_has_no_baked_env_domain` | `tests/tooling/test_frontend_same_origin_contract.py` | P0 |
+> Framework doc-of-record lives in issue #876 (G1–P3).
+>
+> (AC7.12.3 removed, canonical: migrated to `AC-meta.infra-boundary.1` / `.2`.)
+> (AC7.12.4 removed, canonical: migrated to `AC-meta.infra-boundary.3` / `.4` / `.5`.)
+> (AC7.12.6 removed, canonical: migrated to `AC-meta.infra-boundary.6` / `.7`.)
+> (AC7.12.8 removed, canonical: migrated to `AC-meta.infra-boundary.8`.)
+>
+> All eight records live in
+> [`common/meta/contract.py`](../../common/meta/contract.py)'s `roadmap`
+> (migration closeout wave 3, #1416) — one record per underlying test
+> function.
 
 ### AC7.13: Preview rollout proof & half-update safety (#756, #758)
 
