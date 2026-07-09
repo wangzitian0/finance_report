@@ -243,7 +243,10 @@ def test_AC8_13_58_ci_tools_delegate_to_common_implementations():
 
 
 def test_AC8_13_59_config_validation_tools_delegate_to_common_implementations():
-    """AC8.13.59: Config validation commands live under tools and delegate to common."""
+    """AC8.13.59: Config validation commands live under tools and delegate to
+    their runtime-package implementation (#1669 moved these out of common/config
+    into apps/backend/src/runtime/extension, since they need apps/backend's own
+    Settings/schemas to validate against)."""
     command_modules = {
         "tools.check_env_keys": "src.runtime.extension.env_keys",
         "tools.validate_schemas": "src.runtime.extension.schema_validation",
