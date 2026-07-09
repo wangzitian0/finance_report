@@ -464,5 +464,67 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="exact",
         ),
+        # ── export-envelope (EPIC-006 AC6.33.5/.6/.8/.9, closeout wave 3,
+        # #1416) — ExportStreamEnvelope (apps/backend/src/schemas/streaming.py)
+        # is the reporting/export surface of the typed streaming contract; the
+        # chat-side envelope already migrated to common/advisor/contract.py's
+        # roadmap (AC-advisor.envelope.*) ──
+        ACRecord(
+            id="AC-reporting.export-envelope.1",
+            statement=(
+                "ExportStreamEnvelope declares the wire media type and builds "
+                "an attachment Content-Disposition header carrying the "
+                "envelope's filename."
+            ),
+            test=(
+                "apps/backend/tests/ai/test_streaming_contract.py"
+                "::test_AC6_33_5_export_envelope_builds_attachment_headers"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.export-envelope.2",
+            statement=(
+                "ExportStreamEnvelope rejects a media type outside the "
+                "declared wire set (e.g. application/pdf) at construction."
+            ),
+            test=(
+                "apps/backend/tests/ai/test_streaming_contract.py"
+                "::test_AC6_33_6_export_envelope_rejects_unknown_media_type"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.export-envelope.3",
+            statement=(
+                "GET /reports/export's response media type and "
+                "Content-Disposition header equal what ExportStreamEnvelope "
+                "would produce for the same filename."
+            ),
+            test=(
+                "apps/backend/tests/reporting/test_reports_router.py"
+                "::test_AC6_33_8_export_response_matches_typed_envelope"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.export-envelope.4",
+            statement=(
+                "ExportStreamEnvelope rejects a filename carrying CR/LF, a "
+                "double-quote, a semicolon, or a path separator, since the "
+                "filename is interpolated into the Content-Disposition header "
+                "and each of those characters would break out of it or inject "
+                "a header."
+            ),
+            test=(
+                "apps/backend/tests/ai/test_streaming_contract.py"
+                "::test_AC6_33_9_export_envelope_rejects_unsafe_filename"
+            ),
+            priority="P0",
+            status="done",
+        ),
     ],
 )
