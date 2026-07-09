@@ -35,6 +35,7 @@ from src.platform.extension.workflow_events import (
     get_workflow_status,
     list_workflow_events,
     list_workflow_events_response,
+    register_readiness_provider,
     sync_workflow_events_for_user,
     update_workflow_event_status,
     upsert_workflow_event,
@@ -45,8 +46,17 @@ from src.schemas.workflow import (
     WorkflowPrimaryState,
     WorkflowReportReadinessState,
 )
+from src.services.report_readiness import get_personal_report_package_readiness
 
 ROOT_DIR = Path(__file__).resolve().parents[4]
+
+
+@pytest.fixture(autouse=True)
+def _wire_readiness_provider() -> None:
+    """workflow_events no longer imports report_readiness itself (#1676 — platform
+    must not import reporting-domain logic); production wires this in main.py,
+    tests wire the same real function here so behavior is unchanged."""
+    register_readiness_provider(get_personal_report_package_readiness)
 
 
 async def _make_statement(

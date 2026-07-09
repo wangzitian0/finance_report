@@ -40,6 +40,7 @@ from src.platform.extension.sql import (
     Outbox,
     SqlOutboxRepository,
 )
+from src.platform.extension.workflow_events import register_readiness_provider
 
 __all__ = [
     "STATUS_PENDING",
@@ -64,4 +65,5 @@ __all__ = [
     "raise_too_large",
     "raise_too_many_requests",
     "raise_unauthorized",
+    "register_readiness_provider",
 ]

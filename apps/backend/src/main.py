@@ -42,7 +42,7 @@ from src.observability import (
     record_http_request,
     record_rate_limit_rejected,
 )
-from src.platform import BaseAppException, RateLimitConfig, RateLimiter
+from src.platform import BaseAppException, RateLimitConfig, RateLimiter, register_readiness_provider
 from src.routers import (
     accounts,
     ai_feedback,
@@ -76,12 +76,19 @@ from src.schemas.errors import (
     error_code_for_status,
 )
 from src.services.market_data_scheduler import run_market_data_scheduler
+from src.services.report_readiness import get_personal_report_package_readiness
 
 # Initialize logging early
 configure_logging()
 configure_otel_metrics()
 configure_database_pool_metrics(engine)
 logger = get_logger(__name__)
+
+# Wire platform's readiness port to the real reporting-domain lookup (#1676):
+# platform (L1 infra) must not import reporting logic itself; the app
+# composition root does it once here, same shape as the eager model
+# registration above.
+register_readiness_provider(get_personal_report_package_readiness)
 
 
 def _init_otel_instrumentation() -> None:
