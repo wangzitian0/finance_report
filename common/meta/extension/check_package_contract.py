@@ -314,14 +314,22 @@ def _iter_cross_package_imports(pkg: DiscoveredPackage, prefixes: dict[str, str]
         tree = ast.parse(py.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             mods: list[str] = []
-            if isinstance(node, ast.ImportFrom) and node.module:
-                mods = [node.module]
+            if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                # `from src.pkg import X` -> "src.pkg" resolves directly; but
+                # `from src import pkg` -> module is the bare "src", which
+                # matches no package prefix on its own. Also qualify each
+                # imported name onto the module (`src.pkg`) so that form
+                # resolves too — mirrors check_tier_imports.imported_modules.
+                mods = [node.module] + [f"{node.module}.{a.name}" for a in node.names]
             elif isinstance(node, ast.Import):
                 mods = [a.name for a in node.names]
+            targets: list[str] = []
             for mod in mods:
                 target = _target_package_from_module(mod, prefixes)
-                if target is None or target == pkg.name:
+                if target is None or target == pkg.name or target in targets:
                     continue
+                targets.append(target)
+            for target in targets:
                 yield py, target
 
 
@@ -329,18 +337,13 @@ def _iter_cross_package_imports(pkg: DiscoveredPackage, prefixes: dict[str, str]
 # escape hatch. Mirrors the existing "Port-exception decision (counter)" pattern
 # in this module's header docstring: a known violation gets a cited reason and a
 # tracked fix, not a silent pass.
-_KNOWN_UPWARD_EXCEPTIONS: dict[tuple[str, str], str] = {
-    ("meta", "testing"): (
-        "meta's governance extension (check_ac_proof_kind.py + 6 siblings) "
-        "imports common.testing.generate_ac_registry / ac_registry_format / "
-        "coverage.policy for AC-registry generation and coverage policy — logic "
-        "that arguably belongs in meta (the AC-index aggregator) itself, not "
-        "borrowed upward from testing. This edge was invisible before #1674 "
-        "generalized the scan past the src. prefix to also see common.<pkg> "
-        "imports; tracked for relocation into meta as its own atomic PR "
-        "(issue #1679), not bundled into the honesty-gate change that surfaced it."
-    ),
-}
+#
+# Empty as of #1679: the one tracked exception (meta importing
+# common.testing.generate_ac_registry / ac_registry_format / coverage.policy)
+# was resolved by relocating those modules into meta itself, so the edge no
+# longer exists to exempt. Kept as a typed, documented mechanism for the next
+# one rather than removed outright.
+_KNOWN_UPWARD_EXCEPTIONS: dict[tuple[str, str], str] = {}
 
 
 def _check_no_forbidden_edge(

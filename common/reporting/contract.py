@@ -15,6 +15,14 @@ Status flip (migration closeout wave 2, #1663): the roadmap's first ACs
 the package ships ``active``/``CODE-ONLY`` here. The bulk of EPIC-005's ACs
 still land in a follow-up commit once the ``services/`` -> package-home move
 is complete; this flip does not require that to happen first.
+
+#1674 contract-honesty audit (2026-07-09): ``config``/``extraction``/
+``platform``/``portfolio``/``pricing`` were declared but have zero real
+imports under the current ``apps/backend/src/services/reporting`` location —
+removed. They are real design intent for the eventual #1666 fold into
+``apps/backend/src/reporting/`` (framework-report assembly reading
+extraction/portfolio/pricing facts through platform's readiness port); re-add
+each with its first real import, not before.
 """
 
 from __future__ import annotations
@@ -34,12 +42,7 @@ CONTRACT = PackageContract(
     depends_on=[
         "audit",
         "ledger",
-        "portfolio",
-        "pricing",
-        "extraction",
-        "platform",
         "observability",
-        "config",
         "reconciliation",
     ],
     roles=["base", "extension", "data"],
