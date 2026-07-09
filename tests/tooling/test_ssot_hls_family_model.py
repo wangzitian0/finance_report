@@ -123,7 +123,7 @@ def _family_map_coverage(section: str, inferred: set[str]) -> set[str]:
 
 
 def test_AC14_1_18_fr_hls_family_model_is_documented_and_consistent() -> None:
-    """AC14.1.18: EPIC-014 declares 6-8 FR families consistent with MANIFEST."""
+    """AC-meta.ssot-governance.7: EPIC-014 declares 6-8 FR families consistent with MANIFEST."""
 
     text = _read(FR_EPIC)
     families = _declared_families(text)

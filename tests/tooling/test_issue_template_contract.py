@@ -75,7 +75,7 @@ def _required_field_ids(body: list) -> set:
 
 
 def test_AC14_1_11_issue_templates_carry_their_type_required_fields() -> None:
-    """AC14.1.11: each issue type's template carries the required fields for that
+    """AC-meta.issue-templates.1: each issue type's template carries the required fields for that
     type (issue: diagnosis; task: goal + anchor + AC; idea: problem; incident:
     impact + root cause + follow-ups). config.yml is the chooser config, not a
     template, and is skipped."""

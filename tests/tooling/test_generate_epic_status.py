@@ -155,7 +155,7 @@ def test_AC14_1_22_check_passes_when_block_current(tmp_path: Path) -> None:
 
 
 def test_AC14_1_22_check_fails_on_drift(tmp_path: Path, capsys) -> None:
-    """AC14.1.22: --check fails when the committed pointer block is malformed/stale."""
+    """AC-meta.generated-refs.3: --check fails when the committed pointer block is malformed/stale."""
     doc = tmp_path / "README.md"
     doc.write_text(
         f"intro\n{ges.BEGIN_MARKER}\nSTALE numbers\n{ges.END_MARKER}\noutro\n",

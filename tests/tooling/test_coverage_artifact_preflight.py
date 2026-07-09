@@ -58,7 +58,7 @@ def _write_lcov(path: Path, covered: int, total: int) -> None:
 
 
 class TestCoverageTiering:
-    """AC14.1.21: components are tiered ci-critical vs best-effort."""
+    """AC-meta.coverage-tiers.2: components are tiered ci-critical vs best-effort."""
 
     def test_AC14_1_21_tools_component_is_best_effort_tier(self):
         # tools/ is largely one-off governance / CI glue: best-effort, not gated
@@ -90,7 +90,7 @@ class TestCoverageTiering:
 
 
 class TestRequiredArtifactsPreflight:
-    """AC14.1.20: missing/empty CI-critical artifacts fail explicitly."""
+    """AC-meta.coverage-tiers.1: missing/empty CI-critical artifacts fail explicitly."""
 
     def test_AC14_1_20_preflight_fails_when_ci_critical_artifact_missing(
         self, tmp_path

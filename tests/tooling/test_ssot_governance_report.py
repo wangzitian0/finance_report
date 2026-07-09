@@ -116,7 +116,7 @@ def _assert_file_mentions(path: str, expected: list[str]) -> None:
 def test_AC14_1_12_report_covers_finance_and_infra2_manifest_shapes(
     tmp_path: Path,
 ) -> None:
-    """AC14.1.12: SSOT governance metrics report finance and infra2 manifests."""
+    """AC-meta.ssot-governance.2: SSOT governance metrics report finance and infra2 manifests."""
 
     _seed_finance_manifest(tmp_path)
     _seed_infra_manifest(tmp_path)
@@ -456,7 +456,7 @@ def test_AC14_1_12_ci_publishes_report_without_fail_on_error() -> None:
 def test_AC14_1_13_incremental_gate_only_blocks_changed_ssot_debt(
     tmp_path: Path,
 ) -> None:
-    """AC14.1.13: SSOT governance gates block new debt without legacy cleanup."""
+    """AC-meta.ssot-governance.3: SSOT governance gates block new debt without legacy cleanup."""
 
     _write(tmp_path / "docs/ssot/legacy-orphan.md")
     _write(tmp_path / "docs/ssot/new-orphan.md")
@@ -858,7 +858,7 @@ def test_AC14_1_13_cli_and_ci_enable_gradual_gate(
 def test_AC14_1_16_ssot_governance_ratios_cannot_regress(
     tmp_path: Path,
 ) -> None:
-    """AC14.1.16: #823 gate keeps protected SSOT governance ratios from falling."""
+    """AC-meta.ssot-governance.6: #823 gate keeps protected SSOT governance ratios from falling."""
 
     for relative_path in (
         "docs/ssot/shaped.md",
@@ -1038,7 +1038,7 @@ def test_AC14_1_16_trend_checks_skip_invalid_or_unrelated_sources(
 
 
 def test_AC14_1_14_finance_report_orphan_ssot_files_are_manifest_owned() -> None:
-    """AC14.1.14: #824 cleanup binds finance_report orphan SSOT files."""
+    """AC-meta.ssot-governance.4: #824 cleanup binds finance_report orphan SSOT files."""
 
     report = governance_report.build_report(ROOT, include_infra2=False)
     finance = _source(report, "finance_report")
@@ -1072,7 +1072,7 @@ def test_AC14_1_14_finance_report_orphan_ssot_files_are_manifest_owned() -> None
 
 
 def test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof() -> None:
-    """AC14.1.15: #824 migrates machine-owned FR SSOT entries by example."""
+    """AC-meta.ssot-governance.5: #824 migrates machine-owned FR SSOT entries by example."""
 
     report = governance_report.build_report(ROOT, include_infra2=False)
     finance = _source(report, "finance_report")
@@ -1139,7 +1139,7 @@ def test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof() ->
 
 
 def test_AC14_1_23_high_risk_ssot_entries_bind_proof_under_platform_family() -> None:
-    """AC14.1.23: #824 threshold cleanup drives ``high_risk_entries_missing_proof`` to zero.
+    """AC-meta.ssot-governance.8: #824 threshold cleanup drives ``high_risk_entries_missing_proof`` to zero.
 
     The governance report flags FR SSOT concepts that match high-risk terms but
     carry no executable proof path. This cleanup binds the two flagged platform
