@@ -89,7 +89,7 @@ Set up a runnable Monorepo development environment, complete user authentication
 > `test_register_success` and `test_login_success` were already migrated to
 > [`common/identity/contract.py`](../../common/identity/contract.py) as
 > `AC-identity.2.1`/`.2.2`; the third, `test_auth_valid_user`, migrated to
-> `AC-identity.2.4`, migration closeout wave 3, #1416.)
+> `AC-identity.2.4`, migration closeout wave 3, #1663.)
 >
 > (AC1.2.5 removed, duplicate: "structlog logging configured"
 > (`test_configure_logging_basic`) was already fully migrated to
@@ -140,9 +140,9 @@ Set up a runnable Monorepo development environment, complete user authentication
 
 > (AC1.6.2 removed, canonical: "`get_pending_stage1_review` returns empty when
 > no pending statements" migrated into the `extraction` package as
-> **`AC-extraction.13.1`** — owned by, and sourced directly from,
+> **`AC-extraction.stage1-review.1`** — owned by, and sourced directly from,
 > [`common/extraction/contract.py`](../../common/extraction/contract.py)'s
-> `roadmap`, migration closeout wave 3, #1416.)
+> `roadmap`, migration closeout wave 3, #1663.)
 
 ### AC1.7: Auth Endpoint Behavioral Coverage
 
@@ -176,7 +176,7 @@ Set up a runnable Monorepo development environment, complete user authentication
 > equation" migrated into the `ledger` package as **`AC-ledger.77.1`** — owned
 > by, and sourced directly from,
 > [`common/ledger/contract.py`](../../common/ledger/contract.py)'s `roadmap`,
-> migration closeout wave 3, #1416; the journey's defining assertion is the
+> migration closeout wave 3, #1663; the journey's defining assertion is the
 > ledger's accounting equation, so ledger is the home package even though the
 > journey starts through identity's register/login endpoints.)
 
@@ -188,11 +188,11 @@ Set up a runnable Monorepo development environment, complete user authentication
 > `Bootloader._check_static_config` rejection branch) — owned by, and sourced
 > directly from,
 > [`common/runtime/contract.py`](../../common/runtime/contract.py)'s
-> `roadmap`, migration closeout wave 3, #1416.)
+> `roadmap`, migration closeout wave 3, #1663.)
 >
 > **AC1.10.3**'s backend half (`test_AC1_10_3_get_me_accepts_httponly_cookie`)
 > migrated to [`common/identity/contract.py`](../../common/identity/contract.py)'s
-> `roadmap` as **`AC-identity.2.5`** (migration closeout wave 3, #1416). The
+> `roadmap` as **`AC-identity.2.5`** (migration closeout wave 3, #1663). The
 > row's frontend-storage half stays here (no backend package home):
 
 | ID | Requirement | Test Function | File |

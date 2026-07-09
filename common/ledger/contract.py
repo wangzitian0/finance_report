@@ -1694,7 +1694,7 @@ CONTRACT = PackageContract(
                 "A brand-new user can register, log in, create their first "
                 "ledger accounts, post a first manual journal entry, and the "
                 "accounting equation stays balanced end to end. Was EPIC-001 "
-                "AC1.9.1 (migration closeout wave 3, #1416)."
+                "AC1.9.1 (migration closeout wave 3, #1663)."
             ),
             test=(
                 "apps/backend/tests/integration/test_onboarding_e2e.py"

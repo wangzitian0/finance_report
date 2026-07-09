@@ -186,7 +186,10 @@ CONTRACT = PackageContract(
     # AC-<pkg>.<group>.<seq> grammar with reserved group blocks (the ledger
     # precedent): **1–12 = EPIC-003** (leading epic number dropped) and
     # **101–123 = EPIC-013** (group + 100, so the two EPICs' group numbers
-    # cannot collide). Original ids are kept as trailing comments.
+    # cannot collide). Original ids are kept as trailing comments. A one-off
+    # migration from a third EPIC (e.g. EPIC-001's AC1.6.2) uses a word-slug
+    # group instead of claiming a new numeric block, so it can never collide
+    # with EPIC-003's/EPIC-013's reserved ranges.
     roadmap=[
         ACRecord(
             id="AC-extraction.1.1",
@@ -2215,11 +2218,11 @@ CONTRACT = PackageContract(
             proof_kind="property",
         ),
         ACRecord(
-            id="AC-extraction.13.1",
+            id="AC-extraction.stage1-review.1",
             statement=(
                 "get_pending_stage1_review returns an empty list for a user with "
                 "no pending-review statements. Was EPIC-001 AC1.6.2 (migration "
-                "closeout wave 3, #1416)."
+                "closeout wave 3, #1663)."
             ),
             test=(
                 "apps/backend/tests/review/test_statement_validation.py"
