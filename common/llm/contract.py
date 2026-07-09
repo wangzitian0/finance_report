@@ -95,7 +95,9 @@ CONTRACT = PackageContract(
         ),
         # ── extension: domain services + factory ──
         # the single litellm chokepoint's provider routing
-        Unit(name="build_call", kind=Kind.DOMAIN_SERVICE, module="extension/routing.py"),
+        Unit(
+            name="build_call", kind=Kind.DOMAIN_SERVICE, module="extension/routing.py"
+        ),
         # the input-keyed record/replay mechanism (cache output by input)
         Unit(
             name="CassetteStore",
@@ -177,8 +179,12 @@ CONTRACT = PackageContract(
     invariants=[
         Invariant(
             id="interface-equals-published-language",
-            statement=("The published language (contract.interface) equals __init__.__all__."),
-            test=("tests/tooling/test_llm_package.py::test_AC_llm_1_1_only_all_is_the_published_language"),
+            statement=(
+                "The published language (contract.interface) equals __init__.__all__."
+            ),
+            test=(
+                "tests/tooling/test_llm_package.py::test_AC_llm_1_1_only_all_is_the_published_language"
+            ),
         ),
         Invariant(
             id="converges-by-layer",
@@ -186,12 +192,18 @@ CONTRACT = PackageContract(
                 "The package converges into base/ (frozen contract + usage entity) "
                 "+ extension/ (adapters) + data/ (reserved projections)."
             ),
-            test=("tests/tooling/test_llm_package.py::test_AC_llm_1_2_converges_by_layer"),
+            test=(
+                "tests/tooling/test_llm_package.py::test_AC_llm_1_2_converges_by_layer"
+            ),
         ),
         Invariant(
             id="base-layer-pure",
-            statement=("base/ never imports the package's own extension/, the ORM, or litellm."),
-            test=("tests/tooling/test_llm_package.py::test_AC_llm_1_3_base_layer_is_pure"),
+            statement=(
+                "base/ never imports the package's own extension/, the ORM, or litellm."
+            ),
+            test=(
+                "tests/tooling/test_llm_package.py::test_AC_llm_1_3_base_layer_is_pure"
+            ),
         ),
         Invariant(
             id="no-litellm-at-root",
@@ -200,7 +212,9 @@ CONTRACT = PackageContract(
                 "imports litellm — the litellm surface is lazy (PEP 562), so "
                 "minimal tooling environments can load the package."
             ),
-            test=("tests/tooling/test_llm_package.py::test_AC_llm_1_4_root_import_is_litellm_free"),
+            test=(
+                "tests/tooling/test_llm_package.py::test_AC_llm_1_4_root_import_is_litellm_free"
+            ),
         ),
         Invariant(
             id="runtime-classifies-llm-implements",
@@ -210,12 +224,16 @@ CONTRACT = PackageContract(
                 "cassette/replay implementation — it just declares the LLM "
                 "dependency and probes presence."
             ),
-            test=("tests/tooling/test_llm_package.py::test_AC_llm_1_5_cassette_mechanism_only_in_llm"),
+            test=(
+                "tests/tooling/test_llm_package.py::test_AC_llm_1_5_cassette_mechanism_only_in_llm"
+            ),
         ),
         Invariant(
             id="passes-own-governance-gate",
             statement="check_package_contract validates llm with no violations.",
-            test=("tests/tooling/test_llm_package.py::test_AC_llm_1_6_package_contract_gate_passes_for_llm"),
+            test=(
+                "tests/tooling/test_llm_package.py::test_AC_llm_1_6_package_contract_gate_passes_for_llm"
+            ),
         ),
     ],
     # The EPIC-023 ACs, migrated per Decision A (standard-preserving move; the
@@ -670,6 +688,24 @@ CONTRACT = PackageContract(
             statement="The zero-transaction corpus statement (a real brokerage month with no activity) is deterministic end-to-end: it seeds, lists, reviews with a trivially-tied balance chain, approves with journal_entries_created == 0, and a statement-scoped reconciliation run reports unmatched=0",
             test="apps/backend/tests/e2e/test_statement_corpus_journeys.py::test_corpus_zero_transaction_statement_approves_empty",
             priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        # #1681/#1686: the corpus proved the downstream JOURNEY completes
+        # (AC-llm.11.2) but never asserted a REPORT VALUE beyond the balance
+        # sheet's single posting-account line. This closes the residual gap
+        # #950 recorded ("fixture exists only in parsing unit tests, never
+        # wired into full E2E acceptance") for the income statement: every
+        # posted transaction's contra side is Income or Expense by
+        # construction (auto_create_posted_entries_for_statement's
+        # Uncategorized-bucket fallback), so net_income ties to the corpus
+        # data across every institution class, not just accounts whose name
+        # happens to match a heuristic.
+        ACRecord(
+            id="AC-llm.11.4",
+            statement="Every non-empty corpus statement's income statement (queried over the statement's own transaction date range) reports total_income minus total_expenses, and net_income, exactly equal to the corpus case's net movement — proving the auto-posted double entry always lands its contra side on Income/Expense, independent of category granularity or institution class",
+            test="apps/backend/tests/e2e/test_statement_corpus_journeys.py::test_corpus_statement_full_journey",
+            priority="P0",
             status="done",
             proof_kind="property",
         ),
