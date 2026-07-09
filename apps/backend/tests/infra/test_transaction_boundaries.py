@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.market_data import FxRate, StockPrice
-from src.services import market_data
+from src.pricing.extension import market_data
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 SERVICE_ROOT = PROJECT_ROOT / "apps" / "backend" / "src" / "services"

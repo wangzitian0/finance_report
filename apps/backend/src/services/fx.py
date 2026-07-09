@@ -123,7 +123,7 @@ async def get_exchange_rate(
     rate = result.scalar_one_or_none()
 
     if rate is None and lazy_load:
-        from src.services.market_data import resolve_missing_fx_rate
+        from src.pricing import resolve_missing_fx_rate
 
         rate = await resolve_missing_fx_rate(db, base, quote, rate_date)
 

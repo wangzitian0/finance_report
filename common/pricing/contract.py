@@ -144,8 +144,42 @@ CONTRACT = PackageContract(
         Unit(
             name="get_average_rate", kind=Kind.DOMAIN_SERVICE, module="extension/fx.py"
         ),
-        # ── extension (reserved): crawler sync and the extraction event subscriber ──
-        Unit(name="sync_market_data", kind=Kind.DOMAIN_SERVICE),
+        # ── extension: crawler sync (given scopes, sync/report on them — the
+        # ledger-reading discovery of *which* scopes lives in app-glue
+        # ``src.services.market_data_discovery``, never inside pricing;
+        # dependency inversion, meta Decision B) ──
+        Unit(
+            name="sync_fx_rates",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/market_data/service.py",
+        ),
+        Unit(
+            name="sync_stock_prices",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/market_data/service.py",
+        ),
+        Unit(
+            name="ensure_market_data_fresh",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/market_data/service.py",
+        ),
+        Unit(
+            name="get_market_data_status",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/market_data/service.py",
+        ),
+        Unit(
+            name="resolve_missing_fx_rate",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/market_data/service.py",
+        ),
+        # MarketDataScopeStatus/MarketDataSyncResult (DTOs) and
+        # MARKET_DATA_QUANTITY_UNIT (a plain constant) are published in
+        # ``interface`` below but, like several of audit's own published
+        # helpers (e.g. RECONCILIATION_AUTO_ACCEPT_SCORE), don't get their own
+        # taxonomy Unit() — units is a curated tactical-pattern annotation,
+        # not a 1:1 mirror of interface.
+        # ── extension (reserved): the extraction event subscriber ──
         Unit(name="ingest_statement_price", kind=Kind.DOMAIN_SERVICE),
         # ── data (reserved): read-models consumed by portfolio/reporting/reconciliation ──
         Unit(name="LatestPriceView", kind=Kind.PROJECTION),
@@ -158,12 +192,16 @@ CONTRACT = PackageContract(
     # tables), the two user-scoped write-side recorders (which also publish
     # PriceObserved through the platform outbox, atomically with the write —
     # pricing is a real producer on the bus, not just a declared event type),
-    # and the FX lookup + convert_* + average-rate wrappers. The remaining 2
-    # domain-services (crawler sync, extraction-event ingest) + 2 data
+    # the FX lookup + convert_* + average-rate wrappers, and the crawler sync
+    # (moved in from apps/backend/src/services/market_data/, #1610 PR2 step
+    # 2). The remaining domain-service (extraction-event ingest) + 2 data
     # projections are reserved units above — they join the interface once a
     # later commit implements them for real.
     interface=[
         "Authority",
+        "MARKET_DATA_QUANTITY_UNIT",
+        "MarketDataScopeStatus",
+        "MarketDataSyncResult",
         "ObservationRepository",
         "ObservationSource",
         "PriceObservation",
@@ -175,11 +213,16 @@ CONTRACT = PackageContract(
         "convert_amount",
         "convert_money",
         "convert_to_base",
+        "ensure_market_data_fresh",
         "get_average_rate",
         "get_exchange_rate",
+        "get_market_data_status",
         "record_manual_valuation",
         "record_override",
         "resolve",
+        "resolve_missing_fx_rate",
+        "sync_fx_rates",
+        "sync_stock_prices",
     ],
     events=["PriceObserved"],
     invariants=[

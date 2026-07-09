@@ -360,9 +360,8 @@ async def test_AC21_2_1_advisor_context_includes_readiness_trust_workflow_and_su
             active_session=None,
         )
 
-    async def fake_market_data(_db: AsyncSession, *, user_id, include_default_fx):
-        assert user_id == test_user.id
-        assert include_default_fx is True
+    async def fake_market_data(_db: AsyncSession, *, pairs, symbols):
+        del pairs, symbols
         return [
             SimpleNamespace(
                 kind="stock",

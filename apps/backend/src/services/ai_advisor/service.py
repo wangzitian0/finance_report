@@ -23,6 +23,7 @@ from src.llm import ReasoningEffort, Scene, SceneBinding, get_config_source
 from src.models.account import AccountType
 from src.models.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 from src.platform.extension.workflow_events import get_workflow_status
+from src.pricing import MarketDataScopeStatus, get_market_data_status
 from src.prompts.ai_advisor import get_ai_advisor_prompt
 from src.reconciliation import get_reconciliation_stats
 from src.schemas.chat import AdvisorSuggestion, ChatActionChip, ChatCitation, ChatResponseMetadata
@@ -42,7 +43,7 @@ from src.services.ai_advisor._guardrails import (
     redact_sensitive,
 )
 from src.services.ai_streaming import stream_ai_chat
-from src.services.market_data import MarketDataScopeStatus, get_market_data_status
+from src.services.market_data_discovery import active_stock_symbols, observed_fx_pairs
 from src.services.portfolio import PortfolioNotFoundError, PortfolioService
 from src.services.report_readiness import get_personal_report_package_readiness
 from src.services.reporting import (
@@ -330,7 +331,9 @@ class AIAdvisorService:
 
     async def _load_market_data_status(self, db: AsyncSession, user_id: UUID) -> dict[str, Any]:
         try:
-            statuses = await get_market_data_status(db, user_id=user_id, include_default_fx=True)
+            fx_pairs = await observed_fx_pairs(db, user_id, include_default=True)
+            stock_symbols = await active_stock_symbols(db, user_id)
+            statuses = await get_market_data_status(db, pairs=fx_pairs, symbols=stock_symbols)
         except Exception as exc:
             logger.warning("Failed to load advisor market data status", error=str(exc))
             statuses = []

@@ -11,14 +11,14 @@ from urllib.parse import quote
 
 import httpx
 
-from src.config import settings
-from src.services.market_data._base import (
+import src.config
+from src.pricing.extension.market_data._base import (
     _STOOQ_DAILY_URL,
     _YAHOO_FX_CHART_URL,
     _YAHOO_STOCK_CHART_URL,
     logger,
 )
-from src.services.market_data._store import (
+from src.pricing.extension.market_data._store import (
     _latest_fx_rate_date_for_scope,
     _latest_stock_price_date,
     _persist_fx_rate,
@@ -26,14 +26,14 @@ from src.services.market_data._store import (
     _stored_fx_rate_dates_for_scope,
     _stored_stock_price_dates,
 )
-from src.services.market_data._types import (
+from src.pricing.extension.market_data._types import (
     FxRateObservation,
     StockPriceObservation,
     ValidatedMarketObservation,
     ValidatedMarketObservationSeries,
     _MarketSyncSpec,
 )
-from src.services.market_data._util import (
+from src.pricing.extension.market_data._util import (
     _date_to_epoch,
     _fx_scope,
     _looks_like_ticker,
@@ -50,6 +50,9 @@ from src.services.market_data._util import (
     _stooq_stock_symbol,
     _yahoo_stock_symbol,
 )
+
+# Bound from the bare published root (config publishes no named symbols).
+settings = src.config.settings
 
 
 async def _fetch_validated_fx_rate_series_for_scope(

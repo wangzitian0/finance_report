@@ -42,7 +42,7 @@ from src.audit.promotion import (
 )
 from src.audit.quantity import Quantity, Unit
 from src.audit.ratio import Ratio
-from src.audit.unit_price import UnitPrice
+from src.audit.unit_price import UNIT_PRICE_QUANTUM, UnitPrice
 
 if TYPE_CHECKING:
     from src.audit.source_type_priority import (
@@ -83,6 +83,7 @@ __all__ = [
     "Quantity",
     "Ratio",
     "Unit",
+    "UNIT_PRICE_QUANTUM",
     "UnitPrice",
     "is_user_data_source_type",
     "normalize_source_type",

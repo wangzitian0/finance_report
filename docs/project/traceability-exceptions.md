@@ -175,6 +175,7 @@ explicit AC IDs for the behavior.
 | `apps/backend/tests/pricing/test_convert.py` | `common/pricing/contract.py` |
 | `apps/backend/tests/pricing/test_resolve.py` | `common/pricing/contract.py` |
 | `apps/backend/tests/pricing/test_subject.py` | `common/pricing/contract.py` |
+| `apps/backend/tests/pricing/market_data/__init__.py` | Package marker |
 | `tests/tooling/test_coverage_analyzer.py` | `docs/ssot/coverage.md` |
 | `tests/tooling/test_migration_safety_gates.py` | `common/meta/readme.md` |
 | `tests/tooling/test_delivery_gates_contract.py` | `docs/ssot/delivery-gates.yaml` |

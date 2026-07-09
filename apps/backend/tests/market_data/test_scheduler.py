@@ -6,8 +6,8 @@ from unittest.mock import Mock
 
 import pytest
 
+from src.pricing import MarketDataSyncResult
 from src.services import market_data_scheduler
-from src.services.market_data import MarketDataSyncResult
 from src.services.market_data_scheduler import MARKET_DATA_SYNC_TZ, next_market_data_sync_at
 
 
@@ -42,14 +42,22 @@ async def test_run_daily_market_data_sync_uses_sessionmaker(monkeypatch: pytest.
         async def __aexit__(self, *_args: object) -> None:
             return None
 
-    async def fake_fx(db: object) -> MarketDataSyncResult:
+    async def fake_fx(db: object, *, pairs: object) -> MarketDataSyncResult:
         calls.append(("fx", db))
         return MarketDataSyncResult(kind="fx", requested=1, inserted=1)
 
-    async def fake_stock(db: object) -> MarketDataSyncResult:
+    async def fake_stock(db: object, *, symbols: object) -> MarketDataSyncResult:
         calls.append(("stock", db))
         return MarketDataSyncResult(kind="stock", requested=1, inserted=1)
 
+    async def fake_observed_fx_pairs(db: object, user_id: object) -> list[str]:
+        return []
+
+    async def fake_active_stock_symbols(db: object, user_id: object) -> list[str]:
+        return []
+
+    monkeypatch.setattr(market_data_scheduler, "observed_fx_pairs", fake_observed_fx_pairs)
+    monkeypatch.setattr(market_data_scheduler, "active_stock_symbols", fake_active_stock_symbols)
     monkeypatch.setattr(market_data_scheduler, "sync_fx_rates", fake_fx)
     monkeypatch.setattr(market_data_scheduler, "sync_stock_prices", fake_stock)
 

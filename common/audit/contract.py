@@ -150,6 +150,7 @@ CONTRACT = PackageContract(
         "Ratio",
         "Quantity",
         "Unit",
+        "UNIT_PRICE_QUANTUM",
         "UnitPrice",
         "is_user_data_source_type",
         "normalize_source_type",
