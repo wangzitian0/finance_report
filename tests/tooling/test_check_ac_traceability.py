@@ -170,14 +170,12 @@ class TestCollectReferencedAcs:
         assert str(f) in refs["AC1.1.1"].placeholder_files
         assert refs["AC1.1.1"].real_files == set()
 
-    def test_AC8_13_78_fixture_placeholder_string_does_not_taint_file(
-        self, tmp_path
-    ):
+    def test_AC8_13_78_fixture_placeholder_string_does_not_taint_file(self, tmp_path):
         """AC8.13.78: Fixture text with trivial assertions does not hide real proof."""
         f = self._write_test(
             tmp_path,
             "test_tooling_contract.py",
-            'def test_contract():\n'
+            "def test_contract():\n"
             '    """AC1.1.1: behavior proof"""\n'
             '    fixture = "expect(true).toBe(true)"\n'
             '    assert "expect" in fixture\n',
@@ -361,11 +359,7 @@ class TestCheckTraceability:
     def test_AC8_13_78_unexecuted_real_refs_fail_mandatory_gate(self):
         """AC8.13.78: Mandatory ACs require a CI-required real proof file."""
         acs = [self._make_ac("AC1.1.1")]
-        refs = {
-            "AC1.1.1": cat.ACReferenceStats(
-                real_files={"apps/backend/tests/e2e/test_auth_flows.py"}
-            )
-        }
+        refs = {"AC1.1.1": cat.ACReferenceStats(real_files={"tools/tier2_http_e2e.py"})}
 
         result = cat.check_traceability(acs, refs)
 

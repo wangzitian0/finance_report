@@ -36,7 +36,7 @@ main-only: unified-coverage ─→ unified-coverage-baseline-pr (not required by
 | **schema-migrations** | Run Alembic `upgrade head` followed by `alembic check` against an ephemeral Postgres service before merge | `needs: [changes]` |
 | **backend** (Shards 1-5) | Backend fast-path tests only: `-m "not slow and not e2e and not integration"` | `needs: [changes]` |
 | **backend-integration** | Backend integration stage (`-m "integration"`), deterministic service-backed behavior checks | `needs: [changes]` |
-| **backend-e2e-tier1** | Backend Tier-1 API E2E stage: the file set registered for `backend_tier1_api_e2e` in `common/testing/matrix.py#WORKFLOW_PYTEST_CONTRACTS` — `apps/backend/tests/e2e/test_core_journeys.py`, `apps/backend/tests/e2e/test_seeded_statement_journey.py`, the extraction-corpus journeys (`AC-llm.11`, registered in `common/llm/contract.py`) in `apps/backend/tests/e2e/test_statement_corpus_journeys.py`, and the EPIC-025 reporting-extraction proof in `apps/backend/tests/e2e/test_epic025_dry_ssot_e2e.py` — with `-m e2e`, executed with explicit marker override. PR runs stay fail-fast; push/main runs report the full Tier-1 failure set. | `needs: [changes]` |
+| **backend-e2e-tier1** | Backend Tier-1 API E2E stage: the exact file set is generated, not hand-listed here — see the `backend_tier1_api_e2e` rows in [`docs/ssot/test-execution-matrix.yaml`](test-execution-matrix.yaml) (the SSOT view of `common/testing/matrix.py#WORKFLOW_PYTEST_CONTRACTS`; includes the extraction-corpus journeys, `AC-llm.11`, registered in `common/llm/contract.py`) — with `-m e2e`, executed with explicit marker override. PR runs stay fail-fast; push/main runs report the full Tier-1 failure set. | `needs: [changes]` |
 | **frontend-build** | Frontend TypeScript typecheck + production build when heavy CI is required | `needs: [changes]` |
 | **frontend-vitest** | Frontend Vitest coverage and JUnit evidence when heavy CI is required | `needs: [changes]` |
 | **frontend-playwright** | Provider-free frontend browser UI proof when heavy CI is required | `needs: [changes]` |
@@ -264,6 +264,34 @@ file.
 | Frontend Playwright | `frontend-playwright` job | Provider-free browser UI specs under `apps/frontend/playwright`; the job builds before `npm run start` because CI Playwright config starts an already-built app | Behavioral proof only; not in unified line coverage | Env-gated specs stay non-required until their env is provided in CI |
 | Frontend telemetry E2E | `frontend-telemetry-e2e` job | Hermetic browser telemetry-emission spec with fake same-origin telemetry endpoints; the job builds before `npm run start -- --port` because the telemetry CI config starts an already-built app | Behavioral proof only; not in unified line coverage | Keep isolated from provider-free UI specs because it injects telemetry env via its own Playwright config |
 | Tier 3 Browser E2E | Staging/PR preview/prod smoke jobs | Playwright/HTTP deployment suites (`smoke`, `e2e`, `llm` split) | Behavioral/prod-risk proof only | Keep provider-dependent `llm` in post-merge; split provider-free subset for PR preview |
+
+#### Pytest marker taxonomy (#1682)
+
+Three pytest rootdirs (`pytest.ini` at repo root, `apps/backend/pyproject.toml`,
+`tests/e2e/pytest.ini`) register markers independently — this table is the one
+place that reconciles them, so a marker's *live* selection role doesn't have to
+be reverse-engineered from `.github/workflows/ci.yml` on every audit.
+
+| Marker | Registered in | Live CI-selection expression | Role |
+|---|---|---|---|
+| `smoke` | root `pytest.ini`, `tests/e2e/pytest.ini` | `(smoke or e2e) and not llm` (PR preview) | Selector |
+| `e2e` | root `pytest.ini`, `apps/backend/pyproject.toml`, `tests/e2e/pytest.ini` | `e2e and not slow and not integration and not perf` (backend-tier1); `(smoke or e2e) and not llm` (PR preview) | Selector |
+| `llm` | root `pytest.ini`, `apps/backend/pyproject.toml`, `tests/e2e/pytest.ini` | staging AI/OCR gate marker; excluded everywhere else (`and not llm`) | Selector |
+| `prod_safe` | root `pytest.ini`, `tests/e2e/pytest.ini` | production read-only smoke marker | Selector |
+| `slow` | `apps/backend/pyproject.toml` | excluded from `backend` and `backend-e2e-tier1` (`not slow`) | Selector (exclusion) |
+| `integration` | `apps/backend/pyproject.toml` | `backend-integration` job (`-m integration`) | Selector |
+| `perf` | `apps/backend/pyproject.toml` | excluded from `backend-e2e-tier1` (`not perf`) | Selector (exclusion) |
+| `critical` | root `pytest.ini`, `tests/e2e/pytest.ini` | read by a `pytest_runtest_makereport` hook in `tests/e2e/conftest.py`, not a `-m` expression | Hook-consumed |
+| `allow_browser_errors` | root `pytest.ini` | read by a conftest hook that permits expected CSP/JS errors | Hook-consumed |
+| `no_db` | `apps/backend/pyproject.toml` | read by a fixture (skips the autouse DB setup) | Hook-consumed |
+| `needs_real_cassette` | `apps/backend/pyproject.toml` | read locally to skip until a cassette is recorded | Hook-consumed |
+| `api` | root `pytest.ini`, `tests/e2e/pytest.ini` | none | Tag-only (documentation grouping) |
+| `tier3` | `tests/e2e/pytest.ini` | none | Tag-only (post-merge/staging grouping) |
+
+`api` and `tier3` are intentionally tag-only — they group tests for humans
+reading a file, not for a `-m` selection expression. A marker is only worth
+retiring if it appears in **no** registration, no test, and no CI expression;
+none currently meet that bar.
 
 #### Seeded no-LLM statement fixture (provider-free journeys in the merge tier)
 

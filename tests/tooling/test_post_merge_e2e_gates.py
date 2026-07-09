@@ -2730,6 +2730,7 @@ def test_AC8_13_67_backend_tier1_api_e2e_scope_excludes_browser_e2e() -> None:
     workflow = read(".github/workflows/ci.yml")
     pyproject = read("apps/backend/pyproject.toml")
     ci_cd = read("docs/ssot/ci-cd.md")
+    matrix_yaml = yaml.safe_load(read("docs/ssot/test-execution-matrix.yaml"))
 
     tier1_block = workflow.split("  backend-e2e-tier1:", 1)[1].split(
         "  frontend-build:",
@@ -2744,7 +2745,19 @@ def test_AC8_13_67_backend_tier1_api_e2e_scope_excludes_browser_e2e() -> None:
         "e2e: End-to-end tests, including backend API scenarios and browser UI flows"
         in pyproject
     )
-    assert "apps/backend/tests/e2e/test_core_journeys.py" in ci_cd
+    # #1682: docs/ssot/ci-cd.md no longer hand-enumerates the Tier-1 file set
+    # (that duplicated common/testing/matrix.py and drifted); it points at the
+    # generated matrix view instead. Check the doc references that SSOT, and
+    # check the SSOT itself for the actual path + stage — the real fact lives
+    # in one place now, not mirrored into the doc's prose.
+    assert "test-execution-matrix.yaml" in ci_cd
+    matrix_rule = next(
+        rule
+        for rule in matrix_yaml["rules"]
+        if rule["path"] == "apps/backend/tests/e2e/test_core_journeys.py"
+    )
+    assert matrix_rule["stage"] == "backend_tier1_api_e2e"
+    assert matrix_rule["ci_required"] is True
 
 
 def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
