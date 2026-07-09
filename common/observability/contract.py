@@ -965,5 +965,27 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        # ── group 18 (new): financial-invariant violation observability (EPIC-026) ──
+        ACRecord(
+            id="AC-observability.18.1",
+            statement=(
+                "Financial-invariant violations (balance mismatch, "
+                "per-currency NAV self-check failure, running-balance "
+                "chain break, within-document dedup collapse) emit a "
+                "WARNING-level structured log plus a "
+                "finance.invariant.violation counter labelled by kind and "
+                "an anonymized institution_class, independent of routing; "
+                "a balance-invalid parse still fires the detection metric "
+                "even though the LLM-LED blocking gate now quarantines it "
+                "to REJECTED. Was EPIC-026 AC26.8.1."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_invariant_observability.py"
+                "::test_AC26_8_1_balance_invalid_parse_quarantines_and_emits_metric"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
     ],
 )

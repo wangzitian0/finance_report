@@ -127,7 +127,7 @@ def test_AC26_8_1_recorder_is_safe_noop_without_instrument(monkeypatch) -> None:
 
 
 async def test_AC26_8_1_balance_invalid_parse_quarantines_and_emits_metric(monkeypatch) -> None:
-    """AC26.8.1 (+AC-extraction.2009.2 #1352): a balance-invalid bank parse emits the detection metric.
+    """AC-observability.18.1: AC26.8.1 (+AC-extraction.2009.2 #1352): a balance-invalid bank parse emits the detection metric.
 
     The AC26.8.1 detection counter (`balance_mismatch`) still fires at detection time.
     Since #1352 the routing is no longer "PARSED/review": the LLM-LED blocking gate quarantines

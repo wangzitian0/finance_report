@@ -424,5 +424,42 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        # ── DRY/SSOT simplification (EPIC-025) ──
+        ACRecord(
+            id="AC-reporting.dry-ssot.1",
+            statement=(
+                "Pure reporting math (money quantization, accounting sign "
+                "rules, period boundaries, income-bucket classification) is "
+                "provided by `services.reporting_calc` and re-used by "
+                "`services.reporting`; the balance-sheet equation and "
+                "report totals are unchanged."
+            ),
+            # was AC25.1.1
+            test=(
+                "apps/backend/tests/reporting/test_reporting_calc_extraction.py"
+                "::test_reporting_calc_extraction"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-reporting.dry-ssot.2",
+            statement=(
+                "Shared reporting fixtures (standard chart of accounts, "
+                "golden dashboard scenario, standard FX rates) are provided "
+                "by a single `tests/reporting/_report_fixtures` module and "
+                "reused, with duplicate per-file `test_user_id` fixtures "
+                "removed; existing AC traceability is preserved."
+            ),
+            # was AC25.4.1
+            test=(
+                "apps/backend/tests/reporting/test_report_fixtures_shared.py"
+                "::test_report_fixtures_shared"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="exact",
+        ),
     ],
 )

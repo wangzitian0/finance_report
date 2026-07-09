@@ -111,16 +111,18 @@ this EPIC references that contract rather than restating it.
 > homed in [`common/meta/contract.py`](../../common/meta/contract.py)'s
 > `roadmap` under the package-scoped id scheme — the contract is their single
 > definition source (resolved by `check_package_contract`). This EPIC stays the
-> horizontal narrative. The phase 4–5 ACs below **remain here**: `AC26.8.1` is an
-> extraction-domain observability behaviour (not the authority vocabulary), and
-> `AC26.9.1`'s proof test is itself marker-laden (it tests cassette detection), so
-> homing it would make the CODE-ONLY `authority` package read as CODE-LED.
+> horizontal narrative. The phase-4 row below migrated too (migration closeout
+> wave 2, #1663) to
+> [`common/observability/contract.py`](../../common/observability/contract.py)'s
+> `roadmap` as `AC-observability.18.1` — it's a metric-emission behavior, which
+> observability already owns. The phase-5 row **remains here**:
+> `AC26.9.1`'s proof test is itself marker-laden (it tests cassette
+> detection), so homing it in the CODE-ONLY `meta` package would make that
+> package's own tier-reconciliation gate read it as CODE-LED and fail.
 
 ### AC26.8 — Financial-invariant violations are detectable, not silent (phase 4)
 
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC26.8.1 | Financial-invariant violations emit structured, queryable metrics so a slipped violation is never silent. During a statement parse, a balance mismatch, a per-currency NAV self-check failure, a running-balance chain break, and a within-document dedup collapse each emit a WARNING-level structured log plus a `finance.invariant.violation` counter (via `telemetry_metrics`) labelled by `kind` and an anonymized `institution_class`. Within-document dedup collapse is a deterministic conservation property over a single parse's freshly-built rows (catches the #1254 silent row-loss class) while legitimate cross-document dedup never trips it. The detection metrics are pure observability and fire independently of routing. _(Routing note, superseded by EPIC-020 AC-extraction.2009.2 / #1352: the balance-chain and dedup detectors are no longer detection-only — a failure is now a BLOCKING gate that quarantines the extraction to `REJECTED`. The AC26.8.1 detection counters still fire at detection time, and the blocking gate adds its own distinct `llm_led_gate_quarantine_*` counters.)_ {tier:CODE-ONLY} {proof:property} | `test_AC26_8_1_balance_invalid_parse_quarantines_and_emits_metric` | `apps/backend/tests/extraction/test_invariant_observability.py` | P0 |
+*(This group's row removed — migrated above.)*
 
 ### AC26.9 — CODE/LLM authority is counted from test shape (phase 5)
 
