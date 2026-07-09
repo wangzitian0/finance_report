@@ -1965,11 +1965,13 @@ def test_AC8_13_67_production_release_preserves_version_metadata() -> None:
 
     # The backend service must carry the deployed version metadata. Other sidecars
     # (e.g. the vault-agent telemetry tags added in Infra-014 #360) may also stamp
-    # GIT_COMMIT_SHA, so assert the backend service block itself contains it rather
-    # than relying on a fragile global first-occurrence ordering.
-    assert "GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-unknown}" in app_compose
-    backend_block = app_compose[app_compose.index("backend:") :]
-    assert "GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-unknown}" in backend_block
+    # GIT_COMMIT_SHA, so parse the compose file's structure and check the backend
+    # service block specifically — #1534: a raw substring/ordering check breaks on
+    # any harmless reformat (requoting, key reordering) that a structural read does
+    # not.
+    compose = yaml.safe_load(app_compose)
+    backend_environment = compose["services"]["backend"]["environment"]
+    assert backend_environment["GIT_COMMIT_SHA"] == "${GIT_COMMIT_SHA:-unknown}"
 
 
 def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
@@ -3478,7 +3480,9 @@ def test_AC8_13_10_multi_brokerage_upload_to_portfolio_value_gate() -> None:
     reusable = read(".github/workflows/staging-ai-ocr-gate.yml")
     brokerage = read("tests/e2e/test_brokerage_upload_to_portfolio_value.py")
     statements_router = read("apps/backend/src/routers/statements.py")
-    brokerage_payload = read("apps/backend/src/extraction/extension/brokerage_statement_payload.py")
+    brokerage_payload = read(
+        "apps/backend/src/extraction/extension/brokerage_statement_payload.py"
+    )
     generator = read("common/testing/fixtures/pdf/generate_pdf_fixtures.py")
 
     assert "tools/staging_ai_ocr_gate_contract.py --shell" in reusable
