@@ -538,5 +538,168 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── group governance: SSOT registry/manifest/schema/vision-matrix
+        # tooling (migrated from EPIC-014 AC14.1.6/.9/.12-.18/.23, migration
+        # closeout continuation, #1663 / #1708) ──
+        ACRecord(
+            id="AC-meta.governance.1",
+            statement="generate_ac_registry.py --check rejects ghost AC references and keeps zero overlap between feature and infra registries.",
+            test=(
+                "tests/tooling/test_issue_493_foundation_ttd_behavior.py"
+                "::test_AC14_1_6_generate_ac_registry_check_rejects_ghosts_and_keeps_no_overlap"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.governance.2",
+            statement="SSOT manifest #anchor owners and cross-references resolve to actual Markdown anchors.",
+            test="tests/tooling/test_check_manifest.py::test_AC14_1_9_manifest_anchor_refs_must_exist",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.governance.3",
+            statement="SSOT governance metrics report finance_report and infra2 manifest shape, proof coverage, and future gate candidates without blocking CI.",
+            test=(
+                "tests/tooling/test_ssot_governance_report.py"
+                "::test_AC14_1_12_report_covers_finance_and_infra2_manifest_shapes"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.governance.4",
+            statement="SSOT governance gates block only changed-file/changed-manifest-entry debt, explain #823/HLS ownership, and support issue-linked temporary exceptions.",
+            test=(
+                "tests/tooling/test_ssot_governance_report.py"
+                "::test_AC14_1_13_incremental_gate_only_blocks_changed_ssot_debt"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.governance.5",
+            statement="Orphan SSOT files are bound to parent concepts so finance_report.orphan_ssot_files stays at zero.",
+            test=(
+                "tests/tooling/test_ssot_governance_report.py"
+                "::test_AC14_1_14_finance_report_orphan_ssot_files_are_manifest_owned"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.governance.6",
+            statement="Machine-owned FR SSOT entries carry explicit family/kind/proofs and inbound SSOT Markdown links, keeping finance_report.machine_owner_entries_missing_proof at zero.",
+            test=(
+                "tests/tooling/test_ssot_governance_report.py"
+                "::test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.governance.7",
+            statement="SSOT governance gates keep protected per-system governance ratios non-decreasing and protected debt counts non-increasing against the base ref.",
+            test=(
+                "tests/tooling/test_ssot_governance_report.py"
+                "::test_AC14_1_16_ssot_governance_ratios_cannot_regress"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.governance.8",
+            statement="The DB schema inventory is generated from SQLAlchemy metadata and is CI-checked for deterministic generation.",
+            test=(
+                "tests/tooling/test_generate_db_schema_reference.py"
+                "::test_AC14_1_17_render_db_schema_reference_uses_sqlalchemy_metadata"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.governance.9",
+            statement="The generated DB schema reference is CI-checked and gitignored as generated output, not hand-maintained.",
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC14_1_17_generated_db_schema_reference_is_ci_checked"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.governance.10",
+            statement="The FR SSOT HLS family model documents 6-8 families with explicit concept/clause boundaries and covers every MANIFEST.yaml-inferred family.",
+            test=(
+                "tests/tooling/test_ssot_hls_family_model.py"
+                "::test_AC14_1_18_fr_hls_family_model_is_documented_and_consistent"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.governance.11",
+            statement="The high-risk SSOT entries for the platform family (container_naming, test_optimization) bind to existing proof tests, keeping finance_report.high_risk_entries_missing_proof at zero.",
+            test=(
+                "tests/tooling/test_ssot_governance_report.py"
+                "::test_AC14_1_23_high_risk_ssot_entries_bind_proof_under_platform_family"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group migrationrisk: Alembic migration risk classification gate
+        # (migrated from EPIC-007 AC7.11, migration closeout continuation,
+        # #1663 / #1708) ──
+        ACRecord(
+            id="AC-meta.migrationrisk.1",
+            statement="Backend Alembic migrations are covered by a machine-readable migration risk manifest.",
+            test=(
+                "tests/tooling/test_migration_risk_contract.py"
+                "::test_AC7_11_1_migration_risk_manifest_covers_backend_migrations"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.migrationrisk.2",
+            statement="High and critical migration risk entries require release proof notes for staging, production preflight, and rollback/expand-contract strategy.",
+            test=(
+                "tests/tooling/test_migration_risk_contract.py"
+                "::test_AC7_11_2_high_and_critical_migrations_require_release_proof"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.migrationrisk.3",
+            statement="Destructive upgrade operations cannot be classified below critical risk.",
+            test=(
+                "tests/tooling/test_migration_risk_contract.py"
+                "::test_AC7_11_3_destructive_migrations_must_be_classified_critical"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.migrationrisk.4",
+            statement="CI lint and the production release dry-run both execute the migration risk contract and publish release context.",
+            test=(
+                "tests/tooling/test_migration_risk_contract.py"
+                "::test_AC7_11_4_ci_and_release_dry_run_execute_migration_risk_contract"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.migrationrisk.5",
+            statement="Risk is auto-classified from each migration's upgrade() body; low/medium migrations need no manifest entry, auto-classified high/critical migrations require an explicit release-proof entry.",
+            test=(
+                "tests/tooling/test_migration_risk_contract.py"
+                "::test_AC7_11_5_low_and_medium_migrations_are_auto_classified"
+            ),
+            priority="P0",
+            status="done",
+        ),
     ],
 )

@@ -280,7 +280,7 @@ def test_AC14_1_6_generate_ac_registry_check_rejects_ghosts_and_keeps_no_overlap
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """AC14.1.6: Registry generation ignores ghost AC references and splits infra/feature IDs."""
+    """AC-meta.governance.1: AC14.1.6: Registry generation ignores ghost AC references and splits infra/feature IDs."""
     project_dir = tmp_path / "docs" / "project"
     project_dir.mkdir(parents=True)
     (project_dir / "EPIC-001.phase0-setup.md").write_text(

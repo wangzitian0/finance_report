@@ -1472,7 +1472,7 @@ def test_AC8_13_53_generated_api_reference_is_ci_checked() -> None:
 
 
 def test_AC14_1_17_generated_db_schema_reference_is_ci_checked() -> None:
-    """AC14.1.17: DB schema reference docs are generated contract output in CI."""
+    """AC-meta.governance.9: AC14.1.17: DB schema reference docs are generated contract output in CI."""
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 

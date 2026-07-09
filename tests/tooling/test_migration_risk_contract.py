@@ -27,7 +27,7 @@ def write_manifest(path: Path, migrations: dict[str, object]) -> None:
 
 
 def test_AC7_11_1_migration_risk_manifest_covers_backend_migrations() -> None:
-    """AC7.11.1: Backend Alembic migrations are covered by the risk manifest."""
+    """AC-meta.migrationrisk.1: AC7.11.1: Backend Alembic migrations are covered by the risk manifest."""
 
     result = migration_risk.validate_repository(ROOT)
 
@@ -44,7 +44,7 @@ def test_AC7_11_1_migration_risk_manifest_covers_backend_migrations() -> None:
 def test_AC7_11_2_high_and_critical_migrations_require_release_proof(
     tmp_path: Path,
 ) -> None:
-    """AC7.11.2: High and critical migrations carry right-sized release proof notes."""
+    """AC-meta.migrationrisk.2: AC7.11.2: High and critical migrations carry right-sized release proof notes."""
 
     migrations_dir = tmp_path / "migrations"
     migrations_dir.mkdir()
@@ -99,7 +99,7 @@ def upgrade():
 def test_AC7_11_3_destructive_migrations_must_be_classified_critical(
     tmp_path: Path,
 ) -> None:
-    """AC7.11.3: Destructive upgrade operations cannot be under-classified."""
+    """AC-meta.migrationrisk.3: AC7.11.3: Destructive upgrade operations cannot be under-classified."""
 
     migrations_dir = tmp_path / "migrations"
     migrations_dir.mkdir()
@@ -524,7 +524,7 @@ def test_AC7_11_4_summary_and_cli_paths_are_reported(tmp_path: Path, capsys) -> 
 
 
 def test_AC7_11_4_ci_and_release_dry_run_execute_migration_risk_contract() -> None:
-    """AC7.11.4: CI and production dry-run surface migration risk classification."""
+    """AC-meta.migrationrisk.4: AC7.11.4: CI and production dry-run surface migration risk classification."""
 
     ci = read(".github/workflows/ci.yml")
     release = read(".github/workflows/release.yml")
@@ -536,7 +536,7 @@ def test_AC7_11_4_ci_and_release_dry_run_execute_migration_risk_contract() -> No
 
 
 def test_AC7_11_5_low_and_medium_migrations_are_auto_classified(tmp_path: Path) -> None:
-    """AC7.11.5: Risk is auto-classified from upgrade(); low/medium need no manifest entry while high/critical still require explicit release proof."""
+    """AC-meta.migrationrisk.5: AC7.11.5: Risk is auto-classified from upgrade(); low/medium need no manifest entry while high/critical still require explicit release proof."""
 
     assert migration_risk.classify_risk('op.create_table("t")') == "low"
     assert migration_risk.classify_risk("op.add_column('t', c)") == "low"
