@@ -17,16 +17,18 @@ it tallies named events per user and lets a report read either the per-user coun
 or the global count (sum across users).
 
 **Status (2026-07-09, issue #1672):** this is real, in a real reusable shape —
-but currently unwired. No router or report-generation path calls `increment`/
-`get_count` today; `identity` and `pricing` reference its *pattern* in comments
-("like `counter`'s `CounterTally`") without importing it. It already served its
-original purpose (the worked example the package-model migration's Step 0 built
-to prove the base/extension/data + repository-split shape — `platform` and
-others copied it). Decision: **keep it** — the shape is sound and cheap to carry,
-and a real "how many times did X happen" insight-report surface is plausible
-future scope, not invented scope. If you're looking for where it's called from
-in production: it isn't yet. Wire it to a real caller when that surface gets
-built, or open a fresh issue to retire it if it's still unwired a year from now.
+but currently unwired. No router or report-generation path calls
+`increment`/`get_count` today; `identity` and `pricing` reference its
+*pattern* in comments ("like `counter`'s `CounterTally`") without importing
+it. It already served its original purpose (the worked example the
+package-model migration's Step 0 built to prove the base/extension/data +
+repository-split shape — `platform` and others copied it). Decision: **keep
+it** — the shape is sound and cheap to carry, and a real "how many times did
+X happen" insight-report surface is plausible future scope, not invented
+scope. If you're looking for where it's called from in production: it isn't
+yet. Wire it to a real caller when that surface gets built, or open a fresh
+issue to retire it if it's still unwired by 2027-07-09 (a year past this
+note).
 
 ## Ubiquitous language
 
