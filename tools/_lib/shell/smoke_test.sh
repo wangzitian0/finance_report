@@ -4,10 +4,11 @@
 #
 # Ownership: this script's RESPONSIBILITY (deployment connectivity smoke) is
 # infra's, not app's — it physically lives here only because deploy.yml/
-# release.yml/preview.yml invoke it in-repo (#1535, surfaced by the #876
-# app/infra boundary work). Do not add app-domain logic here; behavioral
-# changes to what "smoke" means belong in infra2's deploy contract, not a
-# local edit. Relocating to infra2 is tracked in #1535, not yet done.
+# release.yml/preview.yml invoke the thin `tools/smoke_test.sh` wrapper,
+# which execs into this file (#1535, surfaced by the #876 app/infra
+# boundary work). Do not add app-domain logic here; behavioral changes to
+# what "smoke" means belong in infra2's deploy contract, not a local edit.
+# Relocating to infra2 is tracked in #1535, not yet done.
 #
 # Arguments:
 #   BASE_URL: The root URL of the application (default: http://localhost:3000)
