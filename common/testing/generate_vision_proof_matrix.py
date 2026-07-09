@@ -399,7 +399,7 @@ def render_markdown(matrix: dict[str, Any]) -> str:
             "AC descriptions above are mirrored from the EPIC docs and may echo "
             "rule keywords. The rules themselves are owned by their SSOT files:",
             "",
-            "- See: docs/ssot/reconciliation.md#thresholds",
+            "- See: common/reconciliation/readme.md#thresholds",
             "- See: common/ledger/readme.md#decimal-rule",
             "- See: common/ledger/readme.md#async-tx-boundary",
             "- See: common/ledger/readme.md#entry-balance",
