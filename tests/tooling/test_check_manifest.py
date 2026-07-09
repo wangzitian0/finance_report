@@ -295,7 +295,7 @@ class TestCheckCrossrefFilesExist:
 
 class TestCheckAnchorRefsExist:
     def test_AC14_1_9_manifest_anchor_refs_must_exist(self, tmp_path: Path) -> None:
-        """AC14.1.9: Manifest owner and cross-ref anchors must exist."""
+        """AC-meta.ssot-governance.1: Manifest owner and cross-ref anchors must exist."""
         ssot = tmp_path / "docs" / "ssot"
         ssot.mkdir(parents=True)
         (ssot / "accounting.md").write_text(

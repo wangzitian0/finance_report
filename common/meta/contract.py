@@ -538,5 +538,182 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── migrated from EPIC-014 (TTD transformation), migration closeout
+        # wave 2 (#1663): foundational dev-tooling gates. Was AC14.1.1-.5. ──
+        ACRecord(
+            id="AC-meta.foundation-tooling.1",
+            statement="Backend coverage threshold is enforced locally via apps/backend/pyproject.toml's --cov-fail-under. Was AC14.1.1.",
+            test="tests/tooling/test_issue_493_foundation_ttd_behavior.py::test_AC14_1_1_backend_pyproject_enforces_local_coverage_threshold",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.foundation-tooling.2",
+            statement="The pre-commit mypy hook runs against apps/backend/src and blocks type errors before commit. Was AC14.1.2.",
+            test="tests/tooling/test_issue_493_foundation_ttd_behavior.py::test_AC14_1_2_pre_commit_mypy_hook_blocks_backend_type_errors",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.foundation-tooling.3",
+            statement="validate_schemas.py exits non-zero when a Pydantic Field() lacks a description. Was AC14.1.3.",
+            test="tests/tooling/test_issue_493_foundation_ttd_behavior.py::test_AC14_1_3_validate_schemas_exits_nonzero_for_missing_field_descriptions",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.foundation-tooling.4",
+            statement="check_env_keys.py exits non-zero on a secret/config/env three-way drift. Was AC14.1.4.",
+            test="tests/tooling/test_issue_493_foundation_ttd_behavior.py::test_AC14_1_4_check_env_keys_exits_nonzero_for_secret_config_drift",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.foundation-tooling.5",
+            statement="smoke_test.sh succeeds against a mocked local environment (health, pages, auth, CORS all pass). Was AC14.1.5.",
+            test="tests/tooling/test_issue_493_foundation_ttd_behavior.py::test_AC14_1_5_smoke_test_succeeds_against_mocked_local_environment",
+            priority="P1",
+            status="done",
+        ),
+        # ── migrated from EPIC-014, wave 2 (#1663): AC-registry generation
+        # itself. Was AC14.1.6. ──
+        ACRecord(
+            id="AC-meta.registry.1",
+            statement="generate_ac_registry.py produces zero ghost ACs (reference-only mentions never create an entry) and zero id overlap between the feature and infra registries. Was AC14.1.6.",
+            test="tests/tooling/test_issue_493_foundation_ttd_behavior.py::test_AC14_1_6_generate_ac_registry_check_rejects_ghosts_and_keeps_no_overlap",
+            priority="P1",
+            status="done",
+        ),
+        # ── migrated from EPIC-014, wave 2 (#1663): doc-consistency lint
+        # rules. Was AC14.1.7/.8/.10. ──
+        ACRecord(
+            id="AC-meta.doc-consistency.1",
+            statement="Generated analysis snapshots are not checked into docs/project/; live coverage and mismatch data come from tools or CI artifacts, not committed prose. Was AC14.1.7.",
+            test="tests/tooling/test_lint_doc_consistency.py::test_AC14_1_7_generated_analysis_snapshots_are_absent",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.doc-consistency.2",
+            statement="Reconciliation threshold prose points to its code/config owner instead of claiming the Markdown copy is the single authority. Was AC14.1.8.",
+            test="tests/tooling/test_lint_doc_consistency.py::test_AC14_1_8_reconciliation_thresholds_are_code_owned",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.doc-consistency.3",
+            statement="Frontend source cannot call raw fetch() outside apps/frontend/src/lib/api.ts. Was AC14.1.10.",
+            test="tests/tooling/test_lint_doc_consistency.py::test_AC14_1_10_frontend_raw_fetch_is_limited_to_api_wrapper",
+            priority="P0",
+            status="done",
+        ),
+        # ── migrated from EPIC-014, wave 2 (#1663): the SSOT HLS governance
+        # loop (manifest anchors, governance report/gates/ratchets, family
+        # model, threshold-cleanup proof binding). Was AC14.1.9/.12-.16/.18/.23. ──
+        ACRecord(
+            id="AC-meta.ssot-governance.1",
+            statement="SSOT manifest #anchor owners and cross-references resolve to actual Markdown anchors. Was AC14.1.9.",
+            test="tests/tooling/test_check_manifest.py::test_AC14_1_9_manifest_anchor_refs_must_exist",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.ssot-governance.2",
+            statement="SSOT governance metrics report finance_report and infra2 manifest shape, proof coverage, and future gate candidates without blocking CI. Was AC14.1.12.",
+            test="tests/tooling/test_ssot_governance_report.py::test_AC14_1_12_report_covers_finance_and_infra2_manifest_shapes",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.ssot-governance.3",
+            statement="SSOT governance gates block changed-file and changed-manifest-entry debt, explain #823/HLS ownership, and support issue-linked temporary exceptions. Was AC14.1.13.",
+            test="tests/tooling/test_ssot_governance_report.py::test_AC14_1_13_incremental_gate_only_blocks_changed_ssot_debt",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.ssot-governance.4",
+            statement="Threshold cleanup for #824 reduces finance_report.orphan_ssot_files to zero by binding orphan SSOT files to parent concepts, without runtime behavior changes. Was AC14.1.14.",
+            test="tests/tooling/test_ssot_governance_report.py::test_AC14_1_14_finance_report_orphan_ssot_files_are_manifest_owned",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.ssot-governance.5",
+            statement="Threshold cleanup for #824 migrates representative machine-owned FR SSOT entries to explicit family/kind/proofs and inbound links so machine_owner_entries_missing_proof stays zero. Was AC14.1.15.",
+            test="tests/tooling/test_ssot_governance_report.py::test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.ssot-governance.6",
+            statement="SSOT governance gates keep protected per-system governance ratios non-decreasing and protected debt counts non-increasing against the base ref. Was AC14.1.16.",
+            test="tests/tooling/test_ssot_governance_report.py::test_AC14_1_16_ssot_governance_ratios_cannot_regress",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.ssot-governance.7",
+            statement="FR (EPIC-014) and infra2 (Infra-006) each document a 6-8 family SSOT HLS model with explicit concept/clause boundaries covering every MANIFEST.yaml-inferred family, linking #821/#822/#823/#824, and the definition does not move or re-own any SSOT concept. Was AC14.1.18.",
+            test="tests/tooling/test_ssot_hls_family_model.py::test_AC14_1_18_fr_hls_family_model_is_documented_and_consistent",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.ssot-governance.8",
+            statement="Threshold cleanup for #824 reduces finance_report.high_risk_entries_missing_proof to zero by binding the flagged high-risk platform concepts to existing proof tests, without runtime behavior changes. Was AC14.1.23.",
+            test="tests/tooling/test_ssot_governance_report.py::test_AC14_1_23_high_risk_ssot_entries_bind_proof_under_platform_family",
+            priority="P1",
+            status="done",
+        ),
+        # ── migrated from EPIC-014, wave 2 (#1663): GitHub issue template
+        # contract. Was AC14.1.11. ──
+        ACRecord(
+            id="AC-meta.issue-templates.1",
+            statement="GitHub issue templates require phenomenon, reproduction, minimal-fix, and rationale/acceptance-criteria sections with valid repository labels. Was AC14.1.11.",
+            test="tests/tooling/test_issue_template_contract.py::test_AC14_1_11_issue_templates_carry_their_type_required_fields",
+            priority="P1",
+            status="done",
+        ),
+        # ── migrated from EPIC-014, wave 2 (#1663): mechanically-generated
+        # reference docs (DB schema, vision-proof matrix, EPIC status). Was
+        # AC14.1.17/.19/.22. ──
+        ACRecord(
+            id="AC-meta.generated-refs.1",
+            statement="The DB schema inventory is generated from SQLAlchemy metadata, CI-checked for deterministic generation, and linked from macro SSOT/domain docs instead of hand-maintained. Was AC14.1.17.",
+            test="tests/tooling/test_generate_db_schema_reference.py::test_AC14_1_17_render_db_schema_reference_uses_sqlalchemy_metadata",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.generated-refs.2",
+            statement="A single parseable vision-to-proof matrix is mechanically generated from vision.md anchors, EPIC Vision Anchor declarations, the AC registries, and test references, and --check fails on drift. Was AC14.1.19.",
+            test="tests/tooling/test_generate_vision_proof_matrix.py::test_AC14_1_19_matrix_maps_vision_to_ac_to_test",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.generated-refs.3",
+            statement="README EPIC status/completion is generated from the AC registries and test reports (not hand-written), reports coverage/placeholder/manual-gate/blocker categories separately, and is guarded by a generate-with---check drift gate. Was AC14.1.22.",
+            test="tests/tooling/test_generate_epic_status.py::test_AC14_1_22_check_fails_on_drift",
+            priority="P1",
+            status="done",
+        ),
+        # ── migrated from EPIC-014, wave 2 (#1663): unified-coverage artifact
+        # preflight + component tiers (#414/#923). Was AC14.1.20/.21. ──
+        ACRecord(
+            id="AC-meta.coverage-tiers.1",
+            statement="Unified coverage aggregation runs an artifact preflight that fails explicitly and names the offending component LCOV when a CI-critical artifact is missing or empty, instead of silently treating it as 0%. Was AC14.1.20.",
+            test="tests/tooling/test_coverage_artifact_preflight.py::test_AC14_1_20_preflight_fails_when_ci_critical_artifact_missing",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.coverage-tiers.2",
+            statement="Coverage components carry an explicit tier (ci-critical vs best-effort); the artifact preflight enforces presence only for ci-critical tiers so a missing best-effort tools artifact does not hard-fail aggregation. Was AC14.1.21.",
+            test="tests/tooling/test_coverage_artifact_preflight.py::test_AC14_1_21_tools_component_is_best_effort_tier",
+            priority="P1",
+            status="done",
+        ),
     ],
 )

@@ -649,7 +649,7 @@ async def test_reports_currencies_endpoint(client, test_user):
 @pytest.mark.e2e
 async def test_api_authentication_failures(client):
     """
-    EPIC-001 EPIC-016 / AC8.7.1: Authentication validation
+    AC-identity.journeys.2: EPIC-001 EPIC-016 / AC8.7.1: Authentication validation
     GIVEN invalid credentials
     WHEN making a login request
     THEN it should return 401 or 422
@@ -667,7 +667,7 @@ async def test_api_authentication_failures(client):
 @pytest.mark.e2e
 async def test_unauthorized_access_blocked(public_client):
     """
-    EPIC-001 EPIC-016 / AC8.7.2: Unauthorized access blocked
+    AC-identity.journeys.3: EPIC-001 EPIC-016 / AC8.7.2: Unauthorized access blocked
     GIVEN no authentication headers
     WHEN accessing protected endpoints
     THEN it should return 401 Unauthorized
@@ -688,7 +688,7 @@ async def test_unauthorized_access_blocked(public_client):
 @pytest.mark.e2e
 async def test_user_session_management(client, test_user):
     """
-    EPIC-001 EPIC-016 / AC8.7.3: User session management
+    AC-identity.journeys.4: EPIC-001 EPIC-016 / AC8.7.3: User session management
     GIVEN a valid authentication token
     WHEN requesting /auth/me
     THEN it should return the current user's information
@@ -704,7 +704,7 @@ async def test_user_session_management(client, test_user):
 @pytest.mark.e2e
 async def test_register_and_login_flow(public_client):
     """
-    EPIC-001 EPIC-016 / AC8.7.1 (supplementary): Full registration → login flow
+    AC-identity.journeys.1: EPIC-001 EPIC-016 / AC8.2.1: Full registration → login flow
     GIVEN a new user
     WHEN registering and then logging in
     THEN both operations should succeed with access tokens

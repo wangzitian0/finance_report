@@ -137,6 +137,8 @@ async def test_login_api_path(page: Page):
 @pytest.mark.asyncio
 async def test_full_registration_flow(page: Page):
     """
+    AC-identity.journeys.5.
+
     EPIC-001 EPIC-008 EPIC-016.
 
     AC8.10.8 AC16.12.6 AC1.7.1 AC8.19.2

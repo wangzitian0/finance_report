@@ -127,7 +127,7 @@ def test_AC12_22_2_background_task_payload_schemas_are_module_owned() -> None:
 
 
 def test_AC14_1_1_backend_pyproject_enforces_local_coverage_threshold() -> None:
-    """AC14.1.1: Backend pytest config enforces coverage above the 90 percent target."""
+    """AC-meta.foundation-tooling.1: Backend pytest config enforces coverage above the 90 percent target."""
     pyproject = tomllib.loads(_read(REPO_ROOT / "apps" / "backend" / "pyproject.toml"))
     addopts = pyproject["tool"]["pytest"]["ini_options"]["addopts"]
 
@@ -139,7 +139,7 @@ def test_AC14_1_1_backend_pyproject_enforces_local_coverage_threshold() -> None:
 
 
 def test_AC14_1_2_pre_commit_mypy_hook_blocks_backend_type_errors() -> None:
-    """AC14.1.2: Pre-commit runs mypy against backend source files."""
+    """AC-meta.foundation-tooling.2: Pre-commit runs mypy against backend source files."""
     config = yaml.safe_load(_read(REPO_ROOT / ".pre-commit-config.yaml"))
     hooks = {
         hook["id"]: hook
@@ -159,7 +159,7 @@ def test_AC14_1_3_validate_schemas_exits_nonzero_for_missing_field_descriptions(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """AC14.1.3: validate_schemas.py exits non-zero for Field() without descriptions."""
+    """AC-meta.foundation-tooling.3: validate_schemas.py exits non-zero for Field() without descriptions."""
     root = tmp_path
     config_path = root / "apps" / "backend" / "src" / "config.py"
     schemas_dir = root / "apps" / "backend" / "src" / "schemas"
@@ -188,7 +188,7 @@ def test_AC14_1_4_check_env_keys_exits_nonzero_for_secret_config_drift(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """AC14.1.4: check_env_keys.py detects mismatched secrets/config/env keys."""
+    """AC-meta.foundation-tooling.4: check_env_keys.py detects mismatched secrets/config/env keys."""
     root = tmp_path
     ctmpl_path = (
         root / "repo" / "finance_report" / "finance_report" / "10.app" / "secrets.ctmpl"
@@ -218,7 +218,7 @@ def test_AC14_1_4_check_env_keys_exits_nonzero_for_secret_config_drift(
 def test_AC14_1_5_smoke_test_succeeds_against_mocked_local_environment(
     tmp_path: Path,
 ) -> None:
-    """AC14.1.5: smoke_test.sh succeeds when health, pages, auth, and CORS pass."""
+    """AC-meta.foundation-tooling.5: smoke_test.sh succeeds when health, pages, auth, and CORS pass."""
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     fake_curl = fake_bin / "curl"
@@ -280,7 +280,7 @@ def test_AC14_1_6_generate_ac_registry_check_rejects_ghosts_and_keeps_no_overlap
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """AC14.1.6: Registry generation ignores ghost AC references and splits infra/feature IDs."""
+    """AC-meta.registry.1: Registry generation ignores ghost AC references and splits infra/feature IDs."""
     project_dir = tmp_path / "docs" / "project"
     project_dir.mkdir(parents=True)
     (project_dir / "EPIC-001.phase0-setup.md").write_text(

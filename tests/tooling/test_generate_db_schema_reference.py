@@ -14,7 +14,7 @@ from sqlalchemy import (
 
 
 def test_AC14_1_17_render_db_schema_reference_uses_sqlalchemy_metadata() -> None:
-    """AC14.1.17: generated DB reference renders SQLAlchemy-owned contracts."""
+    """AC-meta.generated-refs.1: generated DB reference renders SQLAlchemy-owned contracts."""
     metadata = MetaData()
     Table(
         "users",

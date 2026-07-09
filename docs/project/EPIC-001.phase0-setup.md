@@ -75,10 +75,13 @@ Set up a runnable Monorepo development environment, complete user authentication
 
 ### AC1.2: Backend Skeleton Requirements
 
+> This group's second row removed as a stale duplicate — the cited tests
+> already prove `AC-identity.2.1`/`.2.2` in `common/identity/contract.py`'s
+> roadmap (migration closeout continuation, #1663 / #1706).
+
 | ID | Requirement | Test Function | File |
 |----|-------------|---------------|------|
 | AC1.2.1 | FastAPI project structure exists | `test_epic_001_backend_skeleton_exists()` | `infra/test_epic_001_contracts.py` |
-| AC1.2.2 | Auth integration works (register/login/JWT) | `test_register_success()`, `test_login_success()`, `test_auth_valid_user()` | `identity/test_auth_router.py`, `identity/test_auth.py` |
 | AC1.2.3 | SQLAlchemy + Alembic config valid | `test_missing_migrations_check()`, `test_single_head()` | `infra/test_schema_drift.py`, `infra/test_migrations.py` |
 | AC1.2.4 | Health endpoint returns success | `test_health_when_all_services_healthy()` | `infra/test_main.py` |
 | AC1.2.5 | structlog logging configured | `test_configure_logging_basic()` | `infra/test_logger.py` |

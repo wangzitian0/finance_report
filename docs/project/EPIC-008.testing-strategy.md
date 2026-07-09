@@ -168,9 +168,9 @@ job inventories or scenario counts into this EPIC.
 
 ### AC8.2: Phase 1 - Onboarding & Account Structure
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC8.2.1 | New User Registration | `test_register_and_login_flow()` | `e2e/test_core_journeys.py` | P0 |
+> This group's first row (registration) removed — migrated to the `identity`
+> package roadmap as `AC-identity.journeys.1` (migration closeout
+> continuation, #1663 / #1706).
 
 > This group's account-CRUD rows (formerly the second through fifth rows)
 > removed — migrated to the `ledger` package roadmap as
@@ -208,11 +208,9 @@ job inventories or scenario counts into this EPIC.
 
 ### AC8.7: API Authentication & Authorization
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC8.7.1 | API authentication failures | `test_api_authentication_failures()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.7.2 | Unauthorized access blocked | `test_unauthorized_access_blocked()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.7.3 | User session management | `test_user_session_management()` | `e2e/test_core_journeys.py` | P1 |
+> This group's rows removed — migrated to the `identity` package roadmap as
+> `AC-identity.journeys.2`, `.3`, `.4` (migration closeout continuation,
+> #1663 / #1706).
 
 ### AC8.8: Core E2E Journey Tests
 
@@ -530,7 +528,10 @@ regression.
 | AC ID | Test Case | Test Function | File | Priority |
 |---|---|---|---|---|
 | AC8.19.1 | Login auth controls (mode-toggle register button and inline register CTA) expose distinct `data-testid` hooks and accessible names, so no duplicate accessible-name ambiguity remains while the visible text stays "Register" | `AC8.19.1 login register controls expose distinct test ids and accessible names` | `apps/frontend/src/__tests__/loginPage.test.tsx` | P1 |
-| AC8.19.2 | Registration E2E targets the mode-toggle register control by test id, switching into register mode without a strict-mode locator failure | `test_registration_api_path`, `test_full_registration_flow` | `tests/e2e/test_auth_flows.py` | P1 |
+
+> This group's second row removed — migrated to the `identity` package
+> roadmap as `AC-identity.journeys.5` (migration closeout continuation,
+> #1663 / #1706).
 
 ### AC8.20: PR Review Thread Merge Gate
 

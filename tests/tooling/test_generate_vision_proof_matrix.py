@@ -35,7 +35,7 @@ def test_AC14_1_19_matrix_parses_vision_anchors_from_vision_md() -> None:
 
 
 def test_AC14_1_19_matrix_maps_vision_to_ac_to_test() -> None:
-    """AC14.1.19: nodes chain vision anchor -> EPIC -> AC -> test reference."""
+    """AC-meta.generated-refs.2: nodes chain vision anchor -> EPIC -> AC -> test reference."""
     matrix = _build()
     by_anchor = {node["anchor"]: node for node in matrix["vision_nodes"]}
 
