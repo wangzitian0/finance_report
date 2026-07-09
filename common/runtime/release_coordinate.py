@@ -74,6 +74,24 @@ def resolve_infra2_release_tag(repo_dir: str = "repo") -> str:
     return iac_ref
 
 
+def build_release_coordinate(
+    version_ref: str, full_sha: str, iac_ref: str
+) -> dict[str, str]:
+    """Pure assembly of the release-coordinate dict `resolve()` emits.
+
+    Split out so the coordinate SHAPE (short_sha is a 7-char prefix of
+    full_sha, the field set) is unit-testable without the git mutations
+    `resolve()` performs (fetch/checkout/submodule update) — see
+    tests/tooling/test_release_coordinate.py.
+    """
+    return {
+        "version_ref": version_ref,
+        "full_sha": full_sha,
+        "short_sha": full_sha[:7],
+        "iac_ref": iac_ref,
+    }
+
+
 def resolve(version_ref: str) -> dict[str, str]:
     if not _RELEASE_VERSION_REF_RE.fullmatch(version_ref):
         raise ValueError(
@@ -92,12 +110,7 @@ def resolve(version_ref: str) -> dict[str, str]:
 
     full_sha = _out("git", "rev-parse", "HEAD")
     iac_ref = resolve_infra2_release_tag("repo")
-    return {
-        "version_ref": version_ref,
-        "full_sha": full_sha,
-        "short_sha": full_sha[:7],
-        "iac_ref": iac_ref,
-    }
+    return build_release_coordinate(version_ref, full_sha, iac_ref)
 
 
 def main(argv: list[str] | None = None) -> int:

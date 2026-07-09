@@ -1980,7 +1980,6 @@ def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
     # Tag promotion stays in deploy.yml's promote job; the release line moved to
     # release.yml (#1354 / AC8.13.154).
     release_images = read(".github/workflows/deploy.yml")
-    resolver = read("common/runtime/release_coordinate.py")
     release_image_tool = read("common/runtime/release_images.py")
     ci_cd = read("docs/ssot/ci-cd.md")
     deployment = read("docs/ssot/deployment.md")
@@ -1991,7 +1990,8 @@ def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
     )
     assert "docker/build-push-action" not in release_images
     assert "docker buildx imagetools create --tag" not in workflow
-    assert '"short_sha": full_sha[:7]' in resolver
+    # short_sha truncation is now covered behaviorally, not by source text —
+    # see tests/tooling/test_release_coordinate.py (#1435 W1).
     # build-and-deploy (deploy.yml) + dry-run + deploy (release.yml) each resolve
     # the release coordinate once.
     assert (
