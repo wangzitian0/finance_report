@@ -63,7 +63,7 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 | Role | Focus | Review Opinion |
 |------|--------|----------|
 | 🏗️ **Architect** | Pipeline Design | AI adds fields to extraction prompt, not new services. Classification becomes AI+rules hybrid. Feedback loop via `CorrectionLog` table. |
-| 📊 **Accountant** | Data Integrity | AI suggestions are NEVER auto-posted. Must pass through review queue. Confidence thresholds: ≥85 auto-accept, 60-84 review, <60 flag. See: `docs/ssot/reconciliation.md#thresholds` |
+| 📊 **Accountant** | Data Integrity | AI suggestions are NEVER auto-posted. Must pass through review queue. Confidence thresholds: ≥85 auto-accept, 60-84 review, <60 flag. See: `common/reconciliation/readme.md#thresholds` |
 | 💻 **Developer** | Implementation | Extend existing `extraction.py` prompt, implement `RuleType.ML_MODEL` in `classification.py`, modify `create_entry_from_txn` in `review_queue.py`. |
 | 🧪 **Tester** | Validation | Test: AI category accuracy, fallback to Uncategorized when AI fails, feedback loop persistence, Layer 3→4 data flow. |
 | 📋 **PM** | User Experience | Reduces manual categorization work by 70%+. User sees AI suggestions and corrects only mistakes. Corrections make future suggestions better. |

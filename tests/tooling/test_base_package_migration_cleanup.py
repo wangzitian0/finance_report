@@ -186,10 +186,11 @@ def test_AC12_31_6_confidence_percent_wrapper_is_retired():
 def test_AC12_31_6_ssot_fx_examples_use_money_exchange_rate():
     """AC-audit.31.6: SSOT examples teach the base-package FX primitive, not Decimal math.
 
-    market_data.md is pre-migration (internalizes into the `pricing` package,
-    #1610); when that cutover lands, repoint this check at the package's doc.
+    market_data.md and reporting.md internalized into the `pricing` and
+    `reporting` package readmes (migration closeout wave 3, #1664); this
+    check follows the cutover.
     """
-    for path in [Path("docs/ssot/market_data.md"), Path("docs/ssot/reporting.md")]:
+    for path in [Path("common/pricing/readme.md"), Path("common/reporting/readme.md")]:
         src = _read(path)
         assert "ExchangeRate(" in src, f"{path} must show typed FX rates"
         assert "Money(" in src, f"{path} must show typed money conversion"

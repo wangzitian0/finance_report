@@ -143,3 +143,119 @@ that prove them (added in PR2 when the physical split is done).
 `tools/check_package_contract.py` validates the implementation against this
 contract (interface == `__all__`, every test reference resolves, no upward
 import edge).
+
+## Application-Layer Advisor Contract (EPIC-021)
+
+*(Internalized from `docs/ssot/ai.md`, migration closeout wave 3, #1664 —
+this is now the single owner; do not re-add a separate SSOT copy.)*
+
+EPIC-021 upgrades the advisor from generic chat to product guidance: the
+backend assembles deterministic application facts first, and the LLM may
+only explain, prioritize, and phrase those facts. Application context can
+include report package readiness/snapshot/export status and traceability
+gaps (from `reporting`), upload-to-report workflow events and blocked steps
+(from `platform`'s workflow events), source-class trust/proof-level/review
+requirements (from the source coverage matrix), portfolio holdings and
+valuation facts (from `portfolio`/`reporting`), market-data freshness (from
+`pricing`), and cash-flow observations from posted/reconciled ledger
+summaries.
+
+**Advisor output contract** for a structured suggestion:
+
+- `basis` — the deterministic application fact or user question that
+  triggered the suggestion.
+- `source_refs` — internal report/workflow/source/portfolio/market-data
+  references that support the suggestion.
+- `confidence_tier` — `deterministic`, `review_required`, `stale`,
+  `unsupported`, or `blocked`.
+- `limitation` — what the user should not rely on yet.
+- `next_action_href` — a safe internal route for the next in-product action.
+
+`AIAdvisorService.get_advisor_context()` is the deterministic advisor-fact
+assembly boundary: it composes legacy financial-summary fields with report
+package readiness, source trust, workflow status, market-data freshness,
+portfolio summary, cash-flow observations, and `AdvisorSuggestion` objects
+before prompt construction. The prompt receives the serialized structured
+facts and must preserve blocked/stale/unreviewed/unsupported/manual-trusted
+limitations instead of converting them into trusted conclusions.
+
+Frontend Advisor Brief surfaces consume the `structured_suggestions` field
+from `GET /api/chat/suggestions` only when the caller explicitly sends
+`include_structured=true`, and render structured facts directly rather than
+parsing LLM prose; callers that only need the base suggested-question list
+omit the flag so the endpoint stays lightweight. Any `next_action_href`
+shown to users is normalized through the Advisor Brief safe-route allowlist
+before rendering, and contextual chat-entry links seed scoped prompts
+through `/chat?prompt=...` without clearing the user's existing session.
+
+`POST /api/chat` is a text streaming endpoint; personal-data answers also
+expose compact application-owned grounding metadata in the
+`X-Advisor-Metadata` response header — `grounded`, `citations[]` (`label`,
+`source_ref`, `confidence_tier`, `href`), and `actions[]` (`kind`, `label`,
+`href`, optional `count`). Citations point to safe internal
+report/advisor surfaces rather than raw account numbers, source files, or
+transaction-level PII. Action chips are read-only deep links (e.g.
+`Review N`) that must never execute ledger writes, approvals, postings, or
+reconciliation mutations. The frontend renders this metadata directly and
+must not infer citations or actions by parsing LLM prose.
+
+Because the endpoint returns a bare `StreamingResponse` (no FastAPI
+`response_model`), its out-of-band payload is declared by the typed
+contract `ChatStreamEnvelope` (`apps/backend/src/schemas/streaming.py`): a
+`text/plain` token body plus headers `X-Session-Id` (session UUID),
+optional `X-Model-Name`, and optional `X-Advisor-Metadata` (validated
+against `ChatResponseMetadata` before serialization; omitted when empty),
+with `X-Session-Id`, `X-Model-Name`, and `X-Advisor-Metadata` listed in
+`Access-Control-Expose-Headers` in that order (`AC-advisor.envelope.*`).
+
+## Suggestion scope and data-handling policy
+
+The assistant may surface explainable personal-finance suggestions from
+trusted summary data, known data gaps, and pending review actions —
+cash-flow observations, unusual income/expense movement, portfolio
+concentration flags, stale market-data warnings, missing source documents,
+report-readiness blockers, and questions the user should answer before
+relying on a report. Suggestions are read-only: they must identify their
+source basis or limitation and must not execute trades, mutate ledger data,
+provide legal/tax advice, or present regulated investment advice as a
+conclusion. Report package snapshots/export scale stay in `reporting`'s own
+EPICs; manual evidence intake and source-format expansion stay in
+`extraction`/`portfolio`'s own EPICs — the advisor only explains the
+current application state and points to safe next actions.
+
+- No ledger mutations, no write endpoints used.
+- Only summarized data is sent to the LLM — no full account numbers or raw
+  files.
+- Sensitive fields are redacted before sending and after receiving.
+- Provider-neutral `AI_*` configuration lets the base model change without
+  an API contract change.
+
+Recommended: use `JournalEntry.status in (posted, reconciled)` for any
+financial context; build prompts with explicit role boundaries and a
+disclaimer requirement; limit LLM context to the last 10 message pairs;
+store all messages in `chat_messages` for audit/history. Prohibited: never
+send full account numbers, passwords, or credentials to the LLM; never let
+the AI write or delete ledger data; never fabricate financial figures when
+source data is missing; never return a response without the required
+disclaimer.
+
+## Playbooks
+
+- **Prompt-injection defense**: detect injection intent (ignore
+  instructions, reveal system prompt, write data) → refuse with safe
+  language → continue answering only within scope.
+- **Missing model credentials**: detect a missing `ZAI_API_KEY`/`AI_API_KEY`
+  → return 503 with a friendly message and no partial response → log the
+  failure for audit.
+- **Model selection**: the UI pulls available models from
+  `/api/llm/catalog` (superseded the retired `/api/ai/models`); the client
+  sends the selected `model` in `POST /api/chat`; if omitted, the service
+  uses `PRIMARY_MODEL` and may try `FALLBACK_MODELS`. Statement OCR uses
+  `OCR_MODEL` (falls back to the shared vision OCR path when no separate
+  layout-parsing API exists) and stores transaction amounts as non-negative
+  `Decimal` with `direction` as the sign source — signed model outputs like
+  `{"amount": "-500.00", "direction": "OUT"}` are normalized before balance
+  validation and routing.
+- **Cached common Q&A**: normalize the user question and language → check
+  the cache before calling the LLM → store responses with a TTL to reduce
+  cost (see [Cache](#cache) above).

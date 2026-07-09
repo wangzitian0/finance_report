@@ -25,8 +25,11 @@ MANIFEST = SSOT / "MANIFEST.yaml"
 
 # concept key -> (owner path relative to repo root, required explicit anchor id)
 REQUIRED_CONCEPTS: dict[str, tuple[str, str]] = {
-    "reconciliation_thresholds": ("docs/ssot/reconciliation.md", "thresholds"),
-    "reconciliation_state_machine": ("docs/ssot/reconciliation.md", "state-machine"),
+    "reconciliation_thresholds": ("common/reconciliation/readme.md", "thresholds"),
+    "reconciliation_state_machine": (
+        "common/reconciliation/readme.md",
+        "state-machine",
+    ),
     "extraction_confidence_tiers": (
         "common/extraction/readme.md",
         "confidence-scoring",

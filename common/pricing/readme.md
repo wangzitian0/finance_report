@@ -84,3 +84,181 @@ pending the mass AC migration (tracked in the migration closeout series,
 umbrella #1416). Remaining consumer wiring is tracked in #1610 PR2. The
 package goes `status="active"` once its roadmap is populated and an authority
 tier is decided.
+
+## <a id="manual-valuation-snapshots"></a>Manual valuation snapshots (pre-#1610-cutover shipped model)
+
+*(Internalized from `docs/ssot/assets.md`, migration closeout wave 3, #1664
+— this is now the single owner; do not re-add a separate SSOT copy.
+`ManualValuationSnapshot` is the shipped pre-migration shape; it retires
+into the unified append-only `PriceObservation` model above at the #1610
+consumer-wiring cutover — a manual valuation becomes a high-authority
+observation. This section describes the shipped behavior in the meantime.)*
+
+Manual snapshots (`ManualValuationSnapshot`, `manual_valuation_snapshots`
+table, `apps/backend/src/models/layer3.py`) cover property value,
+mortgage/loan balance, CPF/provident fund balances, retirement accounts,
+personal social-security account balances, long-term benefit assets,
+legacy long-term savings, tax payable/refund, insurance cash value, ESOP,
+RSU, stock options, and generic assets/liabilities. Insurance is
+represented only by its attributable cash/surrender value — coverage
+amounts and future benefits are never recorded as assets. The value is
+always a positive `Decimal`; `liquidity_class` determines whether it
+contributes to assets, liabilities, restricted, or illiquid net-worth
+presentation. Reminder cadence is optional; when present, `recurrence_days`
+is positive.
+
+Manual snapshot capture uses a controlled source vocabulary for new
+frontend submissions: `manual`, `broker_portal`, `bank_portal`,
+`cpf_portal`, `tax_portal`, `insurer_portal`, `employer_portal`,
+`property_valuation`, `other_document`. Historical source strings remain
+valid response data and are displayed as-is when they don't match a known
+vocabulary value.
+
+Manual valuation snapshot and latest-valuation-component API responses
+expose normalized read-model provenance as `provenance="manual"` — a
+separate user-trust signal from the snapshot's `source` basis string:
+`source` describes where the user says the value came from, while
+`provenance` states that the value was user-entered rather than imported
+or derived by the system.
+
+### Guided evidence intake contract (#706)
+
+Guided evidence intake is the end-to-end contract for capturing a
+manual-trusted value with a structured, auditable evidence basis. It binds
+the frontend guided form, the persisted `valuation_basis` enum, the
+component classification, and the report artifacts that surface the basis
+into one chain.
+
+**Guided form → `component_type` → default `valuation_basis`.** The shared
+guided form offers three source classes; each maps to a backend
+`component_type` and a default basis (the user may override from the full
+enum):
+
+| Guided source class | `component_type`   | Default `valuation_basis`   |
+|---------------------|--------------------|-----------------------------|
+| `esop_rsu_plan`     | `rsu`              | `employer_grant_document`   |
+| `property_statement`| `property_value`   | `market_appraisal`          |
+| `liability_statement`| `other_liability` | `bank_statement`            |
+
+**`valuation_basis` enum values** (`ManualValuationBasis`, persisted on the
+snapshot; nullable): `market_appraisal`, `broker_statement`,
+`employer_grant_document`, `bank_statement`, `government_statement`,
+`insurer_statement`, `self_estimate`. A current evidence-bearing snapshot
+with no basis (and no legacy notes) surfaces a `missing_valuation_basis`
+readiness blocker rather than being rejected.
+
+**Report artifacts that surface the basis** — the captured basis flows,
+null-safe (falling back to `unspecified`), into: the annualized income
+schedule (`GET /api/reports/package/annualized-income-schedule`, each
+restricted holding's `valuation_basis` carries the snapshot enum value);
+balance sheet / net worth (manual snapshots aggregate into asset/liability
+and restricted/illiquid totals by `liquidity_class`); the package
+`valuation-basis` note (surfaces the `manual_valuation_snapshots` source
+state); and the traceability appendix (each manual snapshot's
+source-anchor detail records its `valuation_basis` enum value).
+
+Design constraints: manual valuation values are positive `Decimal`
+amounts; use `liquidity_class` to separate liquid/restricted/illiquid/
+liability presentation; never include a snapshot in liquid net worth
+unless it is economically liquid.
+
+## Market data (pre-#1610-cutover shipped model)
+
+*(Internalized from `docs/ssot/market_data.md`, migration closeout wave 3,
+#1664 — this is now the single owner; do not re-add a separate SSOT copy.
+The `FxRate`/`StockPrice`/`MarketDataOverride` split and the `fx`/
+`market_data` services are the shipped pre-migration model that
+consolidates into the unified observation model above at the #1610
+consumer-wiring cutover.)*
+
+Report and dashboard preparation may automatically refresh FX rates and
+stock prices for currencies/symbols observed in trusted user data.
+Automatic market-data refresh is supporting evidence for valuation and
+reporting — it never replaces source documents, brokerage statements, or
+user-confirmed ledger facts. Every persisted FX rate or price retains its
+source and date; when market data is unavailable or stale, reports and
+assistant suggestions must expose that limitation instead of inventing a
+value.
+
+**Data sources** — primary: Yahoo Finance chart endpoint (yfinance-
+compatible currency/stock symbols; report-side lazy FX rates + daily stock
+closes; unofficial ~2000 req/hour; falls back to stored inverse/bridge
+rates before an external fetch). Secondary: Stooq (public daily CSV, no
+app secret; cross-source validation for incremental sync — if Yahoo and
+Stooq differ by more than 2%, the row is not persisted and the
+disagreement is returned/logged).
+
+Report lazy-resolution priority: (1) existing direct DB row on or before
+the date, (2) existing inverse DB row persisted as a derived direct row,
+(3) existing bridge rows via `MARKET_DATA_FX_BRIDGE_CURRENCY` (default
+USD), (4) Yahoo Finance direct/inverse/bridge fetch when lazy fetch is
+enabled — otherwise raises `MarketDataUnavailable`.
+
+**Sync schedule** — FX rates and stock prices both sync daily at 22:00
+Asia/Singapore from the backend scheduler (`run_market_data_scheduler()`
+in FastAPI lifespan). FX pairs derive from actual business data plus a
+non-empty default pair between `BASE_CURRENCY` and USD (explicit API pairs
+also accepted); stock symbols are active holdings or explicit API
+symbols. Long-lived daily history is retained — incremental sync starts
+after the latest stored date so decade-scale datasets don't need full
+refreshes. Report APIs still use lazy resolution when a required rate is
+missing. The Yahoo stock fetch is skipped (no observation, debug-logged)
+for identifiers that aren't plausibly a ticker (whitespace, excessive
+length, free text like `CSOP USD MONEY MARKET FUND SGX296797238`) — real
+tickers (`AAPL`, `BRK.B`, `0700.HK`) and FX pairs (`USDSGD`) still pass;
+such fund positions value from their existing brokerage snapshot instead.
+
+Manual/E2E callers can trigger `POST /api/market-data/fx/syncs` and
+`POST /api/market-data/stocks/syncs`. Report endpoints call
+`ensure_market_data_fresh()` before generation with the report's own
+effective end date — if the relevant FX pair, requested non-base report
+currency, or active stock symbol has no successful provider sync in the
+last 24 hours, the backend sends one immediate incremental provider
+request and records the new sync state (including successful no-row
+responses like weekends/holidays). `GET /api/market-data/status` is
+authenticated, read-only, and does not trigger provider requests. Sync
+fetches provider data by bounded date range per pair/symbol, then inserts
+only missing daily rows — never one provider request per calendar day.
+
+**Data schema** — `fx_rates` (`base_currency`, `quote_currency`, `rate`
+`CHECK (rate > 0)`, `rate_date`, `source`, unique on
+`(base_currency, quote_currency, rate_date)`); `stock_prices` (`symbol`,
+`price` `CHECK (price > 0)`, `currency`, `price_date`, `source`, unique on
+`(symbol, currency, source, price_date)` — provider-scoped uniqueness
+because the same symbol/date can arrive from different sources/currencies;
+read paths query by `symbol`+`price_date` and pick deterministically by
+latest `created_at` then `source` when more than one provider-scoped row
+exists); `market_data_sync_state` (`kind`, `scope`, `last_success_at`,
+`last_success_date`, `last_observation_date`, unique on `(kind, scope)`).
+
+**FX rate precision** — storage 6 decimals, amount calculation 2 decimals
+(after conversion), display 4 decimals. Conversion always goes through
+`audit.money.convert`/`ExchangeRate` (never a hand-rolled multiply), e.g.
+`convert(Money(Decimal("1000.00"), "SGD"), ExchangeRate("SGD", "USD",
+Decimal("0.741523"))).amount` → `741.52 USD`.
+
+**Caching** — in-process FX cache in `apps/backend/src/services/fx.py`,
+key `fx:{base}:{quote}:{date}`, 24h TTL, DB lookup on miss;
+`lazy_load=True` call sites may resolve a missing DB rate through inverse,
+bridge, or Yahoo Finance and persist the result to `fx_rates`.
+
+Design constraints: always store the source name with the rate for
+auditability; store FX rates exactly and convert amounts through
+`Money`/`ExchangeRate` so 2dp money rounding stays centralized; prefer
+historical rates over real-time for reporting; persist derived report-side
+rates with `source` values like `derived:inverse:SGD/HKD`,
+`derived:bridge:USD`, or `yahoo_finance`; persist only positive FX
+rates/prices (invalid zero/negative provider outputs are rejected at the
+database boundary). Never hardcode exchange rates; never silently invent
+rates when direct, inverse, bridge, and provider lookup all fail.
+
+**Error handling** — missing direct rate → try inverse/bridge rates from
+`fx_rates`; source timeout → log a warning and continue to report error
+handling; missing rate for date → use the latest stored/provider date on
+or before the requested date; all lazy paths failed → raise `FxRateError`,
+report APIs surface a controlled `ReportError`.
+
+**FX rate seeding (test data)** — `uv run python tools/seed_fx_rates.py
+--env local` (or `--env staging` with `DATABASE_URL` set) seeds a fixed
+FX-rate test dataset (USD/SGD/EUR base rates plus USD↔SGD 1.28,
+USD↔EUR 0.852) used for deterministic FX gain/loss test scenarios.

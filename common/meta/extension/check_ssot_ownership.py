@@ -110,7 +110,7 @@ RULE_KEYWORDS: list[tuple[str, re.Pattern[str], str, str]] = [
         re.compile(
             r"(?:≥\s*85|>=\s*85|60[-–]84|<\s*60.*(?:unmatched|review))", re.IGNORECASE
         ),
-        "docs/ssot/reconciliation.md",
+        "common/reconciliation/readme.md",
         "#thresholds",
     ),
     (
@@ -172,6 +172,11 @@ CHECK4_EXEMPT_PATHS: set[Path] = {
     / "GEMINI.md",  # symlink -> AGENTS.md (Gemini/Antigravity CLI entry point)
     REPO_ROOT / "README.md",  # project overview — summary mention OK
     REPO_ROOT / "vision.md",  # North Star document
+    # Canonical owner of the reconciliation-thresholds rule, migrated out of
+    # docs/ssot/ (migration closeout wave 3, #1664) — the docs/ssot/-only
+    # auto-exemption above no longer covers it, so it needs an explicit entry
+    # here to avoid self-flagging.
+    REPO_ROOT / "common" / "reconciliation" / "readme.md",
 }
 
 

@@ -52,7 +52,7 @@ New scoring helpers:
 - `_score_balance_progression(transactions)`
 - `_score_currency_consistency(transactions, header_currency)`
 
-Expected routing behavior remains threshold-based (See: `docs/ssot/reconciliation.md#thresholds`):
+Expected routing behavior remains threshold-based (See: `common/reconciliation/readme.md#thresholds`):
 - >= 85: auto-accept candidate
 - 60-84: review queue
 - < 60: manual handling path

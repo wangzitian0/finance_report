@@ -89,6 +89,60 @@ Three-step sequence, each a separate merge-gated PR:
   value objects (invariants / confidence / provenance / trace) and the
   `extension` reach into the financial flow.
 
+## Source-type trust hierarchy (provenance)
+
+*(Internalized from `docs/ssot/source-type-priority.md`, migration closeout
+wave 3, #1664 — this is now the single owner; do not re-add a separate
+SSOT copy. Lives in `audit` because it's a `confidence`/`provenance`
+concern — see [What audit governs](#what-audit-governs) above — and its
+implementation is `apps/backend/src/audit/source_type_priority.py`.)*
+
+`JournalEntrySourceType` (`apps/backend/src/models/journal.py`) is the
+trust hierarchy for journal-entry provenance — which source wins when two
+sources disagree about the same transaction. Four user-data values, highest
+to lowest trust: `manual` (TRUSTED — user typed the entry directly),
+`user_confirmed` (HIGH — auto-extracted, but the user explicitly confirmed
+it), `auto_matched` (MEDIUM — reconciliation matched at score ≥ 85 before
+the entry became immutable; see:
+[common/reconciliation/readme.md#thresholds](../reconciliation/readme.md#thresholds)
+for the full ≥85 / 60-84 / <60 routing table), `auto_parsed` (LOW —
+AI-extracted from a document, unconfirmed). Internal/system types (`system`,
+`fx_revaluation`) sit outside this user-trust ladder. `bank_statement` was
+a legacy value retired from the enum in migration 0040 (#896); its
+historical rows moved to `auto_parsed` in migration 0018, no write path
+emits it anymore, and `normalize_source_type` still folds any stray raw
+string defensively so legacy inputs and the immutability trigger's text
+guard stay harmless.
+
+**Conflict resolution**: when two sources disagree on the same
+transaction (amount, date, classification), the higher-priority source
+always wins — `manual > user_confirmed > auto_matched > auto_parsed`. If
+`auto_parsed` says $100.00 and `manual` says $102.50, the manual entry
+prevails and the auto-parsed record is flagged superseded.
+
+**State transitions** — `auto_parsed` is the only entry point (AI
+extraction); from there: `auto_parsed → user_confirmed` (Stage-1 review
+confirm), `auto_parsed → manual` (user edits and saves),
+`auto_parsed → auto_matched` (reconciliation score ≥ 85 before posting),
+`auto_matched → user_confirmed` (review-queue confirm),
+`user_confirmed → manual` (user re-edits). `manual` is terminal — highest
+trust, no further promotion.
+
+Design constraints: always stamp `source_type` at entry creation, never
+leave it null (it's optional on `POST /api/journal-entries`, defaulting
+to `manual` when omitted). Reconciliation auto-accept may set
+`source_type=auto_matched` only before the journal entry becomes
+posted/reconciled — an immutable posted entry keeps its original
+`source_type`; auto-match provenance for an already-posted entry is
+represented by `ReconciliationMatch` and its normalized anchor links
+instead. Log both the winning and losing `source_type` in the audit trail
+(`ReconciliationMatch.score_breakdown`) when resolving a conflict. Never
+downgrade `source_type` (e.g. `manual` back to `auto_parsed`); never
+silently overwrite a `manual` entry with `auto_matched` data — require
+explicit user action; never omit `source_type` when creating journal
+entries via the API. The field is immutable after creation except through
+explicit promotion endpoints (Stage-1 approve, review-queue confirm).
+
 <a id="base-packages"></a>
 
 ## Base packages (value-type narrow waists)

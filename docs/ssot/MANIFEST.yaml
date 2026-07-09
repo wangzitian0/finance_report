@@ -171,16 +171,18 @@ concepts:
 
   # ── Reconciliation domain ──────────────────────────────────────────────
   reconciliation_thresholds:
-    owner: docs/ssot/reconciliation.md#thresholds
+    owner: common/reconciliation/readme.md#thresholds
     description: Score ≥85 auto-accept; 60-84 review; <60 unmatched.
     cross_refs:
       - docs/agents/red-lines.md
+      - docs/ssot/reconciliation.md
 
   reconciliation_state_machine:
-    owner: docs/ssot/reconciliation.md#state-machine
+    owner: common/reconciliation/readme.md#state-machine
     description: pending → auto_accepted | pending_review → accepted | rejected.
     cross_refs:
       - docs/ssot/confirmation-workflow.md
+      - docs/ssot/reconciliation.md
 
   # ── Auth / Identity ────────────────────────────────────────────────────
   # The auth/identity SSOT concept (formerly `auth_flow`, owner docs/ssot/auth.md)
@@ -216,7 +218,7 @@ concepts:
     kind: concept
     description: Extraction confidence score weighting and ≥85 / 60-84 / <60 routing tiers.
     cross_refs:
-      - docs/ssot/reconciliation.md#thresholds
+      - common/reconciliation/readme.md#thresholds
       - docs/ssot/confirmation-workflow.md#confidence-tier-rollup
 
   extraction_failed_case_registry:
@@ -294,9 +296,10 @@ concepts:
       - tests/tooling/test_pdf_fixture_parseable.py
 
   ai_advisor_policy:
-    owner: docs/ssot/ai.md
+    owner: common/advisor/readme.md
     description: AI advisor application-layer contract, prompt policy, context scope, and safety controls.
     cross_refs:
+      - docs/ssot/ai.md
       - docs/ssot/reporting.md
       - docs/ssot/workflow-events.md
       - docs/ssot/source-coverage-matrix.yaml
@@ -305,9 +308,10 @@ concepts:
 
   # ── Reporting domain ───────────────────────────────────────────────────
   reporting_calculations:
-    owner: docs/ssot/reporting.md
+    owner: common/reporting/readme.md
     description: Financial reports, multi-currency consolidation, calculations.
     cross_refs:
+      - docs/ssot/reporting.md
       - common/ledger/readme.md
       - docs/ssot/market_data.md
 
@@ -320,24 +324,31 @@ concepts:
       - docs/project/EPIC-020.framework-aware-personal-reporting.md
 
   net_worth_valuation_snapshots:
-    owner: docs/ssot/assets.md#manual-valuation-snapshots
+    owner: common/pricing/readme.md#manual-valuation-snapshots
     description: >-
       Point-in-time manual valuation snapshots for non-ledger net worth
       components. Legacy model; retires into the pricing package's unified
-      observation model (#1610) — ownership moves at that cutover.
+      observation model (#1610) at the consumer-wiring cutover (internalized
+      into the package readme itself, migration closeout wave 3, #1664).
+    family: assets
     cross_refs:
+      - docs/ssot/assets.md
       - docs/ssot/reporting.md
+      - common/pricing/contract.py
       - docs/ssot/schema.md
 
   # ── Market data ────────────────────────────────────────────────────────
   market_data:
-    owner: docs/ssot/market_data.md
+    owner: common/pricing/readme.md#market-data-pre-1610-cutover-shipped-model
     description: >-
       FX rates, stock prices, data sources, and sync schedule. Legacy model;
-      internalizes into the pricing package (#1610) — ownership moves at that
-      cutover.
+      internalized into the pricing package readme (migration closeout
+      wave 3, #1664); consolidates into the unified observation model at the
+      #1610 consumer-wiring cutover.
     cross_refs:
+      - docs/ssot/market_data.md
       - docs/ssot/reporting.md
+      - common/pricing/contract.py
 
   # ── Processing account ─────────────────────────────────────────────────
   processing_account:
@@ -362,7 +373,7 @@ concepts:
     kind: concept
     description: Stage 1 & Stage 2 confirmation state transitions (the cross-cutting state machine).
     cross_refs:
-      - docs/ssot/reconciliation.md#state-machine
+      - common/reconciliation/readme.md#state-machine
 
   confidence_tier_rollup:
     owner: docs/ssot/confirmation-workflow.md#confidence-tier-rollup
@@ -862,9 +873,10 @@ concepts:
 
   # ── Source type priority ──────────────────────────────────────────────
   source_type_priority:
-    owner: docs/ssot/source-type-priority.md
+    owner: common/audit/readme.md#source-type-trust-hierarchy-provenance
     description: Data trust hierarchy and source_type enum conflict resolution.
     cross_refs:
+      - docs/ssot/source-type-priority.md
       - docs/ssot/reconciliation.md
       - common/extraction/readme.md
 

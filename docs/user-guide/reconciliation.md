@@ -318,4 +318,4 @@ curl https://report.zitian.party/api/reconciliation/stats
 
 - [View reconciliation stats](reports.md)
 - [API reference](../reference/api.md)
-- [Technical details](../ssot/reconciliation.md)
+- [Technical details](../../common/reconciliation/readme.md)
