@@ -50,10 +50,6 @@ class PathRule:
 # longest-prefix semantics in common/testing/check_ac_traceability.py.
 PATH_RULES: tuple[PathRule, ...] = (
     PathRule(
-        "apps/backend/tests/e2e/test_auth_flows.py", "backend_ui_e2e_local", False
-    ),
-    PathRule("apps/backend/tests/e2e/test_e2e_flows.py", "backend_ui_e2e_local", False),
-    PathRule(
         "apps/backend/tests/e2e/test_core_journeys.py", "backend_tier1_api_e2e", True
     ),
     PathRule(
@@ -445,8 +441,10 @@ WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
         # Tier-1 file set: core API journeys + the provider-free seeded
         # statement journeys (AC8.21) + the extraction-corpus journeys
         # (AC-llm.11) + the EPIC-025 reporting-extraction API proof.
-        # Browser-dependent specs (test_auth_flows, test_e2e_flows) need a
-        # frontend and stay out of this API-only lane.
+        # Browser-dependent specs need a frontend and stay out of this
+        # API-only lane (the local-only backend copies of test_auth_flows /
+        # test_e2e_flows were deleted, #1682 — the root tests/e2e/ versions
+        # are the only ones left, running in the deployment_e2e stage).
         paths=(
             "tests/e2e/test_core_journeys.py",
             "tests/e2e/test_seeded_statement_journey.py",
