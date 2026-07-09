@@ -171,20 +171,15 @@ job inventories or scenario counts into this EPIC.
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC8.2.1 | New User Registration | `test_register_and_login_flow()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.2.2 | Create Cash Account | `test_create_cash_account()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.2.3 | Create Bank Account | `test_create_bank_account()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.2.4 | Update account | `test_update_account()` | `e2e/test_core_journeys.py` | P1 |
-| AC8.2.5 | Delete account | `test_delete_account()` | `e2e/test_core_journeys.py` | P1 |
+
+> This group's account-CRUD rows (formerly the second through fifth rows)
+> removed — migrated to the `ledger` package roadmap as
+> `AC-ledger.journeys.1-4` (migration closeout continuation, #1663 / #1707).
 
 ### AC8.3: Phase 2 - Manual Journal Entries
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC8.3.1 | Simple Expense Entry | `test_simple_expense_entry()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.3.2 | Void Entry | `test_void_journal_entry()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.3.3 | Post Draft Entry | `test_post_draft_entry()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.3.4 | Unbalanced Entry Rejected | `test_unbalanced_journal_entry_rejection()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.3.5 | Journal Entry CRUD | `test_journal_entry_crud()` | `e2e/test_core_journeys.py` | P1 |
+> This group's rows removed — migrated to the `ledger` package roadmap as
+> `AC-ledger.journeys.5-9` (migration closeout continuation, #1663 / #1707).
 
 ### AC8.4: Phase 3 - Statement Import & Parsing
 
@@ -254,27 +249,18 @@ job inventories or scenario counts into this EPIC.
 
 ### AC8.11: Phase 2 — Core Financial Journeys
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC8.11.1 | Income Recording | `test_income_recording()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.11.2 | Credit Card Spend | `test_credit_card_spend()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.11.3 | Credit Card Repayment | `test_credit_card_repayment()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.11.4 | Internal Transfer | `test_internal_transfer()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.11.5 | Split Transaction | `test_split_transaction()` | `e2e/test_core_journeys.py` | P0 |
+> This group's rows removed — migrated to the `ledger` package roadmap as
+> `AC-ledger.journeys.10-14` (migration closeout continuation, #1663 / #1707).
 
 ### AC8.12: Provider Error-Path Unit Gates
 
-> **Partially migrated.** The extraction-owned rows (were AC8.12.* rows
+> **Fully migrated.** The extraction-owned rows (were AC8.12.* rows
 > .6/.4/.5) are homed in the `extraction` package roadmap as
 > `AC-extraction.812.6` · `AC-extraction.812.4` · `AC-extraction.812.5`
 > ([`common/extraction/contract.py`](../../common/extraction/contract.py));
-> the remaining rows below stay with their own owners.
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC8.12.1 | Liability accounts return -net_balance so coverage hits else branch. | `test_returns_negated_balance_for_liability_account` | `reporting/test_fx_revaluation.py` | P1 |
-| AC8.12.2 | SQLAlchemyError on flush is wrapped in RevaluationError. | `test_flush_error_raises_revaluation_error` | `reporting/test_fx_revaluation.py` | P1 |
-| AC8.12.3 | Accounts that return None from calculate_unrealized_fx_for_account are skipped. | `test_none_revaluation_skipped` | `reporting/test_fx_revaluation.py` | P1 |
+> the remaining rows (were AC8.12.* rows .1/.2/.3) are homed in the `ledger`
+> package roadmap as `AC-ledger.fxrevaluation.1-3` (migration closeout
+> continuation, #1663 / #1707).
 
 ### AC8.13: Tier 3 Browser E2E — Full Statement Journey
 

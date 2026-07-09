@@ -1688,6 +1688,140 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── group journeys: account CRUD + core financial journeys, E2E
+        # (migrated from EPIC-008 AC8.2.2-5/.3/.11, migration closeout
+        # continuation, #1663 / #1707) ──
+        ACRecord(
+            id="AC-ledger.journeys.1",
+            statement="Creating a cash asset account via the API returns the correct type/currency/active state.",
+            test="apps/backend/tests/e2e/test_core_journeys.py::test_create_cash_account",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.journeys.2",
+            statement="Creating a bank asset account via the API succeeds with the correct type.",
+            test="apps/backend/tests/e2e/test_core_journeys.py::test_create_bank_account",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.journeys.3",
+            statement="Updating an account's name via the API reflects the new name.",
+            test="apps/backend/tests/e2e/test_core_journeys.py::test_update_account",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.journeys.4",
+            statement="Deleting an account with no transactions removes it (204), and a subsequent GET returns 404.",
+            test="apps/backend/tests/e2e/test_core_journeys.py::test_delete_account",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.journeys.5",
+            statement="A simple two-account expense entry is created in draft status with correct amounts.",
+            test="apps/backend/tests/e2e/test_core_journeys.py::test_simple_expense_entry",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.journeys.6",
+            statement="Voiding a posted journal entry transitions it to void state.",
+            test="apps/backend/tests/e2e/test_core_journeys.py::test_void_journal_entry",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.journeys.7",
+            statement="Posting a draft journal entry transitions it to posted state.",
+            test="apps/backend/tests/e2e/test_core_journeys.py::test_post_draft_entry",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.journeys.8",
+            statement="An unbalanced journal entry (debits != credits) is rejected.",
+            test=(
+                "apps/backend/tests/e2e/test_core_journeys.py"
+                "::test_unbalanced_journal_entry_rejection"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.journeys.9",
+            statement="Journal entry create/read/update/delete via the API round-trips correctly end to end.",
+            test="apps/backend/tests/e2e/test_core_journeys.py::test_journal_entry_crud",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.journeys.10",
+            statement="Recording income posts a balanced entry crediting the income account.",
+            test="apps/backend/tests/e2e/test_core_journeys.py::test_income_recording",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.journeys.11",
+            statement="A credit card spend posts a balanced entry against the liability account.",
+            test="apps/backend/tests/e2e/test_core_journeys.py::test_credit_card_spend",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.journeys.12",
+            statement="A credit card repayment posts a balanced entry reducing the liability.",
+            test="apps/backend/tests/e2e/test_core_journeys.py::test_credit_card_repayment",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.journeys.13",
+            statement="An internal transfer between two of the user's own accounts posts a balanced entry.",
+            test="apps/backend/tests/e2e/test_core_journeys.py::test_internal_transfer",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.journeys.14",
+            statement="A split transaction across multiple expense categories posts one balanced multi-line entry.",
+            test="apps/backend/tests/e2e/test_core_journeys.py::test_split_transaction",
+            priority="P0",
+            status="done",
+        ),
+        # ── group fxrevaluation: FX revaluation provider error-path unit gates
+        # (migrated from EPIC-008 AC8.12.1-3, migration closeout continuation,
+        # #1663 / #1707) ──
+        ACRecord(
+            id="AC-ledger.fxrevaluation.1",
+            statement="A liability account's unrealized FX gain/loss returns the negated net balance.",
+            test=(
+                "apps/backend/tests/reporting/test_fx_revaluation.py"
+                "::test_returns_negated_balance_for_liability_account"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.fxrevaluation.2",
+            statement="A SQLAlchemyError raised during the revaluation flush is wrapped in RevaluationError.",
+            test=(
+                "apps/backend/tests/reporting/test_fx_revaluation.py"
+                "::test_flush_error_raises_revaluation_error"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.fxrevaluation.3",
+            statement="An account whose unrealized-FX calculation returns None is skipped, not errored.",
+            test="apps/backend/tests/reporting/test_fx_revaluation.py::test_none_revaluation_skipped",
+            priority="P1",
+            status="done",
+        ),
     ],
 )
 
