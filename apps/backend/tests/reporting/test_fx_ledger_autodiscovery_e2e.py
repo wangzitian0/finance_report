@@ -154,7 +154,7 @@ async def _seed_raw_ledger_transfer(db: AsyncSession, user_id) -> None:
 
 @ac_proof(
     "fx-ledger-autodiscovery-income-statement-e2e",
-    ac_ids=["AC4.14.13"],
+    ac_ids=["AC-reconciliation.fx-transfer.13"],
     scope="behavioral",
     ci_tier="pr_ci",
     trust_mode="deterministic_pr",
@@ -162,7 +162,7 @@ async def _seed_raw_ledger_transfer(db: AsyncSession, user_id) -> None:
     issue="#1123",
 )
 async def test_AC2_raw_ledger_internal_transfer_autodiscovered_e2e(db: AsyncSession, test_user, ac_evidence):
-    """AC4.14.13: a raw-ledger transfer (no fx_conversions row) is netted out.
+    """AC-reconciliation.fx-transfer.13: AC4.14.13: a raw-ledger transfer (no fx_conversions row) is netted out.
 
     Without auto-discovery, total_income would be inflated by the 1000 USD
     (=1360 SGD) transfer-in leg and total_expenses by the 1360 SGD transfer-out leg.
@@ -195,7 +195,7 @@ async def test_AC2_raw_ledger_internal_transfer_autodiscovered_e2e(db: AsyncSess
     assert balance_sheet["net_income"] == _SALARY_SGD
 
     ac_evidence(
-        ac_id="AC4.14.13",
+        ac_id="AC-reconciliation.fx-transfer.13",
         score=1.0,
         metric="raw_ledger_transfer_autodiscovered_and_excluded_fee_only",
         provenance="deterministic",
@@ -205,7 +205,7 @@ async def test_AC2_raw_ledger_internal_transfer_autodiscovered_e2e(db: AsyncSess
 
 @ac_proof(
     "fx-ledger-autodiscovery-roundtrip-pnl-e2e",
-    ac_ids=["AC4.14.14"],
+    ac_ids=["AC-reconciliation.fx-transfer.14"],
     scope="behavioral",
     ci_tier="pr_ci",
     trust_mode="deterministic_pr",
@@ -213,7 +213,7 @@ async def test_AC2_raw_ledger_internal_transfer_autodiscovered_e2e(db: AsyncSess
     issue="#1123",
 )
 async def test_AC4_same_day_round_trip_nets_zero_pnl_through_live_report(db: AsyncSession, test_user, ac_evidence):
-    """AC4.14.14: a same-day SGD→USD→SGD round-trip nets ~zero realized P&L live.
+    """AC-reconciliation.fx-transfer.14: AC4.14.14: a same-day SGD→USD→SGD round-trip nets ~zero realized P&L live.
 
     Two conversions on the same day at the same rate: 1360 SGD → 1000 USD, then
     1000 USD → 1360 SGD. Both are mis-booked as income/expense. Auto-discovery
@@ -287,7 +287,7 @@ async def test_AC4_same_day_round_trip_nets_zero_pnl_through_live_report(db: Asy
     assert report["net_income"] == Decimal("0.00")
 
     ac_evidence(
-        ac_id="AC4.14.14",
+        ac_id="AC-reconciliation.fx-transfer.14",
         score=1.0,
         metric="same_day_round_trip_nets_zero_realized_pnl_through_live_report",
         provenance="deterministic",

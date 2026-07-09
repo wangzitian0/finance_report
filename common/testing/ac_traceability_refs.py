@@ -8,8 +8,12 @@ from pathlib import Path
 from typing import Literal
 
 # Matches both id grammars: legacy ``AC{epic}.{n}.{n}`` and package-scoped
-# ``AC-{package}.{n}.{n}``.
-AC_PATTERN = re.compile(r"\bAC(?:\d+|-[a-z][a-z0-9_]*)\.\d+\.\d+\b")
+# ``AC-{package}.{group}.{n}``, where ``group`` is either numeric (continuing
+# an EPIC's own numbering) or a word-entity slug (e.g. ``guardrail``,
+# ``fx-transfer``) — packages use whichever convention fits their roadmap.
+AC_PATTERN = re.compile(
+    r"\bAC(?:\d+\.\d+\.\d+|-[a-z][a-z0-9_]*\.[a-z0-9][a-z0-9_-]*\.\d+)\b"
+)
 
 ReferenceKind = Literal["real", "stub", "placeholder"]
 

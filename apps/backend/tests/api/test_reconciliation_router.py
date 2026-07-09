@@ -234,7 +234,7 @@ class TestReconciliationEndpoints:
         assert "total" in data
 
     async def test_accept_match_success(self, client: AsyncClient, db, test_user: User):
-        """AC4.3.4: Test accepting a reconciliation match."""
+        """AC-reconciliation.review-queue.3: AC4.3.4: Test accepting a reconciliation match."""
         # GIVEN existing match
         account = await create_test_asset_account(db, test_user)
         statement = await create_test_statement(db, test_user, account_id=account.id, currency="SGD")
@@ -257,7 +257,7 @@ class TestReconciliationEndpoints:
         assert response.json()["status"] == ReconciliationStatusEnum.ACCEPTED.value
 
     async def test_accept_match_not_found(self, client: AsyncClient, test_user: User):
-        """AC4.3.5: Test accepting non-existent match."""
+        """AC-reconciliation.review-queue.4: AC4.3.5: Test accepting non-existent match."""
         # GIVEN non-existent match ID
         non_existent_id = str(uuid4())
 
@@ -269,7 +269,7 @@ class TestReconciliationEndpoints:
         assert "Match" in response.json()["detail"]
 
     async def test_reject_match_success(self, client: AsyncClient, db, test_user: User):
-        """AC4.3.6: Test rejecting a reconciliation match."""
+        """AC-reconciliation.review-queue.5: AC4.3.6: Test rejecting a reconciliation match."""
         # GIVEN existing match
         statement = await create_test_statement(db, test_user)
         db.add(statement)
@@ -291,7 +291,7 @@ class TestReconciliationEndpoints:
         assert response.json()["status"] == ReconciliationStatusEnum.REJECTED.value
 
     async def test_reject_match_not_found(self, client: AsyncClient, test_user: User):
-        """AC4.3.7: Test rejecting non-existent match."""
+        """AC-reconciliation.review-queue.6: AC4.3.7: Test rejecting non-existent match."""
         # GIVEN non-existent match ID
         non_existent_id = str(uuid4())
 
@@ -344,7 +344,7 @@ class TestReconciliationEndpoints:
         assert data["total"] == 0
 
     async def test_reconciliation_stats_success(self, client: AsyncClient, db, test_user: User):
-        """AC4.3.8: Test getting reconciliation statistics."""
+        """AC-reconciliation.review-queue.7: AC4.3.8: Test getting reconciliation statistics."""
         # GIVEN a user with transactions (setup handled by fixtures)
 
         # WHEN calling stats endpoint
@@ -363,7 +363,7 @@ class TestReconciliationEndpoints:
         assert "score_distribution" in data
 
     async def test_list_unmatched_success(self, client: AsyncClient, db, test_user: User):
-        """AC4.3.9: Test listing unmatched transactions."""
+        """AC-reconciliation.review-queue.8: AC4.3.9: Test listing unmatched transactions."""
         # GIVEN unmatched transactions
         statement = await create_test_statement(db, test_user)
         db.add(statement)
@@ -385,7 +385,7 @@ class TestReconciliationEndpoints:
         assert "total" in data
 
     async def test_create_entry_from_unmatched_success(self, client: AsyncClient, db, test_user: User):
-        """AC4.3.10: Test creating journal entry from unmatched transaction."""
+        """AC-reconciliation.review-queue.9: AC4.3.10: Test creating journal entry from unmatched transaction."""
         # GIVEN unmatched transaction
         statement = await create_test_statement(db, test_user)
         db.add(statement)
@@ -408,7 +408,7 @@ class TestReconciliationEndpoints:
         assert "total_amount" in data
 
     async def test_create_entry_from_unmatched_not_found(self, client: AsyncClient, test_user: User):
-        """AC4.3.11: Test creating entry from non-existent transaction."""
+        """AC-reconciliation.review-queue.10: AC4.3.11: Test creating entry from non-existent transaction."""
         # GIVEN non-existent transaction ID
         non_existent_id = uuid4()
 
@@ -446,7 +446,7 @@ class TestReconciliationEndpoints:
         assert len(entries) == 1
 
     async def test_batch_create_entries_for_all_unmatched(self, client: AsyncClient, db, test_user: User):
-        """AC4.3.14: Test batch creating entries for all unmatched transactions."""
+        """AC-reconciliation.review-queue.13: AC4.3.14: Test batch creating entries for all unmatched transactions."""
         statement = await create_test_statement(db, test_user)
         db.add(statement)
         await db.commit()
@@ -467,7 +467,7 @@ class TestReconciliationEndpoints:
         assert len(entries) == 2
 
     async def test_batch_create_entries_requires_filter(self, client: AsyncClient):
-        """AC4.3.15: Test batch create returns 400 without all/txn_ids filter."""
+        """AC-reconciliation.review-queue.14: AC4.3.15: Test batch create returns 400 without all/txn_ids filter."""
         response = await client.post("/reconciliation/unmatched/batch-create", json={})
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
@@ -515,7 +515,7 @@ class TestReconciliationEndpoints:
         assert isinstance(data, list)
 
     async def test_list_anomalies_not_found(self, client: AsyncClient, test_user: User):
-        """AC4.5.2: Test listing anomalies for non-existent transaction."""
+        """AC-reconciliation.anomaly-detection.2: AC4.5.2: Test listing anomalies for non-existent transaction."""
         # GIVEN non-existent transaction ID
         non_existent_id = uuid4()
 
@@ -527,7 +527,7 @@ class TestReconciliationEndpoints:
         assert "Transaction" in response.json()["detail"]
 
     async def test_unauthenticated_access(self, public_client: AsyncClient, test_user: User):
-        """AC4.3.12: Test that unauthenticated clients cannot access reconciliation endpoints."""
+        """AC-reconciliation.review-queue.11: AC4.3.12: Test that unauthenticated clients cannot access reconciliation endpoints."""
         # GIVEN unauthenticated client
         # WHEN calling any reconciliation endpoint
         response = await public_client.get("/reconciliation/stats")
@@ -536,7 +536,7 @@ class TestReconciliationEndpoints:
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     async def test_user_isolation(self, client: AsyncClient, db, test_user: User):
-        """AC4.3.13: Test that users can only access their own reconciliation data."""
+        """AC-reconciliation.review-queue.12: AC4.3.13: Test that users can only access their own reconciliation data."""
         # GIVEN statement belonging to different user
         other_user = User(email="other@example.com", hashed_password="hashed")
         db.add(other_user)

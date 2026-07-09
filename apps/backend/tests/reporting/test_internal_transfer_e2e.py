@@ -175,7 +175,7 @@ async def _seed_internal_transfer_scenario(db: AsyncSession, user_id) -> None:
 
 @ac_proof(
     "internal-transfer-income-statement-e2e",
-    ac_ids=["AC4.14.9"],
+    ac_ids=["AC-reconciliation.fx-transfer.9"],
     scope="behavioral",
     ci_tier="pr_ci",
     trust_mode="deterministic_pr",
@@ -183,7 +183,7 @@ async def _seed_internal_transfer_scenario(db: AsyncSession, user_id) -> None:
     issue="#1123",
 )
 async def test_AC3_internal_transfer_excluded_from_income_statement_e2e(db: AsyncSession, test_user, ac_evidence):
-    """AC4.14.9: the income statement excludes a recorded internal transfer's legs.
+    """AC-reconciliation.fx-transfer.9: AC4.14.9: the income statement excludes a recorded internal transfer's legs.
 
     Without the wiring, total_income would be inflated by the 1000 USD (=1360 SGD)
     transfer-in leg and total_expenses by the 1360 SGD transfer-out leg. With it,
@@ -219,7 +219,7 @@ async def test_AC3_internal_transfer_excluded_from_income_statement_e2e(db: Asyn
     assert sum((Decimal(str(t["total_expenses"])) for t in report["trends"]), Decimal("0")) == _FEE_SGD
 
     ac_evidence(
-        ac_id="AC4.14.9",
+        ac_id="AC-reconciliation.fx-transfer.9",
         score=1.0,
         metric="income_statement_excludes_internal_transfer_legs_fee_only",
         provenance="deterministic",
@@ -229,7 +229,7 @@ async def test_AC3_internal_transfer_excluded_from_income_statement_e2e(db: Asyn
 
 @ac_proof(
     "internal-transfer-balance-sheet-net-income-e2e",
-    ac_ids=["AC4.14.10"],
+    ac_ids=["AC-reconciliation.fx-transfer.10"],
     scope="behavioral",
     ci_tier="pr_ci",
     trust_mode="deterministic_pr",
@@ -237,7 +237,7 @@ async def test_AC3_internal_transfer_excluded_from_income_statement_e2e(db: Asyn
     issue="#1123",
 )
 async def test_AC3_internal_transfer_net_income_fee_only_e2e(db: AsyncSession, test_user, ac_evidence):
-    """AC4.14.10: cumulative balance-sheet net income excludes the transfer, fee only.
+    """AC-reconciliation.fx-transfer.10: AC4.14.10: cumulative balance-sheet net income excludes the transfer, fee only.
 
     The balance sheet's cumulative net income (Income - Expenses up to as_of_date)
     must net the internal transfer's legs out and reflect only the fee, so the
@@ -258,7 +258,7 @@ async def test_AC3_internal_transfer_net_income_fee_only_e2e(db: AsyncSession, t
     assert report["net_income"] == Decimal("4997.50")
 
     ac_evidence(
-        ac_id="AC4.14.10",
+        ac_id="AC-reconciliation.fx-transfer.10",
         score=1.0,
         metric="balance_sheet_net_income_excludes_internal_transfer_fee_only",
         provenance="deterministic",

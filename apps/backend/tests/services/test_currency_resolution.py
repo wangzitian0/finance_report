@@ -34,7 +34,7 @@ pytestmark = pytest.mark.no_db
 # --- AC12.40.1: attach an explicit currency when determinable -----------------
 
 
-@ac_proof(proof_id="test_ingest_attaches_explicit_currency", ac_ids=["AC12.40.1"], ci_tier="pr_ci", issue="#1341")
+@ac_proof(proof_id="test_ingest_attaches_explicit_currency", ac_ids=["AC-audit.40.1"], ci_tier="pr_ci", issue="#1341")
 @pytest.mark.parametrize(
     ("candidates", "expected"),
     [
@@ -45,7 +45,7 @@ pytestmark = pytest.mark.no_db
     ],
 )
 def test_AC12_40_1_attaches_explicit_currency(candidates, expected):
-    """AC12.40.1: the first valid ISO-4217 candidate is attached, normalized."""
+    """AC-audit.40.1: AC12.40.1: the first valid ISO-4217 candidate is attached, normalized."""
     resolved = resolve_ingest_currency(*candidates)
     assert resolved.code == expected
     assert resolved.unresolved is False
@@ -54,7 +54,7 @@ def test_AC12_40_1_attaches_explicit_currency(candidates, expected):
 # --- AC12.40.2: unknown/ambiguous -> flagged currency_unresolved --------------
 
 
-@ac_proof(proof_id="test_ingest_flags_unresolved", ac_ids=["AC12.40.2"], ci_tier="pr_ci", issue="#1341")
+@ac_proof(proof_id="test_ingest_flags_unresolved", ac_ids=["AC-audit.40.2"], ci_tier="pr_ci", issue="#1341")
 @pytest.mark.parametrize(
     "candidates",
     [
@@ -66,7 +66,7 @@ def test_AC12_40_1_attaches_explicit_currency(candidates, expected):
     ],
 )
 def test_AC12_40_2_flags_unresolved_instead_of_silent_default(candidates):
-    """AC12.40.2: no valid currency -> flagged unresolved with a non-trusted placeholder.
+    """AC-audit.40.2: AC12.40.2: no valid currency -> flagged unresolved with a non-trusted placeholder.
 
     Critically it must NOT silently default to a base currency like SGD.
     """
@@ -76,9 +76,9 @@ def test_AC12_40_2_flags_unresolved_instead_of_silent_default(candidates):
     assert resolved.code != "SGD"
 
 
-@ac_proof(proof_id="test_unresolved_placeholder_is_not_valid", ac_ids=["AC12.40.2"], ci_tier="pr_ci", issue="#1341")
+@ac_proof(proof_id="test_unresolved_placeholder_is_not_valid", ac_ids=["AC-audit.40.2"], ci_tier="pr_ci", issue="#1341")
 def test_AC12_40_2_placeholder_cannot_masquerade_as_real_currency():
-    """AC12.40.2: the placeholder is rejected by Currency(), so it can never look resolved."""
+    """AC-audit.40.2: AC12.40.2: the placeholder is rejected by Currency(), so it can never look resolved."""
     from src.audit.money import Currency
 
     with pytest.raises(InvalidCurrencyError):
@@ -88,9 +88,9 @@ def test_AC12_40_2_placeholder_cannot_masquerade_as_real_currency():
 # --- AC12.40.4: promotion gate blocks currency_unresolved items ----------------
 
 
-@ac_proof(proof_id="test_promotion_gate_blocks_unresolved", ac_ids=["AC12.40.4"], ci_tier="pr_ci", issue="#1341")
+@ac_proof(proof_id="test_promotion_gate_blocks_unresolved", ac_ids=["AC-audit.40.4"], ci_tier="pr_ci", issue="#1341")
 async def test_AC12_40_4_promotion_gate_blocks_unresolved_currency():
-    """AC12.40.4: an unresolved transaction cannot be promoted to a JournalLine.
+    """AC-audit.40.4: AC12.40.4: an unresolved transaction cannot be promoted to a JournalLine.
 
     The guard fires before any DB access, so ``db=None`` is sufficient to prove the
     block: if the guard were absent the call would instead fail trying to use the DB.
@@ -108,9 +108,9 @@ async def test_AC12_40_4_promotion_gate_blocks_unresolved_currency():
         await create_entry_from_txn(None, txn, user_id=user_id)  # type: ignore[arg-type]
 
 
-@ac_proof(proof_id="test_promotion_gate_allows_resolved", ac_ids=["AC12.40.4"], ci_tier="pr_ci", issue="#1341")
+@ac_proof(proof_id="test_promotion_gate_allows_resolved", ac_ids=["AC-audit.40.4"], ci_tier="pr_ci", issue="#1341")
 async def test_AC12_40_4_promotion_gate_passes_guard_when_resolved():
-    """AC12.40.4: a resolved transaction passes the currency guard (it then proceeds to DB work).
+    """AC-audit.40.4: AC12.40.4: a resolved transaction passes the currency guard (it then proceeds to DB work).
 
     With ``currency_unresolved=False`` the guard must NOT raise; the call moves past
     the guard and only then needs the DB, so we assert it does not raise the
@@ -157,9 +157,9 @@ class _FakeSession:
         self.flushed = True
 
 
-@ac_proof(proof_id="test_reviewer_resolves_currency_audited", ac_ids=["AC12.40.3"], ci_tier="pr_ci", issue="#1341")
+@ac_proof(proof_id="test_reviewer_resolves_currency_audited", ac_ids=["AC-audit.40.3"], ci_tier="pr_ci", issue="#1341")
 async def test_AC12_40_3_reviewer_resolves_currency_with_audit():
-    """AC12.40.3: a reviewer sets an ISO-4217 currency; who/when/value are recorded."""
+    """AC-audit.40.3: AC12.40.3: a reviewer sets an ISO-4217 currency; who/when/value are recorded."""
     user_id = uuid4()
     txn = SimpleNamespace(
         id=uuid4(),
@@ -180,9 +180,9 @@ async def test_AC12_40_3_reviewer_resolves_currency_with_audit():
     assert session.flushed is True
 
 
-@ac_proof(proof_id="test_reviewer_rejects_bad_currency", ac_ids=["AC12.40.3"], ci_tier="pr_ci", issue="#1341")
+@ac_proof(proof_id="test_reviewer_rejects_bad_currency", ac_ids=["AC-audit.40.3"], ci_tier="pr_ci", issue="#1341")
 async def test_AC12_40_3_reviewer_currency_must_be_iso_4217():
-    """AC12.40.3: an invalid code is rejected and nothing is written (still unresolved)."""
+    """AC-audit.40.3: AC12.40.3: an invalid code is rejected and nothing is written (still unresolved)."""
     user_id = uuid4()
     txn = SimpleNamespace(
         id=uuid4(),

@@ -15,8 +15,12 @@ AC_PATTERN = re.compile(r"^AC(?P<epic>\d+)\.(?P<scenario>\d+)\.(?P<case>\d+)$")
 
 # Package-scoped id: ``AC-{package}.{group}.{seq}`` — the package model's scheme,
 # where the key self-describes its owning package instead of an EPIC number.
+# ``group`` accepts both a numeric group (continuing an EPIC's own numbering,
+# e.g. ``39``) and a word-entity slug (e.g. ``guardrail``, ``fx-transfer``) —
+# packages use whichever convention fits their own roadmap; ``seq`` stays
+# numeric either way.
 PKG_AC_PATTERN = re.compile(
-    r"^AC-(?P<package>[a-z][a-z0-9_]*)\.(?P<group>\d+)\.(?P<seq>\d+)$"
+    r"^AC-(?P<package>[a-z][a-z0-9_]*)\.(?P<group>[a-z0-9][a-z0-9_-]*)\.(?P<seq>\d+)$"
 )
 
 
@@ -26,10 +30,14 @@ def sort_key(ac_id: str) -> tuple:
     Legacy numeric ids sort first (leading ``0``) by (epic, scenario, case);
     package ids sort after (leading ``1``) by (package, group, seq). The leading
     discriminant means an ``int`` field is never compared against a ``str`` one.
+    ``group`` sorts as a string (a package's group may be a word-entity slug,
+    not a number), so two packages that both use numeric groups sort
+    lexicographically among themselves (e.g. ``"9"`` before ``"39"`` is NOT
+    guaranteed) — acceptable, since ``group`` is a label, not a magnitude.
     """
     pkg = PKG_AC_PATTERN.fullmatch(ac_id)
     if pkg:
-        return (1, pkg.group("package"), int(pkg.group("group")), int(pkg.group("seq")))
+        return (1, pkg.group("package"), pkg.group("group"), int(pkg.group("seq")))
     return (0, "", *(int(p) for p in ac_id[2:].split(".")))
 
 

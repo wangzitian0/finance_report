@@ -917,5 +917,122 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── group 39: Editable base reporting currency (Phase D, was AC12.39.*) ──
+        ACRecord(
+            id="AC-audit.39.1",
+            statement=(
+                "GET /app-config/base-currency returns the env-default base "
+                "currency when nothing is persisted. Was EPIC-012 AC12.39.1."
+            ),
+            test=(
+                "apps/backend/tests/api/test_app_config_router.py"
+                "::test_AC12_39_1_get_returns_env_default_when_unset"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.39.2",
+            statement=(
+                "get_effective_base_currency() falls back to settings.base_currency "
+                "when no app_config override is persisted. Was EPIC-012 AC12.39.2."
+            ),
+            test=(
+                "apps/backend/tests/api/test_app_config_router.py"
+                "::test_AC12_39_2_effective_accessor_falls_back_to_env_default"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.39.4",
+            statement=(
+                "PUT /app-config/base-currency persists an ISO-4217-validated "
+                "override, and the effective accessor plus a subsequent GET both "
+                "reflect the new value. Was EPIC-012 AC12.39.4."
+            ),
+            test=(
+                "apps/backend/tests/api/test_app_config_router.py"
+                "::test_AC12_39_4_update_persists_and_effective_accessor_returns_new_value"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.39.5",
+            statement=(
+                "PUT /app-config/base-currency rejects a non-ISO-4217 code with "
+                "HTTP 422 and does not persist it; the effective accessor still "
+                "returns the env default. Was the second half of EPIC-012 "
+                "AC12.39.1."
+            ),
+            test=(
+                "apps/backend/tests/api/test_app_config_router.py"
+                "::test_AC12_39_1_invalid_currency_returns_422_and_is_not_persisted"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group 40: Currency established at ingest, never silent-defaulted (Phase E, was AC12.40.*) ──
+        ACRecord(
+            id="AC-audit.40.1",
+            statement=(
+                "resolve_ingest_currency attaches the first valid ISO-4217 "
+                "candidate — the parsed transaction currency, then the statement "
+                "currency — normalized (trimmed + upper-cased), when the currency "
+                "is determinable. Was EPIC-012 AC12.40.1."
+            ),
+            test=(
+                "apps/backend/tests/services/test_currency_resolution.py"
+                "::test_AC12_40_1_attaches_explicit_currency"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.40.2",
+            statement=(
+                "When no candidate is a valid ISO-4217 code, resolve_ingest_currency "
+                "flags the row currency_unresolved with a non-trusted placeholder "
+                "and never silently defaults to a base currency. Was EPIC-012 "
+                "AC12.40.2."
+            ),
+            test=(
+                "apps/backend/tests/services/test_currency_resolution.py"
+                "::test_AC12_40_2_flags_unresolved_instead_of_silent_default"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.40.3",
+            statement=(
+                "resolve_transaction_currency lets a reviewer set an "
+                "ISO-4217-validated currency on an unresolved transaction, "
+                "recording who (user_id) and when (timestamp) it was resolved. "
+                "Was EPIC-012 AC12.40.3."
+            ),
+            test=(
+                "apps/backend/tests/services/test_currency_resolution.py"
+                "::test_AC12_40_3_reviewer_resolves_currency_with_audit"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.40.4",
+            statement=(
+                "create_entry_from_txn (the JournalLine promotion gate) raises "
+                "CurrencyUnresolvedError and refuses to proceed while the "
+                "transaction is still flagged currency_unresolved. Was EPIC-012 "
+                "AC12.40.4."
+            ),
+            test=(
+                "apps/backend/tests/services/test_currency_resolution.py"
+                "::test_AC12_40_4_promotion_gate_blocks_unresolved_currency"
+            ),
+            priority="P0",
+            status="done",
+        ),
     ],
 )

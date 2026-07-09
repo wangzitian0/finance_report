@@ -15,7 +15,7 @@ from tests.reporting._report_fixtures import (
 
 
 async def test_report_fixtures_shared(db: AsyncSession, test_user_id):
-    """AC25.4.1: the shared chart-of-accounts builder and the shared `test_user_id`
+    """AC-reporting.dry-ssot.2: AC25.4.1: the shared chart-of-accounts builder and the shared `test_user_id`
     fixture (root conftest) replace the per-module duplicates without changing the
     accounts produced — five persisted SGD accounts in the canonical order, usable
     to generate a balanced balance sheet."""

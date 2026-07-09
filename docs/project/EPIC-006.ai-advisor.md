@@ -100,99 +100,44 @@ Clearly labeled "for reference only"
 
 ### AC6.1: Safety & Security Filters
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC6.1.1 | Prompt injection detection {tier:CODE-ONLY} | `test_safety_filters()` | `ai/test_ai_advisor_service.py` | P0 |
-| AC6.1.2 | Sensitive information detection {tier:CODE-ONLY} | `test_safety_filters()` | `ai/test_ai_advisor_service.py` | P0 |
-| AC6.1.3 | Write request detection {tier:CODE-ONLY} | `test_safety_filters()` | `ai/test_ai_advisor_service.py` | P0 |
-| AC6.1.4 | Non-financial query detection {tier:CODE-ONLY} | `test_safety_filters()` | `ai/test_ai_advisor_service.py` | P0 |
-| AC6.1.5 | Prompt injection negative cases {tier:CODE-ONLY} | `test_safety_filters_negative_cases()` | `ai/test_ai_advisor_service.py` | P0 |
+> Migrated to [`common/advisor/contract.py`](../../common/advisor/contract.py)'s `roadmap` (migration closeout wave 2, #1663): `AC-advisor.guardrail.1` / `.2` (existing) plus `.3` / `.4` (new).
 
 ### AC6.2: Language & Localization
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC6.2.1 | Chinese language detection {tier:CODE-ONLY} | `test_detect_language()`, `test_detect_language_chinese()` | `ai/test_ai_advisor_service.py`, `ai/test_chat_router.py` | P0 |
-| AC6.2.2 | English language detection {tier:CODE-ONLY} | `test_detect_language()`, `test_detect_language_english()` | `ai/test_ai_advisor_service.py`, `ai/test_chat_router.py` | P0 |
-| AC6.2.3 | Chinese suggestions {tier:LLM-ONLY} {proof:smoke} | `test_chat_suggestions_zh()` | `ai/test_chat_router.py` | P0 |
-| AC6.2.4 | English suggestions {tier:LLM-ONLY} {proof:smoke} | `test_chat_suggestions_en()` | `ai/test_chat_router.py` | P0 |
-| AC6.2.5 | Auto-detect Chinese {tier:CODE-ONLY} | `test_chat_suggestions_auto_detect_zh()` | `ai/test_chat_router.py` | P0 |
-| AC6.2.6 | Auto-detect English {tier:CODE-ONLY} | `test_chat_suggestions_auto_detect_en()` | `ai/test_chat_router.py` | P0 |
+> Migrated to [`common/advisor/contract.py`](../../common/advisor/contract.py)'s `roadmap` (migration closeout wave 2, #1663): `AC-advisor.language.1` through `.4`; the suggestions rows folded into `AC-advisor.suggestions.1` / `.2` (each covers what were two duplicate rows here — see the AC6.5 note below).
 
 ### AC6.3: Disclaimer Enforcement
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC6.3.1 | Disclaimer appended once {tier:CODE-ONLY} | `test_ensure_disclaimer_appends_once()` | `ai/test_ai_advisor_service.py` | P0 |
-| AC6.3.2 | Disclaimer respects existing {tier:CODE-ONLY} | `test_ensure_disclaimer_respects_existing()` | `ai/test_ai_advisor_service.py` | P0 |
+> Migrated to [`common/advisor/contract.py`](../../common/advisor/contract.py)'s `roadmap` (migration closeout wave 2, #1663): `AC-advisor.guardrail.5` / `.6`.
 
 ### AC6.4: Session Management
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC6.4.1 | Get or create existing session {tier:CODE-ONLY} | `test_get_or_create_session_with_existing_session()` | `ai/test_ai_advisor_service.py` | P0 |
-| AC6.4.2 | Session not found raises error {tier:CODE-ONLY} | `test_get_or_create_session_missing_raises()` | `ai/test_ai_advisor_service.py` | P0 |
-| AC6.4.3 | Load history skips system messages {tier:CODE-ONLY} | `test_load_history_skips_system_messages()` | `ai/test_ai_advisor_service.py` | P0 |
-| AC6.4.4 | Record message sets title {tier:CODE-ONLY} | `test_record_message_sets_title()` | `ai/test_ai_advisor_service.py` | P0 |
-| AC6.4.5 | Delete session success {tier:CODE-ONLY} | `test_delete_session_success()` | `ai/test_chat_router.py` | P0 |
-| AC6.4.6 | Delete session not found {tier:CODE-ONLY} | `test_delete_session_not_found()` | `ai/test_chat_router.py` | P0 |
+> Migrated to [`common/advisor/contract.py`](../../common/advisor/contract.py)'s `roadmap` (migration closeout wave 2, #1663): `AC-advisor.session.1` (existing) plus `.2` through `.6` (new).
 
 ### AC6.5: API Endpoints
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC6.5.1 | Chat suggestions endpoint (EN) {tier:CODE-ONLY} | `test_chat_suggestions_en()` | `ai/test_chat_router.py` | P0 |
-| AC6.5.2 | Chat suggestions endpoint (ZH) {tier:CODE-ONLY} | `test_chat_suggestions_zh()` | `ai/test_chat_router.py` | P0 |
-| AC6.5.3 | Chat error handling - API unavailable {tier:CODE-ONLY} | `test_chat_error_api_key_unavailable()` | `ai/test_chat_router.py` | P0 |
-| AC6.5.4 | Chat error handling - session not found {tier:CODE-ONLY} | `test_chat_error_session_not_found()` | `ai/test_chat_router.py` | P0 |
-| AC6.5.5 | Chat error handling - bad request {tier:CODE-ONLY} | `test_chat_error_bad_request()` | `ai/test_chat_router.py` | P0 |
-| AC6.5.6 | Chat with model name header {tier:CODE-ONLY} | `test_chat_with_model_name_header()` | `ai/test_chat_router.py` | P0 |
-| AC6.5.7 | Chat without model name header {tier:CODE-ONLY} | `test_chat_without_model_name_header()` | `ai/test_chat_router.py` | P0 |
+> *(AC6.5's two suggestions rows removed — duplicates of AC6.2's suggestions rows, same test functions; both folded into `AC-advisor.suggestions.1` / `.2`.)* The rest migrated to
+> [`common/advisor/contract.py`](../../common/advisor/contract.py)'s `roadmap` (migration closeout wave 2, #1663): `AC-advisor.api.1` through `.5`.
 
 ### AC6.6: Response Caching
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC6.6.1 | Response cache TTL {tier:CODE-ONLY} | `test_response_cache_ttl()` | `ai/test_ai_advisor_service.py` | P1 |
-| AC6.6.2 | Response cache prune {tier:CODE-ONLY} | `test_response_cache_prune()` | `ai/test_ai_advisor_service.py` | P1 |
-| AC6.6.3 | Chat stream uses cached response {tier:CODE-ONLY} | `test_chat_stream_uses_cached_response()` | `ai/test_ai_advisor_service.py` | P1 |
+> Migrated to [`common/advisor/contract.py`](../../common/advisor/contract.py)'s `roadmap` (migration closeout wave 2, #1663): `AC-advisor.cache.1` (existing) plus `.2` / `.3` (new).
 
 ### AC6.7: OpenRouter Streaming Integration
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC6.7.1 | Stream API key fallback {tier:CODE-ONLY} | `test_stream_openrouter_falls_back()` | `ai/test_ai_advisor_service.py` | P0 |
-| AC6.7.2 | Stream raises when all fail {tier:CODE-ONLY} | `test_stream_openrouter_raises_when_all_fail()` | `ai/test_ai_advisor_service.py` | P0 |
-| AC6.7.3 | Chat stream requires API key {tier:CODE-ONLY} | `test_chat_stream_requires_api_key()` | `ai/test_ai_advisor_service.py` | P0 |
-| AC6.7.4 | Stream redactor masks sensitive sequences {tier:CODE-ONLY} | `test_stream_redactor_masks_sensitive_sequences()` | `ai/test_ai_advisor_service.py` | P0 |
-| AC6.7.5 | Stream redactor flushes tail {tier:CODE-ONLY} | `test_stream_redactor_flushes_tail()` | `ai/test_ai_advisor_service.py` | P1 |
-| AC6.7.6 | Stream redactor flush empty {tier:CODE-ONLY} | `test_stream_redactor_flush_empty()` | `ai/test_ai_advisor_service.py` | P1 |
-| AC6.7.7 | Chat stream refusal branches {tier:CODE-ONLY} | `test_chat_stream_refusal_branches()` | `ai/test_ai_advisor_service.py` | P0 |
+> Migrated to [`common/advisor/contract.py`](../../common/advisor/contract.py)'s `roadmap` (migration closeout wave 2, #1663): `AC-advisor.stream.1` / `.2` / `.3` (new) plus `AC-advisor.guardrail.7` / `.8` / `.9` (the two stream-redactor rows) and `AC-advisor.guardrail.1` (existing, the refusal-branches row).
 
 ### AC6.8: Financial Context & Data Handling
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC6.8.1 | Financial context handles report errors {tier:CODE-ONLY} | `test_get_financial_context_handles_report_errors()` | `ai/test_ai_advisor_service.py` | P0 |
-| AC6.8.2 | Financial context filters by user {tier:CODE-ONLY} | `test_get_financial_context_filters_by_user()` | `ai/test_ai_advisor_service.py` | P0 |
-| AC6.8.3 | Build refusal defaults to non-financial {tier:CODE-ONLY} | `test_build_refusal_defaults_to_non_financial()` | `ai/test_ai_advisor_service.py` | P0 |
-| AC6.8.4 | Stream and store records response {tier:CODE-ONLY} | `test_stream_and_store_records_response()` | `ai/test_ai_advisor_service.py` | P0 |
+> Migrated to [`common/advisor/contract.py`](../../common/advisor/contract.py)'s `roadmap` (migration closeout wave 2, #1663): `AC-advisor.context.2` / `.3`, `AC-advisor.guardrail.10`, `AC-advisor.stream.4`.
 
 ### AC6.9: Stream & Storage Error Handling
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC6.9.1 | Stream and store raises on stream error {tier:CODE-ONLY} | `test_stream_and_store_raises_on_stream_error()` | `ai/test_ai_advisor_service.py` | P0 |
-| AC6.9.2 | Chat stream success path uses stream {tier:CODE-ONLY} | `test_chat_stream_success_path_uses_stream()` | `ai/test_ai_advisor_service.py` | P0 |
+> Migrated to [`common/advisor/contract.py`](../../common/advisor/contract.py)'s `roadmap` (migration closeout wave 2, #1663): `AC-advisor.stream.5` / `.6`.
 
 ### AC6.10: Text Processing Utilities
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC6.10.1 | Question normalization {tier:CODE-ONLY} | `test_normalize_question()` | `ai/test_ai_advisor_service.py` | P1 |
-| AC6.10.2 | Token estimation {tier:CODE-ONLY} | `test_estimate_tokens()` | `ai/test_ai_advisor_service.py` | P1 |
-| AC6.10.3 | Redact sensitive information {tier:CODE-ONLY} | `test_redact_sensitive()` | `ai/test_ai_advisor_service.py` | P0 |
-| AC6.10.4 | Chunk text splits text {tier:CODE-ONLY} | `test_chunk_text_splits_text()` | `ai/test_ai_advisor_service.py` | P1 |
+> Migrated to [`common/advisor/contract.py`](../../common/advisor/contract.py)'s `roadmap` (migration closeout wave 2, #1663): `AC-advisor.textutil.1` / `.2` / `.3`, `AC-advisor.guardrail.11`.
 
 ### AC6.11: Model Catalog Integration
 
@@ -211,14 +156,7 @@ Clearly labeled "for reference only"
 
 ### AC6.12: Must-Have Acceptance Criteria Traceability
 
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC6.12.1 | AI cannot modify ledger {tier:CODE-ONLY} | `test_safety_filters()` (write request detection) | `ai/test_ai_advisor_service.py` | P0 |
-| AC6.12.2 | Answers based on real data {tier:CODE-ONLY} | `test_get_financial_context_filters_by_user()` | `ai/test_ai_advisor_service.py` | P0 |
-| AC6.12.3 | Clear disclaimer {tier:CODE-ONLY} | `test_ensure_disclaimer_appends_once()`, `test_ensure_disclaimer_respects_existing()` | `ai/test_ai_advisor_service.py` | P0 |
-| AC6.12.4 | Support Chinese & English {tier:CODE-ONLY} | `test_detect_language()`, language detection tests in router | `ai/test_ai_advisor_service.py`, `ai/test_chat_router.py` | P0 |
-| AC6.12.5 | OpenRouter API error handling {tier:CODE-ONLY} | `test_chat_error_api_key_unavailable()`, `test_stream_openrouter_falls_back()` | `ai/test_chat_router.py`, `ai/test_ai_advisor_service.py` | P0 |
-| AC6.12.6 | Session isolation {tier:CODE-ONLY} | `test_get_financial_context_filters_by_user()` | `ai/test_ai_advisor_service.py` | P0 |
+> *(All six AC6.12 rows removed — each is a duplicate of a row already covered above under AC6.1/AC6.3/AC6.2/AC6.5/AC6.8, confirmed by identical cited test functions. This section was a redundant traceability summary, not distinct behavior; nothing new to migrate.)*
 
 ## 📏 Acceptance Criteria
 
@@ -528,11 +466,7 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC6.13.1 | Record message logs warning when db.refresh raises. {tier:CODE-ONLY} | `test_record_message_refresh_exception_logs_warning` | `ai/test_ai_advisor_service.py` | P1 |
-| AC6.13.2 | preferred_model is prepended to the model list. {tier:CODE-ONLY} | `test_stream_openrouter_with_preferred_model` | `ai/test_ai_advisor_service.py` | P1 |
-| AC6.13.3 | ValueError/TypeError in _stream_model raises AIAdvisorError. {tier:CODE-ONLY} | `test_stream_openrouter_raises_on_programming_error` | `ai/test_ai_advisor_service.py` | P1 |
-| AC6.13.4 | _stream_model proxies chunks from stream_openrouter_chat. {tier:CODE-ONLY} | `test_stream_model_yields_chunks` | `ai/test_ai_advisor_service.py` | P1 |
-| AC6.13.6 | Bank-account detector skips date-like and zero-heavy numbers. {tier:CODE-ONLY} | `test_detect_pii_skips_date_like_and_zero_heavy_numbers` | `ai/test_pii_redaction.py` | P1 |
+> Migrated to [`common/advisor/contract.py`](../../common/advisor/contract.py)'s `roadmap` (migration closeout wave 2, #1663): `AC-advisor.session.7`, `AC-advisor.stream.7` / `.8` / `.9`, `AC-advisor.guardrail.12`. (This group's row 5 was already missing from this table before the migration — a pre-existing doc gap, not something this migration dropped.)
 
 ### AC6.33: Typed Streaming Contract (chat + export)
 
@@ -546,14 +480,11 @@ depend on. `X-Advisor-Metadata` is validated against `ChatResponseMetadata`
 before serialization. See `docs/ssot/ai.md` (chat) and `docs/ssot/reporting.md`
 (export).
 
+> **Chat-side rows migrated** to [`common/advisor/contract.py`](../../common/advisor/contract.py)'s `roadmap` (migration closeout wave 2, #1663): `AC-advisor.envelope.1` through `.5` (`.1`-`.4` new, `.7` renumbered `.5`). **Export-side rows retained** (below) — `ExportStreamEnvelope` is reporting/export surface, not advisor; a maintainer should route these to a `reporting` package roadmap in a future pass.
+
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC6.33.1 | Chat envelope with only a session id exposes just X-Session-Id. {tier:CODE-ONLY} | `test_AC6_33_1_chat_envelope_minimal_headers` | `ai/test_streaming_contract.py` | P0 |
-| AC6.33.2 | Chat envelope exposes model + grounding metadata headers in CORS order. {tier:CODE-ONLY} | `test_AC6_33_2_chat_envelope_includes_model_and_metadata_headers` | `ai/test_streaming_contract.py` | P0 |
-| AC6.33.3 | Chat envelope omits empty advisor metadata (wire output unchanged). {tier:CODE-ONLY} | `test_AC6_33_3_chat_envelope_omits_empty_advisor_metadata` | `ai/test_streaming_contract.py` | P0 |
-| AC6.33.4 | Chat envelope rejects advisor metadata that violates the typed model. {tier:CODE-ONLY} | `test_AC6_33_4_chat_envelope_rejects_invalid_advisor_metadata` | `ai/test_streaming_contract.py` | P0 |
 | AC6.33.5 | Export envelope declares media type + attachment disposition. {tier:CODE-ONLY} | `test_AC6_33_5_export_envelope_builds_attachment_headers` | `ai/test_streaming_contract.py` | P0 |
 | AC6.33.6 | Export envelope rejects unknown media types. {tier:CODE-ONLY} | `test_AC6_33_6_export_envelope_rejects_unknown_media_type` | `ai/test_streaming_contract.py` | P0 |
-| AC6.33.7 | chat_message builds its streaming response from the typed envelope. {tier:CODE-ONLY} | `test_AC6_33_7_chat_router_uses_envelope_media_type_and_headers` | `ai/test_streaming_contract.py` | P0 |
 | AC6.33.8 | /reports/export wire headers match the typed export envelope. {tier:CODE-ONLY} | `test_AC6_33_8_export_response_matches_typed_envelope` | `reporting/test_reports_router.py` | P0 |
 | AC6.33.9 | Export filename rejects CR/LF, double-quote, semicolon, and path separators (header-injection safe). {tier:CODE-ONLY} | `test_AC6_33_9_export_envelope_rejects_unsafe_filename` | `ai/test_streaming_contract.py` | P0 |

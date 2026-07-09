@@ -107,13 +107,16 @@ Enable production-grade log observability via OpenTelemetry/OTLP, while keeping 
 > `common/testing/generate_ac_registry.py` reads package-contract roadmaps
 > additively, so the AC index counts them without an EPIC-table mirror. This note
 > references the new ids (keeping the registry↔EPIC link intact) but defines none
-> of them — the contract is the single definition source. The **non-runtime**
-> rows below stay defined here because they are cross-cutting infra governance,
-> not backend observability: the SSOT/docs-linkage rows `AC10.5.1`–`AC10.5.3` and
-> `AC10.7.5`, the infra2 deploy-template rows `AC10.6.1`–`AC10.6.4` and
-> `AC10.7.6` (Vault `secrets.ctmpl` / `compose.yaml` / app README under the
-> `repo/` infra2 submodule), and the Dokploy deploy-failure-snapshot tooling row
-> `AC10.9.5`.
+> of them — the contract is the single definition source. The SSOT/docs-linkage
+> rows (were the AC10.5.* group and the AC10.7 group's doc-linkage row)
+> migrated too (migration closeout
+> wave 2, #1663) into the same package roadmap as `AC-observability.17.1`
+> through `.4`. The **non-runtime** rows below stay defined here because they
+> are cross-cutting infra governance, not backend observability: the infra2
+> deploy-template rows (were the AC10.6.* group and AC10.7.6; Vault
+> `secrets.ctmpl` / `compose.yaml` / app README under the `repo/` infra2
+> submodule), and the Dokploy deploy-failure-snapshot tooling row (was
+> AC10.9's retired row).
 
 Migrated `AC-observability.<g>.<s>` ids (homed in the package roadmap):
 
@@ -147,15 +150,11 @@ Migrated `AC-observability.<g>.<s>` ids (homed in the package roadmap):
 > **Async parse failure visibility** (was AC10.12.*):
 > `AC-observability.12.1` · `AC-observability.12.2` · `AC-observability.12.3`
 
-### AC10.5: Documentation (SSOT) — retained (cross-cutting docs governance)
+### AC10.5: Documentation (SSOT) — fully migrated
 
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC10.5.1 | Observability SSOT exists | `test_observability_ssot_and_env_docs_are_linked()` | `infra/test_observability_contract.py` | P0 |
-| AC10.5.2 | SSOT linked in index | `test_observability_ssot_and_env_docs_are_linked()` | `infra/test_observability_contract.py` | P0 |
-| AC10.5.3 | OTEL vars documented in .env.example | `test_observability_ssot_and_env_docs_are_linked()` | `infra/test_observability_contract.py` | P0 |
-
-*(The backend-config row that was in the `AC10.5.*` group migrated to `AC-observability.5.4`.)*
+*(The backend-config row that was in the `AC10.5.*` group migrated to `AC-observability.5.4`. The three doc-linkage rows migrated too — migration closeout wave 2, #1663 — to
+[`common/observability/contract.py`](../../common/observability/contract.py)'s `roadmap`:
+`AC-observability.17.1` · `AC-observability.17.2` · `AC-observability.17.3`.)*
 
 ### AC10.6: Infrastructure Templates — retained (infra2 deploy-template governance)
 
@@ -170,12 +169,14 @@ Migrated `AC-observability.<g>.<s>` ids (homed in the package roadmap):
 
 > The backend runtime rows of the `AC10.7.*` group migrated to
 > `AC-observability.7.1`, `AC-observability.7.2`, `AC-observability.7.3`,
-> `AC-observability.7.4`, and `AC-observability.7.7`. The two doc/infra-governance
-> rows below stay defined here.
+> `AC-observability.7.4`, and `AC-observability.7.7`. The doc-linkage row
+> migrated too (migration closeout wave 2, #1663) to
+> [`common/observability/contract.py`](../../common/observability/contract.py)'s
+> `roadmap` as `AC-observability.17.4`. Only the infra2 deploy-template
+> governance row below stays defined here.
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC10.7.5 | OTEL config documented | `test_observability_ssot_and_env_docs_are_linked()` | `infra/test_observability_contract.py` | P0 |
 | AC10.7.6 | Vault templates include OTEL keys | `test_vault_template_exposes_otel_keys_with_safe_quoting()` | `infra/test_observability_contract.py` | P0 |
 
 ### AC10.9: Production Observability Runtime Contract — retained deploy-tooling row

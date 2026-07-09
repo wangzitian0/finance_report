@@ -9,7 +9,7 @@ from src.services import reporting as reporting_service, reporting_calc
 
 
 def test_reporting_calc_extraction():
-    """AC25.1.1: pure reporting math lives in ``services.reporting_calc`` and is
+    """AC-reporting.dry-ssot.1: AC25.1.1: pure reporting math lives in ``services.reporting_calc`` and is
     re-used by ``services.reporting`` (same objects, not copies), so accounting
     sign rules, period boundaries, income-bucket classification, money
     quantization, and confidence-tier rollup are unchanged."""

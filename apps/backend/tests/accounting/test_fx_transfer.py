@@ -60,7 +60,7 @@ def _legs(*, user_id=None, out_account=None, in_account=None, when=None):
 
 @ac_proof(
     "fx-transfer-pair-within-tolerance-pr",
-    ac_ids=["AC4.14.1"],
+    ac_ids=["AC-reconciliation.fx-transfer.1"],
     scope="behavioral",
     ci_tier="pr_ci",
     trust_mode="deterministic_pr",
@@ -68,7 +68,7 @@ def _legs(*, user_id=None, out_account=None, in_account=None, when=None):
     issue="#1123",
 )
 def test_AC2_pairs_out_ccyA_with_in_ccyB_within_rate_tolerance(ac_evidence):
-    """AC4.14.1: out-ccyA leg pairs with in-ccyB leg via implied-rate-in-tolerance."""
+    """AC-reconciliation.fx-transfer.1: AC4.14.1: out-ccyA leg pairs with in-ccyB leg via implied-rate-in-tolerance."""
     out_leg, in_leg = _legs()
     pair = pair_fx_legs(out_leg, in_leg, _MARKET_RATE)
     assert pair is not None
@@ -81,7 +81,7 @@ def test_AC2_pairs_out_ccyA_with_in_ccyB_within_rate_tolerance(ac_evidence):
     assert swapped is not None
     assert swapped.out_leg.account_id == out_leg.account_id
     ac_evidence(
-        ac_id="AC4.14.1",
+        ac_id="AC-reconciliation.fx-transfer.1",
         score=1.0,
         metric="fx_legs_pair_when_implied_rate_within_tolerance",
         provenance="deterministic",
@@ -91,7 +91,7 @@ def test_AC2_pairs_out_ccyA_with_in_ccyB_within_rate_tolerance(ac_evidence):
 
 @ac_proof(
     "fx-transfer-rate-outside-tolerance-pr",
-    ac_ids=["AC4.14.2"],
+    ac_ids=["AC-reconciliation.fx-transfer.2"],
     scope="behavioral",
     ci_tier="pr_ci",
     trust_mode="deterministic_pr",
@@ -99,14 +99,14 @@ def test_AC2_pairs_out_ccyA_with_in_ccyB_within_rate_tolerance(ac_evidence):
     issue="#1123",
 )
 def test_AC2_implied_rate_outside_tolerance_does_not_pair(ac_evidence):
-    """AC4.14.2: legs whose implied rate is outside tolerance do not pair."""
+    """AC-reconciliation.fx-transfer.2: AC4.14.2: legs whose implied rate is outside tolerance do not pair."""
     out_leg, in_leg = _legs()
     # Market rate far from the implied 1.36 (e.g. 1.50 SGD/USD) -> ~10% deviation.
     assert pair_fx_legs(out_leg, in_leg, Decimal("1.500000")) is None
     # A tight in-tolerance market rate still pairs.
     assert pair_fx_legs(out_leg, in_leg, Decimal("1.364000")) is not None
     ac_evidence(
-        ac_id="AC4.14.2",
+        ac_id="AC-reconciliation.fx-transfer.2",
         score=1.0,
         metric="fx_legs_do_not_pair_outside_rate_tolerance",
         provenance="deterministic",
@@ -116,7 +116,7 @@ def test_AC2_implied_rate_outside_tolerance_does_not_pair(ac_evidence):
 
 @ac_proof(
     "fx-transfer-non-candidate-legs-pr",
-    ac_ids=["AC4.14.3"],
+    ac_ids=["AC-reconciliation.fx-transfer.3"],
     scope="behavioral",
     ci_tier="pr_ci",
     trust_mode="deterministic_pr",
@@ -124,7 +124,7 @@ def test_AC2_implied_rate_outside_tolerance_does_not_pair(ac_evidence):
     issue="#1123",
 )
 def test_AC2_non_candidate_legs_do_not_pair(ac_evidence):
-    """AC4.14.3: legs outside window, same direction, or different owner do not pair."""
+    """AC-reconciliation.fx-transfer.3: AC4.14.3: legs outside window, same direction, or different owner do not pair."""
     # Outside the time window (5 days apart, default window is 2 days).
     out_leg, in_leg = _legs()
     far_in = TransferLeg(
@@ -150,7 +150,7 @@ def test_AC2_non_candidate_legs_do_not_pair(ac_evidence):
     same_out, same_in = _legs(user_id=out_leg.user_id, out_account=acct, in_account=acct)
     assert pair_fx_legs(same_out, same_in, _MARKET_RATE) is None
     ac_evidence(
-        ac_id="AC4.14.3",
+        ac_id="AC-reconciliation.fx-transfer.3",
         score=1.0,
         metric="non_candidate_fx_legs_rejected",
         provenance="deterministic",
@@ -160,7 +160,7 @@ def test_AC2_non_candidate_legs_do_not_pair(ac_evidence):
 
 @ac_proof(
     "internal-transfer-net-zero-pr",
-    ac_ids=["AC4.14.4"],
+    ac_ids=["AC-reconciliation.fx-transfer.4"],
     scope="behavioral",
     ci_tier="pr_ci",
     trust_mode="deterministic_pr",
@@ -168,7 +168,7 @@ def test_AC2_non_candidate_legs_do_not_pair(ac_evidence):
     issue="#1123",
 )
 def test_AC3_internal_transfer_classified_net_zero(ac_evidence):
-    """AC4.14.4: a matched internal transfer is not income and not expense."""
+    """AC-reconciliation.fx-transfer.4: AC4.14.4: a matched internal transfer is not income and not expense."""
     out_leg, in_leg = _legs()
     pair = pair_fx_legs(out_leg, in_leg, _MARKET_RATE)
     classification = classify_internal_transfer(pair, fee=Decimal("2.50"))
@@ -179,7 +179,7 @@ def test_AC3_internal_transfer_classified_net_zero(ac_evidence):
     unpaired = classify_internal_transfer(None)
     assert unpaired.is_internal_transfer is False
     ac_evidence(
-        ac_id="AC4.14.4",
+        ac_id="AC-reconciliation.fx-transfer.4",
         score=1.0,
         metric="internal_transfer_income_and_expense_are_zero",
         provenance="deterministic",
@@ -189,7 +189,7 @@ def test_AC3_internal_transfer_classified_net_zero(ac_evidence):
 
 @ac_proof(
     "internal-transfer-net-worth-neutral-pr",
-    ac_ids=["AC4.14.5"],
+    ac_ids=["AC-reconciliation.fx-transfer.5"],
     scope="behavioral",
     ci_tier="pr_ci",
     trust_mode="deterministic_pr",
@@ -197,7 +197,7 @@ def test_AC3_internal_transfer_classified_net_zero(ac_evidence):
     issue="#1123",
 )
 def test_AC3_net_worth_unchanged_by_internal_transfer_minus_fee(ac_evidence):
-    """AC4.14.5: net worth is unchanged by an internal transfer except for the fee."""
+    """AC-reconciliation.fx-transfer.5: AC4.14.5: net worth is unchanged by an internal transfer except for the fee."""
     out_leg, in_leg = _legs()
     pair = pair_fx_legs(out_leg, in_leg, _MARKET_RATE)
 
@@ -209,7 +209,7 @@ def test_AC3_net_worth_unchanged_by_internal_transfer_minus_fee(ac_evidence):
     with_fee = classify_internal_transfer(pair, fee=Decimal("3.75"))
     assert with_fee.net_worth_delta == Decimal("-3.75")
     ac_evidence(
-        ac_id="AC4.14.5",
+        ac_id="AC-reconciliation.fx-transfer.5",
         score=1.0,
         metric="net_worth_delta_equals_negative_fee",
         provenance="deterministic",
@@ -219,7 +219,7 @@ def test_AC3_net_worth_unchanged_by_internal_transfer_minus_fee(ac_evidence):
 
 @ac_proof(
     "fx-round-trip-zero-pnl-pr",
-    ac_ids=["AC4.14.6"],
+    ac_ids=["AC-reconciliation.fx-transfer.6"],
     scope="behavioral",
     ci_tier="pr_ci",
     trust_mode="deterministic_pr",
@@ -227,7 +227,7 @@ def test_AC3_net_worth_unchanged_by_internal_transfer_minus_fee(ac_evidence):
     issue="#1123",
 )
 def test_AC4_same_day_round_trip_nets_zero_pnl_minus_fee(ac_evidence):
-    """AC4.14.6: a same-day round-trip conversion nets ~zero P&L (minus fee)."""
+    """AC-reconciliation.fx-transfer.6: AC4.14.6: a same-day round-trip conversion nets ~zero P&L (minus fee)."""
     # Same-day: rate has not moved, so realized P&L is exactly -fee.
     pnl = round_trip_realized_pnl(
         Decimal("1360.00"),
@@ -245,7 +245,7 @@ def test_AC4_same_day_round_trip_nets_zero_pnl_minus_fee(ac_evidence):
     )
     assert pnl_with_fee == Decimal("-1.20")
     ac_evidence(
-        ac_id="AC4.14.6",
+        ac_id="AC-reconciliation.fx-transfer.6",
         score=1.0,
         metric="same_day_round_trip_realized_pnl_is_negative_fee",
         provenance="deterministic",
@@ -255,7 +255,7 @@ def test_AC4_same_day_round_trip_nets_zero_pnl_minus_fee(ac_evidence):
 
 @ac_proof(
     "fx-pnl-revaluation-routing-pr",
-    ac_ids=["AC4.14.7"],
+    ac_ids=["AC-reconciliation.fx-transfer.7"],
     scope="behavioral",
     ci_tier="pr_ci",
     trust_mode="deterministic_pr",
@@ -263,7 +263,7 @@ def test_AC4_same_day_round_trip_nets_zero_pnl_minus_fee(ac_evidence):
     issue="#1123",
 )
 def test_AC4_revaluation_pnl_routed_through_fx_revaluation_source_type(ac_evidence):
-    """AC4.14.7: FX revaluation P&L is routed through the fx_revaluation source type."""
+    """AC-reconciliation.fx-transfer.7: AC4.14.7: FX revaluation P&L is routed through the fx_revaluation source type."""
     # The conversion event itself yields no P&L when the rate is unchanged.
     assert round_trip_realized_pnl(Decimal("1000.00"), rate_out=_MARKET_RATE, rate_back=_MARKET_RATE) == Decimal("0.00")
     # The module routes any rate-move gain/loss through fx_revaluation, never a
@@ -271,7 +271,7 @@ def test_AC4_revaluation_pnl_routed_through_fx_revaluation_source_type(ac_eviden
     assert REVALUATION_SOURCE_TYPE is JournalEntrySourceType.FX_REVALUATION
     assert REVALUATION_SOURCE_TYPE.value == "fx_revaluation"
     ac_evidence(
-        ac_id="AC4.14.7",
+        ac_id="AC-reconciliation.fx-transfer.7",
         score=1.0,
         metric="fx_pnl_routes_through_fx_revaluation_source_type",
         provenance="deterministic",
@@ -281,7 +281,7 @@ def test_AC4_revaluation_pnl_routed_through_fx_revaluation_source_type(ac_eviden
 
 @ac_proof(
     "fx-conversion-model-round-trip-pr",
-    ac_ids=["AC4.14.8"],
+    ac_ids=["AC-reconciliation.fx-transfer.8"],
     scope="behavioral",
     ci_tier="pr_ci",
     trust_mode="deterministic_pr",
@@ -289,7 +289,7 @@ def test_AC4_revaluation_pnl_routed_through_fx_revaluation_source_type(ac_eviden
     issue="#1123",
 )
 def test_AC2_fx_conversion_model_round_trips_decimals(ac_evidence):
-    """AC4.14.8: the fx_conversions linking model round-trips Decimal/ISO fields."""
+    """AC-reconciliation.fx-transfer.8: AC4.14.8: the fx_conversions linking model round-trips Decimal/ISO fields."""
     out_leg, in_leg = _legs()
     pair = pair_fx_legs(out_leg, in_leg, _MARKET_RATE)
     assert pair is not None
@@ -308,7 +308,7 @@ def test_AC2_fx_conversion_model_round_trips_decimals(ac_evidence):
     assert conversion.to_account_id == in_leg.account_id
     assert conversion.conversion_date == out_leg.occurred_at.date()
     ac_evidence(
-        ac_id="AC4.14.8",
+        ac_id="AC-reconciliation.fx-transfer.8",
         score=1.0,
         metric="fx_conversion_model_round_trips_decimal_and_iso_currency",
         provenance="deterministic",

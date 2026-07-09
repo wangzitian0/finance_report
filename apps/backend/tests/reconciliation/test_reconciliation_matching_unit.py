@@ -164,7 +164,7 @@ def test_score_description_edge_cases():
 
 
 def test_score_amount_tiers():
-    """[AC4.1.3] Test score_amount tolerance tiers."""
+    """AC-reconciliation.matching-core.3: [AC4.1.3] Test score_amount tolerance tiers."""
     config = DEFAULT_CONFIG
     # Exact
     assert score_amount(Decimal("100.00"), Decimal("100.00"), config) == 100.0
@@ -275,7 +275,7 @@ def test_score_business_logic_combinations():
 
 
 def test_AC4_6_3_candidate_tie_breaker_prefers_higher_source_trust():
-    """AC4.6.3: Manual-sourced entries win deterministic same-score conflicts."""
+    """AC-reconciliation.source-type-transfer.3: AC4.6.3: Manual-sourced entries win deterministic same-score conflicts."""
     manual_id = uuid4()
     parsed_id = uuid4()
     manual_entry = JournalEntry(
@@ -1592,7 +1592,7 @@ async def test_many_to_one_pending_review_status(db: AsyncSession):
 
 
 async def test_normal_matching_auto_accept_reconciles_entries(db: AsyncSession, test_user):
-    """Cover lines 980-990: auto-accepted match marks entries as RECONCILED."""
+    """AC-reconciliation.match.2: Cover lines 980-990: auto-accepted match marks entries as RECONCILED."""
     user_id = test_user.id
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
     db.add_all([statement])

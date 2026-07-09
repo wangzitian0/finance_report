@@ -10,7 +10,7 @@ from src.services.ai_advisor import AIAdvisorError
 
 
 async def test_chat_suggestions_en() -> None:
-    """AC6.2.4 AC6.5.1: Chat suggestions endpoint returns English suggestions."""
+    """AC-advisor.suggestions.2: AC6.2.4 AC6.5.1: Chat suggestions endpoint returns English suggestions."""
     from src.routers.chat import suggestions
 
     response = await suggestions(language="en")
@@ -19,7 +19,7 @@ async def test_chat_suggestions_en() -> None:
 
 
 async def test_chat_suggestions_zh() -> None:
-    """AC6.2.3 AC6.5.2: Chat suggestions endpoint returns Chinese suggestions."""
+    """AC-advisor.suggestions.1: AC6.2.3 AC6.5.2: Chat suggestions endpoint returns Chinese suggestions."""
     from src.routers.chat import suggestions
 
     response = await suggestions(language="zh")
@@ -28,7 +28,7 @@ async def test_chat_suggestions_zh() -> None:
 
 
 async def test_chat_suggestions_auto_detect_zh() -> None:
-    """AC6.2.5: Auto-detect Chinese language from message."""
+    """AC-advisor.language.3: AC6.2.5: Auto-detect Chinese language from message."""
     from src.routers.chat import suggestions
 
     response = await suggestions(language=None, message="这个月花了多少钱")
@@ -37,7 +37,7 @@ async def test_chat_suggestions_auto_detect_zh() -> None:
 
 
 async def test_chat_suggestions_auto_detect_en() -> None:
-    """AC6.2.6: Auto-detect English language from message."""
+    """AC-advisor.language.4: AC6.2.6: Auto-detect English language from message."""
     from src.routers.chat import suggestions
 
     response = await suggestions(message="What are my expenses?")
@@ -47,7 +47,7 @@ async def test_chat_suggestions_auto_detect_en() -> None:
 
 @pytest.mark.no_db
 async def test_AC21_3_1_chat_suggestions_include_structured_advisor_facts() -> None:
-    """AC21.3.1: Chat suggestions expose structured advisor facts without LLM prose parsing."""
+    """AC-advisor.suggestions.3: AC21.3.1: Chat suggestions expose structured advisor facts without LLM prose parsing."""
     from src.routers.chat import suggestions
 
     advisor_fact = {
@@ -127,7 +127,7 @@ async def test_AC6_5_1_chat_suggestions_return_static_items_when_structured_cont
 
 
 async def test_detect_language_chinese() -> None:
-    """AC6.2.1: Detect Chinese language."""
+    """AC-advisor.language.1: AC6.2.1: Detect Chinese language."""
     from src.services.ai_advisor import detect_language
 
     result = detect_language("这个月花了多少钱")
@@ -135,7 +135,7 @@ async def test_detect_language_chinese() -> None:
 
 
 async def test_detect_language_english() -> None:
-    """AC6.2.2: Detect English language."""
+    """AC-advisor.language.2: AC6.2.2: Detect English language."""
     from src.services.ai_advisor import detect_language
 
     result = detect_language("What are my expenses?")
@@ -143,7 +143,7 @@ async def test_detect_language_english() -> None:
 
 
 async def test_chat_error_api_key_unavailable() -> None:
-    """AC6.5.3: Chat error returns 503 when API key unavailable."""
+    """AC-advisor.api.1: AC6.5.3: Chat error returns 503 when API key unavailable."""
     from fastapi import HTTPException
 
     from src.routers.chat import chat_message
@@ -169,7 +169,7 @@ async def test_chat_error_api_key_unavailable() -> None:
 
 
 async def test_chat_error_session_not_found() -> None:
-    """AC6.5.4: Chat error returns 404 when session not found."""
+    """AC-advisor.api.2: AC6.5.4: Chat error returns 404 when session not found."""
     from fastapi import HTTPException
 
     from src.routers.chat import chat_message
@@ -194,7 +194,7 @@ async def test_chat_error_session_not_found() -> None:
 
 
 async def test_chat_error_bad_request() -> None:
-    """AC6.5.5: Chat error returns 400 for bad request."""
+    """AC-advisor.api.3: AC6.5.5: Chat error returns 400 for bad request."""
     from fastapi import HTTPException
 
     from src.routers.chat import chat_message
@@ -218,7 +218,7 @@ async def test_chat_error_bad_request() -> None:
 
 
 async def test_chat_with_model_name_header() -> None:
-    """AC6.5.6: Chat response includes X-Model-Name header."""
+    """AC-advisor.api.4: AC6.5.6: Chat response includes X-Model-Name header."""
     from src.routers.chat import chat_message
 
     mock_db = MagicMock()
@@ -302,7 +302,7 @@ async def test_AC22_14_1_chat_response_exposes_grounding_metadata_header() -> No
 
 
 async def test_chat_without_model_name_header() -> None:
-    """AC6.5.7: Chat response omits X-Model-Name when model is None."""
+    """AC-advisor.api.5: AC6.5.7: Chat response omits X-Model-Name when model is None."""
     from src.routers.chat import chat_message
 
     mock_db = MagicMock()
@@ -332,7 +332,7 @@ async def test_chat_without_model_name_header() -> None:
 
 
 async def test_delete_session_not_found() -> None:
-    """AC6.4.6: Delete session returns 404 when not found."""
+    """AC-advisor.session.6: AC6.4.6: Delete session returns 404 when not found."""
     from fastapi import HTTPException
 
     from src.routers.chat import delete_session
@@ -349,7 +349,7 @@ async def test_delete_session_not_found() -> None:
 
 
 async def test_delete_session_success() -> None:
-    """AC6.4.5: Delete session marks session as deleted."""
+    """AC-advisor.session.5: AC6.4.5: Delete session marks session as deleted."""
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from src.models.chat import ChatSession, ChatSessionStatus

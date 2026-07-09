@@ -71,7 +71,7 @@ async def test_AC20_9_1_framework_balance_sheet_exact_aggregation(
     db: AsyncSession,
     test_user: User,
 ) -> None:
-    """AC20.9.1: Proves that L1 lines exactly aggregate their L2 constituents without plugs."""
+    """AC-reporting.pipeline.2: AC20.9.1: Proves that L1 lines exactly aggregate their L2 constituents without plugs."""
     as_of = date(2026, 5, 31)
 
     # 1. Create cash ledger account and equity account

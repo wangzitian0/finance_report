@@ -9,7 +9,7 @@ from tests.factories import AtomicTransactionFactory, UploadedDocumentFactory
 
 
 async def test_post_create_correction_and_stats(client: AsyncClient, db, test_user):
-    """AC4.7.1: POST /corrections persists a correction and /corrections/stats reflects it."""
+    """AC-reconciliation.recovered-coverage.1: AC4.7.1: POST /corrections persists a correction and /corrections/stats reflects it."""
     document = await UploadedDocumentFactory.create_async(db, user_id=test_user.id)
     txn = await AtomicTransactionFactory.create_async(
         db,

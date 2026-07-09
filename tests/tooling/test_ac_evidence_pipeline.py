@@ -58,6 +58,24 @@ def test_valid_record_round_trips():
 
 
 @pytest.mark.parametrize(
+    "ac_id",
+    [
+        "AC-ledger.2.1",
+        "AC-reconciliation.fx-transfer.1",
+        "AC-reconciliation.matching-core.4",
+        "AC-audit.39.2",
+    ],
+)
+def test_package_scoped_word_entity_group_ids_are_valid(ac_id):
+    """A package-scoped id's group segment may be a word-entity slug, not
+    just a number — regression for a group of tools that all shared this
+    same over-strict numeric-only pattern (migration closeout wave 3,
+    #1664)."""
+    evidence = ACEvidence(**_valid_kwargs(ac_id=ac_id))
+    assert evidence.ac_id == ac_id
+
+
+@pytest.mark.parametrize(
     "overrides",
     [
         {"ac_id": "AC4.1"},  # not ACx.y.z
@@ -363,8 +381,9 @@ def test_committed_baseline_matches_schema():
     path = REPO_ROOT / "docs" / "ssot" / "ac-score-baseline.jsonl"
     baseline = baseline_format.load_jsonl(path)
     assert baseline["version"] == 1
-    assert "AC4.1.4" in baseline["acs"]
-    assert 0.0 <= baseline["acs"]["AC4.1.4"]["score"] <= 1.0
+    # was AC4.1.4, migrated to the reconciliation package roadmap (#1663)
+    assert "AC-reconciliation.matching-core.4" in baseline["acs"]
+    assert 0.0 <= baseline["acs"]["AC-reconciliation.matching-core.4"]["score"] <= 1.0
 
     # Conflict-free storage contract: one JSON object per line, sorted by ac_id.
     raw_lines = [

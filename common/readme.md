@@ -47,10 +47,10 @@ scope):
 - **L3 domain** — [`advisor/`](./advisor/readme.md),
   [`extraction/`](./extraction/readme.md), [`identity/`](./identity/readme.md),
   [`ledger/`](./ledger/readme.md), [`portfolio/`](./portfolio/readme.md),
-  [`reconciliation/`](./reconciliation/readme.md). Still `status="draft"`
-  (contract + readme shipped, roadmap not yet populated): [`pricing/`](./pricing/readme.md)
-  (#1610, the one price/valuation SSOT — lands before portfolio),
-  [`reporting/`](./reporting/readme.md) (#1424).
+  [`reconciliation/`](./reconciliation/readme.md), [`reporting/`](./reporting/readme.md).
+  Still `status="draft"` (contract + readme shipped, roadmap not yet
+  populated): [`pricing/`](./pricing/readme.md) (#1610, the one
+  price/valuation SSOT — lands before portfolio).
 - [`common/todo.md`](./todo.md) — the cross-package / migration worklist.
 
 The old `common/ci` / `common/shell` / `common/ssot` junk drawers are retired.

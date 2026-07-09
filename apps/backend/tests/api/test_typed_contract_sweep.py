@@ -52,13 +52,13 @@ async def test_AC12_27_2_openapi_declares_error_response_contract() -> None:
 
 
 async def test_AC4_12_1_accept_match_malformed_uuid_returns_422(client: AsyncClient) -> None:
-    """AC4.12.1: a non-UUID ``match_id`` is rejected with 422 at the boundary."""
+    """AC-reconciliation.uuid-path-params.1: AC4.12.1: a non-UUID ``match_id`` is rejected with 422 at the boundary."""
     response = await client.post("/reconciliation/matches/not-a-uuid/accept")
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 
 async def test_AC4_12_2_create_entry_malformed_uuid_returns_422(client: AsyncClient) -> None:
-    """AC4.12.2: a non-UUID ``txn_id`` is rejected with 422 at the boundary."""
+    """AC-reconciliation.uuid-path-params.2: AC4.12.2: a non-UUID ``txn_id`` is rejected with 422 at the boundary."""
     response = await client.post("/reconciliation/unmatched/not-a-uuid/create-entry")
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 

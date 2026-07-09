@@ -236,7 +236,7 @@ async def test_auto_match_records_anchor_without_mutating_posted_source_type(db:
 
 
 async def test_manual_wins_conflict_resolution(db: AsyncSession) -> None:
-    """AC-extraction.110.4: Manual entries win equal-score conflicts over auto_parsed."""
+    """AC-reconciliation.source-type-transfer.4: AC-extraction.110.4: Manual entries win equal-score conflicts over auto_parsed."""
     user = User(email=f"manual-wins-{uuid4()}@example.com", hashed_password="hashed")
     db.add(user)
     await db.flush()

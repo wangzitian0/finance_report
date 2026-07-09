@@ -119,9 +119,16 @@ def test_AC26_6_1_first_batch_lp_acs_carry_invariant_proof() -> None:
     # package tier) and carry an evidence proof.
     for ac_id in ("AC3.3.2", "AC3.5.10", "AC3.6.4"):
         assert entries[ac_id]["proof_kind"] == "evidence", ac_id
-    # LLM-ONLY suggestion ACs carry a smoke proof.
-    for ac_id in ("AC6.2.3", "AC6.2.4"):
-        assert entries[ac_id]["proof_kind"] == "smoke", ac_id
+    # The old LLM-ONLY/smoke suggestion ACs (AC6.2.3/AC6.2.4) migrated into the
+    # advisor package roadmap (#1663) as AC-advisor.suggestions.1/.2 — on
+    # inspection both tests are pure static-copy assertions with no LLM call,
+    # so the migration corrected the miscalibrated tier/proof to
+    # CODE-ONLY/property rather than copying "smoke" uncritically.
+    from common.advisor.contract import CONTRACT as ADVISOR_CONTRACT
+
+    advisor_roadmap = {r.id: r for r in ADVISOR_CONTRACT.roadmap}
+    for ac_id in ("AC-advisor.suggestions.1", "AC-advisor.suggestions.2"):
+        assert advisor_roadmap[ac_id].proof_kind == "property", ac_id
 
     # None of the LLM-LED ACs is exact (the matrix rule that must hold); the
     # package tier is LLM-LED for every roadmap AC.

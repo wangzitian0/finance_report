@@ -51,7 +51,15 @@ CONTRACT = PackageContract(
     # vision-LLM path (the authority classifier bands cassette-driven tests as
     # LLM). Non-eval ACs carry proof_kind=property.
     tier="LLM-LED",
-    depends_on=["audit", "config", "identity", "ledger", "observability", "platform", "runtime"],
+    depends_on=[
+        "audit",
+        "config",
+        "identity",
+        "ledger",
+        "observability",
+        "platform",
+        "runtime",
+    ],
     roles=["base", "extension", "data"],
     units=[
         # ── base: the pure validation/confidence calculus lives in
@@ -2176,6 +2184,40 @@ CONTRACT = PackageContract(
             ),
             priority="P0",
             status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.2009.8",
+            statement=(
+                "A db-backed quarantine persists the terminal `rejected` "
+                "status to the statement row, writing no Layer-2 financial "
+                "rows, instead of leaving an upload stuck in `parsing`. Was "
+                "EPIC-020 AC20.9.8."
+            ),
+            test=(
+                "apps/backend/tests/llm/test_llm_led_blocking_gate.py"
+                "::test_AC20_9_8_quarantined_statement_persists_rejected_not_stuck_parsing"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.2502.1",
+            statement=(
+                "`approve_statement_workflow` / `reject_statement_workflow` "
+                "(`src.extraction.extension.statement_workflow`) own the "
+                "ordered transition -> side-effect -> commit sequence as one "
+                "unit (approve: transition, auto-post, commit; reject: "
+                "transition, commit, refresh), and the statements router "
+                "delegates to these workflow functions directly instead of "
+                "inlining approve/reject + commit. Was EPIC-025 AC25.2.1."
+            ),
+            test=(
+                "apps/backend/tests/api/test_statement_workflow_service.py"
+                "::test_statement_workflow_service"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
         ),
     ],
 )

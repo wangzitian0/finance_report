@@ -324,7 +324,7 @@ def test_AC20_4_1_unsupported_instruments_create_policy_gap_not_market_value_def
 
 
 def test_AC20_7_1_same_settlement_fixture_drives_us_hk_report_policy_outputs() -> None:
-    """AC20.7.1: One settlement fixture produces framework-specific lines, notes, and blockers."""
+    """AC-reporting.framework.2: AC20.7.1: One settlement fixture produces framework-specific lines, notes, and blockers."""
     facts = [
         _fact(PolicyFactDomain.CASH, instrument_type="bank_account"),
         _fact(PolicyFactDomain.LISTED_SECURITY, instrument_type="listed_equity"),

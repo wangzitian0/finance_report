@@ -83,17 +83,15 @@ Not owned here:
 
 ### AC21.2: Backend Advisor Context and Suggestions
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC21.2.1 | Backend advisor context includes deterministic report readiness, source trust, workflow action counts, market-data freshness, portfolio facts, cash-flow facts, and structured source-cited suggestions {tier:CODE-ONLY} | `test_AC21_2_1_advisor_context_includes_readiness_trust_workflow_and_suggestions` | `apps/backend/tests/ai/test_ai_advisor_service.py` | P0 |
-| AC21.2.2 | Prompt construction consumes structured advisor facts and must not describe blocked, stale, unreviewed, unsupported, or manual-trusted data as trusted {tier:CODE-ONLY} | `test_AC21_2_2_prompt_consumes_structured_advisor_facts_without_trusting_blocked_state` | `apps/backend/tests/ai/test_ai_advisor_service.py` | P0 |
-| AC21.2.3 | Chat provider calls and persisted chat messages redact sensitive numeric fields while preserving read-only advisor behavior {tier:CODE-ONLY} | `test_AC21_2_3_chat_stream_redacts_sensitive_numbers_before_provider_and_persistence` | `apps/backend/tests/ai/test_ai_advisor_service.py` | P0 |
+> *(This group's first row removed — duplicate of the already-migrated `AC-advisor.context.1`, same test function. Its third row removed too — duplicate of `AC-advisor.guardrail.2`.)* The middle row migrated to
+> [`common/advisor/contract.py`](../../common/advisor/contract.py)'s `roadmap` (migration closeout wave 2, #1663): `AC-advisor.context.4`.
 
 ### AC21.3: Frontend Advisor Brief and Contextual Next Actions
 
+> *(This group's first row removed — migrated to [`common/advisor/contract.py`](../../common/advisor/contract.py)'s `roadmap` as `AC-advisor.suggestions.3`, migration closeout wave 2, #1663.)* The remaining three rows stay here: they are frontend/E2E tests (`.tsx`/`.spec.ts`), and the governance gate's `_resolve_test()` (AST-based, Python-only) cannot resolve a non-Python test path — same limitation as EPIC-012's `AC12.27.3`/`AC12.28.3`.
+
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC21.3.1 | Chat suggestions endpoint exposes structured advisor suggestions to the frontend without relying on LLM prose parsing {tier:CODE-ONLY} | `test_AC21_3_1_chat_suggestions_include_structured_advisor_facts` | `apps/backend/tests/ai/test_chat_router.py` | P0 |
 | AC21.3.2 | Advisor Brief renders blocked, ready, review-required, and stale-market-data cards with source basis, limitation, and safe internal action links {tier:CODE-ONLY} | `test_AC21_3_2_advisor_brief_renders_structured_cards_and_safe_routes` | `apps/frontend/src/__tests__/advisorBrief.test.tsx` | P0 |
 | AC21.3.3 | Chat and dashboard surfaces expose contextual Ask AI links that seed a scoped prompt without losing existing chat behavior {tier:CODE-ONLY} | `test_AC21_3_3_chat_panel_renders_contextual_advisor_brief`, `test_AC21_3_3_dashboard_renders_advisor_brief_before_analytics` | `apps/frontend/src/__tests__/chatPanelComponent.test.tsx`, `apps/frontend/src/__tests__/dashboardPage.test.tsx` | P0 |
 | AC21.3.4 | Advisor Brief keeps desktop and mobile layouts free of horizontal overflow {tier:CODE-ONLY} | `advisor-brief desktop and mobile layouts avoid horizontal overflow` | `apps/frontend/playwright/advisor-brief.spec.ts` | P1 |
@@ -107,10 +105,11 @@ their tests are introduced.
    initial ownership ACs, and wire project indexes.
 2. PR2 - Backend advisor context: expose deterministic advisor facts for
    readiness, source trust, workflow blockers, pending review, market freshness,
-   portfolio, and cash-flow state. This slice owns AC21.2.1 through AC21.2.3.
+   portfolio, and cash-flow state. This slice owns the AC21.2.* group (mostly
+   migrated to the advisor package roadmap since, #1663 — see AC21.2 above).
 3. PR3 - Frontend Advisor Brief: render structured cards, safe next-action
-   routes, and contextual chat entry points. This slice owns AC21.3.1 through
-   AC21.3.4.
+   routes, and contextual chat entry points. This slice owns the AC21.3.*
+   group (partially migrated since, #1663 — see AC21.3 above).
 
 ## Tracking Issues
 

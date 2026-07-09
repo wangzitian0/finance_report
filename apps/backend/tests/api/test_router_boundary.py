@@ -22,6 +22,7 @@ def _router_module_files() -> list[Path]:
 
 
 def test_AC25_5_1_no_router_imports_another_router() -> None:
+    """AC-meta.router.1."""
     offenders: list[str] = []
     for path in _router_module_files():
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))

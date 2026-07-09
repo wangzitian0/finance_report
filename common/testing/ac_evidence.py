@@ -33,10 +33,14 @@ PROPERTY_KEY = "ac_evidence"
 
 # Accepts BOTH id grammars, matching the traceability layer
 # (``common/testing/ac_traceability_refs.py``): the legacy EPIC-scoped ``ACx.y.z``
-# and the package-scoped ``AC-<pkg>.x.y`` (e.g. ``AC-ledger.2.1``) used once an
-# AC migrates into a package contract's roadmap. Without the second alternative,
-# an ``@ac_proof`` test moved into the package scheme could not emit evidence.
-AC_ID_PATTERN = re.compile(r"^AC(?:\d+|-[a-z][a-z0-9_]*)\.\d+\.\d+$")
+# and the package-scoped ``AC-<pkg>.group.seq`` (e.g. ``AC-ledger.2.1`` or
+# ``AC-reconciliation.fx-transfer.1``, where ``group`` may be a word-entity
+# slug, not just a number) used once an AC migrates into a package contract's
+# roadmap. Without the second alternative, an ``@ac_proof`` test moved into
+# the package scheme could not emit evidence.
+AC_ID_PATTERN = re.compile(
+    r"^AC(?:\d+\.\d+\.\d+|-[a-z][a-z0-9_]*\.[a-z0-9][a-z0-9_-]*\.\d+)$"
+)
 VALID_CODES = ("pass", "fail", "skip", "error")
 # Provenance is either one of these literals, or "golden_fixture@<ref>". The bare
 # "golden_fixture" form is rejected on purpose: a golden-derived score must name

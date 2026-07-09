@@ -30,7 +30,7 @@ from src.reconciliation.extension.reconciliation_audit import (  # noqa: E402
 
 
 def test_AC4_10_1_reconciliation_audit_report_schema_and_outputs(tmp_path: Path) -> None:
-    """AC4.10.1: Reconciliation audit harness emits JSON and Markdown reports."""
+    """AC-reconciliation.audit-harness.1: AC4.10.1: Reconciliation audit harness emits JSON and Markdown reports."""
     report = build_report(benchmark_size=100)
     json_path, md_path = write_report(report, tmp_path)
 
@@ -52,7 +52,7 @@ def test_AC4_10_1_reconciliation_audit_report_schema_and_outputs(tmp_path: Path)
 
 
 def test_AC4_10_2_reconciliation_audit_reports_intentional_false_positive() -> None:
-    """AC4.10.2: Audit diagnostics identify false positives and wrong auto-accepts."""
+    """AC-reconciliation.audit-harness.2: AC4.10.2: Audit diagnostics identify false positives and wrong auto-accepts."""
     user_id = _txn("diagnostic_seed", date(2024, 1, 1), "seed", "1.00", "OUT").id
     bank = _account(user_id, "Diagnostic Bank", AccountType.ASSET)
     expense = _account(user_id, "Diagnostic Expense", AccountType.EXPENSE)

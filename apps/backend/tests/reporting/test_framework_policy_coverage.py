@@ -45,7 +45,7 @@ def _resolves(domain: PolicyFactDomain, instrument: str, framework: PersonalRepo
 
 @pytest.mark.parametrize("framework", _FRAMEWORKS)
 def test_AC20_8_1_every_asset_type_maps_to_an_l1_line(framework: PersonalReportingFrameworkId) -> None:
-    """AC20.8.1: every AssetType resolves to an L1 report line in this framework."""
+    """AC-reporting.pipeline.1: AC20.8.1: every AssetType resolves to an L1 report line in this framework."""
     unmapped = []
     for asset_type in AssetType:
         domain, instrument = _position_domain_and_instrument(SimpleNamespace(asset_type=asset_type))

@@ -57,4 +57,5 @@ def test_derive_confidence_tier_unknown_string_defaults_low():
     ],
 )
 def test_ac4_9_4_derive_reconciliation_score_tier(score, expected):
+    """AC-reconciliation.bank-side-amount.5."""
     assert derive_reconciliation_score_tier(score) == expected

@@ -308,7 +308,7 @@ class TestQuarantinePersistsStatus:
     async def test_AC20_9_8_quarantined_statement_persists_rejected_not_stuck_parsing(
         self, service, tmp_path, db, test_user
     ):
-        """[AC20.9.8] A db-backed quarantine writes status=rejected to the row (#1452).
+        """AC-extraction.2009.8: [AC20.9.8] A db-backed quarantine writes status=rejected to the row (#1452).
 
         The chain-break / LLM-LED quarantine path previously skipped the
         persistence write entirely, so the pre-created upload row stayed in
