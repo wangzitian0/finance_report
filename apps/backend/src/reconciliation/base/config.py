@@ -6,6 +6,7 @@ import os
 from dataclasses import dataclass, replace
 from decimal import Decimal
 from pathlib import Path
+from types import ModuleType
 
 from src.audit import (
     RECONCILIATION_AUTO_ACCEPT_SCORE,
@@ -140,14 +141,15 @@ def load_reconciliation_config(force_reload: bool = False) -> ReconciliationConf
     config_path = Path(__file__).resolve().parents[2] / "config" / "reconciliation.yaml"
 
     if config_path.exists():
+        _yaml: ModuleType | None
         try:
-            import yaml
+            import yaml as _yaml
         except ImportError:
-            yaml = None  # type: ignore[assignment]
+            _yaml = None
 
-        if yaml:
+        if _yaml is not None:
             try:
-                raw = yaml.safe_load(config_path.read_text()) or {}
+                raw = _yaml.safe_load(config_path.read_text()) or {}
                 scoring = raw.get("scoring", {})
                 weights = scoring.get("weights", {})
                 thresholds = scoring.get("thresholds", {})
