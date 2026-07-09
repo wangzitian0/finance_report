@@ -21,7 +21,7 @@ from src.audit.promotion import (
 
 
 def test_AC18_13_1_failed_invariant_is_rejected_with_queryable_reason():
-    """AC18.13.1: A failed deterministic invariant is REJECTED (never authoritative), with a queryable reason."""
+    """AC-audit.41.1: AC18.13.1: A failed deterministic invariant is REJECTED (never authoritative), with a queryable reason."""
     verdict = evaluate_promotion(
         [
             InvariantResult(
@@ -41,7 +41,7 @@ def test_AC18_13_1_failed_invariant_is_rejected_with_queryable_reason():
 
 
 def test_AC18_13_2_invariants_pass_but_low_confidence_is_review():
-    """AC18.13.2: Invariants pass but confidence below threshold -> REVIEW candidate, not authoritative."""
+    """AC-audit.41.2: AC18.13.2: Invariants pass but confidence below threshold -> REVIEW candidate, not authoritative."""
     verdict = evaluate_promotion(
         [InvariantResult(name="balance_chain", passed=True)],
         confidence_rank=tier_rank("LOW"),
@@ -55,7 +55,7 @@ def test_AC18_13_2_invariants_pass_but_low_confidence_is_review():
 
 
 def test_AC18_13_3_invariants_pass_and_confidence_met_is_authoritative():
-    """AC18.13.3: Invariants pass AND confidence >= threshold -> AUTHORITATIVE. Same contract for tier and score."""
+    """AC-audit.41.3: AC18.13.3: Invariants pass AND confidence >= threshold -> AUTHORITATIVE. Same contract for tier and score."""
     by_tier = evaluate_promotion(
         [InvariantResult(name="balance_chain", passed=True)],
         confidence_rank=tier_rank("HIGH"),
@@ -80,7 +80,7 @@ def test_AC18_13_3_invariants_pass_and_confidence_met_is_authoritative():
 
 
 def test_AC18_13_4_thresholds_are_centrally_owned_and_consumed_by_services():
-    """AC18.13.4: The previously-scattered thresholds are named, centrally owned, and consumed by the services."""
+    """AC-audit.41.4: AC18.13.4: The previously-scattered thresholds are named, centrally owned, and consumed by the services."""
     assert STATEMENT_BALANCE_TOLERANCE == Decimal("0.001")
     assert RECONCILIATION_AUTO_ACCEPT_SCORE == 85
     assert RECONCILIATION_REVIEW_SCORE == 60
