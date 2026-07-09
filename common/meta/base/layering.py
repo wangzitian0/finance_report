@@ -14,10 +14,11 @@ The five layers:
   (``PackageContract``) + the global governance gates. Its ``extension``
   inverts the dependency at tool-time (CI scans every contract); nothing at
   runtime imports upward.
-- ``infra``      (L1) — business-agnostic foundations: config, audit,
-  observability, testing, runtime, llm, platform (the event-bus ports).
-  ``authority`` converged into ``meta`` and ``coverage`` into ``testing``
-  (#1626) — neither is a standalone package any more.
+- ``infra``      (L1) — business-agnostic foundations: audit, observability,
+  testing, runtime, llm, platform (the event-bus ports). ``authority``
+  converged into ``meta`` and ``coverage`` into ``testing`` (#1626); ``config``
+  (env-key/schema-validation helpers) folded into ``runtime`` (#1669) — none
+  of the three is a standalone package any more.
 - ``middleware`` (L2) — the shared domain kernel: generic capabilities
   (counter). The value language (money/ratio/quantity/unit_price) folded
   into audit (#1419).
@@ -60,9 +61,8 @@ LAYER_RANK: dict[str, int] = {
 PACKAGE_LAYER: dict[str, PackageClass] = {
     # L0 — the template + global governance.
     "meta": "meta",
-    # L1 — business-agnostic foundations.
+    # L1 — business-agnostic foundations. ("config" folded into "runtime", #1669.)
     "audit": "infra",
-    "config": "infra",
     "llm": "infra",
     "observability": "infra",
     "platform": "infra",

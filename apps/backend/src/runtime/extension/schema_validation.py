@@ -22,8 +22,13 @@ from pathlib import Path
 
 
 def get_project_root() -> Path:
-    """Get project root directory."""
-    return Path(__file__).resolve().parents[2]
+    """Get project root directory.
+
+    Moved here from common/config/schema_validation.py (#1669): the file now
+    lives at apps/backend/src/runtime/extension/, five levels below repo root
+    (extension -> runtime -> src -> backend -> apps -> root), not two.
+    """
+    return Path(__file__).resolve().parents[5]
 
 
 class SchemaVisitor(ast.NodeVisitor):

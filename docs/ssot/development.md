@@ -329,13 +329,14 @@ Endpoints tested: `/`, `/api/health`, `/api/docs`, `/ping-pong`, `/reconciliatio
 | CI | Same as Local Test | `localhost:5433` (services) |
 | Staging/Prod | External PostgreSQL | Dokploy Managed |
 
-Environment/config validation is shared library logic under `common/config/`.
-`common/config/env_keys.py` owns the three-way key comparison across
+Environment/config validation is shared library logic under
+`apps/backend/src/runtime/extension/` (folded in from the retired `config`
+package, #1669). `env_keys.py` owns the three-way key comparison across
 `secrets.ctmpl`, `apps/backend/src/config.py`, and `.env.example`;
 `tools/check_env_keys.py` is the command entry point. Pydantic config/schema
-validation is implemented in `common/config/schema_validation.py` and exposed
+validation is implemented in `schema_validation.py` and exposed
 through `tools/validate_schemas.py`. The root command namespace is `tools/`;
-shared implementation belongs in `common/`.
+shared implementation belongs in the owning package.
 
 ---
 

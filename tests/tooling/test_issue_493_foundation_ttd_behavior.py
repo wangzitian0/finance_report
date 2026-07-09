@@ -14,11 +14,16 @@ from pathlib import Path
 import pytest
 import yaml
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+# src.* lives under apps/backend, not repo root (#1669 moved this module out of
+# the repo-root-relative common/config into apps/backend/src/runtime).
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "apps" / "backend"))
 
-from common.config import env_keys as check_env_keys  # noqa: E402
-from common.config import schema_validation as validate_schemas  # noqa: E402
+from src.runtime.extension import env_keys as check_env_keys  # noqa: E402
+from src.runtime.extension import schema_validation as validate_schemas  # noqa: E402
 from common.meta.extension import generate_ac_registry as gar  # noqa: E402
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _read(path: Path) -> str:

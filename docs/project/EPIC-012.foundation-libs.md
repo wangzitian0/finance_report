@@ -127,17 +127,17 @@ diverging across the codebase and across ends.
 > **The config-format assertion ACs of this group are no longer defined here.**
 > The PRIMARY_MODEL / config-sync / BASE_CURRENCY / S3_BUCKET / JWT_ALGORITHM /
 > DATABASE_URL config-contract rows (were AC12.18.* rows .1–.6) migrated into the
-> `config` package and are owned by, and sourced directly from,
-> [`common/config/contract.py`](../../common/config/contract.py)'s `roadmap`
-> under the package-scoped numeric `AC-config.<group>.<seq>` id scheme (the
-> leading "12" is dropped and the group/seq preserved, so `AC12.18.<s>` becomes
-> `AC-config.18.<s>`). `common/meta/extension/generate_ac_registry.py` reads package-contract
+> `config` package (`AC-config.18.<s>`) and then, when `config` folded into
+> `runtime` (#1669), moved again — they are now owned by, and sourced directly
+> from, [`common/runtime/contract.py`](../../common/runtime/contract.py)'s
+> `roadmap` as `AC-runtime.18.<s>` (the group/seq preserved through both moves).
+> `common/meta/extension/generate_ac_registry.py` reads package-contract
 > roadmaps additively, so the AC index counts them without an EPIC-table mirror.
-> This note references the new ids (keeping the registry↔EPIC link intact) but
-> defines none of them — the contract is the single definition source.
+> This note references the current ids (keeping the registry↔EPIC link intact)
+> but defines none of them — the contract is the single definition source.
 >
-> Migrated `AC-config.18.<s>` ids (homed in the package roadmap):
-> `AC-config.18.1` · `AC-config.18.2` · `AC-config.18.3` · `AC-config.18.4` · `AC-config.18.5` · `AC-config.18.6`
+> Migrated `AC-runtime.18.<s>` ids (homed in the package roadmap):
+> `AC-runtime.18.1` · `AC-runtime.18.2` · `AC-runtime.18.3` · `AC-runtime.18.4` · `AC-runtime.18.5` · `AC-runtime.18.6`
 
 The non-migrated **AC12.18.7** stub stays defined here: it is not a config-format
 assertion (its only live anchor is the reconciliation `[AC12.18.7.2]` tag on
@@ -161,20 +161,20 @@ transfer/candidate-matching unit test — a reconciliation concern, not config).
 > Migrated `AC-platform.19.<s>` ids (homed in the package roadmap):
 > `AC-platform.19.1`
 
-### AC12.20: Database - Connection Pool Configuration — migrated to the `config` package
+### AC12.20: Database - Connection Pool Configuration — migrated to the `runtime` package
 
 > **The DB connection-pool config-field ACs of this group are no longer defined
 > here.** The DB_POOL_SIZE / DB_POOL_MAX_OVERFLOW / range / env-override rows
-> (were AC12.20.* rows .1–.5) migrated into the `config` package and are owned by,
-> and sourced directly from,
-> [`common/config/contract.py`](../../common/config/contract.py)'s `roadmap`
-> under the numeric `AC-config.20.<seq>` scheme (the leading "12" is dropped and
-> the group/seq preserved). This note references the new ids (keeping the
-> registry↔EPIC link intact) but defines none of them — the contract is the
-> single definition source.
+> (were AC12.20.* rows .1–.5) migrated into the `config` package (`AC-config.20.<s>`)
+> and then, when `config` folded into `runtime` (#1669), moved again — they are
+> now owned by, and sourced directly from,
+> [`common/runtime/contract.py`](../../common/runtime/contract.py)'s `roadmap`
+> as `AC-runtime.20.<seq>` (the group/seq preserved through both moves). This
+> note references the current ids (keeping the registry↔EPIC link intact) but
+> defines none of them — the contract is the single definition source.
 >
-> Migrated `AC-config.20.<s>` ids (homed in the package roadmap):
-> `AC-config.20.1` · `AC-config.20.2` · `AC-config.20.3` · `AC-config.20.4` · `AC-config.20.5`
+> Migrated `AC-runtime.20.<s>` ids (homed in the package roadmap):
+> `AC-runtime.20.1` · `AC-runtime.20.2` · `AC-runtime.20.3` · `AC-runtime.20.4` · `AC-runtime.20.5`
 
 ### AC12.21: Exceptions - BaseAppException — migrated to the `platform` package
 

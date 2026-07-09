@@ -1,4 +1,4 @@
-"""Tests for common.config.env_keys"""
+"""Tests for src.runtime.extension.env_keys"""
 
 import pytest
 from pathlib import Path
@@ -6,9 +6,12 @@ from pathlib import Path
 # Import functions from the script
 import sys
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+# src.* lives under apps/backend, not repo root (#1669 moved this module out of
+# the repo-root-relative common/config into apps/backend/src/runtime).
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "apps" / "backend"))
 
-from common.config.env_keys import (
+from src.runtime.extension.env_keys import (
     get_project_root,
     parse_secrets_ctmpl,
     parse_env_example,
@@ -513,7 +516,7 @@ class TestPrintReportEdgeCases:
 class TestMainFunction:
     def test_main_exits_0_when_consistent(self, monkeypatch, tmp_path):
         """main() exits 0 when all sources are consistent (lines 260-290)."""
-        from common.config.env_keys import main
+        from src.runtime.extension.env_keys import main
 
         ctmpl_file = (
             tmp_path
@@ -540,7 +543,9 @@ class Settings(BaseSettings):
         env_file = tmp_path / ".env.example"
         env_file.write_text("DATABASE_URL=postgres://localhost/db\n")
 
-        monkeypatch.setattr("common.config.env_keys.get_project_root", lambda: tmp_path)
+        monkeypatch.setattr(
+            "src.runtime.extension.env_keys.get_project_root", lambda: tmp_path
+        )
         monkeypatch.setattr(sys, "argv", ["check_env_keys.py"])
 
         with pytest.raises(SystemExit) as exc:
@@ -549,7 +554,7 @@ class Settings(BaseSettings):
 
     def test_main_exits_1_when_inconsistent(self, monkeypatch, tmp_path):
         """main() exits 1 when inconsistency found."""
-        from common.config.env_keys import main
+        from src.runtime.extension.env_keys import main
 
         ctmpl_file = (
             tmp_path
@@ -574,7 +579,9 @@ class Settings(BaseSettings):
         env_file = tmp_path / ".env.example"
         env_file.write_text("DATABASE_URL=default\n")
 
-        monkeypatch.setattr("common.config.env_keys.get_project_root", lambda: tmp_path)
+        monkeypatch.setattr(
+            "src.runtime.extension.env_keys.get_project_root", lambda: tmp_path
+        )
         monkeypatch.setattr(sys, "argv", ["check_env_keys.py"])
 
         with pytest.raises(SystemExit) as exc:
@@ -583,7 +590,7 @@ class Settings(BaseSettings):
 
     def test_main_with_diff_flag(self, monkeypatch, tmp_path):
         """main() with --diff flag shows verbose output."""
-        from common.config.env_keys import main
+        from src.runtime.extension.env_keys import main
 
         ctmpl_file = (
             tmp_path
@@ -608,7 +615,9 @@ class Settings(BaseSettings):
         env_file = tmp_path / ".env.example"
         env_file.write_text("DATABASE_URL=default\n")
 
-        monkeypatch.setattr("common.config.env_keys.get_project_root", lambda: tmp_path)
+        monkeypatch.setattr(
+            "src.runtime.extension.env_keys.get_project_root", lambda: tmp_path
+        )
         monkeypatch.setattr(sys, "argv", ["check_env_keys.py", "--diff"])
 
         with pytest.raises(SystemExit) as exc:
@@ -617,7 +626,7 @@ class Settings(BaseSettings):
 
     def test_main_with_fix_flag(self, monkeypatch, tmp_path):
         """main() with --fix flag generates suggestions."""
-        from common.config.env_keys import main
+        from src.runtime.extension.env_keys import main
 
         ctmpl_file = (
             tmp_path
@@ -642,7 +651,9 @@ class Settings(BaseSettings):
         env_file = tmp_path / ".env.example"
         env_file.write_text("DATABASE_URL=default\n")
 
-        monkeypatch.setattr("common.config.env_keys.get_project_root", lambda: tmp_path)
+        monkeypatch.setattr(
+            "src.runtime.extension.env_keys.get_project_root", lambda: tmp_path
+        )
         monkeypatch.setattr(sys, "argv", ["check_env_keys.py", "--fix"])
 
         with pytest.raises(SystemExit) as exc:

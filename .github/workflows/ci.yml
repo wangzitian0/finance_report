@@ -1055,14 +1055,29 @@ jobs:
         run: |
           mkdir -p coverage
           printf '[run]\nomit =\n    tests/tooling/*\n    common/__init__.py\n    common/**/__init__.py\n    tools/__init__.py\n    tools/**/__init__.py\n    tools/wait_for_cheap_ci.py\n    common/testing/wait_for_cheap_ci.py\n' > /tmp/tooling-coveragerc
-          uv run --with pytest --with pytest-cov --with pytest-asyncio --with anyio --with pyyaml --with pydantic --with pydantic-settings --with email-validator --with structlog --with sqlalchemy --with asyncpg --with fastapi --with httpx --with pdfplumber --with reportlab pytest tests/tooling/ \
+          uv run --with pytest --with pytest-cov --with pytest-asyncio --with anyio --with pyyaml --with pydantic --with pydantic-settings --with email-validator --with structlog --with sqlalchemy --with asyncpg --with fastapi --with httpx --with pdfplumber --with reportlab --with boto3 pytest tests/tooling/ \
             --cov=common \
             --cov=tools \
+            --cov=apps/backend/src \
             --cov-config=/tmp/tooling-coveragerc \
             --cov-report= \
             -x -q
           COVERAGE_RCFILE=/tmp/tooling-coveragerc uv run --with coverage coverage lcov -o coverage/common.lcov --include='common/*'
           COVERAGE_RCFILE=/tmp/tooling-coveragerc uv run --with coverage coverage lcov -o coverage/tools.lcov --include='tools/*'
+          # #1669 moved env_keys.py/schema_validation.py from common/config into
+          # apps/backend/src/runtime/extension/, so they now belong to the
+          # "backend" coverage bucket. Their only test suite is tests/tooling/
+          # (they must stay importable in this minimal env), which the Backend
+          # Tests job never runs — so measure them here and merge into
+          # backend.lcov instead, rather than letting them show as uncovered.
+          # The report must be generated with cwd=apps/backend (matching how
+          # the Backend Tests shards run `--cov=src`) so the emitted SF: paths
+          # (src/runtime/...) match the shards' paths exactly — otherwise
+          # merge_lcov.py treats them as distinct files and double-counts lines.
+          (cd apps/backend && COVERAGE_RCFILE=/tmp/tooling-coveragerc uv run --with coverage coverage lcov \
+            --data-file="$GITHUB_WORKSPACE/.coverage" \
+            -o "$GITHUB_WORKSPACE/coverage/backend-tooling.lcov" \
+            --include='src/runtime/extension/env_keys.py,src/runtime/extension/schema_validation.py')
 
       - name: Upload tooling coverage context
         if: ${{ always() }}
@@ -1072,6 +1087,7 @@ jobs:
           path: |
             coverage/common.lcov
             coverage/tools.lcov
+            coverage/backend-tooling.lcov
           retention-days: 14
 
   unified-coverage:
@@ -1114,8 +1130,15 @@ jobs:
       - name: Merge coverage reports
         run: |
           mkdir -p coverage
+          backend_inputs=()
           if ls coverage-backend/*.lcov 1> /dev/null 2>&1; then
-            python tools/merge_lcov.py coverage/backend.lcov coverage-backend/*.lcov
+            backend_inputs+=(coverage-backend/*.lcov)
+          fi
+          if [ -f coverage-tooling/backend-tooling.lcov ]; then
+            backend_inputs+=(coverage-tooling/backend-tooling.lcov)
+          fi
+          if [ ${#backend_inputs[@]} -gt 0 ]; then
+            python tools/merge_lcov.py coverage/backend.lcov "${backend_inputs[@]}"
           else
             echo "No backend coverage found"
           fi
