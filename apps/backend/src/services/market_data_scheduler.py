@@ -10,7 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.database import async_session_maker
 from src.observability import get_logger
-from src.services.market_data import sync_fx_rates, sync_stock_prices
+from src.pricing import sync_fx_rates, sync_stock_prices
+from src.services.market_data_discovery import active_stock_symbols, observed_fx_pairs
 
 logger = get_logger(__name__)
 
@@ -33,8 +34,10 @@ async def run_daily_market_data_sync(
     """Run one daily incremental market data sync for all observed scopes."""
     session_factory = sessionmaker or async_session_maker
     async with session_factory() as session:
-        fx_result = await sync_fx_rates(session)
-        stock_result = await sync_stock_prices(session)
+        fx_pairs = await observed_fx_pairs(session, None)
+        stock_symbols = await active_stock_symbols(session, None)
+        fx_result = await sync_fx_rates(session, pairs=fx_pairs)
+        stock_result = await sync_stock_prices(session, symbols=stock_symbols)
         await session.commit()
     logger.info(
         "Daily market data sync completed",

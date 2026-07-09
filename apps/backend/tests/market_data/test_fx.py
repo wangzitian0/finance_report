@@ -13,7 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit.money import ExchangeRate, Money
 from src.config import settings
 from src.models.market_data import FxRate
-from src.services import fx as fx_service, market_data
+from src.pricing.extension import market_data
+from src.services import fx as fx_service
 from src.services.fx import (
     FxRateError,
     convert_amount,

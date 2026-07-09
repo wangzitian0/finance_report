@@ -11,7 +11,7 @@ for its runtime (``common/`` is not shipped into the image); the conformance
 suite proves the two stay identical. Runtime unification waits on adoption (#1171).
 
 Out of scope (deliberately use their own quantization):
-- FX rates and security prices: 6 dp (``services/market_data/``).
+- FX rates and security prices: 6 dp (``pricing/extension/market_data/``).
 - Share quantities: 6 dp (``portfolio/extension/accounting.py``).
 - Percentages / performance ratios (XIRR, TWR, MWR, allocation %): not currency.
 """

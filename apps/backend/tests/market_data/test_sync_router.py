@@ -10,8 +10,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.models.market_data import FxRate, MarketDataSyncState, StockPrice
+from src.pricing.extension import market_data
 from src.routers import market_data as market_data_router, reports as reports_router
-from src.services import market_data
 
 
 async def test_market_data_sync_endpoints_return_counts(
@@ -200,13 +200,10 @@ async def test_report_endpoint_runs_market_data_freshness_check(
     """AC11.10.9: Report reads check market data freshness before generating output."""
     calls: list[str] = []
 
-    async def fake_ensure(
-        _db, *, user_id, end_date: date, include_default_fx: bool, extra_fx_pairs: list[str]
-    ) -> market_data.MarketDataFreshnessResult:
-        calls.append(str(user_id))
+    async def fake_ensure(_db, *, fx_pairs, stock_symbols, end_date: date) -> market_data.MarketDataFreshnessResult:
+        del fx_pairs, stock_symbols
+        calls.append(end_date)
         assert end_date == date(2026, 1, 6)
-        assert include_default_fx is False
-        assert extra_fx_pairs == []
         return market_data.MarketDataFreshnessResult(
             checked_at=datetime(2026, 1, 6, tzinfo=UTC),
             fx=market_data.MarketDataSyncResult(kind="fx"),

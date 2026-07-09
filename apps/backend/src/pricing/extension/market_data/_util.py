@@ -7,7 +7,7 @@ from dataclasses import replace
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
-from src.services.market_data._base import (
+from src.pricing.extension.market_data._base import (
     _DEFAULT_INCREMENTAL_LOOKBACK_DAYS,
     _PRICE_QUANT,
     _PROVIDER_DISAGREEMENT_THRESHOLD,
@@ -16,7 +16,7 @@ from src.services.market_data._base import (
     _TICKER_PATTERN,
     logger,
 )
-from src.services.market_data._types import (
+from src.pricing.extension.market_data._types import (
     FxRateObservation,
     ProviderDisagreement,
     StockPriceObservation,

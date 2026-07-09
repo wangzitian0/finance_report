@@ -2,7 +2,8 @@
 
 import httpx  # noqa: F401
 
-from src.services.market_data._providers import (
+from src.pricing.extension.market_data._base import MARKET_DATA_QUANTITY_UNIT
+from src.pricing.extension.market_data._providers import (
     _FX_SYNC_SPEC,
     _STOCK_SYNC_SPEC,
     _fetch_provider_response,
@@ -30,7 +31,7 @@ from src.services.market_data._providers import (
     _stooq_daily_params,
     _yahoo_chart_params,
 )
-from src.services.market_data._store import (
+from src.pricing.extension.market_data._store import (
     _derive_from_bridge_rates,
     _fallback_last_success_at,
     _is_sync_scope_fresh,
@@ -53,7 +54,7 @@ from src.services.market_data._store import (
     _sync_scope_status,
     _upsert_sync_state,
 )
-from src.services.market_data._types import (
+from src.pricing.extension.market_data._types import (
     FxRateObservation,
     MarketDataFreshnessResult,
     MarketDataScopeStatus,
@@ -67,7 +68,7 @@ from src.services.market_data._types import (
     _StoredFxRate,
     _StoredStockPrice,
 )
-from src.services.market_data._util import (
+from src.pricing.extension.market_data._util import (
     _date_to_epoch,
     _default_start_date,
     _fx_scope,
@@ -92,7 +93,7 @@ from src.services.market_data._util import (
     _stooq_stock_symbol,
     _yahoo_stock_symbol,
 )
-from src.services.market_data.service import (
+from src.pricing.extension.market_data.service import (
     _sync_market_observation_series,
     ensure_market_data_fresh,
     get_market_data_status,
@@ -103,6 +104,7 @@ from src.services.market_data.service import (
 
 __all__ = [
     "FxRateObservation",
+    "MARKET_DATA_QUANTITY_UNIT",
     "MarketDataFreshnessResult",
     "MarketDataScopeStatus",
     "MarketDataSyncResult",

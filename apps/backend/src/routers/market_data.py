@@ -6,13 +6,14 @@ from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from src.deps import CurrentUserId, DbSession
-from src.services.market_data import (
+from src.pricing import (
     MarketDataScopeStatus,
     MarketDataSyncResult,
     get_market_data_status,
     sync_fx_rates,
     sync_stock_prices,
 )
+from src.services.market_data_discovery import active_stock_symbols, observed_fx_pairs
 
 router = APIRouter(prefix="/market-data", tags=["market-data"])
 
@@ -79,13 +80,11 @@ async def market_data_status_endpoint(
 ) -> list[MarketDataStatusResponse]:
     """Return read-only market data freshness status for observed or explicit scopes."""
     try:
-        statuses = await get_market_data_status(
-            db,
-            pairs=pairs,
-            symbols=symbols,
-            user_id=user_id,
-            include_default_fx=include_default_fx,
+        sync_pairs = (
+            pairs if pairs is not None else await observed_fx_pairs(db, user_id, include_default=include_default_fx)
         )
+        sync_symbols = symbols if symbols is not None else await active_stock_symbols(db, user_id)
+        statuses = await get_market_data_status(db, pairs=sync_pairs, symbols=sync_symbols)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     return [_status_response(item) for item in statuses]
@@ -99,12 +98,12 @@ async def sync_fx_endpoint(
 ) -> MarketDataSyncResponse:
     """Incrementally fill FX rows for explicit or observed pairs."""
     try:
+        sync_pairs = request.pairs if request.pairs is not None else await observed_fx_pairs(db, user_id)
         result = await sync_fx_rates(
             db,
-            pairs=request.pairs,
+            pairs=sync_pairs,
             start_date=request.start_date,
             end_date=request.end_date,
-            user_id=user_id,
         )
         await db.commit()
     except ValueError as exc:
@@ -121,12 +120,12 @@ async def sync_stocks_endpoint(
 ) -> MarketDataSyncResponse:
     """Incrementally fill stock prices for explicit symbols or active holdings."""
     try:
+        sync_symbols = request.symbols if request.symbols is not None else await active_stock_symbols(db, user_id)
         result = await sync_stock_prices(
             db,
-            symbols=request.symbols,
+            symbols=sync_symbols,
             start_date=request.start_date,
             end_date=request.end_date,
-            user_id=user_id,
         )
         await db.commit()
     except ValueError as exc:

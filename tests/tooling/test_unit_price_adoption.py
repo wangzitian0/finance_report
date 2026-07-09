@@ -49,6 +49,6 @@ def test_AC12_32_3_investment_accounting_uses_unit_price():
 )
 def test_AC12_32_3_market_data_price_quantum_is_single_sourced():
     """AC-audit.32.3: market-data prices reuse the package quantum, not a local literal."""
-    src = _read(Path("apps/backend/src/services/market_data"))
-    assert "from src.audit.unit_price import UNIT_PRICE_QUANTUM" in src
+    src = _read(Path("apps/backend/src/pricing/extension/market_data"))
+    assert "from src.audit import UNIT_PRICE_QUANTUM" in src
     assert "_PRICE_QUANT = UNIT_PRICE_QUANTUM" in src

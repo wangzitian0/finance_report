@@ -6,7 +6,7 @@ import re
 from datetime import timedelta
 from decimal import Decimal
 
-from src.audit.unit_price import UNIT_PRICE_QUANTUM
+from src.audit import UNIT_PRICE_QUANTUM
 from src.observability import get_logger
 
 logger = get_logger(__name__)

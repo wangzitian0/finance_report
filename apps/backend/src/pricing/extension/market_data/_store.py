@@ -10,18 +10,18 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.market_data import FxRate, MarketDataSyncState, StockPrice
-from src.services.market_data._base import (
+from src.pricing.extension.market_data._base import (
     _FRESHNESS_THRESHOLD,
     logger,
 )
-from src.services.market_data._types import (
+from src.pricing.extension.market_data._types import (
     FxRateObservation,
     MarketDataScopeStatus,
     StockPriceObservation,
     _StoredFxRate,
     _StoredStockPrice,
 )
-from src.services.market_data._util import (
+from src.pricing.extension.market_data._util import (
     _normalize_currency,
     _normalize_symbol,
     _normalize_utc,

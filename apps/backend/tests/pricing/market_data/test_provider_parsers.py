@@ -7,7 +7,7 @@ import httpx
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from src.services import market_data
+from src.pricing.extension import market_data
 
 
 def _epoch(value: date) -> int:

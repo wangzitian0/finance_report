@@ -23,6 +23,7 @@ from src.models.layer4 import ReportSnapshot, ReportType as SnapshotReportType
 from src.models.market_data import FxRate
 from src.observability import get_logger, track as _track_analytics
 from src.platform import raise_bad_request, raise_not_found
+from src.pricing import ensure_market_data_fresh
 from src.schemas import (
     AccountLineageResponse,
     AccountTrendResponse,
@@ -52,7 +53,7 @@ from src.schemas.streaming import ExportStreamEnvelope, ExportStreamMediaType
 from src.services.annualized_income import generate_annualized_income_schedule
 from src.services.confidence_metric import ConfidenceMetricService
 from src.services.framework_policy import derive_user_framework_policy_result
-from src.services.market_data import ensure_market_data_fresh
+from src.services.market_data_discovery import active_stock_symbols, observed_fx_pairs
 from src.services.performance_report import (
     build_investment_performance_report_schedule,
 )
@@ -115,12 +116,14 @@ async def _ensure_report_market_data_fresh(
 ) -> None:
     has_report_subjects = await db.scalar(select(Account.id).where(Account.user_id == user_id).limit(1))
     try:
+        fx_pairs = set(await observed_fx_pairs(db, user_id, include_default=False))
+        fx_pairs.update(_target_currency_pair(currency) if has_report_subjects is not None else [])
+        stock_symbols = await active_stock_symbols(db, user_id)
         await ensure_market_data_fresh(
             db,
-            user_id=user_id,
+            fx_pairs=fx_pairs,
+            stock_symbols=stock_symbols,
             end_date=end_date,
-            include_default_fx=False,
-            extra_fx_pairs=_target_currency_pair(currency) if has_report_subjects is not None else [],
         )
     except asyncio.CancelledError:
         # Never swallow cancellation (request disconnect / shutdown): let it

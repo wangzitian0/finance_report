@@ -7,8 +7,8 @@ the app layer on purpose: it reads ledger/portfolio models (``Account``,
 inside the ``pricing`` package (pricing depends on ``audit``/``platform`` only,
 never on the domain flow). The pure crawl — *given* a set of scopes, fetch and
 store observations — is pricing's; this module is the boundary that feeds it
-(dependency inversion, meta Decision B): the caller (scheduler / router)
-discovers the scopes here and passes them to pricing's crawl.
+(dependency inversion, meta Decision B): the caller (scheduler / router /
+advisor) discovers the scopes here and passes them to pricing's crawl.
 """
 
 from __future__ import annotations
@@ -18,14 +18,14 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit import normalize_currency_code
 from src.audit.quantity import Quantity
 from src.config import settings
 from src.models.account import Account
 from src.models.journal import JournalEntry, JournalLine
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
-from src.services.market_data._base import MARKET_DATA_QUANTITY_UNIT
-from src.services.market_data._util import _normalize_currency, _normalize_symbol
+from src.pricing import MARKET_DATA_QUANTITY_UNIT
 
 
 async def active_stock_symbols(db: AsyncSession, user_id: UUID | None) -> list[str]:
@@ -39,7 +39,7 @@ async def active_stock_symbols(db: AsyncSession, user_id: UUID | None) -> list[s
     if user_id is not None:
         stmt = stmt.where(ManagedPosition.user_id == user_id)
     result = await db.execute(stmt)
-    return sorted({_normalize_symbol(row[0]) for row in result.all() if row[0]})
+    return sorted({row[0].strip().upper() for row in result.all() if row[0]})
 
 
 async def observed_fx_pairs(
@@ -49,7 +49,7 @@ async def observed_fx_pairs(
     include_default: bool = True,
 ) -> list[str]:
     """The ``<currency>/<base>`` pairs implied by every currency the user holds."""
-    base = _normalize_currency(settings.base_currency)
+    base = normalize_currency_code(settings.base_currency)
     default_counterparty = "USD" if base != "USD" else "SGD"
     currencies: set[str] = {base}
     if include_default:
@@ -58,21 +58,21 @@ async def observed_fx_pairs(
     account_stmt = select(Account.currency)
     if user_id is not None:
         account_stmt = account_stmt.where(Account.user_id == user_id)
-    currencies.update(_normalize_currency(row[0]) for row in (await db.execute(account_stmt)).all() if row[0])
+    currencies.update(normalize_currency_code(row[0]) for row in (await db.execute(account_stmt)).all() if row[0])
 
     line_stmt = select(JournalLine.currency).join(JournalEntry, JournalEntry.id == JournalLine.journal_entry_id)
     if user_id is not None:
         line_stmt = line_stmt.where(JournalEntry.user_id == user_id)
-    currencies.update(_normalize_currency(row[0]) for row in (await db.execute(line_stmt)).all() if row[0])
+    currencies.update(normalize_currency_code(row[0]) for row in (await db.execute(line_stmt)).all() if row[0])
 
     position_stmt = select(ManagedPosition.currency)
     if user_id is not None:
         position_stmt = position_stmt.where(ManagedPosition.user_id == user_id)
-    currencies.update(_normalize_currency(row[0]) for row in (await db.execute(position_stmt)).all() if row[0])
+    currencies.update(normalize_currency_code(row[0]) for row in (await db.execute(position_stmt)).all() if row[0])
 
     snapshot_stmt = select(AtomicPosition.currency)
     if user_id is not None:
         snapshot_stmt = snapshot_stmt.where(AtomicPosition.user_id == user_id)
-    currencies.update(_normalize_currency(row[0]) for row in (await db.execute(snapshot_stmt)).all() if row[0])
+    currencies.update(normalize_currency_code(row[0]) for row in (await db.execute(snapshot_stmt)).all() if row[0])
 
     return [f"{currency}/{base}" for currency in sorted(currencies) if currency != base]

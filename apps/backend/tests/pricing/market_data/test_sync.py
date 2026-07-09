@@ -12,7 +12,7 @@ from src.models.account import Account, AccountType
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.models.market_data import FxRate, MarketDataSyncState, StockPrice
-from src.services import market_data
+from src.pricing.extension import market_data
 from src.services.market_data_discovery import active_stock_symbols, observed_fx_pairs
 from src.services.portfolio import PortfolioService
 
@@ -294,7 +294,7 @@ async def test_sync_fx_rates_defaults_usd_to_base_currency_when_empty(
     db: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC11.10.2: FX sync has a USD/base default pair so empty databases are not skipped."""
+    """AC11.10.2: discovery has a USD/base default pair so empty databases are not skipped."""
     requested: list[tuple[str, str, date, date]] = []
 
     async def fake_fetch(
@@ -318,6 +318,7 @@ async def test_sync_fx_rates_defaults_usd_to_base_currency_when_empty(
 
     result = await market_data.sync_fx_rates(
         db,
+        pairs=await observed_fx_pairs(db, None),
         start_date=date(2026, 1, 5),
         end_date=date(2026, 1, 5),
     )
@@ -830,15 +831,19 @@ async def test_market_data_freshness_sync_runs_once_after_24h(
     monkeypatch.setattr(market_data._providers, "_fetch_validated_stock_price_series", fake_stock_fetch)
 
     checked_at = datetime(2026, 1, 6, 8, 0, tzinfo=UTC)
+    fx_pairs = await observed_fx_pairs(db, test_user.id)
+    stock_symbols = await active_stock_symbols(db, test_user.id)
     first = await market_data.ensure_market_data_fresh(
         db,
-        user_id=test_user.id,
+        fx_pairs=fx_pairs,
+        stock_symbols=stock_symbols,
         end_date=date(2026, 1, 6),
         now=checked_at,
     )
     second = await market_data.ensure_market_data_fresh(
         db,
-        user_id=test_user.id,
+        fx_pairs=fx_pairs,
+        stock_symbols=stock_symbols,
         end_date=date(2026, 1, 6),
         now=checked_at + timedelta(hours=1),
     )
@@ -918,7 +923,8 @@ async def test_market_data_freshness_backfills_report_date_when_latest_price_is_
 
     result = await market_data.ensure_market_data_fresh(
         db,
-        user_id=test_user.id,
+        fx_pairs=await observed_fx_pairs(db, test_user.id),
+        stock_symbols=await active_stock_symbols(db, test_user.id),
         end_date=date(2024, 6, 3),
         now=datetime(2026, 1, 6, 9, 0, tzinfo=UTC),
     )
@@ -941,7 +947,8 @@ async def test_market_data_freshness_skips_same_currency_pair(
 
     result = await market_data.ensure_market_data_fresh(
         db,
-        extra_fx_pairs=["SGD/SGD"],
+        fx_pairs=["SGD/SGD"],
+        stock_symbols=[],
         end_date=date(2026, 1, 5),
     )
 
@@ -999,6 +1006,7 @@ async def test_market_data_status_requires_observation_date_for_freshness(
 
     status = await market_data.get_market_data_status(
         db,
+        pairs=[],
         symbols=["AAPL"],
         now=datetime(2026, 1, 11, 1, 0, tzinfo=UTC),
     )
@@ -1037,6 +1045,7 @@ async def test_market_data_status_falls_back_to_persisted_observation_date(
 
     status = await market_data.get_market_data_status(
         db,
+        pairs=[],
         symbols=["AAPL"],
         now=datetime(2026, 1, 11, 1, 0, tzinfo=UTC),
     )
