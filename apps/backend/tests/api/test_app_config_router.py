@@ -17,13 +17,13 @@ from src.config_app import get_effective_base_currency
 pytestmark = pytest.mark.asyncio
 
 
-@ac_proof(proof_id="test_app_config_base_currency_default", ac_ids=["AC12.39.2"], ci_tier="pr_ci", issue="#1340")
+@ac_proof(proof_id="test_app_config_base_currency_default", ac_ids=["AC-audit.39.2"], ci_tier="pr_ci", issue="#1340")
 async def test_AC12_39_2_effective_accessor_falls_back_to_env_default(db: AsyncSession) -> None:
     """AC-audit.39.2: AC12.39.2: with no persisted row the accessor returns settings.base_currency."""
     assert await get_effective_base_currency(db) == Currency(settings.base_currency).code
 
 
-@ac_proof(proof_id="test_app_config_get_default", ac_ids=["AC12.39.1"], ci_tier="pr_ci", issue="#1340")
+@ac_proof(proof_id="test_app_config_get_default", ac_ids=["AC-audit.39.1"], ci_tier="pr_ci", issue="#1340")
 async def test_AC12_39_1_get_returns_env_default_when_unset(client: AsyncClient) -> None:
     """AC-audit.39.1: AC12.39.1: GET returns the env-default base currency when nothing is persisted."""
     response = await client.get("/app-config/base-currency")
@@ -31,7 +31,7 @@ async def test_AC12_39_1_get_returns_env_default_when_unset(client: AsyncClient)
     assert response.json() == {"base_currency": Currency(settings.base_currency).code}
 
 
-@ac_proof(proof_id="test_app_config_persist_and_effective", ac_ids=["AC12.39.4"], ci_tier="pr_ci", issue="#1340")
+@ac_proof(proof_id="test_app_config_persist_and_effective", ac_ids=["AC-audit.39.4"], ci_tier="pr_ci", issue="#1340")
 async def test_AC12_39_4_update_persists_and_effective_accessor_returns_new_value(
     client: AsyncClient,
     db: AsyncSession,
@@ -51,7 +51,7 @@ async def test_AC12_39_4_update_persists_and_effective_accessor_returns_new_valu
     assert get_response.json() == {"base_currency": target}
 
 
-@ac_proof(proof_id="test_app_config_invalid_rejected", ac_ids=["AC12.39.1"], ci_tier="pr_ci", issue="#1340")
+@ac_proof(proof_id="test_app_config_invalid_rejected", ac_ids=["AC-audit.39.5"], ci_tier="pr_ci", issue="#1340")
 async def test_AC12_39_1_invalid_currency_returns_422_and_is_not_persisted(
     client: AsyncClient,
     db: AsyncSession,

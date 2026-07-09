@@ -75,67 +75,18 @@ This EPIC addresses technical debt in the foundational libraries that all module
 > **Test Organization**: Tests organized by feature blocks using AC12.x.y numbering.
 > **Coverage**: See `apps/backend/tests/infra/`
 
-### AC12.1: Logging - OTEL Endpoint Configuration
+### AC12.1 through AC12.8: Logging (OTEL endpoint / renderer / tracing / timing / external-API / exception)
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.1.1 | OTEL logs endpoint adds suffix /v1/logs | `test_build_otlp_logs_endpoint_adds_suffix()` | `infra/test_logger.py` | P1 |
-| AC12.1.2 | OTEL logs endpoint preserves logs path with /v1/logs | `test_build_otlp_logs_endpoint_preserves_logs_path()` | `infra/test_logger.py` | P1 |
-
-### AC12.2: Logging - Renderer Selection
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.2.1 | Debug mode uses ConsoleRenderer | `test_select_renderer_uses_console_in_debug()` | `infra/test_logger.py` | P0 |
-| AC12.2.2 | Production mode uses JSONRenderer | `test_select_renderer_uses_json_in_production()` | `infra/test_logger.py` | P0 |
-
-### AC12.3: Logging - OTEL Missing Dependency / No Endpoint
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.3.1 | OTEL logging not available logs warning | `test_configure_otel_logging_missing_dependency_warns()` | `infra/test_logger.py` | P0 |
-| AC12.3.2 | OTEL tracing not available logs warning | `test_configure_otel_tracing_missing_dependency_warns()` | `infra/test_logger.py` | P0 |
-| AC12.3.3 | OTEL logging with no endpoint skips setup | `test_configure_otel_logging_no_endpoint()` | `infra/test_logger.py` | P0 |
-
-### AC12.4: Logging - OTEL with Fake Exporter
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.4.1 | OTEL configuration sets up TracerProvider correctly | `test_configure_otel_tracing_with_fake_exporter()` | `infra/test_logger.py` | P0 |
-
-### AC12.5: Logging - OTEL Resource Configuration
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.5.1 | OTEL resource created with correct attributes | `test_build_otel_resource()` | `infra/test_logger.py` | P0 |
-
-### AC12.6: Logging - Timing Utilities
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.6.1 | Sync log_timing logs operation with timing | `test_log_timing_basic()` | `infra/test_logger.py` | P0 |
-| AC12.6.2 | Async log_timing includes additional context | `test_log_timing_with_context()` | `infra/test_logger.py` | P0 |
-| AC12.6.3 | log_timing yields mutable dict | `test_log_timing_yields_mutable_dict()` | `infra/test_logger.py` | P0 |
-| AC12.6.4 | log_timing with custom level | `test_log_timing_with_custom_level()` | `infra/test_logger.py` | P0 |
-
-### AC12.7: Logging - External API Logging
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.7.1 | Sync external API call logs success | `test_log_external_api_sync_success()` | `infra/test_logger.py` | P0 |
-| AC12.7.2 | Sync external API call logs failure | `test_log_external_api_sync_failure()` | `infra/test_logger.py` | P0 |
-| AC12.7.3 | Async external API call logs success | `test_log_external_api_async_success()` | `infra/test_logger.py` | P0 |
-| AC12.7.4 | Async external API call logs failure | `test_log_external_api_async_failure()` | `infra/test_logger.py` | P0 |
-| AC12.7.5 | Sync external API with log_args=True logs args count | `test_log_external_api_with_log_args()` | `infra/test_logger.py` | P0 |
-
-### AC12.8: Logging - Exception Logging
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.8.1 | Log exception logs error with context | `test_log_exception_basic()` | `infra/test_logger.py` | P0 |
-| AC12.8.2 | Log exception includes extra context fields | `test_log_exception_with_extra_context()` | `infra/test_logger.py` | P0 |
-| AC12.8.3 | Log exception without traceback | `test_log_exception_without_traceback()` | `infra/test_logger.py` | P0 |
-| AC12.8.4 | Log exception with custom level | `test_log_exception_custom_level()` | `infra/test_logger.py` | P0 |
+> **Fully migrated** (migration closeout wave 2, #1663). Every row in these
+> eight groups (were the AC12.1.* / AC12.2.* / AC12.3.* / AC12.4.* / AC12.5.* /
+> AC12.6.* / AC12.7.* / AC12.8.* groups) moved to
+> [`common/observability/contract.py`](../../common/observability/contract.py)'s
+> `roadmap`, landing as `AC-observability.2.1`, `AC-observability.1.3`/`.4`,
+> `AC-observability.4.1`/`.2`/`.5`/`.6`, `AC-observability.4.7`,
+> `AC-observability.13.1` through `.4`, `AC-observability.14.1` through `.5`,
+> and `AC-observability.15.1` through `.4` respectively. This note references
+> the new ids (keeping the registry↔EPIC link intact) but defines none of
+> them — the contract is the single definition source.
 
 ### AC12.9: Ratio / percent value type — migrated to the `audit` package ([#1167](https://github.com/wangzitian0/finance_report/issues/1167))
 
@@ -161,48 +112,15 @@ diverging across the codebase and across ends.
 > Migrated `AC-audit.9.<s>` ids (homed in the package roadmap):
 > `AC-audit.9.1` · `AC-audit.9.2` · `AC-audit.9.3`
 
-### AC12.10: Logging - Build Processors
+### AC12.10 through AC12.12, AC12.15 through AC12.17: Logging (processors / trace-context / OTEL tracing / config basics / async timing / async external-API)
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.10.1 | Build processors returns list | `test_build_processors_returns_list()` | `infra/test_logger.py` | P0 |
-
-### AC12.11: Logging - Trace Context
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.11.1 | Trace context injects trace_id and span_id when span is valid | `test_add_trace_context_with_valid_span()` | `infra/test_logger.py` | P0 |
-| AC12.11.2 | Trace context skips injection when span context is invalid | `test_add_trace_context_with_invalid_span()` | `infra/test_logger.py` | P0 |
-| AC12.11.3 | Trace context handles missing opentelemetry gracefully | `test_add_trace_context_handles_import_error()` | `infra/test_logger.py` | P0 |
-
-### AC12.12: Logging - OTEL Tracing Configuration
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.12.1 | OTEL tracing skips setup when no endpoint configured | `test_configure_otel_tracing_no_endpoint()` | `infra/test_logger.py` | P0 |
-| AC12.12.2 | TracerProvider created and resource attributes set | `test_configure_otel_tracing_with_fake_exporter()` | `infra/test_logger.py` | P0 |
-| AC12.12.3 | Traces path appends /v1/traces | `test_configure_otel_tracing_appends_traces_path()` | `infra/test_logger.py` | P0 |
-
-### AC12.15: Logging - Configuration Basics
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.15.1 | Configure logging in debug mode | `test_configure_logging_basic()` | `infra/test_logger.py` | P0 |
-| AC12.15.2 | Configure logging in production mode | `test_configure_logging_production_mode()` | `infra/test_logger.py` | P0 |
-
-### AC12.16: Logging - Async Timing
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.16.1 | Async log_timing logs operation with timing | `test_async_log_timing_basic()` | `infra/test_logger.py` | P0 |
-| AC12.16.2 | Async log_timing includes additional context | `test_async_log_timing_with_context()` | `infra/test_logger.py` | P0 |
-
-### AC12.17: Logging - External API Async with Args
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.17.1 | External API async with log_args=True logs args count | `test_log_external_api_async_with_log_args()` | `infra/test_logger.py` | P0 |
-| AC12.17.2 | External API async failure with log_args=True logs args | `test_log_external_api_async_failure_with_log_args()` | `infra/test_logger.py` | P0 |
+> **Fully migrated** (migration closeout wave 2, #1663). Every row in these
+> six groups moved to
+> [`common/observability/contract.py`](../../common/observability/contract.py)'s
+> `roadmap`, landing as `AC-observability.16.1`, `AC-observability.16.2`
+> through `.4`, `AC-observability.4.8` through `.10`,
+> `AC-observability.1.5`/`.6`, `AC-observability.13.5`/`.6`, and
+> `AC-observability.14.6`/`.7` respectively.
 
 ### AC12.18: Config - Environment-Variable Format Contract — migrated to the `config` package
 
@@ -744,12 +662,16 @@ Currency was resolved ad-hoc in ≥3 divergent ways (`or "SGD"`, `or settings.ba
 
 `settings.base_currency` was env-only (default `"SGD"`), so the base reporting currency could only change via a redeploy. Phase D persists an app-level override in a single key/value `app_config` table and reads it dynamically through one accessor, so an operator can edit the base currency at runtime on the config page. The override is ISO 4217 validated (reusing the `src.audit.money.Currency` value type) at the request boundary, so an invalid code returns HTTP 422 and is never persisted.
 
+> **Backend rows migrated** (migration closeout wave 2, #1663) to
+> [`common/audit/contract.py`](../../common/audit/contract.py)'s `roadmap`:
+> `AC-audit.39.1` / `.2` / `.4` / `.5` (this group's first row split into two
+> records — one per assertion the row's two test functions cover).
+> **Frontend row retained** (below) — same `.test.tsx`/AST-resolver
+> limitation as EPIC-021's frontend rows.
+
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC12.39.1 | The backend exposes `GET`/`PUT /app-config/base-currency` to read and update the effective base currency; the code is ISO 4217 validated via `src.audit.money.Currency` and persisted in the DB-backed `app_config` row, and an invalid code returns HTTP 422 without persisting {tier:CODE-ONLY} | `test_AC12_39_1_get_returns_env_default_when_unset`, `test_AC12_39_1_invalid_currency_returns_422_and_is_not_persisted` | `apps/backend/tests/api/test_app_config_router.py` | P1 |
-| AC12.39.2 | A single accessor `get_effective_base_currency` returns the effective base currency — the persisted `app_config` override if present, else `settings.base_currency` {tier:CODE-ONLY} | `test_AC12_39_2_effective_accessor_falls_back_to_env_default` | `apps/backend/tests/api/test_app_config_router.py` | P1 |
 | AC12.39.3 | The frontend General Settings page exposes a "Base currency" control that reads + updates the effective value via `lib/api.ts` (`fetchBaseCurrency`/`updateBaseCurrency`, never raw `fetch`) {tier:CODE-ONLY} | `AC12.39.3 renders the effective base currency`, `AC12.39.3 submits the edited currency via updateBaseCurrency` | `apps/frontend/src/__tests__/generalSettingsPage.test.tsx` | P1 |
-| AC12.39.4 | Updating the base currency persists the override and the effective accessor returns the new value on a subsequent read {tier:CODE-ONLY} | `test_AC12_39_4_update_persists_and_effective_accessor_returns_new_value` | `apps/backend/tests/api/test_app_config_router.py` | P1 |
 
 ### AC12.40: Currency established at ingest, never silent-defaulted — Phase E ([#1341](https://github.com/wangzitian0/finance_report/issues/1341))
 
@@ -761,12 +683,9 @@ ISO-4217 currency (validated via `src.audit.money.Currency`), with the resolutio
 (who/when/value). This makes the downstream `JournalLine.currency` human-confirmed by
 construction — closing the input-selection seam where currency was previously assumed.
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.40.1 | Ingest resolution attaches the first valid ISO-4217 candidate (parsed transaction currency, then statement currency), normalized, when the currency is determinable {tier:CODE-ONLY} | `test_AC12_40_1_attaches_explicit_currency` | `apps/backend/tests/services/test_currency_resolution.py` | P0 |
-| AC12.40.2 | When no candidate is a valid ISO-4217 code the row is flagged `currency_unresolved` with a non-trusted placeholder and is NOT silently defaulted to a base currency {tier:CODE-ONLY} | `test_AC12_40_2_flags_unresolved_instead_of_silent_default` | `apps/backend/tests/services/test_currency_resolution.py` | P0 |
-| AC12.40.3 | A reviewer specifies the currency (ISO-4217 validated via `src.audit.money.Currency`; an invalid code is rejected and nothing is written); the resolution records who/when/value {tier:CODE-ONLY} | `test_AC12_40_3_reviewer_resolves_currency_with_audit` | `apps/backend/tests/services/test_currency_resolution.py` | P0 |
-| AC12.40.4 | The promotion gate (`create_entry_from_txn`) blocks a `currency_unresolved` transaction from becoming a `JournalLine` {tier:CODE-ONLY} | `test_AC12_40_4_promotion_gate_blocks_unresolved_currency` | `apps/backend/tests/services/test_currency_resolution.py` | P0 |
+> **Fully migrated** (migration closeout wave 2, #1663) to
+> [`common/audit/contract.py`](../../common/audit/contract.py)'s `roadmap`:
+> `AC-audit.40.1` through `.4`.
 
 ---
 
