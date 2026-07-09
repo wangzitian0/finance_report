@@ -423,7 +423,7 @@ workflow state exists.
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC19.11.1 | `/review/run/{runId}` uses run-scoped Stage 2 queue and batch-approval APIs so approving a run cannot approve pending matches from another workflow session or batch | `test_AC19_11_1_stage2_run_queue_filters_by_run_id`, `AC19.11.1 run review uses run-scoped queue and approval endpoints` | P0 |
+| AC19.11.1 | `/review/run/{runId}` uses run-scoped Stage 2 queue and batch-approval APIs so approving a run cannot approve pending matches from another workflow session or batch. Backend half (`test_AC19_11_1_stage2_run_queue_filters_by_run_id`) migrated to the `reconciliation` package roadmap as `AC-reconciliation.run-scoped-review.1` (migration closeout continuation, #1663 / #1711); the frontend half stays here. | `AC19.11.1 run review uses run-scoped queue and approval endpoints` | P0 |
 
 ### AC19.12 — Lightweight Workflow Derivation Completion
 

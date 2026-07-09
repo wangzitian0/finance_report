@@ -2938,7 +2938,7 @@ async def test_list_consistency_checks_with_filters(db, test_user):
 
 
 async def test_batch_approve_matches_blocked_by_unresolved_checks(db, test_user):
-    """AC16.22.3: Given unresolved consistency checks,
+    """AC-reconciliation.stage2-batch.1: AC16.22.3: Given unresolved consistency checks,
     When batch_approve_matches is called,
     Then it returns error (lines 960-965).
     """
@@ -3145,7 +3145,7 @@ async def test_AC16_34_2_reject_clears_conflict_resolution(db, test_user):
 
 
 async def test_AC16_32_3_stage2_queue_returns_all_pending_checks(db, test_user):
-    """AC16.32.3: Stage 2 queue includes the full unresolved blocker set."""
+    """AC-reconciliation.review-hardening.1: AC16.32.3: Stage 2 queue includes the full unresolved blocker set."""
     db.add_all(
         [
             ConsistencyCheck(
@@ -3199,7 +3199,7 @@ async def test_AC19_11_1_consistency_check_list_filters_by_run_id(db, test_user)
 
 
 async def test_AC19_11_1_stage2_run_queue_filters_by_run_id(db, test_user):
-    """AC19.11.1: Run review queues and approval are scoped to the requested run."""
+    """AC-reconciliation.run-scoped-review.1: AC19.11.1: Run review queues and approval are scoped to the requested run."""
     account = await create_statement_account(db, test_user.id, "DBS Run Scope")
     statement = build_statement(test_user.id, "hash_stage2_run_scope", 90)
     statement.status = BankStatementStatus.APPROVED
@@ -3369,7 +3369,7 @@ async def test_batch_approve_matches_reconciles_referenced_entry(db, test_user):
 
 
 async def test_batch_approve_matches_creates_missing_entry_once(db, test_user):
-    """AC16.22.4 AC16.24.4: Accepted Stage 2 match creates the missing journal entry once."""
+    """AC-reconciliation.stage2-batch.2: AC16.22.4 AC16.24.4: Accepted Stage 2 match creates the missing journal entry once."""
     account = await create_statement_account(db, test_user.id, "DBS Batch Missing")
     statement = build_statement(test_user.id, "hash_batch_create_once", 90)
     statement.status = BankStatementStatus.APPROVED

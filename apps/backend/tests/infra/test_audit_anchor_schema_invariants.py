@@ -164,7 +164,7 @@ async def test_AC18_11_1_reconciliation_links_reject_missing_and_cross_user_entr
     db: AsyncSession,
     test_user: User,
 ) -> None:
-    """AC-reconciliation.txn.1: AC18.11.1: Trusted reconciliation anchors are normalized and tenant-scoped."""
+    """AC-reconciliation.audit-anchors.1: AC-reconciliation.txn.1: AC18.11.1: Trusted reconciliation anchors are normalized and tenant-scoped."""
     other_user = await _make_user(db, email_prefix="anchor-recon-other")
     atomic = await _make_atomic_transaction(db, test_user.id)
     entry = await _make_journal_entry(db, test_user.id)

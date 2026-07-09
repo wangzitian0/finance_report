@@ -30,7 +30,7 @@ def _default_config() -> ReconciliationConfig:
 
 
 async def test_ai_semantic_score_returns_score():
-    """AC18.3.1: ai_semantic_score returns similarity score for matching descriptions."""
+    """AC-reconciliation.ai-scoring.1: AC18.3.1: ai_semantic_score returns similarity score for matching descriptions."""
     mock_response = '{"similarity_score": 92, "reasoning": "Both refer to salary"}'
 
     mock_accumulate = AsyncMock(return_value=mock_response)

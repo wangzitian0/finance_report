@@ -623,7 +623,7 @@ async def test_execute_matching_triple_entry(db: AsyncSession, test_user):
 
 
 async def test_execute_matching_many_to_one_batch(db: AsyncSession, test_user):
-    """AC11.16.2: many-to-one matches on Layer 2 when running balances keep batch txns distinct."""
+    """AC-reconciliation.layer2-dedup.1: AC11.16.2: many-to-one matches on Layer 2 when running balances keep batch txns distinct."""
     user_id = test_user.id
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
     db.add_all([statement])
@@ -1058,7 +1058,7 @@ async def test_transfer_detection_no_account_id(db: AsyncSession, test_user):
 
 
 async def test_transfer_out_creates_match(db: AsyncSession):
-    """AC11.17.1 · Cover lines 703-736: Transfer OUT creates Processing entry + match."""
+    """AC-reconciliation.dwd-cutover.1: AC11.17.1 · Cover lines 703-736: Transfer OUT creates Processing entry + match."""
     user_id = uuid4()
     user = User(id=user_id, email=f"xfer-out-{uuid4()}@example.com", hashed_password="hashed")
     db.add(user)
