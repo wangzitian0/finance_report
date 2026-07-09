@@ -175,9 +175,13 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 ### AC7.6: Backend Configuration & Secrets Sync
 
+> (AC7.6.1 removed, duplicate: its test, `test_config_sync_with_env_example`,
+> was already fully migrated to
+> [`common/runtime/contract.py`](../../common/runtime/contract.py)'s `roadmap`
+> as `AC-runtime.18.2` — this row was a stale duplicate.)
+
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC7.6.1 | Config syncs with .env.example | `TestConfigContract.test_config_sync_with_env_example` | `infra/test_config_contract.py` | P0 |
 | AC7.6.2 | Required secrets documented | Manual verification | `.env.example` | P0 |
 
 > The config↔manifest env-var guardrail lives in the `runtime` package roadmap
@@ -222,8 +226,11 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 | AC7.9.4 | Domain accessible (manual) | `curl https://report.${INTERNAL_DOMAIN}` | Smoke tests | P0 |
 | AC7.9.5 | API functional (manual) | `curl https://report.${INTERNAL_DOMAIN}/api/health` | Smoke tests | P0 |
 | AC7.9.6 | Secrets in Vault (manual) | No secrets in Dokploy env vars | Manual verification | P0 |
-| AC7.9.7 | Backend health endpoint | `test_health_when_all_services_healthy()` | `infra/test_main.py` | P0 |
-| AC7.9.8 | Config contract validation | `TestConfigContract` class | `infra/test_config_contract.py` | P0 |
+
+> (AC7.9.7 removed, duplicate: `test_health_when_all_services_healthy` was already migrated to `AC-runtime.7.1`.)
+> (AC7.9.8 removed, duplicate: `TestConfigContract` was already migrated to `AC-runtime.18.2`.)
+>
+> Both live in [`common/runtime/contract.py`](../../common/runtime/contract.py)'s `roadmap`.
 
 ### AC7.10: Promote and Release Pipeline Integrity
 
@@ -237,13 +244,12 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 ### AC7.11: Database Migration Risk Governance
 
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC7.11.1 | Backend Alembic migrations are covered by a machine-readable migration risk manifest | `test_AC7_11_1_migration_risk_manifest_covers_backend_migrations` | `tests/tooling/test_migration_risk_contract.py` | P0 |
-| AC7.11.2 | High and critical migration risk entries require release proof notes for staging, production preflight, and rollback/expand-contract strategy | `test_AC7_11_2_high_and_critical_migrations_require_release_proof` | `tests/tooling/test_migration_risk_contract.py` | P0 |
-| AC7.11.3 | Destructive upgrade operations cannot be classified below critical risk | `test_AC7_11_3_destructive_migrations_must_be_classified_critical` | `tests/tooling/test_migration_risk_contract.py` | P0 |
-| AC7.11.4 | CI lint and production release dry-run execute the migration risk contract and publish release context | `test_AC7_11_4_ci_and_release_dry_run_execute_migration_risk_contract` | `tests/tooling/test_migration_risk_contract.py` | P0 |
-| AC7.11.5 | Risk is auto-classified from each migration's `upgrade()` body (destructive→critical, data-mutation→high, compatibility-sensitive→medium, else low); low/medium migrations need no manifest entry, while auto-classified high/critical migrations require an explicit release-proof entry | `test_AC7_11_5_low_and_medium_migrations_are_auto_classified` | `tests/tooling/test_migration_risk_contract.py` | P0 |
+> Migrated to [`common/meta/contract.py`](../../common/meta/contract.py)'s
+> `roadmap` (migration closeout wave 3, #1416): `AC-meta.migration-risk.1`
+> through `.5`. Migration risk governance is a repo-wide CI/release gate, not
+> a specific backend domain's behavior, so it's homed in `meta` alongside the
+> other repo-mechanical governance gates (doc-consistency, ssot-governance,
+> coverage-tiers).
 
 ### AC7.12: Delivery App/Infra-boundary calibration (#876)
 

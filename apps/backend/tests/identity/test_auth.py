@@ -57,7 +57,7 @@ async def test_auth_non_existent_user(db_engine):
 
 
 async def test_auth_valid_user(client, test_user):
-    """AC8.2.4: Test 200 when valid JWT is provided."""
+    """AC-identity.2.4: AC1.2.2: AC8.2.4: Test 200 when valid JWT is provided."""
     # The client fixture already has the valid JWT in headers
     response = await client.get("/accounts")
     assert response.status_code == 200

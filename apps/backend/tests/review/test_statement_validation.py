@@ -80,7 +80,7 @@ DEFAULT_ACCOUNT_NAME = "Statement Validation Default Account"
 
 
 def test_AC18_13_5_balance_chain_decision_routes_through_promotion_gate():
-    """AC18.13.5: Stage-1 balance approval is disposed by the promotion gate, preserving the exact messages."""
+    """AC-audit.41.5: AC18.13.5: Stage-1 balance approval is disposed by the promotion gate, preserving the exact messages."""
     from src.extraction.extension.statement_validation import _raise_if_balance_chain_invalid
 
     ok = {"opening_match": True, "closing_match": True, "opening_delta": "0", "closing_delta": "0"}
@@ -451,7 +451,7 @@ class TestGetPendingStage1Review:
         assert stmt_approved.id not in ids
 
     async def test_returns_empty_when_none_pending(self, db, user_id):
-        """AC1.6.2 get_pending_stage1_review returns empty when no pending statements."""
+        """AC-extraction.13.1: AC1.6.2 get_pending_stage1_review returns empty when no pending statements."""
         result = await get_pending_stage1_review(db, user_id)
         assert result == []
 

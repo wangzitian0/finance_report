@@ -80,7 +80,7 @@ def _source_documents() -> dict[str, list[dict[str, str]]]:
 
 
 async def test_AC11_18_1_positive_source_fact_constraints(db: AsyncSession, test_user) -> None:
-    """AC11.18.1: Source facts reject non-positive values where positive is required (transaction
+    """AC-audit.42.1: AC11.18.1: Source facts reject non-positive values where positive is required (transaction
     amount, manual-valuation value); positions are signed and may be negative (short, #1448)."""
     user_id = test_user.id
     await _expect_integrity_error(
@@ -146,7 +146,7 @@ async def test_AC11_18_2_statement_summary_approved_completeness_and_period_orde
     db: AsyncSession,
     test_user,
 ) -> None:
-    """AC11.18.2: Approved statement summaries require complete envelopes and ordered periods."""
+    """AC-audit.42.2: AC11.18.2: Approved statement summaries require complete envelopes and ordered periods."""
     user_id = test_user.id
     account = await _make_account(db, user_id)
     account_id = account.id
@@ -234,7 +234,7 @@ async def test_AC11_18_3_portfolio_fact_constraints_and_managed_position_uniquen
     db: AsyncSession,
     test_user,
 ) -> None:
-    """AC11.18.3: Portfolio facts enforce deterministic uniqueness and disposal/acquisition
+    """AC-audit.42.3: AC11.18.3: Portfolio facts enforce deterministic uniqueness and disposal/acquisition
     ordering; positions are signed and may carry negative quantity/cost basis (short, #1448)."""
     user_id = test_user.id
     account = await _make_account(db, user_id)
@@ -364,7 +364,7 @@ async def test_AC11_18_4_report_snapshot_latest_scope_and_date_constraints(
     db: AsyncSession,
     test_user,
 ) -> None:
-    """AC11.18.4: Latest report snapshots are unique per logical report scope."""
+    """AC-audit.42.4: AC11.18.4: Latest report snapshots are unique per logical report scope."""
     user_id = test_user.id
     rule = await _make_rule(db, user_id, version=1)
     second_rule = await _make_rule(db, user_id, version=2)
@@ -432,7 +432,7 @@ async def test_AC11_18_5_market_data_constraints_and_stock_price_uniqueness(
     db: AsyncSession,
     test_user,
 ) -> None:
-    """AC11.18.5: Market facts are positive and stock-price uniqueness includes provider dimensions."""
+    """AC-audit.42.5: AC11.18.5: Market facts are positive and stock-price uniqueness includes provider dimensions."""
     user_id = test_user.id
     await _expect_integrity_error(
         db,
@@ -504,7 +504,7 @@ async def test_AC11_18_5_market_data_constraints_and_stock_price_uniqueness(
 
 @pytest.mark.no_db
 def test_AC11_18_6_migration_preflights_and_risk_contract_are_declared() -> None:
-    """AC11.18.6: The migration declares preflight checks and risk classification."""
+    """AC-audit.42.6: AC11.18.6: The migration declares preflight checks and risk classification."""
     migration_source = MIGRATION_PATH.read_text()
     risk_source = RISK_PATH.read_text()
 

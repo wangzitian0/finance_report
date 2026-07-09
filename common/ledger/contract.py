@@ -1822,6 +1822,22 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        ACRecord(
+            id="AC-ledger.77.1",
+            statement=(
+                "A brand-new user can register, log in, create their first "
+                "ledger accounts, post a first manual journal entry, and the "
+                "accounting equation stays balanced end to end. Was EPIC-001 "
+                "AC1.9.1 (migration closeout wave 3, #1416)."
+            ),
+            test=(
+                "apps/backend/tests/integration/test_onboarding_e2e.py"
+                "::test_AC1_9_1_first_run_registration_account_entry_journey"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
     ],
 )
 
