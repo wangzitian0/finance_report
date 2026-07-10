@@ -12,8 +12,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.extraction import ExtractionError, ExtractionService
 from src.extraction.extension.brokerage_positions import looks_like_brokerage_payload
+from src.extraction.extension.service import ExtractionError, ExtractionService
 from src.extraction.extension.statement_posting import try_auto_approve_high_confidence_statement
 from src.identity import User
 from src.models.layer1 import DocumentStatus, DocumentType, UploadedDocument

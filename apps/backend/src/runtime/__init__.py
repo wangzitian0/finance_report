@@ -37,13 +37,12 @@ from src.runtime.extension.adapters import (
     WorkflowEngineCheck,
 )
 from src.runtime.extension.storage import StorageError, StorageService, redact_presigned_url
+from src.runtime.extension.storage_sweep import run_storage_sweep
 
 __all__ = [
     "APP_OWNED_TIERS",
-    "DEPENDENCY_MANIFEST",
-    "NON_DEPENDENCY_ENV_FIELDS",
-    "VPS_TIERS",
     "AnalyticsCheck",
+    "DEPENDENCY_MANIFEST",
     "DatabaseCheck",
     "Dependency",
     "DependencyCheck",
@@ -53,14 +52,17 @@ __all__ = [
     "EnvTier",
     "LlmCheck",
     "MarketDataCheck",
+    "NON_DEPENDENCY_ENV_FIELDS",
     "ObjectStorageCheck",
     "ProbeResult",
     "RedisCheck",
     "StorageError",
     "StorageService",
     "TelemetryCheck",
+    "VPS_TIERS",
     "WorkflowEngineCheck",
     "check_env_classification",
     "redact_presigned_url",
     "resolve_env_tier",
+    "run_storage_sweep",
 ]

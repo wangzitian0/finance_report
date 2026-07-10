@@ -38,6 +38,16 @@ from src.extraction.extension.brokerage_positions import (
     parse_brokerage_csv_payload,
     parse_brokerage_positions,
 )
+from src.extraction.extension.brokerage_statement_payload import (
+    _brokerage_import_not_ready_reason,
+    _brokerage_payload_from_persisted_extraction,
+    _brokerage_payload_from_statement,
+)
+from src.extraction.extension.correction_loop import CorrectionLoopService
+from src.extraction.extension.correction_service import (
+    get_correction_stats,
+    record_correction,
+)
 from src.extraction.extension.currency_resolution import (
     CurrencyUnresolvedError,
     resolve_ingest_currency,
@@ -53,36 +63,84 @@ from src.extraction.extension.evidence_graph_integration import (
 from src.extraction.extension.evidence_graph_materialization import (
     EvidenceGraphMaterializationService,
 )
-from src.extraction.extension.evidence_lineage import EvidenceLineageService
+from src.extraction.extension.evidence_lineage import (
+    DEFAULT_MAX_DEPTH,
+    EvidenceLineageService,
+    EvidenceTraversalStep,
+)
 from src.extraction.extension.prompts.csv_mapping import build_csv_mapping_prompt
 from src.extraction.extension.prompts.statement import SYSTEM_PROMPT, get_parsing_prompt
 from src.extraction.extension.review_queue import create_entry_from_txn
 from src.extraction.extension.service import ExtractionError, ExtractionService
+from src.extraction.extension.statement_parsing_supervisor import (
+    run_parsing_supervisor,
+)
+from src.extraction.extension.statement_pipeline import submit_parse_pipeline
+from src.extraction.extension.statement_posting import (
+    auto_create_posted_entries_for_statement,
+    resolve_statement_posting_account,
+)
 from src.extraction.extension.statement_summary import resolve_custody_account_id
+from src.extraction.extension.statement_validation import (
+    edit_and_approve,
+    pending_stage1_review_filter,
+    resolve_statement_conflicts,
+    resolve_statement_transactions,
+    set_opening_balance,
+    validate_balance_chain,
+)
+from src.extraction.extension.statement_workflow import (
+    approve_statement_workflow,
+    reject_statement_workflow,
+)
+from src.extraction.extension.transaction_classification import (
+    backfill_classifications,
+)
 
 __all__ = [
     "BrokeragePositionImportService",
+    "CorrectionLoopService",
     "CurrencyUnresolvedError",
+    "DEFAULT_MAX_DEPTH",
     "DeduplicationService",
     "EvidenceGraphIntegrationService",
     "EvidenceGraphMaterializationService",
     "EvidenceLineageService",
+    "EvidenceTraversalStep",
     "ExtractionError",
     "ExtractionService",
     "SYSTEM_PROMPT",
+    "_brokerage_import_not_ready_reason",
+    "_brokerage_payload_from_persisted_extraction",
+    "_brokerage_payload_from_statement",
+    "approve_statement_workflow",
+    "auto_create_posted_entries_for_statement",
+    "backfill_classifications",
     "build_csv_mapping_prompt",
     "compute_confidence_score",
     "create_entry_from_txn",
     "detect_balance_chain_break",
     "dual_write_layer2",
+    "edit_and_approve",
+    "get_correction_stats",
     "get_parsing_prompt",
     "looks_like_brokerage_document",
     "looks_like_brokerage_payload",
     "parse_brokerage_csv_payload",
     "parse_brokerage_positions",
+    "pending_stage1_review_filter",
+    "record_correction",
+    "reject_statement_workflow",
     "resolve_custody_account_id",
     "resolve_ingest_currency",
+    "resolve_statement_conflicts",
+    "resolve_statement_posting_account",
+    "resolve_statement_transactions",
     "resolve_transaction_currency",
+    "run_parsing_supervisor",
+    "set_opening_balance",
+    "submit_parse_pipeline",
     "validate_balance",
+    "validate_balance_chain",
     "validation",
 ]

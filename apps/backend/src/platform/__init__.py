@@ -46,6 +46,7 @@ from src.platform.extension import (
     RecordingEventBus,
     get_owned_or_404,
     get_workflow_status,
+    list_workflow_events_response,
     paginate,
     raise_bad_request,
     raise_conflict,
@@ -57,6 +58,7 @@ from src.platform.extension import (
     raise_too_many_requests,
     raise_unauthorized,
     register_readiness_provider,
+    update_workflow_event_status,
 )
 
 __all__ = [
@@ -74,6 +76,7 @@ __all__ = [
     "SubscriberRegistry",
     "get_owned_or_404",
     "get_workflow_status",
+    "list_workflow_events_response",
     "paginate",
     "raise_bad_request",
     "raise_conflict",
@@ -85,4 +88,5 @@ __all__ = [
     "raise_too_many_requests",
     "raise_unauthorized",
     "register_readiness_provider",
+    "update_workflow_event_status",
 ]

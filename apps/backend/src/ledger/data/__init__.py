@@ -7,6 +7,10 @@ projections and the accounting-equation check derived from them.
 
 from __future__ import annotations
 
+from src.ledger.data.account_coverage import (
+    DEFAULT_STALE_AFTER_DAYS,
+    get_account_statement_coverage,
+)
 from src.ledger.data.balance import (
     calculate_account_balance,
     calculate_account_balances,
@@ -14,7 +18,9 @@ from src.ledger.data.balance import (
 )
 
 __all__ = [
+    "DEFAULT_STALE_AFTER_DAYS",
     "calculate_account_balance",
     "calculate_account_balances",
+    "get_account_statement_coverage",
     "verify_accounting_equation",
 ]

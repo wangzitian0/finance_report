@@ -125,6 +125,7 @@ CONTRACT = PackageContract(
         "SubscriberRegistry",
         "get_owned_or_404",
         "get_workflow_status",
+        "list_workflow_events_response",
         "paginate",
         "raise_bad_request",
         "raise_conflict",
@@ -136,6 +137,7 @@ CONTRACT = PackageContract(
         "raise_too_many_requests",
         "raise_unauthorized",
         "register_readiness_provider",
+        "update_workflow_event_status",
     ],
     events=[],
     invariants=[

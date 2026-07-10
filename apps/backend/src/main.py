@@ -26,7 +26,7 @@ import src.models._registry  # noqa: E402, F401
 from src.boot import Bootloader, BootMode
 from src.config import settings
 from src.database import engine, get_db, init_db
-from src.extraction.extension.statement_parsing_supervisor import run_parsing_supervisor
+from src.extraction import run_parsing_supervisor
 from src.identity import auth_router, users_router
 from src.models.ping_state import PingState
 from src.observability import (
@@ -66,8 +66,7 @@ from src.routers import (
     workflow,
 )
 from src.routers.reconciliation import router as reconciliation_router
-from src.runtime import resolve_env_tier
-from src.runtime.extension.storage_sweep import run_storage_sweep
+from src.runtime import resolve_env_tier, run_storage_sweep
 from src.schemas import PingStateResponse
 from src.schemas.errors import (
     COMMON_ERROR_RESPONSES,
