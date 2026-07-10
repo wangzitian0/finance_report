@@ -110,7 +110,7 @@ async def test_AC18_10_2_graph_writes_share_the_business_transaction(
     db: AsyncSession,
     test_user: User,
 ):
-    """AC18.10.2: Graph materialization participates in the same DB transaction as business facts."""
+    """AC-extraction.1810.2: AC18.10.2: Graph materialization participates in the same DB transaction as business facts."""
     _, atomic, entry, _ = await _create_historical_statement_entry(db, user_id=test_user.id)
 
     await EvidenceGraphIntegrationService().record_journal_posting(
@@ -131,7 +131,7 @@ async def test_AC18_10_4_AC18_10_6_lazy_materialization_is_idempotent_and_preser
     db: AsyncSession,
     test_user: User,
 ):
-    """AC18.10.4 AC18.10.6: Lazy repair is deterministic, idempotent, and does not mutate ledger facts."""
+    """AC-extraction.1810.4 AC-extraction.1810.6: AC18.10.4 AC18.10.6: Lazy repair is deterministic, idempotent, and does not mutate ledger facts."""
     document, atomic, entry, line = await _create_historical_statement_entry(db, user_id=test_user.id)
     original_source_type = entry.source_type
     original_source_id = entry.source_id
@@ -180,7 +180,7 @@ async def test_AC18_10_5_detector_reports_missing_orphan_and_cross_user_drift(
     db: AsyncSession,
     test_user: User,
 ):
-    """AC18.10.1 AC18.10.5: Detector uses explicit blocker taxonomy for graph drift without writes."""
+    """AC-extraction.1810.1 AC-extraction.1810.5: AC18.10.1 AC18.10.5: Detector uses explicit blocker taxonomy for graph drift without writes."""
     _, _, _, line = await _create_historical_statement_entry(db, user_id=test_user.id)
     service = EvidenceGraphMaterializationService()
     orphan = EvidenceNode(
@@ -236,7 +236,7 @@ async def test_AC18_10_7_materialization_caps_and_unknown_sources_return_blocker
     db: AsyncSession,
     test_user: User,
 ):
-    """AC18.10.7: Tests cover write caps and unknown provenance blockers."""
+    """AC-extraction.1810.7: AC18.10.7: Tests cover write caps and unknown provenance blockers."""
     _, _, entry, line = await _create_historical_statement_entry(db, user_id=test_user.id)
     service = EvidenceGraphMaterializationService()
 
@@ -272,7 +272,7 @@ async def test_AC18_10_4_direct_entity_materialization_branches_are_idempotent(
     db: AsyncSession,
     test_user: User,
 ):
-    """AC18.10.4 AC18.8.1 AC18.8.2: Direct entity requests materialize the source_document
+    """AC-extraction.1808.1 AC-extraction.1808.2: AC18.10.4 AC18.8.1 AC18.8.2: Direct entity requests materialize the source_document
     (uploaded document) node, the atomic_fact node, and the deduped_into edge between them,
     using deterministic relationships that remain idempotent."""
     document, atomic, entry, line = await _create_historical_statement_entry(db, user_id=test_user.id)

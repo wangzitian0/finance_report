@@ -274,15 +274,9 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 
 ### AC18.7: Evidence Graph Foundation
 
-| AC ID | Phase | Description |
-|-------|-------|-------------|
-| AC18.7.1 | Evidence lineage | Evidence Graph SSOT defines nodes as auditable states, edges as transformation processes, allowed foundation node/edge fields, traversal direction, and append-only edge rules |
-| AC18.7.2 | Evidence lineage | Alembic migration creates `evidence_nodes` and `evidence_edges` with user-scoped entity lookup and edge traversal indexes |
-| AC18.7.3 | Evidence lineage | SQLAlchemy models expose `EvidenceNode` and `EvidenceEdge` with JSONB properties and user-owned isolation |
-| AC18.7.4 | Evidence lineage | Evidence lineage service supports idempotent node and edge upsert keyed by user, entity identity, node kind, relation, and edge endpoints |
-| AC18.7.5 | Evidence lineage | Evidence lineage service resolves entity nodes and traverses upstream and downstream paths only within the authenticated user scope |
-| AC18.7.6 | Evidence lineage | Evidence lineage traversal enforces a default maximum depth and never walks unbounded graphs |
-| AC18.7.7 | Evidence lineage | Evidence Graph foundation tests cover node creation, edge creation, duplicate upsert behavior, upstream traversal, downstream traversal, depth limit, and cross-user isolation |
+> This group's rows removed — migrated to the `extraction` package roadmap
+> as `AC-extraction.1807.1-7` (migration closeout continuation, #1663 /
+> #1715).
 
 ### AC18.8: Evidence Graph Source-to-Report Integration
 
@@ -296,15 +290,9 @@ MECE task frame:
 
 Dependencies: AC18.7 Evidence Graph foundation and existing Layer 1/2, journal posting, and package traceability services. Out of scope: UI lineage panel, historical backfill, graph database adoption, and replacing every legacy traceability resolver in one change.
 
-| AC ID | Phase | Description |
-|-------|-------|-------------|
-| AC18.8.1 | Evidence lineage integration | Statement upload creates a `source_document` node for the uploaded source (`uploaded_document`). The legacy `extracted_record` (bank-statement-transaction) middle node was removed in EPIC-011 Stage 3 with the `bank_statements` tables |
-| AC18.8.2 | Evidence lineage integration | Layer 2 lineage creates `atomic_fact` nodes for atomic transactions and `deduped_into` edges from the `source_document` (uploaded document) that produced them |
-| AC18.8.3 | Evidence lineage integration | Journal posting creates `ledger_entry` and `ledger_line` nodes, links extracted or atomic transaction facts to the ledger entry with `posted_as`, and links the ledger entry to its lines with `contains` |
-| AC18.8.4 | Evidence lineage integration | `GET /api/reports/package/traceability` can resolve at least one report line from ledger anchors through Evidence Graph lineage back to source document anchors |
-| AC18.8.5 | Evidence lineage integration | Unknown or unsupported `JournalEntry.source_id` values produce explicit blocker codes and never fabricate statement, atomic, or document anchors |
-| AC18.8.6 | Evidence lineage integration | Existing `JournalEntry.source_type/source_id` semantics remain backward-compatible while Evidence Graph writes add supplemental audit lineage |
-| AC18.8.7 | Evidence lineage integration | Tests cover three end-to-end graph paths: source document downstream impact, bank statement transaction to ledger line, and report line to source document |
+> This group's rows removed — migrated to the `extraction` package roadmap
+> as `AC-extraction.1808.1-7` (migration closeout continuation, #1663 /
+> #1715).
 
 ### AC18.9: Evidence Graph Navigation UX
 
@@ -318,11 +306,10 @@ MECE task frame:
 
 Dependencies: AC18.7 Evidence Graph foundation and AC18.8 first production source-to-report graph integration. Out of scope: historical graph backfill, complex canvas visualization, graph database adoption, and replacing every legacy resolver.
 
+> **Partially migrated.** *(AC18.9.1 removed and AC18.9.2 removed and AC18.9.3 removed — this group's backend API rows migrated to the `extraction` package roadmap as `AC-extraction.1809.1-3`, migration closeout continuation, #1663 / #1715)*. The frontend lineage-panel rows below stay in this EPIC — `extraction` is a backend-only package (`fe=None`).
+
 | AC ID | Phase | Description |
 |-------|-------|-------------|
-| AC18.9.1 | Evidence navigation | An authenticated Evidence Graph lineage API resolves an owned graph node by `entity_type`, `entity_id`, and optional `node_kind` |
-| AC18.9.2 | Evidence navigation | The lineage API supports upstream, downstream, and both-direction traversal with bounded depth and returns stable node and edge DTOs |
-| AC18.9.3 | Evidence navigation | Missing, unsupported, or cross-user entity identities return explicit empty/blocker state and never fabricate source, ledger, or report anchors |
 | AC18.9.4 | Evidence navigation UI | The report package traceability surface exposes a lineage panel from at least one report traceability row |
 | AC18.9.5 | Evidence navigation UI | The lineage panel renders source document, extracted record, atomic fact, ledger entry, ledger line, and report-line anchors when present |
 | AC18.9.6 | Evidence navigation proof | Tests cover report line to source document navigation and source document to impacted ledger/report navigation |
@@ -339,15 +326,9 @@ MECE task frame:
 
 Dependencies: AC18.7 Evidence Graph foundation, AC18.8 source-to-report integration, and AC18.9 navigation API/UI. Out of scope: scheduled production auto-repair, probabilistic amount/date/description matching, graph database adoption, and mutating ledger balances or `JournalEntry.source_type/source_id`.
 
-| AC ID | Phase | Description |
-|-------|-------|-------------|
-| AC18.10.1 | Evidence consistency | Evidence Graph SSOT defines graph as an audit projection, business tables as source of truth, and blocker taxonomy for drift states |
-| AC18.10.2 | Evidence consistency | New source-to-ledger workflows materialize graph nodes and edges in the same database transaction as their owning business facts |
-| AC18.10.3 | Evidence lazy materialization | The lineage API attempts one bounded deterministic materialization pass when an owned anchor or required local path is missing for historical data |
-| AC18.10.4 | Evidence lazy materialization | Lazy materialization is idempotent and only uses strong relationships such as owned source IDs, transaction lineage, and `journal_line.journal_entry_id`; it never infers links from fuzzy amount, date, or description similarity |
-| AC18.10.5 | Evidence consistency detector | An operator-safe dry-run detector reports missing graph nodes, graph nodes pointing to missing business entities, dangling edges, cross-user edges, incomplete lineage, and ambiguous or unsupported provenance |
-| AC18.10.6 | Evidence consistency safety | Detector and lazy repair never mutate accounting facts, report amounts, ledger balances, or legacy `JournalEntry.source_type/source_id` values |
-| AC18.10.7 | Evidence consistency proof | Tests cover request-time lazy repair, repeated-read idempotency, dry-run no-write behavior, cross-user blocking, unknown provenance blockers, dangling/orphan detection, and request-level write caps |
+> This group's rows removed — migrated to the `extraction` package roadmap
+> as `AC-extraction.1810.1-7` (migration closeout continuation, #1663 /
+> #1715).
 
 ### AC18.11: Audit Anchor Referential Integrity
 
@@ -383,10 +364,9 @@ MECE task frame:
 
 Dependencies: AC18.7 Evidence Graph foundation, AC18.9 navigation API, and AC18.10 lazy materialization/blocker taxonomy. Out of scope: changing stored JSONB shapes, graph database adoption, new node kinds, and mutating ledger/report facts.
 
-| AC ID | Phase | Description |
-|-------|-------|-------------|
-| AC18.31.1 | Evidence typed properties | Evidence Graph node and edge DTO `properties` are constrained by closed typed Pydantic models per node kind and edge relation (monetary amounts stay Decimal-as-string, never float), preserving the existing JSON shape and tolerating legacy/partial rows |
-| AC18.31.2 | Evidence fail-fast | A genuine materialization failure (cross-user, write-cap, or unsupported provenance) returns a non-2xx status with a structured `EvidenceLineageError` detail, while an absent anchor stays a 200 empty/blocker result |
+> This group's rows removed — migrated to the `extraction` package roadmap
+> as `AC-extraction.1831.1-2` (migration closeout continuation, #1663 /
+> #1715).
 
 ### AC18.6: Framework Measurement and Disclosure Suggestions
 

@@ -10,7 +10,7 @@ from tests.factories import UserFactory
 
 
 async def test_AC18_7_4_node_and_edge_upserts_are_idempotent(db: AsyncSession, test_user):
-    """AC18.7.4: Evidence lineage service supports idempotent node and edge upsert."""
+    """AC-extraction.1807.4: AC18.7.4: Evidence lineage service supports idempotent node and edge upsert."""
     service = EvidenceLineageService()
     user_id = test_user.id
     source_entity_id = uuid4()
@@ -64,7 +64,7 @@ async def test_AC18_7_4_node_and_edge_upserts_are_idempotent(db: AsyncSession, t
 
 
 async def test_AC18_7_5_traversal_resolves_upstream_and_downstream_by_entity(db: AsyncSession, test_user):
-    """AC18.7.5: Evidence lineage traverses upstream and downstream within user scope."""
+    """AC-extraction.1807.5: AC18.7.5: Evidence lineage traverses upstream and downstream within user scope."""
     service = EvidenceLineageService()
     user_id = test_user.id
     source_entity_id = uuid4()
@@ -127,7 +127,7 @@ async def test_AC18_7_5_traversal_resolves_upstream_and_downstream_by_entity(db:
 
 
 async def test_AC18_7_6_traversal_enforces_depth_limit(db: AsyncSession, test_user):
-    """AC18.7.6: Evidence lineage traversal never walks unbounded graphs."""
+    """AC-extraction.1807.6: AC18.7.6: Evidence lineage traversal never walks unbounded graphs."""
     service = EvidenceLineageService()
     user_id = test_user.id
     entity_ids = [uuid4(), uuid4(), uuid4()]
@@ -168,7 +168,7 @@ async def test_AC18_7_6_traversal_enforces_depth_limit(db: AsyncSession, test_us
 
 
 async def test_AC18_7_5_cross_user_edges_and_traversal_are_blocked(db: AsyncSession, test_user):
-    """AC18.7.5 AC18.7.7: Evidence lineage enforces user-scoped graph isolation."""
+    """AC-extraction.1807.7: AC18.7.5 AC18.7.7: Evidence lineage enforces user-scoped graph isolation."""
     service = EvidenceLineageService()
     user_a = test_user.id
     user_b = (await UserFactory.create_async(db)).id

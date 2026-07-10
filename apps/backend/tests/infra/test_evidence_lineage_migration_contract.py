@@ -11,7 +11,7 @@ pytestmark = pytest.mark.no_db
 
 
 def test_AC18_7_2_evidence_lineage_migration_creates_tables_and_indexes():
-    """AC18.7.2: Evidence lineage migration creates graph tables and traversal indexes."""
+    """AC-extraction.1807.2: AC18.7.2: Evidence lineage migration creates graph tables and traversal indexes."""
     source = MIGRATION_PATH.read_text()
 
     assert 'op.create_table("evidence_nodes"' in source
