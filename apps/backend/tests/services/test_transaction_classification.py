@@ -75,7 +75,7 @@ async def _count(db, model) -> int:
 
 
 def test_AC18_15_1_policy_is_effective_dated_and_immutable():
-    """AC18.15.1: ClassificationPolicy is an effective-dated, immutable version."""
+    """AC-extraction.1815.1: AC18.15.1: ClassificationPolicy is an effective-dated, immutable version."""
     v1 = _policy(version=1, effective_from=date(2020, 1, 1))
     v2 = _policy(version=2, effective_from=date(2026, 7, 1))
     registry = (v1, v2)
@@ -98,7 +98,7 @@ def test_AC18_15_1_policy_is_effective_dated_and_immutable():
 
 @pytest.mark.asyncio
 async def test_AC18_15_2_classify_is_reproducible_for_same_inputs(db, test_user, enabled_flag):
-    """AC18.15.2: identical (transactions, policy, proposals) => identical outcomes."""
+    """AC-extraction.1815.2: AC18.15.2: identical (transactions, policy, proposals) => identical outcomes."""
     txns = [
         await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description=f"COFFEE SHOP {i}")
         for i in range(3)
@@ -120,7 +120,7 @@ async def test_AC18_15_2_classify_is_reproducible_for_same_inputs(db, test_user,
 
 @pytest.mark.asyncio
 async def test_AC18_15_3_off_catalog_proposal_is_rejected_never_applied(db, test_user, enabled_flag):
-    """AC18.15.3: a proposal outside the policy catalog is rejected, not posted."""
+    """AC-extraction.1815.3: AC18.15.3: a proposal outside the policy catalog is rejected, not posted."""
     txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="MYSTERY MERCHANT")
     proposer = _stub_proposer({txn.description: CategoryProposal(category="CRYPTO_YOLO", confidence=99)})
 
@@ -137,7 +137,7 @@ async def test_AC18_15_3_off_catalog_proposal_is_rejected_never_applied(db, test
 
 @pytest.mark.asyncio
 async def test_AC18_15_4_confidence_gate_applies_reviews_or_tails(db, test_user, enabled_flag):
-    """AC18.15.4: >=85 auto-APPLIED onto a real catalog account; 60-84 DRAFT for the
+    """AC-extraction.1815.4: AC18.15.4: >=85 auto-APPLIED onto a real catalog account; 60-84 DRAFT for the
     ai_feedback review band; <60 stays in the genuine Uncategorized tail."""
     high = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="ACME PAYROLL")
     mid = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="NTUC FAIRPRICE")
@@ -179,7 +179,7 @@ async def test_AC18_15_4_confidence_gate_applies_reviews_or_tails(db, test_user,
 
 @pytest.mark.asyncio
 async def test_AC18_15_5_model_never_touches_money(db, test_user, enabled_flag):
-    """AC18.15.5: proposals carry no amounts; posting stays with deterministic code."""
+    """AC-extraction.1815.5: AC18.15.5: proposals carry no amounts; posting stays with deterministic code."""
     # schema red-line: a proposal cannot even express an amount
     assert not {"amount", "value", "total", "price"} & set(CategoryProposal.model_fields)
 
@@ -205,7 +205,7 @@ async def test_AC18_15_5_model_never_touches_money(db, test_user, enabled_flag):
 
 @pytest.mark.asyncio
 async def test_AC18_15_6_pro_forma_writes_nothing(db, test_user, enabled_flag):
-    """AC18.15.6: commit_basis=False classifies under a candidate policy without
+    """AC-extraction.1815.6: AC18.15.6: commit_basis=False classifies under a candidate policy without
     writing the basis-of-record (no classifications, no policy rules, no accounts)."""
     txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="ACME PAYROLL")
     proposer = _stub_proposer(
@@ -235,7 +235,7 @@ async def test_AC18_15_6_pro_forma_writes_nothing(db, test_user, enabled_flag):
 
 @pytest.mark.asyncio
 async def test_AC18_15_7_user_rule_prepass_wins_over_model(db, test_user, enabled_flag):
-    """AC18.15.7: a user's deterministic rule wins; the model is not consulted for it."""
+    """AC-extraction.1815.7: AC18.15.7: a user's deterministic rule wins; the model is not consulted for it."""
     rule = ClassificationRule(
         user_id=test_user.id,
         created_by=test_user.id,
@@ -284,7 +284,7 @@ async def test_AC18_15_7_no_rules_is_a_noop_prepass_not_an_error(db, test_user, 
 
 @pytest.mark.asyncio
 async def test_AC18_15_8_flag_off_is_a_noop(db, test_user, monkeypatch):
-    """AC18.15.8: with enable_ai_classification off (the default), the node is inert."""
+    """AC-extraction.1815.8: AC18.15.8: with enable_ai_classification off (the default), the node is inert."""
     from src.config import settings
 
     monkeypatch.setattr(settings, "enable_ai_classification", False)
@@ -460,7 +460,7 @@ async def test_AC18_15_3_prompt_forbids_markdown_fences(monkeypatch):
 
 
 def test_AC18_17_1_no_classify_writer_is_defined_but_uninvoked():
-    """AC18.17.1: every classification writer has a production call site — the
+    """AC-extraction.1817.1: AC18.17.1: every classification writer has a production call site — the
     #1279 'closed-but-not-wired' failure mode (orphaned scaffolding) can never
     recur silently. This is the lock that caught backfill_classifications."""
     # Entry seams must be invoked from production code OUTSIDE the module; the
@@ -517,7 +517,7 @@ def test_AC18_17_1_no_classify_writer_is_defined_but_uninvoked():
 
 
 def test_AC18_17_3_reports_read_only_applied_classifications():
-    """AC18.17.3: reports consume exactly ONE classification source and only
+    """AC-extraction.1817.3: AC18.17.3: reports consume exactly ONE classification source and only
     APPLIED rows — the DRAFT review band never leaks into as-reported figures."""
     src = Path("src/services/reporting/income_statement.py").read_text(encoding="utf-8")
     assert "ClassificationStatus.APPLIED" in src

@@ -2228,5 +2228,406 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── group 1801: classification retirement — the pre-classify-node
+        # rule matching path (was EPIC-018 AC18.1.3-4, migration closeout
+        # continuation, #1663 / #1715). AC18.1.1 is already proven by
+        # AC-extraction.104.1 (was AC13.4.1); AC18.1.2/.5/.6 are not
+        # verified in this pass — see the EPIC-018 doc note. ──
+        ACRecord(
+            id="AC-extraction.1801.1",
+            statement=(
+                "RuleType.ML_MODEL rule matching is RETIRED (EPIC #1483 "
+                "cleanup) — even an active ML_MODEL rule never applies, "
+                "since it read AI signals (suggested_category/"
+                "category_confidence) that no producer ever wrote; it "
+                "survives only as the classification-policy anchor row "
+                "type for the classify node (AC18.15)."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_classification_service.py"
+                "::test_AC18_1_3_ml_rule_matching_is_retired"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1801.2",
+            statement=(
+                "Classification priority is KEYWORD > REGEX > Uncategorized "
+                "(the ML tier moved to the classify node, AC18.15)."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_classification_service.py"
+                "::test_classification_priority_keyword_over_regex"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group 1802: correction feedback substrate — CorrectionLog,
+        # stats, few-shot injection, cache (was EPIC-018 AC18.2.1-5,
+        # migration closeout continuation, #1663 / #1715) ──
+        ACRecord(
+            id="AC-extraction.1802.1",
+            statement="The CorrectionLog model records the original and corrected categories.",
+            test=(
+                "apps/backend/tests/extraction/test_correction_service.py"
+                "::test_record_correction_stores_corrected_category"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1802.2",
+            statement="The corrections API records and retrieves correction stats, scoped to the owning user.",
+            test=(
+                "apps/backend/tests/extraction/test_correction_service.py"
+                "::test_AC18_2_2_record_correction_rejects_cross_user_corrected_account"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1802.3",
+            statement="Few-shot examples from corrections are injected into the extraction prompt.",
+            test=(
+                "apps/backend/tests/extraction/test_correction_service.py"
+                "::test_prompt_injection_with_corrections"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1802.4",
+            statement="The correction cache invalidates after recording a new correction.",
+            test=(
+                "apps/backend/tests/extraction/test_correction_service.py"
+                "::test_few_shot_cache_invalidates"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1802.5",
+            statement="top_corrections is typed as a TopCorrection Pydantic model in the corrections stats response, not a bare dict.",
+            test=(
+                "apps/backend/tests/api/test_corrections_router.py"
+                "::test_AC18_2_5_top_corrections_is_typed_pydantic_model"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group 1814: correction feedback loop — corpus derived from
+        # CorrectionLog, replayed as priors (was EPIC-018 AC18.14.1-4,
+        # migration closeout continuation, #1663 / #1715) ──
+        ACRecord(
+            id="AC-extraction.1814.1",
+            statement=(
+                "The correction corpus is derived from CorrectionLog (no "
+                "sidecar), keyed by the transaction pattern, capturing "
+                "proposed vs corrected."
+            ),
+            test=(
+                "apps/backend/tests/services/test_correction_loop.py"
+                "::test_AC18_14_1_corpus_is_derived_from_corrections_keyed_by_pattern"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1814.2",
+            statement=(
+                "Replaying the corpus as priors strictly lowers the "
+                "held-out low-confidence proportion when correction "
+                "patterns recur, and invents no reduction when they do not."
+            ),
+            test=(
+                "apps/backend/tests/services/test_correction_loop.py"
+                "::test_AC18_14_2_replay_lowers_low_confidence_proportion_when_patterns_recur"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1814.3",
+            statement="The service builds the corpus from the persisted correction store, scoped to the user.",
+            test=(
+                "apps/backend/tests/services/test_correction_loop.py"
+                "::test_AC18_14_3_service_builds_corpus_from_persisted_corrections"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1814.4",
+            statement=(
+                "The held-out replay result is surfaced read-only over the "
+                "live corpus, so the loop's effect on the low-confidence "
+                "proportion is auditable (no new source of truth)."
+            ),
+            test=(
+                "apps/backend/tests/services/test_correction_loop.py"
+                "::test_AC18_14_4_service_replay_measures_held_out_reduction"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group 1815: transaction classify node — construct (was
+        # EPIC-018 AC18.15.1-8, migration closeout continuation, #1663 /
+        # #1715) ──
+        ACRecord(
+            id="AC-extraction.1815.1",
+            statement=(
+                "The classification policy is a versioned, effective-dated, "
+                "immutable object: policy_for(as_of) head-selects the "
+                "latest version whose effective_from <= as_of, and an "
+                "effective version can never be mutated."
+            ),
+            test=(
+                "apps/backend/tests/services/test_transaction_classification.py"
+                "::test_AC18_15_1_policy_is_effective_dated_and_immutable"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.1815.2",
+            statement=(
+                "The classify pass is reproducible: identical (transactions, "
+                "policy, proposals) produce identical outcomes, each "
+                "stamped with the policy version."
+            ),
+            test=(
+                "apps/backend/tests/services/test_transaction_classification.py"
+                "::test_AC18_15_2_classify_is_reproducible_for_same_inputs"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.1815.3",
+            statement=(
+                "Model output is constrained to the policy's closed "
+                "catalog: an off-catalog proposal is rejected, and the LLM "
+                "boundary parses prompt-driven JSON with code-owned "
+                "clamping and a graceful per-transaction None fallback."
+            ),
+            test=(
+                "apps/backend/tests/services/test_transaction_classification.py"
+                "::test_AC18_15_3_off_catalog_proposal_is_rejected_never_applied"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.1815.4",
+            statement=(
+                "The confidence gate disposes deterministically: >= auto "
+                "threshold becomes an APPLIED classification, the review "
+                "band becomes a DRAFT visible to the ai_feedback 60-84 "
+                "queue, below stays in the genuine Uncategorized tail."
+            ),
+            test=(
+                "apps/backend/tests/services/test_transaction_classification.py"
+                "::test_AC18_15_4_confidence_gate_applies_reviews_or_tails"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.1815.5",
+            statement=(
+                "The model never touches money: proposals cannot express "
+                "an amount, the node imports no posting primitives, and "
+                "transaction Decimal amounts pass through classification "
+                "untouched."
+            ),
+            test=(
+                "apps/backend/tests/services/test_transaction_classification.py"
+                "::test_AC18_15_5_model_never_touches_money"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.1815.6",
+            statement=(
+                "commit_basis=False computes verdicts under a candidate "
+                "policy without writing the basis-of-record: no "
+                "classifications, no policy rules, no accounts."
+            ),
+            test=(
+                "apps/backend/tests/services/test_transaction_classification.py"
+                "::test_AC18_15_6_pro_forma_writes_nothing"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.1815.7",
+            statement=(
+                "A user's deterministic rule wins before the model is "
+                "consulted, and having no rules is a no-op pre-pass, not "
+                "an error."
+            ),
+            test=(
+                "apps/backend/tests/services/test_transaction_classification.py"
+                "::test_AC18_15_7_user_rule_prepass_wins_over_model"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.1815.8",
+            statement=(
+                "The node is inert with enable_ai_classification off (the "
+                "default), and its production consumers are exactly the "
+                "two declared seams — the posting path and the backfill/"
+                "re-extract router; no other module may grow a side-door "
+                "into classification."
+            ),
+            test=(
+                "apps/backend/tests/services/test_transaction_classification.py"
+                "::test_AC18_15_8_flag_off_is_a_noop"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        # ── group 1816: transaction classification — migrate (was EPIC-018
+        # AC18.16.1-5, migration closeout continuation, #1663 / #1715) ──
+        ACRecord(
+            id="AC-extraction.1816.1",
+            statement=(
+                "Publishing a new policy version leaves every "
+                "already-covered period's as-reported income statement "
+                "byte-identical: each transaction classifies under the "
+                "policy in effect on its own txn_date, and a full "
+                "recompute after publishing stays prospective."
+            ),
+            test=(
+                "apps/backend/tests/services/test_classification_migration.py"
+                "::test_AC18_16_1_new_policy_version_never_restates_covered_periods"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.1816.2",
+            statement=(
+                "After a real statement import with the flag on, the "
+                "income statement has categorized leaf lines beyond the "
+                "two Uncategorized buckets, each with a non-null "
+                "confidence tier."
+            ),
+            test=(
+                "apps/backend/tests/services/test_classification_migration.py"
+                "::test_AC18_16_2_import_produces_categorized_income_statement"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.1816.3",
+            statement=(
+                "With enable_ai_classification off (the default), the "
+                "import path behaves exactly as before this EPIC: only "
+                "the two Uncategorized buckets, zero classification rows."
+            ),
+            test=(
+                "apps/backend/tests/services/test_classification_migration.py"
+                "::test_AC18_16_3_flag_off_is_byte_identical_to_today"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.1816.4",
+            statement=(
+                "The one-time backfill classifies each not-yet-classified "
+                "transaction once under its own effective policy; a "
+                "re-run is a no-op (idempotent, dated, append-only)."
+            ),
+            test=(
+                "apps/backend/tests/services/test_classification_migration.py"
+                "::test_AC18_16_4_backfill_is_idempotent_dated_append_only"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.1816.5",
+            statement=(
+                "Re-running classification never rewrites posted journal "
+                "entries or lines — the category is a projection over the "
+                "immutable ledger, not an edit of it."
+            ),
+            test=(
+                "apps/backend/tests/services/test_classification_migration.py"
+                "::test_AC18_16_5_reclassification_never_rewrites_posted_entries"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        # ── group 1817: transaction classification — cleanup (was EPIC-018
+        # AC18.17.1-3, migration closeout continuation, #1663 / #1715) ──
+        ACRecord(
+            id="AC-extraction.1817.1",
+            statement=(
+                "Every classification entry seam has a production call "
+                "site and the core pass is wired to a live seam (AST "
+                "gate) — a defined-but-uninvoked classify writer fails CI."
+            ),
+            test=(
+                "apps/backend/tests/services/test_transaction_classification.py"
+                "::test_AC18_17_1_no_classify_writer_is_defined_but_uninvoked"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.1817.2",
+            statement=(
+                "POST /classifications/backfill classifies the caller's "
+                "not-yet-classified transactions under each transaction's "
+                "own effective policy, never duplicates or rewrites an "
+                "existing classification on re-run, and is flag-gated "
+                "(off => zero classifications)."
+            ),
+            test=(
+                "apps/backend/tests/api/test_classifications_router.py"
+                "::test_AC18_17_2_backfill_endpoint_classifies_then_is_idempotent"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.1817.3",
+            statement=(
+                "Reports consume exactly one classification source and "
+                "only APPLIED rows — the DRAFT review band and SUPERSEDED "
+                "history never leak into as-reported figures."
+            ),
+            test=(
+                "apps/backend/tests/services/test_transaction_classification.py"
+                "::test_AC18_17_3_reports_read_only_applied_classifications"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
     ],
 )

@@ -116,7 +116,7 @@ async def _june_report(db: AsyncSession, user_id: UUID) -> dict:
 
 @pytest.mark.asyncio
 async def test_AC18_16_2_import_produces_categorized_income_statement(db, test_user, enabled_flag, stub_proposer):
-    """AC18.16.2: after a real statement import with the flag on, the income statement
+    """AC-extraction.1816.2: AC18.16.2: after a real statement import with the flag on, the income statement
     has categorized leaf lines beyond the two Uncategorized buckets, with non-null
     confidence tiers — the exact #1483 QA symptom, now a permanent regression lock."""
     bank = await _bank(db, test_user.id)
@@ -147,7 +147,7 @@ async def test_AC18_16_2_import_produces_categorized_income_statement(db, test_u
 async def test_AC18_16_1_new_policy_version_never_restates_covered_periods(
     db, test_user, enabled_flag, stub_proposer, monkeypatch
 ):
-    """AC18.16.1: publishing policy v2 (effective 2026-07-01) leaves June's
+    """AC-extraction.1816.1: AC18.16.1: publishing policy v2 (effective 2026-07-01) leaves June's
     as-reported income statement byte-identical; only July classifies under v2."""
     import src.extraction.extension.transaction_classification as tc
 
@@ -200,7 +200,7 @@ async def test_AC18_16_1_new_policy_version_never_restates_covered_periods(
 
 @pytest.mark.asyncio
 async def test_AC18_16_3_flag_off_is_byte_identical_to_today(db, test_user, stub_proposer, monkeypatch):
-    """AC18.16.3: with the flag off (the default), the import path behaves exactly
+    """AC-extraction.1816.3: AC18.16.3: with the flag off (the default), the import path behaves exactly
     as before this EPIC: two Uncategorized buckets, zero classification rows."""
     from src.config import settings
 
@@ -220,7 +220,7 @@ async def test_AC18_16_3_flag_off_is_byte_identical_to_today(db, test_user, stub
 
 @pytest.mark.asyncio
 async def test_AC18_16_4_backfill_is_idempotent_dated_append_only(db, test_user, enabled_flag, stub_proposer):
-    """AC18.16.4: backfilling historical transactions classifies once under the
+    """AC-extraction.1816.4: AC18.16.4: backfilling historical transactions classifies once under the
     effective policy; a second run is a no-op (append-only, never rewrites)."""
     from tests.factories import AtomicTransactionFactory
 
@@ -246,7 +246,7 @@ async def test_AC18_16_4_backfill_is_idempotent_dated_append_only(db, test_user,
 
 @pytest.mark.asyncio
 async def test_AC18_16_5_reclassification_never_rewrites_posted_entries(db, test_user, enabled_flag, stub_proposer):
-    """AC18.16.5: the immutable ledger is stable across classification re-runs —
+    """AC-extraction.1816.5: AC18.16.5: the immutable ledger is stable across classification re-runs —
     category is a projection, journal entries are not silently rewritten."""
     bank = await _bank(db, test_user.id)
     await _ingest_month(db, test_user.id, bank, "2026-06", opening=Decimal("0.00"), closing=SALARY - RENT)

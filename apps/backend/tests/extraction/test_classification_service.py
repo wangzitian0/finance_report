@@ -530,7 +530,7 @@ class TestClassificationService:
         assert len(results) == 0
 
     async def test_classification_priority_keyword_over_regex(self, db, test_user):
-        """AC18.1.4 AC11.12.2: Rule type priority: KEYWORD beats REGEX (ML tier retired)."""
+        """AC-extraction.1801.2: AC18.1.4 AC11.12.2: Rule type priority: KEYWORD beats REGEX (ML tier retired)."""
         service = ClassificationService()
 
         keyword_account = Account(
@@ -708,7 +708,7 @@ class TestClassificationService:
 
 
 async def test_AC18_1_3_ml_rule_matching_is_retired(db, test_user):
-    """AC18.1.3: ML_MODEL rule matching is RETIRED (EPIC #1483 cleanup) — even an
+    """AC-extraction.1801.1: AC18.1.3: ML_MODEL rule matching is RETIRED (EPIC #1483 cleanup) — even an
     active ML_MODEL rule never matches (the model path is the classify node), and
     the dead AI-signal reader is gone from the service."""
     service = ClassificationService()
