@@ -99,3 +99,41 @@ jobs:
       blocking: false
       corpus: audit_replay
     secrets: inherit
+
+  evidence-bundle:
+    name: Generate Evidence Bundle
+    runs-on: ubuntu-latest
+    needs: [audit-replay]
+    # #1690: this nightly producer runs regardless of the (record-only, never
+    # blocking) audit-replay outcome, since a regression IS itself evidence
+    # worth bundling — mirrors the "record-only" spirit of AC8.13.157.
+    if: always()
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.12"
+
+      - name: Generate evidence bundle
+        env:
+          PROVIDER_STATUS: ${{ needs.audit-replay.outputs.ai_ocr_status }}
+          PROVIDER_EXIT_CODE: ${{ needs.audit-replay.outputs.ai_ocr_exit_code }}
+        run: |
+          python tools/generate_evidence_bundle.py \
+            --output evidence-bundle.json \
+            --github-summary "$GITHUB_STEP_SUMMARY" \
+            --gate-results "{\"audit-replay\": \"${PROVIDER_STATUS}\"}" \
+            --provider-status "$PROVIDER_STATUS" \
+            --provider-exit-code "$PROVIDER_EXIT_CODE"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: evidence-bundle
+          path: evidence-bundle.json
+          retention-days: 90

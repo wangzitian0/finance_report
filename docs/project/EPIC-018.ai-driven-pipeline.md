@@ -251,19 +251,29 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 
 ## 📊 Acceptance Criteria Summary
 
+> **AC18.1.1** is already proven by `AC-extraction.104.1`
+> (`test_get_parsing_prompt_default`) — no separate migration needed.
+> **AC18.1.2** ("BankStatementTransaction has suggested_category/
+> category_confidence columns"), **AC18.1.5** ("create_entry_from_txn reads
+> classification before defaulting to Uncategorized"), and **AC18.1.6**
+> ("auto-created category accounts are user-scoped") are **not verified in
+> this migration pass** — no ORM column or dedicated test was found for
+> AC18.1.2 specifically (the extraction prompt still asks for these fields,
+> but nothing appears to consume/store them post-#1483 cleanup); AC18.1.5/.6
+> need a dedicated look. Flagged during migration closeout, #1663 / #1715.
+>
+> *(AC18.1.3 removed and AC18.1.4 removed — migrated to the `extraction`
+> package roadmap as `AC-extraction.1801.1-2`, migration closeout
+> continuation, #1663 / #1715)*
+>
+> *(AC18.2.1 removed and AC18.2.2 removed and AC18.2.3 removed and AC18.2.4 removed and AC18.2.5 removed — migrated to the `extraction` package roadmap as `AC-extraction.1802.1-5`, migration closeout continuation, #1663 / #1715)*
+
 | AC ID | Phase | Description |
 |-------|-------|-------------|
 | AC18.1.1 | 1 | Extraction prompt returns `suggested_category` and `category_confidence` |
 | AC18.1.2 | 1 | `BankStatementTransaction` has `suggested_category` and `category_confidence` columns |
-| AC18.1.3 | 1 | RETIRED (EPIC #1483 cleanup): `RuleType.ML_MODEL` rule matching deleted — it read AI signals (`suggested_category`/`category_confidence`) that no producer ever wrote, and no rule CRUD exists; the model path is the transaction classify node (§AC18.15). `RuleType.ML_MODEL` survives only as the classification-policy anchor row type {tier:CODE-LED} {proof:property} |
-| AC18.1.4 | 1 | Classification priority: KEYWORD > REGEX > Uncategorized (the ML tier moved to the classify node, §AC18.15) {tier:CODE-LED} {proof:property} |
 | AC18.1.5 | 1 | `create_entry_from_txn` reads classification before defaulting to Uncategorized |
 | AC18.1.6 | 1 | Auto-created category accounts are user-scoped and correctly typed |
-| AC18.2.1 | 2 | `CorrectionLog` model records original and corrected categories |
-| AC18.2.2 | 2 | Corrections API records and retrieves correction stats |
-| AC18.2.3 | 2 | Few-shot examples from corrections injected into extraction prompt |
-| AC18.2.4 | 2 | Correction cache with 1-hour TTL |
-| AC18.2.5 | 2 | `top_corrections` typed as a `TopCorrection` Pydantic model in the corrections stats response |
 | AC18.3.1 | 3 | `ai_semantic_score()` returns similarity for transaction description pairs. **Not migrated** — `ai_semantic_score` is a genuine LLM call, but `reconciliation` is declared `CODE-ONLY`; migrating this row trips `check_authority_reconcile.py` (a CODE-ONLY package permits no LLM-classified roadmap-AC test). Needs a tier/package-boundary decision before migration, not a silent workaround (found during migration verification, #1663 / #1711) |
 | AC18.3.2 | 3 | Hybrid scoring: `0.7 * algorithmic + 0.3 * AI` for 60-84 range only. **Untested** — no test exercises `calculate_match_score`'s hybrid-AI branch (found during migration verification, #1663 / #1711) |
 | AC18.3.3 | 3 | Feature flag `enable_ai_reconciliation` controls AI scoring. **Untested** — no test toggles `ENABLE_AI_RECONCILIATION` (found during migration verification, #1663 / #1711) |
@@ -419,12 +429,9 @@ correction grounding of extraction already exists today via the few-shot path �
 AC18.2.3 — so this AC adds the *audit* view of the loop's effect, not a second
 grounding mechanism.)
 
-| ID | Phase | Description | Test | File | Priority |
-|----|-------|-------------|------|------|----------|
-| AC18.14.1 | Corpus | The correction corpus is derived from `CorrectionLog` (no sidecar), keyed by the transaction pattern, capturing proposed vs corrected | `test_AC18_14_1_corpus_is_derived_from_corrections_keyed_by_pattern()` | `services/test_correction_loop.py` | P1 |
-| AC18.14.2 | Replay | Replaying the corpus as priors strictly lowers the held-out low-confidence proportion when correction patterns recur, and invents no reduction when they do not | `test_AC18_14_2_replay_lowers_low_confidence_proportion_when_patterns_recur()`, `test_AC18_14_2_replay_does_not_invent_reduction_without_recurrence()` | `services/test_correction_loop.py` | P1 |
-| AC18.14.3 | Substrate | The service builds the corpus from the persisted correction store, scoped to the user | `test_AC18_14_3_service_builds_corpus_from_persisted_corrections()` | `services/test_correction_loop.py` | P1 |
-| AC18.14.4 | Observable | The held-out replay result is surfaced read-only over the live corpus, so the loop's effect on the low-confidence proportion is auditable (no new source of truth) | `test_AC18_14_4_service_replay_measures_held_out_reduction()`, `test_AC18_14_4_replay_endpoint_surfaces_the_loop_effect()` | `services/test_correction_loop.py`, `metrics/test_correction_loop_replay.py` | P1 |
+> This group's rows removed — migrated to the `extraction` package roadmap
+> as `AC-extraction.1814.1-4` (migration closeout continuation, #1663 /
+> #1715).
 
 ### AC18.15: Transaction Classify Node — Construct (#1544)
 
@@ -435,16 +442,9 @@ effective-dated, immutable `ClassificationPolicy` version (a change = a new vers
 an explicit `effective_from` cutoff, prospective by default). Construct-only: nothing in
 production consumes the node yet — #1545 (Migrate) flips that.
 
-| AC | Group | Description | Test Functions | Test File | Priority |
-|----|-------|-------------|----------------|-----------|----------|
-| AC18.15.1 | Policy | The classification policy is a versioned, effective-dated, immutable object: `policy_for(as_of)` head-selects the latest version whose `effective_from` <= as_of, and an effective version can never be mutated — a basis change is a new appended version {tier:CODE-LED} {proof:property} | `test_AC18_15_1_policy_is_effective_dated_and_immutable()` | `services/test_transaction_classification.py` | P1 |
-| AC18.15.2 | Purity | The classify pass is reproducible: identical (transactions, policy, proposals) produce identical outcomes, each stamped with the policy version {tier:CODE-LED} {proof:property} | `test_AC18_15_2_classify_is_reproducible_for_same_inputs()` | `services/test_transaction_classification.py` | P1 |
-| AC18.15.3 | Catalog | Model output is constrained to the policy's closed catalog: an off-catalog proposal is rejected (never applied), and the LLM boundary parses prompt-driven JSON with code-owned clamping and a graceful per-transaction `None` fallback {tier:CODE-LED} {proof:property} | `test_AC18_15_3_off_catalog_proposal_is_rejected_never_applied()`, `test_AC18_15_3_proposer_parses_and_clamps_model_json()`, `test_AC18_15_3_proposer_fails_safe_to_none()`, `test_AC18_15_3_proposer_recovers_fenced_or_prose_wrapped_arrays()`, `test_AC18_15_3_prompt_forbids_markdown_fences()`, `test_AC18_15_3_real_provider_response_shape_parses()` | `services/test_transaction_classification.py`, `services/test_classification_cassette.py` | P1 |
-| AC18.15.4 | Gate | The confidence gate disposes deterministically: >= auto threshold becomes an APPLIED classification onto a real catalog account; the review band becomes a DRAFT visible to the existing ai_feedback 60-84 queue; below stays in the genuine Uncategorized tail {tier:CODE-LED} {proof:property} | `test_AC18_15_4_confidence_gate_applies_reviews_or_tails()` | `services/test_transaction_classification.py` | P1 |
-| AC18.15.5 | Red line | The model never touches money: proposals cannot express an amount, the node imports no posting primitives, and transaction Decimal amounts pass through classification untouched {tier:CODE-LED} {proof:property} | `test_AC18_15_5_model_never_touches_money()` | `services/test_transaction_classification.py` | P0 |
-| AC18.15.6 | Pro-forma | `commit_basis=False` computes verdicts under a candidate policy without writing the basis-of-record: no classifications, no policy rules, no accounts {tier:CODE-LED} {proof:property} | `test_AC18_15_6_pro_forma_writes_nothing()` | `services/test_transaction_classification.py` | P1 |
-| AC18.15.7 | Rules | A user's deterministic rule wins before the model is consulted, and having no rules is a no-op pre-pass, not an error {tier:CODE-LED} {proof:property} | `test_AC18_15_7_user_rule_prepass_wins_over_model()`, `test_AC18_15_7_no_rules_is_a_noop_prepass_not_an_error()` | `services/test_transaction_classification.py` | P1 |
-| AC18.15.8 | Consumer seams | The node is inert with `enable_ai_classification` off (the default), and its production consumers are EXACTLY the two declared seams — the posting path (#1545) and the backfill/re-extract router (#1546); no other module may grow a side-door into classification {tier:CODE-LED} {proof:property} | `test_AC18_15_8_flag_off_is_a_noop()`, `test_AC18_15_8_production_consumers_are_the_declared_seams()` | `services/test_transaction_classification.py` | P1 |
+> This group's rows removed — migrated to the `extraction` package roadmap
+> as `AC-extraction.1815.1-8` (migration closeout continuation, #1663 /
+> #1715).
 
 ### AC18.16: Transaction Classification — Migrate (#1545)
 
@@ -453,13 +453,9 @@ effective policy (#1483 EPIC, Migrate stage). Headline invariant: publishing a n
 classification-basis version NEVER changes an already-covered period's as-reported
 figures — a basis change is prospective from its `effective_from` cutoff.
 
-| AC | Group | Description | Test Functions | Test File | Priority |
-|----|-------|-------------|----------------|-----------|----------|
-| AC18.16.1 | Comparability | Publishing a new policy version leaves every already-covered period's as-reported income statement byte-identical: each transaction classifies under the policy in effect on its own txn_date, and a full recompute after publishing stays prospective (covered rows keep their original policy anchor) {tier:CODE-LED} {proof:property} | `test_AC18_16_1_new_policy_version_never_restates_covered_periods()` | `services/test_classification_migration.py` | P0 |
-| AC18.16.2 | Symptom | After a real statement import with the flag on, the income statement has categorized leaf lines beyond the two Uncategorized buckets, each with a non-null confidence tier (the exact #1483 QA symptom, locked as a regression test; the per-line tier aggregation is now wired into the income statement) {tier:CODE-LED} {proof:property} | `test_AC18_16_2_import_produces_categorized_income_statement()` | `services/test_classification_migration.py` | P0 |
-| AC18.16.3 | Flag off | With `enable_ai_classification` off (the default), the import path behaves exactly as before this EPIC: only the two Uncategorized buckets, zero classification rows {tier:CODE-LED} {proof:property} | `test_AC18_16_3_flag_off_is_byte_identical_to_today()` | `services/test_classification_migration.py` | P1 |
-| AC18.16.4 | Backfill | The one-time backfill classifies each not-yet-classified transaction once under its own effective policy; a re-run is a no-op (idempotent, dated, append-only) — a temporary migration aid removed by #1546, not a permanent adapter {tier:CODE-LED} {proof:property} | `test_AC18_16_4_backfill_is_idempotent_dated_append_only()` | `services/test_classification_migration.py` | P1 |
-| AC18.16.5 | Ledger stability | Re-running classification never rewrites posted journal entries or lines — the category is a projection over the immutable ledger, not an edit of it {tier:CODE-LED} {proof:property} | `test_AC18_16_5_reclassification_never_rewrites_posted_entries()` | `services/test_classification_migration.py` | P0 |
+> This group's rows removed — migrated to the `extraction` package roadmap
+> as `AC-extraction.1816.1-5` (migration closeout continuation, #1663 /
+> #1715).
 
 ### AC18.17: Transaction Classification — Cleanup (#1546)
 
@@ -468,11 +464,9 @@ Closes the #1483 EPIC: no orphaned classification scaffolding can exist or recur
 live, controlled entry point (the seed of the edit-tags → re-extract capability)
 instead of dead code.
 
-| AC | Group | Description | Test Functions | Test File | Priority |
-|----|-------|-------------|----------------|-----------|----------|
-| AC18.17.1 | No orphans | Every classification entry seam has a production call site and the core pass is wired to a live seam (AST gate) — a defined-but-uninvoked classify writer fails CI, so orphaned scaffolding can never recur silently {tier:CODE-LED} {proof:property} | `test_AC18_17_1_no_classify_writer_is_defined_but_uninvoked()` | `services/test_transaction_classification.py` | P0 |
-| AC18.17.2 | Backfill live | `POST /classifications/backfill` classifies the caller's not-yet-classified transactions under each transaction's own effective policy, never duplicates or rewrites an existing classification on re-run, re-attempts the tail (low-confidence/no-proposal carry no row) by design — the re-extract semantics — and is flag-gated (off => zero classifications) {tier:CODE-LED} {proof:property} | `test_AC18_17_2_backfill_endpoint_classifies_then_is_idempotent()`, `test_AC18_17_2_backfill_endpoint_is_flag_gated()`, `test_AC18_17_2_tail_txns_are_reattempted_without_duplication()` | `api/test_classifications_router.py` | P1 |
-| AC18.17.3 | Single source | Reports consume exactly one classification source and only APPLIED rows — the DRAFT review band and SUPERSEDED history never leak into as-reported figures {tier:CODE-LED} {proof:property} | `test_AC18_17_3_reports_read_only_applied_classifications()` | `services/test_transaction_classification.py` | P0 |
+> This group's rows removed — migrated to the `extraction` package roadmap
+> as `AC-extraction.1817.1-3` (migration closeout continuation, #1663 /
+> #1715).
 
 ---
 

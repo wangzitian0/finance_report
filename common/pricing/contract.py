@@ -202,9 +202,11 @@ CONTRACT = PackageContract(
     # later commit implements them for real.
     interface=[
         "Authority",
+        "FxRate",
         "MARKET_DATA_QUANTITY_UNIT",
         "MarketDataScopeStatus",
         "MarketDataSyncResult",
+        "MarketDataSyncState",
         "ObservationRepository",
         "ObservationSource",
         "PriceObservation",
@@ -213,6 +215,7 @@ CONTRACT = PackageContract(
         "PricingError",
         "ResolutionPolicy",
         "SqlObservationRepository",
+        "StockPrice",
         "convert_amount",
         "convert_money",
         "convert_to_base",

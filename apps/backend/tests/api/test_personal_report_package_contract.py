@@ -19,7 +19,6 @@ from src.extraction.extension.evidence_graph_integration import EvidenceGraphInt
 from src.extraction.extension.review_queue import create_entry_from_txn
 from src.identity import User
 from src.models.account import Account, AccountType
-from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AssetType, AtomicPosition, AtomicTransaction, TransactionDirection
@@ -35,11 +34,12 @@ from src.models.layer3 import (
     RuleType,
 )
 from src.models.layer4 import ReportSnapshot, ReportType
-from src.models.market_data import FxRate
 from src.models.portfolio import DividendIncome, MarketDataOverride, PriceSource
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
+from src.pricing.orm.market_data import FxRate
+from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 from src.routers.reports import (
     ExportFormat,
     ExportReportType,

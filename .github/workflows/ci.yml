@@ -33,6 +33,13 @@ jobs:
       # build config/entrypoint). Pure app-source changes are proven by frontend-build
       # and the backend test jobs, so container-images is right-moved off them.
       image_build_required: ${{ steps.classify.outputs.image_build_required }}
+      # #1689: per-component change flags, so a PR only pays for what it touched
+      # (frontend-telemetry-e2e skip, unified-coverage gate scoping).
+      backend_changed: ${{ steps.classify.outputs.backend_changed }}
+      frontend_changed: ${{ steps.classify.outputs.frontend_changed }}
+      tools_changed: ${{ steps.classify.outputs.tools_changed }}
+      common_changed: ${{ steps.classify.outputs.common_changed }}
+      coverage_gate_components: ${{ steps.classify.outputs.coverage_gate_components }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -872,7 +879,14 @@ jobs:
     name: Frontend Telemetry E2E
     runs-on: ubuntu-latest
     needs: [changes]
-    if: needs.changes.outputs.pr_required == 'true'
+    # #1689: right-moved off unrelated PRs (browser install is ~2-3 min). Always
+    # runs on main/release push and manual dispatch (this is the production
+    # observability canary); on a PR it only runs when apps/frontend/** changed,
+    # mirroring container-images' image_build_required pattern above.
+    if: >-
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')))
+      || github.event_name == 'workflow_dispatch'
+      || (needs.changes.outputs.pr_required == 'true' && needs.changes.outputs.frontend_changed == 'true')
 
     steps:
       - uses: actions/checkout@v7
@@ -1170,6 +1184,13 @@ jobs:
         # absent artifact is reported (as 0% for the missing component) rather
         # than hard-aborting this always-run gate. The no-regression check still
         # applies to whatever LCOV is present.
+        #
+        # #1689: on a PR, only the components the PR actually touched BLOCK the
+        # run on regression; an unrelated component's regression is still
+        # reported (visible in this step's output) but does not fail the job —
+        # main-branch push always gates the full unscoped set (env unset here).
+        env:
+          COVERAGE_GATE_COMPONENTS: ${{ github.event_name == 'pull_request' && needs.changes.outputs.coverage_gate_components || '' }}
         run: |
           python tools/calculate_unified_coverage.py
 
@@ -1498,6 +1519,39 @@ jobs:
           # shellcheck disable=SC2086
           python tools/check_pr_ci_evidence.py $junit_files
 
+  evidence-bundle:
+    name: Generate Evidence Bundle
+    needs: [changes, unified-coverage, ac-behavioral-ratchet]
+    # #1690: main-branch-only, informational (not a required check — no gate
+    # depends on this job, so it cannot block a merge or grow the required-check
+    # count). Runs after the two gates whose output it aggregates.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Generate evidence bundle
+        run: |
+          python tools/generate_evidence_bundle.py \
+            --output evidence-bundle.json \
+            --github-summary "$GITHUB_STEP_SUMMARY" \
+            --gate-results '{"unified-coverage": "${{ needs.unified-coverage.result }}", "ac-behavioral-ratchet": "${{ needs.ac-behavioral-ratchet.result }}"}'
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: evidence-bundle
+          path: evidence-bundle.json
+          retention-days: 90
+
   finish:
     needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, lint, tooling-coverage, unified-coverage, ac-traceability, ac-behavioral-ratchet]
     if: ${{ always() }}
@@ -1654,7 +1708,10 @@ jobs:
               echo "::error::Frontend Playwright failed"
               exit 1
             fi
-            if [[ "${{ needs.frontend-telemetry-e2e.result }}" != "success" ]]; then
+            # #1689: frontend-telemetry-e2e is right-moved off PRs that touch no
+            # apps/frontend/** path (frontend_changed=false), which is a pass,
+            # not a gap — mirrors container-images' skip-is-a-pass clause below.
+            if [[ "${{ needs.frontend-telemetry-e2e.result }}" != "success" && "${{ needs.frontend-telemetry-e2e.result }}" != "skipped" ]]; then
               echo "::error::Frontend telemetry E2E failed"
               exit 1
             fi

@@ -1593,7 +1593,13 @@ def test_AC8_13_147_frontend_ci_split_preserves_merge_authority() -> None:
     assert "frontend" not in jobs
     for job_id in split_jobs:
         assert jobs[job_id]["needs"] == ["changes"]
+    for job_id in ("frontend-build", "frontend-vitest", "frontend-playwright"):
         assert jobs[job_id]["if"] == "needs.changes.outputs.pr_required == 'true'"
+    # frontend-telemetry-e2e is right-moved (#1689): still required proof on
+    # every PR that touches apps/frontend/**, but no longer runs unconditionally
+    # on every PR — see test_AC8_13_162_frontend_telemetry_e2e_is_right_moved_and_skip_is_a_pass.
+    frontend_changed_output = "needs.changes.outputs.frontend_changed"
+    assert frontend_changed_output in jobs["frontend-telemetry-e2e"]["if"]
 
     assert jobs["unified-coverage"]["needs"] == [
         "changes",
@@ -1654,6 +1660,34 @@ def test_AC8_13_147_frontend_ci_split_preserves_merge_authority() -> None:
     assert "frontend-vitest-test-context" in workflow_text
     assert "frontend-playwright-test-context" in workflow_text
     assert "frontend-telemetry-test-context" in workflow_text
+
+
+def test_AC8_13_162_frontend_telemetry_e2e_is_right_moved_and_skip_is_a_pass() -> None:
+    """AC8.13.162: frontend-telemetry-e2e is right-moved off unrelated PRs
+    (mirrors container-images' image_build_required pattern), and finish's
+    aggregation treats its skip as a pass, not a gap (#1689)."""
+    workflow = yaml.safe_load(read(".github/workflows/ci.yml"))
+    jobs = workflow["jobs"]
+
+    telemetry_if = jobs["frontend-telemetry-e2e"]["if"]
+    required_fragments = (
+        "needs.changes.outputs.frontend_changed",
+        "github.event_name == 'workflow_dispatch'",
+        "refs/heads/main",
+    )
+    for fragment in required_fragments:
+        assert fragment in telemetry_if
+
+    finish_commands = "\n".join(
+        str(step.get("run", ""))
+        for step in jobs["finish"].get("steps", [])
+        if isinstance(step, dict)
+    )
+    skip_is_a_pass_clause = (
+        '"${{ needs.frontend-telemetry-e2e.result }}" != "success" '
+        '&& "${{ needs.frontend-telemetry-e2e.result }}" != "skipped"'
+    )
+    assert skip_is_a_pass_clause in finish_commands
 
 
 def test_AC8_13_148_backend_shards_use_seeded_5_way_split() -> None:
@@ -3789,7 +3823,6 @@ def test_AC8_13_116_skip_heavy_ci_on_main_push() -> None:
         "frontend-build:",
         "frontend-vitest:",
         "frontend-playwright:",
-        "frontend-telemetry-e2e:",
         "tooling-coverage:",
         "unified-coverage:",
     ]:
@@ -3810,6 +3843,23 @@ def test_AC8_13_116_skip_heavy_ci_on_main_push() -> None:
         "github.event_name == 'push' && (github.ref == 'refs/heads/main'"
         in container_images_block
     )
+
+    # frontend-telemetry-e2e (#1689): right-moved off unrelated PRs the same way
+    # container-images is — PR path gates on pr_required + frontend_changed, but
+    # main/release push and workflow_dispatch always run it (production
+    # observability canary).
+    telemetry_block = workflow.split("  frontend-telemetry-e2e:", 1)[1].split(
+        "\n\n", 1
+    )[0]
+    pr_scope_condition = (
+        "needs.changes.outputs.pr_required == 'true' "
+        "&& needs.changes.outputs.frontend_changed == 'true'"
+    )
+    main_push_override = (
+        "github.event_name == 'push' && (github.ref == 'refs/heads/main'"
+    )
+    assert pr_scope_condition in telemetry_block
+    assert main_push_override in telemetry_block
 
     # Check finish job handles skipped tests on push via pr_required output
     finish_block = workflow.split("  finish:", 1)[1]

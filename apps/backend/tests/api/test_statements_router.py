@@ -43,7 +43,6 @@ from src.extraction.extension.statement_posting import (
 from src.identity import User
 from src.llm.base import Modality, ModelSpec
 from src.models.account import Account, AccountType
-from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 from src.models.evidence import EvidenceEdge, EvidenceNode
 from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus
 from src.models.layer1 import DocumentType, UploadedDocument
@@ -52,6 +51,7 @@ from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
 from src.reconciliation.extension.review_queue import accept_match as accept_match_service
+from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 from src.routers import review as review_router, statements as statements_router
 from src.runtime import StorageError
 from src.schemas import StatementDecisionRequest
@@ -2815,7 +2815,7 @@ async def test_resolve_consistency_check_success(db, test_user):
     When resolve_consistency_check is called with action='approve',
     Then it resolves the check (lines 905-911).
     """
-    from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
+    from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 
     check = ConsistencyCheck(
         user_id=test_user.id,
@@ -2846,7 +2846,7 @@ async def test_resolve_consistency_check_invalid_action(db, test_user):
     When resolve_consistency_check is called with an invalid action,
     Then it raises 400.
     """
-    from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
+    from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 
     check = ConsistencyCheck(
         user_id=test_user.id,
@@ -2902,7 +2902,7 @@ async def test_list_consistency_checks_with_filters(db, test_user):
     When list_consistency_checks is called with status and type filters,
     Then it returns filtered results (lines 934-939).
     """
-    from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
+    from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 
     check1 = ConsistencyCheck(
         user_id=test_user.id,
@@ -2942,7 +2942,7 @@ async def test_batch_approve_matches_blocked_by_unresolved_checks(db, test_user)
     When batch_approve_matches is called,
     Then it returns error (lines 960-965).
     """
-    from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
+    from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 
     check = ConsistencyCheck(
         user_id=test_user.id,

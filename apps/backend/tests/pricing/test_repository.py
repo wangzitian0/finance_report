@@ -18,11 +18,11 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.layer3 import ManualValuationSnapshot
-from src.models.market_data import FxRate, StockPrice
 from src.models.portfolio import MarketDataOverride
 from src.pricing.base.observation import Authority, ObservationSource
 from src.pricing.base.subject import PriceableSubject
 from src.pricing.extension.repository import SqlObservationRepository
+from src.pricing.orm.market_data import FxRate, StockPrice
 
 pytestmark = pytest.mark.asyncio
 

@@ -769,3 +769,98 @@ def test_in_runner_stack_and_selection_ssot_trigger_preview_gate() -> None:
         "tools/test_selection.py",
     ):
         assert is_pr_preview_relevant(path), path
+
+
+# --------------------------------------------------------------------------- #
+# AC8.13.161 — per-component change signal (#1689, gate re-architecture Phase 3)
+# --------------------------------------------------------------------------- #
+def test_AC8_13_161_component_changed_isolates_a_single_component() -> None:
+    """AC8.13.161: a backend-only diff flags only backend as changed."""
+    result = classify_changed_paths(
+        ["apps/backend/src/services/reporting/cash_flow.py"]
+    )
+    assert result.component_changed == {
+        "backend": True,
+        "frontend": False,
+        "tools": False,
+        "common": False,
+    }
+
+
+def test_AC8_13_161_component_changed_flags_every_touched_component() -> None:
+    result = classify_changed_paths(
+        [
+            "apps/frontend/src/app/page.tsx",
+            "common/testing/matrix.py",
+            "tools/foo.py",
+            "tests/tooling/test_foo.py",
+        ]
+    )
+    assert result.component_changed == {
+        "backend": False,
+        "frontend": True,
+        "tools": True,
+        "common": True,
+    }
+
+
+def test_AC8_13_161_component_changed_fails_closed_on_unknown_diff() -> None:
+    """An empty (undetected) diff must not silently scope OUT every component —
+    matches heavy_required/image_build_required's fail-closed convention."""
+    result = classify_changed_paths([])
+    assert result.component_changed == {
+        "backend": True,
+        "frontend": True,
+        "tools": True,
+        "common": True,
+    }
+
+
+def test_AC8_13_161_component_changed_is_false_for_root_only_config() -> None:
+    """A change to a root-level file that maps to no component (e.g. a compose
+    file) correctly reports every component as untouched — the PR-time coverage
+    gate then falls back to the unscoped/strict default (empty coverage_gate_components)."""
+    result = classify_changed_paths(["docker-compose.yml"])
+    assert result.component_changed == {
+        "backend": False,
+        "frontend": False,
+        "tools": False,
+        "common": False,
+    }
+
+
+def test_AC8_13_161_github_outputs_include_component_changed_scalars(
+    tmp_path: Path,
+) -> None:
+    result = classify_changed_paths(
+        ["apps/backend/src/services/reporting/cash_flow.py", "tools/foo.py"]
+    )
+    output = tmp_path / "github-output.txt"
+    classifier.write_github_outputs(result, output)
+    output_lines = dict(
+        line.split("=", maxsplit=1)
+        for line in output.read_text(encoding="utf-8").splitlines()
+    )
+    assert output_lines["backend_changed"] == "true"
+    assert output_lines["frontend_changed"] == "false"
+    assert output_lines["tools_changed"] == "true"
+    assert output_lines["common_changed"] == "false"
+    # Ready-to-use comma list for COVERAGE_GATE_COMPONENTS — no fromJSON() needed
+    # in workflow YAML.
+    assert output_lines["coverage_gate_components"] == "backend,tools"
+
+
+def test_AC8_13_161_summary_includes_component_changed_table(
+    tmp_path: Path,
+) -> None:
+    result = classify_changed_paths(["apps/frontend/src/app/page.tsx"])
+    summary = tmp_path / "github-summary.md"
+    classifier.write_github_summary(result, summary)
+    summary_text = summary.read_text(encoding="utf-8")
+    # Assert on the actual computed per-component values (not a hardcoded
+    # message mirror, per the mirror-assertion ratchet in
+    # common/testing/mirror_ratchet.py): every row must reflect
+    # result.component_changed, not stale text.
+    for name, changed in result.component_changed.items():
+        row = f"| `{name}` | `{str(changed).lower()}` |"
+        assert row in summary_text

@@ -53,6 +53,14 @@ PREFLIGHT_COMPONENTS: tuple[CoverageComponent, ...] = ()
 # the ``--require-artifacts`` CLI flag when that is supplied.
 REQUIRED_COMPONENTS_ENV = "COVERAGE_REQUIRED_COMPONENTS"
 
+# #1689 (gate re-architecture Phase 3 "cost-right"): comma-separated component
+# names (or "all") whose no-regression check BLOCKS this run. Every component is
+# still computed and written to unified-coverage.json regardless; scoping only
+# narrows which regressions fail the job. Omitted -> None -> "all" (unchanged,
+# strict) behavior — this is the safe default main-branch pushes always get.
+# Overridden by the ``--gate-components`` CLI flag when that is supplied.
+GATE_COMPONENTS_ENV = "COVERAGE_GATE_COMPONENTS"
+
 BACKEND_DIR = ROOT_DIR / "apps" / "backend"
 FRONTEND_DIR = ROOT_DIR / "apps" / "frontend"
 TOOLS_DIR = ROOT_DIR / "tools"
@@ -520,6 +528,20 @@ def parse_args(argv: list[str] | tuple[str, ...]) -> argparse.Namespace:
             f"abort); falls back to the {REQUIRED_COMPONENTS_ENV} env var."
         ),
     )
+    parser.add_argument(
+        "--gate-components",
+        default=None,
+        metavar="COMPONENTS",
+        help=(
+            "#1689: comma-separated component names (e.g. 'backend,tools', or "
+            "'all') whose no-regression check BLOCKS this run. Components "
+            "outside the set are still computed and written to "
+            "unified-coverage.json, but a regression there is reported, not "
+            "gate-failing (main-branch push still catches it via the full "
+            "unscoped run). Omitted -> 'all' (unchanged, strict); falls back "
+            f"to the {GATE_COMPONENTS_ENV} env var."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -552,6 +574,28 @@ def main(argv: list[str] | tuple[str, ...] = ()) -> None:
             sys.exit(2)
     else:
         preflight_components = PREFLIGHT_COMPONENTS
+
+    # #1689: resolve the gate scope. None means "gate everything" (the
+    # unchanged, strict default every caller gets unless it opts in) — reusing
+    # resolve_required_components since it is a general comma-list/"all" name
+    # resolver, not preflight-specific despite the function name.
+    gate_spec = args.gate_components
+    if gate_spec is None:
+        gate_spec = os.environ.get(GATE_COMPONENTS_ENV, "").strip() or None
+    gate_component_names: set[str] | None
+    if gate_spec is not None:
+        try:
+            gate_component_names = {
+                c.name for c in resolve_required_components(gate_spec)
+            }
+        except ValueError as exc:
+            print(
+                f"\n❌ Invalid --gate-components/{GATE_COMPONENTS_ENV}: {exc}",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+    else:
+        gate_component_names = None
 
     preflight_errors = required_artifacts_preflight(preflight_components, ROOT_DIR)
     if preflight_errors:
@@ -619,7 +663,14 @@ def main(argv: list[str] | tuple[str, ...] = ()) -> None:
             regressions: list[tuple[str, float, float]] = []
             unified_current = round(unified["coverage_percent"], 2)
             unified_floor = round(float(baseline_unified), 2)
-            if unified_current < unified_floor - REGRESSION_EPSILON_PCT:
+            # #1689: the blended "unified" total mixes every component, so a
+            # scoped gate (PR touched only some components) cannot fairly
+            # attribute a total dip to THIS run — skip it when scoped; an
+            # unscoped (None = "all") run keeps checking it, unchanged.
+            if (
+                gate_component_names is None
+                and unified_current < unified_floor - REGRESSION_EPSILON_PCT
+            ):
                 regressions.append(("unified", unified_current, unified_floor))
 
             # Component breakdown comparison (if available)
@@ -639,6 +690,23 @@ def main(argv: list[str] | tuple[str, ...] = ()) -> None:
             if "tools" in baseline_breakdown:
                 components_to_check.append(
                     ("tools", tools, baseline_breakdown["tools"])
+                )
+
+            if gate_component_names is not None:
+                out_of_scope = [
+                    name
+                    for name, _current, _baseline in components_to_check
+                    if name not in gate_component_names
+                ]
+                components_to_check = [
+                    entry
+                    for entry in components_to_check
+                    if entry[0] in gate_component_names
+                ]
+                print(
+                    f"\n🔧 #1689 coverage gate scoped to: "
+                    f"{', '.join(sorted(gate_component_names)) or '(none)'} "
+                    f"(informational-only for: {', '.join(out_of_scope) or '(none)'})"
                 )
 
             for component_name, current_data, baseline_data in components_to_check:

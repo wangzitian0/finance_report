@@ -12,9 +12,9 @@ from decimal import Decimal
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.market_data import FxRate
 from src.pricing.base.errors import NoObservationError, PricingError
 from src.pricing.extension.fx import get_average_rate, get_exchange_rate
+from src.pricing.orm.market_data import FxRate
 
 pytestmark = pytest.mark.asyncio
 

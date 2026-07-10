@@ -224,3 +224,100 @@ class TestPreflightOptIn:
             cuc.main()
         assert exc.value.code == 1
         assert not (tmp_path / "unified-coverage.json").exists()
+
+
+# ---------------------------------------------------------------------------
+# #1689 — component-scoped PR coverage gate
+# ---------------------------------------------------------------------------
+
+
+class TestGateComponentsScoping:
+    """AC8.13.163: --gate-components/COVERAGE_GATE_COMPONENTS narrows the
+    no-regression check to the named components on a PR; other components'
+    regressions are reported but do not fail the job. Omitted -> unchanged
+    strict "gate everything" behavior (main-branch push's safe default)."""
+
+    def _scoped_env(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
+        monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+        monkeypatch.delenv(cuc.REQUIRED_COMPONENTS_ENV, raising=False)
+        monkeypatch.delenv(cuc.GATE_COMPONENTS_ENV, raising=False)
+
+        baseline_path = tmp_path / "unified-coverage.json"
+        baseline_path.write_text(
+            '{"coverage_percent": 50, "breakdown": '
+            '{"backend": {"coverage_percent": 50}, '
+            '"frontend": {"coverage_percent": 0}}}'
+        )
+        monkeypatch.setenv("BASELINE_FILE", "unified-coverage.json")
+
+        # backend regresses (0% current vs a 50% floor); frontend's floor is
+        # already 0%, so its 0% current is NOT a regression. common/tools have
+        # no baseline entry at all, so they are never compared either way.
+        _write_lcov(tmp_path / "coverage" / "backend.lcov", covered=0, total=10)
+
+    def test_AC8_13_163_unscoped_default_fails_on_backend_and_unified(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        self._scoped_env(tmp_path, monkeypatch)
+        with pytest.raises(SystemExit) as exc:
+            cuc.main()  # no --gate-components -> "all" (unchanged, strict)
+        assert exc.value.code == 1
+        combined = "".join(capsys.readouterr())
+        for regressed_name in ("backend", "unified"):
+            marker = f"- {regressed_name}:"
+            assert marker in combined
+
+    def test_AC8_13_163_scoped_to_the_regressed_component_still_fails(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        self._scoped_env(tmp_path, monkeypatch)
+        with pytest.raises(SystemExit) as exc:
+            cuc.main(["--gate-components", "backend"])
+        assert exc.value.code == 1
+        combined = "".join(capsys.readouterr())
+        backend_marker = "- backend:"
+        assert backend_marker in combined
+        # The blended unified total is not attributable to a scoped run.
+        unified_marker = "- unified:"
+        assert unified_marker not in combined
+
+    def test_AC8_13_163_scoped_away_from_the_regressed_component_passes(
+        self, tmp_path, monkeypatch
+    ):
+        self._scoped_env(tmp_path, monkeypatch)
+        with pytest.raises(SystemExit) as exc:
+            cuc.main(["--gate-components", "frontend"])
+        # backend's regression is out of scope -> informational only, not
+        # gate-failing; frontend itself has no regression -> the job passes.
+        assert exc.value.code == 0
+        assert (tmp_path / "unified-coverage.json").exists()
+
+    def test_AC8_13_163_env_var_fallback_matches_the_cli_flag(
+        self, tmp_path, monkeypatch
+    ):
+        self._scoped_env(tmp_path, monkeypatch)
+        monkeypatch.setenv(cuc.GATE_COMPONENTS_ENV, "frontend")
+        with pytest.raises(SystemExit) as exc:
+            cuc.main()
+        assert exc.value.code == 0
+
+    def test_AC8_13_163_unknown_gate_component_name_fails_loudly(
+        self, tmp_path, monkeypatch
+    ):
+        self._scoped_env(tmp_path, monkeypatch)
+        with pytest.raises(SystemExit) as exc:
+            cuc.main(["--gate-components", "nope"])
+        assert exc.value.code == 2
+
+    def test_AC8_13_163_main_branch_push_omits_the_flag_and_stays_strict(
+        self, tmp_path, monkeypatch
+    ):
+        # Documents the CI wiring contract (ci.yml only sets
+        # COVERAGE_GATE_COMPONENTS on pull_request events): with the env unset,
+        # a regression anywhere still fails the run, matching today's
+        # main-branch push behavior exactly.
+        self._scoped_env(tmp_path, monkeypatch)
+        with pytest.raises(SystemExit) as exc:
+            cuc.main()
+        assert exc.value.code == 1

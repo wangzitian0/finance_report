@@ -40,7 +40,7 @@ async def test_post_create_correction_and_stats(client: AsyncClient, db, test_us
 
 
 def test_AC18_2_5_top_corrections_is_typed_pydantic_model():
-    """AC18.2.5: top_corrections is typed as a TopCorrection Pydantic model.
+    """AC-extraction.1802.5: AC18.2.5: top_corrections is typed as a TopCorrection Pydantic model.
 
     The stats response schema must declare ``top_corrections`` as a list of
     ``TopCorrection`` models (count: int, original_category: str | None,

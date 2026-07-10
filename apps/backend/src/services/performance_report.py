@@ -20,8 +20,8 @@ from src.audit.ratio import Ratio
 from src.deps import CurrentUserId, DbSession
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
-from src.models.market_data import StockPrice
 from src.models.portfolio import MarketDataOverride, PriceSource
+from src.pricing.orm.market_data import StockPrice
 from src.schemas.portfolio import (
     HoldingResponse,
     InvestmentPerformanceAllocationRow,

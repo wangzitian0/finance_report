@@ -13,7 +13,6 @@ from src.extraction import (
     resolve_statement_transactions,
     resolve_transaction_currency,
 )
-from src.models.consistency_check import CheckStatus, CheckType
 from src.models.journal import JournalEntry, JournalEntryStatus
 from src.models.layer2 import AtomicTransaction
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
@@ -29,6 +28,7 @@ from src.reconciliation import (
     resolve_check,
     run_all_consistency_checks,
 )
+from src.reconciliation.orm.consistency_check import CheckStatus, CheckType
 from src.schemas.review import (
     BatchApproveRequest,
     BatchApproveResponse,

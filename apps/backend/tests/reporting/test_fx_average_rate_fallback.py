@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.market_data import FxRate
+from src.pricing.orm.market_data import FxRate
 from src.services.fx import FxRateError, _CacheEntry, _FxRateCache, clear_fx_cache, get_average_rate
 
 

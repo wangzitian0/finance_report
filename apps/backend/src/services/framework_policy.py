@@ -15,8 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.account import Account, AccountType
 from src.models.layer2 import AssetType, AtomicPosition
 from src.models.layer3 import ManualValuationComponentType, ManualValuationSnapshot
-from src.models.market_data import StockPrice
 from src.models.portfolio import DividendIncome, MarketDataOverride
+from src.pricing.orm.market_data import StockPrice
 from src.schemas.reporting import (
     FrameworkPolicyDecision,
     FrameworkPolicyEvidenceAnchor,
