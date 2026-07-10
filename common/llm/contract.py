@@ -595,6 +595,20 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="eval",
         ),
+        # #1681/#1686: the per-case ratchet's "missing" finding only fires when a
+        # baseline LINE outlives its ground-truth file; a commit that removes a
+        # case's ground truth AND its baseline line together leaves no per-case
+        # floor to detect the loss. AC-llm.8.8 closes that gap with an
+        # independently-persisted, raise-only corpus SIZE floor. Deterministic
+        # pure-function check, not LLM-graded: proof_kind=property.
+        ACRecord(
+            id="AC-llm.8.8",
+            statement="The graded-eval corpus carries an independently-persisted, raise-only minimum-case-count floor (cassette-corpus-count-baseline.json) that fails the gate when the current case count drops below it — including when a case's ground-truth file AND its per-case baseline line are removed together in one commit, which the per-case ratchet's 'missing' check cannot see on its own",
+            test="tests/tooling/test_cassette_graded_eval.py::test_AC_corpus_count_floor_blocks_the_gate_when_corpus_is_below_it",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
         ACRecord(
             id="AC-llm.9.1",
             statement="Importing the litellm client disables litellm's aiohttp transport (so no per-`acompletion` unclosed-session leak); the transport resolver returns httpx | `test_AC23_9_1_litellm_aiohttp_transport_disabled_prevents_session_leak`",  # was AC23.9.1
@@ -713,6 +727,31 @@ CONTRACT = PackageContract(
             id="AC-llm.11.4",
             statement="Every non-empty corpus statement's income statement (queried over the statement's own transaction date range) reports total_income minus total_expenses, and net_income, exactly equal to the corpus case's net movement — proving the auto-posted double entry always lands its contra side on Income/Expense, independent of category granularity or institution class",
             test="apps/backend/tests/e2e/test_statement_corpus_journeys.py::test_corpus_statement_full_journey",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-llm.11.5",
+            statement="Every non-empty corpus statement's cash-flow report accounts for the posting account's net movement exactly once — either as the ending_cash delta when generate_cash_flow classifies the account as cash, or as a single Investing/Operating/Financing line (sign-flipped per cash_flow_amount's ASSET convention) when it does not — proving conservation (nothing silently dropped) without asserting a name-heuristic result that would be wrong for brokerage-class accounts under standard cash-flow-statement accounting",
+            test="apps/backend/tests/e2e/test_statement_corpus_journeys.py::test_corpus_statement_full_journey",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        # #950 (closed) recorded a residual gap: "does the upload -> report
+        # derivation hold across more than one statement in the same ledger"
+        # was only proven against a synthetic 12-month CSV sequence
+        # (AC8.15.1), never against real (cassette-replayed) data. #950's own
+        # text pointed at tests/fixtures/2025_parsed.json for this; that file
+        # no longer exists anywhere in the repo (verified 2026-07-09). Proven
+        # instead against three real, distinct-account corpus statements
+        # (CMB/MariBank/Moomoo, Jan-Jun 2025) accumulated in one test user's
+        # ledger.
+        ACRecord(
+            id="AC-llm.11.6",
+            statement="Three real corpus statements (distinct accounts, Jan-Jun 2025) seeded and approved for the SAME user produce a combined-period balance sheet and income statement that tie exactly to the sum of all three cases' net movements — the upload->report derivation holds across multiple statements accumulating in one ledger, not just within a single statement's own journey",
+            test="apps/backend/tests/e2e/test_statement_corpus_journeys.py::test_corpus_multi_statement_acceptance_same_user",
             priority="P0",
             status="done",
             proof_kind="property",

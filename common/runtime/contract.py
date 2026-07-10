@@ -315,7 +315,7 @@ CONTRACT = PackageContract(
             status="done",
         ),
         # ── group 21: Bootloader static-config boot gate (was EPIC-001
-        # AC1.10.1, migration closeout wave 3, #1416) — each branch of
+        # AC1.10.1, migration closeout wave 3, #1663) — each branch of
         # Bootloader._check_static_config is a distinct rejection reason ──
         ACRecord(
             id="AC-runtime.21.1",
@@ -339,7 +339,10 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-runtime.21.3",
-            statement="Bootloader._check_static_config rejects the local-development DB default in a protected environment.",
+            statement=(
+                "Bootloader._check_static_config rejects the local-"
+                "development DB default in a protected environment."
+            ),
             test=(
                 "apps/backend/tests/infra/test_boot.py"
                 "::test_AC1_10_1_static_config_rejects_default_db_in_protected_env"
@@ -349,7 +352,11 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-runtime.21.4",
-            statement="Bootloader._check_static_config treats a public app URL as protected even when ENVIRONMENT is misnamed (e.g. 'preview'), rejecting a default S3 secret under it.",
+            statement=(
+                "Bootloader._check_static_config treats a public app URL as "
+                "protected even when ENVIRONMENT is misnamed (e.g. "
+                "'preview'), rejecting a default S3 secret under it."
+            ),
             test=(
                 "apps/backend/tests/infra/test_boot.py"
                 "::test_AC1_10_1_static_config_rejects_default_s3_secret_in_production_like_url"
@@ -369,7 +376,11 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-runtime.21.6",
-            statement="Bootloader._check_static_config allows the convenient development-default JWT secret in the development environment.",
+            statement=(
+                "Bootloader._check_static_config allows the convenient "
+                "development-default JWT secret in the development "
+                "environment."
+            ),
             test=(
                 "apps/backend/tests/infra/test_boot.py"
                 "::test_AC1_10_1_static_config_allows_development_default_secret_key"

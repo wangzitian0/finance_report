@@ -22,8 +22,11 @@ The package-local worklist.  Cross-package migration lives in
       - `phases/prompt_construction.py`
       - `phases/response_streaming.py`
       - `_guardrails.py` stays separate.
-- [ ] Move `src/services/pii_redaction.py` → `src/advisor/_guardrails.py`
-      (or merge into the guardrail module — pairs with `_guardrails`).
+- [x] ~~Move `src/services/pii_redaction.py` → `src/advisor/_guardrails.py`~~
+      Superseded by #1677's ruling: `pii_redaction` moved to
+      `src/observability/pii_redaction.py` — its consumers are observability's
+      audit helpers and extraction's CSV path, not the advisor. Advisor's
+      `_guardrails.py` keeps its own chat-stream redaction (a separate concern).
 - [ ] Move `src/services/ai_streaming.py` → `src/advisor/extension/streaming.py`
       (zero-residue check: declared in scope additions, 2026-07-03).
 - [ ] Physical `base/` / `extension/` / `data/` split:

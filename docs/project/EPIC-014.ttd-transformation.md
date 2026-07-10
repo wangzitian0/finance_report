@@ -270,7 +270,7 @@ Historical work-progress reports and test-organization audits were removed from 
 > `AC-meta.doc-consistency.*`, `AC-meta.ssot-governance.*`,
 > `AC-meta.issue-templates.*`, `AC-meta.generated-refs.*`, and
 > `AC-meta.coverage-tiers.*` (the leading "14" is dropped; the original
-> AC14.1.<n> id is kept as a trailing comment on each migrated record).
+> `AC14.1.n` id is kept as a trailing comment on each migrated record).
 > `common/meta/extension/generate_ac_registry.py` reads package-contract
 > roadmaps additively, so the AC index counts them without an EPIC-table
 > mirror. This note references the ids for traceability but defines none of

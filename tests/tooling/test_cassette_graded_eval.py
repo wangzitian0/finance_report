@@ -302,11 +302,27 @@ def test_AC23_8_6_ground_truth_artifacts_are_synthetic() -> None:
     # Non-PII string fields that may stay verbatim. Description fields may be a pseudonym.
     # ANY other string field MUST be ``**`` — allowlist (deny-by-default), so a new key can't leak.
     safe_string_keys = {
-        "institution", "currency", "period_start", "period_end",
-        "opening_balance", "closing_balance", "opening", "closing",
-        "date", "amount", "direction", "balance_after", "suggested_category",
-        "symbol", "ticker", "isin", "asset_identifier", "asset_type",
-        "quantity", "market_value", "price",
+        "institution",
+        "currency",
+        "period_start",
+        "period_end",
+        "opening_balance",
+        "closing_balance",
+        "opening",
+        "closing",
+        "date",
+        "amount",
+        "direction",
+        "balance_after",
+        "suggested_category",
+        "symbol",
+        "ticker",
+        "isin",
+        "asset_identifier",
+        "asset_type",
+        "quantity",
+        "market_value",
+        "price",
     }
     # Broad CJK / kana / hangul coverage (Han + Ext-A + Hiragana/Katakana + Hangul) so a
     # name in any East-Asian script is caught, not just the basic Han block.
@@ -337,9 +353,15 @@ def test_AC23_8_6_ground_truth_artifacts_are_synthetic() -> None:
         data = json.loads(path.read_text(encoding="utf-8"))
         if data.get("synthetic") is True:
             continue
-        assert data.get("synthetic") is False, f"{path.name}: 'synthetic' must be set true or false"
-        extraction = _parse_extraction(CASSETTE_DIR / f"{path.name[: -len('.truth.json')]}.json")
-        assert extraction is not None, f"{path.name}: no scorable cassette to verify PII-masking"
+        assert data.get("synthetic") is False, (
+            f"{path.name}: 'synthetic' must be set true or false"
+        )
+        extraction = _parse_extraction(
+            CASSETTE_DIR / f"{path.name[: -len('.truth.json')]}.json"
+        )
+        assert extraction is not None, (
+            f"{path.name}: no scorable cassette to verify PII-masking"
+        )
         assert not cjk.search(json.dumps(extraction, ensure_ascii=False)), (
             f"{path.name}: a CJK character (likely a real name) survives in a committed real cassette"
         )
@@ -373,3 +395,136 @@ def test_AC23_8_7_single_sample_limitation_documented() -> None:
     doc = Path(__file__).resolve().parents[2] / "common" / "llm" / "readme.md"
     text = doc.read_text(encoding="utf-8").lower()
     assert "single" in text and "sample" in text
+
+
+# --------------------------------------------------------------------------- #
+# Corpus-count floor (#1681 / #1686): a SEPARATE raise-only ratchet from the
+# per-case floors above — catches a corpus SHRINK that "missing" cannot see
+# when a case's ground-truth file AND its baseline line are removed together.
+# --------------------------------------------------------------------------- #
+def test_corpus_shrink_findings_is_empty_at_or_above_the_floor() -> None:
+    from common.testing.cassette_graded_eval import EvalCase, corpus_shrink_findings
+
+    cases = [
+        EvalCase(
+            case_id="a",
+            modality="text",
+            institution_class="bank",
+            edge_condition="happy_path",
+            extracted={},
+            truth={},
+        )
+    ]
+    assert corpus_shrink_findings(cases, floor=0) == []
+    assert corpus_shrink_findings(cases, floor=1) == []
+
+
+def test_corpus_shrink_findings_flags_a_real_shrink() -> None:
+    from common.testing.cassette_graded_eval import EvalCase, corpus_shrink_findings
+
+    cases = [
+        EvalCase(
+            case_id="a",
+            modality="text",
+            institution_class="bank",
+            edge_condition="happy_path",
+            extracted={},
+            truth={},
+        )
+    ]
+    findings = corpus_shrink_findings(cases, floor=2)
+    assert len(findings) == 1
+    # Assert on the dynamic values themselves (not a hardcoded message mirror,
+    # per the mirror-assertion ratchet in common/testing/mirror_ratchet.py):
+    # the reported counts must be the actual case count and floor, not stale text.
+    assert str(len(cases)) in findings[0]
+    assert str(2) in findings[0]
+
+
+def test_corpus_count_floor_round_trips_and_defaults_to_zero(tmp_path: Path) -> None:
+    from common.testing.cassette_eval_baseline import (
+        load_corpus_count_floor,
+        write_corpus_count_floor,
+    )
+
+    missing = tmp_path / "does-not-exist.json"
+    assert load_corpus_count_floor(missing) == 0
+
+    path = tmp_path / "floor.json"
+    write_corpus_count_floor(path, 10)
+    assert load_corpus_count_floor(path) == 10
+
+
+def test_AC_corpus_count_floor_blocks_the_gate_when_corpus_is_below_it(
+    tmp_path: Path,
+) -> None:
+    """AC-llm.8.8: a floor set ABOVE the real committed corpus size fails the
+    gate — proves the check is wired into check_cassette_graded_eval.main(),
+    not just a pure function nobody calls."""
+    from common.testing.cassette_graded_eval import load_cases
+    from common.testing.check_cassette_graded_eval import main as gate_main
+
+    real_count = len(load_cases())
+    impossible_floor = tmp_path / "impossible-floor.json"
+    impossible_floor.write_text(
+        json.dumps({"min_cases": real_count + 1}), encoding="utf-8"
+    )
+
+    assert gate_main(["--corpus-count-baseline", str(impossible_floor)]) == 1
+
+
+def test_AC_corpus_count_floor_passes_when_corpus_meets_it(tmp_path: Path) -> None:
+    from common.testing.cassette_graded_eval import load_cases
+    from common.testing.check_cassette_graded_eval import main as gate_main
+
+    real_count = len(load_cases())
+    ok_floor = tmp_path / "ok-floor.json"
+    ok_floor.write_text(json.dumps({"min_cases": real_count}), encoding="utf-8")
+
+    assert gate_main(["--corpus-count-baseline", str(ok_floor)]) == 0
+
+
+def test_AC_corpus_count_floor_update_raises_to_current_count_never_lowers(
+    tmp_path: Path,
+) -> None:
+    from common.testing.cassette_eval_baseline import load_corpus_count_floor
+    from common.testing.cassette_graded_eval import load_cases
+    from common.testing.check_cassette_graded_eval import main as gate_main
+
+    real_count = len(load_cases())
+    # --baseline points at an ISOLATED tmp per-case file too, so --update never
+    # touches the real committed cassette-eval-baseline.jsonl in this test.
+    per_case_baseline = tmp_path / "per-case.jsonl"
+    per_case_baseline.write_text("", encoding="utf-8")
+    floor_path = tmp_path / "floor.json"
+    floor_path.write_text(json.dumps({"min_cases": 1}), encoding="utf-8")
+
+    assert (
+        gate_main(
+            [
+                "--baseline",
+                str(per_case_baseline),
+                "--corpus-count-baseline",
+                str(floor_path),
+                "--update",
+            ]
+        )
+        == 0
+    )
+    assert load_corpus_count_floor(floor_path) == real_count
+
+    # A second --update with the corpus unchanged does not lower the floor
+    # (idempotent: max(existing, current) == existing == current here).
+    assert (
+        gate_main(
+            [
+                "--baseline",
+                str(per_case_baseline),
+                "--corpus-count-baseline",
+                str(floor_path),
+                "--update",
+            ]
+        )
+        == 0
+    )
+    assert load_corpus_count_floor(floor_path) == real_count

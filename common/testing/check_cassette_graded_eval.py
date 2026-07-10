@@ -18,9 +18,17 @@ import argparse
 import sys
 from pathlib import Path
 
-from common.testing.cassette_eval_baseline import DEFAULT_BASELINE, load_jsonl, write_jsonl
+from common.testing.cassette_eval_baseline import (
+    CORPUS_COUNT_BASELINE,
+    DEFAULT_BASELINE,
+    load_corpus_count_floor,
+    load_jsonl,
+    write_corpus_count_floor,
+    write_jsonl,
+)
 from common.testing.cassette_graded_eval import (
     GROUND_TRUTH_DIR,
+    corpus_shrink_findings,
     evaluate,
     load_cases,
     ratcheted_baseline,
@@ -32,6 +40,7 @@ def render(findings: dict[str, list[str]]) -> str:
     for title, key in (
         ("Regressions", "regressions"),
         ("Missing ground truth", "missing"),
+        ("Corpus shrink", "shrink"),
         ("Unbaselined cases (need a floor)", "new"),
     ):
         items = findings.get(key, [])
@@ -41,12 +50,17 @@ def render(findings: dict[str, list[str]]) -> str:
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Cassette graded field-accuracy ratchet.")
+    parser = argparse.ArgumentParser(
+        description="Cassette graded field-accuracy ratchet."
+    )
     parser.add_argument("--baseline", type=Path, default=DEFAULT_BASELINE)
+    parser.add_argument(
+        "--corpus-count-baseline", type=Path, default=CORPUS_COUNT_BASELINE
+    )
     parser.add_argument(
         "--update",
         action="store_true",
-        help="Raise the per-case floor to the current scores (never lowers).",
+        help="Raise the per-case floor and the corpus-count floor to their current values (never lowers).",
     )
     return parser.parse_args(argv)
 
@@ -58,13 +72,19 @@ def main(argv: list[str] | None = None) -> int:
         print("[CASSETTE-EVAL] no ground-truth artifacts; nothing to grade.")
         return 0
 
+    cases = load_cases()
+    corpus_floor = load_corpus_count_floor(args.corpus_count_baseline)
+    shrink = corpus_shrink_findings(cases, corpus_floor)
+
     findings = evaluate(baseline_path=args.baseline)
-    # A regressed score or a vanished baseline line blocks BOTH paths. An
+    findings["shrink"] = shrink
+    # A regressed score, a vanished baseline line, or a corpus shrink blocks
+    # BOTH paths — none of these should be silently adoptable by --update. An
     # unbaselined ("new") case blocks the GATE path too — otherwise adding a case
     # (or accidentally deleting its floor) would leave the ratchet silently
     # disabled for that case while CI stays green. `--update` is the sanctioned way
     # to adopt new cases, so it does NOT treat "new" as blocking.
-    blocking_update = findings["regressions"] + findings["missing"]
+    blocking_update = findings["regressions"] + findings["missing"] + shrink
     blocking_gate = blocking_update + findings["new"]
 
     if args.update:
@@ -88,7 +108,12 @@ def main(argv: list[str] | None = None) -> int:
                 record["provenance"] = provenance.get(case_id, "")
             record.setdefault("metric", "field-accuracy")
         write_jsonl(args.baseline, updated)
-        print(f"Updated cassette-eval baseline: {args.baseline} ({len(updated['cases'])} case(s))")
+        new_floor = max(corpus_floor, len(cases))
+        write_corpus_count_floor(args.corpus_count_baseline, new_floor)
+        print(
+            f"Updated cassette-eval baseline: {args.baseline} ({len(updated['cases'])} case(s)); "
+            f"corpus-count floor: {args.corpus_count_baseline} (min_cases={new_floor})"
+        )
         return 0
 
     print(render(findings))
@@ -97,9 +122,10 @@ def main(argv: list[str] | None = None) -> int:
             print(f"::error title=Cassette graded eval::{item}", file=sys.stderr)
         print(
             "[CASSETTE-EVAL] FAILED: a committed cassette regressed below its "
-            "field-accuracy floor, lost its baselined floor, or has no floor yet. "
-            "Re-record correctly via `make llm-record`, fix the ground truth if the "
-            "statement legitimately changed, or adopt a new case's floor with "
+            "field-accuracy floor, lost its baselined floor, has no floor yet, or "
+            "the corpus shrank below its count floor. Re-record correctly via "
+            "`make llm-record`, fix the ground truth if the statement legitimately "
+            "changed, restore a removed case, or adopt a new case's floor with "
             "`python tools/check_cassette_graded_eval.py --update`.",
             file=sys.stderr,
         )
