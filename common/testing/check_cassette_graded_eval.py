@@ -74,7 +74,9 @@ def main(argv: list[str] | None = None) -> int:
 
     cases = load_cases()
     corpus_floor = load_corpus_count_floor(args.corpus_count_baseline)
-    shrink = corpus_shrink_findings(cases, corpus_floor)
+    shrink = corpus_shrink_findings(
+        cases, corpus_floor, baseline_path=args.corpus_count_baseline
+    )
 
     findings = evaluate(baseline_path=args.baseline)
     findings["shrink"] = shrink
@@ -101,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
         # Carry provenance from the cases for new floors.
         provenance = {
             c.case_id: f"{c.modality}/{c.institution_class}/{c.edge_condition}"
-            for c in load_cases()
+            for c in cases
         }
         for case_id, record in updated["cases"].items():
             if not record.get("provenance"):

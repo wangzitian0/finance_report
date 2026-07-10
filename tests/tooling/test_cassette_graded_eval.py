@@ -16,6 +16,8 @@ import json
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
+
 from common.testing.cassette_graded_eval import (
     GROUND_TRUTH_DIR,
     REQUIRED_EDGE_CONDITIONS,
@@ -432,13 +434,14 @@ def test_corpus_shrink_findings_flags_a_real_shrink() -> None:
             truth={},
         )
     ]
-    findings = corpus_shrink_findings(cases, floor=2)
+    floor = 2
+    findings = corpus_shrink_findings(cases, floor=floor)
     assert len(findings) == 1
     # Assert on the dynamic values themselves (not a hardcoded message mirror,
     # per the mirror-assertion ratchet in common/testing/mirror_ratchet.py):
     # the reported counts must be the actual case count and floor, not stale text.
     assert str(len(cases)) in findings[0]
-    assert str(2) in findings[0]
+    assert str(floor) in findings[0]
 
 
 def test_corpus_count_floor_round_trips_and_defaults_to_zero(tmp_path: Path) -> None:
@@ -453,6 +456,18 @@ def test_corpus_count_floor_round_trips_and_defaults_to_zero(tmp_path: Path) -> 
     path = tmp_path / "floor.json"
     write_corpus_count_floor(path, 10)
     assert load_corpus_count_floor(path) == 10
+
+
+def test_corpus_count_floor_fails_closed_on_malformed_min_cases(tmp_path: Path) -> None:
+    """A present-but-invalid min_cases (negative, non-integer, non-numeric) is a
+    hard error, not a silent coercion — a bad edit should not weaken the ratchet."""
+    from common.testing.cassette_eval_baseline import load_corpus_count_floor
+
+    for bad_value in (-5, 1.5, "not-a-number", True):
+        path = tmp_path / f"bad-{bad_value}.json"
+        path.write_text(json.dumps({"min_cases": bad_value}), encoding="utf-8")
+        with pytest.raises((ValueError, TypeError)):
+            load_corpus_count_floor(path)
 
 
 def test_AC_corpus_count_floor_blocks_the_gate_when_corpus_is_below_it(

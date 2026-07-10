@@ -132,10 +132,21 @@ def normalize_file(path: Path) -> dict[str, Any]:
 # `--update` (never a same-commit deletion) can raise it.
 # --------------------------------------------------------------------------- #
 def load_corpus_count_floor(path: Path = CORPUS_COUNT_BASELINE) -> int:
+    """Load the persisted corpus-count floor; a missing file is a zero floor.
+
+    A missing file defaults to 0, but a PRESENT ``min_cases`` that is not a
+    non-negative integer is a hard error rather than a silent coercion:
+    ``int(-5)`` or ``int(1.5)`` would silently weaken or disable the ratchet.
+    """
     if not path.exists():
         return 0
     payload = json.loads(path.read_text(encoding="utf-8"))
-    return int(payload.get("min_cases", 0))
+    min_cases = payload.get("min_cases", 0)
+    if isinstance(min_cases, bool) or not isinstance(min_cases, int) or min_cases < 0:
+        raise ValueError(
+            f"{path}: 'min_cases' must be a non-negative integer, got {min_cases!r}"
+        )
+    return min_cases
 
 
 def write_corpus_count_floor(path: Path, min_cases: int) -> None:

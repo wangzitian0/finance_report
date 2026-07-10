@@ -450,6 +450,15 @@ MULTI_STATEMENT_FINGERPRINTS: tuple[str, ...] = (
 )
 
 
+@ac_proof(
+    "extraction-corpus-multi-statement-pr",
+    ac_ids=["AC-llm.11.6"],
+    scope="behavioral",
+    ci_tier="pr_ci",
+    trust_mode="deterministic_pr",
+    source_classes=["bank_statement"],
+    issue="#1681",
+)
 @pytest.mark.e2e
 async def test_corpus_multi_statement_acceptance_same_user(client, db, test_user):
     """EPIC-023 / AC-llm.11.6: multiple REAL corpus statements accumulate correctly
