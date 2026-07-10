@@ -2396,9 +2396,10 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.1808.1",
             statement=(
-                "Layer 2 lineage creates atomic_fact nodes for atomic "
-                "transactions and deduped_into edges from the "
-                "source_document (uploaded document) that produced them."
+                "Statement upload creates a source_document node for the "
+                "uploaded source (uploaded_document); the legacy "
+                "extracted_record middle node was removed in EPIC-011 "
+                "Stage 3 with the bank_statements tables."
             ),
             test=(
                 "apps/backend/tests/services/test_evidence_graph_materialization.py"
@@ -2410,10 +2411,9 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.1808.2",
             statement=(
-                "Statement upload creates a source_document node for the "
-                "uploaded source (uploaded_document); the legacy "
-                "extracted_record middle node was removed in EPIC-011 "
-                "Stage 3 with the bank_statements tables."
+                "Layer 2 lineage creates atomic_fact nodes for atomic "
+                "transactions and deduped_into edges from the "
+                "source_document (uploaded document) that produced them."
             ),
             test=(
                 "apps/backend/tests/services/test_evidence_graph_materialization.py"
