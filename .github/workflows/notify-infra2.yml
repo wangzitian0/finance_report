@@ -96,7 +96,7 @@ jobs:
           # standalone, real-execution-testable script (not inline bash) —
           # see tools/_lib/shell/resolve_report_main_dispatch_sha.sh and
           # tests/tooling/test_report_main_dispatch.py.
-          if ! dispatch_sha="$(tools/_lib/shell/resolve_report_main_dispatch_sha.sh "${GITHUB_EVENT_NAME}" "${WORKFLOW_RUN_SHA:-}" "$latest_main_sha")"; then
+          if ! dispatch_sha="$(bash tools/_lib/shell/resolve_report_main_dispatch_sha.sh "${GITHUB_EVENT_NAME}" "${WORKFLOW_RUN_SHA:-}" "$latest_main_sha")"; then
             alert_and_fail "unresolved-workflow-run-sha" "No workflow_run head SHA resolved for report-branch-main deploy."
           fi
           if [[ -z "$dispatch_sha" ]]; then
