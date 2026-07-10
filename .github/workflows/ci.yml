@@ -1541,6 +1541,10 @@ jobs:
 
       - name: Generate evidence bundle
         run: |
+          # ac_tier_water_line() -> check_ac_tier_baseline -> generate_ac_registry
+          # -> ac_registry_format needs PyYAML; this job is bare setup-python
+          # (matches the ac-behavioral-ratchet job's same gotcha above).
+          python -m pip install --quiet pyyaml
           python tools/generate_evidence_bundle.py \
             --output evidence-bundle.json \
             --github-summary "$GITHUB_STEP_SUMMARY" \
