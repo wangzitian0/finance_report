@@ -188,7 +188,7 @@ async def _report_snapshot(db: AsyncSession, user_id: UUID, *, updated_at: datet
 
 
 async def test_AC19_2_1_workflow_status_schema_contract() -> None:
-    """AC19.2.1: workflow status schemas expose stable contracts for UI consumers."""
+    """AC-platform.31.1: AC19.2.1: workflow status schemas expose stable contracts for UI consumers."""
     status = WorkflowStatusResponse(
         primary_state=WorkflowPrimaryState.NEEDS_ACTION,
         next_action={
@@ -230,7 +230,7 @@ async def test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries(
     db: AsyncSession,
     test_user: User,
 ) -> None:
-    """AC19.2.2: GET /workflow/status returns user-scoped summary states with priority rules."""
+    """AC-platform.31.2: AC19.2.2: GET /workflow/status returns user-scoped summary states with priority rules."""
     empty = await _get_as_user(public_client, test_user.id, "/workflow/status")
     assert empty["primary_state"] == "empty"
     assert empty["next_action"] == _next_action(
@@ -406,7 +406,7 @@ async def test_AC19_2_3_workflow_events_endpoint_lists_bounded_user_events(
     db: AsyncSession,
     test_user: User,
 ) -> None:
-    """AC19.2.3: GET /workflow/events returns bounded active events and supports status filtering."""
+    """AC-platform.31.3: AC19.2.3: GET /workflow/events returns bounded active events and supports status filtering."""
     other_user = User(email=f"other-{uuid4()}@example.com", hashed_password="hashed")
     db.add(other_user)
     await db.flush()
@@ -483,7 +483,7 @@ async def test_AC19_2_4_workflow_event_patch_is_user_scoped(
     db: AsyncSession,
     test_user: User,
 ) -> None:
-    """AC19.2.4: PATCH /workflow/events/{id} updates only the authenticated user's event."""
+    """AC-platform.31.4: AC19.2.4: PATCH /workflow/events/{id} updates only the authenticated user's event."""
     other_user = User(email=f"patch-other-{uuid4()}@example.com", hashed_password="hashed")
     db.add(other_user)
     await db.flush()
@@ -522,7 +522,7 @@ async def test_AC19_2_5_workflow_reads_sync_derived_events_without_lifecycle_res
     db: AsyncSession,
     test_user: User,
 ) -> None:
-    """AC19.2.5: workflow reads derive statement events idempotently without lifecycle reset."""
+    """AC-platform.31.5: AC19.2.5: workflow reads derive statement events idempotently without lifecycle reset."""
     statement = await _make_statement(
         db,
         test_user.id,
@@ -565,7 +565,7 @@ async def test_AC19_2_5_workflow_reads_sync_derived_events_without_lifecycle_res
 
 
 async def test_AC19_2_6_workflow_router_and_ssot_document_compact_read_path() -> None:
-    """AC19.2.6: workflow router is mounted and documented as the compact read path."""
+    """AC-platform.31.6: AC19.2.6: workflow router is mounted and documented as the compact read path."""
     route_paths = {route.path for route in app.routes}
     assert "/workflow/status" in route_paths
     assert "/workflow/events" in route_paths
@@ -584,7 +584,7 @@ async def test_AC19_8_3_workflow_status_and_events_expose_session_timeline(
     db: AsyncSession,
     test_user: User,
 ) -> None:
-    """AC19.8.3: workflow status exposes active session and events return session-scoped timeline data."""
+    """AC-platform.33.3: AC19.8.3: workflow status exposes active session and events return session-scoped timeline data."""
     await _make_statement(
         db,
         test_user.id,
