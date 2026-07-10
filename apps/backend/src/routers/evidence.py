@@ -6,8 +6,12 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query
 
 from src.deps import CurrentUserId, DbSession
-from src.extraction.extension.evidence_graph_materialization import EvidenceGraphMaterializationService
-from src.extraction.extension.evidence_lineage import DEFAULT_MAX_DEPTH, EvidenceLineageService, EvidenceTraversalStep
+from src.extraction import (
+    DEFAULT_MAX_DEPTH,
+    EvidenceGraphMaterializationService,
+    EvidenceLineageService,
+    EvidenceTraversalStep,
+)
 from src.models.evidence import EvidenceEdge, EvidenceNode
 from src.schemas.evidence import (
     EvidenceLineageBlocker,

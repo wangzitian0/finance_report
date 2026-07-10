@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from src.deps import CurrentUserId, DbSession
-from src.extraction.extension.correction_service import get_correction_stats, record_correction
+from src.extraction import get_correction_stats, record_correction
 from src.observability import get_logger
 
 router = APIRouter(prefix="/corrections", tags=["corrections"])

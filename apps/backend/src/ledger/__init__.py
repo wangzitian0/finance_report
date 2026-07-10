@@ -66,7 +66,9 @@ if TYPE_CHECKING:
     )
 
 __all__ = [
+    "AccountNotFoundError",
     "AccountingError",
+    "DEFAULT_STALE_AFTER_DAYS",
     "DegenerateEntryError",
     "Entry",
     "JournalRepository",
@@ -78,6 +80,7 @@ __all__ = [
     "TransferPair",
     "UnbalancedEntryError",
     "ValidationError",
+    "account_service",
     "calculate_account_balance",
     "calculate_account_balances",
     "calculate_unrealized_fx_gains",
@@ -86,6 +89,7 @@ __all__ = [
     "create_transfer_out_entry",
     "detect_transfer_pattern",
     "find_transfer_pairs",
+    "get_account_statement_coverage",
     "get_opening_balance_readiness",
     "get_or_create_processing_account",
     "get_processing_balance",
@@ -93,6 +97,7 @@ __all__ = [
     "list_processing_transfer_legs",
     "post_entry",
     "post_journal_entry",
+    "post_opening_balance_entry",
     "validate_fx_rates",
     "validate_journal_balance",
     "validate_journal_posting_invariants",
@@ -119,7 +124,10 @@ _BASE_NAMES = {
     "validate_journal_posting_invariants",
 }
 _EXTENSION_NAMES = {
+    "AccountNotFoundError",
     "RevaluationError",
+    "account_service",
+    "post_opening_balance_entry",
     "SqlJournalRepository",
     "calculate_unrealized_fx_gains",
     "create_journal_entry",
@@ -137,7 +145,9 @@ _EXTENSION_NAMES = {
     "void_journal_entry",
 }
 _DATA_NAMES = {
+    "DEFAULT_STALE_AFTER_DAYS",
     "calculate_account_balance",
+    "get_account_statement_coverage",
     "calculate_account_balances",
     "verify_accounting_equation",
 }

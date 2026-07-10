@@ -6,8 +6,8 @@ from fastapi import APIRouter, HTTPException, Query, status
 
 from src.deps import CurrentUserId, DbSession
 from src.models.workflow import WorkflowEventStatus
-from src.platform import get_workflow_status
-from src.platform.extension.workflow_events import (
+from src.platform import (
+    get_workflow_status,
     list_workflow_events_response,
     update_workflow_event_status,
 )

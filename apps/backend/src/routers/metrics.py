@@ -7,7 +7,7 @@ proportion — as a live value plus its recorded trend.
 from fastapi import APIRouter, status
 
 from src.deps import CurrentUserId, DbSession
-from src.extraction.extension.correction_loop import CorrectionLoopService
+from src.extraction import CorrectionLoopService
 from src.models.metrics import ConfidenceMetricSnapshot
 from src.schemas.metrics import (
     ConfidenceMetricPoint,

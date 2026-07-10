@@ -10,7 +10,7 @@ from sqlalchemy import select
 from src.audit.money import to_money
 from src.audit.ratio import Ratio
 from src.deps import CurrentUserId, DbSession
-from src.extraction.extension.brokerage_positions import BrokeragePositionImportService
+from src.extraction import BrokeragePositionImportService
 from src.models.layer3 import ManagedPosition, PositionStatus
 from src.models.portfolio import (
     DividendIncome,

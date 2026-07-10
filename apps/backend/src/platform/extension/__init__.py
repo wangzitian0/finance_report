@@ -42,12 +42,12 @@ from src.platform.extension.sql import (
 )
 from src.platform.extension.workflow_events import (
     get_workflow_status,
+    list_workflow_events_response,
     register_readiness_provider,
+    update_workflow_event_status,
 )
 
 __all__ = [
-    "STATUS_PENDING",
-    "STATUS_PUBLISHED",
     "BaseAppException",
     "Outbox",
     "OutboxEventBus",
@@ -56,9 +56,12 @@ __all__ = [
     "RateLimitState",
     "RateLimiter",
     "RecordingEventBus",
+    "STATUS_PENDING",
+    "STATUS_PUBLISHED",
     "SqlOutboxRepository",
     "get_owned_or_404",
     "get_workflow_status",
+    "list_workflow_events_response",
     "paginate",
     "raise_bad_request",
     "raise_conflict",
@@ -70,4 +73,5 @@ __all__ = [
     "raise_too_many_requests",
     "raise_unauthorized",
     "register_readiness_provider",
+    "update_workflow_event_status",
 ]

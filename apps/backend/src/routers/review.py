@@ -8,8 +8,11 @@ from sqlalchemy import select
 from src.audit import STATEMENT_SOURCE_TYPES
 from src.audit.money import InvalidCurrencyError
 from src.deps import CurrentUserId, DbSession
-from src.extraction.extension.currency_resolution import resolve_transaction_currency
-from src.extraction.extension.statement_validation import resolve_statement_conflicts, resolve_statement_transactions
+from src.extraction import (
+    resolve_statement_conflicts,
+    resolve_statement_transactions,
+    resolve_transaction_currency,
+)
 from src.models.consistency_check import CheckStatus, CheckType
 from src.models.journal import JournalEntry, JournalEntryStatus
 from src.models.layer2 import AtomicTransaction
@@ -17,14 +20,15 @@ from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_summary import StatementSummary
 from src.observability import get_logger
 from src.platform import get_owned_or_404, raise_conflict
-from src.reconciliation.extension.consistency_checks import (
+from src.reconciliation import (
+    accept_match as accept_match_service,
     get_pending_checks,
+    get_stage2_queue,
     has_unresolved_checks,
     list_checks,
     resolve_check,
     run_all_consistency_checks,
 )
-from src.reconciliation.extension.review_queue import accept_match as accept_match_service, get_stage2_queue
 from src.schemas.review import (
     BatchApproveRequest,
     BatchApproveResponse,
