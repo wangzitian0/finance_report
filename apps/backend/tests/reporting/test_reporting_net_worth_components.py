@@ -25,10 +25,8 @@ from src.models.layer3 import (
     RuleType,
     TransactionClassification,
 )
-from src.pricing.orm.market_data import FxRate
-from src.services.assets import AssetService
-from src.models.market_data import FxRate
 from src.pricing import ValuationService
+from src.pricing.orm.market_data import FxRate
 from src.services.reporting import (
     ReportError,
     generate_balance_sheet,
