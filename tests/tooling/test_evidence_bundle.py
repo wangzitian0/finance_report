@@ -19,6 +19,20 @@ from common.testing import evidence_bundle as eb
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def assert_pyyaml_installed_before_generator(
+    commands: str, generator_script: str
+) -> None:
+    """ac_tier_water_line() -> check_ac_tier_baseline -> generate_ac_registry ->
+    ac_registry_format needs PyYAML at import time; both producer jobs use a
+    bare setup-python step (no project dependency install), so a missing
+    `pip install pyyaml` crashes the generator with ModuleNotFoundError before
+    it ever runs (caught live on main's first real evidence-bundle run, #1690
+    follow-up) — this must run BEFORE the generator, not just be present."""
+    install_marker = "pip install --quiet pyyaml"
+    assert install_marker in commands
+    assert commands.index(install_marker) < commands.index(generator_script)
+
+
 # --------------------------------------------------------------------------- #
 # Per-water-line readers — each tolerant of a missing/empty baseline.
 # --------------------------------------------------------------------------- #
@@ -278,6 +292,7 @@ def test_AC8_13_165_both_producers_wire_the_same_generator_into_their_workflow()
     assert generator_script in ci_commands
     provider_flag = "--provider-status"
     assert provider_flag not in ci_commands
+    assert_pyyaml_installed_before_generator(ci_commands, generator_script)
 
     audit_workflow = yaml.safe_load(
         (ROOT / ".github" / "workflows" / "audit-replay.yml").read_text()
@@ -291,6 +306,7 @@ def test_AC8_13_165_both_producers_wire_the_same_generator_into_their_workflow()
     )
     assert generator_script in audit_commands
     assert provider_flag in audit_commands
+    assert_pyyaml_installed_before_generator(audit_commands, generator_script)
 
     for workflow in (ci_workflow, audit_workflow):
         job = workflow["jobs"]["evidence-bundle"]
