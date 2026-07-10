@@ -76,11 +76,13 @@ def test_AC26_9_1_counter_runs_over_repo_and_is_well_formed() -> None:
         assert bucket["band"] in {CODE_ONLY, CODE_LED, LLM_LED, LLM_ONLY}
         # llm_share is computed over KNOWN (code+llm), so 0..100.
         assert 0 <= bucket["llm_share"] <= 100
-    # Sanity: the AI-heavy extraction/provider EPICs are detected as carrying LLM ACs.
-    # (classify_repo only scans EPIC-doc AC tables, not package roadmaps — EPIC-006's
-    # own LLM-tagged rows migrated to the advisor package in #1663, so this checks
-    # EPIC-018 instead, which is not part of that migration.)
-    assert result["packages"].get("EPIC-018", {}).get("llm", 0) > 0
+    # Sanity: at least one EPIC doc still carries a surviving LLM-classified AC
+    # row. (classify_repo only scans EPIC-doc AC tables, not package roadmaps —
+    # rows migrate out of EPIC docs into package roadmaps over time, so this
+    # checks the aggregate rather than pinning one specific EPIC, which kept
+    # going stale as more EPICs finished migrating: EPIC-006, then EPIC-018,
+    # #1663 / #1715.)
+    assert overall["llm"] > 0
 
 
 def test_AC26_9_1_counter_renders_live_table(tmp_path: Path) -> None:
