@@ -387,8 +387,8 @@ workflow state exists.
 
 ### AC19.8 — Workflow Session IA Hardening And CR Cleanup
 
-> **Partially migrated.** *(AC19.8.1 removed and AC19.8.2 removed and AC19.8.3 removed and AC19.8.9 removed — this group's backend session-model/API rows migrated to the `platform` package roadmap as `AC-platform.33.1-4`, migration closeout continuation, #1663 / #1712)*. The frontend/IA/
-> report-readiness rows below stay with their own owners.
+> **Partially migrated.** *(AC19.8.1 removed and AC19.8.2 removed and AC19.8.3 removed and AC19.8.9 removed — this group's backend session-model/API rows migrated to the `platform` package roadmap as `AC-platform.33.1-4`, migration closeout continuation, #1663 / #1712)*. The frontend, IA,
+> and report-readiness rows below stay with their own owners.
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|

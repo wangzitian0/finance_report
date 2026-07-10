@@ -156,7 +156,8 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 > **Partially migrated.** *(AC22.2.2 removed and AC22.2.5 removed — this
 > group's backend rows migrated to the `platform` package roadmap as
 > `AC-platform.36.1-2`, migration closeout continuation, #1663 / #1712)*.
-> The frontend rows below stay with their own owner.
+> The frontend rows below remain defined in this EPIC — no owning package has
+> been decided for them yet.
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|

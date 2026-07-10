@@ -545,7 +545,7 @@ async def test_AC19_3_1_sync_refreshes_mutable_uploaded_event_fields_without_lif
 
 
 async def test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_preserved(db, test_user) -> None:
-    """AC-platform.34.2 AC-platform.36.1 AC-platform.36.2: AC19.12.2 AC19.12.6 AC22.2.2 AC22.2.5: review events are idempotent, current, lifecycle-safe, and deep-link to the statement review page."""
+    """AC-platform.34.2 AC-platform.36.1 AC-platform.36.2: AC19.12.2 AC22.2.2 AC22.2.5: review events are idempotent, current, lifecycle-safe, and deep-link to the statement review page."""
     statement, _document = await _make_statement(
         db,
         test_user.id,
@@ -606,7 +606,7 @@ async def test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_p
 
 
 async def test_AC19_12_2_review_derivation_treats_null_stage1_as_pending_without_parse_failure(db, test_user) -> None:
-    """AC19.12.2 AC19.12.6: legacy NULL Stage 1 rows derive the correct review event."""
+    """AC19.12.2: legacy NULL Stage 1 rows derive the correct review event."""
     pending_statement, _pending_document = await _make_statement(
         db,
         test_user.id,
@@ -682,7 +682,7 @@ async def test_AC19_12_3_report_readiness_events_follow_package_readiness_withou
     test_user,
     monkeypatch,
 ) -> None:
-    """AC-platform.34.3: AC19.12.3 AC19.12.6: readiness events follow package state and archive stale blockers."""
+    """AC-platform.34.3: AC19.12.3: readiness events follow package state and archive stale blockers."""
     blocker_payload = {
         "state": "blocked",
         "action_href": "/review",
@@ -785,7 +785,7 @@ async def test_AC19_12_3_sync_archives_last_resolved_blocker_when_no_derived_pay
     test_user,
     monkeypatch,
 ) -> None:
-    """AC19.12.3 AC19.12.6: stale blockers archive when no current derived payload remains."""
+    """AC19.12.3: stale blockers archive when no current derived payload remains."""
     blocker_payload = {
         "state": "blocked",
         "action_href": "/review",
@@ -863,7 +863,7 @@ async def test_AC19_12_3_ready_package_status_wins_over_long_lived_upload_proces
 
 
 async def test_AC19_12_4_readiness_blocker_events_are_user_action_scoped(db, test_user, monkeypatch) -> None:
-    """AC-platform.34.4: AC19.12.4 AC19.12.6: reconciliation and Processing blockers are lightweight user actions."""
+    """AC-platform.34.4: AC19.12.4: reconciliation and Processing blockers are lightweight user actions."""
 
     async def fake_readiness(_db, **_kwargs):
         return {
