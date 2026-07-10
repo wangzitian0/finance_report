@@ -316,6 +316,20 @@ gates:
     artifacts: []
     failure_semantics: AC behavioral evidence regressed or required JUnit artifacts are absent.
     action: keep
+  - id: ci.evidence_bundle
+    stage: github_ci.merge_authority
+    task_category: aggregate
+    workflow: .github/workflows/ci.yml
+    job: evidence-bundle
+    owner: common/testing/evidence_bundle.py
+    triggers: [push]
+    required_by_finish: false
+    blocks_workflow: false
+    inputs: [unified-coverage.json, docs/ssot/ac-score-baseline.jsonl, docs/ssot/ac-tier-baseline.json, docs/ssot/protection-floor.json]
+    outputs: [evidence_bundle_json]
+    artifacts: [evidence-bundle]
+    failure_semantics: Non-blocking (#1690) — aggregates already-computed ratchet water-lines into one citable bundle after unified-coverage and ac-behavioral-ratchet complete; a failure here does not affect merge authority.
+    action: keep
   - id: ci.finish
     stage: github_ci.merge_authority
     task_category: aggregate
@@ -590,6 +604,19 @@ gates:
     outputs: [ai_ocr_gate_summary, ai_ocr_status]
     artifacts: []
     failure_semantics: Comprehensive nightly/manual AI/OCR audit-replay corpus regressed; recorded as evidence for triage and never blocks production promotion. Gate body and artifact are owned by the reusable staging-ai-ocr-gate.yml run job.
+    action: keep
+  - id: ai_ocr_audit_replay.evidence_bundle
+    stage: staging.provider_regression
+    task_category: aggregate
+    workflow: .github/workflows/audit-replay.yml
+    job: evidence-bundle
+    owner: common/testing/evidence_bundle.py
+    triggers: [schedule, workflow_dispatch]
+    blocks_workflow: false
+    inputs: [ai_ocr_status, ai_ocr_exit_code, unified-coverage.json, docs/ssot/ac-score-baseline.jsonl, docs/ssot/ac-tier-baseline.json, docs/ssot/protection-floor.json]
+    outputs: [evidence_bundle_json]
+    artifacts: [evidence-bundle]
+    failure_semantics: Non-blocking (#1690) — runs regardless of audit-replay's own (record-only) result and bundles the staging AI/OCR gate's ai_ocr_status/ai_ocr_exit_code as provider/canary health alongside the same ratchet water-lines the main-CI producer reports.
     action: keep
   - id: staging_deploy.post_merge_summary
     stage: staging.release_validation
