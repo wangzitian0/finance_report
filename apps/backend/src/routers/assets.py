@@ -20,6 +20,8 @@ from src.models.layer3 import (
 )
 from src.observability import get_logger
 from src.platform import raise_bad_request, raise_internal_error, raise_not_found
+from src.portfolio import PositionService, PositionServiceError
+from src.pricing import ValuationService, ValuationServiceError
 from src.schemas.assets import (
     DepreciationResponse,
     ManagedPositionListResponse,
@@ -34,12 +36,12 @@ from src.schemas.assets import (
     ValuationComponentsResponse,
 )
 from src.services import fx
-from src.services.assets import AssetService, AssetServiceError
 
 router = APIRouter(prefix="/assets", tags=["assets"])
 logger = get_logger(__name__)
 
-_service = AssetService()
+_positions = PositionService()
+_valuations = ValuationService()
 
 
 async def _apply_reporting_valuation(
@@ -95,7 +97,7 @@ async def list_positions(
         offset=offset,
     )
 
-    positions, total = await _service.get_positions(
+    positions, total = await _positions.get_positions(
         db, user_id, status_filter=status_filter, limit=limit, offset=offset
     )
 
@@ -123,7 +125,7 @@ async def create_valuation_snapshot(
 ) -> ManualValuationSnapshotResponse:
     """Create a manual valuation snapshot."""
     try:
-        snapshot = await _service.create_valuation_snapshot(
+        snapshot = await _valuations.create_valuation_snapshot(
             db,
             user_id,
             component_type=payload.component_type,
@@ -166,7 +168,7 @@ async def list_valuation_snapshots(
         except ValueError as exc:
             raise_bad_request(f"Unsupported component_type: {component_type}", cause=exc)
 
-    snapshots, total = await _service.list_valuation_snapshots(
+    snapshots, total = await _valuations.list_valuation_snapshots(
         db,
         user_id,
         as_of_date=as_of_date,
@@ -187,7 +189,7 @@ async def get_valuation_snapshot(
     user_id: CurrentUserId,
 ) -> ManualValuationSnapshotResponse:
     """Get a manual valuation snapshot."""
-    snapshot = await _service.get_valuation_snapshot(db, user_id, snapshot_id)
+    snapshot = await _valuations.get_valuation_snapshot(db, user_id, snapshot_id)
     if not snapshot:
         raise_not_found("Manual valuation snapshot")
     return ManualValuationSnapshotResponse.model_validate(snapshot)
@@ -202,14 +204,14 @@ async def update_valuation_snapshot(
 ) -> ManualValuationSnapshotResponse:
     """Update a manual valuation snapshot."""
     try:
-        snapshot = await _service.update_valuation_snapshot(
+        snapshot = await _valuations.update_valuation_snapshot(
             db,
             user_id,
             snapshot_id,
             values=payload.model_dump(exclude_unset=True),
         )
         await db.commit()
-    except AssetServiceError as e:
+    except (PositionServiceError, ValuationServiceError) as e:
         await db.rollback()
         raise_bad_request(str(e), cause=e)
     except Exception as e:
@@ -229,7 +231,7 @@ async def delete_valuation_snapshot(
     user_id: CurrentUserId,
 ) -> None:
     """Delete a manual valuation snapshot."""
-    deleted = await _service.delete_valuation_snapshot(db, user_id, snapshot_id)
+    deleted = await _valuations.delete_valuation_snapshot(db, user_id, snapshot_id)
     if not deleted:
         raise_not_found("Manual valuation snapshot")
     await db.commit()
@@ -243,7 +245,7 @@ async def list_valuation_components(
     include_restricted: bool = Query(default=True),
 ) -> ValuationComponentsResponse:
     """List latest manual valuation components as of a date."""
-    result = await _service.get_latest_valuation_components(
+    result = await _valuations.get_latest_valuation_components(
         db,
         user_id,
         as_of_date=as_of_date or date.today(),
@@ -320,7 +322,7 @@ async def get_position(
     """Get a single managed position by ID."""
     logger.info("Getting position", position_id=str(position_id), user_id=str(user_id))
 
-    position = await _service.get_position(db, user_id, position_id)
+    position = await _positions.get_position(db, user_id, position_id)
     if not position:
         raise_not_found("Position")
 
@@ -340,9 +342,9 @@ async def reconcile_positions(
     logger.info("Starting reconciliation", user_id=str(user_id))
 
     try:
-        result = await _service.reconcile_positions(db, user_id)
+        result = await _positions.reconcile_positions(db, user_id)
         await db.commit()
-    except AssetServiceError as e:
+    except (PositionServiceError, ValuationServiceError) as e:
         logger.error("Reconciliation failed", error=str(e), user_id=str(user_id))
         await db.rollback()
         raise_internal_error(str(e), cause=e)
@@ -389,7 +391,7 @@ async def get_position_depreciation(
     )
 
     try:
-        result = await _service.get_depreciation_schedule(
+        result = await _positions.get_depreciation_schedule(
             db=db,
             user_id=user_id,
             position_id=position_id,
@@ -398,7 +400,7 @@ async def get_position_depreciation(
             salvage_value=salvage_value,
             as_of_date=as_of_date,
         )
-    except AssetServiceError as e:
+    except (PositionServiceError, ValuationServiceError) as e:
         logger.warning("Depreciation calculation failed", error=str(e))
         raise_bad_request(str(e))
 

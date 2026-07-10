@@ -25,8 +25,8 @@ from src.models.layer3 import (
     RuleType,
     TransactionClassification,
 )
+from src.pricing import ValuationService
 from src.pricing.orm.market_data import FxRate
-from src.services.assets import AssetService
 from src.services.reporting import (
     ReportError,
     generate_balance_sheet,
@@ -540,7 +540,7 @@ async def test_AC11_20_1_retirement_and_benefit_assets_are_restricted_assets_in_
 ):
     """AC11.20.1: Retirement and benefit account values are restricted assets in full net worth."""
     report_date = date(2026, 6, 18)
-    service = AssetService()
+    service = ValuationService()
     fixtures = [
         (ManualValuationComponentType.RETIREMENT_ACCOUNT, "401k statement", Decimal("100000.00")),
         (

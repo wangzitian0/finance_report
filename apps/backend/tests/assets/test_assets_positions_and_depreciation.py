@@ -8,7 +8,7 @@ from uuid import uuid4
 from src.models.account import Account, AccountType
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
-from src.services.assets import AssetServiceError
+from src.portfolio import PositionServiceError
 
 
 class TestAssetsListCoverageBoost:
@@ -121,12 +121,12 @@ class TestAssetsReconcileCoverageBoost:
 
     async def test_reconcile_handles_service_error(self, client):
         """
-        GIVEN reconciliation service raises AssetServiceError
+        GIVEN reconciliation service raises PositionServiceError
         WHEN POST /assets/reconcile
         THEN returns 500
         """
-        with patch("src.routers.assets._service.reconcile_positions") as mock:
-            mock.side_effect = AssetServiceError("Boost test error")
+        with patch("src.routers.assets._positions.reconcile_positions") as mock:
+            mock.side_effect = PositionServiceError("Boost test error")
             response = await client.post("/assets/reconcile")
             assert response.status_code == 500
 
@@ -136,7 +136,7 @@ class TestAssetsReconcileCoverageBoost:
         WHEN POST /assets/reconcile
         THEN returns 500 with generic message
         """
-        with patch("src.routers.assets._service.reconcile_positions") as mock:
+        with patch("src.routers.assets._positions.reconcile_positions") as mock:
             mock.side_effect = RuntimeError("Boost unexpected")
             response = await client.post("/assets/reconcile")
             assert response.status_code == 500
@@ -186,7 +186,7 @@ class TestAssetsDepreciationCoverageBoost:
         """
         GIVEN a non-existent position ID
         WHEN GET /assets/positions/{id}/depreciation
-        THEN returns 400 (service raises AssetServiceError for not found)
+        THEN returns 400 (service raises PositionServiceError for not found)
         """
         response = await client.get(
             f"/assets/positions/{uuid4()}/depreciation",

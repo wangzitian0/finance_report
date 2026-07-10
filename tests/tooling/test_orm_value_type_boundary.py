@@ -17,7 +17,8 @@ REPO = Path(__file__).resolve().parents[2]
 MIGRATED_MANAGED_POSITION_FILES = [
     "apps/backend/src/services/portfolio.py",
     "apps/backend/src/portfolio/extension/accounting.py",
-    "apps/backend/src/services/assets.py",
+    "apps/backend/src/pricing/extension/valuation.py",
+    "apps/backend/src/portfolio/extension/positions.py",
     "apps/backend/src/services/performance_report.py",
     "apps/backend/src/services/reporting/portfolio_market.py",
 ]

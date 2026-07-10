@@ -63,7 +63,7 @@ def test_AC12_31_1_decimal_boundary_policy_is_mece_and_enforced():
 def test_AC12_31_3_migrated_hotspots_use_base_packages():
     """AC-audit.31.3: migrated money/quantity/frontend hotspots stay behind base packages."""
     quantity_service_files = [
-        Path("apps/backend/src/services/assets.py"),
+            Path("apps/backend/src/portfolio/extension/positions.py"),
         Path("apps/backend/src/portfolio/extension/accounting.py"),
         Path("apps/backend/src/services/market_data_discovery.py"),
         Path("apps/backend/src/services/reporting"),

@@ -383,9 +383,9 @@ class TestAssetsRouter:
         await db.commit()
 
         # Verify: Service layer prevents cross-user access
-        from src.services.assets import AssetService
+        from src.portfolio import PositionService
 
-        service = AssetService()
+        service = PositionService()
         result = await service.get_position(db, other_user.id, position.id)
 
         # Position should NOT be found when queried by different user

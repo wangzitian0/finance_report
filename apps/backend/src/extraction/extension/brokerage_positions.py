@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit.money import to_money
 from src.models.account import Account, AccountType
 from src.models.layer2 import AssetType, AtomicPosition
-from src.services.assets import AssetService
+from src.portfolio import PositionService
 
 
 @dataclass(frozen=True)
@@ -832,7 +832,7 @@ class BrokeragePositionImportService:
 
         reconcile_result = None
         if reconcile and snapshots:
-            reconcile_result = await AssetService().reconcile_positions(db, user_id)
+            reconcile_result = await PositionService().reconcile_positions(db, user_id)
 
         # #1484: anchor the statement to the broker account these positions
         # reconciled into. Only resolve when the payload is a single broker (one

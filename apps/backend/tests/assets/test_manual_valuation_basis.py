@@ -12,8 +12,8 @@ from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.layer3 import ManualValuationBasis, ManualValuationComponentType
+from src.pricing import ValuationService
 from src.schemas.reporting import PersonalReportingFrameworkId
-from src.services.assets import AssetService
 from src.services.report_readiness import get_personal_report_package_readiness
 
 
@@ -59,7 +59,7 @@ async def test_AC11_9_5_missing_basis_raises_then_clears_readiness_blocker(
     """AC11.9.5 (#706 AC2): a manual valuation without a structured basis (and
     without legacy notes) surfaces a ``missing_valuation_basis`` readiness
     blocker; recording a structured basis clears it."""
-    service = AssetService()
+    service = ValuationService()
     user_id = test_user.id
     as_of = date(2026, 3, 31)
 

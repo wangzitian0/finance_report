@@ -29,9 +29,11 @@ from src.portfolio.extension import (
     InvestmentAccountingResult,
     InvestmentAccountingService,
 )
+from src.portfolio.extension.positions import DepreciationResult, PositionService, PositionServiceError, ReconcileResult
 
 __all__ = [
     "AssetNotFoundError",
+    "DepreciationResult",
     "InvalidDateRangeError",
     "InvestmentAccountingError",
     "InvestmentAccountingResult",
@@ -39,4 +41,7 @@ __all__ = [
     "InvestmentAccountingValidationError",
     "PortfolioError",
     "PortfolioNotFoundError",
+    "PositionService",
+    "PositionServiceError",
+    "ReconcileResult",
 ]

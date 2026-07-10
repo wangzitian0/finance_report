@@ -60,6 +60,12 @@ from src.pricing.extension import (
     sync_fx_rates,
     sync_stock_prices,
 )
+from src.pricing.extension.valuation import (
+    ValuationComponentItem,
+    ValuationComponentsResult,
+    ValuationService,
+    ValuationServiceError,
+)
 from src.pricing.orm.market_data import FxRate, MarketDataSyncState, StockPrice
 
 __all__ = [
@@ -78,6 +84,10 @@ __all__ = [
     "ResolutionPolicy",
     "SqlObservationRepository",
     "StockPrice",
+    "ValuationComponentItem",
+    "ValuationComponentsResult",
+    "ValuationService",
+    "ValuationServiceError",
     "convert_amount",
     "convert_money",
     "convert_to_base",

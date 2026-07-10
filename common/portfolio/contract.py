@@ -59,7 +59,7 @@ CONTRACT = PackageContract(
     # "domain" (L3).
     status="active",
     tier="CODE-ONLY",
-    depends_on=["audit", "ledger"],
+    depends_on=["audit", "ledger", "observability"],
     roles=["base", "extension", "data"],
     units=[
         # ── base: real value objects — plain exceptions, no ORM references ──
@@ -131,6 +131,7 @@ CONTRACT = PackageContract(
     # (#1610, PR #1617) used.
     interface=[
         "AssetNotFoundError",
+        "DepreciationResult",
         "InvalidDateRangeError",
         "InvestmentAccountingError",
         "InvestmentAccountingResult",
@@ -138,6 +139,9 @@ CONTRACT = PackageContract(
         "InvestmentAccountingValidationError",
         "PortfolioError",
         "PortfolioNotFoundError",
+        "PositionService",
+        "PositionServiceError",
+        "ReconcileResult",
     ],
     events=[],
     invariants=[

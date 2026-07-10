@@ -33,7 +33,7 @@ from src.ledger import create_journal_entry, post_journal_entry
 from src.models.account import Account, AccountType
 from src.models.journal import JournalEntrySourceType
 from src.models.layer3 import ManualValuationComponentType
-from src.services.assets import AssetService
+from src.pricing import ValuationService
 from src.services.reporting import generate_balance_sheet
 
 
@@ -88,7 +88,7 @@ async def test_AC8_16_1_augmentation_seam_excludes_superseded_and_surfaces_confi
     report without leaking a superseded row or laundering a low-confidence input."""
     user_id = test_user.id
     as_of = date(2026, 5, 31)
-    service = AssetService()
+    service = ValuationService()
 
     cash = await _account(db, user_id, name="Cash", account_type=AccountType.ASSET)
     equity = await _account(db, user_id, name="Opening Equity", account_type=AccountType.EQUITY)

@@ -11,7 +11,7 @@ import pytest
 
 from src.models.account import Account, AccountType
 from src.models.layer3 import ManagedPosition, PositionStatus
-from src.services.assets import AssetService, AssetServiceError
+from src.portfolio import PositionService, PositionServiceError
 
 
 class TestAssetDepreciation:
@@ -21,7 +21,7 @@ class TestAssetDepreciation:
         """GIVEN: A managed position
         WHEN: Calculating straight-line depreciation
         THEN: Depreciation is spread evenly over useful life"""
-        service = AssetService()
+        service = PositionService()
 
         account = Account(
             user_id=test_user.id,
@@ -67,7 +67,7 @@ class TestAssetDepreciation:
         """GIVEN: A managed position
         WHEN: Calculating declining-balance depreciation
         THEN: Depreciation accelerates in early years"""
-        service = AssetService()
+        service = PositionService()
 
         account = Account(
             user_id=test_user.id,
@@ -110,7 +110,7 @@ class TestAssetDepreciation:
         """GIVEN: A position with salvage value
         WHEN: Calculating depreciation
         THEN: Depreciation stops at salvage value"""
-        service = AssetService()
+        service = PositionService()
 
         account = Account(
             user_id=test_user.id,
@@ -149,8 +149,8 @@ class TestAssetDepreciation:
     async def test_calculate_depreciation_disposed_position_error(self, db, test_user):
         """GIVEN: A disposed position
         WHEN: Attempting to calculate depreciation
-        THEN: AssetServiceError is raised"""
-        service = AssetService()
+        THEN: PositionServiceError is raised"""
+        service = PositionService()
 
         account = Account(
             user_id=test_user.id,
@@ -175,7 +175,7 @@ class TestAssetDepreciation:
         db.add(position)
         await db.flush()
 
-        with pytest.raises(AssetServiceError, match="Cannot depreciate disposed position"):
+        with pytest.raises(PositionServiceError, match="Cannot depreciate disposed position"):
             service.calculate_depreciation(
                 position=position,
                 method="straight-line",
@@ -187,8 +187,8 @@ class TestAssetDepreciation:
     async def test_calculate_depreciation_zero_useful_life_error(self, db, test_user):
         """GIVEN: A position with zero useful life
         WHEN: Attempting to calculate depreciation
-        THEN: AssetServiceError is raised"""
-        service = AssetService()
+        THEN: PositionServiceError is raised"""
+        service = PositionService()
 
         account = Account(
             user_id=test_user.id,
@@ -212,7 +212,7 @@ class TestAssetDepreciation:
         db.add(position)
         await db.flush()
 
-        with pytest.raises(AssetServiceError, match="Useful life must be positive"):
+        with pytest.raises(PositionServiceError, match="Useful life must be positive"):
             service.calculate_depreciation(
                 position=position,
                 method="straight-line",
@@ -224,8 +224,8 @@ class TestAssetDepreciation:
     async def test_calculate_depreciation_future_date_error(self, db, test_user):
         """GIVEN: A position with as_of_date before acquisition
         WHEN: Attempting to calculate depreciation
-        THEN: AssetServiceError is raised"""
-        service = AssetService()
+        THEN: PositionServiceError is raised"""
+        service = PositionService()
 
         account = Account(
             user_id=test_user.id,
@@ -249,7 +249,7 @@ class TestAssetDepreciation:
         db.add(position)
         await db.flush()
 
-        with pytest.raises(AssetServiceError, match="as_of_date cannot be before acquisition_date"):
+        with pytest.raises(PositionServiceError, match="as_of_date cannot be before acquisition_date"):
             service.calculate_depreciation(
                 position=position,
                 method="straight-line",
@@ -261,12 +261,12 @@ class TestAssetDepreciation:
     async def test_get_depreciation_schedule_not_found(self, db, test_user):
         """GIVEN: A non-existent position ID
         WHEN: Getting depreciation schedule
-        THEN: AssetServiceError is raised"""
+        THEN: PositionServiceError is raised"""
         from uuid import uuid4
 
-        service = AssetService()
+        service = PositionService()
 
-        with pytest.raises(AssetServiceError, match="Position not found"):
+        with pytest.raises(PositionServiceError, match="Position not found"):
             await service.get_depreciation_schedule(
                 db=db,
                 user_id=test_user.id,
@@ -280,7 +280,7 @@ class TestAssetDepreciation:
         """GIVEN: A valid position
         WHEN: Getting depreciation schedule
         THEN: Returns depreciation result"""
-        service = AssetService()
+        service = PositionService()
 
         account = Account(
             user_id=test_user.id,
@@ -323,6 +323,6 @@ class TestAssetDepreciation:
 # with null values for `quantity` and `market_value`. However, the schema defines
 # these columns as `nullable=False` (see migration 0008_add_layer1_layer2_tables.py),
 # so `await db.flush()` would always raise an integrity error. The defensive null
-# checks in `AssetService.reconcile_positions()` (lines 142-152 in assets.py) are
+# checks in `PositionService.reconcile_positions()` (src/portfolio/extension/positions.py) are
 # already covered by reconciliation integration tests. Corrupted rows with nulls,
 # if needed for testing, must be simulated via mocking rather than real inserts.
