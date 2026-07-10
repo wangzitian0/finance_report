@@ -21,11 +21,12 @@ Two cohesive surfaces under one `infra` package:
 
 ## Shape
 
-An `infra` package (L1), `tier=CODE-ONLY` (pure Python, no LLM). `depends_on=["config"]`:
+An `infra` package (L1), `tier=CODE-ONLY` (pure Python, no LLM). `depends_on=[]`:
 the OTEL runtime reads the backend config singleton via its bare published root
-(`import src.config`) — a same-layer, acyclic `infra` -> `infra` edge. Its other
-imports (`src.services.pii_redaction`, `src.telemetry_metrics`) are unregistered
-backend infrastructure, not governed cross-package edges. Its published language —
+(`import src.config`) — the app `Settings` module, unregistered backend
+infrastructure rather than a governed cross-package edge (#1674). The formerly
+flat `src.telemetry_metrics` and the PII detector (`src.services.pii_redaction`,
+folded in per #1677) now live inside the package. Its published language —
 `contract.interface` — equals `apps/backend/src/observability/__init__.__all__`,
 validated by `tools/check_package_contract.py` (which also resolves the OpenPanel
 api-key invariant to its test).

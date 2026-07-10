@@ -4,7 +4,7 @@ These tests cover edge cases and error paths for service layer
 that are not covered in the main test files.
 """
 
-from src.services.pii_redaction import detect_pii, mask_account_number, redact_text
+from src.observability.pii_redaction import detect_pii, mask_account_number, redact_text
 
 
 class TestServiceLayerCoverage:

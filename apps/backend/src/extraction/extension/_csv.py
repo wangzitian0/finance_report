@@ -17,7 +17,7 @@ from src.extraction.extension.brokerage_positions import (
     classify_brokerage_csv,
     parse_brokerage_csv_payload,
 )
-from src.services.pii_redaction import detect_pii
+from src.observability import detect_pii
 
 
 class _CsvMixin:
