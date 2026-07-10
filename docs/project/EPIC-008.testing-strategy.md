@@ -484,13 +484,19 @@ its own savepoint (all-or-nothing), and an account still holding immutable
 posted/reconciled ledger entries is *reported and skipped*, never force-deleted —
 the same contract the API enforces with a 409 ([#988](https://github.com/wangzitian0/finance_report/issues/988)).
 
-| AC ID | Test Case | Test Function | File | Priority |
-|---|---|---|---|---|
-| AC8.17.1 | Only disposable test accounts (qa/e2e/load-test prefixes on example.com / test.example.com) are selected; real accounts and plain local fixtures are excluded | `test_selection_matches_test_accounts_and_excludes_real_ones`, `test_owned_tables_cover_core_user_data_and_exclude_users` | `apps/backend/tests/services/test_test_account_purge.py` | P1 |
-| AC8.17.2 | Applying the purge removes a clean test account and every row it owns, while leaving non-test accounts untouched | `test_apply_purges_clean_account_and_leaves_others` | `apps/backend/tests/services/test_test_account_purge.py` | P1 |
-| AC8.17.3 | An account owning a posted (immutable) ledger entry is reported blocked and fully preserved, not force-deleted | `test_account_with_posted_ledger_entry_is_blocked_not_deleted` | `apps/backend/tests/services/test_test_account_purge.py` | P1 |
-| AC8.17.4 | A dry run names the accounts it would purge but persists no deletions | `test_dry_run_reports_but_persists_nothing` | `apps/backend/tests/services/test_test_account_purge.py` | P1 |
-| AC8.17.5 | The CLI `--apply` environment guard allows dev/staging/CI and refuses production (or an unset environment) without an explicit override | `test_environment_guard_allows_dev_staging_and_refuses_production` | `apps/backend/tests/services/test_test_account_purge.py` | P1 |
+> (AC8.17.1 removed, canonical: migrated to `AC-identity.purge.1`.)
+> (AC8.17.2 removed, canonical: migrated to `AC-identity.purge.2`.)
+> (AC8.17.3 removed, canonical: migrated to `AC-identity.purge.3`.)
+> (AC8.17.4 removed, canonical: migrated to `AC-identity.purge.4`.)
+> (AC8.17.5 removed, canonical: migrated to `AC-identity.purge.5`.)
+>
+> The purge library moved from `src/services/test_account_purge.py` into the
+> `identity` package (`src/identity/extension/account_purge.py`, #1677 —
+> purging user accounts and their owned rows is user-lifecycle
+> administration), so its ACs live in
+> [`common/identity/contract.py`](../../common/identity/contract.py)'s
+> `roadmap` (migration closeout wave 3, #1663). Its tests moved to
+> `apps/backend/tests/identity/test_account_purge.py`.
 
 The operator entry point is `tools/purge_test_accounts.py` (dry-run by default;
 `--apply` to delete; runbook in `docs/contributing/staging-test-account-cleanup.md`).

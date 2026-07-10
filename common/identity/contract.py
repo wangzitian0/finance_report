@@ -136,6 +136,19 @@ CONTRACT = PackageContract(
             kind=Kind.DOMAIN_SERVICE,
             module="extension/observability.py",
         ),
+        # extension — the test/QA account-purge maintenance service (folded in
+        # from src/services per #1677: purging user accounts + their owned rows
+        # is user-lifecycle administration, and its one domain import is User).
+        Unit(
+            name="purge_test_accounts",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/account_purge.py",
+        ),
+        # PurgeReport is declared taxonomy-only (no placed module) like
+        # User/AiFeedback: it is defined next to the purge service in
+        # extension/account_purge.py rather than base/, keeping the dataclass
+        # beside the only code that constructs it.
+        Unit(name="PurgeReport", kind=Kind.VALUE_OBJECT),
     ],
     implementations={"be": "apps/backend/src/identity", "fe": None},
     interface=[
@@ -146,7 +159,9 @@ CONTRACT = PackageContract(
         "AiSuggestionListResponse",
         "AiSuggestionResponse",
         "AuthResponse",
+        "DEFAULT_TEST_EMAIL_PATTERN",
         "LoginRequest",
+        "PurgeReport",
         "RegisterRequest",
         "User",
         "UserRepository",
@@ -158,9 +173,11 @@ CONTRACT = PackageContract(
         "get_current_user_id",
         "get_me",
         "hash_password",
+        "is_safe_purge_environment",
         "login",
         "normalize_email",
         "oauth2_scheme",
+        "purge_test_accounts",
         "register",
         "register_rate_limiter",
         "users_router",
@@ -380,6 +397,79 @@ CONTRACT = PackageContract(
                 "locator failure."
             ),
             test="tests/e2e/test_auth_flows.py::test_full_registration_flow",
+            priority="P1",
+            status="done",
+        ),
+        # ── purge: test/QA account-purge maintenance (was EPIC-008 AC8.17,
+        # folded in with extension/account_purge.py per #1677 / #1663 wave 3) ──
+        ACRecord(
+            id="AC-identity.purge.1",
+            statement=(
+                "Only disposable test accounts (qa/e2e/load-test prefixes on "
+                "example.com / test.example.com) are selected for purging; real "
+                "accounts and plain local fixtures are excluded, and the users "
+                "table itself is never in the owned-tables delete list. Was "
+                "EPIC-008 AC8.17.1."
+            ),
+            test=(
+                "apps/backend/tests/identity/test_account_purge.py"
+                "::test_selection_matches_test_accounts_and_excludes_real_ones"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-identity.purge.2",
+            statement=(
+                "Applying the purge removes a clean test account and every row "
+                "it owns, while leaving non-test accounts untouched. Was "
+                "EPIC-008 AC8.17.2."
+            ),
+            test=(
+                "apps/backend/tests/identity/test_account_purge.py"
+                "::test_apply_purges_clean_account_and_leaves_others"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-identity.purge.3",
+            statement=(
+                "An account owning a posted (immutable) ledger entry is reported "
+                "blocked and fully preserved, never force-deleted — mirroring "
+                "the 409 the API returns. Was EPIC-008 AC8.17.3."
+            ),
+            test=(
+                "apps/backend/tests/identity/test_account_purge.py"
+                "::test_account_with_posted_ledger_entry_is_blocked_not_deleted"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-identity.purge.4",
+            statement=(
+                "A dry run names the accounts it would purge but persists no "
+                "deletions. Was EPIC-008 AC8.17.4."
+            ),
+            test=(
+                "apps/backend/tests/identity/test_account_purge.py"
+                "::test_dry_run_reports_but_persists_nothing"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-identity.purge.5",
+            statement=(
+                "The CLI --apply environment guard allows dev/staging/CI and "
+                "refuses production (or an unset environment) without an "
+                "explicit override. Was EPIC-008 AC8.17.5."
+            ),
+            test=(
+                "apps/backend/tests/identity/test_account_purge.py"
+                "::test_environment_guard_allows_dev_staging_and_refuses_production"
+            ),
             priority="P1",
             status="done",
         ),

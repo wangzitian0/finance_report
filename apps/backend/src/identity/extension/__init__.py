@@ -19,6 +19,10 @@ from typing import TYPE_CHECKING
 # itself). The ``api`` (routers) and ``auth`` (oauth2_scheme/get_current_user_id)
 # modules import FastAPI, so they are resolved on demand, not at layer-import time.
 _LAZY = {
+    "DEFAULT_TEST_EMAIL_PATTERN": "src.identity.extension.account_purge",
+    "PurgeReport": "src.identity.extension.account_purge",
+    "is_safe_purge_environment": "src.identity.extension.account_purge",
+    "purge_test_accounts": "src.identity.extension.account_purge",
     "auth_router": "src.identity.extension.api",
     "get_me": "src.identity.extension.api",
     "login": "src.identity.extension.api",
@@ -40,6 +44,8 @@ _LAZY = {
 
 __all__ = [
     "AiFeedback",
+    "DEFAULT_TEST_EMAIL_PATTERN",
+    "PurgeReport",
     "SqlUserRepository",
     "User",
     "auth_rate_limiter",
@@ -50,8 +56,10 @@ __all__ = [
     "get_current_user_id",
     "get_me",
     "hash_password",
+    "is_safe_purge_environment",
     "login",
     "oauth2_scheme",
+    "purge_test_accounts",
     "register",
     "register_rate_limiter",
     "users_router",
@@ -70,6 +78,12 @@ def __getattr__(name: str) -> object:
 
 
 if TYPE_CHECKING:  # pragma: no cover - static type-checker view of the lazy exports
+    from src.identity.extension.account_purge import (
+        DEFAULT_TEST_EMAIL_PATTERN,
+        PurgeReport,
+        is_safe_purge_environment,
+        purge_test_accounts,
+    )
     from src.identity.extension.api import (
         auth_router,
         get_me,
