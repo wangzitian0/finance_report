@@ -3587,7 +3587,7 @@ async def test_AC18_8_3_AC18_8_6_create_entry_from_txn_writes_statement_to_ledge
     db,
     test_user,
 ):
-    """AC18.8.3 AC18.8.6 AC18.8.7: Statement posting records extracted->ledger entry->ledger line lineage."""
+    """AC-extraction.1808.3 AC-extraction.1808.6: AC18.8.3 AC18.8.6 AC18.8.7: Statement posting records extracted->ledger entry->ledger line lineage."""
     account = await create_statement_account(db, test_user.id, "DBS Evidence Graph Posting")
     statement = build_statement(test_user.id, "hash_evidence_graph_posting", 90)
     statement.status = BankStatementStatus.APPROVED

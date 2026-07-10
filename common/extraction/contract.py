@@ -2289,6 +2289,395 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── group 1807: Evidence Graph foundation — nodes, edges, upsert,
+        # bounded traversal (was EPIC-018 AC18.7.1-7, migration closeout
+        # continuation, #1663 / #1715) ──
+        ACRecord(
+            id="AC-extraction.1807.1",
+            statement=(
+                "The Evidence Graph SSOT defines nodes as auditable states, "
+                "edges as transformation processes, allowed foundation node/"
+                "edge fields, traversal direction, and append-only edge "
+                "rules."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_evidence_lineage_contract.py"
+                "::test_AC18_7_1_evidence_lineage_ssot_defines_graph_semantics"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1807.2",
+            statement=(
+                "The Alembic migration creates evidence_nodes and "
+                "evidence_edges with user-scoped entity lookup and edge "
+                "traversal indexes."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_evidence_lineage_migration_contract.py"
+                "::test_AC18_7_2_evidence_lineage_migration_creates_tables_and_indexes"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1807.3",
+            statement=(
+                "SQLAlchemy models expose EvidenceNode and EvidenceEdge "
+                "with JSONB properties and user-owned isolation."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_evidence_lineage_contract.py"
+                "::test_AC18_7_3_evidence_lineage_models_expose_jsonb_user_owned_graph_tables"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1807.4",
+            statement=(
+                "The evidence lineage service supports idempotent node and "
+                "edge upsert keyed by user, entity identity, node kind, "
+                "relation, and edge endpoints."
+            ),
+            test=(
+                "apps/backend/tests/services/test_evidence_lineage.py"
+                "::test_AC18_7_4_node_and_edge_upserts_are_idempotent"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1807.5",
+            statement=(
+                "The evidence lineage service resolves entity nodes and "
+                "traverses upstream and downstream paths only within the "
+                "authenticated user's scope."
+            ),
+            test=(
+                "apps/backend/tests/services/test_evidence_lineage.py"
+                "::test_AC18_7_5_traversal_resolves_upstream_and_downstream_by_entity"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1807.6",
+            statement=(
+                "Evidence lineage traversal enforces a default maximum "
+                "depth and never walks unbounded graphs."
+            ),
+            test=(
+                "apps/backend/tests/services/test_evidence_lineage.py"
+                "::test_AC18_7_6_traversal_enforces_depth_limit"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1807.7",
+            statement=(
+                "Evidence Graph foundation tests cover node creation, edge "
+                "creation, duplicate upsert behavior, upstream traversal, "
+                "downstream traversal, depth limit, and cross-user "
+                "isolation."
+            ),
+            test=(
+                "apps/backend/tests/services/test_evidence_lineage.py"
+                "::test_AC18_7_5_cross_user_edges_and_traversal_are_blocked"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        # ── group 1808: Evidence Graph source-to-report integration (was
+        # EPIC-018 AC18.8.1-7, migration closeout continuation, #1663 /
+        # #1715) ──
+        ACRecord(
+            id="AC-extraction.1808.1",
+            statement=(
+                "Statement upload creates a source_document node for the "
+                "uploaded source (uploaded_document); the legacy "
+                "extracted_record middle node was removed in EPIC-011 "
+                "Stage 3 with the bank_statements tables."
+            ),
+            test=(
+                "apps/backend/tests/services/test_evidence_graph_materialization.py"
+                "::test_AC18_10_4_direct_entity_materialization_branches_are_idempotent"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1808.2",
+            statement=(
+                "Layer 2 lineage creates atomic_fact nodes for atomic "
+                "transactions and deduped_into edges from the "
+                "source_document (uploaded document) that produced them."
+            ),
+            test=(
+                "apps/backend/tests/services/test_evidence_graph_materialization.py"
+                "::test_AC18_10_4_direct_entity_materialization_branches_are_idempotent"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1808.3",
+            statement=(
+                "Journal posting creates ledger_entry and ledger_line "
+                "nodes, links extracted or atomic transaction facts to the "
+                "ledger entry with posted_as, and links the ledger entry "
+                "to its lines with contains."
+            ),
+            test=(
+                "apps/backend/tests/api/test_statements_router.py"
+                "::test_AC18_8_3_AC18_8_6_create_entry_from_txn_writes_statement_to_ledger_graph"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1808.4",
+            statement=(
+                "GET /api/reports/package/traceability can resolve at "
+                "least one report line from ledger anchors through "
+                "Evidence Graph lineage back to source document anchors."
+            ),
+            test=(
+                "apps/backend/tests/api/test_personal_report_package_contract.py"
+                "::test_AC18_8_4_AC18_8_7_package_traceability_resolves_report_line_to_source_document"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1808.5",
+            statement=(
+                "Unknown or unsupported JournalEntry.source_id values "
+                "produce explicit blocker codes and never fabricate "
+                "statement, atomic, or document anchors."
+            ),
+            test=(
+                "apps/backend/tests/api/test_personal_report_package_contract.py"
+                "::test_AC19_10_1_unknown_journal_source_ids_are_not_reported_as_statement_transactions"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1808.6",
+            statement=(
+                "Existing JournalEntry.source_type/source_id semantics "
+                "remain backward-compatible while Evidence Graph writes "
+                "add supplemental audit lineage."
+            ),
+            test=(
+                "apps/backend/tests/api/test_statements_router.py"
+                "::test_AC18_8_3_AC18_8_6_create_entry_from_txn_writes_statement_to_ledger_graph"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1808.7",
+            statement=(
+                "Tests cover three end-to-end graph paths: source document "
+                "downstream impact, bank statement transaction to ledger "
+                "line, and report line to source document."
+            ),
+            test=(
+                "apps/backend/tests/api/test_personal_report_package_contract.py"
+                "::test_AC18_8_4_AC18_8_7_package_traceability_resolves_report_line_to_source_document"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group 1809: Evidence Graph navigation UX — backend API contract
+        # (was EPIC-018 AC18.9.1-3, migration closeout continuation, #1663 /
+        # #1715). AC18.9.4-6 (frontend lineage panel) stay in EPIC-018 —
+        # extraction is a backend-only package (fe=None). ──
+        ACRecord(
+            id="AC-extraction.1809.1",
+            statement=(
+                "An authenticated Evidence Graph lineage API resolves an "
+                "owned graph node by entity_type, entity_id, and optional "
+                "node_kind."
+            ),
+            test=(
+                "apps/backend/tests/api/test_evidence_lineage_router.py"
+                "::test_AC18_9_1_AC18_9_2_lineage_api_resolves_owned_anchor_and_both_directions"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1809.2",
+            statement=(
+                "The lineage API supports upstream, downstream, and "
+                "both-direction traversal with bounded depth and returns "
+                "stable node and edge DTOs."
+            ),
+            test=(
+                "apps/backend/tests/api/test_evidence_lineage_router.py"
+                "::test_AC18_9_1_AC18_9_2_lineage_api_resolves_owned_anchor_and_both_directions"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1809.3",
+            statement=(
+                "Missing, unsupported, or cross-user entity identities "
+                "return explicit empty/blocker state and never fabricate "
+                "source, ledger, or report anchors."
+            ),
+            test=(
+                "apps/backend/tests/api/test_evidence_lineage_router.py"
+                "::test_AC18_9_3_lineage_api_returns_blocker_for_missing_or_cross_user_anchor"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        # ── group 1810: Evidence Graph lazy materialization and consistency
+        # guardrails (was EPIC-018 AC18.10.1-7, migration closeout
+        # continuation, #1663 / #1715) ──
+        ACRecord(
+            id="AC-extraction.1810.1",
+            statement=(
+                "The Evidence Graph SSOT defines the graph as an audit "
+                "projection, business tables as source of truth, and a "
+                "blocker taxonomy for drift states."
+            ),
+            test=(
+                "apps/backend/tests/services/test_evidence_graph_materialization.py"
+                "::test_AC18_10_5_detector_reports_missing_orphan_and_cross_user_drift"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1810.2",
+            statement=(
+                "New source-to-ledger workflows materialize graph nodes "
+                "and edges in the same database transaction as their "
+                "owning business facts."
+            ),
+            test=(
+                "apps/backend/tests/services/test_evidence_graph_materialization.py"
+                "::test_AC18_10_2_graph_writes_share_the_business_transaction"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1810.3",
+            statement=(
+                "The lineage API attempts one bounded deterministic "
+                "materialization pass when an owned anchor or required "
+                "local path is missing for historical data."
+            ),
+            test=(
+                "apps/backend/tests/api/test_evidence_lineage_router.py"
+                "::test_AC18_10_3_AC18_10_4_lineage_api_lazily_materializes_historical_journal_line"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1810.4",
+            statement=(
+                "Lazy materialization is idempotent and only uses strong "
+                "relationships such as owned source IDs, transaction "
+                "lineage, and journal_line.journal_entry_id; it never "
+                "infers links from fuzzy amount, date, or description "
+                "similarity."
+            ),
+            test=(
+                "apps/backend/tests/services/test_evidence_graph_materialization.py"
+                "::test_AC18_10_4_AC18_10_6_lazy_materialization_is_idempotent_and_preserves_accounting_facts"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1810.5",
+            statement=(
+                "An operator-safe dry-run detector reports missing graph "
+                "nodes, graph nodes pointing to missing business entities, "
+                "dangling edges, cross-user edges, incomplete lineage, and "
+                "ambiguous or unsupported provenance."
+            ),
+            test=(
+                "apps/backend/tests/services/test_evidence_graph_materialization.py"
+                "::test_AC18_10_5_detector_reports_missing_orphan_and_cross_user_drift"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1810.6",
+            statement=(
+                "The detector and lazy repair never mutate accounting "
+                "facts, report amounts, ledger balances, or legacy "
+                "JournalEntry.source_type/source_id values."
+            ),
+            test=(
+                "apps/backend/tests/services/test_evidence_graph_materialization.py"
+                "::test_AC18_10_4_AC18_10_6_lazy_materialization_is_idempotent_and_preserves_accounting_facts"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1810.7",
+            statement=(
+                "Tests cover request-time lazy repair, repeated-read "
+                "idempotency, dry-run no-write behavior, cross-user "
+                "blocking, unknown provenance blockers, dangling/orphan "
+                "detection, and request-level write caps."
+            ),
+            test=(
+                "apps/backend/tests/services/test_evidence_graph_materialization.py"
+                "::test_AC18_10_7_materialization_caps_and_unknown_sources_return_blockers"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group 1831: Evidence Graph typed properties and fail-fast
+        # materialization (was EPIC-018 AC18.31.1-2, migration closeout
+        # continuation, #1663 / #1715) ──
+        ACRecord(
+            id="AC-extraction.1831.1",
+            statement=(
+                "Evidence Graph node and edge DTO properties are "
+                "constrained by closed typed Pydantic models per node kind "
+                "and edge relation (monetary amounts stay Decimal-as-"
+                "string, never float), preserving the existing JSON shape "
+                "and tolerating legacy/partial rows."
+            ),
+            test=(
+                "apps/backend/tests/api/test_evidence_lineage_router.py"
+                "::test_AC18_31_1_node_properties_are_typed_and_round_trip"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1831.2",
+            statement=(
+                "A genuine materialization failure (cross-user, write-cap, "
+                "or unsupported provenance) returns a non-2xx status with "
+                "a structured EvidenceLineageError detail, while an absent "
+                "anchor stays a 200 empty/blocker result."
+            ),
+            test=(
+                "apps/backend/tests/api/test_evidence_lineage_router.py"
+                "::test_AC18_31_2_failure_status_distinguishes_genuine_failure_from_empty"
+            ),
+            priority="P0",
+            status="done",
+        ),
         # ── group 1801: classification retirement — the pre-classify-node
         # rule matching path (was EPIC-018 AC18.1.3-4, migration closeout
         # continuation, #1663 / #1715). AC18.1.1 is already proven by

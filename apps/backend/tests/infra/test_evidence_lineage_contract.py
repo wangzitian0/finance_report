@@ -13,7 +13,7 @@ pytestmark = pytest.mark.no_db
 
 
 def test_AC18_7_1_evidence_lineage_ssot_defines_graph_semantics():
-    """AC18.7.1: Evidence lineage SSOT defines node, edge, identity, and traversal semantics."""
+    """AC-extraction.1807.1: AC18.7.1: Evidence lineage SSOT defines node, edge, identity, and traversal semantics."""
     source = SSOT_PATH.read_text()
 
     assert "node = auditable state" in source
@@ -24,7 +24,7 @@ def test_AC18_7_1_evidence_lineage_ssot_defines_graph_semantics():
 
 
 def test_AC18_7_3_evidence_lineage_models_expose_jsonb_user_owned_graph_tables():
-    """AC18.7.3: Evidence lineage models expose user-owned graph tables with JSONB properties."""
+    """AC-extraction.1807.3: AC18.7.3: Evidence lineage models expose user-owned graph tables with JSONB properties."""
     assert EvidenceNode.__tablename__ == "evidence_nodes"
     assert EvidenceEdge.__tablename__ == "evidence_edges"
     assert EvidenceNode.__table__.c.user_id.foreign_keys

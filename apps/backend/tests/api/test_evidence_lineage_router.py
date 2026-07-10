@@ -32,7 +32,7 @@ async def test_AC18_9_1_AC18_9_2_lineage_api_resolves_owned_anchor_and_both_dire
     db: AsyncSession,
     test_user: User,
 ):
-    """AC18.9.1 AC18.9.2: API resolves an owned anchor and returns bounded bidirectional DTOs."""
+    """AC-extraction.1809.1 AC-extraction.1809.2: AC18.9.1 AC18.9.2: API resolves an owned anchor and returns bounded bidirectional DTOs."""
     service = EvidenceLineageService()
     source_id = uuid4()
     atomic_id = uuid4()
@@ -147,7 +147,7 @@ async def test_AC18_9_3_lineage_api_returns_blocker_for_missing_or_cross_user_an
     db: AsyncSession,
     test_user: User,
 ):
-    """AC18.9.3: Missing or cross-user graph identities return explicit blocker state."""
+    """AC-extraction.1809.3: AC18.9.3: Missing or cross-user graph identities return explicit blocker state."""
     service = EvidenceLineageService()
     other_user_id = (await UserFactory.create_async(db)).id
     other_entity_id = uuid4()
@@ -187,7 +187,7 @@ async def test_AC18_10_3_AC18_10_4_lineage_api_lazily_materializes_historical_jo
     db: AsyncSession,
     test_user: User,
 ):
-    """AC18.10.3 AC18.10.4: Lineage reads repair a missing historical graph path once and idempotently."""
+    """AC-extraction.1810.3: AC18.10.3 AC18.10.4: Lineage reads repair a missing historical graph path once and idempotently."""
     bank = Account(user_id=test_user.id, name="Lazy API Bank", type=AccountType.ASSET, currency="SGD")
     income = Account(user_id=test_user.id, name="Lazy API Income", type=AccountType.INCOME, currency="SGD")
     db.add_all([bank, income])
@@ -330,7 +330,7 @@ def test_AC18_10_7_lazy_materialization_requires_supported_entity_type_and_match
 
 
 def test_AC18_31_1_node_properties_are_typed_and_round_trip() -> None:
-    """AC18.31.1: ledger_line properties coerce into a typed model and preserve monetary string amounts."""
+    """AC-extraction.1831.1: AC18.31.1: ledger_line properties coerce into a typed model and preserve monetary string amounts."""
     raw = {
         "journal_entry_id": str(uuid4()),
         "account_id": str(uuid4()),
@@ -380,7 +380,7 @@ def test_AC18_31_1_edge_properties_are_typed() -> None:
 
 
 def test_AC18_31_2_failure_status_distinguishes_genuine_failure_from_empty() -> None:
-    """AC18.31.2: only genuine-failure blocker codes map to a non-2xx status."""
+    """AC-extraction.1831.2: AC18.31.2: only genuine-failure blocker codes map to a non-2xx status."""
     # Absent-anchor states are valid empty results, not failures.
     assert _materialization_failure_status([]) is None
     assert _materialization_failure_status([EvidenceLineageBlocker(code="graph_node_missing", message="x")]) is None

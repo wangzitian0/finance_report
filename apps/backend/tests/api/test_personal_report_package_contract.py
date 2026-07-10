@@ -1617,7 +1617,7 @@ async def test_AC18_8_4_AC18_8_7_package_traceability_resolves_report_line_to_so
     db: AsyncSession,
     test_user: User,
 ):
-    """AC18.8.4 AC18.8.7: Report traceability resolves a ledger-backed line to an Evidence Graph source document."""
+    """AC-extraction.1808.4 AC-extraction.1808.7: AC18.8.4 AC18.8.7: Report traceability resolves a ledger-backed line to an Evidence Graph source document."""
     report_date = date(2026, 5, 31)
     bank = Account(user_id=test_user.id, name="Evidence Trace Bank", type=AccountType.ASSET, currency="SGD")
     db.add(bank)
@@ -1713,7 +1713,7 @@ async def test_AC19_10_1_unknown_journal_source_ids_are_not_reported_as_statemen
     db: AsyncSession,
     test_user: User,
 ):
-    """AC18.8.5 AC19.10.1: Unknown journal source IDs remain explicit blockers, not fake statement anchors."""
+    """AC-extraction.1808.5: AC18.8.5 AC19.10.1: Unknown journal source IDs remain explicit blockers, not fake statement anchors."""
     report_date = date(2026, 5, 31)
     bank = Account(user_id=test_user.id, name="Unknown Source Bank", type=AccountType.ASSET, currency="SGD")
     income = Account(user_id=test_user.id, name="Unknown Source Income", type=AccountType.INCOME, currency="SGD")
