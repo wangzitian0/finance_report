@@ -81,7 +81,7 @@ def _unique_pdf_copy(src: Path) -> Path:
 
 @ac_proof(
     "dbs-pdf-full-journey",
-    ac_ids=["AC8.13.1", "AC8.13.2", "AC8.13.3", "AC8.13.4", "AC8.13.5"],
+    ac_ids=["AC-extraction.813.11"],
     scope="behavioral",
     ci_tier="post_merge_environment",
     trust_mode="llm_ocr_post_merge",
@@ -95,9 +95,9 @@ def _unique_pdf_copy(src: Path) -> Path:
 @pytest.mark.critical
 @pytest.mark.llm
 async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> None:
-    """EPIC-003 EPIC-004 EPIC-008 EPIC-009 EPIC-013 EPIC-016 EPIC-018.
+    """AC-extraction.813.11: EPIC-003 EPIC-004 EPIC-008 EPIC-009 EPIC-013 EPIC-016 EPIC-018.
 
-    AC8.13.1 AC8.13.2 AC8.13.3 AC8.13.4 AC8.13.5: DBS PDF to balance sheet.
+    AC8.13.1 AC8.13.2 AC8.13.3 AC8.13.4 AC8.13.5 AC8.13.7: DBS PDF to balance sheet.
     """
     page = authenticated_page_unique
     pdf_path = _unique_pdf_copy(_get_dbs_pdf_path())

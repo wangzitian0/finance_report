@@ -1953,6 +1953,43 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
+            id="AC-extraction.813.11",
+            statement=(
+                "A DBS bank statement PDF's full browser journey: upload with an "
+                "explicit OCR model selection, poll until parsed (failing/skipping "
+                "on a rejected AI/OCR status rather than hanging), the detail page "
+                "shows transactions, Start Review -> Approve transitions the "
+                "statement to approved, and the balance sheet report loads "
+                "afterward. Was EPIC-008 AC8.13.1-.5 / .7 (migration closeout wave "
+                "3, #1663)."
+            ),
+            test=(
+                "tests/e2e/test_statement_full_journey.py"
+                "::test_dbs_statement_full_journey"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.813.12",
+            statement=(
+                "A statement upload's full browser journey (institution name + "
+                "explicit model selection + PDF upload) returns a 2xx with an "
+                "id, the row appears in the statement list, and the statement is "
+                "immediately fetchable via the API in a valid status (never "
+                "silently rejected without a gate check). Was EPIC-008 AC8.13.8 "
+                "(migration closeout wave 3, #1663)."
+            ),
+            test=(
+                "tests/e2e/test_statement_upload_e2e.py"
+                "::test_statement_upload_full_flow"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
             id="AC-extraction.216.1",
             statement=(
                 "Distinct running balances hash differently; identical/absent "
