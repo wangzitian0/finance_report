@@ -134,6 +134,32 @@ def is_image_build_relevant(path: str) -> bool:
     )
 
 
+# Per-component change signal (#1689, gate re-architecture Phase 3 "cost-right").
+# Component names match common.meta.extension.coverage.policy.COMPONENT_BY_NAME
+# (backend/frontend/tools/common) so a PR's coverage gate can narrow its floor
+# comparison to only the components it actually touched. Broader than that
+# policy's coverage-instrumented source dirs on purpose: this answers "did the
+# PR touch this component's job-relevant surface at all" (tests, config, fixtures
+# included), not "is this file coverage-instrumented".
+COMPONENT_PREFIXES: dict[str, tuple[str, ...]] = {
+    "backend": ("apps/backend/",),
+    "frontend": ("apps/frontend/",),
+    "tools": ("tools/", "tests/tooling/"),
+    "common": ("common/",),
+}
+
+
+def _classify_components(files: tuple[str, ...]) -> dict[str, bool]:
+    # Fail closed when the diff is unknown (no files detected), matching
+    # heavy_required/image_build_required's convention elsewhere in this module.
+    if not files:
+        return dict.fromkeys(COMPONENT_PREFIXES, True)
+    return {
+        name: any(path.startswith(prefixes) for path in files)
+        for name, prefixes in COMPONENT_PREFIXES.items()
+    }
+
+
 PR_PREVIEW_ONLY_EXACT = frozenset(
     {
         ".github/workflows/maintenance.yml",
@@ -322,6 +348,7 @@ class ChangeClassification:
     envs: Mapping[Environment, EnvStageClassification]
     image_build_files: tuple[str, ...]
     image_build_required: bool
+    component_changed: Mapping[str, bool]
 
     @property
     def pr_preview_files(self) -> tuple[str, ...]:
@@ -557,6 +584,7 @@ def classify_changed_paths(paths: Iterable[str]) -> ChangeClassification:
         envs=envs,
         image_build_files=image_build_files,
         image_build_required=image_build_required,
+        component_changed=_classify_components(files),
     )
 
 
@@ -588,6 +616,18 @@ def write_github_outputs(
         fh.write(
             f"provider_gate_files={_json_output(_provider_gate_files(classification))}\n"
         )
+        # #1689: per-component change flags (plain scalars, matching
+        # image_build_required's convention — a single fact per component, not a
+        # per-environment matrix, so no JSON blob/fromJSON() needed by consumers).
+        for name in COMPONENT_PREFIXES:
+            changed = classification.component_changed[name]
+            fh.write(f"{name}_changed={str(changed).lower()}\n")
+        changed_components = ",".join(
+            name
+            for name in COMPONENT_PREFIXES
+            if classification.component_changed[name]
+        )
+        fh.write(f"coverage_gate_components={changed_components}\n")
         # The structured Env x Stage / provider-gate JSON above is the sole
         # machine-readable gate contract. Every workflow consumer (ci.yml,
         # preview.yml) normalizes its own scalar from that matrix, so the legacy
@@ -660,6 +700,12 @@ def write_github_summary(
             fh.write("\nStaging AI/OCR-triggering files:\n\n")
             for path in classification.staging_ai_ocr_files[:50]:
                 fh.write(f"- `{path}`\n")
+        fh.write("\n### Component Changed (#1689 coverage-gate scoping)\n\n")
+        fh.write("| Component | Changed |\n")
+        fh.write("|---|---|\n")
+        for name in COMPONENT_PREFIXES:
+            changed = classification.component_changed[name]
+            fh.write(f"| `{name}` | `{str(changed).lower()}` |\n")
 
 
 def main() -> int:
@@ -686,6 +732,7 @@ def main() -> int:
     print(
         f"provider_gate_required={_json_output(_provider_gate_required(classification))}"
     )
+    print(f"component_changed={_json_output(dict(classification.component_changed))}")
     print(f"changed_files={len(classification.files)}")
     return 0
 
