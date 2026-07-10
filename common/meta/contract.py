@@ -694,7 +694,7 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-meta.generated-refs.3",
-            statement="README EPIC status/completion is generated from the AC registries and test reports (not hand-written), reports coverage/placeholder/manual-gate/blocker categories separately, and is guarded by a generate-with---check drift gate. Was AC14.1.22.",
+            statement="README EPIC status/completion is generated from the AC registries and test reports (not hand-written), reports coverage/placeholder/manual-gate/blocker categories separately, and is guarded by a generate-with--check drift gate. Was AC14.1.22.",
             test="tests/tooling/test_generate_epic_status.py::test_AC14_1_22_check_fails_on_drift",
             priority="P1",
             status="done",
