@@ -26,7 +26,11 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
-from common.testing.cassette_eval_baseline import DEFAULT_BASELINE, load_jsonl
+from common.testing.cassette_eval_baseline import (
+    CORPUS_COUNT_BASELINE,
+    DEFAULT_BASELINE,
+    load_jsonl,
+)
 from common.testing.check_llm_cassettes import CASSETTE_DIR, _response_text
 
 GROUND_TRUTH_DIR = CASSETTE_DIR / "ground_truth"
@@ -263,7 +267,9 @@ def load_cases(
 # below — see common.testing.cassette_eval_baseline's module docstring for why
 # a separate, explicitly-raised floor is needed.
 # --------------------------------------------------------------------------- #
-def corpus_shrink_findings(cases: list[EvalCase], floor: int) -> list[str]:
+def corpus_shrink_findings(
+    cases: list[EvalCase], floor: int, baseline_path: Path = CORPUS_COUNT_BASELINE
+) -> list[str]:
     """A raise-only floor on corpus SIZE, not per-case scores.
 
     Returns a non-empty finding when the current case count is below the
@@ -272,8 +278,8 @@ def corpus_shrink_findings(cases: list[EvalCase], floor: int) -> list[str]:
     if len(cases) < floor:
         return [
             f"corpus shrank to {len(cases)} case(s), below the floor of {floor} "
-            "(a ground-truth file was likely removed without lowering "
-            "cassette-corpus-count-baseline.json's min_cases)"
+            f"(a ground-truth file was likely removed without lowering "
+            f"{baseline_path.name}'s min_cases)"
         ]
     return []
 
