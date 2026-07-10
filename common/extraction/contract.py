@@ -2338,7 +2338,10 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-extraction.1802.4",
-            statement="The correction cache invalidates after recording a new correction.",
+            statement=(
+                "The correction cache has a 1-hour TTL and also invalidates "
+                "immediately after recording a new correction."
+            ),
             test=(
                 "apps/backend/tests/extraction/test_correction_service.py"
                 "::test_few_shot_cache_invalidates"
@@ -2400,9 +2403,10 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.1814.4",
             statement=(
-                "The held-out replay result is surfaced read-only over the "
-                "live corpus, so the loop's effect on the low-confidence "
-                "proportion is auditable (no new source of truth)."
+                "The service replays the live corpus and measures the "
+                "held-out reduction: recurring correction patterns ground "
+                "the held-out split so the measured low-confidence "
+                "proportion provably drops."
             ),
             test=(
                 "apps/backend/tests/services/test_correction_loop.py"
