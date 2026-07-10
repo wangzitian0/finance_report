@@ -251,10 +251,6 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 
 ## 📊 Acceptance Criteria Summary
 
-> *(AC18.3.1 removed — migrated to the `reconciliation` package roadmap as
-> `AC-reconciliation.ai-scoring.1`, migration closeout continuation, #1663 /
-> #1711)*
-
 | AC ID | Phase | Description |
 |-------|-------|-------------|
 | AC18.1.1 | 1 | Extraction prompt returns `suggested_category` and `category_confidence` |
@@ -268,6 +264,7 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 | AC18.2.3 | 2 | Few-shot examples from corrections injected into extraction prompt |
 | AC18.2.4 | 2 | Correction cache with 1-hour TTL |
 | AC18.2.5 | 2 | `top_corrections` typed as a `TopCorrection` Pydantic model in the corrections stats response |
+| AC18.3.1 | 3 | `ai_semantic_score()` returns similarity for transaction description pairs. **Not migrated** — `ai_semantic_score` is a genuine LLM call, but `reconciliation` is declared `CODE-ONLY`; migrating this row trips `check_authority_reconcile.py` (a CODE-ONLY package permits no LLM-classified roadmap-AC test). Needs a tier/package-boundary decision before migration, not a silent workaround (found during migration verification, #1663 / #1711) |
 | AC18.3.2 | 3 | Hybrid scoring: `0.7 * algorithmic + 0.3 * AI` for 60-84 range only. **Untested** — no test exercises `calculate_match_score`'s hybrid-AI branch (found during migration verification, #1663 / #1711) |
 | AC18.3.3 | 3 | Feature flag `enable_ai_reconciliation` controls AI scoring. **Untested** — no test toggles `ENABLE_AI_RECONCILIATION` (found during migration verification, #1663 / #1711) |
 | AC18.4.1 | 4 | Reports read Layer 3 `TransactionClassification` for category breakdowns |

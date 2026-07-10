@@ -1194,7 +1194,7 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-reconciliation.consistency-checks.5",
-            statement="resolve_check raises ValueError when the check is not found or belongs to a different user.",
+            statement="resolve_check raises ValueError when the check is not found.",
             test=(
                 "apps/backend/tests/review/test_consistency_checks.py"
                 "::test_resolve_check_not_found_raises"
@@ -1276,21 +1276,6 @@ CONTRACT = PackageContract(
                 "::test_AC16_32_3_stage2_queue_returns_all_pending_checks"
             ),
             priority="P0",
-            status="done",
-        ),
-        # ── group ai-scoring: AI-assisted semantic similarity scoring (was
-        # EPIC-018 AC18.3.1, migration closeout continuation, #1663 / #1711).
-        # AC18.3.2 (hybrid 0.7/0.3 blend) and AC18.3.3 (ENABLE_AI_RECONCILIATION
-        # feature-flag gating) stay in EPIC-018, untested: no test exercises
-        # calculate_match_score's hybrid branch or the flag itself. ──
-        ACRecord(
-            id="AC-reconciliation.ai-scoring.1",
-            statement="ai_semantic_score returns a similarity score for a pair of transaction/entry descriptions.",
-            test=(
-                "apps/backend/tests/reconciliation/test_ai_reconciliation.py"
-                "::test_ai_semantic_score_returns_score"
-            ),
-            priority="P1",
             status="done",
         ),
         # ── group audit-anchors: reconciliation-to-ledger anchor referential
