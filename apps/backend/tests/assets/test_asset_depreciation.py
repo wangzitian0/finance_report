@@ -323,6 +323,6 @@ class TestAssetDepreciation:
 # with null values for `quantity` and `market_value`. However, the schema defines
 # these columns as `nullable=False` (see migration 0008_add_layer1_layer2_tables.py),
 # so `await db.flush()` would always raise an integrity error. The defensive null
-# checks in `PositionService.reconcile_positions()` (lines 142-152 in assets.py) are
+# checks in `PositionService.reconcile_positions()` (src/portfolio/extension/positions.py) are
 # already covered by reconciliation integration tests. Corrupted rows with nulls,
 # if needed for testing, must be simulated via mocking rather than real inserts.
