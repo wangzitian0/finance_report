@@ -393,12 +393,13 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-runtime.22.1",
             statement=(
-                "The scheduled GHCR retention workflow prunes only backend/"
-                "frontend :<sha> package versions older than 28 days, never "
-                "prunes vX.Y.Z release tags, preserves live staging/"
-                "production deploy SHAs resolved from health git_sha/"
-                "version, and fails closed when no live SHA exemption is "
-                "available."
+                "The scheduled GHCR retention workflow selects backend/"
+                "frontend :<sha> package versions for deletion only once "
+                "they are past the 28-day retention window, while release "
+                "tags and the live staging/production deploy SHA are always "
+                "preserved (the fail-closed behavior when no live SHA "
+                "exemption is available is proven separately by "
+                "test_AC7_19_1_pruner_requires_live_sha_exemptions)."
             ),
             test=(
                 "tests/tooling/test_ghcr_sha_retention.py"
