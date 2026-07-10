@@ -282,6 +282,16 @@ This mirrors the established AC behavioural-score ratchet
 - The baseline is a **persisted** floor — it is never regenerated from current
   scores (that would erase the floor).
 
+**Corpus-count floor (AC-llm.8.8, #1681/#1686)**: the per-case ratchet above
+only protects a case that HAS a baseline line — if a commit removes a case's
+ground-truth file **and** its `cassette-eval-baseline.jsonl` line together, the
+`missing` check has nothing left to compare against and the corpus silently
+shrinks. `cassette-corpus-count-baseline.json` is a **second, independent**
+raise-only floor on the corpus's total case count, checked by the same
+`check_cassette_graded_eval.py` gate and raised only by the same `--update`.
+It cannot be bypassed by a same-commit deletion because it lives outside the
+per-case JSONL entirely.
+
 ### 6.5 Coverage matrix (and its bounds)
 
 The eval set covers a **modality × institution-class × edge-condition** matrix:
@@ -391,20 +401,30 @@ Diversity invariants and an exact unpostable-row allowlist are asserted in
 code (AC-llm.11.1) so the corpus can neither silently shrink nor silently
 drop rows.
 
-**Report-value acceptance (AC-llm.11.4, #1681/#1686)**: the balance sheet
-assertion (AC-llm.11.2) and the income statement assertion (AC-llm.11.4)
-together are the corpus's report-correctness proof — not just "the journey
-completed" but "the numbers are right". The income statement identity holds
-universally (every institution class, not a name-dependent heuristic)
-because `auto_create_posted_entries_for_statement` always posts a
-transaction's contra side to an Income or Expense account (a classified
-category or the Income/Expense "Uncategorized" default), so
-`total_income − total_expenses` equals the posting account's net movement by
-double-entry construction. Cash flow's `ending_cash` is deliberately NOT
-asserted here: `generate_cash_flow` classifies "cash" accounts by a
-name-keyword heuristic (`cash`/`bank`/`checking`/`savings`/…) that brokerage-
-class corpus accounts (Moomoo, Futu) do not match — a follow-up under #1681
-needs a classification-aware assertion, not a blanket one.
+**Report-value acceptance (AC-llm.11.4/11.5, #1681/#1686)**: the balance
+sheet assertion (AC-llm.11.2), the income statement assertion (AC-llm.11.4),
+and the cash-flow conservation assertion (AC-llm.11.5) together are the
+corpus's report-correctness proof — not just "the journey completed" but
+"the numbers are right". The income statement identity holds universally
+(every institution class, not a name-dependent heuristic) because
+`auto_create_posted_entries_for_statement` always posts a transaction's
+contra side to an Income or Expense account (a classified category or the
+Income/Expense "Uncategorized" default), so `total_income − total_expenses`
+equals the posting account's net movement by double-entry construction.
+
+Cash flow is asserted differently: `generate_cash_flow` classifies "cash"
+accounts by a name-keyword heuristic (`cash`/`bank`/`checking`/`savings`/…)
+that brokerage-class corpus accounts (Moomoo, Futu) do not match. An earlier
+version of this plan treated that as a bug to patch (make brokerage accounts
+count as cash) — that would have been **wrong**: under standard cash-flow-
+statement accounting, an investment account's balance change belongs in
+Investing activities, not "cash". AC-llm.11.5 instead asserts
+**conservation**: every corpus case's posting-account movement lands in
+exactly one place — the `ending_cash` delta for cash-classified accounts, or
+a single Investing/Operating/Financing line (sign-flipped per
+`cash_flow_amount`'s ASSET convention) otherwise — so nothing is silently
+dropped, without asserting a name-heuristic result the accounting doesn't
+support.
 
 **Division of labour with staging**: PR CI proves the pipeline on committed
 extraction artifacts (zero provider spend, deterministic); the staging

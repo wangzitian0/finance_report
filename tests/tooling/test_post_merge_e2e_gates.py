@@ -436,14 +436,19 @@ def test_AC8_10_8_registration_flow_accepts_current_landing_route() -> None:
 
 
 def test_AC8_13_6_critical_e2e_skips_become_failures() -> None:
-    """AC8.13.6: Critical staging E2E skips fail the deploy gate."""
+    """AC8.13.6: Critical staging E2E skips fail the deploy gate.
+
+    The skip-to-failure DECISION logic is covered behaviorally by
+    tests/tooling/test_critical_skip_gate.py (#1435 W1) — this checks only
+    that the hookwrapper is still wired to that logic and to the AI/OCR
+    gate helper, not the conditional itself.
+    """
     conftest = read("tests/e2e/conftest.py")
 
     assert "pytest_runtest_makereport" in conftest
     assert "fail_or_skip_ai_ocr_gate" in conftest
-    assert "critical" in conftest
+    assert "should_convert_skip_to_failure" in conftest
     assert 'report.outcome = "failed"' in conftest
-    assert "Critical E2E gate skipped" in conftest
 
 
 def test_AC8_13_7_full_statement_journey_is_a_hard_ai_ocr_gate() -> None:
@@ -1744,7 +1749,15 @@ def test_AC8_13_149_fan_in_jobs_download_only_required_artifacts() -> None:
 
 
 def test_AC8_13_146_report_main_dispatch_waits_for_ci_images() -> None:
-    """AC8.13.146: report-branch-main deploys only successful CI SHA images."""
+    """AC8.13.146: report-branch-main deploys only successful CI SHA images.
+
+    The dispatch/skip DECISION (does a workflow_run completion's SHA still
+    match main's tip, or is it stale?) is covered behaviorally by
+    tests/tooling/test_report_main_dispatch.py (#1435 W1 / #1534), which
+    executes tools/_lib/shell/resolve_report_main_dispatch_sha.sh directly.
+    This test covers the surrounding wiring: trigger config, the env-var ->
+    script-argument handoff, and the payload construction.
+    """
     notify = read(".github/workflows/notify-infra2.yml")
     notify_yaml = yaml.safe_load(notify)
     notify_on = notify_yaml.get(True) or notify_yaml.get("on")
@@ -1763,10 +1776,8 @@ def test_AC8_13_146_report_main_dispatch_waits_for_ci_images() -> None:
     )
     assert "WORKFLOW_RUN_SHA: ${{ github.event.workflow_run.head_sha }}" in notify
     assert "/git/ref/heads/main" in dispatch_script
-    assert 'dispatch_sha="${WORKFLOW_RUN_SHA:-}"' in dispatch_script
-    assert 'dispatch_sha="$latest_main_sha"' in dispatch_script
+    assert "tools/_lib/shell/resolve_report_main_dispatch_sha.sh" in dispatch_script
     assert "$GITHUB_SHA" not in dispatch_script
-    assert "Skipping stale CI completion" in dispatch_script
     assert '--arg sha "$dispatch_sha"' in dispatch_script
 
     receiver = read("repo/.github/workflows/deploy-report-main.yml")
@@ -1975,7 +1986,7 @@ def test_AC8_13_67_production_release_preserves_version_metadata() -> None:
 
 
 def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
-    """AC7.10.1 - AC7.10.5: Production release promotes staging-validated SHA image and fails closed on drift."""
+    """AC-meta.release-pipeline.1: AC7.10.1 - AC7.10.5: Production release promotes staging-validated SHA image and fails closed on drift."""
     workflow = read(".github/workflows/release.yml")
     # Tag promotion stays in deploy.yml's promote job; the release line moved to
     # release.yml (#1354 / AC8.13.154).

@@ -336,6 +336,13 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 > position paths. This slice also carries forward two #928 accessibility review
 > comments that belong to the same trust-surface baseline.
 
+> **AC22.13.1** is a dual-package row. Its `test_manual_valuation_snapshots.py`
+> share (manual valuation component provenance) migrated to the `pricing`
+> package roadmap as **`AC-pricing.provenance.1`** (migration closeout
+> continuation, #1663 / #1710). The `test_portfolio_service.py` and
+> `test_reporting.py` shares stay here pending the `portfolio`/`reporting`
+> package migrations.
+
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
 | AC22.13.1 | Portfolio holdings, explicit as-of holdings, manual valuation snapshots, and report amount lines expose a normalized provenance enum (`imported`, `manual`, `derived`) when the source basis is known, while ambiguous holdings remain unlabeled instead of guessed | `test_portfolio_service.py`, `test_reporting.py`, `test_manual_valuation_snapshots.py` | P1 |

@@ -769,7 +769,7 @@ class TestCalculateAccountBalanceInCurrencyLiability:
     """Test liability/equity accounts return negated balance (line 141 else branch)."""
 
     async def test_returns_negated_balance_for_liability_account(self, db: AsyncSession, test_user_id):
-        """AC8.12.1 – Liability accounts return -net_balance so coverage hits else branch."""
+        """AC-ledger.fxrevaluation.1: AC8.12.1 – Liability accounts return -net_balance so coverage hits else branch."""
         liability_account = Account(
             user_id=test_user_id,
             name="Loan USD",
@@ -835,7 +835,7 @@ class TestGetOrCreateFxGainLossAccountFlushError:
     """Test SQLAlchemyError during flush raises RevaluationError (lines 261-262)."""
 
     async def test_flush_error_raises_revaluation_error(self, db: AsyncSession, test_user_id):
-        """AC8.12.2 – SQLAlchemyError on flush is wrapped in RevaluationError."""
+        """AC-ledger.fxrevaluation.2: AC8.12.2 – SQLAlchemyError on flush is wrapped in RevaluationError."""
         from unittest.mock import AsyncMock, patch
 
         from sqlalchemy.exc import SQLAlchemyError
@@ -850,7 +850,7 @@ class TestCalculateUnrealizedFxGainsNoneFiltering:
     """Test that accounts where reval is None are filtered out (line 209 branch)."""
 
     async def test_none_revaluation_skipped(self, db: AsyncSession, test_user_id, usd_asset_account):
-        """AC8.12.3 – Accounts that return None from calculate_unrealized_fx_for_account are skipped."""
+        """AC-ledger.fxrevaluation.3: AC8.12.3 – Accounts that return None from calculate_unrealized_fx_for_account are skipped."""
         from unittest.mock import AsyncMock, patch
 
         with patch(

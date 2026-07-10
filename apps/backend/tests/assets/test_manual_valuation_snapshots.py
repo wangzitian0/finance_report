@@ -170,7 +170,7 @@ async def test_manual_valuation_components_api_returns_latest_as_of_values(clien
 
 @pytest.mark.no_db
 def test_AC22_13_1_valuation_component_item_uses_normalized_provenance_type() -> None:
-    """AC22.13.1: Component provenance stays constrained to the shared vocabulary."""
+    """AC-pricing.provenance.1: AC22.13.1: Component provenance stays constrained to the shared vocabulary."""
     assert ValuationComponentItem.__dataclass_fields__["provenance"].type == DataProvenance
 
 
@@ -282,7 +282,7 @@ async def test_manual_valuation_snapshot_service_updates_optional_fields_and_mis
 
 @pytest.mark.asyncio
 async def test_AC11_19_1_manual_valuation_correction_appends_version_and_preserves_history(db, test_user):
-    """AC11.19.1: Correcting a manual valuation appends a new version and never edits the prior fact in place.
+    """AC-pricing.manualvaluation.1: AC11.19.1: Correcting a manual valuation appends a new version and never edits the prior fact in place.
 
     Vision Axiom A: a recorded fact is never changed in place; a later correction
     accumulates as a new version, and one version maps to exactly one value.
@@ -328,7 +328,7 @@ async def test_AC11_19_1_manual_valuation_correction_appends_version_and_preserv
 
 @pytest.mark.asyncio
 async def test_AC11_19_2_corrected_valuation_is_not_double_counted_in_net_worth(db, test_user, ac_evidence):
-    """AC11.19.2: Heads-only reads use the current version, so a correction never double-counts."""
+    """AC-pricing.manualvaluation.2: AC11.19.2: Heads-only reads use the current version, so a correction never double-counts."""
     service = AssetService()
     key = dict(
         component_type=ManualValuationComponentType.PROPERTY_VALUE,

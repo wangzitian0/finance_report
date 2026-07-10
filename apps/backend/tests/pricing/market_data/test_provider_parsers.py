@@ -33,7 +33,7 @@ def test_market_data_helper_boundaries() -> None:
 
 
 def test_AC17_33_1_yahoo_stock_symbol_maps_hk_numeric_codes() -> None:
-    """AC17.33.1: HK numeric exchange codes map to the Yahoo `<4-digit>.HK` symbol.
+    """AC-pricing.providers.4: AC17.33.1: HK numeric exchange codes map to the Yahoo `<4-digit>.HK` symbol.
 
     Brokerages store Hong Kong equities by their numeric board-lot code (e.g.
     Xiaomi "01810"). Sent verbatim, Yahoo 404s; it expects "1810.HK". US
@@ -55,7 +55,7 @@ def test_AC17_33_1_yahoo_stock_symbol_maps_hk_numeric_codes() -> None:
 
 
 def test_AC17_33_2_stooq_stock_symbol_maps_hk_numeric_codes() -> None:
-    """AC17.33.2: HK numeric codes resolve to Stooq `<4-digit>.hk`; US tickers stay `.us`."""
+    """AC-pricing.providers.5: AC17.33.2: HK numeric codes resolve to Stooq `<4-digit>.hk`; US tickers stay `.us`."""
     assert market_data._stooq_stock_symbol("01810") == "1810.hk"
     assert market_data._stooq_stock_symbol("00700") == "0700.hk"
     assert market_data._stooq_stock_symbol("AAPL") == "aapl.us"
@@ -703,7 +703,7 @@ async def test_provider_http_range_wrappers_parse_success_and_http_errors(monkey
 
 
 def test_looks_like_ticker_accepts_real_tickers_rejects_free_text() -> None:
-    """AC17.15.1: Plausible tickers pass; brokerage fund-name free text is rejected."""
+    """AC-pricing.providers.2: AC17.15.1: Plausible tickers pass; brokerage fund-name free text is rejected."""
     for symbol in ("AAPL", "MSFT", "BRK.B", "0700.HK", "USDSGD", "^GSPC", "aapl"):
         assert market_data._looks_like_ticker(symbol), symbol
 
@@ -718,7 +718,7 @@ def test_looks_like_ticker_accepts_real_tickers_rejects_free_text() -> None:
 
 
 async def test_yahoo_stock_fetch_short_circuits_for_non_ticker(monkeypatch: pytest.MonkeyPatch) -> None:
-    """AC17.15.2: A non-ticker identifier skips the Yahoo request and returns None."""
+    """AC-pricing.providers.3: AC17.15.2: A non-ticker identifier skips the Yahoo request and returns None."""
 
     async def fail_if_called(*_args: object, **_kwargs: object) -> httpx.Response | None:
         raise AssertionError("Yahoo provider must not be queried for non-ticker identifiers")

@@ -31,6 +31,7 @@ _PUBLISH_BUILD_SOURCES = (".github/workflows/ci.yml", "apps/frontend/Dockerfile"
 
 
 def test_AC7_12_8_published_frontend_image_has_no_baked_env_domain():
+    """AC-meta.infra-boundary.8: AC7.12.8: the published :<sha> frontend image is environment-independent (no baked env domain)."""
     offenders = {
         src: hits
         for src in _PUBLISH_BUILD_SOURCES

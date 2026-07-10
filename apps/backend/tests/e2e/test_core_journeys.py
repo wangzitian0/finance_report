@@ -80,7 +80,7 @@ async def test_api_health_check(client):
 @pytest.mark.e2e
 async def test_create_cash_account(client, test_user):
     """
-    EPIC-001 EPIC-002 / AC8.2.2: Create Cash Account
+    AC-ledger.journeys.1: EPIC-001 EPIC-002 / AC8.2.2: Create Cash Account
     GIVEN a user is authenticated
     WHEN creating a cash "Wallet" asset account in SGD
     THEN the account should be created with correct type and currency
@@ -100,7 +100,7 @@ async def test_create_cash_account(client, test_user):
 @pytest.mark.e2e
 async def test_create_bank_account(client, test_user):
     """
-    EPIC-001 EPIC-002 / AC8.2.3: Create Bank Account
+    AC-ledger.journeys.2: EPIC-001 EPIC-002 / AC8.2.3: Create Bank Account
     GIVEN a user is authenticated
     WHEN creating a "DBS Savings" asset account in SGD
     THEN the account should be created successfully
@@ -118,7 +118,7 @@ async def test_create_bank_account(client, test_user):
 @pytest.mark.e2e
 async def test_update_account(client, test_user):
     """
-    EPIC-001 EPIC-002 / AC8.2.4: Update account
+    AC-ledger.journeys.3: EPIC-001 EPIC-002 / AC8.2.4: Update account
     GIVEN an existing account
     WHEN updating its name
     THEN the account should reflect the new name
@@ -141,7 +141,7 @@ async def test_update_account(client, test_user):
 @pytest.mark.e2e
 async def test_delete_account(client, test_user):
     """
-    EPIC-001 EPIC-002 / AC8.2.5: Delete/deactivate account
+    AC-ledger.journeys.4: EPIC-001 EPIC-002 / AC8.2.5: Delete/deactivate account
     GIVEN an account with no transactions
     WHEN deleting the account
     THEN it should be removed (204 No Content)
@@ -204,7 +204,7 @@ async def test_accounts_crud_api(client, db, test_user):
 @pytest.mark.e2e
 async def test_simple_expense_entry(client, test_user):
     """
-    EPIC-002 / AC8.3.1: Simple Expense Entry
+    AC-ledger.journeys.5: EPIC-002 / AC8.3.1: Simple Expense Entry
     GIVEN a user has accounts
     WHEN creating a balanced journal entry for a $5 coffee expense
     THEN the entry should be created in draft status with correct amounts
@@ -256,7 +256,7 @@ async def test_simple_expense_entry(client, test_user):
 @pytest.mark.e2e
 async def test_void_journal_entry(client, test_user):
     """
-    EPIC-002 / AC8.3.2: Void Entry
+    AC-ledger.journeys.6: EPIC-002 / AC8.3.2: Void Entry
     GIVEN a posted journal entry
     WHEN voiding the entry with a reason
     THEN a reversal entry should be created
@@ -309,7 +309,7 @@ async def test_void_journal_entry(client, test_user):
 @pytest.mark.e2e
 async def test_post_draft_entry(client, test_user):
     """
-    EPIC-002 / AC8.3.3: Post Draft Entry
+    AC-ledger.journeys.7: EPIC-002 / AC8.3.3: Post Draft Entry
     GIVEN a journal entry in draft status
     WHEN posting the entry
     THEN its status should change to "posted"
@@ -354,7 +354,7 @@ async def test_post_draft_entry(client, test_user):
 @pytest.mark.e2e
 async def test_unbalanced_journal_entry_rejection(client, test_user):
     """
-    EPIC-002 / AC8.3.4: Unbalanced entry rejected
+    AC-ledger.journeys.8: EPIC-002 / AC8.3.4: Unbalanced entry rejected
     GIVEN a user attempts to create an unbalanced journal entry
     WHEN sending the request
     THEN it should return 422 schema validation error
@@ -394,7 +394,7 @@ async def test_unbalanced_journal_entry_rejection(client, test_user):
 @pytest.mark.e2e
 async def test_journal_entry_crud(client, test_user):
     """
-    EPIC-002 / AC8.3.5: Journal Entry CRUD
+    AC-ledger.journeys.9: EPIC-002 / AC8.3.5: Journal Entry CRUD
     AC8.8.3: Core journey — journal entry lifecycle
     GIVEN a user is authenticated
     WHEN creating, listing, getting, posting, voiding, and deleting entries
@@ -1213,7 +1213,7 @@ async def test_traceability_authentication_validation(public_client):
 
 @pytest.mark.e2e
 async def test_income_recording(client):
-    """EPIC-002 / AC8.11.1: Income Recording."""
+    """AC-ledger.journeys.10: EPIC-002 / AC8.11.1: Income Recording."""
     # AC8.11.1: Income Recording
     # GIVEN a user has an income account and a bank account
     # WHEN recording $5,000 salary deposit as a journal entry
@@ -1253,7 +1253,7 @@ async def test_income_recording(client):
 
 @pytest.mark.e2e
 async def test_credit_card_spend(client):
-    """EPIC-002 / AC8.11.2: Credit Card Spend."""
+    """AC-ledger.journeys.11: EPIC-002 / AC8.11.2: Credit Card Spend."""
     # AC8.11.2: Credit Card Spend
     # GIVEN a user has an expense account and a credit card liability account
     # WHEN recording a $2,000 laptop purchase on credit card
@@ -1292,7 +1292,7 @@ async def test_credit_card_spend(client):
 
 @pytest.mark.e2e
 async def test_credit_card_repayment(client):
-    """EPIC-002 / AC8.11.3: Credit Card Repayment."""
+    """AC-ledger.journeys.12: EPIC-002 / AC8.11.3: Credit Card Repayment."""
     # AC8.11.3: Credit Card Repayment
     # GIVEN a user has a bank account and a credit card liability account
     # WHEN paying off the credit card from bank account
@@ -1330,7 +1330,7 @@ async def test_credit_card_repayment(client):
 
 @pytest.mark.e2e
 async def test_internal_transfer(client):
-    """EPIC-002 / AC8.11.4: Internal Transfer."""
+    """AC-ledger.journeys.13: EPIC-002 / AC8.11.4: Internal Transfer."""
     # AC8.11.4: Internal Transfer
     # GIVEN a user has two asset accounts
     # WHEN moving $500 from DBS Savings to Wallet (ATM withdrawal)
@@ -1368,7 +1368,7 @@ async def test_internal_transfer(client):
 
 @pytest.mark.e2e
 async def test_split_transaction(client):
-    """EPIC-002 / AC8.11.5: Split Transaction."""
+    """AC-ledger.journeys.14: EPIC-002 / AC8.11.5: Split Transaction."""
     # AC8.11.5: Split Transaction
     # GIVEN a user has one asset and two expense accounts
     # WHEN recording a $100 supermarket trip split: $80 Groceries + $20 Household

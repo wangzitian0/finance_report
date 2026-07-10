@@ -103,7 +103,7 @@ def _statement_row(page: Page, institution: str):
 @pytest.mark.e2e
 @pytest.mark.llm
 async def test_statement_upload_full_flow(authenticated_page_unique: Page) -> None:
-    """EPIC-003 EPIC-008 EPIC-009 EPIC-013 / AC8.4.3: Upload PDF flow."""
+    """AC-extraction.813.12: EPIC-003 EPIC-008 EPIC-009 EPIC-013 / AC8.13.8: Upload PDF flow."""
     _skip_if_no_url()
 
     pdf_path = _unique_pdf_copy(_get_test_pdf())

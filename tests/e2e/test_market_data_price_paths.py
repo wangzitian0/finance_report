@@ -70,7 +70,7 @@ def _market_valuation_lines(report: dict, broker_name: str) -> list[dict]:
 
 @ac_proof(
     "market-data-provider-price-path",
-    ac_ids=["AC11.10.7", "AC11.10.11"],
+    ac_ids=["AC-pricing.marketdata.7", "AC-pricing.marketdata.11"],
     scope="behavioral",
     ci_tier="post_merge_environment",
     trust_mode="hybrid",
@@ -88,7 +88,7 @@ def _market_valuation_lines(report: dict, broker_name: str) -> list[dict]:
 async def test_market_data_provider_sync_feeds_fx_and_stock_price_paths(
     shared_auth_state: AuthState,
 ) -> None:
-    """EPIC-005 EPIC-008 EPIC-011 EPIC-017.
+    """AC-pricing.marketdata.7 / AC-pricing.marketdata.11: EPIC-005 EPIC-008 EPIC-011 EPIC-017.
 
     AC11.10.7 AC11.10.11: Reports auto-refresh provider FX and stock data
     from a user path.
