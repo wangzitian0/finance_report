@@ -308,32 +308,23 @@ workflow state exists.
 
 ### AC19.1 — Product Workflow Event Model
 
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC19.1.1 | Workflow event SSOT defines event families, severity/actionability, lifecycle states, dedupe rules, internal action links, indexes, and relationship to audit logs | `test_AC19_1_1_workflow_event_ssot_registers_manifest_owner` | P0 |
-| AC19.1.2 | Backend model defines a user-scoped `workflow_events` read model with explicit enum names, lifecycle status, `UNIQUE(user_id, dedupe_key)`, and badge/inbox read indexes | `test_AC19_1_2_workflow_event_model_contract` | P0 |
-| AC19.1.3 | Pydantic schemas validate the workflow event contract and reject external `action_href` values | `test_AC19_1_3_workflow_event_schema_rejects_external_action_href` | P0 |
-| AC19.1.4 | Workflow event service deterministically upserts a derived event from existing statement/upload state without duplicating on rerun | `test_AC19_1_4_upsert_uploaded_statement_event_is_deterministic` | P0 |
-| AC19.1.5 | Workflow event reads and lifecycle changes are user isolated | `test_AC19_1_5_workflow_event_lifecycle_is_user_isolated` | P0 |
+> This group's rows removed — migrated to the `platform` package roadmap as
+> `AC-platform.30.1-5` (migration closeout continuation, #1663 / #1712).
 
 ### AC19.2 — Workflow Status API
 
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC19.2.1 | Workflow status schemas define stable primary state, next action, report readiness, and event count response contracts for later UI consumers | `test_AC19_2_1_workflow_status_schema_contract` | P0 |
-| AC19.2.2 | `GET /workflow/status` returns user-scoped empty, processing, needs-action, blocked, and ready summaries with deterministic priority rules | `test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries` | P0 |
-| AC19.2.3 | `GET /workflow/events` returns bounded, user-scoped, deduplicated events, excludes archived events by default, and supports status filtering | `test_AC19_2_3_workflow_events_endpoint_lists_bounded_user_events` | P0 |
-| AC19.2.4 | `PATCH /workflow/events/{id}` updates only the authenticated user's event lifecycle and returns 404 for missing or non-owned events | `test_AC19_2_4_workflow_event_patch_is_user_scoped` | P0 |
-| AC19.2.5 | Status and events reads run deterministic derived sync without duplicating events or resetting read/archive lifecycle state | `test_AC19_2_5_workflow_reads_sync_derived_events_without_lifecycle_reset` | P0 |
-| AC19.2.6 | Workflow API router is mounted and documented in the workflow-events SSOT as the compact read path for later UI slices | `test_AC19_2_6_workflow_router_and_ssot_document_compact_read_path` | P0 |
-| AC19.2.7 | `GET /workflow/events` session summaries reuse the authoritative `get_workflow_status` derivation, so a blocked active session never reports `primary_state=ready`/`report_readiness=none` while `/workflow/status` reports blocked | `test_AC19_2_7_events_session_summary_agrees_with_status_when_blocked` | P0 |
+> This group's rows removed — migrated to the `platform` package roadmap as
+> `AC-platform.31.1-7` (migration closeout continuation, #1663 / #1712).
 
 ### AC19.3 — In-App Event Inbox, Header Badge, And Status Feed
 
+> **Partially migrated.** *(AC19.3.1 removed and AC19.3.2 removed — this
+> group's backend sync/aggregation rows migrated to the `platform` package
+> roadmap as `AC-platform.32.1-2`, migration closeout continuation, #1663 /
+> #1712)*. The frontend rows below stay with their own owner.
+
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC19.3.1 | Deterministic sync refreshes mutable derived event fields for all user statements without duplicating events or resetting lifecycle state | `test_AC19_3_1_sync_refreshes_mutable_uploaded_event_fields_without_lifecycle_reset` | P0 |
-| AC19.3.2 | Workflow status uses one aggregate count query and only fetches a representative event for the winning branch | `test_AC19_3_2_workflow_status_uses_single_aggregate_for_badge_counts` | P0 |
 | AC19.3.3 | Frontend exposes typed workflow API helpers through `lib/api.ts` for status, events, and lifecycle patching | `workflowApi.test.ts` | P0 |
 | AC19.3.4 | Header/app-shell badge reflects unread/action-required/blocked counts from the compact workflow API and stays quiet when no attention is needed | `workflowSurfaces.test.tsx` | P0 |
 | AC19.3.5 | Event inbox groups events by workflow session timeline, keeps blocked/action-required events prominent, and supports read/archive actions and direct action links | `workflowSurfaces.test.tsx` | P0 |
@@ -343,9 +334,11 @@ workflow state exists.
 
 ### AC19.4 — Upload-First Entry Surface
 
+> *(AC19.4.1 removed — migrated to the `platform` package roadmap as
+> `AC-platform.32.3`, migration closeout continuation, #1663 / #1712)*
+
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC19.4.1 | EPIC-019 and workflow-events SSOT define `/dashboard` as the upload-first authenticated home, with dashboard metrics as secondary analytics | `test_AC19_4_1_upload_first_home_ssot_documents_dashboard_contract` | P0 |
 | AC19.4.2 | The first dashboard viewport renders the upload-to-report workflow home before KPI, chart, and activity content | `dashboardPage.test.tsx` | P0 |
 | AC19.4.3 | The dashboard primary CTA follows `workflow.status.next_action.href` and labels upload as the default action when no higher-priority blocker/action exists | `dashboardPage.test.tsx` | P0 |
 | AC19.4.4 | Report readiness state and blocker count are visible above secondary dashboard metrics and link to the readiness/report action path | `dashboardPage.test.tsx` | P0 |
@@ -394,17 +387,16 @@ workflow state exists.
 
 ### AC19.8 — Workflow Session IA Hardening And CR Cleanup
 
+> **Partially migrated.** *(AC19.8.1 removed and AC19.8.2 removed and AC19.8.3 removed and AC19.8.9 removed — this group's backend session-model/API rows migrated to the `platform` package roadmap as `AC-platform.33.1-4`, migration closeout continuation, #1663 / #1712)*. The frontend/IA/
+> report-readiness rows below stay with their own owners.
+
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC19.8.1 | WorkflowSession is documented as the EPIC-019 product object; AI chat sessions are documented as `/chat` UI state outside workflow ownership | `test_AC19_8_1_workflow_session_ssot_separates_chat_sessions` | P0 |
-| AC19.8.2 | Backend model and migration define `workflow_sessions`, explicit `workflow_session_status_enum`, and nullable legacy-safe `workflow_events.session_id` with session timeline indexes | `test_AC19_8_2_workflow_session_model_contract` | P0 |
-| AC19.8.3 | `GET /workflow/status` returns active session summary and `GET /workflow/events` returns session-scoped event timeline metadata | `test_AC19_8_3_workflow_status_and_events_expose_session_timeline` | P0 |
 | AC19.8.4 | Notification drawer and Events page group timestamped events by workflow session, while Upload Pipeline shows only active-session latest state plus recent timeline preview | `workflowSurfaces.test.tsx`, `workflow-notifications.spec.ts`, `upload-first-dashboard.spec.ts` | P0 |
 | AC19.8.5 | Navigation IA (superseded by EPIC-022 AC22.21): the bottom tab bar is Home, Chat, Add, Audit, More; the accounting machinery and settings are reached via the Audit hub and More, not a primary/advanced split | `navigation.test.ts`, `sidebarAndTabs.test.tsx`, `bottomTabBar.test.tsx`, `workflow-navigation.spec.ts` | P0 |
 | AC19.8.6 | `/chat` is a simple AI utility page with model selector, active conversation, and session-list drawer; it is not labeled AI Settings | `chatPanelComponent.test.tsx`, `ChatPageClient.test.tsx` | P1 |
 | AC19.8.7 | Report readiness has route-level Playwright smoke coverage before package output | `report-readiness.spec.ts` | P1 |
 | AC19.8.8 | CR cleanup fixes mixed-currency investment schedule fallback, missing Processing FX readiness blocker coverage, stale SSOT paths, and stale navigation docs | `test_AC19_8_8_investment_schedule_fallback_holding_cost_basis_converts_currency`, `test_AC19_8_8_package_readiness_blocks_when_processing_fx_conversion_fails`, `report-readiness.spec.ts` | P0 |
-| AC19.8.9 | Concurrent `GET /workflow/status` and `GET /workflow/events` reads create or reuse the synthetic active workflow session without duplicate-key 500s | `test_AC19_8_9_active_workflow_session_get_or_create_is_concurrency_safe`, `test_AC19_8_9_active_workflow_session_reactivates_existing_inactive_dedupe_row` | P0 |
 
 ### AC19.9 — Source Trust Readiness
 
@@ -427,14 +419,12 @@ workflow state exists.
 
 ### AC19.12 — Lightweight Workflow Derivation Completion
 
+> **Partially migrated.** *(AC19.12.1 removed and AC19.12.2 removed and AC19.12.3 removed and AC19.12.4 removed — this group's backend derivation rows migrated to the `platform` package roadmap as `AC-platform.34.1-4`, migration closeout continuation, #1663 / #1712)*. *(AC19.12.6 removed — a coverage-summary row citing the same tests as .2-.4, a duplicate)*. The
+> frontend row below stays with its own owner.
+
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC19.12.1 | EPIC-019 and workflow-events SSOT define lightweight user-facing derivation boundaries, keep low-level source/review/reconciliation/report facts in normalized owner tables, and exclude low-level event logging from workflow events | `test_AC19_12_1_lightweight_derivation_boundary_is_documented` | P0 |
-| AC19.12.2 | Workflow sync derives review-required and review-completed user action events from existing review state without duplicating events or resetting read/archive lifecycle | `test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_preserved`, `test_AC19_12_2_review_derivation_treats_null_stage1_as_pending_without_parse_failure` | P0 |
-| AC19.12.3 | Workflow sync derives report-blocked and report-ready events from package readiness without duplicating report-readiness financial logic | `test_AC19_12_3_report_readiness_events_follow_package_readiness_without_stale_blockers` | P0 |
-| AC19.12.4 | Workflow sync derives reconciliation and Processing account blocker events only when they affect user action or trusted report readiness | `test_AC19_12_4_readiness_blocker_events_are_user_action_scoped` | P0 |
 | AC19.12.5 | Dashboard status feed and event inbox render lightweight derived events as user actions while routine/internal details remain collapsed or absent | `workflowSurfaces.test.tsx` | P0 |
-| AC19.12.6 | Lightweight derivation tests cover multi-user isolation, repeated sync idempotency, lifecycle preservation, and resolved-blocker archival | `test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_preserved`, `test_AC19_12_3_report_readiness_events_follow_package_readiness_without_stale_blockers`, `test_AC19_12_4_readiness_blocker_events_are_user_action_scoped` | P0 |
 
 ### AC19.13 — Durable Orchestration via Prefect
 
@@ -449,6 +439,9 @@ dependency (delivery speed unaffected).
 | AC19.13.2 | With `PREFECT_API_URL` set, `submit_parse_pipeline` submits a Prefect flow run with serializable params only (no raw bytes, no session maker — the worker re-fetches content and builds its own session) and returns None | `test_AC19_13_2_dispatch_submits_serializable_params_to_prefect` | P0 |
 
 ### AC19.14 — Workflow-event dedupe is transaction-safe (issue #1033)
+
+> Migrated to the `platform` package roadmap as `AC-platform.35.1-3`
+> (migration closeout continuation, #1663 / #1712).
 
 Concurrent requests/background tasks for the same `(user_id, dedupe_key)` both miss the
 pre-insert SELECT and both insert; the loser raised a `UniqueViolationError` on

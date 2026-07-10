@@ -96,7 +96,7 @@ async def _make_statement(
 
 
 def test_AC19_1_1_workflow_event_ssot_registers_manifest_owner() -> None:
-    """AC19.1.1: workflow event SSOT is registered as a single manifest owner."""
+    """AC-platform.30.1: AC19.1.1: workflow event SSOT is registered as a single manifest owner."""
     manifest_path = ROOT_DIR / "docs" / "ssot" / "MANIFEST.yaml"
     with open(manifest_path, encoding="utf-8") as fh:
         manifest = fh.read()
@@ -126,7 +126,7 @@ def test_AC19_3_8_workflow_notification_ssot_documents_frontend_surfaces() -> No
 
 
 def test_AC19_4_1_upload_first_home_ssot_documents_dashboard_contract() -> None:
-    """AC19.4.1: /dashboard is the upload-first home and metrics are secondary."""
+    """AC-platform.32.3: AC19.4.1: /dashboard is the upload-first home and metrics are secondary."""
     ssot = (ROOT_DIR / "docs" / "ssot" / "workflow-events.md").read_text(encoding="utf-8")
     epic = (ROOT_DIR / "docs" / "project" / "EPIC-019.event-driven-upload-to-report-ux.md").read_text(encoding="utf-8")
 
@@ -171,7 +171,7 @@ def test_AC19_6_1_workflow_navigation_ia_owned_by_epic022_with_attention_contrac
 
 
 def test_AC19_8_1_workflow_session_ssot_separates_chat_sessions() -> None:
-    """AC19.8.1: WorkflowSession is the workflow domain object; chat sessions are AI UI state."""
+    """AC-platform.33.1: AC19.8.1: WorkflowSession is the workflow domain object; chat sessions are AI UI state."""
     ssot = (ROOT_DIR / "docs" / "ssot" / "workflow-events.md").read_text(encoding="utf-8")
     epic = (ROOT_DIR / "docs" / "project" / "EPIC-019.event-driven-upload-to-report-ux.md").read_text(encoding="utf-8")
     normalized_ssot = " ".join(ssot.split())
@@ -189,7 +189,7 @@ def test_AC19_8_1_workflow_session_ssot_separates_chat_sessions() -> None:
 
 
 def test_AC19_12_1_lightweight_derivation_boundary_is_documented() -> None:
-    """AC19.12.1: workflow events stay lightweight and user-facing."""
+    """AC-platform.34.1: AC19.12.1: workflow events stay lightweight and user-facing."""
     ssot = (ROOT_DIR / "docs" / "ssot" / "workflow-events.md").read_text(encoding="utf-8")
     epic = (ROOT_DIR / "docs" / "project" / "EPIC-019.event-driven-upload-to-report-ux.md").read_text(encoding="utf-8")
     normalized_ssot = " ".join(ssot.split())
@@ -210,7 +210,7 @@ def test_AC19_12_1_lightweight_derivation_boundary_is_documented() -> None:
 
 
 def test_AC19_8_2_workflow_session_model_contract() -> None:
-    """AC19.8.2: workflow_sessions and workflow_events.session_id expose the v1 session contract."""
+    """AC-platform.33.2: AC19.8.2: workflow_sessions and workflow_events.session_id expose the v1 session contract."""
     session_table = WorkflowSession.__table__
     event_table = WorkflowEvent.__table__
 
@@ -245,7 +245,7 @@ def test_AC19_8_2_workflow_session_model_contract() -> None:
 
 
 async def test_AC19_8_9_active_workflow_session_get_or_create_is_concurrency_safe(db_engine, test_user) -> None:
-    """AC19.8.9: Concurrent status/events reads share the synthetic active workflow session."""
+    """AC-platform.33.4: AC19.8.9: Concurrent status/events reads share the synthetic active workflow session."""
     sessionmaker = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
 
     async with sessionmaker() as first_session, sessionmaker() as second_session:
@@ -298,7 +298,7 @@ async def test_AC19_8_9_active_workflow_session_reactivates_existing_inactive_de
 
 
 def test_AC19_1_2_workflow_event_model_contract() -> None:
-    """AC19.1.2: workflow_events model exposes lifecycle, dedupe, and read indexes."""
+    """AC-platform.30.2: AC19.1.2: workflow_events model exposes lifecycle, dedupe, and read indexes."""
     table = WorkflowEvent.__table__
     assert table.name == "workflow_events"
 
@@ -354,7 +354,7 @@ def test_AC19_1_2_workflow_event_model_contract() -> None:
 
 
 def test_AC19_1_3_workflow_event_schema_rejects_external_action_href() -> None:
-    """AC19.1.3: workflow event schemas only allow internal relative action links."""
+    """AC-platform.30.3: AC19.1.3: workflow event schemas only allow internal relative action links."""
     valid = WorkflowEventCreate(
         family=WorkflowEventFamily.SOURCE_UPLOADED,
         severity=WorkflowEventSeverity.INFO,
@@ -422,7 +422,7 @@ def test_AC19_1_3_workflow_event_schema_rejects_external_action_href() -> None:
 
 
 async def test_AC19_1_4_upsert_uploaded_statement_event_is_deterministic(db, test_user) -> None:
-    """AC19.1.4: uploaded statement event derivation is deterministic and idempotent."""
+    """AC-platform.30.4: AC19.1.4: uploaded statement event derivation is deterministic and idempotent."""
     statement, _document = await _make_statement(
         db,
         test_user.id,
@@ -447,7 +447,7 @@ async def test_AC19_1_4_upsert_uploaded_statement_event_is_deterministic(db, tes
 
 
 async def test_AC19_1_5_workflow_event_lifecycle_is_user_isolated(db, test_user) -> None:
-    """AC19.1.5: workflow event reads and lifecycle changes are scoped by user_id."""
+    """AC-platform.30.5: AC19.1.5: workflow event reads and lifecycle changes are scoped by user_id."""
     other_user = User(email=f"other-{uuid4()}@example.com", hashed_password="hashed")
     db.add(other_user)
     await db.flush()
@@ -505,7 +505,7 @@ async def test_AC19_1_5_workflow_event_lifecycle_is_user_isolated(db, test_user)
 
 
 async def test_AC19_3_1_sync_refreshes_mutable_uploaded_event_fields_without_lifecycle_reset(db, test_user) -> None:
-    """AC19.3.1: derived sync updates mutable display fields without lifecycle reset."""
+    """AC-platform.32.1: AC19.3.1: derived sync updates mutable display fields without lifecycle reset."""
     statement, document = await _make_statement(
         db,
         test_user.id,
@@ -545,7 +545,7 @@ async def test_AC19_3_1_sync_refreshes_mutable_uploaded_event_fields_without_lif
 
 
 async def test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_preserved(db, test_user) -> None:
-    """AC19.12.2 AC19.12.6 AC22.2.2 AC22.2.5: review events are idempotent, current, lifecycle-safe, and deep-link to the statement review page."""
+    """AC-platform.34.2 AC-platform.36.1 AC-platform.36.2: AC19.12.2 AC19.12.6 AC22.2.2 AC22.2.5: review events are idempotent, current, lifecycle-safe, and deep-link to the statement review page."""
     statement, _document = await _make_statement(
         db,
         test_user.id,
@@ -682,7 +682,7 @@ async def test_AC19_12_3_report_readiness_events_follow_package_readiness_withou
     test_user,
     monkeypatch,
 ) -> None:
-    """AC19.12.3 AC19.12.6: readiness events follow package state and archive stale blockers."""
+    """AC-platform.34.3: AC19.12.3 AC19.12.6: readiness events follow package state and archive stale blockers."""
     blocker_payload = {
         "state": "blocked",
         "action_href": "/review",
@@ -863,7 +863,7 @@ async def test_AC19_12_3_ready_package_status_wins_over_long_lived_upload_proces
 
 
 async def test_AC19_12_4_readiness_blocker_events_are_user_action_scoped(db, test_user, monkeypatch) -> None:
-    """AC19.12.4 AC19.12.6: reconciliation and Processing blockers are lightweight user actions."""
+    """AC-platform.34.4: AC19.12.4 AC19.12.6: reconciliation and Processing blockers are lightweight user actions."""
 
     async def fake_readiness(_db, **_kwargs):
         return {
@@ -955,7 +955,7 @@ async def test_AC19_3_2_workflow_status_uses_single_aggregate_for_badge_counts(
     db_engine,
     test_user,
 ) -> None:
-    """AC19.3.2: status uses one aggregate count query and one winning representative query."""
+    """AC-platform.32.2: AC19.3.2: status uses one aggregate count query and one winning representative query."""
     from sqlalchemy import event as sqlalchemy_event
 
     await upsert_workflow_event(
@@ -1020,7 +1020,7 @@ async def test_AC19_3_2_workflow_status_uses_single_aggregate_for_badge_counts(
 
 
 async def test_AC22_4_1_pending_stage2_match_surfaces_reconciliation_review_event(db, test_user):
-    """AC22.4.1: a pending Stage 2 reconciliation match surfaces a reconciliation-review
+    """AC-platform.36.3: AC22.4.1: a pending Stage 2 reconciliation match surfaces a reconciliation-review
     event in the inbox that deep-links to /reconciliation/review-queue, and re-syncing
     does not duplicate it."""
     from tests.factories import AtomicTransactionFactory, ReconciliationMatchFactory
@@ -1046,7 +1046,7 @@ async def test_AC22_4_1_pending_stage2_match_surfaces_reconciliation_review_even
 
 
 async def test_AC19_14_1_concurrent_upsert_same_dedupe_key_does_not_500(db_engine, test_user) -> None:
-    """AC19.14.1: Two concurrent upserts of the same (user_id, dedupe_key) workflow event both
+    """AC-platform.35.1: AC19.14.1: Two concurrent upserts of the same (user_id, dedupe_key) workflow event both
     succeed without a duplicate-key 500; exactly one row exists and both calls return it."""
     sessionmaker = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -1085,7 +1085,7 @@ async def test_AC19_14_1_concurrent_upsert_same_dedupe_key_does_not_500(db_engin
 
 
 async def test_AC19_14_2_duplicate_insert_does_not_poison_outer_transaction(db, test_user) -> None:
-    """AC19.14.2: When the same (user_id, dedupe_key) is inserted twice within one session, the
+    """AC-platform.35.2: AC19.14.2: When the same (user_id, dedupe_key) is inserted twice within one session, the
     second insert recovers via savepoint, returns the existing row, and the outer transaction stays
     usable for subsequent reads/flushes (no 'transaction has been rolled back')."""
     source_id = uuid4()
@@ -1118,7 +1118,7 @@ async def test_AC19_14_2_duplicate_insert_does_not_poison_outer_transaction(db, 
 
 
 async def test_AC19_14_3_sync_tolerates_concurrent_event_creation(db_engine, test_user) -> None:
-    """AC19.14.3: Concurrent sync_workflow_events_for_user runs over the same source state do not
+    """AC-platform.35.3: AC19.14.3: Concurrent sync_workflow_events_for_user runs over the same source state do not
     500 on the workflow-event dedupe key; the derived uploaded event is created exactly once."""
     sessionmaker = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -1161,7 +1161,7 @@ async def test_AC19_2_7_events_session_summary_agrees_with_status_when_blocked(
     test_user,
     monkeypatch,
 ) -> None:
-    """AC19.2.7: the /workflow/events session summary must reuse the authoritative
+    """AC-platform.31.7: AC19.2.7: the /workflow/events session summary must reuse the authoritative
     status derivation, so a blocked active session never reports primary_state=ready
     or report_readiness=none while /workflow/status reports blocked."""
 
