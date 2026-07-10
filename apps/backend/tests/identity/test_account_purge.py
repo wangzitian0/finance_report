@@ -14,15 +14,15 @@ from uuid import UUID, uuid4
 from sqlalchemy import func, select
 
 from src.identity import User
-from src.models.account import Account
-from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.services.test_account_purge import (
+from src.identity.extension.account_purge import (
     DEFAULT_TEST_EMAIL_PATTERN,
     is_safe_purge_environment,
     owned_tables_in_delete_order,
     purge_test_accounts,
     select_test_user_ids,
 )
+from src.models.account import Account
+from src.models.layer2 import AtomicTransaction, TransactionDirection
 from tests.factories import AccountFactory, JournalEntryFactory, UserFactory
 
 
@@ -45,7 +45,7 @@ async def _count(db, model, user_id: UUID) -> int:
 
 
 class TestTestAccountSelection:
-    """AC8.17.1: only disposable test accounts are selected."""
+    """AC-identity.purge.1: AC8.17.1: only disposable test accounts are selected."""
 
     async def test_selection_matches_test_accounts_and_excludes_real_ones(self, db):
         qa = await _make_user(db, "qa.alice@example.com")
@@ -69,7 +69,7 @@ class TestTestAccountSelection:
         assert "users" not in names
 
     def test_environment_guard_allows_dev_staging_and_refuses_production(self):
-        """AC8.17.5: the --apply environment guard fences off production."""
+        """AC-identity.purge.5: AC8.17.5: the --apply environment guard fences off production."""
         for safe in ("development", "dev", "local", "staging", "ci", "TEST"):
             assert is_safe_purge_environment(safe) is True
         for unsafe in ("production", "prod", "prd", "", None):
@@ -78,7 +78,7 @@ class TestTestAccountSelection:
 
 class TestPurge:
     async def test_apply_purges_clean_account_and_leaves_others(self, db):
-        """AC8.17.2: a clean test account and its owned rows are removed."""
+        """AC-identity.purge.2: AC8.17.2: a clean test account and its owned rows are removed."""
         victim = await _make_user(db, "qa.delete-me@example.com")
         victim_id = victim.id
         await AccountFactory.create_async(db, user_id=victim_id, name="QA Cash")
@@ -111,7 +111,7 @@ class TestPurge:
         assert await _count(db, Account, bystander_id) == 1
 
     async def test_account_with_posted_ledger_entry_is_blocked_not_deleted(self, db):
-        """AC8.17.3: immutable ledger entries block the purge; account is preserved."""
+        """AC-identity.purge.3: AC8.17.3: immutable ledger entries block the purge; account is preserved."""
         protected = await _make_user(db, "qa.has-ledger@example.com")
         protected_id = protected.id
         await JournalEntryFactory.create_balanced_async(db, user_id=protected_id, amount=Decimal("50.00"))
@@ -127,7 +127,7 @@ class TestPurge:
         assert await _user_exists(db, protected_id)
 
     async def test_dry_run_reports_but_persists_nothing(self, db):
-        """AC8.17.4: dry run names the accounts it would purge but deletes nothing."""
+        """AC-identity.purge.4: AC8.17.4: dry run names the accounts it would purge but deletes nothing."""
         victim = await _make_user(db, "qa.dry-run@example.com")
         victim_id = victim.id
         await AccountFactory.create_async(db, user_id=victim_id, name="QA Cash")

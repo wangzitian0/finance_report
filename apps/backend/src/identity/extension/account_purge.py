@@ -45,7 +45,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import Base
-from src.identity import User
+from src.identity.extension.sql import User
 from src.observability import get_logger
 
 logger = get_logger(__name__)
