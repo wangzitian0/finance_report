@@ -1,7 +1,6 @@
 [
   "in::apps/backend/src/models/_registry.py::src.identity.extension.sql::<import>",
   "out::apps/backend/src/extraction/extension/_base.py::src.services::ai_streaming",
-  "out::apps/backend/src/extraction/extension/brokerage_positions.py::src.services.assets::AssetService",
   "out::apps/backend/src/extraction/extension/review_queue.py::src.services.fx::FxRateError",
   "out::apps/backend/src/extraction/extension/review_queue.py::src.services.fx::get_exchange_rate",
   "out::apps/backend/src/extraction/extension/service.py::src.services.ai_streaming::AIStreamError",

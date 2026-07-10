@@ -76,11 +76,11 @@ there into the AC registry (no EPIC mirror). The read-side ACs (still in
 against this contract (interface == `__all__`, every test reference resolves,
 no upward import edge).
 
-## Atomic-to-managed reconciliation (`AssetService`, shipped, pre-#1643 read side)
+## Atomic-to-managed reconciliation (`PositionService`, shipped, pre-#1643 read side)
 
 *(Internalized from `docs/ssot/assets.md`, migration closeout wave 3, #1664 —
 this is now the single owner; do not re-add a separate SSOT copy. This
-describes the currently-shipped `apps/backend/src/services/assets.py`
+describes the currently-shipped `apps/backend/src/portfolio/extension/positions.py` (was `services/assets.py`, split per #1677)
 behavior, which the #1643 read-side migration folds into this package's
 `extension`/`data` layers.)*
 

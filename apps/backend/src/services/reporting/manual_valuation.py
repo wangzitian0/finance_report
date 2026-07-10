@@ -14,7 +14,7 @@ from src.models.layer3 import (
     ManualValuationLiquidityClass,
 )
 from src.observability import get_logger
-from src.services.assets import AssetService
+from src.pricing import ValuationService
 from src.services.fx import (
     FxRateError,
     convert_amount,
@@ -68,7 +68,7 @@ async def _build_manual_valuation_lines(
     include_restricted: bool = True,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Build balance sheet lines from latest manual valuation components."""
-    components = await AssetService().get_latest_valuation_components(
+    components = await ValuationService().get_latest_valuation_components(
         db,
         user_id,
         as_of_date=as_of_date,

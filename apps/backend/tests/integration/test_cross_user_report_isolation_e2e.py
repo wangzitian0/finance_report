@@ -23,7 +23,7 @@ from src.ledger import create_journal_entry, post_journal_entry
 from src.models.account import Account, AccountType
 from src.models.journal import JournalEntrySourceType
 from src.models.layer3 import ManualValuationComponentType
-from src.services.assets import AssetService
+from src.pricing import ValuationService
 from src.services.reporting import generate_balance_sheet, generate_income_statement
 from tests.factories import UserFactory
 
@@ -92,7 +92,7 @@ async def test_AC8_16_2_reports_exclude_other_users_entries(db: AsyncSession, te
 
     # --- Net-worth isolation: a manual valuation for each user must not cross into the
     # other's net worth. Added after the ledger reports above so it does not perturb them. ---
-    service = AssetService()
+    service = ValuationService()
     await service.create_valuation_snapshot(
         db,
         user_id=user_a,

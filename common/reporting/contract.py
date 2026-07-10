@@ -43,6 +43,7 @@ CONTRACT = PackageContract(
         "audit",
         "ledger",
         "observability",
+        "pricing",
         "reconciliation",
     ],
     roles=["base", "extension", "data"],

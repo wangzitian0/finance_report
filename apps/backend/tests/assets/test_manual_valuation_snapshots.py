@@ -9,9 +9,9 @@ import pytest
 from sqlalchemy.dialects import postgresql
 
 from src.models.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass
+from src.pricing import ValuationComponentItem, ValuationService, ValuationServiceError
 from src.schemas.assets import ManualValuationSnapshotCreate, ManualValuationSnapshotUpdate
 from src.schemas.provenance import DataProvenance
-from src.services.assets import AssetService, AssetServiceError, ValuationComponentItem
 
 
 async def test_create_manual_valuation_snapshot_crud_api(client):
@@ -177,7 +177,7 @@ def test_AC22_13_1_valuation_component_item_uses_normalized_provenance_type() ->
 @pytest.mark.no_db
 async def test_AC11_19_1_current_valuation_head_query_takes_row_lock() -> None:
     """AC11.19.1: Correction hand-off locks the current head before superseding it."""
-    service = AssetService()
+    service = ValuationService()
     db = MagicMock()
     result = MagicMock()
     result.scalar_one_or_none.return_value = None
@@ -206,7 +206,7 @@ async def test_manual_valuation_snapshot_router_rolls_back_on_service_errors(cli
     async def raise_on_update(*args, **kwargs):
         raise RuntimeError("update failed")
 
-    monkeypatch.setattr(assets_router._service, "create_valuation_snapshot", raise_on_create)
+    monkeypatch.setattr(assets_router._valuations, "create_valuation_snapshot", raise_on_create)
     create_response = await client.post(
         "/assets/valuation-snapshots",
         json={
@@ -219,7 +219,7 @@ async def test_manual_valuation_snapshot_router_rolls_back_on_service_errors(cli
     )
     assert create_response.status_code == 500
 
-    monkeypatch.setattr(assets_router._service, "update_valuation_snapshot", raise_on_update)
+    monkeypatch.setattr(assets_router._valuations, "update_valuation_snapshot", raise_on_update)
     update_response = await client.patch(
         f"/assets/valuation-snapshots/{uuid4()}",
         json={"value": "2.00"},
@@ -229,7 +229,7 @@ async def test_manual_valuation_snapshot_router_rolls_back_on_service_errors(cli
 
 async def test_manual_valuation_snapshot_service_updates_optional_fields_and_missing_rows(db, test_user):
     """AC11.9.1: Service updates every optional field and handles missing snapshots."""
-    service = AssetService()
+    service = ValuationService()
     snapshot = await service.create_valuation_snapshot(
         db,
         user_id=test_user.id,
@@ -287,7 +287,7 @@ async def test_AC11_19_1_manual_valuation_correction_appends_version_and_preserv
     Vision Axiom A: a recorded fact is never changed in place; a later correction
     accumulates as a new version, and one version maps to exactly one value.
     """
-    service = AssetService()
+    service = ValuationService()
     # The version-chain identity matches the partial unique index exactly
     # (component_type, source, as_of_date) — currency is not part of it.
     identity = dict(
@@ -329,7 +329,7 @@ async def test_AC11_19_1_manual_valuation_correction_appends_version_and_preserv
 @pytest.mark.asyncio
 async def test_AC11_19_2_corrected_valuation_is_not_double_counted_in_net_worth(db, test_user, ac_evidence):
     """AC-pricing.manualvaluation.2: AC11.19.2: Heads-only reads use the current version, so a correction never double-counts."""
-    service = AssetService()
+    service = ValuationService()
     key = dict(
         component_type=ManualValuationComponentType.PROPERTY_VALUE,
         as_of_date=date(2026, 5, 18),
@@ -363,7 +363,7 @@ async def test_AC11_19_2_corrected_valuation_is_not_double_counted_in_net_worth(
 @pytest.mark.asyncio
 async def test_editing_a_superseded_valuation_is_rejected(db, test_user):
     """Audit review: PATCH must not edit frozen history (Axiom A); superseded versions are read-only."""
-    service = AssetService()
+    service = ValuationService()
     identity = dict(
         component_type=ManualValuationComponentType.PROPERTY_VALUE,
         as_of_date=date(2026, 5, 18),
@@ -377,7 +377,7 @@ async def test_editing_a_superseded_valuation_is_rejected(db, test_user):
     )  # supersedes `first`
     await db.commit()
 
-    with pytest.raises(AssetServiceError, match="superseded"):
+    with pytest.raises(ValuationServiceError, match="superseded"):
         await service.update_valuation_snapshot(db, test_user.id, first.id, values={"value": Decimal("999.00")})
 
 
@@ -422,7 +422,7 @@ def test_manual_valuation_snapshot_schema_normalizes_currency():
 
 async def test_manual_valuation_snapshot_latest_net_worth_components(db, test_user):
     """AC11.9.2: Latest manual snapshots feed net worth components without float arithmetic."""
-    service = AssetService()
+    service = ValuationService()
 
     await service.create_valuation_snapshot(
         db,
@@ -464,7 +464,7 @@ async def test_manual_valuation_snapshot_latest_net_worth_components(db, test_us
 
 async def test_manual_valuation_snapshot_restricted_toggle(db, test_user):
     """AC11.9.3: Restricted/illiquid values can be excluded from liquid net worth views."""
-    service = AssetService()
+    service = ValuationService()
 
     await service.create_valuation_snapshot(
         db,

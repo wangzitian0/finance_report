@@ -198,8 +198,8 @@ async def test_component_candidates_include_superseded_history_for_bitemporal_re
     adapter) picks the winner by observed_at — proving the bitemporal split
     (#1610 ruling 3) falls out of resolve(), not a second filtering mechanism.
 
-    Mirrors the ordered hand-off ``AssetService.create_valuation_snapshot``
-    uses (services/assets.py): the new row is parked UNDER the prior head
+    Mirrors the ordered hand-off ``ValuationService.create_valuation_snapshot``
+    uses (pricing/extension/valuation.py): the new row is parked UNDER the prior head
     (``superseded_by_id=head.id``, valid — 0 heads momentarily), then the
     head is demoted (0 heads), then the new row is promoted to
     ``superseded_by_id=None`` (1 head) — three flushes, each individually

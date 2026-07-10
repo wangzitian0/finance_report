@@ -10,7 +10,7 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from src.models.layer3 import ManagedPosition, PositionStatus
-from src.services.assets import AssetServiceError
+from src.portfolio import PositionServiceError
 
 
 class TestAssetsRouterCoverage:
@@ -102,12 +102,12 @@ class TestAssetsRouterCoverage:
 
     async def test_reconcile_positions_asset_service_error(self, client, db, test_user):
         """
-        GIVEN reconciliation encounters AssetServiceError
+        GIVEN reconciliation encounters PositionServiceError
         WHEN reconciling positions
         THEN it should return 500 and rollback
         """
-        with patch("src.routers.assets._service.reconcile_positions") as mock_reconcile:
-            mock_reconcile.side_effect = AssetServiceError("Test error")
+        with patch("src.routers.assets._positions.reconcile_positions") as mock_reconcile:
+            mock_reconcile.side_effect = PositionServiceError("Test error")
 
             response = await client.post("/assets/reconcile")
             assert response.status_code == 500
@@ -119,7 +119,7 @@ class TestAssetsRouterCoverage:
         WHEN reconciling positions
         THEN it should return 500 with generic message
         """
-        with patch("src.routers.assets._service.reconcile_positions") as mock_reconcile:
+        with patch("src.routers.assets._positions.reconcile_positions") as mock_reconcile:
             mock_reconcile.side_effect = RuntimeError("Unexpected error")
 
             response = await client.post("/assets/reconcile")
@@ -128,7 +128,7 @@ class TestAssetsRouterCoverage:
 
     async def test_get_depreciation_asset_service_error(self, client, db, test_user):
         """
-        GIVEN depreciation calculation fails with AssetServiceError
+        GIVEN depreciation calculation fails with PositionServiceError
         WHEN calculating depreciation
         THEN it should return 400
         """
@@ -157,8 +157,8 @@ class TestAssetsRouterCoverage:
         await db.commit()
         await db.refresh(position)
 
-        with patch("src.routers.assets._service.get_depreciation_schedule") as mock_depreciation:
-            mock_depreciation.side_effect = AssetServiceError("Invalid asset for depreciation")
+        with patch("src.routers.assets._positions.get_depreciation_schedule") as mock_depreciation:
+            mock_depreciation.side_effect = PositionServiceError("Invalid asset for depreciation")
 
             response = await client.get(
                 f"/assets/positions/{position.id}/depreciation",
@@ -173,7 +173,7 @@ class TestAssetsRouterCoverage:
         WHEN reconciling positions
         THEN it should return 200 with success message
         """
-        from src.services.assets import ReconcileResult
+        from src.portfolio import ReconcileResult
 
         mock_result = ReconcileResult(
             created=2,
@@ -183,7 +183,7 @@ class TestAssetsRouterCoverage:
             skipped_assets=["UNKNOWN"],
         )
 
-        with patch("src.routers.assets._service.reconcile_positions") as mock_reconcile:
+        with patch("src.routers.assets._positions.reconcile_positions") as mock_reconcile:
             mock_reconcile.return_value = mock_result
 
             response = await client.post("/assets/reconcile")
@@ -203,7 +203,7 @@ class TestAssetsRouterCoverage:
         THEN it should return 200 with depreciation schedule
         """
         from src.models.account import Account, AccountType
-        from src.services.assets import DepreciationResult
+        from src.portfolio import DepreciationResult
 
         account = Account(
             user_id=test_user.id,
@@ -239,7 +239,7 @@ class TestAssetsRouterCoverage:
             salvage_value=Decimal("0"),
         )
 
-        with patch("src.routers.assets._service.get_depreciation_schedule") as mock_depreciation:
+        with patch("src.routers.assets._positions.get_depreciation_schedule") as mock_depreciation:
             mock_depreciation.return_value = mock_result
 
             response = await client.get(

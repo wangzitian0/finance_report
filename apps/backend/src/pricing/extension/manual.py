@@ -62,8 +62,8 @@ async def record_manual_valuation(
     If a current version already exists for
     ``(user_id, component_type, source, as_of)``, this appends a new version
     and supersedes the prior one instead of overwriting it — the same
-    3-flush ordered hand-off ``AssetService.create_valuation_snapshot``
-    (``services/assets.py``) uses, valid under both the self-referencing FK
+    3-flush ordered hand-off ``ValuationService.create_valuation_snapshot``
+    (``pricing/extension/valuation.py``) uses, valid under both the self-referencing FK
     and the partial-unique index (never two current heads at once).
     """
     normalized_currency = normalize_currency_code(currency)
