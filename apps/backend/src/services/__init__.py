@@ -25,7 +25,6 @@ _SUBMODULES = {
     "market_data",
     "market_data_scheduler",
     "performance",
-    "pii_redaction",
     "portfolio",
     "report_readiness",
     "reporting",

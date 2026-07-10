@@ -1,4 +1,4 @@
-from src.services.pii_redaction import (
+from src.observability.pii_redaction import (
     PIIType,
     detect_pii,
     mask_account_number,
