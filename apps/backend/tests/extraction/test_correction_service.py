@@ -27,7 +27,7 @@ def _clear_cache():
 
 
 async def test_record_correction_stores_corrected_category(db, test_user):
-    """AC18.2.1: CorrectionLog records the corrected category and txn description.
+    """AC-extraction.1802.1: AC18.2.1: CorrectionLog records the corrected category and txn description.
 
     Categories are no longer suggested at extraction time, so ``original_category``
     is always ``None``; only the user-corrected category is recorded.
@@ -86,7 +86,7 @@ async def test_record_correction_not_found_raises(db, test_user):
 
 
 async def test_AC18_2_2_record_correction_rejects_cross_user_corrected_account(db, test_user):
-    """AC18.2.2: Correction feedback must not bind another user's account."""
+    """AC-extraction.1802.2: AC18.2.2: Correction feedback must not bind another user's account."""
     txn = await AtomicTransactionFactory.create_async(
         db,
         user_id=test_user.id,
@@ -169,7 +169,7 @@ async def test_few_shot_examples_empty_returns_empty(db, test_user):
 
 
 async def test_few_shot_cache_invalidates(db, test_user):
-    """AC18.2.4: Cache invalidates after recording a correction."""
+    """AC-extraction.1802.4: AC18.2.4: Cache invalidates after recording a correction."""
     # Prime the cache (empty)
     examples = await get_few_shot_examples(db, user_id=test_user.id)
     assert examples == []
@@ -195,7 +195,7 @@ async def test_few_shot_cache_invalidates(db, test_user):
 
 
 def test_prompt_injection_with_corrections():
-    """AC18.2.3: Few-shot examples are injected into extraction prompt."""
+    """AC-extraction.1802.3: AC18.2.3: Few-shot examples are injected into extraction prompt."""
     correction_examples = [
         {
             "description": "GRAB CAR",

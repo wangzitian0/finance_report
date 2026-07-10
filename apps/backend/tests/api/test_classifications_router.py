@@ -33,7 +33,7 @@ def stub_proposer(monkeypatch):
 async def test_AC18_17_2_backfill_endpoint_classifies_then_is_idempotent(
     client: AsyncClient, db, test_user, enabled_flag, stub_proposer
 ):
-    """AC18.17.2: POST /classifications/backfill classifies the caller's
+    """AC-extraction.1817.2: AC18.17.2: POST /classifications/backfill classifies the caller's
     not-yet-classified transactions once; a second call is an idempotent no-op."""
     for i in range(2):
         await AtomicTransactionFactory.create_async(

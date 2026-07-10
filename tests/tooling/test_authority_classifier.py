@@ -76,11 +76,41 @@ def test_AC26_9_1_counter_runs_over_repo_and_is_well_formed() -> None:
         assert bucket["band"] in {CODE_ONLY, CODE_LED, LLM_LED, LLM_ONLY}
         # llm_share is computed over KNOWN (code+llm), so 0..100.
         assert 0 <= bucket["llm_share"] <= 100
-    # Sanity: the AI-heavy extraction/provider EPICs are detected as carrying LLM ACs.
-    # (classify_repo only scans EPIC-doc AC tables, not package roadmaps — EPIC-006's
-    # own LLM-tagged rows migrated to the advisor package in #1663, so this checks
-    # EPIC-018 instead, which is not part of that migration.)
-    assert result["packages"].get("EPIC-018", {}).get("llm", 0) > 0
+    # No LLM-row sanity assertion here: classify_repo only scans EPIC-doc AC
+    # tables, not package roadmaps, and rows keep migrating out of EPIC docs
+    # into package roadmaps (#1663 / #1715) — the real repo can legitimately
+    # reach zero surviving LLM rows. That invariant is instead proven
+    # deterministically against a synthetic repo below.
+
+
+def test_AC26_9_1_counter_detects_llm_row_in_synthetic_repo(tmp_path: Path) -> None:
+    """AC26.9.1: classify_repo detects a surviving LLM-classified AC row.
+
+    Uses a synthetic tmp_path repo (not the live repo) so this stays true
+    regardless of how far the live EPIC-doc-to-package-roadmap migration has
+    progressed — see the comment on the real-repo test above.
+    """
+    epic_dir = tmp_path / "docs" / "project"
+    epic_dir.mkdir(parents=True)
+    (epic_dir / "EPIC-999.fake.md").write_text(
+        "| AC999.1.1 | LLM test | tests/test_fake_llm.py |\n"
+        "| AC999.1.2 | Code test | tests/test_fake_code.py |\n",
+        encoding="utf-8",
+    )
+    tests_dir = tmp_path / "tests"
+    tests_dir.mkdir()
+    (tests_dir / "test_fake_llm.py").write_text(
+        "from src.llm.extension.cassette import CassetteMode\n", encoding="utf-8"
+    )
+    (tests_dir / "test_fake_code.py").write_text(
+        "def test_fake_code():\n    assert 1 + 1 == 2\n", encoding="utf-8"
+    )
+
+    result = classify_repo(root=tmp_path)
+
+    assert result["overall"]["llm"] == 1
+    assert result["overall"]["code"] == 1
+    assert result["packages"]["EPIC-999"]["band"] == LLM_LED
 
 
 def test_AC26_9_1_counter_renders_live_table(tmp_path: Path) -> None:
