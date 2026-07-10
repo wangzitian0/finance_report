@@ -151,7 +151,7 @@ class TestReportsRouterErrors:
         """
         from decimal import Decimal
 
-        from src.models.market_data import FxRate
+        from src.pricing.orm.market_data import FxRate
 
         # Add FX rate that doesn't include base currency
         fx = FxRate(

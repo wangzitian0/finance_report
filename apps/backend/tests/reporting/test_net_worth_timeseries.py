@@ -8,7 +8,7 @@ import pytest
 
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
-from src.models.market_data import FxRate
+from src.pricing.orm.market_data import FxRate
 from src.services.reporting import ReportError, get_net_worth_timeseries
 
 

@@ -3,7 +3,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 from src.models.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
-from src.models.market_data import FxRate
+from src.pricing.orm.market_data import FxRate
 
 
 def test_chat_session_repr():

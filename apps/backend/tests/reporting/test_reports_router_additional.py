@@ -83,7 +83,7 @@ class TestReportsRouterAdditionalCoverage:
         WHEN getting available currencies
         THEN it should return list including base currency
         """
-        from src.models.market_data import FxRate
+        from src.pricing.orm.market_data import FxRate
 
         fx_rate = FxRate(
             base_currency="USD",

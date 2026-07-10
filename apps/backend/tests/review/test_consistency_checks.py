@@ -7,7 +7,6 @@ from uuid import uuid4
 import pytest
 
 from src.models.account import Account, AccountType
-from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.statement_enums import BankStatementStatus
@@ -21,6 +20,7 @@ from src.reconciliation.extension.consistency_checks import (
     resolve_check,
     run_all_consistency_checks,
 )
+from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 
 
 @pytest.fixture

@@ -16,7 +16,6 @@ from src.audit.unit_price import UnitPrice
 from src.config import settings
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
-from src.models.market_data import StockPrice
 from src.models.portfolio import (
     DividendIncome,
     InvestmentTransaction,
@@ -25,6 +24,7 @@ from src.models.portfolio import (
     PriceSource,
 )
 from src.observability import get_logger
+from src.pricing.orm.market_data import StockPrice
 from src.schemas.portfolio import (
     HoldingResponse,
     PortfolioSummaryResponse,

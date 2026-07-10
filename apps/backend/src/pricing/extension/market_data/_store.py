@@ -9,7 +9,6 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.market_data import FxRate, MarketDataSyncState, StockPrice
 from src.pricing.extension.market_data._base import (
     _FRESHNESS_THRESHOLD,
     logger,
@@ -29,6 +28,7 @@ from src.pricing.extension.market_data._util import (
     _quantize_price,
     _quantize_rate,
 )
+from src.pricing.orm.market_data import FxRate, MarketDataSyncState, StockPrice
 
 
 async def _load_stored_rate(

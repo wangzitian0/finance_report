@@ -1,5 +1,8 @@
 """``reconciliation`` — matching, review consistency, and transfer pairing domain."""
 
+# ORM models owned by this package (moved from src/models, #1675); imported
+# eagerly and FIRST so a re-entrant circular import finds them bound, and so
+# importing the package registers the mappers on Base.metadata.
 from __future__ import annotations
 
 from src.reconciliation.base import (
@@ -65,8 +68,12 @@ from src.reconciliation.extension.scoring import (
     score_pattern,
     weighted_total,
 )
+from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 
 __all__ = [
+    "CheckStatus",
+    "CheckType",
+    "ConsistencyCheck",
     "DEFAULT_CONFIG",
     "DEFAULT_RATE_TOLERANCE",
     "DEFAULT_TIME_WINDOW",

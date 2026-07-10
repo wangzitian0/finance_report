@@ -28,7 +28,6 @@ from src.config import settings
 from src.database import engine, get_db, init_db
 from src.extraction import run_parsing_supervisor
 from src.identity import auth_router, users_router
-from src.models.ping_state import PingState
 from src.observability import (
     configure_database_pool_metrics,
     configure_logging,
@@ -43,6 +42,7 @@ from src.observability import (
     record_rate_limit_rejected,
 )
 from src.platform import BaseAppException, RateLimitConfig, RateLimiter, register_readiness_provider
+from src.platform.orm.ping_state import PingState
 from src.routers import (
     accounts,
     ai_feedback,

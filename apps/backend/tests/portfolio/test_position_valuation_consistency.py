@@ -17,7 +17,7 @@ from decimal import Decimal
 from src.models.account import Account, AccountType
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
-from src.models.market_data import FxRate
+from src.pricing.orm.market_data import FxRate
 
 # Base reporting currency is SGD (config default); native is HKD.
 _ACQ_DATE = date(2025, 1, 15)

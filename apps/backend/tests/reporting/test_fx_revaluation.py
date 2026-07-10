@@ -24,7 +24,7 @@ from src.ledger.extension.fx_revaluation import (
 )
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
-from src.models.market_data import FxRate
+from src.pricing.orm.market_data import FxRate
 from src.services.fx import FxRateError
 
 

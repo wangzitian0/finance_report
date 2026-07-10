@@ -14,7 +14,7 @@ from src.models.layer3 import (
     ManualValuationLiquidityClass,
     ManualValuationSnapshot,
 )
-from src.models.market_data import FxRate
+from src.pricing.orm.market_data import FxRate
 from src.services.reporting_calc import income_bucket
 
 
