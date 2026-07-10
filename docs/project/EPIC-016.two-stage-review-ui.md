@@ -235,41 +235,11 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 
 ### AC16.11 — Dev Tooling / Infra Commands (Infra)
 
-> These ACs cover `tools/debug.py`, `tools/cleanup_orphaned_dbs.py`, `tools/cli.py`, `tools/dev_backend.py`, and `tools/dev_frontend.py`.
-
-| AC ID | Description | Status |
-|-------|-------------|--------|
-| AC16.11.1 | `debug` — `detect_environment` returns `CI` when `GITHUB_ACTIONS` is true | ⏳ |
-| AC16.11.2 | `debug` — `detect_environment` returns `LOCAL` when `docker ps` succeeds | ⏳ |
-| AC16.11.3 | `debug` — `detect_environment` falls back to `PRODUCTION` on docker failure | ⏳ |
-| AC16.11.4 | `debug` — `validate_hostname` rejects empty and leading-hyphen hostnames | ⏳ |
-| AC16.11.5 | `debug` — `validate_username` enforces unix-safe pattern | ⏳ |
-| AC16.11.6 | `debug` — `get_container_name` maps known service names by environment | ⏳ |
-| AC16.11.7 | `debug` — `list_containers` prints all mapped containers for an environment | ⏳ |
-| AC16.11.8 | `cleanup_orphaned_dbs` — `extract_namespace` handles worker suffix and invalid names | ⏳ |
-| AC16.11.9 | `cleanup_orphaned_dbs` — `load_active_namespaces` returns `[]` when file missing or corrupt | ⏳ |
-| AC16.11.10 | `cleanup_orphaned_dbs` — `get_container_runtime` returns first available runtime | ⏳ |
-| AC16.11.11 | `cleanup_orphaned_dbs` — `list_test_databases` parses psql output and handles subprocess errors | ⏳ |
-| AC16.11.12 | `cleanup_orphaned_dbs` — `cleanup_orphaned` returns error when runtime missing | ⏳ |
-| AC16.11.13 | `cleanup_orphaned_dbs` — `cleanup_orphaned` returns success when no test databases found | ⏳ |
-| AC16.11.14 | `cleanup_orphaned_dbs` — `cleanup_orphaned` skips active namespace databases | ⏳ |
-| AC16.11.15 | `cleanup_orphaned_dbs` — `cleanup_orphaned` cleans all databases in `--all` mode | ⏳ |
-| AC16.11.16 | `cli` — `get_compose_cmd` honors `CONTAINER_RUNTIME`, otherwise prefers podman then docker and exits when unavailable | ⏳ |
-| AC16.11.17 | `cli` — `cmd_test` routes frontend/e2e/perf/tests and lifecycle modes correctly | ⏳ |
-| AC16.11.18 | `cli` — `cmd_clean` routes db/containers/default cleanup targets correctly | ⏳ |
-| AC16.11.19 | `dev_backend` — `check_database_ready` returns `false` on migration subprocess errors | ⏳ |
-| AC16.11.20 | `dev_frontend` — `cleanup` terminates tracked process and exits cleanly | ⏳ |
-| AC16.11.21 | `debug` — `view_remote_logs_docker` exits when `VPS_HOST` is missing | ⏳ |
-| AC16.11.22 | `debug` — `view_remote_logs_docker` exits on invalid VPS hostnames | ⏳ |
-| AC16.11.23 | `debug` — `view_remote_logs_docker` exits on invalid VPS usernames | ⏳ |
-| AC16.11.24 | `debug` — `view_local_logs` builds docker logs command with tail and follow | ⏳ |
-| AC16.11.25 | `debug` — `main` routes `logs` command to the observability handler when `method=observability` | ⏳ |
-| AC16.11.26 | `debug` — `main` routes `status` command to local log view with status tail | ⏳ |
-| AC16.11.27 | `debug` — `main` routes `containers` command to `list_containers` | ⏳ |
-| AC16.11.28 | `dev_backend` — `check_database_ready` returns `true` when migration subprocess succeeds | ⏳ |
-| AC16.11.29 | `dev_backend` — `cleanup` terminates tracked process and exits cleanly | ⏳ |
-| AC16.11.30 | `cleanup_orphaned_dbs` — `drop_database` returns `true` in dry-run mode | ⏳ |
-| AC16.11.31 | `cleanup_orphaned_dbs` — `main` forwards parsed flags to `cleanup_orphaned` | ⏳ |
+> This group's rows removed — migrated to the `runtime` package roadmap as
+> `AC-runtime.24.1-31` (migration closeout continuation, #1663 / #1714). The
+> "⏳" status markers were stale: every row already had a real, passing test
+> (`tests/tooling/test_debug.py`, `test_cleanup_orphaned_dbs.py`,
+> `test_cli_and_dev_servers.py`) — the EPIC doc just never linked them.
 
 ### AC16.12 — Frontend Pages (Core Pages Coverage)
 

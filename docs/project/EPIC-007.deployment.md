@@ -197,7 +197,8 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 > declared dependency), `AC-llm.6.2` (#1581 — the LLM cassette substitute is
 > input-keyed, runtime invariant 5, owned by the `llm` package), `AC-runtime.6.1` (#1578 — smoke ↔ declaration
 > parity via `/health?full=1`, invariant 6); the real-StorageService pipeline
-> substitute (invariant 4, #1520) is owned by EPIC-008 as `AC8.26.1`–`.2`.
+> substitute (invariant 4, #1520) is `AC-runtime.23.1-2` (migration closeout
+> continuation, #1663 / #1714).
 
 ### AC7.7: Health Checks — migrated to the `runtime` package
 
@@ -352,9 +353,8 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 > If live deploy SHA discovery fails, the job fails before deleting package
 > versions.
 
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC7.19.1 | The scheduled GHCR retention workflow prunes only backend/frontend `:<sha>` package versions older than 28 days, never prunes `vX.Y.Z` release tags, preserves live staging/production deploy SHAs resolved from health `git_sha`/`version`, and fails closed when no live SHA exemption is available {tier:CODE-ONLY} | `test_AC7_19_1_retention_selects_only_stale_sha_tags`, `test_AC7_19_1_live_sha_exemption_matches_full_and_short_tags`, `test_AC7_19_1_pruner_requires_live_sha_exemptions`, `test_AC7_19_1_pruner_deletes_selected_versions_only`, `test_AC7_19_1_load_versions_accepts_gh_paginated_slurp`, `test_AC7_19_1_workflow_schedules_28_day_sha_retention_with_live_exemption` | `tests/tooling/test_ghcr_sha_retention.py` | P0 |
+> This row removed — migrated to the `runtime` package roadmap as
+> `AC-runtime.22.1` (migration closeout continuation, #1663 / #1714).
 
 
 ## 📏 Acceptance Criteria
