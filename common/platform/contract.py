@@ -111,6 +111,8 @@ CONTRACT = PackageContract(
     ],
     implementations={"be": "apps/backend/src/platform", "fe": None},
     interface=[
+        "AppConfig",
+        "BASE_CURRENCY_KEY",
         "BaseAppException",
         "DomainEvent",
         "EventBus",
@@ -118,6 +120,7 @@ CONTRACT = PackageContract(
         "OutboxEventBus",
         "OutboxRelay",
         "OutboxRepository",
+        "PingState",
         "RateLimitConfig",
         "RateLimitState",
         "RateLimiter",

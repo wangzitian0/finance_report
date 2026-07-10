@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.money import Currency
 from src.config import settings
-from src.models.app_config import BASE_CURRENCY_KEY, AppConfig
+from src.platform.orm.app_config import BASE_CURRENCY_KEY, AppConfig
 
 
 async def get_effective_base_currency(db: AsyncSession) -> str:

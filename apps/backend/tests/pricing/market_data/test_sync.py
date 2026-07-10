@@ -11,8 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.account import Account, AccountType
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
-from src.models.market_data import FxRate, MarketDataSyncState, StockPrice
 from src.pricing.extension import market_data
+from src.pricing.orm.market_data import FxRate, MarketDataSyncState, StockPrice
 from src.services.market_data_discovery import active_stock_symbols, observed_fx_pairs
 from src.services.portfolio import PortfolioService
 

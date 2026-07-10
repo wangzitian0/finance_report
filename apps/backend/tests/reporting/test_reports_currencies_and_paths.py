@@ -71,7 +71,7 @@ class TestCurrenciesEndpoint:
         WHEN GET /reports/currencies
         THEN all currencies plus base should appear
         """
-        from src.models.market_data import FxRate
+        from src.pricing.orm.market_data import FxRate
 
         db.add_all(
             [
@@ -106,7 +106,7 @@ class TestCurrenciesEndpoint:
         WHEN GET /reports/currencies
         THEN base currency should be prepended to the list
         """
-        from src.models.market_data import FxRate
+        from src.pricing.orm.market_data import FxRate
 
         db.add(
             FxRate(

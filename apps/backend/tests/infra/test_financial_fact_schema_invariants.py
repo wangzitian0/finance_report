@@ -22,7 +22,6 @@ from src.models.layer3 import (
     RuleType,
 )
 from src.models.layer4 import ReportSnapshot, ReportType
-from src.models.market_data import FxRate, StockPrice
 from src.models.portfolio import (
     DividendIncome,
     DividendType,
@@ -35,6 +34,7 @@ from src.models.portfolio import (
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
 from src.pricing.extension.market_data import _load_stored_stock_price
+from src.pricing.orm.market_data import FxRate, StockPrice
 
 BACKEND_DIR = Path(__file__).parent.parent.parent
 MIGRATION_PATH = BACKEND_DIR / "migrations" / "versions" / "0033_financial_fact_constraints.py"

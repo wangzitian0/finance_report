@@ -27,6 +27,9 @@ re-exported below are the *entire* public surface (``__all__`` must equal
 through its port).
 """
 
+# ORM models owned by this package (moved from src/models, #1675); imported
+# eagerly and FIRST so a re-entrant circular import finds them bound, and so
+# importing the package registers the mappers on Base.metadata.
 from __future__ import annotations
 
 from src.platform.base import (
@@ -60,8 +63,12 @@ from src.platform.extension import (
     register_readiness_provider,
     update_workflow_event_status,
 )
+from src.platform.orm.app_config import BASE_CURRENCY_KEY, AppConfig
+from src.platform.orm.ping_state import PingState
 
 __all__ = [
+    "AppConfig",
+    "BASE_CURRENCY_KEY",
     "BaseAppException",
     "DomainEvent",
     "EventBus",
@@ -69,6 +76,7 @@ __all__ = [
     "OutboxEventBus",
     "OutboxRelay",
     "OutboxRepository",
+    "PingState",
     "RateLimitConfig",
     "RateLimitState",
     "RateLimiter",

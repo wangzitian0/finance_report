@@ -13,9 +13,9 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import Money
-from src.models.market_data import FxRate
 from src.pricing.base.errors import NoObservationError
 from src.pricing.extension.fx import convert_amount, convert_money, convert_to_base
+from src.pricing.orm.market_data import FxRate
 
 pytestmark = pytest.mark.asyncio
 

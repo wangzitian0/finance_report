@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.models.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass, ManualValuationSnapshot
-from src.models.market_data import FxRate
+from src.pricing.orm.market_data import FxRate
 
 
 async def test_annualized_income_endpoint_groups_last_12_month_income(

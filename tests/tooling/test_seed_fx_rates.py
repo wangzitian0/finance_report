@@ -40,7 +40,7 @@ _MODULE_STUBS: dict[str, object] = {
     "src": MagicMock(),
     "src.config": _src_config_stub,
     "src.models": _src_models_stub,
-    "src.models.market_data": _src_models_market_data_stub,
+    "src.pricing.orm.market_data": _src_models_market_data_stub,
 }
 
 # Patch sys.modules only for the duration of the import (seed_fx_rates binds

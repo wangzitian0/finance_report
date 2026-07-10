@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.account import Account, AccountType
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
-from src.models.market_data import FxRate
 from src.models.portfolio import MarketDataOverride, PriceSource
+from src.pricing.orm.market_data import FxRate
 from src.schemas.portfolio import PriceUpdateRequest
 from src.services.portfolio import (
     AssetNotFoundError,

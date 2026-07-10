@@ -128,6 +128,9 @@ CONTRACT = PackageContract(
     ],
     implementations={"be": "apps/backend/src/reconciliation", "fe": None},
     interface=[
+        "CheckStatus",
+        "CheckType",
+        "ConsistencyCheck",
         "DEFAULT_CONFIG",
         "DEFAULT_RATE_TOLERANCE",
         "DEFAULT_TIME_WINDOW",

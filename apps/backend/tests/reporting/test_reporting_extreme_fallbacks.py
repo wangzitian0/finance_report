@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
-from src.models.market_data import FxRate
+from src.pricing.orm.market_data import FxRate
 from src.services.reporting import (
     ReportError,
     _aggregate_net_income_sql,

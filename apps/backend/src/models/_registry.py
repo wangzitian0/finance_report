@@ -27,13 +27,17 @@ from __future__ import annotations
 # tables are registered the same way, not from this models package).
 import src.identity.extension.sql  # noqa: F401,E402
 
+# Packages that own their ORM (moved from here, #1675) register the mappers in
+# their root __init__; importing the published root is the whole side effect.
+import src.platform  # noqa: F401,E402
+import src.pricing  # noqa: F401,E402
+import src.reconciliation  # noqa: F401,E402
+
 # Imported purely for the metadata-registration side effect; ordering is
 # irrelevant because SQLAlchemy resolves relationships after all are loaded.
 from . import (  # noqa: F401
     account,
-    app_config,
     chat,
-    consistency_check,
     correction,
     evidence,
     fx_conversion,
@@ -43,9 +47,7 @@ from . import (  # noqa: F401
     layer3,
     layer4,
     llm_config,
-    market_data,
     metrics,
-    ping_state,
     portfolio,
     reconciliation,
     statement_enums,

@@ -32,7 +32,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "apps" / "backend"))
 
 from src.config import settings
-from src.models.market_data import FxRate
+from src.pricing.orm.market_data import FxRate
 
 
 def get_database_url(env: str) -> str:

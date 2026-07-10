@@ -20,10 +20,10 @@ from src.config import settings
 from src.deps import CurrentUserId, DbSession, Pagination
 from src.models.account import Account, AccountType
 from src.models.layer4 import ReportSnapshot, ReportType as SnapshotReportType
-from src.models.market_data import FxRate
 from src.observability import get_logger, track as _track_analytics
 from src.platform import raise_bad_request, raise_not_found
 from src.pricing import ensure_market_data_fresh
+from src.pricing.orm.market_data import FxRate
 from src.schemas import (
     AccountLineageResponse,
     AccountTrendResponse,
