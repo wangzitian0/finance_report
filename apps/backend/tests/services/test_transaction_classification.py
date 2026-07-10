@@ -304,8 +304,10 @@ async def test_AC18_15_8_flag_off_is_a_noop(db, test_user, monkeypatch):
 
 def test_AC18_15_8_production_consumers_are_the_declared_seams():
     """AC18.15.8: the classify node's production consumers are EXACTLY the two
-    declared seams — the posting path (#1545) and the backfill/re-extract router
-    (#1546). No other module may grow a side-door into classification."""
+    declared seams — the posting path (#1545) and the extraction package root
+    (#1546's backfill entry point, published for the router per #1677: routers
+    import only src.<pkg>, so the router-facing seam is the root re-export).
+    No other module may grow a side-door into classification."""
     src_root = Path("src")
     importers = []
     for path in src_root.rglob("*.py"):
@@ -318,8 +320,8 @@ def test_AC18_15_8_production_consumers_are_the_declared_seams():
             elif isinstance(node, ast.Import) and any("transaction_classification" in a.name for a in node.names):
                 importers.append(str(path))
     assert sorted(importers) == [
+        "src/extraction/__init__.py",
         "src/extraction/extension/statement_posting.py",
-        "src/routers/classifications.py",
     ]
 
 
@@ -469,13 +471,16 @@ def test_AC18_17_1_no_classify_writer_is_defined_but_uninvoked():
     # and attribute calls count only through an import of THIS module — unrelated
     # same-named attributes elsewhere do not satisfy the gate.
     seam_module = "src.extraction.extension.transaction_classification"
+    # The package root re-exports the router-facing seam (#1677: routers import
+    # only src.<pkg>), so a root import is the same seam, not a side-door.
+    seam_import_paths = (seam_module, "src.extraction")
     entry_seams = ("classify_by_effective_policy", "backfill_classifications")
 
     def seam_calls(tree: ast.AST) -> set[str]:
         alias_to_seam: dict[str, str] = {}
         module_aliases: set[str] = set()
         for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.module == seam_module:
+            if isinstance(node, ast.ImportFrom) and node.module in seam_import_paths:
                 for alias in node.names:
                     if alias.name in entry_seams:
                         alias_to_seam[alias.asname or alias.name] = alias.name
