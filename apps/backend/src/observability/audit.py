@@ -15,7 +15,7 @@ from uuid import UUID
 
 import structlog
 
-from src.services.pii_redaction import detect_pii
+from src.observability.pii_redaction import detect_pii
 
 RISKY_LOG_FIELD_NAMES = frozenset(
     {

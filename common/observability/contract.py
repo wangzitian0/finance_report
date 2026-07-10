@@ -15,9 +15,11 @@ as the registered ``config`` *package* (``common/config``, whose real interface
 is ``env_keys``/``schema_validation``); this package declares no registered-package
 edge for it, since none exists (#1674 corrected this — the two "config"s share a
 name, not an identity). The formerly flat ``src.logger`` / ``src.telemetry_metrics``
-/ ``src.analytics`` modules and the ``ErrorIds`` vocabulary now live inside this
-package; its remaining imports of unregistered backend infrastructure are
-``src.config`` and ``src.services.pii_redaction``.
+/ ``src.analytics`` modules, the ``ErrorIds`` vocabulary, and the PII detector
+(``pii_redaction``, folded in from ``src.services`` per #1677 — its consumers were
+this package's audit helpers and extraction's CSV path) now live inside this
+package; its one remaining import of unregistered backend infrastructure is
+``src.config``.
 """
 
 from __future__ import annotations
@@ -37,6 +39,7 @@ CONTRACT = PackageContract(
         "configure_logging",
         "configure_otel_metrics",
         "current_request_id",
+        "detect_pii",
         "get_logger",
         "get_observability_status",
         "http_route_label_from_scope",

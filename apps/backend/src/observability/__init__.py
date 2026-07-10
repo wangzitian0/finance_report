@@ -8,6 +8,9 @@ publishes the cohesive surfaces:
   contract (status + startup readiness, FastAPI instrumentation state);
 * :mod:`src.observability.audit` — the shared structured audit/security logging
   helpers with PII and secret redaction;
+* :mod:`src.observability.pii_redaction` — the Singapore-pattern PII detector
+  (``detect_pii``) the audit helpers and extraction's CSV path share (was the
+  flat ``src.services.pii_redaction``, #1677);
 * :mod:`src.observability.logger` — structlog + OTEL logging configuration and
   the ``get_logger`` factory (was the flat ``src.logger``);
 * :mod:`src.observability.telemetry_metrics` — the OTEL metric instruments and
@@ -34,6 +37,7 @@ from src.observability.audit import (
 )
 from src.observability.error_ids import ErrorIds
 from src.observability.logger import configure_logging, get_logger
+from src.observability.pii_redaction import detect_pii
 from src.observability.runtime import (
     get_observability_status,
     is_fastapi_instrumentation_active,
@@ -68,6 +72,7 @@ __all__ = [
     "configure_logging",
     "configure_otel_metrics",
     "current_request_id",
+    "detect_pii",
     "get_logger",
     "get_observability_status",
     "http_route_label_from_scope",
