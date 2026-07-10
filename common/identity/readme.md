@@ -107,6 +107,7 @@ statement parse is in flight, or while posted/reconciled ledger entries exist).
 | `extension/auth.py` | `get_current_user_id` (the FastAPI auth dependency) + `oauth2_scheme` |
 | `extension/rate_limit.py` | `auth_rate_limiter`/`register_rate_limiter` (auth-endpoint throttles, built from the `platform` `RateLimiter`) |
 | `extension/observability.py` | `bind_authenticated_user_context` (structlog user binding) |
+| `extension/account_purge.py` | `purge_test_accounts`/`is_safe_purge_environment`/`PurgeReport` — the test/QA account-purge maintenance service (folded in from `src/services`, #1677; operator CLI: `tools/purge_test_accounts.py`) |
 | `extension/api/` | the `/auth` (`register`/`login`/`get_me`) + `/users` routers (the transport edge) |
 
 **Dependency rule (DAG, down only)**: `extension → base`; the package depends

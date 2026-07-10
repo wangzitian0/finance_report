@@ -153,13 +153,17 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 > makes the notification center (bell + `/notifications`) the single place for
 > all action items, each card deep-linking to its follow-up.
 
+> **Partially migrated.** *(AC22.2.2 removed and AC22.2.5 removed — this
+> group's backend rows migrated to the `platform` package roadmap as
+> `AC-platform.36.1-2`, migration closeout continuation, #1663 / #1712)*.
+> The frontend rows below remain defined in this EPIC — no owning package has
+> been decided for them yet.
+
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
 | AC22.2.1 | The unified inbox surfaces Stage 1 source-review and Stage 2 reconciliation-review attention as cards (deep-linking to their detail surfaces), so no separate Review Queue page is needed | `unifiedInbox.test.tsx` | P1 |
-| AC22.2.2 | A Stage 1 review-required workflow event deep-links to that statement's review page (`/statements/{id}/review`), and reconciliation-review attention deep-links to `/reconciliation/review-queue` | `test_workflow_events.py` | P1 |
 | AC22.2.3 | The header bell badge reflects review/reconciliation attention via the workflow event counts and stays quiet when nothing needs attention | `workflowSurfaces.test.tsx` | P1 |
 | AC22.2.4 | The standalone Review Queue page is removed, `/review` redirects to `/notifications`, and "Review" is no longer a sidebar navigation entry | `nextConfigRedirects.test.ts`, `navigation.test.ts` | P1 |
-| AC22.2.5 | Review-required events are deduplicated by `(user, dedupe_key)` so re-syncing the same statement does not duplicate the inbox card | `test_workflow_events.py` | P1 |
 | AC22.2.6 | Desktop and mobile smoke covers the unified inbox with review attention without layout overflow | `unified-inbox.spec.ts` | P1 |
 
 ### AC22.3 — Report Cockpit And Source Drill-Down
@@ -181,9 +185,11 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 
 > PR4 slice. Closes the holistic-review findings and adds end-to-end journeys.
 
+> This row removed — migrated to the `platform` package roadmap as
+> `AC-platform.36.3` (migration closeout continuation, #1663 / #1712).
+
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC22.4.1 | A user with pending Stage 2 reconciliation matches gets a reconciliation-review attention event in the workflow inbox that deep-links to `/reconciliation/review-queue` (proven from match state through to event) | `test_workflow_events.py` | P1 |
 | AC22.4.3 | `/review/ai-suggestions` is reachable from AI Settings, so the AI-suggestion review surface is not orphaned | `aiSettingsPage.test.tsx` | P1 |
 | AC22.4.4 | The Home (`/`) defaults to a lean view (action-required summary, financial key numbers, quick upload) with heavy analytics/charts behind an opt-in toggle | `dashboardPage.test.tsx` | P1 |
 | AC22.4.5 | E2E: a user with Stage 1 and Stage 2 attention sees both in the notification center and can open each detail surface | `epic022-attention-journey.spec.ts` | P1 |

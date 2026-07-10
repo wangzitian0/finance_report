@@ -155,15 +155,9 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 
 ### AC16.4 — Consistency Checks Service (Extended Coverage)
 
-| AC ID | Description | Status |
-|-------|-------------|--------|
-| AC16.4.1 | `detect_duplicates` runs global scan when no `statement_id` provided | ⏳ |
-| AC16.4.2 | `detect_duplicates` is idempotent — does not create duplicate checks on re-run | ⏳ |
-| AC16.4.3 | `detect_transfer_pairs` runs global scan when no `statement_id` provided | ⏳ |
-| AC16.4.4 | `resolve_check` raises `ValueError` on invalid action | ⏳ |
-| AC16.4.5 | `resolve_check` raises `ValueError` when check not found or belongs to wrong user | ⏳ |
-| AC16.4.6 | `resolve_check` sets `FLAGGED` status when `action=flag` | ⏳ |
-| AC16.4.7 | `get_pending_checks` filters results by severity | ⏳ |
+> This group's rows removed — migrated to the `reconciliation` package
+> roadmap as `AC-reconciliation.consistency-checks.1-7` (migration closeout
+> continuation, #1663 / #1711).
 
 ### AC16.5 — Frontend Auth Utility (`lib/auth`)
 
@@ -435,12 +429,16 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 
 > See authoritative definition: [docs/ssot/confirmation-workflow.md](../ssot/confirmation-workflow.md)
 
+> **Partially migrated.** *(AC16.22.3 removed and AC16.22.4 removed — this
+> group's Stage-2 rows migrated to the `reconciliation` package roadmap as
+> `AC-reconciliation.stage2-batch.1-2`, migration closeout continuation,
+> #1663 / #1711)*. The Stage-1 statement-validation rows below stay with
+> their own owner.
+
 | AC ID | Description | Test Function | File | Priority |
 |-------|-------------|---------------|------|----------|
 | AC16.22.1 | Stage 1 `pending_review → approved` transition requires balance delta ≤ 0.001 USD | `test_approve_statement_invalid_balance_fails` | `review/test_statement_validation.py` | P0 |
 | AC16.22.2 | Stage 1 `pending_review → rejected` transition triggers re-parse | `test_stage1_reject_triggers_reparse` | `api/test_statements_router.py` | P0 |
-| AC16.22.3 | Stage 2 `pending_review → accepted` transition blocked when unresolved checks exist | `test_batch_approve_matches_blocked_by_unresolved_checks` | `api/test_statements_router.py` | P0 |
-| AC16.22.4 | Journal entry created only on `accepted` transition, never on `pending_review` | `test_batch_approve_matches_creates_missing_entry_once` | `api/test_statements_router.py` | P0 |
 | AC16.22.5 | Stage 1 tolerance is 0.001 USD (not 0.10 USD from Stage 2) | `test_validate_balance_chain_within_tolerance` | `review/test_statement_validation.py` | P0 |
 | AC16.22.6 | All service methods mutating `pending_review` enforce `user_id` ownership | `test_get_statement_for_update_wrong_user_raises` | `review/test_statement_validation.py` | P1 |
 | AC16.22.7 | Stage 1 approval tolerance and extraction/reconciliation scoring tolerance remain separate documented policies | `test_ac16_22_7_tolerance_policy_constants_are_intentional` | `review/test_tolerance_policy.py` | P0 |
@@ -521,7 +519,7 @@ model.
 |-------|-------------|-------|-------|----------|
 | AC16.32.1 | Stage 1 approval and edit-approval are blocked while duplicate or transfer-pair conflict candidates remain unresolved | `test_AC16_32_1_stage1_approval_blocks_unresolved_conflicts`, `AC16.32.1 disables approval while conflict candidates are unresolved` | `apps/backend/tests/api/test_statements_router.py`, `apps/frontend/src/__tests__/statementReviewPage.test.tsx` | P0 |
 | AC16.32.2 | Stage 1 balance validation UI reports opening and closing checks separately so reviewers see the same gate enforced by the backend | `AC16.32.2 shows opening and closing balance validation states separately` | `apps/frontend/src/__tests__/statementReviewPage.test.tsx` | P0 |
-| AC16.32.3 | Stage 2 review check lists request the full unresolved blocker set needed to unblock batch approval instead of silently truncating at the backend default page size | `AC16.32.3 requests an expanded consistency-check limit for unblockable queues`, `test_AC16_32_3_stage2_queue_returns_all_pending_checks` | `apps/frontend/src/__tests__/reviewQueuePage.test.tsx`, `apps/backend/tests/api/test_statements_router.py` | P0 |
+| AC16.32.3 | Stage 2 review check lists request the full unresolved blocker set needed to unblock batch approval instead of silently truncating at the backend default page size. Backend half (`test_AC16_32_3_stage2_queue_returns_all_pending_checks`) migrated to the `reconciliation` package roadmap as `AC-reconciliation.review-hardening.1` (migration closeout continuation, #1663 / #1711); the frontend half stays here. | `AC16.32.3 requests an expanded consistency-check limit for unblockable queues` | `apps/frontend/src/__tests__/reviewQueuePage.test.tsx` | P0 |
 
 ### AC16.34 — Stage-1 Conflict Resolution ([#962](https://github.com/wangzitian0/finance_report/issues/962))
 
@@ -603,10 +601,9 @@ replace `response_model=dict` + `{"success": false}`-in-body with typed
 surface as a proper 409 structured error. `Stage2ReviewQueueResponse.pending_matches`
 is a typed `Stage2PendingMatch`, not `list[dict]`.
 
-| AC ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC16.35.1 | An empty batch approve returns the typed counters with no `success` field | `test_AC16_35_1_batch_approve_empty_returns_typed_response` | `api/test_typed_contract_sweep.py` | P1 |
-| AC16.35.2 | Unresolved consistency checks block batch approve with a 409 structured error | `test_AC16_35_2_batch_approve_blocked_returns_409` | `api/test_typed_contract_sweep.py` | P1 |
+> This group's rows removed — migrated to the `reconciliation` package
+> roadmap as `AC-reconciliation.stage2-batch.3-4` (migration closeout
+> continuation, #1663 / #1711).
 
 ### AC16.36: Dedicated Stage-2 Review Surface ([#1001](https://github.com/wangzitian0/finance_report/issues/1001))
 

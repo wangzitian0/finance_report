@@ -1126,5 +1126,219 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        # ── group reconciliation-engine: end-to-end run/stats/match E2E (was
+        # EPIC-008 AC8.5, migration closeout continuation, #1663 / #1711) ──
+        ACRecord(
+            id="AC-reconciliation.reconciliation-engine.1",
+            statement="The reconciliation engine runs end to end through the API.",
+            test="apps/backend/tests/e2e/test_core_journeys.py::test_reconciliation_engine_runs",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.reconciliation-engine.2",
+            statement="The reconciliation stats endpoint returns run statistics.",
+            test="apps/backend/tests/e2e/test_core_journeys.py::test_reconciliation_stats",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.reconciliation-engine.3",
+            statement="A reconciliation match can be accepted through the API.",
+            test="apps/backend/tests/e2e/test_core_journeys.py::test_reconciliation_match_acceptance",
+            priority="P1",
+            status="done",
+        ),
+        # ── group consistency-checks: detect_duplicates/detect_transfer_pairs/
+        # resolve_check/get_pending_checks edge-case behavior (was EPIC-016
+        # AC16.4, migration closeout continuation, #1663 / #1711) ──
+        ACRecord(
+            id="AC-reconciliation.consistency-checks.1",
+            statement="detect_duplicates runs a global scan across all of the user's transactions when no statement_id is provided.",
+            test=(
+                "apps/backend/tests/review/test_consistency_checks.py"
+                "::test_global_scan_no_statement_id"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.consistency-checks.2",
+            statement="detect_duplicates is idempotent — it does not create duplicate checks on re-run.",
+            test=(
+                "apps/backend/tests/review/test_consistency_checks.py"
+                "::test_idempotent_duplicate_detection"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.consistency-checks.3",
+            statement="detect_transfer_pairs runs a global scan across all of the user's transactions when no statement_id is provided.",
+            test=(
+                "apps/backend/tests/review/test_consistency_checks.py"
+                "::test_global_scan_no_statement_id"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.consistency-checks.4",
+            statement="resolve_check raises ValueError on an invalid resolution action.",
+            test=(
+                "apps/backend/tests/review/test_consistency_checks.py"
+                "::test_resolve_check_invalid_action_raises"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.consistency-checks.5",
+            statement="resolve_check raises ValueError when the check is not found.",
+            test=(
+                "apps/backend/tests/review/test_consistency_checks.py"
+                "::test_resolve_check_not_found_raises"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.consistency-checks.6",
+            statement="resolve_check sets FLAGGED status when action=flag.",
+            test=(
+                "apps/backend/tests/review/test_consistency_checks.py"
+                "::test_resolve_check_sets_flagged"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.consistency-checks.7",
+            statement="get_pending_checks filters results by severity.",
+            test=(
+                "apps/backend/tests/review/test_consistency_checks.py"
+                "::test_get_pending_filters_by_severity"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group stage2-batch: Stage-2 batch approve blocking + typed contract
+        # (was EPIC-016 AC16.22.3-4/AC16.35, migration closeout continuation,
+        # #1663 / #1711) ──
+        ACRecord(
+            id="AC-reconciliation.stage2-batch.1",
+            statement="A Stage-2 pending_review -> accepted transition is blocked while unresolved consistency checks exist.",
+            test=(
+                "apps/backend/tests/api/test_statements_router.py"
+                "::test_batch_approve_matches_blocked_by_unresolved_checks"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.stage2-batch.2",
+            statement="A batch approve creates the missing journal entry exactly once on the accepted transition, never on pending_review.",
+            test=(
+                "apps/backend/tests/api/test_statements_router.py"
+                "::test_batch_approve_matches_creates_missing_entry_once"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.stage2-batch.3",
+            statement="An empty batch approve returns the typed counters with no success field.",
+            test=(
+                "apps/backend/tests/api/test_typed_contract_sweep.py"
+                "::test_AC16_35_1_batch_approve_empty_returns_typed_response"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.stage2-batch.4",
+            statement="Unresolved consistency checks block batch approve with a 409 structured error.",
+            test=(
+                "apps/backend/tests/api/test_typed_contract_sweep.py"
+                "::test_AC16_35_2_batch_approve_blocked_returns_409"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group review-hardening: Stage-2 queue requests the full unresolved
+        # blocker set instead of truncating (was EPIC-016 AC16.32.3, migration
+        # closeout continuation, #1663 / #1711) ──
+        ACRecord(
+            id="AC-reconciliation.review-hardening.1",
+            statement="Stage-2 review check lists request the full unresolved blocker set needed to unblock batch approval, instead of silently truncating at the backend default page size.",
+            test=(
+                "apps/backend/tests/api/test_statements_router.py"
+                "::test_AC16_32_3_stage2_queue_returns_all_pending_checks"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        # ── group audit-anchors: reconciliation-to-ledger anchor referential
+        # integrity (was EPIC-018 AC18.11.1, migration closeout continuation,
+        # #1663 / #1711) ──
+        ACRecord(
+            id="AC-reconciliation.audit-anchors.1",
+            statement="Reconciliation match journal-entry anchors are represented by a normalized link table that rejects missing or cross-user journal entries.",
+            test=(
+                "apps/backend/tests/infra/test_audit_anchor_schema_invariants.py"
+                "::test_AC18_11_1_reconciliation_links_reject_missing_and_cross_user_entries"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        # ── group layer2-dedup: balance-aware Layer 2 dedup keeps many-to-one
+        # matching correct (was EPIC-011 AC11.16.2, migration closeout
+        # continuation, #1663 / #1711) ──
+        ACRecord(
+            id="AC-reconciliation.layer2-dedup.1",
+            statement="Many-to-one matching works on Layer 2 when running balances keep batch transactions distinct.",
+            test=(
+                "apps/backend/tests/reconciliation/test_reconciliation_matching_unit.py"
+                "::test_execute_matching_many_to_one_batch"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        # ── group dwd-cutover: PR-B DWD (Layer 2) read cutover for transfer
+        # detection (was EPIC-011 AC11.17, migration closeout continuation,
+        # #1663 / #1711) ──
+        ACRecord(
+            id="AC-reconciliation.dwd-cutover.1",
+            statement="Transfer OUT/IN detection resolves the custody account from the DWD (Layer 2) conform and creates the Processing entry under the Layer-2 read path.",
+            test=(
+                "apps/backend/tests/reconciliation/test_reconciliation_matching_unit.py"
+                "::test_transfer_out_creates_match"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.dwd-cutover.2",
+            statement="Mixed transfer and normal transactions both reconcile correctly under the Layer-2 read path.",
+            test=(
+                "apps/backend/tests/reconciliation/test_transfer_integration.py"
+                "::test_mixed_transactions_both_phases_execute"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        # ── group run-scoped-review: Stage-2 run-scoped review queue filtering
+        # (was EPIC-019 AC19.11.1, migration closeout continuation, #1663 /
+        # #1711) ──
+        ACRecord(
+            id="AC-reconciliation.run-scoped-review.1",
+            statement="/review/run/{runId} uses a run-scoped Stage-2 queue and batch-approval API, so approving a run cannot approve pending matches from another workflow session or batch.",
+            test=(
+                "apps/backend/tests/api/test_statements_router.py"
+                "::test_AC19_11_1_stage2_run_queue_filters_by_run_id"
+            ),
+            priority="P0",
+            status="done",
+        ),
     ],
 )

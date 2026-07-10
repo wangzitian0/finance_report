@@ -300,7 +300,7 @@ class TestGetPendingChecks:
 
 class TestDetectDuplicatesEdgeCases:
     async def test_global_scan_no_statement_id(self, db, user_id, approved_statement):
-        """AC16.4.1 detect_duplicates runs global scan when no statement_id provided."""
+        """AC-reconciliation.consistency-checks.1: AC16.4.1 detect_duplicates runs global scan when no statement_id provided."""
         await _add_txn(
             db,
             user_id,
@@ -323,7 +323,7 @@ class TestDetectDuplicatesEdgeCases:
         assert checks[0].check_type == CheckType.DUPLICATE
 
     async def test_idempotent_duplicate_detection(self, db, user_id, approved_statement):
-        """AC16.4.2 detect_duplicates is idempotent - does not create duplicate checks."""
+        """AC-reconciliation.consistency-checks.2: AC16.4.2 detect_duplicates is idempotent - does not create duplicate checks."""
         await _add_txn(
             db,
             user_id,
@@ -409,7 +409,7 @@ class TestDetectDuplicatesEdgeCases:
 
 class TestDetectTransferPairsEdgeCases:
     async def test_global_scan_no_statement_id(self, db, user_id):
-        """AC16.4.3 detect_transfer_pairs runs global scan when no statement_id provided."""
+        """AC-reconciliation.consistency-checks.3: AC16.4.3 detect_transfer_pairs runs global scan when no statement_id provided."""
         await _add_txn(
             db,
             user_id,
@@ -496,7 +496,7 @@ class TestDetectTransferPairsEdgeCases:
 
 class TestResolveCheckEdgeCases:
     async def test_resolve_check_invalid_action_raises(self, db, user_id):
-        """AC16.4.4 resolve_check raises ValueError on invalid action."""
+        """AC-reconciliation.consistency-checks.4: AC16.4.4 resolve_check raises ValueError on invalid action."""
         check = ConsistencyCheck(
             id=uuid4(),
             user_id=user_id,
@@ -512,7 +512,7 @@ class TestResolveCheckEdgeCases:
             await resolve_check(db, check.id, "unknown_action", user_id)
 
     async def test_resolve_check_not_found_raises(self, db, user_id):
-        """AC16.4.5 resolve_check raises ValueError when check not found."""
+        """AC-reconciliation.consistency-checks.5: AC16.4.5 resolve_check raises ValueError when check not found."""
         non_existent_id = uuid4()
         with pytest.raises(ValueError, match="Check not found or access denied"):
             await resolve_check(db, non_existent_id, "approve", user_id)
@@ -535,7 +535,7 @@ class TestResolveCheckEdgeCases:
             await resolve_check(db, check.id, "approve", wrong_user_id)
 
     async def test_resolve_check_sets_flagged(self, db, user_id):
-        """AC16.4.6 resolve_check sets FLAGGED status when action=flag."""
+        """AC-reconciliation.consistency-checks.6: AC16.4.6 resolve_check sets FLAGGED status when action=flag."""
         check = ConsistencyCheck(
             id=uuid4(),
             user_id=user_id,
@@ -604,7 +604,7 @@ class TestDetectAnomaliesEdgeCases:
 
 class TestGetPendingChecksEdgeCases:
     async def test_get_pending_filters_by_severity(self, db, user_id):
-        """AC16.4.7 get_pending_checks filters by severity."""
+        """AC-reconciliation.consistency-checks.7: AC16.4.7 get_pending_checks filters by severity."""
         high_check = ConsistencyCheck(
             id=uuid4(),
             user_id=user_id,

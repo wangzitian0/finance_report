@@ -274,9 +274,9 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 | AC18.1.2 | 1 | `BankStatementTransaction` has `suggested_category` and `category_confidence` columns |
 | AC18.1.5 | 1 | `create_entry_from_txn` reads classification before defaulting to Uncategorized |
 | AC18.1.6 | 1 | Auto-created category accounts are user-scoped and correctly typed |
-| AC18.3.1 | 3 | `ai_semantic_score()` returns similarity for transaction description pairs |
-| AC18.3.2 | 3 | Hybrid scoring: `0.7 * algorithmic + 0.3 * AI` for 60-84 range only |
-| AC18.3.3 | 3 | Feature flag `enable_ai_reconciliation` controls AI scoring |
+| AC18.3.1 | 3 | `ai_semantic_score()` returns similarity for transaction description pairs. **Not migrated** — `ai_semantic_score` is a genuine LLM call, but `reconciliation` is declared `CODE-ONLY`; migrating this row trips `check_authority_reconcile.py` (a CODE-ONLY package permits no LLM-classified roadmap-AC test). Needs a tier/package-boundary decision before migration, not a silent workaround (found during migration verification, #1663 / #1711) |
+| AC18.3.2 | 3 | Hybrid scoring: `0.7 * algorithmic + 0.3 * AI` for 60-84 range only. **Untested** — no test exercises `calculate_match_score`'s hybrid-AI branch (found during migration verification, #1663 / #1711) |
+| AC18.3.3 | 3 | Feature flag `enable_ai_reconciliation` controls AI scoring. **Untested** — no test toggles `ENABLE_AI_RECONCILIATION` (found during migration verification, #1663 / #1711) |
 | AC18.4.1 | 4 | Reports read Layer 3 `TransactionClassification` for category breakdowns |
 | AC18.4.2 | 4 | `ReportSnapshot` (Layer 4) generated and queryable via API |
 | AC18.4.3 | 4 | AI CSV parsing handles unknown institutions as fallback |
@@ -371,9 +371,12 @@ MECE task frame:
 
 Dependencies: AC18.7 Evidence Graph foundation, AC18.8 source-to-report integration, AC18.10 consistency/blocker semantics, and the ledger invariants from AC2.14. Out of scope: deleting legacy JSONB/naked UUID fields, graph database adoption, fuzzy/probabilistic anchor inference, and mutating ledger/report facts.
 
+> *(AC18.11.1 removed — migrated to the `reconciliation` package roadmap as
+> `AC-reconciliation.audit-anchors.1`, migration closeout continuation, #1663
+> / #1711)*
+
 | AC ID | Phase | Description | Test | File | Priority |
 |-------|-------|-------------|------|------|----------|
-| AC18.11.1 | Audit anchors | Reconciliation match journal-entry anchors are represented by a normalized link table that rejects missing or cross-user journal entries | `test_AC18_11_1_reconciliation_links_reject_missing_and_cross_user_entries()` | `infra/test_audit_anchor_schema_invariants.py` | P0 |
 | AC18.11.2 | Audit anchors | Atomic transaction and position source-document anchors are represented by normalized link tables that reject missing or cross-user uploaded documents | `test_AC18_11_2_atomic_source_links_reject_missing_and_cross_user_documents()` | `infra/test_audit_anchor_schema_invariants.py` | P0 |
 | AC18.11.3 | Evidence lineage | Evidence Graph edges are tenant-scoped at the database boundary and cannot connect nodes owned by different users | `test_AC18_11_3_evidence_edges_reject_cross_user_endpoints()` | `infra/test_audit_anchor_schema_invariants.py` | P0 |
 | AC18.11.4 | Tenant scope | Journal lines, approved statement summaries, and transaction classifications reject cross-user account references at the database boundary | `test_AC18_11_4_account_references_reject_cross_user_accounts()` | `infra/test_audit_anchor_schema_invariants.py` | P0 |

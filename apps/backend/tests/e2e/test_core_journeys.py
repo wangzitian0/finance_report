@@ -459,7 +459,7 @@ async def test_journal_entry_crud(client, test_user):
 @pytest.mark.e2e
 async def test_reconciliation_engine_runs(client, db, test_user):
     """
-    EPIC-004 / AC8.5.1: Reconciliation engine runs
+    AC-reconciliation.reconciliation-engine.1: EPIC-004 / AC8.5.1: Reconciliation engine runs
     AC8.8.5: Core journey — reconciliation
     GIVEN a user has bank transactions
     WHEN running reconciliation
@@ -502,7 +502,7 @@ async def test_reconciliation_engine_runs(client, db, test_user):
 @pytest.mark.e2e
 async def test_reconciliation_stats(client, db, test_user):
     """
-    EPIC-004 / AC8.5.2: Reconciliation stats endpoint
+    AC-reconciliation.reconciliation-engine.2: EPIC-004 / AC8.5.2: Reconciliation stats endpoint
     GIVEN the reconciliation engine has been run
     WHEN requesting stats
     THEN it should return stats with total_transactions and match_rate
@@ -894,7 +894,7 @@ async def test_statement_full_flow(client, test_user):
 @pytest.mark.e2e
 async def test_reconciliation_match_acceptance(client, db, test_user):
     """
-    EPIC-004 EPIC-018 / AC8.5.3: Reconciliation endpoints — pending, matches, unmatched
+    AC-reconciliation.reconciliation-engine.3: EPIC-004 EPIC-018 / AC8.5.3: Reconciliation endpoints — pending, matches, unmatched
     GIVEN the reconciliation engine has been run
     WHEN querying pending, matches, and unmatched endpoints
     THEN all three return 200 with list responses

@@ -212,7 +212,7 @@ class TestFixtureData:
         detector, so a future fixture that smuggles in an account/NRIC/phone/email
         fails here.
         """
-        from src.services.pii_redaction import detect_pii
+        from src.observability import detect_pii
 
         for event in maribank_fixture["events"]:
             desc = event.get("description", "")

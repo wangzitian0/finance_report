@@ -186,7 +186,10 @@ CONTRACT = PackageContract(
     # AC-<pkg>.<group>.<seq> grammar with reserved group blocks (the ledger
     # precedent): **1–12 = EPIC-003** (leading epic number dropped) and
     # **101–123 = EPIC-013** (group + 100, so the two EPICs' group numbers
-    # cannot collide). Original ids are kept as trailing comments.
+    # cannot collide). Original ids are kept as trailing comments. A one-off
+    # migration from a third EPIC (e.g. EPIC-001's AC1.6.2) uses a word-slug
+    # group instead of claiming a new numeric block, so it can never collide
+    # with EPIC-003's/EPIC-013's reserved ranges.
     roadmap=[
         ACRecord(
             id="AC-extraction.1.1",
@@ -1950,6 +1953,43 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
+            id="AC-extraction.813.11",
+            statement=(
+                "A DBS bank statement PDF's full browser journey: upload with an "
+                "explicit OCR model selection, poll until parsed (failing/skipping "
+                "on a rejected AI/OCR status rather than hanging), the detail page "
+                "shows transactions, Start Review -> Approve transitions the "
+                "statement to approved, and the balance sheet report loads "
+                "afterward. Was EPIC-008 AC8.13.1-.5 / .7 (migration closeout wave "
+                "3, #1663)."
+            ),
+            test=(
+                "tests/e2e/test_statement_full_journey.py"
+                "::test_dbs_statement_full_journey"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.813.12",
+            statement=(
+                "A statement upload's full browser journey (institution name + "
+                "explicit model selection + PDF upload) returns a 2xx with an "
+                "id, the row appears in the statement list, and the statement is "
+                "immediately fetchable via the API in a valid status (never "
+                "silently rejected without a gate check). Was EPIC-008 AC8.13.8 "
+                "(migration closeout wave 3, #1663)."
+            ),
+            test=(
+                "tests/e2e/test_statement_upload_e2e.py"
+                "::test_statement_upload_full_flow"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
             id="AC-extraction.216.1",
             statement=(
                 "Distinct running balances hash differently; identical/absent "
@@ -2215,11 +2255,11 @@ CONTRACT = PackageContract(
             proof_kind="property",
         ),
         ACRecord(
-            id="AC-extraction.13.1",
+            id="AC-extraction.stage1-review.1",
             statement=(
                 "get_pending_stage1_review returns an empty list for a user with "
                 "no pending-review statements. Was EPIC-001 AC1.6.2 (migration "
-                "closeout wave 3, #1416)."
+                "closeout wave 3, #1663)."
             ),
             test=(
                 "apps/backend/tests/review/test_statement_validation.py"

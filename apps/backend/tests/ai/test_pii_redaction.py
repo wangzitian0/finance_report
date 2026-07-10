@@ -1,7 +1,7 @@
 import re
 
-from src.services import pii_redaction
-from src.services.pii_redaction import PIIType, detect_pii
+from src.observability import pii_redaction
+from src.observability.pii_redaction import PIIType, detect_pii
 
 
 def test_detect_pii_skips_date_like_and_zero_heavy_numbers() -> None:

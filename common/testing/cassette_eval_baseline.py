@@ -21,7 +21,16 @@ from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_BASELINE = REPO_ROOT / "common" / "testing" / "fixtures" / "cassette-eval-baseline.jsonl"
+DEFAULT_BASELINE = (
+    REPO_ROOT / "common" / "testing" / "fixtures" / "cassette-eval-baseline.jsonl"
+)
+CORPUS_COUNT_BASELINE = (
+    REPO_ROOT
+    / "common"
+    / "testing"
+    / "fixtures"
+    / "cassette-corpus-count-baseline.json"
+)
 
 BASELINE_VERSION = 1
 
@@ -111,3 +120,48 @@ def normalize_file(path: Path) -> dict[str, Any]:
     payload = load_jsonl(path)
     write_jsonl(path, payload)
     return payload
+
+
+# --------------------------------------------------------------------------- #
+# Corpus-count floor: a SEPARATE raise-only ratchet from the per-case JSONL
+# above. The per-case ratchet's "missing" finding only fires when a case's
+# baseline LINE outlives its ground-truth file; a commit that removes a
+# ground-truth file AND its baseline line together leaves no per-case floor to
+# detect the loss — the corpus silently shrinks with every existing check
+# green. This floor is independently persisted so only an explicit
+# `--update` (never a same-commit deletion) can raise it.
+# --------------------------------------------------------------------------- #
+def load_corpus_count_floor(path: Path = CORPUS_COUNT_BASELINE) -> int:
+    """Load the persisted corpus-count floor; a missing file is a zero floor.
+
+    A missing file defaults to 0, but a PRESENT ``min_cases`` that is not a
+    non-negative integer is a hard error rather than a silent coercion:
+    ``int(-5)`` or ``int(1.5)`` would silently weaken or disable the ratchet.
+    """
+    if not path.exists():
+        return 0
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    min_cases = payload.get("min_cases", 0)
+    if isinstance(min_cases, bool) or not isinstance(min_cases, int) or min_cases < 0:
+        raise ValueError(
+            f"{path}: 'min_cases' must be a non-negative integer, got {min_cases!r}"
+        )
+    return min_cases
+
+
+def write_corpus_count_floor(path: Path, min_cases: int) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "_comment": (
+            "Raise-only floor for the number of graded-eval cases "
+            "(llm_cassettes/ground_truth/*.truth.json). Independent of "
+            "cassette-eval-baseline.jsonl's per-case floors so a commit that "
+            "removes a case's ground-truth file AND its baseline line together "
+            "cannot silently shrink the corpus. Raise only via "
+            "`python tools/check_cassette_graded_eval.py --update`."
+        ),
+        "min_cases": min_cases,
+    }
+    path.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )

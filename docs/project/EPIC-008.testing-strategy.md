@@ -191,11 +191,9 @@ job inventories or scenario counts into this EPIC.
 
 ### AC8.5: Phase 4 - Reconciliation Engine
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC8.5.1 | Reconciliation engine runs | `test_reconciliation_engine_runs()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.5.2 | Reconciliation stats endpoint | `test_reconciliation_stats()` | `e2e/test_core_journeys.py` | P1 |
-| AC8.5.3 | Match acceptance | `test_reconciliation_match_acceptance()` | `e2e/test_core_journeys.py` | P1 |
+> This group's rows removed — migrated to the `reconciliation` package
+> roadmap as `AC-reconciliation.reconciliation-engine.1-3` (migration
+> closeout continuation, #1663 / #1711).
 
 ### AC8.6: Phase 5 - Reporting & Visualization
 
@@ -262,22 +260,18 @@ job inventories or scenario counts into this EPIC.
 
 ### AC8.13: Tier 3 Browser E2E — Full Statement Journey
 
-> **Partially migrated.** The extraction-owned rows (were AC8.13.* rows
-> .10) are homed in the `extraction` package roadmap as
-> `AC-extraction.813.10`
-> ([`common/extraction/contract.py`](../../common/extraction/contract.py));
-> the remaining rows below stay with their own owners.
+> **Partially migrated.** The extraction-owned rows (AC8.13.1 removed, canonical:
+> homed in the `extraction` package roadmap as `AC-extraction.813.10` / `.11` /
+> `.12` — covering the DBS full-journey browser test, the statement-upload
+> full-flow browser test, and the multi-brokerage import test — in
+> [`common/extraction/contract.py`](../../common/extraction/contract.py),
+> migration closeout wave 3, #1663); the remaining rows below stay with their
+> own owners (CI/CD governance tests in `tests/tooling/`, or frontend-only
+> Playwright/Vitest specs).
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC8.13.1 | DBS PDF upload → appears in list | `test_dbs_statement_full_journey` | `tests/e2e/test_statement_full_journey.py` | P0 |
-| AC8.13.2 | Polling → parsed status visible | `test_dbs_statement_full_journey` | `tests/e2e/test_statement_full_journey.py` | P0 |
-| AC8.13.3 | Detail page shows transactions | `test_dbs_statement_full_journey` | `tests/e2e/test_statement_full_journey.py` | P0 |
-| AC8.13.4 | Approve → status badge updates in-place on /statements/{id} (no redirect) | `test_dbs_statement_full_journey` | `tests/e2e/test_statement_full_journey.py` | P0 |
-| AC8.13.5 | Balance sheet report loads | `test_dbs_statement_full_journey` | `tests/e2e/test_statement_full_journey.py` | P0 |
 | AC8.13.6 | Critical staging E2E skips fail the deploy gate | `pytest_runtest_makereport` | `tests/e2e/conftest.py` | P0 |
-| AC8.13.7 | Strict full statement journey fails on rejected AI/OCR parsing | `test_dbs_statement_full_journey` | `tests/e2e/test_statement_full_journey.py` | P0 |
-| AC8.13.8 | Strict upload readiness E2E does not accept rejected statements | `test_statement_upload_full_flow` | `tests/e2e/test_statement_upload_e2e.py` | P0 |
 | AC8.13.9 | Production release runs prod-safe read-only E2E smoke | `test_production_*` | `tests/e2e/test_production_readonly_smoke.py` | P0 |
 | AC8.13.11 | Staging health check diagnoses API route 404 with route probes | `test_AC8_13_11_health_check_diagnoses_staging_api_route_404` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.12 | AI/OCR gate failures include statement validation context | `test_AC8_13_12_ai_ocr_gate_failure_includes_statement_context` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
@@ -488,13 +482,19 @@ its own savepoint (all-or-nothing), and an account still holding immutable
 posted/reconciled ledger entries is *reported and skipped*, never force-deleted —
 the same contract the API enforces with a 409 ([#988](https://github.com/wangzitian0/finance_report/issues/988)).
 
-| AC ID | Test Case | Test Function | File | Priority |
-|---|---|---|---|---|
-| AC8.17.1 | Only disposable test accounts (qa/e2e/load-test prefixes on example.com / test.example.com) are selected; real accounts and plain local fixtures are excluded | `test_selection_matches_test_accounts_and_excludes_real_ones`, `test_owned_tables_cover_core_user_data_and_exclude_users` | `apps/backend/tests/services/test_test_account_purge.py` | P1 |
-| AC8.17.2 | Applying the purge removes a clean test account and every row it owns, while leaving non-test accounts untouched | `test_apply_purges_clean_account_and_leaves_others` | `apps/backend/tests/services/test_test_account_purge.py` | P1 |
-| AC8.17.3 | An account owning a posted (immutable) ledger entry is reported blocked and fully preserved, not force-deleted | `test_account_with_posted_ledger_entry_is_blocked_not_deleted` | `apps/backend/tests/services/test_test_account_purge.py` | P1 |
-| AC8.17.4 | A dry run names the accounts it would purge but persists no deletions | `test_dry_run_reports_but_persists_nothing` | `apps/backend/tests/services/test_test_account_purge.py` | P1 |
-| AC8.17.5 | The CLI `--apply` environment guard allows dev/staging/CI and refuses production (or an unset environment) without an explicit override | `test_environment_guard_allows_dev_staging_and_refuses_production` | `apps/backend/tests/services/test_test_account_purge.py` | P1 |
+> (AC8.17.1 removed, canonical: migrated to `AC-identity.purge.1`.)
+> (AC8.17.2 removed, canonical: migrated to `AC-identity.purge.2`.)
+> (AC8.17.3 removed, canonical: migrated to `AC-identity.purge.3`.)
+> (AC8.17.4 removed, canonical: migrated to `AC-identity.purge.4`.)
+> (AC8.17.5 removed, canonical: migrated to `AC-identity.purge.5`.)
+>
+> The purge library moved from `src/services/test_account_purge.py` into the
+> `identity` package (`src/identity/extension/account_purge.py`, #1677 —
+> purging user accounts and their owned rows is user-lifecycle
+> administration), so its ACs live in
+> [`common/identity/contract.py`](../../common/identity/contract.py)'s
+> `roadmap` (migration closeout wave 3, #1663). Its tests moved to
+> `apps/backend/tests/identity/test_account_purge.py`.
 
 The operator entry point is `tools/purge_test_accounts.py` (dry-run by default;
 `--apply` to delete; runbook in `docs/contributing/staging-test-account-cleanup.md`).
@@ -712,7 +712,7 @@ Product E2E ownership index:
 | `tests/e2e/test_epic022_ia_shell.py` | EPIC-022 everyday-user IA shell product owner E2E (in-runner preview lane); AC22.1 references live in the test file |
 | `tests/e2e/test_institution_statement_journeys.py` | Per-institution live-extraction staging journeys (audit-replay corpus, #1613); ACs live in the `llm` package roadmap (AC-llm.12.1 AC-llm.12.2 AC-llm.12.3 AC-llm.12.4, `common/llm/contract.py`) |
 | `apps/backend/tests/e2e/test_epic025_dry_ssot_e2e.py` | EPIC-025 DRY/SSOT product owner E2E; `AC-reporting.dry-ssot.1` (reporting_calc extraction is behavior-preserving, `common/reporting/contract.py`) references live in the test file |
-| `apps/backend/tests/e2e/test_statement_corpus_journeys.py` | Extraction-corpus merge-tier E2E; ACs live in the `llm` package roadmap (AC-llm.11.1 AC-llm.11.2 AC-llm.11.3 AC-llm.11.4, `common/llm/contract.py`) |
+| `apps/backend/tests/e2e/test_statement_corpus_journeys.py` | Extraction-corpus merge-tier E2E; ACs live in the `llm` package roadmap (AC-llm.11.1 AC-llm.11.2 AC-llm.11.3 AC-llm.11.4 AC-llm.11.5 AC-llm.11.6, `common/llm/contract.py`) |
 | `tests/e2e/test_ac_authority_tiers_epic026.py` | EPIC-026 authority-tier pipeline product owner E2E; AC-authority.2.1/AC-authority.3.1/AC-authority.4.1 references live in the test file |
 | `tests/e2e/test_application_ai_advisor_epic021.py` | Application AI Advisor product owner E2E; AC21.1 references live in the test file |
 | `tests/e2e/test_auth_flows.py` | Deployed auth flow E2E; AC references live in the test file |
@@ -725,7 +725,7 @@ Product E2E ownership index:
 | `tests/e2e/test_market_data_price_paths.py` | Critical proof; ACs live in the `pricing` package roadmap (`AC-pricing.marketdata.7`, `AC-pricing.marketdata.11`, `common/pricing/contract.py`) |
 | `tests/e2e/test_personal_financial_report_package.py` | Critical proof: AC5.1.1, AC5.1.4, AC5.2.3, AC5.3.1, AC5.8.1, AC5.12.4, AC5.13.4-AC5.13.5, AC11.8.3, AC11.9.1-AC11.9.3, AC11.11.1-AC11.11.2, AC17.10.1-AC17.10.2, AC17.12.1-AC17.12.3, AC8.13.83-AC8.13.85, AC8.13.87-AC8.13.88 |
 | `tests/e2e/test_production_readonly_smoke.py` | Production-readonly smoke E2E; AC references live in the test file |
-| `tests/e2e/test_statement_full_journey.py` | Critical proof: AC8.13.1-AC8.13.5 |
+| `tests/e2e/test_statement_full_journey.py` | Critical proof: AC-extraction.813.11 |
 | `tests/e2e/test_statement_upload_e2e.py` | Statement upload E2E; AC references live in the test file |
 | `tests/e2e/test_version_check.py` | Version/runtime E2E; AC references live in the test file |
 | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | Critical proof: AC8.13.28-AC8.13.32 |
