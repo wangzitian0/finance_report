@@ -259,6 +259,26 @@ def load_cases(
 
 
 # --------------------------------------------------------------------------- #
+# Corpus-count floor (#1681 / #1686): independent of the per-case ratchet
+# below — see common.testing.cassette_eval_baseline's module docstring for why
+# a separate, explicitly-raised floor is needed.
+# --------------------------------------------------------------------------- #
+def corpus_shrink_findings(cases: list[EvalCase], floor: int) -> list[str]:
+    """A raise-only floor on corpus SIZE, not per-case scores.
+
+    Returns a non-empty finding when the current case count is below the
+    persisted floor — a real corpus shrink, not a case being re-scored.
+    """
+    if len(cases) < floor:
+        return [
+            f"corpus shrank to {len(cases)} case(s), below the floor of {floor} "
+            "(a ground-truth file was likely removed without lowering "
+            "cassette-corpus-count-baseline.json's min_cases)"
+        ]
+    return []
+
+
+# --------------------------------------------------------------------------- #
 # Ratchet evaluation.
 # --------------------------------------------------------------------------- #
 def ratcheted_baseline(

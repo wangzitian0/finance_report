@@ -221,7 +221,7 @@ def test_corpus_manifest_is_diverse():
 
 @ac_proof(
     "extraction-corpus-journeys-pr",
-    ac_ids=["AC-llm.11.2", "AC-llm.11.4"],
+    ac_ids=["AC-llm.11.2", "AC-llm.11.4", "AC-llm.11.5"],
     scope="behavioral",
     ci_tier="pr_ci",
     trust_mode="deterministic_pr",
@@ -231,8 +231,9 @@ def test_corpus_manifest_is_diverse():
 @pytest.mark.e2e
 @pytest.mark.parametrize("fingerprint", CORPUS_FINGERPRINTS, ids=lambda fp: fp[:8])
 async def test_corpus_statement_full_journey(client, db, test_user, fingerprint):
-    """EPIC-023 / AC-llm.11.2 / AC-llm.11.4: every corpus extraction output completes
-    the downstream journey and its report values tie to the corpus data.
+    """EPIC-023 / AC-llm.11.2 / AC-llm.11.4 / AC-llm.11.5: every corpus extraction
+    output completes the downstream journey and its report values tie to the
+    corpus data.
 
     GIVEN a corpus cassette's frozen extraction output seeded as a parsed statement
     WHEN driving transactions → review → approve → reconciliation → reports via the API
@@ -325,10 +326,7 @@ async def test_corpus_statement_full_journey(client, db, test_user, fingerprint)
     # default) — never equity or another asset — so total_income minus
     # total_expenses equals the posting account's net movement exactly, for
     # every corpus case regardless of institution class or category
-    # granularity. (Cash-flow's ending_cash is NOT asserted here: it only
-    # includes accounts whose auto-created name matches a cash-keyword
-    # heuristic in generate_cash_flow, which brokerage-class corpus accounts
-    # do not — see #1681 follow-up.)
+    # granularity.
     if n:
         period_start = min(row["date"] for row in case.rows)
         period_end = max(row["date"] for row in case.rows)
@@ -345,6 +343,52 @@ async def test_corpus_statement_full_journey(client, db, test_user, fingerprint)
         assert Decimal(str(income["net_income"])) == case.net_movement, (
             f"[{case.short_id}] reported net_income {income['net_income']} != corpus net movement {case.net_movement}"
         )
+
+    # AC-llm.11.5: cash-flow CONSERVATION — every corpus case's posting-account
+    # movement is accounted for exactly once, either in the ending_cash delta
+    # (generate_cash_flow's name-keyword heuristic classifies accounts named
+    # like "China Merchants Bank" / "MariBank" as cash) or as a single
+    # activity line keyed by account_id (accounts named like "moomoo" / "futu"
+    # don't match the cash-keyword heuristic and fall through to Investing).
+    # This is NOT a bug to patch: a brokerage account's balance change
+    # correctly belongs in Investing activities, not "cash", under standard
+    # cash-flow-statement accounting — #1681 originally proposed changing the
+    # heuristic to also call brokerage accounts "cash", which would have been
+    # wrong. What's asserted here instead is that nothing is silently
+    # dropped: the movement lands in exactly one place, with the sign
+    # convention cash_flow_amount() defines for a non-cash ASSET account
+    # (an asset increase consumes cash on the investing line).
+    if n:
+        cash_flow_resp = await client.get(
+            "/reports/cash-flow",
+            params={"start_date": period_start.isoformat(), "end_date": period_end.isoformat()},
+        )
+        assert cash_flow_resp.status_code == 200, cash_flow_resp.text
+        cash_flow = cash_flow_resp.json()
+
+        activity_line = next(
+            (
+                item
+                for section in ("operating", "investing", "financing")
+                for item in cash_flow[section]
+                if item.get("account_id") == account_id
+            ),
+            None,
+        )
+        if activity_line is not None:
+            assert Decimal(str(activity_line["amount"])) == -case.net_movement, (
+                f"[{case.short_id}] cash-flow activity line {activity_line['amount']} "
+                f"!= -{case.net_movement} (posting account not classified as cash)"
+            )
+        else:
+            summary = cash_flow["summary"]
+            assert Decimal(str(summary["beginning_cash"])) == Decimal("0"), (
+                f"[{case.short_id}] fresh test user must have zero beginning cash"
+            )
+            assert Decimal(str(summary["ending_cash"])) == case.net_movement, (
+                f"[{case.short_id}] cash-flow ending_cash {summary['ending_cash']} "
+                f"!= corpus net movement {case.net_movement} (posting account classified as cash)"
+            )
 
 
 @pytest.mark.e2e
@@ -385,3 +429,114 @@ async def test_corpus_zero_transaction_statement_approves_empty(client, db, test
     run_resp = await client.post("/reconciliation/runs", json={"statement_id": stmt_id})
     assert run_resp.status_code == 200, run_resp.text
     assert run_resp.json()["unmatched"] == 0
+
+
+# Three real, distinct-account corpus statements spanning Jan-Jun 2025 for the
+# multi-statement acceptance test below: CMB bank (own_cmb_2501_2506, 69 txns
+# across 6 months), MariBank (own_maribank_2505, 39 txns in May), Moomoo
+# brokerage (own_moomoo_2506, 48 txns in Jun). #950 (closed) recorded a
+# residual gap: "does the upload -> report derivation hold when more than one
+# statement accumulates in the same ledger" was never proven against REAL
+# (cassette-replayed) data, only a synthetic 12-month CSV sequence
+# (AC8.15.1). #950's own text pointed at tests/fixtures/2025_parsed.json for
+# this — that file no longer exists anywhere in the repo (verified via
+# repo-wide search before writing this test), so this proves the same
+# property against what actually exists: real corpus statements, same user,
+# combined period report.
+MULTI_STATEMENT_FINGERPRINTS: tuple[str, ...] = (
+    "61dcbca67c96bb5371188772a290d30d868be8c2ed4533352b4c4bb8a44fc046",  # CMB
+    "25e00d6718d89f0fe44dc9acf4333649bbfa467780422ef2c6b9db322d96ea21",  # MariBank
+    "a531a974fd0bd144fd4a31f63d94384210f043c94bfc81631b20d3f178c779ed",  # Moomoo
+)
+
+
+@pytest.mark.e2e
+async def test_corpus_multi_statement_acceptance_same_user(client, db, test_user):
+    """EPIC-023 / AC-llm.11.6: multiple REAL corpus statements accumulate correctly
+    in ONE user's ledger — #950's residual "more than one statement" gap, proven
+    against the real cassette corpus rather than synthetic CSVs (AC8.15.1).
+
+    GIVEN three real, distinct-account corpus statements (CMB Jan-Jun, MariBank
+    May, Moomoo Jun 2025) seeded and approved for the SAME test_user
+    WHEN generating the combined-period balance sheet and income statement
+    THEN both tie to the SUM of all three cases' net movements — the
+    derivation holds across statements accumulating in one ledger, not just
+    within a single statement's own journey.
+    """
+    cases = [load_corpus_case(fp) for fp in MULTI_STATEMENT_FINGERPRINTS]
+    account_ids: list[str] = []
+
+    for case in cases:
+        seeded = await seed_parsed_statement(
+            db,
+            test_user.id,
+            institution=case.institution,
+            original_filename=f"corpus_multi_{case.short_id}.pdf",
+            opening_balance=case.opening_balance,
+            transactions=[dict(row) for row in case.rows],
+        )
+        stmt_id = str(seeded.id)
+
+        review_resp = await client.get(f"/statements/{stmt_id}/review")
+        assert review_resp.status_code == 200, review_resp.text
+        review = review_resp.json()
+        assert review["balance_validation_result"]["closing_match"] is True, (
+            f"[{case.short_id}] balance chain must tie: {review['balance_validation_result']}"
+        )
+
+        conflicts_resp = await client.get(f"/review/conflicts/{stmt_id}")
+        assert conflicts_resp.status_code == 200, conflicts_resp.text
+        conflicts = conflicts_resp.json()
+        if conflicts["duplicates"] or conflicts["transfer_pairs"]:
+            resolve_resp = await client.post(
+                f"/review/conflicts/{stmt_id}/resolve",
+                json={
+                    "action": "confirm_distinct",
+                    "note": f"multi-statement corpus {case.short_id}: source rows verified",
+                },
+            )
+            assert resolve_resp.status_code == 200, resolve_resp.text
+
+        approve_resp = await client.post(
+            f"/statements/{stmt_id}/review/approve",
+            json={"create_account_if_missing": True},
+        )
+        assert approve_resp.status_code == 200, approve_resp.text
+        approved = approve_resp.json()
+        assert approved["journal_entries_created"] == len(case.rows)
+        account_ids.append(approved["account_id"])
+
+        run_resp = await client.post("/reconciliation/runs", json={"statement_id": stmt_id})
+        assert run_resp.status_code == 200, run_resp.text
+        assert run_resp.json()["unmatched"] == 0, (
+            f"[{case.short_id}] reconciliation left unmatched rows: {run_resp.json()}"
+        )
+
+    assert len(set(account_ids)) == 3, "each corpus statement must post to its own distinct account"
+
+    all_dates = [row["date"] for case in cases for row in case.rows]
+    period_start, period_end = min(all_dates), max(all_dates)
+    expected_total = sum((case.net_movement for case in cases), Decimal("0"))
+
+    balance_resp = await client.get("/reports/balance-sheet")
+    assert balance_resp.status_code == 200, balance_resp.text
+    balance = balance_resp.json()
+    assert balance["is_balanced"] is True
+
+    asset_lines = {line["account_id"]: Decimal(str(line["amount"])) for line in balance["assets"]}
+    combined_assets = sum((asset_lines[acc_id] for acc_id in account_ids), Decimal("0"))
+    assert combined_assets == expected_total, (
+        f"combined balance sheet assets {combined_assets} != sum of corpus net movements {expected_total}"
+    )
+
+    income_resp = await client.get(
+        "/reports/income-statement",
+        params={"start_date": period_start.isoformat(), "end_date": period_end.isoformat()},
+    )
+    assert income_resp.status_code == 200, income_resp.text
+    income = income_resp.json()
+    net_income = Decimal(str(income["total_income"])) - Decimal(str(income["total_expenses"]))
+    assert net_income == expected_total, (
+        f"combined income statement net {net_income} != sum of corpus net movements {expected_total}"
+    )
+    assert Decimal(str(income["net_income"])) == expected_total
