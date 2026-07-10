@@ -650,10 +650,8 @@ display filename as ``UploadedDocument.file_path``, so every post-success
 retry/reparse fetched a nonexistent storage key (fixed in
 ``statement_parsing.py`` alongside).
 
-| AC ID | Test Case | Test Function | File | Priority |
-|---|---|---|---|---|
-| AC8.26.1 | A CSV fixture uploads through ``/statements/upload`` with the REAL StorageService into in-memory S3 (env-level config only — the service is never stubbed or patched), the pipeline parses it, the stored object read back via the real ``get_object`` is byte-identical to the fixture, and the resolved transactions carry the fixture's known business values (6 transactions, 11200.00 gross) {tier:CODE-ONLY} | `test_AC8_26_1_upload_parses_through_real_storage_round_trip` | `apps/backend/tests/api/test_real_storage_pipeline.py` | P0 |
-| AC8.26.2 | The retry path re-fetches the source document through the real ``get_object`` (the load-back leg the in-process first parse skips — this is the assertion that caught the file_path production bug), and deleting the stored object makes retry fail instead of parsing a cached copy — proving the pipeline truly reads storage {tier:CODE-ONLY} | `test_AC8_26_2_retry_loads_source_back_through_real_storage` | `apps/backend/tests/api/test_real_storage_pipeline.py` | P0 |
+> This group's rows removed — migrated to the `runtime` package roadmap as
+> `AC-runtime.23.1-2` (migration closeout continuation, #1663 / #1714).
 
 ## 5. E2E Suite Ownership
 

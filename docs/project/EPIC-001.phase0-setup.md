@@ -83,7 +83,12 @@ Set up a runnable Monorepo development environment, complete user authentication
 |----|-------------|---------------|------|
 | AC1.2.1 | FastAPI project structure exists | `test_epic_001_backend_skeleton_exists()` | `infra/test_epic_001_contracts.py` |
 | AC1.2.3 | SQLAlchemy + Alembic config valid | `test_missing_migrations_check()`, `test_single_head()` | `infra/test_schema_drift.py`, `infra/test_migrations.py` |
-| AC1.2.4 | Health endpoint returns success | `test_health_when_all_services_healthy()` | `infra/test_main.py` |
+
+> (AC1.2.4 removed, duplicate: "Health endpoint returns success"
+> (`test_health_when_all_services_healthy`) was already fully migrated to
+> [`common/runtime/contract.py`](../../common/runtime/contract.py)'s
+> `roadmap` as `AC-runtime.7.1`, migration closeout continuation, #1663 /
+> #1714.)
 
 > (AC1.2.2 removed, canonical: "Auth integration works" cited three tests —
 > `test_register_success` and `test_login_success` were already migrated to
@@ -120,8 +125,13 @@ Set up a runnable Monorepo development environment, complete user authentication
 |----|-------------|---------------|------|
 | AC1.5.1 | Backend startup command path is valid | `test_moon_project_graph_static_contract()` | `infra/test_ci_config.py` |
 | AC1.5.2 | Frontend startup command path is valid | `test_epic_001_frontend_moon_tasks_configured()` | `infra/test_epic_001_contracts.py` |
-| AC1.5.3 | Health endpoint returns 200 | `test_health_when_all_services_healthy()` | `infra/test_main.py` |
 | AC1.5.4 | Backend ping-pong endpoint toggles state correctly | `test_ping_toggle()` | `infra/test_main.py` |
+
+> (AC1.5.3 removed, duplicate: "Health endpoint returns 200"
+> (`test_health_when_all_services_healthy`) was already fully migrated to
+> [`common/runtime/contract.py`](../../common/runtime/contract.py)'s
+> `roadmap` as `AC-runtime.7.1`, migration closeout continuation, #1663 /
+> #1714.)
 
 > **The former "User registration/login API available" criterion (AC1.5.x.5) is
 > no longer defined here.** It migrated into the `identity` package as

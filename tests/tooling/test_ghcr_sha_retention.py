@@ -41,6 +41,7 @@ def _run_text(workflow: dict, step_name: str) -> str:
 
 
 def test_AC7_19_1_retention_selects_only_stale_sha_tags() -> None:
+    """AC-runtime.22.1: The scheduled GHCR retention workflow prunes only stale backend/frontend :<sha> package versions."""
     now = dt.datetime(2026, 6, 21, tzinfo=dt.UTC)
     decisions = select_retention_decisions(
         [

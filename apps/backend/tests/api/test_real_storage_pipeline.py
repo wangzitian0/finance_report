@@ -71,7 +71,7 @@ async def _upload_csv(db, test_user) -> statements_router.BankStatementResponse:
 
 
 async def test_AC8_26_1_upload_parses_through_real_storage_round_trip(real_s3, db, test_user):
-    """AC8.26.1: the CSV fixture uploads through the real StorageService into
+    """AC-runtime.23.1: AC8.26.1: the CSV fixture uploads through the real StorageService into
     in-memory S3, the pipeline parses it, and the stored object read back via
     the real get_object is byte-identical to the fixture."""
     user_id = test_user.id
@@ -100,7 +100,7 @@ async def test_AC8_26_1_upload_parses_through_real_storage_round_trip(real_s3, d
 
 
 async def test_AC8_26_2_retry_loads_source_back_through_real_storage(real_s3, db, test_user):
-    """AC8.26.2: the retry path re-fetches the source document through the
+    """AC-runtime.23.2: AC8.26.2: the retry path re-fetches the source document through the
     real get_object (the load-back leg the in-process first parse skips), and
     deleting the stored object makes retry fail — proving the pipeline truly
     reads storage, not a cached copy (the interception proof)."""

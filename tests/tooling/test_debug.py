@@ -15,18 +15,20 @@ from tools._lib.dev import debug  # noqa: E402
 
 
 def test_AC16_11_1_detect_environment_ci(monkeypatch):
-    """AC16.11.1: detect_environment returns CI when GITHUB_ACTIONS is true."""
+    """AC-runtime.24.1: AC16.11.1: detect_environment returns CI when GITHUB_ACTIONS is true."""
     monkeypatch.setenv("GITHUB_ACTIONS", "true")
     assert debug.detect_environment() == debug.Environment.CI
 
 
 def test_AC16_11_2_detect_environment_local_when_docker_ok(monkeypatch):
+    """AC-runtime.24.2: debug.detect_environment returns LOCAL when docker ps succeeds."""
     monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
     monkeypatch.setattr(debug.subprocess, "run", lambda *args, **kwargs: None)
     assert debug.detect_environment() == debug.Environment.LOCAL
 
 
 def test_AC16_11_3_detect_environment_fallback_production(monkeypatch):
+    """AC-runtime.24.3: debug.detect_environment falls back to PRODUCTION on docker failure."""
     monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
 
     def raise_error(*args, **kwargs):
@@ -37,6 +39,7 @@ def test_AC16_11_3_detect_environment_fallback_production(monkeypatch):
 
 
 def test_AC16_11_4_validate_hostname_cases():
+    """AC-runtime.24.4: debug.validate_hostname rejects empty and leading-hyphen hostnames."""
     assert debug.validate_hostname("example.com") is True
     assert debug.validate_hostname("1.2.3.4") is True
     assert debug.validate_hostname("") is False
@@ -44,6 +47,7 @@ def test_AC16_11_4_validate_hostname_cases():
 
 
 def test_AC16_11_5_validate_username_cases():
+    """AC-runtime.24.5: debug.validate_username enforces a unix-safe pattern."""
     assert debug.validate_username("root") is True
     assert debug.validate_username("user_1") is True
     assert debug.validate_username("User") is False
@@ -51,6 +55,7 @@ def test_AC16_11_5_validate_username_cases():
 
 
 def test_AC16_11_6_get_container_name_mapping():
+    """AC-runtime.24.6: debug.get_container_name maps known service names by environment."""
     assert (
         debug.get_container_name(debug.Service.BACKEND, debug.Environment.STAGING)
         == "finance_report-backend-staging"
@@ -62,6 +67,7 @@ def test_AC16_11_6_get_container_name_mapping():
 
 
 def test_AC16_11_7_list_containers_prints_all(capsys):
+    """AC-runtime.24.7: debug.list_containers prints all mapped containers for an environment."""
     debug.list_containers(debug.Environment.LOCAL)
     output = capsys.readouterr().out
     assert "backend" in output
@@ -70,6 +76,7 @@ def test_AC16_11_7_list_containers_prints_all(capsys):
 
 
 def test_AC16_11_21_view_remote_logs_docker_exits_when_vps_host_missing(monkeypatch):
+    """AC-runtime.24.21: debug.view_remote_logs_docker exits when VPS_HOST is missing."""
     monkeypatch.delenv("VPS_HOST", raising=False)
     with pytest.raises(SystemExit) as exc:
         debug.view_remote_logs_docker(
@@ -79,6 +86,7 @@ def test_AC16_11_21_view_remote_logs_docker_exits_when_vps_host_missing(monkeypa
 
 
 def test_AC16_11_22_view_remote_logs_docker_exits_on_invalid_host(monkeypatch):
+    """AC-runtime.24.22: debug.view_remote_logs_docker exits on invalid VPS hostnames."""
     monkeypatch.setenv("VPS_HOST", "-bad")
     with pytest.raises(SystemExit) as exc:
         debug.view_remote_logs_docker(
@@ -88,6 +96,7 @@ def test_AC16_11_22_view_remote_logs_docker_exits_on_invalid_host(monkeypatch):
 
 
 def test_AC16_11_23_view_remote_logs_docker_exits_on_invalid_user(monkeypatch):
+    """AC-runtime.24.23: debug.view_remote_logs_docker exits on invalid VPS usernames."""
     monkeypatch.setenv("VPS_HOST", "example.com")
     monkeypatch.setenv("VPS_USER", "BadUser")
     with pytest.raises(SystemExit) as exc:
@@ -98,6 +107,7 @@ def test_AC16_11_23_view_remote_logs_docker_exits_on_invalid_user(monkeypatch):
 
 
 def test_AC16_11_24_view_local_logs_builds_docker_command(monkeypatch):
+    """AC-runtime.24.24: debug.view_local_logs builds the docker logs command with tail and follow."""
     calls = []
 
     def fake_run(cmd, check=True):
@@ -117,6 +127,7 @@ def test_AC16_11_24_view_local_logs_builds_docker_command(monkeypatch):
 
 
 def test_AC16_11_25_main_logs_observability_path(monkeypatch):
+    """AC-runtime.24.25: debug.main routes the logs command to the observability handler when method=observability."""
     monkeypatch.setattr(
         debug.argparse.ArgumentParser,
         "parse_args",
@@ -140,6 +151,7 @@ def test_AC16_11_25_main_logs_observability_path(monkeypatch):
 
 
 def test_AC16_11_26_main_status_local_path(monkeypatch):
+    """AC-runtime.24.26: debug.main routes the status command to the local log view with a status tail."""
     monkeypatch.setattr(
         debug.argparse.ArgumentParser,
         "parse_args",
@@ -156,6 +168,7 @@ def test_AC16_11_26_main_status_local_path(monkeypatch):
 
 
 def test_AC16_11_27_main_containers_path(monkeypatch):
+    """AC-runtime.24.27: debug.main routes the containers command to list_containers."""
     monkeypatch.setattr(
         debug.argparse.ArgumentParser,
         "parse_args",

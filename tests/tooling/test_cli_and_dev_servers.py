@@ -14,6 +14,7 @@ from tools._lib.dev import cli, dev_backend, dev_frontend  # noqa: E402
 
 
 def test_AC16_11_16_get_compose_cmd_prefers_podman(monkeypatch):
+    """AC-runtime.24.16: cli.get_compose_cmd honors CONTAINER_RUNTIME, otherwise prefers podman then docker, and exits when neither is available."""
     monkeypatch.setattr(
         cli.shutil,
         "which",
@@ -49,6 +50,7 @@ def test_AC16_11_16_get_compose_cmd_exits_when_none(monkeypatch):
 
 
 def test_AC16_11_17_cmd_test_frontend_route(monkeypatch):
+    """AC-runtime.24.17: cli.cmd_test routes frontend/e2e/perf/tests and lifecycle modes correctly."""
     calls = []
     monkeypatch.setattr(
         cli,
@@ -244,6 +246,7 @@ def test_AC16_11_17_cmd_test_lifecycle_route(monkeypatch):
 
 
 def test_AC16_11_18_cmd_clean_routes(monkeypatch):
+    """AC-runtime.24.18: cli.cmd_clean routes db/containers/default cleanup targets correctly."""
     calls = []
     monkeypatch.setattr(
         cli,
@@ -269,6 +272,7 @@ def test_AC16_11_18_cmd_clean_routes(monkeypatch):
 
 
 def test_AC16_11_19_check_database_ready_failure(monkeypatch):
+    """AC-runtime.24.19: dev_backend.check_database_ready returns false on migration subprocess errors."""
     def raise_called(*args, **kwargs):
         raise dev_backend.subprocess.CalledProcessError(1, "uv")
 
@@ -277,11 +281,13 @@ def test_AC16_11_19_check_database_ready_failure(monkeypatch):
 
 
 def test_AC16_11_28_check_database_ready_success(monkeypatch):
+    """AC-runtime.24.28: dev_backend.check_database_ready returns true when the migration subprocess succeeds."""
     monkeypatch.setattr(dev_backend.subprocess, "run", lambda *args, **kwargs: None)
     assert dev_backend.check_database_ready() is True
 
 
 def test_AC16_11_29_dev_backend_cleanup_terminates_and_exits(monkeypatch):
+    """AC-runtime.24.29: dev_backend.cleanup terminates the tracked process and exits cleanly."""
     proc = SimpleNamespace(
         poll=lambda: None, terminate=lambda: None, wait=lambda timeout=5: None
     )
@@ -292,6 +298,7 @@ def test_AC16_11_29_dev_backend_cleanup_terminates_and_exits(monkeypatch):
 
 
 def test_AC16_11_20_dev_frontend_cleanup_terminates_and_exits(monkeypatch):
+    """AC-runtime.24.20: dev_frontend.cleanup terminates the tracked process and exits cleanly."""
     proc = SimpleNamespace(
         poll=lambda: None, terminate=lambda: None, wait=lambda timeout=5: None
     )

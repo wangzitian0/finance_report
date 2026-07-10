@@ -12,12 +12,14 @@ from tools._lib.dev import cleanup_orphaned_dbs as cod  # noqa: E402
 
 
 def test_AC16_11_8_extract_namespace_variants():
+    """AC-runtime.24.8: cleanup_orphaned_dbs.extract_namespace handles worker suffixes and invalid names."""
     assert cod.extract_namespace("finance_report_test_feature_x") == "feature_x"
     assert cod.extract_namespace("finance_report_test_feature_x_gw2") == "feature_x"
     assert cod.extract_namespace("random_db") is None
 
 
 def test_AC16_11_9_load_active_namespaces_missing(monkeypatch, tmp_path):
+    """AC-runtime.24.9: cleanup_orphaned_dbs.load_active_namespaces returns [] when the file is missing or corrupt."""
     monkeypatch.setattr(cod, "ACTIVE_NAMESPACES_FILE", tmp_path / "missing.json")
     assert cod.load_active_namespaces() == []
 
@@ -30,6 +32,7 @@ def test_AC16_11_9_load_active_namespaces_corrupt(monkeypatch, tmp_path):
 
 
 def test_AC16_11_10_get_container_runtime_prefers_podman(monkeypatch):
+    """AC-runtime.24.10: cleanup_orphaned_dbs.get_container_runtime returns the first available runtime."""
     def fake_run(cmd, capture_output=True):
         if cmd == ["which", "podman"]:
             return SimpleNamespace(returncode=0)
@@ -52,6 +55,7 @@ def test_AC16_11_10_get_container_runtime_falls_back_docker(monkeypatch):
 
 
 def test_AC16_11_11_list_test_databases_parses_rows(monkeypatch):
+    """AC-runtime.24.11: cleanup_orphaned_dbs.list_test_databases parses psql output and handles subprocess errors."""
     def fake_run(cmd, capture_output=True, text=True, check=True):
         return SimpleNamespace(
             stdout=" finance_report_test_a\n finance_report_test_b\n"
@@ -73,11 +77,13 @@ def test_AC16_11_11_list_test_databases_handles_error(monkeypatch):
 
 
 def test_AC16_11_12_cleanup_orphaned_runtime_missing(monkeypatch):
+    """AC-runtime.24.12: cleanup_orphaned_dbs.cleanup_orphaned returns an error when the container runtime is missing."""
     monkeypatch.setattr(cod, "get_container_runtime", lambda: None)
     assert cod.cleanup_orphaned() == 1
 
 
 def test_AC16_11_13_cleanup_orphaned_no_databases(monkeypatch):
+    """AC-runtime.24.13: cleanup_orphaned_dbs.cleanup_orphaned returns success when no test databases are found."""
     monkeypatch.setattr(cod, "get_container_runtime", lambda: "docker")
     monkeypatch.setattr(cod, "list_test_databases", lambda runtime: [])
 
@@ -105,6 +111,7 @@ def test_AC16_11_13_cleanup_orphaned_returns_error_when_container_is_missing(
 
 
 def test_AC16_11_14_cleanup_orphaned_skips_active(monkeypatch):
+    """AC-runtime.24.14: cleanup_orphaned_dbs.cleanup_orphaned skips active-namespace databases."""
     monkeypatch.setattr(cod, "get_container_runtime", lambda: "docker")
     monkeypatch.setattr(
         cod,
@@ -134,6 +141,7 @@ def test_AC16_11_14_cleanup_orphaned_skips_active(monkeypatch):
 
 
 def test_AC16_11_15_cleanup_orphaned_clean_all(monkeypatch):
+    """AC-runtime.24.15: cleanup_orphaned_dbs.cleanup_orphaned cleans all databases in --all mode."""
     monkeypatch.setattr(cod, "get_container_runtime", lambda: "docker")
     monkeypatch.setattr(
         cod,
@@ -158,6 +166,7 @@ def test_AC16_11_15_cleanup_orphaned_clean_all(monkeypatch):
 
 
 def test_AC16_11_30_drop_database_dry_run_returns_true():
+    """AC-runtime.24.30: cleanup_orphaned_dbs.drop_database returns true in dry-run mode."""
     assert cod.drop_database("docker", "finance_report_test_x", dry_run=True) is True
 
 
@@ -197,6 +206,7 @@ def test_AC16_11_14_cleanup_orphaned_attempts_all_drops_when_one_fails(monkeypat
 
 
 def test_AC16_11_31_main_calls_cleanup_orphaned(monkeypatch):
+    """AC-runtime.24.31: cleanup_orphaned_dbs.main forwards parsed flags to cleanup_orphaned."""
     monkeypatch.setattr(
         cod.argparse.ArgumentParser,
         "parse_args",
