@@ -351,7 +351,7 @@ class TestNormalMatchingPhaseIntegration:
         assert len(lines) == 0
 
     async def test_mixed_transactions_both_phases_execute(self, db: AsyncSession, test_user):
-        """AC-ledger.76.6 · AC11.17.2 · Mix of transfer and non-transfer transactions: Phase 1 and Phase 2 both execute."""
+        """AC-reconciliation.dwd-cutover.2: AC-ledger.76.6 · AC11.17.2 · Mix of transfer and non-transfer transactions: Phase 1 and Phase 2 both execute."""
         user_id = test_user.id
 
         cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")

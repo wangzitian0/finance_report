@@ -211,15 +211,12 @@ description, no reference) stay distinct — their running balances differ — w
 genuine duplicate extractions (same running balance) still collapse. This keeps
 many-to-one reconciliation correct on the Layer-2 read path.
 
-> **Partially migrated.** The extraction-owned rows (were AC11.16.* rows
-> .1) are homed in the `extraction` package roadmap as
-> `AC-extraction.216.1`
-> ([`common/extraction/contract.py`](../../common/extraction/contract.py));
-> the remaining rows below stay with their own owners.
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC11.16.2 | Many-to-one matching works on Layer 2 when running balances keep batch txns distinct | `test_execute_matching_many_to_one_batch()` | `reconciliation/test_reconciliation_matching_unit.py` | P0 |
+> **Fully migrated.** The extraction-owned rows (were AC11.16.* row .1) are
+> homed in the `extraction` package roadmap as `AC-extraction.216.1`
+> ([`common/extraction/contract.py`](../../common/extraction/contract.py)).
+> The remaining row (was .2) removed — migrated to the `reconciliation`
+> package roadmap as `AC-reconciliation.layer2-dedup.1` (migration closeout
+> continuation, #1663 / #1711).
 
 ### AC11.17: 4-Layer Migration — PR-B DWD read cutover
 
@@ -228,10 +225,9 @@ PR-B activates `ENABLE_4_LAYER_READ` by default: reconciliation reads Layer 2
 the `StatementSummary` conform (DWD) instead of `bank_statements.account_id`
 (ODS). The legacy Layer-0 read path remains available via the flag until Stage 3.
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC11.17.1 | Transfer OUT/IN detection resolves custody account from DWD and creates the Processing entry under the Layer-2 read path | `test_transfer_out_creates_match()`, `test_transfer_in_creates_match()` | `reconciliation/test_reconciliation_matching_unit.py` | P0 |
-| AC11.17.2 | Mixed transfer + normal transactions both reconcile under the Layer-2 read path | `test_mixed_transactions_both_phases_execute()` | `reconciliation/test_transfer_integration.py` | P0 |
+> This group's rows removed — migrated to the `reconciliation` package
+> roadmap as `AC-reconciliation.dwd-cutover.1-2` (migration closeout
+> continuation, #1663 / #1711).
 
 ### AC11.18: 4-Layer Migration — Financial Fact Schema Invariants
 

@@ -191,11 +191,9 @@ job inventories or scenario counts into this EPIC.
 
 ### AC8.5: Phase 4 - Reconciliation Engine
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC8.5.1 | Reconciliation engine runs | `test_reconciliation_engine_runs()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.5.2 | Reconciliation stats endpoint | `test_reconciliation_stats()` | `e2e/test_core_journeys.py` | P1 |
-| AC8.5.3 | Match acceptance | `test_reconciliation_match_acceptance()` | `e2e/test_core_journeys.py` | P1 |
+> This group's rows removed — migrated to the `reconciliation` package
+> roadmap as `AC-reconciliation.reconciliation-engine.1-3` (migration
+> closeout continuation, #1663 / #1711).
 
 ### AC8.6: Phase 5 - Reporting & Visualization
 

@@ -105,7 +105,7 @@ async def test_AC17_31_2_patch_unknown_holding_returns_404(client: AsyncClient) 
 
 
 async def test_AC16_35_1_batch_approve_empty_returns_typed_response(client: AsyncClient) -> None:
-    """AC16.35.1: an empty batch approve returns the typed counters with no
+    """AC-reconciliation.stage2-batch.3: AC16.35.1: an empty batch approve returns the typed counters with no
     ``success`` field smuggled into the body."""
     response = await client.post("/statements/batch-approve-matches", json={"match_ids": []})
     assert response.status_code == status.HTTP_200_OK
@@ -119,7 +119,7 @@ async def test_AC16_35_1_batch_approve_empty_returns_typed_response(client: Asyn
 
 
 async def test_AC16_35_2_batch_approve_blocked_returns_409(db, test_user) -> None:
-    """AC16.35.2: unresolved consistency checks block batch approve with a 409
+    """AC-reconciliation.stage2-batch.4: AC16.35.2: unresolved consistency checks block batch approve with a 409
     structured error instead of a 200 body carrying ``{"success": false}``."""
     db.add(
         ConsistencyCheck(
