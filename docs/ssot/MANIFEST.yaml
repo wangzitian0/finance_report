@@ -691,6 +691,17 @@ concepts:
       - .github/workflows/ci.yml
       - tools/check_e2e_epic_traceability.py
 
+  fk_cascade_baseline:
+    owner: docs/ssot/fk-cascade-baseline.json
+    description: Shrink-only census of ForeignKey(..., ondelete="CASCADE") target tables under apps/backend/src — a DB cascade is a hidden cross-domain write (one domain's delete mutating another domain's aggregates), so per-table counts never grow and a new cascade needs a same-PR baseline edit; end-state is saga-owned deletion (AC-meta.txn.4, #1675 ruling).
+    family: platform
+    kind: baseline
+    parent: package_model
+    authority: machine_generated
+    cross_refs:
+      - tests/tooling/test_fk_cascade_ratchet.py
+      - common/meta/migration-standard.md
+
   app_boundary_baseline:
     owner: docs/ssot/app-boundary-baseline.json
     description: Monotonic shrink-only baseline of cross-boundary edges between the un-carved apps/backend/src remainder (the L4 backend super-package) and the already-carved packages — inbound (remainder → a carved package's unpublished internal) and outbound (a carved package → the app remainder, upward-layer). A new edge fails check_app_boundary; the count is the migration burndown.
