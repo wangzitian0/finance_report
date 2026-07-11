@@ -2242,7 +2242,11 @@ def test_AC8_13_71_deploy_still_uses_lifecycle_tool() -> None:
 
 
 def test_AC8_13_71_close_dispatches_preview_teardown_to_infra2() -> None:
-    """AC-testing.preview.3: One lifecycle tool stands PR previews UP (deploy) and writes stable preview metadata; on PR close the workflow dispatches a preview-teardown signal..."""
+    """AC-testing.preview.3: One lifecycle tool stands PR previews UP (deploy) and writes
+    stable preview metadata; on PR close the workflow dispatches a preview-teardown
+    signal to infra2 — the app owns no Dokploy reclaim (cleanup/reconcile/delete) (Was
+    EPIC-008 AC8.13.71).
+    """
     workflow = (ROOT / ".github/workflows/preview.yml").read_text()
 
     cleanup_block = workflow.split("  cleanup:", 1)[1]

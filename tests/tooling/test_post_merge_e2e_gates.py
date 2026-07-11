@@ -3599,7 +3599,10 @@ def test_AC8_13_19_brokerage_gate_reports_portfolio_diagnostics() -> None:
 def test_AC8_13_28_vision_hard_gate_uses_deterministic_fixture_with_fresh_user() -> (
     None
 ):
-    """AC8.13.28/29/30/31: deterministic upload-to-dashboard gate covers the full fresh-user flow."""
+    """AC-testing.product-gates.2 AC-testing.product-gates.3 AC-testing.product-gates.4
+    AC-testing.product-gates.5 (were AC8.13.28/29/30/31): deterministic
+    upload-to-dashboard gate covers the full fresh-user flow.
+    """
     gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
     contract = read("common/testing/contract.py")
 
