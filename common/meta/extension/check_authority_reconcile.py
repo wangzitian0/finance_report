@@ -28,7 +28,11 @@ import argparse
 import sys
 from pathlib import Path
 
-from common.meta.extension.authority_classifier import band, build_test_index, classify_test_files
+from common.meta.extension.authority_classifier import (
+    band,
+    build_test_index,
+    classify_test_files,
+)
 from common.meta.extension.generate_ac_registry import package_contract_meta
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -105,7 +109,9 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
-    print("[RECONCILE] PASSED: every shipped package's declared tier agrees with its detected band.")
+    print(
+        "[RECONCILE] PASSED: every shipped package's declared tier agrees with its detected band."
+    )
     return 0
 
 

@@ -41,7 +41,10 @@ from pathlib import Path
 
 from common.meta.extension.ac_registry_format import sort_key
 from common.meta.base.authority_matrix import TIER_VALID_PROOF_KINDS
-from common.meta.extension.generate_ac_registry import AC_PROOF_KINDS, build_registry_entries
+from common.meta.extension.generate_ac_registry import (
+    AC_PROOF_KINDS,
+    build_registry_entries,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -123,8 +126,7 @@ def main(argv: list[str] | None = None) -> int:
     if violations:
         for message in violations:
             print(
-                f"::error title=AC proof-kind::{message} "
-                "(see common/meta/readme.md).",
+                f"::error title=AC proof-kind::{message} (see common/meta/readme.md).",
                 file=sys.stderr,
             )
         print(

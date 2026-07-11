@@ -11,8 +11,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.money import to_money
-from src.models.fx_conversion import FxConversion
 from src.observability import ErrorIds, get_logger
+from src.pricing import FxConversion
 from src.reconciliation import (
     DEFAULT_RATE_TOLERANCE,
     DEFAULT_TIME_WINDOW,

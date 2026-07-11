@@ -12,15 +12,6 @@ from sqlalchemy.orm import aliased
 from src.models.layer1 import UploadedDocument
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
-from src.models.workflow import (
-    WorkflowEvent,
-    WorkflowEventFamily,
-    WorkflowEventSeverity,
-    WorkflowEventStatus,
-    WorkflowReportImpact,
-    WorkflowSession,
-    WorkflowSessionStatus,
-)
 from src.platform.extension.workflow_event_builders import (  # noqa: F401
     PACKAGE_WORKFLOW_SOURCE_ID,
     build_readiness_blocker_event_payload,
@@ -30,6 +21,15 @@ from src.platform.extension.workflow_event_builders import (  # noqa: F401
     build_statement_parsing_failed_event_payload,
     build_uploaded_statement_event_payload,
     build_workflow_dedupe_key,
+)
+from src.platform.orm.workflow import (
+    WorkflowEvent,
+    WorkflowEventFamily,
+    WorkflowEventSeverity,
+    WorkflowEventStatus,
+    WorkflowReportImpact,
+    WorkflowSession,
+    WorkflowSessionStatus,
 )
 from src.schemas.workflow import (
     WorkflowEventCountsResponse,

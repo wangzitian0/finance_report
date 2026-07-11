@@ -80,6 +80,10 @@ from src.llm.extension import (
     stream_ai_json,
 )
 
+# ORM models owned by this package (moved from src/models, #1675); imported
+# eagerly so importing the package registers the mappers on Base.metadata.
+from src.llm.orm.config import LlmProvider, LlmSceneBinding
+
 # The litellm-heavy surface, resolved lazily so ``import src.llm`` stays
 # litellm-free (the no-litellm-at-root invariant; see common/llm/contract.py).
 _LAZY_CLIENT = frozenset({"litellm_stream", "cassette_completion", "resolve_provider_and_model"})
@@ -120,6 +124,8 @@ __all__ = [
     "LayeredConfigSource",
     "LitellmCall",
     "LitellmCatalog",
+    "LlmProvider",
+    "LlmSceneBinding",
     "LlmUsageMeter",
     "Message",
     "Modality",

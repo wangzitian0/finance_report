@@ -75,10 +75,12 @@ def test_AC_llm_1_2_converges_by_layer():
         "usage.py",
     ):
         assert not (LLM / stray).exists(), f"flat leftover: {stray}"
-    # The LlmProvider/LlmSceneBinding ORM deliberately stays in the unregistered
-    # src/models/llm_config.py until its cross-domain FK to users.id is cut
-    # (Stage-4 scope; see the contract's unit comment).
-    assert (REPO / "apps/backend/src/models/llm_config.py").exists()
+    # The LlmProvider/LlmSceneBinding ORM moved from the unregistered
+    # src/models/llm_config.py into orm/config.py (#1675): its only cross-domain
+    # coupling was a plain FK column to users.id (no relationship()), so it is a
+    # DB-level referential-integrity invariant, not code-level coupling.
+    assert (LLM / "orm/config.py").exists()
+    assert not (REPO / "apps/backend/src/models/llm_config.py").exists()
 
 
 def test_AC_llm_1_3_base_layer_is_pure():

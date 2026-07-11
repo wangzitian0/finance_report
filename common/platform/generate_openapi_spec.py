@@ -63,7 +63,9 @@ def main(argv: list[str] | None = None) -> int:
         try:
             current = output.read_text(encoding="utf-8")
         except OSError:
-            print(f"ERROR: generated OpenAPI spec is missing: {output}", file=sys.stderr)
+            print(
+                f"ERROR: generated OpenAPI spec is missing: {output}", file=sys.stderr
+            )
             return 1
         if current != rendered:
             diff = list(
@@ -75,7 +77,10 @@ def main(argv: list[str] | None = None) -> int:
                     lineterm="",
                 )
             )
-            print("ERROR: committed openapi.json is stale — run tools/generate_openapi_spec.py", file=sys.stderr)
+            print(
+                "ERROR: committed openapi.json is stale — run tools/generate_openapi_spec.py",
+                file=sys.stderr,
+            )
             print("\n".join(diff[:60]), file=sys.stderr)
             return 1
         return 0

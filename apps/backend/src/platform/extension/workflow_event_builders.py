@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from src.models.statement_summary import StatementSummary
-from src.models.workflow import WorkflowEventFamily, WorkflowEventSeverity, WorkflowReportImpact
+from src.platform.orm.workflow import WorkflowEventFamily, WorkflowEventSeverity, WorkflowReportImpact
 from src.schemas.workflow import WorkflowEventCreate
 
 PACKAGE_WORKFLOW_SOURCE_ID = uuid5(NAMESPACE_URL, "finance-report:personal-financial-report-package")

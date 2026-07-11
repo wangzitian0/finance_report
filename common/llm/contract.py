@@ -156,6 +156,8 @@ CONTRACT = PackageContract(
         "LayeredConfigSource",
         "LitellmCall",
         "LitellmCatalog",
+        "LlmProvider",
+        "LlmSceneBinding",
         "LlmUsageMeter",
         "Message",
         "Modality",

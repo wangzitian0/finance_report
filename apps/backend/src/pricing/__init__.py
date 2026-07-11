@@ -66,10 +66,12 @@ from src.pricing.extension.valuation import (
 
 # ORM models owned by this package (moved from src/models, #1675); imported
 # eagerly so importing the package registers the mappers on Base.metadata.
+from src.pricing.orm.fx_conversion import FxConversion
 from src.pricing.orm.market_data import FxRate, MarketDataSyncState, StockPrice
 
 __all__ = [
     "Authority",
+    "FxConversion",
     "FxRate",
     "MARKET_DATA_QUANTITY_UNIT",
     "MarketDataScopeStatus",

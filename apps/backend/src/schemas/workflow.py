@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
-from src.models.workflow import (
+from src.platform.orm.workflow import (
     WorkflowEventFamily,
     WorkflowEventSeverity,
     WorkflowEventStatus,

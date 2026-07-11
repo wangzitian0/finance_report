@@ -29,6 +29,7 @@ import src.identity.extension.sql  # noqa: F401,E402
 
 # Packages that own their ORM (moved from here, #1675) register the mappers in
 # their root __init__; importing the published root is the whole side effect.
+import src.llm  # noqa: F401,E402
 import src.platform  # noqa: F401,E402
 import src.pricing  # noqa: F401,E402
 import src.reconciliation  # noqa: F401,E402
@@ -40,19 +41,16 @@ from . import (  # noqa: F401
     chat,
     correction,
     evidence,
-    fx_conversion,
     journal,
     layer1,
     layer2,
     layer3,
     layer4,
-    llm_config,
     metrics,
     portfolio,
     reconciliation,
     statement_enums,
     statement_summary,
-    workflow,
 )
 
 __all__: list[str] = []

@@ -17,7 +17,7 @@ from src.identity import User
 from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
-from src.models.workflow import (
+from src.platform import (
     WorkflowEvent,
     WorkflowEventFamily,
     WorkflowEventSeverity,

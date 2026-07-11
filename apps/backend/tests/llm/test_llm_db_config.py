@@ -17,7 +17,7 @@ from src.llm.base import FernetCipher, ProtocolFamily, ReasoningEffort, Scene
 from src.llm.extension.db_config import DbConfigSource
 from src.llm.extension.env_config import EnvConfigSource
 from src.llm.extension.factory import LayeredConfigSource
-from src.models.llm_config import LlmProvider, LlmSceneBinding
+from src.llm.orm.config import LlmProvider, LlmSceneBinding
 
 
 @pytest.fixture

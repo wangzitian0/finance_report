@@ -24,7 +24,10 @@ from common.meta.extension.governance_report._manifest import (
     _load_manifest_entries,
     _orphan_ssot_files,
 )
-from common.meta.extension.governance_report._metrics import _field_coverage, _future_candidate
+from common.meta.extension.governance_report._metrics import (
+    _field_coverage,
+    _future_candidate,
+)
 from common.meta.extension.governance_report._types import ManifestSource
 from common.meta.extension.governance_report._util import (
     _display_path,

@@ -46,8 +46,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.account import Account, AccountType
-from src.models.fx_conversion import FxConversion
 from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.pricing import FxConversion
 from src.reconciliation.extension.fx_transfer import (
     DEFAULT_RATE_TOLERANCE,
     DEFAULT_TIME_WINDOW,

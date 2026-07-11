@@ -33,8 +33,8 @@ from decimal import Decimal
 from uuid import UUID
 
 from src.audit.money import Money, to_money
-from src.models.fx_conversion import FxConversion
 from src.models.journal import JournalEntrySourceType
+from src.pricing import FxConversion
 from src.schemas.base import normalize_currency_code
 
 # Default implied-rate tolerance: the implied rate (amount_from / amount_to) may
