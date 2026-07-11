@@ -574,7 +574,7 @@ def _call_func_name(func: ast.expr) -> str | None:
 def _check_cross_domain_fk(
     pkg: DiscoveredPackage,
     registered: dict[str, str],
-    table_owner: dict[str, str],
+    _table_owner: dict[str, str],
     model_owner: dict[str, str],
 ) -> list[str]:
     """One-transaction-per-domain, the ORM-navigation edge (AC-meta.txn.3).
@@ -604,8 +604,12 @@ def _check_cross_domain_fk(
 
     It deliberately does NOT resolve dynamic targets (a ``relationship`` given
     an imported alias or an expression) — those are left to runtime/migration
-    review rather than flagged here, to avoid false positives. ``table_owner``
-    / ``model_owner`` come from :func:`_collect_orm_ownership`.
+    review rather than flagged here, to avoid false positives. ``model_owner``
+    (the class name → owning-package map) comes from
+    :func:`_collect_orm_ownership`; ``_table_owner`` is accepted but unused
+    since the FK-string check it fed was retired (#1675) — kept so the call
+    site's positional args stay symmetric with :func:`_collect_orm_ownership`'s
+    return shape.
     """
     offenders: list[str] = []
     if pkg.impl_dir is None or not pkg.impl_dir.exists():
