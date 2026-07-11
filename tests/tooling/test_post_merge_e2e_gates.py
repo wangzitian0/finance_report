@@ -2613,7 +2613,7 @@ def test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit() -> None:
 def test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate() -> (
     None
 ):
-    """AC8.13.24: CI uploads traceability audit instead of gating stale snapshots."""
+    """AC-testing.acgates.2: AC8.13.24: CI uploads traceability audit instead of gating stale snapshots."""
     workflow = read(".github/workflows/ci.yml")
     audit_builder = read("common/testing/build_ac_traceability.py")
     ci_cd = read("docs/ssot/ci-cd.md")

@@ -84,7 +84,7 @@ def test_retire_bank_statement_migration_normalizes_uppercase_source_type_drift(
 
 
 def test_AC8_13_124_traceability_gate_and_audit_builder_share_test_surface() -> None:
-    """AC8.13.124: AC traceability gate and uploaded audit scan the same roots."""
+    """AC-testing.acgates.13: AC8.13.124: AC traceability gate and uploaded audit scan the same roots."""
 
     from common.testing import build_ac_traceability as bat
     from common.testing.test_surface import DEFAULT_AC_TEST_DIRS

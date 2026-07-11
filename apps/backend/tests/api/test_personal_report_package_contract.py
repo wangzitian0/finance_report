@@ -1008,7 +1008,7 @@ async def test_AC19_9_1_package_readiness_reports_source_trust_summary(
     db: AsyncSession,
     test_user: User,
 ):
-    """AC19.9.1 AC8.14.3: Package readiness reports deterministic source trust coverage."""
+    """AC19.9.1 AC-testing.trust-mirrors.3: Package readiness reports deterministic source trust coverage."""
     report_date = date(2026, 5, 31)
     await _ready_source_account(db, test_user.id)
     db.add(

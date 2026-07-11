@@ -26,7 +26,7 @@ GITATTRIBUTES = REPO_ROOT / ".gitattributes"
 
 
 def test_AC8_13_138_baseline_is_sorted_jsonl_with_union_merge() -> None:
-    """Baseline is sorted, one-AC-per-line JSONL guarded by merge=union."""
+    """AC-testing.acgates.15: Baseline is sorted, one-AC-per-line JSONL guarded by merge=union."""
     lines = [line for line in BASELINE.read_text(encoding="utf-8").splitlines() if line.strip()]
     assert lines, "baseline must not be empty"
     ac_ids = []

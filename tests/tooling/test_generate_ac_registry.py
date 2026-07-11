@@ -436,7 +436,7 @@ class TestMain:
     def test_main_appends_missing_ac_without_rewriting_current_epic_text(
         self, tmp_path, monkeypatch
     ):
-        """AC8.13.17: Current non-stub EPIC text and mandatory state win."""
+        """AC-testing.acgates.1: AC8.13.17: Current non-stub EPIC text and mandatory state win."""
         epic_dir = self._setup_epic_dir(tmp_path, monkeypatch)
         (epic_dir / "EPIC-008.testing-strategy.md").write_text(
             "| AC8.13.16 | EPIC text that must not replace canonical text |\n"

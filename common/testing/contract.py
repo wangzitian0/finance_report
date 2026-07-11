@@ -2302,6 +2302,409 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        # ── group acgates: AC-index / critical-proof / traceability
+        # gates (was EPIC-008 AC8.13 subset), migration closeout, #1663
+        # / #1718 ──
+        ACRecord(
+            id="AC-testing.acgates.1",
+            statement=(
+                "AC registry generation writes small generated indexes, materializes "
+                "entries from EPIC docs plus explicit overrides, and preserves no "
+                "duplicate feature/infra ownership (Was EPIC-008 AC8.13.17)."
+            ),
+            test=(
+                "tests/tooling/test_generate_ac_registry.py"
+                "::test_main_appends_missing_ac_without_rewriting_current_epic_text"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.acgates.2",
+            statement=(
+                "AC traceability audit is uploaded as a CI artifact instead of "
+                "failing on a stale committed report (Was EPIC-008 AC8.13.24)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.acgates.3",
+            statement=(
+                "AC traceability reporting distinguishes real test references from "
+                "_ac_stubs and trivial placeholder assertions (Was EPIC-008 "
+                "AC8.13.35)."
+            ),
+            test=(
+                "tests/tooling/test_check_ac_traceability.py"
+                "::test_classifies_placeholder_assertion"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.acgates.4",
+            statement=(
+                "AC traceability fails mandatory ACs that are covered only by "
+                "_ac_stubs (Was EPIC-008 AC8.13.37)."
+            ),
+            test=(
+                "tests/tooling/test_check_ac_traceability.py"
+                "::test_placeholder_and_stub_refs_do_not_count_as_real_coverage"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.acgates.5",
+            statement=(
+                "Critical proof matrix fails when a core product proof path is backed "
+                "only by broad or reference-only AC strings (Was EPIC-008 AC8.13.41)."
+            ),
+            test=(
+                "tests/tooling/test_check_critical_proof_matrix.py"
+                "::test_AC8_14_1_critical_proof_matrix_reports_duplicate_proof_ids"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.acgates.6",
+            statement=(
+                "Critical proof matrix validates the closed macro outcome set from "
+                "README through owner EPICs and E2E proof anchors (Was EPIC-008 "
+                "AC8.13.50)."
+            ),
+            test=(
+                "tests/tooling/test_check_critical_proof_matrix.py"
+                "::test_AC8_13_50_macro_outcome_contract_rejects_drift"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.acgates.7",
+            statement=(
+                "Critical proof matrix fails when README macro outcomes, matrix "
+                "outcomes, or owner EPIC reverse declarations drift (Was EPIC-008 "
+                "AC8.13.54)."
+            ),
+            test=(
+                "tests/tooling/test_check_critical_proof_matrix.py"
+                "::test_AC8_13_54_macro_contract_requires_owner_epic_reverse_declarations"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.acgates.8",
+            statement=(
+                "E2E EPIC traceability fails E2E-root test functions missing "
+                "function-level EPIC IDs or project EPICs without E2E owners (Was "
+                "EPIC-008 AC8.13.68)."
+            ),
+            test=(
+                "tests/tooling/test_check_e2e_epic_traceability.py"
+                "::test_AC8_13_68_discovery_handles_missing_roots_and_external_paths"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.acgates.9",
+            statement=(
+                "E2E EPIC traceability fails README EPIC map drift and unclassified "
+                "E2E-like assets outside declared roots (Was EPIC-008 AC8.13.70)."
+            ),
+            test=(
+                "tests/tooling/test_check_e2e_epic_traceability.py"
+                "::test_AC8_13_70_classified_non_product_e2e_assets_are_allowed"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.acgates.10",
+            statement=(
+                "Registry-to-EPIC consistency fails active stub or orphan AC entries "
+                "instead of silently excluding them (Was EPIC-008 AC8.13.77)."
+            ),
+            test=(
+                "tests/tooling/test_lint_doc_consistency.py"
+                "::test_AC8_13_77_active_stub_orphan_fails"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.acgates.11",
+            statement=(
+                "Mandatory AC traceability requires at least one real proof file that "
+                "is mapped to a CI-required execution stage (Was EPIC-008 AC8.13.78)."
+            ),
+            test=(
+                "tests/tooling/test_check_ac_traceability.py"
+                "::test_AC8_13_78_ci_required_real_refs_cover_mandatory_gate"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.acgates.12",
+            statement=(
+                "AC coverage analysis supports no-write and stale-report check modes "
+                "for local verification (Was EPIC-008 AC8.13.80)."
+            ),
+            test=(
+                "tests/tooling/test_analyze_test_ac_coverage.py"
+                "::test_AC8_13_80_check_mode_fails_stale_report"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.acgates.13",
+            statement=(
+                "AC traceability gate and uploaded audit builder consume the same "
+                "SSOT test-surface definition, including frontend Playwright tests "
+                "(Was EPIC-008 AC8.13.124)."
+            ),
+            test=(
+                "tests/tooling/test_schema_quality_contract.py"
+                "::test_AC8_13_124_traceability_gate_and_audit_builder_share_test_surface"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.acgates.14",
+            statement=(
+                "The AC-index gate's PROTECTION dashboard reports mandatory-AC "
+                "coverage as per-type counts (has_real_ref / has_proof / has_score / "
+                "has_mirror), never conflating L1 reference presence with behavioral "
+                "proof, so a passing gate cannot be read as misleading behavioral "
+                "assurance (re-anchored from the retired standalone traceability "
+                "report) (Was EPIC-008 AC8.13.135)."
+            ),
+            test=(
+                "tests/tooling/test_ac_index_consistency.py"
+                "::test_AC8_13_135_protection_dashboard_separates_reference_from_behavioral"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.acgates.15",
+            statement=(
+                "The AC-score ratchet baseline is a PERSISTED ratchet stored "
+                "conflict-free as sorted, one-AC-per-line JSONL with a merge=union "
+                "gitattribute, loading into the same in-memory shape the ratchet uses "
+                "\u2014 and the ratchet still fails on regression, missing evidence, or "
+                "non-pass code (the derived aggregate views it once sat beside are "
+                "now covered by AC8.13.139) (Was EPIC-008 AC8.13.138)."
+            ),
+            test=(
+                "tests/tooling/test_proof_index_architecture.py"
+                "::test_AC8_13_138_baseline_is_sorted_jsonl_with_union_merge"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.acgates.16",
+            statement=(
+                "The cross-cutting proof/vision/status indexes are unified onto ONE "
+                "AC-keyed graph (common/testing/ac_graph.py) built from sharded "
+                "sources (EPIC docs, @ac_proof decorators, vision.md, "
+                "critical-proof-outcomes.yaml, the JSONL ratchet); the critical-proof "
+                "matrix, vision-proof matrix, and README EPIC-status table are "
+                "DERIVED on demand and never committed-materialized; and "
+                "tools/check_ac_index.py is exactly TWO gates \u2014 Gate A INTEGRITY "
+                "(check_integrity, hard: every AC is managed/enumerated with a "
+                "protection record AND no dangling reference \u2014 every @ac_proof "
+                "resolves to a real test + real AC, every vision item with an owner "
+                "EPIC backs an AC, every macro outcome's proof_ids resolve, every "
+                "mandatory active AC has a real test reference, with the "
+                "per-edge-type messages preserved verbatim) and Gate B PROTECTION "
+                "RATCHET (see AC8.13.140) \u2014 instead of N byte-compares (Was EPIC-008 "
+                "AC8.13.139)."
+            ),
+            test=(
+                "tests/tooling/test_ac_index_consistency.py"
+                "::test_AC8_13_139_gate_passes_on_consistent_tree"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.acgates.17",
+            statement=(
+                "Gate B (PROTECTION RATCHET) of tools/check_ac_index.py is monotonic, "
+                "per-type and conflict-safe: an AC with an all-empty protection "
+                "record is still \"managed\" (managed = present in the structure, not "
+                "that it has any test); part 1 is the per-AC behavioural-score floor "
+                "(ac-score-baseline.jsonl, merge=union, unchanged); part 2 is a "
+                "per-type COUNT floor (docs/ssot/protection-floor.json) where the "
+                "current count of mandatory active ACs at each type (has_real_ref, "
+                "has_proof, has_score, has_mirror) must be >= the committed floor \u2014 "
+                "adding protection only RAISES the current count and passes without "
+                "editing the floor file, the default all-zero/missing floor is valid, "
+                "and floors are raised only by the explicit --update-floor action so "
+                "protection-adding PRs never touch the file (Was EPIC-008 "
+                "AC8.13.140)."
+            ),
+            test=(
+                "tests/tooling/test_ac_index_consistency.py"
+                "::test_AC8_13_140_every_ac_managed_with_empty_protection_passes"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.acgates.18",
+            statement=(
+                "The AC-index gate is OPERATIONALLY exactly TWO CI gates: the former "
+                "standalone CI-stage traceability contract "
+                "(common.testing.check_ac_traceability.run_traceability: a mandatory "
+                "active AC must resolve to a real test reference in a CI-REQUIRED "
+                "execution stage per docs/ssot/test-execution-matrix.yaml, with the "
+                "placeholder-only/stub-only/unexecuted-only/missing classifications) "
+                "and critical-proof contract "
+                "(common.testing.check_critical_proof_matrix.validate_matrix_contract: "
+                "per-proof trust_mode/mirror/required_markers/scope/ci_tier + "
+                "manual_gate evidence + macro-outcome shape contract) gate STEPS are "
+                "RETIRED as separate CI steps; their logic is FOLDED into "
+                "check_ac_index's Gate A INTEGRITY (check_repo_contracts) by "
+                "importing those modules as LIBRARIES (no reimplementation, verbatim "
+                "messages), so every failure they caught still fails the single gate, "
+                "the index gate runs ONCE (lint job, not duplicated in "
+                "ac-traceability), and no CI job name / required status context is "
+                "renamed (Was EPIC-008 AC8.13.141)."
+            ),
+            test=(
+                "tests/tooling/test_two_gate_consolidation.py"
+                "::test_AC8_13_141_green_tree_old_gates_and_consolidated_agree"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group gate-inventory: gate inventory & proof-execution
+        # model (was EPIC-008 AC8.13 subset), migration closeout, #1663
+        # / #1718 ──
+        ACRecord(
+            id="AC-testing.gate-inventory.1",
+            statement=(
+                "CI simplification keeps a transitional gate inventory where every "
+                "workflow job has exactly one proof stage and one task_category; the "
+                "inventory matches live workflow jobs and finish.needs, rejects "
+                "legacy category keys, and records resolved duplicate cleanups so "
+                "cleanup PRs do not leave both old and new entrances behind (Was "
+                "EPIC-008 AC8.13.142)."
+            ),
+            test=(
+                "tests/tooling/test_ci_gate_inventory.py"
+                "::test_AC8_13_142_ci_gate_inventory_uses_stage_and_task_category_per_job"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-testing.gate-inventory.2",
+            statement=(
+                "AC is the only coverage key for CI proof placement: @ac_proof "
+                "remains backward compatible while each proof edge can carry "
+                "execution metadata as proof(name, stage, task_category), where stage "
+                "and task_category are proof attributes rather than identity keys and "
+                "remain separate from authority tier / proof_kind (Was EPIC-008 "
+                "AC8.13.150)."
+            ),
+            test=(
+                "tests/tooling/test_ac_proof_execution_model.py"
+                "::test_AC8_13_150_ac_proof_execution_model_is_ac_keyed_and_backward_compatible"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-testing.gate-inventory.3",
+            statement=(
+                "CI gate inventory vocabulary is shared with the AC proof execution "
+                "helper: top-level stages and task_categories match "
+                "common.testing.ac_proof_execution exactly, so docs, runtime proof "
+                "metadata, and inventory contracts cannot drift independently (Was "
+                "EPIC-008 AC8.13.151)."
+            ),
+            test=(
+                "tests/tooling/test_ci_gate_inventory.py"
+                "::test_AC8_13_151_ci_gate_inventory_uses_shared_proof_execution_vocabulary"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-testing.gate-inventory.4",
+            statement=(
+                "The staging AI/OCR corpus gate body lives once in a reusable "
+                "staging-ai-ocr-gate.yml (workflow_call) consumed by both the inline "
+                "staging deploy chain and the manual staging-ai-ocr-gate dispatch; "
+                "the two entrances are uses: callers that differ only by a blocking "
+                "input (record-only vs fail-fast) plus checkout/expected_sha, the "
+                "duplicated job body is removed, and the cleanup is recorded in the "
+                "gate inventory (Was EPIC-008 AC8.13.153)."
+            ),
+            test=(
+                "tests/tooling/test_ci_gate_inventory.py"
+                "::test_AC8_13_153_staging_ai_ocr_gate_is_a_single_reusable_workflow"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-testing.gate-inventory.5",
+            statement=(
+                "The production release line (dry-run, deploy) is split out of "
+                "deploy.yml into a manual-dispatch-only release.yml with a "
+                "production-release-<version_ref> concurrency group "
+                "(cancel-in-progress: false) so two prod releases never run "
+                "concurrently; deploy.yml keeps staging deploy and tag-push promote, "
+                "and the workflow contract plus gate inventory track the new file and "
+                "re-homed job ids (Was EPIC-008 AC8.13.154)."
+            ),
+            test=(
+                "tests/tooling/test_ci_gate_inventory.py"
+                "::test_AC8_13_154_production_release_line_lives_in_release_yml"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-testing.gate-inventory.6",
+            statement=(
+                "The former app-side reclaim split is retired: preview.yml#cleanup "
+                "now dispatches a preview-teardown signal to infra2 (which owns the "
+                "1:1 reclaim via preview-teardown.yml + the hourly preview-leak-check "
+                "fallback), and maintenance.yml#cleanup is GHCR-image-pruning only; "
+                "the pr_preview_cleanup_event_vs_scheduled inventory entry records "
+                "this retired state, not a keep_separate reclaim split (Was EPIC-008 "
+                "AC8.13.155)."
+            ),
+            test=(
+                "tests/tooling/test_ci_gate_inventory.py"
+                "::test_AC8_13_155_pr_preview_reclaim_is_dispatched_to_infra2"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
     ],
 )
 

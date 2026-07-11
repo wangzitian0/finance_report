@@ -45,7 +45,7 @@ CI_YML = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 
 
 def test_AC8_13_141_green_tree_old_gates_and_consolidated_agree() -> None:
-    """AC8.13.141: on the real (green) tree the folded contracts report no errors.
+    """AC-testing.acgates.18: AC8.13.141: on the real (green) tree the folded contracts report no errors.
 
     The two old gates pass on green main; the consolidated ``check_repo_contracts``
     runs the SAME library code and therefore must also report zero errors, and the

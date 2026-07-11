@@ -323,7 +323,7 @@ proofs:
 def test_AC8_14_1_critical_proof_matrix_reports_duplicate_proof_ids(
     tmp_path: Path,
 ) -> None:
-    """AC8.14.1: Critical proof IDs are unique so mirrors cannot resolve ambiguously."""
+    """AC-testing.acgates.5: AC8.14.1: Critical proof IDs are unique so mirrors cannot resolve ambiguously."""
     _write_registry(tmp_path)
     (tmp_path / "apps" / "backend" / "tests").mkdir(parents=True)
     (tmp_path / "apps" / "backend" / "tests" / "test_mirror.py").write_text(
@@ -775,7 +775,7 @@ outcomes:
 def test_AC8_13_50_macro_outcome_contract_rejects_drift(
     tmp_path: Path,
 ) -> None:
-    """AC8.13.50: Covered macro outcomes cannot drift from README, EPICs, or E2E anchors."""
+    """AC-testing.acgates.6: AC8.13.50: Covered macro outcomes cannot drift from README, EPICs, or E2E anchors."""
     _write_registry(tmp_path)
     (tmp_path / "README.md").write_text(
         """
@@ -906,7 +906,7 @@ proofs:
 def test_AC8_13_54_macro_contract_requires_owner_epic_reverse_declarations(
     tmp_path: Path,
 ) -> None:
-    """AC8.13.54: Owner EPICs must reverse-declare their macro outcomes."""
+    """AC-testing.acgates.7: AC8.13.54: Owner EPICs must reverse-declare their macro outcomes."""
     _write_registry(tmp_path)
     (tmp_path / "docs" / "project" / "EPIC-008.testing-strategy.md").write_text(
         """
