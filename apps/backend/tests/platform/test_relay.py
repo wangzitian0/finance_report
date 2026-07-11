@@ -54,6 +54,28 @@ async def test_run_once_dispatches_and_marks_published(db):
     assert all(r.status == STATUS_PUBLISHED and r.published_at is not None for r in rows)
 
 
+@pytest.mark.asyncio
+async def test_run_once_awaits_async_handlers(db):
+    """An async subscriber (e.g. a DB-writing ingest handler) is awaited, not dropped.
+
+    Cross-domain consumers (#1642's pricing ingest is the precedent) need an
+    ``AsyncSession`` inside the handler, so ``EventHandler`` admits coroutine
+    functions and the relay awaits the returned awaitable before marking the
+    row published.
+    """
+    registry = SubscriberRegistry()
+    seen: list[int] = []
+
+    async def handler(e: DomainEvent) -> None:
+        seen.append(e.payload()["count"])
+
+    registry.subscribe("counter.Incremented", handler)
+    await _seed(db, n=1)
+
+    assert await OutboxRelay(registry).run_once(db) == 1
+    assert seen == [1]
+
+
 @ac_proof(proof_id="test_relay_no_redispatch", ac_ids=["AC-platform.1.3"], ci_tier="pr_ci")
 @pytest.mark.asyncio
 async def test_second_run_does_not_redispatch_published(db):
