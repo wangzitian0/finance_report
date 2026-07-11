@@ -18,7 +18,7 @@ every document.
 | App deployment model and release flow | `docs/ssot/deployment.md` |
 | CI, preview, staging, and production gate semantics | `docs/ssot/ci-cd.md` |
 | Boot/runtime health validation | `common/runtime/readme.md`, `apps/backend/src/boot.py`, `apps/backend/src/main.py` |
-| App observability runtime contract | `docs/ssot/observability.md`, `apps/backend/src/observability.py` |
+| App observability runtime contract | `docs/ssot/observability.md`, `apps/backend/src/observability/runtime.py` |
 | Staging/production health and version smoke | `tools/health_check.sh`, `tools/production_infra_smoke.py`, `common/runtime/production_infra_smoke.py` |
 | Delivery-engine evidence and optimization recommendations | `docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md` |
 | Infra alerting, Lark delivery, watchdogs | `repo/docs/ssot/ops.alerting.md` |

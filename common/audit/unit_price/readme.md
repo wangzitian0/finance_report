@@ -2,7 +2,7 @@
 
 > The unit-price value type. Model spec:
 > [`../../meta/readme.md`](../../meta/readme.md). Machine contract:
-> [`contract.py`](./contract.py). Language-neutral interface + conformance:
+> [`contract.py`](../contract.py). Language-neutral interface + conformance:
 > [`contract/unit_price.contract.md`](./contract/unit_price.contract.md) +
 > [`conformance/vectors.json`](./conformance/vectors.json). Worklist:
 > [`todo.md`](./todo.md).
@@ -44,7 +44,7 @@ frontend implementation yet, so `implementations["fe"]` is `None`.
 
 ## Governance
 
-[`contract.py`](./contract.py) is validated by `tools/check_package_contract.py`
+[`contract.py`](../contract.py) is validated by `tools/check_package_contract.py`
 (interface == BE `__all__`, invariants pin to conformance tests, no forbidden
 import edge — it may import the same-class `money` and `quantity` packages,
 declared in `depends_on` and acyclic). The unit_price ACs (`AC12.32.x`) are still owned by

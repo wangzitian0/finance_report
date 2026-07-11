@@ -123,7 +123,7 @@ runs.
 ## 5. <a id="cassettes"></a>Record/Replay Cassettes (deterministic CI)
 
 LLM calls are made **deterministic in CI** via a record/replay cassette layer
-(`apps/backend/src/llm/cassette.py`) exposed through two chokepoints:
+(`apps/backend/src/llm/extension/cassette.py`) exposed through two chokepoints:
 `client.cassette_completion` (non-streaming) and the **streaming bridge**
 `client.litellm_stream` (the real extraction transport — see below). A *cassette*
 is a committed JSON file under `common/testing/fixtures/llm_cassettes/`
