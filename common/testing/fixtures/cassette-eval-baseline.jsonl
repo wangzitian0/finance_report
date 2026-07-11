@@ -19,6 +19,7 @@
 {"case_id": "a531a974fd0bd144fd4a31f63d94384210f043c94bfc81631b20d3f178c779ed", "score": 1.0, "metric": "field-accuracy", "provenance": "vision/brokerage/happy_path"}
 {"case_id": "a67680dfb3b079ce898fbb3944edbbbb375cdd88970cd4757af8cde6d7582778", "score": 0.976596, "metric": "field-accuracy", "provenance": "text/generic_hf/large_statement"}
 {"case_id": "b178f1de82f9147bf22733e85161f35025b5ed5bf6397b74a7dad1126da061df", "score": 0.974948, "metric": "field-accuracy", "provenance": "text/generic_hf/large_statement"}
+{"case_id": "b2e083dfc310ed19e59c3a8d29858e650f81853062145ebc881f3186f0b08eb5", "score": 1.0, "metric": "field-accuracy", "provenance": "vision/bank/balance_unreconciled"}
 {"case_id": "b4b29bbebb16f348de3e326b500c20f2e402cb43c0ad2c51989db935075d02fa", "score": 0.946392, "metric": "field-accuracy", "provenance": "vision/generic_hf/large_statement"}
 {"case_id": "baeb5cee6c2ff1e8e2b3928a6fa872309a75b3c2b9e18f4a4b8e37f3f99fa50d", "score": 1.0, "metric": "field-accuracy", "provenance": "vision/bank/happy_path"}
 {"case_id": "c3ca8ce1cb507fb434cb6556e33f2971ae6f43a17f6e6047cc158959c221bd3a", "score": 0.978587, "metric": "field-accuracy", "provenance": "vision/generic_hf/large_statement"}
@@ -30,4 +31,3 @@
 {"case_id": "d69fbafcecb481e614651b1178a5fb9d9e3724718ef7bf623502120bcd27db30", "score": 1.0, "metric": "field-accuracy", "provenance": "text/generic/happy_path"}
 {"case_id": "d8154af803135a5f9ea4a7af3352271ea92449c62d6cdbae3bfd21664b8b6e58", "score": 0.892644, "metric": "field-accuracy", "provenance": "vision/generic_hf/large_statement"}
 {"case_id": "e3dd21a7fe486770b51b39f51f49738221e4236fcbfb9e2d3b1f0c27030daf37", "score": 0.956522, "metric": "field-accuracy", "provenance": "vision/generic_hf/large_statement"}
-{"case_id": "fb8deff16abd06b1a25557068e4a2212cf5303a7645c8a5e03f1bac0c5bf9f96", "score": 1.0, "metric": "field-accuracy", "provenance": "vision/bank/balance_unreconciled"}

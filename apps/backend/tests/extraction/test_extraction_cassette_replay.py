@@ -203,7 +203,9 @@ _VISION_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "vision"
 
 def _stub_env_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     """Make the per-user eager provider lookup (``ai_streaming._stream_ai_base``)
-    resolve successfully without a real key or network.
+    resolve successfully without a real key or network, and force a
+    platform-deterministic media payload so replay does not depend on
+    byte-identical PyMuPDF page rendering.
 
     ``parse_document()`` always threads ``user_id`` down to ``stream_ai_json``, which
     resolves a provider BEFORE the cassette layer gets a chance to serve a REPLAY hit
@@ -214,10 +216,18 @@ def _stub_env_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     ``ai_api_key`` makes ``EnvConfigSource`` resolve a real (unused) provider — the
     fingerprint check that actually serves the frozen response depends only on
     role/messages/decode_params, never on which provider was resolved, so this does
-    not affect what gets replayed."""
+    not affect what gets replayed.
+
+    A non-"zai" ``ai_provider`` also steers ``_build_vision_media_payloads`` away
+    from ``_render_pdf_pages_as_image_payloads`` (PyMuPDF rasterizes the PDF to a
+    PNG — the exact pixels are not guaranteed byte-identical across host platforms,
+    which produced a CI-only cassette MISS despite a passing local run) and onto the
+    raw-base64-PDF-bytes ``file`` payload branch instead, which is a pure function of
+    the fixture's fixed bytes and therefore portable across any host."""
     from src.config import settings
 
     monkeypatch.setattr(settings, "ai_api_key", "sk-test-replay-dummy", raising=False)
+    monkeypatch.setattr(settings, "ai_provider", "openai-compatible-test", raising=False)
 
 
 async def test_AC_llm_14_1_missing_period_falls_back_to_transaction_dates_via_replay(
