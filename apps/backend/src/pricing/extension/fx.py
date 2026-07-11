@@ -9,17 +9,19 @@ bridges: the lookup is ``get_exchange_rate`` above, the math is
 ``audit.money.convert`` (rate passed in, per boundary ruling 5 — audit never
 looks up a rate).
 
-Deliberately NOT carried over from ``services/fx.py`` yet:
+The ``lazy_load`` crawler fallback (``services/fx.py`` parity) lives here now:
+the crawler moved into this package (``extension/market_data/``), so a rate
+miss with ``lazy_load=True`` falls back to
+:func:`~src.pricing.extension.market_data.service.resolve_missing_fx_rate`
+(safe inverse/bridge derivation, then an optional provider fetch) — the
+behavior the portfolio read-side queries depend on (#1641/#1643).
+
+Deliberately NOT carried over from ``services/fx.py``:
 
 - **Caching** — ``fx.py``'s ``_FxRateCache`` is a performance optimization,
   not a correctness requirement; adding one here is deferred until this
   function is actually load-tested in its new home (move first, improve
   second).
-- **``lazy_load`` crawler fallback** — ``fx.py``'s ``lazy_load=True`` calls
-  into ``market_data.resolve_missing_fx_rate``, which hasn't moved into
-  pricing yet (``sync_market_data`` is still a reserved unit). Adding it here
-  would either duplicate the crawler call or reach back into the old
-  ``services/market_data`` module, which this package must not depend on.
 - **``fx_warnings``** — ``fx.py``'s side-channel that lets a caller learn it
   got the period-end fallback instead of a true average. Deferred until a
   real (repointed) caller needs to surface it; adding an unused parameter
@@ -50,12 +52,18 @@ async def get_exchange_rate(
     base_currency: str,
     quote_currency: str,
     rate_date: date,
+    *,
+    lazy_load: bool = False,
 ) -> Decimal:
     """The resolved FX rate for ``base_currency``/``quote_currency`` as of ``rate_date``.
 
-    Raises :class:`~src.pricing.base.errors.NoObservationError` (propagated
-    from ``resolve()``) when no eligible observation exists — never returns
-    a silently-wrong rate.
+    With ``lazy_load=True`` a miss first falls back to the in-package crawler
+    (``resolve_missing_fx_rate``: stored inverse/bridge derivation, then an
+    optional provider fetch — persisting what it finds), preserving the
+    retired ``services/fx.py`` lazy path's behavior. Raises
+    :class:`~src.pricing.base.errors.NoObservationError` (propagated from
+    ``resolve()``) when no eligible observation exists even after the
+    fallback — never returns a silently-wrong rate.
     """
     base = normalize_currency_code(base_currency)
     quote = normalize_currency_code(quote_currency)
@@ -65,6 +73,14 @@ async def get_exchange_rate(
     subject = PriceableSubject.currency_pair(base, quote)
     repo = SqlObservationRepository(db)
     candidates = await repo.candidates(subject, rate_date)
+    if not candidates and lazy_load:
+        # Deferred import: market_data composes this module's siblings, so a
+        # module-level import would be a cycle waiting to happen.
+        from src.pricing.extension.market_data.service import resolve_missing_fx_rate
+
+        rate = await resolve_missing_fx_rate(db, base, quote, rate_date)
+        if rate is not None:
+            return rate if isinstance(rate, Decimal) else Decimal(str(rate))
     observation = resolve(subject, rate_date, ResolutionPolicy(), candidates)
     return observation.value
 
@@ -112,13 +128,15 @@ async def convert_amount(
     currency: str,
     target_currency: str,
     rate_date: date,
+    *,
+    lazy_load: bool = False,
 ) -> Decimal:
     """Convert ``amount`` into ``target_currency`` using the resolved rate as of ``rate_date``."""
     source = normalize_currency_code(currency)
     target = normalize_currency_code(target_currency)
     if source == target:
         return amount
-    rate = await get_exchange_rate(db, source, target, rate_date)
+    rate = await get_exchange_rate(db, source, target, rate_date, lazy_load=lazy_load)
     return _convert_money_amount(amount, source, target, rate)
 
 
@@ -127,6 +145,8 @@ async def convert_money(
     money: Money,
     target_currency: str,
     rate_date: date,
+    *,
+    lazy_load: bool = False,
 ) -> Money:
     """Money-native FX conversion: ``Money(source) -> Money(target)``.
 
@@ -141,6 +161,7 @@ async def convert_money(
         currency=money.currency.code,
         target_currency=target_currency,
         rate_date=rate_date,
+        lazy_load=lazy_load,
     )
     return Money(converted, target_currency)
 
