@@ -31,10 +31,40 @@
 6. ✅ **Monitor CI until it passes** (use `gh run watch`)
    - If CI fails: find the root cause, fix, repeat
 7. ✅ **Resolve every Copilot (CR) review comment** — fix or justify each — then resolve the threads on GitHub
-8. ✅ **Report: "PR ready for your review"**
-9. ⏸️ **STOP. Wait for user decision.** (Agents never merge.)
+8. ✅ **Report: "PR ready for your review"** — with PR URL, branch, commit SHA,
+   draft status, `mergeable`, `mergeStateStatus`, and required-check summary
+9. 🔁 **Keep the PR mergeable while waiting** (agents never merge): watch for
+   new CI runs, late CR comments, and conflicts caused by other merges — fix
+   them unprompted; report state changes only
+10. ▶️ **On merge** (detected, or announced by the user): resync `main`, rebase
+    any remaining open branches, and continue the next planned slice — report
+    plan progress (done / remaining) instead of asking what to do next
 
 **User Workflow**: Review → Approve / Request changes / Reject → **User merges PR**.
+
+---
+
+## PR Lifecycle Loop (anti-babysitting)
+
+Transcript history (19 sessions, 2026-06→07) shows the expensive failure mode
+was never writing code — it was the human babysitting every PR to mergeable:
+prompting for CI failures (9 sessions), CR comments (15 sessions), and typing
+the merge-resync ritual by hand (16 sessions). The loop in steps 6–10 above is
+therefore **part of the deliverable, not aftercare**:
+
+- **Watch, don't push-and-forget.** After every push, watch checks to
+  completion (`gh pr checks <n> --watch`, or a background monitor). First
+  green is a checkpoint, not the finish line.
+- **Late CR comments are the same delivery.** Triage each on merit — fix it,
+  or justify and resolve the thread. Never blanket-accept, never ignore.
+- **A conflict appearing because another PR merged is yours** — rebase
+  immediately, don't wait to be told.
+- **Goals must never require a user-only action.** An agent goal is satisfied
+  by "PR(s) mergeable + reported", never by "PR merged" — a goal phrased on
+  merging deadlocks the session against the agents-never-merge rule.
+- **Post-merge continuation is default-on.** The user's merge is the signal to
+  resync and continue the approved plan. Ask only at a genuine decision point
+  or when the plan is exhausted.
 
 ---
 
@@ -83,6 +113,68 @@ behavior is anchored to a goal and proven by a test). The **mechanism** for
 Reference: [docs/ssot/tdd.md](../ssot/tdd.md) ·
 [package migration standard](../../common/meta/migration-standard.md)
 
+---
+
+## Bug-Fix Work Order (root-cause + gate backfill)
+
+Every bug fix (from staging QA, production, or review) must answer three
+questions in its PR — transcript history shows the user has had to ask them
+manually in 8 sessions:
+
+1. **Root cause, not symptom** — the mechanism that produced the behavior,
+   not the surface where it appeared.
+2. **Why did no existing gate catch it?** — name the tier (unit / integration /
+   tier-1 e2e / staging gate / prod smoke) that *should* have caught it.
+3. **Back-fill the missing proof in the same PR** — a failing-first test
+   (red → green) at that tier; where a same-PR gate is genuinely impossible,
+   an explicit issue for the gap. A fix without a locked proof is Good Taste
+   5's vacuous safety net — the same bug returns.
+
+Bug-fix PR bodies carry a short **Root cause / Why gates missed it / Proof
+added** block.
+
+---
+
+## Planning Work Order (goal-first, counterfactual-gated)
+
+For planning-type tasks — system reviews, issue design/triage, prioritization,
+"what next" — the implementation work order above starts too late. Upstream
+mandatory sequence (templates and rituals: `planning` skill):
+
+1. **Vision** — restate the terminal goal + North-Star (vision.md) relevant to
+   the ask, *before* surveying what exists.
+2. **Guarantees** — derive what must hold for that goal (walk the pipeline;
+   state guarantees, not tasks).
+3. **Gaps** — map the current state against the guarantees. Never rationalize
+   bottom-up from the existing inventory toward a conclusion.
+4. **Actions** — minimal set; each action's acceptance = the guarantee it
+   delivers **plus a lock mechanism** (ratchet / gate / release-evidence check)
+   so it cannot silently regress. Name residuals and operator dependencies
+   explicitly.
+5. **Counterfactual pass before presenting** — "if every acceptance criterion
+   is met, what still fails?" Run it yourself; the user should never have to
+   ask.
+
+Planning defaults: propose the **minimum-PR plan** (batch cohesive issues into
+one PR; run independent PRs in parallel, bounded by write conflicts); rank
+actions by ROI; **create no GitHub issues during exploration** — a structure
+must survive one simplification pass and one counterfactual pass in
+conversation before anything is filed.
+
+---
+
+## Migration / Refactor Closeout
+
+A migration or refactor is not done when the new path works. Done requires a
+**residue sweep** — re-requested by the user in 5+ sessions before this was
+encoded:
+
+- Old code, config, tests, and docs are deleted, or each survivor is
+  explicitly issue-tracked with a reason.
+- Rejected design options are recorded with why-not, for the next reader.
+- A drift scan of docs + tests: anything still describing the old world is
+  updated or deleted in the same PR.
+
 **Cross-cutting contract checks** (each owned by
 [red-lines.md](./red-lines.md) §Engineering Integrity — listed here only as the
 work-order reminder): sync the `repo/` submodule (`infra2`) when a change adds
@@ -123,6 +215,14 @@ Judgment, not config (vision.md, Good Taste 6):
    ```bash
    cd repo && git fetch origin main && git log --oneline -1 origin/main && git log --oneline -1 HEAD
    ```
+4. **Probe before claiming inability**: never report "can't access X / no
+   credentials" without first attempting the documented path — direnv probe
+   (`echo ${#VAR}`), the Dokploy API, a read-only VPS SSH log pull, the SigNoz
+   non-browser API recipe (see the `infra-operations` skill). If the path truly
+   fails, report the exact failing step — never a blanket "can't log in".
+5. **Post-deploy verification is part of deploying**: after any deploy or
+   release action, verify service health, the running version, and recent
+   error logs before reporting success.
 
 ---
 
