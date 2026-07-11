@@ -30,7 +30,8 @@ extracted fact to its source document.
 * The OCR layout-parsing call routes through ``src.llm``'s ``ocr_layout_call``
   chokepoint (#1670), which is why ``llm`` is now a declared dependency. The
   JSON/vision call sites already went through ``llm`` via
-  ``services.ai_streaming``. Threading per-user provider binding (``user_id``)
+  ``src.llm``'s ``stream_ai_json`` (physically ``llm/extension/streaming.py``
+  since #1670's fold). Threading per-user provider binding (``user_id``)
   into these OCR/vision/json call sites — so a BYO-provider user's own model
   is used, not just the deployment default — is a separate, still-pending
   follow-up (AC-llm.4.5), independent of the ``llm`` dependency edge itself.
@@ -54,7 +55,16 @@ CONTRACT = PackageContract(
     # vision-LLM path (the authority classifier bands cassette-driven tests as
     # LLM). Non-eval ACs carry proof_kind=property.
     tier="LLM-LED",
-    depends_on=["audit", "identity", "ledger", "llm", "observability", "platform", "portfolio", "runtime"],
+    depends_on=[
+        "audit",
+        "identity",
+        "ledger",
+        "llm",
+        "observability",
+        "platform",
+        "portfolio",
+        "runtime",
+    ],
     roles=["base", "extension", "data"],
     units=[
         # ── base: the pure validation/confidence calculus lives in

@@ -5,7 +5,7 @@ provider-specific is resolved by :mod:`src.llm.extension.routing`, and ``drop_pa
 lets litellm silently drop fields a given model rejects (e.g. Z.AI/GLM rejecting
 ``seed`` — the quirk that previously needed bespoke handling). Provider/model
 selection is shared via :func:`resolve_provider_and_model`; the service-facing
-entry point is ``services.ai_streaming`` (which counts request/token usage).
+entry point is :mod:`src.llm.extension.streaming` (which counts request/token usage).
 """
 
 from __future__ import annotations
@@ -274,7 +274,7 @@ async def litellm_stream(
     Note: we deliberately do NOT request ``stream_options={"include_usage": True}`` —
     Z.AI/GLM rejects unknown params with HTTP 400 and litellm won't drop it (it's a
     supported openai-compatible field). Token usage is estimated by the caller from
-    text instead (see ``services.ai_streaming``)."""
+    text instead (see ``src.llm.extension.streaming``)."""
     _provider_cache: list[ProviderRef] = [provider] if provider is not None else []
 
     async def _resolved_provider() -> ProviderRef:

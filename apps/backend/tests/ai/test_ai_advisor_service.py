@@ -18,6 +18,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.llm import AIStreamError
 from src.models.account import Account, AccountType
 from src.models.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
@@ -50,7 +51,6 @@ from src.services.ai_advisor import (
     redact_sensitive,
     service as ai_advisor_service,
 )
-from src.services.ai_streaming import AIStreamError
 from src.services.reporting import ReportError
 from tests.factories import UserFactory
 
@@ -994,8 +994,9 @@ async def test_AC23_4_5_advisor_provider_resolution_is_user_scoped(monkeypatch: 
     """AC-llm.4.5: stream_ai_chat resolves the provider via get_config_source(user_id)."""
     from uuid import uuid4
 
+    import src.llm.extension.client as client_mod
+    import src.llm.extension.streaming as streaming
     from src.llm.base import ProtocolFamily, ProviderRef
-    from src.services import ai_streaming
 
     uid = uuid4()
     seen: dict[str, object] = {}
@@ -1012,10 +1013,10 @@ async def test_AC23_4_5_advisor_provider_resolution_is_user_scoped(monkeypatch: 
         if False:  # pragma: no cover
             yield ""
 
-    monkeypatch.setattr(ai_streaming, "get_config_source", fake_get_config_source)
-    monkeypatch.setattr(ai_streaming, "litellm_stream", lambda *a, **k: fake_litellm_stream())
+    monkeypatch.setattr(streaming, "get_config_source", fake_get_config_source)
+    monkeypatch.setattr(client_mod, "litellm_stream", lambda *a, **k: fake_litellm_stream())
 
-    async for _ in ai_streaming.stream_ai_chat([{"role": "user", "content": "hi"}], "m", user_id=uid):
+    async for _ in streaming.stream_ai_chat([{"role": "user", "content": "hi"}], "m", user_id=uid):
         pass
 
     assert seen["user_id"] == uid

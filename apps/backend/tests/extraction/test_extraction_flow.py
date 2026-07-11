@@ -200,7 +200,7 @@ class TestExtractionServiceFlow:
         """Test extract_financial_data handles API error."""
         service.api_key = "test-key"
 
-        from src.services.ai_streaming import AIStreamError
+        from src.llm import AIStreamError
 
         with patch("src.extraction.extension.service.stream_ai_json") as mock_stream:
             mock_stream.side_effect = AIStreamError("HTTP 400: Bad Request")

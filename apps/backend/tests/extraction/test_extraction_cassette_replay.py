@@ -22,7 +22,7 @@ import json
 from decimal import Decimal
 from pathlib import Path
 
-from src.services.ai_streaming import accumulate_stream, stream_ai_json
+from src.llm import accumulate_stream, stream_ai_json
 
 # No mode fork (#1597): the cassette layer decides per request — a committed
 # cassette serves everywhere (zero key, zero network); a MISS is a hard failure

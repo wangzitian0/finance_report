@@ -15,19 +15,16 @@ from typing import Any
 from uuid import UUID
 
 from src.config import settings
-from src.llm import (
+from src.llm.base import (
     LLMConfigError,
     LLMError,
     ProviderRef,
     ReasoningEffort,
     estimate_tokens,
     estimate_tokens_from_chars,
-    get_config_source,
-    get_usage_meter,
-    litellm_stream,
-    protocol_for,
-    resolve_provider_and_model,
 )
+from src.llm.extension.env_config import protocol_for
+from src.llm.extension.factory import get_config_source, get_usage_meter
 from src.observability import get_logger, record_ai_provider_call
 
 logger = get_logger(__name__)
@@ -124,6 +121,12 @@ async def _stream_ai_base(
     litellm owns the transport. ``user_id`` scopes provider resolution to that
     user's configured provider (else deployment default, else env).
     """
+    # Deferred: src.llm.extension.client imports litellm at module level, and
+    # importing this module must not (the no-litellm-at-root invariant in
+    # src/llm/__init__.py extends to this module too, since it is imported
+    # eagerly from llm.extension).
+    from src.llm.extension.client import litellm_stream, resolve_provider_and_model
+
     resolved_lazily: list[ProviderRef] = []
 
     async def _lazy_provider() -> ProviderRef:
