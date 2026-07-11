@@ -3,6 +3,5 @@
   "out::apps/backend/src/extraction/extension/review_queue.py::src.services.fx::FxRateError",
   "out::apps/backend/src/extraction/extension/review_queue.py::src.services.fx::get_exchange_rate",
   "out::apps/backend/src/ledger/extension/fx_revaluation.py::src.services.fx::FxRateError",
-  "out::apps/backend/src/ledger/extension/fx_revaluation.py::src.services.fx::get_exchange_rate",
-  "out::apps/backend/src/reconciliation/extension/scoring.py::src.prompts.reconciliation::build_reconciliation_prompt"
+  "out::apps/backend/src/ledger/extension/fx_revaluation.py::src.services.fx::get_exchange_rate"
 ]
