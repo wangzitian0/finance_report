@@ -102,7 +102,7 @@ async def _user_fk_names(db: AsyncSession, table_name: str) -> list[str]:
 
 
 async def test_AC8_13_127_alembic_business_persistence_keeps_user_fk_contract() -> None:
-    """AC8.13.127: Alembic-built business persistence keeps production user FKs."""
+    """AC-testing.schema.4: AC8.13.127: Alembic-built business persistence keeps production user FKs."""
     database_name = f"fr_ac8_13_127_{uuid4().hex[:16]}"
     database_url = _database_url_with_name(database_name)
     engine = None

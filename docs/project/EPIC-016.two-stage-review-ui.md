@@ -261,7 +261,11 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 
 ### AC16.13 — Test Lifecycle Infrastructure (Infra)
 
-> These ACs cover `tools/test_lifecycle.py` and test infrastructure helpers.
+> These ACs covered `tools/test_lifecycle.py` and test infrastructure
+> helpers. The group migrated into the `testing` package roadmap
+> (`common/testing/contract.py`, `AC-testing.lifecycle.*`) — the
+> namespace/DB-lifecycle mechanism itself already lives in
+> `common/testing/test_isolation.py` (migration closeout, #1663 / #1718).
 
 > (AC16.13.1 removed, canonical: migrated to `AC-testing.lifecycle.2`.)
 > (AC16.13.2 removed, canonical: migrated to `AC-testing.lifecycle.3`.)

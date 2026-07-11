@@ -59,8 +59,11 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - The AC coverage rate is generated from registry and test references; it is not
   a line-coverage percentage and not a replacement for CI pass/fail status.
 - CI source coverage uses the shared coverage policy in `common/meta/extension/coverage/policy.py`. New backend, frontend, common, and tools modules are expected to appear in the matching LCOV report unless the policy explicitly excludes them.
-  The AC8.13.x requirement definitions and proof mappings are maintained in
-  the Test Cases table below, not duplicated in this strategy overview.
+  The migrated AC8.13.x requirement definitions and proof mappings are
+  maintained in the `testing` package roadmap
+  (`common/testing/contract.py`); the few rows still EPIC-owned live in
+  the Test Cases table below. Neither is duplicated in this strategy
+  overview.
 
 ### 2.3.1 Test Stage Semantics and Left-Move Plan (Unit / Integration / E2E)
 
@@ -254,17 +257,51 @@ job inventories or scenario counts into this EPIC.
 
 ### AC8.13: Tier 3 Browser E2E — Full Statement Journey
 
-> **Partially migrated.** The extraction-owned rows (AC8.13.1 removed, canonical:
+> **Mostly migrated.** The extraction-owned rows (AC8.13.1 removed, canonical:
 > homed in the `extraction` package roadmap as `AC-extraction.813.10` / `.11` /
 > `.12` — covering the DBS full-journey browser test, the statement-upload
 > full-flow browser test, and the multi-brokerage import test — in
 > [`common/extraction/contract.py`](../../common/extraction/contract.py),
-> migration closeout wave 3, #1663); the remaining rows below stay with their
-> own owners (CI/CD governance tests in `tests/tooling/`, or frontend-only
-> Playwright/Vitest specs).
+> migration closeout wave 3, #1663). The CI/CD, deploy-gate, preview,
+> classifier, coverage, AC-index, governance, toolchain, schema, and
+> test-lifecycle rows migrated into the `testing` package roadmap
+> ([`common/testing/contract.py`](../../common/testing/contract.py)) as
+> `AC-testing.<sub-theme>.<seq>` ids (migration closeout, #1663 / #1718);
+> the per-row canonical pointers are listed after the table below.
+>
+> **Rows that stay in this EPIC** (marker note, #1718):
+>
+> - AC8.13.18 / AC8.13.19 are reporting-owned (brokerage portfolio valuation
+>   semantics) and migrate with the reporting bucket, #1716 — not forced into
+>   `testing`.
+> - AC8.13.48, AC8.13.76, AC8.13.82, AC8.13.90, AC8.13.92 are frontend-only
+>   (Vitest/Playwright proofs); the package governance gate resolves Python
+>   tests only, so they stay EPIC-owned for the #1719 frontend remainder.
+> - AC8.13.61 - AC8.13.63 are archive-residual ownership rows whose proofs
+>   assert EPIC-008 residency by design (and AC8.13.61 is P3, which the
+>   package `ACRecord` priority vocabulary does not carry); they are
+>   re-homed by the final cleanup, #1719.
+> - AC8.13.164 / AC8.13.165 (evidence bundle) cite a proving test that
+>   drives the cassette graded-eval corpus, which the authority classifier
+>   bands LLM; the CODE-ONLY `testing` package cannot own an LLM-band
+>   roadmap test (`common/testing/contract.py` docstring), so they stay for
+>   the `llm`-bucket / #1719 decision.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
+| AC8.13.18 | Brokerage portfolio gate validates market valuation adjustment lines even when unrelated asset lines lower total assets | `test_portfolio_valuation_gate_ignores_unrelated_negative_asset_lines` / `test_portfolio_market_adjustment_survives_unrelated_negative_asset_lines` | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` / `apps/backend/tests/reporting/test_reporting_net_worth_components.py` | P0 |
+| AC8.13.19 | Brokerage portfolio gate failures include holdings, valuation adjustment, non-portfolio asset, and balance-sheet diagnostics | `test_portfolio_valuation_gate_failure_diagnostics_are_actionable` | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | P0 |
+| AC8.13.48 | Frontend gap tests cover route, component, and API helper paths so frontend LCOV line coverage reaches 99% | `test_AC8_13_48_*` | `apps/frontend/src/__tests__/stage2ReviewQueueCoverage99.test.tsx`, `apps/frontend/src/__tests__/statementReviewPage.coverage.test.tsx`, `apps/frontend/src/__tests__/statementDetailPage.coverage.test.tsx`, `apps/frontend/src/__tests__/StatementUploader.test.tsx`, `apps/frontend/src/__tests__/journalPage.test.tsx`, `apps/frontend/src/__tests__/reconciliationWorkbenchComponent.test.tsx`, `apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx`, `apps/frontend/src/__tests__/apiFunctions.test.ts`, `apps/frontend/src/__tests__/accountsPage.test.tsx`, `apps/frontend/src/__tests__/assetsPage.test.tsx`, `apps/frontend/src/__tests__/statementsPage.test.tsx`, `apps/frontend/src/__tests__/useWorkspaceHook.test.tsx`, `apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx`, `apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx`, `apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx` | P0 |
+| AC8.13.61 | Visual regression residual is explicitly owned by EPIC-008 as a P3 future testing capability | `test_AC8_13_61_visual_regression_residual_is_epic_owned` | `tests/tooling/test_archive_residual_epic_ownership.py` | P3 |
+| AC8.13.62 | Test observability residuals are explicitly owned by EPIC-008 with current replacements and future dashboard/notification/trend scope | `test_AC8_13_62_test_observability_residual_is_epic_owned` | `tests/tooling/test_archive_residual_epic_ownership.py` | P2 |
+| AC8.13.63 | Performance testing residual is explicitly owned by EPIC-008 with current Locust/staging coverage and future P95 trend gate scope | `test_AC8_13_63_performance_testing_residual_is_epic_owned` | `tests/tooling/test_archive_residual_epic_ownership.py` | P2 |
+| AC8.13.76 | Playwright mobile UX coverage proves Stage 1 and Stage 2 review workflows avoid document-level horizontal scroll and expose direct completion actions at phone widths | `AC16.26.*` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
+| AC8.13.82 | Playwright responsive UX coverage proves account and review layouts avoid mobile document overflow and desktop local table clipping | `AC2.17.1`, `AC16.27.2`, `AC16.27.3` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
+| AC8.13.90 | Frontend exposes `/frontend-version.json` with deployed `git_sha`/`version` metadata for PR preview readiness checks | `AC8.13.90 returns deployed frontend version metadata for PR preview readiness` | `frontendVersionRoute.test.ts` | P0 |
+| AC8.13.92 | Frontend Vitest coverage keeps a code-owned 98% baseline for line, statement, and function metrics plus an explicit branch floor while representative low-coverage routes and workflow surfaces stay covered | `AC8.13.92*` | `apps/frontend/src/__tests__/coverageBaseline.test.ts`, `apps/frontend/src/__tests__/personalReportPackagePage.test.tsx`, `apps/frontend/src/__tests__/workflowSurfaces.test.tsx`, `apps/frontend/src/__tests__/chatPanelComponent.test.tsx`, `apps/frontend/src/__tests__/investmentPerformanceSchedule.test.tsx`, `apps/frontend/src/__tests__/journalPage.test.tsx`, `apps/frontend/src/__tests__/sankeyChartComponent.test.tsx`, `apps/frontend/src/__tests__/toastProviderComponent.test.tsx`, `apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx` | P0 |
+| AC8.13.164 | `common.testing.evidence_bundle.build_evidence_bundle` assembles ONE evidence bundle (a gate map of lane->job->blocking, the four raise-only ratchet water-lines [unified coverage, AC behavioural score, AC authority-tier debt, protection floor], and corpus per-field accuracy from the cassette graded-eval corpus) from already-computed CI artifacts — it never re-runs a gate to get its data — with an optional `provider_health` field populated only by callers with a provider-backed gate result (#1690) {tier:CODE-ONLY} {proof:property} | `test_AC8_13_164_bundle_assembles_the_four_ratchet_water_lines_and_gate_map` | `tests/tooling/test_evidence_bundle.py` | P1 |
+| AC8.13.165 | Main-branch CI (after `unified-coverage` + `ac-behavioral-ratchet` complete) and the nightly `audit-replay.yml` run both generate the evidence bundle via the same `tools/generate_evidence_bundle.py` CLI, writing it to `$GITHUB_STEP_SUMMARY` and uploading it as a named `evidence-bundle` artifact; the nightly producer additionally supplies `--provider-status`/`--provider-exit-code` from the staging AI/OCR gate's own `ai_ocr_status`/`ai_ocr_exit_code` outputs, the main-CI producer does not (#1690) {tier:CODE-ONLY} {proof:property} | `test_AC8_13_165_both_producers_wire_the_same_generator_into_their_workflow` | `tests/tooling/test_evidence_bundle.py` | P1 |
+
 > (AC8.13.6 removed, canonical: migrated to `AC-testing.product-gates.1`.)
 > (AC8.13.9 removed, canonical: migrated to `AC-testing.deploy-gates.1`.)
 > (AC8.13.11 removed, canonical: migrated to `AC-testing.deploy-gates.2`.)
@@ -274,8 +311,6 @@ job inventories or scenario counts into this EPIC.
 > (AC8.13.15 removed, canonical: migrated to `AC-testing.coverage.1`.)
 > (AC8.13.16 removed, canonical: migrated to `AC-testing.classifier.1`.)
 > (AC8.13.17 removed, canonical: migrated to `AC-testing.acgates.1`.)
-| AC8.13.18 | Brokerage portfolio gate validates market valuation adjustment lines even when unrelated asset lines lower total assets | `test_portfolio_valuation_gate_ignores_unrelated_negative_asset_lines` / `test_portfolio_market_adjustment_survives_unrelated_negative_asset_lines` | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` / `apps/backend/tests/reporting/test_reporting_net_worth_components.py` | P0 |
-| AC8.13.19 | Brokerage portfolio gate failures include holdings, valuation adjustment, non-portfolio asset, and balance-sheet diagnostics | `test_portfolio_valuation_gate_failure_diagnostics_are_actionable` | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | P0 |
 > (AC8.13.20 removed, canonical: migrated to `AC-testing.classifier.2`.)
 > (AC8.13.21 removed, canonical: migrated to `AC-testing.deploy-gates.6`.)
 > (AC8.13.22 removed, canonical: migrated to `AC-testing.deploy-gates.7`.)
@@ -303,7 +338,6 @@ job inventories or scenario counts into this EPIC.
 > (AC8.13.45 removed, canonical: migrated to `AC-testing.toolchain.3`.)
 > (AC8.13.46 removed, canonical: migrated to `AC-testing.preview.2`.)
 > (AC8.13.47 removed, canonical: migrated to `AC-testing.governance.1`.)
-| AC8.13.48 | Frontend gap tests cover route, component, and API helper paths so frontend LCOV line coverage reaches 99% | `test_AC8_13_48_*` | `apps/frontend/src/__tests__/stage2ReviewQueueCoverage99.test.tsx`, `apps/frontend/src/__tests__/statementReviewPage.coverage.test.tsx`, `apps/frontend/src/__tests__/statementDetailPage.coverage.test.tsx`, `apps/frontend/src/__tests__/StatementUploader.test.tsx`, `apps/frontend/src/__tests__/journalPage.test.tsx`, `apps/frontend/src/__tests__/reconciliationWorkbenchComponent.test.tsx`, `apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx`, `apps/frontend/src/__tests__/apiFunctions.test.ts`, `apps/frontend/src/__tests__/accountsPage.test.tsx`, `apps/frontend/src/__tests__/assetsPage.test.tsx`, `apps/frontend/src/__tests__/statementsPage.test.tsx`, `apps/frontend/src/__tests__/useWorkspaceHook.test.tsx`, `apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx`, `apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx`, `apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx` | P0 |
 > (AC8.13.49 removed, canonical: migrated to `AC-testing.deploy-gates.11`.)
 > (AC8.13.50 removed, canonical: migrated to `AC-testing.acgates.6`.)
 > (AC8.13.51 removed, canonical: migrated to `AC-testing.deploy-gates.12`.)
@@ -316,9 +350,6 @@ job inventories or scenario counts into this EPIC.
 > (AC8.13.58 removed, canonical: migrated to `AC-testing.toolchain.7`.)
 > (AC8.13.59 removed, canonical: migrated to `AC-testing.toolchain.8`.)
 > (AC8.13.60 removed, canonical: migrated to `AC-testing.deploy-gates.15`.)
-| AC8.13.61 | Visual regression residual is explicitly owned by EPIC-008 as a P3 future testing capability | `test_AC8_13_61_visual_regression_residual_is_epic_owned` | `tests/tooling/test_archive_residual_epic_ownership.py` | P3 |
-| AC8.13.62 | Test observability residuals are explicitly owned by EPIC-008 with current replacements and future dashboard/notification/trend scope | `test_AC8_13_62_test_observability_residual_is_epic_owned` | `tests/tooling/test_archive_residual_epic_ownership.py` | P2 |
-| AC8.13.63 | Performance testing residual is explicitly owned by EPIC-008 with current Locust/staging coverage and future P95 trend gate scope | `test_AC8_13_63_performance_testing_residual_is_epic_owned` | `tests/tooling/test_archive_residual_epic_ownership.py` | P2 |
 > (AC8.13.64 removed, canonical: migrated to `AC-testing.deploy-gates.16`.)
 > (AC8.13.65 removed, canonical: migrated to `AC-testing.deploy-gates.17`.)
 > (AC8.13.66 removed, canonical: migrated to `AC-testing.coverage.3`.)
@@ -331,13 +362,11 @@ job inventories or scenario counts into this EPIC.
 > (AC8.13.73 removed, canonical: migrated to `AC-testing.preview.5`.)
 > (AC8.13.74 removed, canonical: migrated to `AC-testing.preview.6`.)
 > (AC8.13.75 removed, canonical: migrated to `AC-testing.coverage.4`.)
-| AC8.13.76 | Playwright mobile UX coverage proves Stage 1 and Stage 2 review workflows avoid document-level horizontal scroll and expose direct completion actions at phone widths | `AC16.26.*` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
 > (AC8.13.77 removed, canonical: migrated to `AC-testing.acgates.10`.)
 > (AC8.13.78 removed, canonical: migrated to `AC-testing.acgates.11`.)
 > (AC8.13.79 removed, canonical: migrated to `AC-testing.toolchain.9`.)
 > (AC8.13.80 removed, canonical: migrated to `AC-testing.acgates.12`.)
 > (AC8.13.81 removed, canonical: migrated to `AC-testing.governance.2`.)
-| AC8.13.82 | Playwright responsive UX coverage proves account and review layouts avoid mobile document overflow and desktop local table clipping | `AC2.17.1`, `AC16.27.2`, `AC16.27.3` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
 > (AC8.13.83 removed, canonical: migrated to `AC-testing.product-gates.8`.)
 > (AC8.13.84 removed, canonical: migrated to `AC-testing.product-gates.9`.)
 > (AC8.13.85 removed, canonical: migrated to `AC-testing.product-gates.10`.)
@@ -345,8 +374,6 @@ job inventories or scenario counts into this EPIC.
 > (AC8.13.87 removed, canonical: migrated to `AC-testing.product-gates.11`.)
 > (AC8.13.88 removed, canonical: migrated to `AC-testing.product-gates.12`.)
 > (AC8.13.89 removed, canonical: migrated to `AC-testing.preview.7`.)
-| AC8.13.90 | Frontend exposes `/frontend-version.json` with deployed `git_sha`/`version` metadata for PR preview readiness checks | `AC8.13.90 returns deployed frontend version metadata for PR preview readiness` | `frontendVersionRoute.test.ts` | P0 |
-| AC8.13.92 | Frontend Vitest coverage keeps a code-owned 98% baseline for line, statement, and function metrics plus an explicit branch floor while representative low-coverage routes and workflow surfaces stay covered | `AC8.13.92*` | `apps/frontend/src/__tests__/coverageBaseline.test.ts`, `apps/frontend/src/__tests__/personalReportPackagePage.test.tsx`, `apps/frontend/src/__tests__/workflowSurfaces.test.tsx`, `apps/frontend/src/__tests__/chatPanelComponent.test.tsx`, `apps/frontend/src/__tests__/investmentPerformanceSchedule.test.tsx`, `apps/frontend/src/__tests__/journalPage.test.tsx`, `apps/frontend/src/__tests__/sankeyChartComponent.test.tsx`, `apps/frontend/src/__tests__/toastProviderComponent.test.tsx`, `apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx` | P0 |
 > (AC8.13.93 removed, canonical: migrated to `AC-testing.deploy-gates.19`.)
 > (AC8.13.94 removed, canonical: migrated to `AC-testing.governance.3`.)
 > (AC8.13.95 removed, canonical: migrated to `AC-testing.governance.4`.)
@@ -416,8 +443,6 @@ job inventories or scenario counts into this EPIC.
 > (AC8.13.161 removed, canonical: migrated to `AC-testing.classifier.10`.)
 > (AC8.13.162 removed, canonical: migrated to `AC-testing.ci-structure.10`.)
 > (AC8.13.163 removed, canonical: migrated to `AC-testing.coverage.6`.)
-| AC8.13.164 | `common.testing.evidence_bundle.build_evidence_bundle` assembles ONE evidence bundle (a gate map of lane->job->blocking, the four raise-only ratchet water-lines [unified coverage, AC behavioural score, AC authority-tier debt, protection floor], and corpus per-field accuracy from the cassette graded-eval corpus) from already-computed CI artifacts — it never re-runs a gate to get its data — with an optional `provider_health` field populated only by callers with a provider-backed gate result (#1690) {tier:CODE-ONLY} {proof:property} | `test_AC8_13_164_bundle_assembles_the_four_ratchet_water_lines_and_gate_map` | `tests/tooling/test_evidence_bundle.py` | P1 |
-| AC8.13.165 | Main-branch CI (after `unified-coverage` + `ac-behavioral-ratchet` complete) and the nightly `audit-replay.yml` run both generate the evidence bundle via the same `tools/generate_evidence_bundle.py` CLI, writing it to `$GITHUB_STEP_SUMMARY` and uploading it as a named `evidence-bundle` artifact; the nightly producer additionally supplies `--provider-status`/`--provider-exit-code` from the staging AI/OCR gate's own `ai_ocr_status`/`ai_ocr_exit_code` outputs, the main-CI producer does not (#1690) {tier:CODE-ONLY} {proof:property} | `test_AC8_13_165_both_producers_wire_the_same_generator_into_their_workflow` | `tests/tooling/test_evidence_bundle.py` | P1 |
 
 ### AC8.14: Product Trust Proof Mirrors
 
@@ -428,7 +453,7 @@ job inventories or scenario counts into this EPIC.
 
 ### AC8.15: Full-Year Statement-to-Report End-to-End Acceptance
 
-Closing gate for the **Usable** milestone (G2∩G3, [#950](https://github.com/wangzitian0/finance_report/issues/950)): AC8.14.4 mirrors the ledger→report leg from *manual* entries in a *single* period; this group proves the **assembled** pipeline — statement parse → Stage-1 approval (balance-chain validated) → auto-posted ledger entries → period reports — ties out across **multiple months**. Deterministic by construction (rule-based CSV parse, no LLM; no AI classification, so counter-accounts fall back to `Income - Uncategorized` / `Expense - Uncategorized`).
+Closing gate for the **Usable** milestone (G2∩G3, [#950](https://github.com/wangzitian0/finance_report/issues/950)): AC-testing.trust-mirrors.4 mirrors the ledger→report leg from *manual* entries in a *single* period; this group proves the **assembled** pipeline — statement parse → Stage-1 approval (balance-chain validated) → auto-posted ledger entries → period reports — ties out across **multiple months**. Deterministic by construction (rule-based CSV parse, no LLM; no AI classification, so counter-accounts fall back to `Income - Uncategorized` / `Expense - Uncategorized`).
 
 | AC ID | Test Case | Test Function | File | Priority |
 |---|---|---|---|---|
@@ -732,7 +757,7 @@ submodule sync process.
   `env_stage_required`, `env_stage_reasons`, and provider gate matrices.
 - 2026-06-10: `PR Test Environment` now uses a stable per-PR canonical URL
   (`report-pr-<pr>.<domain>`) with commit-scoped aliases preserved for backward
-  compatibility. This closes #783 and is now documented through AC8.13.101.
+  compatibility. This closes #783 and is now documented through AC-testing.preview.10.
 - 2026-06-12: PR preview follows successful PR `CI` `workflow_run` events and
   runs only a runner-local full-stack preview. PR image build/push/preflight and
   immediate PR image deletion were removed; legacy Dokploy resources are
@@ -798,7 +823,7 @@ The simplification priority remains:
 #### 5 counterfactual assumptions + 5 operational guardrails
 
 1. If PR preview was still using commit-only hostnames, old `report-pr-<pr>.<domain>`
-   readers would still pass only by route alias mismatch: fixed by AC8.13.101.
+   readers would still pass only by route alias mismatch: fixed by AC-testing.preview.10.
 2. If `ci_change_classifier` regressed to `docs`-only heavy skip for runtime
    paths, PR CI would stop running backend/frontend/e2e for changed runtime files.
 3. If `env_stage_required` drifted from job conditions, merge authority would
