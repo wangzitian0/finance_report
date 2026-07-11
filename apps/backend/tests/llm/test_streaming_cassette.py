@@ -28,6 +28,7 @@ from pathlib import Path
 import pytest
 
 import src.llm.extension.client as client_mod
+from src.llm import accumulate_stream
 from src.llm.base import LLMError, ProtocolFamily, ProviderRef
 from src.llm.extension.cassette import (
     CassetteMiss,
@@ -37,7 +38,6 @@ from src.llm.extension.cassette import (
     fingerprint,
 )
 from src.llm.extension.client import litellm_stream
-from src.services.ai_streaming import accumulate_stream
 
 FIXTURE_CASSETTE_DIR = Path(__file__).resolve().parents[4] / "common" / "testing" / "fixtures" / "llm_cassettes"
 

@@ -1,4 +1,4 @@
-"""ai_streaming delegates to litellm (EPIC-023 PR3 cutover).
+"""src.llm.extension.streaming delegates to litellm (EPIC-023 PR3 cutover).
 
 The old httpx/SSE transport is gone; these tests pin the litellm delegation:
 provider resolution (explicit creds vs configured default), JSON/chat streaming,
@@ -11,10 +11,10 @@ from __future__ import annotations
 import pytest
 
 import src.llm.extension.client as client_mod
-import src.services.ai_streaming as ai_streaming
+import src.llm.extension.streaming as streaming
 from src.config import settings
+from src.llm import AIStreamError, accumulate_stream, stream_ai_chat, stream_ai_json
 from src.llm.base import LLMError, ProtocolFamily, ProviderRef
-from src.services.ai_streaming import AIStreamError, accumulate_stream, stream_ai_chat, stream_ai_json
 
 pytestmark = pytest.mark.no_db
 
@@ -136,7 +136,7 @@ async def test_stream_resolves_default_provider_from_config(litellm_stub, monkey
                 )
             ]
 
-    monkeypatch.setattr(ai_streaming, "get_config_source", lambda *_a, **_k: _Cfg())
+    monkeypatch.setattr(streaming, "get_config_source", lambda *_a, **_k: _Cfg())
     text = await accumulate_stream(stream_ai_chat([{"role": "user", "content": "hi"}], "glm-5.1"))
     assert text == '{"ok": true}'
     assert litellm_stub["kwargs"]["model"] == "openai/glm-5.1"
@@ -149,7 +149,7 @@ async def test_stream_raises_when_no_provider_configured(monkeypatch):
         async def list_providers(self):
             return []
 
-    monkeypatch.setattr(ai_streaming, "get_config_source", lambda *_a, **_k: _Empty())
+    monkeypatch.setattr(streaming, "get_config_source", lambda *_a, **_k: _Empty())
     with pytest.raises(AIStreamError):
         await accumulate_stream(stream_ai_json([{"role": "user", "content": "x"}], "glm-5.1"))
 
@@ -164,7 +164,7 @@ async def test_stream_fails_closed_with_multiple_providers(monkeypatch):
                 ProviderRef(id="b", label="b", protocol=ProtocolFamily.OPENROUTER_COMPATIBLE, api_key="k2"),
             ]
 
-    monkeypatch.setattr(ai_streaming, "get_config_source", lambda *_a, **_k: _Multi())
+    monkeypatch.setattr(streaming, "get_config_source", lambda *_a, **_k: _Multi())
     with pytest.raises(AIStreamError):
         await accumulate_stream(stream_ai_json([{"role": "user", "content": "x"}], "glm-5.1"))
 
@@ -175,7 +175,7 @@ async def test_AC23_4_7_records_request_and_token_usage(litellm_stub, monkeypatc
     from src.llm.base.usage import LlmUsageMeter
 
     meter = LlmUsageMeter()
-    monkeypatch.setattr(ai_streaming, "get_usage_meter", lambda: meter)
+    monkeypatch.setattr(streaming, "get_usage_meter", lambda: meter)
 
     text = await accumulate_stream(stream_ai_chat([{"role": "user", "content": "hello there"}], "glm-5.1", api_key="k"))
     assert text == '{"ok": true}'
@@ -205,7 +205,7 @@ async def test_AC23_4_5_user_qualified_model_resolves_exact_provider_with_many(l
         async def get_provider(self, provider_id):
             return {"a": prov_a, "b": prov_b}.get(provider_id)
 
-    monkeypatch.setattr(ai_streaming, "get_config_source", lambda *_a, **_k: _MultiScoped())
+    monkeypatch.setattr(streaming, "get_config_source", lambda *_a, **_k: _MultiScoped())
     # Qualified model "b/glm-4.6" + a real user_id -> provider b is selected, bare model sent.
     text = await accumulate_stream(stream_ai_chat([{"role": "user", "content": "hi"}], "b/glm-4.6", user_id=uuid4()))
     assert text == '{"ok": true}'
@@ -234,7 +234,7 @@ async def test_AC10_10_4_ai_provider_call_metric_emitted_on_success(litellm_stub
     (outcome=success), driven through the real _stream_ai_base path."""
     _explicit_provider(monkeypatch)
     calls: list[dict] = []
-    monkeypatch.setattr(ai_streaming, "record_ai_provider_call", lambda **kw: calls.append(kw))
+    monkeypatch.setattr(streaming, "record_ai_provider_call", lambda **kw: calls.append(kw))
 
     text = await accumulate_stream(
         stream_ai_json([{"role": "user", "content": "x"}], "glm-4.6v", api_key="sk-explicit")
@@ -255,13 +255,13 @@ async def test_AC10_10_4_ai_provider_call_metric_emitted_on_error(monkeypatch):
     and still re-raises AIStreamError."""
     _explicit_provider(monkeypatch)
     calls: list[dict] = []
-    monkeypatch.setattr(ai_streaming, "record_ai_provider_call", lambda **kw: calls.append(kw))
+    monkeypatch.setattr(streaming, "record_ai_provider_call", lambda **kw: calls.append(kw))
 
     async def boom_stream(*_a, **_k):
         raise LLMError("provider exploded", retryable=True)
         yield  # pragma: no cover - async-generator marker
 
-    monkeypatch.setattr(ai_streaming, "litellm_stream", lambda *a, **k: boom_stream())
+    monkeypatch.setattr(client_mod, "litellm_stream", lambda *a, **k: boom_stream())
 
     with pytest.raises(AIStreamError):
         await accumulate_stream(stream_ai_json([{"role": "user", "content": "x"}], "glm-4.6v", api_key="sk-explicit"))

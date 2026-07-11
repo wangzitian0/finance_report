@@ -60,7 +60,7 @@ settings = src.config.settings
 
 def _ai_stream_error() -> type[Exception]:
     # Lazy: see the stream_ai_json proxy note (litellm-free package root).
-    from src.services.ai_streaming import AIStreamError
+    from src.llm import AIStreamError
 
     return AIStreamError
 

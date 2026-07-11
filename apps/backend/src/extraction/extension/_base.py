@@ -66,20 +66,19 @@ class ExtractionError(Exception):
 
 
 def stream_ai_json(*args: Any, **kwargs: Any) -> AsyncIterator[str]:
-    """Thin lazy proxy over ``src.services.ai_streaming.stream_ai_json``.
+    """Thin lazy proxy over ``src.llm.stream_ai_json``.
 
     Module-level so tests can monkeypatch it (via this module or the modules
-    that re-export it), but the import happens on first call — ai_streaming
-    pulls the llm package's litellm surface, which minimal tooling envs (that
-    import this package root) do not install.
+    that re-export it), but the import happens on first call to keep this
+    package root's import graph minimal.
     """
-    from src.services import ai_streaming
+    from src.llm import stream_ai_json as _stream_ai_json
 
-    return ai_streaming.stream_ai_json(*args, **kwargs)
+    return _stream_ai_json(*args, **kwargs)
 
 
 async def accumulate_stream(*args: Any, **kwargs: Any) -> str:
-    """Thin lazy proxy over ``src.services.ai_streaming.accumulate_stream`` (see above)."""
-    from src.services import ai_streaming
+    """Thin lazy proxy over ``src.llm.accumulate_stream`` (see above)."""
+    from src.llm import accumulate_stream as _accumulate_stream
 
-    return await ai_streaming.accumulate_stream(*args, **kwargs)
+    return await _accumulate_stream(*args, **kwargs)

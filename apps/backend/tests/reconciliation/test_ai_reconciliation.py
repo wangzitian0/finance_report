@@ -39,11 +39,11 @@ async def test_ai_semantic_score_returns_score():
     with (
         patch("src.reconciliation.extension.scoring.settings") as mock_settings,
         patch(
-            "src.services.ai_streaming.stream_ai_json",
+            "src.llm.stream_ai_json",
             return_value=mock_stream,
         ),
         patch(
-            "src.services.ai_streaming.accumulate_stream",
+            "src.llm.accumulate_stream",
             mock_accumulate,
         ),
     ):
@@ -70,11 +70,11 @@ async def test_ai_semantic_score_returns_low_for_unrelated():
     with (
         patch("src.reconciliation.extension.scoring.settings") as mock_settings,
         patch(
-            "src.services.ai_streaming.stream_ai_json",
+            "src.llm.stream_ai_json",
             return_value=mock_stream,
         ),
         patch(
-            "src.services.ai_streaming.accumulate_stream",
+            "src.llm.accumulate_stream",
             mock_accumulate,
         ),
     ):
@@ -93,14 +93,14 @@ async def test_ai_semantic_score_returns_low_for_unrelated():
 
 async def test_ai_semantic_score_fallback_on_error():
     """ai_semantic_score falls back to 50 on any error."""
-    from src.services.ai_streaming import AIStreamError
+    from src.llm import AIStreamError
 
     mock_stream = MagicMock(side_effect=AIStreamError("API error"))
 
     with (
         patch("src.reconciliation.extension.scoring.settings") as mock_settings,
         patch(
-            "src.services.ai_streaming.stream_ai_json",
+            "src.llm.stream_ai_json",
             mock_stream,
         ),
     ):
@@ -139,11 +139,11 @@ async def test_ai_semantic_score_empty_response_returns_50():
     with (
         patch("src.reconciliation.extension.scoring.settings") as mock_settings,
         patch(
-            "src.services.ai_streaming.stream_ai_json",
+            "src.llm.stream_ai_json",
             return_value=mock_stream,
         ),
         patch(
-            "src.services.ai_streaming.accumulate_stream",
+            "src.llm.accumulate_stream",
             mock_accumulate,
         ),
     ):
@@ -170,11 +170,11 @@ async def test_ai_semantic_score_clamps_to_range():
     with (
         patch("src.reconciliation.extension.scoring.settings") as mock_settings,
         patch(
-            "src.services.ai_streaming.stream_ai_json",
+            "src.llm.stream_ai_json",
             return_value=mock_stream,
         ),
         patch(
-            "src.services.ai_streaming.accumulate_stream",
+            "src.llm.accumulate_stream",
             mock_accumulate,
         ),
     ):

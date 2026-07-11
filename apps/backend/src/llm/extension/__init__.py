@@ -35,8 +35,15 @@ from src.llm.extension.factory import (
 )
 from src.llm.extension.ocr_client import ocr_layout_call
 from src.llm.extension.routing import LitellmCall, build_call
+from src.llm.extension.streaming import (
+    AIStreamError,
+    accumulate_stream,
+    stream_ai_chat,
+    stream_ai_json,
+)
 
 __all__ = [
+    "AIStreamError",
     "CASSETTE_DIR",
     "Cassette",
     "CassetteMiss",
@@ -49,6 +56,7 @@ __all__ = [
     "EnvConfigSource",
     "LayeredConfigSource",
     "LitellmCall",
+    "accumulate_stream",
     "build_call",
     "fingerprint",
     "get_config_source",
@@ -56,4 +64,6 @@ __all__ = [
     "miss_summary",
     "ocr_layout_call",
     "protocol_for",
+    "stream_ai_chat",
+    "stream_ai_json",
 ]

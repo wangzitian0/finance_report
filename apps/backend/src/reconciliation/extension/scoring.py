@@ -242,12 +242,8 @@ async def ai_semantic_score(
     """
     import json
 
+    from src.llm import AIStreamError, accumulate_stream, stream_ai_json
     from src.prompts.reconciliation import build_reconciliation_prompt
-    from src.services.ai_streaming import (
-        AIStreamError,
-        accumulate_stream,
-        stream_ai_json,
-    )
 
     prompt = build_reconciliation_prompt(
         txn_description=txn_description,

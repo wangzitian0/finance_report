@@ -18,7 +18,10 @@ CONTRACT = PackageContract(
     # were declared but had zero real imports — removed. Re-add each with its
     # first real import, not before (a declared-but-unused edge now fails
     # check_package_contract).
-    depends_on=["audit", "extraction", "ledger", "observability"],
+    # llm added #1670: extension/scoring.py's AI semantic-match scoring streams
+    # a prompt through src.llm (graceful None fallback on any error — advisory
+    # signal, not a hard dependency on model correctness).
+    depends_on=["audit", "extraction", "ledger", "llm", "observability"],
     roles=["base", "extension", "data"],
     units=[
         Unit(name="ReconciliationMatch", kind=Kind.AGGREGATE_ROOT),
