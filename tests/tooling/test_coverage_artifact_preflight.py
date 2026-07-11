@@ -271,6 +271,7 @@ class TestGateComponentsScoping:
     def test_AC8_13_163_scoped_to_the_regressed_component_still_fails(
         self, tmp_path, monkeypatch, capsys
     ):
+        """AC-testing.coverage.6: calculate_unified_coverage's no-regression gate accepts a --gate-components/COVERAGE_GATE_COMPONENTS scope: on pull_request events it BLOCKS only o..."""
         self._scoped_env(tmp_path, monkeypatch)
         with pytest.raises(SystemExit) as exc:
             cuc.main(["--gate-components", "backend"])

@@ -1557,7 +1557,7 @@ def test_AC8_13_53_pr_ci_avoids_moon_bootstrap_for_direct_gates() -> None:
 
 
 def test_AC8_13_145_backend_tier1_pr_fail_fast_but_main_reports_all_failures() -> None:
-    """AC8.13.145: PR Tier-1 E2E is fail-fast; main push reports every failure."""
+    """AC-testing.ci-structure.6: AC8.13.145: PR Tier-1 E2E is fail-fast; main push reports every failure."""
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     inventory = read("docs/ssot/ci-gate-inventory.yaml")
@@ -1578,7 +1578,7 @@ def test_AC8_13_145_backend_tier1_pr_fail_fast_but_main_reports_all_failures() -
 
 
 def test_AC8_13_147_frontend_ci_split_preserves_merge_authority() -> None:
-    """AC8.13.147: frontend PR CI is split without dropping required proof."""
+    """AC-testing.ci-structure.7: AC8.13.147: frontend PR CI is split without dropping required proof."""
     workflow_text = read(".github/workflows/ci.yml")
     workflow = yaml.safe_load(workflow_text)
     jobs = workflow["jobs"]
@@ -1663,7 +1663,7 @@ def test_AC8_13_147_frontend_ci_split_preserves_merge_authority() -> None:
 
 
 def test_AC8_13_162_frontend_telemetry_e2e_is_right_moved_and_skip_is_a_pass() -> None:
-    """AC8.13.162: frontend-telemetry-e2e is right-moved off unrelated PRs
+    """AC-testing.ci-structure.10: AC8.13.162: frontend-telemetry-e2e is right-moved off unrelated PRs
     (mirrors container-images' image_build_required pattern), and finish's
     aggregation treats its skip as a pass, not a gap (#1689)."""
     workflow = yaml.safe_load(read(".github/workflows/ci.yml"))
@@ -1691,7 +1691,7 @@ def test_AC8_13_162_frontend_telemetry_e2e_is_right_moved_and_skip_is_a_pass() -
 
 
 def test_AC8_13_148_backend_shards_use_seeded_5_way_split() -> None:
-    """AC8.13.148: backend shards use a seeded 5-way least-duration split."""
+    """AC-testing.ci-structure.8: AC8.13.148: backend shards use a seeded 5-way least-duration split."""
     workflow_text = read(".github/workflows/ci.yml")
     workflow = yaml.safe_load(workflow_text)
     backend_job = workflow["jobs"]["backend"]
@@ -1736,7 +1736,7 @@ def test_AC8_13_148_backend_shards_use_seeded_5_way_split() -> None:
 
 
 def test_AC8_13_149_fan_in_jobs_download_only_required_artifacts() -> None:
-    """AC8.13.149: coverage and ratchet fan-in stays scoped and stdlib-fast."""
+    """AC-testing.ci-structure.9: AC8.13.149: coverage and ratchet fan-in stays scoped and stdlib-fast."""
     workflow_text = read(".github/workflows/ci.yml")
     workflow = yaml.safe_load(workflow_text)
     jobs = workflow["jobs"]
@@ -2636,7 +2636,7 @@ def test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate
 
 
 def test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates() -> None:
-    """AC8.13.25: Full CI starts tests early while finish aggregates every gate."""
+    """AC-testing.ci-structure.1: AC8.13.25: Full CI starts tests early while finish aggregates every gate."""
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
@@ -2678,7 +2678,7 @@ def test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates() -> No
 
 
 def test_AC8_13_86_fast_feedback_jobs_do_not_wait_for_behavior_gates() -> None:
-    """AC8.13.86: CI fast feedback jobs preserve actual workflow dependency semantics."""
+    """AC-testing.ci-structure.5: AC8.13.86: CI fast feedback jobs preserve actual workflow dependency semantics."""
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
@@ -2806,7 +2806,7 @@ def test_AC8_13_67_backend_tier1_api_e2e_scope_excludes_browser_e2e() -> None:
 
 
 def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
-    """AC8.13.27: PR CI has no external Coveralls status surface."""
+    """AC-testing.coverage.2: AC8.13.27: PR CI has no external Coveralls status surface."""
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     coverage = read("docs/ssot/coverage.md")
@@ -2847,7 +2847,7 @@ def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
 
 
 def test_AC8_13_75_coverage_gate_summary_is_nonblocking() -> None:
-    """AC8.13.75: Coverage summary display cannot fail final CI aggregation."""
+    """AC-testing.coverage.4: AC8.13.75: Coverage summary display cannot fail final CI aggregation."""
     workflow = read(".github/workflows/ci.yml")
 
     summary_block = workflow.split("- name: Write coverage gate summary", 1)[1].split(
@@ -2902,7 +2902,7 @@ def test_AC8_13_75_unified_coverage_uploads_debug_context() -> None:
 def test_AC8_13_143_unified_coverage_updates_baseline_through_pr_not_direct_main_push() -> (
     None
 ):
-    """AC8.13.143: main baseline updates are automated through a PR, not a direct push."""
+    """AC-testing.coverage.5: AC8.13.143: main baseline updates are automated through a PR, not a direct push."""
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     inventory = read("docs/ssot/ci-gate-inventory.yaml")
@@ -3740,7 +3740,7 @@ def test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical() -> 
 
 
 def test_AC8_13_33_e2e_setup_caches_virtualenv_and_playwright_browsers() -> None:
-    """AC8.13.33: shared E2E setup caches Python and Playwright install work."""
+    """AC-testing.ci-structure.3: AC8.13.33: shared E2E setup caches Python and Playwright install work."""
     action = read(".github/actions/setup-e2e-tests/action.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 

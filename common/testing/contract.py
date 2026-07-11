@@ -2060,6 +2060,248 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        # ── group ci-structure: CI job structure & fan-in (was EPIC-008
+        # AC8.13 subset), migration closeout, #1663 / #1718 ──
+        ACRecord(
+            id="AC-testing.ci-structure.1",
+            statement=(
+                "Full CI starts deterministic test and image jobs after change "
+                "classification while finish aggregates lint, AC traceability, tests, "
+                "image validation, coverage, and skipped-job semantics (Was EPIC-008 "
+                "AC8.13.25)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.ci-structure.2",
+            statement=(
+                "CI metrics contract fails when source roots, coverage policy, "
+                "workflow gates, or AC traceability semantics drift (Was EPIC-008 "
+                "AC8.13.26)."
+            ),
+            test=(
+                "tests/tooling/test_ci_metrics_contract.py"
+                "::test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantics"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.ci-structure.3",
+            statement=(
+                "Shared E2E setup caches Python virtualenv and Playwright browser "
+                "artifacts for staging and preview gates and exports repository-root "
+                "PYTHONPATH for stable tests.e2e.* imports (Was EPIC-008 AC8.13.33)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_33_e2e_setup_caches_virtualenv_and_playwright_browsers"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.ci-structure.4",
+            statement=(
+                "CI and post-merge workflows append queue, execution, and per-job "
+                "timing summaries to GitHub Step Summary (Was EPIC-008 AC8.13.34)."
+            ),
+            test=(
+                "tests/tooling/test_github_workflow_timing_summary.py"
+                "::test_AC8_13_34_format_duration_uses_compact_minutes"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.ci-structure.5",
+            statement=(
+                "CI fast feedback jobs start after change classification without "
+                "waiting for behavior-only backend gates (Was EPIC-008 AC8.13.86)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_86_fast_feedback_jobs_do_not_wait_for_behavior_gates"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.ci-structure.6",
+            statement=(
+                "Backend Tier-1 API E2E keeps PR fail-fast for speed but push/main "
+                "runs the full Tier-1 suite so the JUnit artifact reports every "
+                "failing API journey in one run (Was EPIC-008 AC8.13.145)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_145_backend_tier1_pr_fail_fast_but_main_reports_all_failures"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.ci-structure.7",
+            statement=(
+                "Frontend PR CI is split into build/typecheck, Vitest coverage, "
+                "provider-free Playwright, and telemetry E2E jobs while preserving "
+                "coverage-frontend, frontend Vitest JUnit evidence, unified-coverage "
+                "fan-in, AC behavioral ratchet fan-in, and finish aggregation over "
+                "every frontend gate (Was EPIC-008 AC8.13.147)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_147_frontend_ci_split_preserves_merge_authority"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.ci-structure.8",
+            statement=(
+                "Backend fast-test CI shards rebalance the current critical path with "
+                "a 5-way pytest-split matrix, a committed duration seed, "
+                "least-duration assignment, and a seed-size guard so CI cannot "
+                "silently fall back to unseeded even splitting (Was EPIC-008 "
+                "AC8.13.148)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_148_backend_shards_use_seeded_5_way_split"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.ci-structure.9",
+            statement=(
+                "CI fan-in jobs trim post-backend tail work without weakening merge "
+                "authority: unified coverage runs stdlib Python over scoped coverage "
+                "artifacts, and the AC behavioral ratchet downloads only "
+                "JUnit-producing test-context artifacts (Was EPIC-008 AC8.13.149)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_149_fan_in_jobs_download_only_required_artifacts"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.ci-structure.10",
+            statement=(
+                "frontend-telemetry-e2e is right-moved off PRs that touch no "
+                "apps/frontend/ path (mirrors container-images' image_build_required "
+                "pattern): it always runs on a main/release push or manual dispatch, "
+                "and a skip is a pass (not a gap) in finish's aggregation, so "
+                "unrelated PRs stop paying its browser-install wall-clock cost "
+                "(#1689) (Was EPIC-008 AC8.13.162)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_162_frontend_telemetry_e2e_is_right_moved_and_skip_is_a_pass"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        # ── group coverage: coverage/LCOV gates (was EPIC-008 AC8.13
+        # subset), migration closeout, #1663 / #1718 ──
+        ACRecord(
+            id="AC-testing.coverage.1",
+            statement=(
+                "Unified coverage policy keeps CI source tree, LCOV reports, and "
+                "Coveralls uploads aligned (Was EPIC-008 AC8.13.15)."
+            ),
+            test=(
+                "tests/tooling/test_ci_metrics_contract.py"
+                "::test_AC8_13_26_future_app_source_roots_must_be_in_coverage_policy"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.coverage.2",
+            statement=(
+                "Pull requests do not publish Coveralls status contexts; main-only "
+                "Coveralls reporting remains separate from local deterministic "
+                "coverage gates (Was EPIC-008 AC8.13.27)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_27_coveralls_uploads_are_reporting_only"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.coverage.3",
+            statement=(
+                "Coveralls uploads strip branch counters so external percentages "
+                "track the line-only unified coverage gate (Was EPIC-008 AC8.13.66)."
+            ),
+            test=(
+                "tests/tooling/test_strip_lcov_branches.py"
+                "::test_AC8_13_66_strip_lcov_branches_cli_exits_zero"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.coverage.4",
+            statement=(
+                "Reporting-only coverage gate summary cannot fail the final CI "
+                "aggregation job if GitHub Step Summary writes fail (Was EPIC-008 "
+                "AC8.13.75)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_75_coverage_gate_summary_is_nonblocking"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.coverage.5",
+            statement=(
+                "Main CI automatically opens or updates a reviewed baseline PR when "
+                "unified-coverage.json rises, while PR CI keeps the committed "
+                "no-regression gate and no new required status context is introduced "
+                "(Was EPIC-008 AC8.13.143)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_143_unified_coverage_updates_baseline_through_pr_not_direct_main_push"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.coverage.6",
+            statement=(
+                "calculate_unified_coverage's no-regression gate accepts a "
+                "--gate-components/COVERAGE_GATE_COMPONENTS scope: on pull_request "
+                "events it BLOCKS only on regressions in the components the PR "
+                "actually changed (an unrelated component's regression, and the "
+                "blended \"unified\" total, are still computed and reported but do not "
+                "fail the job); every component is still merged into "
+                "unified-coverage.json regardless of scope, and a push to main always "
+                "omits the scope (full, unscoped, unchanged-strict gate) (#1689) (Was "
+                "EPIC-008 AC8.13.163)."
+            ),
+            test=(
+                "tests/tooling/test_coverage_artifact_preflight.py"
+                "::test_AC8_13_163_scoped_to_the_regressed_component_still_fails"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
     ],
 )
 
