@@ -271,7 +271,7 @@ def _line_total_by_name(lines: list[dict], token: str) -> Decimal:
 @ac_proof(
     "four-asset-as-of-net-worth",
     ac_ids=[
-        "AC8.13.42",
+        "AC-testing.product-gates.7",
         "AC-extraction.813.10",
         "AC5.7.3",
         "AC11.9.1",
@@ -301,9 +301,9 @@ async def test_four_asset_as_of_net_worth_golden_path(
     authenticated_page_unique: Page,
     tmp_path: Path,
 ) -> None:
-    """EPIC-005 EPIC-008 EPIC-011 EPIC-017.
+    """AC-testing.product-gates.7: EPIC-005 EPIC-008 EPIC-011 EPIC-017.
 
-    AC8.13.42 AC-extraction.813.10 AC5.7.3 AC11.9.1 AC11.9.2 AC11.9.3 AC17.5.4:
+    AC-testing.product-gates.7 AC-extraction.813.10 AC5.7.3 AC11.9.1 AC11.9.2 AC11.9.3 AC17.5.4:
     four assets produce exact as-of net worth.
     """
     page = authenticated_page_unique

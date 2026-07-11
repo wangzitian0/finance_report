@@ -1505,6 +1505,173 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        # ── group product-gates: product-journey hard gates & fixture
+        # contracts (was EPIC-008 AC8.13 subset), migration closeout,
+        # #1663 / #1718 ──
+        ACRecord(
+            id="AC-testing.product-gates.1",
+            statement=(
+                "Critical staging E2E skips fail the deploy gate (Was EPIC-008 "
+                "AC8.13.6)."
+            ),
+            test=(
+                "tests/tooling/test_critical_skip_gate.py"
+                "::test_AC8_13_6_strict_gates_off_never_converts"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.product-gates.2",
+            statement=(
+                "Deterministic upload-to-dashboard gate runs as a critical fresh-user "
+                "staging E2E (Was EPIC-008 AC8.13.28)."
+            ),
+            test=(
+                "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py"
+                "::test_statement_upload_to_dashboard_vision_hard_gate"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.product-gates.3",
+            statement=(
+                "Stage 1 review auto-posts journal entries from the deterministic "
+                "fixture (Was EPIC-008 AC8.13.29)."
+            ),
+            test=(
+                "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py"
+                "::test_statement_upload_to_dashboard_vision_hard_gate"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.product-gates.4",
+            statement=(
+                "Reconciliation rerun is idempotent and Stage 2 run review reaches a "
+                "cleared completion state (Was EPIC-008 AC8.13.30)."
+            ),
+            test=(
+                "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py"
+                "::test_statement_upload_to_dashboard_vision_hard_gate"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.product-gates.5",
+            statement=(
+                "Processing Account summary and pending page stay visible and correct "
+                "for the cleared run (Was EPIC-008 AC8.13.31)."
+            ),
+            test=(
+                "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py"
+                "::test_statement_upload_to_dashboard_vision_hard_gate"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.product-gates.6",
+            statement=(
+                "Dashboard, balance sheet, income statement, and cash-flow totals "
+                "exactly match the deterministic upload fixture (Was EPIC-008 "
+                "AC8.13.32)."
+            ),
+            test=(
+                "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py"
+                "::test_statement_upload_to_dashboard_vision_hard_gate"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.product-gates.7",
+            statement=(
+                "Four-asset as-of net worth golden path runs as a critical fresh-user "
+                "post-merge E2E (Was EPIC-008 AC8.13.42)."
+            ),
+            test=(
+                "tests/e2e/test_four_asset_net_worth_golden_path.py"
+                "::test_four_asset_as_of_net_worth_golden_path"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.product-gates.8",
+            statement=(
+                "Personal report package representative fixture contract defines bank "
+                "cash, income/expense activity, brokerage holdings, manual property "
+                "valuation, liability, restricted compensation, notes, traceability "
+                "anchors, and exact Decimal expected outputs (Was EPIC-008 "
+                "AC8.13.83)."
+            ),
+            test=(
+                "tests/tooling/test_personal_report_package_fixture_contract.py"
+                "::test_AC8_13_83_representative_package_fixture_contract_defines_exact_outputs"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.product-gates.9",
+            statement=(
+                "Personal report package post-merge E2E consumes the representative "
+                "fixture contract instead of duplicating financial constants or "
+                "expected totals inline (Was EPIC-008 AC8.13.84)."
+            ),
+            test=(
+                "tests/tooling/test_personal_report_package_fixture_contract.py"
+                "::test_AC8_13_84_personal_package_e2e_consumes_representative_fixture_contract"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.product-gates.10",
+            statement=(
+                "Personal financial report package macro proof is promoted to covered "
+                "only when the representative fixture contract ACs are part of the "
+                "critical proof matrix (Was EPIC-008 AC8.13.85)."
+            ),
+            test=(
+                "tests/tooling/test_personal_report_package_fixture_contract.py"
+                "::test_AC8_13_85_personal_package_macro_proof_is_promoted_after_fixture_contract"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.product-gates.11",
+            statement=(
+                "Personal report package fixture contract pins brokerage, dividend, "
+                "and market-price expected outputs as Decimal-safe audit fixtures "
+                "(Was EPIC-008 AC8.13.87)."
+            ),
+            test=(
+                "tests/tooling/test_personal_report_package_fixture_contract.py"
+                "::test_AC8_13_87_personal_package_fixture_pins_brokerage_dividend_and_market_price_outputs"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.product-gates.12",
+            statement=(
+                "Personal report package post-merge E2E consumes the audit-grade "
+                "brokerage, dividend, market-price, and traceability identifier "
+                "expected outputs (Was EPIC-008 AC8.13.88)."
+            ),
+            test=(
+                "tests/tooling/test_personal_report_package_fixture_contract.py"
+                "::test_AC8_13_88_personal_package_e2e_consumes_audit_grade_expected_outputs"
+            ),
+            priority="P0",
+            status="done",
+        ),
     ],
 )
 

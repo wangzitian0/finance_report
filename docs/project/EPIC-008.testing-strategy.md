@@ -265,7 +265,7 @@ job inventories or scenario counts into this EPIC.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC8.13.6 | Critical staging E2E skips fail the deploy gate | `pytest_runtest_makereport` | `tests/e2e/conftest.py` | P0 |
+> (AC8.13.6 removed, canonical: migrated to `AC-testing.product-gates.1`.)
 > (AC8.13.9 removed, canonical: migrated to `AC-testing.deploy-gates.1`.)
 > (AC8.13.11 removed, canonical: migrated to `AC-testing.deploy-gates.2`.)
 > (AC8.13.12 removed, canonical: migrated to `AC-testing.deploy-gates.3`.)
@@ -284,11 +284,11 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.25 | Full CI starts deterministic test and image jobs after change classification while `finish` aggregates lint, AC traceability, tests, image validation, coverage, and skipped-job semantics | `test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates` | `tests/tooling/test_post_merge_e2e_gates.py` | P1 |
 | AC8.13.26 | CI metrics contract fails when source roots, coverage policy, workflow gates, or AC traceability semantics drift | `test_AC8_13_26_*` | `tests/tooling/` | P0 |
 | AC8.13.27 | Pull requests do not publish Coveralls status contexts; main-only Coveralls reporting remains separate from local deterministic coverage gates | `test_AC8_13_27_*` | `tests/tooling/` | P0 |
-| AC8.13.28 | Deterministic upload-to-dashboard gate runs as a critical fresh-user staging E2E | `test_statement_upload_to_dashboard_vision_hard_gate`, `test_AC8_13_28_vision_hard_gate_uses_statement_id_link_locator`, `test_AC8_13_28_vision_hard_gate_waits_for_review_payload_before_approval` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
-| AC8.13.29 | Stage 1 review auto-posts journal entries from the deterministic fixture | `test_statement_upload_to_dashboard_vision_hard_gate` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | P0 |
-| AC8.13.30 | Reconciliation rerun is idempotent and Stage 2 run review reaches a cleared completion state | `test_statement_upload_to_dashboard_vision_hard_gate`, `test_AC8_13_30_vision_hard_gate_waits_for_stage2_queue_page_payload` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
-| AC8.13.31 | Processing Account summary and pending page stay visible and correct for the cleared run | `test_statement_upload_to_dashboard_vision_hard_gate` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | P0 |
-| AC8.13.32 | Dashboard, balance sheet, income statement, and cash-flow totals exactly match the deterministic upload fixture | `test_statement_upload_to_dashboard_vision_hard_gate` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | P0 |
+> (AC8.13.28 removed, canonical: migrated to `AC-testing.product-gates.2`.)
+> (AC8.13.29 removed, canonical: migrated to `AC-testing.product-gates.3`.)
+> (AC8.13.30 removed, canonical: migrated to `AC-testing.product-gates.4`.)
+> (AC8.13.31 removed, canonical: migrated to `AC-testing.product-gates.5`.)
+> (AC8.13.32 removed, canonical: migrated to `AC-testing.product-gates.6`.)
 | AC8.13.33 | Shared E2E setup caches Python virtualenv and Playwright browser artifacts for staging and preview gates and exports repository-root `PYTHONPATH` for stable `tests.e2e.*` imports | `test_AC8_13_33_e2e_setup_caches_virtualenv_and_playwright_browsers` | `tests/tooling/test_post_merge_e2e_gates.py` | P1 |
 | AC8.13.34 | CI and post-merge workflows append queue, execution, and per-job timing summaries to GitHub Step Summary | `test_AC8_13_34_*` | `tests/tooling/` | P1 |
 | AC8.13.35 | AC traceability reporting distinguishes real test references from `_ac_stubs` and trivial placeholder assertions | `test_classifies_placeholder_assertion`, `test_classifies_pure_pass_ac_file_as_placeholder`, `test_classifies_ac_stub_directory`, `test_placeholder_and_stub_refs_do_not_count_as_real_coverage` | `tests/tooling/test_check_ac_traceability.py` | P0 |
@@ -298,7 +298,7 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.39 | Runtime and container versions stay aligned across local, CI, and Docker environments | `test_AC8_13_39_*` | `tests/tooling/test_toolchain_contract.py` | P0 |
 > (AC8.13.40 removed, canonical: migrated to `AC-testing.deploy-gates.10`.)
 | AC8.13.41 | Critical proof matrix fails when a core product proof path is backed only by broad or reference-only AC strings | `test_*critical_proof_matrix*` | `tests/tooling/test_check_critical_proof_matrix.py` | P0 |
-| AC8.13.42 | Four-asset as-of net worth golden path runs as a critical fresh-user post-merge E2E | `test_four_asset_as_of_net_worth_golden_path`, `test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical` | `tests/e2e/test_four_asset_net_worth_golden_path.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+> (AC8.13.42 removed, canonical: migrated to `AC-testing.product-gates.7`.)
 | AC8.13.44 | Local bootstrap provides one command for runtimes, dependency setup, pre-commit hooks, and container-runtime diagnostics | `test_AC8_13_44_*` | `tests/tooling/test_bootstrap_local.py`, `tests/tooling/test_cli_and_dev_servers.py`, `tests/tooling/test_toolchain_contract.py` | P0 |
 | AC8.13.45 | Local verification entry points fail on the same backend format errors and route `make test` through the root Moon test command without hashing the infra submodule gitlink as a file input | `test_AC8_13_45_*` | `tests/tooling/test_cli_and_dev_servers.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.46 | PR preview non-LLM E2E uses strict gates and parallelism while narrowing execution to runtime/API/UI preview-relevant paths instead of the staging regression set | `test_AC8_13_46_pr_preview_non_llm_gate_matches_staging_strict_parallelism` | `tests/tooling/test_post_merge_e2e_gates.py` | P1 |
@@ -338,12 +338,12 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.80 | AC coverage analysis supports no-write and stale-report check modes for local verification | `test_AC8_13_80_*` | `tests/tooling/test_analyze_test_ac_coverage.py` | P0 |
 | AC8.13.81 | Coverage threshold documentation links to code-owned thresholds instead of copying mutable numeric values | `test_AC8_13_81_*` | `tests/tooling/test_lint_doc_consistency.py` | P1 |
 | AC8.13.82 | Playwright responsive UX coverage proves account and review layouts avoid mobile document overflow and desktop local table clipping | `AC2.17.1`, `AC16.27.2`, `AC16.27.3` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
-| AC8.13.83 | Personal report package representative fixture contract defines bank cash, income/expense activity, brokerage holdings, manual property valuation, liability, restricted compensation, notes, traceability anchors, and exact Decimal expected outputs | `test_AC8_13_83_representative_package_fixture_contract_defines_exact_outputs` | `tests/tooling/test_personal_report_package_fixture_contract.py` | P0 |
-| AC8.13.84 | Personal report package post-merge E2E consumes the representative fixture contract instead of duplicating financial constants or expected totals inline | `test_AC8_13_84_personal_package_e2e_consumes_representative_fixture_contract` | `tests/tooling/test_personal_report_package_fixture_contract.py` | P0 |
-| AC8.13.85 | Personal financial report package macro proof is promoted to covered only when the representative fixture contract ACs are part of the critical proof matrix | `test_AC8_13_85_personal_package_macro_proof_is_promoted_after_fixture_contract` | `tests/tooling/test_personal_report_package_fixture_contract.py` | P0 |
+> (AC8.13.83 removed, canonical: migrated to `AC-testing.product-gates.8`.)
+> (AC8.13.84 removed, canonical: migrated to `AC-testing.product-gates.9`.)
+> (AC8.13.85 removed, canonical: migrated to `AC-testing.product-gates.10`.)
 | AC8.13.86 | CI fast feedback jobs start after change classification without waiting for behavior-only backend gates | `test_AC8_13_86_*` | `tests/tooling/test_post_merge_e2e_gates.py` | P1 |
-| AC8.13.87 | Personal report package fixture contract pins brokerage, dividend, and market-price expected outputs as Decimal-safe audit fixtures | `test_AC8_13_87_personal_package_fixture_pins_brokerage_dividend_and_market_price_outputs` | `tests/tooling/test_personal_report_package_fixture_contract.py` | P0 |
-| AC8.13.88 | Personal report package post-merge E2E consumes the audit-grade brokerage, dividend, market-price, and traceability identifier expected outputs | `test_AC8_13_88_personal_package_e2e_consumes_audit_grade_expected_outputs` | `tests/tooling/test_personal_report_package_fixture_contract.py` | P0 |
+> (AC8.13.87 removed, canonical: migrated to `AC-testing.product-gates.11`.)
+> (AC8.13.88 removed, canonical: migrated to `AC-testing.product-gates.12`.)
 | AC8.13.89 | The runner-local full-stack smoke/E2E gate runs synchronously on `pull_request` (the merge authority, a real required check, not async via `workflow_run`); the on-demand persistent Dokploy preview is built from the PR source on the host without pushing, preflighting, pulling, or deleting PR preview images | `test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.90 | Frontend exposes `/frontend-version.json` with deployed `git_sha`/`version` metadata for PR preview readiness checks | `AC8.13.90 returns deployed frontend version metadata for PR preview readiness` | `frontendVersionRoute.test.ts` | P0 |
 | AC8.13.92 | Frontend Vitest coverage keeps a code-owned 98% baseline for line, statement, and function metrics plus an explicit branch floor while representative low-coverage routes and workflow surfaces stay covered | `AC8.13.92*` | `apps/frontend/src/__tests__/coverageBaseline.test.ts`, `apps/frontend/src/__tests__/personalReportPackagePage.test.tsx`, `apps/frontend/src/__tests__/workflowSurfaces.test.tsx`, `apps/frontend/src/__tests__/chatPanelComponent.test.tsx`, `apps/frontend/src/__tests__/investmentPerformanceSchedule.test.tsx`, `apps/frontend/src/__tests__/journalPage.test.tsx`, `apps/frontend/src/__tests__/sankeyChartComponent.test.tsx`, `apps/frontend/src/__tests__/toastProviderComponent.test.tsx`, `apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx` | P0 |
@@ -704,16 +704,16 @@ Product E2E ownership index:
 | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | Critical proof: AC-extraction.813.10 |
 | `tests/e2e/test_core_journeys.py` | Deployed core journey E2E; AC references live in the test file |
 | `tests/e2e/test_e2e_flows.py` | Deployed extended flow E2E; AC references live in the test file |
-| `tests/e2e/test_four_asset_net_worth_golden_path.py` | Critical proof: AC8.13.42, AC-extraction.813.10, AC5.7.3, AC11.9.1-AC11.9.3, AC17.5.4 |
+| `tests/e2e/test_four_asset_net_worth_golden_path.py` | Critical proof: AC-testing.product-gates.7, AC-extraction.813.10, AC5.7.3, AC11.9.1-AC11.9.3, AC17.5.4 |
 | `tests/e2e/test_llm_provider_abstraction_epic023.py` | LLM provider abstraction product owner E2E; EPIC-023 / AC23.1 references live in the test file |
 | `tests/e2e/test_frontend_observability_epic024.py` | EPIC-024 frontend browser observability product owner E2E; AC24.1.1 reference lives in the test file |
 | `tests/e2e/test_market_data_price_paths.py` | Critical proof; ACs live in the `pricing` package roadmap (`AC-pricing.marketdata.7`, `AC-pricing.marketdata.11`, `common/pricing/contract.py`) |
-| `tests/e2e/test_personal_financial_report_package.py` | Critical proof: AC5.1.1, AC5.1.4, AC5.2.3, AC5.3.1, AC5.8.1, AC5.12.4, AC5.13.4-AC5.13.5, AC11.8.3, AC11.9.1-AC11.9.3, AC11.11.1-AC11.11.2, AC17.10.1-AC17.10.2, AC17.12.1-AC17.12.3, AC8.13.83-AC8.13.85, AC8.13.87-AC8.13.88 |
+| `tests/e2e/test_personal_financial_report_package.py` | Critical proof: AC5.1.1, AC5.1.4, AC5.2.3, AC5.3.1, AC5.8.1, AC5.12.4, AC5.13.4-AC5.13.5, AC11.8.3, AC11.9.1-AC11.9.3, AC11.11.1-AC11.11.2, AC17.10.1-AC17.10.2, AC17.12.1-AC17.12.3, AC-testing.product-gates.8, AC-testing.product-gates.9, AC-testing.product-gates.10, AC-testing.product-gates.11, AC-testing.product-gates.12 |
 | `tests/e2e/test_production_readonly_smoke.py` | Production-readonly smoke E2E; AC references live in the test file |
 | `tests/e2e/test_statement_full_journey.py` | Critical proof: AC-extraction.813.11 |
 | `tests/e2e/test_statement_upload_e2e.py` | Statement upload E2E; AC references live in the test file |
 | `tests/e2e/test_version_check.py` | Version/runtime E2E; AC references live in the test file |
-| `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | Critical proof: AC8.13.28-AC8.13.32 |
+| `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | Critical proof: AC-testing.product-gates.2, AC-testing.product-gates.3, AC-testing.product-gates.4, AC-testing.product-gates.5, AC-testing.product-gates.6 |
 
 Product E2E files under `tests/e2e/test_*.py` and
 `apps/backend/tests/e2e/test_*.py` must carry AC references directly. They are

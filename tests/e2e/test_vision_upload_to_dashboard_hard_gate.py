@@ -135,7 +135,13 @@ def _assert_expected_totals(
 
 @ac_proof(
     "deterministic-upload-to-dashboard",
-    ac_ids=["AC8.13.28", "AC8.13.29", "AC8.13.30", "AC8.13.31", "AC8.13.32"],
+    ac_ids=[
+        "AC-testing.product-gates.2",
+        "AC-testing.product-gates.3",
+        "AC-testing.product-gates.4",
+        "AC-testing.product-gates.5",
+        "AC-testing.product-gates.6",
+    ],
     scope="behavioral",
     ci_tier="post_merge_environment",
     trust_mode="hybrid",
@@ -149,7 +155,7 @@ def _assert_expected_totals(
 async def test_statement_upload_to_dashboard_vision_hard_gate(
     authenticated_page_unique: Page,
 ) -> None:
-    """EPIC-003 EPIC-004 EPIC-005 EPIC-008 EPIC-010 EPIC-014 EPIC-015 EPIC-016 EPIC-018 EPIC-019.
+    """AC-testing.product-gates.2 AC-testing.product-gates.3 AC-testing.product-gates.4 AC-testing.product-gates.5 AC-testing.product-gates.6: EPIC-003 EPIC-004 EPIC-005 EPIC-008 EPIC-010 EPIC-014 EPIC-015 EPIC-016 EPIC-018 EPIC-019.
 
     AC8.13.28 AC8.13.29 AC8.13.30 AC8.13.31 AC8.13.32: upload fixture to trusted reports.
     """

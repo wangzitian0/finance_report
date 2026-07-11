@@ -3601,7 +3601,7 @@ def test_AC8_13_28_vision_hard_gate_uses_deterministic_fixture_with_fresh_user()
 ):
     """AC8.13.28/29/30/31: deterministic upload-to-dashboard gate covers the full fresh-user flow."""
     gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
-    epic = read("docs/project/EPIC-008.testing-strategy.md")
+    contract = read("common/testing/contract.py")
 
     assert "@pytest.mark.e2e" in gate
     assert "@pytest.mark.tier3" in gate
@@ -3610,15 +3610,15 @@ def test_AC8_13_28_vision_hard_gate_uses_deterministic_fixture_with_fresh_user()
     assert "authenticated_page_unique" in gate
     assert "vision_hard_gate_statement.csv" in gate
     assert "pytest.skip(" in gate
-    assert "AC8.13.28" in epic
-    assert "AC8.13.29" in epic
-    assert "AC8.13.30" in epic
-    assert "AC8.13.31" in epic
-    assert "test_statement_upload_to_dashboard_vision_hard_gate" in epic
+    assert "AC-testing.product-gates.2" in contract
+    assert "AC-testing.product-gates.3" in contract
+    assert "AC-testing.product-gates.4" in contract
+    assert "AC-testing.product-gates.5" in contract
+    assert "test_statement_upload_to_dashboard_vision_hard_gate" in contract
 
 
 def test_AC8_13_28_vision_hard_gate_uses_statement_id_link_locator() -> None:
-    """AC8.13.28: statement upload E2E locates the detail link by statement id."""
+    """AC-testing.product-gates.2: AC8.13.28: statement upload E2E locates the detail link by statement id."""
     gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
     test_body = gate.split(
         "async def test_statement_upload_to_dashboard_vision_hard_gate", 1
@@ -3650,7 +3650,7 @@ def test_AC8_13_28_vision_hard_gate_waits_for_review_payload_before_approval() -
 
 
 def test_AC8_13_30_vision_hard_gate_waits_for_stage2_queue_page_payload() -> None:
-    """AC8.13.30: staging hard gate waits for Stage 2 queue data before UI assertions."""
+    """AC-testing.product-gates.4: AC8.13.30: staging hard gate waits for Stage 2 queue data before UI assertions."""
     gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
     test_body = gate.split(
         "async def test_statement_upload_to_dashboard_vision_hard_gate", 1
@@ -3664,7 +3664,7 @@ def test_AC8_13_30_vision_hard_gate_waits_for_stage2_queue_page_payload() -> Non
 
 
 def test_AC8_13_32_vision_hard_gate_proves_trusted_reporting_totals() -> None:
-    """AC8.13.32: deterministic vision gate asserts exact trusted accounting/report totals."""
+    """AC-testing.product-gates.6: AC8.13.32: deterministic vision gate asserts exact trusted accounting/report totals."""
     gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
     ci_cd = read("docs/ssot/ci-cd.md")
 
@@ -3690,11 +3690,11 @@ def test_AC8_13_32_vision_hard_gate_proves_trusted_reporting_totals() -> None:
 
 
 def test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical() -> None:
-    """AC8.13.42: four-asset as-of net worth proof is wired into the post-merge hard gate."""
+    """AC-testing.product-gates.7: AC8.13.42: four-asset as-of net worth proof is wired into the post-merge hard gate."""
     gate = read("tests/e2e/test_four_asset_net_worth_golden_path.py")
     ai_workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
     matrix = critical_matrix_text()
-    epic = read("docs/project/EPIC-008.testing-strategy.md")
+    contract = read("common/testing/contract.py")
     ci_cd = read("docs/ssot/ci-cd.md")
 
     for token in (
@@ -3733,9 +3733,9 @@ def test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical() -> 
 
     assert "four-asset-as-of-net-worth" in matrix
     assert "test_four_asset_as_of_net_worth_golden_path" in matrix
-    assert "AC8.13.42" in matrix
-    assert "AC8.13.42" in epic
-    assert "test_four_asset_as_of_net_worth_golden_path" in epic
+    assert "AC-testing.product-gates.7" in matrix
+    assert "AC-testing.product-gates.7" in contract
+    assert "test_four_asset_as_of_net_worth_golden_path" in contract
     assert "four-asset gate" in ci_cd
 
 
