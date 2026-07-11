@@ -13,13 +13,22 @@ from botocore.exceptions import ClientError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
-from src.extraction import DocumentType, UploadedDocument
-from src.runtime import StorageError
+from src.extraction import DocumentType, UploadedDocument, get_known_storage_paths
+from src.runtime import StorageError, register_known_storage_paths_provider
 from src.runtime.extension.storage_sweep import (
     _list_storage_keys,
     run_storage_sweep,
     sweep_orphaned_storage_objects,
 )
+
+
+@pytest.fixture(autouse=True)
+def _wire_known_storage_paths_provider() -> None:
+    """storage_sweep no longer imports extraction's UploadedDocument itself
+    (#1675 D3 — runtime must not import an L3-domain package); production wires
+    this in main.py, tests wire the same real function here so behavior is
+    unchanged. Without this, sweep_orphaned_storage_objects raises RuntimeError."""
+    register_known_storage_paths_provider(get_known_storage_paths)
 
 
 def _orphan_min_age() -> timedelta:

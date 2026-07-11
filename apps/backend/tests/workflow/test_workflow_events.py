@@ -13,7 +13,13 @@ from pydantic import ValidationError
 from sqlalchemy import func, inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.extraction import DocumentType, UploadedDocument
+from src.extraction import (
+    DocumentType,
+    UploadedDocument,
+    find_uploaded_document_filename_by_hash,
+    get_uploaded_document_filename,
+    get_uploaded_document_filenames,
+)
 from src.identity import User
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
@@ -36,6 +42,7 @@ from src.platform.extension.workflow_events import (
     list_workflow_events,
     list_workflow_events_response,
     register_readiness_provider,
+    register_uploaded_document_readers,
     sync_workflow_events_for_user,
     update_workflow_event_status,
     upsert_workflow_event,
@@ -57,6 +64,20 @@ def _wire_readiness_provider() -> None:
     must not import reporting-domain logic); production wires this in main.py,
     tests wire the same real function here so behavior is unchanged."""
     register_readiness_provider(get_personal_report_package_readiness)
+
+
+@pytest.fixture(autouse=True)
+def _wire_uploaded_document_readers() -> None:
+    """workflow_events no longer imports extraction's UploadedDocument itself
+    (#1675 D3 — platform must not import an L3-domain package); production wires
+    this in main.py, tests wire the same real functions here so behavior is
+    unchanged. Without this, any test exercising _statement_filename or
+    sync_workflow_events_for_user raises RuntimeError."""
+    register_uploaded_document_readers(
+        get_filename=get_uploaded_document_filename,
+        get_filenames=get_uploaded_document_filenames,
+        find_filename_by_hash=find_uploaded_document_filename_by_hash,
+    )
 
 
 async def _make_statement(
