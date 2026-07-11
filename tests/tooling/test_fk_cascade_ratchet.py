@@ -1,11 +1,21 @@
-"""AC-meta.txn.4 — the cross-domain-cascade shrink-only ratchet (#1675 D1).
+"""AC-meta.txn.4 — the ``ondelete="CASCADE"`` ratchet (#1675 D1).
 
-A DB-level ``ondelete="CASCADE"`` is a hidden cross-domain write: one domain's
-delete mutates another domain's aggregates below the application, against
-one-txn-per-domain (#1416 Decision B) and append-only domains (Axiom A). The
-policy (``common/meta/migration-standard.md`` → "Cross-domain reference
-policy") grandfathers the existing sites in ``docs/ssot/fk-cascade-baseline.json``
-and lets the census only shrink; the end-state is saga-owned deletion
+A DB-level ``ondelete="CASCADE"`` is a hidden write below the application:
+one table's delete silently mutates other rows. Across domains that breaks
+one-txn-per-domain (#1416 Decision B) and append-only domains (Axiom A) —
+the risk this ratchet exists for. The census is deliberately **not**
+domain-aware (it counts every CASCADE site): table→package ownership only
+becomes trivially derivable once models decentralization (#1675 D5/D6) is
+done, and a coarse ratchet that makes every new cascade a conscious,
+reviewed choice is worth more now than a precise one later.
+
+What CI enforces: the census must **equal** the checked-in baseline
+(``docs/ssot/fk-cascade-baseline.json``). Silent growth fails; adding a
+cascade is possible only by raising the baseline in the same PR, where the
+diff makes the choice reviewable (the app-boundary-baseline idiom); removed
+cascades must prune the baseline so the ratchet stays tight. The policy
+(``common/meta/migration-standard.md`` → "Cross-domain reference policy")
+grandfathers the existing sites; the end-state is saga-owned deletion
 (``identity/extension/account_purge.py`` is the seed).
 
 The baseline is keyed by **target table**, not file path, so package moves
@@ -80,12 +90,13 @@ def test_AC_meta_txn_4_cross_domain_cascade_only_shrinks() -> None:
         if n > baseline.get(table, 0)
     }
     assert not grown, (
-        "new ondelete=CASCADE ForeignKey(s) — a DB cascade is a hidden "
-        "cross-domain write (AC-meta.txn.4; migration-standard.md 'Cross-domain "
-        "reference policy'). Prefer saga-owned deletion (purge event + each "
-        "domain deletes by its own semantics). If this cascade is genuinely "
-        "intra-domain and deliberate, raise the baseline in the same PR so the "
-        "choice is reviewed.\n"
+        "new ondelete=CASCADE ForeignKey(s) — a DB cascade is a hidden write "
+        "below the application; across domains it breaks one-txn-per-domain "
+        "(AC-meta.txn.4; migration-standard.md 'Cross-domain reference "
+        "policy'). Prefer saga-owned deletion (purge event + each domain "
+        "deletes by its own semantics). If this cascade is deliberate (e.g. "
+        "genuinely intra-domain), raise the baseline in this same PR so the "
+        "choice is visible in review.\n"
         f"grown (baseline, actual): {grown}\n"
         f"full census: {json.dumps(dict(sorted(counts.items())), indent=2)}"
     )

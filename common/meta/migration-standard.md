@@ -337,17 +337,21 @@ enforced by `check_package_contract` (AC-meta.txn.3) and the cascade ratchet
    interface or an event (mechanism C). `FK(users.id)` — the `UserOwnedMixin`
    **tenancy anchor** on nearly every table — is the named degenerate case:
    the tenancy axis is orthogonal to the business flow and never a flow edge.
-3. **Cross-domain `ondelete="CASCADE"` — shrink-only.** A DB cascade is a
-   hidden cross-domain write: one domain's delete mutates another domain's
-   aggregates below the application, against one-txn-per-domain (Decision B)
-   and append-only domains (Axiom A). The census in
-   `docs/ssot/fk-cascade-baseline.json` only shrinks — per-target-table counts
-   never grow, new target tables fail CI, an over-counted entry must be pruned
-   in the same PR. Existing sites are grandfathered; the end-state is
-   **saga-owned deletion** (identity publishes a purge event; each domain
-   deletes by its own semantics — `identity/extension/account_purge.py` is the
-   seed). Whether grandfathered cascades then flip to `RESTRICT` is a separate,
-   later decision (#1675 D7), never bundled into a move.
+3. **`ondelete="CASCADE"` — ratcheted.** A DB cascade is a hidden write below
+   the application: one table's delete silently mutates other rows. Across
+   domains that breaks one-txn-per-domain (Decision B) and append-only domains
+   (Axiom A) — the case this policy exists for. The census in
+   `docs/ssot/fk-cascade-baseline.json` covers **every** CASCADE site,
+   deliberately not domain-aware (table→package ownership only becomes
+   trivially derivable after models decentralization, #1675 D5/D6); what CI
+   enforces is census == baseline — silent growth fails, adding a cascade
+   requires raising the baseline in the same PR so the diff makes the choice
+   reviewable (the app-boundary idiom), removals prune it in the same PR.
+   Existing sites are grandfathered; the end-state is **saga-owned deletion**
+   (identity publishes a purge event; each domain deletes by its own
+   semantics — `identity/extension/account_purge.py` is the seed). Whether
+   grandfathered cascades then flip to `RESTRICT` is a separate, later
+   decision (#1675 D7), never bundled into a move.
 
 ## Migration order
 

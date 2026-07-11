@@ -406,16 +406,20 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-meta.txn.4",
             statement=(
-                "A DB-level ondelete=CASCADE is a hidden cross-domain write (one "
-                "domain's delete mutating another domain's aggregates below the "
-                "application), against one-txn-per-domain and append-only "
-                "domains; the census of ForeignKey(..., ondelete=\"CASCADE\") "
-                "target tables under apps/backend/src only shrinks against "
-                "docs/ssot/fk-cascade-baseline.json — per-table counts never "
-                "grow, new target tables fail, a stale (over-counted) baseline "
-                "entry must be pruned in the same PR. Existing sites are "
-                "grandfathered; the end-state is saga-owned deletion "
-                "(#1675 ruling, D1/D7)."
+                "A DB-level ondelete=CASCADE is a hidden write below the "
+                "application — one table's delete silently mutating other "
+                "rows; across domains it breaks one-txn-per-domain and "
+                "append-only domains, the risk this ratchet exists for. The "
+                "census of ForeignKey(..., ondelete=\"CASCADE\") target tables "
+                "under apps/backend/src (all sites — deliberately not "
+                "domain-aware until models decentralization, #1675 D5/D6, "
+                "makes table ownership derivable) must equal "
+                "docs/ssot/fk-cascade-baseline.json: silent growth fails CI; "
+                "adding a cascade requires raising the baseline in the same "
+                "PR, where the diff makes the choice reviewable (the "
+                "app-boundary idiom); removals prune the baseline in the same "
+                "PR. Existing sites are grandfathered; the end-state is "
+                "saga-owned deletion (#1675 ruling, D1/D7)."
             ),
             test=(
                 "tests/tooling/test_fk_cascade_ratchet.py"

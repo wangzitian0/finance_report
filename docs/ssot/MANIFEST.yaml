@@ -693,7 +693,7 @@ concepts:
 
   fk_cascade_baseline:
     owner: docs/ssot/fk-cascade-baseline.json
-    description: Shrink-only census of ForeignKey(..., ondelete="CASCADE") target tables under apps/backend/src — a DB cascade is a hidden cross-domain write (one domain's delete mutating another domain's aggregates), so per-table counts never grow and a new cascade needs a same-PR baseline edit; end-state is saga-owned deletion (AC-meta.txn.4, #1675 ruling).
+    description: Ratchet census of ForeignKey(..., ondelete="CASCADE") sites under apps/backend/src, keyed by target table — a DB cascade is a hidden write below the application (across domains it breaks one-txn-per-domain and append-only, the risk the ratchet exists for); CI enforces census == baseline, so silent growth fails and adding a cascade requires a same-PR baseline edit (reviewable consent); deliberately counts all sites, not just cross-domain, until models decentralization makes ownership derivable; end-state is saga-owned deletion (AC-meta.txn.4, #1675 ruling).
     family: platform
     kind: baseline
     parent: package_model
