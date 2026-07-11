@@ -103,13 +103,15 @@ def test_AC8_13_85_personal_package_macro_proof_is_promoted_after_fixture_contra
 
     proof = proofs["personal-financial-report-package-post-merge"]
     assert proof["issue"] == "#573"
+    # AC17.12.1-3 migrated to the portfolio package roadmap as
+    # AC-portfolio.fixtures.1-3 (migration closeout, #1663 / #1717).
     assert {
         "AC-testing.product-gates.8",
         "AC-testing.product-gates.9",
         "AC-testing.product-gates.10",
-        "AC17.12.1",
-        "AC17.12.2",
-        "AC17.12.3",
+        "AC-portfolio.fixtures.1",
+        "AC-portfolio.fixtures.2",
+        "AC-portfolio.fixtures.3",
     } <= set(proof["ac_ids"])
 
 

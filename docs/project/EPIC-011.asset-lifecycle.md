@@ -82,66 +82,46 @@ code, tests, issues, and git history.
 
 ### AC11.1: Asset Service - Reconciliation Logic
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC11.1.1 | Reconcile creates new position | `test_reconcile_creates_position()` | `assets/test_asset_service.py` | P0 |
-| AC11.1.2 | Reconcile updates existing position quantity | `test_reconcile_updates_position()` | `assets/test_asset_service.py` | P0 |
-| AC11.1.3 | Reconcile disposes position when quantity is 0 | `test_reconcile_disposes_position()` | `assets/test_asset_service.py` | P0 |
-| AC11.1.4 | Cost basis is set from market_value | `test_reconcile_cost_basis_uses_market_value()` | `assets/test_asset_service.py` | P0 |
-| AC11.1.5 | Reconcile multiple different assets | `test_reconcile_multiple_assets()` | `assets/test_asset_service.py` | P0 |
-| AC11.1.6 | Same asset at different brokers creates separate positions | `test_reconcile_multiple_brokers_same_asset()` | `assets/test_asset_service.py` | P0 |
-| AC11.1.7 | Null broker name handled correctly | `test_reconcile_with_null_broker()` | `assets/test_asset_service.py` | P1 |
-| AC11.1.8 | Disposed position can be reactivated | `test_reconcile_reactivates_disposed_position()` | `assets/test_asset_service.py` | P0 |
-| AC11.1.9 | Get positions returns empty list when no positions exist | `test_get_positions_empty()` | `assets/test_asset_service.py` | P0 |
-| AC11.1.10 | Reconcile with no snapshots does nothing | `test_reconcile_no_snapshots()` | `assets/test_asset_service.py` | P0 |
-| AC11.1.11 | Negative quantities (short positions) handled correctly | `test_reconcile_negative_quantity_short_position()` | `assets/test_asset_service.py` | P1 |
-| AC11.1.12 | Updated and disposed counts are mutually exclusive | `test_reconcile_result_counts_are_mutually_exclusive()` | `assets/test_asset_service.py` | P0 |
+> This group's rows removed — migrated to the `portfolio` package roadmap as
+> `AC-portfolio.reconcile.1-12` (`AC11.1.<s>` becomes
+> `AC-portfolio.reconcile.<s>`; migration closeout continuation, #1663 /
+> #1717).
 
 ### AC11.2: Asset Router - List Operations
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC11.2.1 | GET /assets/positions returns empty list when no positions | `test_list_positions_empty()` | `assets/test_assets_router.py` | P0 |
-| AC11.2.2 | GET /assets/positions returns positions with data | `test_list_positions_with_data()` | `assets/test_assets_router.py` | P0 |
-| AC11.2.3 | GET /assets/positions filters by status correctly | `test_list_positions_filter_by_status()` | `assets/test_assets_router.py` | P0 |
+> This group's rows removed — migrated to the `portfolio` package roadmap as
+> `AC-portfolio.router.1-3` (migration closeout continuation, #1663 /
+> #1717).
 
 ### AC11.3: Asset Router - Single Position Operations
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC11.3.1 | GET /assets/positions/{id} returns position details | `test_get_position_success()` | `assets/test_assets_router.py` | P0 |
-| AC11.3.2 | GET /assets/positions/{id} returns 404 for non-existent position | `test_get_position_not_found()` | `assets/test_assets_router.py` | P0 |
-| AC11.3.3 | GET /assets/positions/{id} returns 404 for other user's position | `test_get_position_wrong_user()` | `assets/test_assets_router.py` | P0 |
+> This group's rows removed — migrated to the `portfolio` package roadmap as
+> `AC-portfolio.router.4-6` (migration closeout continuation, #1663 /
+> #1717).
 
 ### AC11.4: Asset Router - Reconciliation Endpoint
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC11.4.1 | POST /assets/reconcile creates positions from snapshots | `test_reconcile_positions_success()` | `assets/test_assets_router.py` | P0 |
-| AC11.4.2 | POST /assets/reconcile with no snapshots returns 0 counts | `test_reconcile_positions_empty()` | `assets/test_assets_router.py` | P0 |
+> This group's rows removed — migrated to the `portfolio` package roadmap as
+> `AC-portfolio.router.7-8` (migration closeout continuation, #1663 /
+> #1717).
 
 ### AC11.5: Asset Router - Authentication
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC11.5.1 | GET /assets/positions requires authentication | `test_list_positions_requires_auth()` | `assets/test_assets_router.py` | P0 |
-| AC11.5.2 | GET /assets/positions/{id} requires authentication | `test_get_position_requires_auth()` | `assets/test_assets_router.py` | P0 |
-| AC11.5.3 | POST /assets/reconcile requires authentication | `test_reconcile_requires_auth()` | `assets/test_assets_router.py` | P0 |
+> This group's rows removed — migrated to the `portfolio` package roadmap as
+> `AC-portfolio.router.9-11` (migration closeout continuation, #1663 /
+> #1717).
 
 ### AC11.6: Asset Router - Depreciation Endpoint
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC11.6.1 | GET /assets/positions/{id}/depreciation returns depreciation schedule | `test_get_position_depreciation_success()` | `assets/test_assets_router.py` | P0 |
-| AC11.6.2 | GET /assets/positions/{id}/depreciation returns 400 for non-existent position | `test_get_position_depreciation_not_found()` | `assets/test_assets_router.py` | P0 |
-| AC11.6.3 | GET /assets/positions/{id}/depreciation returns 400 for disposed position | `test_get_position_depreciation_disposed_position()` | `assets/test_assets_router.py` | P0 |
-| AC11.6.4 | GET /assets/positions/{id}/depreciation returns 422 for invalid params | `test_get_position_depreciation_invalid_params()` | `assets/test_assets_router.py` | P1 |
+> This group's rows removed — migrated to the `portfolio` package roadmap as
+> `AC-portfolio.depreciation.1-4` (migration closeout continuation, #1663 /
+> #1717).
 
 ### AC11.7: Security - User Isolation
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC11.7.1 | Verify position queries are isolated by user_id | `test_get_position_user_isolation()` | `assets/test_assets_router.py` | P0 |
+> This group's row removed — migrated to the `portfolio` package roadmap as
+> `AC-portfolio.router.12` (migration closeout continuation, #1663 /
+> #1717).
 
 ### AC11.10: Daily Market Data Sync
 
@@ -258,10 +238,12 @@ recorded. By default they are restricted assets, included in full net-worth
 views and grouped separately from liquid cash, public equity, property, and
 restricted compensation.
 
+> *(AC11.20.1 removed and AC11.20.2 removed — migrated to the `reporting`
+> package roadmap as `AC-reporting.net-worth-components.1-2`; the frontend
+> row below stays here. Migration closeout continuation, #1663 / #1716.)*
+
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC11.20.1 | Retirement accounts, social-security personal balances, legacy CPF, and insurance cash value default to restricted assets and contribute to full balance-sheet assets | `test_AC11_20_1_retirement_and_benefit_assets_are_restricted_assets_in_balance_sheet()` | `reporting/test_reporting_net_worth_components.py` | P1 |
-| AC11.20.2 | Net-worth allocation groups retirement accounts, social-security personal balances, legacy CPF, and insurance cash value under the retirement-and-benefit asset class | `test_AC11_20_2_net_worth_allocation_groups_retirement_and_benefit_assets()` | `reporting/test_reporting_net_worth_components.py` | P1 |
 | AC11.20.3 | The assets page labels retirement and benefit asset entry options as assets, with insurance represented only by cash value | `test_AC11_20_3_assets_page_surfaces_retirement_and_benefit_asset_labels()` | `apps/frontend/src/__tests__/assetsPage.test.tsx` | P1 |
 
 ### AC11.21-11.24: Valuation Taxonomy Stack (RETIRED — reinvented existing accounting primitives)

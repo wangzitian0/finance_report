@@ -9,7 +9,7 @@ def read(path: str) -> str:
 
 
 def test_AC17_10_1_AC17_10_2_investment_performance_schedule_api_contract() -> None:
-    """AC17.10.1 AC17.10.2: EPIC-017 owns the investment performance schedule API contract."""
+    """AC-portfolio.report-schedule.2: AC17.10.1 AC17.10.2: EPIC-017 owns the investment performance schedule API contract."""
     epic = read("docs/project/EPIC-017.portfolio-management.md")
     # Migrated from docs/ssot/reporting.md into the reporting package readme
     # (migration closeout wave 3, #1664); docs/ssot/reporting.md is now a
@@ -43,7 +43,7 @@ def test_AC17_10_1_AC17_10_2_investment_performance_schedule_api_contract() -> N
 
 
 def test_AC5_8_1_personal_report_package_consumes_investment_schedule_contract() -> None:
-    """AC5.8.1: EPIC-005 owns package consumption of the investment performance schedule."""
+    """AC-reporting.package-investment.1: AC5.8.1: EPIC-005 owns package consumption of the investment performance schedule."""
     epic = read("docs/project/EPIC-005.reporting-visualization.md")
     user_guide = read("docs/user-guide/reports.md")
 

@@ -130,7 +130,7 @@ async def test_asset_class_allocation_empty_portfolio(db: AsyncSession, test_use
 async def test_sector_allocation_with_positions(
     db: AsyncSession, test_user, tech_stock_position, finance_stock_position
 ):
-    """AC17.4.4: Sector allocation with positions returns category/value/percentage/count.
+    """AC-portfolio.allocation.1: AC17.4.4: Sector allocation with positions returns category/value/percentage/count.
 
     Verify that sector allocation correctly groups positions by sector with market values.
     """
@@ -146,7 +146,7 @@ async def test_sector_allocation_with_positions(
 async def test_geography_allocation_with_positions(
     db: AsyncSession, test_user, tech_stock_position, finance_stock_position
 ):
-    """AC17.4.5: Geography allocation with positions returns grouped results.
+    """AC-portfolio.allocation.2: AC17.4.5: Geography allocation with positions returns grouped results.
 
     Verify that geography allocation correctly groups positions by geography.
     """
@@ -159,7 +159,7 @@ async def test_geography_allocation_with_positions(
 async def test_asset_class_allocation_with_positions(
     db: AsyncSession, test_user, tech_stock_position, finance_stock_position
 ):
-    """AC17.4.6: Asset class allocation with positions returns grouped results.
+    """AC-portfolio.allocation.3: AC17.4.6: Asset class allocation with positions returns grouped results.
 
     Verify that asset class allocation correctly groups positions by asset type.
     """
