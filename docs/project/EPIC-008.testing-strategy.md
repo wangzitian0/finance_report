@@ -200,12 +200,9 @@ job inventories or scenario counts into this EPIC.
 
 ### AC8.6: Phase 5 - Reporting & Visualization
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC8.6.1 | View Balance Sheet | `test_balance_sheet_report()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.6.2 | View Income Statement | `test_income_statement_report()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.6.3 | View Cash Flow Report | `test_cash_flow_report()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.6.4 | Report navigation (all endpoints) | `test_report_navigation_all_endpoints()` | `e2e/test_core_journeys.py` | P1 |
+> This group's rows removed — migrated to the `reporting` package roadmap as
+> `AC-reporting.journeys.1-4` (migration closeout continuation, #1663 /
+> #1716).
 
 ### AC8.7: API Authentication & Authorization
 
@@ -455,10 +452,9 @@ job inventories or scenario counts into this EPIC.
 
 Closing gate for the **Usable** milestone (G2∩G3, [#950](https://github.com/wangzitian0/finance_report/issues/950)): AC-testing.trust-mirrors.4 mirrors the ledger→report leg from *manual* entries in a *single* period; this group proves the **assembled** pipeline — statement parse → Stage-1 approval (balance-chain validated) → auto-posted ledger entries → period reports — ties out across **multiple months**. Deterministic by construction (rule-based CSV parse, no LLM; no AI classification, so counter-accounts fall back to `Income - Uncategorized` / `Expense - Uncategorized`).
 
-| AC ID | Test Case | Test Function | File | Priority |
-|---|---|---|---|---|
-| AC8.15.1 | Multi-month CSV statements parse, approve under the balance-chain guard, auto-post to the ledger, and the assembled period reports tie out end-to-end (income, expenses, net income, ending cash, total assets, and the accounting equation) | `test_AC8_15_1_full_year_statement_to_report_ties_out` | `apps/backend/tests/integration/test_full_year_statement_to_report_e2e.py` | P0 |
-| AC8.15.2 | A high-confidence, balance-validated bank statement with no pre-selected account auto-creates+links its physical asset account (by institution + account_last4 + currency), reaches APPROVED, and auto-posts to the ledger — the everyday-user upload→report path no longer dead-ends in review (#1444) {tier:CODE-ONLY} | `test_AC8_15_2_bank_statement_auto_creates_account_and_posts_without_manual_mapping` | `apps/backend/tests/integration/test_bank_statement_auto_account_post.py` | P1 |
+> This group's rows removed — migrated to the `reporting` package roadmap as
+> `AC-reporting.full-year.1-2` (migration closeout continuation, #1663 /
+> #1716).
 
 ### AC8.16: Augmentation-Layer Report Integrity
 
@@ -471,10 +467,10 @@ It stands up the *combined* state production actually has (a low-confidence ledg
 input AND a corrected/superseded valuation present at once) and asserts the report
 is right on every axis simultaneously. Part of [#990](https://github.com/wangzitian0/finance_report/issues/990) (report-input integrity).
 
-| AC ID | Test Case | Test Function | File | Priority |
-|---|---|---|---|---|
-| AC8.16.1 | A low-confidence extracted ledger input and a corrected (superseded) manual valuation both reach the report correctly: ledger numbers and the accounting equation hold, the low-confidence line carries the worst-input tier (not laundered), the superseded valuation is excluded from net-worth components, and the manual valuation does not contaminate the ledger balance sheet | `test_AC8_16_1_augmentation_seam_excludes_superseded_and_surfaces_confidence` | `apps/backend/tests/integration/test_augmentation_seam_e2e.py` | P1 |
-| AC8.16.2 | A report aggregates only the requesting user's facts: with posted entries for two users, user A's balance sheet, income statement, and net-worth totals reflect only A's data — user B's accounts never appear and never inflate a total (cross-user leak at the report-number level, now testable since the test schema keeps the `users` FK per #991) | `test_AC8_16_2_reports_exclude_other_users_entries` | `apps/backend/tests/integration/test_cross_user_report_isolation_e2e.py` | P1 |
+> This group's rows removed — migrated to the `reporting` package roadmap as
+> `AC-reporting.augmentation.1-2` (migration closeout continuation, #1663 /
+> #1716). The `@ac_proof` decorator, `ac_evidence` records, and the
+> ac-score-baseline entry moved to the new ids with them.
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.
@@ -729,11 +725,11 @@ Product E2E ownership index:
 | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | Critical proof: AC-extraction.813.10 |
 | `tests/e2e/test_core_journeys.py` | Deployed core journey E2E; AC references live in the test file |
 | `tests/e2e/test_e2e_flows.py` | Deployed extended flow E2E; AC references live in the test file |
-| `tests/e2e/test_four_asset_net_worth_golden_path.py` | Critical proof: AC-testing.product-gates.7, AC-extraction.813.10, AC5.7.3, AC11.9.1-AC11.9.3, AC17.5.4 |
+| `tests/e2e/test_four_asset_net_worth_golden_path.py` | Critical proof: AC-testing.product-gates.7, AC-extraction.813.10, AC5.7.3, AC11.9.1-AC11.9.3, AC-portfolio.valuation.1 |
 | `tests/e2e/test_llm_provider_abstraction_epic023.py` | LLM provider abstraction product owner E2E; EPIC-023 / AC23.1 references live in the test file |
 | `tests/e2e/test_frontend_observability_epic024.py` | EPIC-024 frontend browser observability product owner E2E; AC24.1.1 reference lives in the test file |
 | `tests/e2e/test_market_data_price_paths.py` | Critical proof; ACs live in the `pricing` package roadmap (`AC-pricing.marketdata.7`, `AC-pricing.marketdata.11`, `common/pricing/contract.py`) |
-| `tests/e2e/test_personal_financial_report_package.py` | Critical proof: AC5.1.1, AC5.1.4, AC5.2.3, AC5.3.1, AC5.8.1, AC5.12.4, AC5.13.4-AC5.13.5, AC11.8.3, AC11.9.1-AC11.9.3, AC11.11.1-AC11.11.2, AC17.10.1-AC17.10.2, AC17.12.1-AC17.12.3, AC-testing.product-gates.8, AC-testing.product-gates.9, AC-testing.product-gates.10, AC-testing.product-gates.11, AC-testing.product-gates.12 |
+| `tests/e2e/test_personal_financial_report_package.py` | Critical proof: AC-reporting.balance-sheet.1, AC-reporting.balance-sheet.4, AC-reporting.income-statement.3, AC-reporting.cash-flow.1, AC5.8.1, AC-reporting.package-notes.3, AC-reporting.package-traceability.3, AC-reporting.package-traceability.4, AC11.8.3, AC11.9.1-AC11.9.3, AC11.11.1-AC11.11.2, AC-portfolio.report-schedule.1, AC-portfolio.report-schedule.2, AC-portfolio.fixtures.1, AC-portfolio.fixtures.2, AC-portfolio.fixtures.3, AC-testing.product-gates.8, AC-testing.product-gates.9, AC-testing.product-gates.10, AC-testing.product-gates.11, AC-testing.product-gates.12 |
 | `tests/e2e/test_production_readonly_smoke.py` | Production-readonly smoke E2E; AC references live in the test file |
 | `tests/e2e/test_statement_full_journey.py` | Critical proof: AC-extraction.813.11 |
 | `tests/e2e/test_statement_upload_e2e.py` | Statement upload E2E; AC references live in the test file |

@@ -45,7 +45,7 @@ async def _post(db, user_id, *, debit: Account, credit: Account, amount: Decimal
 
 @pytest.mark.asyncio
 async def test_AC5_18_1_lines_carry_worst_input_confidence_tier(db, test_user):
-    """AC5.18.1: A line's tier is the worst confidence tier among its contributing entries."""
+    """AC-reporting.confidence.1: AC5.18.1: A line's tier is the worst confidence tier among its contributing entries."""
     cash = Account(user_id=test_user.id, name="Cash A", type=AccountType.ASSET, currency="SGD")
     savings = Account(user_id=test_user.id, name="Savings B", type=AccountType.ASSET, currency="SGD")
     salary = Account(user_id=test_user.id, name="Salary", type=AccountType.INCOME, currency="SGD")
@@ -83,7 +83,7 @@ async def test_AC5_18_1_lines_carry_worst_input_confidence_tier(db, test_user):
 
 @pytest.mark.asyncio
 async def test_AC5_18_2_net_worth_rolls_up_to_worst_input_tier(db, test_user):
-    """AC5.18.2: The balance-sheet aggregate tier is the worst tier across its lines; None when there is nothing to rate."""
+    """AC-reporting.confidence.2: AC5.18.2: The balance-sheet aggregate tier is the worst tier across its lines; None when there is nothing to rate."""
     empty = await generate_balance_sheet(db, test_user.id, as_of_date=date(2026, 12, 31))
     assert empty["confidence_tier"] is None
     assert empty["assets"] == []

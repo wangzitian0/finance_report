@@ -13,7 +13,7 @@ from tests.ledger._ledger_helpers import create_valid_posted_entry
 
 
 async def test_reports_router_errors_extended(client: AsyncClient, monkeypatch):
-    """[AC5.5.2] Test ReportError in all report endpoints using patch on the router's imports."""
+    """AC-reporting.errors.1: [AC5.5.2] Test ReportError in all report endpoints using patch on the router's imports."""
 
     test_cases = [
         ("/reports/balance-sheet", {"currency": "SGD"}, "generate_balance_sheet"),

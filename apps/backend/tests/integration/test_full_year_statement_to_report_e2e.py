@@ -94,7 +94,7 @@ async def test_AC8_15_1_full_year_statement_to_report_ties_out(
     db: AsyncSession,
     test_user,
 ) -> None:
-    """EPIC-003 EPIC-008 EPIC-019 / AC8.15.1: A multi-month run of real CSV
+    """AC-reporting.full-year.1: EPIC-003 EPIC-008 EPIC-019 / AC8.15.1: A multi-month run of real CSV
     statements parses, approves under the balance-chain guard, auto-posts to the
     ledger, and the assembled period reports tie out end-to-end (income,
     expenses, net income, ending cash, total assets, and the accounting

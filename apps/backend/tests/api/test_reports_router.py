@@ -189,7 +189,7 @@ class TestReportsEndpoints:
         assert mock_service.called
 
     async def test_account_trend_with_period(self, client: AsyncClient, db, test_user: User):
-        """AC5.3.3: Test getting account trend with different period."""
+        """AC-reporting.cash-flow.3: AC5.3.3: Test getting account trend with different period."""
         # GIVEN existing account
         account = Account(
             id=uuid4(),
@@ -209,7 +209,7 @@ class TestReportsEndpoints:
 
     @patch("src.routers.reports.get_category_breakdown")
     async def test_category_breakdown_success(self, mock_service: AsyncMock, client: AsyncClient, db, test_user: User):
-        """AC5.3.4: Test getting category breakdown."""
+        """AC-reporting.cash-flow.4: AC5.3.4: Test getting category breakdown."""
         # GIVEN mocked service
         from src.models.account import AccountType
 
@@ -234,7 +234,7 @@ class TestReportsEndpoints:
         assert mock_service.called
 
     async def test_category_breakdown_with_period(self, client: AsyncClient, db, test_user: User):
-        """AC5.3.5: Test getting category breakdown with different period."""
+        """AC-reporting.cash-flow.5: AC5.3.5: Test getting category breakdown with different period."""
         # WHEN calling breakdown endpoint with quarterly period
         response = await client.get("/reports/breakdown?type=expense&period=quarterly")
 
@@ -315,7 +315,7 @@ class TestReportsEndpoints:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     async def test_unauthenticated_access(self, public_client: AsyncClient, test_user: User):
-        """AC5.5.3: Test that unauthenticated clients cannot access reports endpoints."""
+        """AC-reporting.errors.3: AC5.5.3: Test that unauthenticated clients cannot access reports endpoints."""
         # GIVEN unauthenticated client
         # WHEN calling any reports endpoint
         response = await public_client.get("/reports/balance-sheet")
@@ -348,7 +348,7 @@ class TestReportsEndpoints:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     async def test_list_report_snapshots_returns_created_snapshots(self, client: AsyncClient, db, test_user: User):
-        """AC5.5.5: GET /reports/{type}/snapshots returns persisted snapshots."""
+        """AC-reporting.errors.5 · AC-reporting.layer3.2: AC5.5.5: GET /reports/{type}/snapshots returns persisted snapshots."""
         # GIVEN a classification rule (FK target) and a balance-sheet snapshot
         rule = ClassificationRule(
             user_id=test_user.id,

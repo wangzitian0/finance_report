@@ -67,14 +67,14 @@ async def test_AC4_12_2_create_entry_malformed_uuid_returns_422(client: AsyncCli
 
 
 async def test_AC5_36_1_report_snapshots_unknown_type_returns_422(client: AsyncClient) -> None:
-    """AC5.36.1: an unknown ``report_type`` is rejected with 422 instead of
+    """AC-reporting.snapshots-typed.1: AC5.36.1: an unknown ``report_type`` is rejected with 422 instead of
     silently returning an empty list."""
     response = await client.get("/reports/not-a-report-type/snapshots")
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 
 async def test_AC5_36_2_report_snapshots_valid_type_returns_typed_list(client: AsyncClient) -> None:
-    """AC5.36.2: a valid ``report_type`` returns a (possibly empty) typed list."""
+    """AC-reporting.snapshots-typed.2: AC5.36.2: a valid ``report_type`` returns a (possibly empty) typed list."""
     response = await client.get("/reports/balance_sheet/snapshots")
     assert response.status_code == status.HTTP_200_OK
     assert isinstance(response.json(), list)
@@ -84,7 +84,7 @@ async def test_AC5_36_2_report_snapshots_valid_type_returns_typed_list(client: A
 
 
 async def test_AC17_31_1_prices_update_returns_typed_batch_response(client: AsyncClient) -> None:
-    """AC17.31.1: ``POST /portfolio/prices/update`` returns the typed
+    """AC-portfolio.typed-responses.1: AC17.31.1: ``POST /portfolio/prices/update`` returns the typed
     ``{updated_count, results}`` shape, not an ad-hoc dict."""
     response = await client.post("/portfolio/prices/update", json={"updates": []})
     assert response.status_code == status.HTTP_200_OK
@@ -94,7 +94,7 @@ async def test_AC17_31_1_prices_update_returns_typed_batch_response(client: Asyn
 
 
 async def test_AC17_31_2_patch_unknown_holding_returns_404(client: AsyncClient) -> None:
-    """AC17.31.2: ``PATCH /portfolio/{ticker}`` for an unknown holding returns a
+    """AC-portfolio.typed-responses.2: AC17.31.2: ``PATCH /portfolio/{ticker}`` for an unknown holding returns a
     structured 404 (no raw ``dict`` success path)."""
     response = await client.patch("/portfolio/NOPE", json={"cost_basis_method": "FIFO"})
     assert response.status_code == status.HTTP_404_NOT_FOUND

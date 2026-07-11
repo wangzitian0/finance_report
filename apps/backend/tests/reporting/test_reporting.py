@@ -33,7 +33,7 @@ async def chart_of_accounts(db: AsyncSession, test_user_id):
 
 
 async def test_balance_sheet_equation(db: AsyncSession, chart_of_accounts, test_user_id):
-    """[AC5.1.1] Balance sheet should satisfy Assets = Liabilities + Equity."""
+    """AC-reporting.balance-sheet.1: [AC5.1.1] Balance sheet should satisfy Assets = Liabilities + Equity."""
     cash, _liability, equity, *_rest = chart_of_accounts
 
     entry = JournalEntry(
@@ -83,7 +83,7 @@ async def test_balance_sheet_equation(db: AsyncSession, chart_of_accounts, test_
 async def test_AC22_13_1_report_amount_lines_expose_normalized_provenance(
     db: AsyncSession, chart_of_accounts, test_user_id
 ):
-    """AC22.13.1: report amount lines expose Imported/Manual/Derived provenance when known."""
+    """AC-reporting.provenance.1: AC22.13.1: report amount lines expose Imported/Manual/Derived provenance when known."""
     cash, _liability, equity, income, expense = chart_of_accounts
 
     manual_entry = JournalEntry(
@@ -192,7 +192,7 @@ async def test_AC22_13_1_report_amount_lines_expose_normalized_provenance(
 
 
 async def test_income_statement_calculation(db: AsyncSession, chart_of_accounts, test_user_id):
-    """[AC5.2.1] Income statement should satisfy Net Income = Income - Expenses."""
+    """AC-reporting.income-statement.1: [AC5.2.1] Income statement should satisfy Net Income = Income - Expenses."""
     cash, _liability, _equity, income, expense = chart_of_accounts
 
     salary_entry = JournalEntry(
@@ -268,7 +268,7 @@ async def test_income_statement_calculation(db: AsyncSession, chart_of_accounts,
 
 
 async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_of_accounts, test_user_id, ac_evidence):
-    """[AC5.1.1][AC5.2.1][AC5.3.1][AC5.6.5] Deterministic fixture yields exact report totals."""
+    """AC-reporting.kpis.2 · AC-reporting.lineage.2: [AC5.1.1][AC5.2.1][AC5.3.1][AC5.6.5] Deterministic fixture yields exact report totals."""
     cash, liability, equity, income, expense = chart_of_accounts
 
     owner_contribution = JournalEntry(
@@ -488,21 +488,21 @@ async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_
     # computed from the deterministic fixture above; any drift in the report math
     # (sign rules, status/date filtering, FX) would move these numbers off the golden.
     ac_evidence(
-        ac_id="AC5.1.1",
+        ac_id="AC-reporting.balance-sheet.1",
         score=1.0,
         metric="balance_sheet_totals_match_golden",
         comment="assets 1600.00, liabilities 300.00, equity 1000.00; equation balanced (delta 0.00)",
         provenance="deterministic",
     )
     ac_evidence(
-        ac_id="AC5.2.1",
+        ac_id="AC-reporting.income-statement.1",
         score=1.0,
         metric="income_statement_net_income_match_golden",
         comment="income 500.00 - expenses 200.00 == net_income 300.00",
         provenance="deterministic",
     )
     ac_evidence(
-        ac_id="AC5.3.1",
+        ac_id="AC-reporting.cash-flow.1",
         score=1.0,
         metric="cash_flow_net_match_golden",
         comment="operating 300.00 + financing 1300.00 == net_cash_flow 1600.00; ending_cash 1600.00",
@@ -551,7 +551,7 @@ async def test_balance_sheet_fx_error(db: AsyncSession, chart_of_accounts, test_
 
 
 async def test_income_statement_invalid_range(db: AsyncSession, test_user_id):
-    """[AC5.2.3] Test income statement invalid date range validation."""
+    """AC-reporting.income-statement.3: [AC5.2.3] Test income statement invalid date range validation."""
     with pytest.raises(ReportError, match="start_date must be before end_date"):
         await generate_income_statement(
             db,
@@ -1056,7 +1056,7 @@ async def test_category_breakdown_quarterly(db: AsyncSession, chart_of_accounts,
 
 
 async def test_cash_flow_statement(db: AsyncSession, chart_of_accounts, test_user_id):
-    """[AC5.3.1] Cash flow statement should track movements across periods."""
+    """AC-reporting.cash-flow.1: [AC5.3.1] Cash flow statement should track movements across periods."""
     cash, _liability, equity, income, expense = chart_of_accounts
 
     entry = JournalEntry(
@@ -1199,7 +1199,7 @@ async def test_cash_flow_statement(db: AsyncSession, chart_of_accounts, test_use
 
 
 async def test_cash_flow_empty_period(db: AsyncSession, chart_of_accounts, test_user_id):
-    """[AC5.3.2] Cash flow statement with no transactions should return empty lists."""
+    """AC-reporting.cash-flow.2: [AC5.3.2] Cash flow statement with no transactions should return empty lists."""
     report = cast(
         dict[str, Any],
         await generate_cash_flow(
