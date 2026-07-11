@@ -975,7 +975,9 @@ CONTRACT = PackageContract(
                 "baseline in the same PR so the ratchet stays tight. "
                 "prompts/ is deliberately outside the census — domain "
                 "content, not delivery; it dissolves into its owning "
-                "packages (#1670 reconciliation, #1671 advisor)."
+                "packages (reconciliation's lives at "
+                "src/reconciliation/base/prompts.py since PR #1748; "
+                "advisor's moves with #1671 Wave B)."
             ),
             test=(
                 "tests/tooling/test_delivery_layer_ratchet.py"

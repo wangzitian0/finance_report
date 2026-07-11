@@ -714,6 +714,7 @@ concepts:
       - common/meta/extension/app_boundary.py
       - common/meta/extension/check_app_boundary.py
       - tools/check_app_boundary.py
+      - tests/tooling/test_app_boundary.py
 
   delivery_layer_baseline:
     owner: docs/ssot/delivery-layer-baseline.json
@@ -725,7 +726,6 @@ concepts:
     cross_refs:
       - tests/tooling/test_delivery_layer_ratchet.py
       - common/meta/migration-standard.md
-      - tests/tooling/test_app_boundary.py
 
   ac_score_ratchet_baseline:
     owner: docs/ssot/ac-score-baseline.jsonl
