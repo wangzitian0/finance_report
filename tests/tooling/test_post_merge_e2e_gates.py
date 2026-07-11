@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 import yaml
 from tests.tooling._infra2_source import deploy_primitive_source
+from tools import staging_ai_ocr_gate_contract as contract
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -712,6 +713,216 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
     assert "expected_sha: ${{ github.sha }}" in deploy_workflow
     assert "same serialized post-merge workflow unit" in ci_cd
     assert "manual recovery entry point" in ci_cd
+
+
+def _gha_expr_substituted(script: str, values: dict[str, str]) -> str:
+    """Replace ``${{ expr }}`` GHA interpolations with plain values, the same
+    textual substitution the Actions runner performs before a shell ever sees
+    the script. Every placeholder present in the step under test must have an
+    entry in ``values`` or the returned script is invalid bash (``${{`` is not
+    a valid parameter expansion)."""
+    substituted = script
+    for expr, value in values.items():
+        substituted = substituted.replace("${{ " + expr + " }}", value)
+    assert substituted.count("${{") == 0, (
+        f"unsubstituted GHA expression remains: {substituted}"
+    )
+    return substituted
+
+
+def _run_gate_timeout_fallback(
+    tmp_path: Path,
+    *,
+    outcome: str,
+    blocking: str,
+    existing_issue: str,
+) -> dict[str, object]:
+    """Execute the real ``gate_timeout_fallback`` step body (AC8.13.166) as a
+    subprocess against a stub ``gh``, exercising actual behavior instead of
+    grepping the script text (mirror-assertion ratchet, common/testing/
+    mirror_ratchet.py, #1435)."""
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    workflow = yaml.safe_load(read(".github/workflows/staging-ai-ocr-gate.yml"))
+    fallback = next(
+        s
+        for s in workflow["jobs"]["run"]["steps"]
+        if s.get("id") == "gate_timeout_fallback"
+    )
+    script = _gha_expr_substituted(
+        fallback["run"],
+        {
+            "steps.staging_ai_ocr_tests.outcome": outcome,
+            "github.run_id": "999",
+            "inputs.corpus": "audit_replay",
+            "inputs.blocking": blocking,
+            "inputs.commit_ref": "deadbeef",
+        },
+    )
+
+    gh_calls_log = tmp_path / "gh_calls.jsonl"
+    fake_gh = tmp_path / "gh"
+    fake_gh.write_text(
+        "#!/bin/bash\n"
+        'python3 -c \'import json,sys; open(sys.argv[1], "a").write(json.dumps(sys.argv[2:]) + "\\n")\' '
+        f'"{gh_calls_log}" "$@"\n'
+        'if [ "$1" = "issue" ] && [ "$2" = "list" ]; then\n'
+        f'  printf %s "{existing_issue}"\n'
+        "  exit 0\n"
+        "fi\n"
+        "exit 0\n"
+    )
+    fake_gh.chmod(0o755)
+
+    github_output = tmp_path / "github_output.txt"
+    github_output.write_text("")
+    github_step_summary = tmp_path / "github_step_summary.txt"
+    github_step_summary.write_text("")
+
+    result = subprocess.run(
+        ["bash", "-euo", "pipefail", "-c", script],
+        env={
+            "PATH": f"{tmp_path}:/usr/bin:/bin",
+            "GH_TOKEN": "fake-token",
+            "GITHUB_OUTPUT": str(github_output),
+            "GITHUB_STEP_SUMMARY": str(github_step_summary),
+        },
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+    output_lines = [line for line in github_output.read_text().splitlines() if line]
+    parsed_output = dict(line.split("=", 1) for line in output_lines)
+    gh_calls = (
+        [json.loads(line) for line in gh_calls_log.read_text().splitlines()]
+        if gh_calls_log.exists()
+        else []
+    )
+    return {
+        "exit_code": result.returncode,
+        "stderr": result.stderr,
+        "parsed_output": parsed_output,
+        "gh_calls": gh_calls,
+        "step_summary": github_step_summary.read_text(),
+    }
+
+
+def test_AC8_13_166_gate_timeout_fallback_alerts_when_corpus_step_dies_without_output(
+    tmp_path: Path,
+) -> None:
+    """AC8.13.166: alerting survives the corpus step's own timeout-minutes killing
+    it before record_and_finish ever runs (the 5-night-red silent gap, #1767).
+    Behavioral (subprocess), not a text mirror -- see _run_gate_timeout_fallback."""
+    workflow = yaml.safe_load(read(".github/workflows/staging-ai-ocr-gate.yml"))
+    job = workflow["jobs"]["run"]
+    fallback = next(s for s in job["steps"] if s.get("id") == "gate_timeout_fallback")
+    # Fires exactly when the corpus step did not succeed AND produced no
+    # output -- i.e. it died before its own record_and_finish call. A normal
+    # blocking=true regression already sets ai_ocr_status and must not
+    # double-alert here (record_and_finish owns that path, #1623).
+    assert fallback["if"] == (
+        "${{ always() && steps.staging_ai_ocr_tests.outcome != 'success' "
+        "&& steps.staging_ai_ocr_tests.outputs.ai_ocr_status == '' }}"
+    )
+    # The job's ai_ocr_status/ai_ocr_exit_code outputs fall through inner step
+    # -> fallback step -> generic default, so a died-without-output run
+    # reports the distinct status this step sets, never the ambiguous
+    # 'not-run' that also means "conditionally skipped" elsewhere.
+    assert job["outputs"]["ai_ocr_status"] == (
+        "${{ steps.staging_ai_ocr_tests.outputs.ai_ocr_status || "
+        "steps.gate_timeout_fallback.outputs.ai_ocr_status || 'not-run' }}"
+    )
+    assert job["outputs"]["ai_ocr_exit_code"] == (
+        "${{ steps.staging_ai_ocr_tests.outputs.ai_ocr_exit_code || "
+        "steps.gate_timeout_fallback.outputs.ai_ocr_exit_code || '0' }}"
+    )
+    # issues: write permission (#1623) already covers this step's own gh
+    # issue create -- no separate permission grant needed.
+    assert job["permissions"]["issues"] == "write"
+
+    # Behavior 1: no standing alert -> creates exactly one issue and reports
+    # the distinct gate-timeout status, non-blocking mode exits clean.
+    run1 = _run_gate_timeout_fallback(
+        tmp_path / "case1", outcome="cancelled", blocking="false", existing_issue=""
+    )
+    assert run1["exit_code"] == 0
+    assert run1["parsed_output"] == {
+        "ai_ocr_status": "gate-timeout",
+        "ai_ocr_exit_code": "124",
+    }
+    creates = [call for call in run1["gh_calls"] if call[:2] == ["issue", "create"]]
+    assert len(creates) == 1
+    assert creates[0].count("--title") == 1
+    list_calls = [call for call in run1["gh_calls"] if call[:2] == ["issue", "list"]]
+    assert len(list_calls) == 1
+    search_arg = list_calls[0][list_calls[0].index("--search") + 1]
+    create_title_arg = creates[0][creates[0].index("--title") + 1]
+    # The dedup search string must be built from the SAME title used to
+    # create the issue, or dedup and creation would silently drift apart.
+    assert search_arg == f"in:title {create_title_arg}"
+
+    # Behavior 2: a standing alert already exists -> dedup, no new issue.
+    run2 = _run_gate_timeout_fallback(
+        tmp_path / "case2", outcome="failure", blocking="false", existing_issue="42"
+    )
+    assert run2["exit_code"] == 0
+    creates2 = [call for call in run2["gh_calls"] if call[:2] == ["issue", "create"]]
+    assert creates2 == []
+
+    # Behavior 3: blocking mode still alerts (fresh issue) but propagates
+    # failure so the manual diagnostic entrance stays fail-fast even on a
+    # bare timeout (#1767 F3: the recovery path shared the same flaw).
+    run3 = _run_gate_timeout_fallback(
+        tmp_path / "case3", outcome="cancelled", blocking="true", existing_issue=""
+    )
+    assert run3["exit_code"] == 1
+    creates3 = [call for call in run3["gh_calls"] if call[:2] == ["issue", "create"]]
+    assert len(creates3) == 1
+
+
+def test_AC8_13_167_timeout_budget_is_sized_per_corpus_worst_case() -> None:
+    """AC8.13.167: step/job timeout-minutes fit every sequential parse wait in a
+    corpus hitting its own 8-minute PARSING_TIMEOUT_MS ceiling, not just the
+    happy path -- sized off the real per-corpus wait count, not a file/journey
+    guess (#1767: the shipped 22-min budget only covered 66% of one real run)."""
+    workflow = yaml.safe_load(read(".github/workflows/staging-ai-ocr-gate.yml"))
+    job = workflow["jobs"]["run"]
+    corpus_step = next(s for s in job["steps"] if s.get("id") == "staging_ai_ocr_tests")
+
+    assert corpus_step["timeout-minutes"] == (
+        "${{ inputs.corpus == 'canary' && 25 || (inputs.corpus == 'all' && 115 || 100) }}"
+    )
+    # 8-min parse ceiling that the budgets below are computed against, read as
+    # a structured env value rather than grepped text.
+    assert workflow["env"]["PARSING_TIMEOUT_MS"] == 480000
+
+    # pytest runs single-worker in this job (no xdist matrix/parallel-test
+    # tooling anywhere in this workflow file), so every parse wait across
+    # every selected file is fully serial -- totals()['uploads'] is therefore
+    # the exact worst-case wait count, not a per-file undercount (a single
+    # test can await multiple sequential waits, e.g. the 2-upload canary
+    # journey; test_institution_statement_journeys.py instead spreads its 4
+    # waits across 4 separate test functions -- both collapse to one serial
+    # queue under a single pytest process).
+    parse_ceiling_minutes = 8
+    overhead_minutes = 6
+    budgets = {"canary": 25, "audit_replay": 100, "all": 115}
+    wait_counts = {
+        "canary": contract.totals(contract.canary_files())["uploads"],
+        "audit_replay": contract.totals(contract.audit_replay_files())["uploads"],
+        "all": contract.totals(contract.gate_files())["uploads"],
+    }
+    for corpus_name, budget in budgets.items():
+        worst_case = wait_counts[corpus_name] * parse_ceiling_minutes + overhead_minutes
+        assert worst_case <= budget, (
+            f"{corpus_name} corpus grew to {wait_counts[corpus_name]} sequential "
+            f"parse waits; its {budget}min budget no longer covers the "
+            f"{worst_case}min worst case (raise the budget alongside the corpus)"
+        )
+
+    # Job-level timeout-minutes must be >= the largest step budget plus slack
+    # for checkout/setup/context-write/upload steps around the corpus step.
+    assert job["timeout-minutes"] >= max(budgets.values())
 
 
 def test_AC8_13_49_staging_ai_ocr_gate_publishes_audit_inventory_and_summary() -> None:

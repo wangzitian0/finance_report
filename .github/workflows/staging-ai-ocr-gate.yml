@@ -58,13 +58,16 @@ jobs:
   run:
     name: Staging AI/OCR Gate
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # #1767/AC8.13.167: sized for corpus=all worst case (13 sequential parse waits
+    # -- tools/staging_ai_ocr_gate_contract.py totals()['uploads'] -- x the 8-min
+    # PARSING_TIMEOUT_MS ceiling each) plus checkout/setup/summary overhead.
+    timeout-minutes: 125
     permissions:
       contents: read
       issues: write  # #1623: open the GitHub-issue fallback alert on regression
     outputs:
-      ai_ocr_status: ${{ steps.staging_ai_ocr_tests.outputs.ai_ocr_status || 'not-run' }}
-      ai_ocr_exit_code: ${{ steps.staging_ai_ocr_tests.outputs.ai_ocr_exit_code || '0' }}
+      ai_ocr_status: ${{ steps.staging_ai_ocr_tests.outputs.ai_ocr_status || steps.gate_timeout_fallback.outputs.ai_ocr_status || 'not-run' }}
+      ai_ocr_exit_code: ${{ steps.staging_ai_ocr_tests.outputs.ai_ocr_exit_code || steps.gate_timeout_fallback.outputs.ai_ocr_exit_code || '0' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -76,7 +79,14 @@ jobs:
 
       - name: Run Staging AI/OCR Gate
         id: staging_ai_ocr_tests
-        timeout-minutes: 22
+        # #1767/AC8.13.167: budget sized per corpus so the WHOLE corpus can finish
+        # even if every sequential parse wait hits the 8-min PARSING_TIMEOUT_MS
+        # ceiling, not just the happy path. The multiplier is the corpus's total
+        # sequential parse-wait count (contract.py totals()['uploads']: canary=2,
+        # audit_replay=11, all=13 -- pytest runs single-worker, no -n xdist, so
+        # every wait across every file is fully serial) plus checkout/setup
+        # overhead, not a per-file or per-journey guess.
+        timeout-minutes: ${{ inputs.corpus == 'canary' && 25 || (inputs.corpus == 'all' && 115 || 100) }}
         env:
           EXPECTED_SHA_RAW: ${{ inputs.expected_sha }}
           BLOCKING: ${{ inputs.blocking }}
@@ -244,6 +254,44 @@ jobs:
           echo "ai_ocr_status=passed" >> "$GITHUB_OUTPUT"
           echo "ai_ocr_exit_code=0" >> "$GITHUB_OUTPUT"
           echo "Staging AI/OCR Gate passed."
+
+      - name: Alert on gate timeout (diagnostics-blind failure)
+        id: gate_timeout_fallback
+        # #1767/AC8.13.166: the corpus step's own record_and_finish() alerting
+        # only runs on a clean pytest completion (regression or version-check
+        # exit). If that step is instead killed by ITS OWN timeout-minutes (or
+        # crashes) before reaching record_and_finish, ai_ocr_status is never
+        # set: no JUnit, no step summary, no alert issue, and the job output
+        # silently falls back to the generic 'not-run'. Gate on exactly that
+        # condition (non-success outcome + empty output) so a diagnostics-blind
+        # failure can never go unreported, independent of the step's own budget.
+        if: ${{ always() && steps.staging_ai_ocr_tests.outcome != 'success' && steps.staging_ai_ocr_tests.outputs.ai_ocr_status == '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "ai_ocr_status=gate-timeout" >> "$GITHUB_OUTPUT"
+          echo "ai_ocr_exit_code=124" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Staging AI/OCR Gate — diagnostics-blind failure"
+            echo ""
+            echo "The gate step ended with outcome \`${{ steps.staging_ai_ocr_tests.outcome }}\`"
+            echo "without producing a result (most likely killed by its own"
+            echo "timeout-minutes before any test finished). No JUnit or"
+            echo "regression detail is available from this run."
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+          alert_title="[staging-ai-ocr] gate produced no result (likely step timeout)"
+          existing="$(gh issue list --state open --search "in:title ${alert_title}" --json number --jq '.[0].number // empty' 2>/dev/null || true)"
+          if [ -z "$existing" ]; then
+            gh issue create --title "$alert_title" --label "surface: ai-ocr" \
+              --body "Staging AI/OCR gate run ${{ github.run_id }} (corpus=${{ inputs.corpus }}, blocking=${{ inputs.blocking }}) on ${{ inputs.commit_ref }} ended with outcome \`${{ steps.staging_ai_ocr_tests.outcome }}\` and produced no ai_ocr_status output — the corpus step likely hit its own timeout-minutes before reaching any record_and_finish call, so no JUnit/regression detail is available from this run. Widen the step budget or investigate a hang. See docs/ssot/ci-cd.md and #1767." \
+              || echo "::warning::GitHub-issue alert creation failed (non-fatal)."
+          else
+            echo "::notice::open staging-ai-ocr gate-timeout issue #${existing} already exists; not duplicating."
+          fi
+          if [ "${{ inputs.blocking }}" = "true" ]; then
+            exit 1
+          fi
+          exit 0
 
       - name: Write staging AI/OCR context
         if: ${{ always() }}
