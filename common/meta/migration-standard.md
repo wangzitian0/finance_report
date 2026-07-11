@@ -81,6 +81,31 @@ Every package is, in implementation, three sub-layers — a **menu**, not a mand
   `base`/`extension` imports it, so the write side never depends on its own read
   model.
 
+### `data/` = the domain's product: the wide-table projection contract
+
+The endgame for a domain's *queryable output* is its `data/`-layer projection —
+typically one denormalized **wide table** per product (reporting's snapshot is
+the archetype). The contract that keeps CQRS honest:
+
+- **Derived, never authored.** Only projection builders write it — domain logic
+  never writes the wide table directly (invariants live in the write model);
+  it is rebuildable from the domain's facts/events at any time.
+- **Event-fed.** Own-domain writes plus subscribed upstream domain events (via
+  the platform outbox, at-least-once) are the only inputs; consumption is
+  idempotent — upsert keyed by `(aggregate_id, version)`.
+- **Late events are bitemporal**, pricing-style: a backfill never rewrites what
+  was queryable at an earlier knowledge time (Axiom A).
+- **Zero FK.** A projection carries ids + values denormalized as of event time,
+  never constraints; cross-domain reads at query time consume the other
+  domain's published wide table or interface — not runtime joins into its
+  write model.
+- **Provenance on every row** (Axiom B): the ids of the upstream facts each row
+  was computed from, so source→record→ledger→report tracing survives
+  denormalization.
+
+The first live precedent is #1642's extraction→pricing `PriceObserved`
+subscriber; later `data/` sinks copy its shape.
+
 ### The DDD building blocks → layer (the `units` taxonomy)
 
 The layer is the **universal purity axis** (every package, domain or tooling). For
@@ -293,6 +318,40 @@ removes its edges from the baseline, driving it toward zero.
 > package (a package whose `impl_dir` contains more-specific packages' dirs),
 > `backend` gets a real `common/backend/contract.py` and this gate folds into the
 > core deep-import scan. Until then it is a standalone ratchet.
+
+## Cross-domain reference policy (FK / relationship / cascade)
+
+How one domain's tables may refer to another's (#1675 ruling, 2026-07-11;
+enforced by `check_package_contract` (AC-meta.txn.3) and the cascade ratchet
+(AC-meta.txn.4)):
+
+1. **Intra-domain FK — free.** Constraints between tables of one bounded
+   context (ledger's journal↔accounts↔lines) are domain-internal integrity,
+   invisible to this policy.
+2. **Cross-domain bare `ForeignKey` column — allowed; cross-domain
+   `relationship()` — banned.** In this modular monolith (one process, one
+   database, one transaction manager) a bare FK column is a DB-level
+   referential-integrity invariant, not code-level coupling; the real coupling
+   is object-graph navigation, which the gate rejects. In code, aggregates
+   still reference each other **by id** and resolve through the published
+   interface or an event (mechanism C). `FK(users.id)` — the `UserOwnedMixin`
+   **tenancy anchor** on nearly every table — is the named degenerate case:
+   the tenancy axis is orthogonal to the business flow and never a flow edge.
+3. **`ondelete="CASCADE"` — ratcheted.** A DB cascade is a hidden write below
+   the application: one table's delete silently mutates other rows. Across
+   domains that breaks one-txn-per-domain (Decision B) and append-only domains
+   (Axiom A) — the case this policy exists for. The census in
+   `docs/ssot/fk-cascade-baseline.json` covers **every** CASCADE site,
+   deliberately not domain-aware (table→package ownership only becomes
+   trivially derivable after models decentralization, #1675 D5/D6); what CI
+   enforces is census == baseline — silent growth fails, adding a cascade
+   requires raising the baseline in the same PR so the diff makes the choice
+   reviewable (the app-boundary idiom), removals prune it in the same PR.
+   Existing sites are grandfathered; the end-state is **saga-owned deletion**
+   (identity publishes a purge event; each domain deletes by its own
+   semantics — `identity/extension/account_purge.py` is the seed). Whether
+   grandfathered cascades then flip to `RESTRICT` is a separate, later
+   decision (#1675 D7), never bundled into a move.
 
 ## Migration order
 
