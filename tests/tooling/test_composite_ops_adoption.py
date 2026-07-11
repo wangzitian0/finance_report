@@ -22,13 +22,13 @@ def _read(path: str) -> str:
 )
 def test_AC12_33_3_zero_denominator_branching_routes_through_ratio():
     """AC-audit.33.3: zero-denominator ratio branching uses Ratio.fraction_or_zero."""
-    portfolio = _read("apps/backend/src/services/portfolio.py")
+    portfolio = _read("apps/backend/src/portfolio/extension/holdings.py")
     assert "def _ratio_or_zero(" not in portfolio, (
         "local _ratio_or_zero helper must be retired"
     )
     assert "Ratio.fraction_or_zero(" in portfolio
 
-    perf = _read("apps/backend/src/services/performance_report.py")
+    perf = _read("apps/backend/src/portfolio/extension/performance_report.py")
     assert "Ratio.fraction_or_zero(value, total_market_value)" in perf
     assert "else Ratio.zero()" not in perf
 

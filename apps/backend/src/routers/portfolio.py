@@ -18,6 +18,21 @@ from src.models.portfolio import (
     InvestmentTransactionType,
 )
 from src.observability import get_logger
+from src.portfolio import (
+    AssetNotFoundError,
+    InsufficientDataError,
+    PerformanceError,
+    PortfolioNotFoundError,
+    build_investment_performance_report_schedule,
+    calculate_money_weighted_return,
+    calculate_time_weighted_return,
+    calculate_xirr,
+    get_asset_class_allocation as asset_class_allocation_breakdowns,
+    get_geography_allocation as geography_allocation_breakdowns,
+    get_sector_allocation as sector_allocation_breakdowns,
+    portfolio_service,
+)
+from src.pricing import PricingError
 from src.schemas.portfolio import (
     BrokerageImportRequest,
     BrokerageImportResponse,
@@ -31,11 +46,6 @@ from src.schemas.portfolio import (
     PriceUpdateRequest as SchemaPriceUpdateRequest,
     RealizedLotResponse,
 )
-from src.services import allocation, performance
-from src.services.fx import FxRateError
-from src.services.performance import InsufficientDataError, PerformanceError
-from src.services.performance_report import build_investment_performance_report_schedule
-from src.services.portfolio import AssetNotFoundError, PortfolioNotFoundError, portfolio_service
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 logger = get_logger(__name__)
@@ -174,7 +184,7 @@ async def get_portfolio_summary(
         dividend_by_asset = await _portfolio_service.get_dividend_income_by_asset(
             db, user_id, start_date=year_start, end_date=report_date, target_currency=summary_currency
         )
-    except FxRateError as exc:
+    except PricingError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
     data = summary.model_dump()
@@ -339,7 +349,7 @@ async def get_performance(
     p_end = period_end or date.today()
 
     try:
-        xirr = await performance.calculate_xirr(db=db, user_id=user_id, as_of_date=as_of)
+        xirr = await calculate_xirr(db=db, user_id=user_id, as_of_date=as_of)
     except InsufficientDataError:
         xirr = Decimal("0")
     except PerformanceError as e:
@@ -347,7 +357,7 @@ async def get_performance(
 
     if period_start:
         try:
-            twr = await performance.calculate_time_weighted_return(
+            twr = await calculate_time_weighted_return(
                 db=db,
                 user_id=user_id,
                 period_start=period_start,
@@ -359,7 +369,7 @@ async def get_performance(
         twr = Decimal("0")
 
     try:
-        mwr = await performance.calculate_money_weighted_return(db=db, user_id=user_id, as_of_date=as_of)
+        mwr = await calculate_money_weighted_return(db=db, user_id=user_id, as_of_date=as_of)
     except InsufficientDataError:
         mwr = Decimal("0")
     except PerformanceError as e:
@@ -409,7 +419,7 @@ async def get_investment_performance_report_schedule(
             as_of_date=as_of_date,
             currency=currency,
         )
-    except FxRateError as exc:
+    except PricingError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
 
@@ -430,7 +440,7 @@ async def get_sector_allocation(
         offset=offset,
     )
 
-    breakdowns = await allocation.get_sector_allocation(
+    breakdowns = await sector_allocation_breakdowns(
         db=db,
         user_id=user_id,
         as_of_date=as_of_date or date.today(),
@@ -458,7 +468,7 @@ async def get_geography_allocation(
         offset=offset,
     )
 
-    breakdowns = await allocation.get_geography_allocation(
+    breakdowns = await geography_allocation_breakdowns(
         db=db,
         user_id=user_id,
         as_of_date=as_of_date or date.today(),
@@ -486,7 +496,7 @@ async def get_asset_class_allocation(
         offset=offset,
     )
 
-    breakdowns = await allocation.get_asset_class_allocation(
+    breakdowns = await asset_class_allocation_breakdowns(
         db=db,
         user_id=user_id,
         as_of_date=as_of_date or date.today(),

@@ -4,6 +4,7 @@ Split from a single 1089-line module; the public import surface (incl. the
 guardrail functions and the response cache) is preserved via these re-exports.
 """
 
+from src.portfolio import PortfolioService
 from src.services.ai_advisor._cache import _CACHE, ResponseCache
 from src.services.ai_advisor._guardrails import (
     StreamRedactor,
@@ -19,7 +20,6 @@ from src.services.ai_advisor._guardrails import (
     redact_sensitive,
 )
 from src.services.ai_advisor.service import AIAdvisorError, AIAdvisorService
-from src.services.portfolio import PortfolioService
 
 __all__ = [
     "AIAdvisorError",

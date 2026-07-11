@@ -19,11 +19,11 @@ from src.models.layer3 import (
     PositionStatus,
 )
 from src.observability import get_logger
+from src.portfolio import AssetNotFoundError, PortfolioService
 from src.services import fx
 from src.services.fx import (
     FxRateError,
 )
-from src.services.portfolio import AssetNotFoundError, PortfolioService
 from src.services.reporting._core import REPORTING_QUANTITY_UNIT, _single_source_currency
 from src.services.reporting_calc import (
     ReportError,

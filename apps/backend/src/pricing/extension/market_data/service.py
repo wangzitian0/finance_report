@@ -3,11 +3,14 @@
 ``sync_fx_rates``/``sync_stock_prices``/``ensure_market_data_fresh``/
 ``get_market_data_status`` all take their scopes as explicit parameters —
 they never discover *which* pairs/symbols to look at themselves. Deciding
-that requires reading the user's ledger/portfolio holdings
-(``src.services.market_data_discovery``), which lives in the app layer on
-purpose (dependency inversion, meta Decision B: pricing must not depend on
-the domain flow). The caller (scheduler / router / advisor) discovers the
-scopes there and passes them in here.
+that requires reading the user's ledger/portfolio/extraction data, so each
+of those domains publishes its own read (``ledger.used_currencies``,
+``portfolio.active_stock_symbols``/``position_currencies``,
+``extraction.snapshot_currencies``) and the delivery layer composes them
+(``services/market_data_scheduler.py::observed_fx_pairs`` — #1641).
+Dependency inversion, meta Decision B: pricing must not depend on the domain
+flow; the caller (scheduler / router / advisor) discovers the scopes and
+passes them in here.
 """
 
 from __future__ import annotations

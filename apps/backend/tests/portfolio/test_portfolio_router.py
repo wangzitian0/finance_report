@@ -14,10 +14,10 @@ from src.models.journal import JournalEntrySourceType
 from src.models.layer2 import AtomicPosition, AtomicTransaction, TransactionDirection
 from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.models.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
+from src.portfolio import AssetNotFoundError
 from src.pricing.orm.market_data import FxRate
 from src.routers import portfolio as portfolio_router
 from src.schemas.portfolio import HoldingResponse
-from src.services.portfolio import AssetNotFoundError
 from tests.ledger._ledger_helpers import create_valid_posted_entry
 
 
@@ -959,12 +959,12 @@ async def test_get_performance_insufficient_data(client: AsyncClient):
 
 async def test_get_performance_xirr_calculation_error(client: AsyncClient, portfolio_with_data, monkeypatch):
     """AC-portfolio.api.18: AC17.6.20: PerformanceError (non-InsufficientData) on XIRR -> 422."""
-    from src.services.performance import XIRRCalculationError
+    from src.portfolio import XIRRCalculationError
 
     async def _raise_xirr(*args, **kwargs):
         raise XIRRCalculationError("Newton+bisection failed")
 
-    monkeypatch.setattr("src.routers.portfolio.performance.calculate_xirr", _raise_xirr)
+    monkeypatch.setattr("src.routers.portfolio.calculate_xirr", _raise_xirr)
 
     response = await client.get("/portfolio/performance")
     assert response.status_code == 422
@@ -973,7 +973,7 @@ async def test_get_performance_xirr_calculation_error(client: AsyncClient, portf
 
 async def test_get_performance_mwr_calculation_error(client: AsyncClient, portfolio_with_data, monkeypatch):
     """AC-portfolio.api.19: AC17.6.21: PerformanceError (non-InsufficientData) on MWR -> 422."""
-    from src.services.performance import XIRRCalculationError
+    from src.portfolio import XIRRCalculationError
 
     async def _ok_xirr(*args, **kwargs):
         return Decimal("10.00")
@@ -981,8 +981,8 @@ async def test_get_performance_mwr_calculation_error(client: AsyncClient, portfo
     async def _raise_mwr(*args, **kwargs):
         raise XIRRCalculationError("MWR convergence failed")
 
-    monkeypatch.setattr("src.routers.portfolio.performance.calculate_xirr", _ok_xirr)
-    monkeypatch.setattr("src.routers.portfolio.performance.calculate_money_weighted_return", _raise_mwr)
+    monkeypatch.setattr("src.routers.portfolio.calculate_xirr", _ok_xirr)
+    monkeypatch.setattr("src.routers.portfolio.calculate_money_weighted_return", _raise_mwr)
 
     response = await client.get("/portfolio/performance")
     assert response.status_code == 422

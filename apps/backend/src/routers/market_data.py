@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from src.deps import CurrentUserId, DbSession
+from src.portfolio import active_stock_symbols
 from src.pricing import (
     MarketDataScopeStatus,
     MarketDataSyncResult,
@@ -13,7 +14,7 @@ from src.pricing import (
     sync_fx_rates,
     sync_stock_prices,
 )
-from src.services.market_data_discovery import active_stock_symbols, observed_fx_pairs
+from src.services.market_data_scheduler import observed_fx_pairs
 
 router = APIRouter(prefix="/market-data", tags=["market-data"])
 

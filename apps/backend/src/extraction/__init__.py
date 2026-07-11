@@ -55,6 +55,7 @@ from src.extraction.extension.correction_service import (
     get_correction_stats,
     record_correction,
 )
+from src.extraction.extension.currencies import snapshot_currencies
 from src.extraction.extension.currency_resolution import (
     CurrencyUnresolvedError,
     resolve_ingest_currency,
@@ -163,6 +164,7 @@ __all__ = [
     "resolve_transaction_currency",
     "run_parsing_supervisor",
     "set_opening_balance",
+    "snapshot_currencies",
     "submit_parse_pipeline",
     "validate_balance",
     "validate_balance_chain",

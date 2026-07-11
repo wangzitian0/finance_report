@@ -154,9 +154,11 @@ CONTRACT = PackageContract(
             name="get_average_rate", kind=Kind.DOMAIN_SERVICE, module="extension/fx.py"
         ),
         # ── extension: crawler sync (given scopes, sync/report on them — the
-        # ledger-reading discovery of *which* scopes lives in app-glue
-        # ``src.services.market_data_discovery``, never inside pricing;
-        # dependency inversion, meta Decision B) ──
+        # discovery of *which* scopes lives in each domain's published reads
+        # (ledger.used_currencies / portfolio.active_stock_symbols +
+        # position_currencies / extraction.snapshot_currencies), composed at
+        # the delivery layer, never inside pricing; dependency inversion,
+        # meta Decision B — #1641) ──
         Unit(
             name="sync_fx_rates",
             kind=Kind.DOMAIN_SERVICE,

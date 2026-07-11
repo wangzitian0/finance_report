@@ -15,7 +15,7 @@ from src.models.account import Account, AccountType
 from src.models.layer2 import TransactionDirection
 from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.models.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
-from src.services.performance import (
+from src.portfolio import (
     InsufficientDataError,
     XIRRCalculationError,
     calculate_dividend_yield,
@@ -584,7 +584,7 @@ def test_xirr_bisection_no_root_raises():
 
     Verify that all-positive cash flows cause a ValueError (no sign change in search range).
     """
-    from src.services.performance import _xirr_bisection
+    from src.portfolio.extension.performance import _xirr_bisection
 
     # All positive cash flows -> NPV always positive -> no root
     amounts = [Decimal("100"), Decimal("200"), Decimal("300")]
@@ -595,7 +595,7 @@ def test_xirr_bisection_no_root_raises():
 
 def test_AC17_10_5_xirr_solver_does_not_float_monetary_cashflows():
     """AC-portfolio.report-schedule.5: AC17.10.5: XIRR internals do not convert monetary Decimal cash flows to float."""
-    import src.services.performance as performance_module
+    import src.portfolio.extension.performance as performance_module
 
     solver_source = inspect.getsource(performance_module._xirr_newton) + inspect.getsource(
         performance_module._xirr_bisection
@@ -610,7 +610,7 @@ def test_xirr_bisection_max_iter_returns():
 
     Verify that bisection returns a Decimal midpoint when max_iter is too small to converge.
     """
-    from src.services.performance import _xirr_bisection
+    from src.portfolio.extension.performance import _xirr_bisection
 
     # Normal cash flows (negative deposit, positive terminal) with max_iter=1
     # so it can't converge but should return a midpoint
@@ -625,7 +625,7 @@ def test_xirr_newton_fallthrough_to_bisection():
 
     Verify that Newton's method with insufficient iterations falls back to bisection and returns Decimal.
     """
-    from src.services.performance import _xirr_newton
+    from src.portfolio.extension.performance import _xirr_newton
 
     # Use a guess that won't converge easily with very few iterations
     amounts = [Decimal("-10000"), Decimal("12000")]
@@ -640,7 +640,7 @@ async def test_xirr_calculation_error_raised(db: AsyncSession, test_user, invest
     Verify that monkeypatching _xirr_newton to always raise causes XIRRCalculationError.
     """
     from src.models.layer2 import AtomicPosition
-    from src.services.performance import XIRRCalculationError
+    from src.portfolio import XIRRCalculationError
 
     deposit = _buy_transaction(
         user_id=test_user.id,
@@ -680,7 +680,7 @@ async def test_xirr_calculation_error_raised(db: AsyncSession, test_user, invest
     def _raise_newton(*args, **kwargs):
         raise ValueError("forced failure")
 
-    monkeypatch.setattr("src.services.performance._xirr_newton", _raise_newton)
+    monkeypatch.setattr("src.portfolio.extension.performance._xirr_newton", _raise_newton)
 
     with pytest.raises(XIRRCalculationError):
         await calculate_xirr(db, test_user.id)

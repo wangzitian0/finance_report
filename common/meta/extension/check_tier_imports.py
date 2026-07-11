@@ -71,11 +71,12 @@ PROTECTED_MODULE_GLOBS: tuple[str, ...] = (
     "apps/backend/src/ledger/extension/fx_revaluation.py",
     "apps/backend/src/reconciliation/extension/fx_transfer.py",
     "apps/backend/src/reconciliation/extension/fx_transfer_discovery.py",
-    # portfolio / performance / allocation deterministic calc
-    "apps/backend/src/services/portfolio.py",
-    "apps/backend/src/services/performance.py",
-    "apps/backend/src/services/performance_report.py",
-    "apps/backend/src/services/allocation.py",
+    # portfolio / performance / allocation deterministic calc (moved into the
+    # portfolio package's extension layer, #1643)
+    "apps/backend/src/portfolio/extension/holdings.py",
+    "apps/backend/src/portfolio/extension/performance.py",
+    "apps/backend/src/portfolio/extension/performance_report.py",
+    "apps/backend/src/portfolio/extension/allocation.py",
 )
 
 # Forbidden import targets. A protected module may not import any of these, nor

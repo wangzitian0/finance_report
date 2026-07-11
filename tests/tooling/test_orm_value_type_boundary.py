@@ -15,11 +15,11 @@ REPO = Path(__file__).resolve().parents[2]
 
 # Business files where ManagedPosition money is fully migrated to typed accessors.
 MIGRATED_MANAGED_POSITION_FILES = [
-    "apps/backend/src/services/portfolio.py",
+    "apps/backend/src/portfolio/extension/holdings.py",
     "apps/backend/src/portfolio/extension/accounting.py",
     "apps/backend/src/pricing/extension/valuation.py",
     "apps/backend/src/portfolio/extension/positions.py",
-    "apps/backend/src/services/performance_report.py",
+    "apps/backend/src/portfolio/extension/performance_report.py",
     "apps/backend/src/services/reporting/portfolio_market.py",
 ]
 # A raw money-column READ: position.cost_basis / unrealized_pnl / realized_pnl that
@@ -85,8 +85,9 @@ def test_AC12_35_3_portfolio_holdings_value_flows_as_money():
     assert "async def convert_money(" in fx, (
         "fx must expose a Money-native convert helper"
     )
-    src = _read("apps/backend/src/services/portfolio.py")
-    assert "fx.convert_money(" in src
+    src = _read("apps/backend/src/portfolio/extension/holdings.py")
+    # Money-native FX convert via pricing's published surface (#1643).
+    assert "convert_money(" in src
     assert "position.cost_basis_money" in src
     assert "position.quantity_qty" in src
     assert "UnitPrice(latest_price" in src
