@@ -4,7 +4,7 @@
 > **Prohibition**: AI deliverable = CI-passing PR. User reviews and decides whether to merge.
 > **Checklist**: Before completing a task, verify every item in [docs/agents/orchestration.md](docs/agents/orchestration.md).
 > **Language**: All code, PRs, commits, issues, and repo docs must be in **English**.
-> Conversation with the user follows the **user's language** (Chinese) — never answer a Chinese question in English.
+> Conversation with the user follows the **user's language** — answer in the language the question was asked in.
 
 ---
 
