@@ -324,7 +324,7 @@ job inventories or scenario counts into this EPIC.
 > (AC8.13.66 removed, canonical: migrated to `AC-testing.coverage.3`.)
 > (AC8.13.67 removed, canonical: migrated to `AC-testing.deploy-gates.18`.)
 > (AC8.13.68 removed, canonical: migrated to `AC-testing.acgates.8`.)
-| AC8.13.69 | Local test lifecycle binds namespaced infra to ephemeral host ports so parallel branches do not collide | `test_namespaced_infra_uses_ephemeral_host_ports` | `apps/backend/tests/unit/infra/test_test_lifecycle.py` | P0 |
+> (AC8.13.69 removed, canonical: migrated to `AC-testing.lifecycle.1`.)
 > (AC8.13.70 removed, canonical: migrated to `AC-testing.acgates.9`.)
 > (AC8.13.71 removed, canonical: migrated to `AC-testing.preview.3`.)
 > (AC8.13.72 removed, canonical: migrated to `AC-testing.preview.4`.)
@@ -373,16 +373,16 @@ job inventories or scenario counts into this EPIC.
 > (AC8.13.118 removed, canonical: migrated to `AC-testing.governance.5`.)
 > (AC8.13.119 removed, canonical: migrated to `AC-testing.deploy-gates.26`.)
 > (AC8.13.120 removed, canonical: migrated to `AC-testing.deploy-gates.27`.)
-| AC8.13.121 | PR CI runs a schema migration contract against ephemeral Postgres with `alembic upgrade head`, `alembic check`, uploaded context, and `finish` aggregation | `test_AC8_13_121_pr_ci_runs_schema_migration_contract` | `tests/tooling/test_schema_quality_contract.py` | P0 |
-| AC8.13.122 | Backend schema drift guard no longer treats an out-of-date Alembic target or missing CLI as success; PR CI `schema-migrations` owns hard proof | `test_AC8_13_122_schema_drift_guard_does_not_accept_outdated_targets` | `tests/tooling/test_schema_quality_contract.py` | P0 |
-| AC8.13.123 | Schema guardrails scan the real `apps/backend/migrations/versions` directory instead of a test-local path | `test_AC8_13_123_schema_guardrails_scan_real_migration_directory` | `tests/tooling/test_schema_quality_contract.py` | P0 |
+> (AC8.13.121 removed, canonical: migrated to `AC-testing.schema.1`.)
+> (AC8.13.122 removed, canonical: migrated to `AC-testing.schema.2`.)
+> (AC8.13.123 removed, canonical: migrated to `AC-testing.schema.3`.)
 > (AC8.13.124 removed, canonical: migrated to `AC-testing.acgates.13`.)
 > (AC8.13.125 removed, canonical: migrated to `AC-testing.preview.15`.)
 > (AC8.13.126 removed, canonical: migrated to `AC-testing.governance.6`.)
-| AC8.13.127 | Backend business persistence has a production-faithful Alembic-built proof lane that keeps user foreign keys intact while exercising a representative accounting write/read path | `test_AC8_13_127_alembic_business_persistence_keeps_user_fk_contract` | `apps/backend/tests/integration/test_production_faithful_business_persistence.py` | P0 |
-| AC8.13.128 | Detached `user_id=uuid4()` owner shortcuts in DB-backed backend tests are counted and cannot grow without an explicit budget update | `test_AC8_13_128_*` | `tests/tooling/test_detached_owner_guard.py` | P0 |
-| AC8.13.129 | Testing SSOT distinguishes fast `create_all()` fixtures, PR Alembic schema proof, and the production-faithful backend business persistence lane | `test_AC8_13_129_schema_docs_distinguish_fast_fixture_and_production_faithful_lane` | `tests/tooling/test_detached_owner_guard.py` | P0 |
-| AC8.13.130 | The detached-owner guard counts only persisted (`db.add`/`db.add_all`) `user_id=uuid4()` rows — the real foreign-key risk — excluding transient in-memory and service-argument uses, collapsing the historically-inflated budget to the persisted rows | `test_AC8_13_130_counts_only_persisted_detached_owners` | `tests/tooling/test_detached_owner_guard.py` | P1 |
+> (AC8.13.127 removed, canonical: migrated to `AC-testing.schema.4`.)
+> (AC8.13.128 removed, canonical: migrated to `AC-testing.schema.5`.)
+> (AC8.13.129 removed, canonical: migrated to `AC-testing.schema.6`.)
+> (AC8.13.130 removed, canonical: migrated to `AC-testing.schema.7`.)
 > (AC8.13.131 removed, canonical: migrated to `AC-testing.governance.7`.)
 > (AC8.13.132 removed, canonical: migrated to `AC-testing.governance.8`.)
 > (AC8.13.133 removed, canonical: migrated to `AC-testing.governance.9`.)

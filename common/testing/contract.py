@@ -3018,6 +3018,280 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        # ── group schema: schema/migration proof lanes (was EPIC-008
+        # AC8.13 subset), migration closeout, #1663 / #1718 ──
+        ACRecord(
+            id="AC-testing.schema.1",
+            statement=(
+                "PR CI runs a schema migration contract against ephemeral Postgres "
+                "with alembic upgrade head, alembic check, uploaded context, and "
+                "finish aggregation (Was EPIC-008 AC8.13.121)."
+            ),
+            test=(
+                "tests/tooling/test_schema_quality_contract.py"
+                "::test_AC8_13_121_pr_ci_runs_schema_migration_contract"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.schema.2",
+            statement=(
+                "Backend schema drift guard no longer treats an out-of-date Alembic "
+                "target or missing CLI as success; PR CI schema-migrations owns hard "
+                "proof (Was EPIC-008 AC8.13.122)."
+            ),
+            test=(
+                "tests/tooling/test_schema_quality_contract.py"
+                "::test_AC8_13_122_schema_drift_guard_does_not_accept_outdated_targets"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.schema.3",
+            statement=(
+                "Schema guardrails scan the real apps/backend/migrations/versions "
+                "directory instead of a test-local path (Was EPIC-008 AC8.13.123)."
+            ),
+            test=(
+                "tests/tooling/test_schema_quality_contract.py"
+                "::test_AC8_13_123_schema_guardrails_scan_real_migration_directory"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.schema.4",
+            statement=(
+                "Backend business persistence has a production-faithful Alembic-built "
+                "proof lane that keeps user foreign keys intact while exercising a "
+                "representative accounting write/read path (Was EPIC-008 AC8.13.127)."
+            ),
+            test=(
+                "apps/backend/tests/integration/test_production_faithful_business_persistence.py"
+                "::test_AC8_13_127_alembic_business_persistence_keeps_user_fk_contract"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.schema.5",
+            statement=(
+                "Detached user_id=uuid4() owner shortcuts in DB-backed backend tests "
+                "are counted and cannot grow without an explicit budget update (Was "
+                "EPIC-008 AC8.13.128)."
+            ),
+            test=(
+                "tests/tooling/test_detached_owner_guard.py"
+                "::test_AC8_13_128_budget_fails_on_growth"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.schema.6",
+            statement=(
+                "Testing SSOT distinguishes fast create_all() fixtures, PR Alembic "
+                "schema proof, and the production-faithful backend business "
+                "persistence lane (Was EPIC-008 AC8.13.129)."
+            ),
+            test=(
+                "tests/tooling/test_detached_owner_guard.py"
+                "::test_AC8_13_129_schema_docs_distinguish_fast_fixture_and_production_faithful_lane"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.schema.7",
+            statement=(
+                "The detached-owner guard counts only persisted (db.add/db.add_all) "
+                "user_id=uuid4() rows \u2014 the real foreign-key risk \u2014 excluding "
+                "transient in-memory and service-argument uses, collapsing the "
+                "historically-inflated budget to the persisted rows (Was EPIC-008 "
+                "AC8.13.130)."
+            ),
+            test=(
+                "tests/tooling/test_detached_owner_guard.py"
+                "::test_AC8_13_130_counts_only_persisted_detached_owners"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group lifecycle: test lifecycle & namespace isolation (was
+        # EPIC-008 AC8.13.69 + EPIC-016 AC16.13), migration closeout,
+        # #1663 / #1718 ──
+        ACRecord(
+            id="AC-testing.lifecycle.1",
+            statement=(
+                "Local test lifecycle binds namespaced infra to ephemeral host ports "
+                "so parallel branches do not collide (Was EPIC-008 AC8.13.69)."
+            ),
+            test=(
+                "apps/backend/tests/unit/infra/test_test_lifecycle.py"
+                "::test_namespaced_infra_uses_ephemeral_host_ports"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.lifecycle.2",
+            statement=(
+                "test_lifecycle \u2014 sanitize_namespace normalizes branch/workspace "
+                "names (Was EPIC-016 AC16.13.1)."
+            ),
+            test=(
+                "tests/tooling/test_lifecycle_and_pdf_scripts.py"
+                "::test_AC16_13_1_sanitize_namespace_normalization"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.lifecycle.3",
+            statement=(
+                "test_lifecycle \u2014 get_namespace honors BRANCH_NAME and optional "
+                "WORKSPACE_ID (Was EPIC-016 AC16.13.2)."
+            ),
+            test=(
+                "tests/tooling/test_lifecycle_and_pdf_scripts.py"
+                "::test_AC16_13_2_get_namespace_from_branch_and_workspace"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.lifecycle.4",
+            statement=(
+                "test_lifecycle \u2014 get_namespace falls back to git branch plus path "
+                "hash when env vars absent (Was EPIC-016 AC16.13.3)."
+            ),
+            test=(
+                "tests/tooling/test_lifecycle_and_pdf_scripts.py"
+                "::test_AC16_13_3_get_namespace_from_git_and_path_hash"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.lifecycle.5",
+            statement=(
+                "test_lifecycle \u2014 get_test_db_name and get_s3_bucket format names "
+                "deterministically (Was EPIC-016 AC16.13.4)."
+            ),
+            test=(
+                "tests/tooling/test_lifecycle_and_pdf_scripts.py"
+                "::test_AC16_13_4_name_helpers"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.lifecycle.6",
+            statement=(
+                "test_lifecycle \u2014 load_active_namespaces returns [] on missing or "
+                "corrupted tracker file (Was EPIC-016 AC16.13.5)."
+            ),
+            test=(
+                "tests/tooling/test_lifecycle_and_pdf_scripts.py"
+                "::test_AC16_13_5_load_active_namespaces_missing_and_corrupt"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.lifecycle.7",
+            statement=(
+                "test_lifecycle \u2014 register_namespace and unregister_namespace update "
+                "active namespace tracker (Was EPIC-016 AC16.13.6)."
+            ),
+            test=(
+                "tests/tooling/test_lifecycle_and_pdf_scripts.py"
+                "::test_AC16_13_6_register_unregister_namespace"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.lifecycle.8",
+            statement=(
+                "test_lifecycle \u2014 get_container_runtime honors CONTAINER_RUNTIME, "
+                "otherwise detects podman/docker and returns None when absent (Was "
+                "EPIC-016 AC16.13.7)."
+            ),
+            test=(
+                "tests/tooling/test_lifecycle_and_pdf_scripts.py"
+                "::test_AC16_13_7_get_container_runtime"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.lifecycle.9",
+            statement=(
+                "test_lifecycle \u2014 is_db_ready returns false on pg_isready subprocess "
+                "failure (Was EPIC-016 AC16.13.8)."
+            ),
+            test=(
+                "tests/tooling/test_lifecycle_and_pdf_scripts.py"
+                "::test_AC16_13_8_is_db_ready_handles_failure"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.lifecycle.10",
+            statement=(
+                "test_lifecycle \u2014 cleanup_worker_databases skips invalid namespace "
+                "values (Was EPIC-016 AC16.13.9)."
+            ),
+            test=(
+                "tests/tooling/test_lifecycle_and_pdf_scripts.py"
+                "::test_AC16_13_9_cleanup_worker_databases_skips_invalid_namespace"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.lifecycle.11",
+            statement=(
+                "test_lifecycle \u2014 cleanup_worker_databases drops valid worker DB "
+                "names and skips invalid names (Was EPIC-016 AC16.13.10)."
+            ),
+            test=(
+                "tests/tooling/test_lifecycle_and_pdf_scripts.py"
+                "::test_AC16_13_10_cleanup_worker_databases_drops_valid_and_skips_invalid"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.lifecycle.12",
+            statement=(
+                "test_lifecycle \u2014 _get_changed_files maps backend python paths into "
+                "module import names (Was EPIC-016 AC16.13.11)."
+            ),
+            test=(
+                "tests/tooling/test_lifecycle_and_pdf_scripts.py"
+                "::test_AC16_13_11_get_changed_files_maps_backend_modules"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.lifecycle.13",
+            statement=(
+                "generate_test_pdfs \u2014 generate_statement writes table rows and "
+                "closing balance from Decimal transactions (Was EPIC-016 AC16.13.12)."
+            ),
+            test=(
+                "tests/tooling/test_lifecycle_and_pdf_scripts.py"
+                "::test_AC16_13_12_generate_statement_builds_pdf_rows"
+            ),
+            priority="P1",
+            status="done",
+        ),
     ],
 )
 

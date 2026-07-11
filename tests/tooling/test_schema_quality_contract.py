@@ -17,7 +17,7 @@ def load_ci() -> dict:
 
 
 def test_AC8_13_121_pr_ci_runs_schema_migration_contract() -> None:
-    """AC8.13.121: PR CI proves Alembic migrations against real Postgres."""
+    """AC-testing.schema.1: AC8.13.121: PR CI proves Alembic migrations against real Postgres."""
 
     workflow_text = read(".github/workflows/ci.yml")
     workflow = load_ci()
@@ -53,7 +53,7 @@ def test_AC8_13_121_pr_ci_runs_schema_migration_contract() -> None:
 
 
 def test_AC8_13_122_schema_drift_guard_does_not_accept_outdated_targets() -> None:
-    """AC8.13.122: Alembic drift checks must not treat stale DB targets as success."""
+    """AC-testing.schema.2: AC8.13.122: Alembic drift checks must not treat stale DB targets as success."""
 
     source = read("apps/backend/tests/infra/test_schema_drift.py")
 
@@ -63,7 +63,7 @@ def test_AC8_13_122_schema_drift_guard_does_not_accept_outdated_targets() -> Non
 
 
 def test_AC8_13_123_schema_guardrails_scan_real_migration_directory() -> None:
-    """AC8.13.123: Migration guardrails inspect apps/backend/migrations/versions."""
+    """AC-testing.schema.3: AC8.13.123: Migration guardrails inspect apps/backend/migrations/versions."""
 
     source = read("apps/backend/tests/infra/test_schema_guardrails.py")
 
