@@ -112,6 +112,9 @@ async def record_manual_valuation(
             subject=subject,
             as_of=snapshot.as_of_date,
             source=ObservationSource.MANUAL,
+            value=snapshot.value,
+            currency=snapshot.currency,
+            user_id=user_id,
             occurred_at=snapshot.created_at,
         )
     )
@@ -167,6 +170,9 @@ async def record_override(
             subject=subject,
             as_of=override.price_date,
             source=ObservationSource.OVERRIDE,
+            value=override.price,
+            currency=override.currency,
+            user_id=user_id,
             occurred_at=override.created_at,
         )
     )

@@ -2,17 +2,19 @@
 
 Queries the 4 legacy tables during the transition (``FxRate`` / ``StockPrice``
 for the global crawler sources; ``MarketDataOverride`` / ``ManualValuationSnapshot``
-for the user-scoped manual sources) and translates each row into a
-``PriceObservation``, so ``resolve()`` sees one uniform candidate list
-regardless of which table a fact actually lives in today. The unification into
-one physical table is later, package-internal work (#1610 DoD) — this adapter
-is schema-preserving on purpose, so it can land ahead of that migration.
+for the user-scoped manual sources) plus pricing's own
+``statement_price_observations`` (the event-fed ingest store, #1642) and
+translates each row into a ``PriceObservation``, so ``resolve()`` sees one
+uniform candidate list regardless of which table a fact actually lives in
+today. The unification into one physical table is later, package-internal
+work (#1610 DoD) — this adapter is schema-preserving on purpose, so it can
+land ahead of that migration.
 
 Per ``ObservationRepository``'s contract, ``user_id=None`` returns only the
-global sources: the ``MarketDataOverride``/``ManualValuationSnapshot`` queries
-below are gated on ``user_id is not None`` and always filter by it — there is
-no code path that returns one user's manual data to a caller who didn't ask
-for that user.
+global sources: the ``MarketDataOverride``/``ManualValuationSnapshot``/
+``StatementPriceObservation`` queries below are gated on ``user_id is not
+None`` and always filter by it — there is no code path that returns one
+user's data to a caller who didn't ask for that user.
 """
 
 from __future__ import annotations
@@ -28,6 +30,7 @@ from src.models.portfolio import MarketDataOverride
 from src.pricing.base.observation import Authority, ObservationSource, PriceObservation
 from src.pricing.base.subject import PriceableSubject, SubjectKind
 from src.pricing.orm.market_data import FxRate, StockPrice
+from src.pricing.orm.statement_observation import StatementPriceObservation
 
 
 class SqlObservationRepository:
@@ -40,10 +43,49 @@ class SqlObservationRepository:
         self, subject: PriceableSubject, as_of: date, user_id: UUID | None = None
     ) -> list[PriceObservation]:
         if subject.kind is SubjectKind.CURRENCY_PAIR:
-            return await self._fx_candidates(subject, as_of)
-        if subject.kind is SubjectKind.SECURITY:
-            return await self._security_candidates(subject, as_of, user_id)
-        return await self._component_candidates(subject, as_of, user_id)
+            observations = await self._fx_candidates(subject, as_of)
+        elif subject.kind is SubjectKind.SECURITY:
+            observations = await self._security_candidates(subject, as_of, user_id)
+        else:
+            observations = await self._component_candidates(subject, as_of, user_id)
+        # Ingested statement prices are subject-kind-agnostic (the ingest store
+        # keys on kind+key), so they join the candidate list for every kind.
+        observations.extend(await self._statement_candidates(subject, as_of, user_id))
+        return observations
+
+    async def _statement_candidates(
+        self, subject: PriceableSubject, as_of: date, user_id: UUID | None
+    ) -> list[PriceObservation]:
+        if user_id is None:
+            # Statement facts are inherently user-owned; there is no global
+            # statement observation to return.
+            return []
+        rows = (
+            (
+                await self._db.execute(
+                    select(StatementPriceObservation)
+                    .where(StatementPriceObservation.subject_kind == subject.kind.value)
+                    .where(StatementPriceObservation.subject_key == subject.key)
+                    .where(StatementPriceObservation.as_of <= as_of)
+                    .where(StatementPriceObservation.user_id == user_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return [
+            PriceObservation(
+                id=row.id,
+                subject=subject,
+                value=row.value,
+                as_of=row.as_of,
+                observed_at=row.observed_at,
+                source=ObservationSource.STATEMENT,
+                authority=Authority.STATEMENT,
+                currency=row.currency,
+            )
+            for row in rows
+        ]
 
     async def _fx_candidates(self, subject: PriceableSubject, as_of: date) -> list[PriceObservation]:
         base, quote = subject.key.split("/")

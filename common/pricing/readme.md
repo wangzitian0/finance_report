@@ -66,24 +66,23 @@ The pure `base/` model (`PriceObservation`/`PriceableSubject`/
 read-only SQL adapter (querying the 4 legacy tables directly — schema-preserving
 on purpose, so this lands ahead of a unified physical store), the two
 user-scoped write-side recorders (`record_manual_valuation`/`record_override`,
-each publishing `PriceObserved` atomically with the write), and the FX lookup +
-`convert_*` + average-rate wrappers (`extension/fx.py`).
+each publishing `PriceObserved` atomically with the write), the
+extraction-event ingest subscriber (`ingest_statement_price` +
+`subscribe_price_ingest`, #1642 — the codebase's first cross-domain event
+consumer: extraction's `source=statement` `PriceObserved` publications land as
+id-referenced copies in `statement_price_observations`, idempotent on the
+upstream fact id, no FK, wired by the app composition root), and the FX
+lookup + `convert_*` + average-rate wrappers (`extension/fx.py`).
 
 Reserved (declared in [`contract.py`](./contract.py), no `module=` yet): the
-crawler sync (`sync_market_data`) and the extraction-event subscriber
-(`ingest_statement_price`), plus the `LatestPriceView`/`StalenessView` read
-projections.
+`LatestPriceView`/`StalenessView` read projections.
 
 ## Status
 
-`status="draft"`, `tier=None`, `roadmap=[]` — the write/read surface above is
-implemented and tested, but the package doesn't yet carry its own ACs: they
-remain in `docs/project/EPIC-011.asset-lifecycle.md` /
-`EPIC-005.reporting-visualization.md` / `EPIC-017.portfolio-management.md`
-pending the mass AC migration (tracked in the migration closeout series,
-umbrella #1416). Remaining consumer wiring is tracked in #1610 PR2. The
-package goes `status="active"` once its roadmap is populated and an authority
-tier is decided.
+`status="active"`, `tier="CODE-ONLY"` — the package owns its ACs in
+[`contract.py`](./contract.py)'s `roadmap` (`AC-pricing.*`; the EPIC-era rows
+were distributed in the migration closeout series, umbrella #1416). Remaining
+consumer wiring is tracked in #1610 PR2.
 
 ## <a id="manual-valuation-snapshots"></a>Manual valuation snapshots (pre-#1610-cutover shipped model)
 
