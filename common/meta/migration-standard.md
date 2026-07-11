@@ -19,11 +19,14 @@ is to delete the mirror: **the contract is the single source**, governance is
 
 Two cross-cutting governors (parallel peers, not super-packages) + the value
 foundation + the shared valuation SSOT + the financial data flow + the technical
-substrate. **This is the financial-domain core, not the whole registry**: 6 more
-business-agnostic infra leaves (`config`, `counter`, `identity`, `observability`,
-`runtime`, `testing`) exist alongside this core and are governed the same way —
-they're omitted from the table below because they carry no domain vocabulary of
-their own to describe, not because they're second-class.
+substrate. **This is the financial-domain core, not the whole registry**: more
+packages exist alongside this core and are governed the same way —
+`observability`/`runtime`/`testing` on the infra axis, `counter` in the
+middleware kernel, `identity` as a domain slice outside the financial flow
+(`config` folded into `runtime`, #1669); `PACKAGE_LAYER` is the authoritative
+list. They're omitted from the table below because they carry no
+financial-domain vocabulary of their own to describe, not because they're
+second-class.
 `common/meta/base/layering.py::PACKAGE_LAYER` is the actual current-membership
 list (a hand-synced count here went stale twice — read the code, not a snapshot
 of it); this table is target *design intent* for

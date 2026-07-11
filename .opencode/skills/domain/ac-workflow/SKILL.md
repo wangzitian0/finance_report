@@ -1,13 +1,15 @@
 ---
 name: ac-workflow
-description: Route a new or changed acceptance criterion (AC) to its correct home — a migrated package's contract.py roadmap first, EPIC tables only for legacy surfaces — then follow the mandatory AC → Test → Code → Doc order. Use this whenever you add/modify an AC, add a test that references an AC id (AC-<pkg>.* or ACx.y.z), edit a package contract.py roadmap or a docs/project/EPIC*.md file, or need the AC registry/traceability/dual gate to pass.
+description: Route a new or changed acceptance criterion (AC) to its correct home — a migrated package's contract.py roadmap first, EPIC tables only for legacy surfaces — then follow the mandatory MECE → AC → Test → Code → Doc order. Use this whenever you add/modify an AC, add a test that references an AC id (AC-<pkg>.* or ACx.y.z), edit a package contract.py roadmap or a docs/project/EPIC*.md file, or need the AC registry/traceability/dual gate to pass.
 ---
 
 # AC workflow — package roadmap first, EPIC table only for legacy
 
 The culture is `EPIC → AC → Test → Code → Doc` (every behavior anchors to a
-goal and is proven by a test). The **mechanism** for *where an AC lives* is the
-package contract, not an EPIC table — see
+goal and is proven by a test); the mandatory sequence is
+**MECE → AC → Test → Code → Doc** — slice the work into non-overlapping,
+collectively exhaustive pieces *before* touching ACs. The **mechanism** for
+*where an AC lives* is the package contract, not an EPIC table — see
 `docs/agents/orchestration.md` (work order) and
 `common/meta/migration-standard.md` (the target architecture).
 
