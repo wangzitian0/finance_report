@@ -169,10 +169,11 @@ Each cassette is tagged:
 
 ### Streaming bridge — the real extraction transport
 
-The real extraction transport is **streaming** (`extension/streaming.stream_ai_json`
-→ `client.litellm_stream` → `accumulate_stream`), and both text and
-default-config vision (`OCR_MODEL == VISION_MODEL`, layout parser skipped) flow
-through it. `litellm_stream` is cassette-aware **while preserving streaming**:
+The real extraction transport is **streaming** (`src.llm.stream_ai_json` →
+`src.llm.extension.client.litellm_stream` → `src.llm.accumulate_stream`), and
+both text and default-config vision (`OCR_MODEL == VISION_MODEL`, layout
+parser skipped) flow through it. `litellm_stream` is cassette-aware **while
+preserving streaming**:
 
 - **`off`** — the prior live `litellm.acompletion(stream=True)` passthrough,
   byte-for-byte (deltas arrive as they stream). Prod/staging run `off`, so the
