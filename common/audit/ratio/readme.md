@@ -2,7 +2,7 @@
 
 > The ratio/percentage value type. Model spec:
 > [`../../meta/readme.md`](../../meta/readme.md). Machine contract:
-> [`contract.py`](./contract.py). Language-neutral interface + conformance:
+> [`contract.py`](../contract.py). Language-neutral interface + conformance:
 > [`contract/ratio.contract.md`](./contract/ratio.contract.md) +
 > [`conformance/vectors.json`](./conformance/vectors.json). Worklist:
 > [`todo.md`](./todo.md).
@@ -40,7 +40,7 @@ keeps the two ends from drifting.
 
 ## Governance
 
-[`contract.py`](./contract.py) is validated by `tools/check_package_contract.py`
+[`contract.py`](../contract.py) is validated by `tools/check_package_contract.py`
 (interface == BE `__all__`, invariants pin to conformance tests, no forbidden
 import edge). The ratio ACs (`AC12.9.x`) are still owned by EPIC-012; moving them
 into the contract `roadmap` is a tracked follow-up — see [`todo.md`](./todo.md).

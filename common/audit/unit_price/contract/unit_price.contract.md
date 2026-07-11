@@ -2,7 +2,7 @@
 
 > The **interface** half of the unit-price module's SSOT; the conformance half
 > is [`../conformance/vectors.json`](../conformance/vectors.json). Authoritative
-> prose: [`common/audit/readme.md#base-packages`](../../audit/readme.md#base-packages).
+> prose: [`common/audit/readme.md#base-packages`](../../readme.md#base-packages).
 
 ## Types
 

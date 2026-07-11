@@ -2,7 +2,7 @@
 
 > The quantity/unit value type. Model spec:
 > [`../../meta/readme.md`](../../meta/readme.md). Machine contract:
-> [`contract.py`](./contract.py). Language-neutral interface + conformance:
+> [`contract.py`](../contract.py). Language-neutral interface + conformance:
 > [`contract/quantity.contract.md`](./contract/quantity.contract.md) +
 > [`conformance/vectors.json`](./conformance/vectors.json). Worklist:
 > [`todo.md`](./todo.md).
@@ -42,7 +42,7 @@ errors (`QuantityError`, `FloatNotAllowedError`, `InvalidQuantityPayloadError`,
 
 ## Governance
 
-[`contract.py`](./contract.py) is validated by `tools/check_package_contract.py`
+[`contract.py`](../contract.py) is validated by `tools/check_package_contract.py`
 (interface == BE `__all__`, invariants pin to conformance tests, no forbidden
 import edge). The quantity ACs (`AC12.30.x`) are still owned by EPIC-012; moving
 them into the contract `roadmap` is a tracked follow-up — see [`todo.md`](./todo.md).

@@ -2,7 +2,7 @@
 
 > The **interface** half of the ratio module's SSOT; the **conformance** half is
 > [`../conformance/vectors.json`](../conformance/vectors.json). Second instance of
-> the base-package template — see [`common/audit/readme.md#base-packages`](../../audit/readme.md#base-packages).
+> the base-package template — see [`common/audit/readme.md#base-packages`](../../readme.md#base-packages).
 
 ## Type
 
