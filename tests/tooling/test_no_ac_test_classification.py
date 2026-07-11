@@ -16,7 +16,7 @@ EXCEPTIONS = ROOT / "docs" / "project" / "traceability-exceptions.md"
 
 
 def test_AC8_13_132_no_unclassified_no_ac_test_files() -> None:
-    """AC8.13.132: every no-AC test/support file is classified in the registry."""
+    """AC-testing.governance.8: AC8.13.132: every no-AC test/support file is classified in the registry."""
     violations = ldc.check_no_ac_test_exceptions()
     assert violations == [], "\n".join(v.message for v in violations)
 

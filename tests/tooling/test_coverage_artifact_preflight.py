@@ -271,6 +271,15 @@ class TestGateComponentsScoping:
     def test_AC8_13_163_scoped_to_the_regressed_component_still_fails(
         self, tmp_path, monkeypatch, capsys
     ):
+        """AC-testing.coverage.6: calculate_unified_coverage's no-regression gate accepts a
+        --gate-components/COVERAGE_GATE_COMPONENTS scope: on pull_request events it
+        BLOCKS only on regressions in the components the PR actually changed (an
+        unrelated component's regression, and the blended "unified" total, are still
+        computed and reported but do not fail the job); every component is still merged
+        into unified-coverage.json regardless of scope, and a push to main always omits
+        the scope (full, unscoped, unchanged-strict gate) (#1689) (Was EPIC-008
+        AC8.13.163).
+        """
         self._scoped_env(tmp_path, monkeypatch)
         with pytest.raises(SystemExit) as exc:
             cuc.main(["--gate-components", "backend"])

@@ -479,7 +479,7 @@ def test_AC8_13_8_upload_readiness_gate_rejects_rejected_status() -> None:
 
 
 def test_AC8_13_11_health_check_diagnoses_staging_api_route_404() -> None:
-    """AC8.13.11: Staging health 404 reports API route diagnostics."""
+    """AC-testing.deploy-gates.2: AC8.13.11: Staging health 404 reports API route diagnostics."""
     health_check = read("tools/_lib/shell/health_check.sh")
 
     assert "print_health_route_probe" in health_check
@@ -495,7 +495,7 @@ def test_AC8_13_11_health_check_diagnoses_staging_api_route_404() -> None:
 
 
 def test_AC8_13_12_ai_ocr_gate_failure_includes_statement_context() -> None:
-    """AC8.13.12: AI/OCR gate failures include statement validation context."""
+    """AC-testing.deploy-gates.3: AC8.13.12: AI/OCR gate failures include statement validation context."""
     conftest = read("tests/e2e/conftest.py")
     journey = read("tests/e2e/test_statement_full_journey.py")
     upload = read("tests/e2e/test_statement_upload_e2e.py")
@@ -518,7 +518,7 @@ def test_AC8_13_12_ai_ocr_gate_failure_includes_statement_context() -> None:
 
 
 def test_AC8_13_13_staging_deploy_fast_fail_guardrails() -> None:
-    """AC8.13.13 AC8.13.105: Staging deploy is a singleton post-merge train."""
+    """AC-testing.deploy-gates.4 AC-testing.deploy-gates.21: AC8.13.13 AC8.13.105: Staging deploy is a singleton post-merge train."""
     workflow = read(".github/workflows/deploy.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
@@ -572,7 +572,7 @@ def test_AC8_13_13_main_ci_keeps_each_merge_commit_run() -> None:
 
 
 def test_AC8_13_157_audit_replay_workflow_is_nightly_and_nonblocking() -> None:
-    """AC8.13.157: heavy LLM journeys run as a separate nightly/manual, non-blocking
+    """AC-testing.deploy-gates.32: AC8.13.157: heavy LLM journeys run as a separate nightly/manual, non-blocking
     audit-replay job that does not block production promotion by default."""
     audit = yaml.safe_load(read(".github/workflows/audit-replay.yml"))
     deploy = yaml.safe_load(read(".github/workflows/deploy.yml"))
@@ -613,7 +613,7 @@ def test_AC8_13_157_audit_replay_workflow_is_nightly_and_nonblocking() -> None:
 
 
 def test_AC8_13_158_canary_transient_classification_owned_by_provider_gate() -> None:
-    """AC8.13.158: provider transient (5xx/timeout)=degraded, 4xx/config=block; the
+    """AC-testing.deploy-gates.33: AC8.13.158: provider transient (5xx/timeout)=degraded, 4xx/config=block; the
     canary delegates this classification to the Staging Provider Gate."""
     deploy = read(".github/workflows/deploy.yml")
 
@@ -632,7 +632,7 @@ def test_AC8_13_158_canary_transient_classification_owned_by_provider_gate() -> 
 
 
 def test_AC8_13_160_ci_cd_distinguishes_canary_from_audit_replay() -> None:
-    """AC8.13.160: SSOT distinguishes the blocking minimal AI/OCR Canary from the
+    """AC-testing.deploy-gates.35: AC8.13.160: SSOT distinguishes the blocking minimal AI/OCR Canary from the
     nightly comprehensive Audit Replay, and the split is a recorded decision."""
     ci_cd = read("docs/ssot/ci-cd.md")
 
@@ -653,7 +653,7 @@ def test_AC8_13_160_ci_cd_distinguishes_canary_from_audit_replay() -> None:
 
 
 def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
-    """AC8.13.14: Provider-backed AI/OCR gate runs outside deploy health."""
+    """AC-testing.deploy-gates.5: AC8.13.14: Provider-backed AI/OCR gate runs outside deploy health."""
     deploy_workflow = read(".github/workflows/deploy.yml")
     reusable = read(".github/workflows/staging-ai-ocr-gate.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
@@ -715,7 +715,7 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
 
 
 def test_AC8_13_49_staging_ai_ocr_gate_publishes_audit_inventory_and_summary() -> None:
-    """AC8.13.49: Staging AI/OCR gates publish replay inputs and summary fields."""
+    """AC-testing.deploy-gates.11: AC8.13.49: Staging AI/OCR gates publish replay inputs and summary fields."""
     # The gate body — and therefore its audit replay inventory/summary — lives
     # once in the reusable workflow shared by both entrances (AC8.13.153).
     workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
@@ -897,7 +897,7 @@ def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
 
 
 def test_AC8_13_51_staging_deploy_is_manual_dispatch_only() -> None:
-    """AC8.13.51: Staging deploy is manual (`workflow_dispatch`) only; it does not auto-follow main CI."""
+    """AC-testing.deploy-gates.12: AC8.13.51: Staging deploy is manual (`workflow_dispatch`) only; it does not auto-follow main CI."""
     workflow = read(".github/workflows/deploy.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
@@ -931,7 +931,7 @@ def test_AC8_13_51_staging_deploy_is_manual_dispatch_only() -> None:
 def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates() -> (
     None
 ):
-    """AC8.13.103/AC8.13.108: Delivery aggregates gates and failure context."""
+    """AC-testing.deploy-gates.20: AC8.13.103/AC8.13.108: Delivery aggregates gates and failure context."""
     workflow = read(".github/workflows/deploy.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     epic = read("docs/project/EPIC-008.testing-strategy.md")
@@ -1049,7 +1049,7 @@ def test_AC8_13_55_post_merge_staging_is_scoped_to_deploy_relevant_paths() -> No
 
 
 def test_AC8_13_60_deploy_workflows_have_no_nonblocking_noop_gates() -> None:
-    """AC8.13.60: Deploy gates do not keep no-op or warning-only checks."""
+    """AC-testing.deploy-gates.15: AC8.13.60: Deploy gates do not keep no-op or warning-only checks."""
     workflows = [
         read(".github/workflows/deploy.yml"),
         read(".github/workflows/deploy.yml"),
@@ -1068,7 +1068,7 @@ def test_AC8_13_60_deploy_workflows_have_no_nonblocking_noop_gates() -> None:
 
 
 def test_AC8_13_52_production_release_dry_run_does_not_mutate_production() -> None:
-    """AC8.13.52 AC8.13.65: Production dry-run validates without deploying."""
+    """AC-testing.deploy-gates.13 AC-testing.deploy-gates.17: AC8.13.52 AC8.13.65: Production dry-run validates without deploying."""
     workflow = read(".github/workflows/release.yml")
     release_evidence = read("common/runtime/release_evidence.py")
     release_images = read("common/runtime/release_images.py")
@@ -1347,7 +1347,7 @@ def test_AC8_13_52_release_image_tool_fails_when_a_digest_is_missing() -> None:
 
 
 def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
-    """AC8.13.16: CI skips heavy jobs for lightweight changes and caches npm."""
+    """AC-testing.classifier.1: AC8.13.16: CI skips heavy jobs for lightweight changes and caches npm."""
     workflow = read(".github/workflows/ci.yml")
     pr_workflow = read(".github/workflows/preview.yml")
     classifier = read("common/testing/change_classifier.py")
@@ -1557,7 +1557,7 @@ def test_AC8_13_53_pr_ci_avoids_moon_bootstrap_for_direct_gates() -> None:
 
 
 def test_AC8_13_145_backend_tier1_pr_fail_fast_but_main_reports_all_failures() -> None:
-    """AC8.13.145: PR Tier-1 E2E is fail-fast; main push reports every failure."""
+    """AC-testing.ci-structure.6: AC8.13.145: PR Tier-1 E2E is fail-fast; main push reports every failure."""
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     inventory = read("docs/ssot/ci-gate-inventory.yaml")
@@ -1578,7 +1578,7 @@ def test_AC8_13_145_backend_tier1_pr_fail_fast_but_main_reports_all_failures() -
 
 
 def test_AC8_13_147_frontend_ci_split_preserves_merge_authority() -> None:
-    """AC8.13.147: frontend PR CI is split without dropping required proof."""
+    """AC-testing.ci-structure.7: AC8.13.147: frontend PR CI is split without dropping required proof."""
     workflow_text = read(".github/workflows/ci.yml")
     workflow = yaml.safe_load(workflow_text)
     jobs = workflow["jobs"]
@@ -1663,7 +1663,7 @@ def test_AC8_13_147_frontend_ci_split_preserves_merge_authority() -> None:
 
 
 def test_AC8_13_162_frontend_telemetry_e2e_is_right_moved_and_skip_is_a_pass() -> None:
-    """AC8.13.162: frontend-telemetry-e2e is right-moved off unrelated PRs
+    """AC-testing.ci-structure.10: AC8.13.162: frontend-telemetry-e2e is right-moved off unrelated PRs
     (mirrors container-images' image_build_required pattern), and finish's
     aggregation treats its skip as a pass, not a gap (#1689)."""
     workflow = yaml.safe_load(read(".github/workflows/ci.yml"))
@@ -1691,7 +1691,7 @@ def test_AC8_13_162_frontend_telemetry_e2e_is_right_moved_and_skip_is_a_pass() -
 
 
 def test_AC8_13_148_backend_shards_use_seeded_5_way_split() -> None:
-    """AC8.13.148: backend shards use a seeded 5-way least-duration split."""
+    """AC-testing.ci-structure.8: AC8.13.148: backend shards use a seeded 5-way least-duration split."""
     workflow_text = read(".github/workflows/ci.yml")
     workflow = yaml.safe_load(workflow_text)
     backend_job = workflow["jobs"]["backend"]
@@ -1736,7 +1736,7 @@ def test_AC8_13_148_backend_shards_use_seeded_5_way_split() -> None:
 
 
 def test_AC8_13_149_fan_in_jobs_download_only_required_artifacts() -> None:
-    """AC8.13.149: coverage and ratchet fan-in stays scoped and stdlib-fast."""
+    """AC-testing.ci-structure.9: AC8.13.149: coverage and ratchet fan-in stays scoped and stdlib-fast."""
     workflow_text = read(".github/workflows/ci.yml")
     workflow = yaml.safe_load(workflow_text)
     jobs = workflow["jobs"]
@@ -1783,7 +1783,7 @@ def test_AC8_13_149_fan_in_jobs_download_only_required_artifacts() -> None:
 
 
 def test_AC8_13_146_report_main_dispatch_waits_for_ci_images() -> None:
-    """AC8.13.146: report-branch-main deploys only successful CI SHA images.
+    """AC-testing.deploy-gates.30: AC8.13.146: report-branch-main deploys only successful CI SHA images.
 
     The dispatch/skip DECISION (does a workflow_run completion's SHA still
     match main's tip, or is it stale?) is covered behaviorally by
@@ -1878,7 +1878,7 @@ def test_AC8_13_70_ci_documents_closed_e2e_traceability_system() -> None:
 
 
 def test_AC8_13_9_production_release_runs_prod_safe_e2e_smoke() -> None:
-    """AC8.13.9: Production release runs prod-safe read-only E2E smoke."""
+    """AC-testing.deploy-gates.1: AC8.13.9: Production release runs prod-safe read-only E2E smoke."""
     workflow = read(".github/workflows/release.yml")
     prod_smoke = read("tests/e2e/test_production_readonly_smoke.py")
 
@@ -1910,7 +1910,7 @@ def test_AC8_13_9_production_release_runs_prod_safe_e2e_smoke() -> None:
 def test_AC8_13_144_production_release_rolls_back_with_deploy_v2_after_post_deploy_failure() -> (
     None
 ):
-    """AC8.13.144: production rollback uses deploy_v2 and confirms previous health."""
+    """AC-testing.deploy-gates.29: AC8.13.144: production rollback uses deploy_v2 and confirms previous health."""
     workflow = read(".github/workflows/release.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     inventory = read("docs/ssot/ci-gate-inventory.yaml")
@@ -1975,7 +1975,7 @@ def test_AC8_13_144_production_release_rolls_back_with_deploy_v2_after_post_depl
 
 
 def test_AC8_13_67_production_release_preserves_version_metadata() -> None:
-    """AC8.13.67: Production release preserves deployed version metadata."""
+    """AC-testing.deploy-gates.18: AC8.13.67: Production release preserves deployed version metadata."""
     workflow = read(".github/workflows/release.yml")
     # Tag promotion (imagetools create x2) stays in deploy.yml's promote job.
     release_images = read(".github/workflows/deploy.yml")
@@ -2138,7 +2138,7 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
 
 
 def test_AC8_13_21_staging_ai_ocr_gate_runs_under_manual_dispatch() -> None:
-    """AC8.13.21: Provider-backed staging AI/OCR runs inside a manual dispatch, not auto-after-CI."""
+    """AC-testing.deploy-gates.6: AC8.13.21: Provider-backed staging AI/OCR runs inside a manual dispatch, not auto-after-CI."""
     workflow = read(".github/workflows/deploy.yml")
     on_demand_gate = read(".github/workflows/deploy.yml")
     reusable = read(".github/workflows/staging-ai-ocr-gate.yml")
@@ -2175,7 +2175,7 @@ def test_AC8_13_21_staging_ai_ocr_gate_runs_under_manual_dispatch() -> None:
 
 
 def test_AC8_13_120_staging_runs_lightweight_provider_connectivity_smoke() -> None:
-    """AC8.13.120: provider-risk staging changes prove a provider round trip."""
+    """AC-testing.deploy-gates.27: AC8.13.120: provider-risk staging changes prove a provider round trip."""
     workflow = read(".github/workflows/deploy.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     provider_test = read("tests/e2e/test_ai_provider_connectivity.py")
@@ -2254,7 +2254,7 @@ def test_AC8_13_120_staging_runs_lightweight_provider_connectivity_smoke() -> No
 
 
 def test_AC8_13_22_staging_deploys_manually_dispatched_version_ref() -> None:
-    """AC8.13.22: Staging deploys the manually dispatched release version_ref."""
+    """AC-testing.deploy-gates.7: AC8.13.22: Staging deploys the manually dispatched release version_ref."""
     workflow = read(".github/workflows/deploy.yml")
     resolver = read("common/runtime/release_coordinate.py")
 
@@ -2366,7 +2366,7 @@ def test_AC8_13_22_release_coordinate_fetches_only_requested_tag(
 
 
 def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
-    """AC8.13.36: Main CI builds SHA images, deploy.yml tags them, staging deploys the tag."""
+    """AC-testing.deploy-gates.9: AC8.13.36: Main CI builds SHA images, deploy.yml tags them, staging deploys the tag."""
     ci_workflow = read(".github/workflows/ci.yml")
     release_workflow = read(".github/workflows/deploy.yml")
     deploy_workflow = read(".github/workflows/deploy.yml")
@@ -2445,7 +2445,7 @@ def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
 
 
 def test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge() -> None:
-    """AC8.13.40: PR CI dry-runs staging image builds before merge."""
+    """AC-testing.deploy-gates.10: AC8.13.40: PR CI dry-runs staging image builds before merge."""
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
@@ -2482,7 +2482,7 @@ def test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge() -> None:
 
 
 def test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds() -> None:
-    """AC8.13.89: the in-runner e2e gate runs synchronously on pull_request (independent
+    """AC-testing.preview.7: AC8.13.89: the in-runner e2e gate runs synchronously on pull_request (independent
     of CI) and does not build/push PR images."""
     workflow = read(".github/workflows/preview.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
@@ -2565,7 +2565,7 @@ def test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds() -> None:
 
 
 def test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit() -> None:
-    """AC8.13.23: Deploy health and provider gate share one serialized workflow unit."""
+    """AC-testing.deploy-gates.8: AC8.13.23: Deploy health and provider gate share one serialized workflow unit."""
     deploy_workflow = read(".github/workflows/deploy.yml")
     ai_workflow = read(".github/workflows/deploy.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
@@ -2613,7 +2613,7 @@ def test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit() -> None:
 def test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate() -> (
     None
 ):
-    """AC8.13.24: CI uploads traceability audit instead of gating stale snapshots."""
+    """AC-testing.acgates.2: AC8.13.24: CI uploads traceability audit instead of gating stale snapshots."""
     workflow = read(".github/workflows/ci.yml")
     audit_builder = read("common/testing/build_ac_traceability.py")
     ci_cd = read("docs/ssot/ci-cd.md")
@@ -2636,7 +2636,7 @@ def test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate
 
 
 def test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates() -> None:
-    """AC8.13.25: Full CI starts tests early while finish aggregates every gate."""
+    """AC-testing.ci-structure.1: AC8.13.25: Full CI starts tests early while finish aggregates every gate."""
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
@@ -2678,7 +2678,7 @@ def test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates() -> No
 
 
 def test_AC8_13_86_fast_feedback_jobs_do_not_wait_for_behavior_gates() -> None:
-    """AC8.13.86: CI fast feedback jobs preserve actual workflow dependency semantics."""
+    """AC-testing.ci-structure.5: AC8.13.86: CI fast feedback jobs preserve actual workflow dependency semantics."""
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
@@ -2713,7 +2713,7 @@ def test_AC8_13_86_fast_feedback_jobs_do_not_wait_for_behavior_gates() -> None:
 
 
 def test_AC8_13_94_env_and_pipeline_stage_contract_is_documented() -> None:
-    """AC8.13.94: environments and pipeline stages are separate matrix axes."""
+    """AC-testing.governance.3: AC8.13.94: environments and pipeline stages are separate matrix axes."""
     ci_cd = read("docs/ssot/ci-cd.md")
     environments = read("docs/ssot/environments.md")
     readme = read("README.md")
@@ -2747,7 +2747,7 @@ def test_AC8_13_94_env_and_pipeline_stage_contract_is_documented() -> None:
 
 
 def test_AC8_13_95_local_fast_gate_and_escalation_policy_are_documented() -> None:
-    """AC8.13.95: local defaults stay fast but escalate for high-risk paths."""
+    """AC-testing.governance.4: AC8.13.95: local defaults stay fast but escalate for high-risk paths."""
     ci_cd = read("docs/ssot/ci-cd.md")
     development = read("docs/ssot/development.md")
     readme = read("README.md")
@@ -2806,7 +2806,7 @@ def test_AC8_13_67_backend_tier1_api_e2e_scope_excludes_browser_e2e() -> None:
 
 
 def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
-    """AC8.13.27: PR CI has no external Coveralls status surface."""
+    """AC-testing.coverage.2: AC8.13.27: PR CI has no external Coveralls status surface."""
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     coverage = read("docs/ssot/coverage.md")
@@ -2847,7 +2847,7 @@ def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
 
 
 def test_AC8_13_75_coverage_gate_summary_is_nonblocking() -> None:
-    """AC8.13.75: Coverage summary display cannot fail final CI aggregation."""
+    """AC-testing.coverage.4: AC8.13.75: Coverage summary display cannot fail final CI aggregation."""
     workflow = read(".github/workflows/ci.yml")
 
     summary_block = workflow.split("- name: Write coverage gate summary", 1)[1].split(
@@ -2902,7 +2902,7 @@ def test_AC8_13_75_unified_coverage_uploads_debug_context() -> None:
 def test_AC8_13_143_unified_coverage_updates_baseline_through_pr_not_direct_main_push() -> (
     None
 ):
-    """AC8.13.143: main baseline updates are automated through a PR, not a direct push."""
+    """AC-testing.coverage.5: AC8.13.143: main baseline updates are automated through a PR, not a direct push."""
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     inventory = read("docs/ssot/ci-gate-inventory.yaml")
@@ -2975,7 +2975,7 @@ def test_AC8_13_66_coveralls_uploads_use_line_only_lcov() -> None:
 
 
 def test_AC8_13_93_staging_promotion_requires_manual_dispatch() -> None:
-    """AC8.13.93: Staging is mutated only by an explicit manual dispatch; no auto path."""
+    """AC-testing.deploy-gates.19 AC-testing.deploy-gates.22: AC8.13.93: Staging is mutated only by an explicit manual dispatch; no auto path."""
     workflow = read(".github/workflows/deploy.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     deployment = read("docs/ssot/deployment.md")
@@ -3060,7 +3060,7 @@ def test_AC8_13_45_root_moon_tasks_do_not_hash_repo_submodule() -> None:
 
 
 def test_AC8_13_46_pr_preview_non_llm_gate_matches_staging_strict_parallelism() -> None:
-    """AC8.13.46: PR preview keeps strictness while narrowing to preview scope."""
+    """AC-testing.preview.2: AC8.13.46: PR preview keeps strictness while narrowing to preview scope."""
     preview = read(".github/workflows/preview.yml")
     staging = read(".github/workflows/deploy.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
@@ -3200,7 +3200,7 @@ def test_AC8_13_108_staging_failure_context_fails_closed_on_classifier_and_unkno
 
 
 def test_AC8_13_47_delivery_engine_recommendations_are_tracked() -> None:
-    """AC8.13.47: remaining delivery-engine work is captured outside mutable SSOT."""
+    """AC-testing.governance.1: AC8.13.47: remaining delivery-engine work is captured outside mutable SSOT."""
     recommendation = read("docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md")
     project_readme = read("docs/project/README.md")
     ci_cd = read("docs/ssot/ci-cd.md")
@@ -3227,7 +3227,7 @@ def test_AC8_13_47_delivery_engine_recommendations_are_tracked() -> None:
 
 
 def test_AC8_13_112_sparse_matrix_recommendation_tracks_simplification_path() -> None:
-    """AC8.13.112: sparse-matrix audit keeps the simplification path explicit."""
+    """AC-testing.classifier.8: AC8.13.112: sparse-matrix audit keeps the simplification path explicit."""
     recommendation = read("docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md")
     ci_cd = read("docs/ssot/ci-cd.md")
     classifier = read("common/testing/change_classifier.py")
@@ -3332,7 +3332,7 @@ def test_AC8_13_112_workflows_consume_structured_env_stage_gates() -> None:
 
 
 def test_AC8_13_152_workflow_consumers_keep_classification_single_owned() -> None:
-    """AC8.13.152: downstream workflow jobs do not reclassify changed paths."""
+    """AC-testing.classifier.9: AC8.13.152: downstream workflow jobs do not reclassify changed paths."""
     ci_workflow = read(".github/workflows/ci.yml")
     pr_workflow = read(".github/workflows/preview.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
@@ -3413,19 +3413,24 @@ def test_AC8_13_152_workflow_consumers_keep_classification_single_owned() -> Non
 def test_AC8_13_113_sparse_matrix_evidence_and_resource_leak_audit_are_recorded() -> (
     None
 ):
-    """AC8.13.113: sparse-matrix review records log evidence and leak risks."""
-    epic = read("docs/project/EPIC-008.testing-strategy.md")
+    """AC-testing.deploy-gates.24: AC8.13.113: sparse-matrix review records log evidence and leak risks."""
+    from common.meta.extension.generate_ac_registry import _roadmap_acs_from_contract
+
+    statements = {
+        record["id"]: record["statement"]
+        for record in _roadmap_acs_from_contract(ROOT / "common/testing/contract.py")
+    }
+    statement = statements["AC-testing.deploy-gates.24"]
     recommendation = read("docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md")
 
     for token in (
-        "AC8.13.113",
         "three newest successful and three newest failed",
         "delivery-speed balance",
         "end-to-end consistency",
         "quality fallback",
         "resource leak candidates",
     ):
-        assert token in epic
+        assert token in statement
 
     for token in (
         "June 9, 2026 evidence sample",
@@ -3448,8 +3453,14 @@ def test_AC8_13_113_sparse_matrix_evidence_and_resource_leak_audit_are_recorded(
 
 
 def test_AC8_13_119_delivery_resource_leak_hardening_is_contracted() -> None:
-    """AC8.13.119: delivery cleanup covers the five known leak paths."""
-    epic = read("docs/project/EPIC-008.testing-strategy.md")
+    """AC-testing.deploy-gates.26: AC8.13.119: delivery cleanup covers the five known leak paths."""
+    from common.meta.extension.generate_ac_registry import _roadmap_acs_from_contract
+
+    statements = {
+        record["id"]: record["statement"]
+        for record in _roadmap_acs_from_contract(ROOT / "common/testing/contract.py")
+    }
+    statement = statements["AC-testing.deploy-gates.26"]
     recommendation = read("docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md")
     preview_cleanup = read(".github/workflows/maintenance.yml")
     pr_preview = read(".github/workflows/preview.yml")
@@ -3457,14 +3468,13 @@ def test_AC8_13_119_delivery_resource_leak_hardening_is_contracted() -> None:
     production = read(".github/workflows/release.yml")
 
     for token in (
-        "AC8.13.119",
         "PR preview leftovers",
         "GHCR PR tag accumulation",
         "stale staging or production routes",
         "provider-backed external-state residue",
         "Docker build cache and stopped containers",
     ):
-        assert token in epic
+        assert token in statement
 
     for token in (
         "Resource leak hardening bundle",
@@ -3589,9 +3599,12 @@ def test_AC8_13_19_brokerage_gate_reports_portfolio_diagnostics() -> None:
 def test_AC8_13_28_vision_hard_gate_uses_deterministic_fixture_with_fresh_user() -> (
     None
 ):
-    """AC8.13.28/29/30/31: deterministic upload-to-dashboard gate covers the full fresh-user flow."""
+    """AC-testing.product-gates.2 AC-testing.product-gates.3 AC-testing.product-gates.4
+    AC-testing.product-gates.5 (were AC8.13.28/29/30/31): deterministic
+    upload-to-dashboard gate covers the full fresh-user flow.
+    """
     gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
-    epic = read("docs/project/EPIC-008.testing-strategy.md")
+    contract = read("common/testing/contract.py")
 
     assert "@pytest.mark.e2e" in gate
     assert "@pytest.mark.tier3" in gate
@@ -3600,15 +3613,15 @@ def test_AC8_13_28_vision_hard_gate_uses_deterministic_fixture_with_fresh_user()
     assert "authenticated_page_unique" in gate
     assert "vision_hard_gate_statement.csv" in gate
     assert "pytest.skip(" in gate
-    assert "AC8.13.28" in epic
-    assert "AC8.13.29" in epic
-    assert "AC8.13.30" in epic
-    assert "AC8.13.31" in epic
-    assert "test_statement_upload_to_dashboard_vision_hard_gate" in epic
+    assert "AC-testing.product-gates.2" in contract
+    assert "AC-testing.product-gates.3" in contract
+    assert "AC-testing.product-gates.4" in contract
+    assert "AC-testing.product-gates.5" in contract
+    assert "test_statement_upload_to_dashboard_vision_hard_gate" in contract
 
 
 def test_AC8_13_28_vision_hard_gate_uses_statement_id_link_locator() -> None:
-    """AC8.13.28: statement upload E2E locates the detail link by statement id."""
+    """AC-testing.product-gates.2: AC8.13.28: statement upload E2E locates the detail link by statement id."""
     gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
     test_body = gate.split(
         "async def test_statement_upload_to_dashboard_vision_hard_gate", 1
@@ -3640,7 +3653,7 @@ def test_AC8_13_28_vision_hard_gate_waits_for_review_payload_before_approval() -
 
 
 def test_AC8_13_30_vision_hard_gate_waits_for_stage2_queue_page_payload() -> None:
-    """AC8.13.30: staging hard gate waits for Stage 2 queue data before UI assertions."""
+    """AC-testing.product-gates.4: AC8.13.30: staging hard gate waits for Stage 2 queue data before UI assertions."""
     gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
     test_body = gate.split(
         "async def test_statement_upload_to_dashboard_vision_hard_gate", 1
@@ -3654,7 +3667,7 @@ def test_AC8_13_30_vision_hard_gate_waits_for_stage2_queue_page_payload() -> Non
 
 
 def test_AC8_13_32_vision_hard_gate_proves_trusted_reporting_totals() -> None:
-    """AC8.13.32: deterministic vision gate asserts exact trusted accounting/report totals."""
+    """AC-testing.product-gates.6: AC8.13.32: deterministic vision gate asserts exact trusted accounting/report totals."""
     gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
     ci_cd = read("docs/ssot/ci-cd.md")
 
@@ -3680,11 +3693,11 @@ def test_AC8_13_32_vision_hard_gate_proves_trusted_reporting_totals() -> None:
 
 
 def test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical() -> None:
-    """AC8.13.42: four-asset as-of net worth proof is wired into the post-merge hard gate."""
+    """AC-testing.product-gates.7: AC8.13.42: four-asset as-of net worth proof is wired into the post-merge hard gate."""
     gate = read("tests/e2e/test_four_asset_net_worth_golden_path.py")
     ai_workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
     matrix = critical_matrix_text()
-    epic = read("docs/project/EPIC-008.testing-strategy.md")
+    contract = read("common/testing/contract.py")
     ci_cd = read("docs/ssot/ci-cd.md")
 
     for token in (
@@ -3723,14 +3736,14 @@ def test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical() -> 
 
     assert "four-asset-as-of-net-worth" in matrix
     assert "test_four_asset_as_of_net_worth_golden_path" in matrix
-    assert "AC8.13.42" in matrix
-    assert "AC8.13.42" in epic
-    assert "test_four_asset_as_of_net_worth_golden_path" in epic
+    assert "AC-testing.product-gates.7" in matrix
+    assert "AC-testing.product-gates.7" in contract
+    assert "test_four_asset_as_of_net_worth_golden_path" in contract
     assert "four-asset gate" in ci_cd
 
 
 def test_AC8_13_33_e2e_setup_caches_virtualenv_and_playwright_browsers() -> None:
-    """AC8.13.33: shared E2E setup caches Python and Playwright install work."""
+    """AC-testing.ci-structure.3: AC8.13.33: shared E2E setup caches Python and Playwright install work."""
     action = read(".github/actions/setup-e2e-tests/action.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
@@ -3780,7 +3793,7 @@ def test_AC8_13_34_ci_and_post_merge_write_timing_summaries() -> None:
 
 
 def test_AC8_13_114_pr_preview_follows_successful_ci_workflow_run() -> None:
-    """AC8.13.114: the in-runner e2e gate runs synchronously on pull_request, so it is a
+    """AC-testing.preview.13: AC8.13.114: the in-runner e2e gate runs synchronously on pull_request, so it is a
     real required check a fast/auto merge cannot bypass. It no longer follows CI async
     via workflow_run — that fired after CI and a quick merge could land before it ran as
     a gate (skipped required checks count as passed). It is image-free, so it needs no
@@ -3799,7 +3812,7 @@ def test_AC8_13_114_pr_preview_follows_successful_ci_workflow_run() -> None:
 
 
 def test_AC8_13_115_readiness_fail_fast() -> None:
-    """AC8.13.115: Runner preview readiness is bounded before smoke/E2E starts."""
+    """AC-testing.preview.14: AC8.13.115: Runner preview readiness is bounded before smoke/E2E starts."""
     workflow = read(".github/workflows/preview.yml")
     e2e_block = workflow.split("  e2e:", 1)[1].split("  cleanup:", 1)[0]
     assert "timeout-minutes: 25" in e2e_block
@@ -3811,7 +3824,7 @@ def test_AC8_13_115_readiness_fail_fast() -> None:
 
 
 def test_AC8_13_116_skip_heavy_ci_on_main_push() -> None:
-    """AC8.13.116: Post-merge -> staging start latency is reduced by removing redundant heavy re-run on push to main."""
+    """AC-testing.deploy-gates.25: AC8.13.116: Post-merge -> staging start latency is reduced by removing redundant heavy re-run on push to main."""
     workflow = read(".github/workflows/ci.yml")
 
     # Check that heavy jobs skip on push to main by checking pr_required gate
@@ -3870,7 +3883,7 @@ def test_AC8_13_116_skip_heavy_ci_on_main_push() -> None:
 
 
 def test_AC8_13_118_timeouts_and_retries_documented() -> None:
-    """AC8.13.118: Critical-path timeouts and retries are documented in docs/ssot/ci-cd.md."""
+    """AC-testing.governance.5: AC8.13.118: Critical-path timeouts and retries are documented in docs/ssot/ci-cd.md."""
     ci_cd = read("docs/ssot/ci-cd.md")
     # The staging FIFO train wait is retired with the manual-only model; staging is
     # serialized by the workflow concurrency group, so no FIFO timeout is documented.

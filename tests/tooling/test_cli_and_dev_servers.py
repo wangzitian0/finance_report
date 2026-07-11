@@ -107,7 +107,7 @@ def test_AC16_11_17_cmd_test_e2e_route(monkeypatch):
 
 
 def test_AC8_13_79_cmd_test_backend_e2e_route(monkeypatch):
-    """AC8.13.79: --backend-e2e routes to backend Tier-1 API E2E."""
+    """AC-testing.toolchain.9: AC8.13.79: --backend-e2e routes to backend Tier-1 API E2E."""
     calls = []
     monkeypatch.setattr(
         cli,
@@ -481,7 +481,7 @@ class TestCmdLint:
         assert any("src" in c["cmd"] and "tests" in c["cmd"] for c in calls)
 
     def test_AC8_13_45_lint_backend_format_check_is_required(self, monkeypatch):
-        """AC8.13.45: Local lint must fail on backend formatting drift like CI."""
+        """AC-testing.toolchain.3: AC8.13.45: Local lint must fail on backend formatting drift like CI."""
         calls = _mock_run(monkeypatch)
         cli.cmd_lint(SimpleNamespace(backend=True, frontend=False, fix=False))
 

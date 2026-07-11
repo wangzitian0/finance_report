@@ -41,7 +41,7 @@ def _component(name: str, root: str, subdir: str, extension: str) -> CoverageCom
 
 
 def test_AC8_13_26_future_app_source_roots_must_be_in_coverage_policy(tmp_path):
-    """AC8.13.26: New app source roots cannot bypass unified coverage policy."""
+    """AC-testing.coverage.1: AC8.13.26: New app source roots cannot bypass unified coverage policy."""
     _write(tmp_path, "apps/backend/src/service.py")
     _write(tmp_path, "apps/frontend/src/page.tsx", "export const Page = () => null\n")
     _write(tmp_path, "apps/new_service/src/main.py")
@@ -91,7 +91,7 @@ def test_AC8_13_26_current_source_roots_are_fully_governed_by_metrics_contract()
 
 
 def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantics():
-    """AC8.13.26 AC8.13.35: CI enforces one metrics contract and documents its limits."""
+    """AC-testing.ci-structure.2: AC8.13.26 AC8.13.35: CI enforces one metrics contract and documents its limits."""
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     ci_cd = (ROOT / "docs/ssot/ci-cd.md").read_text(encoding="utf-8")
     traceability = (ROOT / "common/testing/build_ac_traceability.py").read_text(

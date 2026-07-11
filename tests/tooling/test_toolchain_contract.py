@@ -111,7 +111,7 @@ def test_AC8_13_39_contract_reports_missing_toolchain(tmp_path: Path) -> None:
 def test_AC8_13_39_cli_accepts_explicit_repo_root(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC8.13.39: The CLI validates an explicit checkout root."""
+    """AC-testing.toolchain.1: AC8.13.39: The CLI validates an explicit checkout root."""
     monkeypatch.setattr(
         sys,
         "argv",

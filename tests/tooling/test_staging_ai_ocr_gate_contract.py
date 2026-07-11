@@ -124,7 +124,7 @@ HEAVY_AUDIT_JOURNEYS = (
 
 
 def test_AC8_13_156_canary_corpus_is_minimal_liveness() -> None:
-    """AC8.13.156: The blocking canary is one minimal upload/parse/import liveness
+    """AC-testing.deploy-gates.31: AC8.13.156: The blocking canary is one minimal upload/parse/import liveness
     check that makes no broad audit assertions."""
     canary = contract.canary_files()
 
@@ -146,7 +146,7 @@ def test_AC8_13_156_canary_corpus_is_minimal_liveness() -> None:
 
 
 def test_AC8_13_159_blocking_path_excludes_heavy_audit_journeys() -> None:
-    """AC8.13.159: heavy audit journeys live only in the audit-replay corpus and
+    """AC-testing.deploy-gates.34: AC8.13.159: heavy audit journeys live only in the audit-replay corpus and
     cannot creep into the blocking canary path."""
     canary = set(contract.canary_files())
     audit_replay = set(contract.audit_replay_files())
@@ -185,7 +185,7 @@ def test_AC8_13_159_blocking_path_excludes_heavy_audit_journeys() -> None:
 
 
 def test_AC8_13_109_ai_ocr_gate_tests_use_isolated_users() -> None:
-    """AC8.13.109: Post-merge AI/OCR gate tests must not share mutable users."""
+    """AC-testing.deploy-gates.23: AC8.13.109: Post-merge AI/OCR gate tests must not share mutable users."""
     shared_user_fixtures = {"authenticated_page", "shared_auth_state"}
 
     offenders: list[str] = []
@@ -346,7 +346,7 @@ _JUNIT_XML = """<?xml version="1.0" encoding="utf-8"?>
 
 
 def test_AC8_13_137_summarize_junit_reports_per_doc_failures(tmp_path: Path) -> None:
-    """AC8.13.137: the gate summarizes JUnit results into real pass/fail counts and
+    """AC-testing.deploy-gates.28: AC8.13.137: the gate summarizes JUnit results into real pass/fail counts and
     names the failing corpus docs, instead of a binary "Failures observed: 1+"."""
     xml = tmp_path / "gate.xml"
     xml.write_text(_JUNIT_XML, encoding="utf-8")

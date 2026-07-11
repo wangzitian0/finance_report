@@ -26,7 +26,7 @@ def _matrix() -> dict:
 def test_AC8_13_83_representative_package_fixture_contract_defines_exact_outputs() -> (
     None
 ):
-    """AC8.13.83: Personal package fixture contract covers representative sources and exact outputs."""
+    """AC-testing.product-gates.8: AC8.13.83: Personal package fixture contract covers representative sources and exact outputs."""
     fixture = REPRESENTATIVE_PACKAGE_FIXTURE
 
     assert fixture.bank.institution == "Personal Report Package Bank"
@@ -78,7 +78,7 @@ def test_AC8_13_83_representative_package_fixture_contract_defines_exact_outputs
 def test_AC8_13_84_personal_package_e2e_consumes_representative_fixture_contract() -> (
     None
 ):
-    """AC8.13.84: Package E2E consumes the shared representative fixture contract."""
+    """AC-testing.product-gates.9: AC8.13.84: Package E2E consumes the shared representative fixture contract."""
     journey = read("tests/e2e/test_personal_financial_report_package.py")
 
     assert "from tools._lib.fixtures.personal_report_package import" in journey
@@ -92,7 +92,7 @@ def test_AC8_13_84_personal_package_e2e_consumes_representative_fixture_contract
 def test_AC8_13_85_personal_package_macro_proof_is_promoted_after_fixture_contract() -> (
     None
 ):
-    """AC8.13.85: Package macro proof is covered by the representative fixture ACs."""
+    """AC-testing.product-gates.10: AC8.13.85: Package macro proof is covered by the representative fixture ACs."""
     matrix = _matrix()
     outcomes = {outcome["id"]: outcome for outcome in matrix["outcomes"]}
     proofs = {proof["id"]: proof for proof in matrix["proofs"]}
@@ -104,9 +104,9 @@ def test_AC8_13_85_personal_package_macro_proof_is_promoted_after_fixture_contra
     proof = proofs["personal-financial-report-package-post-merge"]
     assert proof["issue"] == "#573"
     assert {
-        "AC8.13.83",
-        "AC8.13.84",
-        "AC8.13.85",
+        "AC-testing.product-gates.8",
+        "AC-testing.product-gates.9",
+        "AC-testing.product-gates.10",
         "AC17.12.1",
         "AC17.12.2",
         "AC17.12.3",
@@ -116,7 +116,7 @@ def test_AC8_13_85_personal_package_macro_proof_is_promoted_after_fixture_contra
 def test_AC8_13_87_personal_package_fixture_pins_brokerage_dividend_and_market_price_outputs() -> (
     None
 ):
-    """AC8.13.87: Audit-grade package fixture pins investment expected outputs."""
+    """AC-testing.product-gates.11: AC8.13.87: Audit-grade package fixture pins investment expected outputs."""
     fixture = REPRESENTATIVE_PACKAGE_FIXTURE
     expected = fixture.expected_outputs
 
@@ -136,7 +136,7 @@ def test_AC8_13_87_personal_package_fixture_pins_brokerage_dividend_and_market_p
 
 
 def test_AC8_13_88_personal_package_e2e_consumes_audit_grade_expected_outputs() -> None:
-    """AC8.13.88: Package E2E consumes audit-grade expected outputs from the fixture."""
+    """AC-testing.product-gates.12: AC8.13.88: Package E2E consumes audit-grade expected outputs from the fixture."""
     journey = read("tests/e2e/test_personal_financial_report_package.py")
 
     assert "expected.brokerage_market_value" in journey
@@ -153,7 +153,7 @@ def test_AC8_13_88_personal_package_e2e_consumes_audit_grade_expected_outputs() 
 
 
 def test_AC8_14_3_personal_package_has_deterministic_source_trust_mirror() -> None:
-    """AC8.14.3: Package LLM/OCR critical proof has a deterministic source-trust mirror."""
+    """AC-testing.trust-mirrors.3: AC8.14.3: Package LLM/OCR critical proof has a deterministic source-trust mirror."""
     matrix = _matrix()
     proofs = {proof["id"]: proof for proof in matrix["proofs"]}
 
@@ -173,4 +173,4 @@ def test_AC8_14_3_personal_package_has_deterministic_source_trust_mirror() -> No
     assert mirror["trust_mode"] == "deterministic_pr"
     assert mirror["ci_tier"] == "pr_ci"
     assert expected_sources <= set(mirror["source_classes"])
-    assert "AC8.14.3" in mirror["ac_ids"]
+    assert "AC-testing.trust-mirrors.3" in mirror["ac_ids"]

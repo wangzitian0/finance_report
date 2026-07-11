@@ -52,7 +52,7 @@ def _job_run_commands(workflow: dict[str, Any], job_id: str) -> str:
 
 
 def test_AC8_13_151_ci_gate_inventory_uses_shared_proof_execution_vocabulary() -> None:
-    """AC8.13.151: inventory vocabulary is shared with proof execution helpers."""
+    """AC-testing.gate-inventory.3: AC8.13.151: inventory vocabulary is shared with proof execution helpers."""
 
     data = _load_yaml(INVENTORY)
     stages = data.get("stages")
@@ -64,7 +64,7 @@ def test_AC8_13_151_ci_gate_inventory_uses_shared_proof_execution_vocabulary() -
 
 
 def test_AC8_13_142_ci_gate_inventory_uses_stage_and_task_category_per_job() -> None:
-    """AC8.13.142: every workflow job has one stage and one task_category."""
+    """AC-testing.gate-inventory.1: AC8.13.142: every workflow job has one stage and one task_category."""
 
     data = _load_yaml(INVENTORY)
     assert "categories" not in data
@@ -135,7 +135,7 @@ def test_AC8_13_142_inventory_artifacts_match_live_workflows() -> None:
 
 
 def test_AC8_13_153_staging_ai_ocr_gate_is_a_single_reusable_workflow() -> None:
-    """AC8.13.153: both AI/OCR entrances call one reusable workflow; no duplicate body."""
+    """AC-testing.gate-inventory.4: AC8.13.153: both AI/OCR entrances call one reusable workflow; no duplicate body."""
     deploy = _load_yaml(WORKFLOWS / "deploy.yml")
     reusable_path = WORKFLOWS / "staging-ai-ocr-gate.yml"
     reusable = _load_yaml(reusable_path)
@@ -182,7 +182,7 @@ def test_AC8_13_153_staging_ai_ocr_gate_is_a_single_reusable_workflow() -> None:
 
 
 def test_AC8_13_154_production_release_line_lives_in_release_yml() -> None:
-    """AC8.13.154: production release split into release.yml; deploy.yml keeps staging + promote."""
+    """AC-testing.gate-inventory.5: AC8.13.154: production release split into release.yml; deploy.yml keeps staging + promote."""
     from common.meta.extension.workflow_contract import APP_WORKFLOW_FILES, WORKFLOW_CONTRACT
 
     release = _load_yaml(WORKFLOWS / "release.yml")
@@ -213,7 +213,7 @@ def test_AC8_13_154_production_release_line_lives_in_release_yml() -> None:
 
 
 def test_AC8_13_155_pr_preview_reclaim_is_dispatched_to_infra2() -> None:
-    """AC8.13.155: the app-side reclaim split is retired — preview.yml#cleanup only
+    """AC-testing.gate-inventory.6: AC8.13.155: the app-side reclaim split is retired — preview.yml#cleanup only
     dispatches a teardown signal to infra2, maintenance.yml#cleanup is GHCR-only."""
     preview = (WORKFLOWS / "preview.yml").read_text(encoding="utf-8")
     maintenance = (WORKFLOWS / "maintenance.yml").read_text(encoding="utf-8")

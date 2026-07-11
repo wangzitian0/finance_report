@@ -313,7 +313,7 @@ def test_hidden_flow():
 def test_AC8_13_70_classified_non_product_e2e_assets_are_allowed(
     tmp_path: Path,
 ) -> None:
-    """AC8.13.70: Declared infra/submodule E2E assets do not need project EPIC IDs."""
+    """AC-testing.acgates.9: AC8.13.70: Declared infra/submodule E2E assets do not need project EPIC IDs."""
     _write_epic(tmp_path, "EPIC-001")
     _write_test(
         tmp_path,
@@ -460,7 +460,7 @@ def test_broken_python(
 def test_AC8_13_68_discovery_handles_missing_roots_and_external_paths(
     tmp_path: Path,
 ) -> None:
-    """AC8.13.68: Discovery handles absent SSOT/E2E roots and external files."""
+    """AC-testing.acgates.8: AC8.13.68: Discovery handles absent SSOT/E2E roots and external files."""
     external = tmp_path.parent / "external_test_file.py"
 
     assert checker.discover_project_epics(tmp_path) == []

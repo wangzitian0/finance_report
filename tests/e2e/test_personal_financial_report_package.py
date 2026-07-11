@@ -343,11 +343,11 @@ async def _create_manual_snapshot(
         "AC17.12.1",
         "AC17.12.2",
         "AC17.12.3",
-        "AC8.13.83",
-        "AC8.13.84",
-        "AC8.13.85",
-        "AC8.13.87",
-        "AC8.13.88",
+        "AC-testing.product-gates.8",
+        "AC-testing.product-gates.9",
+        "AC-testing.product-gates.10",
+        "AC-testing.product-gates.11",
+        "AC-testing.product-gates.12",
     ],
     scope="behavioral",
     ci_tier="post_merge_environment",
@@ -377,7 +377,7 @@ async def test_personal_financial_report_package_post_merge_journey(
     AC5.1.1 AC5.1.4 AC5.2.3 AC5.3.1 AC5.8.1 AC5.12.4 AC5.13.4 AC5.13.5
     AC11.8.3 AC11.9.1 AC11.9.2 AC11.9.3 AC11.11.1 AC11.11.2 AC17.10.1 AC17.10.2
     AC17.12.1 AC17.12.2 AC17.12.3
-    AC8.13.83 AC8.13.84 AC8.13.85 AC8.13.87 AC8.13.88:
+    AC-testing.product-gates.8 AC-testing.product-gates.9 AC-testing.product-gates.10 AC-testing.product-gates.11 AC-testing.product-gates.12:
     one complete fresh-user report package with bank data, brokerage import,
     investment performance schedule, annualized income and restricted
     compensation schedule, manual valuation, restricted notes, and source

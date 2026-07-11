@@ -283,7 +283,7 @@ def test_AC8_13_64_production_infra_smoke_cli_reports_failure(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """AC8.13.64: Production infra smoke CLI returns failure on proof gaps."""
+    """AC-testing.deploy-gates.16: AC8.13.64: Production infra smoke CLI returns failure on proof gaps."""
 
     def run_checks_stub(**kwargs: object) -> list[str]:
         raise SmokeFailure("database down")

@@ -52,7 +52,7 @@ def _explicit_anchors(path: Path) -> set[str]:
 
 
 def test_AC8_13_133_concepts_registered_in_manifest_with_anchored_owner() -> None:
-    """AC8.13.133: each cross-document concept owns an anchored MANIFEST entry."""
+    """AC-testing.governance.9: AC8.13.133: each cross-document concept owns an anchored MANIFEST entry."""
     data = yaml.safe_load(MANIFEST.read_text(encoding="utf-8"))
     concepts = data["concepts"]
     for key, (owner_path, anchor) in REQUIRED_CONCEPTS.items():

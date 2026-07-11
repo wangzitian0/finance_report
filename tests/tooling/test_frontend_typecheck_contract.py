@@ -10,7 +10,7 @@ def read(path: str) -> str:
 
 
 def test_AC8_13_99_frontend_typecheck_is_a_required_gate() -> None:
-    """AC8.13.99: Frontend tests and CI run full TypeScript checking."""
+    """AC-testing.toolchain.10: AC8.13.99: Frontend tests and CI run full TypeScript checking."""
 
     package_json = json.loads(read("apps/frontend/package.json"))
     assert package_json["scripts"]["typecheck"] == "tsc --noEmit"

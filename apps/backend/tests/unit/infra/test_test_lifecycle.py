@@ -115,7 +115,7 @@ def test_namespaced_infra_uses_ephemeral_host_ports(
     mock_get_runtime,
     mock_run,
 ):
-    """AC8.13.69: Namespaced test infra avoids host port collisions."""
+    """AC-testing.lifecycle.1: AC8.13.69: Namespaced test infra avoids host port collisions."""
     mock_get_namespace.return_value = "feature_branch"
     mock_get_runtime.return_value = "podman"
     mock_run.side_effect = [

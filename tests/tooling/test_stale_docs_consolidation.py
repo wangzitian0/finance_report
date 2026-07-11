@@ -88,7 +88,7 @@ _IgnoreUnknownTagsLoader.add_multi_constructor(
 
 
 def test_AC8_13_134_mkdocs_nav_links_resolve() -> None:
-    """AC8.13.134: every mkdocs nav .md target resolves under docs/."""
+    """AC-testing.governance.10: AC8.13.134: every mkdocs nav .md target resolves under docs/."""
     # mkdocs uses non-standard YAML tags (e.g. !!python/name:...). Load with a
     # loader that maps unknown tags to None so the nav block parses intact.
     raw = MKDOCS.read_text(encoding="utf-8")
