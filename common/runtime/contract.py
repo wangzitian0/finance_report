@@ -736,6 +736,84 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── group real-corpus-eval (#1764 G-enforcement) — the release-evidence
+        # check for #1764's real-document accuracy/calibration eval. Fails
+        # closed (never a silent pass) when the eval has never run, failed, or
+        # gone stale — but is NOT yet wired into release.yml as a blocking
+        # step: that requires an operator-supplied real-document corpus to
+        # exist first (RL-6 — real PDFs are never committed) and is a
+        # deliberate release-behavior change needing explicit sign-off, not
+        # something to flip on unilaterally. See #1764 ──
+        ACRecord(
+            id="AC-runtime.real-corpus-eval.1",
+            statement=(
+                "verify_real_corpus_eval returns the run id of the most "
+                "recent completed, successful real-corpus-eval run when it "
+                "is within max_age_hours."
+            ),
+            test=(
+                "tests/tooling/test_real_corpus_eval_evidence.py"
+                "::test_AC_runtime_real_corpus_eval_1_fresh_success_run_passes"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.real-corpus-eval.2",
+            statement=(
+                "verify_real_corpus_eval raises when no completed run exists "
+                "— an eval that has never run proves nothing and must never "
+                "read as a silent pass."
+            ),
+            test=(
+                "tests/tooling/test_real_corpus_eval_evidence.py"
+                "::test_AC_runtime_real_corpus_eval_2_no_completed_run_fails_closed"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.real-corpus-eval.3",
+            statement=(
+                "verify_real_corpus_eval raises when the most recent "
+                "completed run did not succeed — a real accuracy or "
+                "calibration regression blocks release."
+            ),
+            test=(
+                "tests/tooling/test_real_corpus_eval_evidence.py"
+                "::test_AC_runtime_real_corpus_eval_3_failed_run_fails_closed"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.real-corpus-eval.4",
+            statement=(
+                "verify_real_corpus_eval raises when the most recent "
+                "successful run is older than max_age_hours — staleness is "
+                "exactly as untrustworthy as never having run."
+            ),
+            test=(
+                "tests/tooling/test_real_corpus_eval_evidence.py"
+                "::test_AC_runtime_real_corpus_eval_4_stale_run_fails_closed"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.real-corpus-eval.5",
+            statement=(
+                "verify_real_corpus_eval is governed by the most recent "
+                "completed run when several exist, so a fixed-then-passing "
+                "re-run supersedes an old failure."
+            ),
+            test=(
+                "tests/tooling/test_real_corpus_eval_evidence.py"
+                "::test_AC_runtime_real_corpus_eval_5_picks_the_most_recent_completed_run"
+            ),
+            priority="P1",
+            status="done",
+        ),
     ],
 )
 
