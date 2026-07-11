@@ -712,6 +712,7 @@ Product E2E ownership index:
 | File | Ownership anchor |
 |---|---|
 | `apps/backend/tests/e2e/test_core_journeys.py` | Backend core journey E2E; AC8.1-AC8.12 references live in the test file |
+| `apps/backend/tests/e2e/test_business_value_correctness_gate.py` | #1505 Tier-1 twin: `AC-reporting.business-value-gate.1`/`.2` (real business-value totals + the #1481 invariant), `common/reporting/contract.py` |
 | `tests/e2e/test_epic022_ia_shell.py` | EPIC-022 everyday-user IA shell product owner E2E (in-runner preview lane); AC22.1 references live in the test file |
 | `tests/e2e/test_institution_statement_journeys.py` | Per-institution live-extraction staging journeys (audit-replay corpus, #1613); ACs live in the `llm` package roadmap (AC-llm.12.1 AC-llm.12.2 AC-llm.12.3 AC-llm.12.4, `common/llm/contract.py`) |
 | `apps/backend/tests/e2e/test_epic025_dry_ssot_e2e.py` | EPIC-025 DRY/SSOT product owner E2E; `AC-reporting.dry-ssot.1` (reporting_calc extraction is behavior-preserving, `common/reporting/contract.py`) references live in the test file |
@@ -728,6 +729,7 @@ Product E2E ownership index:
 | `tests/e2e/test_market_data_price_paths.py` | Critical proof; ACs live in the `pricing` package roadmap (`AC-pricing.marketdata.7`, `AC-pricing.marketdata.11`, `common/pricing/contract.py`) |
 | `tests/e2e/test_personal_financial_report_package.py` | Critical proof: AC5.1.1, AC5.1.4, AC5.2.3, AC5.3.1, AC5.8.1, AC5.12.4, AC5.13.4-AC5.13.5, AC11.8.3, AC11.9.1-AC11.9.3, AC11.11.1-AC11.11.2, AC17.10.1-AC17.10.2, AC17.12.1-AC17.12.3, AC8.13.83-AC8.13.85, AC8.13.87-AC8.13.88 |
 | `tests/e2e/test_production_readonly_smoke.py` | Production-readonly smoke E2E; AC references live in the test file |
+| `tests/e2e/test_business_value_correctness_gate.py` | #1505 Tier-2/3 deploy-gate twin (in-runner preview lane, no LLM/market-data/persistent-env dependency): `AC-reporting.business-value-gate.1`/`.2`, `common/reporting/contract.py` |
 | `tests/e2e/test_statement_full_journey.py` | Critical proof: AC-extraction.813.11 |
 | `tests/e2e/test_statement_upload_e2e.py` | Statement upload E2E; AC references live in the test file |
 | `tests/e2e/test_version_check.py` | Version/runtime E2E; AC references live in the test file |
