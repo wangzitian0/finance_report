@@ -2705,6 +2705,319 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        # ── group governance: governance & doc-consistency gates (was
+        # EPIC-008 AC8.13 subset), migration closeout, #1663 / #1718 ──
+        ACRecord(
+            id="AC-testing.governance.1",
+            statement=(
+                "Remaining delivery-engine optimizations are captured in a tracked "
+                "project recommendation note (Was EPIC-008 AC8.13.47)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_47_delivery_engine_recommendations_are_tracked"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.governance.2",
+            statement=(
+                "Coverage threshold documentation links to code-owned thresholds "
+                "instead of copying mutable numeric values (Was EPIC-008 AC8.13.81)."
+            ),
+            test=(
+                "tests/tooling/test_lint_doc_consistency.py"
+                "::test_AC8_13_81_doc_can_reference_code_owned_threshold_without_number"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.governance.3",
+            statement=(
+                "CI/CD documentation separates environment taxonomy from pipeline "
+                "stages and declares the sparse env x stage execution matrix (Was "
+                "EPIC-008 AC8.13.94)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_94_env_and_pipeline_stage_contract_is_documented"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.governance.4",
+            statement=(
+                "Local verification guidance defaults to affected fast tests and "
+                "defines risk-triggered escalation for high-impact paths (Was "
+                "EPIC-008 AC8.13.95)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_95_local_fast_gate_and_escalation_policy_are_documented"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.governance.5",
+            statement=(
+                "Critical-path timeouts and retries are documented in "
+                "docs/ssot/ci-cd.md (Was EPIC-008 AC8.13.118)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_118_timeouts_and_retries_documented"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.governance.6",
+            statement=(
+                "Runtime incident response SSOT centralizes service-failure triage "
+                "and stability proof ownership, while deployment, observability, "
+                "CI/CD, and environment smoke docs link to it instead of duplicating "
+                "playbooks (Was EPIC-008 AC8.13.126)."
+            ),
+            test=(
+                "tests/tooling/test_runtime_incident_response_ssot.py"
+                "::test_AC8_13_126_runtime_incident_response_ssot_centralizes_triage"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.governance.7",
+            statement=(
+                "Bottom-up proof exceptions and code-owned surfaces are classified in "
+                "docs/ssot/governance-exceptions.yaml with a typed "
+                "proof_exceptions/code_owned_surfaces entry (id, owner, reason, "
+                "issue), validated by tools/check_governance_exceptions.py, leaving "
+                "the legacy SSOT governance exceptions list intact (#524) (Was "
+                "EPIC-008 AC8.13.131)."
+            ),
+            test=(
+                "tests/tooling/test_governance_exceptions_registry.py"
+                "::test_AC8_13_131_every_classified_entry_links_an_owner_and_issue"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.governance.8",
+            statement=(
+                "Every test/support file with no AC reference stays classified in "
+                "docs/project/traceability-exceptions.md, with no unclassified drift "
+                "and no product E2E test parked on the allow-list (#511) (Was "
+                "EPIC-008 AC8.13.132)."
+            ),
+            test=(
+                "tests/tooling/test_no_ac_test_classification.py"
+                "::test_AC8_13_132_no_unclassified_no_ac_test_files"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.governance.9",
+            statement=(
+                "Cross-document SSOT concepts (reconciliation thresholds, "
+                "reconciliation/confirmation state machines, extraction confidence "
+                "tiers, confidence-tier rollup) are registered in "
+                "docs/ssot/MANIFEST.yaml with anchored owners backed by explicit <a "
+                "id> anchors (#340) (Was EPIC-008 AC8.13.133)."
+            ),
+            test=(
+                "tests/tooling/test_ssot_cross_document_anchors.py"
+                "::test_AC8_13_133_concepts_registered_in_manifest_with_anchored_owner"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.governance.10",
+            statement=(
+                "Consolidated/archived stale docs stay absent and every mkdocs nav "
+                "markdown target resolves (no dangling internal links after the "
+                "consolidation) (#350) (Was EPIC-008 AC8.13.134)."
+            ),
+            test=(
+                "tests/tooling/test_stale_docs_consolidation.py"
+                "::test_AC8_13_134_mkdocs_nav_links_resolve"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group secret-scan: content-level secret scanning (was
+        # EPIC-008 AC8.13 subset), migration closeout, #1663 / #1718 ──
+        ACRecord(
+            id="AC-testing.secret-scan.1",
+            statement=(
+                "A content-level secret scan (gitleaks) runs in both the pre-commit "
+                "hooks and the CI lint job (local==CI parity), blocking credential "
+                "material by content rather than by filename so .gitignore is not the "
+                "only line of defense (Was EPIC-008 AC8.13.136)."
+            ),
+            test=(
+                "tests/tooling/test_secret_scan_gate.py"
+                "::test_AC8_13_136_gitleaks_runs_in_precommit_and_ci"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        # ── group toolchain: toolchain, bootstrap & CLI entry points
+        # (was EPIC-008 AC8.13 subset), migration closeout, #1663 /
+        # #1718 ──
+        ACRecord(
+            id="AC-testing.toolchain.1",
+            statement=(
+                "Runtime and container versions stay aligned across local, CI, and "
+                "Docker environments (Was EPIC-008 AC8.13.39)."
+            ),
+            test=(
+                "tests/tooling/test_toolchain_contract.py"
+                "::test_AC8_13_39_cli_accepts_explicit_repo_root"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.toolchain.2",
+            statement=(
+                "Local bootstrap provides one command for runtimes, dependency setup, "
+                "pre-commit hooks, and container-runtime diagnostics (Was EPIC-008 "
+                "AC8.13.44)."
+            ),
+            test=(
+                "tests/tooling/test_bootstrap_local.py"
+                "::test_AC8_13_44_bootstrap_reports_container_runtime_prerequisite"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.toolchain.3",
+            statement=(
+                "Local verification entry points fail on the same backend format "
+                "errors and route make test through the root Moon test command "
+                "without hashing the infra submodule gitlink as a file input (Was "
+                "EPIC-008 AC8.13.45)."
+            ),
+            test=(
+                "tests/tooling/test_cli_and_dev_servers.py"
+                "::test_AC8_13_45_lint_backend_format_check_is_required"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.toolchain.4",
+            statement=(
+                "Common owns SSOT, config and CI contracts, coverage policy, and "
+                "isolation helpers; command entry points and tool-owned "
+                "implementations live in tools/; PR CI avoids optional Moon bootstrap "
+                "for heavy gates that run direct pytest or npm commands, with Moon "
+                "availability covered as static config contracts (Was EPIC-008 "
+                "AC8.13.53)."
+            ),
+            test=(
+                "tests/tooling/test_common_tooling_modules.py"
+                "::test_AC8_13_53_common_coverage_component_is_a_governed_source_root"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.toolchain.5",
+            statement=(
+                "Coverage command entry points run from tools/; the shared policy "
+                "stays in common/meta/extension/coverage/policy.py, and command "
+                "implementations live under tools/_lib/coverage/ (Was EPIC-008 "
+                "AC8.13.56)."
+            ),
+            test=(
+                "tests/tooling/test_common_tooling_modules.py"
+                "::test_AC8_13_56_coverage_tools_delegate_to_common_implementations"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.toolchain.6",
+            statement=(
+                "SSOT and AC command entry points run from tools/ while shared "
+                "implementations live in the packages that own them (common/testing/, "
+                "common/meta/extension/, common/platform/); the residual common/ssot/ "
+                "generator escape hatch is retired (Was EPIC-008 AC8.13.57)."
+            ),
+            test=(
+                "tests/tooling/test_common_tooling_modules.py"
+                "::test_AC8_13_57_ssot_tools_delegate_to_common_implementations"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.toolchain.7",
+            statement=(
+                "CI and toolchain command entry points run from tools/; reusable "
+                "contracts live in the packages that own them (common/runtime/, "
+                "common/testing/, common/meta/extension/), while report and shell "
+                "command implementations live under tools/_lib/ (Was EPIC-008 "
+                "AC8.13.58)."
+            ),
+            test=(
+                "tests/tooling/test_common_tooling_modules.py"
+                "::test_AC8_13_58_ci_tools_delegate_to_common_implementations"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.toolchain.8",
+            statement=(
+                "Config validation command entry points run from tools/ while shared "
+                "implementations live under apps/backend/src/runtime/extension/ "
+                "(moved from common/config/ when that package folded into runtime, "
+                "#1669) (Was EPIC-008 AC8.13.59)."
+            ),
+            test=(
+                "tests/tooling/test_common_tooling_modules.py"
+                "::test_AC8_13_59_config_validation_tools_delegate_to_common_implementations"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.toolchain.9",
+            statement=(
+                "Local E2E command routing distinguishes root deployment E2E from "
+                "backend Tier-1 API E2E (Was EPIC-008 AC8.13.79)."
+            ),
+            test=(
+                "tests/tooling/test_cli_and_dev_servers.py"
+                "::test_AC8_13_79_cmd_test_backend_e2e_route"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.toolchain.10",
+            statement=(
+                "Frontend local and CI gates run full TypeScript checking, including "
+                "tests, instead of relying only on Next production build type checks "
+                "(Was EPIC-008 AC8.13.99)."
+            ),
+            test=(
+                "tests/tooling/test_frontend_typecheck_contract.py"
+                "::test_AC8_13_99_frontend_typecheck_is_a_required_gate"
+            ),
+            priority="P0",
+            status="done",
+        ),
     ],
 )
 

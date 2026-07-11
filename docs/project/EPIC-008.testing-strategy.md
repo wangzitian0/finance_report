@@ -295,26 +295,26 @@ job inventories or scenario counts into this EPIC.
 > (AC8.13.36 removed, canonical: migrated to `AC-testing.deploy-gates.9`.)
 > (AC8.13.37 removed, canonical: migrated to `AC-testing.acgates.4`.)
 > (AC8.13.38 removed, canonical: migrated to `AC-testing.preview.1`.)
-| AC8.13.39 | Runtime and container versions stay aligned across local, CI, and Docker environments | `test_AC8_13_39_*` | `tests/tooling/test_toolchain_contract.py` | P0 |
+> (AC8.13.39 removed, canonical: migrated to `AC-testing.toolchain.1`.)
 > (AC8.13.40 removed, canonical: migrated to `AC-testing.deploy-gates.10`.)
 > (AC8.13.41 removed, canonical: migrated to `AC-testing.acgates.5`.)
 > (AC8.13.42 removed, canonical: migrated to `AC-testing.product-gates.7`.)
-| AC8.13.44 | Local bootstrap provides one command for runtimes, dependency setup, pre-commit hooks, and container-runtime diagnostics | `test_AC8_13_44_*` | `tests/tooling/test_bootstrap_local.py`, `tests/tooling/test_cli_and_dev_servers.py`, `tests/tooling/test_toolchain_contract.py` | P0 |
-| AC8.13.45 | Local verification entry points fail on the same backend format errors and route `make test` through the root Moon test command without hashing the infra submodule gitlink as a file input | `test_AC8_13_45_*` | `tests/tooling/test_cli_and_dev_servers.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+> (AC8.13.44 removed, canonical: migrated to `AC-testing.toolchain.2`.)
+> (AC8.13.45 removed, canonical: migrated to `AC-testing.toolchain.3`.)
 > (AC8.13.46 removed, canonical: migrated to `AC-testing.preview.2`.)
-| AC8.13.47 | Remaining delivery-engine optimizations are captured in a tracked project recommendation note | `test_AC8_13_47_delivery_engine_recommendations_are_tracked` | `tests/tooling/test_post_merge_e2e_gates.py` | P1 |
+> (AC8.13.47 removed, canonical: migrated to `AC-testing.governance.1`.)
 | AC8.13.48 | Frontend gap tests cover route, component, and API helper paths so frontend LCOV line coverage reaches 99% | `test_AC8_13_48_*` | `apps/frontend/src/__tests__/stage2ReviewQueueCoverage99.test.tsx`, `apps/frontend/src/__tests__/statementReviewPage.coverage.test.tsx`, `apps/frontend/src/__tests__/statementDetailPage.coverage.test.tsx`, `apps/frontend/src/__tests__/StatementUploader.test.tsx`, `apps/frontend/src/__tests__/journalPage.test.tsx`, `apps/frontend/src/__tests__/reconciliationWorkbenchComponent.test.tsx`, `apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx`, `apps/frontend/src/__tests__/apiFunctions.test.ts`, `apps/frontend/src/__tests__/accountsPage.test.tsx`, `apps/frontend/src/__tests__/assetsPage.test.tsx`, `apps/frontend/src/__tests__/statementsPage.test.tsx`, `apps/frontend/src/__tests__/useWorkspaceHook.test.tsx`, `apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx`, `apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx`, `apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx` | P0 |
 > (AC8.13.49 removed, canonical: migrated to `AC-testing.deploy-gates.11`.)
 > (AC8.13.50 removed, canonical: migrated to `AC-testing.acgates.6`.)
 > (AC8.13.51 removed, canonical: migrated to `AC-testing.deploy-gates.12`.)
 > (AC8.13.52 removed, canonical: migrated to `AC-testing.deploy-gates.13`.)
-| AC8.13.53 | Common owns SSOT, config and CI contracts, coverage policy, and isolation helpers; command entry points and tool-owned implementations live in `tools/`; PR CI avoids optional Moon bootstrap for heavy gates that run direct `pytest` or `npm` commands, with Moon availability covered as static config contracts | `test_AC8_13_53_*` | `tests/tooling/test_common_tooling_modules.py`, `tests/tooling/test_ci_metrics_contract.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+> (AC8.13.53 removed, canonical: migrated to `AC-testing.toolchain.4`.)
 > (AC8.13.54 removed, canonical: migrated to `AC-testing.acgates.7`.)
 > (AC8.13.55 removed, canonical: migrated to `AC-testing.deploy-gates.14`.)
-| AC8.13.56 | Coverage command entry points run from `tools/`; the shared policy stays in `common/meta/extension/coverage/policy.py`, and command implementations live under `tools/_lib/coverage/` | `test_AC8_13_56_*` | `tests/tooling/test_common_tooling_modules.py`, `tests/tooling/test_ci_metrics_contract.py`, `tests/tooling/test_coverage_policy.py`, `tests/tooling/test_build_unified_lcov.py` | P0 |
-| AC8.13.57 | SSOT and AC command entry points run from `tools/` while shared implementations live in the packages that own them (`common/testing/`, `common/meta/extension/`, `common/platform/`); the residual `common/ssot/` generator escape hatch is retired | `test_AC8_13_57_*` | `tests/tooling/test_common_tooling_modules.py`, `tests/tooling/test_ci_metrics_contract.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
-| AC8.13.58 | CI and toolchain command entry points run from `tools/`; reusable contracts live in the packages that own them (`common/runtime/`, `common/testing/`, `common/meta/extension/`), while report and shell command implementations live under `tools/_lib/` | `test_AC8_13_58_*` | `tests/tooling/test_common_tooling_modules.py`, `tests/tooling/test_toolchain_contract.py`, `tests/tooling/test_ci_change_classifier.py`, `tests/tooling/test_github_workflow_timing_summary.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
-| AC8.13.59 | Config validation command entry points run from `tools/` while shared implementations live under `apps/backend/src/runtime/extension/` (moved from `common/config/` when that package folded into `runtime`, #1669) | `test_AC8_13_59_*` | `tests/tooling/test_common_tooling_modules.py`, `tests/tooling/test_check_env_keys.py`, `tests/tooling/test_validate_schemas.py` | P0 |
+> (AC8.13.56 removed, canonical: migrated to `AC-testing.toolchain.5`.)
+> (AC8.13.57 removed, canonical: migrated to `AC-testing.toolchain.6`.)
+> (AC8.13.58 removed, canonical: migrated to `AC-testing.toolchain.7`.)
+> (AC8.13.59 removed, canonical: migrated to `AC-testing.toolchain.8`.)
 > (AC8.13.60 removed, canonical: migrated to `AC-testing.deploy-gates.15`.)
 | AC8.13.61 | Visual regression residual is explicitly owned by EPIC-008 as a P3 future testing capability | `test_AC8_13_61_visual_regression_residual_is_epic_owned` | `tests/tooling/test_archive_residual_epic_ownership.py` | P3 |
 | AC8.13.62 | Test observability residuals are explicitly owned by EPIC-008 with current replacements and future dashboard/notification/trend scope | `test_AC8_13_62_test_observability_residual_is_epic_owned` | `tests/tooling/test_archive_residual_epic_ownership.py` | P2 |
@@ -334,9 +334,9 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.76 | Playwright mobile UX coverage proves Stage 1 and Stage 2 review workflows avoid document-level horizontal scroll and expose direct completion actions at phone widths | `AC16.26.*` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
 > (AC8.13.77 removed, canonical: migrated to `AC-testing.acgates.10`.)
 > (AC8.13.78 removed, canonical: migrated to `AC-testing.acgates.11`.)
-| AC8.13.79 | Local E2E command routing distinguishes root deployment E2E from backend Tier-1 API E2E | `test_AC8_13_79_*` | `tests/tooling/test_cli_and_dev_servers.py` | P0 |
+> (AC8.13.79 removed, canonical: migrated to `AC-testing.toolchain.9`.)
 > (AC8.13.80 removed, canonical: migrated to `AC-testing.acgates.12`.)
-| AC8.13.81 | Coverage threshold documentation links to code-owned thresholds instead of copying mutable numeric values | `test_AC8_13_81_*` | `tests/tooling/test_lint_doc_consistency.py` | P1 |
+> (AC8.13.81 removed, canonical: migrated to `AC-testing.governance.2`.)
 | AC8.13.82 | Playwright responsive UX coverage proves account and review layouts avoid mobile document overflow and desktop local table clipping | `AC2.17.1`, `AC16.27.2`, `AC16.27.3` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
 > (AC8.13.83 removed, canonical: migrated to `AC-testing.product-gates.8`.)
 > (AC8.13.84 removed, canonical: migrated to `AC-testing.product-gates.9`.)
@@ -348,12 +348,12 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.90 | Frontend exposes `/frontend-version.json` with deployed `git_sha`/`version` metadata for PR preview readiness checks | `AC8.13.90 returns deployed frontend version metadata for PR preview readiness` | `frontendVersionRoute.test.ts` | P0 |
 | AC8.13.92 | Frontend Vitest coverage keeps a code-owned 98% baseline for line, statement, and function metrics plus an explicit branch floor while representative low-coverage routes and workflow surfaces stay covered | `AC8.13.92*` | `apps/frontend/src/__tests__/coverageBaseline.test.ts`, `apps/frontend/src/__tests__/personalReportPackagePage.test.tsx`, `apps/frontend/src/__tests__/workflowSurfaces.test.tsx`, `apps/frontend/src/__tests__/chatPanelComponent.test.tsx`, `apps/frontend/src/__tests__/investmentPerformanceSchedule.test.tsx`, `apps/frontend/src/__tests__/journalPage.test.tsx`, `apps/frontend/src/__tests__/sankeyChartComponent.test.tsx`, `apps/frontend/src/__tests__/toastProviderComponent.test.tsx`, `apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx` | P0 |
 > (AC8.13.93 removed, canonical: migrated to `AC-testing.deploy-gates.19`.)
-| AC8.13.94 | CI/CD documentation separates environment taxonomy from pipeline stages and declares the sparse env x stage execution matrix | `test_AC8_13_94_env_and_pipeline_stage_contract_is_documented` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
-| AC8.13.95 | Local verification guidance defaults to affected fast tests and defines risk-triggered escalation for high-impact paths | `test_AC8_13_95_local_fast_gate_and_escalation_policy_are_documented` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+> (AC8.13.94 removed, canonical: migrated to `AC-testing.governance.3`.)
+> (AC8.13.95 removed, canonical: migrated to `AC-testing.governance.4`.)
 > (AC8.13.96 removed, canonical: migrated to `AC-testing.classifier.3`.)
 > (AC8.13.97 removed, canonical: migrated to `AC-testing.classifier.4`.)
 > (AC8.13.98 removed, canonical: migrated to `AC-testing.preview.8`.)
-| AC8.13.99 | Frontend local and CI gates run full TypeScript checking, including tests, instead of relying only on Next production build type checks | `test_AC8_13_99_frontend_typecheck_is_a_required_gate` | `tests/tooling/test_frontend_typecheck_contract.py` | P0 |
+> (AC8.13.99 removed, canonical: migrated to `AC-testing.toolchain.10`.)
 > (AC8.13.100 removed, canonical: migrated to `AC-testing.preview.9`.)
 > (AC8.13.101 removed, canonical: migrated to `AC-testing.preview.10`.)
 > (AC8.13.102 removed, canonical: migrated to `AC-testing.preview.11`.)
@@ -370,7 +370,7 @@ job inventories or scenario counts into this EPIC.
 > (AC8.13.114 removed, canonical: migrated to `AC-testing.preview.13`.)
 > (AC8.13.115 removed, canonical: migrated to `AC-testing.preview.14`.)
 > (AC8.13.116 removed, canonical: migrated to `AC-testing.deploy-gates.25`.)
-| AC8.13.118 | Critical-path timeouts and retries are documented in `docs/ssot/ci-cd.md` | `test_AC8_13_118_timeouts_and_retries_documented` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+> (AC8.13.118 removed, canonical: migrated to `AC-testing.governance.5`.)
 > (AC8.13.119 removed, canonical: migrated to `AC-testing.deploy-gates.26`.)
 > (AC8.13.120 removed, canonical: migrated to `AC-testing.deploy-gates.27`.)
 | AC8.13.121 | PR CI runs a schema migration contract against ephemeral Postgres with `alembic upgrade head`, `alembic check`, uploaded context, and `finish` aggregation | `test_AC8_13_121_pr_ci_runs_schema_migration_contract` | `tests/tooling/test_schema_quality_contract.py` | P0 |
@@ -378,17 +378,17 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.123 | Schema guardrails scan the real `apps/backend/migrations/versions` directory instead of a test-local path | `test_AC8_13_123_schema_guardrails_scan_real_migration_directory` | `tests/tooling/test_schema_quality_contract.py` | P0 |
 > (AC8.13.124 removed, canonical: migrated to `AC-testing.acgates.13`.)
 > (AC8.13.125 removed, canonical: migrated to `AC-testing.preview.15`.)
-| AC8.13.126 | Runtime incident response SSOT centralizes service-failure triage and stability proof ownership, while deployment, observability, CI/CD, and environment smoke docs link to it instead of duplicating playbooks | `test_AC8_13_126_runtime_incident_response_ssot_centralizes_triage` | `tests/tooling/test_runtime_incident_response_ssot.py` | P0 |
+> (AC8.13.126 removed, canonical: migrated to `AC-testing.governance.6`.)
 | AC8.13.127 | Backend business persistence has a production-faithful Alembic-built proof lane that keeps user foreign keys intact while exercising a representative accounting write/read path | `test_AC8_13_127_alembic_business_persistence_keeps_user_fk_contract` | `apps/backend/tests/integration/test_production_faithful_business_persistence.py` | P0 |
 | AC8.13.128 | Detached `user_id=uuid4()` owner shortcuts in DB-backed backend tests are counted and cannot grow without an explicit budget update | `test_AC8_13_128_*` | `tests/tooling/test_detached_owner_guard.py` | P0 |
 | AC8.13.129 | Testing SSOT distinguishes fast `create_all()` fixtures, PR Alembic schema proof, and the production-faithful backend business persistence lane | `test_AC8_13_129_schema_docs_distinguish_fast_fixture_and_production_faithful_lane` | `tests/tooling/test_detached_owner_guard.py` | P0 |
 | AC8.13.130 | The detached-owner guard counts only persisted (`db.add`/`db.add_all`) `user_id=uuid4()` rows — the real foreign-key risk — excluding transient in-memory and service-argument uses, collapsing the historically-inflated budget to the persisted rows | `test_AC8_13_130_counts_only_persisted_detached_owners` | `tests/tooling/test_detached_owner_guard.py` | P1 |
-| AC8.13.131 | Bottom-up proof exceptions and code-owned surfaces are classified in `docs/ssot/governance-exceptions.yaml` with a typed `proof_exceptions`/`code_owned_surfaces` entry (id, owner, reason, issue), validated by `tools/check_governance_exceptions.py`, leaving the legacy SSOT governance `exceptions` list intact (#524) | `test_AC8_13_131_*` | `tests/tooling/test_governance_exceptions_registry.py` | P1 |
-| AC8.13.132 | Every test/support file with no AC reference stays classified in `docs/project/traceability-exceptions.md`, with no unclassified drift and no product E2E test parked on the allow-list (#511) | `test_AC8_13_132_*` | `tests/tooling/test_no_ac_test_classification.py` | P1 |
-| AC8.13.133 | Cross-document SSOT concepts (reconciliation thresholds, reconciliation/confirmation state machines, extraction confidence tiers, confidence-tier rollup) are registered in `docs/ssot/MANIFEST.yaml` with anchored owners backed by explicit `<a id>` anchors (#340) | `test_AC8_13_133_*` | `tests/tooling/test_ssot_cross_document_anchors.py` | P1 |
-| AC8.13.134 | Consolidated/archived stale docs stay absent and every mkdocs `nav` markdown target resolves (no dangling internal links after the consolidation) (#350) | `test_AC8_13_134_*` | `tests/tooling/test_stale_docs_consolidation.py` | P1 |
+> (AC8.13.131 removed, canonical: migrated to `AC-testing.governance.7`.)
+> (AC8.13.132 removed, canonical: migrated to `AC-testing.governance.8`.)
+> (AC8.13.133 removed, canonical: migrated to `AC-testing.governance.9`.)
+> (AC8.13.134 removed, canonical: migrated to `AC-testing.governance.10`.)
 > (AC8.13.135 removed, canonical: migrated to `AC-testing.acgates.14`.)
-| AC8.13.136 | A content-level secret scan (gitleaks) runs in both the pre-commit hooks and the CI `lint` job (local==CI parity), blocking credential material by content rather than by filename so `.gitignore` is not the only line of defense | `test_AC8_13_136_gitleaks_runs_in_precommit_and_ci` | `tests/tooling/test_secret_scan_gate.py` | P0 |
+> (AC8.13.136 removed, canonical: migrated to `AC-testing.secret-scan.1`.)
 > (AC8.13.137 removed, canonical: migrated to `AC-testing.deploy-gates.28`.)
 > (AC8.13.138 removed, canonical: migrated to `AC-testing.acgates.15`.)
 > (AC8.13.139 removed, canonical: migrated to `AC-testing.acgates.16`.)

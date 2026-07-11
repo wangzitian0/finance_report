@@ -76,7 +76,7 @@ def test_AC8_13_53_root_scripts_and_infra_project_are_removed():
 
 
 def test_AC8_13_53_common_coverage_component_is_a_governed_source_root():
-    """AC8.13.53: Common code is measured without tool-owned implementations."""
+    """AC-testing.toolchain.4: AC8.13.53: Common code is measured without tool-owned implementations."""
     component = coverage_policy.get_component("common")
 
     assert component.component_root == ""
@@ -114,7 +114,7 @@ def test_AC8_13_56_tools_coverage_component_is_a_governed_source_root():
 
 
 def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
-    """AC8.13.56: Coverage commands live under tools and delegate to tools._lib."""
+    """AC-testing.toolchain.5: AC8.13.56: Coverage commands live under tools and delegate to tools._lib."""
     build_tool = importlib.import_module("tools.build_unified_lcov")
     calc_tool = importlib.import_module("tools.calculate_unified_coverage")
     analyzer_tool = importlib.import_module("tools.coverage_analyzer")
@@ -188,7 +188,7 @@ def test_AC8_13_53_tool_owned_commands_delegate_to_tools_lib(
 
 
 def test_AC8_13_57_ssot_tools_delegate_to_common_implementations():
-    """AC8.13.57: SSOT commands live under tools and delegate to common."""
+    """AC-testing.toolchain.6: AC8.13.57: SSOT commands live under tools and delegate to common."""
     command_modules = {
         "tools.analyze_test_ac_coverage": "common.testing.analyze_test_ac_coverage",
         "tools.audit_ac_epic_mismatches": "common.testing.audit_ac_epic_mismatches",
@@ -218,7 +218,7 @@ def test_AC8_13_57_ssot_tools_delegate_to_common_implementations():
 
 
 def test_AC8_13_58_ci_tools_delegate_to_common_implementations():
-    """AC8.13.58: CI commands keep common contracts separate from tool reports."""
+    """AC-testing.toolchain.7: AC8.13.58: CI commands keep common contracts separate from tool reports."""
     command_modules = {
         "tools.check_migration_risk": "common.meta.extension.migration_risk",
         "tools.check_toolchain_contract": "common.runtime.check_toolchain_contract",
@@ -243,7 +243,7 @@ def test_AC8_13_58_ci_tools_delegate_to_common_implementations():
 
 
 def test_AC8_13_59_config_validation_tools_delegate_to_common_implementations():
-    """AC8.13.59: Config validation commands live under tools and delegate to
+    """AC-testing.toolchain.8: AC8.13.59: Config validation commands live under tools and delegate to
     their runtime-package implementation (#1669 moved these out of common/config
     into apps/backend/src/runtime/extension, since they need apps/backend's own
     Settings/schemas to validate against)."""

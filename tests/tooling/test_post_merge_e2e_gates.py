@@ -2713,7 +2713,7 @@ def test_AC8_13_86_fast_feedback_jobs_do_not_wait_for_behavior_gates() -> None:
 
 
 def test_AC8_13_94_env_and_pipeline_stage_contract_is_documented() -> None:
-    """AC8.13.94: environments and pipeline stages are separate matrix axes."""
+    """AC-testing.governance.3: AC8.13.94: environments and pipeline stages are separate matrix axes."""
     ci_cd = read("docs/ssot/ci-cd.md")
     environments = read("docs/ssot/environments.md")
     readme = read("README.md")
@@ -2747,7 +2747,7 @@ def test_AC8_13_94_env_and_pipeline_stage_contract_is_documented() -> None:
 
 
 def test_AC8_13_95_local_fast_gate_and_escalation_policy_are_documented() -> None:
-    """AC8.13.95: local defaults stay fast but escalate for high-risk paths."""
+    """AC-testing.governance.4: AC8.13.95: local defaults stay fast but escalate for high-risk paths."""
     ci_cd = read("docs/ssot/ci-cd.md")
     development = read("docs/ssot/development.md")
     readme = read("README.md")
@@ -3200,7 +3200,7 @@ def test_AC8_13_108_staging_failure_context_fails_closed_on_classifier_and_unkno
 
 
 def test_AC8_13_47_delivery_engine_recommendations_are_tracked() -> None:
-    """AC8.13.47: remaining delivery-engine work is captured outside mutable SSOT."""
+    """AC-testing.governance.1: AC8.13.47: remaining delivery-engine work is captured outside mutable SSOT."""
     recommendation = read("docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md")
     project_readme = read("docs/project/README.md")
     ci_cd = read("docs/ssot/ci-cd.md")
@@ -3880,7 +3880,7 @@ def test_AC8_13_116_skip_heavy_ci_on_main_push() -> None:
 
 
 def test_AC8_13_118_timeouts_and_retries_documented() -> None:
-    """AC8.13.118: Critical-path timeouts and retries are documented in docs/ssot/ci-cd.md."""
+    """AC-testing.governance.5: AC8.13.118: Critical-path timeouts and retries are documented in docs/ssot/ci-cd.md."""
     ci_cd = read("docs/ssot/ci-cd.md")
     # The staging FIFO train wait is retired with the manual-only model; staging is
     # serialized by the workflow concurrency group, so no FIFO timeout is documented.
