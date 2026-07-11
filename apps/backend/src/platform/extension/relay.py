@@ -19,6 +19,7 @@ how it would run (a periodic background task / scheduled job).
 from __future__ import annotations
 
 import asyncio
+import inspect
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 
@@ -80,7 +81,12 @@ class OutboxRelay:
             for row in rows:
                 event = _to_event(row)
                 for handler in self._registry.handlers_for(row.event_type):
-                    handler(event)
+                    # Handlers may be sync or async (EventHandler admits both);
+                    # an async handler's work must complete before the row is
+                    # marked published, so its awaitable is awaited here.
+                    result = handler(event)
+                    if inspect.isawaitable(result):
+                        await result
                 await repo.mark_published(row, published_at=datetime.now(UTC))
                 published += 1
         except Exception:

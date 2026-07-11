@@ -82,9 +82,7 @@ async def test_AC_pricing_ingest_1_extraction_event_lands_as_one_provenanced_obs
     fact_id = uuid4()
     occurred_at = datetime.now(UTC)
     bus = OutboxEventBus(db, source_pkg="extraction")
-    bus.publish(
-        _statement_event(fact_id=fact_id, user_id=test_user.id, occurred_at=occurred_at)
-    )
+    bus.publish(_statement_event(fact_id=fact_id, user_id=test_user.id, occurred_at=occurred_at))
     await db.commit()
 
     registry = SubscriberRegistry()

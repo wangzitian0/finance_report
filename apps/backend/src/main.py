@@ -25,7 +25,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 import src.models._registry  # noqa: E402, F401
 from src.boot import Bootloader, BootMode
 from src.config import settings
-from src.database import engine, get_db, init_db
+from src.database import async_session_maker, engine, get_db, init_db
 from src.extraction import (
     find_uploaded_document_filename_by_hash,
     get_known_storage_paths,
@@ -49,12 +49,15 @@ from src.observability import (
 )
 from src.platform import (
     BaseAppException,
+    OutboxRelay,
     RateLimitConfig,
     RateLimiter,
+    SubscriberRegistry,
     register_readiness_provider,
     register_uploaded_document_readers,
 )
 from src.platform.orm.ping_state import PingState
+from src.pricing import subscribe_price_ingest
 from src.routers import (
     accounts,
     ai_feedback,
@@ -110,6 +113,41 @@ register_uploaded_document_readers(
     find_filename_by_hash=find_uploaded_document_filename_by_hash,
 )
 register_known_storage_paths_provider(get_known_storage_paths)
+
+# Wire the domain-event subscribers (#1642): the composition root owns the
+# SubscriberRegistry and the OutboxRelay that dispatches committed outbox rows
+# to them — platform (L1) must not import a domain package (L3), so the
+# registration happens here, the same inversion as the provider ports above.
+# First (precedent-setting) subscriber: pricing ingests extraction's
+# statement-extracted PriceObserved publications.
+outbox_subscribers = SubscriberRegistry()
+subscribe_price_ingest(outbox_subscribers, session_factory=async_session_maker)
+outbox_relay = OutboxRelay(outbox_subscribers)
+
+#: Seconds the outbox-relay background task sleeps between drain passes.
+OUTBOX_RELAY_POLL_SECONDS = 1.0
+
+
+async def run_outbox_relay(stop_event: asyncio.Event) -> None:
+    """Drain committed outbox rows periodically until shutdown.
+
+    The durable half of the transactional outbox (``common/platform/readme.md``
+    "Running the relay"): each pass opens a fresh session and dispatches one
+    batch of pending rows to the subscribed handlers. A failing pass is logged
+    and retried on the next pass — delivery is at-least-once and handlers are
+    idempotent, so a retry is always safe.
+    """
+    while not stop_event.is_set():
+        try:
+            async with async_session_maker() as session:
+                await outbox_relay.run_once(session)
+        except Exception:
+            logger.exception("Outbox relay pass failed")
+
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=OUTBOX_RELAY_POLL_SECONDS)
+        except TimeoutError:
+            continue
 
 
 def _init_otel_instrumentation() -> None:
@@ -181,6 +219,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     supervisor_task = asyncio.create_task(run_parsing_supervisor(stop_event))
     market_data_task = asyncio.create_task(run_market_data_scheduler(stop_event))
     sweep_task = asyncio.create_task(run_storage_sweep(stop_event))
+    outbox_relay_task = asyncio.create_task(run_outbox_relay(stop_event))
     log_observability_startup(logger)
     logger.info("Application started", version="0.1.0")
     yield
@@ -188,6 +227,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     supervisor_task.cancel()
     market_data_task.cancel()
     sweep_task.cancel()
+    outbox_relay_task.cancel()
 
     with suppress(asyncio.CancelledError):
         await supervisor_task
@@ -195,6 +235,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await market_data_task
     with suppress(asyncio.CancelledError):
         await sweep_task
+    with suppress(asyncio.CancelledError):
+        await outbox_relay_task
     logger.info("Application shutting down")
 
 
