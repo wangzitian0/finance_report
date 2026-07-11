@@ -30,3 +30,4 @@
 {"case_id": "d69fbafcecb481e614651b1178a5fb9d9e3724718ef7bf623502120bcd27db30", "score": 1.0, "metric": "field-accuracy", "provenance": "text/generic/happy_path"}
 {"case_id": "d8154af803135a5f9ea4a7af3352271ea92449c62d6cdbae3bfd21664b8b6e58", "score": 0.892644, "metric": "field-accuracy", "provenance": "vision/generic_hf/large_statement"}
 {"case_id": "e3dd21a7fe486770b51b39f51f49738221e4236fcbfb9e2d3b1f0c27030daf37", "score": 0.956522, "metric": "field-accuracy", "provenance": "vision/generic_hf/large_statement"}
+{"case_id": "fb8deff16abd06b1a25557068e4a2212cf5303a7645c8a5e03f1bac0c5bf9f96", "score": 1.0, "metric": "field-accuracy", "provenance": "vision/bank/balance_unreconciled"}

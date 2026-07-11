@@ -19,8 +19,11 @@ documents remains the staging ``-m llm`` live gate's job (untouched here).
 from __future__ import annotations
 
 import json
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
+
+import pytest
 
 from src.services.ai_streaming import accumulate_stream, stream_ai_json
 
@@ -177,3 +180,102 @@ async def test_AC23_6_extraction_1254_class_dedup_balance_via_replay() -> None:
     assert abs(opening - _DUP_OPENING) <= _TEXT_TOLERANCE
     assert abs(closing - _DUP_CLOSING) <= _TEXT_TOLERANCE
     assert abs((opening + net) - closing) <= _TEXT_TOLERANCE
+
+
+# --------------------------------------------------------------------------- #
+# #1744 — unhappy-path cassettes. AC23.6's happy-path cassettes above prove the
+# transport hand-off works when the LLM read the document correctly; these
+# prove it ALSO works when the frozen response is exactly the shape that
+# previously broke production (#1449, #1452) — through the REAL cassette
+# transport into ExtractionService.parse_document(), not a unittest.mock.patch
+# of extract_financial_data() (that lower-level coverage already exists in
+# test_extraction.py / test_llm_led_blocking_gate.py and is NOT duplicated
+# here; what's new is proving the cassette-delivered response reaches the same
+# correct behavior end-to-end through parse_document()).
+#
+# Carrier PDFs are throwaway synthetic fixtures (apps/backend/tests/fixtures/
+# vision/unhappy_*.pdf) — their content is irrelevant; only their bytes need to
+# be distinct so each gets its own cassette fingerprint. The frozen response is
+# what actually drives each test, hand-authored (no live provider call).
+# --------------------------------------------------------------------------- #
+_VISION_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "vision"
+
+
+async def test_AC_llm_14_1_missing_period_falls_back_to_transaction_dates_via_replay() -> None:
+    """AC-llm.14.1: a cassette response with no period_start/period_end but valid
+    transaction dates degrades gracefully (#1449) — through the real cassette
+    transport into parse_document(), not a unit call to _resolve_required_period."""
+    from uuid import uuid4
+
+    from src.extraction.extension.service import ExtractionService
+
+    service = ExtractionService()
+    service.api_key = service.api_key or "replay"
+    pdf = _VISION_DIR / "unhappy_missing_period.pdf"
+    summary, transactions = await service.parse_document(
+        pdf,
+        institution="ACME",
+        user_id=uuid4(),
+        file_type="pdf",
+        file_content=pdf.read_bytes(),
+        original_filename=pdf.name,
+    )
+    assert summary.status.value != "rejected", summary.status
+    assert summary.period_start == date(2026, 3, 2)
+    assert summary.period_end == date(2026, 3, 20)
+    assert len(transactions) == 3
+
+
+async def test_AC_llm_14_2_no_recoverable_date_anywhere_rejects_cleanly_via_replay() -> None:
+    """AC-llm.14.2: a cassette response with no period fields AND no parseable
+    transaction dates must still reject (a genuinely date-less document is not
+    silently accepted) — through the real cassette transport, not a unit call."""
+    from uuid import uuid4
+
+    from src.extraction.extension.service import ExtractionError, ExtractionService
+
+    service = ExtractionService()
+    service.api_key = service.api_key or "replay"
+    pdf = _VISION_DIR / "unhappy_no_dates_at_all.pdf"
+    with pytest.raises(ExtractionError, match="Date is required"):
+        await service.parse_document(
+            pdf,
+            institution="ACME",
+            user_id=uuid4(),
+            file_type="pdf",
+            file_content=pdf.read_bytes(),
+            original_filename=pdf.name,
+        )
+
+
+async def test_AC_llm_14_3_unreconciled_balance_quarantines_to_rejected_via_replay(db, test_user) -> None:
+    """AC-llm.14.3: a cassette response whose balance chain does not reconcile
+    quarantines to the terminal `rejected` status (#1452 — previously stuck in
+    `parsing` forever) — through the real cassette transport into
+    parse_document(), not a unittest.mock.patch of extract_financial_data()."""
+    from sqlalchemy import select
+
+    from src.extraction.extension.service import ExtractionService
+    from src.models.layer2 import AtomicTransaction
+    from src.models.statement_enums import BankStatementStatus
+
+    service = ExtractionService()
+    service.api_key = service.api_key or "replay"
+    pdf = _VISION_DIR / "unhappy_balance_unreconciled.pdf"
+    summary, _transactions = await service.parse_document(
+        pdf,
+        institution="ACME",
+        user_id=test_user.id,
+        file_type="pdf",
+        file_content=pdf.read_bytes(),
+        original_filename=pdf.name,
+        db=db,
+    )
+    # #1452: the terminal status must actually persist (not stuck in `parsing`).
+    assert summary.status == BankStatementStatus.REJECTED
+    # A quarantined extraction must never persist Layer-2 financial rows — the
+    # returned tuple's transactions are the pre-persistence build, not what
+    # dual_write_layer2 actually wrote; assert the real persisted count (this
+    # test's user is fresh/isolated, so any row for it is from this parse).
+    persisted = await db.execute(select(AtomicTransaction).where(AtomicTransaction.user_id == test_user.id))
+    assert persisted.scalars().all() == []
