@@ -61,7 +61,7 @@ async def _post_balanced_entry(client, *, debit_id, credit_id, amount, entry_dat
 
 @pytest.mark.e2e
 async def test_api_health_check(client):
-    """
+    """AC-testing.journeys.1: 
     EPIC-001 EPIC-007 EPIC-010 EPIC-012 / AC-runtime.1.1: Health endpoint reachable
     AC8.8.1: Core journey — health check
     GIVEN the API is running
@@ -163,7 +163,7 @@ async def test_delete_account(client, test_user):
 
 @pytest.mark.e2e
 async def test_accounts_crud_api(client, db, test_user):
-    """
+    """AC-testing.journeys.2: 
     EPIC-001 EPIC-002 / AC8.8.2: Accounts CRUD API (Core Journey)
     GIVEN a user is authenticated
     WHEN creating, listing, getting, and updating accounts
@@ -393,7 +393,7 @@ async def test_unbalanced_journal_entry_rejection(client, test_user):
 
 @pytest.mark.e2e
 async def test_journal_entry_crud(client, test_user):
-    """
+    """AC-testing.journeys.3: 
     AC-ledger.journeys.9: EPIC-002 / AC8.3.5: Journal Entry CRUD
     AC8.8.3: Core journey — journal entry lifecycle
     GIVEN a user is authenticated
@@ -458,7 +458,7 @@ async def test_journal_entry_crud(client, test_user):
 
 @pytest.mark.e2e
 async def test_reconciliation_engine_runs(client, db, test_user):
-    """
+    """AC-testing.journeys.5: 
     AC-reconciliation.reconciliation-engine.1: EPIC-004 / AC8.5.1: Reconciliation engine runs
     AC8.8.5: Core journey — reconciliation
     GIVEN a user has bank transactions
@@ -525,7 +525,7 @@ async def test_reconciliation_stats(client, db, test_user):
 
 @pytest.mark.e2e
 async def test_balance_sheet_report(client, test_user):
-    """
+    """AC-testing.journeys.4: 
     EPIC-005 / AC8.6.1: View Balance Sheet
     AC8.8.4: Core journey — reports API
     GIVEN a user posts a known balanced entry (Bank 1000 ← Opening Equity 1000)
@@ -797,7 +797,7 @@ async def test_database_connectivity(client, test_user):
 
 @pytest.mark.e2e
 async def test_statement_upload_csv(client, test_user):
-    """
+    """AC-testing.must-have.4: 
     EPIC-003 EPIC-013 / AC8.4.1: Upload bank statement (CSV format)
     AC8.10.4: Traceability — statement upload works
     GIVEN a user is authenticated
@@ -966,7 +966,7 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
 def test_pr_workflow_runs_e2e_tests():
-    """
+    """AC-testing.ci-integration.1: 
     EPIC-007 EPIC-008.
 
     AC8.9.1: PR workflow contains E2E test steps
@@ -981,7 +981,7 @@ def test_pr_workflow_runs_e2e_tests():
 
 
 def test_smoke_tests_integrated():
-    """
+    """AC-testing.ci-integration.2: 
     EPIC-007 EPIC-008.
 
     AC8.9.2: Smoke test script exists and is referenced in CI
@@ -1003,7 +1003,7 @@ def test_smoke_tests_integrated():
 
 
 def test_critical_test_check_in_workflow():
-    """
+    """AC-testing.ci-integration.3: 
     EPIC-007 EPIC-008.
 
     AC8.9.3: Workflow includes junit-xml or test result reporting
@@ -1018,7 +1018,7 @@ def test_critical_test_check_in_workflow():
 
 
 def test_environment_isolation():
-    """
+    """AC-testing.ci-integration.4: 
     EPIC-007 EPIC-008.
 
     AC8.9.4: PR workflow uses PR-specific naming for environment isolation
@@ -1039,7 +1039,7 @@ def test_environment_isolation():
 
 @pytest.mark.e2e
 async def test_traceability_health_endpoint(client):
-    """
+    """AC-testing.must-have.1: 
     EPIC-001 EPIC-007 EPIC-010 EPIC-012 / AC8.10.1: Traceability — health endpoint exists and returns 200
     GIVEN the API is running
     WHEN hitting /health
@@ -1051,7 +1051,7 @@ async def test_traceability_health_endpoint(client):
 
 @pytest.mark.e2e
 async def test_traceability_user_can_create_account(client, test_user):
-    """
+    """AC-testing.must-have.2: 
     EPIC-001 EPIC-002 / AC8.10.2: Traceability — account creation works end-to-end
     GIVEN an authenticated user
     WHEN creating an account
@@ -1067,7 +1067,7 @@ async def test_traceability_user_can_create_account(client, test_user):
 
 @pytest.mark.e2e
 async def test_traceability_user_can_create_journal_entry(client, test_user):
-    """
+    """AC-testing.must-have.3: 
     EPIC-002 / AC8.10.3: Traceability — journal entry creation works end-to-end
     GIVEN an authenticated user with an account
     WHEN creating a balanced journal entry
@@ -1106,7 +1106,7 @@ async def test_traceability_user_can_create_journal_entry(client, test_user):
 
 @pytest.mark.e2e
 async def test_traceability_reconciliation_engine(client, db, test_user):
-    """
+    """AC-testing.must-have.5: 
     EPIC-004 / AC8.10.5: Traceability — reconciliation engine runs
     GIVEN the system is running
     WHEN triggering reconciliation
@@ -1118,7 +1118,7 @@ async def test_traceability_reconciliation_engine(client, db, test_user):
 
 @pytest.mark.e2e
 async def test_traceability_unbalanced_entry_rejected(client, test_user):
-    """
+    """AC-testing.must-have.6: 
     EPIC-002 / AC8.10.6: Traceability — unbalanced entry is rejected
     GIVEN an authenticated user
     WHEN submitting an unbalanced journal entry
@@ -1156,7 +1156,7 @@ async def test_traceability_unbalanced_entry_rejected(client, test_user):
 
 @pytest.mark.e2e
 async def test_traceability_reports_api(client, test_user):
-    """
+    """AC-testing.must-have.7: 
     EPIC-005 / AC8.10.7: Traceability — reports API returns data
     GIVEN an authenticated user
     WHEN requesting balance sheet
@@ -1170,7 +1170,7 @@ async def test_traceability_reports_api(client, test_user):
 
 @pytest.mark.e2e
 async def test_traceability_user_registration(public_client):
-    """
+    """AC-testing.must-have.8: 
     EPIC-001 EPIC-016 / AC8.10.8: Traceability — user registration works
     GIVEN a new user
     WHEN registering via /auth/register
@@ -1190,7 +1190,7 @@ async def test_traceability_user_registration(public_client):
 
 @pytest.mark.e2e
 async def test_traceability_authentication_validation(public_client):
-    """
+    """AC-testing.must-have.9: 
     EPIC-001 EPIC-016 / AC8.10.9: Traceability — auth validation rejects bad credentials
     GIVEN invalid credentials
     WHEN attempting login

@@ -153,7 +153,7 @@ def test_AC8_13_88_personal_package_e2e_consumes_audit_grade_expected_outputs() 
 
 
 def test_AC8_14_3_personal_package_has_deterministic_source_trust_mirror() -> None:
-    """AC8.14.3: Package LLM/OCR critical proof has a deterministic source-trust mirror."""
+    """AC-testing.trust-mirrors.3: AC8.14.3: Package LLM/OCR critical proof has a deterministic source-trust mirror."""
     matrix = _matrix()
     proofs = {proof["id"]: proof for proof in matrix["proofs"]}
 
@@ -173,4 +173,4 @@ def test_AC8_14_3_personal_package_has_deterministic_source_trust_mirror() -> No
     assert mirror["trust_mode"] == "deterministic_pr"
     assert mirror["ci_tier"] == "pr_ci"
     assert expected_sources <= set(mirror["source_classes"])
-    assert "AC8.14.3" in mirror["ac_ids"]
+    assert "AC-testing.trust-mirrors.3" in mirror["ac_ids"]

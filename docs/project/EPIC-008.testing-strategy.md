@@ -212,36 +212,30 @@ job inventories or scenario counts into this EPIC.
 
 ### AC8.8: Core E2E Journey Tests
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC8.8.1 | API health check | `test_api_health_check()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.8.2 | Accounts CRUD API | `test_accounts_crud_api()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.8.3 | Journal entry lifecycle API | `test_journal_entry_crud()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.8.4 | Reports API | `test_balance_sheet_report()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.8.5 | Reconciliation API | `test_reconciliation_engine_runs()` | `e2e/test_core_journeys.py` | P0 |
+> (AC8.8.1 removed, canonical: migrated to `AC-testing.journeys.1`.)
+> (AC8.8.2 removed, canonical: migrated to `AC-testing.journeys.2`.)
+> (AC8.8.3 removed, canonical: migrated to `AC-testing.journeys.3`.)
+> (AC8.8.4 removed, canonical: migrated to `AC-testing.journeys.4`.)
+> (AC8.8.5 removed, canonical: migrated to `AC-testing.journeys.5`.)
 
 ### AC8.9: CI/CD Integration Tests
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC8.9.1 | PR workflow runs E2E tests | `test_pr_workflow_runs_e2e_tests()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.9.2 | Smoke tests integrated | `test_smoke_tests_integrated()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.9.3 | Critical test check | `test_critical_test_check_in_workflow()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.9.4 | Environment isolation | `test_environment_isolation()` | `e2e/test_core_journeys.py` | P0 |
+> (AC8.9.1 removed, canonical: migrated to `AC-testing.ci-integration.1`.)
+> (AC8.9.2 removed, canonical: migrated to `AC-testing.ci-integration.2`.)
+> (AC8.9.3 removed, canonical: migrated to `AC-testing.ci-integration.3`.)
+> (AC8.9.4 removed, canonical: migrated to `AC-testing.ci-integration.4`.)
 
 ### AC8.10: Must-Have Scenario Traceability
 
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC8.10.1 | Health endpoint reachable | `test_traceability_health_endpoint()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.10.2 | User can create account | `test_traceability_user_can_create_account()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.10.3 | User can create journal entry | `test_traceability_user_can_create_journal_entry()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.10.4 | Statement upload triggers AI | `test_statement_upload_csv()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.10.5 | Reconciliation engine runs | `test_traceability_reconciliation_engine()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.10.6 | Unbalanced entry rejected | `test_traceability_unbalanced_entry_rejected()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.10.7 | Reports API accessible | `test_traceability_reports_api()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.10.8 | User registration flow | `test_traceability_user_registration()`, `test_registration_flow`, `test_AC8_10_8_registration_flow_accepts_current_landing_route` | `e2e/test_core_journeys.py`, `tests/e2e/test_e2e_flows.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
-| AC8.10.9 | Authentication validation | `test_traceability_authentication_validation()` | `e2e/test_core_journeys.py` | P0 |
+> (AC8.10.1 removed, canonical: migrated to `AC-testing.must-have.1`.)
+> (AC8.10.2 removed, canonical: migrated to `AC-testing.must-have.2`.)
+> (AC8.10.3 removed, canonical: migrated to `AC-testing.must-have.3`.)
+> (AC8.10.4 removed, canonical: migrated to `AC-testing.must-have.4`.)
+> (AC8.10.5 removed, canonical: migrated to `AC-testing.must-have.5`.)
+> (AC8.10.6 removed, canonical: migrated to `AC-testing.must-have.6`.)
+> (AC8.10.7 removed, canonical: migrated to `AC-testing.must-have.7`.)
+> (AC8.10.8 removed, canonical: migrated to `AC-testing.must-have.8`.)
+> (AC8.10.9 removed, canonical: migrated to `AC-testing.must-have.9`.)
 
 ### AC8.11: Phase 2 — Core Financial Journeys
 
@@ -427,12 +421,10 @@ job inventories or scenario counts into this EPIC.
 
 ### AC8.14: Product Trust Proof Mirrors
 
-| AC ID | Test Case | Test Function | File | Priority |
-|---|---|---|---|---|
-| AC8.14.1 | Critical proof matrix classifies product proof paths by trust mode and source classes | `test_valid_behavioral_static_and_manual_entries_pass`, `test_AC8_14_1_critical_proof_matrix_reports_duplicate_proof_ids`, `test_AC8_14_2_llm_ocr_mirror_must_be_pr_deterministic` | `tests/tooling/test_check_critical_proof_matrix.py` | P0 |
-| AC8.14.2 | Critical post-merge LLM/OCR product proofs must name a PR deterministic mirror proof for the same source classes | `test_AC8_14_2_llm_ocr_proof_requires_deterministic_pr_mirror`, `test_AC8_14_2_llm_ocr_mirror_must_be_pr_deterministic` | `tests/tooling/test_check_critical_proof_matrix.py` | P0 |
-| AC8.14.3 | Personal report package critical proof has a deterministic PR mirror covering bank, brokerage, manual valuation, restricted-compensation, CSV, and manual-record source classes | `test_AC8_14_3_personal_package_has_deterministic_source_trust_mirror` | `tests/tooling/test_personal_report_package_fixture_contract.py` | P0 |
-| AC8.14.4 | Backend reporting integration acts as a deterministic PR mirror from structured/manual source facts through ledger and core statements | `test_AC5_15_1_multicurrency_reporting_cycle_reconciles_bs_is_cf` | `apps/backend/tests/integration/test_reporting_e2e.py` | P0 |
+> (AC8.14.1 removed, canonical: migrated to `AC-testing.trust-mirrors.1`.)
+> (AC8.14.2 removed, canonical: migrated to `AC-testing.trust-mirrors.2`.)
+> (AC8.14.3 removed, canonical: migrated to `AC-testing.trust-mirrors.3`.)
+> (AC8.14.4 removed, canonical: migrated to `AC-testing.trust-mirrors.4`.)
 
 ### AC8.15: Full-Year Statement-to-Report End-to-End Acceptance
 
@@ -514,11 +506,9 @@ version, public API reachability, frontend reachability, and unauthenticated
 protection boundary through real HTTP. It is not a line-coverage input and a
 not-run/env-gated advisory report is never proof eligible.
 
-| AC ID | Test Case | Test Function | File | Priority |
-|---|---|---|---|---|
-| AC8.18.1 | The Tier 2 command fails closed unless a deployed base URL and expected deployed version are supplied | `test_AC8_18_1_tier2_http_command_fails_closed_without_deployed_inputs` | `tests/tooling/test_tier2_http_e2e.py` | P0 |
-| AC8.18.2 | Tier 2 reports carry `proof_tier=tier2_http`; advisory/env-gated not-run output is marked `proof_eligible=false`, while passing reports require concrete HTTP checks | `test_AC8_18_2_tier2_http_report_is_proof_tiered_and_skip_ineligible`, `test_AC8_18_2_tier2_http_success_report_requires_real_http_checks`, `test_AC8_18_2_tier2_http_handles_non_object_health_json`, `test_AC8_18_2_tier2_http_accepts_short_and_full_sha_match` | `tests/tooling/test_tier2_http_e2e.py` | P0 |
-| AC8.18.3 | Staging runs Tier 2 after shell smoke and before Tier 3/browser E2E, and the execution matrix names `deployment_tier2_http_e2e` separately | `test_AC8_18_3_staging_workflow_runs_tier2_http_before_tier3_browser_e2e`, `test_AC8_18_3_test_execution_matrix_names_tier2_http_stage` | `tests/tooling/test_tier2_http_e2e.py` | P0 |
+> (AC8.18.1 removed, canonical: migrated to `AC-testing.tier2.1`.)
+> (AC8.18.2 removed, canonical: migrated to `AC-testing.tier2.2`.)
+> (AC8.18.3 removed, canonical: migrated to `AC-testing.tier2.3`.)
 
 ### AC8.19: Login Auth-Control Accessibility Disambiguation
 
@@ -551,11 +541,9 @@ and lower-severity unresolved threads are reported but never block. The gate is
 bootstrap-safe (a fresh PR with no unresolved P0/P1 passes) and skips cleanly on
 non-PR events. The classification rule is owned by [ci-cd.md](../ssot/ci-cd.md).
 
-| AC ID | Test Case | Test Function | File | Priority |
-|---|---|---|---|---|
-| AC8.20.1 | The checker blocks (exit 1) when an unresolved P0/P1 (or unresolved Copilot) review thread exists | `test_AC8_20_1_unresolved_p0_blocks`, `test_AC8_20_1_unresolved_copilot_blocks`, `test_AC8_20_1_blocking_thread_url_is_printed` | `tests/tooling/test_check_pr_review_threads.py` | P1 |
-| AC8.20.2 | Resolved/outdated threads and lower-severity (P2/P3/nit) unresolved threads do NOT block; they are reported | `test_AC8_20_2_resolved_p0_passes`, `test_AC8_20_2_outdated_p0_passes`, `test_AC8_20_2_unresolved_nit_passes_but_reported`, `test_AC8_20_2_empty_passes`, `test_AC8_20_2_mixed_blocks_only_on_active_p0` | `tests/tooling/test_check_pr_review_threads.py` | P1 |
-| AC8.20.3 | The severity classification rule is documented in the CI/CD SSOT | `test_AC8_20_3_severity_rule_documented_in_ssot` | `tests/tooling/test_check_pr_review_threads.py` | P1 |
+> (AC8.20.1 removed, canonical: migrated to `AC-testing.review-threads.1`.)
+> (AC8.20.2 removed, canonical: migrated to `AC-testing.review-threads.2`.)
+> (AC8.20.3 removed, canonical: migrated to `AC-testing.review-threads.3`.)
 
 ---
 
@@ -578,11 +566,9 @@ fixes for `test_statement_upload_e2e` / `test_statement_full_journey` /
 `test_personal_financial_report_package` (#1142) are deferred to that follow-up,
 which runs in the full-stack `preview.yml` lane that carries the frontend bundle.
 
-| AC ID | Test Case | Test Function | File | Priority |
-|---|---|---|---|---|
-| AC8.21.1 | A seeded no-LLM fixture materializes an already-parsed statement (PARSED envelope, linked ODS document, atomic transactions, non-empty `original_filename`, Decimal balances) with zero provider calls, bypassing the extraction/LLM seam | `test_seeded_fixture_bypasses_provider` | `apps/backend/tests/e2e/test_seeded_statement_journey.py` | P0 |
-| AC8.21.2 | The previously LLM-gated statement list -> detail journey runs in the no-LLM merge tier via the fixture: the list row and detail expose `status=parsed`, a non-empty `original_filename` (the stretched-link label, #1142), and the parsed transactions | `test_seeded_statement_list_and_detail_no_llm` | `apps/backend/tests/e2e/test_seeded_statement_journey.py` | P0 |
-| AC8.21.3 | The seeded statement's transactions endpoint resolves the parsed atomic transactions (descriptions, Decimal amounts, directions) with no provider call, so the downstream review/reconcile journey runs provider-free | `test_seeded_statement_transactions_endpoint_no_llm` | `apps/backend/tests/e2e/test_seeded_statement_journey.py` | P0 |
+> (AC8.21.1 removed, canonical: migrated to `AC-testing.seeded-journey.1`.)
+> (AC8.21.2 removed, canonical: migrated to `AC-testing.seeded-journey.2`.)
+> (AC8.21.3 removed, canonical: migrated to `AC-testing.seeded-journey.3`.)
 
 ### AC8.22: Test Execution Matrix as Code (testing-package governance)
 
@@ -600,14 +586,12 @@ merge-blocking path), and `preview.yml` consumes the selection at runtime via
 `common/testing/README.md`; follow-ups: #1557 (all workflows + ci_tier↔JUnit
 reconciliation), #1558 (package declaration rollout + mirror-assertion ratchet).
 
-| AC ID | Test Case | Test Function | File | Priority |
-|---|---|---|---|---|
-| AC8.22.1 | The checked-in `docs/ssot/test-execution-matrix.yaml` is exactly the view generated from `common/testing/matrix.py` (byte-identical via the `--check-matrix` CLI gate), and the generated YAML parses into the same path→stage/ci_required rules the AC-traceability consumer reads — matrix-as-code cannot drift from the SSOT view {tier:CODE-ONLY} | `test_AC8_22_1_generated_matrix_matches_checked_in_yaml`, `test_AC8_22_1_generated_yaml_parses_identically_for_consumers` | `tests/tooling/test_execution_matrix_contract.py` | P0 |
-| AC8.22.2 | `preview.yml` derives its in-runner E2E selection at runtime by eval'ing `tools/test_selection.py --stage pr_preview_e2e --shell` (tests, marker expression, parallelism all from the matrix) and carries no hardcoded `tests/e2e/` path — the #1547 whitelist is structurally impossible to reintroduce {tier:CODE-ONLY} | `test_AC8_22_2_preview_workflow_derives_selection_from_matrix` | `tests/tooling/test_execution_matrix_contract.py` | P0 |
-| AC8.22.3 | The derived pre-merge selection contains exactly the audited, dependency-free rows (preserving the original in-runner set), every selected spec exists on disk, no `llm`-marked spec (verified against file content, not row metadata) can appear in the merge-blocking set, and the #1547 non-LLM vision hard gate is admitted after BOTH in-runner stack bugs it flushed out were root-caused and fixed in docker-compose.ci-e2e.yml — the double-/api NEXT_PUBLIC_API_URL 404 (PR #1587) and the #1589 FirstRunModal pointer interception (no provider wiring -> app-wide dismissible modal on every full navigation; fixed with placeholder wiring + unroutable AI_BASE_URL) — each admission a row flip, never a workflow edit {tier:CODE-ONLY} | `test_AC8_22_3_preview_selection_is_audited_and_dependency_free` | `tests/tooling/test_execution_matrix_contract.py` | P0 |
-| AC8.22.4 | Every root `tests/e2e/test_*.py` spec has a named ownership row in the matrix (needs + audit status + reason) and no stale row survives file removal — an unclassified E2E spec fails CI instead of silently landing outside any execution tier {tier:CODE-ONLY} | `test_AC8_22_4_every_root_e2e_spec_has_a_named_row` | `tests/tooling/test_execution_matrix_contract.py` | P1 |
-| AC8.22.5 | The `--shell` emission is valid, shlex-round-trippable bash (test array, quoted marker expression, parallelism) matching the in-code selection exactly, and an unknown stage is rejected with an explicit error {tier:CODE-ONLY} | `test_AC8_22_5_shell_emission_round_trips` | `tests/tooling/test_execution_matrix_contract.py` | P1 |
-| AC8.22.6 | The testing-package governance charter (execution matrix, package declaration protocol, E2E extension layer, fast interception, responsibility table) exists in `common/testing/README.md`, and `docs/ssot/MANIFEST.yaml` records `common/testing/matrix.py` as the `test_execution_matrix` owner with the generated YAML as a cross-ref {tier:CODE-ONLY} | `test_AC8_22_6_charter_and_manifest_ownership` | `tests/tooling/test_execution_matrix_contract.py` | P1 |
+> (AC8.22.1 removed, canonical: migrated to `AC-testing.matrix.1`.)
+> (AC8.22.2 removed, canonical: migrated to `AC-testing.matrix.2`.)
+> (AC8.22.3 removed, canonical: migrated to `AC-testing.matrix.3`.)
+> (AC8.22.4 removed, canonical: migrated to `AC-testing.matrix.4`.)
+> (AC8.22.5 removed, canonical: migrated to `AC-testing.matrix.5`.)
+> (AC8.22.6 removed, canonical: migrated to `AC-testing.matrix.6`.)
 
 ### AC8.23: Workflow Selection Conformance & Execution Reconciliation
 
@@ -618,12 +602,10 @@ fail-closed by a central conformance gate; and a declared `ci_tier="pr_ci"` on
 an `@ac_proof` is reconciled against actual PR junit evidence in the
 `ac-behavioral-ratchet` job — execution tier becomes a contract, not metadata.
 
-| AC ID | Test Case | Test Function | File | Priority |
-|---|---|---|---|---|
-| AC8.23.1 | Every junit-emitting pytest invocation in any workflow is registered in the matrix contracts and every registered contract has exactly one live invocation — fail-closed in both directions, so a selection change is impossible without touching the SSOT {tier:CODE-ONLY} | `test_AC8_23_1_every_workflow_pytest_invocation_is_registered` | `tests/tooling/test_workflow_selection_conformance.py` | P0 |
-| AC8.23.2 | Each registered invocation's `-m` expression and explicit path arguments equal the matrix constants (backend shards, integration, tier-1, staging core/provider/AI-OCR/version, production readonly) — marker semantics have exactly one owner {tier:CODE-ONLY} | `test_AC8_23_2_registered_invocations_match_matrix_selection` | `tests/tooling/test_workflow_selection_conformance.py` | P0 |
-| AC8.23.3 | The staging AI/OCR corpus (derived from `@ac_proof` metadata) and the matrix llm rows describe the same provider-dependent spec set, with the connectivity probe as the only declared difference — the two derivations cannot drift silently {tier:CODE-ONLY} | `test_AC8_23_3_staging_ai_ocr_corpus_aligns_with_matrix_llm_rows` | `tests/tooling/test_workflow_selection_conformance.py` | P1 |
-| AC8.23.4 | A behavioral `pr_ci` proof absent from aggregated PR junit evidence fails the reconciliation gate (wired after the score ratchet in ci.yml); present proofs pass, skipped-only is a hard fail (#1558: a pr_ci proof that only ever skips pre-merge is not executing its promise, though a skip in one shard with a real run in another passes), and parametrized/class-nested junit ids are matched correctly {tier:CODE-ONLY} | `test_AC8_23_4_pr_ci_evidence_reconciliation_gate`, `test_AC8_23_4_junit_parsing_handles_params_and_classes` | `tests/tooling/test_workflow_selection_conformance.py` | P0 |
+> (AC8.23.1 removed, canonical: migrated to `AC-testing.conformance.1`.)
+> (AC8.23.2 removed, canonical: migrated to `AC-testing.conformance.2`.)
+> (AC8.23.3 removed, canonical: migrated to `AC-testing.conformance.3`.)
+> (AC8.23.4 removed, canonical: migrated to `AC-testing.conformance.4`.)
 
 ### AC8.24: Package Test Declarations, Environment Preconditions & Mirror Ratchet
 
@@ -635,11 +617,9 @@ attributed as a test failure; and the mirror-assertion stock is locked behind
 an only-goes-down ratchet (`common/testing/mirror_ratchet.py`), stopping the
 #1435 accretion.
 
-| AC ID | Test Case | Test Function | File | Priority |
-|---|---|---|---|---|
-| AC8.24.1 | The seed packages (runtime, ledger, coverage) declare their owned test roots via `TEST_ROOTS` in their `contract.py`; the matrix aggregates them into the generated YAML's `ownership:` section (a dropped declaration fails the `--check-matrix` drift gate), every declared root exists on disk, and a root declared by two packages is rejected {tier:CODE-ONLY} | `test_AC8_24_1_seed_packages_declare_owned_test_roots`, `test_AC8_24_1_duplicate_declaration_is_rejected` | `tests/tooling/test_package_declaration_and_ratchet.py` | P0 |
-| AC8.24.2 | Workflow pytest contracts declaring an environment precondition (the runtime-owned smoke gate, for the preview and staging core E2E stages) must run it before the pytest invocation in the same workflow — mechanized fault attribution: a red precondition aborts before tests start {tier:CODE-ONLY} | `test_AC8_24_2_e2e_stages_run_their_environment_precondition_first` | `tests/tooling/test_package_declaration_and_ratchet.py` | P0 |
-| AC8.24.3 | The mirror-assertion count over `tests/tooling/` is locked behind a committed baseline that may only decrease: growth fails CI, `--update` refuses to raise the baseline, and paydown lowers it — with the eight marker-literal mirrors already redundant with AC8.23.2 deleted in the same change {tier:CODE-ONLY} | `test_AC8_24_3_mirror_assertion_ratchet_is_locked_and_only_goes_down` | `tests/tooling/test_package_declaration_and_ratchet.py` | P0 |
+> (AC8.24.1 removed, canonical: migrated to `AC-testing.declarations.1`.)
+> (AC8.24.2 removed, canonical: migrated to `AC-testing.declarations.2`.)
+> (AC8.24.3 removed, canonical: migrated to `AC-testing.declarations.3`.)
 
 ### AC8.26: Real Storage Pipeline (counted tier)
 

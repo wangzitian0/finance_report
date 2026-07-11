@@ -152,7 +152,7 @@ def _payload(matrix_path: Path) -> dict:
 
 
 def test_valid_behavioral_static_and_manual_entries_pass(tmp_path: Path) -> None:
-    """AC8.13.41: Critical proof matrix accepts explicit proof classes."""
+    """AC-testing.trust-mirrors.1: AC8.13.41: Critical proof matrix accepts explicit proof classes."""
     _write_registry(tmp_path)
     test_dir = tmp_path / "tests" / "e2e"
     test_dir.mkdir(parents=True)
@@ -222,7 +222,7 @@ proofs:
 def test_AC8_14_2_llm_ocr_proof_requires_deterministic_pr_mirror(
     tmp_path: Path,
 ) -> None:
-    """AC8.14.2: LLM/OCR critical proof must name a deterministic PR mirror."""
+    """AC-testing.trust-mirrors.2: AC8.14.2: LLM/OCR critical proof must name a deterministic PR mirror."""
     _write_registry(tmp_path)
     test_dir = tmp_path / "tests" / "e2e"
     test_dir.mkdir(parents=True)

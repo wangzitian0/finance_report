@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_AC8_24_1_seed_packages_declare_owned_test_roots() -> None:
-    """AC8.24.1: the seed packages' contract.py TEST_ROOTS aggregate into the
+    """AC-testing.declarations.1: AC8.24.1: the seed packages' contract.py TEST_ROOTS aggregate into the
     matrix ownership view; every declared root exists; the generated YAML
     carries the view (so a dropped declaration fails the drift gate)."""
     ownership = matrix.package_test_ownership()
@@ -47,7 +47,7 @@ def test_AC8_24_1_duplicate_declaration_is_rejected(monkeypatch) -> None:
 
 
 def test_AC8_24_2_e2e_stages_run_their_environment_precondition_first() -> None:
-    """AC8.24.2: contracts declaring a precondition (runtime's smoke gate)
+    """AC-testing.declarations.2: AC8.24.2: contracts declaring a precondition (runtime's smoke gate)
     must run it BEFORE the pytest invocation in the same workflow — a red
     precondition is an environment failure, so the tests never start."""
     with_precondition = [c for c in matrix.WORKFLOW_PYTEST_CONTRACTS if c.precondition]
@@ -70,7 +70,7 @@ def test_AC8_24_2_e2e_stages_run_their_environment_precondition_first() -> None:
 def test_AC8_24_3_mirror_assertion_ratchet_is_locked_and_only_goes_down(
     monkeypatch, tmp_path
 ) -> None:
-    """AC8.24.3: the committed baseline holds, growth fails, --update refuses
+    """AC-testing.declarations.3: AC8.24.3: the committed baseline holds, growth fails, --update refuses
     to raise the baseline."""
     assert mirror_ratchet.main([]) == 0
 

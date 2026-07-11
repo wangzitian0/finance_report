@@ -989,7 +989,7 @@ async def test_AC19_5_3_package_readiness_state_priority_and_snapshot_freshness(
 
 @ac_proof(
     "personal-package-source-trust-pr",
-    ac_ids=["AC19.9.1", "AC8.14.3"],
+    ac_ids=["AC19.9.1", "AC-testing.trust-mirrors.3"],
     scope="behavioral",
     ci_tier="pr_ci",
     trust_mode="deterministic_pr",

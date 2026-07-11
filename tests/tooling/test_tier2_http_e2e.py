@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_AC8_18_1_tier2_http_command_fails_closed_without_deployed_inputs(capsys) -> None:
-    """AC8.18.1: Tier 2 HTTP E2E requires deployed URL and expected version inputs."""
+    """AC-testing.tier2.1: AC8.18.1: Tier 2 HTTP E2E requires deployed URL and expected version inputs."""
     status = tier2_http_e2e.main([], environ={})
 
     assert status == 2
@@ -20,7 +20,7 @@ def test_AC8_18_1_tier2_http_command_fails_closed_without_deployed_inputs(capsys
 
 
 def test_AC8_18_2_tier2_http_report_is_proof_tiered_and_skip_ineligible(tmp_path: Path) -> None:
-    """AC8.18.2: Advisory/env-gated reports are explicit non-proof, not green proof."""
+    """AC-testing.tier2.2: AC8.18.2: Advisory/env-gated reports are explicit non-proof, not green proof."""
     report_path = tmp_path / "tier2.json"
     junit_path = tmp_path / "tier2.xml"
 
@@ -132,7 +132,7 @@ def test_AC8_18_2_tier2_http_accepts_short_and_full_sha_match() -> None:
 
 
 def test_AC8_18_3_staging_workflow_runs_tier2_http_before_tier3_browser_e2e() -> None:
-    """AC8.18.3: Staging runs Tier 2 HTTP proof before broader deployed E2E."""
+    """AC-testing.tier2.3: AC8.18.3: Staging runs Tier 2 HTTP proof before broader deployed E2E."""
     workflow = (ROOT / ".github/workflows/deploy.yml").read_text(encoding="utf-8")
     e2e_step = workflow.split("id: staging_e2e_tests", 1)[1].split("- name: Classify staging", 1)[0]
 

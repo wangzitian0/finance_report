@@ -49,7 +49,7 @@ def _pytest_invocations() -> dict[str, list[str]]:
 
 
 def test_AC8_23_1_every_workflow_pytest_invocation_is_registered() -> None:
-    """AC8.23.1: fail-closed both ways — no unregistered invocation, no
+    """AC-testing.conformance.1: AC8.23.1: fail-closed both ways — no unregistered invocation, no
     contract without a live invocation."""
     invocations = _pytest_invocations()
     anchors = [(c, c.anchor) for c in matrix.WORKFLOW_PYTEST_CONTRACTS]
@@ -87,7 +87,7 @@ def _selection_tokens(line: str) -> set[str]:
 
 
 def test_AC8_23_2_registered_invocations_match_matrix_selection() -> None:
-    """AC8.23.2: each invocation's -m expression and its FULL set of
+    """AC-testing.conformance.2: AC8.23.2: each invocation's -m expression and its FULL set of
     selection tokens equal the matrix contract — an extra path argument
     added to a workflow without updating the SSOT fails too."""
     invocations = _pytest_invocations()
@@ -108,7 +108,7 @@ def test_AC8_23_2_registered_invocations_match_matrix_selection() -> None:
 
 
 def test_AC8_23_3_staging_ai_ocr_corpus_aligns_with_matrix_llm_rows() -> None:
-    """AC8.23.3: the staging AI/OCR corpus (derived from @ac_proof metadata)
+    """AC-testing.conformance.3: AC8.23.3: the staging AI/OCR corpus (derived from @ac_proof metadata)
     and the matrix llm rows describe the same set of provider-dependent
     specs — the two derivations cannot drift apart silently."""
     import sys
@@ -135,7 +135,7 @@ def test_AC8_23_3_staging_ai_ocr_corpus_aligns_with_matrix_llm_rows() -> None:
 
 
 def test_AC8_23_4_pr_ci_evidence_reconciliation_gate(tmp_path: Path) -> None:
-    """AC8.23.4: a behavioral pr_ci proof absent from PR junit evidence fails
+    """AC-testing.conformance.4: AC8.23.4: a behavioral pr_ci proof absent from PR junit evidence fails
     the reconciliation gate; present proofs pass; skipped-only warns."""
     from common.testing.check_pr_ci_evidence import run_check
 

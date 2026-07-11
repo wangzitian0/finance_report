@@ -34,7 +34,7 @@ def _preview_e2e_run_step() -> str:
 
 
 def test_AC8_22_1_generated_matrix_matches_checked_in_yaml() -> None:
-    """AC8.22.1: the checked-in YAML is exactly the generated view."""
+    """AC-testing.matrix.1: AC8.22.1: the checked-in YAML is exactly the generated view."""
     assert (
         MATRIX_YAML.read_text(encoding="utf-8") == matrix.emit_execution_matrix_yaml()
     )
@@ -60,7 +60,7 @@ def test_AC8_22_1_generated_yaml_parses_identically_for_consumers() -> None:
 
 
 def test_AC8_22_2_preview_workflow_derives_selection_from_matrix() -> None:
-    """AC8.22.2: preview.yml consumes the CLI; no hardcoded whitelist remains."""
+    """AC-testing.matrix.2: AC8.22.2: preview.yml consumes the CLI; no hardcoded whitelist remains."""
     step = _preview_e2e_run_step()
     assert (
         'eval "$(python tools/test_selection.py --stage pr_preview_e2e --shell)"'
@@ -75,7 +75,7 @@ def test_AC8_22_2_preview_workflow_derives_selection_from_matrix() -> None:
 
 
 def test_AC8_22_3_preview_selection_is_audited_and_dependency_free() -> None:
-    """AC8.22.3: selection = audited rows with no external needs; provider-
+    """AC-testing.matrix.3: AC8.22.3: selection = audited rows with no external needs; provider-
     dependent specs can never creep into the merge-blocking path."""
     selection = matrix.pr_preview_e2e_selection()
     selected_files = {node.split("::", 1)[0] for node in selection}
@@ -117,7 +117,7 @@ def test_AC8_22_3_preview_selection_is_audited_and_dependency_free() -> None:
 
 
 def test_AC8_22_4_every_root_e2e_spec_has_a_named_row() -> None:
-    """AC8.22.4: no ownerless e2e spec — an unclassified file fails CI."""
+    """AC-testing.matrix.4: AC8.22.4: no ownerless e2e spec — an unclassified file fails CI."""
     on_disk = {
         f"tests/e2e/{p.name}" for p in (ROOT / "tests" / "e2e").glob("test_*.py")
     }
@@ -129,7 +129,7 @@ def test_AC8_22_4_every_root_e2e_spec_has_a_named_row() -> None:
 
 
 def test_AC8_22_5_shell_emission_round_trips() -> None:
-    """AC8.22.5: the --shell output is valid bash assignment material."""
+    """AC-testing.matrix.5: AC8.22.5: the --shell output is valid bash assignment material."""
     emitted = matrix.emit_shell(matrix.PR_PREVIEW_E2E_STAGE)
     lines = emitted.splitlines()
     assert lines[0].startswith("PR_PREVIEW_E2E_TESTS=(") and lines[0].endswith(")")
@@ -163,7 +163,7 @@ def test_AC8_22_5_shell_emission_round_trips() -> None:
 
 
 def test_AC8_22_6_charter_and_manifest_ownership() -> None:
-    """AC8.22.6: the governance charter exists and MANIFEST ownership moved."""
+    """AC-testing.matrix.6: AC8.22.6: the governance charter exists and MANIFEST ownership moved."""
     readme = TESTING_README.read_text(encoding="utf-8")
     for section in (
         "## Governance charter",
