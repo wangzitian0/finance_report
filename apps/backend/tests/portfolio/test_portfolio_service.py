@@ -770,7 +770,7 @@ async def test_realized_pnl_fx_conversion(db, test_user, svc, account):
 
 
 async def test_unrealized_pnl_happy_path(db, test_user, svc, active_position, atomic_snapshot):
-    """AC-portfolio.holdings.2: AC17.2.6: Unrealized PnL happy path returns correct totals.
+    """AC-portfolio.holdings.2: AC17.1.5 (canonical; AC17.2.6 was a duplicate restatement): Unrealized PnL happy path returns correct totals.
 
     Verify that calculate_unrealized_pnl returns correct market value, cost basis, and PnL.
     """

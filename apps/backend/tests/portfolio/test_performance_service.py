@@ -157,7 +157,7 @@ async def test_xirr_insufficient_data(db: AsyncSession, test_user):
 
 
 async def test_xirr_with_realistic_data(db: AsyncSession, test_user, portfolio_with_transactions):
-    """AC-portfolio.performance.1: AC17.3.2: XIRR calculates annualized return for realistic portfolio.
+    """AC-portfolio.performance.1: AC17.2.1: XIRR calculates annualized return for realistic portfolio.
 
     Verify that XIRR returns a negative Decimal for a loss scenario (deposits > current value).
     """
@@ -229,7 +229,7 @@ async def test_time_weighted_return_empty_portfolio(db: AsyncSession, test_user)
 
 
 async def test_time_weighted_return_with_period(db: AsyncSession, test_user, portfolio_with_transactions):
-    """AC-portfolio.performance.2: AC17.3.4: TWR calculates period return within reasonable bounds.
+    """AC-portfolio.performance.2: AC17.2.2 (canonical; AC17.3.4 was a duplicate restatement): TWR calculates period return within reasonable bounds.
 
     Verify that TWR returns a valid percentage for a period with transactions.
     """
@@ -311,7 +311,7 @@ async def test_money_weighted_return_insufficient_data(db: AsyncSession, test_us
 
 
 async def test_money_weighted_return_with_data(db: AsyncSession, test_user, portfolio_with_transactions):
-    """AC-portfolio.performance.3: AC17.3.6: MWR calculates money-weighted return for loss scenario.
+    """AC-portfolio.performance.3: AC17.2.3 (canonical; AC17.3.6 was a duplicate restatement): MWR calculates money-weighted return for loss scenario.
 
     Verify that MWR returns a negative Decimal when total deposits exceed current value.
     """
