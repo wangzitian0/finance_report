@@ -201,7 +201,28 @@ async def test_AC23_6_extraction_1254_class_dedup_balance_via_replay() -> None:
 _VISION_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "vision"
 
 
-async def test_AC_llm_14_1_missing_period_falls_back_to_transaction_dates_via_replay() -> None:
+def _stub_env_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make the per-user eager provider lookup (``ai_streaming._stream_ai_base``)
+    resolve successfully without a real key or network.
+
+    ``parse_document()`` always threads ``user_id`` down to ``stream_ai_json``, which
+    resolves a provider BEFORE the cassette layer gets a chance to serve a REPLAY hit
+    (the per-user path in ``_stream_ai_base`` is eager, unlike the lazy default path
+    the happy-path tests above use with no ``user_id``). In CI there is no configured
+    provider (env or DB) for an ad-hoc test user, so that resolution raises "No LLM
+    provider configured" before the cassette is ever consulted. A non-empty
+    ``ai_api_key`` makes ``EnvConfigSource`` resolve a real (unused) provider — the
+    fingerprint check that actually serves the frozen response depends only on
+    role/messages/decode_params, never on which provider was resolved, so this does
+    not affect what gets replayed."""
+    from src.config import settings
+
+    monkeypatch.setattr(settings, "ai_api_key", "sk-test-replay-dummy", raising=False)
+
+
+async def test_AC_llm_14_1_missing_period_falls_back_to_transaction_dates_via_replay(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """AC-llm.14.1: a cassette response with no period_start/period_end but valid
     transaction dates degrades gracefully (#1449) — through the real cassette
     transport into parse_document(), not a unit call to _resolve_required_period."""
@@ -209,6 +230,7 @@ async def test_AC_llm_14_1_missing_period_falls_back_to_transaction_dates_via_re
 
     from src.extraction.extension.service import ExtractionService
 
+    _stub_env_provider(monkeypatch)
     service = ExtractionService()
     service.api_key = service.api_key or "replay"
     pdf = _VISION_DIR / "unhappy_missing_period.pdf"
@@ -226,7 +248,9 @@ async def test_AC_llm_14_1_missing_period_falls_back_to_transaction_dates_via_re
     assert len(transactions) == 3
 
 
-async def test_AC_llm_14_2_no_recoverable_date_anywhere_rejects_cleanly_via_replay() -> None:
+async def test_AC_llm_14_2_no_recoverable_date_anywhere_rejects_cleanly_via_replay(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """AC-llm.14.2: a cassette response with no period fields AND no parseable
     transaction dates must still reject (a genuinely date-less document is not
     silently accepted) — through the real cassette transport, not a unit call."""
@@ -234,6 +258,7 @@ async def test_AC_llm_14_2_no_recoverable_date_anywhere_rejects_cleanly_via_repl
 
     from src.extraction.extension.service import ExtractionError, ExtractionService
 
+    _stub_env_provider(monkeypatch)
     service = ExtractionService()
     service.api_key = service.api_key or "replay"
     pdf = _VISION_DIR / "unhappy_no_dates_at_all.pdf"
@@ -248,7 +273,9 @@ async def test_AC_llm_14_2_no_recoverable_date_anywhere_rejects_cleanly_via_repl
         )
 
 
-async def test_AC_llm_14_3_unreconciled_balance_quarantines_to_rejected_via_replay(db, test_user) -> None:
+async def test_AC_llm_14_3_unreconciled_balance_quarantines_to_rejected_via_replay(
+    db, test_user, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """AC-llm.14.3: a cassette response whose balance chain does not reconcile
     quarantines to the terminal `rejected` status (#1452 — previously stuck in
     `parsing` forever) — through the real cassette transport into
@@ -259,6 +286,7 @@ async def test_AC_llm_14_3_unreconciled_balance_quarantines_to_rejected_via_repl
     from src.models.layer2 import AtomicTransaction
     from src.models.statement_enums import BankStatementStatus
 
+    _stub_env_provider(monkeypatch)
     service = ExtractionService()
     service.api_key = service.api_key or "replay"
     pdf = _VISION_DIR / "unhappy_balance_unreconciled.pdf"
