@@ -19,7 +19,8 @@ behavioral entry point is [`AGENTS.md`](../AGENTS.md); the multi-runtime bridge
 
 Only **project-specific** skills live here (accounting, reconciliation,
 reporting, extraction, schema, development, preflight, ac-workflow,
-github-operations, secrets-management, infra-operations). Generic-expertise
+github-operations, secrets-management, infra-operations, planning,
+staging-qa, ux-review). Generic-expertise
 packs (backend/frontend/QA/PM/UI) were removed in #1657: frontier models carry
 that knowledge natively, and version-specific questions route to live docs
 (context7 MCP) rather than frozen snapshots. Before adding a skill, ask: does

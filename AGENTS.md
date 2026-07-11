@@ -3,7 +3,8 @@
 > **Prohibition**: AI may NOT modify this file without explicit authorization.
 > **Prohibition**: AI deliverable = CI-passing PR. User reviews and decides whether to merge.
 > **Checklist**: Before completing a task, verify every item in [docs/agents/orchestration.md](docs/agents/orchestration.md).
-> **Language**: All code, PRs, commits, and reports must be in **English**.
+> **Language**: All code, PRs, commits, issues, and repo docs must be in **English**.
+> Conversation with the user follows the **user's language** — answer in the language the question was asked in.
 
 ---
 
@@ -80,6 +81,14 @@ The SSOT ownership map is: **[docs/ssot/MANIFEST.yaml](docs/ssot/MANIFEST.yaml)*
 
 **EPIC → AC → Test → Code → Doc**
 
+> **Planning-type tasks** (system reviews, issue design/triage, prioritization,
+> "what should we do next") start further upstream: **Vision → Guarantees →
+> Gaps → Actions**, with a counterfactual pass *before* any GitHub issue is
+> created. Use the `planning` skill; work order details in
+> [docs/agents/orchestration.md](docs/agents/orchestration.md).
+> **Bug fixes** follow the bug-fix work order there too: root cause → why no
+> existing gate caught it → back-fill the missing proof in the same PR.
+
 0. Frame the work with a **MECE** breakdown: mutually exclusive task slices, collectively exhaustive coverage of the stated goal, explicit dependencies, and explicit out-of-scope items.
 1. Anchor to an EPIC in `docs/project/` (the horizontal goal)
 2. Define ACs where they live: a **migrated package** owns its ACs as
@@ -107,6 +116,9 @@ Full policy: **[docs/contributing/branch-policy.md](docs/contributing/branch-pol
 - ✅ A mergeable PR must resolve all Copilot auto-review comments (either by fixing them or providing a justification for not doing so). Once resolved, resolve the comment threads on GitHub.
 - ✅ For implementation work, the final deliverable is not complete until a ready PR is pushed and the final report includes PR URL, branch, commit SHA, draft status, `mergeable`, `mergeStateStatus`, and required-check summary.
 - ✅ If GitHub does not report `mergeable=MERGEABLE` and `mergeStateStatus=CLEAN`, the task is not a mergeable-PR delivery; report the blocker, the failing/pending check or review thread, and the next action instead of calling the work complete.
+- ✅ Delivery does not end at first green: keep watching the open PR (new CI runs, late CR comments, conflicts from other merges) and fix regressions unprompted, until the user merges — see the PR Lifecycle Loop in [docs/agents/orchestration.md](docs/agents/orchestration.md).
+- ✅ The user's merge (announced or detected) is itself the continue signal: resync `main`, rebase remaining branches, and proceed to the next planned slice without waiting for a fresh instruction.
+- ✅ Blocked on a user-only action (merging, product judgment)? Don't stall — state the blocker and start the next independent planned slice.
 
 ---
 
