@@ -1069,13 +1069,19 @@ jobs:
         run: |
           mkdir -p coverage
           printf '[run]\nomit =\n    tests/tooling/*\n    common/__init__.py\n    common/**/__init__.py\n    tools/__init__.py\n    tools/**/__init__.py\n    tools/wait_for_cheap_ci.py\n    common/testing/wait_for_cheap_ci.py\n' > /tmp/tooling-coveragerc
-          uv run --with pytest --with pytest-cov --with pytest-asyncio --with anyio --with pyyaml --with pydantic --with pydantic-settings --with email-validator --with structlog --with sqlalchemy --with asyncpg --with fastapi --with httpx --with pdfplumber --with reportlab --with boto3 pytest tests/tooling/ \
+          # #1767: -n auto (pytest-xdist) parallelizes across the runner's cores;
+          # pytest-cov auto-combines each worker's coverage data at session end
+          # (no [tool.coverage.run] parallel=true needed -- verified locally: -n
+          # auto produced identical common.lcov/tools.lcov content to a serial
+          # run, just ~3.5x faster: 2022 tests in ~58s vs ~205s). This was the
+          # critical-path job (~451s of the ~510s main-push pipeline).
+          uv run --with pytest --with pytest-cov --with pytest-xdist --with pytest-asyncio --with anyio --with pyyaml --with pydantic --with pydantic-settings --with email-validator --with structlog --with sqlalchemy --with asyncpg --with fastapi --with httpx --with pdfplumber --with reportlab --with boto3 pytest tests/tooling/ \
             --cov=common \
             --cov=tools \
             --cov=apps/backend/src \
             --cov-config=/tmp/tooling-coveragerc \
             --cov-report= \
-            -x -q
+            -n auto -x -q
           COVERAGE_RCFILE=/tmp/tooling-coveragerc uv run --with coverage coverage lcov -o coverage/common.lcov --include='common/*'
           COVERAGE_RCFILE=/tmp/tooling-coveragerc uv run --with coverage coverage lcov -o coverage/tools.lcov --include='tools/*'
           # #1669 moved env_keys.py/schema_validation.py from common/config into
