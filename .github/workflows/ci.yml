@@ -26,6 +26,7 @@ jobs:
   changes:
     name: Classify Changes
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       pr_required: ${{ steps.gates.outputs.pr_required }}
       pr_reason: ${{ steps.gates.outputs.pr_reason }}
@@ -89,6 +90,7 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       # Needed by the PR Review Thread Merge Gate step: `gh api graphql` reads
@@ -110,7 +112,7 @@ jobs:
           GITLEAKS_VERSION=8.18.4
           GITLEAKS_SHA256=ba6dbb656933921c775ee5a2d1c13a91046e7952e9d919f9bac4cec61d628e7d
           ARCHIVE=/tmp/gitleaks.tar.gz
-          curl -sSfL -o "$ARCHIVE" \
+          curl -sSfL --retry 3 --retry-delay 5 --retry-connrefused -o "$ARCHIVE" \
             "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
           echo "${GITLEAKS_SHA256}  ${ARCHIVE}" | sha256sum -c -
           tar -xzf "$ARCHIVE" -C /tmp gitleaks
@@ -321,6 +323,7 @@ jobs:
   schema-migrations:
     name: Schema Migration Contract
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [changes]
     if: needs.changes.outputs.pr_required == 'true'
 
@@ -406,6 +409,7 @@ jobs:
   backend:
     name: Backend Tests (Shard ${{ matrix.shard }}/5)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [changes]
     if: needs.changes.outputs.pr_required == 'true'
     strategy:
@@ -520,6 +524,7 @@ jobs:
   backend-integration:
     name: Backend Integration Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [changes]
     if: needs.changes.outputs.pr_required == 'true'
 
@@ -607,6 +612,7 @@ jobs:
   backend-e2e-tier1:
     name: Backend Tier-1 API E2E
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [changes]
     if: needs.changes.outputs.pr_required == 'true'
 
@@ -723,6 +729,7 @@ jobs:
   frontend-build:
     name: Frontend Build & Typecheck
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [changes]
     if: needs.changes.outputs.pr_required == 'true'
 
@@ -777,6 +784,7 @@ jobs:
   frontend-vitest:
     name: Frontend Vitest Coverage
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [changes]
     if: needs.changes.outputs.pr_required == 'true'
 
@@ -824,6 +832,7 @@ jobs:
   frontend-playwright:
     name: Frontend Playwright
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [changes]
     if: needs.changes.outputs.pr_required == 'true'
 
@@ -857,8 +866,38 @@ jobs:
         run: npm run build
         working-directory: apps/frontend
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('apps/frontend/package-lock.json') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
       - name: Install Frontend Playwright Browser
-        run: npx playwright install chromium --with-deps
+        # #1767: retry a transient toolchain download (network flake on the
+        # ~400MB chromium fetch) with bounded exponential backoff, mirroring
+        # .github/actions/setup-e2e-tests's retry_download idiom. Cached above,
+        # so a warm cache skips the download and this step is a fast no-op.
+        run: |
+          set -uo pipefail
+          attempts=3
+          delay=10
+          for n in $(seq 1 "$attempts"); do
+            echo "::group::playwright install chromium (attempt ${n}/${attempts})"
+            if npx playwright install chromium --with-deps; then
+              echo "::endgroup::"
+              exit 0
+            fi
+            echo "::endgroup::"
+            if [ "$n" -lt "$attempts" ]; then
+              echo "playwright install attempt ${n} failed; retrying in ${delay}s..."
+              sleep "$delay"
+              delay=$((delay * 2))
+            fi
+          done
+          echo "::error::playwright install chromium failed after ${attempts} attempts."
+          exit 1
         working-directory: apps/frontend
 
       - name: Run Frontend Playwright Tests
@@ -878,6 +917,7 @@ jobs:
   frontend-telemetry-e2e:
     name: Frontend Telemetry E2E
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [changes]
     # #1689: right-moved off unrelated PRs (browser install is ~2-3 min). Always
     # runs on main/release push and manual dispatch (this is the production
@@ -918,8 +958,38 @@ jobs:
         run: npm run build
         working-directory: apps/frontend
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('apps/frontend/package-lock.json') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
       - name: Install Frontend Playwright Browser
-        run: npx playwright install chromium --with-deps
+        # #1767: retry a transient toolchain download (network flake on the
+        # ~400MB chromium fetch) with bounded exponential backoff, mirroring
+        # .github/actions/setup-e2e-tests's retry_download idiom. Cached above,
+        # so a warm cache skips the download and this step is a fast no-op.
+        run: |
+          set -uo pipefail
+          attempts=3
+          delay=10
+          for n in $(seq 1 "$attempts"); do
+            echo "::group::playwright install chromium (attempt ${n}/${attempts})"
+            if npx playwright install chromium --with-deps; then
+              echo "::endgroup::"
+              exit 0
+            fi
+            echo "::endgroup::"
+            if [ "$n" -lt "$attempts" ]; then
+              echo "playwright install attempt ${n} failed; retrying in ${delay}s..."
+              sleep "$delay"
+              delay=$((delay * 2))
+            fi
+          done
+          echo "::error::playwright install chromium failed after ${attempts} attempts."
+          exit 1
         working-directory: apps/frontend
 
       - name: Run Frontend Telemetry-Emission E2E (#1169 / EPIC-024 AC24.2)
@@ -943,6 +1013,7 @@ jobs:
   container-images:
     name: Build Staging Images
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [changes]
     # Main/release push (and manual dispatch) ALWAYS build + push the immutable
     # per-commit :<sha> image: the Dockerfiles COPY app source into the image, so
@@ -987,7 +1058,7 @@ jobs:
           GITLEAKS_VERSION=8.18.4
           GITLEAKS_SHA256=ba6dbb656933921c775ee5a2d1c13a91046e7952e9d919f9bac4cec61d628e7d
           ARCHIVE=/tmp/gitleaks.tar.gz
-          curl -sSfL -o "$ARCHIVE" \
+          curl -sSfL --retry 3 --retry-delay 5 --retry-connrefused -o "$ARCHIVE" \
             "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
           echo "${GITLEAKS_SHA256}  ${ARCHIVE}" | sha256sum -c -
           tar -xzf "$ARCHIVE" -C /tmp gitleaks
@@ -1048,6 +1119,7 @@ jobs:
     needs: [changes]
     if: needs.changes.outputs.pr_required == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
         with:
@@ -1109,6 +1181,7 @@ jobs:
     needs: [changes, backend, frontend-vitest, tooling-coverage]
     if: needs.changes.outputs.pr_required == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       actions: read
       contents: read
@@ -1269,6 +1342,7 @@ jobs:
     # release-image promotion (the promote step gates on a green main CI run).
     continue-on-error: true
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       actions: read
       contents: write
@@ -1378,6 +1452,7 @@ jobs:
   ac-traceability:
     name: AC Traceability Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with:
@@ -1465,6 +1540,7 @@ jobs:
     needs: [changes, backend, backend-integration, backend-e2e-tier1, frontend-vitest]
     if: needs.changes.outputs.pr_required == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with:
@@ -1527,6 +1603,7 @@ jobs:
     # count). Runs after the two gates whose output it aggregates.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -1560,6 +1637,7 @@ jobs:
     needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, lint, tooling-coverage, unified-coverage, ac-traceability, ac-behavioral-ratchet]
     if: ${{ always() }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
 
