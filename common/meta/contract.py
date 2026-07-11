@@ -410,7 +410,7 @@ CONTRACT = PackageContract(
                 "application — one table's delete silently mutating other "
                 "rows; across domains it breaks one-txn-per-domain and "
                 "append-only domains, the risk this ratchet exists for. The "
-                "census of ForeignKey(..., ondelete=\"CASCADE\") target tables "
+                'census of ForeignKey(..., ondelete="CASCADE") target tables '
                 "under apps/backend/src (all sites — deliberately not "
                 "domain-aware until models decentralization, #1675 D5/D6, "
                 "makes table ownership derivable) must equal "
@@ -952,6 +952,36 @@ CONTRACT = PackageContract(
                 "::test_AC7_12_8_published_frontend_image_has_no_baked_env_domain"
             ),
             priority="P0",
+            status="done",
+        ),
+        # ── delivery: the sanctioned app delivery layer (#1763 ruling).
+        # routers/ + schemas/ + the composition root are hexagonal primary
+        # adapters of the application, not domain behavior — sanctioned, not
+        # dissolved; the sanction's teeth are the thin-ness ratchet below. ──
+        ACRecord(
+            id="AC-meta.delivery.1",
+            statement=(
+                "routers/ (HTTP delivery adapters) and schemas/ (API DTOs) "
+                "are the sanctioned app delivery layer (#1763): routing and "
+                "serialization glue only, whose bulk may only shrink as "
+                "packages absorb logic. The per-directory line census of "
+                "apps/backend/src/{routers,schemas} (*.py, recursive) must "
+                "stay within a 50-line band of "
+                "docs/ssot/delivery-layer-baseline.json: growth beyond the "
+                "band fails CI and requires raising the baseline in the same "
+                "PR, where the diff makes the choice reviewable (the "
+                "app-boundary idiom) — legitimate only for genuine delivery "
+                "glue, never domain logic; shrink beyond the band lowers the "
+                "baseline in the same PR so the ratchet stays tight. "
+                "prompts/ is deliberately outside the census — domain "
+                "content, not delivery; it dissolves into its owning "
+                "packages (#1670 reconciliation, #1671 advisor)."
+            ),
+            test=(
+                "tests/tooling/test_delivery_layer_ratchet.py"
+                "::test_AC_meta_delivery_1_delivery_layer_only_thins"
+            ),
+            priority="P1",
             status="done",
         ),
     ],

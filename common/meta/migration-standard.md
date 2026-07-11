@@ -293,9 +293,9 @@ extension is visible, not hidden.
 ### The L4 `backend` super-package + the app-boundary ratchet
 
 During the migration most of the flow is still un-carved: the remainder of
-`apps/backend/src` (`services/` / `routers/` / `prompts/`) is, conceptually, the
-**L4 `backend` app super-package** — one holding pen that shrinks as each domain
-is carved out. It is not yet a discovered package (its multi-subdir remainder
+`apps/backend/src` (`services/` / `routers/` / `schemas/` / the composition
+root) is, conceptually, the **L4 `backend` app super-package** — one holding
+pen that shrinks as each domain is carved out. It is not yet a discovered package (its multi-subdir remainder
 shape does not fit the "one package = one `src/<name>`" assumption of
 `check_package_contract`), so that gate's deep-import rule is **blind** to the
 coupling between the remainder and the already-carved packages.
@@ -314,10 +314,39 @@ The baseline may only **shrink**: a new edge in either direction fails CI. Its
 size is the real migration burndown — carving a domain out of the super-package
 removes its edges from the baseline, driving it toward zero.
 
-> Follow-up (own PR): once `check_package_contract` learns a *remainder-aware*
-> package (a package whose `impl_dir` contains more-specific packages' dirs),
-> `backend` gets a real `common/backend/contract.py` and this gate folds into the
-> core deep-import scan. Until then it is a standalone ratchet.
+> The standalone `check_app_boundary` gate is the accepted end-state: with the
+> app delivery layer sanctioned below (#1763), no remainder-aware `backend`
+> contract or fold-in to the core deep-import scan is planned.
+
+### The app delivery layer (the sanctioned L4 remainder)
+
+Not all of the L4 remainder is a holding pen. `routers/` (HTTP delivery
+adapters), `schemas/` (API DTOs), and the composition root (`main.py` /
+`boot.py` / `deps.py` / `config.py` / `config_app.py` / `database.py`) are the
+**sanctioned app delivery layer** (#1763 ruling): hexagonal **primary
+adapters** of the application, not domain behavior. A bounded context does not
+need to own its HTTP surface — dissolving the routers pile into every package
+would hand each one a FastAPI dependency and a route-registration protocol,
+more coupling than it removes; the composition root is likewise standard. What
+keeps the sanction honest:
+
+- **Published roots only** — routers/schemas import carved packages only via
+  their published interface (#1739 drove the inbound edges 43→1; the
+  app-boundary ratchet above holds it).
+- **Thin-ness ratchet** — routers hold no domain logic, approximated as a
+  shrink-only line-count baseline for `routers/` + `schemas/`
+  (`docs/ssot/delivery-layer-baseline.json`, gate
+  `tests/tooling/test_delivery_layer_ratchet.py`, AC-meta.delivery.1): the
+  census must stay within a 50-line band of the baseline — silent growth fails
+  CI; growing the delivery layer requires raising the baseline in the same PR,
+  where the diff makes the choice reviewable (the app-boundary idiom);
+  meaningful shrink lowers the baseline in the same PR so the ratchet stays
+  tight. `schemas/` entries retire opportunistically as packages publish their
+  own interface types — shrink-only, no dedicated campaign.
+- **`prompts/` is NOT sanctioned** — prompt text is domain content, not
+  delivery; it dissolves into its owning packages (the reconciliation prompt
+  lives in the reconciliation package since #1670; the advisor prompt moves
+  with #1671 Wave B).
 
 ## Cross-domain reference policy (FK / relationship / cascade)
 

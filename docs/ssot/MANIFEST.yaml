@@ -714,6 +714,17 @@ concepts:
       - common/meta/extension/app_boundary.py
       - common/meta/extension/check_app_boundary.py
       - tools/check_app_boundary.py
+
+  delivery_layer_baseline:
+    owner: docs/ssot/delivery-layer-baseline.json
+    description: Thin-ness ratchet census of the sanctioned app delivery layer — per-directory *.py line totals of apps/backend/src/routers (HTTP delivery adapters) and apps/backend/src/schemas (API DTOs), which are hexagonal primary adapters, not domain behavior (#1763 ruling); CI enforces the census stays within a 50-line band of the baseline, so silent growth fails and growing the delivery layer requires a same-PR baseline edit (reviewable consent), while meaningful shrink lowers the baseline in the same PR to keep the ratchet tight; the delivery layer's bulk may only shrink as packages absorb logic (AC-meta.delivery.1).
+    family: platform
+    kind: baseline
+    parent: package_model
+    authority: machine_generated
+    cross_refs:
+      - tests/tooling/test_delivery_layer_ratchet.py
+      - common/meta/migration-standard.md
       - tests/tooling/test_app_boundary.py
 
   ac_score_ratchet_baseline:
