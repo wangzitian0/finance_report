@@ -32,6 +32,7 @@ APP_URL: str = os.getenv("APP_URL", "http://localhost:3000")
 _INSTITUTION = "Business Value Gate Bank"
 _SALARY = Decimal("3000.00")
 _RENT = Decimal("500.00")
+_OPENING_BALANCE = Decimal("1000.00")
 _PARSE_TIMEOUT_S = 60.0
 
 
@@ -150,4 +151,81 @@ async def test_business_value_gate_totals_correct_and_open_bal_missing_degrades_
         page.locator(".card")
         .filter(has_text="Total Assets")
         .filter(has_text=_dashboard_amount(net_flow))
+    ).to_be_visible(timeout=15_000)
+
+
+@pytest.mark.e2e
+@pytest.mark.critical
+async def test_business_value_gate_recording_opening_balance_clears_warning_and_updates_total(
+    authenticated_page_unique: Page,
+) -> None:
+    """EPIC-005 EPIC-008.
+
+    Once an opening balance is recorded for the same deployed account, the
+    missing_opening_balance warning clears, the confidence tier is no longer
+    degraded by it, and the dashboard/balance-sheet total correctly includes
+    the opening balance — proving the deployed gate responds to real state in
+    both directions rather than being permanently stuck LOW/warning (a gate
+    that can never turn green on real deployed data is exactly as vacuous as
+    one that never turns red)."""
+    page = authenticated_page_unique
+    headers = await _auth_headers(page)
+
+    async with httpx.AsyncClient(headers=headers, verify=False, timeout=60.0) as client:
+        csv_content = f"Date,Description,Amount\n2026-03-01,Salary,{_SALARY}\n"
+        upload_resp = await client.post(
+            _api_url("/statements/upload"),
+            data={"institution": _INSTITUTION},
+            files={"file": ("business_gate_2.csv", csv_content.encode(), "text/csv")},
+        )
+        assert upload_resp.status_code == 202, upload_resp.text
+        stmt_id = upload_resp.json()["id"]
+        parsed = await _wait_for_parsed(client, stmt_id)
+        assert parsed["status"] == "parsed", parsed
+
+        approve_resp = await client.post(
+            _api_url(f"/statements/{stmt_id}/review/approve"),
+            json={"create_account_if_missing": True},
+        )
+        assert approve_resp.status_code == 200, approve_resp.text
+
+        accounts_resp = await client.get(
+            _api_url("/accounts"), params={"account_type": "ASSET"}
+        )
+        assert accounts_resp.status_code == 200, accounts_resp.text
+        account = next(
+            (a for a in accounts_resp.json()["items"] if a["name"] == _INSTITUTION),
+            None,
+        )
+        assert account is not None, (
+            f"expected an auto-created account named {_INSTITUTION!r}"
+        )
+
+        opening_resp = await client.post(
+            _api_url("/accounts/opening-balances"),
+            json={
+                "entry_date": "2026-01-01",
+                "balances": {account["id"]: str(_OPENING_BALANCE)},
+                "currency": "SGD",
+            },
+        )
+        assert opening_resp.status_code == 201, opening_resp.text
+
+        bs_resp = await client.get(_api_url("/reports/balance-sheet"))
+        assert bs_resp.status_code == 200, bs_resp.text
+        balance_sheet = bs_resp.json()
+
+    assert balance_sheet["opening_balance_warnings"] == [], balance_sheet[
+        "opening_balance_warnings"
+    ]
+    expected_total = _OPENING_BALANCE + _SALARY
+    bank_line = _asset_line(balance_sheet, _INSTITUTION)
+    assert Decimal(str(bank_line["amount"])) == expected_total
+
+    await page.goto(_get_url("/dashboard"))
+    await page.wait_for_load_state("domcontentloaded")
+    await expect(
+        page.locator(".card")
+        .filter(has_text="Total Assets")
+        .filter(has_text=_dashboard_amount(expected_total))
     ).to_be_visible(timeout=15_000)
