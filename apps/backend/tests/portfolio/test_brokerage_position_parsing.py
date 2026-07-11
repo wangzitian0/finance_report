@@ -8,6 +8,7 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from src.extraction import DocumentType, UploadedDocument
 from src.extraction.extension.brokerage_positions import (
     BrokeragePositionImportService,
     _asset_type,
@@ -20,7 +21,6 @@ from src.extraction.extension.brokerage_positions import (
 )
 from src.extraction.extension.brokerage_statement_payload import _brokerage_payload_from_statement
 from src.models.account import Account, AccountType
-from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AssetType, AtomicPosition, AtomicTransaction, TransactionDirection
 from src.models.layer3 import ManagedPosition
 from src.models.statement_enums import BankStatementStatus

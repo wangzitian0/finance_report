@@ -9,10 +9,10 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import SourceTypeDowngradeError, promote_entry_source_type
+from src.extraction import DocumentType, UploadedDocument
 from src.identity import User
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
-from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.reconciliation import ReconciliationMatchJournalEntry
 from src.models.statement_enums import BankStatementStatus

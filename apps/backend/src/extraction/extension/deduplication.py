@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction.extension.currency_resolution import resolve_ingest_currency
-from src.models.layer1 import DocumentStatus, DocumentType, UploadedDocument
+from src.extraction.orm.layer1 import DocumentStatus, DocumentType, UploadedDocument
 from src.models.layer2 import (
     AtomicPosition,
     AtomicPositionSourceDocument,

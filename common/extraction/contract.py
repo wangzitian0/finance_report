@@ -21,9 +21,11 @@ extracted fact to its source document.
 * **AtomicTransaction is extraction's aggregate**: downstream domains
   (reconciliation / reporting) reference its rows **by id** (Decision B) —
   the Stage-4 parallelism anchor.
-* The ORM entities (``UploadedDocument`` / ``AtomicTransaction`` /
-  ``AtomicPosition``) stay in the unregistered ``src/models/`` until their
-  cross-domain FKs are cut (Stage-4 scope; ledger/llm precedent).
+* ``UploadedDocument`` moved from the unregistered ``src/models/`` into
+  ``orm/layer1.py`` (#1675 D3); its ``platform``/``runtime`` readers now go
+  through the published ``extension/uploaded_document_reads.py`` lookups
+  instead of importing the ORM class. ``AtomicTransaction`` / ``AtomicPosition``
+  stay unregistered until their own cross-domain FKs are cut (D4).
 * ``confidence_metric`` / ``confidence_tier`` (journal-confidence metric
   snapshots) are NOT this package's — they read ledger's aggregates and stay
   in ``services/`` pending the reporting/observability re-home.
@@ -122,6 +124,8 @@ CONTRACT = PackageContract(
         "CurrencyUnresolvedError",
         "DEFAULT_MAX_DEPTH",
         "DeduplicationService",
+        "DocumentStatus",
+        "DocumentType",
         "EvidenceGraphIntegrationService",
         "EvidenceGraphMaterializationService",
         "EvidenceLineageService",
@@ -129,6 +133,7 @@ CONTRACT = PackageContract(
         "ExtractionError",
         "ExtractionService",
         "SYSTEM_PROMPT",
+        "UploadedDocument",
         "_brokerage_import_not_ready_reason",
         "_brokerage_payload_from_persisted_extraction",
         "_brokerage_payload_from_statement",
@@ -141,8 +146,12 @@ CONTRACT = PackageContract(
         "detect_balance_chain_break",
         "dual_write_layer2",
         "edit_and_approve",
+        "find_uploaded_document_filename_by_hash",
         "get_correction_stats",
+        "get_known_storage_paths",
         "get_parsing_prompt",
+        "get_uploaded_document_filename",
+        "get_uploaded_document_filenames",
         "looks_like_brokerage_document",
         "looks_like_brokerage_payload",
         "parse_brokerage_csv_payload",

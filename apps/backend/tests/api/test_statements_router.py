@@ -28,7 +28,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from src.audit import STATEMENT_SOURCE_TYPES
-from src.extraction import ExtractionError
+from src.extraction import DocumentType, ExtractionError, UploadedDocument
 from src.extraction.extension import (
     statement_parsing as statement_parsing_mod,
     statement_pipeline,
@@ -45,7 +45,6 @@ from src.llm.base import Modality, ModelSpec
 from src.models.account import Account, AccountType
 from src.models.evidence import EvidenceEdge, EvidenceNode
 from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus
-from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_enums import BankStatementStatus, Stage1Status

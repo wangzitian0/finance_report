@@ -147,6 +147,7 @@ CONTRACT = PackageContract(
         "raise_too_many_requests",
         "raise_unauthorized",
         "register_readiness_provider",
+        "register_uploaded_document_readers",
         "update_workflow_event_status",
     ],
     events=[],

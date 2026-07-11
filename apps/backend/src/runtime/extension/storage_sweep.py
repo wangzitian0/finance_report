@@ -9,17 +9,47 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi.concurrency import run_in_threadpool
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 import src.config
 from src.database import async_session_maker
-from src.models.layer1 import UploadedDocument
 from src.observability import get_logger
 from src.runtime.extension.storage import StorageError, StorageService
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+    # Called as (db, candidate_paths) — see _get_known_paths_provider()'s call site.
+    KnownStoragePathsProvider = Callable[[AsyncSession, "list[str]"], Awaitable["set[str]"]]
+
+# `runtime` is L1 infra — it must never import a domain package directly
+# (#1675 D3 precedent: this file previously imported `UploadedDocument`
+# straight from `extraction`, L3 domain, an upward edge). `extraction` owns
+# which storage keys have a corresponding UploadedDocument row; runtime only
+# needs *a* callable with this shape. main.py (L4 — allowed to import
+# everything) wires the real `src.extraction` function at startup; tests
+# register a fake/the real function directly.
+_known_paths_provider: KnownStoragePathsProvider | None = None
+
+
+def register_known_storage_paths_provider(provider: KnownStoragePathsProvider) -> None:
+    """Wire the "which storage keys are still referenced" lookup (see module note above)."""
+    global _known_paths_provider
+    _known_paths_provider = provider
+
+
+def _get_known_paths_provider() -> KnownStoragePathsProvider:
+    if _known_paths_provider is None:
+        raise RuntimeError(
+            "storage_sweep.register_known_storage_paths_provider() was never called — "
+            "main.py wires it at startup (#1675 D3); a test exercising this path must call it too."
+        )
+    return _known_paths_provider
+
 
 logger = get_logger(__name__)
 settings = src.config.settings
@@ -86,10 +116,7 @@ async def sweep_orphaned_storage_objects(
     # Fetch all known file paths from the database
     session_factory = sessionmaker or async_session_maker
     async with session_factory() as session:
-        result = await session.execute(
-            select(UploadedDocument.file_path).where(UploadedDocument.file_path.in_(candidate_keys))
-        )
-        known_paths: set[str] = {row[0] for row in result.all()}
+        known_paths = await _get_known_paths_provider()(session, candidate_keys)
 
     orphaned = [key for key in candidate_keys if key not in known_paths]
     if not orphaned:

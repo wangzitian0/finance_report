@@ -13,7 +13,7 @@ from src.models.statement_enums import BankStatementStatus
 from src.schemas.base import ListResponse
 
 if TYPE_CHECKING:
-    from src.models.layer1 import UploadedDocument
+    from src.extraction import UploadedDocument
     from src.models.layer2 import AtomicTransaction
     from src.models.statement_summary import StatementSummary
 

@@ -215,7 +215,7 @@ class TestModels:
 
     def test_uploaded_document_model_table_name(self):
         """Test UploadedDocument (ODS landing) model has correct table name."""
-        from src.models.layer1 import UploadedDocument
+        from src.extraction import UploadedDocument
 
         assert UploadedDocument.__tablename__ == "uploaded_documents"
 

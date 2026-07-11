@@ -150,7 +150,7 @@ def test_uploaded_document_repr():
     WHEN calling repr() on it
     THEN it returns a formatted string with filename and document type
     """
-    from src.models.layer1 import DocumentType, UploadedDocument
+    from src.extraction import DocumentType, UploadedDocument
 
     document = UploadedDocument(
         id=uuid4(),

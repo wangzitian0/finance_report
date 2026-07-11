@@ -11,8 +11,8 @@ from uuid import uuid4
 
 from sqlalchemy import select
 
+from src.extraction import DocumentType
 from src.extraction.extension.deduplication import DeduplicationService
-from src.models.layer1 import DocumentType
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from tests.factories import UserFactory
 

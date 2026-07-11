@@ -16,7 +16,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.layer1 import DocumentType, UploadedDocument
+from src.extraction.orm.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AtomicTransaction
 from src.models.statement_summary import StatementSummary
 

@@ -9,17 +9,17 @@ evidence lineage that links every extracted fact to its source document.
 Files converge by layer (common/meta/migration-standard.md): ``base/`` holds
 the pure validation/confidence calculus; ``extension/`` the parsing pipeline
 (``ExtractionService`` + format mixins), dedup + dual-write repository verbs,
-brokerage classification, prompts, and the evidence write path; ``data/`` the
-evidence lineage read-models. The ORM entities (UploadedDocument /
-AtomicTransaction / AtomicPosition) stay in the unregistered ``src/models/``.
-``UploadedDocument``'s only cross-domain coupling is a plain FK column (no
-``relationship()``, #1675) but it is read directly by two L1-infra packages
-(``platform``/``runtime``) — moving it here would make those an upward
-import, a real layering violation the FK-narrowing alone doesn't excuse.
-Fixing that needs those two read sites converted to a published interface
-call, not a file move; ``AtomicTransaction``/``AtomicPosition`` additionally
-carry genuine cross-domain ``relationship()`` navigation (to
-``Account``/``User``) that needs converting to id + explicit lookups first.
+brokerage classification, prompts, and the evidence write path; ``orm/`` the
+ORM entities this package owns. ``UploadedDocument`` moved here from
+``src/models/`` (#1675 D3) — its only cross-domain coupling was a plain FK
+column (no ``relationship()``), and its two former L1-infra readers
+(``platform``/``runtime``) now go through the published read-only lookups in
+``extension/uploaded_document_reads.py`` instead of importing the ORM class,
+closing the infra-imports-domain layering violation that blocked the first
+attempt. ``AtomicTransaction``/``AtomicPosition`` (layer2.py) stay in the
+unregistered ``src/models/`` until their own genuine cross-domain
+``relationship()`` navigation (to ``Account``/``User``) is converted to id +
+explicit interface lookups (D4).
 
 The names re-exported below are the entire public surface (``__all__`` must
 equal ``contract.interface``). Downstream domains reference AtomicTransaction
@@ -103,6 +103,16 @@ from src.extraction.extension.statement_workflow import (
 from src.extraction.extension.transaction_classification import (
     backfill_classifications,
 )
+from src.extraction.extension.uploaded_document_reads import (
+    find_uploaded_document_filename_by_hash,
+    get_known_storage_paths,
+    get_uploaded_document_filename,
+    get_uploaded_document_filenames,
+)
+
+# ORM models owned by this package (moved from src/models, #1675); imported
+# eagerly so importing the package registers the mappers on Base.metadata.
+from src.extraction.orm.layer1 import DocumentStatus, DocumentType, UploadedDocument
 
 __all__ = [
     "BrokeragePositionImportService",
@@ -110,6 +120,8 @@ __all__ = [
     "CurrencyUnresolvedError",
     "DEFAULT_MAX_DEPTH",
     "DeduplicationService",
+    "DocumentStatus",
+    "DocumentType",
     "EvidenceGraphIntegrationService",
     "EvidenceGraphMaterializationService",
     "EvidenceLineageService",
@@ -117,6 +129,7 @@ __all__ = [
     "ExtractionError",
     "ExtractionService",
     "SYSTEM_PROMPT",
+    "UploadedDocument",
     "_brokerage_import_not_ready_reason",
     "_brokerage_payload_from_persisted_extraction",
     "_brokerage_payload_from_statement",
@@ -129,8 +142,12 @@ __all__ = [
     "detect_balance_chain_break",
     "dual_write_layer2",
     "edit_and_approve",
+    "find_uploaded_document_filename_by_hash",
     "get_correction_stats",
+    "get_known_storage_paths",
     "get_parsing_prompt",
+    "get_uploaded_document_filename",
+    "get_uploaded_document_filenames",
     "looks_like_brokerage_document",
     "looks_like_brokerage_payload",
     "parse_brokerage_csv_payload",

@@ -18,6 +18,7 @@ from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.extraction import (
     BrokeragePositionImportService,
+    UploadedDocument,
     _brokerage_import_not_ready_reason,
     _brokerage_payload_from_persisted_extraction,
     _brokerage_payload_from_statement,
@@ -34,7 +35,6 @@ from src.extraction import (
 )
 from src.llm import LitellmCatalog, Modality
 from src.models.account import Account, AccountType
-from src.models.layer1 import UploadedDocument
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
 from src.observability import ErrorIds, get_logger

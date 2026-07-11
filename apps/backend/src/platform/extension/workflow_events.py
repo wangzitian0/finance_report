@@ -9,7 +9,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from src.models.layer1 import UploadedDocument
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
 from src.platform.extension.workflow_event_builders import (  # noqa: F401
@@ -53,6 +52,12 @@ if TYPE_CHECKING:
     # that exact signature, not an unconstrained Callable[..., Awaitable[dict]].
     ReadinessProvider = Callable[[AsyncSession, UUID], Awaitable[dict]]
 
+    # Called as (db, document_id) / (db, document_ids) / (db, user_id, file_hash) —
+    # see each _get_*_provider()'s call site.
+    DocumentFilenameProvider = Callable[[AsyncSession, UUID], Awaitable[str | None]]
+    DocumentFilenamesProvider = Callable[[AsyncSession, "set[UUID]"], Awaitable[dict[UUID, str]]]
+    DocumentFilenameByHashProvider = Callable[[AsyncSession, UUID, str], Awaitable[str | None]]
+
 # `platform` is L1 infra — it must never import reporting-domain logic directly
 # (issue #1676: this file previously imported `services.report_readiness`
 # module-level, the sole L1-infra→business upward edge in
@@ -79,6 +84,56 @@ def _get_readiness_provider() -> "ReadinessProvider":
             "path must call it too."
         )
     return _readiness_provider
+
+
+# Same inversion, same reason (#1675 D3): ``UploadedDocument`` is owned by
+# ``extraction`` (L3 domain); this L1-infra module may only depend on *a*
+# callable with this shape, never import extraction's ORM or its published
+# root directly. main.py wires the real ``src.extraction`` functions at
+# startup; tests register fakes/the real functions directly.
+_document_filename_provider: "DocumentFilenameProvider | None" = None
+_document_filenames_provider: "DocumentFilenamesProvider | None" = None
+_document_filename_by_hash_provider: "DocumentFilenameByHashProvider | None" = None
+
+
+def register_uploaded_document_readers(
+    *,
+    get_filename: "DocumentFilenameProvider",
+    get_filenames: "DocumentFilenamesProvider",
+    find_filename_by_hash: "DocumentFilenameByHashProvider",
+) -> None:
+    """Wire the ``UploadedDocument`` filename lookups (see module note above)."""
+    global _document_filename_provider, _document_filenames_provider, _document_filename_by_hash_provider
+    _document_filename_provider = get_filename
+    _document_filenames_provider = get_filenames
+    _document_filename_by_hash_provider = find_filename_by_hash
+
+
+def _get_document_filename_provider() -> "DocumentFilenameProvider":
+    if _document_filename_provider is None:
+        raise RuntimeError(
+            "workflow_events.register_uploaded_document_readers() was never called — "
+            "main.py wires it at startup (#1675 D3); a test exercising this path must call it too."
+        )
+    return _document_filename_provider
+
+
+def _get_document_filenames_provider() -> "DocumentFilenamesProvider":
+    if _document_filenames_provider is None:
+        raise RuntimeError(
+            "workflow_events.register_uploaded_document_readers() was never called — "
+            "main.py wires it at startup (#1675 D3); a test exercising this path must call it too."
+        )
+    return _document_filenames_provider
+
+
+def _get_document_filename_by_hash_provider() -> "DocumentFilenameByHashProvider":
+    if _document_filename_by_hash_provider is None:
+        raise RuntimeError(
+            "workflow_events.register_uploaded_document_readers() was never called — "
+            "main.py wires it at startup (#1675 D3); a test exercising this path must call it too."
+        )
+    return _document_filename_by_hash_provider
 
 
 ACTIVE_WORKFLOW_SESSION_DEDUPE_KEY = "active-upload-to-report"
@@ -293,16 +348,10 @@ async def _statement_filename(db: AsyncSession, statement: StatementSummary) -> 
     """Resolve the display filename for a statement summary via its ODS document."""
     document_id = statement.uploaded_document_id
     if document_id is not None:
-        filename = await db.scalar(select(UploadedDocument.original_filename).where(UploadedDocument.id == document_id))
+        filename = await _get_document_filename_provider()(db, document_id)
         if filename:
             return filename
-    filename = await db.scalar(
-        select(UploadedDocument.original_filename)
-        .where(UploadedDocument.user_id == statement.user_id)
-        .where(UploadedDocument.file_hash == statement.file_hash)
-        .order_by(UploadedDocument.created_at.desc(), UploadedDocument.id.desc())
-        .limit(1)
-    )
+    filename = await _get_document_filename_by_hash_provider()(db, statement.user_id, statement.file_hash)
     return filename or statement.file_hash
 
 
@@ -330,27 +379,36 @@ async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> d
     """
     workflow_session: WorkflowSession | None = None
     existing_event = aliased(WorkflowEvent)
-    ods_document = aliased(UploadedDocument)
-    result = await db.execute(
-        select(StatementSummary, existing_event, ods_document.original_filename)
-        .outerjoin(
-            existing_event,
-            and_(
-                existing_event.user_id == user_id,
-                existing_event.family == WorkflowEventFamily.SOURCE_UPLOADED,
-                existing_event.source_type == "bank_statement",
-                existing_event.source_id == StatementSummary.id,
-            ),
+    statements = (
+        (
+            await db.execute(
+                select(StatementSummary, existing_event)
+                .outerjoin(
+                    existing_event,
+                    and_(
+                        existing_event.user_id == user_id,
+                        existing_event.family == WorkflowEventFamily.SOURCE_UPLOADED,
+                        existing_event.source_type == "bank_statement",
+                        existing_event.source_id == StatementSummary.id,
+                    ),
+                )
+                .where(StatementSummary.user_id == user_id)
+                .order_by(StatementSummary.created_at.asc())
+            )
         )
-        .outerjoin(ods_document, ods_document.id == StatementSummary.uploaded_document_id)
-        .where(StatementSummary.user_id == user_id)
-        .order_by(StatementSummary.created_at.asc())
+        .all()
     )
+    # One extra query instead of a cross-domain join (#1675 D3): extraction owns
+    # UploadedDocument; platform only reaches it through the registered provider
+    # (an L1-infra module may never import an L3-domain package, #1676 precedent).
+    document_ids = {s.uploaded_document_id for s, _ in statements if s.uploaded_document_id is not None}
+    ods_filenames = await _get_document_filenames_provider()(db, document_ids)
+
     derived_payloads: list[WorkflowEventCreate] = []
-    for statement, event, ods_filename in result.all():
+    for statement, event in statements:
         if workflow_session is None:
             workflow_session = await get_or_create_active_workflow_session(db, user_id=user_id)
-        filename = ods_filename or statement.file_hash
+        filename = ods_filenames.get(statement.uploaded_document_id) or statement.file_hash
         payload = build_uploaded_statement_event_payload(statement, filename)
         if event is None:
             await _insert_workflow_event_conflict_safe(
