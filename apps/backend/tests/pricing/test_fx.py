@@ -10,6 +10,7 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.pricing.base.errors import NoObservationError, PricingError
@@ -54,6 +55,44 @@ async def test_resolves_the_most_recent_rate_on_or_before_the_date(db: AsyncSess
 async def test_raises_no_observation_error_when_no_rate_exists(db: AsyncSession):
     with pytest.raises(NoObservationError):
         await get_exchange_rate(db, "USD", "SGD", date(2026, 6, 1))
+
+
+async def test_lazy_load_derives_and_persists_the_inverse_rate(db: AsyncSession):
+    """#1641/#1643 fallback parity: a rate miss with ``lazy_load=True`` still
+    resolves through the crawler-fallback path (here: safe inverse derivation,
+    persisted) — same behavior as the retired ``services/fx.py`` lazy path."""
+    db.add(
+        FxRate(
+            base_currency="SGD",
+            quote_currency="HKD",
+            rate=Decimal("5.800000"),
+            rate_date=date(2026, 6, 30),
+            source="test",
+        )
+    )
+    await db.commit()
+
+    rate = await get_exchange_rate(db, "HKD", "SGD", date(2026, 6, 30), lazy_load=True)
+
+    assert rate == Decimal("0.172414")
+    persisted = await db.execute(
+        select(FxRate).where(
+            FxRate.base_currency == "HKD",
+            FxRate.quote_currency == "SGD",
+            FxRate.rate_date == date(2026, 6, 30),
+        )
+    )
+    derived = persisted.scalar_one()
+    assert derived.rate == Decimal("0.172414")
+    assert derived.source == "derived:inverse:SGD/HKD"
+
+
+async def test_lazy_load_still_raises_when_the_fallback_finds_nothing(db: AsyncSession):
+    """No stored rate, no inverse, no bridge, provider fetch disabled — the
+    lazy path exhausts its fallbacks and the miss still surfaces as
+    ``NoObservationError`` (never a silently-wrong rate)."""
+    with pytest.raises(NoObservationError):
+        await get_exchange_rate(db, "HKD", "SGD", date(2026, 6, 30), lazy_load=True)
 
 
 async def test_average_rate_identity_never_touches_the_database(db: AsyncSession):

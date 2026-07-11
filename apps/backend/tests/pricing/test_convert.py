@@ -62,6 +62,25 @@ async def test_convert_money_returns_money_in_the_target_currency(db: AsyncSessi
     assert result == Money(Decimal("135.00"), "SGD")
 
 
+async def test_convert_money_lazy_load_falls_back_to_the_crawler_path(db: AsyncSession):
+    """#1641/#1643 fallback parity: ``convert_money(..., lazy_load=True)`` on a
+    rate miss derives the inverse rate instead of raising — the behavior the
+    portfolio read-side relied on in ``services/fx.py``."""
+    db.add(
+        FxRate(
+            base_currency="SGD",
+            quote_currency="HKD",
+            rate=Decimal("5.800000"),
+            rate_date=date(2026, 6, 30),
+            source="test",
+        )
+    )
+    await db.commit()
+
+    result = await convert_money(db, Money(Decimal("100"), "HKD"), "SGD", date(2026, 6, 30), lazy_load=True)
+    assert result == Money(Decimal("17.24"), "SGD")
+
+
 async def test_convert_to_base_uses_the_configured_base_currency(db: AsyncSession, monkeypatch: pytest.MonkeyPatch):
     import src.pricing.extension.fx as fx_module
 
