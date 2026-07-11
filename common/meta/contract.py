@@ -387,15 +387,18 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-meta.txn.3",
             statement=(
-                "A SQLAlchemy ForeignKey/relationship whose target table or model "
-                "belongs to another registered domain is rejected; a cross-domain "
-                "reference must be an id column resolved via the interface/event, "
-                "not a database FK. Detection is AST-only/best-effort on the "
-                "string-target forms (documented in the gate)."
+                "A SQLAlchemy relationship(...) whose target model belongs to "
+                "another registered domain is rejected; a cross-domain reference "
+                "must resolve the id via the interface/event, never navigate an "
+                "ORM object graph. A bare cross-domain ForeignKey column (no "
+                "relationship) is allowed — a DB-level referential-integrity "
+                "invariant, not code-level coupling (#1675). Detection is "
+                "AST-only/best-effort on the string-target forms (documented in "
+                "the gate)."
             ),
             test=(
                 "tests/tooling/test_meta_layering.py"
-                "::test_AC_meta_txn_3_cross_domain_fk_is_rejected"
+                "::test_AC_meta_txn_3_cross_domain_relationship_is_rejected_fk_column_is_allowed"
             ),
             priority="P1",
             status="done",
