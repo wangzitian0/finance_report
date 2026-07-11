@@ -1,4 +1,4 @@
 {
   "_comment": "Raise-only floor for the number of graded-eval cases (llm_cassettes/ground_truth/*.truth.json). Independent of cassette-eval-baseline.jsonl's per-case floors so a commit that removes a case's ground-truth file AND its baseline line together cannot silently shrink the corpus. Raise only via `python tools/check_cassette_graded_eval.py --update`.",
-  "min_cases": 32
+  "min_cases": 33
 }

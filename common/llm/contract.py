@@ -844,5 +844,47 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── group 14: real-world PDF/OCR extraction coverage (#1744) — every
+        # prior cassette-driven test proves the transport hand-off works when
+        # the LLM read the document correctly; AC-llm.14.1-3 prove it ALSO
+        # works when the frozen response is exactly the shape that previously
+        # broke production (#1449, #1452), through the REAL cassette transport
+        # into ExtractionService.parse_document(), not a unittest.mock.patch of
+        # extract_financial_data() (that lower-level coverage already exists in
+        # test_extraction.py / test_llm_led_blocking_gate.py). AC-llm.14.4
+        # closes the complementary gap: the corpus's real cases are never
+        # re-extracted against today's code or the live provider ──
+        ACRecord(
+            id="AC-llm.14.1",
+            statement="A cassette-delivered extraction with no period_start/period_end but valid transaction dates degrades gracefully to the transaction-date range (#1449) when it reaches parse_document() through the real cassette transport",
+            test="apps/backend/tests/extraction/test_extraction_cassette_replay.py::test_AC_llm_14_1_missing_period_falls_back_to_transaction_dates_via_replay",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-llm.14.2",
+            statement="A cassette-delivered extraction with no period fields AND no parseable transaction dates anywhere still rejects cleanly (a genuinely date-less document is not silently accepted) when it reaches parse_document() through the real cassette transport",
+            test="apps/backend/tests/extraction/test_extraction_cassette_replay.py::test_AC_llm_14_2_no_recoverable_date_anywhere_rejects_cleanly_via_replay",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-llm.14.3",
+            statement="A cassette-delivered extraction whose balance chain does not reconcile quarantines to the terminal rejected status with zero persisted Layer-2 rows (#1452 — previously stuck in parsing forever) when it reaches parse_document() through the real cassette transport",
+            test="apps/backend/tests/extraction/test_extraction_cassette_replay.py::test_AC_llm_14_3_unreconciled_balance_quarantines_to_rejected_via_replay",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-llm.14.4",
+            statement="common.testing.reverify_real_corpus.compare_scores correctly distinguishes a field-accuracy regression, an improvement, and a failed re-record (no usable fresh response) when comparing a committed corpus case's extraction against a fresh one, without mutating the committed cassette",
+            test="tests/tooling/test_reverify_real_corpus.py::test_reverify_case_never_mutates_the_committed_cassette",
+            priority="P2",
+            status="done",
+            proof_kind="property",
+        ),
     ],
 )

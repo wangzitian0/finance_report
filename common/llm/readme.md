@@ -196,9 +196,34 @@ the `needs_real_cassette` marker until the operator records real cassettes with
 ### Scope (anti-false-confidence)
 
 Record/replay is **regression protection for KNOWN inputs only**. It does **not**
-discover new real-world document shapes — that stays the staging real-doc audit
-loop — and **CI green ≠ a real unknown statement works**. Provider-specific
-correctness is the staging `-m llm` gate's job, not the cassette tests'.
+discover new real-world document shapes, and **CI green ≠ a real unknown
+statement works**. Provider-specific correctness is the staging `-m llm` gate's
+job, not the cassette tests'.
+
+**Corrected 2026-07-10 (#1744):** this section previously said "that stays the
+staging real-doc audit loop" — investigated and found **wrong**: the staging
+canary (`tests/e2e/test_brokerage_upload_to_portfolio_value.py`, `LLM_LIVE=1`)
+and every institution journey (`tests/e2e/test_institution_statement_journeys.py`
+etc.) extract from a `reportlab`-**generated synthetic** PDF too
+(`tools/generate_pdf_fixtures.py`), never a real one. There is currently **no**
+lane anywhere — blocking or not — that runs live extraction against a real,
+messy, institution-authored document. See #1744 for the full finding and the
+decided remaining scope. Two pieces of that scope are delivered here:
+
+- **AC-llm.14.1-3** (`apps/backend/tests/extraction/test_extraction_cassette_replay.py`):
+  a hand-authored cassette response can simulate the exact shape that broke
+  production before (#1449 missing period, #1452 quarantine-stuck) and prove it
+  reaches `ExtractionService.parse_document()` correctly through the *real*
+  cassette transport — narrower than "real document diversity", but real
+  coverage of known failure classes that #1449/#1452's own unit tests (which
+  mock `extract_financial_data()` directly) don't reach.
+- **`common/testing/reverify_real_corpus.py`** (CLI: `tools/reverify_real_corpus.py`):
+  an operator-only tool, like `make llm-record`, that re-runs a committed real
+  corpus case's ORIGINAL PDF (never committed — RL-6, operator supplies the
+  local path) through the real, live extraction pipeline and scores the fresh
+  result against the committed one — catching an extraction-code regression or
+  provider drift for a document the corpus already has, without ever
+  overwriting the committed cassette silently.
 
 ---
 

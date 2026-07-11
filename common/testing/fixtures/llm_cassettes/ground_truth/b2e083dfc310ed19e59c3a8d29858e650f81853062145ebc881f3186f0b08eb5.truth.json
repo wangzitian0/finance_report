@@ -1,0 +1,17 @@
+{
+  "synthetic": true,
+  "modality": "vision",
+  "institution_class": "bank",
+  "edge_condition": "balance_unreconciled",
+  "source": "unhappy_balance_unreconciled",
+  "note": "#1744 unhappy-path fixture: hand-authored extraction whose balance chain does not reconcile by construction, to regression-test the LLM-LED quarantine gate (#1452). Field accuracy is still graded (expected mirrors the frozen response exactly) — only the balance-chain invariant is exempted.",
+  "balance_reconciles": false,
+  "expected": {
+    "opening_balance": "1000.00",
+    "closing_balance": "9999.00",
+    "transactions": [
+      {"date": "2026-04-02", "description": "Salary credit", "amount": "2000.00"},
+      {"date": "2026-04-10", "description": "Rent payment", "amount": "1200.00"}
+    ]
+  }
+}
