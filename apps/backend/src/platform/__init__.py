@@ -65,6 +65,15 @@ from src.platform.extension import (
 # eagerly so importing the package registers the mappers on Base.metadata.
 from src.platform.orm.app_config import BASE_CURRENCY_KEY, AppConfig
 from src.platform.orm.ping_state import PingState
+from src.platform.orm.workflow import (
+    WorkflowEvent,
+    WorkflowEventFamily,
+    WorkflowEventSeverity,
+    WorkflowEventStatus,
+    WorkflowReportImpact,
+    WorkflowSession,
+    WorkflowSessionStatus,
+)
 
 __all__ = [
     "AppConfig",
@@ -82,6 +91,13 @@ __all__ = [
     "RateLimiter",
     "RecordingEventBus",
     "SubscriberRegistry",
+    "WorkflowEvent",
+    "WorkflowEventFamily",
+    "WorkflowEventSeverity",
+    "WorkflowEventStatus",
+    "WorkflowReportImpact",
+    "WorkflowSession",
+    "WorkflowSessionStatus",
     "get_owned_or_404",
     "get_workflow_status",
     "list_workflow_events_response",

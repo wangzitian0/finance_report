@@ -27,12 +27,13 @@ from src.llm.base import Encrypted, ProviderRef, Scene, SceneBinding
 from src.llm.base.secrets import SecretCipher, build_cipher
 
 if TYPE_CHECKING:
-    from src.models.llm_config import LlmProvider
+    from src.llm.orm.config import LlmProvider
 
 
-def _orm():  # imported lazily: llm_config itself imports src.llm.base, and the
-    # parent-package __init__ would recurse into this module (init cycle).
-    from src.models.llm_config import LlmProvider, LlmSceneBinding
+def _orm():  # imported lazily: llm.orm.config is now imported eagerly by the
+    # parent package's __init__ (#1675), so this module-level import would race
+    # that init (init cycle) if it weren't deferred.
+    from src.llm.orm.config import LlmProvider, LlmSceneBinding
 
     return LlmProvider, LlmSceneBinding
 

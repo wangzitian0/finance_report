@@ -5,8 +5,8 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, status
 
 from src.deps import CurrentUserId, DbSession
-from src.models.workflow import WorkflowEventStatus
 from src.platform import (
+    WorkflowEventStatus,
     get_workflow_status,
     list_workflow_events_response,
     update_workflow_event_status,

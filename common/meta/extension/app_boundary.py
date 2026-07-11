@@ -31,10 +31,18 @@ def _iter_src_imports(tree: ast.AST) -> list[tuple[str, str | None]]:
     """Every ``src.*`` import in a module as (module_path, imported_name|None)."""
     pairs: list[tuple[str, str | None]] = []
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module and node.module.split(".")[0] == "src":
+        if (
+            isinstance(node, ast.ImportFrom)
+            and node.module
+            and node.module.split(".")[0] == "src"
+        ):
             pairs.extend((node.module, alias.name) for alias in node.names)
         elif isinstance(node, ast.Import):
-            pairs.extend((alias.name, None) for alias in node.names if alias.name.split(".")[0] == "src")
+            pairs.extend(
+                (alias.name, None)
+                for alias in node.names
+                if alias.name.split(".")[0] == "src"
+            )
     return pairs
 
 
@@ -96,11 +104,16 @@ def cross_boundary_edges(
     return sorted(set(inbound)) + sorted(set(outbound))
 
 
-def _carved_and_published(repo_root: Path) -> tuple[dict[str, str], dict[str, set[str]]]:
+def _carved_and_published(
+    repo_root: Path,
+) -> tuple[dict[str, str], dict[str, set[str]]]:
     """Resolve carved src-subdir → package and package → ``__all__`` from the real
     package registry (deferred import: this keeps the module importable in the lint
     env even if the heavier contract loader is unavailable)."""
-    from common.meta.extension.check_package_contract import _package_all, discover_packages
+    from common.meta.extension.check_package_contract import (
+        _package_all,
+        discover_packages,
+    )
 
     backend_src = (repo_root / "apps/backend/src").resolve()
     carved: dict[str, str] = {}

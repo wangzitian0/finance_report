@@ -21,7 +21,9 @@ CONTRACT = PackageContract(
     # llm added #1670: extension/scoring.py's AI semantic-match scoring streams
     # a prompt through src.llm (graceful None fallback on any error — advisory
     # signal, not a hard dependency on model correctness).
-    depends_on=["audit", "extraction", "ledger", "llm", "observability"],
+    # pricing re-added #1675: extension/fx_transfer.py + fx_transfer_discovery.py
+    # read the FxConversion model, now published on pricing's root.
+    depends_on=["audit", "extraction", "ledger", "llm", "observability", "pricing"],
     roles=["base", "extension", "data"],
     units=[
         Unit(name="ReconciliationMatch", kind=Kind.AGGREGATE_ROOT),

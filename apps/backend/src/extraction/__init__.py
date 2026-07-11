@@ -11,8 +11,15 @@ the pure validation/confidence calculus; ``extension/`` the parsing pipeline
 (``ExtractionService`` + format mixins), dedup + dual-write repository verbs,
 brokerage classification, prompts, and the evidence write path; ``data/`` the
 evidence lineage read-models. The ORM entities (UploadedDocument /
-AtomicTransaction / AtomicPosition) stay in the unregistered ``src/models/``
-until their cross-domain FKs are cut (Stage-4 scope; ledger/llm precedent).
+AtomicTransaction / AtomicPosition) stay in the unregistered ``src/models/``.
+``UploadedDocument``'s only cross-domain coupling is a plain FK column (no
+``relationship()``, #1675) but it is read directly by two L1-infra packages
+(``platform``/``runtime``) — moving it here would make those an upward
+import, a real layering violation the FK-narrowing alone doesn't excuse.
+Fixing that needs those two read sites converted to a published interface
+call, not a file move; ``AtomicTransaction``/``AtomicPosition`` additionally
+carry genuine cross-domain ``relationship()`` navigation (to
+``Account``/``User``) that needs converting to id + explicit lookups first.
 
 The names re-exported below are the entire public surface (``__all__`` must
 equal ``contract.interface``). Downstream domains reference AtomicTransaction

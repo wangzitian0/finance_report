@@ -30,13 +30,15 @@ asserts:
       package's ``__all__`` (``from src.<other>... import <published name>``); an
       import of an *unpublished* internal (a submodule, another aggregate's object,
       or another domain's ORM/models written in-transaction) is rejected — whether
-      the module path is the package root or a deep submodule. The **FK edge**
-      (``_check_cross_domain_fk``, AC-meta.txn.3): a ``ForeignKey`` /
-      ``relationship`` whose target table/model is owned by another registered
-      package is rejected — the reference must be an id column resolved via the
-      interface/event. The runtime atomicity of the outbox (AC-meta.event.1) is a
-      behavioural property proven by the platform package's own tests, not by this
-      structural gate.
+      the module path is the package root or a deep submodule. The **ORM-navigation
+      edge** (``_check_cross_domain_fk``, AC-meta.txn.3): a ``relationship(...)``
+      whose target model is owned by another registered package is rejected — a
+      cross-domain reference must resolve the id via the interface/event, never
+      navigate an ORM object graph. A bare ``ForeignKey`` column (no
+      ``relationship``) is allowed cross-domain — it is a DB-level referential-
+      integrity invariant, not code-level coupling (#1675). The runtime atomicity
+      of the outbox (AC-meta.event.1) is a behavioural property proven by the
+      platform package's own tests, not by this structural gate.
 
       *Port-exception decision (counter):* counter imports the platform bus port
       ``from src.platform import OutboxEventBus`` and the base ports
@@ -572,28 +574,42 @@ def _call_func_name(func: ast.expr) -> str | None:
 def _check_cross_domain_fk(
     pkg: DiscoveredPackage,
     registered: dict[str, str],
-    table_owner: dict[str, str],
+    _table_owner: dict[str, str],
     model_owner: dict[str, str],
 ) -> list[str]:
-    """One-transaction-per-domain, the FK edge (AC-meta.txn.3).
+    """One-transaction-per-domain, the ORM-navigation edge (AC-meta.txn.3).
 
-    A SQLAlchemy ``ForeignKey("<table>.<col>")`` or ``relationship(...)`` whose
-    target table/model belongs to **another** registered package is rejected — a
-    cross-domain reference must become an id column resolved via the interface/event,
-    never a database-enforced FK that ties two domains into one transaction.
+    A SQLAlchemy ``relationship(...)`` whose target model belongs to **another**
+    registered package is rejected — cross-domain object-graph navigation
+    (``obj.other_domain_thing.field``) is the DDD violation: it lets one
+    package's code silently reach into another's aggregate, and turns an
+    innocent attribute access into an implicit cross-domain query. A
+    cross-domain reference must resolve the id via the interface/event, never
+    navigate an ORM relationship.
+
+    A bare ``ForeignKey("<table>.<col>")`` column is **not** flagged. Unlike
+    ``relationship()``, a FK constraint carries no object-graph navigation —
+    it is a database-level referential-integrity invariant, not a code-level
+    coupling. In this codebase's modular monolith (one process, one Postgres
+    instance, one transaction manager — not independently-deployable
+    services), that invariant is a cheap, valuable safety net against
+    orphaned financial rows and costs nothing architecturally as long as
+    nothing navigates through it. Cross-domain FK columns were banned
+    alongside relationships until 2026-07-11; this narrowed the rule to what
+    it was actually protecting against (see #1675).
 
     Detection is **AST-only and best-effort**, scoped to the reliably-decidable
-    forms:
-      * ``ForeignKey("<table>.<col>")`` — the target table is read from the string
-        literal's first segment (the load-bearing, reliable case).
-      * ``relationship("<ClassName>")`` / ``relationship(<ClassName>)`` — the target
-        model class name is read from a string or bare ``Name`` argument.
+    form: ``relationship("<ClassName>")`` / ``relationship(<ClassName>)`` — the
+    target model class name is read from a string or bare ``Name`` argument.
 
-    It deliberately does NOT resolve dynamic targets (a ``ForeignKey`` whose table
-    comes from a variable/callable, or a ``relationship`` given an imported alias or
-    an expression) — those are left to runtime/migration review rather than flagged
-    here, to avoid false positives. ``table_owner`` / ``model_owner`` come from
-    :func:`_collect_orm_ownership`.
+    It deliberately does NOT resolve dynamic targets (a ``relationship`` given
+    an imported alias or an expression) — those are left to runtime/migration
+    review rather than flagged here, to avoid false positives. ``model_owner``
+    (the class name → owning-package map) comes from
+    :func:`_collect_orm_ownership`; ``_table_owner`` is accepted but unused
+    since the FK-string check it fed was retired (#1675) — kept so the call
+    site's positional args stay symmetric with :func:`_collect_orm_ownership`'s
+    return shape.
     """
     offenders: list[str] = []
     if pkg.impl_dir is None or not pkg.impl_dir.exists():
@@ -604,20 +620,7 @@ def _check_cross_domain_fk(
             if not isinstance(node, ast.Call):
                 continue
             name = _call_func_name(node.func)
-            if name == "ForeignKey" and node.args:
-                arg = node.args[0]
-                if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
-                    table = arg.value.split(".")[0]
-                    owner = table_owner.get(table)
-                    if owner and owner in registered and owner != pkg.name:
-                        rel = py.relative_to(REPO_ROOT)
-                        offenders.append(
-                            f"{rel}: cross-domain ForeignKey('{arg.value}') targets "
-                            f"table '{table}' owned by package '{owner}'. A "
-                            f"cross-domain reference must be an id column resolved "
-                            f"via the interface/event, not a database FK."
-                        )
-            elif name == "relationship" and node.args:
+            if name == "relationship" and node.args:
                 arg = node.args[0]
                 cls: str | None = None
                 if isinstance(arg, ast.Constant) and isinstance(arg.value, str):

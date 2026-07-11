@@ -140,7 +140,10 @@ def main(argv: list[str] | None = None) -> int:
     if errors:
         for message in errors:
             print(f"::error title=Draft package::{message}", file=sys.stderr)
-        print(f"[DRAFT] FAILED: {len(errors)} draft-package violation(s).", file=sys.stderr)
+        print(
+            f"[DRAFT] FAILED: {len(errors)} draft-package violation(s).",
+            file=sys.stderr,
+        )
         return 1
     print("[DRAFT] PASSED: draft packages carry no done ACs and are all registered.")
     return 0

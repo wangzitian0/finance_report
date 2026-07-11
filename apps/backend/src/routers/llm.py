@@ -20,11 +20,12 @@ from src.deps import CurrentUserId, DbSession
 from src.llm import (
     LitellmCatalog,
     LLMConfigError,
+    LlmProvider,
+    LlmSceneBinding,
     Modality,
     build_cipher,
     get_config_source,
 )
-from src.models.llm_config import LlmProvider, LlmSceneBinding
 from src.observability import get_logger
 from src.platform import get_owned_or_404, raise_bad_request, raise_conflict, raise_not_found, raise_service_unavailable
 from src.schemas.llm import (

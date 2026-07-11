@@ -427,13 +427,15 @@ def test_AC_meta_txn_2_extension_writing_other_domain_orm_is_rejected(
     )
 
 
-def test_AC_meta_txn_3_cross_domain_fk_is_rejected(
+def test_AC_meta_txn_3_cross_domain_relationship_is_rejected_fk_column_is_allowed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """AC-meta.txn.3: a SQLAlchemy ForeignKey/relationship whose target belongs to
-    another registered domain's tables is rejected; a cross-domain reference must
-    be an id column resolved via the interface/event. A FK to the package's own
-    table is fine."""
+    """AC-meta.txn.3: a SQLAlchemy ``relationship(...)`` whose target belongs to
+    another registered domain is rejected — ORM navigation lets one package's code
+    silently reach into another's object graph, which is the actual DDD violation.
+    A bare cross-domain ``ForeignKey`` column (no ``relationship``) is allowed — a
+    DB-level referential-integrity invariant is not code-level coupling (#1675). A
+    FK/relationship to the package's own table is fine either way."""
     monkeypatch.setattr(cpc, "REPO_ROOT", tmp_path)
     owner = _make_pkg(
         tmp_path,
@@ -466,10 +468,34 @@ def test_AC_meta_txn_3_cross_domain_fk_is_rejected(
     offenders = cpc._check_cross_domain_fk(
         consumer, registered, table_owner, model_owner
     )
-    assert any("ForeignKey" in o and "accounts" in o for o in offenders), offenders
+    assert not any("ForeignKey" in o for o in offenders), offenders
     assert any("relationship" in o and "Account" in o for o in offenders), offenders
 
-    # a FK to the package's OWN table is allowed.
+    # a bare cross-domain FK column with NO relationship is allowed.
+    fk_only_consumer = _make_pkg(
+        tmp_path,
+        "fkonlydom",
+        units=[],
+        extra_files={
+            "extension/models.py": (
+                "from sqlalchemy import ForeignKey\n"
+                "from sqlalchemy.orm import mapped_column\n"
+                "class Entry:\n"
+                "    __tablename__ = 'entries2'\n"
+                "    account_id = mapped_column(ForeignKey('accounts.id'))\n"
+            )
+        },
+    )
+    to_fkonly, mo_fkonly = cpc._collect_orm_ownership([owner, fk_only_consumer])
+    registered_fkonly = {"ownerdom": "domain", "fkonlydom": "domain"}
+    assert (
+        cpc._check_cross_domain_fk(
+            fk_only_consumer, registered_fkonly, to_fkonly, mo_fkonly
+        )
+        == []
+    )
+
+    # a FK/relationship to the package's OWN table is allowed.
     selfdom = _make_pkg(
         tmp_path,
         "selfdom",

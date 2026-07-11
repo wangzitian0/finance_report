@@ -17,7 +17,10 @@ from common.meta.extension.governance_report._base import (
     _require_yaml,
     yaml,
 )
-from common.meta.extension.governance_report._types import GovernanceEntry, ManifestSource
+from common.meta.extension.governance_report._types import (
+    GovernanceEntry,
+    ManifestSource,
+)
 from common.meta.extension.governance_report._util import (
     _as_strings,
     _display_ref,

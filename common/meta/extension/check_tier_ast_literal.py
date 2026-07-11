@@ -47,8 +47,8 @@ def violations(repo_root: Path) -> list[str]:
                 f"(expected one of {list(PACKAGE_TIERS)}). The AC registry reads "
                 "tier statically; a non-literal tier silently untags this "
                 "package's ACs while the model still carries one. Declare "
-                "tier=\"CODE-ONLY|CODE-LED|LLM-LED|LLM-ONLY\" as a plain string literal, or mark the "
-                "package status=\"draft\"."
+                'tier="CODE-ONLY|CODE-LED|LLM-LED|LLM-ONLY" as a plain string literal, or mark the '
+                'package status="draft".'
             )
     return errors
 

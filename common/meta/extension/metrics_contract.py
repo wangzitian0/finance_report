@@ -7,7 +7,11 @@ import argparse
 import sys
 from pathlib import Path
 
-from common.meta.extension.coverage.policy import COMPONENTS, ROOT_DIR, CoverageComponent
+from common.meta.extension.coverage.policy import (
+    COMPONENTS,
+    ROOT_DIR,
+    CoverageComponent,
+)
 
 CODE_EXTENSIONS = {".py", ".ts", ".tsx", ".js", ".jsx"}
 DISCOVERED_APP_ROOTS = ("apps", "packages")

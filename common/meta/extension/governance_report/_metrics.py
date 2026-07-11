@@ -8,7 +8,10 @@ from common.meta.extension.governance_report._base import (
     PROTECTED_RATIO_LABELS,
     RATIO_EPSILON,
 )
-from common.meta.extension.governance_report._types import GateViolation, GovernanceEntry
+from common.meta.extension.governance_report._types import (
+    GateViolation,
+    GovernanceEntry,
+)
 from common.meta.extension.governance_report._util import (
     _gate_target,
     _has_proof,

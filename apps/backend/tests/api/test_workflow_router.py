@@ -20,7 +20,7 @@ from src.models.layer3 import ClassificationRule, RuleType
 from src.models.layer4 import ReportSnapshot, ReportType
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
-from src.models.workflow import (
+from src.platform import (
     WorkflowEvent,
     WorkflowEventFamily,
     WorkflowEventSeverity,

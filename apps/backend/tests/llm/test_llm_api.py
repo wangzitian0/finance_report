@@ -64,7 +64,7 @@ async def test_AC23_4_2_provider_create_encrypts_and_never_returns_key(
 
     from sqlalchemy import select
 
-    from src.models.llm_config import LlmProvider
+    from src.llm import LlmProvider
 
     row = (await db.execute(select(LlmProvider).where(LlmProvider.id == created["id"]))).scalar_one()
     assert "sk-secret-123" not in row.api_key_ciphertext

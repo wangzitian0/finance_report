@@ -104,7 +104,7 @@ def test_stage2_residue_docs_and_comments_use_current_paths() -> None:
     for relpath in (
         "apps/backend/migrations/versions/0043_llm_provider_config.py",
         "apps/backend/src/config.py",
-        "apps/backend/src/models/llm_config.py",
+        "apps/backend/src/llm/orm/config.py",
         "apps/backend/src/schemas/llm.py",
     ):
         text = (REPO / relpath).read_text(encoding="utf-8")

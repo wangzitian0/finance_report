@@ -59,7 +59,13 @@ pricing, never the reverse.
 
 from __future__ import annotations
 
-from common.meta.package_contract import ACRecord, Invariant, Kind, PackageContract, Unit
+from common.meta.package_contract import (
+    ACRecord,
+    Invariant,
+    Kind,
+    PackageContract,
+    Unit,
+)
 
 CONTRACT = PackageContract(
     name="pricing",
@@ -202,6 +208,7 @@ CONTRACT = PackageContract(
     # later commit implements them for real.
     interface=[
         "Authority",
+        "FxConversion",
         "FxRate",
         "MARKET_DATA_QUANTITY_UNIT",
         "MarketDataScopeStatus",
