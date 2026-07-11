@@ -71,7 +71,11 @@ def test_stage2_residue_modules_left_services() -> None:
 def test_stage2_residue_old_service_imports_are_gone() -> None:
     offenders: list[str] = []
     for path in REPO.rglob("*.py"):
-        if ".venv" in path.parts:
+        if ".venv" in path.parts or ".claude" in path.parts:
+            # .claude/ is the agent runtime/config dir: its committed content
+            # carries no Python, and its gitignored worktrees/ subdir holds
+            # local copies of old checkouts whose imports would otherwise be
+            # reported as residue that is not in the repo.
             continue
         if path == Path(__file__):
             continue

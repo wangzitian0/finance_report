@@ -72,10 +72,9 @@ PACKAGE_LAYER: dict[str, PackageClass] = {
     # (money/ratio/quantity/unit_price) folded into audit (#1419), so those
     # names are gone from the map — audit (L1) owns the financial base types.
     "counter": "middleware",
-    # L3 — vertical business slices. advisor / portfolio / reconciliation all
-    # shipped their contract.py (#1425 / #1422 / #1423); pricing / reporting
-    # have a contract.py but are still status="draft" (#1610 / #1424 in
-    # flight) — the map already pins their layer ahead of the roadmap filling in.
+    # L3 — vertical business slices. All eight shipped their contract.py and
+    # are status="active" (pricing/reporting flipped in the wave-2 closeout,
+    # #1663; pricing's physical-table unification continues under #1610).
     "advisor": "domain",
     "extraction": "domain",
     "identity": "domain",

@@ -29,6 +29,7 @@ __pycache__/
 
 # Coverage reports
 .coverage
+.coverage.*
 coverage.xml
 htmlcov/
 *.lcov
