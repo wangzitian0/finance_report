@@ -380,24 +380,21 @@ async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> d
     workflow_session: WorkflowSession | None = None
     existing_event = aliased(WorkflowEvent)
     statements = (
-        (
-            await db.execute(
-                select(StatementSummary, existing_event)
-                .outerjoin(
-                    existing_event,
-                    and_(
-                        existing_event.user_id == user_id,
-                        existing_event.family == WorkflowEventFamily.SOURCE_UPLOADED,
-                        existing_event.source_type == "bank_statement",
-                        existing_event.source_id == StatementSummary.id,
-                    ),
-                )
-                .where(StatementSummary.user_id == user_id)
-                .order_by(StatementSummary.created_at.asc())
+        await db.execute(
+            select(StatementSummary, existing_event)
+            .outerjoin(
+                existing_event,
+                and_(
+                    existing_event.user_id == user_id,
+                    existing_event.family == WorkflowEventFamily.SOURCE_UPLOADED,
+                    existing_event.source_type == "bank_statement",
+                    existing_event.source_id == StatementSummary.id,
+                ),
             )
+            .where(StatementSummary.user_id == user_id)
+            .order_by(StatementSummary.created_at.asc())
         )
-        .all()
-    )
+    ).all()
     # One extra query instead of a cross-domain join (#1675 D3): extraction owns
     # UploadedDocument; platform only reaches it through the registered provider
     # (an L1-infra module may never import an L3-domain package, #1676 precedent).

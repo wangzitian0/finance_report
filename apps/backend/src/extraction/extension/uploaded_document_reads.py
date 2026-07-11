@@ -37,7 +37,9 @@ async def get_uploaded_document_filenames(db: AsyncSession, document_ids: Iterab
     if not ids:
         return {}
     rows = (
-        await db.execute(select(UploadedDocument.id, UploadedDocument.original_filename).where(UploadedDocument.id.in_(ids)))
+        await db.execute(
+            select(UploadedDocument.id, UploadedDocument.original_filename).where(UploadedDocument.id.in_(ids))
+        )
     ).all()
     return {doc_id: filename for doc_id, filename in rows}
 

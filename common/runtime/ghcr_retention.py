@@ -40,7 +40,9 @@ def _default_gh(args: Sequence[str]) -> subprocess.CompletedProcess[str]:
 
 def _flatten_versions(raw: Any) -> list[dict[str, Any]]:
     if isinstance(raw, list) and all(isinstance(page, list) for page in raw):
-        return [version for page in raw for version in page if isinstance(version, dict)]
+        return [
+            version for page in raw for version in page if isinstance(version, dict)
+        ]
     if isinstance(raw, list):
         return [version for version in raw if isinstance(version, dict)]
     return []
@@ -112,14 +114,10 @@ def select_retention_decisions(
         if not version_id:
             continue
         if not sha_tags:
-            decisions.append(
-                RetentionDecision(version_id, tags, "keep", "no-sha-tag")
-            )
+            decisions.append(RetentionDecision(version_id, tags, "keep", "no-sha-tag"))
             continue
         if any(RELEASE_TAG_RE.match(tag) for tag in tags):
-            decisions.append(
-                RetentionDecision(version_id, tags, "keep", "release-tag")
-            )
+            decisions.append(RetentionDecision(version_id, tags, "keep", "release-tag"))
             continue
         if any(_is_live_sha_tag(tag, normalized_live_shas) for tag in sha_tags):
             decisions.append(
