@@ -36,7 +36,7 @@ and types/ops/store/api). ACs are `AC-<pkg>.<entity>.<seq>` in each contract's
 | 0b | `counter` → base/extension/data template + gate three-layer rule (additive) | #1418 ✅ |
 | 1 | `value → audit` fold | #1419 ✅ |
 | 2 | `ledger` | #1420 ✅ |
-| 3 | `extraction` #1421 ✅ · `portfolio` #1422 ✅ · `reconciliation` #1423 ✅ · `reporting` #1424 ✅ (roadmap populated, `status="active"` — migration closeout wave 2, #1663) · `pricing` #1610 ⬜ (PR2 in flight, still `status="draft"`) | partial |
+| 3 | `extraction` #1421 ✅ · `portfolio` #1422 ✅ · `reconciliation` #1423 ✅ · `reporting` #1424 ✅ · `pricing` contract ✅ `status="active"` (roadmap populated in the wave-2 closeout, #1663/#1728; #1610 stays open for the physical-table unification) | partial |
 | 4 | `advisor` #1425 ✅ · `llm` #1426 ✅ · `platform` #1427 ✅ · `identity` #1428 ✅ | done |
 | 5 | `audit` consistency closeout (global invariants + cross-package ACs) | #1429 ⬜ |
 | 6 | cleanup — delete residual EPIC tables / SSOT; retire the central `docs/ssot/MANIFEST.yaml`/registry gates once meta's data layer is the computed index | tracked as a 3-wave closeout: #1662 (finish cutovers + doc-sync) → #1663 (EPIC AC migration) → #1664 (SSOT/index retirement); #1430 closed early on the directory-coverage-only reading |
