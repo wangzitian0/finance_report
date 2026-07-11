@@ -1672,6 +1672,394 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        # ── group preview: PR-preview lifecycle & Dokploy semantics
+        # (was EPIC-008 AC8.13 subset), migration closeout, #1663 /
+        # #1718 ──
+        ACRecord(
+            id="AC-testing.preview.1",
+            statement=(
+                "The app performs no Dokploy preview reclaim \u2014 on PR close it "
+                "dispatches a vendor-neutral teardown to infra2 (which owns the 1:1 "
+                "reclaim); the app keeps no cleanup/reconcile entrypoints, no "
+                "host-hygiene commands, and emits no raw Dokploy responses (Was "
+                "EPIC-008 AC8.13.38)."
+            ),
+            test=(
+                "tests/tooling/test_cleanup_pr_preview_resources.py"
+                "::test_AC8_13_38_legacy_cleanup_entrypoints_are_removed"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.preview.2",
+            statement=(
+                "PR preview non-LLM E2E uses strict gates and parallelism while "
+                "narrowing execution to runtime/API/UI preview-relevant paths instead "
+                "of the staging regression set (Was EPIC-008 AC8.13.46)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_46_pr_preview_non_llm_gate_matches_staging_strict_parallelism"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.preview.3",
+            statement=(
+                "One lifecycle tool stands PR previews UP (deploy) and writes stable "
+                "preview metadata; on PR close the workflow dispatches a "
+                "preview-teardown signal to infra2 \u2014 the app owns no Dokploy reclaim "
+                "(cleanup/reconcile/delete) (Was EPIC-008 AC8.13.71)."
+            ),
+            test=(
+                "tests/tooling/test_pr_preview_lifecycle.py"
+                "::test_AC8_13_71_close_dispatches_preview_teardown_to_infra2"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.preview.4",
+            statement=(
+                "Dokploy deploy diagnostics redact raw responses, log only "
+                "allowlisted effective environment/config details, parse deployment "
+                "records as typed object records, fail before readiness when fixed "
+                "deploy_v2 sees rollout error/no terminal new record, and retain "
+                "redacted rollout diagnostics for legacy preview compatibility (Was "
+                "EPIC-008 AC8.13.72)."
+            ),
+            test=(
+                "tests/tooling/test_dokploy_redaction.py"
+                "::test_AC8_13_72_common_dokploy_call_redacts_non_200_body"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.preview.5",
+            statement=(
+                "The app owns no VPS host hygiene \u2014 generic host GC "
+                "(Docker/journald/disk prune) is infra2-owned "
+                "(tools/host_hygiene_schedule.py + the ops-checks re-ensure job); the "
+                "app ships no vps_host_hygiene module and provisions no Dokploy "
+                "host-schedule (Was EPIC-008 AC8.13.73)."
+            ),
+            test=(
+                "tests/tooling/test_cleanup_pr_preview_resources.py"
+                "::test_AC8_13_73_app_owns_no_vps_host_hygiene"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.preview.6",
+            statement=(
+                "The app's scheduled maintenance performs no Dokploy preview "
+                "reconcile and no host hygiene \u2014 it only prunes the app's own stale "
+                "GHCR PR image tags (Dokploy preview reclaim is infra2-owned) (Was "
+                "EPIC-008 AC8.13.74)."
+            ),
+            test=(
+                "tests/tooling/test_cleanup_pr_preview_resources.py"
+                "::test_AC8_13_74_maintenance_cleanup_is_ghcr_pruning_only"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.preview.7",
+            statement=(
+                "The runner-local full-stack smoke/E2E gate runs synchronously on "
+                "pull_request (the merge authority, a real required check, not async "
+                "via workflow_run); the on-demand persistent Dokploy preview is built "
+                "from the PR source on the host without pushing, preflighting, "
+                "pulling, or deleting PR preview images (Was EPIC-008 AC8.13.89)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.preview.8",
+            statement=(
+                "Legacy Dokploy preview composes preserve compose identity, update "
+                "allowlisted deploy env, and re-run Dokploy compose.redeploy without "
+                "a pre-stop or separate compose.start call so historical "
+                "cleanup/reconciliation compatibility can still reason about stuck "
+                "previews safely (Was EPIC-008 AC8.13.98)."
+            ),
+            test=(
+                "tests/tooling/test_pr_preview_lifecycle.py"
+                "::test_AC8_13_98_existing_preview_compose_is_redeployed_without_pre_stop"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.preview.9",
+            statement=(
+                "Runner preview readiness is bounded and observable before smoke/E2E; "
+                "legacy Dokploy route diagnostics remain as compatibility evidence "
+                "for historical preview cleanup/reconciliation tooling (Was EPIC-008 "
+                "AC8.13.100)."
+            ),
+            test=(
+                "tests/tooling/test_pr_preview_lifecycle.py"
+                "::test_AC8_13_100_pr_preview_runner_readiness_is_bounded_and_observable"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.preview.10",
+            statement=(
+                "PR preview E2E consumes the runner-local http://localhost:8080 URL "
+                "as the merge-authority gate; after it passes, a non-blocking "
+                "persistent Dokploy preview is deployed at report-pr-<N>.<domain> and "
+                "released via compose.delete on PR close; lifecycle helpers preserve "
+                "stable/commit preview URL derivation (Was EPIC-008 AC8.13.101)."
+            ),
+            test=(
+                "tests/tooling/test_pr_preview_lifecycle.py"
+                "::test_AC8_13_101_preview_app_url_prefers_stable_alias"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.preview.11",
+            statement=(
+                "The PR-preview deploy helpers keep bounded rollout diagnostics, "
+                "redaction, transient retry handling, and stuck-compose recovery "
+                "semantics so a preview deploy fails safe even though current default "
+                "PR preview no longer creates PR images (Was EPIC-008 AC8.13.102)."
+            ),
+            test=(
+                "tests/tooling/test_pr_preview_lifecycle.py"
+                "::test_AC8_13_102_preview_network_is_pr_scoped_to_limit_subnet_usage"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.preview.12",
+            statement=(
+                "PR preview uploads runner preview context artifacts without PR image "
+                "preflight, while legacy lifecycle deploy helpers still redact "
+                "context for compatibility tests (Was EPIC-008 AC8.13.107)."
+            ),
+            test=(
+                "tests/tooling/test_pr_preview_lifecycle.py"
+                "::test_AC8_13_107_deploy_action_fails_fast_on_missing_required_inputs"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.preview.13",
+            statement=(
+                "The in-runner E2E gate runs synchronously on pull_request as a real "
+                "required check a fast/auto merge cannot bypass (not async via "
+                "workflow_run, which a merge could outrun); PR close triggers "
+                "cleanup, not a gate (Was EPIC-008 AC8.13.114)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_114_pr_preview_follows_successful_ci_workflow_run"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.preview.14",
+            statement=(
+                "Runner preview readiness is bounded before smoke/E2E starts, with "
+                "stack logs emitted on failure (Was EPIC-008 AC8.13.115)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_115_readiness_fail_fast"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.preview.15",
+            statement=(
+                "PR preview waits stay bounded: current runner preview has a hard "
+                "workflow timeout and legacy Dokploy busy-queue extensions cannot "
+                "exceed the compatibility rollout deadline (Was EPIC-008 AC8.13.125)."
+            ),
+            test=(
+                "tests/tooling/test_pr_preview_lifecycle.py"
+                "::test_AC8_13_125_busy_dokploy_queue_cannot_extend_past_rollout_deadline"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group classifier: CI change classification (was EPIC-008
+        # AC8.13 subset), migration closeout, #1663 / #1718 ──
+        ACRecord(
+            id="AC-testing.classifier.1",
+            statement=(
+                "CI change classification skips backend/frontend/coverage for "
+                "lightweight changes and uses deterministic npm cache (Was EPIC-008 "
+                "AC8.13.16)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_16_ci_change_classification_and_frontend_cache"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.classifier.2",
+            statement=(
+                "CI change classification is covered by multi-commit and markdown "
+                "edge-case regression tests (Was EPIC-008 AC8.13.20)."
+            ),
+            test=(
+                "tests/tooling/test_ci_change_classifier.py"
+                "::test_AC8_13_20_ci_workflow_changes_are_heavy_except_docs_workflow"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.classifier.3",
+            statement=(
+                "PR preview relevance classification includes preview workflow, "
+                "lifecycle, and config changes while excluding docs-only and app "
+                "test-only changes (Was EPIC-008 AC8.13.96)."
+            ),
+            test=(
+                "tests/tooling/test_ci_change_classifier.py"
+                "::test_AC8_13_96_pr_preview_classifier_includes_preview_infrastructure_paths"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.classifier.4",
+            statement=(
+                "CI change classification exposes table-driven env/stage rules so "
+                "shared runtime paths cannot drift between PR preview and staging "
+                "deployed proof (Was EPIC-008 AC8.13.97)."
+            ),
+            test=(
+                "tests/tooling/test_ci_change_classifier.py"
+                "::test_AC8_13_97_deployed_env_classifiers_share_common_runtime_rules"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.classifier.5",
+            statement=(
+                "Automatic staging AI/OCR runs only for provider, extraction, "
+                "statement parsing, PDF fixture, AI/OCR workflow, or critical LLM "
+                "proof path changes; normal runtime deploys keep staging smoke/E2E "
+                "but skip provider spend (Was EPIC-008 AC8.13.104)."
+            ),
+            test=(
+                "tests/tooling/test_ci_change_classifier.py"
+                "::test_AC8_13_104_staging_ai_ocr_runs_only_for_provider_risk_paths"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.classifier.6",
+            statement=(
+                "CI change classification emits structured Env x Stage JSON outputs "
+                "and matrix summaries as the sole machine-readable gate contract; the "
+                "per-env legacy scalar outputs (pr_preview_required, "
+                "staging_required, staging_ai_ocr_required) are retired now that "
+                "every workflow consumer derives its own scalar from the structured "
+                "matrix (Was EPIC-008 AC8.13.110)."
+            ),
+            test=(
+                "tests/tooling/test_ci_change_classifier.py"
+                "::test_AC8_13_110_github_outputs_include_structured_env_stage_matrix"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.classifier.7",
+            statement=(
+                "CI change classification structured Env x Stage outputs cover the "
+                "complete environment axis (local, pr, pr-preview, staging, prd) "
+                "while keeping PR heavy gating and deployed-environment gates "
+                "represented as matrix cells (Was EPIC-008 AC8.13.111)."
+            ),
+            test=(
+                "tests/tooling/test_ci_change_classifier.py"
+                "::test_AC8_13_111_static_stage_rejects_non_static_environments"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.classifier.8",
+            statement=(
+                "Delivery-engine recommendations, SSOT, workflow gates, and contract "
+                "tests stay aligned around structured Env x Stage consumers as the "
+                "sole gate contract; the per-env legacy scalar classifier outputs are "
+                "retired and the simplification path is recorded as complete (Was "
+                "EPIC-008 AC8.13.112)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_112_sparse_matrix_recommendation_tracks_simplification_path"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.classifier.9",
+            statement=(
+                "Workflow consumers keep Env x Stage as the classifier-owned source "
+                "of truth: CI and PR preview jobs normalize structured classifier "
+                "outputs into compatibility scalar outputs, downstream jobs consume "
+                "only those normalized outputs, and no downstream job reimplements "
+                "changed-path classification or ad hoc path logic (Was EPIC-008 "
+                "AC8.13.152)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_152_workflow_consumers_keep_classification_single_owned"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-testing.classifier.10",
+            statement=(
+                "The change classifier computes a per-component "
+                "(backend/frontend/tools/common) change signal alongside the existing "
+                "Env\u00d7Stage matrix \u2014 fail-closed to \"all changed\" on an undetected "
+                "diff \u2014 and exposes it as plain {component}_changed GITHUB_OUTPUT "
+                "scalars plus a ready-to-use coverage_gate_components comma list, so "
+                "downstream jobs never reimplement path classification (extends "
+                "AC8.13.152's single-owned-classification principle to component "
+                "scope, #1689) (Was EPIC-008 AC8.13.161)."
+            ),
+            test=(
+                "tests/tooling/test_ci_change_classifier.py"
+                "::test_AC8_13_161_component_changed_isolates_a_single_component"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
     ],
 )
 

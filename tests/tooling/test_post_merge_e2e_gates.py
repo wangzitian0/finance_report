@@ -1347,7 +1347,7 @@ def test_AC8_13_52_release_image_tool_fails_when_a_digest_is_missing() -> None:
 
 
 def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
-    """AC8.13.16: CI skips heavy jobs for lightweight changes and caches npm."""
+    """AC-testing.classifier.1: AC8.13.16: CI skips heavy jobs for lightweight changes and caches npm."""
     workflow = read(".github/workflows/ci.yml")
     pr_workflow = read(".github/workflows/preview.yml")
     classifier = read("common/testing/change_classifier.py")
@@ -2482,7 +2482,7 @@ def test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge() -> None:
 
 
 def test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds() -> None:
-    """AC8.13.89: the in-runner e2e gate runs synchronously on pull_request (independent
+    """AC-testing.preview.7: AC8.13.89: the in-runner e2e gate runs synchronously on pull_request (independent
     of CI) and does not build/push PR images."""
     workflow = read(".github/workflows/preview.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
@@ -3060,7 +3060,7 @@ def test_AC8_13_45_root_moon_tasks_do_not_hash_repo_submodule() -> None:
 
 
 def test_AC8_13_46_pr_preview_non_llm_gate_matches_staging_strict_parallelism() -> None:
-    """AC8.13.46: PR preview keeps strictness while narrowing to preview scope."""
+    """AC-testing.preview.2: AC8.13.46: PR preview keeps strictness while narrowing to preview scope."""
     preview = read(".github/workflows/preview.yml")
     staging = read(".github/workflows/deploy.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
@@ -3227,7 +3227,7 @@ def test_AC8_13_47_delivery_engine_recommendations_are_tracked() -> None:
 
 
 def test_AC8_13_112_sparse_matrix_recommendation_tracks_simplification_path() -> None:
-    """AC8.13.112: sparse-matrix audit keeps the simplification path explicit."""
+    """AC-testing.classifier.8: AC8.13.112: sparse-matrix audit keeps the simplification path explicit."""
     recommendation = read("docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md")
     ci_cd = read("docs/ssot/ci-cd.md")
     classifier = read("common/testing/change_classifier.py")
@@ -3332,7 +3332,7 @@ def test_AC8_13_112_workflows_consume_structured_env_stage_gates() -> None:
 
 
 def test_AC8_13_152_workflow_consumers_keep_classification_single_owned() -> None:
-    """AC8.13.152: downstream workflow jobs do not reclassify changed paths."""
+    """AC-testing.classifier.9: AC8.13.152: downstream workflow jobs do not reclassify changed paths."""
     ci_workflow = read(".github/workflows/ci.yml")
     pr_workflow = read(".github/workflows/preview.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
@@ -3790,7 +3790,7 @@ def test_AC8_13_34_ci_and_post_merge_write_timing_summaries() -> None:
 
 
 def test_AC8_13_114_pr_preview_follows_successful_ci_workflow_run() -> None:
-    """AC8.13.114: the in-runner e2e gate runs synchronously on pull_request, so it is a
+    """AC-testing.preview.13: AC8.13.114: the in-runner e2e gate runs synchronously on pull_request, so it is a
     real required check a fast/auto merge cannot bypass. It no longer follows CI async
     via workflow_run — that fired after CI and a quick merge could land before it ran as
     a gate (skipped required checks count as passed). It is image-free, so it needs no
@@ -3809,7 +3809,7 @@ def test_AC8_13_114_pr_preview_follows_successful_ci_workflow_run() -> None:
 
 
 def test_AC8_13_115_readiness_fail_fast() -> None:
-    """AC8.13.115: Runner preview readiness is bounded before smoke/E2E starts."""
+    """AC-testing.preview.14: AC8.13.115: Runner preview readiness is bounded before smoke/E2E starts."""
     workflow = read(".github/workflows/preview.yml")
     e2e_block = workflow.split("  e2e:", 1)[1].split("  cleanup:", 1)[0]
     assert "timeout-minutes: 25" in e2e_block

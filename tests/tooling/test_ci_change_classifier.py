@@ -130,7 +130,7 @@ def test_AC8_13_20_multi_commit_runtime_path_requires_heavy_ci() -> None:
 
 
 def test_AC8_13_20_ci_workflow_changes_are_heavy_except_docs_workflow() -> None:
-    """AC8.13.20: Runtime CI workflow changes cannot be hidden by docs-only rules."""
+    """AC-testing.classifier.2: AC8.13.20: Runtime CI workflow changes cannot be hidden by docs-only rules."""
     assert is_lightweight(".github/workflows/docs.yml") is True
     assert is_lightweight(".github/workflows/ci.yml") is False
     assert classify_changed_paths([".github/workflows/ci.yml"]).heavy_required is True
@@ -251,7 +251,7 @@ def test_AC8_13_20_pr_preview_only_runs_for_app_e2e_or_compose_changes() -> None
 def test_AC8_13_96_pr_preview_classifier_includes_preview_infrastructure_paths() -> (
     None
 ):
-    """AC8.13.96: PR preview workflow and lifecycle changes exercise preview proof."""
+    """AC-testing.classifier.3: AC8.13.96: PR preview workflow and lifecycle changes exercise preview proof."""
     for path in (
         ".github/workflows/preview.yml",
         ".github/workflows/maintenance.yml",
@@ -314,7 +314,7 @@ def test_AC8_13_20_pdf_fixture_docs_do_not_trigger_preview_or_staging() -> None:
 
 
 def test_AC8_13_104_staging_ai_ocr_runs_only_for_provider_risk_paths() -> None:
-    """AC8.13.104: Provider-backed staging proof is risk-triggered."""
+    """AC-testing.classifier.5: AC8.13.104: Provider-backed staging proof is risk-triggered."""
     for path in (
         ".github/workflows/deploy.yml",
         ".github/workflows/deploy.yml",
@@ -576,7 +576,7 @@ def test_AC8_13_97_env_stage_matrix_keeps_environments_separate_from_pipeline_st
 
 
 def test_AC8_13_97_deployed_env_classifiers_share_common_runtime_rules() -> None:
-    """AC8.13.97: Shared runtime paths cannot drift between preview and staging classifiers."""
+    """AC-testing.classifier.4: AC8.13.97: Shared runtime paths cannot drift between preview and staging classifiers."""
     for path in classifier.COMMON_DEPLOY_RUNTIME_EXACT:
         assert is_pr_preview_relevant(path) is True
         assert is_staging_relevant(path) is True
@@ -602,7 +602,7 @@ def test_AC8_13_97_deployed_env_classifiers_share_common_runtime_rules() -> None
 def test_AC8_13_110_github_outputs_include_structured_env_stage_matrix(
     tmp_path: Path,
 ) -> None:
-    """AC8.13.110: GitHub outputs expose Env x Stage JSON as the primary contract."""
+    """AC-testing.classifier.6: AC8.13.110: GitHub outputs expose Env x Stage JSON as the primary contract."""
     result = classify_changed_paths(
         [
             "apps/backend/src/services/reporting.py",
@@ -697,7 +697,7 @@ def test_AC8_13_111_structured_env_stage_outputs_cover_complete_environment_axis
 
 
 def test_AC8_13_111_static_stage_rejects_non_static_environments() -> None:
-    """AC8.13.111: Static env helper is limited to local and production cells."""
+    """AC-testing.classifier.7: AC8.13.111: Static env helper is limited to local and production cells."""
     with pytest.raises(ValueError, match="Unsupported static environment: staging"):
         classifier._classify_static_stage((), Environment.STAGING)
 
@@ -775,7 +775,7 @@ def test_in_runner_stack_and_selection_ssot_trigger_preview_gate() -> None:
 # AC8.13.161 — per-component change signal (#1689, gate re-architecture Phase 3)
 # --------------------------------------------------------------------------- #
 def test_AC8_13_161_component_changed_isolates_a_single_component() -> None:
-    """AC8.13.161: a backend-only diff flags only backend as changed."""
+    """AC-testing.classifier.10: AC8.13.161: a backend-only diff flags only backend as changed."""
     result = classify_changed_paths(
         ["apps/backend/src/services/reporting/cash_flow.py"]
     )
