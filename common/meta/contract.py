@@ -403,6 +403,27 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        ACRecord(
+            id="AC-meta.txn.4",
+            statement=(
+                "A DB-level ondelete=CASCADE is a hidden cross-domain write (one "
+                "domain's delete mutating another domain's aggregates below the "
+                "application), against one-txn-per-domain and append-only "
+                "domains; the census of ForeignKey(..., ondelete=\"CASCADE\") "
+                "target tables under apps/backend/src only shrinks against "
+                "docs/ssot/fk-cascade-baseline.json — per-table counts never "
+                "grow, new target tables fail, a stale (over-counted) baseline "
+                "entry must be pruned in the same PR. Existing sites are "
+                "grandfathered; the end-state is saga-owned deletion "
+                "(#1675 ruling, D1/D7)."
+            ),
+            test=(
+                "tests/tooling/test_fk_cascade_ratchet.py"
+                "::test_AC_meta_txn_4_cross_domain_cascade_only_shrinks"
+            ),
+            priority="P1",
+            status="done",
+        ),
         # The taxonomy migrated in place, so its retired vocabulary lingers in
         # prose; the drift gate makes "old words presented as current" a CI
         # failure instead of a periodic manual audit.
