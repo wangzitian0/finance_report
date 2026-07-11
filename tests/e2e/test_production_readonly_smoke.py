@@ -20,7 +20,7 @@ from conftest import TestConfig
 @pytest.mark.smoke
 @pytest.mark.prod_safe
 async def test_AC8_13_9_production_public_runtime_contract() -> None:
-    """EPIC-007 EPIC-008 EPIC-010 EPIC-012 / AC8.13.9: Public runtime smoke."""
+    """AC-testing.deploy-gates.1: EPIC-007 EPIC-008 EPIC-010 EPIC-012 / AC8.13.9: Public runtime smoke."""
     app_url = TestConfig.APP_URL.rstrip("/")
 
     async with httpx.AsyncClient(verify=False, timeout=15.0) as client:

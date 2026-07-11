@@ -375,7 +375,7 @@ def test_AC8_13_104_staging_ai_ocr_runs_only_for_provider_risk_paths() -> None:
 
 
 def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None:
-    """AC8.13.55: Staging deploys are scoped to paths that can change deploy risk."""
+    """AC-testing.deploy-gates.14: AC8.13.55: Staging deploys are scoped to paths that can change deploy risk."""
     for path in (
         "apps/backend/src/routers/statements.py",
         "apps/backend/migrations/versions/0001_initial_schema.py",

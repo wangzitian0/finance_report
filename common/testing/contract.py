@@ -978,6 +978,533 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        # ── group deploy-gates: deploy/staging/production workflow
+        # gates (was EPIC-008 AC8.13 subset), migration closeout, #1663
+        # / #1718 ──
+        ACRecord(
+            id="AC-testing.deploy-gates.1",
+            statement=(
+                "Production release runs prod-safe read-only E2E smoke (Was EPIC-008 "
+                "AC8.13.9)."
+            ),
+            test=(
+                "tests/e2e/test_production_readonly_smoke.py"
+                "::test_AC8_13_9_production_public_runtime_contract"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.2",
+            statement=(
+                "Staging health check diagnoses API route 404 with route probes (Was "
+                "EPIC-008 AC8.13.11)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_11_health_check_diagnoses_staging_api_route_404"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.3",
+            statement=(
+                "AI/OCR gate failures include statement validation context (Was "
+                "EPIC-008 AC8.13.12)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_12_ai_ocr_gate_failure_includes_statement_context"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.4",
+            statement=(
+                "Staging deploy uses workflow-level singleton concurrency plus an "
+                "in-job FIFO guard to prevent duplicate concurrent staging mutation "
+                "and bounds E2E gate duration with phase timing logs (Was EPIC-008 "
+                "AC8.13.13)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_13_staging_deploy_fast_fail_guardrails"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.5",
+            statement=(
+                "Provider-backed staging AI/OCR gate runs separately from deploy "
+                "health (Was EPIC-008 AC8.13.14)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.6",
+            statement=(
+                "Provider-backed staging AI/OCR gate runs inside a manual staging "
+                "dispatch (inheriting workflow_dispatch) and via the on-demand "
+                "deploy.yml, never auto-after-CI (Was EPIC-008 AC8.13.21)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_21_staging_ai_ocr_gate_runs_under_manual_dispatch"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.7",
+            statement=(
+                "Staging deploys an explicitly supplied published release version_ref "
+                "(vX.Y.Z tag) on workflow_dispatch; it does not build or promote "
+                "images inside the deploy workflow (Was EPIC-008 AC8.13.22)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_22_staging_deploys_manually_dispatched_version_ref"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.8",
+            statement=(
+                "Automatic staging deploy health and AI/OCR validation run in one "
+                "serialized post-merge workflow unit (Was EPIC-008 AC8.13.23)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.9",
+            statement=(
+                "Main CI builds SHA-tagged images, deploy.yml promotes those digests "
+                "to an immutable vX.Y.Z release tag, and staging deploy consumes that "
+                "tag without rebuilding or moving a staging tag (Was EPIC-008 "
+                "AC8.13.36)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.10",
+            statement=(
+                "PR CI dry-runs staging image builds before merge; main push CI is "
+                "the only path that pushes SHA-tagged images (Was EPIC-008 "
+                "AC8.13.40)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.11",
+            statement=(
+                "Staging AI/OCR gates publish audit input inventory and replay "
+                "summary fields (Was EPIC-008 AC8.13.49)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_49_staging_ai_ocr_gate_publishes_audit_inventory_and_summary"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.12",
+            statement=(
+                "Staging deploy is manual (workflow_dispatch) only with a required "
+                "deploy_v2-aligned version_ref input; it does not auto-follow main CI "
+                "and does not poll for CI in-job (Was EPIC-008 AC8.13.51)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_51_staging_deploy_is_manual_dispatch_only"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.13",
+            statement=(
+                "Production release dry-run validates release prerequisites and image "
+                "builds through shared release evidence/image digest tools without "
+                "production mutation (Was EPIC-008 AC8.13.52)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_52_production_release_dry_run_does_not_mutate_production"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.14",
+            statement=(
+                "Post-merge staging deploys only for runtime, deploy, E2E, staging "
+                "workflow, toolchain, or infra-submodule changes (Was EPIC-008 "
+                "AC8.13.55)."
+            ),
+            test=(
+                "tests/tooling/test_ci_change_classifier.py"
+                "::test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.15",
+            statement=(
+                "Deploy workflows do not keep no-op dependency checks or warning-only "
+                "performance probes that cannot block release risk (Was EPIC-008 "
+                "AC8.13.60)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_60_deploy_workflows_have_no_nonblocking_noop_gates"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.16",
+            statement=(
+                "Production release verifies DB, S3, app vendor-neutral OTEL "
+                "readiness, API, and frontend before completing deploy (proving the "
+                "observability backend ingests is infra2's job) (Was EPIC-008 "
+                "AC8.13.64)."
+            ),
+            test=(
+                "tests/tooling/test_production_infra_smoke.py"
+                "::test_AC8_13_64_production_infra_smoke_cli_reports_failure"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.17",
+            statement=(
+                "Production release reuses successful main CI proof instead of "
+                "rerunning container-backed tests in the release lane (Was EPIC-008 "
+                "AC8.13.65)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_52_production_release_dry_run_does_not_mutate_production"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.18",
+            statement=(
+                "Production release preserves deployed version metadata from image "
+                "build through Dokploy runtime health (Was EPIC-008 AC8.13.67)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_67_production_release_preserves_version_metadata"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.19",
+            statement=(
+                "Staging is mutated only by an explicit manual workflow_dispatch with "
+                "a required release version_ref input; no auto path can promote "
+                "images or change Dokploy, and structured deploy failure context is "
+                "preserved (Was EPIC-008 AC8.13.93)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_93_staging_promotion_requires_manual_dispatch"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.20",
+            statement=(
+                "Main post-merge staging publishes one commit-level Post-merge "
+                "Delivery check that fails release-critical staging build/deploy and "
+                "provider connectivity failures, while recording right-shifted full "
+                "AI/OCR regression evidence without blocking production eligibility "
+                "(Was EPIC-008 AC8.13.103)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.21",
+            statement=(
+                "Post-merge staging keeps FIFO ordering but collapses train wait, "
+                "staging classification, and deploy into one runner job to avoid a "
+                "second GitHub Actions scheduling gap before staging mutation (Was "
+                "EPIC-008 AC8.13.105)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_13_staging_deploy_fast_fail_guardrails"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.22",
+            statement=(
+                "Main post-merge staging deploy failures publish structured failure "
+                "domain, failed step, and failure summary in the deploy context "
+                "artifact and Post-merge Delivery summary so deploy_v2 dependency "
+                "setup, Dokploy rollout, route health, E2E setup, and application E2E "
+                "failures can be separated without manual log scraping (Was EPIC-008 "
+                "AC8.13.108)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_93_staging_promotion_requires_manual_dispatch"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.23",
+            statement=(
+                "Post-merge staging AI/OCR gate tests use isolated users, "
+                "browser-cookie auth, deterministic UI waits, and cleanup-capable "
+                "test accounts; PR tooling rejects shared mutable users, localStorage "
+                "bearer tokens, and generic deployed-env idle waits before "
+                "provider-backed replay (Was EPIC-008 AC8.13.109)."
+            ),
+            test=(
+                "tests/tooling/test_staging_ai_ocr_gate_contract.py"
+                "::test_AC8_13_109_ai_ocr_gate_tests_use_isolated_users"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.24",
+            statement=(
+                "Sparse Env x Stage reviews record the three newest successful and "
+                "three newest failed evidence samples for active delivery lanes, then "
+                "summarize delivery-speed balance, end-to-end consistency, quality "
+                "fallback, resource leak candidates, and the safe simplification "
+                "boundary (Was EPIC-008 AC8.13.113)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_113_sparse_matrix_evidence_and_resource_leak_audit_are_recorded"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.25",
+            statement=(
+                "Post-merge \u2192 staging start latency is reduced by removing redundant "
+                "heavy re-run on push to main (Was EPIC-008 AC8.13.116)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_116_skip_heavy_ci_on_main_push"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.26",
+            statement=(
+                "One delivery hardening PR contracts the known leak paths: PR preview "
+                "leftovers, legacy GHCR PR tag accumulation, stale staging or "
+                "production routes, provider-backed external-state residue, and "
+                "Docker build cache and stopped containers, while preserving the "
+                "sparse Env x Stage speed boundary (Was EPIC-008 AC8.13.119)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_119_delivery_resource_leak_hardening_is_contracted"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.27",
+            statement=(
+                "Provider-risk staging changes run one dedicated real AI provider "
+                "connectivity smoke after deployed health and non-LLM E2E; transient "
+                "provider 5xx/timeouts degrade delivery without failing main, while "
+                "provider 4xx stays a hard gate (Was EPIC-008 AC8.13.120)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_120_staging_runs_lightweight_provider_connectivity_smoke"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.28",
+            statement=(
+                "The staging AI/OCR gate summarizes its JUnit output into real "
+                "pass/fail counts and names the failing corpus docs (instead of a "
+                "binary \"Failures observed: 1+\" with verified counts \"unknown\"), so a "
+                "red gate is diagnosable "
+                "([#1089](https://github.com/wangzitian0/finance_report/issues/1089)) "
+                "(Was EPIC-008 AC8.13.137)."
+            ),
+            test=(
+                "tests/tooling/test_staging_ai_ocr_gate_contract.py"
+                "::test_AC8_13_137_summarize_junit_reports_per_doc_failures"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.29",
+            statement=(
+                "Production release rolls back through deploy_v2 to the pre-deploy "
+                "production version and confirms health when a post-deploy route, "
+                "infrastructure, smoke, or read-only E2E gate fails after mutation "
+                "(Was EPIC-008 AC8.13.144)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_144_production_release_rolls_back_with_deploy_v2_after_post_deploy_failure"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.30",
+            statement=(
+                "The report-branch-main auto preview dispatch runs only after "
+                "successful main CI publishes SHA images, skips stale workflow_run "
+                "completions, and infra2 deploy_v2 refuses to deploy branch-form main "
+                "unless it resolves to the exact payload SHA (Was EPIC-008 "
+                "AC8.13.146)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_146_report_main_dispatch_waits_for_ci_images"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.31",
+            statement=(
+                "The staging AI/OCR production-promotion blocking path runs only the "
+                "minimal AI/OCR Canary corpus \u2014 one representative brokerage "
+                "upload\u2192parse\u2192import\u2192value liveness check "
+                "(tests/e2e/test_brokerage_upload_to_portfolio_value.py) with no "
+                "broad audit assertions (report_verifications == 0); the canary "
+                "corpus is curated in tools/staging_ai_ocr_gate_contract.py "
+                "(canary_files()) as a subset of the derived llm post-merge proofs "
+                "and runs via the reusable gate's corpus: canary input (Was EPIC-008 "
+                "AC8.13.156)."
+            ),
+            test=(
+                "tests/tooling/test_staging_ai_ocr_gate_contract.py"
+                "::test_AC8_13_156_canary_corpus_is_minimal_liveness"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.32",
+            statement=(
+                "The heavy LLM audit journeys (full statement journey, four-asset "
+                "net-worth golden path, personal financial report package) run as a "
+                "separate audit-replay.yml job on schedule: (nightly) + "
+                "workflow_dispatch: that calls the reusable gate with corpus: "
+                "audit_replay and blocking: false, so the comprehensive corpus does "
+                "NOT block production promotion by default (Was EPIC-008 AC8.13.157)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_157_audit_replay_workflow_is_nightly_and_nonblocking"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.33",
+            statement=(
+                "The canary's provider transient-failure classification is owned by "
+                "the Staging Provider Gate: the inline ai-ocr-gate canary only starts "
+                "after provider-gate passes, where a 4xx/config error blocks delivery "
+                "(config-failure) while a 5xx/timeout is a non-blocking degraded "
+                "status (Was EPIC-008 AC8.13.158)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_158_canary_transient_classification_owned_by_provider_gate"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.34",
+            statement=(
+                "Anti-regression: the blocking-path canary corpus and the "
+                "audit-replay corpus are disjoint, every heavy audit journey is in "
+                "the audit-replay corpus (never the canary), and the deploy-path "
+                "ai-ocr-gate resolves corpus: canary so the heavy journeys cannot "
+                "creep back into the blocking path (Was EPIC-008 AC8.13.159)."
+            ),
+            test=(
+                "tests/tooling/test_staging_ai_ocr_gate_contract.py"
+                "::test_AC8_13_159_blocking_path_excludes_heavy_audit_journeys"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.35",
+            statement=(
+                "SSOT docs/ssot/ci-cd.md clearly distinguishes the blocking, minimal "
+                "AI/OCR Canary from the nightly/manual, comprehensive Audit Replay, "
+                "and records the canary-vs-audit split as a deliberate keep_separate "
+                "decision in the gate inventory (Was EPIC-008 AC8.13.160)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_160_ci_cd_distinguishes_canary_from_audit_replay"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
     ],
 )
 
