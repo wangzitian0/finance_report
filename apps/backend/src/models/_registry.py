@@ -22,13 +22,14 @@ Other code must import each model from its owning module
 
 from __future__ import annotations
 
+# Packages that own their ORM (moved from here, #1675) register the mappers in
+# their root __init__; importing the published root is the whole side effect.
+import src.extraction  # noqa: F401,E402
+
 # The identity package (User/AiFeedback) registers its ORM models onto
 # Base.metadata via its SQL adapter module, mirroring counter/platform (whose
 # tables are registered the same way, not from this models package).
 import src.identity.extension.sql  # noqa: F401,E402
-
-# Packages that own their ORM (moved from here, #1675) register the mappers in
-# their root __init__; importing the published root is the whole side effect.
 import src.llm  # noqa: F401,E402
 import src.platform  # noqa: F401,E402
 import src.pricing  # noqa: F401,E402
@@ -42,7 +43,6 @@ from . import (  # noqa: F401
     correction,
     evidence,
     journal,
-    layer1,
     layer2,
     layer3,
     layer4,

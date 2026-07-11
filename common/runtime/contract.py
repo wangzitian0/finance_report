@@ -61,6 +61,7 @@ CONTRACT = PackageContract(
         "WorkflowEngineCheck",
         "check_env_classification",
         "redact_presigned_url",
+        "register_known_storage_paths_provider",
         "resolve_env_tier",
         "run_storage_sweep",
     ],

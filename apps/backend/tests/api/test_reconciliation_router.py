@@ -29,10 +29,10 @@ from httpx import AsyncClient
 from sqlalchemy import select
 
 from src.audit import STATEMENT_SOURCE_TYPES
+from src.extraction import DocumentType, UploadedDocument
 from src.identity import User
 from src.models.account import Account, AccountType
 from src.models.journal import JournalEntry
-from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_enums import BankStatementStatus

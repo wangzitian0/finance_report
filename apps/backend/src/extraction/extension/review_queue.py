@@ -19,10 +19,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import src.config
 from src.audit import normalize_source_type
 from src.extraction.extension.currency_resolution import CurrencyUnresolvedError
+from src.extraction.orm.layer1 import DocumentType, UploadedDocument
 from src.ledger import ValidationError, validate_journal_balance, validate_journal_posting_invariants
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
-from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.layer3 import ClassificationStatus, TransactionClassification
 from src.models.statement_summary import StatementSummary

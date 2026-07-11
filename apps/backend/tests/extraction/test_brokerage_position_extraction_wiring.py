@@ -23,6 +23,7 @@ from uuid import uuid4
 from sqlalchemy import select
 
 from src.database import create_session_maker_from_db
+from src.extraction import DocumentType, UploadedDocument
 from src.extraction.extension.brokerage_positions import (
     BrokeragePositionImportService,
     brokerage_currency_balances,
@@ -36,7 +37,6 @@ from src.extraction.extension.prompts.statement import (
 )
 from src.extraction.extension.service import ExtractionService
 from src.extraction.extension.statement_parsing import parse_statement_background, route_brokerage_for_review_if_present
-from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AtomicPosition
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary

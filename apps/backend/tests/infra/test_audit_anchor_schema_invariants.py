@@ -13,12 +13,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.extraction import DocumentStatus, DocumentType, UploadedDocument
 from src.extraction.extension.evidence_graph_materialization import EvidenceGraphMaterializationService
 from src.identity import User
 from src.models.account import Account, AccountType
 from src.models.evidence import EvidenceEdge, EvidenceNode
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
-from src.models.layer1 import DocumentStatus, DocumentType, UploadedDocument
 from src.models.layer2 import (
     AtomicPosition,
     AtomicPositionSourceDocument,

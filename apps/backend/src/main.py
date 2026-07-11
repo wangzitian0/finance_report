@@ -26,7 +26,13 @@ import src.models._registry  # noqa: E402, F401
 from src.boot import Bootloader, BootMode
 from src.config import settings
 from src.database import engine, get_db, init_db
-from src.extraction import run_parsing_supervisor
+from src.extraction import (
+    find_uploaded_document_filename_by_hash,
+    get_known_storage_paths,
+    get_uploaded_document_filename,
+    get_uploaded_document_filenames,
+    run_parsing_supervisor,
+)
 from src.identity import auth_router, users_router
 from src.observability import (
     configure_database_pool_metrics,
@@ -41,7 +47,13 @@ from src.observability import (
     record_http_request,
     record_rate_limit_rejected,
 )
-from src.platform import BaseAppException, RateLimitConfig, RateLimiter, register_readiness_provider
+from src.platform import (
+    BaseAppException,
+    RateLimitConfig,
+    RateLimiter,
+    register_readiness_provider,
+    register_uploaded_document_readers,
+)
 from src.platform.orm.ping_state import PingState
 from src.routers import (
     accounts,
@@ -66,7 +78,7 @@ from src.routers import (
     workflow,
 )
 from src.routers.reconciliation import router as reconciliation_router
-from src.runtime import resolve_env_tier, run_storage_sweep
+from src.runtime import register_known_storage_paths_provider, resolve_env_tier, run_storage_sweep
 from src.schemas import PingStateResponse
 from src.schemas.errors import (
     COMMON_ERROR_RESPONSES,
@@ -88,6 +100,16 @@ logger = get_logger(__name__)
 # composition root does it once here, same shape as the eager model
 # registration above.
 register_readiness_provider(get_personal_report_package_readiness)
+
+# Wire platform's and runtime's UploadedDocument-read ports to the real
+# extraction-domain lookups (#1675 D3): same inversion, same reason — L1
+# infra must not import an L3-domain package.
+register_uploaded_document_readers(
+    get_filename=get_uploaded_document_filename,
+    get_filenames=get_uploaded_document_filenames,
+    find_filename_by_hash=find_uploaded_document_filename_by_hash,
+)
+register_known_storage_paths_provider(get_known_storage_paths)
 
 
 def _init_otel_instrumentation() -> None:

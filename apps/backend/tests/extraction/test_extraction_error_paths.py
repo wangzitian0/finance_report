@@ -9,10 +9,10 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from src.extraction import DocumentStatus, UploadedDocument
 from src.extraction.extension.deduplication import dual_write_layer2
 from src.extraction.extension.service import ExtractionError, ExtractionService
 from src.extraction.extension.statement_parsing import handle_parse_failure
-from src.models.layer1 import DocumentStatus, UploadedDocument
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
 from tests.factories import StatementSummaryFactory

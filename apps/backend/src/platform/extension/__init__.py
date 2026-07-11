@@ -44,6 +44,7 @@ from src.platform.extension.workflow_events import (
     get_workflow_status,
     list_workflow_events_response,
     register_readiness_provider,
+    register_uploaded_document_readers,
     update_workflow_event_status,
 )
 
@@ -73,5 +74,6 @@ __all__ = [
     "raise_too_many_requests",
     "raise_unauthorized",
     "register_readiness_provider",
+    "register_uploaded_document_readers",
     "update_workflow_event_status",
 ]

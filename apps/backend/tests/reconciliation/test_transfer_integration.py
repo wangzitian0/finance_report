@@ -21,10 +21,10 @@ from uuid import UUID, uuid4
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.extraction import DocumentType, UploadedDocument
 from src.ledger import get_or_create_processing_account
 from src.models.account import Account, AccountType
 from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
-from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
