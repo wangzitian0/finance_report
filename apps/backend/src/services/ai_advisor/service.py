@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.money import to_money
 from src.config import settings
-from src.llm import ReasoningEffort, Scene, SceneBinding, get_config_source
+from src.llm import ReasoningEffort, Scene, SceneBinding, get_config_source, stream_ai_chat
 from src.models.account import AccountType
 from src.models.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 from src.platform import get_workflow_status
@@ -42,7 +42,6 @@ from src.services.ai_advisor._guardrails import (
     normalize_question,
     redact_sensitive,
 )
-from src.services.ai_streaming import stream_ai_chat
 from src.services.market_data_discovery import active_stock_symbols, observed_fx_pairs
 from src.services.portfolio import PortfolioNotFoundError, PortfolioService
 from src.services.report_readiness import get_personal_report_package_readiness
@@ -780,8 +779,8 @@ class AIAdvisorService:
         user_id: UUID | None = None,
         bound: SceneBinding | None = None,
     ) -> AsyncIterator[tuple[str, str]]:
+        from src.llm import AIStreamError
         from src.observability import ErrorIds
-        from src.services.ai_streaming import AIStreamError
 
         models = [self.primary_model, *self.fallback_models]
         # The binding's reasoning/max_tokens apply only when its model is used (no

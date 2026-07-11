@@ -1,6 +1,8 @@
 # Package migration standard (the target architecture)
 
-> The standard the whole repo migrates **to**: ~10 high-cohesion packages, each
+> The standard the whole repo migrates **to**: high-cohesion packages (live
+> membership: `common/meta/base/layering.py::PACKAGE_LAYER` — the count lives in
+> code, not in this prose), each
 > code-owning its contract + docs, so EPIC tables and most SSOT prose are absorbed
 > and the repo becomes contract-driven. Owned by the `meta` package (this file is
 > its prose). The only authored horizontal docs that survive are `vision.md` and
@@ -13,17 +15,21 @@ code, because central mirrors must be hand-synced and don't stay in sync. The fi
 is to delete the mirror: **the contract is the single source**, governance is
 **computed**, and meta-info is **aggregated**, never hand-maintained.
 
-## The ~10 packages
+## The financial-domain core packages
 
 Two cross-cutting governors (parallel peers, not super-packages) + the value
 foundation + the shared valuation SSOT + the financial data flow + the technical
-substrate. **This is the financial-domain core, not the whole registry**: 6 more
-business-agnostic infra leaves (`config`, `counter`, `identity`, `observability`,
-`runtime`, `testing`) exist alongside these ~10 and are governed the same way —
-they're omitted from the table below because they carry no domain vocabulary of
-their own to describe, not because they're second-class.
+substrate. **This is the financial-domain core, not the whole registry**: more
+packages exist alongside this core and are governed the same way —
+`observability`/`runtime`/`testing` on the infra axis, `counter` in the
+middleware kernel, `identity` as a domain slice outside the financial flow
+(`config` folded into `runtime`, #1669); `PACKAGE_LAYER` is the authoritative
+list. They're omitted from the table below because they carry no
+financial-domain vocabulary of their own to describe, not because they're
+second-class.
 `common/meta/base/layering.py::PACKAGE_LAYER` is the actual current-membership
-list (17 packages as of 2026-07-09); this table is target *design intent* for
+list (a hand-synced count here went stale twice — read the code, not a snapshot
+of it); this table is target *design intent* for
 the financial-domain packages specifically, and **the table's `extension deps`
 column is not always what `depends_on` says today** — a package's `contract.py`
 declares only edges with a real import behind them (`check_package_contract`

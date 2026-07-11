@@ -134,6 +134,7 @@ CONTRACT = PackageContract(
     ],
     implementations={"be": "apps/backend/src/llm", "fe": None},
     interface=[
+        "AIStreamError",
         "CASSETTE_DIR",
         "Cassette",
         "CassetteMiss",
@@ -167,6 +168,7 @@ CONTRACT = PackageContract(
         "SceneBinding",
         "SecretCipher",
         "Usage",
+        "accumulate_stream",
         "build_call",
         "build_cipher",
         "cassette_completion",
@@ -180,6 +182,8 @@ CONTRACT = PackageContract(
         "ocr_layout_call",
         "protocol_for",
         "resolve_provider_and_model",
+        "stream_ai_chat",
+        "stream_ai_json",
     ],
     # UsageRecorded is reserved above but not published yet; events lists only
     # what the package actually emits.

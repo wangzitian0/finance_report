@@ -123,7 +123,7 @@ runs.
 ## 5. <a id="cassettes"></a>Record/Replay Cassettes (deterministic CI)
 
 LLM calls are made **deterministic in CI** via a record/replay cassette layer
-(`apps/backend/src/llm/cassette.py`) exposed through two chokepoints:
+(`apps/backend/src/llm/extension/cassette.py`) exposed through two chokepoints:
 `client.cassette_completion` (non-streaming) and the **streaming bridge**
 `client.litellm_stream` (the real extraction transport — see below). A *cassette*
 is a committed JSON file under `common/testing/fixtures/llm_cassettes/`
@@ -169,10 +169,11 @@ Each cassette is tagged:
 
 ### Streaming bridge — the real extraction transport
 
-The real extraction transport is **streaming** (`services/ai_streaming.stream_ai_json`
-→ `client.litellm_stream` → `accumulate_stream`), and both text and
-default-config vision (`OCR_MODEL == VISION_MODEL`, layout parser skipped) flow
-through it. `litellm_stream` is cassette-aware **while preserving streaming**:
+The real extraction transport is **streaming** (`src.llm.stream_ai_json` →
+`src.llm.extension.client.litellm_stream` → `src.llm.accumulate_stream`), and
+both text and default-config vision (`OCR_MODEL == VISION_MODEL`, layout
+parser skipped) flow through it. `litellm_stream` is cassette-aware **while
+preserving streaming**:
 
 - **`off`** — the prior live `litellm.acompletion(stream=True)` passthrough,
   byte-for-byte (deltas arrive as they stream). Prod/staging run `off`, so the

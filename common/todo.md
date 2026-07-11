@@ -5,7 +5,7 @@ The horizontal worklist for migrating to the target architecture in
 keeps its own `common/<pkg>/todo.md`; this file tracks the migration *between*
 packages and the phase order. Umbrella issue: **#1416**.
 
-## Target: ~10 packages
+## Target packages (live membership: `common/meta/base/layering.py::PACKAGE_LAYER`)
 
 Two governors + the technical substrate + the shared valuation SSOT + the
 financial flow (see the standard for each package's base/extension/data +

@@ -27,8 +27,13 @@ The package-local worklist.  Cross-package migration lives in
       `src/observability/pii_redaction.py` — its consumers are observability's
       audit helpers and extraction's CSV path, not the advisor. Advisor's
       `_guardrails.py` keeps its own chat-stream redaction (a separate concern).
-- [ ] Move `src/services/ai_streaming.py` → `src/advisor/extension/streaming.py`
-      (zero-residue check: declared in scope additions, 2026-07-03).
+- [x] ~~Move `src/services/ai_streaming.py` → `src/advisor/extension/streaming.py`~~
+      Superseded by #1670's ruling: `ai_streaming` moved to
+      `src/llm/extension/streaming.py` instead — it is the shared litellm
+      streaming transport for three domains (extraction, reconciliation,
+      advisor's chat), not advisor-private glue; homing it under advisor
+      would have put extraction/reconciliation in the wrong dependency
+      direction (upward, onto advisor).
 - [ ] Physical `base/` / `extension/` / `data/` split:
       - `base/` — `ChatSession`, `ChatMessage`, enums, VOs, `ChatSessionRepository` port.
       - `extension/` — `AIAdvisorService`, `AdvisorGuardrails`, `ResponseCache`,

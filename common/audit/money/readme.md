@@ -2,7 +2,7 @@
 
 > The money/currency/FX value type. Model spec:
 > [`../../meta/readme.md`](../../meta/readme.md). Machine contract:
-> [`contract.py`](./contract.py). Language-neutral interface + conformance:
+> [`contract.py`](../contract.py). Language-neutral interface + conformance:
 > [`contract/money.contract.md`](./contract/money.contract.md) +
 > [`conformance/vectors.json`](./conformance/vectors.json). Worklist:
 > [`todo.md`](./todo.md).
@@ -51,7 +51,7 @@ prove themselves against the same vectors.
 
 ## Governance
 
-[`contract.py`](./contract.py) is validated by `tools/check_package_contract.py`:
+[`contract.py`](../contract.py) is validated by `tools/check_package_contract.py`:
 `interface` == the BE `__all__`, every invariant pins to a conformance test, and
 no upward/sideways import edge. The money ACs (`AC2.19.x` / `AC2.20.x`) are still
 owned by the EPIC-002 table; moving that AC ownership into the contract `roadmap`
@@ -64,7 +64,7 @@ owned by the EPIC-002 table; moving that AC ownership into the contract `roadmap
 
 > Internalized here from the retired `docs/ssot/accounting.md#money-type` per the
 > package-migration standard
-> ([`../meta/migration-standard.md`](../meta/migration-standard.md), step 3 "SSOT
+> ([`../../meta/migration-standard.md`](../../meta/migration-standard.md), step 3 "SSOT
 > internalized"). This is the registered owner of the `money_value_type` concept.
 
 <a id="money-type"></a>
@@ -72,7 +72,7 @@ owned by the EPIC-002 table; moving that AC ownership into the contract `roadmap
 - **Rule A3 — Money value types (narrow waist)**: The application-layer money
   primitives live in **`common/audit/money/`** (the shared waist). They sit *above* the
   DB double-entry invariant floor (`fr_validate_journal_entry_invariants`,
-  [schema.md](../../docs/ssot/schema.md)) and make bad money states unrepresentable
+  [schema.md](../../../docs/ssot/schema.md)) and make bad money states unrepresentable
   rather than merely tested-against (#1167). Dependency-light (stdlib + `Decimal`
   only) so backend, e2e, frontend helpers and tooling can share one definition. The
   backend ships its own self-contained copy at **`apps/backend/src/audit/money/`** (the

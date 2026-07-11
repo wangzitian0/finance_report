@@ -57,6 +57,7 @@ from src.llm.base import (
 )
 from src.llm.extension import (
     CASSETTE_DIR,
+    AIStreamError,
     Cassette,
     CassetteMiss,
     CassetteRecorder,
@@ -67,6 +68,7 @@ from src.llm.extension import (
     EnvConfigSource,
     LayeredConfigSource,
     LitellmCall,
+    accumulate_stream,
     build_call,
     fingerprint,
     get_config_source,
@@ -74,6 +76,8 @@ from src.llm.extension import (
     miss_summary,
     ocr_layout_call,
     protocol_for,
+    stream_ai_chat,
+    stream_ai_json,
 )
 
 # The litellm-heavy surface, resolved lazily so ``import src.llm`` stays
@@ -94,6 +98,7 @@ def __getattr__(name: str) -> Any:
 
 
 __all__ = [
+    "AIStreamError",
     "CASSETTE_DIR",
     "Cassette",
     "CassetteMiss",
@@ -127,6 +132,7 @@ __all__ = [
     "SceneBinding",
     "SecretCipher",
     "Usage",
+    "accumulate_stream",
     "build_call",
     "build_cipher",
     "cassette_completion",
@@ -140,4 +146,6 @@ __all__ = [
     "ocr_layout_call",
     "protocol_for",
     "resolve_provider_and_model",
+    "stream_ai_chat",
+    "stream_ai_json",
 ]

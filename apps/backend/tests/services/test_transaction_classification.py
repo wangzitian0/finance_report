@@ -354,7 +354,7 @@ async def test_AC18_15_3_proposer_parses_and_clamps_model_json(monkeypatch):
         ]
     )
     monkeypatch.setattr(tc, "stream_ai_json", lambda **kw: _fake_stream(content), raising=False)
-    monkeypatch.setattr("src.services.ai_streaming.stream_ai_json", lambda **kw: _fake_stream(content))
+    monkeypatch.setattr("src.llm.stream_ai_json", lambda **kw: _fake_stream(content))
 
     proposals = await tc.propose_categories(txns, policy_for(date.today()))
 
@@ -378,7 +378,7 @@ async def test_AC18_15_3_proposer_fails_safe_to_none(monkeypatch):
 
     # malformed JSON -> graceful None fallback
     monkeypatch.setattr(settings, "ai_api_key", "test-key")
-    monkeypatch.setattr("src.services.ai_streaming.stream_ai_json", lambda **kw: _fake_stream("{nope"))
+    monkeypatch.setattr("src.llm.stream_ai_json", lambda **kw: _fake_stream("{nope"))
     assert await tc.propose_categories(txns, policy_for(date.today())) == [None]
 
 
@@ -424,13 +424,13 @@ async def test_AC18_15_3_proposer_recovers_fenced_or_prose_wrapped_arrays(monkey
     fenced = '```json\n[{"category": "SALARY", "confidence": 90, "reason": "payroll"}]\n```'
     prose = 'Sure! Here is the classification:\n[{"category": "SALARY", "confidence": 88}]\nHope that helps.'
     for content in (fenced, prose):
-        monkeypatch.setattr("src.services.ai_streaming.stream_ai_json", lambda **kw: _fake_stream(content))
+        monkeypatch.setattr("src.llm.stream_ai_json", lambda **kw: _fake_stream(content))
         proposals = await tc.propose_categories(txns, policy)
         assert proposals[0] is not None, content
         assert proposals[0].category == "SALARY"
 
     # empty response stays a graceful per-txn None (distinct from a parse failure)
-    monkeypatch.setattr("src.services.ai_streaming.stream_ai_json", lambda **kw: _fake_stream(""))
+    monkeypatch.setattr("src.llm.stream_ai_json", lambda **kw: _fake_stream(""))
     assert await tc.propose_categories(txns, policy) == [None]
 
 
@@ -449,7 +449,7 @@ async def test_AC18_15_3_prompt_forbids_markdown_fences(monkeypatch):
         captured["messages"] = kwargs["messages"]
         return _fake_stream("[]")
 
-    monkeypatch.setattr("src.services.ai_streaming.stream_ai_json", capture_stream)
+    monkeypatch.setattr("src.llm.stream_ai_json", capture_stream)
     txns = [AtomicTransactionFactory.build(user_id=None, description="ACME PAYROLL")]
     await tc.propose_categories(txns, policy_for(date.today()))
 

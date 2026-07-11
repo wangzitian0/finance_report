@@ -16,7 +16,6 @@ from typing import Any
 
 _SUBMODULES = {
     "ai_advisor",
-    "ai_streaming",
     "allocation",
     "assets",
     "confidence_tier",

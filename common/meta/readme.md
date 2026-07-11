@@ -193,8 +193,9 @@ The recipe for moving a module (and its EPIC-table ACs) into the package model.
    [`base/layering.py`](./base/layering.py) (`meta < infra < middleware <
    domain < app`; placement is L0-owned global topology, so the contract does
    not self-claim a klass) — and the authority **tier**
-   ([`authority` package](../authority/readme.md): CODE-ONLY/CODE-LED/LLM-LED/LLM-ONLY — how
-   the module is built). If the tier is genuinely undecided, ship `status="draft"`
+   ([`base/authority_matrix.py`](./base/authority_matrix.py): CODE-ONLY/CODE-LED/LLM-LED/LLM-ONLY — how
+   the module is built; the tier model is module-level on `PackageContract`,
+   not a standalone package). If the tier is genuinely undecided, ship `status="draft"`
    with `tier=None` and resolve it before going `active` (the shipped-package
    rule). **One package = one tier**; a module mixing deterministic + LLM-emitted
    behavior is two packages.
@@ -600,7 +601,7 @@ matrix + the classifier's `band` / `classify_repo` / `BANDS`.
   Test workflow and the proof matrix this tier attribute extends.
 - [EPIC-026](../../docs/project/EPIC-026.ac-authority-tiers.md) — the EPIC that
   introduced tiers (now references the homed `AC-authority.*` ids).
-- [`authority_matrix.py`](./authority_matrix.py) — the machine source of
+- [`authority_matrix.py`](./base/authority_matrix.py) — the machine source of
   `PackageTier` and the proof matrix (`PackageContract` imports it).
 - [`../extraction/readme.md`](../extraction/readme.md) — a domain
   where LLM-LED/LLM-ONLY behaviors concentrate.

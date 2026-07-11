@@ -255,7 +255,7 @@ async def test_vision_path_falls_back_to_secondary_model_on_non_retryable_error(
     """AC-extraction.118.2: when the primary vision model raises a non-retryable provider
     error (e.g. a 400), the vision path attempts the configured vision fallback
     model and succeeds instead of failing the upload (#1034)."""
-    from src.services.ai_streaming import AIStreamError
+    from src.llm import AIStreamError
 
     service = ExtractionService()
     service.api_key = "test-key"
@@ -522,7 +522,7 @@ async def test_extract_financial_data_all_models_fail():
     service.api_key = "test-key"
     service.ocr_model = None
 
-    from src.services.ai_streaming import AIStreamError
+    from src.llm import AIStreamError
 
     with patch("src.extraction.extension.service.stream_ai_json") as mock_stream:
         mock_stream.side_effect = AIStreamError("HTTP 429: Quota Exceeded")
@@ -1253,7 +1253,7 @@ async def test_extract_non_dict_json_response():
 
 async def test_extract_openrouter_timeout_error():
     """AIStreamError with timeout message (lines 556-564)."""
-    from src.services.ai_streaming import AIStreamError
+    from src.llm import AIStreamError
 
     service = ExtractionService()
     service.api_key = "test-key"
@@ -1272,7 +1272,7 @@ async def test_extract_openrouter_timeout_error():
 
 async def test_extract_openrouter_generic_http_error():
     """AIStreamError with generic HTTP error (lines 565-577)."""
-    from src.services.ai_streaming import AIStreamError
+    from src.llm import AIStreamError
 
     service = ExtractionService()
     service.api_key = "test-key"

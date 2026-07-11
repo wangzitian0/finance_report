@@ -36,7 +36,7 @@
 | Component | Physical Location | Description |
 |-----------|-------------------|-------------|
 | Logging configuration | `apps/backend/src/observability/logger.py` | Structlog setup + optional OTLP log export |
-| Runtime contract | `apps/backend/src/observability.py` | Redacted observability status for health checks, startup logs, and alert triage |
+| Runtime contract | `apps/backend/src/observability/runtime.py` | Redacted observability status for health checks, startup logs, and alert triage |
 | Env settings | `apps/backend/src/config.py` | OTEL environment variables |
 | Env documentation | `.env.example` | Developer guidance for OTEL variables |
 | Infra reference | `repo/docs/ssot/ops.observability.md`, `repo/docs/ssot/ops.alerting.md` | the observability backend platform, collector, alert rule, and Lark delivery details |

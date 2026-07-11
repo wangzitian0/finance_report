@@ -234,7 +234,7 @@ async def propose_categories(
     and clamped by code, graceful ``None`` fallback per transaction on any error.
     Only descriptions and directions are sent — never amounts.
     """
-    from src.services.ai_streaming import AIStreamError, accumulate_stream, stream_ai_json
+    from src.llm import AIStreamError, accumulate_stream, stream_ai_json
 
     catalog = ", ".join(c.value for c in policy.catalog)
     lines = "\n".join(
