@@ -20,7 +20,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base
-from src.llm import ProtocolFamily, ReasoningEffort, Scene
+from src.llm.base import ProtocolFamily, ReasoningEffort, Scene
 from src.models.base import TimestampMixin, UUIDMixin
 
 

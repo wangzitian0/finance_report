@@ -118,11 +118,12 @@ CONTRACT = PackageContract(
             kind=Kind.DOMAIN_SERVICE,
             module="extension/factory.py",
         ),
-        # ── ORM entities: declared taxonomy-only. Their mapped classes stay in
-        # the unregistered ``src/models/llm_config.py`` (ledger precedent) —
-        # the tables carry a cross-domain FK to identity's ``users.id``, and
-        # FK→id-reference surgery is Stage-4 scope (#1416 Decision B), not this
-        # cutover's. Re-home into ``extension/sql.py`` when that FK is cut. ──
+        # ── ORM entities: taxonomy-only (module unset, like the other moved
+        # ORM units below — the gate skips placement checks for these). Their
+        # mapped classes live in orm/config.py (#1675): the FK to identity's
+        # ``users.id`` is a bare column, not a ``relationship()`` — a DB-level
+        # referential-integrity invariant, not code-level coupling, so it
+        # doesn't block homing them in this package. ──
         Unit(name="LlmProvider", kind=Kind.ENTITY),
         Unit(name="LlmSceneBinding", kind=Kind.ENTITY),
         # ── reserved growth slots for per-model usage statistics (taxonomy-only;
