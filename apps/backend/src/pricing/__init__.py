@@ -26,9 +26,6 @@ and the ``data/`` projections are reserved (declared in the contract's
 ``units`` with no module path) for a later commit.
 """
 
-# ORM models owned by this package (moved from src/models, #1675); imported
-# eagerly and FIRST so a re-entrant circular import finds them bound, and so
-# importing the package registers the mappers on Base.metadata.
 from __future__ import annotations
 
 from src.pricing.base import (
@@ -66,6 +63,9 @@ from src.pricing.extension.valuation import (
     ValuationService,
     ValuationServiceError,
 )
+
+# ORM models owned by this package (moved from src/models, #1675); imported
+# eagerly so importing the package registers the mappers on Base.metadata.
 from src.pricing.orm.market_data import FxRate, MarketDataSyncState, StockPrice
 
 __all__ = [
