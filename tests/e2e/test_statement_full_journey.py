@@ -40,7 +40,9 @@ def _statement_row(page: Page, institution: str):
     return page.locator(".relative.block").filter(has_text=institution).first
 
 
-def test_parsed_status_badge_pattern_accepts_user_facing_ready_to_review_label() -> None:
+def test_parsed_status_badge_pattern_accepts_user_facing_ready_to_review_label() -> (
+    None
+):
     """EPIC-003 EPIC-004 EPIC-008 EPIC-013 EPIC-016 EPIC-018.
 
     Parsed upload rows may use the user-facing review label.
