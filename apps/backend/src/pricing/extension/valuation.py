@@ -16,7 +16,6 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.money import to_money
-from src.ledger import AccountType
 from src.models.layer3 import (
     ManualValuationBasis,
     ManualValuationComponentType,
@@ -489,7 +488,11 @@ async def build_manual_valuation_lines(
         line = {
             "account_id": component.id,
             "name": _valuation_line_name(component.source, component.component_type),
-            "type": AccountType.LIABILITY if is_liability else AccountType.ASSET,
+            # Plain string, not ledger.AccountType: pricing must not depend on
+            # ledger (target dep table, migration-standard.md); AccountType is a
+            # str-Enum, so "ASSET"/"LIABILITY" compare/serialize identically to
+            # the enum members every consumer of this line dict expects.
+            "type": "LIABILITY" if is_liability else "ASSET",
             "parent_id": None,
             "amount": to_money(amount),
             # Manual valuations are user-supplied, explicitly trusted data (vision:

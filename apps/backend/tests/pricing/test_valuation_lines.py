@@ -15,7 +15,6 @@ from decimal import Decimal
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.account import AccountType
 from src.models.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass
 from src.pricing import PricingError, build_manual_valuation_lines, record_manual_valuation
 from src.pricing.orm.market_data import FxRate
@@ -69,7 +68,7 @@ async def test_AC_pricing_manualvaluation_3_lines_split_convert_and_classify(db:
     assert len(liability_lines) == 1
 
     asset = asset_lines[0]
-    assert asset["type"] == AccountType.ASSET
+    assert asset["type"] == "ASSET"
     assert asset["amount"] == Decimal("1350000.00")
     assert asset["source_currency"] == "USD"
     assert asset["confidence_tier"] == "TRUSTED"
@@ -79,7 +78,7 @@ async def test_AC_pricing_manualvaluation_3_lines_split_convert_and_classify(db:
     assert asset["name"] == "Valuation: appraisal (property value)"
 
     liability = liability_lines[0]
-    assert liability["type"] == AccountType.LIABILITY
+    assert liability["type"] == "LIABILITY"
     assert liability["amount"] == Decimal("400000.00")
     assert liability["allocation_asset_class"] == "real_estate"
     assert liability["allocation_liquidity_class"] == ManualValuationLiquidityClass.LIABILITY.value
