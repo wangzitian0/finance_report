@@ -146,7 +146,7 @@ transfer/candidate-matching unit test — a reconciliation concern, not config).
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC12.18.7 | stub | — | — | — |
+| AC12.18.7 | stub | — | — | — | <!-- epic-owned: pending-package -->
 
 ### AC12.19: Infrastructure - Epic 001 Contracts — migrated to the `platform` package
 
@@ -259,8 +259,8 @@ transfer/candidate-matching unit test — a reconciliation concern, not config).
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC12.22.1 | Move 6 inline schemas from statements router to review module | N/A (mechanical) | N/A | P0 |
-| AC12.22.2 | Extract background task schemas from inline/background definitions into dedicated modules | N/A (mechanical) | N/A | P0 |
+| AC12.22.1 | Move 6 inline schemas from statements router to review module | N/A (mechanical) | N/A | P0 | <!-- epic-owned: horizontal -->
+| AC12.22.2 | Extract background task schemas from inline/background definitions into dedicated modules | N/A (mechanical) | N/A | P0 | <!-- epic-owned: horizontal -->
 
 ### AC12.23: Rate Limiting - Global API Middleware (M3) — migrated to the `platform` package
 
@@ -281,23 +281,23 @@ transfer/candidate-matching unit test — a reconciliation concern, not config).
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC12.24.1 | ~~`/metrics` endpoint returns 200 OK~~ | Removed | Deferred: OTLP path, no Prometheus scrape config | P1 |
-| AC12.24.2 | ~~`/metrics` endpoint returns text/plain~~ | Removed | Deferred: OTLP path | P1 |
-| AC12.24.3 | ~~`/metrics` response contains Prometheus data~~ | Removed | Deferred: OTLP path | P1 |
+| AC12.24.1 | ~~`/metrics` endpoint returns 200 OK~~ | Removed | Deferred: OTLP path, no Prometheus scrape config | P1 | <!-- epic-owned: horizontal -->
+| AC12.24.2 | ~~`/metrics` endpoint returns text/plain~~ | Removed | Deferred: OTLP path | P1 | <!-- epic-owned: horizontal -->
+| AC12.24.3 | ~~`/metrics` response contains Prometheus data~~ | Removed | Deferred: OTLP path | P1 | <!-- epic-owned: horizontal -->
 
 ### AC12.25: Logging Developer Experience - UUID Serialization
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC12.25.1 | UUID auto-serialization structlog processor remains EPIC-012 P2 backlog until implemented | `test_AC12_25_1_uuid_logging_residual_is_epic_owned` | `tests/tooling/test_archive_residual_epic_ownership.py` | P2 |
+| AC12.25.1 | UUID auto-serialization structlog processor remains EPIC-012 P2 backlog until implemented | `test_AC12_25_1_uuid_logging_residual_is_epic_owned` | `tests/tooling/test_archive_residual_epic_ownership.py` | P2 | <!-- epic-owned: horizontal -->
 
 ### AC12.26: Transaction Boundary Ownership
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC12.26.1 | Service modules only call `commit()` in documented background-task or streaming-response transaction-boundary exceptions | `test_service_commit_calls_are_documented_boundary_exceptions` | `infra/test_transaction_boundaries.py` | P0 |
-| AC12.26.2 | Market-data persistence helpers use `flush()` so router/report/scheduler boundaries can roll back or commit atomically | `test_market_data_fx_persistence_is_rollbackable_until_boundary_commit` | `infra/test_transaction_boundaries.py` | P0 |
-| AC12.26.3 | Market-data HTTP sync endpoints finalize service writes at the router boundary | `test_market_data_sync_endpoint_commits_service_writes_at_router_boundary` | `infra/test_transaction_boundaries.py` | P0 |
+| AC12.26.1 | Service modules only call `commit()` in documented background-task or streaming-response transaction-boundary exceptions | `test_service_commit_calls_are_documented_boundary_exceptions` | `infra/test_transaction_boundaries.py` | P0 | <!-- epic-owned: horizontal -->
+| AC12.26.2 | Market-data persistence helpers use `flush()` so router/report/scheduler boundaries can roll back or commit atomically | `test_market_data_fx_persistence_is_rollbackable_until_boundary_commit` | `infra/test_transaction_boundaries.py` | P0 | <!-- epic-owned: horizontal -->
+| AC12.26.3 | Market-data HTTP sync endpoints finalize service writes at the router boundary | `test_market_data_sync_endpoint_commits_service_writes_at_router_boundary` | `infra/test_transaction_boundaries.py` | P0 | <!-- epic-owned: horizontal -->
 
 ## 📊 Progress Tracking
 
@@ -391,7 +391,7 @@ callers branch on a machine-readable code instead of matching `detail` text.
 
 | AC ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC12.27.3 | Frontend `apiFetch` throws `ApiError` carrying the parsed `errorId` | `test_AC12_27_3_api_error_carries_error_id` | `__tests__/apiErrorStructured.test.ts` | P1 |
+| AC12.27.3 | Frontend `apiFetch` throws `ApiError` carrying the parsed `errorId` | `test_AC12_27_3_api_error_carries_error_id` | `__tests__/apiErrorStructured.test.ts` | P1 | <!-- epic-owned: fe-only -->
 
 ### AC12.28: Generated Frontend API Types from OpenAPI ([#1004](https://github.com/wangzitian0/finance_report/issues/1004))
 
@@ -415,7 +415,7 @@ enforcing the FE↔BE contract instead of leaving the generated client as dead c
 
 | AC ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC12.28.3 | High-traffic call sites type responses against the generated schema | `test_AC12_28_3_types_stage2_batch_responses_against_generated_schema` | `__tests__/apiTypedClient.test.ts` | P2 |
+| AC12.28.3 | High-traffic call sites type responses against the generated schema | `test_AC12_28_3_types_stage2_batch_responses_against_generated_schema` | `__tests__/apiTypedClient.test.ts` | P2 | <!-- epic-owned: fe-only -->
 
 ### AC12.29: API-Surface Consistency Sweep ([#1099](https://github.com/wangzitian0/finance_report/issues/1099))
 
@@ -671,7 +671,7 @@ Currency was resolved ad-hoc in ≥3 divergent ways (`or "SGD"`, `or settings.ba
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC12.39.3 | The frontend General Settings page exposes a "Base currency" control that reads + updates the effective value via `lib/api.ts` (`fetchBaseCurrency`/`updateBaseCurrency`, never raw `fetch`) {tier:CODE-ONLY} | `AC12.39.3 renders the effective base currency`, `AC12.39.3 submits the edited currency via updateBaseCurrency` | `apps/frontend/src/__tests__/generalSettingsPage.test.tsx` | P1 |
+| AC12.39.3 | The frontend General Settings page exposes a "Base currency" control that reads + updates the effective value via `lib/api.ts` (`fetchBaseCurrency`/`updateBaseCurrency`, never raw `fetch`) {tier:CODE-ONLY} | `AC12.39.3 renders the effective base currency`, `AC12.39.3 submits the edited currency via updateBaseCurrency` | `apps/frontend/src/__tests__/generalSettingsPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
 
 ### AC12.40: Currency established at ingest, never silent-defaulted — Phase E ([#1341](https://github.com/wangzitian0/finance_report/issues/1341))
 

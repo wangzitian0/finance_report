@@ -160,10 +160,10 @@ Migrated `AC-observability.<g>.<s>` ids (homed in the package roadmap):
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC10.6.1 | OTEL keys in app secrets template | `test_vault_template_exposes_otel_keys_with_safe_quoting()` | `infra/test_observability_contract.py` | P0 |
-| AC10.6.2 | OTEL keys documented in app README | `test_app_readme_and_compose_document_observability_rollout()` | `infra/test_observability_contract.py` | P0 |
-| AC10.6.3 | IAC_CONFIG_HASH in compose.yaml | `test_app_readme_and_compose_document_observability_rollout()` | `infra/test_observability_contract.py` | P0 |
-| AC10.6.4 | Template helpers use printf not default | `test_vault_template_exposes_otel_keys_with_safe_quoting()` | `infra/test_observability_contract.py` | P0 |
+| AC10.6.1 | OTEL keys in app secrets template | `test_vault_template_exposes_otel_keys_with_safe_quoting()` | `infra/test_observability_contract.py` | P0 | <!-- epic-owned: horizontal -->
+| AC10.6.2 | OTEL keys documented in app README | `test_app_readme_and_compose_document_observability_rollout()` | `infra/test_observability_contract.py` | P0 | <!-- epic-owned: horizontal -->
+| AC10.6.3 | IAC_CONFIG_HASH in compose.yaml | `test_app_readme_and_compose_document_observability_rollout()` | `infra/test_observability_contract.py` | P0 | <!-- epic-owned: horizontal -->
+| AC10.6.4 | Template helpers use printf not default | `test_vault_template_exposes_otel_keys_with_safe_quoting()` | `infra/test_observability_contract.py` | P0 | <!-- epic-owned: horizontal -->
 
 ### AC10.7: Must-Have Acceptance Criteria Traceability — retained doc/infra rows
 
@@ -177,7 +177,7 @@ Migrated `AC-observability.<g>.<s>` ids (homed in the package roadmap):
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC10.7.6 | Vault templates include OTEL keys | `test_vault_template_exposes_otel_keys_with_safe_quoting()` | `infra/test_observability_contract.py` | P0 |
+| AC10.7.6 | Vault templates include OTEL keys | `test_vault_template_exposes_otel_keys_with_safe_quoting()` | `infra/test_observability_contract.py` | P0 | <!-- epic-owned: horizontal -->
 
 ### AC10.9: Production Observability Runtime Contract — retained deploy-tooling row
 
@@ -190,7 +190,7 @@ Migrated `AC-observability.<g>.<s>` ids (homed in the package roadmap):
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC10.9.5 | RETIRED (App/Infra boundary #876): deploy failure snapshots are infra2-owned end to end — the app ships no Dokploy failure-snapshot tool and never reaches the Dokploy API for platform diagnostics (the app copy was an orphan duplicating infra2's `deploy_failure_snapshot`, which runs inside the deploy_v2 front door). The boundary intent stands: the app builds no observability-backend pivot links {tier:CODE-LED} {proof:property} | `test_AC10_9_5_app_side_snapshot_is_retired()`, `test_AC10_9_5_infra2_owns_deploy_failure_snapshots()` | `tests/tooling/test_dokploy_snapshot_retired.py` | P0 |
+| AC10.9.5 | RETIRED (App/Infra boundary #876): deploy failure snapshots are infra2-owned end to end — the app ships no Dokploy failure-snapshot tool and never reaches the Dokploy API for platform diagnostics (the app copy was an orphan duplicating infra2's `deploy_failure_snapshot`, which runs inside the deploy_v2 front door). The boundary intent stands: the app builds no observability-backend pivot links {tier:CODE-LED} {proof:property} | `test_AC10_9_5_app_side_snapshot_is_retired()`, `test_AC10_9_5_infra2_owns_deploy_failure_snapshots()` | `tests/tooling/test_dokploy_snapshot_retired.py` | P0 | <!-- epic-owned: horizontal -->
 
 ## 📏 Acceptance Criteria
 

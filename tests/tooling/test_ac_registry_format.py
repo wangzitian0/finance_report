@@ -67,7 +67,7 @@ def test_generated_registry_index_materializes_from_declared_sources(tmp_path):
     epic_dir = tmp_path / "docs" / "project"
     epic_dir.mkdir(parents=True)
     (epic_dir / "EPIC-001.phase0-setup.md").write_text(
-        "AC1.1.1: Generated from EPIC\n",
+        "AC1.1.1: Generated from EPIC <!-- epic-owned: horizontal -->\n",
         encoding="utf-8",
     )
     overrides = tmp_path / "docs" / "ac_registry_overrides.yaml"

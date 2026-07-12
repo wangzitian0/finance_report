@@ -133,14 +133,14 @@ be treated as current work.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC17.4.1 | Moomoo Statement Parsing | `test_parse_moomoo_fixture_subscription_positions` | `portfolio/test_brokerage_position_parsing.py` | P0 |
-| AC17.4.2 | Futu Statement Parsing | `test_parse_futu_fixture_aggregate_position` | `portfolio/test_brokerage_position_parsing.py` | P1 |
-| AC17.4.3 | Interactive Brokers Parsing | `test_import_interactive_brokers_positions_idempotently_reconciles` | `portfolio/test_brokerage_position_parsing.py` | P1 |
-| AC17.4.4 | Broker Auto-Detection (Moomoo) | `test_detect_broker_moomoo_futu_and_interactive_brokers` | `portfolio/test_brokerage_position_parsing.py` | P1 |
-| AC17.4.5 | Broker Auto-Detection (Futu) | `test_detect_broker_moomoo_futu_and_interactive_brokers` | `portfolio/test_brokerage_position_parsing.py` | P1 |
-| AC17.4.6 | Brokerage Import Endpoint | `test_brokerage_import_endpoint`, `test_statement_import_flows_to_holdings_and_balance_sheet` | `portfolio/test_brokerage_position_parsing.py` | P1 |
-| AC17.4.8 | Concurrent Auto/Manual Brokerage Import Idempotency | `test_AC17_4_8_brokerage_import_survives_concurrent_auto_and_manual_import` | `portfolio/test_brokerage_position_parsing.py` | P0 |
-| AC17.4.14 {tier:CODE-ONLY} | Importing brokerage positions links the statement to the broker ASSET account it reconciles into: after `POST /statements/{id}/brokerage/import` the statement's `account_id` is set to that account (was left `None`, breaking source→account traceability), so a brokerage source is anchored to its account exactly like a bank statement (#1484) | `test_AC17_4_14_brokerage_import_links_statement_to_broker_account` | `portfolio/test_brokerage_position_parsing.py` | P1 |
+| AC17.4.1 | Moomoo Statement Parsing | `test_parse_moomoo_fixture_subscription_positions` | `portfolio/test_brokerage_position_parsing.py` | P0 | <!-- epic-owned: pending-package -->
+| AC17.4.2 | Futu Statement Parsing | `test_parse_futu_fixture_aggregate_position` | `portfolio/test_brokerage_position_parsing.py` | P1 | <!-- epic-owned: pending-package -->
+| AC17.4.3 | Interactive Brokers Parsing | `test_import_interactive_brokers_positions_idempotently_reconciles` | `portfolio/test_brokerage_position_parsing.py` | P1 | <!-- epic-owned: pending-package -->
+| AC17.4.4 | Broker Auto-Detection (Moomoo) | `test_detect_broker_moomoo_futu_and_interactive_brokers` | `portfolio/test_brokerage_position_parsing.py` | P1 | <!-- epic-owned: pending-package -->
+| AC17.4.5 | Broker Auto-Detection (Futu) | `test_detect_broker_moomoo_futu_and_interactive_brokers` | `portfolio/test_brokerage_position_parsing.py` | P1 | <!-- epic-owned: pending-package -->
+| AC17.4.6 | Brokerage Import Endpoint | `test_brokerage_import_endpoint`, `test_statement_import_flows_to_holdings_and_balance_sheet` | `portfolio/test_brokerage_position_parsing.py` | P1 | <!-- epic-owned: pending-package -->
+| AC17.4.8 | Concurrent Auto/Manual Brokerage Import Idempotency | `test_AC17_4_8_brokerage_import_survives_concurrent_auto_and_manual_import` | `portfolio/test_brokerage_position_parsing.py` | P0 | <!-- epic-owned: pending-package -->
+| AC17.4.14 {tier:CODE-ONLY} | Importing brokerage positions links the statement to the broker ASSET account it reconciles into: after `POST /statements/{id}/brokerage/import` the statement's `account_id` is set to that account (was left `None`, breaking source→account traceability), so a brokerage source is anchored to its account exactly like a bank statement (#1484) | `test_AC17_4_14_brokerage_import_links_statement_to_broker_account` | `portfolio/test_brokerage_position_parsing.py` | P1 | <!-- epic-owned: pending-package -->
 
 ### AC17.5: Investment Accounting (Journal Entries)
 
@@ -167,11 +167,11 @@ be treated as current work.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC17.8.1 | Import to Portfolio button visible for parsed/approved statements | `AC17.8.1 shows Import to Portfolio button for parsed statement` | `frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | P0 |
-| AC17.8.2 | Import result banner with stats and portfolio link shown on success | `AC17.8.2 shows import result banner and portfolio link on success` | `frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | P0 |
-| AC17.8.3 | Import failure shows actionable error without sensitive data | `AC17.8.3 shows actionable import error banner without exposing sensitive data` | `frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | P0 |
-| AC17.8.4 | Portfolio page shows total portfolio value prominently after import | `AC17.8.4 shows total portfolio value banner when active holdings are loaded` | `frontend/src/__tests__/portfolioPage.test.tsx` | P0 |
-| AC17.8.5 | Import button hidden for non-parsed/approved statements (partial batch) | `AC17.8.5 does not show Import to Portfolio for non-parsed statements` | `frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | P0 |
+| AC17.8.1 | Import to Portfolio button visible for parsed/approved statements | `AC17.8.1 shows Import to Portfolio button for parsed statement` | `frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
+| AC17.8.2 | Import result banner with stats and portfolio link shown on success | `AC17.8.2 shows import result banner and portfolio link on success` | `frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
+| AC17.8.3 | Import failure shows actionable error without sensitive data | `AC17.8.3 shows actionable import error banner without exposing sensitive data` | `frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
+| AC17.8.4 | Portfolio page shows total portfolio value prominently after import | `AC17.8.4 shows total portfolio value banner when active holdings are loaded` | `frontend/src/__tests__/portfolioPage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
+| AC17.8.5 | Import button hidden for non-parsed/approved statements (partial batch) | `AC17.8.5 does not show Import to Portfolio for non-parsed statements` | `frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
 
 ### AC17.9: Point-in-Time Portfolio Snapshots
 
@@ -181,7 +181,7 @@ be treated as current work.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC17.9.3 | Portfolio page exposes an as-of date selector and passes it to `/api/portfolio/holdings` | `AC17.9.3 passes selected as-of date to holdings API` | `frontend/src/__tests__/portfolioPage.test.tsx` | P0 |
+| AC17.9.3 | Portfolio page exposes an as-of date selector and passes it to `/api/portfolio/holdings` | `AC17.9.3 passes selected as-of date to holdings API` | `frontend/src/__tests__/portfolioPage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
 
 ### AC17.10: Investment Performance Report Schedule API
 
@@ -258,10 +258,10 @@ market-value gain/loss, and price freshness.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC17.14.1 | Portfolio page renders a unified allocation panel without claiming a portfolio-value tie-out when report and holdings currencies differ | `AC17.14.1 labels allocation and portfolio currencies instead of claiming a portfolio tie-out` | `apps/frontend/src/__tests__/portfolioPage.test.tsx` | P1 |
-| AC17.14.2 | Reports expose a net-worth allocation schedule grouped by asset class, liquidity class, and source currency, with signed rows that reconcile to net worth and retain source-line drill-through metadata | `test_AC17_14_2_net_worth_allocation_groups_balance_sheet_sources`, `test_AC17_14_2_net_worth_allocation_endpoint_returns_contract` | `apps/backend/tests/reporting/test_reporting_net_worth_components.py`, `apps/backend/tests/reporting/test_reports_router.py` | P1 |
-| AC17.14.3 | Portfolio page consumes the report-owned net-worth allocation schedule, showing asset class, liquidity, source currency, net-worth share, source labels, and restricted-inclusion filtering | `AC17.14.3 renders net-worth allocation from the report schedule`, `AC17.14.3 shows the net-worth allocation loading state`, `AC17.14.3 shows the net-worth allocation error state`, `AC17.14.3 shows the empty net-worth allocation state`, `AC17.14.3 renders invalid net-worth allocation percentages as unavailable`, `AC17.14.3 renders missing net-worth allocation percentages as unavailable`, `AC17.14.3 refetches net-worth allocation when restricted holdings are excluded` | `apps/frontend/src/__tests__/portfolioPage.test.tsx` | P1 |
-| AC17.14.4 | The asset-dashboard performance surface leads with unrealized market-value gain/loss, a simple return on cost valued at the schedule as-of date, and a price-freshness flag; TWR/IRR/MWR are not presented as the asset-dashboard answer and stay on the reporting side as clearly-labelled analytical measures | `AC17.14.4 leads with unrealized gain/loss, return on cost, and price freshness`, `AC17.14.4 does not present TWR/IRR/MWR as the asset-dashboard answer`, `AC17.14.4 flags stale prices`, `AC17.14.4 shows N/A return when cost basis is zero` | `apps/frontend/src/__tests__/performanceCard.test.tsx`, `apps/frontend/src/__tests__/investmentPerformanceSchedule.test.tsx` | P1 |
+| AC17.14.1 | Portfolio page renders a unified allocation panel without claiming a portfolio-value tie-out when report and holdings currencies differ | `AC17.14.1 labels allocation and portfolio currencies instead of claiming a portfolio tie-out` | `apps/frontend/src/__tests__/portfolioPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+| AC17.14.2 | Reports expose a net-worth allocation schedule grouped by asset class, liquidity class, and source currency, with signed rows that reconcile to net worth and retain source-line drill-through metadata | `test_AC17_14_2_net_worth_allocation_groups_balance_sheet_sources`, `test_AC17_14_2_net_worth_allocation_endpoint_returns_contract` | `apps/backend/tests/reporting/test_reporting_net_worth_components.py`, `apps/backend/tests/reporting/test_reports_router.py` | P1 | <!-- epic-owned: pending-package -->
+| AC17.14.3 | Portfolio page consumes the report-owned net-worth allocation schedule, showing asset class, liquidity, source currency, net-worth share, source labels, and restricted-inclusion filtering | `AC17.14.3 renders net-worth allocation from the report schedule`, `AC17.14.3 shows the net-worth allocation loading state`, `AC17.14.3 shows the net-worth allocation error state`, `AC17.14.3 shows the empty net-worth allocation state`, `AC17.14.3 renders invalid net-worth allocation percentages as unavailable`, `AC17.14.3 renders missing net-worth allocation percentages as unavailable`, `AC17.14.3 refetches net-worth allocation when restricted holdings are excluded` | `apps/frontend/src/__tests__/portfolioPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+| AC17.14.4 | The asset-dashboard performance surface leads with unrealized market-value gain/loss, a simple return on cost valued at the schedule as-of date, and a price-freshness flag; TWR/IRR/MWR are not presented as the asset-dashboard answer and stay on the reporting side as clearly-labelled analytical measures | `AC17.14.4 leads with unrealized gain/loss, return on cost, and price freshness`, `AC17.14.4 does not present TWR/IRR/MWR as the asset-dashboard answer`, `AC17.14.4 flags stale prices`, `AC17.14.4 shows N/A return when cost basis is zero` | `apps/frontend/src/__tests__/performanceCard.test.tsx`, `apps/frontend/src/__tests__/investmentPerformanceSchedule.test.tsx` | P1 | <!-- epic-owned: fe-only -->
 
 ### AC17.15: Non-Ticker Identifier Guard
 
@@ -374,12 +374,12 @@ The April 2026 FE/UI audit snapshot was removed from this EPIC. Current portfoli
 
 ### Acceptance Criteria
 
-- [x] **AC17.7.1** Holding detail page `/portfolio/[ticker]` renders three tabs: `Overview`, `Dividends`, `Realized P&L`
-- [x] **AC17.7.2** Dividends tab lists historical dividend events `{ex_date, pay_date, amount, currency, reinvested}` from `GET /api/portfolio/{ticker}/dividends`
-- [x] **AC17.7.3** Cost-basis method selector (`FIFO` / `LIFO` / `AvgCost`) on holding detail page persists per-holding via `PATCH /api/portfolio/{ticker}` and re-fetches realized P&L
-- [x] **AC17.7.4** Realized P&L tab shows lot-level table `{lot_id, acquired_date, sold_date, quantity, basis, proceeds, gain_loss, holding_period}` from `GET /api/portfolio/{ticker}/realized`
-- [x] **AC17.7.5** Portfolio summary card on dashboard adds `realized_pnl_ytd` and `dividend_income_ytd` figures from `GET /api/portfolio/summary`
-- [x] **AC17.7.6** Frontend test mounts HoldingDetailPage, switches to Dividends tab, and asserts dividend row labels render
+- [x] **AC17.7.1** Holding detail page `/portfolio/[ticker]` renders three tabs: `Overview`, `Dividends`, `Realized P&L` <!-- epic-owned: fe-only -->
+- [x] **AC17.7.2** Dividends tab lists historical dividend events `{ex_date, pay_date, amount, currency, reinvested}` from `GET /api/portfolio/{ticker}/dividends` <!-- epic-owned: fe-only -->
+- [x] **AC17.7.3** Cost-basis method selector (`FIFO` / `LIFO` / `AvgCost`) on holding detail page persists per-holding via `PATCH /api/portfolio/{ticker}` and re-fetches realized P&L <!-- epic-owned: fe-only -->
+- [x] **AC17.7.4** Realized P&L tab shows lot-level table `{lot_id, acquired_date, sold_date, quantity, basis, proceeds, gain_loss, holding_period}` from `GET /api/portfolio/{ticker}/realized` <!-- epic-owned: fe-only -->
+- [x] **AC17.7.5** Portfolio summary card on dashboard adds `realized_pnl_ytd` and `dividend_income_ytd` figures from `GET /api/portfolio/summary` <!-- epic-owned: fe-only -->
+- [x] **AC17.7.6** Frontend test mounts HoldingDetailPage, switches to Dividends tab, and asserts dividend row labels render <!-- epic-owned: fe-only -->
 
 **Priority**: P1 — depends on backend portfolio API delivery; surfaces vision-critical metrics.
 **Estimated effort**: 5-7 days frontend (3 tabs + cost-basis selector + summary additions); backend dividend/realized endpoints tracked in core EPIC-017 scope.
@@ -437,7 +437,7 @@ account adopts the currency of the holding that created it.
 
 | AC ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC17.33.3 | An auto-created broker account adopts the holding's currency instead of a hardcoded USD {tier:CODE-ONLY} | `test_AC17_33_3_broker_account_uses_snapshot_currency_not_hardcoded_usd` | `portfolio/test_brokerage_position_parsing.py` | P1 |
+| AC17.33.3 | An auto-created broker account adopts the holding's currency instead of a hardcoded USD {tier:CODE-ONLY} | `test_AC17_33_3_broker_account_uses_snapshot_currency_not_hardcoded_usd` | `portfolio/test_brokerage_position_parsing.py` | P1 | <!-- epic-owned: pending-package -->
 
 ### AC17.34: Signed (Short) Positions ([#1448](https://github.com/wangzitian0/finance_report/issues/1448))
 
@@ -445,4 +445,4 @@ A margin/options account holds short positions — a directly-shorted stock or a
 
 | AC ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC17.34.1 | A short position (negative quantity and negative market value) imports as a signed position — atomic and managed rows persist with negative values — instead of being skipped or violating a CHECK constraint (500) {tier:CODE-ONLY} | `test_AC17_34_1_brokerage_import_persists_short_positions_with_negative_market_value` | `portfolio/test_brokerage_position_parsing.py` | P1 |
+| AC17.34.1 | A short position (negative quantity and negative market value) imports as a signed position — atomic and managed rows persist with negative values — instead of being skipped or violating a CHECK constraint (500) {tier:CODE-ONLY} | `test_AC17_34_1_brokerage_import_persists_short_positions_with_negative_market_value` | `portfolio/test_brokerage_position_parsing.py` | P1 | <!-- epic-owned: pending-package -->

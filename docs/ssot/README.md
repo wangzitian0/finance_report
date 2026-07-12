@@ -166,6 +166,28 @@ the *computed* index (Part C of #1664) is the point at which physically
 relocating these makes sense — retiring `MANIFEST.yaml`/the registry and
 moving the gate-data files are the same cutover, not two.
 
+## AC Index Is Computed (migration closeout, #1719 — #1664 Part C status)
+
+Since #1719 the **AC index is fully computed** by
+[`common/meta/extension/generate_ac_registry.py`](../../common/meta/extension/generate_ac_registry.py)
+(meta's extension layer) from exactly two sources:
+
+1. **Package contract roadmaps** (`common/<pkg>/contract.py`) — the
+   authoritative source; on any id collision the roadmap record wins.
+2. **Explicitly marked EPIC residue rows** (`<!-- epic-owned: ... -->`,
+   ratcheted by [epic-residue-baseline.json](./epic-residue-baseline.json)) —
+   EPIC markdown is no longer an authoritative source for any migrated AC.
+
+`docs/ac_registry.yaml` / `docs/infra_registry.yaml` are checked-in **index
+stubs only** (`generated_from_epics: true` triggers materialization on load);
+`docs/ac_registry_overrides.yaml` is empty. That completes the "reduced to
+generated artifacts of meta's data layer" half of #1664 Part C. The still-open
+half — retiring `MANIFEST.yaml` + `tools/check_manifest.py` +
+`check_ssot_ownership` in favor of computed concept ownership, turning this
+README into a pure pointer page, and the matching CLAUDE.md navigation edit
+(which requires explicit user authorization) — is the same cutover as the
+gate-data relocation above and stays tracked on #1664.
+
 | Report | Purpose |
 |---|---|
 | [Generated API Reference](../reference/api.md) | OpenAPI-derived endpoint inventory |

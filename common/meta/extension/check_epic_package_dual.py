@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Gate 1c: an AC id must not be defined in BOTH an EPIC table and a package.
 
-During the migration of legacy EPIC-table ACs into package ``roadmap``s, the
-common mistake is to add the AC to a package contract but forget to delete its
-row from the EPIC table. The registry builder folds the two sources with
-``setdefault`` (EPIC wins on collision), so the stale EPIC ``{tier:XX}`` marker
-silently overrides the package's tier and nobody is warned.
-
-This gate fails if any AC id appears in both sources, forcing "move ⇒ delete the
-EPIC row". It is pure text/AST (no pydantic), so it runs in the CI lint env.
+When migrating a legacy EPIC-table AC into a package ``roadmap``, the common
+mistake is to add the AC to a package contract but forget to delete its row
+from the EPIC table. Since #1719 the registry builder resolves such a
+collision roadmap-wins (package contracts are the authoritative source; EPIC
+docs feed only explicitly marked residue rows), so a stale EPIC row can no
+longer shadow the package's tier — but it would still be a silent duplicate
+definition that drifts. This gate keeps collisions impossible in the first
+place: it fails if any AC id appears in both sources (marked or not), forcing
+"move ⇒ delete the EPIC row". It is pure text/AST (no pydantic), so it runs
+in the CI lint env.
 """
 
 from __future__ import annotations

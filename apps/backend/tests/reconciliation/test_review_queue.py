@@ -32,6 +32,7 @@ from src.models.layer3 import ClassificationRule, ClassificationStatus, RuleType
 from src.models.reconciliation import ReconciliationStatus
 from src.models.statement_summary import StatementSummary
 from src.reconciliation.extension.review_queue import accept_match, batch_accept, get_pending_items, reject_match
+from src.services.fx import FxRateError
 from tests.factories import (
     AccountFactory,
     AtomicTransactionFactory,
@@ -706,3 +707,62 @@ async def test_create_entry_from_txn_inflow_defaults_to_uncategorized_income(db,
     assert account.name == "Income - Uncategorized"
     assert account.type == AccountType.INCOME
     assert account.user_id == test_user.id
+
+
+async def test_create_entry_from_txn_lazy_loads_missing_fx_rate(db, test_user):
+    """AC-extraction.1779.1: a foreign-currency line with no stored FX rate is
+    resolved through the on-demand chain (lazy_load=True) instead of failing
+    closed immediately -- a date->rate fact is immutable once resolved, so
+    consulting the same lazy chain reporting/internal-transfer/revaluation
+    already use is safe here too (#1779)."""
+    stmt = await _make_statement(db, test_user.id, currency="CNY")
+    txn = await _make_txn(
+        db,
+        test_user.id,
+        stmt,
+        direction=TransactionDirection.OUT,
+        amount=Decimal("100.00"),
+        currency="CNY",
+        txn_date=date(2025, 1, 15),
+    )
+    await db.commit()
+
+    with patch(
+        "src.extraction.extension.review_queue.get_exchange_rate",
+    ) as mock_get_rate:
+        mock_get_rate.return_value = Decimal("0.19")
+        entry = await create_entry_from_txn(db, txn, user_id=test_user.id)
+
+    mock_get_rate.assert_awaited_once_with(db, "CNY", "SGD", date(2025, 1, 15), lazy_load=True)
+    assert entry.status == JournalEntryStatus.DRAFT
+
+
+async def test_create_entry_from_txn_still_fails_closed_when_fx_rate_unresolvable(db, test_user):
+    """AC-extraction.1779.1: when even the lazy on-demand chain cannot resolve a
+    rate, entry creation still fails closed -- a journal entry cannot post
+    without a real rate, unlike a report line, which can just omit the value
+    (#1779)."""
+    stmt = await _make_statement(db, test_user.id, currency="CNY")
+    txn = await _make_txn(
+        db,
+        test_user.id,
+        stmt,
+        direction=TransactionDirection.OUT,
+        amount=Decimal("100.00"),
+        currency="CNY",
+        txn_date=date(2025, 1, 15),
+    )
+    await db.commit()
+
+    with patch(
+        "src.extraction.extension.review_queue.get_exchange_rate",
+        side_effect=FxRateError("No FX rate available for CNY/SGD on 2025-01-15"),
+    ) as mock_get_rate:
+        with pytest.raises(ValueError, match="FX rate required to create CNY journal entry"):
+            await create_entry_from_txn(db, txn, user_id=test_user.id)
+
+    # The failure path must still have attempted the lazy chain -- if
+    # lazy_load ever regresses back to False while this except/raise stays
+    # in place, this call-args assertion is what would actually catch it
+    # (the exception-message assertion above would still pass either way).
+    mock_get_rate.assert_awaited_once_with(db, "CNY", "SGD", date(2025, 1, 15), lazy_load=True)
