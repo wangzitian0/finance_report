@@ -125,7 +125,7 @@ class TestClassifyThread:
 
 class TestBlocking:
     def test_AC8_20_1_unresolved_p0_blocks(self) -> None:
-        """AC8.20.1: an unresolved P0 review thread exits 1."""
+        """AC-testing.review-threads.1: AC8.20.1: an unresolved P0 review thread exits 1."""
         payload = _payload(_thread(body="P0: must fix", is_resolved=False))
         assert _run(payload) == 1
 
@@ -150,7 +150,7 @@ class TestBlocking:
 
 class TestNonBlocking:
     def test_AC8_20_2_resolved_p0_passes(self) -> None:
-        """AC8.20.2: a resolved P0 thread does not block."""
+        """AC-testing.review-threads.2: AC8.20.2: a resolved P0 thread does not block."""
         payload = _payload(_thread(body="P0: was fixed", is_resolved=True))
         assert _run(payload) == 0
 
@@ -308,7 +308,7 @@ class TestFetchPagination:
 
 
 def test_AC8_20_3_severity_rule_documented_in_ssot() -> None:
-    """AC8.20.3: docs/ssot/ci-cd.md documents the gate and its severity rule."""
+    """AC-testing.review-threads.3: AC8.20.3: docs/ssot/ci-cd.md documents the gate and its severity rule."""
     ci_cd = (_REPO_ROOT / "docs" / "ssot" / "ci-cd.md").read_text(encoding="utf-8")
     assert "PR Review Thread Merge Gate" in ci_cd
     # The exact marker rule and the Copilot-author list must be documented.

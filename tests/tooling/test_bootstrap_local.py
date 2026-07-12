@@ -31,7 +31,7 @@ def test_AC8_13_44_bootstrap_script_installs_local_toolchain_and_project_deps() 
 
 
 def test_AC8_13_44_bootstrap_reports_container_runtime_prerequisite() -> None:
-    """AC8.13.44: Bootstrap diagnoses the host container runtime instead of hiding it."""
+    """AC-testing.toolchain.2: AC8.13.44: Bootstrap diagnoses the host container runtime instead of hiding it."""
     content = (ROOT / "tools" / "_lib" / "shell" / "bootstrap.sh").read_text(encoding="utf-8")
 
     assert "docker" in content

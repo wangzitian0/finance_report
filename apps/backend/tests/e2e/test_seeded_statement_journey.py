@@ -22,7 +22,7 @@ from tests.factories import SeededParsedStatement
 
 @pytest.mark.e2e
 async def test_seeded_fixture_bypasses_provider(seeded_parsed_statement: SeededParsedStatement):
-    """EPIC-008 / AC8.21.1: the seeded fixture materializes a parsed statement with no provider call.
+    """AC-testing.seeded-journey.1: EPIC-008 / AC8.21.1: the seeded fixture materializes a parsed statement with no provider call.
 
     GIVEN the ``seeded_parsed_statement`` fixture
     WHEN it builds the layered records
@@ -43,7 +43,7 @@ async def test_seeded_fixture_bypasses_provider(seeded_parsed_statement: SeededP
 
 @pytest.mark.e2e
 async def test_seeded_statement_list_and_detail_no_llm(client, seeded_parsed_statement: SeededParsedStatement):
-    """EPIC-008 / AC8.21.2: a seeded parsed statement renders through list -> detail with no provider.
+    """AC-testing.seeded-journey.2: EPIC-008 / AC8.21.2: a seeded parsed statement renders through list -> detail with no provider.
 
     GIVEN a fixture-seeded parsed statement (no LLM)
     WHEN listing statements and fetching the statement by id via the real API
@@ -78,7 +78,7 @@ async def test_seeded_statement_list_and_detail_no_llm(client, seeded_parsed_sta
 
 @pytest.mark.e2e
 async def test_seeded_statement_transactions_endpoint_no_llm(client, seeded_parsed_statement: SeededParsedStatement):
-    """EPIC-008 / AC8.21.3: the seeded statement's transactions list resolves with no provider.
+    """AC-testing.seeded-journey.3: EPIC-008 / AC8.21.3: the seeded statement's transactions list resolves with no provider.
 
     GIVEN a fixture-seeded parsed statement (no LLM)
     WHEN requesting its transactions endpoint

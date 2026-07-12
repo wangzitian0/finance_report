@@ -747,7 +747,7 @@ class TestCheckRegistryToEpic:
         assert violations == []
 
     def test_AC8_13_77_active_stub_orphan_fails(self):
-        """AC8.13.77: Active stub registry entries cannot bypass EPIC ownership."""
+        """AC-testing.acgates.10: AC8.13.77: Active stub registry entries cannot bypass EPIC ownership."""
         acs = [{"id": "AC1.1.1", "status": "stub", "mandatory": False}]
         violations = ldc.check_registry_to_epic(acs, {})
         assert len(violations) == 1
@@ -769,7 +769,7 @@ class TestCoverageThresholdDocs:
     def test_AC8_13_81_doc_can_reference_code_owned_threshold_without_number(
         self, tmp_path
     ):
-        """AC8.13.81: Coverage threshold docs should link to the code owner."""
+        """AC-testing.governance.2: AC8.13.81: Coverage threshold docs should link to the code owner."""
         doc = tmp_path / "tdd.md"
         doc.write_text(
             "Backend local coverage threshold is code-owned by "

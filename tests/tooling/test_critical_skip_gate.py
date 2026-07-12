@@ -18,7 +18,7 @@ from tests.e2e.critical_skip_gate import (
 
 
 def test_AC8_13_6_strict_gates_off_never_converts() -> None:
-    """AC8.13.6: outside STRICT_E2E_GATES, a critical skip stays a skip."""
+    """AC-testing.product-gates.1: AC8.13.6: outside STRICT_E2E_GATES, a critical skip stays a skip."""
     assert (
         should_convert_skip_to_failure(
             strict_gates_enabled=False,

@@ -35,19 +35,21 @@ def test_AC8_13_15_pdf_fixture_modules_are_importable_for_script_coverage():
 
 
 def test_AC16_13_1_sanitize_namespace_normalization():
-    """AC16.13.1: _sanitize_namespace normalizes branch/workspace names."""
+    """AC-testing.lifecycle.2: AC16.13.1: _sanitize_namespace normalizes branch/workspace names."""
     assert tl._sanitize_namespace("Feature/ABC-123") == "feature_abc_123"
     with pytest.raises(ValueError):
         tl._sanitize_namespace("___")
 
 
 def test_AC16_13_2_get_namespace_from_branch_and_workspace(monkeypatch):
+    """AC-testing.lifecycle.3: test_lifecycle — get_namespace honors BRANCH_NAME and optional WORKSPACE_ID"""
     monkeypatch.setenv("BRANCH_NAME", "feature/reporting")
     monkeypatch.setenv("WORKSPACE_ID", "alice")
     assert tl.get_namespace() == "feature_reporting_alice"
 
 
 def test_AC16_13_3_get_namespace_from_git_and_path_hash(monkeypatch):
+    """AC-testing.lifecycle.4: test_lifecycle — get_namespace falls back to git branch plus path hash when env vars absent"""
     monkeypatch.delenv("BRANCH_NAME", raising=False)
     monkeypatch.delenv("WORKSPACE_ID", raising=False)
     monkeypatch.setattr(
@@ -63,6 +65,7 @@ def test_AC16_13_3_get_namespace_from_git_and_path_hash(monkeypatch):
 
 
 def test_AC16_13_4_name_helpers():
+    """AC-testing.lifecycle.5: test_lifecycle — get_test_db_name and get_s3_bucket format names deterministically"""
     assert tl.get_test_db_name("abc") == "finance_report_test_abc"
     assert tl.get_s3_bucket("feature_a") == "statements-feature-a"
 
@@ -78,6 +81,7 @@ def test_AC16_13_4_name_helpers():
 
 
 def test_AC16_13_5_load_active_namespaces_missing_and_corrupt(monkeypatch, tmp_path):
+    """AC-testing.lifecycle.6: test_lifecycle — load_active_namespaces returns [] on missing or corrupted tracker file"""
     tracker = tmp_path / "active_namespaces.json"
     monkeypatch.setattr(tl, "ACTIVE_NAMESPACES_FILE", tracker)
     monkeypatch.setattr(tl, "CACHE_DIR", tmp_path)
@@ -87,6 +91,7 @@ def test_AC16_13_5_load_active_namespaces_missing_and_corrupt(monkeypatch, tmp_p
 
 
 def test_AC16_13_6_register_unregister_namespace(monkeypatch, tmp_path):
+    """AC-testing.lifecycle.7: test_lifecycle — register_namespace and unregister_namespace update active namespace tracker"""
     tracker = tmp_path / "active_namespaces.json"
     monkeypatch.setattr(tl, "ACTIVE_NAMESPACES_FILE", tracker)
     monkeypatch.setattr(tl, "CACHE_DIR", tmp_path)
@@ -99,6 +104,7 @@ def test_AC16_13_6_register_unregister_namespace(monkeypatch, tmp_path):
 
 
 def test_AC16_13_7_get_container_runtime(monkeypatch):
+    """AC-testing.lifecycle.8: test_lifecycle — get_container_runtime honors CONTAINER_RUNTIME, otherwise detects podman/docker and returns None when absent"""
     def podman_first(cmd, capture_output=True):
         if cmd == ["which", "podman"]:
             return SimpleNamespace(returncode=0)
@@ -163,6 +169,7 @@ def test_AC8_13_69_resolve_postgres_host_port_uses_runtime_fallback(monkeypatch)
 
 
 def test_AC16_13_8_is_db_ready_handles_failure(monkeypatch):
+    """AC-testing.lifecycle.9: test_lifecycle — is_db_ready returns false on pg_isready subprocess failure"""
     def raise_called(*args, **kwargs):
         raise tl.subprocess.CalledProcessError(1, "pg_isready")
 
@@ -171,6 +178,7 @@ def test_AC16_13_8_is_db_ready_handles_failure(monkeypatch):
 
 
 def test_AC16_13_9_cleanup_worker_databases_skips_invalid_namespace(monkeypatch):
+    """AC-testing.lifecycle.10: test_lifecycle — cleanup_worker_databases skips invalid namespace values"""
     called = {"run": False}
     monkeypatch.setattr(
         tl.subprocess, "run", lambda *args, **kwargs: called.__setitem__("run", True)
@@ -180,6 +188,7 @@ def test_AC16_13_9_cleanup_worker_databases_skips_invalid_namespace(monkeypatch)
 
 
 def test_AC16_13_10_cleanup_worker_databases_drops_valid_and_skips_invalid(monkeypatch):
+    """AC-testing.lifecycle.11: test_lifecycle — cleanup_worker_databases drops valid worker DB names and skips invalid names"""
     calls = []
 
     def fake_run(cmd, capture_output=True, check=False, text=False):
@@ -202,6 +211,7 @@ def test_AC16_13_10_cleanup_worker_databases_drops_valid_and_skips_invalid(monke
 
 
 def test_AC16_13_11_get_changed_files_maps_backend_modules(monkeypatch):
+    """AC-testing.lifecycle.12: test_lifecycle — _get_changed_files maps backend python paths into module import names"""
     outputs = iter(
         [
             "M apps/backend/src/config.py\nD apps/backend/src/old.py\n",
@@ -220,7 +230,7 @@ def test_AC16_13_11_get_changed_files_maps_backend_modules(monkeypatch):
 
 
 def test_AC16_13_12_generate_statement_builds_pdf_rows(monkeypatch, tmp_path):
-    """Test the rewritten generate_test_pdfs.py with canvas-based PDF generation."""
+    """AC-testing.lifecycle.13: Test the rewritten generate_test_pdfs.py with canvas-based PDF generation."""
 
     # --- Mock reportlab.lib submodules (same as before) ---
     fake_colors = ModuleType("reportlab.lib.colors")

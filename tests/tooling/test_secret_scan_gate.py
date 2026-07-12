@@ -20,7 +20,7 @@ def _read(rel: str) -> str:
 
 
 def test_AC8_13_136_gitleaks_runs_in_precommit_and_ci() -> None:
-    """gitleaks is wired into both pre-commit and the CI lint job."""
+    """AC-testing.secret-scan.1: gitleaks is wired into both pre-commit and the CI lint job."""
     # 1. pre-commit: a gitleaks repo with the gitleaks hook id.
     precommit = yaml.safe_load(_read(".pre-commit-config.yaml"))
     repos = precommit.get("repos", [])

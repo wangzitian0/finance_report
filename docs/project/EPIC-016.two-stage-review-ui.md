@@ -261,22 +261,24 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 
 ### AC16.13 — Test Lifecycle Infrastructure (Infra)
 
-> These ACs cover `tools/test_lifecycle.py` and test infrastructure helpers.
+> These ACs covered `tools/test_lifecycle.py` and test infrastructure
+> helpers. The group migrated into the `testing` package roadmap
+> (`common/testing/contract.py`, `AC-testing.lifecycle.*`) — the
+> namespace/DB-lifecycle mechanism itself already lives in
+> `common/testing/test_isolation.py` (migration closeout, #1663 / #1718).
 
-| AC ID | Description | Status |
-|-------|-------------|--------|
-| AC16.13.1 | `test_lifecycle` — `sanitize_namespace` normalizes branch/workspace names | ⏳ |
-| AC16.13.2 | `test_lifecycle` — `get_namespace` honors `BRANCH_NAME` and optional `WORKSPACE_ID` | ⏳ |
-| AC16.13.3 | `test_lifecycle` — `get_namespace` falls back to git branch plus path hash when env vars absent | ⏳ |
-| AC16.13.4 | `test_lifecycle` — `get_test_db_name` and `get_s3_bucket` format names deterministically | ⏳ |
-| AC16.13.5 | `test_lifecycle` — `load_active_namespaces` returns `[]` on missing or corrupted tracker file | ⏳ |
-| AC16.13.6 | `test_lifecycle` — `register_namespace` and `unregister_namespace` update active namespace tracker | ⏳ |
-| AC16.13.7 | `test_lifecycle` — `get_container_runtime` honors `CONTAINER_RUNTIME`, otherwise detects podman/docker and returns `None` when absent | ⏳ |
-| AC16.13.8 | `test_lifecycle` — `is_db_ready` returns `false` on `pg_isready` subprocess failure | ⏳ |
-| AC16.13.9 | `test_lifecycle` — `cleanup_worker_databases` skips invalid namespace values | ⏳ |
-| AC16.13.10 | `test_lifecycle` — `cleanup_worker_databases` drops valid worker DB names and skips invalid names | ⏳ |
-| AC16.13.11 | `test_lifecycle` — `_get_changed_files` maps backend python paths into module import names | ⏳ |
-| AC16.13.12 | `generate_test_pdfs` — `generate_statement` writes table rows and closing balance from `Decimal` transactions | ⏳ |
+> (AC16.13.1 removed, canonical: migrated to `AC-testing.lifecycle.2`.)
+> (AC16.13.2 removed, canonical: migrated to `AC-testing.lifecycle.3`.)
+> (AC16.13.3 removed, canonical: migrated to `AC-testing.lifecycle.4`.)
+> (AC16.13.4 removed, canonical: migrated to `AC-testing.lifecycle.5`.)
+> (AC16.13.5 removed, canonical: migrated to `AC-testing.lifecycle.6`.)
+> (AC16.13.6 removed, canonical: migrated to `AC-testing.lifecycle.7`.)
+> (AC16.13.7 removed, canonical: migrated to `AC-testing.lifecycle.8`.)
+> (AC16.13.8 removed, canonical: migrated to `AC-testing.lifecycle.9`.)
+> (AC16.13.9 removed, canonical: migrated to `AC-testing.lifecycle.10`.)
+> (AC16.13.10 removed, canonical: migrated to `AC-testing.lifecycle.11`.)
+> (AC16.13.11 removed, canonical: migrated to `AC-testing.lifecycle.12`.)
+> (AC16.13.12 removed, canonical: migrated to `AC-testing.lifecycle.13`.)
 
 ### AC16.14 — Frontend Report Pages and Statements Page
 

@@ -53,7 +53,7 @@ def test_AC8_13_71_preview_env_contains_stable_metadata() -> None:
 
 
 def test_AC8_13_101_preview_app_url_prefers_stable_alias() -> None:
-    """AC8.13.101: PR preview readiness targets a stable PR-level route."""
+    """AC-testing.preview.10: AC8.13.101: PR preview readiness targets a stable PR-level route."""
     lifecycle = lifecycle_module()
 
     assert lifecycle.preview_commit_slug("ABC123xyz456789") == "abc123xyz456"
@@ -78,7 +78,7 @@ def test_AC8_13_101_preview_app_url_prefers_stable_alias() -> None:
 
 
 def test_AC8_13_102_preview_network_is_pr_scoped_to_limit_subnet_usage() -> None:
-    """AC8.13.102: PR previews do not allocate one Docker network per commit."""
+    """AC-testing.preview.11: AC8.13.102: PR previews do not allocate one Docker network per commit."""
     compose = (ROOT / "docker-compose.pr-preview.yml").read_text()
     network_block = compose.split("networks:", 1)[1]
 
@@ -1846,7 +1846,7 @@ def test_AC8_13_102_new_preview_rollout_error_still_fails(
 def test_AC8_13_98_existing_preview_compose_is_redeployed_without_pre_stop(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC8.13.98: Existing PR previews redeploy without disrupting active routes."""
+    """AC-testing.preview.8: AC8.13.98: Existing PR previews redeploy without disrupting active routes."""
     lifecycle = lifecycle_module()
     calls: list[list[str]] = []
 
@@ -1933,7 +1933,7 @@ def test_AC8_13_98_existing_preview_compose_is_redeployed_without_pre_stop(
 
 
 def test_AC8_13_100_pr_preview_runner_readiness_is_bounded_and_observable() -> None:
-    """AC8.13.100: Runner preview readiness is bounded and logs stack failures."""
+    """AC-testing.preview.9: AC8.13.100: Runner preview readiness is bounded and logs stack failures."""
     workflow = (ROOT / ".github/workflows/preview.yml").read_text()
     e2e_block = workflow.split("  e2e:", 1)[1].split("  cleanup:", 1)[0]
 
@@ -2030,7 +2030,7 @@ def test_AC8_13_71_deploy_action_writes_github_output(
 def test_AC8_13_107_deploy_action_fails_fast_on_missing_required_inputs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC8.13.107: Missing deploy inputs fail before any Dokploy API call."""
+    """AC-testing.preview.12: AC8.13.107: Missing deploy inputs fail before any Dokploy API call."""
     lifecycle = lifecycle_module()
     calls = 0
 
@@ -2242,6 +2242,11 @@ def test_AC8_13_71_deploy_still_uses_lifecycle_tool() -> None:
 
 
 def test_AC8_13_71_close_dispatches_preview_teardown_to_infra2() -> None:
+    """AC-testing.preview.3: One lifecycle tool stands PR previews UP (deploy) and writes
+    stable preview metadata; on PR close the workflow dispatches a preview-teardown
+    signal to infra2 — the app owns no Dokploy reclaim (cleanup/reconcile/delete) (Was
+    EPIC-008 AC8.13.71).
+    """
     workflow = (ROOT / ".github/workflows/preview.yml").read_text()
 
     cleanup_block = workflow.split("  cleanup:", 1)[1]
@@ -2490,7 +2495,7 @@ def test_wait_for_dokploy_deployment_rollout_extends_deadline(
 def test_AC8_13_125_busy_dokploy_queue_cannot_extend_past_rollout_deadline(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC8.13.125: PR preview rollout waits stay bounded when Dokploy is busy."""
+    """AC-testing.preview.15: AC8.13.125: PR preview rollout waits stay bounded when Dokploy is busy."""
     lifecycle = lifecycle_module()
 
     current_time = [1000.0]

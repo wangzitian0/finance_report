@@ -36,7 +36,7 @@ def test_AC8_13_131_registry_separates_proof_exceptions_and_code_owned_surfaces(
 
 
 def test_AC8_13_131_every_classified_entry_links_an_owner_and_issue() -> None:
-    """AC8.13.131: every classified entry names an id, owner, reason, and issue."""
+    """AC-testing.governance.7: AC8.13.131: every classified entry names an id, owner, reason, and issue."""
     violations = gec.validate_registry(REGISTRY)
     assert violations == [], "\n".join(violations)
 

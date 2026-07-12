@@ -13,7 +13,7 @@ def read(path: str) -> str:
 
 
 def test_AC8_13_126_runtime_incident_response_ssot_centralizes_triage() -> None:
-    """AC8.13.126: Runtime incident triage has one SSOT and link-only callers."""
+    """AC-testing.governance.6: AC8.13.126: Runtime incident triage has one SSOT and link-only callers."""
 
     runtime_path = ROOT / "docs/ssot/runtime-incident-response.md"
     assert runtime_path.exists()

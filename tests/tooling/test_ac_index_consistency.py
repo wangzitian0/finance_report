@@ -112,7 +112,7 @@ def _consistent_graph() -> AcGraph:
 
 
 def test_AC8_13_139_gate_passes_on_consistent_tree() -> None:
-    """AC8.13.139: the gate reports no errors on a consistent graph."""
+    """AC-testing.acgates.16: AC8.13.139: the gate reports no errors on a consistent graph."""
     assert gate.check_integrity(_consistent_graph()) == []
 
 
@@ -261,7 +261,7 @@ def test_AC8_13_139_gate_fails_on_ratchet_regression(tmp_path) -> None:
 
 
 def test_AC8_13_140_every_ac_managed_with_empty_protection_passes() -> None:
-    """AC8.13.140: an AC with an all-empty protection record is still 'managed'.
+    """AC-testing.acgates.17: AC8.13.140: an AC with an all-empty protection record is still 'managed'.
 
     Managed means present in the structure, NOT that it has any test. A node with
     no real test files, no proofs, and no score is a VALID managed record and must
@@ -459,7 +459,7 @@ def test_AC8_13_139_real_repo_graph_passes_the_gate() -> None:
 def test_AC8_13_135_protection_dashboard_separates_reference_from_behavioral(
     capsys,
 ) -> None:
-    """AC8.13.135: the gate's PROTECTION dashboard reports per-type counts
+    """AC-testing.acgates.14: AC8.13.135: the gate's PROTECTION dashboard reports per-type counts
     (has_real_ref vs has_proof/has_score), never conflating L1 reference
     presence with behavioral proof, so a passing gate cannot be misread as
     behavioral assurance. (Re-anchored from the retired standalone traceability

@@ -152,7 +152,7 @@ def _payload(matrix_path: Path) -> dict:
 
 
 def test_valid_behavioral_static_and_manual_entries_pass(tmp_path: Path) -> None:
-    """AC8.13.41: Critical proof matrix accepts explicit proof classes."""
+    """AC-testing.trust-mirrors.1: AC8.13.41: Critical proof matrix accepts explicit proof classes."""
     _write_registry(tmp_path)
     test_dir = tmp_path / "tests" / "e2e"
     test_dir.mkdir(parents=True)
@@ -222,7 +222,7 @@ proofs:
 def test_AC8_14_2_llm_ocr_proof_requires_deterministic_pr_mirror(
     tmp_path: Path,
 ) -> None:
-    """AC8.14.2: LLM/OCR critical proof must name a deterministic PR mirror."""
+    """AC-testing.trust-mirrors.2: AC8.14.2: LLM/OCR critical proof must name a deterministic PR mirror."""
     _write_registry(tmp_path)
     test_dir = tmp_path / "tests" / "e2e"
     test_dir.mkdir(parents=True)
@@ -323,7 +323,7 @@ proofs:
 def test_AC8_14_1_critical_proof_matrix_reports_duplicate_proof_ids(
     tmp_path: Path,
 ) -> None:
-    """AC8.14.1: Critical proof IDs are unique so mirrors cannot resolve ambiguously."""
+    """AC-testing.acgates.5: AC8.14.1: Critical proof IDs are unique so mirrors cannot resolve ambiguously."""
     _write_registry(tmp_path)
     (tmp_path / "apps" / "backend" / "tests").mkdir(parents=True)
     (tmp_path / "apps" / "backend" / "tests" / "test_mirror.py").write_text(
@@ -775,7 +775,7 @@ outcomes:
 def test_AC8_13_50_macro_outcome_contract_rejects_drift(
     tmp_path: Path,
 ) -> None:
-    """AC8.13.50: Covered macro outcomes cannot drift from README, EPICs, or E2E anchors."""
+    """AC-testing.acgates.6: AC8.13.50: Covered macro outcomes cannot drift from README, EPICs, or E2E anchors."""
     _write_registry(tmp_path)
     (tmp_path / "README.md").write_text(
         """
@@ -906,7 +906,7 @@ proofs:
 def test_AC8_13_54_macro_contract_requires_owner_epic_reverse_declarations(
     tmp_path: Path,
 ) -> None:
-    """AC8.13.54: Owner EPICs must reverse-declare their macro outcomes."""
+    """AC-testing.acgates.7: AC8.13.54: Owner EPICs must reverse-declare their macro outcomes."""
     _write_registry(tmp_path)
     (tmp_path / "docs" / "project" / "EPIC-008.testing-strategy.md").write_text(
         """

@@ -20,10 +20,12 @@ FX-specific wrappers over the same subject+resolve path), and the crawler
 sync (``sync_fx_rates``/``sync_stock_prices``/``ensure_market_data_fresh``/
 ``get_market_data_status``/``resolve_missing_fx_rate`` — pure "given these
 scopes, sync/report on them"; discovering *which* scopes from the user's
-ledger is the caller's job, see ``extension/market_data/service.py``). The
-remaining ``extension/`` domain service (the extraction-event subscriber)
-and the ``data/`` projections are reserved (declared in the contract's
-``units`` with no module path) for a later commit.
+ledger is the caller's job, see ``extension/market_data/service.py``), and
+the extraction-event ingest subscriber (``ingest_statement_price`` +
+``subscribe_price_ingest``, #1642 — the first cross-domain event consumer;
+see ``extension/ingest.py``). The ``data/`` projections remain reserved
+(declared in the contract's ``units`` with no module path) for a later
+commit.
 """
 
 from __future__ import annotations
@@ -50,10 +52,12 @@ from src.pricing.extension import (
     get_average_rate,
     get_exchange_rate,
     get_market_data_status,
+    ingest_statement_price,
     record_manual_valuation,
     record_override,
     resolve,
     resolve_missing_fx_rate,
+    subscribe_price_ingest,
     sync_fx_rates,
     sync_stock_prices,
 )
@@ -68,6 +72,7 @@ from src.pricing.extension.valuation import (
 # eagerly so importing the package registers the mappers on Base.metadata.
 from src.pricing.orm.fx_conversion import FxConversion
 from src.pricing.orm.market_data import FxRate, MarketDataSyncState, StockPrice
+from src.pricing.orm.statement_observation import StatementPriceObservation
 
 __all__ = [
     "Authority",
@@ -85,6 +90,7 @@ __all__ = [
     "PricingError",
     "ResolutionPolicy",
     "SqlObservationRepository",
+    "StatementPriceObservation",
     "StockPrice",
     "ValuationComponentItem",
     "ValuationComponentsResult",
@@ -97,10 +103,12 @@ __all__ = [
     "get_average_rate",
     "get_exchange_rate",
     "get_market_data_status",
+    "ingest_statement_price",
     "record_manual_valuation",
     "record_override",
     "resolve",
     "resolve_missing_fx_rate",
+    "subscribe_price_ingest",
     "sync_fx_rates",
     "sync_stock_prices",
 ]

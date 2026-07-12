@@ -377,7 +377,7 @@ class TestMain:
         tmp_path: Path,
         monkeypatch,
     ) -> None:
-        """AC8.13.80: --check reports stale generated AC coverage reports."""
+        """AC-testing.acgates.12: AC8.13.80: --check reports stale generated AC coverage reports."""
         docs = tmp_path / "docs"
         docs.mkdir(parents=True, exist_ok=True)
         (docs / "ac_registry.yaml").write_text(

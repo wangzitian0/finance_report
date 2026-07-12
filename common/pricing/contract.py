@@ -188,22 +188,35 @@ CONTRACT = PackageContract(
         # helpers (e.g. RECONCILIATION_AUTO_ACCEPT_SCORE), don't get their own
         # taxonomy Unit() — units is a curated tactical-pattern annotation,
         # not a 1:1 mirror of interface.
-        # ── extension (reserved): the extraction event subscriber ──
-        Unit(name="ingest_statement_price", kind=Kind.DOMAIN_SERVICE),
+        # ── extension: the extraction event-ingest subscriber (#1642) — the
+        # first cross-domain event consumer in the codebase. extraction
+        # publishes PriceObserved (source=statement) through the outbox;
+        # ingest_statement_price copies it into pricing's own
+        # statement_price_observations store, idempotent on the upstream fact
+        # id (at-least-once delivery), no FK, provenance id on the row. The
+        # subscribe_price_ingest wiring helper (published, no separate Unit —
+        # curated annotation, same as the DTOs above) is called by the app
+        # composition root: platform (L1) never imports pricing (L3). ──
+        Unit(
+            name="ingest_statement_price",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/ingest.py",
+        ),
         # ── data (reserved): read-models consumed by portfolio/reporting/reconciliation ──
         Unit(name="LatestPriceView", kind=Kind.PROJECTION),
         Unit(name="StalenessView", kind=Kind.PROJECTION),
     ],
     implementations={"be": "apps/backend/src/pricing", "fe": None},
-    # This commit's real, working surface: the pure base/ model, resolve()
+    # The real, working surface: the pure base/ model, resolve()
     # (implementation-pure, physically in extension/ per KIND_LAYER), the
-    # repository port + its read-only SQL adapter (querying the 4 legacy
-    # tables), the two user-scoped write-side recorders (which also publish
-    # PriceObserved through the platform outbox, atomically with the write —
-    # pricing is a real producer on the bus, not just a declared event type),
-    # the FX lookup + convert_* + average-rate wrappers, and the crawler sync
-    # (moved in from apps/backend/src/services/market_data/, #1610 PR2 step
-    # 2). The remaining domain-service (extraction-event ingest) + 2 data
+    # repository port + its SQL adapter (querying the 4 legacy tables plus
+    # the ingest store), the two user-scoped write-side recorders (which also
+    # publish PriceObserved through the platform outbox, atomically with the
+    # write — pricing is a real producer on the bus, not just a declared
+    # event type), the extraction-event ingest subscriber + its wiring helper
+    # (#1642 — pricing is also the bus's first consumer), the FX lookup +
+    # convert_* + average-rate wrappers, and the crawler sync (moved in from
+    # apps/backend/src/services/market_data/, #1610 PR2 step 2). The 2 data
     # projections are reserved units above — they join the interface once a
     # later commit implements them for real.
     interface=[
@@ -222,6 +235,7 @@ CONTRACT = PackageContract(
         "PricingError",
         "ResolutionPolicy",
         "SqlObservationRepository",
+        "StatementPriceObservation",
         "StockPrice",
         "ValuationComponentItem",
         "ValuationComponentsResult",
@@ -234,10 +248,12 @@ CONTRACT = PackageContract(
         "get_average_rate",
         "get_exchange_rate",
         "get_market_data_status",
+        "ingest_statement_price",
         "record_manual_valuation",
         "record_override",
         "resolve",
         "resolve_missing_fx_rate",
+        "subscribe_price_ingest",
         "sync_fx_rates",
         "sync_stock_prices",
     ],
@@ -571,6 +587,54 @@ CONTRACT = PackageContract(
                 "::test_AC22_13_1_valuation_component_item_uses_normalized_provenance_type"
             ),
             priority="P1",
+            status="done",
+        ),
+        # ── group ingest: the extraction PriceObserved ingest subscriber
+        # (#1642 — the codebase's first cross-domain event consumer; boundary
+        # ruling 4: id-referenced copy, no shared transaction, no FK) ──
+        ACRecord(
+            id="AC-pricing.ingest.1",
+            statement=(
+                "An extraction-published PriceObserved (source=statement) "
+                "dispatched by the outbox relay results in exactly one "
+                "pricing observation with correct fields and the extraction "
+                "fact id carried as provenance."
+            ),
+            test=(
+                "apps/backend/tests/pricing/test_ingest.py"
+                "::test_AC_pricing_ingest_1_extraction_event_lands_as_one_provenanced_observation"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.ingest.2",
+            statement=(
+                "Ingest is idempotent under at-least-once delivery: "
+                "redelivering the same event (relay-level or direct) does "
+                "not duplicate the observation — dedup keyed by the event's "
+                "natural key (the upstream fact id), backed by a UNIQUE "
+                "constraint."
+            ),
+            test=(
+                "apps/backend/tests/pricing/test_ingest.py"
+                "::test_AC_pricing_ingest_2_redelivery_through_the_relay_does_not_duplicate"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.ingest.3",
+            statement=(
+                "An ingested statement observation is a first-class, "
+                "user-scoped resolve() candidate (source=statement, "
+                "authority=STATEMENT)."
+            ),
+            test=(
+                "apps/backend/tests/pricing/test_ingest.py"
+                "::test_AC_pricing_ingest_3_ingested_observation_is_resolvable"
+            ),
+            priority="P0",
             status="done",
         ),
     ],

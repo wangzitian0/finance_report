@@ -22,6 +22,7 @@ def test_AC8_13_34_parse_github_time_handles_empty_and_utc_values() -> None:
 
 
 def test_AC8_13_34_format_duration_uses_compact_minutes() -> None:
+    """AC-testing.ci-structure.4: CI and post-merge workflows append queue, execution, and per-job timing summaries to GitHub Step Summary"""
     assert format_duration(None) == "n/a"
     assert format_duration(42) == "42s"
     assert format_duration(367) == "6m 7s"

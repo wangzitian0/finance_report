@@ -56,7 +56,7 @@ def test_AC8_13_66_strip_lcov_branches_reports_missing_input(tmp_path, capsys):
 
 
 def test_AC8_13_66_strip_lcov_branches_cli_exits_zero(tmp_path, monkeypatch):
-    """AC8.13.66: The command wrapper can be used directly by CI."""
+    """AC-testing.coverage.3: AC8.13.66: The command wrapper can be used directly by CI."""
     source = tmp_path / "input.lcov"
     output = tmp_path / "output.lcov"
     source.write_text("SF:src/example.py\nBRF:1\nDA:1,1\nLH:1\nLF:1\n")

@@ -74,14 +74,27 @@ await relay.run_once(relay_session)   # drains one batch of pending rows
 `RecordingEventBus` is an in-memory fake for unit tests that assert *what was
 published* without a database.
 
-## Running the relay (deferred — not wired here)
+## Running the relay (wired at the app composition root, #1642)
 
 `run_once(session)` drains one batch; `run_forever(session_factory)` is the shape
-of a durable poll loop. **No always-on worker is wired in this slice** — by
-design. In production the relay would run as a periodic background task (e.g. an
-app-startup `asyncio` task, a cron/`schedule`d job, or — later — a Prefect flow).
-That durable worker, plus a `LISTEN/NOTIFY` fast-path, is explicitly future work
-([`todo.md`](./todo.md)).
+of a durable poll loop. The durable worker is wired at the **app composition
+root** (`apps/backend/src/main.py`), which is also where subscription happens —
+the pattern every consumer package copies:
+
+1. the composition root builds one shared `SubscriberRegistry`;
+2. each consumer package publishes a wiring helper the root calls with that
+   registry + the app session factory (first precedent: pricing's
+   `subscribe_price_ingest`, #1642) — registration lives at the root because
+   platform (L1) must never import a domain package (L3), the same inversion
+   as `register_readiness_provider`;
+3. an app-startup `asyncio` background task drains the outbox each poll
+   interval via `run_once` on a fresh session; a failing pass is logged and
+   retried next pass (at-least-once — handlers are idempotent, so retry is
+   always safe). A handler may be sync or a coroutine function; the relay
+   awaits async handlers before marking the row published.
+
+A `LISTEN/NOTIFY` fast-path and a dead-letter state for poison events remain
+future work ([`todo.md`](./todo.md)).
 
 ## Layers (files converge by layer — `base` / `extension`)
 

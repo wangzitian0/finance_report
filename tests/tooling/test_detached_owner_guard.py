@@ -62,7 +62,7 @@ def test_shortcut(db):
 
 
 def test_AC8_13_130_counts_only_persisted_detached_owners(tmp_path: Path) -> None:
-    """AC8.13.130: only persisted (db.add'd) detached owners count — the real FK risk.
+    """AC-testing.schema.7: AC8.13.130: only persisted (db.add'd) detached owners count — the real FK risk.
 
     Transient in-memory constructions and bare service arguments carry no production
     foreign key, so they cannot hide ownership/cascade/cross-user bugs and are not
@@ -191,7 +191,7 @@ def test_safe(user):
 
 
 def test_AC8_13_128_budget_fails_on_growth() -> None:
-    """AC8.13.128: detached-owner shortcut growth fails closed."""
+    """AC-testing.schema.5: AC8.13.128: detached-owner shortcut growth fails closed."""
     finding = detached_owner_guard.DetachedOwnerFinding(
         relative_path="apps/backend/tests/accounting/test_shortcut.py",
         line=1,
@@ -325,7 +325,7 @@ def test_AC8_13_128_command_entrypoint_delegates_to_common_guard() -> None:
 
 
 def test_AC8_13_129_schema_docs_distinguish_fast_fixture_and_production_faithful_lane() -> None:
-    """AC8.13.129: schema SSOT names each backend persistence proof mode."""
+    """AC-testing.schema.6: AC8.13.129: schema SSOT names each backend persistence proof mode."""
     schema_doc = (ROOT / "docs" / "ssot" / "schema.md").read_text(encoding="utf-8")
 
     assert "Base.metadata.create_all()" in schema_doc

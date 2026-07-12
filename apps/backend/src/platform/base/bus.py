@@ -24,13 +24,17 @@ recording fake in tests.
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Protocol, runtime_checkable
 
 from src.platform.base.event import DomainEvent
 
 #: A subscriber: a callable invoked by the relay with a reconstructed event.
-EventHandler = Callable[[DomainEvent], None]
+#: May be sync or async — a coroutine function's awaitable is awaited by the
+#: relay before the row is marked published (a DB-writing consumer, e.g.
+#: pricing's statement-price ingest, needs an ``AsyncSession`` inside the
+#: handler).
+EventHandler = Callable[[DomainEvent], None | Awaitable[None]]
 
 
 class SubscriberRegistry:

@@ -9,12 +9,17 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_AC8_13_38_legacy_cleanup_entrypoints_are_removed() -> None:
+    """AC-testing.preview.1: The app performs no Dokploy preview reclaim — on PR close it
+    dispatches a vendor-neutral teardown to infra2 (which owns the 1:1 reclaim); the app
+    keeps no cleanup/reconcile entrypoints, no host-hygiene commands, and emits no raw
+    Dokploy responses (Was EPIC-008 AC8.13.38).
+    """
     assert not (ROOT / "tools/cleanup_pr_preview_resources.py").exists()
     assert not (ROOT / "tools/_lib/dev/cleanup_pr_preview_resources.py").exists()
 
 
 def test_AC8_13_73_app_owns_no_vps_host_hygiene() -> None:
-    """AC8.13.73: the app owns no VPS host hygiene — host GC is infra2-owned."""
+    """AC-testing.preview.5: AC8.13.73: the app owns no VPS host hygiene — host GC is infra2-owned."""
     # Generic host GC (docker/journald/disk prune) is infra2-owned
     # (tools/host_hygiene_schedule.py + the ops-checks re-ensure job). The app
     # ships no host-hygiene module and provisions no Dokploy host schedule.
@@ -44,6 +49,10 @@ def test_AC8_13_38_pr_preview_lifecycle_has_no_host_hygiene_commands() -> None:
 
 
 def test_AC8_13_74_maintenance_cleanup_is_ghcr_pruning_only() -> None:
+    """AC-testing.preview.6: The app's scheduled maintenance performs no Dokploy preview
+    reconcile and no host hygiene — it only prunes the app's own stale GHCR PR image
+    tags (Dokploy preview reclaim is infra2-owned) (Was EPIC-008 AC8.13.74).
+    """
     workflow = (ROOT / ".github/workflows/maintenance.yml").read_text()
 
     assert 'cron: "37 */6 * * *"' in workflow

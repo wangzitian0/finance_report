@@ -21,6 +21,12 @@ def run_bash(script: str) -> subprocess.CompletedProcess[str]:
 
 
 def test_AC8_13_72_common_dokploy_call_redacts_non_200_body() -> None:
+    """AC-testing.preview.4: Dokploy deploy diagnostics redact raw responses, log only
+    allowlisted effective environment/config details, parse deployment records as typed
+    object records, fail before readiness when fixed deploy_v2 sees rollout error/no
+    terminal new record, and retain redacted rollout diagnostics for legacy preview
+    compatibility (Was EPIC-008 AC8.13.72).
+    """
     script = r'''
       source common/runtime/shell/common.sh
       DOKPLOY_API_URL="https://dokploy.example/api"

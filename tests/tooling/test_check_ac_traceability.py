@@ -160,7 +160,7 @@ class TestCollectReferencedAcs:
         assert "AC1.1" not in refs
 
     def test_classifies_placeholder_assertion(self, tmp_path):
-        """AC8.13.35: Trivial placeholder assertions are not real AC coverage."""
+        """AC-testing.acgates.3: AC8.13.35: Trivial placeholder assertions are not real AC coverage."""
         f = self._write_test(
             tmp_path,
             "uiGapAudit.test.ts",
@@ -340,7 +340,7 @@ class TestCheckTraceability:
         assert "AC1.1.3" in result.covered
 
     def test_placeholder_and_stub_refs_do_not_count_as_real_coverage(self):
-        """AC8.13.35: Non-real AC references stay visible but uncovered."""
+        """AC-testing.acgates.4: AC8.13.35: Non-real AC references stay visible but uncovered."""
         acs = [
             self._make_ac("AC1.1.1"),
             self._make_ac("AC1.1.2"),
@@ -368,7 +368,7 @@ class TestCheckTraceability:
         assert result.missing == []
 
     def test_AC8_13_78_ci_required_real_refs_cover_mandatory_gate(self):
-        """AC8.13.78: CI-required real proof files satisfy mandatory ACs."""
+        """AC-testing.acgates.11: AC8.13.78: CI-required real proof files satisfy mandatory ACs."""
         acs = [self._make_ac("AC1.1.1")]
         refs = {
             "AC1.1.1": cat.ACReferenceStats(
