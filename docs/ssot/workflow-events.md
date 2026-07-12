@@ -19,7 +19,7 @@
 | Event and session schemas | `apps/backend/src/schemas/workflow.py` |
 | Derivation/upsert service | `apps/backend/src/platform/extension/workflow_events.py` |
 | Compact status/events API | `apps/backend/src/routers/workflow.py` |
-| Report package readiness fact source | `GET /api/reports/package/readiness` in `apps/backend/src/services/report_readiness.py` |
+| Report package readiness fact source | `GET /api/reports/package/readiness` in `apps/backend/src/reporting/extension/report_readiness.py` |
 | Header badge, Event inbox, Status feed | `apps/frontend/src/components/workflow/WorkflowNotifications.tsx` |
 | Upload-to-Report home | `apps/frontend/src/app/(main)/page.tsx` (the `/dashboard` route redirects here) |
 | Events page | `apps/frontend/src/app/(main)/events/page.tsx` advanced session history surface |
