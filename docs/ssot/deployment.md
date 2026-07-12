@@ -205,9 +205,11 @@ on an operator cadence, not per-commit) and, deliberately, **is not yet wired
 into `release.yml` as a blocking step**: real PDFs are never committed (RL-6),
 so no corpus exists to evaluate yet, and flipping this on is a release-behavior
 change that needs explicit sign-off once the operator has supplied at least
-one real case — not something to enable unilaterally. Both jobs set up the configured
-`PYTHON_VERSION` before invoking release-coordinate, evidence, or image-digest
-tools so these gates never depend on the runner's default Python alias.
+one real case — not something to enable unilaterally.
+
+Both jobs set up the configured `PYTHON_VERSION` before invoking
+release-coordinate, evidence, or image-digest tools so these gates never
+depend on the runner's default Python alias.
 Before mutating production, the release workflow probes the current production
 health endpoint and records the pre-deploy version in the deploy context. The
 same artifact records deploy-health, smoke, read-only E2E, and failure-domain

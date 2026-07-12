@@ -844,6 +844,24 @@ CONTRACT = PackageContract(
             priority="P2",
             status="done",
         ),
+        ACRecord(
+            id="AC-runtime.real-corpus-eval.8",
+            statement=(
+                "A completed run with a malformed/missing createdAt among "
+                "OTHER completed runs fails closed rather than being "
+                "silently outranked -- it might be the true latest run with "
+                "bad timestamp data, and picking an older, "
+                "valid-timestamped run in its place would quietly violate "
+                "'the most recent completed run governs' (2026-07-13 CR "
+                "follow-up on the .5 fix)."
+            ),
+            test=(
+                "tests/tooling/test_real_corpus_eval_evidence.py"
+                "::test_AC_runtime_real_corpus_eval_8_malformed_timestamp_among_others_fails_closed"
+            ),
+            priority="P1",
+            status="done",
+        ),
         # ── group release-images (#1759 CR follow-up): retry a transient
         # registry-visibility miss instead of failing the gate outright ──
         ACRecord(
