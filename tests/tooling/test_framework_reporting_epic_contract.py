@@ -185,7 +185,7 @@ def test_AC5_14_1_reporting_assembles_framework_policy_results_only() -> None:
 
 
 def test_AC17_13_1_portfolio_supplies_facts_not_framework_conclusions() -> None:
-    """AC17.13.1: Portfolio supplies facts but not US/HK report conclusions."""
+    """AC-portfolio.fact-boundary.1: AC17.13.1: Portfolio supplies facts but not US/HK report conclusions."""
     epic = read("docs/project/EPIC-017.portfolio-management.md")
 
     assert "Framework boundary" in epic

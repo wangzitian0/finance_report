@@ -349,15 +349,12 @@ workflow state exists.
 
 ### AC19.5 — Report Readiness and Blocker State
 
+> *(AC19.5.1 removed and AC19.5.2 removed and AC19.5.3 removed and AC19.5.6 removed and AC19.5.7 removed — this group's backend readiness rows migrated to the `reporting` package roadmap as `AC-reporting.readiness.1-5`, migration closeout continuation, #1663 / #1716)*. The frontend rows below stay here.
+
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC19.5.1 | Personal report package exposes a user-scoped readiness endpoint that returns deterministic package state, action link, blocker count, and source summary before report output | `test_AC19_5_1_package_readiness_returns_draft_for_empty_user` / `test_AC19_5_1_package_readiness_rejects_unknown_state_and_external_action_links` | P0 |
-| AC19.5.2 | Blocked package readiness lists exact blocker categories for failed parsing, pending review, balance mismatch, reconciliation blockers, consistency checks, unresolved Processing balance, and missing source coverage | `test_AC19_5_2_package_readiness_lists_actionable_blockers` | P0 |
-| AC19.5.3 | Package readiness deterministically promotes through `draft`, `processing`, `blocked`, `ready`, `generated`, and `stale` based on source state and report snapshot freshness | `test_AC19_5_3_package_readiness_state_priority_and_snapshot_freshness` | P0 |
 | AC19.5.4 | Personal report package page renders readiness state and blocker links before package section output | `personalReportPackagePage.test.tsx` | P1 |
 | AC19.5.5 | Personal report package page renders non-blocked readiness states without stale blocker cards | `personalReportPackagePage.test.tsx` | P1 |
-| AC19.5.6 | Package readiness fails deterministically when duplicate Processing system accounts would otherwise make blockers non-deterministic | `test_AC19_5_6_package_readiness_rejects_duplicate_processing_accounts` | P0 |
-| AC19.5.7 | Package readiness converts Processing Account journal lines into base reporting currency before deciding whether the in-transit balance nets to zero | `test_AC19_5_7_package_readiness_converts_processing_balance_before_zero_check` | P0 |
 
 ### AC19.6 — Navigation Folding And Advanced Drill-Down
 
@@ -381,9 +378,15 @@ workflow state exists.
 
 ### AC19.7 — Framework-Aware Evidence Readiness
 
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC19.7.1 | Report readiness must evaluate framework-specific evidence blockers from EPIC-020, including missing settlement coverage, unresolved review, stale market data, missing valuation basis, and AI-only unreviewed policy suggestions before marking US/HK personal reports trusted | `test_AC19_7_1_readiness_consumes_framework_specific_evidence_blockers` | P0 |
+Report readiness must evaluate
+framework-specific evidence blockers from EPIC-020 — including
+missing settlement coverage, unresolved review, stale market data,
+missing valuation basis, and AI-only unreviewed policy suggestions —
+before marking US/HK personal reports trusted.
+
+> This group's row removed — migrated to the `reporting` package roadmap as
+> `AC-reporting.readiness.6` (migration closeout continuation, #1663 /
+> #1716).
 
 ### AC19.8 — Workflow Session IA Hardening And CR Cleanup
 
@@ -396,20 +399,23 @@ workflow state exists.
 | AC19.8.5 | Navigation IA (superseded by EPIC-022 AC22.21): the bottom tab bar is Home, Chat, Add, Audit, More; the accounting machinery and settings are reached via the Audit hub and More, not a primary/advanced split | `navigation.test.ts`, `sidebarAndTabs.test.tsx`, `bottomTabBar.test.tsx`, `workflow-navigation.spec.ts` | P0 |
 | AC19.8.6 | `/chat` is a simple AI utility page with model selector, active conversation, and session-list drawer; it is not labeled AI Settings | `chatPanelComponent.test.tsx`, `ChatPageClient.test.tsx` | P1 |
 | AC19.8.7 | Report readiness has route-level Playwright smoke coverage before package output | `report-readiness.spec.ts` | P1 |
-| AC19.8.8 | CR cleanup fixes mixed-currency investment schedule fallback, missing Processing FX readiness blocker coverage, stale SSOT paths, and stale navigation docs | `test_AC19_8_8_investment_schedule_fallback_holding_cost_basis_converts_currency`, `test_AC19_8_8_package_readiness_blocks_when_processing_fx_conversion_fails`, `report-readiness.spec.ts` | P0 |
+| AC19.8.8 | CR cleanup fixes missing Processing FX readiness blocker coverage, stale SSOT paths, and stale navigation docs (the mixed-currency investment-schedule-fallback share migrated to the `portfolio` package roadmap as `AC-portfolio.schedule-fallback.1`, migration closeout continuation, #1663 / #1717) | `test_AC19_8_8_package_readiness_blocks_when_processing_fx_conversion_fails`, `report-readiness.spec.ts` | P0 |
 
 ### AC19.9 — Source Trust Readiness
 
+> *(AC19.9.1 removed — migrated to the `reporting` package roadmap as
+> `AC-reporting.source-trust.1`, migration closeout continuation, #1663 /
+> #1716.)* The frontend row below stays here.
+
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC19.9.1 | Personal report package readiness returns source trust summary by source class, deterministic PR proof availability, post-merge LLM/OCR coverage, manual-trusted classes, gaps, and blocker codes | `test_AC19_9_1_package_readiness_reports_source_trust_summary` | P0 |
 | AC19.9.2 | Personal report package page renders a compact source trust summary before detailed package output | `AC19.9.2 renders compact source trust summary before traceability details` | P0 |
 
 ### AC19.10 — Typed Package Source Anchors
 
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC19.10.1 | Personal report package traceability resolves journal source IDs to typed source anchors, exposes amount-level source and ledger details for report lines, and blocks unknown source IDs instead of presenting them as statement transactions | `test_AC19_10_1_unknown_journal_source_ids_are_not_reported_as_statement_transactions`, `test_AC5_13_5_package_traceability_returns_dynamic_current_user_identifiers` | P0 |
+> This group's row removed — migrated to the `reporting` package roadmap as
+> `AC-reporting.source-anchors.1` (migration closeout continuation, #1663 /
+> #1716).
 
 ### AC19.11 — Run-Scoped Stage 2 Review
 

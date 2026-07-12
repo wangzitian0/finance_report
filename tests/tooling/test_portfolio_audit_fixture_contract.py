@@ -13,7 +13,7 @@ def read(path: str) -> str:
 def test_AC17_12_1_portfolio_fixture_contract_covers_multi_broker_multi_currency_inputs() -> (
     None
 ):
-    """AC17.12.1: Portfolio fixture contract covers multi-broker, multi-currency audit inputs."""
+    """AC-portfolio.fixtures.1: AC17.12.1: Portfolio fixture contract covers multi-broker, multi-currency audit inputs."""
     fixture = PORTFOLIO_AUDIT_FIXTURE
 
     assert fixture.period_start.isoformat() == "2026-01-01"
@@ -55,7 +55,7 @@ def test_AC17_12_1_portfolio_fixture_contract_covers_multi_broker_multi_currency
 
 
 def test_AC17_12_2_portfolio_fixture_pins_activity_rows_without_raw_documents() -> None:
-    """AC17.12.2: Portfolio fixture pins sanitized trade, dividend, fee, and valuation activity rows."""
+    """AC-portfolio.fixtures.2: AC17.12.2: Portfolio fixture pins sanitized trade, dividend, fee, and valuation activity rows."""
     fixture = PORTFOLIO_AUDIT_FIXTURE
 
     assert all(
@@ -141,7 +141,7 @@ def test_AC17_12_2_portfolio_fixture_pins_activity_rows_without_raw_documents() 
 def test_AC17_12_3_personal_package_references_expanded_portfolio_fixture_contract() -> (
     None
 ):
-    """AC17.12.3: Personal package fixture consumes expanded portfolio expected outputs."""
+    """AC-portfolio.fixtures.3: AC17.12.3: Personal package fixture consumes expanded portfolio expected outputs."""
     personal_fixture = read("tools/_lib/fixtures/personal_report_package.py")
 
     assert "from tools._lib.fixtures.portfolio_audit_package import" in personal_fixture

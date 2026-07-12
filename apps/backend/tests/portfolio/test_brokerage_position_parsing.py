@@ -717,7 +717,7 @@ async def test_statement_scoped_brokerage_import_uses_persisted_extraction_posit
 
 
 async def test_statement_import_flows_to_holdings_and_balance_sheet(client, db, test_user):
-    """AC-extraction.813.10/AC17.4.6/AC17.5.4: Parsed brokerage import reaches holdings and balance sheet."""
+    """AC-portfolio.valuation.1: AC-extraction.813.10/AC17.4.6/AC17.5.4: Parsed brokerage import reaches holdings and balance sheet."""
     statement = await _seed_statement(
         db,
         test_user.id,

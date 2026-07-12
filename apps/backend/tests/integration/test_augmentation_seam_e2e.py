@@ -74,7 +74,7 @@ async def _posted(
 
 @ac_proof(
     "report-input-selection-excludes-superseded-pr",
-    ac_ids=["AC8.16.1"],
+    ac_ids=["AC-reporting.augmentation.1"],
     scope="behavioral",
     ci_tier="pr_ci",
     trust_mode="deterministic_pr",
@@ -84,7 +84,7 @@ async def _posted(
 async def test_AC8_16_1_augmentation_seam_excludes_superseded_and_surfaces_confidence(
     db: AsyncSession, test_user: User, ac_evidence
 ) -> None:
-    """AC8.16.1: low-confidence extracted inputs and a corrected valuation reach the
+    """AC-reporting.augmentation.1: AC8.16.1: low-confidence extracted inputs and a corrected valuation reach the
     report without leaking a superseded row or laundering a low-confidence input."""
     user_id = test_user.id
     as_of = date(2026, 5, 31)
@@ -156,7 +156,7 @@ async def test_AC8_16_1_augmentation_seam_excludes_superseded_and_surfaces_confi
     # Behavioral evidence: the corrected-only net-worth total (1.1M, not 2.1M) is the
     # deterministic proof that the seam excludes the superseded row.
     ac_evidence(
-        ac_id="AC8.16.1",
+        ac_id="AC-reporting.augmentation.1",
         score=1.0,
         metric="superseded_excluded_corrected_total_match",
         comment="net-worth components == 1,100,000 (corrected only); a superseded leak would be 2,100,000",

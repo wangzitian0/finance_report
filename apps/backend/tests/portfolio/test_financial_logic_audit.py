@@ -36,12 +36,12 @@ async def _investment_position(db: AsyncSession, test_user, *, asset_identifier:
 
 
 def test_AC17_11_4_source_document_links_ignore_non_structured_payloads():
-    """AC17.11.4: Non-structured source document payloads produce no audit links."""
+    """AC-portfolio.logic-audit.4: AC17.11.4: Non-structured source document payloads produce no audit links."""
     assert _source_document_links("legacy-import") == []
 
 
 async def test_AC17_11_1_xirr_excludes_unrelated_bank_transactions(db: AsyncSession, test_user):
-    """AC17.11.1: XIRR/MWR use investment transactions, not unrelated bank atomic transactions."""
+    """AC-portfolio.logic-audit.1: AC17.11.1: XIRR/MWR use investment transactions, not unrelated bank atomic transactions."""
     position = await _investment_position(db, test_user, asset_identifier="XIRRAUDIT")
     start = date.today() - timedelta(days=365)
     db.add_all(
@@ -94,7 +94,7 @@ async def test_AC17_11_1_xirr_excludes_unrelated_bank_transactions(db: AsyncSess
 
 
 async def test_AC17_11_3_twr_excludes_unrelated_bank_transactions(db: AsyncSession, test_user):
-    """AC17.11.3: TWR excludes unrelated bank transactions from cash-flow adjustment."""
+    """AC-portfolio.logic-audit.3: AC17.11.3: TWR excludes unrelated bank transactions from cash-flow adjustment."""
     position = await _investment_position(db, test_user, asset_identifier="TWRAUDIT")
     start = date.today() - timedelta(days=30)
     end = date.today()
@@ -146,7 +146,7 @@ async def test_AC17_11_2_summary_ytd_amounts_convert_to_presentation_currency(
     db: AsyncSession,
     test_user,
 ):
-    """AC17.11.2: Summary YTD realized/dividend amounts are converted before aggregation."""
+    """AC-portfolio.logic-audit.2: AC17.11.2: Summary YTD realized/dividend amounts are converted before aggregation."""
     position = await _investment_position(db, test_user, asset_identifier="USDAUDIT")
     today = date.today()
     sell_date = date(today.year, 3, 1)

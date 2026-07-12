@@ -525,7 +525,7 @@ async def test_reconciliation_stats(client, db, test_user):
 
 @pytest.mark.e2e
 async def test_balance_sheet_report(client, test_user):
-    """AC-testing.journeys.4:
+    """AC-reporting.journeys.1 AC-testing.journeys.4:
     EPIC-005 / AC8.6.1: View Balance Sheet
     AC8.8.4: Core journey — reports API
     GIVEN a user posts a known balanced entry (Bank 1000 ← Opening Equity 1000)
@@ -557,7 +557,7 @@ async def test_balance_sheet_report(client, test_user):
 
 @pytest.mark.e2e
 async def test_income_statement_report(client, test_user):
-    """
+    """AC-reporting.journeys.2:
     EPIC-005 / AC8.6.2: View Income Statement
     GIVEN a user posts a known salary entry (Bank 3000 ← Salary 3000) inside the period
     WHEN requesting the income statement for that range
@@ -592,7 +592,7 @@ async def test_income_statement_report(client, test_user):
 
 @pytest.mark.e2e
 async def test_cash_flow_report(client, test_user):
-    """
+    """AC-reporting.journeys.3:
     EPIC-005 / AC8.6.3: View Cash Flow Report
     GIVEN a user posts a known cash inflow (Bank 1000 ← Opening Equity 1000) inside the period
     WHEN requesting the cash flow report for that range
@@ -925,7 +925,7 @@ async def test_reconciliation_match_acceptance(client, db, test_user):
 
 @pytest.mark.e2e
 async def test_report_navigation_all_endpoints(client, test_user):
-    """
+    """AC-reporting.journeys.4:
     EPIC-005 / AC8.6.4: All 4 report endpoints accessible in sequence
     GIVEN a user is authenticated
     WHEN requesting balance sheet, income statement, cash flow, and currencies

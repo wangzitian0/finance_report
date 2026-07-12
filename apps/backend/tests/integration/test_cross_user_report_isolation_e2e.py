@@ -52,7 +52,7 @@ async def _post(db: AsyncSession, user_id: UUID, *, debit: Account, credit: Acco
 
 
 async def test_AC8_16_2_reports_exclude_other_users_entries(db: AsyncSession, test_user: User, ac_evidence) -> None:
-    """AC8.16.2: user A's report totals reflect only A's facts; B's data never leaks in."""
+    """AC-reporting.augmentation.2: AC8.16.2: user A's report totals reflect only A's facts; B's data never leaks in."""
     user_a = test_user.id
     user_b = (await UserFactory.create_async(db)).id
 
@@ -122,7 +122,7 @@ async def test_AC8_16_2_reports_exclude_other_users_entries(db: AsyncSession, te
     # own 1500.00, never 1500 + B's 17776; A's net-worth valuation is 200000.00, never
     # 200000 + B's 800000. A cross-user leak would move both off these golden numbers.
     ac_evidence(
-        ac_id="AC8.16.2",
+        ac_id="AC-reporting.augmentation.2",
         score=1.0,
         metric="cross_user_excluded_own_totals_match",
         comment="A assets 1500.00 (not 1500+17776) and A net-worth 200000.00 (not +800000); B never leaks in",

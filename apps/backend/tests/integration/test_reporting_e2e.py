@@ -55,7 +55,7 @@ async def _posted_entry(
 
 @ac_proof(
     "structured-source-reporting-pr",
-    ac_ids=["AC5.15.1", "AC-testing.trust-mirrors.4"],
+    ac_ids=["AC-reporting.integration.1", "AC-testing.trust-mirrors.4"],
     scope="behavioral",
     ci_tier="pr_ci",
     trust_mode="deterministic_pr",
@@ -66,7 +66,7 @@ async def test_AC5_15_1_multicurrency_reporting_cycle_reconciles_bs_is_cf(
     db: AsyncSession,
     test_user,
 ) -> None:
-    """AC-testing.trust-mirrors.4: AC5.15.1 AC8.14.4: Structured/manual facts deterministically generate BS, IS, and CF reports."""
+    """AC-reporting.integration.1 AC-testing.trust-mirrors.4: AC5.15.1 AC8.14.4: Structured/manual facts deterministically generate BS, IS, and CF reports."""
     user_id = test_user.id
     period_start = date(2026, 1, 1)
     period_end = date(2026, 1, 31)

@@ -23,7 +23,7 @@ LATENCY_BUDGET_SECONDS = 30.0  # generous regression backstop, not a benchmark
 
 
 async def test_AC5_20_year_scale_reporting_ties_out_within_budget(db: AsyncSession, test_user) -> None:
-    """AC5.20.1: at a full year's transaction volume the three core statements
+    """AC-reporting.year-scale.1: AC5.20.1: at a full year's transaction volume the three core statements
     tie out and generate within a generous wall-clock budget."""
     user_id = test_user.id
     bank = Account(user_id=user_id, name="Bank", code="1001", type=AccountType.ASSET, currency="SGD")

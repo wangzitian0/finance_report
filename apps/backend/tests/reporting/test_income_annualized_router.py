@@ -17,7 +17,7 @@ async def test_annualized_income_endpoint_groups_last_12_month_income(
     db: AsyncSession,
     test_user,
 ):
-    """AC11.8.1/AC5.6.4: GET /income/annualized returns salary, bonus, dividend, total, currency, and as_of."""
+    """AC-reporting.kpis.1: AC11.8.1/AC5.6.4: GET /income/annualized returns salary, bonus, dividend, total, currency, and as_of."""
     salary = Account(user_id=test_user.id, name="Salary Income", type=AccountType.INCOME, currency="SGD")
     bonus = Account(user_id=test_user.id, name="Annual Bonus", type=AccountType.INCOME, currency="SGD")
     dividend = Account(user_id=test_user.id, name="Dividend Income", type=AccountType.INCOME, currency="SGD")
