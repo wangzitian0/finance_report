@@ -61,12 +61,11 @@ PROTECTED_MODULE_GLOBS: tuple[str, ...] = (
     "apps/backend/src/ledger/extension/account_service.py",
     "apps/backend/src/portfolio/extension/accounting.py",
     "apps/backend/src/extraction/extension/statement_posting.py",
-    # reporting moved to its package home (#1666); services/reporting/ is
-    # gone (#1610 P2 re-homed its sole survivor, manual_valuation.py, into
-    # pricing and deleted the directory) — the reporting_calc.py shim still
-    # covers services/annualized_income.py's one remaining import.
+    # reporting moved to its package home (#1666); services/reporting/ and
+    # services/reporting_calc.py are gone (#1610 P2 re-homed manual_valuation.py
+    # into pricing and deleted the directory; reporting_calc.py moved inside
+    # the reporting package, already covered by the glob below).
     "apps/backend/src/reporting/**/*.py",
-    "apps/backend/src/services/reporting_calc.py",
     # manual-valuation balance-sheet math (financial-truth, #1610 P2 —
     # re-homed from the protected services/reporting/manual_valuation.py).
     "apps/backend/src/pricing/extension/valuation.py",

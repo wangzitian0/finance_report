@@ -20,7 +20,6 @@ SERVICE_ROOT = PROJECT_ROOT / "apps" / "backend" / "src" / "services"
 PRICING_ROOT = PROJECT_ROOT / "apps" / "backend" / "src" / "pricing"
 
 ALLOWED_SERVICE_COMMIT_BOUNDARIES = {
-    ("ai_advisor/service.py", "AIAdvisorService._stream_and_store"),
     ("statement_parsing.py", "handle_parse_failure"),
     ("statement_parsing.py", "route_brokerage_for_review_if_present"),
     ("statement_parsing.py", "parse_statement_background"),
