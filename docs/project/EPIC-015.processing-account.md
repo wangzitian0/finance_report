@@ -323,7 +323,7 @@ assert abs(assets - liabilities_equity) < Decimal("0.01")  # ✅ PASSED
 | AC ID | Description | Test | Path | Priority |
 |-------|-------------|------|------|----------|
 | AC15.7.6 | Processing is discoverable as a card in the Audit hub (`/audit`), superseding the old sidebar entry | `AC15.7.6 aggregates the verify-on-demand machinery (incl. Processing) as deep-linking cards` | `apps/frontend/src/__tests__/auditHub.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC15.7.7 | The sidebar Processing badge was removed with the Advanced drawer; the non-zero-balance warning is carried by the Home Processing card and attention inbox | `AC15.7.7 AC16.19.12 AC19.6.3 AC19.6.4 AC19.6.5 AC22.21.1 keeps the accounting machinery, sidebar badges and settings out of the sidebar (supersedes the Advanced drawer)` | `apps/frontend/src/__tests__/sidebarAndTabs.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+| AC15.7.7 | The sidebar Processing badge was removed with the Advanced drawer; the non-zero-balance warning is carried by the Home Processing card and attention inbox | `AC15.7.7 ... keeps the accounting machinery, sidebar badges and settings out of the sidebar (supersedes the Advanced drawer)` (shared multi-AC test title; full name in `sidebarAndTabs.test.tsx`) | `apps/frontend/src/__tests__/sidebarAndTabs.test.tsx` | P1 | <!-- epic-owned: fe-only -->
 | AC15.7.8 | Dashboard Processing card shows the signed current balance and a non-zero balance warning | `shows the current Processing Account balance when transfers are unresolved` | `apps/frontend/src/components/__tests__/ProcessingSummaryCard.test.tsx` | P1 | <!-- epic-owned: fe-only -->
 
 **Priority**: P0-quick-win — small UI surface; backend already exposes processing-account state.

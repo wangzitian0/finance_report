@@ -728,9 +728,7 @@ class TestResidueMarkerFlip:
         (epic_dir / fname).write_text(content)
         return epic_dir
 
-    def test_unmarked_epic_row_does_not_feed_the_registry(
-        self, tmp_path, monkeypatch
-    ):
+    def test_unmarked_epic_row_does_not_feed_the_registry(self, tmp_path, monkeypatch):
         """AC-meta.residue.1: an unmarked EPIC AC row is invisible to the registry."""
         self._write_epic(
             tmp_path,
@@ -743,9 +741,7 @@ class TestResidueMarkerFlip:
         result = gar.extract_acs()
         assert set(result) == {"AC2.1.1"}
 
-    def test_residue_marker_is_stripped_from_description(
-        self, tmp_path, monkeypatch
-    ):
+    def test_residue_marker_is_stripped_from_description(self, tmp_path, monkeypatch):
         self._write_epic(
             tmp_path,
             "EPIC-002.double-entry-core.md",
@@ -777,20 +773,20 @@ class TestResidueMarkerFlip:
         contract_dir = tmp_path / "common" / "demo"
         contract_dir.mkdir(parents=True)
         (contract_dir / "contract.py").write_text(
-            'CONTRACT = PackageContract(\n'
+            "CONTRACT = PackageContract(\n"
             '    name="demo",\n'
             '    status="active",\n'
             '    tier="CODE-ONLY",\n'
-            '    roadmap=[\n'
-            '        ACRecord(\n'
+            "    roadmap=[\n"
+            "        ACRecord(\n"
             '            id="AC2.1.1",\n'
             '            statement="Roadmap statement wins",\n'
             '            test="tests/tooling/test_x.py::test_x",\n'
             '            priority="P1",\n'
             '            status="done",\n'
-            '        ),\n'
-            '    ],\n'
-            ')\n',
+            "        ),\n"
+            "    ],\n"
+            ")\n",
             encoding="utf-8",
         )
         monkeypatch.setattr(gar, "EPIC_DIR", str(tmp_path / "docs" / "project"))

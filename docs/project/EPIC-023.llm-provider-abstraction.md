@@ -3,6 +3,7 @@
 <!-- epic-file: goal-stub -->
 
 > **Status**: ✅ Complete — shipped and cut over to the `llm` package (#1426).
+> **Vision Anchor**: `decision-4-two-stage-review`
 > **Goal**: replace the bespoke `httpx` AI plumbing with litellm behind one
 > in-repo package, structured as three orthogonal axes — protocol family ×
 > model catalogue × scene — with the scene×model binding as the only

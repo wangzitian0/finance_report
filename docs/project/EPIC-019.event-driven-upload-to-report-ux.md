@@ -358,13 +358,14 @@ workflow state exists.
 
 ### AC19.6 — Navigation Folding And Advanced Drill-Down
 
-> **Superseded and deleted (#1719).** AC19.6.1–AC19.6.7 described the original
-> primary/advanced navigation model (Upload Pipeline / Reports / AI / Advanced
-> + mobile drawer). EPIC-022 PR12 replaced it with a mobile/PWA bottom tab bar
-> (Home · Chat · Add · Audit · More); navigation IA is owned by EPIC-022
-> (AC22.21.x) and `docs/ssot/frontend-patterns.md` §9, and deep-link
-> reachability lives on in the AC22.21 proofs. The superseded rows were dead
-> rows, deleted rather than migrated per the migration closeout (#1719).
+> *(AC19.6.1 removed and AC19.6.2 removed and AC19.6.3 removed and AC19.6.4 removed and AC19.6.5 removed and AC19.6.6 removed and AC19.6.7 removed — dead rows, deleted rather than migrated, #1719.)*
+>
+> This group described the
+> original primary/advanced navigation model (Upload Pipeline / Reports / AI /
+> Advanced + mobile drawer). EPIC-022 PR12 replaced it with a mobile/PWA
+> bottom tab bar (Home · Chat · Add · Audit · More); navigation IA is owned by
+> EPIC-022 (AC22.21.x) and `docs/ssot/frontend-patterns.md` §9, and deep-link
+> reachability lives on in the AC22.21 proofs.
 
 ### AC19.7 — Framework-Aware Evidence Readiness
 
@@ -380,7 +381,7 @@ before marking US/HK personal reports trusted.
 
 ### AC19.8 — Workflow Session IA Hardening And CR Cleanup
 
-> **Partially migrated.** *(AC19.8.1 removed and AC19.8.2 removed and AC19.8.3 removed and AC19.8.9 removed — this group's backend session-model/API rows migrated to the `platform` package roadmap as `AC-platform.33.1-4`, migration closeout continuation, #1663 / #1712)*. *(AC19.8.5 deleted —
+> **Partially migrated.** *(AC19.8.1 removed and AC19.8.2 removed and AC19.8.3 removed and AC19.8.9 removed — this group's backend session-model/API rows migrated to the `platform` package roadmap as `AC-platform.33.1-4`, migration closeout continuation, #1663 / #1712)*. *(AC19.8.5 removed —
 > a dead row explicitly superseded by EPIC-022 AC22.21, whose AC22.21.1
 > proof owns the bottom-tab navigation contract; deleted rather than
 > migrated, #1719.)* The frontend, IA, and report-readiness rows below stay
@@ -448,10 +449,7 @@ pre-insert SELECT and both insert; the loser raised a `UniqueViolationError` on
 insert now runs inside a SAVEPOINT and recovers the existing row on conflict, mirroring the existing
 `uq_workflow_sessions_user_dedupe_key` guard.
 
-*(The AC19.14.1–.3 rows that previously mirrored `AC-platform.35.1-3` here
-were stale duplicates of the migrated records — same tests, same statements —
-and were deleted by the final cleanup, #1719. The contract roadmap is the
-single source.)*
+*(AC19.14.1 removed and AC19.14.2 removed and AC19.14.3 removed — stale duplicates of the migrated `AC-platform.35.1-3` records (same tests, same statements), deleted by the final cleanup, #1719. The contract roadmap is the single source.)*
 
 ### AC19.15 — Three-Entry Upload Intake (issue #1208)
 

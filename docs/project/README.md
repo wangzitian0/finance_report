@@ -58,8 +58,9 @@ and additional banks / XLSX / OCR ingest.
   `docs/ac_registry.yaml` / `docs/infra_registry.yaml` are generated index
   stubs and `docs/ac_registry_overrides.yaml` is empty.
 - Test proof is reported by `python tools/analyze_test_ac_coverage.py --no-write --stdout`
-  and CI traceability artifacts. Do not commit generated audit snapshots in
-  routine feature PRs; removed archive inventory is retained in
+  and CI traceability artifacts.
+  Do not commit generated audit snapshots in routine feature PRs; removed
+  archive inventory is retained in
   [issue #548](https://github.com/wangzitian0/finance_report/issues/548).
 - Coverage policy is owned by `common/meta/extension/coverage/policy.py`.
 - Project status metrics should be generated or validated, not hand-maintained.
