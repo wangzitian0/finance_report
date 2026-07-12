@@ -267,7 +267,7 @@ the platform must use fallback text.
 
 | Contract | Proof owner |
 |---|---|
-| AC definitions | [EPIC-009](../../docs/project/EPIC-009.pdf-fixture-generation.md) |
+| AC definitions | [`common/testing/contract.py`](../../common/testing/contract.py) roadmap groups 1-8 (was EPIC-009; the EPIC file was deleted by #1719) |
 | Analyzer, sanitizer, templates, generator registration, gitignore, and docs | `tests/tooling/test_pdf_fixture_epic009_behavior.py` |
 | Source-specific generated PDFs, dates, and balances | `tests/tooling/test_pdf_fixture_parseable.py` |
 | Sanitized real-format contracts and generated-PDF parity checks | `tests/tooling/test_pdf_fixture_real_format_contract.py` |

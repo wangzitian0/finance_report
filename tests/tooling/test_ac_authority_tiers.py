@@ -70,10 +70,10 @@ def test_AC26_2_1_tier_marker_flows_into_registry_value(tmp_path, monkeypatch) -
     _write_epic(
         epic_dir,
         "EPIC-003.statement-parsing.md",
-        "| AC3.1.1 | Parse DBS PDF {tier:LLM-LED} | t | f | P0 |\n"
-        "| AC3.1.2 | Parse CSV (DBS) {tier:CODE-ONLY} | t | f | P0 |\n"
-        "| AC3.1.3 | No tier declared here | t | f | P0 |\n"
-        "| AC3.1.4 | Bad tier {tier:ZZ} marker | t | f | P0 |\n",
+        "| AC3.1.1 | Parse DBS PDF {tier:LLM-LED} | t | f | P0 | <!-- epic-owned: pending-package -->\n"
+        "| AC3.1.2 | Parse CSV (DBS) {tier:CODE-ONLY} | t | f | P0 | <!-- epic-owned: pending-package -->\n"
+        "| AC3.1.3 | No tier declared here | t | f | P0 | <!-- epic-owned: pending-package -->\n"
+        "| AC3.1.4 | Bad tier {tier:ZZ} marker | t | f | P0 | <!-- epic-owned: pending-package -->\n",
     )
     monkeypatch.setattr(gar, "EPIC_DIR", str(epic_dir))
     monkeypatch.setattr(gar, "OVERRIDES", str(overrides))

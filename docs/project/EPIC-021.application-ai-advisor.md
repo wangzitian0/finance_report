@@ -78,8 +78,8 @@ Not owned here:
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC21.1.1 | EPIC-021 and AI SSOT define AI Advisor as a read-only application layer that consumes deterministic application facts and is not the source of record {tier:CODE-ONLY} | `test_AC21_1_1_ai_advisor_is_application_layer_contract`, `test_application_ai_advisor_epic021_product_owner_contract` | `tests/tooling/test_application_ai_advisor_epic021_contract.py`, `tests/e2e/test_application_ai_advisor_epic021.py` | P0 |
-| AC21.1.2 | Scale coverage and confidence work is explicitly routed to existing EPICs and issues instead of being re-owned by EPIC-021 {tier:CODE-ONLY} | `test_AC21_1_2_scale_and_confidence_work_stays_in_existing_epics`, `test_application_ai_advisor_epic021_product_owner_contract` | `tests/tooling/test_application_ai_advisor_epic021_contract.py`, `tests/e2e/test_application_ai_advisor_epic021.py` | P0 |
+| AC21.1.1 | EPIC-021 and AI SSOT define AI Advisor as a read-only application layer that consumes deterministic application facts and is not the source of record {tier:CODE-ONLY} | `test_AC21_1_1_ai_advisor_is_application_layer_contract`, `test_application_ai_advisor_epic021_product_owner_contract` | `tests/tooling/test_application_ai_advisor_epic021_contract.py`, `tests/e2e/test_application_ai_advisor_epic021.py` | P0 | <!-- epic-owned: horizontal -->
+| AC21.1.2 | Scale coverage and confidence work is explicitly routed to existing EPICs and issues instead of being re-owned by EPIC-021 {tier:CODE-ONLY} | `test_AC21_1_2_scale_and_confidence_work_stays_in_existing_epics`, `test_application_ai_advisor_epic021_product_owner_contract` | `tests/tooling/test_application_ai_advisor_epic021_contract.py`, `tests/e2e/test_application_ai_advisor_epic021.py` | P0 | <!-- epic-owned: horizontal -->
 
 ### AC21.2: Backend Advisor Context and Suggestions
 
@@ -92,9 +92,9 @@ Not owned here:
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC21.3.2 | Advisor Brief renders blocked, ready, review-required, and stale-market-data cards with source basis, limitation, and safe internal action links {tier:CODE-ONLY} | `test_AC21_3_2_advisor_brief_renders_structured_cards_and_safe_routes` | `apps/frontend/src/__tests__/advisorBrief.test.tsx` | P0 |
-| AC21.3.3 | Chat and dashboard surfaces expose contextual Ask AI links that seed a scoped prompt without losing existing chat behavior {tier:CODE-ONLY} | `test_AC21_3_3_chat_panel_renders_contextual_advisor_brief`, `test_AC21_3_3_dashboard_renders_advisor_brief_before_analytics` | `apps/frontend/src/__tests__/chatPanelComponent.test.tsx`, `apps/frontend/src/__tests__/dashboardPage.test.tsx` | P0 |
-| AC21.3.4 | Advisor Brief keeps desktop and mobile layouts free of horizontal overflow {tier:CODE-ONLY} | `advisor-brief desktop and mobile layouts avoid horizontal overflow` | `apps/frontend/playwright/advisor-brief.spec.ts` | P1 |
+| AC21.3.2 | Advisor Brief renders blocked, ready, review-required, and stale-market-data cards with source basis, limitation, and safe internal action links {tier:CODE-ONLY} | `test_AC21_3_2_advisor_brief_renders_structured_cards_and_safe_routes` | `apps/frontend/src/__tests__/advisorBrief.test.tsx` | P0 | <!-- epic-owned: fe-only -->
+| AC21.3.3 | Chat and dashboard surfaces expose contextual Ask AI links that seed a scoped prompt without losing existing chat behavior {tier:CODE-ONLY} | `test_AC21_3_3_chat_panel_renders_contextual_advisor_brief`, `test_AC21_3_3_dashboard_renders_advisor_brief_before_analytics` | `apps/frontend/src/__tests__/chatPanelComponent.test.tsx`, `apps/frontend/src/__tests__/dashboardPage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
+| AC21.3.4 | Advisor Brief keeps desktop and mobile layouts free of horizontal overflow {tier:CODE-ONLY} | `advisor-brief desktop and mobile layouts avoid horizontal overflow` | `apps/frontend/playwright/advisor-brief.spec.ts` | P1 | <!-- epic-owned: fe-only -->
 
 ## Planned Implementation Slices
 

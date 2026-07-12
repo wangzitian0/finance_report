@@ -150,7 +150,7 @@ Accounting Equation Verification: Reports must comply with accounting equation
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.6.4 | Annualized income KPI dashboard card renders the endpoint's figures (backend endpoint half migrated as `AC-reporting.kpis.1`; calculation ownership stays with AC11.8.1) | `AC11.8.2/AC11.8.6 renders Annualized Income card with the four metric labels` | `frontend/src/__tests__/dashboardPage.test.tsx` | P0 |
+| AC5.6.4 | Annualized income KPI dashboard card renders the endpoint's figures (backend endpoint half migrated as `AC-reporting.kpis.1`; calculation ownership stays with AC11.8.1) | `AC11.8.2/AC11.8.6 renders Annualized Income card with the four metric labels` | `frontend/src/__tests__/dashboardPage.test.tsx` | P0 | <!-- epic-owned: fe-half -->
 
 ### AC5.8: Personal Report Package Investment Performance Consumption
 
@@ -167,7 +167,7 @@ method, dividends, realized/unrealized P&L, and return metric limitations.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.8.1 | Personal report package renders the `investment_performance` report section from the EPIC-017 schedule API (backend contract half migrated as `AC-reporting.package-investment.1`) | `AC5.8.1 renders investment performance report schedule from the schedule API` | `apps/frontend/src/__tests__/portfolioPage.test.tsx` | P0 |
+| AC5.8.1 | Personal report package renders the `investment_performance` report section from the EPIC-017 schedule API (backend contract half migrated as `AC-reporting.package-investment.1`) | `AC5.8.1 renders investment performance report schedule from the schedule API` | `apps/frontend/src/__tests__/portfolioPage.test.tsx` | P0 | <!-- epic-owned: fe-half -->
 
 ### AC5.9: Personal Report Package Contract
 
@@ -185,8 +185,8 @@ personal financial-report package.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.9.3 | Frontend personal package page renders the contract section IDs and labels from the API contract | `AC5.9.3 renders personal package contract sections from API` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
-| AC5.9.4 | Frontend/export contract surfaces stable export format and CSV columns for package consumers | `AC5.9.4 renders export contract metadata` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P1 |
+| AC5.9.3 | Frontend personal package page renders the contract section IDs and labels from the API contract | `AC5.9.3 renders personal package contract sections from API` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
+| AC5.9.4 | Frontend/export contract surfaces stable export format and CSV columns for package consumers | `AC5.9.4 renders export contract metadata` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
 
 ### AC5.10: Financial Statement Logic Audit Fixes
 
@@ -207,7 +207,7 @@ AC5.9. Supporting calculations remain owned by EPIC-011.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.11.2 | Frontend personal package page renders annualized income totals and restricted treatment from the schedule endpoint | `AC5.11.2 renders annualized income schedule values and restricted treatment` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
+| AC5.11.2 | Frontend personal package page renders annualized income totals and restricted treatment from the schedule endpoint | `AC5.11.2 renders annualized income schedule values and restricted treatment` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
 
 ### AC5.12: Personal Report Package Notes and Disclosure Basis
 
@@ -225,7 +225,7 @@ claim statutory filing compliance.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.12.3 | Frontend personal package page renders notes and disclosure basis from the notes endpoint | `AC5.12.3 renders package notes and disclosure basis` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
+| AC5.12.3 | Frontend personal package page renders notes and disclosure basis from the notes endpoint | `AC5.12.3 renders package notes and disclosure basis` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
 
 ### AC5.13: Personal Report Package Traceability Appendix
 
@@ -243,7 +243,7 @@ to audit each report line.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.13.3 | Frontend personal package page renders source, ledger, review, and confidence metadata from the appendix | `AC5.13.3 renders traceability appendix source, ledger, review, and confidence metadata` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
+| AC5.13.3 | Frontend personal package page renders source, ledger, review, and confidence metadata from the appendix | `AC5.13.3 renders traceability appendix source, ledger, review, and confidence metadata` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
 
 ### AC5.14: Framework Policy Result Consumption
 
@@ -254,7 +254,7 @@ recognition, measurement, or classification rules.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.14.1 | Reporting docs declare that EPIC-005 consumes framework policy results for US/HK package output and does not own framework-specific accounting decisions | `test_AC5_14_1_reporting_assembles_framework_policy_results_only` | `tests/tooling/test_framework_reporting_epic_contract.py` | P0 |
+| AC5.14.1 | Reporting docs declare that EPIC-005 consumes framework policy results for US/HK package output and does not own framework-specific accounting decisions | `test_AC5_14_1_reporting_assembles_framework_policy_results_only` | `tests/tooling/test_framework_reporting_epic_contract.py` | P0 | <!-- epic-owned: horizontal -->
 
 ### AC5.15: Backend Reporting Integration Journey
 
@@ -283,9 +283,9 @@ visible to users.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.16.1 | Balance sheet page exposes the restricted-holdings include toggle and renders equation component detail (backend default-exclusion half migrated as `AC-reporting.trust-signals.1`) | `AC16.14.2 / test_AC8_13_48 renders string totals and refetches by date` | `frontend/src/__tests__/balanceSheetPage.test.tsx` | P0 |
-| AC5.16.2 | Balance sheet, income statement, and cash-flow report pages surface backend `fx_warnings` instead of silently rendering partial totals (backend fx_warnings-preservation half migrated as `AC-reporting.trust-signals.2`) | page warning assertions | `frontend/src/__tests__/balanceSheetPage.test.tsx`, `frontend/src/__tests__/incomeStatementPage.test.tsx`, `frontend/src/__tests__/cashFlowPage.test.tsx` | P0 |
-| AC5.16.3 | Personal report package traceability renders concrete source and ledger identifiers when the appendix provides them | `AC5.13.3 renders traceability appendix source, ledger, review, and confidence metadata` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
+| AC5.16.1 | Balance sheet page exposes the restricted-holdings include toggle and renders equation component detail (backend default-exclusion half migrated as `AC-reporting.trust-signals.1`) | `AC16.14.2 / test_AC8_13_48 renders string totals and refetches by date` | `frontend/src/__tests__/balanceSheetPage.test.tsx` | P0 | <!-- epic-owned: fe-half -->
+| AC5.16.2 | Balance sheet, income statement, and cash-flow report pages surface backend `fx_warnings` instead of silently rendering partial totals (backend fx_warnings-preservation half migrated as `AC-reporting.trust-signals.2`) | page warning assertions | `frontend/src/__tests__/balanceSheetPage.test.tsx`, `frontend/src/__tests__/incomeStatementPage.test.tsx`, `frontend/src/__tests__/cashFlowPage.test.tsx` | P0 | <!-- epic-owned: fe-half -->
+| AC5.16.3 | Personal report package traceability renders concrete source and ledger identifiers when the appendix provides them | `AC5.13.3 renders traceability appendix source, ledger, review, and confidence metadata` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
 
 ### AC5.17: Authenticated Report CSV Exports
 
@@ -299,8 +299,8 @@ action.
 
 | AC | Acceptance Criteria | Test(s) | File(s) | Priority |
 |----|--------------------|---------|---------|----------|
-| AC5.17.1 | Balance sheet, income statement, and cash-flow pages download CSV through the authenticated API wrapper (backend cash-flow CSV export half migrated as `AC-reporting.csv-export.1`) | `AC5.17.1 downloads cash-flow CSV through authenticated apiDownload` | `frontend/src/__tests__/cashFlowPage.test.tsx` | P0 |
-| AC5.17.2 | Personal report package page exposes an authenticated CSV export action after framework selection, using the package export contract and selected framework ID | `AC5.17.2 downloads package CSV through authenticated apiDownload` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
+| AC5.17.1 | Balance sheet, income statement, and cash-flow pages download CSV through the authenticated API wrapper (backend cash-flow CSV export half migrated as `AC-reporting.csv-export.1`) | `AC5.17.1 downloads cash-flow CSV through authenticated apiDownload` | `frontend/src/__tests__/cashFlowPage.test.tsx` | P0 | <!-- epic-owned: fe-half -->
+| AC5.17.2 | Personal report package page exposes an authenticated CSV export action after framework selection, using the package export contract and selected framework ID | `AC5.17.2 downloads package CSV through authenticated apiDownload` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
 
 ### AC5.18: Per-Node Confidence Tier on Balance-Sheet Payloads
 
@@ -330,7 +330,7 @@ same package after later ledger or market-data changes.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.19.4 | The package page shows recent snapshots, can generate a new snapshot, and downloads JSON/CSV from the saved snapshot artifact | `AC5.19.4 generates and downloads package snapshots` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
+| AC5.19.4 | The package page shows recent snapshots, can generate a new snapshot, and downloads JSON/CSV from the saved snapshot artifact | `AC5.19.4 generates and downloads package snapshots` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
 
 ### AC5.20: Year-Scale Reporting Validation ([#951](https://github.com/wangzitian0/finance_report/issues/951))
 
@@ -360,11 +360,11 @@ and behavior is identical across balance-sheet, income-statement, and cash-flow.
 
 | AC ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.33.1 | `ReportPageShell` renders title, description, and toolbar slot, and shows the report body when not loading or errored | `AC5.33.1 renders title, description, toolbar, and body content` | `apps/frontend/src/__tests__/reportPageShell.test.tsx` | P1 |
-| AC5.33.2 | `ReportPageShell` renders the loading skeleton (and not the body) while `isLoading` | `AC5.33.2 shows loading skeleton while loading` | `apps/frontend/src/__tests__/reportPageShell.test.tsx` | P1 |
-| AC5.33.3 | `ReportPageShell` renders the error message with a working Retry action on `isError` | `AC5.33.3 shows error message and retries on click` | `apps/frontend/src/__tests__/reportPageShell.test.tsx` | P1 |
-| AC5.33.4 | `ReportToolbar` composes the AI-prompt action, Home link, and CSV export action from its props | `AC5.33.4 renders AI prompt, home link, and CSV export` | `apps/frontend/src/__tests__/reportToolbar.test.tsx` | P1 |
-| AC5.33.5 | `AiPromptAction` links to the chat route with a URL-encoded prompt | `AC5.33.5 links to chat with url-encoded prompt` | `apps/frontend/src/__tests__/reportToolbar.test.tsx` | P1 |
+| AC5.33.1 | `ReportPageShell` renders title, description, and toolbar slot, and shows the report body when not loading or errored | `AC5.33.1 renders title, description, toolbar, and body content` | `apps/frontend/src/__tests__/reportPageShell.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+| AC5.33.2 | `ReportPageShell` renders the loading skeleton (and not the body) while `isLoading` | `AC5.33.2 shows loading skeleton while loading` | `apps/frontend/src/__tests__/reportPageShell.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+| AC5.33.3 | `ReportPageShell` renders the error message with a working Retry action on `isError` | `AC5.33.3 shows error message and retries on click` | `apps/frontend/src/__tests__/reportPageShell.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+| AC5.33.4 | `ReportToolbar` composes the AI-prompt action, Home link, and CSV export action from its props | `AC5.33.4 renders AI prompt, home link, and CSV export` | `apps/frontend/src/__tests__/reportToolbar.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+| AC5.33.5 | `AiPromptAction` links to the chat route with a URL-encoded prompt | `AC5.33.5 links to chat with url-encoded prompt` | `apps/frontend/src/__tests__/reportToolbar.test.tsx` | P1 | <!-- epic-owned: fe-only -->
 
 ### AC5.34: Report Filter Controls + Filter Hook ([#751](https://github.com/wangzitian0/finance_report/issues/751))
 
@@ -375,12 +375,12 @@ page-level intent.
 
 | AC ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.34.1 | `DateFilterControl` renders a labelled date input and emits changes | `AC5.34.1 renders labelled date input and emits change` | `apps/frontend/src/__tests__/reportFilters.test.tsx` | P1 |
-| AC5.34.2 | `CurrencyFilterControl` renders a labelled currency select with the provided options and emits changes | `AC5.34.2 renders currency options and emits change` | `apps/frontend/src/__tests__/reportFilters.test.tsx` | P1 |
-| AC5.34.3 | `useReportFilters` builds a query string from its date and currency state | `AC5.34.3 builds query string from filter state` | `apps/frontend/src/__tests__/useReportFilters.test.ts` | P1 |
-| AC5.34.4 | `useReportFilters` derives the CSV export path for the given report type | `AC5.34.4 derives csv export path for report type` | `apps/frontend/src/__tests__/useReportFilters.test.ts` | P1 |
-| AC5.34.5 | `useReportFilters` updates the query string when the currency changes | `AC5.34.5 updates query string when currency changes` | `apps/frontend/src/__tests__/useReportFilters.test.ts` | P1 |
-| AC5.34.6 {tier:CODE-ONLY} | `useReportFilters` seeds its initial date/currency state from the URL query params (`as_of_date`/`start_date`/`end_date`/`currency`) with precedence explicit option > URL param > default, so report routes honour deep links | `AC5.34.6 seeds initial filter state from URL query params` | `apps/frontend/src/__tests__/useReportFilters.test.ts` | P1 |
+| AC5.34.1 | `DateFilterControl` renders a labelled date input and emits changes | `AC5.34.1 renders labelled date input and emits change` | `apps/frontend/src/__tests__/reportFilters.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+| AC5.34.2 | `CurrencyFilterControl` renders a labelled currency select with the provided options and emits changes | `AC5.34.2 renders currency options and emits change` | `apps/frontend/src/__tests__/reportFilters.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+| AC5.34.3 | `useReportFilters` builds a query string from its date and currency state | `AC5.34.3 builds query string from filter state` | `apps/frontend/src/__tests__/useReportFilters.test.ts` | P1 | <!-- epic-owned: fe-only -->
+| AC5.34.4 | `useReportFilters` derives the CSV export path for the given report type | `AC5.34.4 derives csv export path for report type` | `apps/frontend/src/__tests__/useReportFilters.test.ts` | P1 | <!-- epic-owned: fe-only -->
+| AC5.34.5 | `useReportFilters` updates the query string when the currency changes | `AC5.34.5 updates query string when currency changes` | `apps/frontend/src/__tests__/useReportFilters.test.ts` | P1 | <!-- epic-owned: fe-only -->
+| AC5.34.6 {tier:CODE-ONLY} | `useReportFilters` seeds its initial date/currency state from the URL query params (`as_of_date`/`start_date`/`end_date`/`currency`) with precedence explicit option > URL param > default, so report routes honour deep links | `AC5.34.6 seeds initial filter state from URL query params` | `apps/frontend/src/__tests__/useReportFilters.test.ts` | P1 | <!-- epic-owned: fe-only -->
 
 ### AC5.35: Dashboard Aggregation Moved Into Hook Layer ([#751](https://github.com/wangzitian0/finance_report/issues/751))
 
@@ -391,10 +391,10 @@ fetching and normalizing it inline. Monetary values stay decimal strings.
 
 | AC ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.35.1 | `useDashboardData` aggregates the dashboard endpoints over `apiFetch` and exposes a single loading flag | `AC5.35.1 aggregates dashboard endpoints over apiFetch` | `apps/frontend/src/__tests__/useDashboardData.test.ts` | P1 |
-| AC5.35.2 | `useDashboardData` normalizes missing balance-sheet / income / annualized fields to safe decimal-string defaults | `AC5.35.2 normalizes missing report fields to defaults` | `apps/frontend/src/__tests__/useDashboardData.test.ts` | P1 |
-| AC5.35.3 | `useDashboardData` surfaces an error message and a retry that refetches when aggregation fails | `AC5.35.3 surfaces error and retries on failure` | `apps/frontend/src/__tests__/useDashboardData.test.ts` | P1 |
-| AC5.35.4 | `useDashboardData` tolerates a failing chat-suggestions endpoint without failing the whole dashboard | `AC5.35.4 tolerates failing chat suggestions endpoint` | `apps/frontend/src/__tests__/useDashboardData.test.ts` | P1 |
+| AC5.35.1 | `useDashboardData` aggregates the dashboard endpoints over `apiFetch` and exposes a single loading flag | `AC5.35.1 aggregates dashboard endpoints over apiFetch` | `apps/frontend/src/__tests__/useDashboardData.test.ts` | P1 | <!-- epic-owned: fe-only -->
+| AC5.35.2 | `useDashboardData` normalizes missing balance-sheet / income / annualized fields to safe decimal-string defaults | `AC5.35.2 normalizes missing report fields to defaults` | `apps/frontend/src/__tests__/useDashboardData.test.ts` | P1 | <!-- epic-owned: fe-only -->
+| AC5.35.3 | `useDashboardData` surfaces an error message and a retry that refetches when aggregation fails | `AC5.35.3 surfaces error and retries on failure` | `apps/frontend/src/__tests__/useDashboardData.test.ts` | P1 | <!-- epic-owned: fe-only -->
+| AC5.35.4 | `useDashboardData` tolerates a failing chat-suggestions endpoint without failing the whole dashboard | `AC5.35.4 tolerates failing chat suggestions endpoint` | `apps/frontend/src/__tests__/useDashboardData.test.ts` | P1 | <!-- epic-owned: fe-only -->
 
 ## 📏 Acceptance Criteria
 
@@ -572,12 +572,12 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 
 ### Acceptance Criteria
 
-- [x] **AC5.7.1** Net worth time-series API endpoint `GET /api/reports/net-worth/timeseries?from=YYYY-MM-DD&to=YYYY-MM-DD&granularity=monthly|daily` returns `[{date, total_assets, total_liabilities, net_worth}]`
-- [x] **AC5.7.2** Net worth chart component on dashboard renders ECharts line chart with date X-axis and net-worth Y-axis
-- [x] **AC5.7.3** Net worth time-series respects multi-currency: each point converted to base currency using historical FX rate per `transaction-date rate` rule
-- [x] **AC5.7.4** Time range selector (1M / 3M / 6M / 1Y / All) on dashboard toggles `from` parameter for chart
-- [x] **AC5.7.5** Empty-state placeholder rendered when fewer than 2 data points exist (cannot draw line)
-- [x] **AC5.7.6** Frontend unit test mounts NetWorthTimeSeries component and asserts chart container exists
+- [x] **AC5.7.1** Net worth time-series API endpoint `GET /api/reports/net-worth/timeseries?from=YYYY-MM-DD&to=YYYY-MM-DD&granularity=monthly|daily` returns `[{date, total_assets, total_liabilities, net_worth}]` <!-- epic-owned: pending-package -->
+- [x] **AC5.7.2** Net worth chart component on dashboard renders ECharts line chart with date X-axis and net-worth Y-axis <!-- epic-owned: fe-only -->
+- [x] **AC5.7.3** Net worth time-series respects multi-currency: each point converted to base currency using historical FX rate per `transaction-date rate` rule <!-- epic-owned: pending-package -->
+- [x] **AC5.7.4** Time range selector (1M / 3M / 6M / 1Y / All) on dashboard toggles `from` parameter for chart <!-- epic-owned: fe-only -->
+- [x] **AC5.7.5** Empty-state placeholder rendered when fewer than 2 data points exist (cannot draw line) <!-- epic-owned: fe-only -->
+- [x] **AC5.7.6** Frontend unit test mounts NetWorthTimeSeries component and asserts chart container exists <!-- epic-owned: fe-only -->
 
 **Priority**: P1 (high) — needed for vision parity but not blocking user adoption.
 **Estimated effort**: 3-5 days backend + 2-3 days frontend.
@@ -602,5 +602,5 @@ readiness derivation or source-trust rules in the frontend.
 
 | AC ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.37.1 | The Reports cockpit renders package readiness state, blocker count, next action, and source-gap summary before report cards | `AC5.37.1 renders trust-first readiness before report cards` | `frontend/src/__tests__/reportsCockpit.test.tsx` | P1 |
-| AC5.37.2 | If readiness loading fails, the Reports cockpit shows a contained unavailable state while preserving report navigation | `AC5.37.2 preserves report navigation when readiness is unavailable` | `frontend/src/__tests__/reportsCockpit.test.tsx` | P1 |
+| AC5.37.1 | The Reports cockpit renders package readiness state, blocker count, next action, and source-gap summary before report cards | `AC5.37.1 renders trust-first readiness before report cards` | `frontend/src/__tests__/reportsCockpit.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+| AC5.37.2 | If readiness loading fails, the Reports cockpit shows a contained unavailable state while preserving report navigation | `AC5.37.2 preserves report navigation when readiness is unavailable` | `frontend/src/__tests__/reportsCockpit.test.tsx` | P1 | <!-- epic-owned: fe-only -->
