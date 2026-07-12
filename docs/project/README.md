@@ -3,10 +3,11 @@
 This directory contains the detailed EPIC documents that sit below the root
 project entry point.
 
-The project hierarchy is:
+The project hierarchy (post package-migration, #1416/#1719) is:
 
 ```text
-README.md -> docs/project/EPIC-*.md -> generated AC indexes -> tests
+README.md -> common/<pkg>/contract.py roadmaps (authoritative ACs) -> tests
+          -> docs/project/EPIC-*.md (marked residue rows only)     -> tests
 ```
 
 Use the root [README](https://github.com/wangzitian0/finance_report/blob/main/README.md) for stable project entry points and proof
@@ -39,19 +40,26 @@ lineage backfill (EPIC-018 AC18.7–18.12, [#733](https://github.com/wangzitian0
 grounded assistant ([#912](https://github.com/wangzitian0/finance_report/issues/912)),
 and additional banks / XLSX / OCR ingest.
 
-## Source Rules
+## Source Rules (post-EPIC world, #1719)
 
-- EPIC scope lives in `docs/project/EPIC-*.md`.
-- AC definitions are discovered from EPIC documents and materialized through
-  generated registry indexes (`docs/ac_registry.yaml`,
-  `docs/infra_registry.yaml`) plus explicit non-derived overrides
-  (`docs/ac_registry_overrides.yaml`).
+- **Package contract roadmaps are the authoritative AC source**: a migrated
+  package owns its ACs as `AC-<pkg>.<group>.<seq>` records in
+  `common/<pkg>/contract.py`. New ACs go there — never into an EPIC table.
+- **EPIC docs hold only explicitly marked residue.** Every AC definition line
+  that stays in `docs/project/EPIC-*.md` carries a
+  `<!-- epic-owned: fe-only|fe-half|horizontal|pending-package -->` marker;
+  the residue ratchet (`tests/tooling/test_epic_residue_ratchet.py`,
+  baseline `docs/ssot/epic-residue-baseline.json`) enforces unmarked rows ==
+  0, census == baseline, and a shrink-only EPIC file set. `pending-package`
+  rows are the tracked non-permanent remainder for the post-migration
+  backlog.
+- The AC index is computed by `common/meta/extension/generate_ac_registry.py`
+  from those two sources (roadmap-wins on any collision);
+  `docs/ac_registry.yaml` / `docs/infra_registry.yaml` are generated index
+  stubs and `docs/ac_registry_overrides.yaml` is empty.
 - Test proof is reported by `python tools/analyze_test_ac_coverage.py --no-write --stdout`
-  and CI traceability artifacts.
-- Current AC traceability follows this live chain:
-  `README.md` -> `docs/project/EPIC-*.md` -> generated AC indexes ->
-  tests -> CI artifact. Do not commit generated audit snapshots in routine
-  feature PRs; removed archive inventory is retained in
+  and CI traceability artifacts. Do not commit generated audit snapshots in
+  routine feature PRs; removed archive inventory is retained in
   [issue #548](https://github.com/wangzitian0/finance_report/issues/548).
 - Coverage policy is owned by `common/meta/extension/coverage/policy.py`.
 - Project status metrics should be generated or validated, not hand-maintained.
@@ -95,6 +103,15 @@ owning source instead of copying:
 | [EPIC-020](./EPIC-020.framework-aware-personal-reporting.md) | Framework-aware personal financial reporting |
 | [EPIC-021](./EPIC-021.application-ai-advisor.md) | Application-layer AI Advisor |
 | [EPIC-022](./EPIC-022.everyday-user-ia.md) | Everyday-user information architecture |
+| [EPIC-023](./EPIC-023.llm-provider-abstraction.md) | LLM provider abstraction (goal stub; ACs live in `common/llm/contract.py`) |
+| [EPIC-024](./EPIC-024.frontend-observability.md) | Frontend browser observability |
+| [EPIC-025](./EPIC-025.dry-ssot-simplification.md) | DRY/SSOT simplification |
+| [EPIC-026](./EPIC-026.ac-authority-tiers.md) | AC authority tiers |
+
+EPIC-009 (PDF fixture generation) was deleted by #1719 — its scope is owned
+by the [`testing` package](../../common/testing/README.md#pdf-fixtures).
+EPIC-013/014/020 and the EPIC-022 design companion are 0-AC-row design docs
+kept with explicit `<!-- epic-file: design-doc -->` justifications.
 
 ## Current Audit Reports
 
@@ -130,7 +147,7 @@ sync with ACs and tests.
 | [../user-guide/reports.md](../user-guide/reports.md) | EPIC-005 | Reporting user surface |
 | [../user-guide/ai-advisor.md](../user-guide/ai-advisor.md) and [../reference/api.md](../reference/api.md) | EPIC-006 / EPIC-021 | AI advisor user/API surface and application guidance layer |
 | [../reference/api-overview.md](../reference/api-overview.md) | EPIC-001 | API conventions and auth entry point |
-| [../../common/testing/README.md#pdf-fixtures](../../common/testing/README.md#pdf-fixtures) | EPIC-009 | PDF fixture command, template, local-input, and font policy |
+| [../../common/testing/README.md#pdf-fixtures](../../common/testing/README.md#pdf-fixtures) | `testing` package (was EPIC-009, deleted by #1719) | PDF fixture command, template, local-input, and font policy |
 | [AUDITS.md](./AUDITS.md) and [AC-AUDIT-2026-05-04.md](./AC-AUDIT-2026-05-04.md) | EPIC-014 | Current and historical audit surfaces |
 | [DECISIONS.md](./DECISIONS.md) | EPIC-014 | Project decision log |
 
