@@ -462,6 +462,10 @@ async def build_manual_valuation_lines(
     # order for no gain.
     from src.pricing.extension.fx import convert_amount
 
+    # Normalize once up front (matches source_currency's .upper() below) so an
+    # already-equal pair (e.g. caller passes lowercase) never triggers a
+    # needless FX conversion call.
+    target_currency = target_currency.upper()
     components = await ValuationService().get_latest_valuation_components(
         db,
         user_id,

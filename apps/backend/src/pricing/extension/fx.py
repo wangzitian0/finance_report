@@ -317,7 +317,9 @@ class PrefetchedFxRates:
         must not be used concurrently. A miss propagates the pricing error
         family — never a silent partial cache.
         """
-        unique_pairs = list(set(pairs))
+        # dict.fromkeys, not set(): order-preserving dedupe keeps fx_warnings
+        # append order deterministic across calls with the same pairs.
+        unique_pairs = list(dict.fromkeys(pairs))
         if not unique_pairs:
             return
 
