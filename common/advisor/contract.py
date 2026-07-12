@@ -124,7 +124,7 @@ CONTRACT = PackageContract(
         Unit(name="AdvisorSceneBinding", kind=Kind.FACTORY),
         # Repository — the one split block (mechanism B): port in base/,
         # adapter in extension/.  Currently raw AsyncSession; port/adapter
-        # split is PR2 scope.  Declared taxonomy-only until then.
+        # split is follow-up scope (todo.md).  Declared taxonomy-only until then.
         Unit(name="ChatSessionRepository", kind=Kind.REPOSITORY),
         # ── data: read-model projections ──
         # chat history view (list of sessions + messages for the UI)
@@ -164,8 +164,9 @@ CONTRACT = PackageContract(
         "register_reporting_reads",
     ],
     events=[],
-    # Structural invariants: registered once the base/extension/data split is
-    # done and the tooling tests exist (PR2 scope).
+    # Structural invariants: registered once the phase split settles and the
+    # unit.module paths are set (follow-up scope, todo.md).  The structural
+    # boundary tests already exist (tests/tooling/test_advisor_package.py).
     invariants=[],
     # ── Roadmap: package-model AC registry ──
     # ACs migrated from EPIC-006 / EPIC-021 per Decision A (standard-
@@ -232,10 +233,10 @@ CONTRACT = PackageContract(
                 "A ``ChatSession`` is owned by exactly one user (``user_id`` "
                 "foreign key, enforced at the ORM level); retrieving a session "
                 "by id scopes the lookup to the requesting user.  Once a "
-                "session is ARCHIVED (lifecycle addition, PR2 scope) it is "
+                "session is ARCHIVED (planned lifecycle addition) it is "
                 "immutable — no further messages may be appended."
             ),
-            # was AC6.4.1 (user ownership portion); ARCHIVED state is PR2
+            # was AC6.4.1 (user ownership portion); ARCHIVED state is a follow-up
             test=(
                 "apps/backend/tests/ai/test_ai_advisor_service.py"
                 "::test_get_or_create_session_with_existing_session"

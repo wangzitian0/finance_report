@@ -65,8 +65,8 @@ invariant is P0 across all delivery tiers.
   fallback).  Best-effort: a broken per-user config falls back to the env
   model list rather than breaking the chat session.
 - **`ChatSessionRepository`** — the repository port (base) + SQL adapter
-  (extension); currently raw `AsyncSession` — port/adapter split is PR2
-  scope.
+  (extension); currently raw `AsyncSession` — port/adapter split is a
+  follow-up ([`todo.md`](./todo.md)).
 - **`ChatHistoryView`** — the read-model projection: paginated chat history
   for the UI (list of sessions + messages, no write state).
 
@@ -147,7 +147,7 @@ The package's ACs (`AC-advisor.guardrail.*`, `AC-advisor.session.*`,
 `AC-advisor.context.*`, `AC-advisor.cache.*`, `AC-advisor.txn.*`) live in
 [`contract.py`](./contract.py)'s `roadmap` and are sourced **directly** from
 there into the AC registry (no EPIC mirror); its invariants pin to the tests
-that prove them (added in PR2 when the physical split is done).
+that prove them (registered once the phase split settles — see [`todo.md`](./todo.md)).
 `tools/check_package_contract.py` validates the implementation against this
 contract (interface == `__all__`, every test reference resolves, no upward
 import edge).
