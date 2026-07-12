@@ -1593,7 +1593,7 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     assert "needs.setup.outputs.pr_preview_required == 'true'" in pr_workflow
     assert "name: AC Traceability Check" in workflow
     assert (
-        "needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, lint, tooling-coverage, unified-coverage, ac-traceability, ac-behavioral-ratchet]"
+        "needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, verify-sha-image-published, lint, tooling-coverage, unified-coverage, ac-traceability, ac-behavioral-ratchet]"
         in workflow
     )
     assert "finish remains the authoritative aggregate gate" in ci_cd
@@ -1836,6 +1836,7 @@ def test_AC8_13_147_frontend_ci_split_preserves_merge_authority() -> None:
         "frontend-playwright",
         "frontend-telemetry-e2e",
         "container-images",
+        "verify-sha-image-published",
         "lint",
         "tooling-coverage",
         "unified-coverage",
@@ -2007,11 +2008,12 @@ def test_AC8_13_146_report_main_dispatch_waits_for_ci_images() -> None:
     notify_yaml = yaml.safe_load(notify)
     notify_on = notify_yaml.get(True) or notify_yaml.get("on")
 
-    assert "push" not in notify_on
+    # Exact trigger set (not just "push absent"/"workflow_dispatch present")
+    # so an accidental third trigger fails this too, not just a missing one.
+    assert set(notify_on) == {"workflow_run", "workflow_dispatch"}
     assert notify_on["workflow_run"]["workflows"] == ["CI"]
     assert notify_on["workflow_run"]["types"] == ["completed"]
     assert notify_on["workflow_run"]["branches"] == ["main"]
-    assert "workflow_dispatch" in notify_on
 
     dispatch_job = notify_yaml["jobs"]["dispatch"]
     assert "github.event.workflow_run.conclusion == 'success'" in dispatch_job["if"]
@@ -2049,6 +2051,62 @@ def test_AC8_13_146_report_main_dispatch_waits_for_ci_images() -> None:
     )
     assert report_gate["trigger"] == "workflow_run"
     assert report_gate["blocking"] is False
+
+
+def test_AC_testing_deploy_gates_36_every_main_commit_image_is_independently_verified() -> (
+    None
+):
+    """AC-testing.deploy-gates.36 (#1759, W4 of #1435).
+
+    "container-images always builds+pushes :<sha> on main" was previously
+    guaranteed only by the build step's own self-report. This test proves a
+    second, independent job re-inspects the registry for that exact tag
+    right after the build, so a push that reports success without the image
+    actually landing would be caught at commit time rather than later at
+    promote.
+    """
+    ci = yaml.safe_load(read(".github/workflows/ci.yml"))
+    jobs = ci["jobs"]
+
+    # A missing job raises KeyError here, which fails the test just as loudly
+    # as an explicit assert would — no need for a redundant membership check
+    # (kept off the mirror-assertion ratchet, #1435).
+    gate_job = jobs["verify-sha-image-published"]
+
+    assert gate_job["needs"] == ["container-images"]
+    assert (
+        gate_job["if"]
+        == "github.event_name == 'push' && github.ref == 'refs/heads/main'"
+    )
+
+    gate_script = "\n".join(
+        step.get("run", "") for step in gate_job["steps"] if isinstance(step, dict)
+    )
+    # Verifies the per-commit :<sha> tag via the recomputed short_sha, not a
+    # release version_ref and not container-images' own output (that would
+    # just be re-asserting the build step's self-report instead of an
+    # independent registry inspection).
+    assert (
+        "tools/verify_release_images.py" in gate_script
+        and '--version-ref "${{ steps.get_sha.outputs.short_sha }}"' in gate_script
+        and "container-images.outputs" not in gate_script
+    )
+
+    finish_job = jobs["finish"]
+    finish_script = "\n".join(
+        step.get("run", "")
+        for step in finish_job["steps"]
+        if isinstance(step, dict) and step.get("name") == "Check job status"
+    )
+    # Skip (PR / non-main push) must read as a pass, mirroring container-images'
+    # own skip-is-a-pass clause — otherwise every PR would fail finish. (The
+    # membership check above already proves finish depends on this job at
+    # all; this proves the skip case specifically doesn't fail it.)
+    assert (
+        '"${{ needs.verify-sha-image-published.result }}" != "success" '
+        '&& "${{ needs.verify-sha-image-published.result }}" != "skipped"'
+        in finish_script
+    )
 
 
 def test_AC8_13_68_ci_runs_e2e_epic_traceability_gate() -> None:
@@ -2878,7 +2936,8 @@ def test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates() -> No
     assert "needs:" not in traceability_block.split("steps:", 1)[0]
     assert (
         "needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend-build, "
-        "frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, lint, tooling-coverage, "
+        "frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, "
+        "verify-sha-image-published, lint, tooling-coverage, "
         "unified-coverage, ac-traceability, ac-behavioral-ratchet]" in finish_block
     )
     assert "Standalone lint and AC traceability start immediately" in ci_cd
