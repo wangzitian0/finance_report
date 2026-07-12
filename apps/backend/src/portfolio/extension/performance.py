@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
 from src.audit.ratio import Ratio
+from src.ledger import Account
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition
 from src.observability import get_logger
@@ -32,30 +33,35 @@ async def batch_latest_atomic_positions(
     user_id: UUID,
     asset_identifiers: list[str],
     as_of_date: date,
-) -> dict[str, AtomicPosition]:
+) -> dict[tuple[str, str], AtomicPosition]:
     """
-    Batch-fetch the latest AtomicPosition for each asset_identifier in a single query.
+    Batch-fetch the latest AtomicPosition for each (asset_identifier, broker) pair.
 
-    Uses a window function (ROW_NUMBER) to find the most recent snapshot per asset,
-    avoiding the N+1 pattern of querying one asset at a time.
+    Uses a window function (ROW_NUMBER) to find the most recent snapshot per
+    (asset, broker), avoiding the N+1 pattern of querying one asset at a time.
+    Partitioning by asset_identifier alone would collapse two different
+    brokers' snapshots of the same ticker into one, silently dropping one
+    broker's contribution to the caller's total (mirrors the partition key
+    holdings.py:_get_snapshot_holdings already uses).
 
     Args:
         db: Database session
         user_id: User ID
-        asset_identifiers: List of asset identifiers to fetch
+        asset_identifiers: Asset identifiers to fetch (deduplicated internally)
         as_of_date: Fetch snapshots on or before this date
 
     Returns:
-        dict mapping asset_identifier -> latest AtomicPosition
+        dict mapping (asset_identifier, broker) -> latest AtomicPosition
     """
     if not asset_identifiers:
         return {}
+    unique_identifiers = list(dict.fromkeys(asset_identifiers))
 
-    # Subquery: rank snapshots per asset by date descending
+    # Subquery: rank snapshots per (asset, broker) by date descending
     row_num = (
         func.row_number()
         .over(
-            partition_by=AtomicPosition.asset_identifier,
+            partition_by=[AtomicPosition.asset_identifier, AtomicPosition.broker],
             order_by=AtomicPosition.snapshot_date.desc(),
         )
         .label("rn")
@@ -65,7 +71,7 @@ async def batch_latest_atomic_positions(
         select(AtomicPosition.id, row_num)
         .where(
             AtomicPosition.user_id == user_id,
-            AtomicPosition.asset_identifier.in_(asset_identifiers),
+            AtomicPosition.asset_identifier.in_(unique_identifiers),
             AtomicPosition.snapshot_date <= as_of_date,
         )
         .subquery()
@@ -77,7 +83,7 @@ async def batch_latest_atomic_positions(
     result = await db.execute(query)
     rows = result.scalars().all()
 
-    return {row.asset_identifier: row for row in rows}
+    return {(row.asset_identifier, row.broker): row for row in rows}
 
 
 async def calculate_xirr(
@@ -136,33 +142,8 @@ async def calculate_xirr(
         amounts.append(amount_base * sign)
 
     # Get position value as of as_of_date as the final cash flow (positive =
-    # portfolio value). Point-in-time (#1791 follow-up): query every position
-    # this user has ever held, not just ones still ManagedPosition.status ==
-    # ACTIVE *today* -- a position bought before and disposed after as_of_date
-    # was still held on that date and must count. Whether it was held as of
-    # as_of_date is decided below by its own snapshot quantity on that date
-    # (mirrors holdings.py:_get_snapshot_holdings), not by current status.
-    query = select(ManagedPosition.asset_identifier).where(
-        ManagedPosition.user_id == user_id,
-    )
-    result = await db.execute(query)
-    asset_ids = list(result.scalars().all())
-
-    # Batch-fetch latest atomic positions (fixes N+1)
-    atomic_map = await batch_latest_atomic_positions(db, user_id, asset_ids, as_of_date)
-
-    total_value = Decimal("0")
-    for atomic in atomic_map.values():
-        if atomic.quantity == Decimal("0"):
-            continue
-        value_base = await convert_amount(
-            db,
-            atomic.market_value or Decimal("0"),
-            atomic.currency,
-            settings.base_currency,
-            as_of_date,
-        )
-        total_value += value_base
+    # portfolio value).
+    total_value = await _get_portfolio_value(db, user_id, as_of_date)
 
     if total_value > Decimal("0"):
         dates.append(as_of_date)
@@ -437,6 +418,12 @@ async def _get_portfolio_value(
     quantity on that date (mirrors holdings.py:_get_snapshot_holdings), not
     by current status.
 
+    Looks up each position by (asset_identifier, broker), not asset_identifier
+    alone -- the same ticker can be held at two different brokers (Account.name
+    is the broker key), and collapsing on asset_identifier would silently drop
+    one broker's contribution (or double-count it, depending which side of the
+    lookup collapses).
+
     Args:
         db: Database session
         user_id: User ID
@@ -445,18 +432,22 @@ async def _get_portfolio_value(
     Returns:
         Decimal: Total portfolio value in base currency
     """
-    query = select(ManagedPosition.asset_identifier).where(
-        ManagedPosition.user_id == user_id,
+    query = (
+        select(ManagedPosition.asset_identifier, Account.name)
+        .join(Account, ManagedPosition.account_id == Account.id)
+        .where(ManagedPosition.user_id == user_id)
     )
     result = await db.execute(query)
-    asset_ids = list(result.scalars().all())
+    position_keys = result.all()
+    asset_ids = [identifier for identifier, _broker in position_keys]
 
     # Batch-fetch latest atomic positions (fixes N+1)
     atomic_map = await batch_latest_atomic_positions(db, user_id, asset_ids, as_of_date)
 
     total_value = Decimal("0")
-    for atomic in atomic_map.values():
-        if atomic.quantity == Decimal("0"):
+    for identifier, broker in position_keys:
+        atomic = atomic_map.get((identifier, broker))
+        if atomic is None or atomic.quantity == Decimal("0"):
             continue
         value_base = await convert_amount(
             db,

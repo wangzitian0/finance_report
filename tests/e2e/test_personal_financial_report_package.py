@@ -802,9 +802,9 @@ async def test_personal_financial_report_package_post_merge_journey(
         # fresh on every run) -- so as of fixture_period_end (a fixed
         # historical date from the bank CSV, always earlier), this position
         # was not yet "acquired" per the ledger's own bookkeeping. A
-        # historical balance sheet correctly excludes it (portfolio.md:
-        # "future snapshots are never used"); brokerage inclusion is
-        # verified separately below at as_of_date=today.
+        # historical balance sheet correctly excludes it
+        # (common/portfolio/readme.md: "future snapshots are never used");
+        # brokerage inclusion is verified separately below at as_of_date=today.
         expected_assets = expected.total_assets(Decimal("0.00"))
         expected_liabilities = expected.manual_liability_total
         expected_net_worth_adjustment = expected.net_worth_adjustment_gain_loss

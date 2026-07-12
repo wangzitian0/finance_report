@@ -17,9 +17,13 @@ from src.portfolio import (
 
 @pytest.fixture
 async def investment_account(db: AsyncSession, test_user):
+    # Name matches the AtomicPosition.broker string used in this file's
+    # fixtures -- point-in-time lookups now key by (asset_identifier, broker)
+    # via Account.name (#1791 follow-up), mirroring how
+    # _get_or_create_broker_account always names the account after the broker.
     account = Account(
         user_id=test_user.id,
-        name="Investment Account",
+        name="Test Broker",
         type=AccountType.ASSET,
         currency="SGD",
     )

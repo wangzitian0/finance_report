@@ -29,9 +29,13 @@ from src.portfolio import (
 
 @pytest.fixture
 async def investment_account(db: AsyncSession, test_user):
+    # Name matches the AtomicPosition.broker string used throughout this file's
+    # fixtures/tests -- point-in-time lookups now key by (asset_identifier,
+    # broker) via Account.name (#1791 follow-up), mirroring how
+    # _get_or_create_broker_account always names the account after the broker.
     account = Account(
         user_id=test_user.id,
-        name="Investment Account",
+        name="Test Broker",
         type=AccountType.ASSET,
         currency="SGD",
     )
@@ -730,7 +734,7 @@ async def test_xirr_calculation_error_raised(db: AsyncSession, test_user, invest
         user_id=test_user.id,
         snapshot_date=date.today(),
         asset_identifier="ERR",
-        broker="B",
+        broker="Test Broker",
         quantity=Decimal("1"),
         market_value=Decimal("11000.00"),
         currency="SGD",

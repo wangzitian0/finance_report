@@ -22,7 +22,9 @@ from src.pricing.orm.market_data import FxRate
 
 
 async def _investment_position(db: AsyncSession, test_user, *, asset_identifier: str = "AUDIT") -> ManagedPosition:
-    account = Account(user_id=test_user.id, name="Investment Account", type=AccountType.ASSET, currency="SGD")
+    # Name matches this file's AtomicPosition.broker="Test Broker" -- point-in-time
+    # lookups now key by (asset_identifier, broker) via Account.name (#1791 follow-up).
+    account = Account(user_id=test_user.id, name="Test Broker", type=AccountType.ASSET, currency="SGD")
     db.add(account)
     await db.flush()
     position = ManagedPosition(

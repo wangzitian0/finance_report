@@ -15,8 +15,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
 from src.audit.ratio import Ratio
+from src.ledger import Account
 from src.models.layer2 import AtomicPosition
-from src.models.layer3 import ManagedPosition, PositionStatus
+from src.models.layer3 import ManagedPosition
 from src.observability import get_logger
 from src.portfolio.extension.performance import batch_latest_atomic_positions
 from src.pricing import convert_amount
@@ -52,33 +53,40 @@ async def _get_active_positions_with_atomics(
     as_of_date: date,
 ) -> list[tuple[AtomicPosition, Decimal]]:
     """
-    Fetch active positions and their latest atomic snapshots in batch.
+    Fetch positions held as of as_of_date and their latest atomic snapshots in batch.
 
     Returns list of (AtomicPosition, value_in_base_currency) tuples for positions
-    that have atomic data.
+    that have atomic data. Point-in-time (#1791 follow-up): as_of_date may be a
+    historical date (callers default to today but may pass an explicit one), so
+    inclusion is decided by each position's own snapshot quantity on that date,
+    not by ManagedPosition.status which reflects today. Positions are keyed by
+    (asset_identifier, broker), not asset_identifier alone -- the same ticker
+    held at two different brokers must not collapse into one.
     """
-    query = select(ManagedPosition).where(
-        ManagedPosition.user_id == user_id,
-        ManagedPosition.status == PositionStatus.ACTIVE,
+    query = (
+        select(ManagedPosition.asset_identifier, Account.name)
+        .join(Account, ManagedPosition.account_id == Account.id)
+        .where(ManagedPosition.user_id == user_id)
     )
     result = await db.execute(query)
-    positions = result.scalars().all()
+    position_keys = result.all()
+    asset_ids = [identifier for identifier, _broker in position_keys]
 
-    asset_ids = [pos.asset_identifier for pos in positions]
     atomic_map = await batch_latest_atomic_positions(db, user_id, asset_ids, as_of_date)
 
     enriched = []
-    for pos in positions:
-        atomic = atomic_map.get(pos.asset_identifier)
-        if atomic:
-            value_base = await convert_amount(
-                db,
-                atomic.market_value or Decimal("0"),
-                atomic.currency,
-                settings.base_currency,
-                as_of_date,
-            )
-            enriched.append((atomic, value_base))
+    for identifier, broker in position_keys:
+        atomic = atomic_map.get((identifier, broker))
+        if atomic is None or atomic.quantity == Decimal("0"):
+            continue
+        value_base = await convert_amount(
+            db,
+            atomic.market_value or Decimal("0"),
+            atomic.currency,
+            settings.base_currency,
+            as_of_date,
+        )
+        enriched.append((atomic, value_base))
 
     return enriched
 

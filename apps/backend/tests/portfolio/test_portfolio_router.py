@@ -64,7 +64,9 @@ async def portfolio_with_data(db: AsyncSession, test_user, investment_account):
         user_id=test_user.id,
         snapshot_date=date.today(),
         asset_identifier="AAPL",
-        broker="Test Broker",
+        # Matches investment_account.name -- point-in-time lookups now key by
+        # (asset_identifier, broker) via Account.name (#1791 follow-up).
+        broker="Investment Account",
         quantity=Decimal("100"),
         market_value=Decimal("12000.00"),
         currency="SGD",
@@ -77,7 +79,7 @@ async def portfolio_with_data(db: AsyncSession, test_user, investment_account):
                 {
                     "doc_id": "brokerage-doc-aapl",
                     "doc_type": "brokerage_statement",
-                    "broker": "Test Broker",
+                    "broker": "Investment Account",
                 }
             ]
         },
