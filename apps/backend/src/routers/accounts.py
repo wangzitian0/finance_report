@@ -13,6 +13,8 @@ from src.deps import CurrentUserId, DbSession
 from src.ledger import (
     DEFAULT_STALE_AFTER_DAYS,
     AccountNotFoundError,
+    AccountType,
+    JournalLine,
     ValidationError,
     account_service,
     calculate_account_balance,
@@ -25,8 +27,6 @@ from src.ledger import (
     list_processing_transfer_legs,
     post_opening_balance_entry,
 )
-from src.models.account import AccountType
-from src.models.journal import JournalLine
 from src.observability import get_logger
 from src.platform import raise_bad_request, raise_not_found
 from src.schemas import (

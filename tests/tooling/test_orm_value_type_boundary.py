@@ -128,7 +128,7 @@ def test_AC12_35_4_no_raw_managed_position_money_reads_in_migrated_files():
 def test_AC12_37_1_journal_line_exposes_money_accessor():
     """AC-audit.37.1: JournalLine exposes a typed `money` read accessor at the ORM
     boundary (lines are immutable; amount/currency columns stay storage)."""
-    src = _read("apps/backend/src/models/journal.py")
+    src = _read("apps/backend/src/ledger/orm/journal.py")
     assert "from src.audit.money import Money" in src
     assert "def money(self) -> Money" in src
 
@@ -181,7 +181,7 @@ _CURRENCY_BLIND_LINE_SUM = re.compile(r"\bsum\([^)]*\bline\.amount\b")
 def test_AC12_38_1_journal_line_currency_resolves_to_base_ssot():
     """AC-audit.38.1: JournalLine currency resolves to the single `settings.base_currency`
     SSOT — accessor fallback + column default — with no hard-coded base literal."""
-    src = _read("apps/backend/src/models/journal.py")
+    src = _read("apps/backend/src/ledger/orm/journal.py")
     assert "from src.config import settings" in src
     assert "else settings.base_currency" in src
     assert "default=lambda: settings.base_currency" in src

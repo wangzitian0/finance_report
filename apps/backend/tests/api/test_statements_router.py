@@ -27,7 +27,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
-from src.audit import STATEMENT_SOURCE_TYPES
+from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType
 from src.extraction import DocumentType, ExtractionError, UploadedDocument
 from src.extraction.extension import (
     statement_parsing as statement_parsing_mod,
@@ -41,14 +41,13 @@ from src.extraction.extension.statement_posting import (
     try_auto_approve_high_confidence_statement,
 )
 from src.identity import User
+from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus
 from src.llm.base import Modality, ModelSpec
-from src.models.account import Account, AccountType
 from src.models.evidence import EvidenceEdge, EvidenceNode
-from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus
 from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
+from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.reconciliation.extension.review_queue import accept_match as accept_match_service
 from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 from src.routers import review as review_router, statements as statements_router
@@ -2738,7 +2737,7 @@ async def test_get_stage2_review_queue_with_pending_match(db, test_user):
     When get_stage2_review_queue is called,
     Then it returns the match in pending_matches with tier derived from match_score.
     """
-    from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
+    from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 
     account = await create_statement_account(db, test_user.id, "Stage 2 Queue Account")
     statement = build_statement(test_user.id, "hash_s2_queue", 90)
@@ -3278,7 +3277,7 @@ async def test_batch_approve_matches_success(db, test_user):
     When batch_approve_matches is called with match IDs,
     Then it approves all matching records (lines 970-993).
     """
-    from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
+    from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 
     account = await create_statement_account(db, test_user.id, "DBS Batch Approval")
     statement = build_statement(test_user.id, "hash_batch_app", 90)
@@ -3714,7 +3713,7 @@ async def test_batch_reject_matches_success(db, test_user):
     When batch_reject_matches is called with match IDs,
     Then it rejects all matching records (lines 1006-1029).
     """
-    from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
+    from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 
     account = await create_statement_account(db, test_user.id, "DBS Batch Reject")
     statement = build_statement(test_user.id, "hash_batch_rej", 90)

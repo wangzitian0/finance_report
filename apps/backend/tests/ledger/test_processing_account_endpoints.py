@@ -7,10 +7,11 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.ledger import (
+    Account,
+    AccountType,
     create_transfer_in_entry,
     create_transfer_out_entry,
 )
-from src.models.account import Account, AccountType
 
 
 async def _seed_account(db: AsyncSession, user_id, name: str, code: str) -> Account:

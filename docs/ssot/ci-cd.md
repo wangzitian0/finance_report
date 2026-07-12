@@ -786,6 +786,21 @@ SSOT edits: [DELIVERY_ENGINE_RECOMMENDATIONS.md](../project/DELIVERY_ENGINE_RECO
 - Phase 2b corrects the backend fast path to 5 seeded shards using `apps/backend/ci/backend-test-durations.json`. Main CI run `27896401849` after PR #1288 completed successfully in about 4m 46s; backend shards finished in the 3m 31s-3m 50s band, frontend split gates stayed below the backend tail, unified coverage took 27s, and AC behavioral ratchet took 25s.
 - `unified-coverage` runs repo-local stdlib Python scripts directly, and `ac-behavioral-ratchet` downloads only JUnit-producing test-context artifacts.
 
+**CI Pipeline (#1767 remediation, 2026-07-12/13 observed baseline):** organic growth (more tests,
+wider coverage scope) regressed the 2026-06-20 ~4m 46s baseline to **~8.5 min** by 2026-07-12
+(#1767 F6) before any single change was to blame. #1767 Phase 3 (#1774, merged) parallelized the
+`tooling-coverage` job with `pytest-xdist`: that job alone dropped from ~451s to ~249s.
+- 16 successful main-push runs sampled after #1774 merged: **mean 5.8 min, median 6.0 min**
+  (range 2.7 min-7.3 min; the 2.7 min low end is the lightweight docs-only path that skips
+  backend/frontend/coverage). Independently measured from `gh run list` timestamps, not just the
+  single-run snapshot #1774's own PR cited.
+- Every `ci.yml` job now carries an explicit `timeout-minutes` (#1773, Phase 2) — previously none
+  did, so a hang would have run to GitHub's 6h default before failing.
+- The nightly `AI/OCR Audit Replay` gate (`audit-replay.yml`) was red for 5 consecutive nights
+  (2026-07-07 through 2026-07-11) with its own alerting destroyed by the same timeout that killed
+  the run (#1767 F1-F4) — fixed in #1767 Phase 0/1; 3 consecutive green nights confirmed since the
+  fix (runs `29181331505`, `29182352126`, `29202152047`).
+
 **Post-merge staging (2026-05-20 observed baseline):**
 - Build and deploy job execution: **~5m 19s**.
 - Automatic AI/OCR gate execution: **~4m 38s**.

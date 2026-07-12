@@ -5,8 +5,8 @@ from decimal import Decimal
 
 import pytest_asyncio
 
-from src.models.account import Account, AccountType
-from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
+from src.audit import JournalEntrySourceType
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 
 
 @pytest_asyncio.fixture(scope="function")

@@ -22,8 +22,9 @@ from __future__ import annotations
 from decimal import Decimal
 
 import src.config
+from src.audit import JournalEntrySourceType
 from src.audit.money import Currency, Money
-from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalLine
+from src.ledger.orm.journal import Direction, JournalEntry, JournalLine
 
 
 class AccountingError(Exception):

@@ -20,7 +20,7 @@ from src.extraction.extension.brokerage_positions import (
     parse_brokerage_positions,
 )
 from src.extraction.extension.brokerage_statement_payload import _brokerage_payload_from_statement
-from src.models.account import Account, AccountType
+from src.ledger import Account, AccountType
 from src.models.layer2 import AssetType, AtomicPosition, AtomicTransaction, TransactionDirection
 from src.models.layer3 import ManagedPosition
 from src.models.statement_enums import BankStatementStatus

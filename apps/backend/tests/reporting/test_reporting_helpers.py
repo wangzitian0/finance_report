@@ -6,8 +6,7 @@ from decimal import Decimal
 import pytest
 
 from src.config import settings
-from src.models.account import AccountType
-from src.models.journal import Direction
+from src.ledger import AccountType, Direction
 from src.reporting import (
     ReportError,
     _add_months,

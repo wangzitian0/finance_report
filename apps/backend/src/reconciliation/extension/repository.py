@@ -9,10 +9,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.models.journal import JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger import JournalEntry, JournalEntryStatus, JournalLine
 from src.models.layer2 import AtomicTransaction
-from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.reconciliation.base.repository import ReconciliationRepository
+from src.reconciliation.orm.reconciliation import ReconciliationMatch, ReconciliationStatus
 
 
 class SqlReconciliationRepository(ReconciliationRepository):

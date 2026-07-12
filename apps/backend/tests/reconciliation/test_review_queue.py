@@ -23,14 +23,13 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit import JournalEntrySourceType
 from src.extraction.extension.review_queue import create_entry_from_txn, get_or_create_account
-from src.ledger import ValidationError
-from src.models.account import Account, AccountType
-from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus
+from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus, ValidationError
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
-from src.models.reconciliation import ReconciliationStatus
 from src.models.statement_summary import StatementSummary
+from src.reconciliation import ReconciliationStatus
 from src.reconciliation.extension.review_queue import accept_match, batch_accept, get_pending_items, reject_match
 from src.services.fx import FxRateError
 from tests.factories import (

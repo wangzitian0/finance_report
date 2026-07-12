@@ -19,6 +19,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.ledger import (
+    Account,
+    AccountType,
+    Direction,
+    JournalEntry,
+    JournalEntryStatus,
+    JournalLine,
     ValidationError,
     calculate_account_balance,
     calculate_account_balances,
@@ -26,8 +32,6 @@ from src.ledger import (
     verify_accounting_equation,
     void_journal_entry,
 )
-from src.models.account import Account, AccountType
-from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
 from tests.factories import UserFactory
 from tests.ledger._ledger_helpers import create_valid_posted_entry
 

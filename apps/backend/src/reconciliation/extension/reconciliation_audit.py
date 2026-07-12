@@ -15,9 +15,16 @@ from decimal import Decimal
 from pathlib import Path
 from uuid import UUID
 
-from src.ledger import detect_transfer_pattern
-from src.models.account import Account, AccountType
-from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
+from src.audit import JournalEntrySourceType
+from src.ledger import (
+    Account,
+    AccountType,
+    Direction,
+    JournalEntry,
+    JournalEntryStatus,
+    JournalLine,
+    detect_transfer_pattern,
+)
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.reconciliation.base.config import DEFAULT_CONFIG, ReconciliationConfig
 from src.reconciliation.extension.matching import _find_many_to_one_candidates, _find_normal_candidates

@@ -72,6 +72,7 @@ from src.pricing.extension.valuation import (
 # eagerly so importing the package registers the mappers on Base.metadata.
 from src.pricing.orm.fx_conversion import FxConversion
 from src.pricing.orm.market_data import FxRate, MarketDataSyncState, StockPrice
+from src.pricing.orm.market_data_override import MarketDataOverride, PriceSource
 from src.pricing.orm.statement_observation import StatementPriceObservation
 
 __all__ = [
@@ -79,6 +80,7 @@ __all__ = [
     "FxConversion",
     "FxRate",
     "MARKET_DATA_QUANTITY_UNIT",
+    "MarketDataOverride",
     "MarketDataScopeStatus",
     "MarketDataSyncResult",
     "MarketDataSyncState",
@@ -86,6 +88,7 @@ __all__ = [
     "ObservationSource",
     "PriceObservation",
     "PriceObserved",
+    "PriceSource",
     "PriceableSubject",
     "PricingError",
     "ResolutionPolicy",

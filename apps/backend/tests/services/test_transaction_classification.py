@@ -23,7 +23,7 @@ from src.extraction.extension.transaction_classification import (
     classify_transactions,
     policy_for,
 )
-from src.models.account import Account, AccountType
+from src.ledger import Account, AccountType
 from src.models.layer3 import (
     ClassificationRule,
     ClassificationStatus,

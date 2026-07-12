@@ -20,8 +20,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import normalize_currency_code
-from src.models.account import Account
-from src.models.journal import JournalEntry, JournalLine
+from src.ledger.orm.account import Account
+from src.ledger.orm.journal import JournalEntry, JournalLine
 
 
 async def used_currencies(db: AsyncSession, user_id: UUID | None) -> set[str]:

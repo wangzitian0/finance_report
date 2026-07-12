@@ -51,10 +51,13 @@ def test_AC12_34_3_model_layer_never_imports_a_service():
 
     Previously models/journal.py imported services.confidence_tier inside a
     property — a model→service cycle. That edge is gone; this guard prevents any
-    model from importing a service again (top-level or in-method).
+    model from importing a service again (top-level or in-method). The scan
+    covers the unowned ``models/`` remainder AND the per-package ``orm/`` dirs
+    the #1675 moves relocated model modules into.
     """
+    model_dirs = [SRC / "models", *sorted(SRC.glob("*/orm"))]
     offenders = []
-    for path in sorted((SRC / "models").glob("*.py")):
+    for path in sorted(p for d in model_dirs for p in d.rglob("*.py")):
         for node in ast.walk(ast.parse(path.read_text())):
             mods = []
             if isinstance(node, ast.ImportFrom) and node.module:
@@ -75,12 +78,10 @@ def test_AC12_34_3_model_layer_never_imports_a_service():
 )
 def test_AC12_34_3_confidence_tier_lives_in_model_layer():
     """AC-ledger.34.3: derive_confidence_tier moved to the model; service re-exports it."""
-    journal = _read("apps/backend/src/models/journal.py")
+    journal = _read("apps/backend/src/ledger/orm/journal.py")
     assert "def derive_confidence_tier(" in journal
     shim = _read("apps/backend/src/reporting/extension/confidence_tier.py")
-    assert (
-        "from src.models.journal import ConfidenceTier, derive_confidence_tier" in shim
-    )
+    assert "from src.ledger import ConfidenceTier, derive_confidence_tier" in shim
 
 
 @ac_proof(
@@ -91,7 +92,16 @@ def test_AC12_34_3_confidence_tier_lives_in_model_layer():
 def test_AC12_34_4_investment_postings_use_ledger_post():
     """AC-ledger.34.4: investment buy/sell/dividend post via Entry + post_entry."""
     src = _read("apps/backend/src/portfolio/extension/accounting.py")
-    assert "from src.ledger import Entry, Leg, post_entry" in src
+    # One published-root import carrying Entry/Leg/post_entry (the ORM names the
+    # #1675 D5 move added ride the same line, so match names, not the exact line).
+    ledger_imports = [
+        line for line in src.splitlines() if line.startswith("from src.ledger import ")
+    ]
+    assert ledger_imports, "accounting.py must import from the published src.ledger root"
+    for name in ("Entry", "Leg", "post_entry"):
+        assert any(name in line for line in ledger_imports), (
+            f"accounting.py must import {name} from src.ledger"
+        )
     assert "Entry.transfer(" in src  # buy
     assert "Entry.of(" in src  # sell + dividend
     # all hand-rolled investment line dicts are gone, and the legacy post path is retired
@@ -130,8 +140,14 @@ def test_AC12_34_5_remaining_posting_paths_guard_balance_with_entry():
     # External callers import the published ledger Entry; in-package edges import
     # the base type directly. Both forms still prove "an Entry guards balance".
     for path, entry_import in (
-        ("apps/backend/src/ledger/extension/accounting.py", "from src.ledger import Entry"),
-        ("apps/backend/src/ledger/extension/fx_revaluation.py", "from src.ledger import Entry"),
+        (
+            "apps/backend/src/ledger/extension/accounting.py",
+            "from src.ledger import Entry",
+        ),
+        (
+            "apps/backend/src/ledger/extension/fx_revaluation.py",
+            "from src.ledger import Entry",
+        ),
         (
             "apps/backend/src/ledger/extension/processing.py",
             "from src.ledger.base.types.entry import Entry",

@@ -18,7 +18,7 @@ from uuid import uuid4
 import pytest
 from common.testing.ac_proof import ac_proof
 
-from src.models.journal import JournalEntrySourceType
+from src.audit import JournalEntrySourceType
 from src.reconciliation.extension.fx_transfer import (
     REVALUATION_SOURCE_TYPE,
     FxTransferError,

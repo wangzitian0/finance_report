@@ -37,17 +37,22 @@ The package-local worklist.  Cross-package migration lives in
       `stream_ai_chat` from the `llm` published root.
 - [x] Fill `contract.interface` = `__init__.__all__` (25 published names).
 - [x] Declare the real `depends_on` edges (honesty gate both ways):
-      `audit`, `llm`, `observability`, `platform`, `portfolio`, `pricing`,
-      `reconciliation`, `reporting` — all real imports through published
-      roots; DAG acyclic.  `config` dropped (folded into runtime, #1669 —
-      `src.config` is bare shared infra).  `reporting` was originally
-      consumed through `extension/app_reads.py` ports (its owner,
+      `audit`, `ledger`, `llm`, `observability`, `platform`, `portfolio`,
+      `pricing`, `reconciliation`, `reporting` — all real imports through
+      published roots; DAG acyclic.  `config` dropped (folded into runtime,
+      #1669 — `src.config` is bare shared infra).  `reporting` was
+      originally consumed through `extension/app_reads.py` ports (its owner,
       `services/reporting/`, hadn't folded yet when this PR was built); #1666
       landed the fold *while this PR was in flight* and this PR rebased onto
       it, so the reporting trio + `ReportError` + report readiness +
       `income_bucket` now import directly from `src.reporting` — the ports
       for those five collapsed exactly as planned, one PR earlier than
-      expected.
+      expected.  `ledger` is a second, later mid-flight rebase pickup:
+      #1675's D5 omnibus moved `account.py`/`journal.py` out of
+      `src/models/` into `src/ledger/orm/` while this PR was still open, so
+      the annualized-income schedule's `Account`/`AccountType`/journal-line
+      reads (always real, previously via the unregistered `src.models.*`
+      path) now surface as a governed `advisor -> ledger` edge.
 - [x] Remainder reads inverted through `extension/app_reads.py` ports wired
       by the composition root (`src/main.py`), #1676 idiom.  Only one port
       pair remains (the other five collapsed into direct `src.reporting`

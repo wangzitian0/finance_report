@@ -34,11 +34,11 @@ from src.models.layer3 import (
     ManualValuationLiquidityClass,
     ManualValuationSnapshot,
 )
-from src.models.portfolio import MarketDataOverride, PriceSource
 from src.platform import OutboxEventBus
 from src.pricing.base.events import PriceObserved
 from src.pricing.base.observation import Authority, ObservationSource, PriceObservation
 from src.pricing.base.subject import PriceableSubject
+from src.pricing.orm.market_data_override import MarketDataOverride, PriceSource
 
 #: The ``source_pkg`` tag every pricing event carries in the shared outbox.
 SOURCE_PKG = "pricing"

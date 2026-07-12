@@ -29,12 +29,12 @@ positions) and streams a grounded, cited, disclaimer-tagged response.
   data as part of the same read-only request (the same `AsyncSession` as the
   chat-message insert — ``AC-advisor.txn.1``, now ``done``: every
   cross-domain read goes through the target package's *published* root
-  (``platform``/``portfolio``/``pricing``/``reconciliation``/``reporting``),
-  and the one read whose owner still lives in the app remainder (the
-  fx-pair composer; windowed fx conversion for the annualized-income
-  schedule) is injected through ``extension/app_reads.py`` by the
-  composition root — never a direct ``src.services.*`` import, never a
-  cross-domain FK).  It never touches the ledger write side.
+  (``ledger``/``platform``/``portfolio``/``pricing``/``reconciliation``/
+  ``reporting``), and the one read whose owner still lives in the app
+  remainder (the fx-pair composer; windowed fx conversion for the
+  annualized-income schedule) is injected through ``extension/app_reads.py``
+  by the composition root — never a direct ``src.services.*`` import, never
+  a cross-domain FK).  It never *writes* into the ledger.
 * **LLM via ``llm``** — all provider calls go through the ``llm`` package
   (`SceneBinding` / `stream_ai_chat`); the advisor owns no raw HTTP surface.
 * **session ownership** — a `ChatSession` is owned by exactly one user;
@@ -44,13 +44,17 @@ positions) and streams a grounded, cited, disclaimer-tagged response.
 ## Cross-domain read edges
 
 ``depends_on`` mirrors the real import set: ``audit`` (money formatting),
-``llm`` (scene binding + streaming transport), ``observability`` (logging),
-``platform`` (workflow status, HTTP error helpers), ``portfolio`` (summary,
-active symbols), ``pricing`` (market-data status), ``reconciliation``
-(stats), ``reporting`` (balance sheet, income statement, category breakdown,
-report-package readiness, income bucket classifier — folded from the app
-remainder by #1666 while this PR was in flight).  All are *read-only* edges;
-the advisor never writes into them.  The observed-FX-pair composer is the
+``ledger`` (Account/AccountType/journal-line reads for the annualized-income
+schedule and category context — registered as advisor's dependency once
+#1675's D5 omnibus moved account.py/journal.py into ``ledger``, mid-flight of
+this PR), ``llm`` (scene binding + streaming transport), ``observability``
+(logging), ``platform`` (workflow status, HTTP error helpers), ``portfolio``
+(summary, active symbols), ``pricing`` (market-data status),
+``reconciliation`` (stats), ``reporting`` (balance sheet, income statement,
+category breakdown, report-package readiness, income bucket classifier —
+folded from the app remainder by #1666 while this PR was in flight).  All are
+*read-only* edges; the advisor never writes into them.  The observed-FX-pair
+composer is the
 one remaining app-remainder read: its owner (``services/market_data_
 scheduler.py``) hasn't folded yet (#1610), so the advisor consumes it
 through the ``app_reads`` injection port; the edge gets declared when the
@@ -87,12 +91,16 @@ CONTRACT = PackageContract(
     # infra: llm (scene binding + streaming transport), observability
     # (logging), platform (workflow status, HTTP error helpers), audit
     # (money formatting).  Domain (same-layer, read-only, declared +
-    # acyclic): portfolio, pricing, reconciliation, reporting (#1666).
-    # The observed-FX-pair composer is still consumed through an app_reads
-    # injection port until #1610 physically folds it (see the module
-    # docstring).
+    # acyclic): ledger (Account/AccountType/journal-line reads for the
+    # annualized-income schedule + category context — surfaced as a real
+    # edge only once #1675's D5 omnibus registered `ledger` as the owner of
+    # account.py/journal.py, mid-flight of this PR), portfolio, pricing,
+    # reconciliation, reporting (#1666).  The observed-FX-pair composer is
+    # still consumed through an app_reads injection port until #1610
+    # physically folds it (see the module docstring).
     depends_on=[
         "audit",
+        "ledger",
         "llm",
         "observability",
         "platform",

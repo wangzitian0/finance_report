@@ -50,8 +50,8 @@ from src.advisor.extension import app_reads
 from src.advisor.extension.cache import _CACHE
 from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 from src.audit import to_money
+from src.ledger import AccountType
 from src.llm import ReasoningEffort, Scene, SceneBinding, get_config_source, stream_ai_chat
-from src.models.account import AccountType
 from src.observability import get_logger
 from src.platform import get_workflow_status
 from src.portfolio import PortfolioNotFoundError, PortfolioService, active_stock_symbols

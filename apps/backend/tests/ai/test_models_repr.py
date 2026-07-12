@@ -90,7 +90,7 @@ def test_account_repr():
     WHEN calling repr() on it
     THEN it returns a formatted string with name and type
     """
-    from src.models.account import Account, AccountType
+    from src.ledger import Account, AccountType
 
     account = Account(
         id=uuid4(),
@@ -110,7 +110,7 @@ def test_journal_entry_repr():
     WHEN calling repr() on it
     THEN it returns a formatted string with date and truncated memo
     """
-    from src.models.journal import JournalEntry, JournalEntryStatus
+    from src.ledger import JournalEntry, JournalEntryStatus
 
     entry = JournalEntry(
         id=uuid4(),
@@ -130,7 +130,7 @@ def test_journal_line_repr():
     WHEN calling repr() on it
     THEN it returns a formatted string with direction, amount and currency
     """
-    from src.models.journal import Direction, JournalLine
+    from src.ledger import Direction, JournalLine
 
     line = JournalLine(
         id=uuid4(),
@@ -213,7 +213,7 @@ def test_dividend_income_repr():
     WHEN calling repr() on it
     THEN it returns a formatted string with payment date, amount, and currency
     """
-    from src.models.portfolio import DividendIncome
+    from src.portfolio import DividendIncome
 
     dividend = DividendIncome(
         payment_date=date(2024, 3, 15),
@@ -230,7 +230,7 @@ def test_market_data_override_repr():
     WHEN calling repr() on it
     THEN it returns a formatted string with asset identifier, price, and date
     """
-    from src.models.portfolio import MarketDataOverride
+    from src.pricing import MarketDataOverride
 
     override = MarketDataOverride(
         asset_identifier="AAPL",

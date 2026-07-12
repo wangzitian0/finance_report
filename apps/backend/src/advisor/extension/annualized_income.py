@@ -22,8 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import src.config
 from src.advisor.extension import app_reads
 from src.audit import normalize_currency_code, to_money
-from src.models.account import Account, AccountType
-from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.models.layer3 import (
     ManualValuationComponentType,
     ManualValuationLiquidityClass,

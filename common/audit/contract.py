@@ -95,6 +95,12 @@ CONTRACT = PackageContract(
         Unit(name="Quantity", kind=Kind.VALUE_OBJECT),
         Unit(name="Unit", kind=Kind.VALUE_OBJECT),
         Unit(name="UnitPrice", kind=Kind.VALUE_OBJECT),
+        # The journal provenance/trust vocabulary, owned here with the trust
+        # hierarchy that ranks it (source_type_priority): audit (L1) can never
+        # import upward into ledger (L3), so the ledger ORM consumes this
+        # downward (#1675 D5). Taxonomy-only (no module path), like the value
+        # objects above.
+        Unit(name="JournalEntrySourceType", kind=Kind.VALUE_OBJECT),
         # The first slice of audit's OWN base value objects (the "later fold"
         # this file's docstring flagged): the promotion gate (#930, relocated
         # from services/promotion_gate.py by #1667). Confidence/provenance/
@@ -136,6 +142,7 @@ CONTRACT = PackageContract(
         "ExchangeRate",
         "MoneyTolerance",
         "STATEMENT_SOURCE_TYPES",
+        "JournalEntrySourceType",
         "SourceTypeDowngradeError",
         "CurrencyBalance",
         "CurrencyBalances",

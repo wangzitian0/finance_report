@@ -14,7 +14,7 @@ for path in (ROOT, BACKEND):
         sys.path.insert(0, str(path))
 
 import src.models._registry  # noqa: E402, F401  -- register all ORM mappers before relationship config
-from src.models.account import AccountType  # noqa: E402
+from src.ledger import AccountType  # noqa: E402
 from src.reconciliation.extension.reconciliation_audit import (  # noqa: E402
     AUTO_ACCEPT,
     UNMATCHED,
@@ -29,7 +29,9 @@ from src.reconciliation.extension.reconciliation_audit import (  # noqa: E402
 )
 
 
-def test_AC4_10_1_reconciliation_audit_report_schema_and_outputs(tmp_path: Path) -> None:
+def test_AC4_10_1_reconciliation_audit_report_schema_and_outputs(
+    tmp_path: Path,
+) -> None:
     """AC-reconciliation.audit-harness.1: AC4.10.1: Reconciliation audit harness emits JSON and Markdown reports."""
     report = build_report(benchmark_size=100)
     json_path, md_path = write_report(report, tmp_path)
@@ -99,16 +101,22 @@ def test_AC4_10_3_ci_gates_reconciliation_audit_thresholds() -> None:
     assert "tools/reconciliation_audit.py" in workflow
     assert "reconciliation_audit_status=$?" in workflow
     assert "reconciliation_audit_gate=$reconciliation_audit_status" in workflow
-    assert "${{ runner.temp }}/reconciliation-audit/reconciliation-audit.json" in workflow
+    assert (
+        "${{ runner.temp }}/reconciliation-audit/reconciliation-audit.json" in workflow
+    )
     assert "${{ runner.temp }}/reconciliation-audit/reconciliation-audit.md" in workflow
-    fail_condition = workflow.split('if [ "$registry_status"', 1)[1].split("exit 1", 1)[0]
+    fail_condition = workflow.split('if [ "$registry_status"', 1)[1].split("exit 1", 1)[
+        0
+    ]
     assert "reconciliation_audit_status" in fail_condition
     assert "non-gating EPIC-004 accuracy evidence" not in ci_cd
     assert "hard gate" in ci_cd
     assert "10,000-transaction runtime targets" in epic
 
 
-def test_AC4_10_1_reconciliation_audit_tool_wrapper_delegates_to_backend_service() -> None:
+def test_AC4_10_1_reconciliation_audit_tool_wrapper_delegates_to_backend_service() -> (
+    None
+):
     """AC4.10.1: The root tool delegates to the backend audit implementation."""
     from src.reconciliation.extension import reconciliation_audit as implementation
 

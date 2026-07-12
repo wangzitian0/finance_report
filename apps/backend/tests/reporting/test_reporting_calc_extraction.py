@@ -4,8 +4,7 @@ from datetime import date
 from decimal import Decimal
 
 from src import reporting as reporting_service
-from src.models.account import AccountType
-from src.models.journal import Direction
+from src.ledger import AccountType, Direction
 from src.reporting.extension import reporting_calc
 
 

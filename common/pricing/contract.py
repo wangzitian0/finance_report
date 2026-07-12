@@ -204,6 +204,15 @@ CONTRACT = PackageContract(
             kind=Kind.DOMAIN_SERVICE,
             module="extension/ingest.py",
         ),
+        # ── ORM entities: taxonomy-only (module unset — the gate skips
+        # placement, the #1675 idiom). MarketDataOverride (orm/
+        # market_data_override.py, moved from models/portfolio.py in D5) is a
+        # pricing observation store — one of the legacy tables
+        # SqlObservationRepository resolves over — so pricing owns it, not
+        # portfolio (which would also have created a portfolio<->pricing
+        # depends_on cycle). ──
+        Unit(name="MarketDataOverride", kind=Kind.ENTITY),
+        Unit(name="PriceSource", kind=Kind.VALUE_OBJECT),
         # ── data (reserved): read-models consumed by portfolio/reporting/reconciliation ──
         Unit(name="LatestPriceView", kind=Kind.PROJECTION),
         Unit(name="StalenessView", kind=Kind.PROJECTION),
@@ -226,6 +235,7 @@ CONTRACT = PackageContract(
         "FxConversion",
         "FxRate",
         "MARKET_DATA_QUANTITY_UNIT",
+        "MarketDataOverride",
         "MarketDataScopeStatus",
         "MarketDataSyncResult",
         "MarketDataSyncState",
@@ -233,6 +243,7 @@ CONTRACT = PackageContract(
         "ObservationSource",
         "PriceObservation",
         "PriceObserved",
+        "PriceSource",
         "PriceableSubject",
         "PricingError",
         "ResolutionPolicy",

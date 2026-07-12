@@ -22,7 +22,7 @@ class TestAssetsRouterCoverage:
         WHEN listing positions
         THEN account names should be included in response
         """
-        from src.models.account import Account, AccountType
+        from src.ledger import Account, AccountType
 
         account = Account(
             user_id=test_user.id,
@@ -70,7 +70,7 @@ class TestAssetsRouterCoverage:
         WHEN getting position details
         THEN account name should be included
         """
-        from src.models.account import Account, AccountType
+        from src.ledger import Account, AccountType
 
         account = Account(
             user_id=test_user.id,
@@ -132,7 +132,7 @@ class TestAssetsRouterCoverage:
         WHEN calculating depreciation
         THEN it should return 400
         """
-        from src.models.account import Account, AccountType
+        from src.ledger import Account, AccountType
 
         account = Account(
             user_id=test_user.id,
@@ -202,7 +202,7 @@ class TestAssetsRouterCoverage:
         WHEN calculating depreciation
         THEN it should return 200 with depreciation schedule
         """
-        from src.models.account import Account, AccountType
+        from src.ledger import Account, AccountType
         from src.portfolio import DepreciationResult
 
         account = Account(

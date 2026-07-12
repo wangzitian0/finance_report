@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.identity import User
-from src.models.account import Account, AccountType
+from src.ledger import Account, AccountType
 from src.models.layer2 import AssetType, AtomicPosition
 from src.models.layer3 import (
     CostBasisMethod,
@@ -19,9 +19,10 @@ from src.models.layer3 import (
     ManualValuationSnapshot,
     PositionStatus,
 )
-from src.models.portfolio import DividendIncome, MarketDataOverride, PriceSource
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
+from src.portfolio import DividendIncome
+from src.pricing import MarketDataOverride, PriceSource
 from src.pricing.orm.market_data import StockPrice
 from src.reporting.extension.framework_policy import (
     _account_domain_and_instrument,

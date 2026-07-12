@@ -25,20 +25,14 @@ from src.audit.ratio import Ratio
 from src.audit.unit_price import UnitPrice
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
-from src.models.portfolio import (
-    DividendIncome,
-    InvestmentTransaction,
-    InvestmentTransactionType,
-    MarketDataOverride,
-    PriceSource,
-)
 from src.observability import get_logger
 from src.portfolio.base.errors import (
     AssetNotFoundError,
     InvalidDateRangeError,
     PortfolioNotFoundError,
 )
-from src.pricing import StockPrice, convert_amount, convert_money
+from src.portfolio.orm.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
+from src.pricing import MarketDataOverride, PriceSource, StockPrice, convert_amount, convert_money
 from src.schemas.portfolio import (
     HoldingResponse,
     PortfolioSummaryResponse,

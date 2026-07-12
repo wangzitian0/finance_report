@@ -7,8 +7,7 @@ import pytest
 from common.testing.ac_proof import ac_proof
 
 from src.audit.money import Money
-from src.ledger import DegenerateEntryError, Entry, Leg, UnbalancedEntryError
-from src.models.journal import Direction
+from src.ledger import DegenerateEntryError, Direction, Entry, Leg, UnbalancedEntryError
 
 pytestmark = pytest.mark.no_db
 

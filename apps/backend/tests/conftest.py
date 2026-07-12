@@ -23,7 +23,9 @@ from sqlalchemy.pool import NullPool
 # side effect; issue #1461).
 import src.models._registry  # noqa: F401
 from src.config import settings
+from src.extraction import register_transfer_exclusions_provider
 from src.observability import get_logger
+from src.reconciliation import accepted_transfer_txn_ids
 from src.reporting import register_fx_gateway, register_manual_valuation_lines_provider
 from src.services.fx import (
     FxRateError,
@@ -50,6 +52,12 @@ register_fx_gateway(
     fx_rate_error=FxRateError,
 )
 register_manual_valuation_lines_provider(_build_manual_valuation_lines)
+
+# Wire extraction's transfer-exclusions port to reconciliation's published
+# read, mirroring the app composition root (src/main.py, #1675 D5): tests
+# that call statement-posting helpers directly bypass app startup and would
+# otherwise hit the unwired-port RuntimeError.
+register_transfer_exclusions_provider(accepted_transfer_txn_ids)
 
 # Make the repo's ``common/`` importable at collection time (not just inside the
 # ``ac_evidence`` fixture). conftest.py is imported before the test modules in

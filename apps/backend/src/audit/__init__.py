@@ -47,6 +47,7 @@ from src.audit.unit_price import UNIT_PRICE_QUANTUM, UnitPrice
 if TYPE_CHECKING:
     from src.audit.source_type_priority import (
         STATEMENT_SOURCE_TYPES,
+        JournalEntrySourceType,
         SourceTypeDowngradeError,
         is_user_data_source_type,
         normalize_source_type,
@@ -74,6 +75,7 @@ __all__ = [
     "RECONCILIATION_REVIEW_SCORE",
     "STATEMENT_BALANCE_TOLERANCE",
     "STATEMENT_SOURCE_TYPES",
+    "JournalEntrySourceType",
     "SourceTypeDowngradeError",
     "InvariantResult",
     "PromotionDecision",
@@ -96,6 +98,7 @@ __all__ = [
 
 _SOURCE_TYPE_NAMES = {
     "STATEMENT_SOURCE_TYPES",
+    "JournalEntrySourceType",
     "SourceTypeDowngradeError",
     "is_user_data_source_type",
     "normalize_source_type",

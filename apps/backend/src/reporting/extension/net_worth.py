@@ -11,8 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.ratio import Ratio
-from src.models.account import Account, AccountType
-from src.models.journal import JournalEntry, JournalLine
+from src.ledger import Account, AccountType, JournalEntry, JournalLine
 from src.models.layer3 import (
     ManualValuationLiquidityClass,
 )

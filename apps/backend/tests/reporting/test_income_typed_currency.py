@@ -14,8 +14,7 @@ from httpx import AsyncClient
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.account import Account, AccountType
-from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.reporting.extension.reporting_calc import AnnualizedIncomeTotals, resolve_line_currency
 from src.schemas.base import normalize_currency_code
 from src.schemas.income import AnnualizedIncomeResponse, FxConversionErrorResponse

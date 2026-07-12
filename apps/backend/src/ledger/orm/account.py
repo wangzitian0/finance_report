@@ -14,7 +14,7 @@ from src.database import Base
 from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 if TYPE_CHECKING:
-    from src.models.journal import JournalLine
+    from src.ledger.orm.journal import JournalLine
 
 
 class AccountType(str, enum.Enum):

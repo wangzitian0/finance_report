@@ -13,15 +13,9 @@ from decimal import Decimal
 
 import pytest
 
+from src.audit import JournalEntrySourceType
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.ledger.extension.accounting import post_opening_balance_entry
-from src.models.account import Account, AccountType
-from src.models.journal import (
-    Direction,
-    JournalEntry,
-    JournalEntrySourceType,
-    JournalEntryStatus,
-    JournalLine,
-)
 from src.reporting import generate_balance_sheet
 from src.reporting.extension.net_worth import get_net_worth_allocation_schedule
 

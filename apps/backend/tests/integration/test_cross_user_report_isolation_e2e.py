@@ -18,10 +18,9 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit import JournalEntrySourceType
 from src.identity import User
-from src.ledger import create_journal_entry, post_journal_entry
-from src.models.account import Account, AccountType
-from src.models.journal import JournalEntrySourceType
+from src.ledger import Account, AccountType, create_journal_entry, post_journal_entry
 from src.models.layer3 import ManualValuationComponentType
 from src.pricing import ValuationService
 from src.reporting import generate_balance_sheet, generate_income_statement

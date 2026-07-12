@@ -11,8 +11,7 @@ from uuid import UUID
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.account import Account, AccountType
-from src.models.journal import JournalEntry, JournalLine
+from src.ledger import Account, AccountType, JournalEntry, JournalLine
 from src.observability import ErrorIds, get_logger
 from src.reporting.extension import fx_gateway
 from src.reporting.extension._core import _REPORT_STATUSES, _line_total

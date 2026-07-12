@@ -4,7 +4,7 @@
 re-export facade. A shared facade is an ownership-hiding, collision-prone seam:
 two unrelated cutovers editing the same ``__init__.py`` break the orthogonality
 that later migration stages rely on. Every model must be imported from its
-owning module instead, e.g. ``from src.models.journal import JournalEntry``.
+owning module instead, e.g. ``from src.models.layer2 import AtomicTransaction``.
 
 This test statically scans ``apps/backend/src`` and fails if any module imports
 the hub root:
@@ -12,7 +12,7 @@ the hub root:
 * ``from src.models import X``      → forbidden (use ``from src.models.<sub> import X``)
 * ``import src.models`` / ``... as m`` → forbidden (use ``import src.models.<sub>``)
 
-Submodule imports (``from src.models.journal import ...``,
+Submodule imports (``from src.models.layer2 import ...``,
 ``import src.models._registry``) are allowed.
 
 Covers AC-meta.facade.1 (no module imports models via the hub) and

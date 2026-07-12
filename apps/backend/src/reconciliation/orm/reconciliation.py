@@ -1,4 +1,15 @@
-"""Reconciliation match models."""
+"""Reconciliation match models.
+
+Moved from ``src/models/reconciliation.py`` (#1675 D5). Ledger's
+``journal_entries`` is referenced by bare ForeignKey **column** only — the
+former ``ReconciliationMatchJournalEntry.journal_entry`` ``relationship()``
+was unused and is removed per the 2026-07-11 ruling (cross-domain
+object-graph navigation is the coupling; the FK column is DB-level
+integrity). The ``atomic_transaction`` relationship stays for now: its
+target (``layer2.py``) is still in the unregistered ``src/models/``
+remainder — de-navigating it is D4's job (the parallel D4+D5c PR), where
+``AtomicTransaction`` moves into ``extraction``.
+"""
 
 from enum import Enum
 from typing import TYPE_CHECKING
@@ -79,4 +90,4 @@ class ReconciliationMatchJournalEntry(Base, TimestampMixin):
     )
 
     reconciliation_match: Mapped[ReconciliationMatch] = relationship("ReconciliationMatch")
-    journal_entry = relationship("JournalEntry")
+    # No relationship() to ledger's JournalEntry: resolve by id (#1675 ruling).

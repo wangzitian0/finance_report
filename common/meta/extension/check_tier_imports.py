@@ -51,10 +51,10 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 # none of them may import the LLM layer. Each glob is confirmed to resolve to at
 # least one real file (see ``missing_protected_globs``).
 PROTECTED_MODULE_GLOBS: tuple[str, ...] = (
-    # money primitives + the ledger/journal core
+    # money primitives + the ledger/journal core (the journal ORM moved into
+    # ledger/orm/, #1675 D5 — it is covered by the ledger glob)
     "apps/backend/src/audit/money/**/*.py",
     "apps/backend/src/ledger/**/*.py",
-    "apps/backend/src/models/journal.py",
     # deterministic financial-truth services
     "apps/backend/src/extraction/extension/deduplication.py",
     "apps/backend/src/ledger/extension/accounting.py",
