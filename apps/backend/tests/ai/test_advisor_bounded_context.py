@@ -156,9 +156,7 @@ def bounded_context_fakes(test_user, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(advisor_service_module, "get_workflow_status", fake_workflow)
     monkeypatch.setattr(advisor_service_module, "get_market_data_status", fake_market_data)
     monkeypatch.setattr(advisor_service_module, "active_stock_symbols", fake_active_stock_symbols)
-    monkeypatch.setattr(
-        advisor_service_module.PortfolioService, "get_portfolio_summary", fake_portfolio_summary
-    )
+    monkeypatch.setattr(advisor_service_module.PortfolioService, "get_portfolio_summary", fake_portfolio_summary)
 
 
 FINANCIAL_SUMMARY = {
@@ -178,9 +176,7 @@ async def test_AC_advisor_context_1_context_is_exactly_the_bounded_read_set(
     only bounded grounding sources."""
     service = AIAdvisorService()
 
-    context = await service.get_advisor_context(
-        db, test_user.id, financial_context=dict(FINANCIAL_SUMMARY)
-    )
+    context = await service.get_advisor_context(db, test_user.id, financial_context=dict(FINANCIAL_SUMMARY))
 
     # (a) Nothing outside the bounded read context enters the answer's grounding.
     assert set(context) == BOUNDED_CONTEXT_KEYS
@@ -207,9 +203,7 @@ async def test_AC_advisor_context_1_response_metadata_carries_bounded_citations(
     the bounded grounding sources through safe internal routes only."""
     service = AIAdvisorService()
 
-    advisor_context = await service.get_advisor_context(
-        db, test_user.id, financial_context=dict(FINANCIAL_SUMMARY)
-    )
+    advisor_context = await service.get_advisor_context(db, test_user.id, financial_context=dict(FINANCIAL_SUMMARY))
     chat_context = {
         **FINANCIAL_SUMMARY,
         "balance_sheet_confidence_tier": "DETERMINISTIC",

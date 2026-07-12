@@ -5,12 +5,12 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
+from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 
 
 async def test_get_or_create_session_uses_flush_not_commit(db: AsyncSession, test_user) -> None:
     """AC12.3.1: _get_or_create_session uses flush(), allowing rollback."""
-    from src.services.ai_advisor import AIAdvisorService
+    from src.advisor import AIAdvisorService
 
     service = AIAdvisorService()
     session = await service._get_or_create_session(db, test_user.id, None, "Hello world")
@@ -26,7 +26,7 @@ async def test_get_or_create_session_uses_flush_not_commit(db: AsyncSession, tes
 
 async def test_get_or_create_existing_session_uses_flush(db: AsyncSession, test_user) -> None:
     """AC12.3.2: _get_or_create_session with existing session uses flush()."""
-    from src.services.ai_advisor import AIAdvisorService
+    from src.advisor import AIAdvisorService
 
     existing = ChatSession(
         user_id=test_user.id,
@@ -52,7 +52,7 @@ async def test_get_or_create_existing_session_uses_flush(db: AsyncSession, test_
 
 async def test_record_message_uses_flush_not_commit(db: AsyncSession, test_user) -> None:
     """AC12.3.3: _record_message uses flush(), allowing rollback."""
-    from src.services.ai_advisor import AIAdvisorService
+    from src.advisor import AIAdvisorService
 
     service = AIAdvisorService()
 

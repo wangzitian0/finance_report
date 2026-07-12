@@ -5,10 +5,9 @@ ubiquitous-language prose ([`readme.md`](./readme.md)), its machine-checkable
 :class:`~common.meta.package_contract.PackageContract`
 ([`contract.py`](./contract.py)), and its worklist ([`todo.md`](./todo.md)).
 
-The running implementation currently lives at
-``apps/backend/src/services/ai_advisor`` (the pre-migration location).
-It will move to ``apps/backend/src/advisor``
-(``contract.implementations["be"]``) in PR2 of the cutover.  This is a *spec
+The running implementation lives at ``apps/backend/src/advisor``
+(``contract.implementations["be"]``; physically moved there by #1671
+Wave B).  This is a *spec
 surface*, not the package's code: the only thing it re-exports is the
 package's own ``CONTRACT`` (so tooling can ``from common.advisor import
 CONTRACT``); the package's published *language* is the implementation's

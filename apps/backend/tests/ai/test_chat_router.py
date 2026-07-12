@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 
-from src.services.ai_advisor import AIAdvisorError
+from src.advisor import AIAdvisorError
 
 
 async def test_chat_suggestions_en() -> None:
@@ -128,7 +128,7 @@ async def test_AC6_5_1_chat_suggestions_return_static_items_when_structured_cont
 
 async def test_detect_language_chinese() -> None:
     """AC-advisor.language.1: AC6.2.1: Detect Chinese language."""
-    from src.services.ai_advisor import detect_language
+    from src.advisor import detect_language
 
     result = detect_language("这个月花了多少钱")
     assert result == "zh"
@@ -136,7 +136,7 @@ async def test_detect_language_chinese() -> None:
 
 async def test_detect_language_english() -> None:
     """AC-advisor.language.2: AC6.2.2: Detect English language."""
-    from src.services.ai_advisor import detect_language
+    from src.advisor import detect_language
 
     result = detect_language("What are my expenses?")
     assert result == "en"
@@ -352,7 +352,7 @@ async def test_delete_session_success() -> None:
     """AC-advisor.session.5: AC6.4.5: Delete session marks session as deleted."""
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from src.models.chat import ChatSession, ChatSessionStatus
+    from src.advisor.orm.chat import ChatSession, ChatSessionStatus
     from src.routers.chat import delete_session
 
     mock_session = MagicMock(spec=ChatSession)
@@ -369,7 +369,7 @@ async def test_delete_session_success() -> None:
 
 async def test_chat_history_with_session_id() -> None:
     """AC6.4.3: Chat history returns messages for specific session."""
-    from src.models.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
+    from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
     from src.routers.chat import chat_history
 
     mock_session = MagicMock(spec=ChatSession)
@@ -419,7 +419,7 @@ async def test_chat_history_empty() -> None:
 
 async def test_chat_history_lists_sessions() -> None:
     """AC6.4.3: Chat history lists active sessions with message counts."""
-    from src.models.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
+    from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
     from src.routers.chat import chat_history
 
     mock_session = MagicMock(spec=ChatSession)

@@ -5,6 +5,8 @@ evidence graph) moved to the ``extraction`` package (#1421) — import it via
 ``from src.extraction import …``, not from here. The portfolio read side
 (holdings/P&L, allocation, performance, report schedule) moved to the
 ``portfolio`` package (#1643) — import it via ``from src.portfolio import …``.
+The AI advisor (chat service, guardrails, annualized income schedule) moved
+to the ``advisor`` package (#1671) — import it via ``from src.advisor import …``.
 
 Importing one service submodule must not eagerly import every backend service.
 Tooling tests and small audit CLIs intentionally run with a reduced dependency
@@ -17,7 +19,6 @@ from importlib import import_module
 from typing import Any
 
 _SUBMODULES = {
-    "ai_advisor",
     "confidence_tier",
     "fx",
     "market_data_scheduler",
@@ -27,8 +28,6 @@ _SUBMODULES = {
 }
 
 _EXPORTS: dict[str, tuple[str, str]] = {
-    "AIAdvisorError": ("ai_advisor", "AIAdvisorError"),
-    "AIAdvisorService": ("ai_advisor", "AIAdvisorService"),
     "FxRateError": ("fx", "FxRateError"),
     "ReportError": ("reporting", "ReportError"),
     "convert_amount": ("fx", "convert_amount"),

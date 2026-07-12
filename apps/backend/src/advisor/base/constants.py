@@ -1,13 +1,15 @@
-"""Shared AI-advisor constants, patterns, and logger."""
+"""Shared AI-advisor constants and patterns (pure).
+
+Moved from ``src/services/ai_advisor/_base.py`` (#1671 Wave B), minus the
+logger — ``base/`` stays free of infra imports; the package logger lives in
+``extension/service.py``.
+"""
 
 from __future__ import annotations
 
 import re
 
-from src.observability import get_logger
-from src.prompts.ai_advisor import DISCLAIMER_EN, DISCLAIMER_ZH
-
-logger = get_logger("src.services.ai_advisor")
+from src.advisor.base.prompt import DISCLAIMER_EN, DISCLAIMER_ZH
 
 MAX_CONTEXT_MESSAGES = 20
 CACHE_TTL_SECONDS = 3600

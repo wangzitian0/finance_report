@@ -2,13 +2,13 @@
 
 This is the authoritative spec the governance gate
 (``tools/check_package_contract.py``) validates the BE implementation against.
-In this PR1 slice ``implementations["be"]`` is ``None`` (the code still lives
-at ``apps/backend/src/services/ai_advisor``), so the gate skips the
-``interface == __all__`` check; PR2 moves the code to
-``apps/backend/src/advisor``, sets ``implementations["be"]`` accordingly, and
-the check then applies. Every ``invariants[].test`` and ``roadmap[].test``
-must resolve to a real test function; ``depends_on`` must not introduce a
-forbidden upward/sideways edge.
+The implementation physically lives at ``apps/backend/src/advisor`` (#1671
+Wave B moved it out of ``apps/backend/src/services/ai_advisor``, absorbing
+``services/annualized_income.py``, ``prompts/ai_advisor.py``, and
+``models/chat.py`` → ``orm/chat.py``), so the ``interface == __all__`` check
+applies. Every ``invariants[].test`` and ``roadmap[].test`` must resolve to a
+real test function; ``depends_on`` must not introduce a forbidden
+upward/sideways edge.
 
 ## What this package is
 
@@ -18,7 +18,7 @@ advisor **never writes a ledger number** — it only reads from the user's
 bounded context (reconciliation readiness, reporting summaries, portfolio
 positions) and streams a grounded, cited, disclaimer-tagged response.
 
-## Boundaries (confirmed at cutover, 2026-07-06)
+## Boundaries (confirmed at cutover, 2026-07-06; physical move 2026-07-12)
 
 * **read-only guardrail** — every write/mutation request (`is_write_request`),
   every prompt-injection attempt (`is_prompt_injection`), and every
@@ -26,29 +26,40 @@ positions) and streams a grounded, cited, disclaimer-tagged response.
   call is made.  The guardrail is also applied on the streaming path via
   `StreamRedactor`.  This is the package's non-negotiable invariant.
 * **bounded context** — the advisor reads reconciliation/reporting/portfolio
-  data as part of the same read-only request (currently the same
-  `AsyncSession` as the chat-message insert — see ``AC-advisor.txn.1``,
-  still ``open``: the target is reading via each package's *published*
-  interface once reconciliation/reporting/portfolio ship contracts, never a
+  data as part of the same read-only request (the same `AsyncSession` as the
+  chat-message insert — ``AC-advisor.txn.1``, now ``done``: every
+  cross-domain read goes through the target package's *published* root
+  (``platform``/``portfolio``/``pricing``/``reconciliation``), and reads
+  whose owner still lives in the app remainder (reporting summaries +
+  readiness, the fx-pair composer, windowed fx conversion, the income
+  bucket classifier) are injected through ``extension/app_reads.py`` by the
+  composition root — never a direct ``src.services.*`` import, never a
   cross-domain FK).  It never touches the ledger write side.
 * **LLM via ``llm``** — all provider calls go through the ``llm`` package
-  (`SceneBinding` / `CassetteStore`); the advisor owns no raw HTTP surface.
+  (`SceneBinding` / `stream_ai_chat`); the advisor owns no raw HTTP surface.
 * **session ownership** — a `ChatSession` is owned by exactly one user;
   once a session is closed it is immutable (the ARCHIVED lifecycle is a
   planned addition — `AC-advisor.session.1`).
 
-## Cross-domain read edges (added to ``depends_on`` once those packages ship)
+## Cross-domain read edges
 
-The advisor currently reads from services that will become:
-``portfolio``, ``reconciliation``, ``reporting``, ``pricing`` (market data).
-These are *read-only* edges; the advisor never writes into them.  They will
-be added to ``depends_on`` when their package contracts are registered.
+``depends_on`` mirrors the real import set: ``audit`` (money formatting),
+``llm`` (scene binding + streaming transport), ``observability`` (logging),
+``platform`` (workflow status, HTTP error helpers), ``portfolio`` (summary,
+active symbols), ``pricing`` (market-data status), ``reconciliation``
+(stats).  All are *read-only* edges; the advisor never writes into them.
+``reporting`` is deliberately absent: its implementation is still inside the
+app remainder (fold tracked by #1666), so the advisor consumes it through
+the ``app_reads`` injection ports; the edge gets declared when the fold
+lands and the port collapses into a published-root import.  ``config`` was
+folded into ``runtime`` (#1669) — the flat ``src.config`` module is shared
+infra, imported as the bare root.
 
-## God-file → phase split (PR2 scope)
+## God-file → phase split (follow-up scope)
 
-``apps/backend/src/services/ai_advisor/service.py`` (~860 lines) will be
-split into ``phases/{context_aggregation,prompt_construction,response_streaming}.py``
-and ``_guardrails.py`` will remain separate.  Until then the units are
+``extension/service.py`` (~860 lines) is still to be split into
+``phases/{context_aggregation,prompt_construction,response_streaming}.py``;
+``base/guardrails.py`` is already separate.  Until then the units are
 declared *taxonomy-only* (``module=None``): the governance gate skips
 placement checks for units without a module path, per the package model.
 """
@@ -70,16 +81,28 @@ CONTRACT = PackageContract(
     # (property proofs); only the context-grounding ACs (future eval work)
     # carry proof_kind="eval".  Non-eval ACs keep proof_kind="property".
     tier="LLM-LED",
-    # infra: llm (scene binding + cassette), observability (logging), config
-    # (settings).  Cross-domain read edges (portfolio, reconciliation,
-    # reporting, pricing) are added once those packages ship contracts.
-    depends_on=["llm", "observability", "config"],
+    # infra: llm (scene binding + streaming transport), observability
+    # (logging), platform (workflow status, HTTP error helpers), audit
+    # (money formatting).  Domain (same-layer, read-only, declared +
+    # acyclic): portfolio, pricing, reconciliation.  reporting is consumed
+    # through the app_reads injection ports until #1666 physically folds it
+    # (see the module docstring).
+    depends_on=[
+        "audit",
+        "llm",
+        "observability",
+        "platform",
+        "portfolio",
+        "pricing",
+        "reconciliation",
+    ],
     roles=["base", "extension", "data"],
     units=[
         # ── base: aggregate root + entity + value language ──
-        # These live in the ORM models today (src/models/chat.py); they will
-        # move to base/ when the physical base/extension split happens in PR2.
-        # Declared taxonomy-only (module=None) so the gate skips placement.
+        # ChatSession/ChatMessage + enums live in orm/chat.py (the package's
+        # persistence models, #1675 D5 idiom); the schema-facing VOs live in
+        # the lazy schemas hub. Declared taxonomy-only (module=None) so the
+        # gate skips placement.
         Unit(name="ChatSession", kind=Kind.AGGREGATE_ROOT),
         Unit(name="ChatMessage", kind=Kind.ENTITY),
         # value objects — status/role enums + the public streaming/response shapes
@@ -107,13 +130,39 @@ CONTRACT = PackageContract(
         # chat history view (list of sessions + messages for the UI)
         Unit(name="ChatHistoryView", kind=Kind.PROJECTION),
     ],
-    # BE implementation target path.  The code is currently in
-    # ``src/services/ai_advisor/``; it moves to ``src/advisor/`` in PR2.
-    # ``None`` tells the gate to skip interface == __all__ checks for now.
-    implementations={"be": None, "fe": None},
-    # Published language: empty until the code lands at the target path and
-    # src/advisor/__init__.py declares __all__.  Filled in PR2.
-    interface=[],
+    # BE implementation path (#1671 Wave B physical move).
+    implementations={"be": "apps/backend/src/advisor", "fe": None},
+    # Published language == src/advisor/__init__.py __all__ (gate-enforced).
+    interface=[
+        "AIAdvisorError",
+        "AIAdvisorService",
+        "ChatMessage",
+        "ChatMessageRole",
+        "ChatSession",
+        "ChatSessionStatus",
+        "ChatStream",
+        "DISCLAIMER_EN",
+        "DISCLAIMER_ZH",
+        "ResponseCache",
+        "StreamRedactor",
+        "build_refusal",
+        "detect_language",
+        "ensure_disclaimer",
+        "estimate_tokens",
+        "generate_annualized_income_schedule",
+        "get_ai_advisor_prompt",
+        "is_non_financial",
+        "is_prompt_injection",
+        "is_sensitive_request",
+        "is_write_request",
+        "normalize_question",
+        "redact_sensitive",
+        "register_fx_conversion",
+        "register_fx_pairs_read",
+        "register_income_bucket_read",
+        "register_readiness_read",
+        "register_reporting_reads",
+    ],
     events=[],
     # Structural invariants: registered once the base/extension/data split is
     # done and the tooling tests exist (PR2 scope).
@@ -207,10 +256,14 @@ CONTRACT = PackageContract(
                 "outside that context.  Each response carries ``citations`` "
                 "and ``actions`` that surface the grounding sources."
             ),
-            # was AC21.2.1
+            # was AC21.2.1; strengthened by #1671 Wave B: the bounded-context
+            # test proves the context is exactly the bounded fact set (reads
+            # flowing through published roots + the app_reads ports) and that
+            # response metadata carries citations restricted to bounded
+            # sources.  The original AC21_2_1 test remains in the suite.
             test=(
-                "apps/backend/tests/ai/test_ai_advisor_service.py"
-                "::test_AC21_2_1_advisor_context_includes_readiness_trust_workflow_and_suggestions"
+                "apps/backend/tests/ai/test_advisor_bounded_context.py"
+                "::test_AC_advisor_context_1_context_is_exactly_the_bounded_read_set"
             ),
             priority="P1",
             status="done",
@@ -1009,17 +1062,18 @@ CONTRACT = PackageContract(
                 "(once cross-domain packages publish their interfaces, the "
                 "advisor's imports must use those, not internal service paths)."
             ),
-            # was (new): reinforces guardrail.1 + context.1 at the boundary level
+            # was (new): reinforces guardrail.1 + context.1 at the boundary level.
+            # Closed by #1671 Wave B: the structural test asserts the package
+            # physically lives at implementations["be"] and imports no
+            # src.services/src.prompts/src.routers internal paths — remainder
+            # reads flow through the app_reads ports wired by the composition
+            # root; the package-contract gate enforces depends_on honesty.
             test=(
-                "apps/backend/tests/ai/test_ai_advisor_service.py"
-                "::test_chat_stream_refusal_branches"
+                "tests/tooling/test_advisor_package.py"
+                "::test_AC_advisor_txn_1_reads_only_published_interfaces"
             ),
             priority="P0",
-            # "open" because the structural read-via-interface constraint is
-            # not yet enforced (reconciliation/reporting/portfolio contracts
-            # are not yet registered; the advisor still imports from
-            # src.services.*).  The runtime write-refusal is done.
-            status="open",
+            status="done",
             proof_kind="property",
         ),
     ],

@@ -18,23 +18,8 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.llm import AIStreamError
-from src.models.account import Account, AccountType
-from src.models.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
-from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
-from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
-from src.prompts.ai_advisor import DISCLAIMER_EN, get_ai_advisor_prompt
-from src.schemas.workflow import (
-    WorkflowEventCountsResponse,
-    WorkflowNextActionResponse,
-    WorkflowNextActionType,
-    WorkflowPrimaryState,
-    WorkflowReportReadinessResponse,
-    WorkflowReportReadinessState,
-    WorkflowStatusResponse,
-)
-from src.services.ai_advisor import (
+from src.advisor import (
+    DISCLAIMER_EN,
     AIAdvisorError,
     AIAdvisorService,
     ResponseCache,
@@ -43,13 +28,31 @@ from src.services.ai_advisor import (
     detect_language,
     ensure_disclaimer,
     estimate_tokens,
+    get_ai_advisor_prompt,
     is_non_financial,
     is_prompt_injection,
     is_sensitive_request,
     is_write_request,
     normalize_question,
     redact_sensitive,
-    service as ai_advisor_service,
+    register_readiness_read,
+    register_reporting_reads,
+)
+from src.advisor.extension import service as ai_advisor_service
+from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
+from src.llm import AIStreamError
+from src.models.account import Account, AccountType
+from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
+from src.models.layer2 import AtomicTransaction, TransactionDirection
+from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
+from src.schemas.workflow import (
+    WorkflowEventCountsResponse,
+    WorkflowNextActionResponse,
+    WorkflowNextActionType,
+    WorkflowPrimaryState,
+    WorkflowReportReadinessResponse,
+    WorkflowReportReadinessState,
+    WorkflowStatusResponse,
 )
 from src.services.reporting import ReportError
 from tests.factories import UserFactory
@@ -297,9 +300,12 @@ async def test_get_financial_context_handles_report_errors(
     async def raise_report_error(*_args, **_kwargs):
         raise ReportError("boom")
 
-    monkeypatch.setattr(ai_advisor_service, "generate_balance_sheet", raise_report_error)
-    monkeypatch.setattr(ai_advisor_service, "generate_income_statement", raise_report_error)
-    monkeypatch.setattr(ai_advisor_service, "get_category_breakdown", raise_report_error)
+    register_reporting_reads(
+        balance_sheet=raise_report_error,
+        income_statement=raise_report_error,
+        category_breakdown=raise_report_error,
+        error_type=ReportError,
+    )
 
     context = await service.get_financial_context(db, test_user.id)
 
@@ -397,7 +403,7 @@ async def test_AC21_2_1_advisor_context_includes_readiness_trust_workflow_and_su
             currency="SGD",
         )
 
-    monkeypatch.setattr(ai_advisor_service, "get_personal_report_package_readiness", fake_readiness)
+    register_readiness_read(fake_readiness)
     monkeypatch.setattr(ai_advisor_service, "get_workflow_status", fake_workflow)
     monkeypatch.setattr(ai_advisor_service, "get_market_data_status", fake_market_data)
     monkeypatch.setattr(ai_advisor_service.PortfolioService, "get_portfolio_summary", fake_portfolio_summary)
@@ -508,7 +514,7 @@ async def test_AC21_2_1_advisor_context_degrades_to_default_suggestion_when_sour
     async def raise_source_error(*_args, **_kwargs):
         raise RuntimeError("source unavailable")
 
-    monkeypatch.setattr(ai_advisor_service, "get_personal_report_package_readiness", raise_source_error)
+    register_readiness_read(raise_source_error)
     monkeypatch.setattr(ai_advisor_service, "get_workflow_status", raise_source_error)
     monkeypatch.setattr(ai_advisor_service, "get_market_data_status", raise_source_error)
     monkeypatch.setattr(ai_advisor_service.PortfolioService, "get_portfolio_summary", raise_source_error)
@@ -1031,7 +1037,7 @@ async def test_stream_model_yields_chunks(monkeypatch: pytest.MonkeyPatch) -> No
         yield "chunk-a"
         yield "chunk-b"
 
-    import src.services.ai_advisor.service as _mod
+    import src.advisor.extension.service as _mod
 
     monkeypatch.setattr(_mod, "stream_ai_chat", fake_stream_ai_chat)
 

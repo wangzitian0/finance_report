@@ -1,8 +1,12 @@
 """Annualized income & long-term compensation schedule generation.
 
 Computes the trailing-12-month annualized income buckets and restricted
-compensation holdings for the personal report package. Extracted from the
-reports router route so it is reusable by snapshot assembly; behavior unchanged.
+compensation holdings for the personal report package.  Moved from
+``src/services/annualized_income.py`` (#1671 Wave B, per the #1416
+disposition table); behavior unchanged.  The windowed FX conversion and the
+income bucket classifier still live in the app remainder (``services/fx.py``
+/ ``services/reporting_calc.py``), so they are injected through
+:mod:`src.advisor.extension.app_reads` until #1610 / #1666 publish them.
 """
 
 from __future__ import annotations
@@ -12,9 +16,9 @@ from decimal import Decimal
 
 from sqlalchemy import select
 
-from src.audit.money import to_money
-from src.audit.money.currency import normalize_currency_code
-from src.config import settings
+import src.config
+from src.advisor.extension import app_reads
+from src.audit import normalize_currency_code, to_money
 from src.deps import CurrentUserId, DbSession
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
@@ -30,8 +34,9 @@ from src.schemas import (
     AnnualizedIncomeScheduleNetWorthTreatment,
     AnnualizedIncomeScheduleResponse,
 )
-from src.services.fx import FxRateError, convert_amount
-from src.services.reporting_calc import income_bucket
+
+# Bound from the bare published root (config publishes no named symbols).
+settings = src.config.settings
 
 
 async def generate_annualized_income_schedule(
@@ -41,6 +46,10 @@ async def generate_annualized_income_schedule(
     as_of_date: date | None = None,
 ) -> AnnualizedIncomeScheduleResponse:
     """Return report-ready annualized income and restricted compensation schedule."""
+    convert_amount = app_reads.convert_amount()
+    fx_error = app_reads.fx_error()
+    income_bucket = app_reads.income_bucket()
+
     report_date = as_of_date or date.today()
     start_date = report_date - timedelta(days=365)
     income_result = await db.execute(
@@ -79,7 +88,7 @@ async def generate_annualized_income_schedule(
                 average_end=report_date,
                 lazy_load=True,
             )
-        except FxRateError as exc:
+        except fx_error as exc:
             raise_bad_request(str(exc), cause=exc)
         bucket = income_bucket(account.name)
         if bucket:
@@ -131,7 +140,7 @@ async def generate_annualized_income_schedule(
                 rate_date=report_date,
                 lazy_load=True,
             )
-        except FxRateError as exc:
+        except fx_error as exc:
             raise_bad_request(str(exc), cause=exc)
     restricted_total = to_money(restricted_total)
 

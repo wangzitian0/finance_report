@@ -4,11 +4,11 @@
 > [`contract.py`](./contract.py).  Worklist: [`todo.md`](./todo.md).
 >
 > This `common/advisor/` directory is the **spec surface**; the conforming
-> implementation currently lives at
-> [`apps/backend/src/services/ai_advisor`](../../apps/backend/src/services/ai_advisor)
-> and will move to
+> implementation lives at
 > [`apps/backend/src/advisor`](../../apps/backend/src/advisor)
-> (`contract.implementations["be"]`) in PR2.
+> (`contract.implementations["be"]`), physically moved there by #1671 Wave B
+> (absorbing `services/annualized_income.py`, `prompts/ai_advisor.py`, and
+> `models/chat.py` → `orm/chat.py`).
 
 ## Why
 
@@ -74,36 +74,44 @@ invariant is P0 across all delivery tiers.
 
 The advisor aggregates context from:
 
-| Source | What it reads | Where |
-|--------|--------------|-------|
-| `report_readiness` | Readiness state + blockers | `src.services.report_readiness` |
-| `reporting` | Balance sheet, income statement, category breakdown | `src.services.reporting` |
-| `reconciliation` | Pending review count, reconciliation stats | `src.reconciliation.extension.review_queue` (moved from `services.reconciliation`, #1423) |
-| `portfolio` | Positions, unrealised P&L | `src.portfolio` (moved from `services.portfolio`, #1643) |
-| `market_data` | Scope status, prices | `src.pricing` (scope discovery composed in `services.market_data_scheduler`, #1641) |
-| `workflow_events` | Action-required counts | `src.platform.extension.workflow_events` |
+| Source | What it reads | How the advisor reads it |
+|--------|--------------|---------------------------|
+| `report_readiness` | Readiness state + blockers | `extension/app_reads.py` port (owner still in `services/report_readiness.py`, #1666) |
+| `reporting` | Balance sheet, income statement, category breakdown | `extension/app_reads.py` port (owner still in `services/reporting/`, #1666) |
+| `reconciliation` | Pending review count, reconciliation stats | `src.reconciliation` published root (`get_reconciliation_stats`) |
+| `portfolio` | Positions, unrealised P&L, active symbols | `src.portfolio` published root (`PortfolioService`, `active_stock_symbols`) |
+| `market_data` | Scope status, prices | `src.pricing` published root (`get_market_data_status`); the FX-pair composer is an `app_reads` port (owner still in `services/market_data_scheduler.py`, #1610) |
+| `workflow_events` | Action-required counts | `src.platform` published root (`get_workflow_status`, #1703) |
+
+The `app_reads` ports are wired by the composition root (`src/main.py`) —
+the same inversion #1676 used for platform's readiness port; each collapses
+into a direct published-root import + `depends_on` edge when its owner's
+physical fold (#1666 / #1610) lands.
 
 All reads are in the same `AsyncSession` transaction as the chat message
-insert (the advisor's own transaction — `AC-advisor.txn.1`).  The advisor
-never holds a reference to another domain's write objects.
+insert (the advisor's own transaction — `AC-advisor.txn.1`, proven by
+`tests/tooling/test_advisor_package.py`).  The advisor never holds a
+reference to another domain's write objects.
 
-## Layers (taxonomy declared; physical split is PR2)
+## Layers (physical, since #1671 Wave B)
 
-The implementation will converge into the package model's internal layers
-once the god-file `service.py` is split in PR2:
+| Layer | What lives here |
+|-------|-----------------|
+| `base/` | `prompt.py` (template + disclaimers), `constants.py` (patterns, safe hrefs), `guardrails.py` (pure predicates + `StreamRedactor`) |
+| `extension/` | `service.py` (`AIAdvisorService`, `ChatStream`), `cache.py` (`ResponseCache`), `app_reads.py` (remainder-read ports), `annualized_income.py` |
+| `orm/` | `chat.py` (`ChatSession` AR, `ChatMessage` entity, status/role enums — schema-neutral move from `src/models/chat.py`) |
+| `data/` | reserved for the `ChatHistoryView` projection (declared taxonomy-only) |
 
-| Layer | What will live here |
-|-------|---------------------|
-| `base/` | `ChatSession` (AR), `ChatMessage` (entity), enums, VOs, `ChatSessionRepository` port |
-| `extension/` | `AIAdvisorService`, `AdvisorGuardrails`, `ResponseCache`, `AdvisorSceneBinding`, SQL adapter |
-| `extension/phases/` | `context_aggregation.py`, `prompt_construction.py`, `response_streaming.py` |
-| `data/` | `ChatHistoryView` projection |
+Still planned (follow-up, tracked in [`todo.md`](./todo.md)): the god-file
+split of `extension/service.py` into
+`phases/{context_aggregation,prompt_construction,response_streaming}.py`,
+the `ChatSessionRepository` port/adapter split, and the ARCHIVED session
+lifecycle (`AC-advisor.session.1`).
 
 ## Usage
 
 ```python
-from src.services.ai_advisor import AIAdvisorService
-from src.services.ai_advisor.service import ChatStream
+from src.advisor import AIAdvisorService, ChatStream
 
 service = AIAdvisorService()
 chat: ChatStream = await service.chat_stream(db, user_id=user.id, message="Why is my net worth down?")
@@ -119,7 +127,7 @@ render citations and action chips immediately.
 ## Guardrails
 
 ```python
-from src.services.ai_advisor import is_write_request, is_prompt_injection, is_sensitive_request
+from src.advisor import is_write_request, is_prompt_injection, is_sensitive_request
 
 # These are checked inside chat_stream before any LLM call:
 is_write_request("Create a journal entry for rent")  # True → refused

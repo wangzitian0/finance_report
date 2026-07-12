@@ -16,6 +16,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select, union
 
+from src.advisor import generate_annualized_income_schedule
 from src.config import settings
 from src.deps import CurrentUserId, DbSession, Pagination
 from src.models.account import Account, AccountType
@@ -51,7 +52,6 @@ from src.schemas import (
     TrendPeriod,
 )
 from src.schemas.streaming import ExportStreamEnvelope, ExportStreamMediaType
-from src.services.annualized_income import generate_annualized_income_schedule
 from src.services.confidence_metric import ConfidenceMetricService
 from src.services.framework_policy import derive_user_framework_policy_result
 from src.services.market_data_scheduler import observed_fx_pairs

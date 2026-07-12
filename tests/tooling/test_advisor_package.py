@@ -43,11 +43,13 @@ def _advisor_impl_dir() -> Path:
         "AC-advisor.txn.1: contract.implementations['be'] is not set — the advisor "
         "package has no physical implementation to hold its boundary."
     )
-    assert "/services/" not in be_impl, (
+    impl = ROOT / be_impl
+    services_root = ROOT / "apps" / "backend" / "src" / "services"
+    assert not impl.resolve().is_relative_to(services_root.resolve()), (
         f"AC-advisor.txn.1: implementations['be']={be_impl!r} still points into the "
         "app remainder (services/) — the physical move has not happened."
     )
-    return ROOT / be_impl
+    return impl
 
 
 def test_AC_advisor_txn_1_impl_exists_at_contracted_path() -> None:
@@ -76,7 +78,7 @@ def test_AC_advisor_txn_1_reads_only_published_interfaces() -> None:
                     offenders.append(f"{py.relative_to(ROOT)}: imports {module}")
     assert offenders == [], (
         "AC-advisor.txn.1: advisor reads must go through published package roots "
-        f"or the registered app_reads ports, never internal service paths:\n"
+        "or the registered app_reads ports, never internal service paths:\n"
         + "\n".join(offenders)
     )
 

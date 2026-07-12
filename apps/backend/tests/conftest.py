@@ -165,6 +165,46 @@ def disable_external_market_data_fetch(monkeypatch):
     monkeypatch.setattr(settings, "market_data_lazy_fetch_enabled", False, raising=False)
 
 
+# --- Advisor app-remainder read ports (#1671 Wave B) ---
+@pytest.fixture(autouse=True)
+def wire_advisor_app_reads():
+    """(Re)wire the advisor's app_reads ports to the real remainder functions.
+
+    The composition root (src/main.py) wires these at import time, but a test
+    that registers a fake would otherwise leak it into the next test — this
+    fixture restores the real providers before every test, mirroring what
+    main.py does at startup.
+    """
+    from src.advisor import (
+        register_fx_conversion,
+        register_fx_pairs_read,
+        register_income_bucket_read,
+        register_readiness_read,
+        register_reporting_reads,
+    )
+    from src.services.fx import FxRateError, convert_amount
+    from src.services.market_data_scheduler import observed_fx_pairs
+    from src.services.report_readiness import get_personal_report_package_readiness
+    from src.services.reporting import (
+        ReportError,
+        generate_balance_sheet,
+        generate_income_statement,
+        get_category_breakdown,
+    )
+    from src.services.reporting_calc import income_bucket
+
+    register_reporting_reads(
+        balance_sheet=generate_balance_sheet,
+        income_statement=generate_income_statement,
+        category_breakdown=get_category_breakdown,
+        error_type=ReportError,
+    )
+    register_readiness_read(get_personal_report_package_readiness)
+    register_fx_pairs_read(observed_fx_pairs)
+    register_fx_conversion(convert_amount=convert_amount, error_type=FxRateError)
+    register_income_bucket_read(income_bucket)
+
+
 # --- Helper to ensure 127.0.0.1 consistency ---
 def normalize_url(url: str | None) -> str | None:
     if url and "localhost" in url:

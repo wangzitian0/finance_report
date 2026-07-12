@@ -1,4 +1,9 @@
-"""Prompt templates for the AI financial advisor."""
+"""Prompt template + disclaimers for the AI financial advisor (pure).
+
+Moved from ``src/prompts/ai_advisor.py`` (#1671 Wave B) — the template is
+advisor-private prompt language, not a shared app surface, so it lives in the
+package's ``base/`` layer (pure string construction, no I/O).
+"""
 
 from __future__ import annotations
 

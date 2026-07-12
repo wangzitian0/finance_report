@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
-from src.models.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
+from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 from src.pricing.orm.market_data import FxRate
 
 
