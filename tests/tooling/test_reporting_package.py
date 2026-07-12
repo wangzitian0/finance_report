@@ -78,10 +78,14 @@ def test_AC_reporting_1_3_manual_valuation_is_not_published_reporting_surface():
     assert reporting_py_files.isdisjoint({"manual_valuation.py"}), (
         "manual_valuation.py must not fold into the reporting package (pricing owns it, #1610)"
     )
-    assert not LEGACY_REPORTING.exists(), (
+    # ``.exists()`` alone is fragile against a stale local ``__pycache__``
+    # (a gitignored build artifact, not tracked source) surviving after the
+    # tracked .py files are deleted; check for real source files instead.
+    legacy_py_files = list(LEGACY_REPORTING.rglob("*.py")) if LEGACY_REPORTING.exists() else []
+    assert legacy_py_files == [], (
         "the pricing cutover (#1610 P2) absorbed manual_valuation.py into "
         "pricing/extension/valuation.py; the legacy services/reporting/ "
-        "directory must not reappear"
+        f"directory must not carry tracked source again, found: {legacy_py_files}"
     )
     assert {unit.name for unit in CONTRACT.units}.isdisjoint({"ManualValuationSnapshot"})
 
