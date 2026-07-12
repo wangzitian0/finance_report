@@ -1016,5 +1016,33 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        # ── manifest: docs/ssot/MANIFEST.yaml stays hand-authored (a full
+        # computed concept index is a follow-up, #1799), but every file it
+        # governs must be explicitly classified — anti-drift in the same
+        # spirit as the residue markers above (#1664 "retire the center",
+        # Part C). ──
+        ACRecord(
+            id="AC-meta.manifest.1",
+            statement=(
+                "Every file physically present in docs/ssot/ is referenced "
+                "by name in docs/ssot/README.md — the pointer page "
+                "classifying each surviving file as cross-cutting infra "
+                "(Cross-Cutting Classification table), live gate data (Gate "
+                "Data Directory section), a generated artifact, or a "
+                "migrated pointer stub. A file dropped into docs/ssot/ "
+                "without a matching README entry is silent, unclassified "
+                "drift and fails CI. This stands in for the full computed "
+                "concept-ownership index (no `concepts` field exists on "
+                "PackageContract yet to project from — see docs/ssot/"
+                "README.md § 'MANIFEST.yaml Status' and follow-up #1799) "
+                "without forcing that larger rewrite under time pressure."
+            ),
+            test=(
+                "tests/tooling/test_check_manifest.py"
+                "::test_AC_meta_manifest_1_real_docs_ssot_is_fully_classified"
+            ),
+            priority="P2",
+            status="done",
+        ),
     ],
 )
