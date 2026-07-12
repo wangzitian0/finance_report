@@ -1114,6 +1114,58 @@ jobs:
           build-args: |
             GIT_COMMIT_SHA=${{ steps.get_sha.outputs.short_sha }}
 
+  verify-sha-image-published:
+    name: Verify Commit Image Published
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [container-images]
+    # #1759 (W4 of #1435): "every main commit produces a promotable :<sha>"
+    # was previously guaranteed only by design (container-images always
+    # builds+pushes on main push) — nothing verified the guarantee actually
+    # held for a given commit. A push where the build step reports success
+    # but the image never lands in the registry would only surface later, at
+    # promote time. This job independently re-inspects the registry (not
+    # trusting the build step's own self-report) immediately after the
+    # build, so a violation is caught at commit time. container-images
+    # always runs on main push (see its own if:), so needs: alone is enough
+    # to gate this on that job's success.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Get Commit SHA
+        id: get_sha
+        run: |
+          full_sha=$(git rev-parse HEAD)
+          short_sha="${full_sha:0:7}"
+          echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to Container registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Verify :<sha> images exist in registry
+        run: |
+          set -euo pipefail
+          python tools/verify_release_images.py \
+            --registry "${{ env.REGISTRY }}" \
+            --image-prefix "${{ env.IMAGE_PREFIX }}" \
+            --version-ref "${{ steps.get_sha.outputs.short_sha }}"
+
   tooling-coverage:
     name: Tooling/Common Coverage
     needs: [changes]
@@ -1640,7 +1692,7 @@ jobs:
           retention-days: 90
 
   finish:
-    needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, lint, tooling-coverage, unified-coverage, ac-traceability, ac-behavioral-ratchet]
+    needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, verify-sha-image-published, lint, tooling-coverage, unified-coverage, ac-traceability, ac-behavioral-ratchet]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -1750,6 +1802,7 @@ jobs:
           echo "Frontend Playwright: ${{ needs.frontend-playwright.result }}"
           echo "Frontend Telemetry E2E: ${{ needs.frontend-telemetry-e2e.result }}"
           echo "Staging Images: ${{ needs.container-images.result }}"
+          echo "Verify Commit Image Published: ${{ needs.verify-sha-image-published.result }}"
           echo "Tooling/Common Coverage: ${{ needs.tooling-coverage.result }}"
           echo "Unified Coverage: ${{ needs.unified-coverage.result }}"
           echo "Lint: ${{ needs.lint.result }}"
@@ -1819,6 +1872,12 @@ jobs:
             # did not change (image_build_required=false), which is a pass, not a gap.
             if [[ "${{ needs.container-images.result }}" != "success" && "${{ needs.container-images.result }}" != "skipped" ]]; then
               echo "::error::Container image validation failed"
+              exit 1
+            fi
+            # verify-sha-image-published only runs on main push (see its own if:) —
+            # skipped on PRs and non-main pushes, which is a pass, not a gap.
+            if [[ "${{ needs.verify-sha-image-published.result }}" != "success" && "${{ needs.verify-sha-image-published.result }}" != "skipped" ]]; then
+              echo "::error::Commit image publication verification failed"
               exit 1
             fi
           else

@@ -246,6 +246,22 @@ gates:
     matrix_legs: 2
     failure_semantics: Backend or frontend staging image cannot be built for the current SHA.
     action: keep
+  - id: ci.verify_sha_image_published
+    stage: github_ci.merge_authority
+    task_category: image_build
+    workflow: .github/workflows/ci.yml
+    job: verify-sha-image-published
+    owner: common/runtime/release_images.py
+    triggers: [push]
+    required_by_finish: true
+    blocks_workflow: true
+    inputs: [container_images_result]
+    outputs: [sha_image_publication_verified]
+    artifacts: []
+    failure_semantics: >-
+      container-images reported success on main push but the :<sha> image
+      does not actually exist in the registry (#1759).
+    action: keep
   - id: ci.tooling_coverage
     stage: github_ci.merge_authority
     task_category: tooling_contract

@@ -405,8 +405,7 @@ CONTRACT = PackageContract(
             id="AC-testing.journeys.3",
             statement="Journal entry lifecycle API (Was EPIC-008 AC8.8.3).",
             test=(
-                "apps/backend/tests/e2e/test_core_journeys.py"
-                "::test_journal_entry_crud"
+                "apps/backend/tests/e2e/test_core_journeys.py::test_journal_entry_crud"
             ),
             priority="P0",
             status="done",
@@ -1373,7 +1372,7 @@ CONTRACT = PackageContract(
             statement=(
                 "The staging AI/OCR gate summarizes its JUnit output into real "
                 "pass/fail counts and names the failing corpus docs (instead of a "
-                "binary \"Failures observed: 1+\" with verified counts \"unknown\"), so a "
+                'binary "Failures observed: 1+" with verified counts "unknown"), so a '
                 "red gate is diagnosable "
                 "([#1089](https://github.com/wangzitian0/finance_report/issues/1089)) "
                 "(Was EPIC-008 AC8.13.137)."
@@ -1500,6 +1499,25 @@ CONTRACT = PackageContract(
             test=(
                 "tests/tooling/test_post_merge_e2e_gates.py"
                 "::test_AC8_13_160_ci_cd_distinguishes_canary_from_audit_replay"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.36",
+            statement=(
+                "Every main-branch commit's :<sha> image is independently "
+                "verified to actually exist in the registry, not just "
+                "'the build step reported success': verify-sha-image-published "
+                "runs after container-images on main push and re-inspects the "
+                "registry via the same digest primitive release.yml's dry-run "
+                "uses for release tags, so a silent publish failure is caught "
+                "at commit time instead of later at promote (#1759, W4 of #1435)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC_testing_deploy_gates_36_every_main_commit_image_is_independently_verified"
             ),
             priority="P1",
             status="done",
@@ -2045,7 +2063,7 @@ CONTRACT = PackageContract(
             statement=(
                 "The change classifier computes a per-component "
                 "(backend/frontend/tools/common) change signal alongside the existing "
-                "Env\u00d7Stage matrix \u2014 fail-closed to \"all changed\" on an undetected "
+                'Env\u00d7Stage matrix \u2014 fail-closed to "all changed" on an undetected '
                 "diff \u2014 and exposes it as plain {component}_changed GITHUB_OUTPUT "
                 "scalars plus a ready-to-use coverage_gate_components comma list, so "
                 "downstream jobs never reimplement path classification (extends "
@@ -2288,7 +2306,7 @@ CONTRACT = PackageContract(
                 "--gate-components/COVERAGE_GATE_COMPONENTS scope: on pull_request "
                 "events it BLOCKS only on regressions in the components the PR "
                 "actually changed (an unrelated component's regression, and the "
-                "blended \"unified\" total, are still computed and reported but do not "
+                'blended "unified" total, are still computed and reported but do not '
                 "fail the job); every component is still merged into "
                 "unified-coverage.json regardless of scope, and a push to main always "
                 "omits the scope (full, unscoped, unchanged-strict gate) (#1689) (Was "
@@ -2545,7 +2563,7 @@ CONTRACT = PackageContract(
             statement=(
                 "Gate B (PROTECTION RATCHET) of tools/check_ac_index.py is monotonic, "
                 "per-type and conflict-safe: an AC with an all-empty protection "
-                "record is still \"managed\" (managed = present in the structure, not "
+                'record is still "managed" (managed = present in the structure, not '
                 "that it has any test); part 1 is the per-AC behavioural-score floor "
                 "(ac-score-baseline.jsonl, merge=union, unchanged); part 2 is a "
                 "per-type COUNT floor (docs/ssot/protection-floor.json) where the "
