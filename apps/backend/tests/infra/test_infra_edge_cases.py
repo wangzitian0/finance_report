@@ -11,8 +11,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from botocore.exceptions import ClientError
 
-from src.runtime import StorageError, StorageService
 from src.advisor import StreamRedactor
+from src.runtime import StorageError, StorageService
 
 
 def test_stream_redactor_small_chunks():
