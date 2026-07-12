@@ -798,8 +798,8 @@ wider coverage scope) regressed the 2026-06-20 ~4m 46s baseline to **~8.5 min** 
   did, so a hang would have run to GitHub's 6h default before failing.
 - The nightly `AI/OCR Audit Replay` gate (`audit-replay.yml`) was red for 5 consecutive nights
   (2026-07-07 through 2026-07-11) with its own alerting destroyed by the same timeout that killed
-  the run (#1767 F1-F4) — fixed in #1767 Phase 0/1; 3 consecutive green nights confirmed since
-  (runs `29181331505`, `29182352126`, `29202152047`).
+  the run (#1767 F1-F4) — fixed in #1767 Phase 0/1; 3 consecutive green nights confirmed since the
+  fix (runs `29181331505`, `29182352126`, `29202152047`).
 
 **Post-merge staging (2026-05-20 observed baseline):**
 - Build and deploy job execution: **~5m 19s**.
