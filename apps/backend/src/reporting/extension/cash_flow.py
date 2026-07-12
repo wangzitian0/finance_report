@@ -14,12 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.account import Account, AccountType
 from src.models.journal import JournalEntry, JournalLine
 from src.observability import ErrorIds, get_logger
-from src.services.fx import (
-    FxRateError,
-    PrefetchedFxRates,
-)
-from src.services.reporting._core import _REPORT_STATUSES, _line_total
-from src.services.reporting_calc import (
+from src.reporting.extension import fx_gateway
+from src.reporting.extension._core import _REPORT_STATUSES, _line_total
+from src.reporting.extension.reporting_calc import (
     ReportError,
     _normalize_currency,
     _quantize_money,
@@ -53,7 +50,7 @@ def _cash_flow_agg_stmt(user_id: UUID, *date_conditions: Any) -> Select[Any]:
 def _accumulate_period_balances(
     rows: Iterable[Any],
     account_id_to_account: dict[UUID, Account],
-    fx_rates: PrefetchedFxRates,
+    fx_rates: fx_gateway.PrefetchedFxRates,
     *,
     target_currency: str,
     rate_date: date,
@@ -119,11 +116,11 @@ async def generate_cash_flow(
             if row.currency.upper() != target_currency
         )
 
-    fx_rates = PrefetchedFxRates(lazy_load=True)
+    fx_rates = fx_gateway.PrefetchedFxRates(lazy_load=True)
     if fx_needs:
         try:
             await fx_rates.prefetch(db, fx_needs)
-        except FxRateError as exc:
+        except fx_gateway.FxRateError as exc:
             logger.error(
                 "FX pre-fetch failed for cash flow",
                 error_id=ErrorIds.REPORT_GENERATION_FAILED,

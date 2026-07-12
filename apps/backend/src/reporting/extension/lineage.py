@@ -13,8 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.account import Account
 from src.models.journal import JournalEntry, JournalLine
 from src.observability import get_logger
-from src.services.reporting._core import _REPORT_STATUSES, _get_fx_rates_map
-from src.services.reporting_calc import (
+from src.reporting.extension._core import _REPORT_STATUSES, _get_fx_rates_map
+from src.reporting.extension.reporting_calc import (
     ReportError,
     _normalize_currency,
     _quantize_money,

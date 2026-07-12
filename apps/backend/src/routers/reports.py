@@ -26,6 +26,31 @@ from src.platform import raise_bad_request, raise_not_found
 from src.portfolio import active_stock_symbols, build_investment_performance_report_schedule
 from src.pricing import ensure_market_data_fresh
 from src.pricing.orm.market_data import FxRate
+from src.reporting import (
+    PERSONAL_REPORT_PACKAGE_CONTRACT,
+    PERSONAL_REPORT_PACKAGE_NOTES,
+    ConfidenceMetricService,
+    ReportError,
+    ReportingSnapshotService,
+    build_personal_report_package_traceability_payload,
+    derive_user_framework_policy_result,
+    generate_balance_sheet,
+    generate_cash_flow,
+    generate_income_statement,
+    get_account_lineage,
+    get_account_trend,
+    get_category_breakdown,
+    get_net_worth_allocation_schedule,
+    get_net_worth_timeseries,
+    get_personal_report_package_readiness,
+    jsonable as _jsonable,
+    package_currency as _package_currency,
+    package_dates as _package_dates,
+    package_snapshot_csv as _package_snapshot_csv,
+    package_snapshot_response as _package_snapshot_response,
+    package_snapshot_status as _package_snapshot_status,
+    package_snapshot_summary as _package_snapshot_summary,
+)
 from src.schemas import (
     AccountLineageResponse,
     AccountTrendResponse,
@@ -52,38 +77,7 @@ from src.schemas import (
     TrendPeriod,
 )
 from src.schemas.streaming import ExportStreamEnvelope, ExportStreamMediaType
-from src.services.confidence_metric import ConfidenceMetricService
-from src.services.framework_policy import derive_user_framework_policy_result
 from src.services.market_data_scheduler import observed_fx_pairs
-from src.services.report_package import (
-    jsonable as _jsonable,
-    package_currency as _package_currency,
-    package_dates as _package_dates,
-    package_snapshot_csv as _package_snapshot_csv,
-    package_snapshot_response as _package_snapshot_response,
-    package_snapshot_status as _package_snapshot_status,
-    package_snapshot_summary as _package_snapshot_summary,
-)
-from src.services.report_readiness import get_personal_report_package_readiness
-from src.services.report_traceability import (
-    build_personal_report_package_traceability_payload,
-)
-from src.services.reporting import (
-    ReportError,
-    generate_balance_sheet,
-    generate_cash_flow,
-    generate_income_statement,
-    get_account_lineage,
-    get_account_trend,
-    get_category_breakdown,
-    get_net_worth_allocation_schedule,
-    get_net_worth_timeseries,
-)
-from src.services.reporting.report_package import (
-    PERSONAL_REPORT_PACKAGE_CONTRACT,
-    PERSONAL_REPORT_PACKAGE_NOTES,
-)
-from src.services.reporting_snapshot import ReportingSnapshotService
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 logger = get_logger(__name__)
@@ -284,9 +278,7 @@ async def _personal_report_package_section_payloads(
     include_restricted: bool = False,
     decisions_by_source_id: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    # Deferred import: framework_report imports from reporting.balance_sheet/income_statement
-    # which share the same router dependency chain — importing at module level would create a cycle.
-    from src.services.reporting.framework_report import (
+    from src.reporting import (
         assemble_framework_balance_sheet,
         assemble_framework_income_statement,
     )

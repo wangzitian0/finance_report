@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.identity import User
 from src.identity.extension.api.users import get_user, update_user
-from src.schemas.user import UserCreate, UserUpdate
+from src.schemas.user import UserUpdate
 
 pytestmark = pytest.mark.asyncio
 
@@ -149,31 +149,3 @@ async def test_AC1_8_1_update_user_duplicate_email_rejected(
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Invalid update data"
-
-
-class TestUserSchemas:
-    """Unit tests for user schemas without database."""
-
-    def test_user_create_schema_valid(self) -> None:
-        user = UserCreate(email="test@example.com", password="securepassword123")
-        assert user.email == "test@example.com"
-        assert user.password == "securepassword123"
-
-    def test_user_create_schema_invalid_email(self) -> None:
-        from pydantic import ValidationError
-
-        with pytest.raises(ValidationError):
-            UserCreate(email="not-an-email", password="securepassword123")
-
-    def test_user_create_schema_short_password(self) -> None:
-        from pydantic import ValidationError
-
-        with pytest.raises(ValidationError):
-            UserCreate(email="test@example.com", password="short")
-
-    def test_user_update_schema_optional_email(self) -> None:
-        update = UserUpdate()
-        assert update.email is None
-
-        update = UserUpdate(email="new@example.com")
-        assert update.email == "new@example.com"

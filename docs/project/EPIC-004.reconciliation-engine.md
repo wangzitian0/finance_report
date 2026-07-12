@@ -138,7 +138,7 @@ Automatically match bank transactions with journal entries, implementing intelli
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC4.8.1 | Archive baseline benchmark residual is explicitly owned by EPIC-004 until synthetic accuracy and performance proof exists | `test_AC4_8_1_reconciliation_benchmark_residual_is_epic_owned` | `tests/tooling/test_archive_residual_epic_ownership.py` | P1 |
+| AC4.8.1 | Archive baseline benchmark residual is explicitly owned by EPIC-004 until synthetic accuracy and performance proof exists | `test_AC4_8_1_reconciliation_benchmark_residual_is_epic_owned` | `tests/tooling/test_archive_residual_epic_ownership.py` | P1 | <!-- epic-owned: horizontal -->
 
 ### AC4.9: Bank-Side Amount Matching
 
@@ -150,7 +150,7 @@ Automatically match bank transactions with journal entries, implementing intelli
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC4.10.3 | CI treats reconciliation audit JSON/Markdown as a hard gate for the EPIC-004 accuracy, false-positive, false-negative, and 10,000-transaction runtime targets | `test_AC4_10_3_ci_gates_reconciliation_audit_thresholds` | `tests/tooling/test_reconciliation_audit.py` | P0 |
+| AC4.10.3 | CI treats reconciliation audit JSON/Markdown as a hard gate for the EPIC-004 accuracy, false-positive, false-negative, and 10,000-transaction runtime targets | `test_AC4_10_3_ci_gates_reconciliation_audit_thresholds` | `tests/tooling/test_reconciliation_audit.py` | P0 | <!-- epic-owned: horizontal -->
 
 > **Retained**: `AC4.10.3`'s test asserts a literal substring of this EPIC file's own text (the "10,000-transaction runtime targets" phrase two lines above), so it is a doc-governance self-check, not `reconciliation` package behavior — it cannot move (same category as EPIC-012's `AC12.25.1`).
 
@@ -163,7 +163,7 @@ See: common/ledger/readme.md#decimal-rule
 
 | AC | Acceptance Criteria | Test(s) | File(s) | Priority |
 |----|--------------------|---------|---------|----------|
-| AC4.11.1 | The unmatched transaction board models unmatched amounts as shared `MoneyValue` payloads and renders queue/detail/created-entry amounts through Decimal-safe currency formatting, not JavaScript number locale formatting | `AC4.11.1 renders unmatched monetary amounts with Decimal-safe currency formatting` | `frontend/src/__tests__/unmatchedBoardComponent.test.tsx` | P0 |
+| AC4.11.1 | The unmatched transaction board models unmatched amounts as shared `MoneyValue` payloads and renders queue/detail/created-entry amounts through Decimal-safe currency formatting, not JavaScript number locale formatting | `AC4.11.1 renders unmatched monetary amounts with Decimal-safe currency formatting` | `frontend/src/__tests__/unmatchedBoardComponent.test.tsx` | P0 | <!-- epic-owned: fe-only -->
 
 ## 📏 Acceptance Criteria
 

@@ -97,7 +97,6 @@ registries, and generated reports rather than duplicated here.
 | [EPIC-006](docs/project/EPIC-006.ai-advisor.md) | AI advisor |
 | [EPIC-007](docs/project/EPIC-007.deployment.md) | Deployment |
 | [EPIC-008](docs/project/EPIC-008.testing-strategy.md) | Testing strategy & E2E gates |
-| [EPIC-009](docs/project/EPIC-009.pdf-fixture-generation.md) | PDF fixture generation |
 | [EPIC-010](docs/project/EPIC-010.observability-logging.md) | observability logging |
 | [EPIC-011](docs/project/EPIC-011.asset-lifecycle.md) | Asset lifecycle |
 | [EPIC-012](docs/project/EPIC-012.foundation-libs.md) | Foundation libraries |

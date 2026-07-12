@@ -2,9 +2,11 @@
 
 Moved from ``src/services/ai_advisor/service.py`` (#1671 Wave B).  Cross-domain
 reads go through each package's published root (``platform`` / ``portfolio`` /
-``pricing`` / ``reconciliation`` / ``llm`` / ``audit``); reads whose owner
-still lives in the app remainder (reporting summaries, report readiness, the
-FX-pair composer) are injected through :mod:`src.advisor.extension.app_reads`.
+``pricing`` / ``reconciliation`` / ``llm`` / ``audit`` / ``reporting`` — the
+last landed via #1666, folded from the app remainder while this PR was in
+flight); the observed-FX-pair composer's owner is still the app remainder
+(``services/market_data_scheduler.py``, #1610), so it is injected through
+:mod:`src.advisor.extension.app_reads`.
 """
 
 from __future__ import annotations
@@ -55,6 +57,13 @@ from src.platform import get_workflow_status
 from src.portfolio import PortfolioNotFoundError, PortfolioService, active_stock_symbols
 from src.pricing import MarketDataScopeStatus, get_market_data_status
 from src.reconciliation import get_reconciliation_stats
+from src.reporting import (
+    ReportError,
+    generate_balance_sheet,
+    generate_income_statement,
+    get_category_breakdown,
+    get_personal_report_package_readiness,
+)
 from src.schemas.chat import AdvisorSuggestion, ChatActionChip, ChatCitation, ChatResponseMetadata
 
 # Bound from the bare published root (config publishes no named symbols).
@@ -204,16 +213,15 @@ class AIAdvisorService:
         start_date = today.replace(day=1)
 
         context: dict[str, str] = {}
-        report_error = app_reads.reporting_error()
 
         try:
-            balance = await app_reads.balance_sheet()(db, user_id, as_of_date=today)
+            balance = await generate_balance_sheet(db, user_id, as_of_date=today)
             total_assets = Decimal(str(balance["total_assets"]))
             total_liabilities = Decimal(str(balance["total_liabilities"]))
             total_equity = Decimal(str(balance["total_equity"]))
             currency = balance.get("currency", settings.base_currency)
             balance_sheet_confidence_tier = str(balance.get("confidence_tier") or "DETERMINISTIC")
-        except report_error:
+        except ReportError:
             total_assets = Decimal("0")
             total_liabilities = Decimal("0")
             total_equity = Decimal("0")
@@ -221,7 +229,7 @@ class AIAdvisorService:
             balance_sheet_confidence_tier = "UNAVAILABLE"
 
         try:
-            income_statement = await app_reads.income_statement()(
+            income_statement = await generate_income_statement(
                 db, user_id, start_date=start_date, end_date=today, currency=currency
             )
             monthly_income = Decimal(str(income_statement["total_income"]))
@@ -236,13 +244,13 @@ class AIAdvisorService:
                     if isinstance(line, dict)
                 ]
             )
-        except report_error:
+        except ReportError:
             monthly_income = Decimal("0")
             monthly_expenses = Decimal("0")
             income_statement_confidence_tier = "UNAVAILABLE"
 
         try:
-            breakdown = await app_reads.category_breakdown()(
+            breakdown = await get_category_breakdown(
                 db,
                 user_id,
                 breakdown_type=AccountType.EXPENSE,
@@ -251,7 +259,7 @@ class AIAdvisorService:
             )
             top_items = breakdown.get("items", [])[:3]
             top_expenses = ", ".join(f"{item['category_name']}: {currency} {item['total']}" for item in top_items)
-        except report_error:
+        except ReportError:
             top_expenses = "N/A"
 
         stats = await get_reconciliation_stats(db, user_id)
@@ -308,7 +316,7 @@ class AIAdvisorService:
 
     async def _load_report_readiness(self, db: AsyncSession, user_id: UUID) -> dict[str, Any]:
         try:
-            return await app_reads.readiness()(db, user_id=user_id)
+            return await get_personal_report_package_readiness(db, user_id=user_id)
         except Exception as exc:
             logger.warning("Failed to load advisor report readiness", error=str(exc))
             return {

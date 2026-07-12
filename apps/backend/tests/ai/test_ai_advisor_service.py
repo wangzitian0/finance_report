@@ -35,8 +35,6 @@ from src.advisor import (
     is_write_request,
     normalize_question,
     redact_sensitive,
-    register_readiness_read,
-    register_reporting_reads,
 )
 from src.advisor.extension import service as ai_advisor_service
 from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
@@ -45,6 +43,7 @@ from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
+from src.reporting import ReportError
 from src.schemas.workflow import (
     WorkflowEventCountsResponse,
     WorkflowNextActionResponse,
@@ -54,7 +53,6 @@ from src.schemas.workflow import (
     WorkflowReportReadinessState,
     WorkflowStatusResponse,
 )
-from src.services.reporting import ReportError
 from tests.factories import UserFactory
 
 
@@ -300,12 +298,9 @@ async def test_get_financial_context_handles_report_errors(
     async def raise_report_error(*_args, **_kwargs):
         raise ReportError("boom")
 
-    register_reporting_reads(
-        balance_sheet=raise_report_error,
-        income_statement=raise_report_error,
-        category_breakdown=raise_report_error,
-        error_type=ReportError,
-    )
+    monkeypatch.setattr(ai_advisor_service, "generate_balance_sheet", raise_report_error)
+    monkeypatch.setattr(ai_advisor_service, "generate_income_statement", raise_report_error)
+    monkeypatch.setattr(ai_advisor_service, "get_category_breakdown", raise_report_error)
 
     context = await service.get_financial_context(db, test_user.id)
 
@@ -403,7 +398,7 @@ async def test_AC21_2_1_advisor_context_includes_readiness_trust_workflow_and_su
             currency="SGD",
         )
 
-    register_readiness_read(fake_readiness)
+    monkeypatch.setattr(ai_advisor_service, "get_personal_report_package_readiness", fake_readiness)
     monkeypatch.setattr(ai_advisor_service, "get_workflow_status", fake_workflow)
     monkeypatch.setattr(ai_advisor_service, "get_market_data_status", fake_market_data)
     monkeypatch.setattr(ai_advisor_service.PortfolioService, "get_portfolio_summary", fake_portfolio_summary)
@@ -514,7 +509,7 @@ async def test_AC21_2_1_advisor_context_degrades_to_default_suggestion_when_sour
     async def raise_source_error(*_args, **_kwargs):
         raise RuntimeError("source unavailable")
 
-    register_readiness_read(raise_source_error)
+    monkeypatch.setattr(ai_advisor_service, "get_personal_report_package_readiness", raise_source_error)
     monkeypatch.setattr(ai_advisor_service, "get_workflow_status", raise_source_error)
     monkeypatch.setattr(ai_advisor_service, "get_market_data_status", raise_source_error)
     monkeypatch.setattr(ai_advisor_service.PortfolioService, "get_portfolio_summary", raise_source_error)

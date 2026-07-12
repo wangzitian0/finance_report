@@ -21,12 +21,9 @@ from src.models.layer3 import (
 from src.observability import get_logger
 from src.portfolio import AssetNotFoundError, PortfolioService
 from src.pricing import PricingError
-from src.services import fx
-from src.services.fx import (
-    FxRateError,
-)
-from src.services.reporting._core import REPORTING_QUANTITY_UNIT, _single_source_currency
-from src.services.reporting_calc import (
+from src.reporting.extension import fx_gateway
+from src.reporting.extension._core import REPORTING_QUANTITY_UNIT, _single_source_currency
+from src.reporting.extension.reporting_calc import (
     ReportError,
     _quantize_money,
 )
@@ -82,13 +79,13 @@ async def _portfolio_market_basis_by_account(
         cost_basis = position.cost_basis_money
         if source_currency != target_currency.upper():
             try:
-                market_value = await fx.convert_money(
+                market_value = await fx_gateway.convert_money(
                     db, market_value, target_currency, rate_date=portfolio_eval_date, lazy_load=True
                 )
-                cost_basis = await fx.convert_money(
+                cost_basis = await fx_gateway.convert_money(
                     db, cost_basis, target_currency, rate_date=position.acquisition_date, lazy_load=True
                 )
-            except FxRateError as exc:
+            except fx_gateway.FxRateError as exc:
                 raise ReportError(str(exc)) from exc
 
         basis = basis_by_account.setdefault(

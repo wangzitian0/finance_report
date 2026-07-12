@@ -35,17 +35,26 @@ The package-local worklist.  Cross-package migration lives in
       streaming transport for three domains (extraction, reconciliation,
       advisor's chat), not advisor-private glue; the advisor imports
       `stream_ai_chat` from the `llm` published root.
-- [x] Fill `contract.interface` = `__init__.__all__` (28 published names).
+- [x] Fill `contract.interface` = `__init__.__all__` (25 published names).
 - [x] Declare the real `depends_on` edges (honesty gate both ways):
       `audit`, `llm`, `observability`, `platform`, `portfolio`, `pricing`,
-      `reconciliation` — all real imports through published roots; DAG acyclic.
-      `config` dropped (folded into runtime, #1669 — `src.config` is bare
-      shared infra); `reporting` deliberately absent — consumed through the
-      `extension/app_reads.py` ports until the #1666 fold lands.
+      `reconciliation`, `reporting` — all real imports through published
+      roots; DAG acyclic.  `config` dropped (folded into runtime, #1669 —
+      `src.config` is bare shared infra).  `reporting` was originally
+      consumed through `extension/app_reads.py` ports (its owner,
+      `services/reporting/`, hadn't folded yet when this PR was built); #1666
+      landed the fold *while this PR was in flight* and this PR rebased onto
+      it, so the reporting trio + `ReportError` + report readiness +
+      `income_bucket` now import directly from `src.reporting` — the ports
+      for those five collapsed exactly as planned, one PR earlier than
+      expected.
 - [x] Remainder reads inverted through `extension/app_reads.py` ports wired
-      by the composition root (`src/main.py`), #1676 idiom: reporting trio +
-      `ReportError`, report readiness, `observed_fx_pairs`, windowed
-      `convert_amount` + `FxRateError`, `income_bucket`.
+      by the composition root (`src/main.py`), #1676 idiom.  Only one port
+      pair remains (the other five collapsed into direct `src.reporting`
+      imports per #1666, see above): `observed_fx_pairs` (the fx-pair
+      composer) and windowed `convert_amount` + `FxRateError` (both still
+      owned by `services/fx.py` / `services/market_data_scheduler.py`,
+      pending #1610).
 - [x] Repoint consumers: `routers/chat.py`, `routers/reports.py`, tests →
       `from src.advisor import …` (the package's published interface).
 - [x] Delete `src/services/ai_advisor/`, `src/services/annualized_income.py`,
@@ -62,10 +71,12 @@ The package-local worklist.  Cross-package migration lives in
 
 ## Follow-ups (open)
 
-- [ ] Collapse `extension/app_reads.py` ports into direct published-root
-      imports + `depends_on` edges when the owners physically fold:
-      reporting/report_readiness/reporting_calc (#1666), fx conversion +
-      the fx-pair composer (#1610).
+- [ ] Collapse the two remaining `extension/app_reads.py` ports (the fx-pair
+      composer, windowed fx conversion) into direct published-root imports +
+      `depends_on` edges when their owner physically folds (#1610). The
+      reporting-owned ports (balance sheet/income statement/category
+      breakdown/report readiness/income bucket) already collapsed — see
+      above.
 - [ ] Split god-file `extension/service.py` (~860 lines):
       - `phases/context_aggregation.py`
       - `phases/prompt_construction.py`

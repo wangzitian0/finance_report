@@ -259,14 +259,6 @@ proof_exceptions:
       a bounded budget (default 2) enforced by the detached-owner guard rather
       than per-test AC proof; the guard fails if the budget grows.
     issue: https://github.com/wangzitian0/finance_report/issues/524
-  - id: password-reset-e2e-only-override
-    owner: docs/ac_registry_overrides.yaml
-    reason: >-
-      AC8.2.6 (password reset) is covered only by the `test_password_reset_flow`
-      e2e test with no PR-CI unit/integration coverage yet, so it is registered
-      as a non-mandatory override and excluded from the mandatory traceability
-      gate until CI coverage exists.
-    issue: https://github.com/wangzitian0/finance_report/issues/524
 
 # Thresholds and generated artifacts whose authoritative value lives in code or
 # config, not in prose docs. Docs must link to the owner, never copy the value.

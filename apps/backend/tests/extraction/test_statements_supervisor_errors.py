@@ -367,6 +367,7 @@ async def test_retry_statement_parsing_error_paths(db, test_user):
 
 async def test_report_router_error_handlers(db, test_user, monkeypatch):
     """Test HTTPException wrappers for ReportError in reports router."""
+    from src.reporting import ReportError
     from src.routers.reports import (
         account_trend,
         balance_sheet,
@@ -375,7 +376,6 @@ async def test_report_router_error_handlers(db, test_user, monkeypatch):
         income_statement,
     )
     from src.schemas.reporting import BreakdownPeriod, BreakdownType, TrendPeriod
-    from src.services.reporting import ReportError
 
     uid = test_user.id
 

@@ -13,16 +13,16 @@ from datetime import date, timedelta
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.deps import CurrentUserId, DbSession
 from src.extraction.extension.evidence_lineage import EvidenceLineageService
 from src.models.account import Account, AccountType
 from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 from src.models.layer2 import AtomicPosition, AtomicTransaction
 from src.models.layer3 import ManualValuationLiquidityClass, ManualValuationSnapshot
 from src.models.portfolio import DividendIncome, MarketDataOverride
-from src.services.confidence_tier import derive_confidence_tier
-from src.services.reporting.report_package import PERSONAL_REPORT_PACKAGE_TRACEABILITY
+from src.reporting.base.report_package_contract import PERSONAL_REPORT_PACKAGE_TRACEABILITY
+from src.reporting.extension.confidence_tier import derive_confidence_tier
 
 
 def _identifier(prefix: str, value: object) -> str:
@@ -227,8 +227,8 @@ def _journal_source_anchor_detail(
 
 
 async def _evidence_graph_source_anchor_details(
-    db: DbSession,
-    user_id: CurrentUserId,
+    db: AsyncSession,
+    user_id: UUID,
     *,
     line: JournalLine,
     ledger_detail: dict,
@@ -272,8 +272,8 @@ async def build_personal_report_package_traceability_payload(
     start_date: date | None,
     end_date: date | None,
     as_of_date: date | None,
-    db: DbSession | None,
-    user_id: CurrentUserId | None,
+    db: AsyncSession | None,
+    user_id: UUID | None,
 ) -> dict:
     payload = deepcopy(PERSONAL_REPORT_PACKAGE_TRACEABILITY)
     if db is None or user_id is None:

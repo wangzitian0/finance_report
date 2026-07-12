@@ -986,5 +986,35 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── residue: the post-migration EPIC tables hold only explicitly
+        # marked residue (#1719 "retire the center"; #1416 DoD addition
+        # 2026-07-11 makes "genuinely EPIC-owned" machine-checkable). ──
+        ACRecord(
+            id="AC-meta.residue.1",
+            statement=(
+                "Every AC definition line that stays in a docs/project/"
+                "EPIC-*.md doc carries an explicit residue marker "
+                "(<!-- epic-owned: fe-only|fe-half|horizontal|"
+                "pending-package -->) declaring why it is not in a package "
+                "roadmap; unmarked EPIC AC rows == 0 is the umbrella "
+                "scoreboard metric. The per-file per-category census must "
+                "equal docs/ssot/epic-residue-baseline.json (the fk-cascade "
+                "idiom): silent residue growth fails CI and adding residue "
+                "requires raising the baseline in the same PR, where the "
+                "diff makes the choice reviewable; the EPIC file set may "
+                "only shrink (a new EPIC file fails; a deleted one must "
+                "prune the baseline); an EPIC file with zero marked rows "
+                "must carry an explicit <!-- epic-file: design-doc|"
+                "goal-stub --> justification. The registry generator feeds "
+                "the AC registry from marked rows only, so an unmarked row "
+                "is invisible to the registry AND fails the gate."
+            ),
+            test=(
+                "tests/tooling/test_epic_residue_ratchet.py"
+                "::test_AC_meta_residue_1_census_equals_baseline_and_files_only_shrink"
+            ),
+            priority="P0",
+            status="done",
+        ),
     ],
 )

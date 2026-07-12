@@ -193,9 +193,23 @@ the same tag.
 checks for source CI, release-image publication, and exact staging proof;
 `tools/verify_release_images.py` owns backend/frontend release digest discovery.
 The dry-run and deploy jobs call the same tools so production eligibility logic
-does not fork between the two lanes. Both jobs set up the configured
-`PYTHON_VERSION` before invoking release-coordinate, evidence, or image-digest
-tools so these gates never depend on the runner's default Python alias.
+does not fork between the two lanes.
+
+A fourth check, `--check real-corpus-eval` (`verify_real_corpus_eval`,
+`common/runtime/release_evidence.py`, #1764), verifies the most recent
+real-document extraction-accuracy/calibration evaluation is completed,
+successful, and fresh (`max_age_hours`, default 48h) — failing closed (never a
+silent pass) when the eval has never run, failed, or gone stale. Unlike the
+other three, it is not tied to `release_sha` (the real-document corpus moves
+on an operator cadence, not per-commit) and, deliberately, **is not yet wired
+into `release.yml` as a blocking step**: real PDFs are never committed (RL-6),
+so no corpus exists to evaluate yet, and flipping this on is a release-behavior
+change that needs explicit sign-off once the operator has supplied at least
+one real case — not something to enable unilaterally.
+
+Both jobs set up the configured `PYTHON_VERSION` before invoking
+release-coordinate, evidence, or image-digest tools so these gates never
+depend on the runner's default Python alias.
 Before mutating production, the release workflow probes the current production
 health endpoint and records the pre-deploy version in the deploy context. The
 same artifact records deploy-health, smoke, read-only E2E, and failure-domain

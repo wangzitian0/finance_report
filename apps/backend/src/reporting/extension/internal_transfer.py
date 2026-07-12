@@ -22,10 +22,8 @@ from src.reconciliation import (
     discover_fx_conversions,
     pair_fx_legs,
 )
-from src.services.fx import (
-    FxRateError,
-    get_exchange_rate,
-)
+from src.reporting.extension import fx_gateway
+from src.reporting.extension.fx_gateway import get_exchange_rate
 
 logger = get_logger(__name__)
 
@@ -104,7 +102,7 @@ async def _internal_transfer_adjustment(
     async def _resolve_market_rate(base: str, quote: str, on_date: date) -> Decimal | None:
         try:
             return await get_exchange_rate(db, base, quote, on_date, lazy_load=True)
-        except FxRateError:
+        except fx_gateway.FxRateError:
             return None
 
     recorded_anchor_pairs = {
@@ -181,7 +179,7 @@ async def _internal_transfer_adjustment(
                     as_of_date,
                     lazy_load=True,
                 )
-            except FxRateError:
+            except fx_gateway.FxRateError:
                 # The transfer legs are still a matched internal transfer and MUST
                 # stay excluded (otherwise the double-counted income/expense legs
                 # are re-introduced). Only the fee adjustment is omitted when its

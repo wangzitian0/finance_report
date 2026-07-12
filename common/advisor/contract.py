@@ -29,10 +29,10 @@ positions) and streams a grounded, cited, disclaimer-tagged response.
   data as part of the same read-only request (the same `AsyncSession` as the
   chat-message insert — ``AC-advisor.txn.1``, now ``done``: every
   cross-domain read goes through the target package's *published* root
-  (``platform``/``portfolio``/``pricing``/``reconciliation``), and reads
-  whose owner still lives in the app remainder (reporting summaries +
-  readiness, the fx-pair composer, windowed fx conversion, the income
-  bucket classifier) are injected through ``extension/app_reads.py`` by the
+  (``platform``/``portfolio``/``pricing``/``reconciliation``/``reporting``),
+  and the one read whose owner still lives in the app remainder (the
+  fx-pair composer; windowed fx conversion for the annualized-income
+  schedule) is injected through ``extension/app_reads.py`` by the
   composition root — never a direct ``src.services.*`` import, never a
   cross-domain FK).  It never touches the ledger write side.
 * **LLM via ``llm``** — all provider calls go through the ``llm`` package
@@ -47,13 +47,16 @@ positions) and streams a grounded, cited, disclaimer-tagged response.
 ``llm`` (scene binding + streaming transport), ``observability`` (logging),
 ``platform`` (workflow status, HTTP error helpers), ``portfolio`` (summary,
 active symbols), ``pricing`` (market-data status), ``reconciliation``
-(stats).  All are *read-only* edges; the advisor never writes into them.
-``reporting`` is deliberately absent: its implementation is still inside the
-app remainder (fold tracked by #1666), so the advisor consumes it through
-the ``app_reads`` injection ports; the edge gets declared when the fold
-lands and the port collapses into a published-root import.  ``config`` was
-folded into ``runtime`` (#1669) — the flat ``src.config`` module is shared
-infra, imported as the bare root.
+(stats), ``reporting`` (balance sheet, income statement, category breakdown,
+report-package readiness, income bucket classifier — folded from the app
+remainder by #1666 while this PR was in flight).  All are *read-only* edges;
+the advisor never writes into them.  The observed-FX-pair composer is the
+one remaining app-remainder read: its owner (``services/market_data_
+scheduler.py``) hasn't folded yet (#1610), so the advisor consumes it
+through the ``app_reads`` injection port; the edge gets declared when the
+fold lands and the port collapses into a published-root import.  ``config``
+was folded into ``runtime`` (#1669) — the flat ``src.config`` module is
+shared infra, imported as the bare root.
 
 ## God-file → phase split (follow-up scope)
 
@@ -84,9 +87,10 @@ CONTRACT = PackageContract(
     # infra: llm (scene binding + streaming transport), observability
     # (logging), platform (workflow status, HTTP error helpers), audit
     # (money formatting).  Domain (same-layer, read-only, declared +
-    # acyclic): portfolio, pricing, reconciliation.  reporting is consumed
-    # through the app_reads injection ports until #1666 physically folds it
-    # (see the module docstring).
+    # acyclic): portfolio, pricing, reconciliation, reporting (#1666).
+    # The observed-FX-pair composer is still consumed through an app_reads
+    # injection port until #1610 physically folds it (see the module
+    # docstring).
     depends_on=[
         "audit",
         "llm",
@@ -95,6 +99,7 @@ CONTRACT = PackageContract(
         "portfolio",
         "pricing",
         "reconciliation",
+        "reporting",
     ],
     roles=["base", "extension", "data"],
     units=[
@@ -159,9 +164,6 @@ CONTRACT = PackageContract(
         "redact_sensitive",
         "register_fx_conversion",
         "register_fx_pairs_read",
-        "register_income_bucket_read",
-        "register_readiness_read",
-        "register_reporting_reads",
     ],
     events=[],
     # Structural invariants: registered once the phase split settles and the

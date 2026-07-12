@@ -79,7 +79,7 @@ Code-owned contract surfaces:
 - Schema: `apps/backend/src/schemas/reporting.py` defines supported framework
   IDs, policy fact domains, required policy dimensions, evidence anchors,
   policy decisions, explicit gaps, matrices, and policy results.
-- Matrix service: `apps/backend/src/services/framework_policy.py` owns the
+- Matrix service: `apps/backend/src/reporting/extension/framework_policy.py` owns the
   deterministic v1 US-like/HK-like matrix, builds framework-neutral facts from
   existing user accounts, atomic positions, manual valuations, dividends, and
   market-data evidence from synced `StockPrice` rows and manual

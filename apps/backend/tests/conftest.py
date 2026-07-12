@@ -24,7 +24,32 @@ from sqlalchemy.pool import NullPool
 import src.models._registry  # noqa: F401
 from src.config import settings
 from src.observability import get_logger
-from src.services.fx import clear_fx_cache
+from src.reporting import register_fx_gateway, register_manual_valuation_lines_provider
+from src.services.fx import (
+    FxRateError,
+    PrefetchedFxRates,
+    clear_fx_cache,
+    convert_amount,
+    convert_money,
+    get_average_rate,
+    get_exchange_rate,
+)
+from src.services.reporting.manual_valuation import _build_manual_valuation_lines
+
+# Wire reporting's composition-root ports for direct (no-app) test runs — the
+# same registrations main.py performs at startup (#1666): the FX seam and the
+# manual-valuation lines builder still live in the services/ remainder pending
+# the pricing cutover (#1610), and reporting reaches them only by injection.
+# Module-top so it precedes every test module import.
+register_fx_gateway(
+    get_exchange_rate=get_exchange_rate,
+    get_average_rate=get_average_rate,
+    convert_amount=convert_amount,
+    convert_money=convert_money,
+    prefetched_fx_rates=PrefetchedFxRates,
+    fx_rate_error=FxRateError,
+)
+register_manual_valuation_lines_provider(_build_manual_valuation_lines)
 
 # Make the repo's ``common/`` importable at collection time (not just inside the
 # ``ac_evidence`` fixture). conftest.py is imported before the test modules in
@@ -173,36 +198,18 @@ def wire_advisor_app_reads():
     The composition root (src/main.py) wires these at import time, but a test
     that registers a fake would otherwise leak it into the next test — this
     fixture restores the real providers before every test, mirroring what
-    main.py does at startup.
+    main.py does at startup.  Only the fx-pair composer and windowed fx
+    conversion remain ports — #1666 folded the reporting summary trio,
+    report readiness, and the income bucket classifier into the published
+    ``src.reporting`` root while this PR was in flight, so ``advisor`` now
+    imports those directly (no port needed).
     """
-    from src.advisor import (
-        register_fx_conversion,
-        register_fx_pairs_read,
-        register_income_bucket_read,
-        register_readiness_read,
-        register_reporting_reads,
-    )
+    from src.advisor import register_fx_conversion, register_fx_pairs_read
     from src.services.fx import FxRateError, convert_amount
     from src.services.market_data_scheduler import observed_fx_pairs
-    from src.services.report_readiness import get_personal_report_package_readiness
-    from src.services.reporting import (
-        ReportError,
-        generate_balance_sheet,
-        generate_income_statement,
-        get_category_breakdown,
-    )
-    from src.services.reporting_calc import income_bucket
 
-    register_reporting_reads(
-        balance_sheet=generate_balance_sheet,
-        income_statement=generate_income_statement,
-        category_breakdown=get_category_breakdown,
-        error_type=ReportError,
-    )
-    register_readiness_read(get_personal_report_package_readiness)
     register_fx_pairs_read(observed_fx_pairs)
     register_fx_conversion(convert_amount=convert_amount, error_type=FxRateError)
-    register_income_bucket_read(income_bucket)
 
 
 # --- Helper to ensure 127.0.0.1 consistency ---

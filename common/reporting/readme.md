@@ -4,14 +4,31 @@
 > [`contract.py`](./contract.py).
 >
 > This `common/reporting/` directory is the **spec + review surface**; the
-> conforming implementation still lives at
-> `apps/backend/src/services/reporting` (`contract.implementations["be"]`) —
-> unlike a fully carved package, it has not yet been physically relocated to
-> `apps/backend/src/reporting/`.
+> conforming implementation lives at `apps/backend/src/reporting/`
+> (`contract.implementations["be"]`), physically folded out of `services/`
+> by #1666:
+>
+> - `base/` — the pure core: the L1 report-line registry (`l1_registry.py`)
+>   and the static package contract/notes/traceability data
+>   (`report_package_contract.py`).
+> - `extension/` — statement generation (`_core.py`, `balance_sheet.py`,
+>   `income_statement.py`, `cash_flow.py`, `net_worth.py`, `lineage.py`,
+>   `internal_transfer.py`, `portfolio_market.py`), framework assembly
+>   (`framework_policy.py`, `framework_report.py`), the package lane
+>   (`report_readiness.py`, `report_traceability.py`, `report_package.py`,
+>   `reporting_snapshot.py`), the calculation primitives
+>   (`reporting_calc.py`), confidence (`confidence_tier.py`,
+>   `confidence_metric.py`), and the injected FX seam (`fx_gateway.py`).
+> - `data/` — reserved for the declared projections (no module yet).
+>
+> Two implementations deliberately stay in the app remainder pending the
+> pricing cutover (#1610) and are reached only through composition-root
+> injection (`register_fx_gateway` / `register_manual_valuation_lines_provider`,
+> wired in `main.py` and the backend test conftest): `services/fx.py` and
+> `services/reporting/manual_valuation.py`.
 >
 > **Status: `active`, `tier="CODE-ONLY"`** (flipped in migration closeout
-> wave 2, #1663 — see [Status](#status) below). Physical relocation out of
-> `services/` is still pending; that doesn't block the AC/tier decision.
+> wave 2, #1663 — see [Status](#status) below).
 
 ## Why
 
@@ -55,16 +72,16 @@ value types).
 
 ## Status
 
-`status="active"`, `tier="CODE-ONLY"`, `roadmap` has 14 ACs: the opening-
+`status="active"`, `tier="CODE-ONLY"`. The roadmap's first wave: the opening-
 balance confidence-tier gate (migrated from EPIC-002, which never owned this
 behavior — it's report assembly, not double-entry posting), the full
 EPIC-020 framework-aware personal reporting set, and the EPIC-025 DRY/SSOT
 reporting-calculation-extraction pair (`dry-ssot.1`/`.2`) — all `proof_kind`
-in `{exact, property}`, valid under `CODE-ONLY`. EPIC-005's larger AC set
-still lands in a follow-up commit once the `services/` -> package-home move
-is complete — the tier decision above doesn't depend on that landing first.
-The physical move from `apps/backend/src/services/reporting/` into
-`apps/backend/src/reporting/` is also still pending.
+in `{exact, property}`, valid under `CODE-ONLY` (the roadmap has since
+absorbed the EPIC-005/EPIC-008 reporting rows, #1716). The physical move from
+`apps/backend/src/services/reporting/` into `apps/backend/src/reporting/`
+landed with #1666; `services/reporting/manual_valuation.py` is the sole
+survivor, owned by #1610.
 
 ## SSOT: report calculation rules
 

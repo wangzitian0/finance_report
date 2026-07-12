@@ -8,7 +8,7 @@ from uuid import uuid4
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.services.reporting import ReportError
+from src.reporting import ReportError
 from tests.ledger._ledger_helpers import create_valid_posted_entry
 
 

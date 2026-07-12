@@ -193,6 +193,113 @@ def verify_staging(
     )
 
 
+def verify_real_corpus_eval(
+    *,
+    repository: str,
+    max_age_hours: float = 48.0,
+    gh_json: GhJson = _default_gh_json,
+    now: object = None,
+) -> str:
+    """Verify the most recent real-corpus evaluation (#1764) is fresh and green.
+
+    Unlike the other three checks, this is deliberately NOT tied to a specific
+    ``release_sha``: the real-document corpus changes on its own operator
+    cadence (real PDFs are never committed — RL-6 — and provider quota is
+    finite), not on every commit. A stale-or-red run fails closed (Axiom E: an
+    unrun/expired check reads as unproven, never as a silent pass) — this is
+    the enforcement half of #1764's G-enforcement guarantee.
+
+    ``now`` is DI-injected the same way ``gh_json`` is, so the freshness
+    comparison is testable without depending on wall-clock time.
+    """
+    import datetime as _dt
+
+    current_time = (
+        now if isinstance(now, _dt.datetime) else _dt.datetime.now(_dt.timezone.utc)
+    )
+
+    def parsed_created_at(run: dict[str, object]) -> _dt.datetime | None:
+        raw = run.get("createdAt")
+        if not isinstance(raw, str) or not raw:
+            return None
+        try:
+            return _dt.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+
+    runs = _require_list(
+        gh_json(
+            [
+                "gh",
+                "run",
+                "list",
+                "--repo",
+                repository,
+                "--workflow",
+                "real-corpus-eval.yml",
+                # #1764 CR follow-up: 5 was too tight -- a burst of queued/
+                # in-progress runs could push every completed run outside the
+                # window, false-failing this check even though an older
+                # completed run exists. 20 is a cheap, generous margin for a
+                # workflow expected to run on an infrequent (scheduled) cadence.
+                "--limit",
+                "20",
+                "--json",
+                "databaseId,status,conclusion,createdAt",
+            ]
+        ),
+        "real-corpus-eval runs",
+    )
+    completed = [run for run in runs if run.get("status") == "completed"]
+    if not completed:
+        raise RuntimeError(
+            "No completed real-corpus-eval run found. Run "
+            "`tools/reverify_real_corpus.py` against the operator's real "
+            "document corpus and record the result first."
+        )
+
+    # #1764 CR follow-up: a completed run with a missing/malformed createdAt
+    # cannot be safely excluded from "most recent" ordering either -- it
+    # might BE the actual latest run, just with bad timestamp data. Fail
+    # closed here rather than silently ranking it last (below every
+    # valid-timestamped run) and picking an older run in its place, which
+    # would quietly violate "the most recent completed run governs".
+    unparseable = [run for run in completed if parsed_created_at(run) is None]
+    if unparseable:
+        raise RuntimeError(
+            f"real-corpus-eval run {unparseable[0].get('databaseId')} is "
+            "missing createdAt (or it is malformed) — cannot reliably "
+            "determine the most recent completed run among multiple "
+            "candidates."
+        )
+
+    # explicitly select by createdAt instead of assuming gh run list's own
+    # ordering already puts the most recent completed run first -- that
+    # assumption held but was never enforced by this code.
+    latest = max(completed, key=parsed_created_at)
+    conclusion = latest.get("conclusion")
+    if conclusion != "success":
+        raise RuntimeError(
+            f"Latest real-corpus-eval run {latest.get('databaseId')} did not "
+            f"succeed (conclusion={conclusion!r}) — a real-document accuracy "
+            "or calibration regression was found."
+        )
+
+    # createdAt is already known-valid for every completed run (checked
+    # above), including `latest` -- no need to re-validate it here.
+    created_at = parsed_created_at(latest)
+    assert created_at is not None
+    age_hours = (current_time - created_at).total_seconds() / 3600.0
+    if age_hours > max_age_hours:
+        raise RuntimeError(
+            f"Latest real-corpus-eval run {latest.get('databaseId')} is stale "
+            f"({age_hours:.1f}h old, max {max_age_hours}h) — re-run the "
+            "evaluation before releasing."
+        )
+
+    return str(latest["databaseId"])
+
+
 def _required(value: str, name: str) -> str:
     value = value.strip()
     if not value:
@@ -204,12 +311,18 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--check",
-        choices=("source-ci", "release-images-run", "staging"),
+        choices=("source-ci", "release-images-run", "staging", "real-corpus-eval"),
         required=True,
     )
     parser.add_argument("--repository", default=os.getenv("GITHUB_REPOSITORY", ""))
     parser.add_argument("--release-sha", default=os.getenv("RELEASE_SHA", ""))
     parser.add_argument("--version-ref", default=os.getenv("VERSION_REF", ""))
+    parser.add_argument(
+        "--max-age-hours",
+        type=float,
+        default=48.0,
+        help="real-corpus-eval only: how stale the latest run may be before this fails.",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -223,6 +336,11 @@ def main(argv: list[str] | None = None) -> int:
             run_id = verify_release_images_run(
                 repository=repository,
                 release_sha=_required(args.release_sha, "release-sha"),
+            )
+        elif args.check == "real-corpus-eval":
+            run_id = verify_real_corpus_eval(
+                repository=repository,
+                max_age_hours=args.max_age_hours,
             )
         else:
             run_id = verify_staging(

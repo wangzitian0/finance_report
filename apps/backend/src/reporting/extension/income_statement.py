@@ -13,23 +13,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.account import Account, AccountType
 from src.models.journal import JournalEntry, JournalLine
 from src.observability import ErrorIds, get_logger
-from src.schemas.provenance import DataProvenance
-from src.services.fx import (
-    FxRateError,
-    FxWarning,
-    PrefetchedFxRates,
-    convert_money,
-)
-from src.services.reporting._core import (
+from src.reporting.extension import fx_gateway
+from src.reporting.extension._core import (
     _REPORT_STATUSES,
     _aggregate_account_confidence_tiers,
     _build_account_lines,
     _line_total,
     _load_accounts,
 )
-from src.services.reporting.balance_sheet import generate_balance_sheet
-from src.services.reporting.internal_transfer import _internal_transfer_adjustment
-from src.services.reporting_calc import (
+from src.reporting.extension.balance_sheet import generate_balance_sheet
+from src.reporting.extension.fx_gateway import (
+    FxWarning,
+    convert_money,
+)
+from src.reporting.extension.internal_transfer import _internal_transfer_adjustment
+from src.reporting.extension.reporting_calc import (
     ReportError,
     _add_months,
     _combine_provenance,
@@ -40,6 +38,7 @@ from src.services.reporting_calc import (
     _quantize_money,
     _signed_amount,
 )
+from src.schemas.provenance import DataProvenance
 
 logger = get_logger(__name__)
 
@@ -102,11 +101,11 @@ async def generate_income_statement(
             fx_needs.append((line.currency, target_currency, entry.entry_date, period_key, month_end))
 
     # Batch pre-fetch all needed FX rates
-    fx_rates = PrefetchedFxRates(fx_warnings, lazy_load=True)
+    fx_rates = fx_gateway.PrefetchedFxRates(fx_warnings, lazy_load=True)
     if fx_needs:
         try:
             await fx_rates.prefetch(db, fx_needs)
-        except FxRateError as exc:
+        except fx_gateway.FxRateError as exc:
             logger.error(
                 "FX pre-fetch failed for income statement",
                 error_id=ErrorIds.REPORT_GENERATION_FAILED,
@@ -160,7 +159,7 @@ async def generate_income_statement(
                             lazy_load=True,
                         )
                     ).amount
-                except FxRateError as exc:
+                except fx_gateway.FxRateError as exc:
                     logger.warning(
                         "Average FX rate unavailable, falling back to spot",
                         error_id=ErrorIds.REPORT_FX_FALLBACK,
@@ -181,7 +180,7 @@ async def generate_income_statement(
                                 lazy_load=True,
                             )
                         ).amount
-                    except FxRateError as final_exc:
+                    except fx_gateway.FxRateError as final_exc:
                         logger.error(
                             "All FX rate fallbacks failed for income statement",
                             error_id=ErrorIds.REPORT_GENERATION_FAILED,

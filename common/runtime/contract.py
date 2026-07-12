@@ -736,6 +736,223 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── group real-corpus-eval (#1764 G-enforcement) — the release-evidence
+        # check for #1764's real-document accuracy/calibration eval. Fails
+        # closed (never a silent pass) when the eval has never run, failed, or
+        # gone stale — but is NOT yet wired into release.yml as a blocking
+        # step: that requires an operator-supplied real-document corpus to
+        # exist first (RL-6 — real PDFs are never committed) and is a
+        # deliberate release-behavior change needing explicit sign-off, not
+        # something to flip on unilaterally. See #1764 ──
+        ACRecord(
+            id="AC-runtime.real-corpus-eval.1",
+            statement=(
+                "verify_real_corpus_eval returns the run id of the most "
+                "recent completed, successful real-corpus-eval run when it "
+                "is within max_age_hours."
+            ),
+            test=(
+                "tests/tooling/test_real_corpus_eval_evidence.py"
+                "::test_AC_runtime_real_corpus_eval_1_fresh_success_run_passes"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.real-corpus-eval.2",
+            statement=(
+                "verify_real_corpus_eval raises when no completed run exists "
+                "— an eval that has never run proves nothing and must never "
+                "read as a silent pass."
+            ),
+            test=(
+                "tests/tooling/test_real_corpus_eval_evidence.py"
+                "::test_AC_runtime_real_corpus_eval_2_no_completed_run_fails_closed"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.real-corpus-eval.3",
+            statement=(
+                "verify_real_corpus_eval raises when the most recent "
+                "completed run did not succeed — a real accuracy or "
+                "calibration regression blocks release."
+            ),
+            test=(
+                "tests/tooling/test_real_corpus_eval_evidence.py"
+                "::test_AC_runtime_real_corpus_eval_3_failed_run_fails_closed"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.real-corpus-eval.4",
+            statement=(
+                "verify_real_corpus_eval raises when the most recent "
+                "successful run is older than max_age_hours — staleness is "
+                "exactly as untrustworthy as never having run."
+            ),
+            test=(
+                "tests/tooling/test_real_corpus_eval_evidence.py"
+                "::test_AC_runtime_real_corpus_eval_4_stale_run_fails_closed"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.real-corpus-eval.5",
+            statement=(
+                "verify_real_corpus_eval is governed by the most recent "
+                "completed run when several exist, so a fixed-then-passing "
+                "re-run supersedes an old failure."
+            ),
+            test=(
+                "tests/tooling/test_real_corpus_eval_evidence.py"
+                "::test_AC_runtime_real_corpus_eval_5_picks_the_most_recent_completed_run"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.real-corpus-eval.6",
+            statement=(
+                "verify_real_corpus_eval raises a clear RuntimeError when the "
+                "latest completed run is missing or malformed createdAt, "
+                "instead of crashing on an unhandled KeyError/TypeError or "
+                "silently treating the run as fresh."
+            ),
+            test=(
+                "tests/tooling/test_real_corpus_eval_evidence.py"
+                "::test_AC_runtime_real_corpus_eval_6_missing_created_at_fails_closed"
+            ),
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.real-corpus-eval.7",
+            statement=(
+                "main --check real-corpus-eval reaches verify_real_corpus_eval "
+                "end-to-end through argparse (choice registration and "
+                "--max-age-hours wiring), not only through direct calls to the "
+                "underlying function."
+            ),
+            test=(
+                "tests/tooling/test_real_corpus_eval_evidence.py"
+                "::test_AC_runtime_real_corpus_eval_7_cli_dispatch_reaches_the_check"
+            ),
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.real-corpus-eval.8",
+            statement=(
+                "A completed run with a malformed/missing createdAt among "
+                "OTHER completed runs fails closed rather than being "
+                "silently outranked -- it might be the true latest run with "
+                "bad timestamp data, and picking an older, "
+                "valid-timestamped run in its place would quietly violate "
+                "'the most recent completed run governs' (2026-07-13 CR "
+                "follow-up on the .5 fix)."
+            ),
+            test=(
+                "tests/tooling/test_real_corpus_eval_evidence.py"
+                "::test_AC_runtime_real_corpus_eval_8_malformed_timestamp_among_others_fails_closed"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group release-images (#1759 CR follow-up): retry a transient
+        # registry-visibility miss instead of failing the gate outright ──
+        ACRecord(
+            id="AC-runtime.release-images.1",
+            statement=(
+                "verify_release_images finds a digest on the first inspect "
+                "attempt with no retry/sleep — the retry path never runs on "
+                "the (expected-common) success case."
+            ),
+            test=(
+                "tests/tooling/test_verify_release_images.py"
+                "::test_AC_runtime_release_images_1_first_attempt_success_no_retry"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.release-images.2",
+            statement=(
+                "verify_release_images retries a not-yet-visible digest (e.g. "
+                "registry propagation lag right after container-images pushes "
+                "a :<sha> tag) instead of treating the first miss as a hard "
+                "failure, as long as it succeeds within max_attempts."
+            ),
+            test=(
+                "tests/tooling/test_verify_release_images.py"
+                "::test_AC_runtime_release_images_2_transient_miss_then_success_retries"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.release-images.3",
+            statement=(
+                "verify_release_images still fails closed when an image never "
+                "becomes visible — retrying bounds flake tolerance, it does "
+                "not remove the guarantee that a truly missing image fails "
+                "the gate."
+            ),
+            test=(
+                "tests/tooling/test_verify_release_images.py"
+                "::test_AC_runtime_release_images_3_exhausted_retries_fails_closed"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.release-images.4",
+            statement=(
+                "verify_release_images' max_attempts/retry_delay_seconds are "
+                "caller-configurable, not hardcoded, so a caller with a "
+                "tighter time budget can tune the retry envelope -- and the "
+                "configured delay value itself, not just attempt count, "
+                "actually reaches sleep()."
+            ),
+            test=(
+                "tests/tooling/test_verify_release_images.py"
+                "::test_AC_runtime_release_images_4_max_attempts_and_delay_are_configurable"
+            ),
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.release-images.5",
+            statement=(
+                "verify_release_images rejects max_attempts < 1 with a clear "
+                "ValueError instead of silently performing zero inspect "
+                "attempts and raising a confusing 'not found after 0 "
+                "attempts'."
+            ),
+            test=(
+                "tests/tooling/test_verify_release_images.py"
+                "::test_AC_runtime_release_images_5_max_attempts_below_1_is_rejected"
+            ),
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.release-images.6",
+            statement=(
+                "verify_release_images rejects a negative retry_delay_seconds "
+                "with a clear ValueError instead of reaching sleep() and "
+                "raising there."
+            ),
+            test=(
+                "tests/tooling/test_verify_release_images.py"
+                "::test_AC_runtime_release_images_6_negative_delay_is_rejected"
+            ),
+            priority="P2",
+            status="done",
+        ),
     ],
 )
 

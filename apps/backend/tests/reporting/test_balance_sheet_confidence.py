@@ -13,7 +13,7 @@ import pytest
 
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
-from src.services.reporting import generate_balance_sheet
+from src.reporting import generate_balance_sheet
 
 
 async def _post(db, user_id, *, debit: Account, credit: Account, amount: Decimal, source_type) -> None:

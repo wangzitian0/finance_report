@@ -11,13 +11,18 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.account import AccountType
+from src.reporting.base.l1_registry import get_framework_ordered_lines, is_valid_line_for_framework
+from src.reporting.extension.balance_sheet import generate_balance_sheet
+from src.reporting.extension.framework_policy import derive_user_framework_policy_result
+from src.reporting.extension.income_statement import generate_income_statement
+from src.reporting.extension.portfolio_market import _portfolio_market_basis_by_account
+from src.reporting.extension.reporting_calc import (
+    ReportError,
+    _combine_provenance,
+    _quantize_money,
+    _worst_confidence_tier,
+)
 from src.schemas.reporting import PersonalReportingFrameworkId, ReportLineId
-from src.services.framework_policy import derive_user_framework_policy_result
-from src.services.reporting.balance_sheet import generate_balance_sheet
-from src.services.reporting.income_statement import generate_income_statement
-from src.services.reporting.l1_registry import get_framework_ordered_lines, is_valid_line_for_framework
-from src.services.reporting.portfolio_market import _portfolio_market_basis_by_account
-from src.services.reporting_calc import ReportError, _combine_provenance, _quantize_money, _worst_confidence_tier
 
 logger = structlog.get_logger(__name__)
 

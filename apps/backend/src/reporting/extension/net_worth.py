@@ -17,14 +17,11 @@ from src.models.layer3 import (
     ManualValuationLiquidityClass,
 )
 from src.observability import ErrorIds, get_logger
-from src.services.fx import (
-    FxRateError,
-    PrefetchedFxRates,
-)
-from src.services.reporting._core import _REPORT_STATUSES, _load_accounts, _single_source_currency
-from src.services.reporting.balance_sheet import generate_balance_sheet
-from src.services.reporting.portfolio_market import _portfolio_market_basis_by_account
-from src.services.reporting_calc import (
+from src.reporting.extension import fx_gateway
+from src.reporting.extension._core import _REPORT_STATUSES, _load_accounts, _single_source_currency
+from src.reporting.extension.balance_sheet import generate_balance_sheet
+from src.reporting.extension.portfolio_market import _portfolio_market_basis_by_account
+from src.reporting.extension.reporting_calc import (
     MAX_NET_WORTH_DAILY_POINTS,
     ReportError,
     _add_months,
@@ -337,11 +334,11 @@ async def get_account_trend(
         if row.currency.upper() != target_currency:
             fx_needs.append((row.currency, target_currency, row.entry_date, None, None))
 
-    fx_rates = PrefetchedFxRates(lazy_load=True)
+    fx_rates = fx_gateway.PrefetchedFxRates(lazy_load=True)
     if fx_needs:
         try:
             await fx_rates.prefetch(db, fx_needs)
-        except FxRateError as exc:
+        except fx_gateway.FxRateError as exc:
             logger.error(
                 "FX pre-fetch failed for account trend",
                 error_id=ErrorIds.REPORT_GENERATION_FAILED,
@@ -484,11 +481,11 @@ async def get_category_breakdown(
         if row.currency.upper() != target_currency:
             fx_needs.append((row.currency, target_currency, today, start_date, today))
 
-    fx_rates = PrefetchedFxRates(lazy_load=True)
+    fx_rates = fx_gateway.PrefetchedFxRates(lazy_load=True)
     if fx_needs:
         try:
             await fx_rates.prefetch(db, fx_needs)
-        except FxRateError as exc:
+        except fx_gateway.FxRateError as exc:
             logger.error(
                 "FX pre-fetch failed for category breakdown",
                 error_id=ErrorIds.REPORT_GENERATION_FAILED,

@@ -3,11 +3,13 @@
 The bounded read context is the deterministic fact set the advisor may ground
 an answer in: reconciliation readiness, report readiness, workflow status,
 portfolio positions, market data, and the category/cash-flow summary.  These
-tests prove (a) ``get_advisor_context`` assembles **exactly** that set —
-reads whose owner still lives in the app remainder flow through the advisor's
-registered ``app_reads`` ports, so the read surface is enumerable — and
-(b) the response metadata carries citations/actions that surface only those
-grounding sources (safe hrefs, bounded source_refs).
+tests prove (a) ``get_advisor_context`` assembles **exactly** that set — most
+reads go through each owning package's published root (readiness via
+``src.reporting``, imported directly into ``service.py``); the one read whose
+owner still lives in the app remainder (the fx-pair composer) flows through
+the advisor's registered ``app_reads`` port — and (b) the response metadata
+carries citations/actions that surface only those grounding sources (safe
+hrefs, bounded source_refs).
 """
 
 from __future__ import annotations
@@ -20,11 +22,7 @@ from types import SimpleNamespace
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.advisor import (
-    AIAdvisorService,
-    register_fx_pairs_read,
-    register_readiness_read,
-)
+from src.advisor import AIAdvisorService, register_fx_pairs_read
 from src.advisor.base.constants import CHAT_METADATA_SAFE_HREFS
 from src.advisor.extension import service as advisor_service_module
 from src.schemas.workflow import (
@@ -66,10 +64,10 @@ def _fake_readiness_payload() -> dict:
         "blockers": [
             {
                 "code": SENTINEL_BLOCKER_CODE,
-                "label": "Sentinel blocker (injected via the readiness port)",
+                "label": "Sentinel blocker (injected via the monkeypatched readiness read)",
                 "severity": "blocking",
                 "count": 1,
-                "reason": "Proves the read flows through the registered port.",
+                "reason": "Proves the read flows through the actual call site, not a hardcoded value.",
                 "action_href": "/reports/package",
             }
         ],
@@ -151,7 +149,7 @@ def bounded_context_fakes(test_user, monkeypatch: pytest.MonkeyPatch):
             currency="SGD",
         )
 
-    register_readiness_read(fake_readiness)
+    monkeypatch.setattr(advisor_service_module, "get_personal_report_package_readiness", fake_readiness)
     register_fx_pairs_read(fake_fx_pairs)
     monkeypatch.setattr(advisor_service_module, "get_workflow_status", fake_workflow)
     monkeypatch.setattr(advisor_service_module, "get_market_data_status", fake_market_data)
@@ -172,8 +170,8 @@ async def test_AC_advisor_context_1_context_is_exactly_the_bounded_read_set(
     db: AsyncSession, test_user, bounded_context_fakes
 ) -> None:
     """AC-advisor.context.1: the advisor context contains exactly the bounded fact groups,
-    every remainder-owned read flows through a registered port, and every suggestion cites
-    only bounded grounding sources."""
+    every read actually reaches its real call site (sentinel round-trip), and every
+    suggestion cites only bounded grounding sources."""
     service = AIAdvisorService()
 
     context = await service.get_advisor_context(db, test_user.id, financial_context=dict(FINANCIAL_SUMMARY))
@@ -181,8 +179,8 @@ async def test_AC_advisor_context_1_context_is_exactly_the_bounded_read_set(
     # (a) Nothing outside the bounded read context enters the answer's grounding.
     assert set(context) == BOUNDED_CONTEXT_KEYS
 
-    # (b) The readiness fact came through the registered port (sentinel round-trip),
-    # not a direct remainder import.
+    # (b) The readiness fact came through the actual call site (sentinel round-trip),
+    # not a hardcoded/stale value.
     assert context["report_readiness"]["blocking_count"] == 1
     assert context["source_trust"]["blocker_codes"] == [SENTINEL_BLOCKER_CODE]
 

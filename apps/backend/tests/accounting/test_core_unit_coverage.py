@@ -16,12 +16,12 @@ from src.portfolio import (
     InvestmentAccountingService,
     InvestmentAccountingValidationError,
 )
-from src.schemas.journal import JournalEntryCreate, JournalLineCreate
-from src.services.reporting_calc import (
+from src.reporting.extension.reporting_calc import (
     _provenance_from_source_type,
     _quantize_money,
     income_bucket,
 )
+from src.schemas.journal import JournalEntryCreate, JournalLineCreate
 
 
 class TestReportingHelpers:

@@ -483,4 +483,4 @@ guardrail test backing `AC-advisor.guardrail.1`.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC6.34.1 | A write/mutation request (create/post/delete/void/modify a journal or ledger entry) is refused before any LLM call, so the advisor never auto-executes a trade or ledger action — it is a decision-support advisor, not a robo-advisor. {tier:CODE-ONLY} | `test_chat_stream_refusal_branches` | `ai/test_ai_advisor_service.py` | P0 |
+| AC6.34.1 | A write/mutation request (create/post/delete/void/modify a journal or ledger entry) is refused before any LLM call, so the advisor never auto-executes a trade or ledger action — it is a decision-support advisor, not a robo-advisor. {tier:CODE-ONLY} | `test_chat_stream_refusal_branches` | `ai/test_ai_advisor_service.py` | P0 | <!-- epic-owned: pending-package -->

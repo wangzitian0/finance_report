@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.account import AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
-from src.services.reporting import generate_balance_sheet
+from src.reporting import generate_balance_sheet
 from tests.reporting._report_fixtures import (
     STANDARD_CHART_SPEC,
     build_standard_chart_of_accounts,

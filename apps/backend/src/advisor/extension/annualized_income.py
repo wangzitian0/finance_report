@@ -3,10 +3,11 @@
 Computes the trailing-12-month annualized income buckets and restricted
 compensation holdings for the personal report package.  Moved from
 ``src/services/annualized_income.py`` (#1671 Wave B, per the #1416
-disposition table); behavior unchanged.  The windowed FX conversion and the
-income bucket classifier still live in the app remainder (``services/fx.py``
-/ ``services/reporting_calc.py``), so they are injected through
-:mod:`src.advisor.extension.app_reads` until #1610 / #1666 publish them.
+disposition table); behavior unchanged.  The income bucket classifier is
+published by ``src.reporting`` (folded from ``services/reporting_calc.py``
+by #1666 while this PR was in flight); the windowed FX conversion still
+lives in the app remainder (``services/fx.py``), so it is injected through
+:mod:`src.advisor.extension.app_reads` until #1610 publishes it.
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ from src.models.layer3 import (
     ManualValuationSnapshot,
 )
 from src.platform import raise_bad_request
+from src.reporting import income_bucket
 from src.schemas import (
     AnnualizedIncomeScheduleHolding,
     AnnualizedIncomeScheduleIncome,
@@ -49,7 +51,6 @@ async def generate_annualized_income_schedule(
     """Return report-ready annualized income and restricted compensation schedule."""
     convert_amount = app_reads.convert_amount()
     fx_error = app_reads.fx_error()
-    income_bucket = app_reads.income_bucket()
 
     report_date = as_of_date or date.today()
     start_date = report_date - timedelta(days=365)

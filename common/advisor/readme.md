@@ -76,17 +76,17 @@ The advisor aggregates context from:
 
 | Source | What it reads | How the advisor reads it |
 |--------|--------------|---------------------------|
-| `report_readiness` | Readiness state + blockers | `extension/app_reads.py` port (owner still in `services/report_readiness.py`, #1666) |
-| `reporting` | Balance sheet, income statement, category breakdown | `extension/app_reads.py` port (owner still in `services/reporting/`, #1666) |
+| `report_readiness` | Readiness state + blockers | `src.reporting` published root (`get_personal_report_package_readiness`; folded from `services/report_readiness.py` by #1666 while this PR was in flight) |
+| `reporting` | Balance sheet, income statement, category breakdown | `src.reporting` published root (`generate_balance_sheet`/`generate_income_statement`/`get_category_breakdown`, #1666) |
 | `reconciliation` | Pending review count, reconciliation stats | `src.reconciliation` published root (`get_reconciliation_stats`) |
 | `portfolio` | Positions, unrealised P&L, active symbols | `src.portfolio` published root (`PortfolioService`, `active_stock_symbols`) |
-| `market_data` | Scope status, prices | `src.pricing` published root (`get_market_data_status`); the FX-pair composer is an `app_reads` port (owner still in `services/market_data_scheduler.py`, #1610) |
+| `market_data` | Scope status, prices | `src.pricing` published root (`get_market_data_status`); the FX-pair composer is an `extension/app_reads.py` port (owner still in `services/market_data_scheduler.py`, #1610) |
 | `workflow_events` | Action-required counts | `src.platform` published root (`get_workflow_status`, #1703) |
 
-The `app_reads` ports are wired by the composition root (`src/main.py`) —
-the same inversion #1676 used for platform's readiness port; each collapses
-into a direct published-root import + `depends_on` edge when its owner's
-physical fold (#1666 / #1610) lands.
+The one remaining `app_reads` port (the FX-pair composer) is wired by the
+composition root (`src/main.py`) — the same inversion #1676 used for
+platform's readiness port; it collapses into a direct published-root import
++ `depends_on` edge when #1610 lands.
 
 All reads are in the same `AsyncSession` transaction as the chat message
 insert (the advisor's own transaction — `AC-advisor.txn.1`, proven by

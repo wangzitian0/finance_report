@@ -23,13 +23,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 # can resolve cross-module string relationships (replaces the former
 # ``from src.models import ...`` hub side effect; issue #1461).
 import src.models._registry  # noqa: E402, F401
-from src.advisor import (
-    register_fx_conversion,
-    register_fx_pairs_read,
-    register_income_bucket_read,
-    register_readiness_read,
-    register_reporting_reads,
-)
+from src.advisor import register_fx_conversion, register_fx_pairs_read
 from src.boot import Bootloader, BootMode
 from src.config import settings
 from src.database import async_session_maker, engine, get_db, init_db
@@ -65,6 +59,11 @@ from src.platform import (
 )
 from src.platform.orm.ping_state import PingState
 from src.pricing import subscribe_price_ingest
+from src.reporting import (
+    get_personal_report_package_readiness,
+    register_fx_gateway,
+    register_manual_valuation_lines_provider,
+)
 from src.routers import (
     accounts,
     ai_feedback,
@@ -96,16 +95,16 @@ from src.schemas.errors import (
     ErrorResponse,
     error_code_for_status,
 )
-from src.services.fx import FxRateError, convert_amount
-from src.services.market_data_scheduler import observed_fx_pairs, run_market_data_scheduler
-from src.services.report_readiness import get_personal_report_package_readiness
-from src.services.reporting import (
-    ReportError,
-    generate_balance_sheet,
-    generate_income_statement,
-    get_category_breakdown,
+from src.services.fx import (
+    FxRateError,
+    PrefetchedFxRates,
+    convert_amount,
+    convert_money,
+    get_average_rate,
+    get_exchange_rate,
 )
-from src.services.reporting_calc import income_bucket
+from src.services.market_data_scheduler import observed_fx_pairs, run_market_data_scheduler
+from src.services.reporting.manual_valuation import _build_manual_valuation_lines
 
 # Initialize logging early
 configure_logging()
@@ -120,22 +119,31 @@ logger = get_logger(__name__)
 register_readiness_provider(get_personal_report_package_readiness)
 
 # Wire the advisor's app-remainder read ports (#1671 Wave B): the advisor is a
-# carved package and must not import services/* itself; the reads whose owning
-# domain has not physically migrated yet (reporting summaries + readiness,
-# #1666; fx conversion + the fx-pair composer + the income bucket classifier,
-# #1610/#1666) are injected here, the same inversion as the platform port
-# above. Each registration collapses into a direct published-root import once
-# the owner's physical fold lands.
-register_reporting_reads(
-    balance_sheet=generate_balance_sheet,
-    income_statement=generate_income_statement,
-    category_breakdown=get_category_breakdown,
-    error_type=ReportError,
-)
-register_readiness_read(get_personal_report_package_readiness)
+# carved package and must not import services/* itself. #1666 folded the
+# reporting summaries + readiness reads into the published src.reporting root
+# while this PR was in flight (advisor now imports those directly, no port
+# needed); the fx-pair composer's owner is still the app remainder
+# (services/market_data_scheduler.py, #1610), so it is injected here, the same
+# inversion as the platform port above. Collapses into a direct published-root
+# import once #1610 lands.
 register_fx_pairs_read(observed_fx_pairs)
 register_fx_conversion(convert_amount=convert_amount, error_type=FxRateError)
-register_income_bucket_read(income_bucket)
+
+# Wire reporting's FX seam and manual-valuation lines port (#1666): reporting
+# (L3) must not import the services/ app remainder, but the FX conversion
+# service and the manual-valuation builder still live there pending the
+# pricing cutover (#1610) — the composition root injects them, same inversion
+# as the readiness port above. When #1610 lands, these registrations repoint
+# to src.pricing.
+register_fx_gateway(
+    get_exchange_rate=get_exchange_rate,
+    get_average_rate=get_average_rate,
+    convert_amount=convert_amount,
+    convert_money=convert_money,
+    prefetched_fx_rates=PrefetchedFxRates,
+    fx_rate_error=FxRateError,
+)
+register_manual_valuation_lines_provider(_build_manual_valuation_lines)
 
 # Wire platform's and runtime's UploadedDocument-read ports to the real
 # extraction-domain lookups (#1675 D3): same inversion, same reason — L1

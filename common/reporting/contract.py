@@ -1,28 +1,28 @@
 """The ``reporting`` package's machine-checkable :class:`PackageContract`.
 
 This contract records the reporting-domain cutover boundary for Stage 4 of the
-package migration umbrella (#1416, issue #1424): reporting remains the
-calculation-over-ledger package and now declares its building blocks with
-``units=[Unit(kind=...)]``.
+package migration umbrella (#1416, issue #1424): reporting is the
+calculation-over-ledger package, declares its building blocks with
+``units=[Unit(kind=...)]``, and — since the #1666 physical fold — implements
+at ``apps/backend/src/reporting/{base,extension,data}``.
 
 Scope correction (2026-07-06): ``manual_valuation.py`` belongs to the pricing
 cutover (#1610). Reporting keeps confidence-tier mapping and report assembly;
-pricing owns valuation-observation staleness facts.
+pricing owns valuation-observation staleness facts. Pending that cutover,
+reporting reaches manual valuation and the FX conversion service through
+composition-root-injected ports (``register_manual_valuation_lines_provider``
+/ ``register_fx_gateway``), never by importing the ``services/`` remainder.
 
 Status flip (migration closeout wave 2, #1663): the roadmap's first ACs
 (opening-balance gate + the full EPIC-020 framework-reporting set) carry only
 ``proof_kind`` in ``{exact, property}``, both valid under ``CODE-ONLY`` — so
-the package ships ``active``/``CODE-ONLY`` here. The bulk of EPIC-005's ACs
-still land in a follow-up commit once the ``services/`` -> package-home move
-is complete; this flip does not require that to happen first.
+the package ships ``active``/``CODE-ONLY`` here.
 
-#1674 contract-honesty audit (2026-07-09): ``config``/``extraction``/
-``platform``/``portfolio``/``pricing`` were declared but have zero real
-imports under the current ``apps/backend/src/services/reporting`` location —
-removed. They are real design intent for the eventual #1666 fold into
-``apps/backend/src/reporting/`` (framework-report assembly reading
-extraction/portfolio/pricing facts through platform's readiness port); re-add
-each with its first real import, not before.
+#1674 contract-honesty audit (2026-07-09): declare a dependency only with its
+first real import. ``extraction`` gained one in the #1666 fold
+(``report_traceability`` reads the evidence graph through the published
+``EvidenceLineageService``); ``config``/``platform`` remain undeclared until
+a real import exists.
 """
 
 from __future__ import annotations
@@ -41,6 +41,9 @@ CONTRACT = PackageContract(
     tier="CODE-ONLY",
     depends_on=[
         "audit",
+        # extraction: the traceability appendix reads the evidence graph via
+        # the published EvidenceLineageService (extension/report_traceability.py).
+        "extraction",
         "ledger",
         "observability",
         # portfolio: the market-value adjustment lines read holdings via the
@@ -51,7 +54,8 @@ CONTRACT = PackageContract(
     ],
     roles=["base", "extension", "data"],
     units=[
-        # ── base (taxonomy-only while services/ fold is still in progress) ──
+        # ── base (value objects typed in src/schemas/reporting.py; declared
+        # taxonomy-level without a module path) ──
         Unit(name="ReportLine", kind=Kind.VALUE_OBJECT),
         Unit(name="BalanceSheetResponse", kind=Kind.VALUE_OBJECT),
         Unit(name="IncomeStatementResponse", kind=Kind.VALUE_OBJECT),
@@ -68,45 +72,45 @@ CONTRACT = PackageContract(
         Unit(
             name="generate_balance_sheet",
             kind=Kind.DOMAIN_SERVICE,
-            module="balance_sheet.py",
+            module="extension/balance_sheet.py",
         ),
         Unit(
             name="generate_income_statement",
             kind=Kind.DOMAIN_SERVICE,
-            module="income_statement.py",
+            module="extension/income_statement.py",
         ),
         Unit(
             name="generate_cash_flow",
             kind=Kind.DOMAIN_SERVICE,
-            module="cash_flow.py",
+            module="extension/cash_flow.py",
         ),
         Unit(
             name="_aggregate_balances_sql",
             kind=Kind.DOMAIN_SERVICE,
-            module="_core.py",
+            module="extension/_core.py",
         ),
         Unit(
             name="_aggregate_net_income_sql",
             kind=Kind.DOMAIN_SERVICE,
-            module="_core.py",
+            module="extension/_core.py",
         ),
         Unit(
             name="get_net_worth_timeseries",
             kind=Kind.DOMAIN_SERVICE,
-            module="net_worth.py",
+            module="extension/net_worth.py",
         ),
         Unit(
             name="get_net_worth_allocation_schedule",
             kind=Kind.DOMAIN_SERVICE,
-            module="net_worth.py",
+            module="extension/net_worth.py",
         ),
         Unit(
             name="get_category_breakdown",
             kind=Kind.DOMAIN_SERVICE,
-            module="net_worth.py",
+            module="extension/net_worth.py",
         ),
-        Unit(name="get_account_trend", kind=Kind.DOMAIN_SERVICE, module="net_worth.py"),
-        Unit(name="get_account_lineage", kind=Kind.DOMAIN_SERVICE, module="lineage.py"),
+        Unit(name="get_account_trend", kind=Kind.DOMAIN_SERVICE, module="extension/net_worth.py"),
+        Unit(name="get_account_lineage", kind=Kind.DOMAIN_SERVICE, module="extension/lineage.py"),
         Unit(
             name="ReportingReadRepository",
             kind=Kind.REPOSITORY,
@@ -119,10 +123,15 @@ CONTRACT = PackageContract(
         Unit(name="ConfidenceTierAggregationProjection", kind=Kind.PROJECTION),
         Unit(name="FrameworkPolicyDecisionProjection", kind=Kind.PROJECTION),
     ],
-    implementations={"be": "apps/backend/src/services/reporting", "fe": None},
+    implementations={"be": "apps/backend/src/reporting", "fe": None},
     interface=[
         "MAX_NET_WORTH_DAILY_POINTS",
+        "PERSONAL_REPORT_PACKAGE_CONTRACT",
+        "PERSONAL_REPORT_PACKAGE_NOTES",
+        "AnnualizedIncomeTotals",
+        "ConfidenceMetricService",
         "ReportError",
+        "ReportingSnapshotService",
         "_add_months",
         "_aggregate_balances_sql",
         "_aggregate_net_income_sql",
@@ -135,7 +144,15 @@ CONTRACT = PackageContract(
         "_quantize_money",
         "_quarter_start",
         "_signed_amount",
+        # Published for the services/reporting/manual_valuation.py survivor's
+        # shim only; #1610 re-homes manual valuation and retires this name.
+        "_valuation_line_name",
         "_worst_confidence_tier",
+        "assemble_framework_balance_sheet",
+        "assemble_framework_income_statement",
+        "build_personal_report_package_traceability_payload",
+        "derive_reconciliation_score_tier",
+        "derive_user_framework_policy_result",
         "generate_balance_sheet",
         "generate_cash_flow",
         "generate_income_statement",
@@ -144,6 +161,22 @@ CONTRACT = PackageContract(
         "get_category_breakdown",
         "get_net_worth_allocation_schedule",
         "get_net_worth_timeseries",
+        "get_personal_report_package_readiness",
+        "income_bucket",
+        "is_valid_line_for_framework",
+        "jsonable",
+        "package_currency",
+        "package_dates",
+        "package_snapshot_csv",
+        "package_snapshot_response",
+        "package_snapshot_status",
+        "package_snapshot_summary",
+        # Composition-root injection ports (#1666/#1610): main.py and the
+        # backend test conftest wire the app-remainder FX service and the
+        # manual-valuation lines builder through these.
+        "register_fx_gateway",
+        "register_manual_valuation_lines_provider",
+        "resolve_line_currency",
     ],
     events=[],
     invariants=[
@@ -1792,6 +1825,48 @@ CONTRACT = PackageContract(
                 "::test_AC22_13_1_report_amount_lines_expose_normalized_provenance"
             ),
             priority="P1",
+            status="done",
+        ),
+        # ── group business-value-gate (#1505) — prior e2e/deploy gates proved
+        # reachability (HTTP 200, page-loaded) but never that a computed
+        # business value is right; three production bugs (#1486, #1481,
+        # #1397) all passed every existing gate. These prove a real journey's
+        # balance-sheet/dashboard totals are numerically correct AND that the
+        # #1481 opening-balance-missing invariant degrades the aggregate tier
+        # end-to-end — at both Tier-1 (pre-merge, no LLM) and Tier-2/3
+        # (deployed, wired into deploy.yml's existing staging_e2e_tests gate)
+        # ──
+        ACRecord(
+            id="AC-reporting.business-value-gate.1",
+            statement=(
+                "A CSV-sourced statement's balance-sheet total equals the "
+                "known net of its transactions, and — because the source "
+                "carried no opening balance — the aggregate confidence tier "
+                "reads LOW with an explicit missing_opening_balance warning, "
+                "never silently HIGH, even though every posted line is "
+                "USER_CONFIRMED."
+            ),
+            test=(
+                "apps/backend/tests/e2e/test_business_value_correctness_gate.py"
+                "::test_AC_reporting_business_value_gate_1_total_matches_transactions_and_open_bal_missing_degrades_tier"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.business-value-gate.2",
+            statement=(
+                "Recording an opening balance for the same account clears "
+                "the missing_opening_balance warning, un-degrades the "
+                "aggregate confidence tier, and the total correctly "
+                "includes the opening balance — proving the gate responds "
+                "to real state in both directions, not permanently stuck LOW."
+            ),
+            test=(
+                "apps/backend/tests/e2e/test_business_value_correctness_gate.py"
+                "::test_AC_reporting_business_value_gate_2_recording_opening_balance_clears_warning_and_updates_total"
+            ),
+            priority="P0",
             status="done",
         ),
     ],

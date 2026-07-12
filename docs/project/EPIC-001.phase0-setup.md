@@ -68,10 +68,10 @@ Set up a runnable Monorepo development environment, complete user authentication
 
 | ID | Requirement | Test Function | File |
 |----|-------------|---------------|------|
-| AC1.1.1 | Root `moon.yml` exists | `test_epic_001_moon_workspace_configs_exist()` | `infra/test_epic_001_contracts.py` |
-| AC1.1.2 | `apps/backend/moon.yml` exists | `test_epic_001_moon_workspace_configs_exist()` | `infra/test_epic_001_contracts.py` |
-| AC1.1.3 | `apps/frontend/moon.yml` exists | `test_epic_001_moon_workspace_configs_exist()` | `infra/test_epic_001_contracts.py` |
-| AC1.1.4 | `tools/infra.sh` local infrastructure command exists | `test_epic_001_moon_workspace_configs_exist()` | `infra/test_epic_001_contracts.py` |
+| AC1.1.1 | Root `moon.yml` exists | `test_epic_001_moon_workspace_configs_exist()` | `infra/test_epic_001_contracts.py` | <!-- epic-owned: horizontal -->
+| AC1.1.2 | `apps/backend/moon.yml` exists | `test_epic_001_moon_workspace_configs_exist()` | `infra/test_epic_001_contracts.py` | <!-- epic-owned: horizontal -->
+| AC1.1.3 | `apps/frontend/moon.yml` exists | `test_epic_001_moon_workspace_configs_exist()` | `infra/test_epic_001_contracts.py` | <!-- epic-owned: horizontal -->
+| AC1.1.4 | `tools/infra.sh` local infrastructure command exists | `test_epic_001_moon_workspace_configs_exist()` | `infra/test_epic_001_contracts.py` | <!-- epic-owned: horizontal -->
 
 ### AC1.2: Backend Skeleton Requirements
 
@@ -81,8 +81,8 @@ Set up a runnable Monorepo development environment, complete user authentication
 
 | ID | Requirement | Test Function | File |
 |----|-------------|---------------|------|
-| AC1.2.1 | FastAPI project structure exists | `test_epic_001_backend_skeleton_exists()` | `infra/test_epic_001_contracts.py` |
-| AC1.2.3 | SQLAlchemy + Alembic config valid | `test_missing_migrations_check()`, `test_single_head()` | `infra/test_schema_drift.py`, `infra/test_migrations.py` |
+| AC1.2.1 | FastAPI project structure exists | `test_epic_001_backend_skeleton_exists()` | `infra/test_epic_001_contracts.py` | <!-- epic-owned: horizontal -->
+| AC1.2.3 | SQLAlchemy + Alembic config valid | `test_missing_migrations_check()`, `test_single_head()` | `infra/test_schema_drift.py`, `infra/test_migrations.py` | <!-- epic-owned: horizontal -->
 
 > (AC1.2.4 removed, duplicate: "Health endpoint returns success"
 > (`test_health_when_all_services_healthy`) was already fully migrated to
@@ -105,27 +105,27 @@ Set up a runnable Monorepo development environment, complete user authentication
 
 | ID | Requirement | Test Function | File |
 |----|-------------|---------------|------|
-| AC1.3.1 | Next.js App Router files exist | `test_epic_001_frontend_skeleton_exists()` | `infra/test_epic_001_contracts.py` |
-| AC1.3.2 | TailwindCSS configuration exists | `test_epic_001_frontend_skeleton_exists()` | `infra/test_epic_001_contracts.py` |
-| AC1.3.3 | Ping-pong page exists | `test_epic_001_frontend_skeleton_exists()` | `infra/test_epic_001_contracts.py` |
-| AC1.3.4 | TanStack Query dependency configured | `test_epic_001_frontend_uses_react_query()` | `infra/test_epic_001_contracts.py` |
+| AC1.3.1 | Next.js App Router files exist | `test_epic_001_frontend_skeleton_exists()` | `infra/test_epic_001_contracts.py` | <!-- epic-owned: horizontal -->
+| AC1.3.2 | TailwindCSS configuration exists | `test_epic_001_frontend_skeleton_exists()` | `infra/test_epic_001_contracts.py` | <!-- epic-owned: horizontal -->
+| AC1.3.3 | Ping-pong page exists | `test_epic_001_frontend_skeleton_exists()` | `infra/test_epic_001_contracts.py` | <!-- epic-owned: horizontal -->
+| AC1.3.4 | TanStack Query dependency configured | `test_epic_001_frontend_uses_react_query()` | `infra/test_epic_001_contracts.py` | <!-- epic-owned: horizontal -->
 
 ### AC1.4: Docker Environment Requirements
 
 | ID | Requirement | Test Function | File |
 |----|-------------|---------------|------|
-| AC1.4.1 | `docker-compose.yml` integrity valid | `test_docker_compose_integrity()` | `infra/test_ci_config.py` |
-| AC1.4.2 | PostgreSQL 15 container defined | `test_epic_001_docker_compose_contract()` | `infra/test_epic_001_contracts.py` |
-| AC1.4.3 | Redis 7 container defined | `test_epic_001_docker_compose_contract()` | `infra/test_epic_001_contracts.py` |
-| AC1.4.4 | Data volumes configured | `test_epic_001_docker_compose_contract()` | `infra/test_epic_001_contracts.py` |
+| AC1.4.1 | `docker-compose.yml` integrity valid | `test_docker_compose_integrity()` | `infra/test_ci_config.py` | <!-- epic-owned: horizontal -->
+| AC1.4.2 | PostgreSQL 15 container defined | `test_epic_001_docker_compose_contract()` | `infra/test_epic_001_contracts.py` | <!-- epic-owned: horizontal -->
+| AC1.4.3 | Redis 7 container defined | `test_epic_001_docker_compose_contract()` | `infra/test_epic_001_contracts.py` | <!-- epic-owned: horizontal -->
+| AC1.4.4 | Data volumes configured | `test_epic_001_docker_compose_contract()` | `infra/test_epic_001_contracts.py` | <!-- epic-owned: horizontal -->
 
 ### AC1.5: Must-Have Acceptance Criteria Coverage
 
 | ID | Requirement | Test Function | File |
 |----|-------------|---------------|------|
-| AC1.5.1 | Backend startup command path is valid | `test_moon_project_graph_static_contract()` | `infra/test_ci_config.py` |
-| AC1.5.2 | Frontend startup command path is valid | `test_epic_001_frontend_moon_tasks_configured()` | `infra/test_epic_001_contracts.py` |
-| AC1.5.4 | Backend ping-pong endpoint toggles state correctly | `test_ping_toggle()` | `infra/test_main.py` |
+| AC1.5.1 | Backend startup command path is valid | `test_moon_project_graph_static_contract()` | `infra/test_ci_config.py` | <!-- epic-owned: horizontal -->
+| AC1.5.2 | Frontend startup command path is valid | `test_epic_001_frontend_moon_tasks_configured()` | `infra/test_epic_001_contracts.py` | <!-- epic-owned: horizontal -->
+| AC1.5.4 | Backend ping-pong endpoint toggles state correctly | `test_ping_toggle()` | `infra/test_main.py` | <!-- epic-owned: horizontal -->
 
 > (AC1.5.3 removed, duplicate: "Health endpoint returns 200"
 > (`test_health_when_all_services_healthy`) was already fully migrated to
@@ -146,7 +146,7 @@ Set up a runnable Monorepo development environment, complete user authentication
 
 | ID | Requirement | Test Function | File |
 |----|-------------|---------------|------|
-| AC1.6.1 | Pre-commit hooks configuration present | `test_epic_001_pre_commit_config_exists()` | `infra/test_epic_001_contracts.py` |
+| AC1.6.1 | Pre-commit hooks configuration present | `test_epic_001_pre_commit_config_exists()` | `infra/test_epic_001_contracts.py` | <!-- epic-owned: horizontal -->
 
 > (AC1.6.2 removed, canonical: "`get_pending_stage1_review` returns empty when
 > no pending statements" migrated into the `extraction` package as
@@ -207,7 +207,7 @@ Set up a runnable Monorepo development environment, complete user authentication
 
 | ID | Requirement | Test Function | File |
 |----|-------------|---------------|------|
-| AC1.10.3 | Frontend storage keeps only non-secret user metadata, relying on the HttpOnly session cookie rather than localStorage for the bearer token | `AC1.10.3 sends HttpOnly auth cookies by default` / `auth.test.ts` session tests | `src/__tests__/apiFunctions.test.ts`, `src/__tests__/auth.test.ts` |
+| AC1.10.3 | Frontend storage keeps only non-secret user metadata, relying on the HttpOnly session cookie rather than localStorage for the bearer token | `AC1.10.3 sends HttpOnly auth cookies by default` / `auth.test.ts` session tests | `src/__tests__/apiFunctions.test.ts`, `src/__tests__/auth.test.ts` | <!-- epic-owned: fe-only -->
 
 > **The former email-normalization criterion (the AC1.10 normalize-email row) is
 > no longer defined here.** It migrated into the `identity` package (#1428) as
@@ -216,7 +216,7 @@ Set up a runnable Monorepo development environment, complete user authentication
 > This note references the new id but defines it elsewhere — the contract is the
 > single definition source. (The config-hardening and frontend/browser-security
 > rows above stay — they are cross-cutting, not identity-owned.)
-| AC1.10.4 | Frontend production dependency audits fail CI and CSP forbids `unsafe-eval` in shipped responses | `AC1.10.4 configures browser security headers without unsafe eval` / `npm run audit:prod` | `src/__tests__/api-urls.test.ts`, `.github/workflows/ci.yml` |
+| AC1.10.4 | Frontend production dependency audits fail CI and CSP forbids `unsafe-eval` in shipped responses | `AC1.10.4 configures browser security headers without unsafe eval` / `npm run audit:prod` | `src/__tests__/api-urls.test.ts`, `.github/workflows/ci.yml` | <!-- epic-owned: horizontal -->
 
 ## 📏 Acceptance Criteria
 
