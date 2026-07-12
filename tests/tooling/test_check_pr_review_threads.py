@@ -97,16 +97,31 @@ class TestClassifyThread:
         thread = _thread(author="copilot-pull-request-reviewer[bot]", body="suggestion")
         assert gate.classify_thread(thread) == gate.Severity.BLOCKING
 
+    def test_copilot_thread_real_login_without_bot_suffix_is_blocking(self) -> None:
+        """AC-testing.review-threads.4: regression (2026-07-12) -- the GraphQL
+        reviewThreads API returns author.login as
+        "copilot-pull-request-reviewer" with NO "[bot]" suffix, confirmed
+        against real threads on #1776/#1782/#1786. The allowlist only had the
+        "[bot]"-suffixed form, so every real Copilot thread silently
+        classified as non-blocking and this gate never actually blocked a
+        Copilot-flagged issue in practice."""
+        thread = _thread(author="copilot-pull-request-reviewer", body="suggestion")
+        assert gate.classify_thread(thread) == gate.Severity.BLOCKING
+
     def test_copilot_alias_github_copilot_bot_is_blocking(self) -> None:
         thread = _thread(author="github-copilot[bot]", body="consider this")
         assert gate.classify_thread(thread) == gate.Severity.BLOCKING
 
     def test_copilot_thread_marked_nit_is_not_blocking(self) -> None:
-        thread = _thread(author="copilot-pull-request-reviewer[bot]", body="nit: rename var")
+        thread = _thread(
+            author="copilot-pull-request-reviewer[bot]", body="nit: rename var"
+        )
         assert gate.classify_thread(thread) == gate.Severity.LOWER
 
     def test_copilot_thread_marked_p2_is_not_blocking(self) -> None:
-        thread = _thread(author="copilot-pull-request-reviewer[bot]", body="P2: minor style")
+        thread = _thread(
+            author="copilot-pull-request-reviewer[bot]", body="P2: minor style"
+        )
         assert gate.classify_thread(thread) == gate.Severity.LOWER
 
     def test_plain_human_nit_is_lower(self) -> None:
@@ -131,10 +146,14 @@ class TestBlocking:
 
     def test_AC8_20_1_unresolved_copilot_blocks(self) -> None:
         """AC8.20.1: an unresolved Copilot review thread exits 1."""
-        payload = _payload(_thread(author="copilot-pull-request-reviewer[bot]", is_resolved=False))
+        payload = _payload(
+            _thread(author="copilot-pull-request-reviewer[bot]", is_resolved=False)
+        )
         assert _run(payload) == 1
 
-    def test_AC8_20_1_blocking_thread_url_is_printed(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_AC8_20_1_blocking_thread_url_is_printed(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         """AC8.20.1: the blocking thread's url is named in the summary."""
         url = "https://github.com/o/r/pull/1#discussion_r999"
         payload = _payload(_thread(body="P1: bug", url=url, is_resolved=False))
@@ -156,10 +175,14 @@ class TestNonBlocking:
 
     def test_AC8_20_2_outdated_p0_passes(self) -> None:
         """AC8.20.2: an outdated (unresolved) P0 thread does not block."""
-        payload = _payload(_thread(body="P0: stale", is_resolved=False, is_outdated=True))
+        payload = _payload(
+            _thread(body="P0: stale", is_resolved=False, is_outdated=True)
+        )
         assert _run(payload) == 0
 
-    def test_AC8_20_2_unresolved_nit_passes_but_reported(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_AC8_20_2_unresolved_nit_passes_but_reported(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         """AC8.20.2: an unresolved nit does not block but is reported."""
         payload = _payload(_thread(body="nit: rename", is_resolved=False))
         assert _run(payload) == 0
@@ -216,16 +239,22 @@ class TestSeamAndSafety:
 
 
 class TestMain:
-    def test_main_skips_without_pr_number(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_main_skips_without_pr_number(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.delenv("PR_NUMBER", raising=False)
         assert gate.main(["--repo", "o/r"]) == 0
 
-    def test_main_blocks_with_injected_blocking_thread(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_main_blocks_with_injected_blocking_thread(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         payload = _payload(_thread(body="P0: bug", is_resolved=False))
         monkeypatch.setattr(gate, "fetch_threads", lambda pr_number, repo: payload)
         assert gate.main(["--repo", "o/r", "--pr-number", "1"]) == 1
 
-    def test_main_fails_closed_when_pr_present_but_repo_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_main_fails_closed_when_pr_present_but_repo_missing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """A PR number with no resolvable repo is a misconfig — fail closed (1)."""
         monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
         called = False
@@ -272,7 +301,9 @@ def _page(nodes: list[dict[str, Any]], *, has_next: bool, cursor: str | None) ->
 
 
 class TestFetchPagination:
-    def test_fetch_threads_follows_all_pages(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_fetch_threads_follows_all_pages(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """fetch_threads concatenates every page until hasNextPage is false."""
         pages = [
             _page([_thread(body="t1")], has_next=True, cursor="c1"),
@@ -294,7 +325,9 @@ class TestFetchPagination:
         assert any("after=c1" in part for part in calls[1])
         assert any("after=c2" in part for part in calls[2])
 
-    def test_fetch_threads_fails_closed_when_cursor_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_fetch_threads_fails_closed_when_cursor_missing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """hasNextPage true but no endCursor must raise (never silently drop)."""
         page = _page([_thread(body="t1")], has_next=True, cursor=None)
         monkeypatch.setattr(gate.subprocess, "run", lambda cmd, **kw: page)

@@ -44,11 +44,18 @@ from typing import Any
 
 # Authors whose review threads are treated as blocking by default. GitHub has
 # spelled the Copilot reviewer login differently over time; cover the known
-# variants (compared case-insensitively).
+# variants (compared case-insensitively). "copilot-pull-request-reviewer"
+# (no "[bot]" suffix) is the actual login the GraphQL reviewThreads API
+# returns today (confirmed 2026-07-12 against real threads on #1776/#1782/
+# #1786) -- the "[bot]"-suffixed form was never observed in the wild and this
+# gate silently misclassified every real Copilot thread as non-blocking
+# until this was added. Kept both forms since REST/GraphQL or a future
+# GitHub-side change could plausibly use either.
 COPILOT_AUTHORS: frozenset[str] = frozenset(
     {
         "copilot",
         "github-copilot[bot]",
+        "copilot-pull-request-reviewer",
         "copilot-pull-request-reviewer[bot]",
     }
 )
@@ -157,7 +164,9 @@ def _wrap_nodes(nodes: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def _graphql_page(owner: str, name: str, pr_number: int, after: str | None) -> dict[str, Any]:
+def _graphql_page(
+    owner: str, name: str, pr_number: int, after: str | None
+) -> dict[str, Any]:
     """Run one `gh api graphql` page request and return the parsed JSON."""
     cmd = [
         "gh",
@@ -255,7 +264,9 @@ def run(
     for thread in lower_unresolved:
         body = (_first_comment(thread).get("body") or "").strip().splitlines()
         snippet = body[0] if body else ""
-        print(f"  [report] lower-severity unresolved: {_thread_url(thread)} :: {snippet}")
+        print(
+            f"  [report] lower-severity unresolved: {_thread_url(thread)} :: {snippet}"
+        )
 
     if blocking:
         print(
