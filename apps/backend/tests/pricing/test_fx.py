@@ -2,6 +2,9 @@
 
 Pre-AC-roadmap structural tests (the pricing package's roadmap is still
 empty, #1610 P5) — see ``docs/project/traceability-exceptions.md``.
+The ``AC-pricing.fx.*`` tests below anchor the #1610 P2 absorption of the
+retired ``services/fx.py`` surface (fx_warnings side-channel, batch
+prefetch) into this package.
 """
 
 from __future__ import annotations
@@ -13,6 +16,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.pricing import FxWarning, PrefetchedFxRates
 from src.pricing.base.errors import NoObservationError, PricingError
 from src.pricing.extension.fx import get_average_rate, get_exchange_rate
 from src.pricing.orm.market_data import FxRate
@@ -158,3 +162,129 @@ async def test_average_rate_falls_back_to_period_end_spot_rate_when_range_is_emp
 
     rate = await get_average_rate(db, "USD", "SGD", date(2026, 6, 1), date(2026, 6, 30))
     assert rate == Decimal("1.35")
+
+
+async def test_AC_pricing_fx_1_average_rate_fallback_appends_fx_warning(db: AsyncSession):
+    """AC-pricing.fx.1: the period-end fallback surfaces through the
+    ``fx_warnings`` side-channel (``services/fx.py`` parity — reporting shows
+    the caller it got a spot rate instead of a true average)."""
+    db.add(
+        FxRate(
+            base_currency="EUR",
+            quote_currency="SGD",
+            rate=Decimal("1.50"),
+            rate_date=date(2025, 12, 31),
+            source="test",
+        )
+    )
+    await db.commit()
+
+    warnings: list[FxWarning] = []
+    rate = await get_average_rate(db, "EUR", "SGD", date(2026, 1, 1), date(2026, 1, 31), fx_warnings=warnings)
+
+    assert rate == Decimal("1.50")
+    assert warnings == [
+        {
+            "type": "average_rate_fallback",
+            "base_currency": "EUR",
+            "quote_currency": "SGD",
+            "start_date": "2026-01-01",
+            "end_date": "2026-01-31",
+        }
+    ]
+
+
+async def test_AC_pricing_fx_1_no_warning_when_rates_exist_in_range(db: AsyncSession):
+    """AC-pricing.fx.1: a true in-range average appends nothing to the side-channel."""
+    db.add(
+        FxRate(
+            base_currency="USD",
+            quote_currency="SGD",
+            rate=Decimal("1.30"),
+            rate_date=date(2026, 2, 15),
+            source="test",
+        )
+    )
+    await db.commit()
+
+    warnings: list[FxWarning] = []
+    rate = await get_average_rate(db, "USD", "SGD", date(2026, 2, 1), date(2026, 2, 28), fx_warnings=warnings)
+
+    assert rate == Decimal("1.30")
+    assert warnings == []
+
+
+async def test_AC_pricing_fx_1_duplicate_fallback_warning_is_not_appended_twice(db: AsyncSession):
+    """AC-pricing.fx.1: the same fallback warning dict is deduplicated in the list."""
+    db.add(
+        FxRate(
+            base_currency="EUR",
+            quote_currency="SGD",
+            rate=Decimal("1.50"),
+            rate_date=date(2025, 12, 31),
+            source="test",
+        )
+    )
+    await db.commit()
+
+    warnings: list[FxWarning] = []
+    await get_average_rate(db, "EUR", "SGD", date(2026, 1, 1), date(2026, 1, 31), fx_warnings=warnings)
+    await get_average_rate(db, "EUR", "SGD", date(2026, 1, 1), date(2026, 1, 31), fx_warnings=warnings)
+
+    assert len(warnings) == 1
+
+
+async def test_AC_pricing_fx_2_prefetch_serves_spot_and_average_keys(db: AsyncSession):
+    """AC-pricing.fx.2: batch prefetch stores spot and average-window rates
+    under distinct keys and serves the identity rate without a fetch."""
+    db.add_all(
+        [
+            FxRate(
+                base_currency="USD",
+                quote_currency="SGD",
+                rate=Decimal("1.30"),
+                rate_date=date(2026, 6, 1),
+                source="test",
+            ),
+            FxRate(
+                base_currency="USD",
+                quote_currency="SGD",
+                rate=Decimal("1.40"),
+                rate_date=date(2026, 6, 15),
+                source="test",
+            ),
+        ]
+    )
+    await db.commit()
+
+    prefetched = PrefetchedFxRates()
+    await prefetched.prefetch(
+        db,
+        [
+            ("USD", "SGD", date(2026, 6, 15), None, None),
+            ("USD", "SGD", date(2026, 6, 30), date(2026, 6, 1), date(2026, 6, 30)),
+        ],
+    )
+
+    assert prefetched.get_rate("USD", "SGD", date(2026, 6, 15)) == Decimal("1.40")
+    assert prefetched.get_rate("USD", "SGD", date(2026, 6, 30), date(2026, 6, 1), date(2026, 6, 30)) == Decimal("1.35")
+    assert prefetched.get_rate("SGD", "sgd", date(2026, 6, 15)) == Decimal("1")
+    assert prefetched.get_rate("GBP", "USD", date(2026, 6, 15)) is None
+
+
+async def test_AC_pricing_fx_2_prefetch_propagates_pricing_error(db: AsyncSession):
+    """AC-pricing.fx.2: a rate miss during prefetch surfaces as the pricing
+    error family (``FxRateError`` parity), never a silent partial cache."""
+    prefetched = PrefetchedFxRates()
+
+    with pytest.raises(PricingError):
+        await prefetched.prefetch(db, [("USD", "SGD", date(2026, 6, 15), None, None)])
+
+
+async def test_AC_pricing_fx_2_prefetch_empty_pairs_is_a_noop(db: AsyncSession):
+    """AC-pricing.fx.2: an empty pair list returns without touching the database."""
+    prefetched = PrefetchedFxRates()
+
+    await prefetched.prefetch(db, [])
+
+    assert prefetched.get_rate("USD", "SGD", date(2026, 6, 15)) is None

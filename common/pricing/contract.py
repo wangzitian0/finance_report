@@ -462,7 +462,7 @@ CONTRACT = PackageContract(
                 "AC11.10.10."
             ),
             test=(
-                "apps/backend/tests/market_data/test_scheduler.py"
+                "apps/backend/tests/pricing/test_scheduler.py"
                 "::test_next_market_data_sync_at_uses_nightly_sgt_schedule"
             ),
             priority="P0",
@@ -478,6 +478,22 @@ CONTRACT = PackageContract(
             test=(
                 "tests/e2e/test_market_data_price_paths.py"
                 "::test_market_data_provider_sync_feeds_fx_and_stock_price_paths"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.marketdata.12",
+            statement=(
+                "The daily crawl orchestrator syncs exactly the scopes an "
+                "injected composition-root provider returns and commits once "
+                "per run; pricing's scheduler module imports no other domain "
+                "package and nothing from the app remainder (dependency "
+                "inversion, #1641/#1610 P2)."
+            ),
+            test=(
+                "apps/backend/tests/pricing/test_scheduler.py"
+                "::test_AC_pricing_marketdata_12_daily_sync_uses_injected_scope_provider"
             ),
             priority="P0",
             status="done",
@@ -509,6 +525,73 @@ CONTRACT = PackageContract(
             test=(
                 "apps/backend/tests/assets/test_manual_valuation_snapshots.py"
                 "::test_AC11_19_2_corrected_valuation_is_not_double_counted_in_net_worth"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.manualvaluation.3",
+            statement=(
+                "Manual-valuation balance-sheet lines (asset/liability split, "
+                "allocation classes, trusted provenance, FX conversion into "
+                "the target currency) are built by pricing; an FX miss "
+                "surfaces as the pricing error family and the reporting "
+                "caller owns the ReportError mapping. Absorbed from "
+                "services/reporting/manual_valuation.py (#1610 P2)."
+            ),
+            test=(
+                "apps/backend/tests/pricing/test_valuation_lines.py"
+                "::test_AC_pricing_manualvaluation_3_lines_split_convert_and_classify"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group fx: the FX lookup + conversion surface absorbed from
+        # services/fx.py (#1610 P2 — ONE implementation, pricing's; the
+        # in-process TTL cache was deliberately NOT carried over, see
+        # extension/fx.py) ──
+        ACRecord(
+            id="AC-pricing.fx.1",
+            statement=(
+                "get_average_rate falls back to the period-end spot rate "
+                "when the window has no observations and surfaces the "
+                "fallback through the fx_warnings side-channel "
+                "(deduplicated), matching the retired services/fx.py "
+                "behavior reporting depends on."
+            ),
+            test=(
+                "apps/backend/tests/pricing/test_fx.py"
+                "::test_AC_pricing_fx_1_average_rate_fallback_appends_fx_warning"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.fx.2",
+            statement=(
+                "PrefetchedFxRates batch-prefetches spot and average-window "
+                "rates under distinct keys, serves the identity rate without "
+                "a fetch, and propagates the pricing error family on a miss "
+                "(never a silent partial cache)."
+            ),
+            test=(
+                "apps/backend/tests/pricing/test_fx.py"
+                "::test_AC_pricing_fx_2_prefetch_serves_spot_and_average_keys"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.fx.3",
+            statement=(
+                "convert_amount/convert_money honor an average-rate window "
+                "(average_start/average_end) with the same period-end "
+                "fallback + fx_warnings semantics as the spot path — the "
+                "income-statement reporting convention."
+            ),
+            test=(
+                "apps/backend/tests/pricing/test_convert.py"
+                "::test_AC_pricing_fx_3_convert_amount_uses_average_rate_window"
             ),
             priority="P1",
             status="done",
