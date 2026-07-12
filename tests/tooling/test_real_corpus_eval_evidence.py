@@ -122,6 +122,38 @@ def test_AC_runtime_real_corpus_eval_5_picks_the_most_recent_completed_run() -> 
     assert run_id == "200"
 
 
+def test_AC_runtime_real_corpus_eval_5b_selection_does_not_assume_api_ordering() -> (
+    None
+):
+    """AC-runtime.real-corpus-eval.5: same guarantee as .5 above, but with the
+    older, failed run listed FIRST -- the CR concern was that this code
+    assumed gh run list's own ordering already put the newest completed run
+    first. Test .5's fixture happened to already be in that order, so it
+    couldn't have caught a regression back to index-0 selection; this one
+    can't pass unless selection genuinely sorts by createdAt."""
+
+    def fake_gh_json(_args: list[str]) -> object:
+        return [
+            {
+                "databaseId": 199,
+                "status": "completed",
+                "conclusion": "failure",
+                "createdAt": "2026-07-10T00:00:00Z",
+            },
+            {
+                "databaseId": 200,
+                "status": "completed",
+                "conclusion": "success",
+                "createdAt": "2026-07-12T06:00:00Z",
+            },
+        ]
+
+    run_id = release_evidence.verify_real_corpus_eval(
+        repository="owner/repo", gh_json=fake_gh_json, now=_NOW
+    )
+    assert run_id == "200"
+
+
 def test_AC_runtime_real_corpus_eval_6_missing_created_at_fails_closed() -> None:
     """AC-runtime.real-corpus-eval.6: a completed/successful run with no (or
     blank) createdAt fails closed with a clear error, not an unhandled

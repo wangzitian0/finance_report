@@ -218,6 +218,15 @@ def verify_real_corpus_eval(
         now if isinstance(now, _dt.datetime) else _dt.datetime.now(_dt.timezone.utc)
     )
 
+    def parsed_created_at(run: dict[str, object]) -> _dt.datetime:
+        raw = run.get("createdAt")
+        if not isinstance(raw, str) or not raw:
+            return _dt.datetime.min.replace(tzinfo=_dt.timezone.utc)
+        try:
+            return _dt.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            return _dt.datetime.min.replace(tzinfo=_dt.timezone.utc)
+
     runs = _require_list(
         gh_json(
             [
@@ -228,8 +237,13 @@ def verify_real_corpus_eval(
                 repository,
                 "--workflow",
                 "real-corpus-eval.yml",
+                # #1764 CR follow-up: 5 was too tight -- a burst of queued/
+                # in-progress runs could push every completed run outside the
+                # window, false-failing this check even though an older
+                # completed run exists. 20 is a cheap, generous margin for a
+                # workflow expected to run on an infrequent (scheduled) cadence.
                 "--limit",
-                "5",
+                "20",
                 "--json",
                 "databaseId,status,conclusion,createdAt",
             ]
@@ -244,7 +258,10 @@ def verify_real_corpus_eval(
             "document corpus and record the result first."
         )
 
-    latest = completed[0]
+    # #1764 CR follow-up: explicitly select by createdAt instead of assuming
+    # gh run list's own ordering already puts the most recent completed run
+    # first -- that assumption held but was never enforced by this code.
+    latest = max(completed, key=parsed_created_at)
     conclusion = latest.get("conclusion")
     if conclusion != "success":
         raise RuntimeError(
