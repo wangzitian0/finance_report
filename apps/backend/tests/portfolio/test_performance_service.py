@@ -376,6 +376,67 @@ async def test_AC5_6_3_dividend_yield_uses_trailing_dividends_over_current_value
     assert dividend_yield == Decimal("2.00")
 
 
+async def test_AC5_6_3_dividend_yield_counts_position_disposed_after_as_of_date(
+    db: AsyncSession,
+    test_user,
+    investment_account,
+):
+    """AC-portfolio.metrics.5 (#1791 follow-up): a position held as of
+    as_of_date must count toward that date's portfolio value even though it
+    has since been disposed -- ManagedPosition.status reflects *today*, not
+    as_of_date, so point-in-time inclusion must come from the snapshot
+    quantity on that date (mirrors holdings.py:_get_snapshot_holdings), not
+    from the position's current status."""
+    from src.models.layer2 import AtomicPosition
+
+    today = date.today()
+    as_of_date = today - timedelta(days=60)
+
+    position = ManagedPosition(
+        user_id=test_user.id,
+        account_id=investment_account.id,
+        asset_identifier="SOLD",
+        quantity=Decimal("0"),
+        cost_basis=Decimal("10000.00"),
+        currency="SGD",
+        acquisition_date=today - timedelta(days=90),
+        disposal_date=today - timedelta(days=10),
+        status=PositionStatus.DISPOSED,
+        cost_basis_method=CostBasisMethod.FIFO,
+    )
+    db.add(position)
+    await db.flush()
+
+    # Snapshot as of as_of_date: the position was still held then.
+    db.add(
+        AtomicPosition(
+            user_id=test_user.id,
+            snapshot_date=as_of_date,
+            asset_identifier="SOLD",
+            broker="Test Broker",
+            quantity=Decimal("100"),
+            market_value=Decimal("10000.00"),
+            currency="SGD",
+            dedup_hash="ac5_6_3_disposed_after_as_of_date",
+            source_documents={},
+        )
+    )
+    db.add(
+        DividendIncome(
+            user_id=test_user.id,
+            position_id=position.id,
+            payment_date=as_of_date - timedelta(days=30),
+            amount=Decimal("100.00"),
+            currency="SGD",
+        )
+    )
+    await db.flush()
+
+    dividend_yield = await calculate_dividend_yield(db, test_user.id, as_of_date)
+
+    assert dividend_yield == Decimal("1.00")
+
+
 async def test_AC5_6_3_dividend_yield_empty_portfolio_returns_zero(db: AsyncSession, test_user):
     """AC5.6.3: Dividend yield returns zero when no dividends or holdings exist."""
     dividend_yield = await calculate_dividend_yield(db, test_user.id)

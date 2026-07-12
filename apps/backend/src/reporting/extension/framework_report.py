@@ -268,6 +268,7 @@ async def assemble_framework_balance_sheet(
         "unrealized_fx_gain_loss": unrealized_fx,
         "net_worth_adjustment_gain_loss": net_worth_adjustment,
         "fx_warnings": raw_bs.get("fx_warnings", []),
+        "portfolio_warnings": raw_bs.get("portfolio_warnings", []),
         "opening_balance_warnings": raw_bs.get("opening_balance_warnings", []),
         "equation_delta": equation_delta,
         "is_balanced": abs(equation_delta) < Decimal("0.01"),

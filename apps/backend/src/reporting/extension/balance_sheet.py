@@ -102,6 +102,7 @@ async def generate_balance_sheet(
     """
     target_currency = _normalize_currency(currency)
     fx_warnings: list[FxWarning] = []
+    portfolio_warnings: list[FxWarning] = []
     account_types = (AccountType.ASSET, AccountType.LIABILITY, AccountType.EQUITY)
     accounts = await _load_accounts(db, user_id, account_types)
     included_ledger_currencies: set[str] = set()
@@ -175,6 +176,7 @@ async def generate_balance_sheet(
         as_of_date=as_of_date,
         target_currency=target_currency,
         asset_lines=assets,
+        warnings=portfolio_warnings,
     )
     valuation_assets, valuation_liabilities = await _build_manual_valuation_lines(
         db,
@@ -294,6 +296,7 @@ async def generate_balance_sheet(
         "unrealized_fx_gain_loss": unrealized_fx,
         "net_worth_adjustment_gain_loss": net_worth_adjustment,
         "fx_warnings": fx_warnings,
+        "portfolio_warnings": portfolio_warnings,
         "opening_balance_warnings": opening_balance_warnings,
         "equation_delta": equation_delta,
         "is_balanced": abs(equation_delta) < Decimal("0.01"),

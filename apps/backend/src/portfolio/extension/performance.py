@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import src.config
 from src.audit.ratio import Ratio
 from src.models.layer2 import AtomicPosition
-from src.models.layer3 import ManagedPosition, PositionStatus
+from src.models.layer3 import ManagedPosition
 from src.observability import get_logger
 from src.portfolio.base.errors import InsufficientDataError, XIRRCalculationError
 from src.portfolio.orm.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
@@ -135,30 +135,34 @@ async def calculate_xirr(
         dates.append(txn.transaction_date)
         amounts.append(amount_base * sign)
 
-    # Get current position value as final cash flow (positive = portfolio value)
-    query = select(ManagedPosition).where(
+    # Get position value as of as_of_date as the final cash flow (positive =
+    # portfolio value). Point-in-time (#1791 follow-up): query every position
+    # this user has ever held, not just ones still ManagedPosition.status ==
+    # ACTIVE *today* -- a position bought before and disposed after as_of_date
+    # was still held on that date and must count. Whether it was held as of
+    # as_of_date is decided below by its own snapshot quantity on that date
+    # (mirrors holdings.py:_get_snapshot_holdings), not by current status.
+    query = select(ManagedPosition.asset_identifier).where(
         ManagedPosition.user_id == user_id,
-        ManagedPosition.status == PositionStatus.ACTIVE,
     )
     result = await db.execute(query)
-    positions = result.scalars().all()
+    asset_ids = list(result.scalars().all())
 
     # Batch-fetch latest atomic positions (fixes N+1)
-    asset_ids = [pos.asset_identifier for pos in positions]
     atomic_map = await batch_latest_atomic_positions(db, user_id, asset_ids, as_of_date)
 
     total_value = Decimal("0")
-    for pos in positions:
-        atomic = atomic_map.get(pos.asset_identifier)
-        if atomic:
-            value_base = await convert_amount(
-                db,
-                atomic.market_value or Decimal("0"),
-                atomic.currency,
-                settings.base_currency,
-                as_of_date,
-            )
-            total_value += value_base
+    for atomic in atomic_map.values():
+        if atomic.quantity == Decimal("0"):
+            continue
+        value_base = await convert_amount(
+            db,
+            atomic.market_value or Decimal("0"),
+            atomic.currency,
+            settings.base_currency,
+            as_of_date,
+        )
+        total_value += value_base
 
     if total_value > Decimal("0"):
         dates.append(as_of_date)
@@ -425,7 +429,13 @@ async def _get_portfolio_value(
     """
     Get total portfolio value as of a specific date.
 
-    Uses batched query to avoid N+1 pattern.
+    Uses batched query to avoid N+1 pattern. Point-in-time (#1791 follow-up):
+    considers every position this user has ever held, not just ones still
+    ManagedPosition.status == ACTIVE *today* -- a position bought before and
+    disposed after as_of_date was still held on that date and must count.
+    Whether it was held as of as_of_date is decided by its own snapshot
+    quantity on that date (mirrors holdings.py:_get_snapshot_holdings), not
+    by current status.
 
     Args:
         db: Database session
@@ -435,28 +445,26 @@ async def _get_portfolio_value(
     Returns:
         Decimal: Total portfolio value in base currency
     """
-    query = select(ManagedPosition).where(
+    query = select(ManagedPosition.asset_identifier).where(
         ManagedPosition.user_id == user_id,
-        ManagedPosition.status == PositionStatus.ACTIVE,
     )
     result = await db.execute(query)
-    positions = result.scalars().all()
+    asset_ids = list(result.scalars().all())
 
     # Batch-fetch latest atomic positions (fixes N+1)
-    asset_ids = [pos.asset_identifier for pos in positions]
     atomic_map = await batch_latest_atomic_positions(db, user_id, asset_ids, as_of_date)
 
     total_value = Decimal("0")
-    for pos in positions:
-        atomic = atomic_map.get(pos.asset_identifier)
-        if atomic:
-            value_base = await convert_amount(
-                db,
-                atomic.market_value or Decimal("0"),
-                atomic.currency,
-                settings.base_currency,
-                as_of_date,
-            )
-            total_value += value_base
+    for atomic in atomic_map.values():
+        if atomic.quantity == Decimal("0"):
+            continue
+        value_base = await convert_amount(
+            db,
+            atomic.market_value or Decimal("0"),
+            atomic.currency,
+            settings.base_currency,
+            as_of_date,
+        )
+        total_value += value_base
 
     return total_value
