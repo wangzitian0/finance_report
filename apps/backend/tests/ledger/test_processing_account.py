@@ -8,9 +8,16 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.ledger import get_or_create_processing_account
-from src.models.account import Account, AccountType
-from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
+from src.audit import JournalEntrySourceType
+from src.ledger import (
+    Account,
+    AccountType,
+    Direction,
+    JournalEntry,
+    JournalEntryStatus,
+    JournalLine,
+    get_or_create_processing_account,
+)
 from src.models.layer2 import TransactionDirection
 from tests.factories import UserFactory
 

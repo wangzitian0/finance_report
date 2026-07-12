@@ -8,7 +8,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.account import AccountType
+from src.ledger import AccountType
 from src.models.layer3 import (
     ManualValuationComponentType,
     ManualValuationLiquidityClass,

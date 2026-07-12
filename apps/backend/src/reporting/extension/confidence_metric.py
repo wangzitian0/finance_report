@@ -16,7 +16,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.journal import JournalEntry, JournalEntryStatus
+from src.ledger import JournalEntry, JournalEntryStatus
 from src.models.metrics import ConfidenceMetricSnapshot
 from src.reporting.extension.confidence_tier import ConfidenceTier, derive_confidence_tier
 

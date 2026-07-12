@@ -11,7 +11,7 @@ Ref: common/ledger/readme.md (Anti-pattern A)
 from decimal import Decimal
 from uuid import uuid4
 
-from src.models.journal import Direction
+from src.ledger import Direction
 from src.schemas.journal import JournalLineCreate
 
 # Tests for Data Integrity (Float vs Decimal)

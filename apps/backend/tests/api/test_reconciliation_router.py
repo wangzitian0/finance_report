@@ -31,8 +31,7 @@ from sqlalchemy import select
 from src.audit import STATEMENT_SOURCE_TYPES
 from src.extraction import DocumentType, UploadedDocument
 from src.identity import User
-from src.models.account import Account, AccountType
-from src.models.journal import JournalEntry
+from src.ledger import Account, AccountType, JournalEntry
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_enums import BankStatementStatus
@@ -584,8 +583,7 @@ class TestReconciliationEndpoints:
 
     async def test_list_matches_with_entry_summaries(self, client: AsyncClient, db, test_user: User):
         """AC4.3.14: Test listing matches with journal entry summaries."""
-        from src.models.account import Account, AccountType
-        from src.models.journal import JournalEntryStatus, JournalLine
+        from src.ledger import Account, AccountType, JournalEntryStatus, JournalLine
 
         # GIVEN account for journal entry
         account = Account(
@@ -610,7 +608,7 @@ class TestReconciliationEndpoints:
         await db.flush()
 
         # GIVEN journal lines
-        from src.models.journal import Direction
+        from src.ledger import Direction
 
         line1 = JournalLine(
             id=uuid4(),

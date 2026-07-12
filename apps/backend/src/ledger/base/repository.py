@@ -18,7 +18,8 @@ from datetime import date
 from typing import Protocol
 from uuid import UUID
 
-from src.models.journal import JournalEntry, JournalEntrySourceType
+from src.audit import JournalEntrySourceType
+from src.ledger.orm.journal import JournalEntry
 
 
 class JournalRepository(Protocol):

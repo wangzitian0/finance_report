@@ -18,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction import DocumentType, UploadedDocument
-from src.models.account import Account, AccountType
+from src.ledger import Account, AccountType
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_enums import BankStatementStatus

@@ -17,7 +17,7 @@ empty; discovery sites import this module explicitly instead:
 
 This is NOT a re-export facade: it publishes no symbols (``__all__`` is empty).
 Other code must import each model from its owning module
-(``from src.models.journal import JournalEntry``), never from here or the hub.
+(``from src.models.layer2 import AtomicTransaction``), never from here or the hub.
 """
 
 from __future__ import annotations
@@ -30,6 +30,7 @@ import src.extraction  # noqa: F401,E402
 # Base.metadata via its SQL adapter module, mirroring counter/platform (whose
 # tables are registered the same way, not from this models package).
 import src.identity.extension.sql  # noqa: F401,E402
+import src.ledger  # noqa: F401,E402
 import src.llm  # noqa: F401,E402
 import src.platform  # noqa: F401,E402
 import src.pricing  # noqa: F401,E402
@@ -38,11 +39,9 @@ import src.reconciliation  # noqa: F401,E402
 # Imported purely for the metadata-registration side effect; ordering is
 # irrelevant because SQLAlchemy resolves relationships after all are loaded.
 from . import (  # noqa: F401
-    account,
     chat,
     correction,
     evidence,
-    journal,
     layer2,
     layer3,
     layer4,

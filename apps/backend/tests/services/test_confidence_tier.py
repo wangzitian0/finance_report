@@ -1,6 +1,6 @@
 import pytest
 
-from src.models.journal import JournalEntrySourceType
+from src.audit import JournalEntrySourceType
 from src.reporting.extension.confidence_tier import derive_confidence_tier, derive_reconciliation_score_tier
 
 

@@ -25,7 +25,7 @@ from uuid import UUID
 
 from src.audit.money import Money
 from src.ledger.base.types.errors import DegenerateEntryError, UnbalancedEntryError
-from src.models.journal import Direction
+from src.ledger.orm.journal import Direction
 
 
 @dataclass(frozen=True)

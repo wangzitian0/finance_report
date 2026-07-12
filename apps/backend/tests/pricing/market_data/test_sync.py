@@ -8,8 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.account import Account, AccountType
-from src.models.journal import Direction, JournalEntry, JournalLine
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalLine
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.portfolio import PortfolioService, active_stock_symbols

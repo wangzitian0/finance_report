@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 from src.audit import STATEMENT_SOURCE_TYPES
 from src.deps import CurrentUserId, DbSession, Pagination
 from src.extraction import create_entry_from_txn
-from src.models.journal import Direction, JournalEntry
+from src.ledger import Direction, JournalEntry
 from src.models.layer2 import AtomicTransaction
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_summary import StatementSummary

@@ -9,8 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.money import Money
-from src.models.account import Account, AccountType
-from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.pricing.orm.market_data import FxRate
 from src.reporting import (
     ReportError,

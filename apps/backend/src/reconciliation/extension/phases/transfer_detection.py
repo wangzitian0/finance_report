@@ -7,8 +7,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction.extension.statement_summary import resolve_custody_account_id
-from src.ledger import create_transfer_in_entry, create_transfer_out_entry, detect_transfer_pattern
-from src.models.journal import JournalEntryStatus
+from src.ledger import JournalEntryStatus, create_transfer_in_entry, create_transfer_out_entry, detect_transfer_pattern
 from src.models.layer2 import AtomicTransaction
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.observability import get_logger

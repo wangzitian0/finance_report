@@ -8,9 +8,9 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit import JournalEntrySourceType
 from src.identity import User
-from src.models.account import Account, AccountType
-from src.models.journal import JournalEntry, JournalEntrySourceType
+from src.ledger import Account, AccountType, JournalEntry
 from src.models.layer2 import TransactionDirection
 from src.models.statement_enums import BankStatementStatus
 from src.routers import statements as statements_router

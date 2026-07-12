@@ -21,10 +21,11 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit import JournalEntrySourceType
 from src.ledger.base.repository import JournalRepository
 from src.ledger.base.types.entry import Entry
 from src.ledger.extension.repository import SqlJournalRepository
-from src.models.journal import JournalEntry, JournalEntrySourceType
+from src.ledger.orm.journal import JournalEntry
 
 
 async def post_entry(

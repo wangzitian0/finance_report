@@ -9,12 +9,12 @@ from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
 
-from src.audit import STATEMENT_SOURCE_TYPES
+from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType
 from src.extraction.extension.evidence_graph_integration import _ordered_source_doc_ids
 from src.extraction.extension.evidence_lineage import EvidenceLineageService
 from src.extraction.orm.layer1 import UploadedDocument
+from src.ledger import JournalEntry, JournalLine
 from src.models.evidence import EvidenceEdge, EvidenceNode
-from src.models.journal import JournalEntry, JournalEntrySourceType, JournalLine
 from src.models.layer2 import AtomicTransaction, AtomicTransactionSourceDocument
 from src.models.statement_summary import StatementSummary
 

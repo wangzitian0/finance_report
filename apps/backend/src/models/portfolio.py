@@ -15,7 +15,7 @@ from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 from src.models.layer3 import CostBasisMethod
 
 if TYPE_CHECKING:
-    from src.models.journal import JournalEntry
+    from src.ledger import JournalEntry
     from src.models.layer3 import ManagedPosition
 
 

@@ -22,8 +22,8 @@ from common.testing.ac_proof import ac_proof
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.account import Account, AccountType
-from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
+from src.audit import JournalEntrySourceType
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.pricing import FxConversion
 from src.pricing.orm.market_data import FxRate
 from src.reporting import generate_balance_sheet, generate_income_statement

@@ -16,8 +16,15 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit import JournalEntrySourceType
 from src.config import settings
 from src.ledger import (
+    Account,
+    AccountType,
+    Direction,
+    JournalEntry,
+    JournalEntryStatus,
+    JournalLine,
     ValidationError,
     calculate_account_balance,
     calculate_account_balances,
@@ -28,8 +35,6 @@ from src.ledger import (
     verify_accounting_equation,
     void_journal_entry,
 )
-from src.models.account import Account, AccountType
-from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 from tests.factories import UserFactory
 
 

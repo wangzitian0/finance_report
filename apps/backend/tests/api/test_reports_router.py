@@ -23,7 +23,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 
 from src.identity import User
-from src.models.account import Account, AccountType
+from src.ledger import Account, AccountType
 from src.models.layer3 import ClassificationRule, RuleType
 from src.models.layer4 import ReportSnapshot, ReportType
 from src.models.metrics import ConfidenceMetricSnapshot
@@ -211,7 +211,7 @@ class TestReportsEndpoints:
     async def test_category_breakdown_success(self, mock_service: AsyncMock, client: AsyncClient, db, test_user: User):
         """AC-reporting.cash-flow.4: AC5.3.4: Test getting category breakdown."""
         # GIVEN mocked service
-        from src.models.account import AccountType
+        from src.ledger import AccountType
 
         mock_service.return_value = {
             "type": AccountType.INCOME,

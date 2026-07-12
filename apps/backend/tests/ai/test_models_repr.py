@@ -90,7 +90,7 @@ def test_account_repr():
     WHEN calling repr() on it
     THEN it returns a formatted string with name and type
     """
-    from src.models.account import Account, AccountType
+    from src.ledger import Account, AccountType
 
     account = Account(
         id=uuid4(),
@@ -110,7 +110,7 @@ def test_journal_entry_repr():
     WHEN calling repr() on it
     THEN it returns a formatted string with date and truncated memo
     """
-    from src.models.journal import JournalEntry, JournalEntryStatus
+    from src.ledger import JournalEntry, JournalEntryStatus
 
     entry = JournalEntry(
         id=uuid4(),
@@ -130,7 +130,7 @@ def test_journal_line_repr():
     WHEN calling repr() on it
     THEN it returns a formatted string with direction, amount and currency
     """
-    from src.models.journal import Direction, JournalLine
+    from src.ledger import Direction, JournalLine
 
     line = JournalLine(
         id=uuid4(),

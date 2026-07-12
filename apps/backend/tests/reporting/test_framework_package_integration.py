@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.identity import User
-from src.models.account import Account, AccountType
+from src.ledger import Account, AccountType
 from src.models.layer2 import AssetType, AtomicPosition
 from src.models.layer3 import (
     CostBasisMethod,

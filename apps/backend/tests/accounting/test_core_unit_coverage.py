@@ -11,7 +11,8 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError as PydanticValidationError
 
-from src.models.journal import Direction, JournalEntrySourceType
+from src.audit import JournalEntrySourceType
+from src.ledger import Direction
 from src.portfolio import (
     InvestmentAccountingService,
     InvestmentAccountingValidationError,

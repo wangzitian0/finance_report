@@ -7,9 +7,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from src.audit import normalize_source_type
+from src.audit import JournalEntrySourceType, normalize_source_type
 from src.config import settings
-from src.models.journal import ConfidenceTier, Direction, JournalEntrySourceType, JournalEntryStatus
+from src.ledger import ConfidenceTier, Direction, JournalEntryStatus
 from src.schemas.base import BaseResponse, ListResponse
 
 

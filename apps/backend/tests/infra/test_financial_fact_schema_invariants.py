@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.account import Account, AccountType
+from src.ledger import Account, AccountType
 from src.models.layer2 import AssetType, AtomicPosition, AtomicTransaction, TransactionDirection
 from src.models.layer3 import (
     ClassificationRule,

@@ -27,7 +27,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
-from src.audit import STATEMENT_SOURCE_TYPES
+from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType
 from src.extraction import DocumentType, ExtractionError, UploadedDocument
 from src.extraction.extension import (
     statement_parsing as statement_parsing_mod,
@@ -41,10 +41,9 @@ from src.extraction.extension.statement_posting import (
     try_auto_approve_high_confidence_statement,
 )
 from src.identity import User
+from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus
 from src.llm.base import Modality, ModelSpec
-from src.models.account import Account, AccountType
 from src.models.evidence import EvidenceEdge, EvidenceNode
-from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_enums import BankStatementStatus, Stage1Status

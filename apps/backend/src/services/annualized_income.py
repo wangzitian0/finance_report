@@ -16,8 +16,7 @@ from src.audit.money import to_money
 from src.audit.money.currency import normalize_currency_code
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
-from src.models.account import Account, AccountType
-from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.models.layer3 import (
     ManualValuationComponentType,
     ManualValuationLiquidityClass,

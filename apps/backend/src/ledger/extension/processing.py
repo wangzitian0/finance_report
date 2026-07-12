@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 import src.config
+from src.audit import JournalEntrySourceType
 from src.audit.money import Money
 from src.ledger.base.processing import (
     AUTO_PAIR_THRESHOLD,
@@ -41,8 +42,8 @@ from src.ledger.base.processing import (
     _validate_transfer_params,
 )
 from src.ledger.base.types.entry import Entry
-from src.models.account import Account
-from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
+from src.ledger.orm.account import Account
+from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
 
 
 async def get_or_create_processing_account(db: AsyncSession, user_id: UUID, currency: str = "SGD") -> Account:

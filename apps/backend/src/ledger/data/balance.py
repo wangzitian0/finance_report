@@ -22,8 +22,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
 from src.ledger.base.validators import ValidationError
-from src.models.account import Account, AccountType
-from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger.orm.account import Account, AccountType
+from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
 
 
 async def calculate_account_balance(db: AsyncSession, account_id: UUID, user_id: UUID) -> Decimal:

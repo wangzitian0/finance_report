@@ -26,8 +26,8 @@ from decimal import Decimal
 from difflib import SequenceMatcher
 from uuid import UUID
 
-from src.models.account import AccountType
-from src.models.journal import Direction, JournalEntry
+from src.ledger.orm.account import AccountType
+from src.ledger.orm.journal import Direction, JournalEntry
 
 # The fixed identity of the Processing virtual account (SSOT P3 in
 # common/ledger/readme.md). A per-user instance is a regular ``Account`` row that

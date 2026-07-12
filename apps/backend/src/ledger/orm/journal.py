@@ -12,13 +12,19 @@ from sqlalchemy import DECIMAL, CheckConstraint, Date, DateTime, Enum, ForeignKe
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+# JournalEntrySourceType (the provenance/trust vocabulary) is owned by the
+# ``audit`` package, co-located with the trust hierarchy that ranks it
+# (``src.audit.source_type_priority``): audit (L1 infra) must never import
+# upward into ledger (L3 domain), so the vocabulary lives downward and the
+# ledger ORM consumes it here (#1675 D5).
+from src.audit import JournalEntrySourceType
 from src.audit.money import Money
 from src.config import settings
 from src.database import Base
 from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 if TYPE_CHECKING:
-    from src.models.account import Account
+    from src.ledger.orm.account import Account
 
 
 class JournalEntryStatus(str, enum.Enum):
@@ -28,21 +34,6 @@ class JournalEntryStatus(str, enum.Enum):
     POSTED = "posted"
     RECONCILED = "reconciled"
     VOID = "void"
-
-
-class JournalEntrySourceType(str, enum.Enum):
-    """Source type of a journal entry."""
-
-    MANUAL = "manual"
-    USER_CONFIRMED = "user_confirmed"
-    AUTO_MATCHED = "auto_matched"
-    AUTO_PARSED = "auto_parsed"
-    # NOTE: the legacy ``bank_statement`` value was retired in migration 0040
-    # (#896). Data was migrated to ``auto_parsed`` in 0018 and no write path
-    # emits it. The raw string is still tolerated defensively by
-    # ``normalize_source_type`` and the immutability trigger's text guards.
-    SYSTEM = "system"
-    FX_REVALUATION = "fx_revaluation"
 
 
 ConfidenceTier = Literal["TRUSTED", "HIGH", "MEDIUM", "LOW"]

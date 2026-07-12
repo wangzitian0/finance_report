@@ -9,8 +9,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.account import Account, AccountType
-from src.models.journal import Direction, JournalEntryStatus
+from src.ledger import Account, AccountType, Direction, JournalEntryStatus
 from src.models.layer3 import CostBasisMethod, PositionStatus
 from src.models.portfolio import DividendIncome, InvestmentLot, InvestmentTransaction
 from src.portfolio import InvestmentAccountingService, InvestmentAccountingValidationError

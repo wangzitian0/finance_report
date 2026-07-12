@@ -11,8 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.money import to_money
 from src.config import settings
-from src.models.account import Account, AccountType
-from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.models.layer2 import AssetType, AtomicPosition, AtomicTransaction
 from src.models.layer3 import ManualValuationSnapshot
 from src.models.layer4 import ReportSnapshot

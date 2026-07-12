@@ -48,7 +48,7 @@ from src.extraction.extension.currency_resolution import resolve_ingest_currency
 from src.extraction.extension.deduplication import DeduplicationService, _decimal_key, dual_write_layer2
 from src.extraction.extension.prompts.statement import get_parsing_prompt
 from src.extraction.orm.layer1 import DocumentType
-from src.models.account import Account, AccountType
+from src.ledger import Account, AccountType
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary

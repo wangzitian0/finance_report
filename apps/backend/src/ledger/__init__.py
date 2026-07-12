@@ -66,12 +66,37 @@ if TYPE_CHECKING:
         void_journal_entry,
     )
 
+# ORM models owned by this package (moved from src/models, #1675). Imported
+# eagerly — unlike the lazy service surface below — so importing the published
+# root registers the mapped classes on ``Base.metadata`` (the discovery side
+# effect ``models/_registry.py`` relies on). ``JournalEntrySourceType`` is NOT
+# re-exported here: the provenance/trust vocabulary is owned by ``audit``
+# (``from src.audit import JournalEntrySourceType``).
+from src.ledger.orm.account import Account, AccountType
+from src.ledger.orm.journal import (
+    ConfidenceTier,
+    Direction,
+    JournalAuditLog,
+    JournalEntry,
+    JournalEntryStatus,
+    JournalLine,
+    derive_confidence_tier,
+)
+
 __all__ = [
+    "Account",
     "AccountNotFoundError",
+    "AccountType",
     "AccountingError",
+    "ConfidenceTier",
     "DEFAULT_STALE_AFTER_DAYS",
     "DegenerateEntryError",
+    "Direction",
     "Entry",
+    "JournalAuditLog",
+    "JournalEntry",
+    "JournalEntryStatus",
+    "JournalLine",
     "JournalRepository",
     "LedgerError",
     "Leg",
@@ -88,6 +113,7 @@ __all__ = [
     "create_journal_entry",
     "create_transfer_in_entry",
     "create_transfer_out_entry",
+    "derive_confidence_tier",
     "detect_transfer_pattern",
     "find_transfer_pairs",
     "get_account_statement_coverage",

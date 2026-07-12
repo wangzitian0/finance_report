@@ -32,8 +32,8 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
+from src.audit import JournalEntrySourceType
 from src.audit.money import Money, to_money
-from src.models.journal import JournalEntrySourceType
 from src.pricing import FxConversion
 from src.schemas.base import normalize_currency_code
 

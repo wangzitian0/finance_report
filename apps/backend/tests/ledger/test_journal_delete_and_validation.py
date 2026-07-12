@@ -8,12 +8,8 @@ These tests target specific uncovered lines from EPIC-002:
 from datetime import date
 from uuid import uuid4
 
-from src.models.account import Account, AccountType
-from src.models.journal import (
-    JournalEntry,
-    JournalEntrySourceType,
-    JournalEntryStatus,
-)
+from src.audit import JournalEntrySourceType
+from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus
 from tests.ledger._ledger_helpers import create_valid_posted_entry, create_valid_void_entry
 
 

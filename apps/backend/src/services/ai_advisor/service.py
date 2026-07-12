@@ -19,8 +19,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.money import to_money
 from src.config import settings
+from src.ledger import AccountType
 from src.llm import ReasoningEffort, Scene, SceneBinding, get_config_source, stream_ai_chat
-from src.models.account import AccountType
 from src.models.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 from src.platform import get_workflow_status
 from src.portfolio import PortfolioNotFoundError, PortfolioService, active_stock_symbols

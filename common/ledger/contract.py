@@ -139,14 +139,36 @@ CONTRACT = PackageContract(
             kind=Kind.DOMAIN_SERVICE,
             module="extension/currencies.py",
         ),
+        # ── ORM entities: taxonomy-only (module unset — the gate skips
+        # placement checks, the llm/pricing/platform precedent from #1675 D2).
+        # The mapped classes live in orm/journal.py + orm/account.py (#1675
+        # D5): intra-ledger relationships (entry↔line↔account) stay; the
+        # ``FK(users.id)`` tenancy anchor is a bare column, not a
+        # ``relationship()``. ``JournalEntrySourceType`` is owned by ``audit``
+        # (with the trust hierarchy that ranks it) and consumed downward. ──
+        Unit(name="JournalEntry", kind=Kind.AGGREGATE_ROOT),
+        Unit(name="JournalLine", kind=Kind.ENTITY),
+        Unit(name="JournalAuditLog", kind=Kind.ENTITY),
+        Unit(name="Account", kind=Kind.AGGREGATE_ROOT),
+        Unit(name="AccountType", kind=Kind.VALUE_OBJECT),
+        Unit(name="JournalEntryStatus", kind=Kind.VALUE_OBJECT),
+        Unit(name="Direction", kind=Kind.VALUE_OBJECT),
     ],
     implementations={"be": "apps/backend/src/ledger", "fe": None},
     interface=[
+        "Account",
         "AccountNotFoundError",
+        "AccountType",
         "AccountingError",
+        "ConfidenceTier",
         "DEFAULT_STALE_AFTER_DAYS",
         "DegenerateEntryError",
+        "Direction",
         "Entry",
+        "JournalAuditLog",
+        "JournalEntry",
+        "JournalEntryStatus",
+        "JournalLine",
         "JournalRepository",
         "LedgerError",
         "Leg",
@@ -163,6 +185,7 @@ CONTRACT = PackageContract(
         "create_journal_entry",
         "create_transfer_in_entry",
         "create_transfer_out_entry",
+        "derive_confidence_tier",
         "detect_transfer_pattern",
         "find_transfer_pairs",
         "get_account_statement_coverage",

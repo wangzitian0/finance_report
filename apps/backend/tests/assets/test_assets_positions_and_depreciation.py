@@ -5,7 +5,7 @@ from decimal import Decimal
 from unittest.mock import patch
 from uuid import uuid4
 
-from src.models.account import Account, AccountType
+from src.ledger import Account, AccountType
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
 from src.portfolio import PositionServiceError
