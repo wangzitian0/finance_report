@@ -218,14 +218,14 @@ def verify_real_corpus_eval(
         now if isinstance(now, _dt.datetime) else _dt.datetime.now(_dt.timezone.utc)
     )
 
-    def parsed_created_at(run: dict[str, object]) -> _dt.datetime:
+    def parsed_created_at(run: dict[str, object]) -> _dt.datetime | None:
         raw = run.get("createdAt")
         if not isinstance(raw, str) or not raw:
-            return _dt.datetime.min.replace(tzinfo=_dt.timezone.utc)
+            return None
         try:
             return _dt.datetime.fromisoformat(raw.replace("Z", "+00:00"))
         except ValueError:
-            return _dt.datetime.min.replace(tzinfo=_dt.timezone.utc)
+            return None
 
     runs = _require_list(
         gh_json(
@@ -258,9 +258,24 @@ def verify_real_corpus_eval(
             "document corpus and record the result first."
         )
 
-    # #1764 CR follow-up: explicitly select by createdAt instead of assuming
-    # gh run list's own ordering already puts the most recent completed run
-    # first -- that assumption held but was never enforced by this code.
+    # #1764 CR follow-up: a completed run with a missing/malformed createdAt
+    # cannot be safely excluded from "most recent" ordering either -- it
+    # might BE the actual latest run, just with bad timestamp data. Fail
+    # closed here rather than silently ranking it last (below every
+    # valid-timestamped run) and picking an older run in its place, which
+    # would quietly violate "the most recent completed run governs".
+    unparseable = [run for run in completed if parsed_created_at(run) is None]
+    if unparseable:
+        raise RuntimeError(
+            f"real-corpus-eval run {unparseable[0].get('databaseId')} is "
+            "missing createdAt (or it is malformed) — cannot reliably "
+            "determine the most recent completed run among multiple "
+            "candidates."
+        )
+
+    # explicitly select by createdAt instead of assuming gh run list's own
+    # ordering already puts the most recent completed run first -- that
+    # assumption held but was never enforced by this code.
     latest = max(completed, key=parsed_created_at)
     conclusion = latest.get("conclusion")
     if conclusion != "success":
@@ -270,12 +285,10 @@ def verify_real_corpus_eval(
             "or calibration regression was found."
         )
 
-    created_at_raw = latest.get("createdAt")
-    if not isinstance(created_at_raw, str) or not created_at_raw:
-        raise RuntimeError(
-            f"real-corpus-eval run {latest.get('databaseId')} is missing createdAt"
-        )
-    created_at = _dt.datetime.fromisoformat(created_at_raw.replace("Z", "+00:00"))
+    # createdAt is already known-valid for every completed run (checked
+    # above), including `latest` -- no need to re-validate it here.
+    created_at = parsed_created_at(latest)
+    assert created_at is not None
     age_hours = (current_time - created_at).total_seconds() / 3600.0
     if age_hours > max_age_hours:
         raise RuntimeError(

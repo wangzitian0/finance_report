@@ -209,3 +209,37 @@ def test_AC_runtime_real_corpus_eval_7_cli_dispatch_reaches_the_check(
         ]
     )
     assert exit_code == 0
+
+
+def test_AC_runtime_real_corpus_eval_8_malformed_timestamp_among_others_fails_closed() -> (
+    None
+):
+    """AC-runtime.real-corpus-eval.8: a completed run with a malformed
+    createdAt is NOT simply outranked and ignored when other completed runs
+    have valid timestamps -- it might actually BE the true latest run, just
+    with bad timestamp data. Silently picking the older, valid-timestamped
+    run instead would quietly violate "the most recent completed run
+    governs" (CR follow-up on #1776/#1785: the original fix made a
+    malformed timestamp sort last in max(), which let this exact case slip
+    through as a false pass on stale data)."""
+
+    def fake_gh_json(_args: list[str]) -> object:
+        return [
+            {
+                "databaseId": 400,
+                "status": "completed",
+                "conclusion": "success",
+                "createdAt": "2026-07-01T00:00:00Z",  # older, but validly timestamped
+            },
+            {
+                "databaseId": 401,
+                "status": "completed",
+                "conclusion": "success",
+                "createdAt": "not-a-real-timestamp",  # possibly the true latest
+            },
+        ]
+
+    with pytest.raises(RuntimeError, match="cannot reliably determine"):
+        release_evidence.verify_real_corpus_eval(
+            repository="owner/repo", gh_json=fake_gh_json, now=_NOW
+        )
