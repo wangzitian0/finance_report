@@ -35,27 +35,8 @@ try:
         TableStyle,
     )
 except ImportError:
-    print(
-        "❌ reportlab not installed. Please run 'uv sync' from the repository root or 'pip install reportlab'."
-    )
+    print("❌ reportlab not installed. Please run 'uv sync' from the repository root or 'pip install reportlab'.")
     sys.exit(1)
-
-
-def default_output_dir() -> Path:
-    """Single source of truth for where generated fixtures land.
-
-    A function (not a module-level constant) so it re-reads ``__file__`` from
-    this module's namespace on every call, matching what ``main()`` already
-    did inline -- tests that sandbox output by monkeypatching this module's
-    ``__file__`` still redirect correctly. E2E tests that look up an
-    already-generated PDF (test_four_asset_net_worth_golden_path.py,
-    test_personal_financial_report_package.py) must call this rather than
-    recomputing their own path, or a future relocation of this module drifts
-    the two silently apart again (#1767: they still pointed at the pre-move
-    tools/_lib/pdf_fixtures/output/, which hasn't existed since this module's
-    relocation into common/testing/fixtures/pdf/).
-    """
-    return Path(__file__).parent / "output"
 
 
 def generate_legacy_dbs_pdf(output_path: Path):
@@ -118,9 +99,7 @@ def generate_legacy_dbs_pdf(output_path: Path):
     styles = getSampleStyleSheet()
 
     # Header
-    header_style = ParagraphStyle(
-        "Header", parent=styles["Heading1"], fontSize=18, spaceAfter=12
-    )
+    header_style = ParagraphStyle("Header", parent=styles["Heading1"], fontSize=18, spaceAfter=12)
     elements.append(Paragraph("DBS Bank - E-Statement", header_style))
     elements.append(Paragraph(f"Statement Period: {period_str}", styles["Normal"]))
     elements.append(Spacer(1, 20))
@@ -134,9 +113,7 @@ def generate_legacy_dbs_pdf(output_path: Path):
     txns = generate_transactions(start_date, count=15)
     data = [["Date", "Transaction Description", "Withdrawal", "Deposit", "Balance"]]
     for t in txns:
-        data.append(
-            [t["date"], t["description"], t["withdrawal"], t["deposit"], t["balance"]]
-        )
+        data.append([t["date"], t["description"], t["withdrawal"], t["deposit"], t["balance"]])
 
     # Table Styling
     t = Table(data, colWidths=[70, 200, 60, 60, 70])
@@ -173,7 +150,7 @@ def main():
         "--output",
         type=Path,
         default=None,
-        help="Directory to save PDFs (default: co-located output/ next to this script)",
+        help="Directory to save PDFs (default: pdf_fixtures/output/)",
     )
     parser.add_argument(
         "output_dir",
@@ -194,7 +171,10 @@ def main():
         return
 
     # New mode: use generators
-    output_dir = args.output if args.output is not None else default_output_dir()
+    output_dir = args.output
+    if output_dir is None:
+        # Default to pdf_fixtures/output/
+        output_dir = Path(__file__).parent / "output"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Import generators
@@ -207,9 +187,7 @@ def main():
         from .generators.pingan_generator import PinganGenerator
     except ImportError as e:
         print(f"❌ Error importing generators: {e}")
-        print(
-            "Make sure common.testing.fixtures.pdf is importable from the repository root."
-        )
+        print("Make sure common.testing.fixtures.pdf is importable from the repository root.")
         sys.exit(1)
 
     # Template paths

@@ -12,8 +12,6 @@ from __future__ import annotations
 import asyncio
 import os
 import shutil
-import subprocess
-import sys
 import tempfile
 import time
 import uuid
@@ -26,6 +24,7 @@ import pytest
 from common.testing import money_amount
 from common.testing.ac_proof import ac_proof
 from conftest import fail_or_skip_ai_ocr_gate
+from pdf_fixture_paths import generated_pdf_path
 from playwright.async_api import Page, expect
 
 APP_URL: str = os.getenv("APP_URL", "http://localhost:3000")
@@ -81,40 +80,6 @@ def _write_bank_fixture(tmp_path: Path, report_date: date) -> Path:
     return path
 
 
-def _get_pdf_path(source: str) -> Path:
-    from datetime import datetime
-
-    from common.testing.fixtures.pdf.generate_pdf_fixtures import default_output_dir
-
-    root = Path(__file__).resolve().parents[2]
-    source_dir = default_output_dir() / source
-    yymm = datetime.now().strftime("%y%m")
-    prebuilt = source_dir / f"test_{source}_{yymm}.pdf"
-    if prebuilt.exists():
-        return prebuilt
-    if source_dir.exists():
-        pdfs = sorted(source_dir.glob(f"test_{source}_*.pdf"))
-        if pdfs:
-            return pdfs[-1]
-
-    script = root / "tools" / "generate_pdf_fixtures.py"
-    result = subprocess.run(
-        [sys.executable, str(script), "--source", source],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        pytest.skip(
-            f"PDF fixture generation failed for {source}.\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-        )
-    pdfs = (
-        sorted(source_dir.glob(f"test_{source}_*.pdf")) if source_dir.exists() else []
-    )
-    if not pdfs:
-        pytest.skip(f"PDF generation for {source} produced no files in {source_dir}")
-    return pdfs[-1]
-
-
 def _unique_pdf_copy(src: Path) -> Path:
     suffix = int(time.time() * 1000) % 1_000_000
     tmp = Path(tempfile.mkdtemp())
@@ -166,7 +131,7 @@ async def _upload_brokerage_pdf(
     institution: str,
     model: str,
 ) -> str:
-    pdf_path = _unique_pdf_copy(_get_pdf_path(source))
+    pdf_path = _unique_pdf_copy(generated_pdf_path(source))
     with pdf_path.open("rb") as fh:
         response = await client.post(
             _api_url("/statements/upload"),
