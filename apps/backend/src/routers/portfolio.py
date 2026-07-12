@@ -352,7 +352,7 @@ async def get_performance(
         xirr = await calculate_xirr(db=db, user_id=user_id, as_of_date=as_of)
     except InsufficientDataError:
         xirr = Decimal("0")
-    except PerformanceError as e:
+    except (PerformanceError, PricingError) as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
 
     if period_start:
@@ -365,6 +365,8 @@ async def get_performance(
             )
         except InsufficientDataError:
             twr = Decimal("0")
+        except PricingError as e:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
     else:
         twr = Decimal("0")
 
@@ -372,7 +374,7 @@ async def get_performance(
         mwr = await calculate_money_weighted_return(db=db, user_id=user_id, as_of_date=as_of)
     except InsufficientDataError:
         mwr = Decimal("0")
-    except PerformanceError as e:
+    except (PerformanceError, PricingError) as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
 
     xirr = _canonical_percent(xirr)
