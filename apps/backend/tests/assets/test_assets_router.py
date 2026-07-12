@@ -18,7 +18,7 @@ class TestAssetsRouter:
     """Tests for /api/assets endpoints."""
 
     async def test_list_positions_empty(self, client):
-        """AC11.2.1: GET /assets/positions returns empty list when no positions."""
+        """AC-portfolio.router.1: AC11.2.1: GET /assets/positions returns empty list when no positions."""
         response = await client.get("/assets/positions")
         assert response.status_code == 200
         data = response.json()
@@ -26,7 +26,7 @@ class TestAssetsRouter:
         assert data["total"] == 0
 
     async def test_list_positions_with_data(self, client, db, test_user):
-        """AC11.2.2: GET /assets/positions returns positions."""
+        """AC-portfolio.router.2: AC11.2.2: GET /assets/positions returns positions."""
         account = Account(
             user_id=test_user.id,
             name="Test Broker",
@@ -59,7 +59,7 @@ class TestAssetsRouter:
         assert data["items"][0]["account_name"] == "Test Broker"
 
     async def test_list_positions_filter_by_status(self, client, db, test_user):
-        """AC11.2.3: GET /assets/positions?status_filter=active filters correctly."""
+        """AC-portfolio.router.3: AC11.2.3: GET /assets/positions?status_filter=active filters correctly."""
         account = Account(
             user_id=test_user.id,
             name="Test Broker",
@@ -106,7 +106,7 @@ class TestAssetsRouter:
         assert data["items"][0]["asset_identifier"] == "GOOGL"
 
     async def test_get_position_success(self, client, db, test_user):
-        """AC11.3.1: GET /assets/positions/{id} returns position details."""
+        """AC-portfolio.router.4: AC11.3.1: GET /assets/positions/{id} returns position details."""
         account = Account(
             user_id=test_user.id,
             name="Moomoo",
@@ -138,13 +138,13 @@ class TestAssetsRouter:
         assert data["account_name"] == "Moomoo"
 
     async def test_get_position_not_found(self, client):
-        """AC11.3.2: GET /assets/positions/{id} returns 404 for non-existent position."""
+        """AC-portfolio.router.5: AC11.3.2: GET /assets/positions/{id} returns 404 for non-existent position."""
         fake_id = uuid4()
         response = await client.get(f"/assets/positions/{fake_id}")
         assert response.status_code == 404
 
     async def test_get_position_wrong_user(self, client, db):
-        """AC11.3.3: GET /assets/positions/{id} returns 404 for other user's position."""
+        """AC-portfolio.router.6: AC11.3.3: GET /assets/positions/{id} returns 404 for other user's position."""
         other_user_id = (await UserFactory.create_async(db)).id
         account = Account(
             user_id=other_user_id,
@@ -173,7 +173,7 @@ class TestAssetsRouter:
         assert response.status_code == 404
 
     async def test_reconcile_positions_success(self, client, db, test_user):
-        """AC11.4.1: POST /assets/reconcile creates positions from snapshots."""
+        """AC-portfolio.router.7: AC11.4.1: POST /assets/reconcile creates positions from snapshots."""
         snap = AtomicPosition(
             user_id=test_user.id,
             snapshot_date=date(2024, 1, 15),
@@ -202,7 +202,7 @@ class TestAssetsRouter:
         assert positions["items"][0]["asset_identifier"] == "NVDA"
 
     async def test_reconcile_positions_empty(self, client):
-        """AC11.4.2: POST /assets/reconcile with no snapshots returns 0 counts."""
+        """AC-portfolio.router.8: AC11.4.2: POST /assets/reconcile with no snapshots returns 0 counts."""
         response = await client.post("/assets/reconcile")
         assert response.status_code == 200
         data = response.json()
@@ -213,22 +213,22 @@ class TestAssetsRouter:
         assert data["skipped_assets"] == []
 
     async def test_list_positions_requires_auth(self, public_client):
-        """AC11.5.1: GET /assets/positions requires authentication."""
+        """AC-portfolio.router.9: AC11.5.1: GET /assets/positions requires authentication."""
         response = await public_client.get("/assets/positions")
         assert response.status_code == 401
 
     async def test_get_position_requires_auth(self, public_client):
-        """AC11.5.2: GET /assets/positions/{id} requires authentication."""
+        """AC-portfolio.router.10: AC11.5.2: GET /assets/positions/{id} requires authentication."""
         response = await public_client.get(f"/assets/positions/{uuid4()}")
         assert response.status_code == 401
 
     async def test_reconcile_requires_auth(self, public_client):
-        """AC11.5.3: POST /assets/reconcile requires authentication."""
+        """AC-portfolio.router.11: AC11.5.3: POST /assets/reconcile requires authentication."""
         response = await public_client.post("/assets/reconcile")
         assert response.status_code == 401
 
     async def test_get_position_depreciation_success(self, client, db, test_user):
-        """AC11.6.1: GET /assets/positions/{id}/depreciation returns depreciation schedule."""
+        """AC-portfolio.depreciation.1: AC11.6.1: GET /assets/positions/{id}/depreciation returns depreciation schedule."""
         account = Account(
             user_id=test_user.id,
             name="Test Broker",
@@ -268,7 +268,7 @@ class TestAssetsRouter:
         assert data["useful_life_years"] == 5
 
     async def test_get_position_depreciation_not_found(self, client):
-        """AC11.6.2: GET /assets/positions/{id}/depreciation returns 400 for non-existent position."""
+        """AC-portfolio.depreciation.2: AC11.6.2: GET /assets/positions/{id}/depreciation returns 400 for non-existent position."""
         fake_id = uuid4()
         response = await client.get(
             f"/assets/positions/{fake_id}/depreciation",
@@ -278,7 +278,7 @@ class TestAssetsRouter:
         assert "not found" in response.json()["detail"].lower()
 
     async def test_get_position_depreciation_disposed_position(self, client, db, test_user):
-        """AC11.6.3: GET /assets/positions/{id}/depreciation returns 400 for disposed position."""
+        """AC-portfolio.depreciation.3: AC11.6.3: GET /assets/positions/{id}/depreciation returns 400 for disposed position."""
         account = Account(
             user_id=test_user.id,
             name="Test Broker",
@@ -311,7 +311,7 @@ class TestAssetsRouter:
         assert "disposed" in response.json()["detail"].lower()
 
     async def test_get_position_depreciation_invalid_params(self, client, db, test_user):
-        """AC11.6.4: GET /assets/positions/{id}/depreciation returns 422 for invalid params."""
+        """AC-portfolio.depreciation.4: AC11.6.4: GET /assets/positions/{id}/depreciation returns 422 for invalid params."""
         account = Account(
             user_id=test_user.id,
             name="Test Broker",
@@ -345,7 +345,7 @@ class TestAssetsRouter:
         assert response.status_code == 422
 
     async def test_get_position_user_isolation(self, client, db, test_user):
-        """AC11.7.1: Verify position queries are isolated by user_id (security boundary test).
+        """AC-portfolio.router.12: AC11.7.1: Verify position queries are isolated by user_id (security boundary test).
 
         This test documents that the service layer correctly filters positions by user_id.
         A position belonging to another user will not be found even if the ID is known.

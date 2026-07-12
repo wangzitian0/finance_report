@@ -157,7 +157,7 @@ async def test_xirr_insufficient_data(db: AsyncSession, test_user):
 
 
 async def test_xirr_with_realistic_data(db: AsyncSession, test_user, portfolio_with_transactions):
-    """AC17.3.2: XIRR calculates annualized return for realistic portfolio.
+    """AC-portfolio.performance.1: AC17.2.1: XIRR calculates annualized return for realistic portfolio.
 
     Verify that XIRR returns a negative Decimal for a loss scenario (deposits > current value).
     """
@@ -170,7 +170,7 @@ async def test_xirr_with_realistic_data(db: AsyncSession, test_user, portfolio_w
 
 
 async def test_AC5_6_1_xirr_matches_single_year_excel_case(db: AsyncSession, test_user, investment_account):
-    """AC5.6.1: XIRR is within 0.01 percentage points of a one-year Excel case."""
+    """AC-portfolio.metrics.1: AC5.6.1: XIRR is within 0.01 percentage points of a one-year Excel case."""
     from src.models.layer2 import AtomicPosition
 
     start = date.today() - timedelta(days=365)
@@ -229,7 +229,7 @@ async def test_time_weighted_return_empty_portfolio(db: AsyncSession, test_user)
 
 
 async def test_time_weighted_return_with_period(db: AsyncSession, test_user, portfolio_with_transactions):
-    """AC17.3.4: TWR calculates period return within reasonable bounds.
+    """AC-portfolio.performance.2: AC17.2.2 (canonical; AC17.3.4 was a duplicate restatement): TWR calculates period return within reasonable bounds.
 
     Verify that TWR returns a valid percentage for a period with transactions.
     """
@@ -250,7 +250,7 @@ async def test_AC5_6_2_time_weighted_return_matches_snapshot_period(
     test_user,
     investment_account,
 ):
-    """AC5.6.2: TWR computes the exact period return from start/end snapshots."""
+    """AC-portfolio.metrics.2: AC5.6.2: TWR computes the exact period return from start/end snapshots."""
     from src.models.layer2 import AtomicPosition
 
     start = date.today() - timedelta(days=30)
@@ -302,7 +302,7 @@ async def test_AC5_6_2_time_weighted_return_matches_snapshot_period(
 
 
 async def test_money_weighted_return_insufficient_data(db: AsyncSession, test_user):
-    """AC17.3.5: MWR raises InsufficientDataError on empty portfolio.
+    """AC-portfolio.allocation.4: AC17.3.5: MWR raises InsufficientDataError on empty portfolio.
 
     Verify that MWR calculation fails gracefully when no data exists.
     """
@@ -311,7 +311,7 @@ async def test_money_weighted_return_insufficient_data(db: AsyncSession, test_us
 
 
 async def test_money_weighted_return_with_data(db: AsyncSession, test_user, portfolio_with_transactions):
-    """AC17.3.6: MWR calculates money-weighted return for loss scenario.
+    """AC-portfolio.performance.3: AC17.2.3 (canonical; AC17.3.6 was a duplicate restatement): MWR calculates money-weighted return for loss scenario.
 
     Verify that MWR returns a negative Decimal when total deposits exceed current value.
     """
@@ -328,7 +328,7 @@ async def test_AC5_6_3_dividend_yield_uses_trailing_dividends_over_current_value
     test_user,
     investment_account,
 ):
-    """AC5.6.3: Dividend yield equals annual dividends divided by current value."""
+    """AC-portfolio.metrics.3: AC5.6.3: Dividend yield equals annual dividends divided by current value."""
     from src.models.layer2 import AtomicPosition
 
     today = date.today()
@@ -421,7 +421,7 @@ async def test_AC5_6_6_money_weighted_return_matches_xirr_for_single_cashflow(
     test_user,
     investment_account,
 ):
-    """AC5.6.6: MWR matches XIRR for a single cash-flow portfolio."""
+    """AC-portfolio.metrics.4: AC5.6.6: MWR matches XIRR for a single cash-flow portfolio."""
     from src.models.layer2 import AtomicPosition
 
     start = date.today() - timedelta(days=365)
@@ -469,7 +469,7 @@ async def test_AC5_6_6_money_weighted_return_matches_xirr_for_single_cashflow(
 
 
 async def test_xirr_with_as_of_date(db: AsyncSession, test_user, portfolio_with_transactions):
-    """AC17.3.7: XIRR respects as_of_date parameter.
+    """AC-portfolio.allocation.5: AC17.3.7: XIRR respects as_of_date parameter.
 
     Verify that XIRR calculates return as of a historical date.
     """
@@ -482,7 +482,7 @@ async def test_xirr_with_as_of_date(db: AsyncSession, test_user, portfolio_with_
 
 
 async def test_time_weighted_return_same_day(db: AsyncSession, test_user):
-    """AC17.3.8: TWR returns zero for same-day period.
+    """AC-portfolio.allocation.6: AC17.3.8: TWR returns zero for same-day period.
 
     Verify that TWR returns 0 when period_start == period_end.
     """
@@ -495,7 +495,7 @@ async def test_time_weighted_return_same_day(db: AsyncSession, test_user):
 
 
 async def test_performance_metrics_with_zero_positions(db: AsyncSession, test_user):
-    """AC17.3.9: Performance metrics handle cash-only portfolios.
+    """AC-portfolio.allocation.7: AC17.3.9: Performance metrics handle cash-only portfolios.
 
     Verify that XIRR raises InsufficientDataError when portfolio has deposits but no positions.
     """
@@ -521,7 +521,7 @@ async def test_performance_metrics_with_zero_positions(db: AsyncSession, test_us
 
 
 async def test_xirr_convergence_edge_case(db: AsyncSession, test_user, investment_account):
-    """AC17.3.10: XIRR handles extreme convergence edge cases.
+    """AC-portfolio.allocation.8: AC17.3.10: XIRR handles extreme convergence edge cases.
 
     Verify that extreme gain scenarios either produce a very high XIRR or raise InsufficientDataError.
     """
@@ -580,7 +580,7 @@ async def test_xirr_convergence_edge_case(db: AsyncSession, test_user, investmen
 
 
 def test_xirr_bisection_no_root_raises():
-    """AC17.3.11: _xirr_bisection raises ValueError when no root exists.
+    """AC-portfolio.allocation.9: AC17.3.11: _xirr_bisection raises ValueError when no root exists.
 
     Verify that all-positive cash flows cause a ValueError (no sign change in search range).
     """
@@ -594,7 +594,7 @@ def test_xirr_bisection_no_root_raises():
 
 
 def test_AC17_10_5_xirr_solver_does_not_float_monetary_cashflows():
-    """AC17.10.5: XIRR internals do not convert monetary Decimal cash flows to float."""
+    """AC-portfolio.report-schedule.5: AC17.10.5: XIRR internals do not convert monetary Decimal cash flows to float."""
     import src.services.performance as performance_module
 
     solver_source = inspect.getsource(performance_module._xirr_newton) + inspect.getsource(
@@ -606,7 +606,7 @@ def test_AC17_10_5_xirr_solver_does_not_float_monetary_cashflows():
 
 
 def test_xirr_bisection_max_iter_returns():
-    """AC17.3.12: _xirr_bisection returns Decimal estimate after max_iter exhaustion.
+    """AC-portfolio.allocation.10: AC17.3.12: _xirr_bisection returns Decimal estimate after max_iter exhaustion.
 
     Verify that bisection returns a Decimal midpoint when max_iter is too small to converge.
     """
@@ -621,7 +621,7 @@ def test_xirr_bisection_max_iter_returns():
 
 
 def test_xirr_newton_fallthrough_to_bisection():
-    """AC17.3.13: _xirr_newton falls back to bisection on non-convergence.
+    """AC-portfolio.allocation.11: AC17.3.13: _xirr_newton falls back to bisection on non-convergence.
 
     Verify that Newton's method with insufficient iterations falls back to bisection and returns Decimal.
     """
@@ -635,7 +635,7 @@ def test_xirr_newton_fallthrough_to_bisection():
 
 
 async def test_xirr_calculation_error_raised(db: AsyncSession, test_user, investment_account, monkeypatch):
-    """AC17.3.14: XIRRCalculationError raised when Newton and bisection both fail.
+    """AC-portfolio.allocation.12: AC17.3.14: XIRRCalculationError raised when Newton and bisection both fail.
 
     Verify that monkeypatching _xirr_newton to always raise causes XIRRCalculationError.
     """

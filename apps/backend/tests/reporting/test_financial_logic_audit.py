@@ -49,7 +49,7 @@ async def cash_flow_accounts(db: AsyncSession, test_user):
 
 
 async def test_AC5_10_1_cash_flow_uses_cumulative_cash_balances(db: AsyncSession, cash_flow_accounts):
-    """AC5.10.1: Cash-flow beginning/ending cash are cumulative balances."""
+    """AC-reporting.logic-audit.1: AC5.10.1: Cash-flow beginning/ending cash are cumulative balances."""
     user_id, cash, equity, rent = cash_flow_accounts
     await _add_entry(
         db,
@@ -74,7 +74,7 @@ async def test_AC5_10_1_cash_flow_uses_cumulative_cash_balances(db: AsyncSession
 
 
 async def test_AC5_10_2_cash_flow_activity_totals_preserve_signs(db: AsyncSession, cash_flow_accounts):
-    """AC5.10.2: Cash-flow activities preserve outflow signs."""
+    """AC-reporting.logic-audit.2: AC5.10.2: Cash-flow activities preserve outflow signs."""
     user_id, cash, equity, rent = cash_flow_accounts
     await _add_entry(
         db,

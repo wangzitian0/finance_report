@@ -201,7 +201,7 @@ async def test_AC5_11_3_AC11_11_3_annualized_schedule_converts_mixed_currency_to
     db: AsyncSession,
     test_user,
 ):
-    """AC5.11.3/AC11.11.3: Annualized package totals use one reporting currency."""
+    """AC-reporting.package-annualized.2: AC5.11.3/AC11.11.3: Annualized package totals use one reporting currency."""
     salary = Account(user_id=test_user.id, name="Salary Income", type=AccountType.INCOME, currency="SGD")
     dividend = Account(user_id=test_user.id, name="Dividend Income", type=AccountType.INCOME, currency="USD")
     sgd_cash = Account(user_id=test_user.id, name="SGD Cash", type=AccountType.ASSET, currency="SGD")

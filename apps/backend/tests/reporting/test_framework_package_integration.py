@@ -163,7 +163,7 @@ async def test_AC19_7_1_readiness_consumes_framework_specific_evidence_blockers(
     db: AsyncSession,
     test_user: User,
 ) -> None:
-    """AC19.7.1: Framework-selected readiness blocks policy gaps and evidence deficiencies."""
+    """AC-reporting.readiness.6: AC19.7.1: Framework-selected readiness blocks policy gaps and evidence deficiencies."""
     report_date = date(2026, 5, 31)
     stale_position = AtomicPosition(
         user_id=test_user.id,

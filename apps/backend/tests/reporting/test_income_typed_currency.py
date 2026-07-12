@@ -22,7 +22,7 @@ from src.services.reporting_calc import AnnualizedIncomeTotals, resolve_line_cur
 
 
 def test_AC5_32_1_currency_code_type_validates_and_normalizes():
-    """AC5.32.1: AnnualizedIncomeResponse.currency is a typed, normalized currency code."""
+    """AC-reporting.income-typed.1: AC5.32.1: AnnualizedIncomeResponse.currency is a typed, normalized currency code."""
     # The schema field reuses the shared CurrencyCode type: Pydantic flattens the
     # Annotated alias, so assert on the carried metadata (length bounds + the
     # shared normalizer) rather than identity of the alias object.
@@ -56,7 +56,7 @@ def test_AC5_32_1_currency_code_type_validates_and_normalizes():
 
 
 def test_AC5_32_2_annualized_income_totals_is_typed_intermediate():
-    """AC5.32.2: AnnualizedIncomeTotals is a typed Decimal accumulator, not a str-keyed dict."""
+    """AC-reporting.income-typed.2: AC5.32.2: AnnualizedIncomeTotals is a typed Decimal accumulator, not a str-keyed dict."""
     totals = AnnualizedIncomeTotals()
     assert (totals.salary, totals.bonus, totals.dividend, totals.total) == (
         Decimal("0.00"),
@@ -87,7 +87,7 @@ def test_AC5_32_2_annualized_income_totals_is_typed_intermediate():
 
 
 def test_AC5_32_3_resolve_line_currency_uses_canonical_fallback_chain():
-    """AC5.32.3: resolve_line_currency centralizes line||account||base resolution + normalization."""
+    """AC-reporting.income-typed.3: AC5.32.3: resolve_line_currency centralizes line||account||base resolution + normalization."""
     account = Account(name="Salary", type=AccountType.INCOME, currency="usd")
     line_with_currency = JournalLine(direction=Direction.CREDIT, amount=Decimal("1.00"), currency="eur")
     line_no_currency = JournalLine(direction=Direction.CREDIT, amount=Decimal("1.00"), currency=None)
@@ -100,13 +100,13 @@ def test_AC5_32_3_resolve_line_currency_uses_canonical_fallback_chain():
 
 
 def test_AC5_32_4_fx_conversion_error_response_model_declared():
-    """AC5.32.4: an explicit FX-error response model exists for the income endpoint."""
+    """AC-reporting.income-typed.4: AC5.32.4: an explicit FX-error response model exists for the income endpoint."""
     err = FxConversionErrorResponse(detail="no FX rate for USD/SGD")
     assert err.detail == "no FX rate for USD/SGD"
 
 
 def test_AC5_32_5_normalize_currency_code_is_shared_helper():
-    """AC5.32.5: the currency normalizer is a single shared helper (no duplicated .strip().upper())."""
+    """AC-reporting.income-typed.5: AC5.32.5: the currency normalizer is a single shared helper (no duplicated .strip().upper())."""
     assert normalize_currency_code("  sgd ") == "SGD"
     assert normalize_currency_code("usd") == "USD"
 
@@ -117,7 +117,7 @@ async def test_AC5_32_6_endpoint_returns_normalized_currency_for_soft_base_confi
     test_user,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """AC5.32.6: endpoint normalizes a soft (lower-case) base currency setting in its response."""
+    """AC-reporting.income-typed.6: AC5.32.6: endpoint normalizes a soft (lower-case) base currency setting in its response."""
     from src import config
 
     monkeypatch.setattr(config.settings, "base_currency", "sgd")

@@ -73,7 +73,7 @@ def patch_database_connection():
 
 
 def test_AC5_9_1_package_contract_endpoint_defines_required_sections():
-    """AC5.9.1: Package contract endpoint defines stable required sections."""
+    """AC-reporting.package-contract.1: AC5.9.1: Package contract endpoint defines stable required sections."""
     response = personal_report_package_contract()
     payload = response.model_dump(mode="json")
     assert payload["package_id"] == "personal-financial-report-package"
@@ -100,7 +100,7 @@ def test_AC5_9_1_package_contract_endpoint_defines_required_sections():
 
 
 def test_AC5_9_2_package_contract_marks_decimal_totals_and_period_semantics():
-    """AC5.9.2: Contract exposes Decimal-safe totals and date semantics."""
+    """AC-reporting.package-contract.2: AC5.9.2: Contract exposes Decimal-safe totals and date semantics."""
     response = personal_report_package_contract()
     payload = response.model_dump(mode="json")
     assert payload["period_semantics"] == {
@@ -141,7 +141,7 @@ def test_AC5_9_2_package_contract_marks_decimal_totals_and_period_semantics():
 
 
 def test_AC5_11_1_package_contract_marks_annualized_schedule_ready():
-    """AC5.11.1: Annualized income package section points to the ready schedule endpoint."""
+    """AC-reporting.package-annualized.1: AC5.11.1: Annualized income package section points to the ready schedule endpoint."""
     response = personal_report_package_contract()
     payload = response.model_dump(mode="json")
 
@@ -153,7 +153,7 @@ def test_AC5_11_1_package_contract_marks_annualized_schedule_ready():
 
 
 def test_AC5_12_1_package_notes_endpoint_returns_required_note_taxonomy():
-    """AC5.12.1: Package notes endpoint returns standards-inspired disclosure notes."""
+    """AC-reporting.package-notes.1: AC5.12.1: Package notes endpoint returns standards-inspired disclosure notes."""
     response = personal_report_package_notes()
     payload = response.model_dump(mode="json")
 
@@ -183,7 +183,7 @@ def test_AC5_12_1_package_notes_endpoint_returns_required_note_taxonomy():
 
 
 def test_AC5_12_2_package_contract_marks_notes_ready():
-    """AC5.12.2: Package contract marks notes ready and points to the notes endpoint."""
+    """AC-reporting.package-notes.2: AC5.12.2: Package contract marks notes ready and points to the notes endpoint."""
     response = personal_report_package_contract()
     payload = response.model_dump(mode="json")
 
@@ -370,7 +370,7 @@ async def test_AC5_19_1_package_generate_creates_draft_or_trusted_snapshot(
     test_user: User,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """AC5.19.1: Package generation freezes context and gates draft/trusted state by readiness."""
+    """AC-reporting.package-snapshot.1: AC5.19.1: Package generation freezes context and gates draft/trusted state by readiness."""
     await _patch_package_snapshot_inputs(monkeypatch, readiness_state="blocked", blocking_count=1)
 
     draft = await generate_personal_report_package_snapshot(
@@ -426,7 +426,7 @@ async def test_AC5_19_2_package_snapshot_get_is_user_scoped_and_immutable(
     test_user: User,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """AC5.19.2: Package snapshots list/get by user and reopen the frozen payload."""
+    """AC-reporting.package-snapshot.2: AC5.19.2: Package snapshots list/get by user and reopen the frozen payload."""
     await _patch_package_snapshot_inputs(monkeypatch, readiness_state="ready", blocking_count=0, section_label="Frozen")
     snapshot = await generate_personal_report_package_snapshot(
         framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
@@ -478,7 +478,7 @@ async def test_AC5_19_3_package_snapshot_exports_are_snapshot_derived(
     test_user: User,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """AC5.19.3: Package JSON and CSV exports stream saved snapshot data only."""
+    """AC-reporting.package-snapshot.3: AC5.19.3: Package JSON and CSV exports stream saved snapshot data only."""
     await _patch_package_snapshot_inputs(
         monkeypatch, readiness_state="ready", blocking_count=0, section_label="Frozen CSV"
     )
@@ -592,7 +592,7 @@ async def test_AC19_5_1_package_readiness_returns_draft_for_empty_user(
     db: AsyncSession,
     test_user: User,
 ):
-    """AC19.5.1: Package readiness endpoint returns deterministic draft state for empty users."""
+    """AC-reporting.readiness.1: AC19.5.1: Package readiness endpoint returns deterministic draft state for empty users."""
     response = await personal_report_package_readiness(db=db, user_id=test_user.id)
     payload = response.model_dump(mode="json")
 
@@ -666,7 +666,7 @@ async def test_AC19_5_2_package_readiness_lists_actionable_blockers(
     db: AsyncSession,
     test_user: User,
 ):
-    """AC19.5.2: Blocked readiness lists exact blocker categories and action links."""
+    """AC-reporting.readiness.2: AC19.5.2: Blocked readiness lists exact blocker categories and action links."""
     covered_account = Account(user_id=test_user.id, name="Covered Cash", type=AccountType.ASSET, currency="SGD")
     uncovered_account = Account(user_id=test_user.id, name="Uncovered Card", type=AccountType.LIABILITY, currency="SGD")
     processing_account = Account(
@@ -769,7 +769,7 @@ async def test_AC19_5_6_package_readiness_rejects_duplicate_processing_accounts(
     db: AsyncSession,
     test_user: User,
 ):
-    """AC19.5.6: Duplicate Processing system accounts are data corruption, not arbitrary readiness input."""
+    """AC-reporting.readiness.4: AC19.5.6: Duplicate Processing system accounts are data corruption, not arbitrary readiness input."""
     db.add_all(
         [
             Account(
@@ -800,7 +800,7 @@ async def test_AC19_5_7_package_readiness_converts_processing_balance_before_zer
     db: AsyncSession,
     test_user: User,
 ):
-    """AC19.5.7: Processing readiness cannot net unlike currencies at raw nominal amount."""
+    """AC-reporting.readiness.5: AC19.5.7: Processing readiness cannot net unlike currencies at raw nominal amount."""
     processing_account = Account(
         user_id=test_user.id,
         name="Processing",
@@ -932,7 +932,7 @@ async def test_AC19_5_3_package_readiness_state_priority_and_snapshot_freshness(
     db: AsyncSession,
     test_user: User,
 ):
-    """AC19.5.3: Readiness states are deterministic across processing, ready, generated, and stale."""
+    """AC-reporting.readiness.3: AC19.5.3: Readiness states are deterministic across processing, ready, generated, and stale."""
     processing = _statement(
         test_user.id,
         status=BankStatementStatus.PARSING,
@@ -989,7 +989,7 @@ async def test_AC19_5_3_package_readiness_state_priority_and_snapshot_freshness(
 
 @ac_proof(
     "personal-package-source-trust-pr",
-    ac_ids=["AC19.9.1", "AC-testing.trust-mirrors.3"],
+    ac_ids=["AC-reporting.source-trust.1", "AC-testing.trust-mirrors.3"],
     scope="behavioral",
     ci_tier="pr_ci",
     trust_mode="deterministic_pr",
@@ -1008,7 +1008,7 @@ async def test_AC19_9_1_package_readiness_reports_source_trust_summary(
     db: AsyncSession,
     test_user: User,
 ):
-    """AC19.9.1 AC-testing.trust-mirrors.3: Package readiness reports deterministic source trust coverage."""
+    """AC-reporting.source-trust.1 AC-testing.trust-mirrors.3: AC19.9.1 AC8.14.3: Package readiness reports deterministic source trust coverage."""
     report_date = date(2026, 5, 31)
     await _ready_source_account(db, test_user.id)
     db.add(
@@ -1107,7 +1107,7 @@ async def test_AC19_9_1_package_readiness_reports_source_trust_summary(
 
 
 async def test_AC5_13_1_package_traceability_endpoint_returns_section_line_anchors():
-    """AC5.13.1: Package traceability endpoint returns source-to-ledger anchors per report line."""
+    """AC-reporting.package-traceability.1 · AC-reporting.trust-signals.3: AC5.13.1: Package traceability endpoint returns source-to-ledger anchors per report line."""
     response = await personal_report_package_traceability()
     payload = response.model_dump(mode="json")
 
@@ -1135,7 +1135,7 @@ async def test_AC5_13_1_package_traceability_endpoint_returns_section_line_ancho
 
 
 async def test_AC5_13_2_package_traceability_declares_completeness_warnings():
-    """AC5.13.2: Traceability appendix exposes explicit completeness states where anchors are unavailable."""
+    """AC-reporting.package-traceability.2: AC5.13.2: Traceability appendix exposes explicit completeness states where anchors are unavailable."""
     response = await personal_report_package_traceability()
     payload = response.model_dump(mode="json")
 
@@ -1167,7 +1167,7 @@ async def test_AC5_13_5_package_traceability_returns_dynamic_current_user_identi
     db: AsyncSession,
     test_user: User,
 ):
-    """AC5.13.5: Traceability returns current-user dynamic identifiers without cross-user leakage."""
+    """AC-reporting.package-traceability.4: AC5.13.5: Traceability returns current-user dynamic identifiers without cross-user leakage."""
     report_date = date(2026, 5, 31)
     statement_txn_id = uuid4()
     other_user = User(email=f"other-trace-{uuid4()}@example.com", hashed_password="hashed")
@@ -1713,7 +1713,7 @@ async def test_AC19_10_1_unknown_journal_source_ids_are_not_reported_as_statemen
     db: AsyncSession,
     test_user: User,
 ):
-    """AC-extraction.1808.5: AC18.8.5 AC19.10.1: Unknown journal source IDs remain explicit blockers, not fake statement anchors."""
+    """AC-reporting.source-anchors.1: AC-extraction.1808.5: AC18.8.5 AC19.10.1: Unknown journal source IDs remain explicit blockers, not fake statement anchors."""
     report_date = date(2026, 5, 31)
     bank = Account(user_id=test_user.id, name="Unknown Source Bank", type=AccountType.ASSET, currency="SGD")
     income = Account(user_id=test_user.id, name="Unknown Source Income", type=AccountType.INCOME, currency="SGD")

@@ -48,6 +48,7 @@ def _balanced_bank_payload() -> dict:
 
 
 async def test_AC8_15_2_bank_statement_auto_creates_account_and_posts_without_manual_mapping(db, test_user):
+    """AC-reporting.full-year.2: was AC8.15.2."""
     service = ExtractionService()
     service.extract_financial_data = AsyncMock(return_value=_balanced_bank_payload())
 

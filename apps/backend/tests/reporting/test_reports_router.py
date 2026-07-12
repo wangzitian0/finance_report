@@ -68,7 +68,7 @@ def test_data_setup_reports(db: AsyncSession, test_user):
 
 
 async def test_balance_sheet_endpoint(client, test_data_setup_reports):
-    """[AC5.1.4] Test balance sheet endpoint."""
+    """AC-reporting.balance-sheet.4: [AC5.1.4] Test balance sheet endpoint."""
     await test_data_setup_reports()
 
     response = await client.get("/reports/balance-sheet", params={"currency": "SGD"})
@@ -82,7 +82,7 @@ async def test_AC5_16_1_balance_sheet_defaults_to_excluding_restricted_holdings(
     client,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC5.16.1: Balance sheet endpoint defaults restricted holdings to excluded."""
+    """AC-reporting.trust-signals.1: AC5.16.1: Balance sheet endpoint defaults restricted holdings to excluded."""
 
     async def fake_generate_balance_sheet(*_args, **kwargs):
         assert kwargs["include_restricted"] is False
@@ -111,7 +111,7 @@ async def test_AC5_16_1_balance_sheet_defaults_to_excluding_restricted_holdings(
 
 
 async def test_income_statement_endpoint(client, test_data_setup_reports):
-    """Test income statement endpoint."""
+    """AC-reporting.errors.4: Test income statement endpoint."""
     await test_data_setup_reports()
 
     today = date.today()
@@ -141,7 +141,7 @@ async def test_AC5_16_2_cash_flow_response_preserves_fx_warnings(
     client,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC5.16.2: Cash flow response model exposes partial FX warnings."""
+    """AC-reporting.trust-signals.2: AC5.16.2: Cash flow response model exposes partial FX warnings."""
 
     async def fake_generate_cash_flow(*_args, **_kwargs):
         return {
@@ -400,7 +400,7 @@ async def test_AC5_17_1_cash_flow_export_returns_csv(
     client,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC5.17.1: Cash-flow report export is a first-class CSV export type."""
+    """AC-reporting.csv-export.1: AC5.17.1: Cash-flow report export is a first-class CSV export type."""
 
     async def fake_generate_cash_flow(*_args, **kwargs):
         assert kwargs["start_date"] == date(2026, 1, 1)

@@ -82,7 +82,7 @@ async def test_balance_sheet_fx_revaluation_is_calculated_not_plugged(db: AsyncS
 
 
 async def test_income_statement_includes_average_rate_fallback_warning(db: AsyncSession, test_user):
-    """AC5.6.7: Report output lists currencies that used average-rate spot fallback."""
+    """AC-reporting.kpis.3: AC5.6.7: Report output lists currencies that used average-rate spot fallback."""
     start_date = date(2025, 1, 1)
     end_date = date(2025, 1, 31)
     cash = await _account(db, test_user.id, "USD Cash", AccountType.ASSET, "USD")

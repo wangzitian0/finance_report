@@ -172,11 +172,14 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 > any amount on the Balance Sheet / Income Statement drills down to the exact
 > source transactions, reusing the evidence-lineage graph.
 
+> *(AC22.3.3 removed — the account-lineage API row migrated to the
+> `reporting` package roadmap as `AC-reporting.lineage.1`, migration
+> closeout continuation, #1663 / #1716.)*
+
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
 | AC22.3.1 | The `/reports` front section renders exactly four report blocks: Balance Sheet, Income Statement, Annualized Income, and Reconciliation coverage (reconciliation match rate / unmatched count) | `reportsCockpit.test.tsx` | P1 |
 | AC22.3.2 | All other reports (Cash Flow, Personal Report Package, and any future reports) live behind a single "More" control, not the front section | `reportsCockpit.test.tsx` | P1 |
-| AC22.3.3 | `GET /api/reports/account-lineage` returns the user-scoped posted/reconciled journal lines that contribute to an account's balance for the period, each carrying a `journal_line` evidence anchor, with Decimal-safe signed amounts | `test_account_lineage.py` | P1 |
 | AC22.3.4 | A reusable lineage drill-down component lets a user click any amount on the Balance Sheet or Income Statement, list the contributing journal lines, and open the full evidence chain (journal line → bank statement transaction → atomic transaction → source document) | `lineagePanel.test.tsx`, `balanceSheetDrilldown.test.tsx` | P1 |
 | AC22.3.5 | Accounts/amounts with no contributing lines or no graph-compatible anchor degrade gracefully with an explicit empty/"no source linked" state and no crash | `balanceSheetDrilldown.test.tsx` | P1 |
 | AC22.3.6 | Desktop and mobile smoke covers the four-block cockpit and a Balance Sheet drill-down open/close without layout overflow | `reports-cockpit.spec.ts` | P1 |
@@ -241,7 +244,7 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC22.7.1 | Each cash-flow line carries its account anchor (`account_id`), and clicking a cash-flow amount opens the account-lineage drawer for that account's contributing journal lines | `test_reporting.py`, `cashFlowPage.test.tsx` | P1 |
+| AC22.7.1 | Clicking a cash-flow amount opens the account-lineage drawer for that account's contributing journal lines (the backend account-anchor half migrated to the `reporting` package roadmap as `AC-reporting.lineage.2`, migration closeout continuation, #1663 / #1716; the frontend drawer half stays here) | `cashFlowPage.test.tsx` | P1 |
 | AC22.7.2 | The reusable lineage panel renders evidence nodes as an ordered source-to-report path with per-hop source, confidence, and version badges when those fields are available | `lineagePanel.test.tsx` | P1 |
 | AC22.7.3 | The Cash Flow statement renders a reconciliation that ties beginning cash + net cash flow to ending cash, and explicitly flags when it does not reconcile | `cashFlowPage.test.tsx` | P1 |
 | AC22.7.4 | Desktop and mobile Playwright smoke covers Cash Flow amount drill-down opening the account-lineage drawer without document horizontal overflow | `cash-flow-drilldown.spec.ts` | P1 |
@@ -290,7 +293,7 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC22.10.1 | A holding whose latest snapshot is backed by a source document is labeled "Imported"; holdings without document evidence carry no provenance label (manual data is never shown as imported, and import is never claimed without proof) | `test_portfolio_service.py`, `holdingsTable.test.tsx` | P1 |
+| AC22.10.1 | The holdings table renders the "Imported" provenance badge only for holdings with concrete document evidence (the backend labeling half migrated to the `portfolio` package roadmap as `AC-portfolio.provenance.1`, migration closeout continuation, #1663 / #1717; the frontend badge half stays here) | `holdingsTable.test.tsx` | P1 |
 | AC22.10.2 | Manual valuation capture uses a controlled source enum instead of free-text provenance, while existing historical source strings remain displayable in snapshot history | `assetsPage.test.tsx` | P1 |
 | AC22.10.3 | Desktop and mobile Playwright smoke covers portfolio provenance badges only for imported holdings, with unproven holdings unlabeled and no document horizontal overflow | `portfolio-provenance.spec.ts` | P1 |
 
@@ -342,16 +345,10 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 > position paths. This slice also carries forward two #928 accessibility review
 > comments that belong to the same trust-surface baseline.
 
-> **AC22.13.1** is a dual-package row. Its `test_manual_valuation_snapshots.py`
-> share (manual valuation component provenance) migrated to the `pricing`
-> package roadmap as **`AC-pricing.provenance.1`** (migration closeout
-> continuation, #1663 / #1710). The `test_portfolio_service.py` and
-> `test_reporting.py` shares stay here pending the `portfolio`/`reporting`
-> package migrations.
+> *(AC22.13.1 removed — fully distributed; it was a three-package row: its `test_manual_valuation_snapshots.py` share migrated to `AC-pricing.provenance.1` (#1663 / #1710), its `test_portfolio_service.py` share (holdings + explicit as-of holdings) to `AC-portfolio.provenance.2` (#1663 / #1717), and its `test_reporting.py` share (report amount lines) to `AC-reporting.provenance.1` (#1663 / #1716))*
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC22.13.1 | Portfolio holdings, explicit as-of holdings, manual valuation snapshots, and report amount lines expose a normalized provenance enum (`imported`, `manual`, `derived`) when the source basis is known, while ambiguous holdings remain unlabeled instead of guessed | `test_portfolio_service.py`, `test_reporting.py`, `test_manual_valuation_snapshots.py` | P1 |
 | AC22.13.2 | Portfolio and report surfaces render a shared Imported / Manual / Derived provenance badge; Manual is visually distinct from Imported and unlabeled values remain silent | `provenanceBadge.test.tsx`, `holdingsTable.test.tsx`, `balanceSheetPage.test.tsx`, `incomeStatementPage.test.tsx` | P1 |
 | AC22.13.3 | Carryover accessibility review fixes keep the skip-link target covered by global focus-visible styling and keep report package table-of-contents section status in the accessible link name | `designTokens.test.tsx`, `personalReportPackagePage.test.tsx` | P1 |
 
