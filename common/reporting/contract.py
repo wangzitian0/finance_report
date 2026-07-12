@@ -1794,5 +1794,47 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── group business-value-gate (#1505) — prior e2e/deploy gates proved
+        # reachability (HTTP 200, page-loaded) but never that a computed
+        # business value is right; three production bugs (#1486, #1481,
+        # #1397) all passed every existing gate. These prove a real journey's
+        # balance-sheet/dashboard totals are numerically correct AND that the
+        # #1481 opening-balance-missing invariant degrades the aggregate tier
+        # end-to-end — at both Tier-1 (pre-merge, no LLM) and Tier-2/3
+        # (deployed, wired into deploy.yml's existing staging_e2e_tests gate)
+        # ──
+        ACRecord(
+            id="AC-reporting.business-value-gate.1",
+            statement=(
+                "A CSV-sourced statement's balance-sheet total equals the "
+                "known net of its transactions, and — because the source "
+                "carried no opening balance — the aggregate confidence tier "
+                "reads LOW with an explicit missing_opening_balance warning, "
+                "never silently HIGH, even though every posted line is "
+                "USER_CONFIRMED."
+            ),
+            test=(
+                "apps/backend/tests/e2e/test_business_value_correctness_gate.py"
+                "::test_AC_reporting_business_value_gate_1_total_matches_transactions_and_open_bal_missing_degrades_tier"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.business-value-gate.2",
+            statement=(
+                "Recording an opening balance for the same account clears "
+                "the missing_opening_balance warning, un-degrades the "
+                "aggregate confidence tier, and the total correctly "
+                "includes the opening balance — proving the gate responds "
+                "to real state in both directions, not permanently stuck LOW."
+            ),
+            test=(
+                "apps/backend/tests/e2e/test_business_value_correctness_gate.py"
+                "::test_AC_reporting_business_value_gate_2_recording_opening_balance_clears_warning_and_updates_total"
+            ),
+            priority="P0",
+            status="done",
+        ),
     ],
 )
