@@ -14,8 +14,22 @@
 - On a branch, never committed to `main`
 - **CI passing** (all required checks green) — behavior is proven by the tests in CI
   (TDD / root-cause), **not** by manually watching a preview deploy
-- **All Copilot auto-review (CR) comments resolved** — each fixed, or justified — and the comment **threads resolved on GitHub**
+- **All Copilot auto-review (CR) comments resolved** — each fixed, or justified — reply on the thread with what changed (or why not) **before** resolving it, so the resolution has a paper trail independent of the commit history
+- **GitHub itself reports `mergeable: MERGEABLE` and `mergeStateStatus: CLEAN`** — a green CI run does not imply this; check both explicitly (see the playbook below) before reporting a PR as ready
 - Code/PR/commits in English
+
+**`mergeStateStatus` playbook** — this value can flip at any time a sibling PR
+merges to `main`, independent of anything you did to this branch. Re-check it
+immediately before reporting a PR ready, not just after your last push:
+
+| `mergeStateStatus` | Meaning | Action |
+|---|---|---|
+| `CLEAN` | Mergeable, checks green, no conflicts | Ready — report it |
+| `DIRTY` | Real merge conflict with `main` | Rebase now, don't wait to be told (see below) |
+| `BEHIND` | Base moved, no conflict yet | Rebase or merge `main` in before it becomes `DIRTY` |
+| `BLOCKED` | Required checks/reviews not yet satisfied | Normal in-flight state — watch, don't rebase pre-emptively |
+| `UNSTABLE` | Non-required checks failing | Usually fine to report ready; note which check and why it's non-required |
+| `UNKNOWN` | GitHub hasn't computed it yet | Wait ~10-20s and re-query before concluding anything |
 
 > Manual preview verification (`report-pr-XX.zitian.party`) is **optional** — useful
 > to eyeball a UI change, but not a required deliverable step. The proof of behavior
@@ -30,7 +44,7 @@
 5. ✅ Create PR (branch only — never commit to `main`)
 6. ✅ **Monitor CI until it passes** (use `gh run watch`)
    - If CI fails: find the root cause, fix, repeat
-7. ✅ **Resolve every Copilot (CR) review comment** — fix or justify each — then resolve the threads on GitHub
+7. ✅ **Resolve every Copilot (CR) review comment** — fix or justify each, **reply on the thread** with what changed (or why not), then resolve the thread on GitHub
 8. ✅ **Report: "PR ready for your review"** — with PR URL, branch, commit SHA,
    draft status, `mergeable`, `mergeStateStatus`, and required-check summary
 9. 🔁 **Keep the PR mergeable while waiting** (agents never merge): watch for
@@ -59,6 +73,16 @@ therefore **part of the deliverable, not aftercare**:
   or justify and resolve the thread. Never blanket-accept, never ignore.
 - **A conflict appearing because another PR merged is yours** — rebase
   immediately, don't wait to be told.
+- **A claim of "verified against staging/production" is only true if the
+  verification mechanism actually targeted the commit you think it did.**
+  Concrete failure mode: dispatching a post-merge gate without an explicit
+  `version_ref`/commit pin silently defaults to whatever is *currently
+  deployed* — if that deploy predates your merge, you've re-tested the old
+  code and produced a false "confirmed" signal. Before reporting a live
+  verification result, check what commit/version the mechanism actually ran
+  against (a deploy's own health/version endpoint, a workflow run's resolved
+  ref) and say so explicitly, rather than assuming a dispatch you triggered
+  necessarily exercised your latest change.
 - **Goals must never require a user-only action.** An agent goal is satisfied
   by "PR(s) mergeable + reported", never by "PR merged" — a goal phrased on
   merging deadlocks the session against the agents-never-merge rule.
