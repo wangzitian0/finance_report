@@ -48,13 +48,31 @@ class _FxGatewayNotRegisteredError(Exception):
     """
 
 
+class _UnwiredPrefetchedFxRates:
+    """Placeholder bound to :data:`PrefetchedFxRates` before wiring.
+
+    A bare ``None`` default would make ``fx_gateway.PrefetchedFxRates(...)``
+    fail with a confusing ``TypeError: 'NoneType' object is not callable``.
+    Instantiating this placeholder instead raises the same clear wiring error
+    :func:`_require` gives the callables, at the point of use.
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        raise RuntimeError(
+            "fx_gateway.register_fx_gateway() was never called (needed for "
+            "'PrefetchedFxRates') — main.py wires it at startup (#1666); a "
+            "test exercising reporting without the app must call it too "
+            "(the backend test conftest does)."
+        )
+
+
 #: The injected FX-unavailable exception class (``src.services.fx.FxRateError``
 #: today). Reference late-bound as ``fx_gateway.FxRateError``.
 FxRateError: type[Exception] = _FxGatewayNotRegisteredError
 
 #: The injected prefetch-batch helper class (``src.services.fx.PrefetchedFxRates``
 #: today). Reference late-bound as ``fx_gateway.PrefetchedFxRates``.
-PrefetchedFxRates: Any = None
+PrefetchedFxRates: Any = _UnwiredPrefetchedFxRates
 
 _get_exchange_rate: Callable[..., Awaitable[Any]] | None = None
 _get_average_rate: Callable[..., Awaitable[Any]] | None = None
