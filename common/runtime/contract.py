@@ -844,6 +844,66 @@ CONTRACT = PackageContract(
             priority="P2",
             status="done",
         ),
+        # ── group release-images (#1759 CR follow-up): retry a transient
+        # registry-visibility miss instead of failing the gate outright ──
+        ACRecord(
+            id="AC-runtime.release-images.1",
+            statement=(
+                "verify_release_images finds a digest on the first inspect "
+                "attempt with no retry/sleep — the retry path never runs on "
+                "the (expected-common) success case."
+            ),
+            test=(
+                "tests/tooling/test_verify_release_images.py"
+                "::test_AC_runtime_release_images_1_first_attempt_success_no_retry"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.release-images.2",
+            statement=(
+                "verify_release_images retries a not-yet-visible digest (e.g. "
+                "registry propagation lag right after container-images pushes "
+                "a :<sha> tag) instead of treating the first miss as a hard "
+                "failure, as long as it succeeds within max_attempts."
+            ),
+            test=(
+                "tests/tooling/test_verify_release_images.py"
+                "::test_AC_runtime_release_images_2_transient_miss_then_success_retries"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.release-images.3",
+            statement=(
+                "verify_release_images still fails closed when an image never "
+                "becomes visible — retrying bounds flake tolerance, it does "
+                "not remove the guarantee that a truly missing image fails "
+                "the gate."
+            ),
+            test=(
+                "tests/tooling/test_verify_release_images.py"
+                "::test_AC_runtime_release_images_3_exhausted_retries_fails_closed"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.release-images.4",
+            statement=(
+                "verify_release_images' max_attempts/retry_delay_seconds are "
+                "caller-configurable, not hardcoded, so a caller with a "
+                "tighter time budget can tune the retry envelope."
+            ),
+            test=(
+                "tests/tooling/test_verify_release_images.py"
+                "::test_AC_runtime_release_images_4_max_attempts_and_delay_are_configurable"
+            ),
+            priority="P2",
+            status="done",
+        ),
     ],
 )
 
