@@ -10,6 +10,7 @@ rather than added to that already-3900-line one.
 from __future__ import annotations
 
 import datetime as dt
+import json
 
 import pytest
 
@@ -140,3 +141,39 @@ def test_AC_runtime_real_corpus_eval_6_missing_created_at_fails_closed() -> None
         release_evidence.verify_real_corpus_eval(
             repository="owner/repo", gh_json=fake_gh_json, now=_NOW
         )
+
+
+def test_AC_runtime_real_corpus_eval_7_cli_dispatch_reaches_the_check(
+    monkeypatch,
+) -> None:
+    """AC-runtime.real-corpus-eval.7: `main --check real-corpus-eval` reaches
+    verify_real_corpus_eval end-to-end (argparse choice, --max-age-hours
+    wiring, and the check== dispatch branch), not just the function tested
+    directly above. Patches subprocess.check_output — the one seam
+    _default_gh_json itself uses — rather than gh_json, so this genuinely
+    exercises main()'s own dispatch code instead of bypassing it."""
+    fresh_run = [
+        {
+            "databaseId": 900,
+            "status": "completed",
+            "conclusion": "success",
+            "createdAt": dt.datetime.now(dt.timezone.utc).isoformat(),
+        }
+    ]
+    monkeypatch.setattr(
+        release_evidence.subprocess,
+        "check_output",
+        lambda _args, text=True: json.dumps(fresh_run),
+    )
+
+    exit_code = release_evidence.main(
+        [
+            "--check",
+            "real-corpus-eval",
+            "--repository",
+            "owner/repo",
+            "--max-age-hours",
+            "1",
+        ]
+    )
+    assert exit_code == 0

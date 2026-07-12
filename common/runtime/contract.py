@@ -829,6 +829,21 @@ CONTRACT = PackageContract(
             priority="P2",
             status="done",
         ),
+        ACRecord(
+            id="AC-runtime.real-corpus-eval.7",
+            statement=(
+                "main --check real-corpus-eval reaches verify_real_corpus_eval "
+                "end-to-end through argparse (choice registration and "
+                "--max-age-hours wiring), not only through direct calls to the "
+                "underlying function."
+            ),
+            test=(
+                "tests/tooling/test_real_corpus_eval_evidence.py"
+                "::test_AC_runtime_real_corpus_eval_7_cli_dispatch_reaches_the_check"
+            ),
+            priority="P2",
+            status="done",
+        ),
     ],
 )
 
