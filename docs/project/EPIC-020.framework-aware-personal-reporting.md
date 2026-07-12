@@ -1,5 +1,11 @@
 # EPIC-020: Framework-Aware Personal Financial Reporting
 
+<!-- epic-file: design-doc -->
+<!-- 0 AC rows by design (#1719): framework-policy scope/design record; its
+     ACs migrated to the reporting package roadmap (AC-reporting.*), and
+     tests/tooling/test_framework_reporting_epic_contract.py anchors the
+     boundary prose kept here. -->
+
 > **Status ownership**: Scope owner only; live delivery status is tracked by
 > GitHub issues, AC registries, and executable tests.
 > **Vision Anchor**: `decision-filter-accuracy-auditability`

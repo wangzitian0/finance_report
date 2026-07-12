@@ -105,6 +105,14 @@ async def _wait_for_parsed_statement(
     gate_name: str,
     require_transactions: bool = True,
 ) -> dict:
+    """Wait for the statement to reach a reviewable-or-further terminal state.
+
+    A high-confidence, balance-valid parse with a detected account skips
+    'parsed' entirely and lands directly on 'approved' (route_by_threshold,
+    #1780) -- this is intentional auto-post behavior (#1467), not a race, so
+    both states count as success. The caller must branch on which one it got:
+    an already-'approved' statement must not be posted again.
+    """
     deadline = asyncio.get_running_loop().time() + PARSING_TIMEOUT_MS / 1000
     last_payload: dict | None = None
     while asyncio.get_running_loop().time() < deadline:
@@ -119,7 +127,7 @@ async def _wait_for_parsed_statement(
                 f"{gate_name} gate rejected statement {statement_id}: {last_payload.get('validation_error')}",
                 statement=last_payload,
             )
-        if status == "parsed":
+        if status in ("parsed", "approved"):
             if require_transactions:
                 assert isinstance(last_payload.get("transactions"), list), (
                     f"parsed statement {statement_id} has no transactions payload"
@@ -374,15 +382,25 @@ async def test_personal_financial_report_package_post_merge_journey(
         )
         assert len(parsed_bank.get("transactions") or []) == expected.transaction_count
 
-        approve_response = await client.post(
-            _api_url(f"/statements/{bank_statement_id}/review/approve"),
-            json={"create_account_if_missing": True},
-        )
-        assert approve_response.status_code == 200, (
-            f"bank stage 1 approve failed: {approve_response.status_code} {approve_response.text}"
-        )
-        approve_payload = approve_response.json()
-        assert approve_payload["journal_entries_created"] == expected.transaction_count
+        if parsed_bank.get("status") != "approved":
+            # High-confidence auto-post (#1467) may already have approved and
+            # posted this statement before we ever observed 'parsed' (#1780).
+            # Calling /review/approve again is safe (idempotent posting) but
+            # would report journal_entries_created=0 with nothing left to
+            # post, which would fail the exact-count assertion below for no
+            # real reason. The journal-entries count check right after this
+            # still verifies the right entries exist either way.
+            approve_response = await client.post(
+                _api_url(f"/statements/{bank_statement_id}/review/approve"),
+                json={"create_account_if_missing": True},
+            )
+            assert approve_response.status_code == 200, (
+                f"bank stage 1 approve failed: {approve_response.status_code} {approve_response.text}"
+            )
+            approve_payload = approve_response.json()
+            assert (
+                approve_payload["journal_entries_created"] == expected.transaction_count
+            )
 
         journal_response = await client.get(_api_url("/journal-entries?limit=20"))
         assert journal_response.status_code == 200, (

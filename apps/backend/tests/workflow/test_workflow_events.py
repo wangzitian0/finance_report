@@ -169,11 +169,12 @@ def test_AC19_4_1_upload_first_home_ssot_documents_dashboard_contract() -> None:
     assert "must not block upload, event, or report readiness actions" in normalized_epic
 
 
-def test_AC19_6_1_workflow_navigation_ia_owned_by_epic022_with_attention_contract() -> None:
-    """AC19.6.1: navigation IA is owned by EPIC-022 (bottom-tab); workflow-events
-    SSOT only keeps the workflow-attention contract, not a primary/advanced split."""
+def test_AC22_21_1_workflow_events_ssot_cedes_navigation_ia_to_epic022() -> None:
+    """AC22.21.1 (doc half): navigation IA is owned by EPIC-022 (bottom-tab);
+    the workflow-events SSOT only keeps the workflow-attention contract, not a
+    primary/advanced split. (Was AC19.6.1; the AC19.6 rows were superseded by
+    EPIC-022 AC22.21 and deleted by the migration closeout, #1719.)"""
     ssot = (ROOT_DIR / "docs" / "ssot" / "workflow-events.md").read_text(encoding="utf-8")
-    epic = (ROOT_DIR / "docs" / "project" / "EPIC-019.event-driven-upload-to-report-ux.md").read_text(encoding="utf-8")
 
     for phrase in (
         "owned by EPIC-022",
@@ -186,9 +187,6 @@ def test_AC19_6_1_workflow_navigation_ia_owned_by_epic022_with_attention_contrac
     # The superseded primary/advanced model must no longer be documented here.
     assert "Primary navigation:" not in ssot
     assert "Advanced navigation:" not in ssot
-
-    assert "AC19.6.1" in epic
-    assert "AC19.6.7" in epic
 
 
 def test_AC19_8_1_workflow_session_ssot_separates_chat_sessions() -> None:

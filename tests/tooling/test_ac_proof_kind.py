@@ -35,15 +35,15 @@ def test_AC26_5_1_proof_kind_marker_flows_and_gate_enforces_matrix(
         epic_dir,
         "EPIC-003.statement-parsing.md",
         # LLM-LED with an explicit invariant proof -> valid.
-        "| AC3.1.1 | Parse DBS PDF {tier:LLM-LED} {proof:invariant} | t | f | P0 |\n"
+        "| AC3.1.1 | Parse DBS PDF {tier:LLM-LED} {proof:invariant} | t | f | P0 | <!-- epic-owned: pending-package -->\n"
         # CODE-ONLY with no proof marker -> defaults to exact -> valid.
-        "| AC3.1.2 | Parse CSV {tier:CODE-ONLY} | t | f | P0 |\n"
+        "| AC3.1.2 | Parse CSV {tier:CODE-ONLY} | t | f | P0 | <!-- epic-owned: pending-package -->\n"
         # LLM-LED with no proof marker -> defaults to property (NOT exact) -> valid.
-        "| AC3.1.3 | OCR default {tier:LLM-LED} | t | f | P0 |\n"
+        "| AC3.1.3 | OCR default {tier:LLM-LED} | t | f | P0 | <!-- epic-owned: pending-package -->\n"
         # HU with no proof marker -> defaults to evidence -> valid.
-        "| AC3.1.4 | Review queue {tier:HU} | t | f | P0 |\n"
+        "| AC3.1.4 | Review queue {tier:HU} | t | f | P0 | <!-- epic-owned: pending-package -->\n"
         # Untagged AC -> no proof_kind, ignored by the gate.
-        "| AC3.1.5 | No tier {proof:exact} | t | f | P0 |\n",
+        "| AC3.1.5 | No tier {proof:exact} | t | f | P0 | <!-- epic-owned: pending-package -->\n",
     )
     monkeypatch.setattr(gar, "EPIC_DIR", str(epic_dir))
     monkeypatch.setattr(gar, "OVERRIDES", str(overrides))
@@ -69,7 +69,7 @@ def test_AC26_5_1_proof_kind_marker_flows_and_gate_enforces_matrix(
     _write_epic(
         epic_dir,
         "EPIC-003.statement-parsing.md",
-        "| AC3.1.1 | Parse DBS PDF {tier:LLM-LED} {proof:exact} | t | f | P0 |\n",
+        "| AC3.1.1 | Parse DBS PDF {tier:LLM-LED} {proof:exact} | t | f | P0 | <!-- epic-owned: pending-package -->\n",
     )
     violations = proof_gate.proof_kind_violations(tmp_path)
     assert any("AC3.1.1" in v and "exact" in v for v in violations), violations
@@ -78,7 +78,7 @@ def test_AC26_5_1_proof_kind_marker_flows_and_gate_enforces_matrix(
     _write_epic(
         epic_dir,
         "EPIC-003.statement-parsing.md",
-        "| AC3.1.4 | Review queue {tier:HU} {proof:exact} | t | f | P0 |\n",
+        "| AC3.1.4 | Review queue {tier:HU} {proof:exact} | t | f | P0 | <!-- epic-owned: pending-package -->\n",
     )
     hu_violations = proof_gate.proof_kind_violations(tmp_path)
     assert any("AC3.1.4" in v for v in hu_violations), hu_violations
@@ -87,7 +87,7 @@ def test_AC26_5_1_proof_kind_marker_flows_and_gate_enforces_matrix(
     _write_epic(
         epic_dir,
         "EPIC-006.ai-advisor.md",
-        "| AC6.2.3 | Suggestions {tier:LLM-ONLY} {proof:exact} | t | f | P0 |\n",
+        "| AC6.2.3 | Suggestions {tier:LLM-ONLY} {proof:exact} | t | f | P0 | <!-- epic-owned: pending-package -->\n",
     )
     pl_violations = proof_gate.proof_kind_violations(tmp_path)
     assert any("AC6.2.3" in v for v in pl_violations), pl_violations

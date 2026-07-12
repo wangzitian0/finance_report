@@ -251,8 +251,9 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 
 ## 📊 Acceptance Criteria Summary
 
-> **AC18.1.1** is already proven by `AC-extraction.104.1`
-> (`test_get_parsing_prompt_default`) — no separate migration needed.
+> *(AC18.1.1 removed — duplicate, not migrated; it was already proven by
+> `AC-extraction.104.1` (`test_get_parsing_prompt_default`), which is the
+> canonical copy. One criterion, one home — final cleanup, #1719.)*
 > **AC18.1.2** ("BankStatementTransaction has suggested_category/
 > category_confidence columns"), **AC18.1.5** ("create_entry_from_txn reads
 > classification before defaulting to Uncategorized"), and **AC18.1.6**
@@ -275,14 +276,13 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 
 | AC ID | Phase | Description |
 |-------|-------|-------------|
-| AC18.1.1 | 1 | Extraction prompt returns `suggested_category` and `category_confidence` |
-| AC18.1.2 | 1 | `BankStatementTransaction` has `suggested_category` and `category_confidence` columns |
-| AC18.1.5 | 1 | `create_entry_from_txn` reads classification before defaulting to Uncategorized |
-| AC18.1.6 | 1 | Auto-created category accounts are user-scoped and correctly typed |
-| AC18.3.1 | 3 | `ai_semantic_score()` returns similarity for transaction description pairs. **Not migrated** — `ai_semantic_score` is a genuine LLM call, but `reconciliation` is declared `CODE-ONLY`; migrating this row trips `check_authority_reconcile.py` (a CODE-ONLY package permits no LLM-classified roadmap-AC test). Needs a tier/package-boundary decision before migration, not a silent workaround (found during migration verification, #1663 / #1711) |
-| AC18.3.2 | 3 | Hybrid scoring: `0.7 * algorithmic + 0.3 * AI` for 60-84 range only. **Untested** — no test exercises `calculate_match_score`'s hybrid-AI branch (found during migration verification, #1663 / #1711) |
-| AC18.3.3 | 3 | Feature flag `enable_ai_reconciliation` controls AI scoring. **Untested** — no test toggles `ENABLE_AI_RECONCILIATION` (found during migration verification, #1663 / #1711) |
-| AC18.4.3 | 4 | AI CSV parsing handles unknown institutions as fallback |
+| AC18.1.2 | 1 | `BankStatementTransaction` has `suggested_category` and `category_confidence` columns | <!-- epic-owned: pending-package -->
+| AC18.1.5 | 1 | `create_entry_from_txn` reads classification before defaulting to Uncategorized | <!-- epic-owned: pending-package -->
+| AC18.1.6 | 1 | Auto-created category accounts are user-scoped and correctly typed | <!-- epic-owned: pending-package -->
+| AC18.3.1 | 3 | `ai_semantic_score()` returns similarity for transaction description pairs. **Not migrated** — `ai_semantic_score` is a genuine LLM call, but `reconciliation` is declared `CODE-ONLY`; migrating this row trips `check_authority_reconcile.py` (a CODE-ONLY package permits no LLM-classified roadmap-AC test). Needs a tier/package-boundary decision before migration, not a silent workaround (found during migration verification, #1663 / #1711) | <!-- epic-owned: pending-package -->
+| AC18.3.2 | 3 | Hybrid scoring: `0.7 * algorithmic + 0.3 * AI` for 60-84 range only. **Untested** — no test exercises `calculate_match_score`'s hybrid-AI branch (found during migration verification, #1663 / #1711) | <!-- epic-owned: pending-package -->
+| AC18.3.3 | 3 | Feature flag `enable_ai_reconciliation` controls AI scoring. **Untested** — no test toggles `ENABLE_AI_RECONCILIATION` (found during migration verification, #1663 / #1711) | <!-- epic-owned: pending-package -->
+| AC18.4.3 | 4 | AI CSV parsing handles unknown institutions as fallback | <!-- epic-owned: pending-package -->
 
 ### AC18.7: Evidence Graph Foundation
 
@@ -322,9 +322,9 @@ Dependencies: AC18.7 Evidence Graph foundation and AC18.8 first production sourc
 
 | AC ID | Phase | Description |
 |-------|-------|-------------|
-| AC18.9.4 | Evidence navigation UI | The report package traceability surface exposes a lineage panel from at least one report traceability row |
-| AC18.9.5 | Evidence navigation UI | The lineage panel renders source document, extracted record, atomic fact, ledger entry, ledger line, and report-line anchors when present |
-| AC18.9.6 | Evidence navigation proof | Tests cover report line to source document navigation and source document to impacted ledger/report navigation |
+| AC18.9.4 | Evidence navigation UI | The report package traceability surface exposes a lineage panel from at least one report traceability row | <!-- epic-owned: fe-only -->
+| AC18.9.5 | Evidence navigation UI | The lineage panel renders source document, extracted record, atomic fact, ledger entry, ledger line, and report-line anchors when present | <!-- epic-owned: fe-only -->
+| AC18.9.6 | Evidence navigation proof | Tests cover report line to source document navigation and source document to impacted ledger/report navigation | <!-- epic-owned: fe-only -->
 
 ### AC18.10: Evidence Graph Lazy Materialization and Consistency Guardrails
 
@@ -360,11 +360,11 @@ Dependencies: AC18.7 Evidence Graph foundation, AC18.8 source-to-report integrat
 
 | AC ID | Phase | Description | Test | File | Priority |
 |-------|-------|-------------|------|------|----------|
-| AC18.11.2 | Audit anchors | Atomic transaction and position source-document anchors are represented by normalized link tables that reject missing or cross-user uploaded documents | `test_AC18_11_2_atomic_source_links_reject_missing_and_cross_user_documents()` | `infra/test_audit_anchor_schema_invariants.py` | P0 |
-| AC18.11.3 | Evidence lineage | Evidence Graph edges are tenant-scoped at the database boundary and cannot connect nodes owned by different users | `test_AC18_11_3_evidence_edges_reject_cross_user_endpoints()` | `infra/test_audit_anchor_schema_invariants.py` | P0 |
-| AC18.11.4 | Tenant scope | Journal lines, approved statement summaries, and transaction classifications reject cross-user account references at the database boundary | `test_AC18_11_4_account_references_reject_cross_user_accounts()` | `infra/test_audit_anchor_schema_invariants.py` | P0 |
-| AC18.11.5 | Blocker semantics | Unresolved legacy source UUIDs remain explicit blockers and are never promoted to trusted source anchors | `test_AC18_11_5_unresolved_legacy_source_ids_remain_blockers()` | `infra/test_audit_anchor_schema_invariants.py` | P0 |
-| AC18.11.6 | Migration safety | The audit-anchor migration declares preflights, backfills resolvable legacy anchors, preserves unresolved hints, and is registered in migration-risk metadata | `test_AC18_11_6_migration_preflights_and_risk_contract_are_declared()` | `infra/test_audit_anchor_schema_invariants.py` | P0 |
+| AC18.11.2 | Audit anchors | Atomic transaction and position source-document anchors are represented by normalized link tables that reject missing or cross-user uploaded documents | `test_AC18_11_2_atomic_source_links_reject_missing_and_cross_user_documents()` | `infra/test_audit_anchor_schema_invariants.py` | P0 | <!-- epic-owned: horizontal -->
+| AC18.11.3 | Evidence lineage | Evidence Graph edges are tenant-scoped at the database boundary and cannot connect nodes owned by different users | `test_AC18_11_3_evidence_edges_reject_cross_user_endpoints()` | `infra/test_audit_anchor_schema_invariants.py` | P0 | <!-- epic-owned: horizontal -->
+| AC18.11.4 | Tenant scope | Journal lines, approved statement summaries, and transaction classifications reject cross-user account references at the database boundary | `test_AC18_11_4_account_references_reject_cross_user_accounts()` | `infra/test_audit_anchor_schema_invariants.py` | P0 | <!-- epic-owned: horizontal -->
+| AC18.11.5 | Blocker semantics | Unresolved legacy source UUIDs remain explicit blockers and are never promoted to trusted source anchors | `test_AC18_11_5_unresolved_legacy_source_ids_remain_blockers()` | `infra/test_audit_anchor_schema_invariants.py` | P0 | <!-- epic-owned: horizontal -->
+| AC18.11.6 | Migration safety | The audit-anchor migration declares preflights, backfills resolvable legacy anchors, preserves unresolved hints, and is registered in migration-risk metadata | `test_AC18_11_6_migration_preflights_and_risk_contract_are_declared()` | `infra/test_audit_anchor_schema_invariants.py` | P0 | <!-- epic-owned: horizontal -->
 
 ### AC18.31: Evidence Graph Typed Properties and Fail-Fast Materialization
 
@@ -427,9 +427,9 @@ proportion down. This AC owns the corpus, the measurable replay, and making that
 replay **observable** over the live corpus (mirroring how AC18.12 makes the
 thermometer observable); calibrating the promotion-gate thresholds (#930) from the
 corpus, and wiring the priors into live generation, are follow-ups. (Live
-correction grounding of extraction already exists today via the few-shot path —
-AC18.2.3 — so this AC adds the *audit* view of the loop's effect, not a second
-grounding mechanism.)
+correction grounding of extraction already exists today via the few-shot
+path, `AC-extraction.1802.3` — so this AC adds the *audit* view of the
+loop's effect, not a second grounding mechanism.)
 
 > This group's rows removed — migrated to the `extraction` package roadmap
 > as `AC-extraction.1814.1-4` (migration closeout continuation, #1663 /
@@ -536,13 +536,13 @@ rather than duplicated.
 
 ### Acceptance Criteria — Phase 5 (Confidence & AI Suggestion UI)
 
-- [x] **AC18.5.1** `<ConfidenceBadge />` component renders `TRUSTED` / `HIGH` / `MEDIUM` / `LOW` pill with consistent color tokens (green / blue / amber / gray) and tooltip explaining source-type priority
-- [x] **AC18.5.2** ConfidenceBadge mounted on every transaction row in Stage 1 review, Stage 2 listing, and processing-account listing; reads `confidence_tier` from API response
-- [x] **AC18.5.3** AI Suggestion Review Queue page `/review/ai-suggestions` lists pending AI classifications and AI reconciliation matches in score band 60-84 with `{transaction, suggested_category_or_match, ai_score, ai_reasoning}`
-- [x] **AC18.5.4** Queue actions: `Accept`, `Reject`, `Edit-then-Accept`; each action calls `POST /api/ai/feedback` with `{suggestion_id, action, corrected_value?}` to feed the feedback loop
-- [x] **AC18.5.5** Settings page `/settings/ai` exposes toggles for `enable_ai_reconciliation`, `enable_ai_classification`, persisted via `PATCH /api/users/me/settings`; toggle reflects backend feature-flag state on load
-- [x] **AC18.5.6** Audit Trail panel on transaction detail page lists chronological `{timestamp, actor, action, old_value, new_value}` from `GET /api/transactions/{id}/audit`, including AI-applied changes labeled with actor `ai`
-- [x] **AC18.5.7** Frontend tests: mount ConfidenceBadge for each tier; mount AI Suggestion Queue and assert Accept/Reject buttons render; mount Settings AI toggles and assert default state matches API
+- [x] **AC18.5.1** `<ConfidenceBadge />` component renders `TRUSTED` / `HIGH` / `MEDIUM` / `LOW` pill with consistent color tokens (green / blue / amber / gray) and tooltip explaining source-type priority <!-- epic-owned: fe-only -->
+- [x] **AC18.5.2** ConfidenceBadge mounted on every transaction row in Stage 1 review, Stage 2 listing, and processing-account listing; reads `confidence_tier` from API response <!-- epic-owned: fe-only -->
+- [x] **AC18.5.3** AI Suggestion Review Queue page `/review/ai-suggestions` lists pending AI classifications and AI reconciliation matches in score band 60-84 with `{transaction, suggested_category_or_match, ai_score, ai_reasoning}` <!-- epic-owned: fe-only -->
+- [x] **AC18.5.4** Queue actions: `Accept`, `Reject`, `Edit-then-Accept`; each action calls `POST /api/ai/feedback` with `{suggestion_id, action, corrected_value?}` to feed the feedback loop <!-- epic-owned: fe-only -->
+- [x] **AC18.5.5** Settings page `/settings/ai` exposes toggles for `enable_ai_reconciliation`, `enable_ai_classification`, persisted via `PATCH /api/users/me/settings`; toggle reflects backend feature-flag state on load <!-- epic-owned: fe-only -->
+- [x] **AC18.5.6** Audit Trail panel on transaction detail page lists chronological `{timestamp, actor, action, old_value, new_value}` from `GET /api/transactions/{id}/audit`, including AI-applied changes labeled with actor `ai` <!-- epic-owned: fe-only -->
+- [x] **AC18.5.7** Frontend tests: mount ConfidenceBadge for each tier; mount AI Suggestion Queue and assert Accept/Reject buttons render; mount Settings AI toggles and assert default state matches API <!-- epic-owned: fe-only -->
 
 **Priority**: P0 — confidence visibility is a vision-critical trust signal; AI review queue is the human-in-the-loop hinge for the entire AI pipeline.
 **Estimated effort**: 2 days ConfidenceBadge + integration • 4-5 days AI Suggestion Queue • 2 days Settings AI toggles • 2-3 days Audit Trail panel • 1-2 days frontend tests. **Total ~11-14 days frontend**, assumes Phase 1-4 backend endpoints from this EPIC are landed.

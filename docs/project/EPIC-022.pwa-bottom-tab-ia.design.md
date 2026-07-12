@@ -1,5 +1,9 @@
 # EPIC-022 PR12+ — PWA Bottom-Tab IA (Low-Fidelity Design)
 
+<!-- epic-file: design-doc -->
+<!-- 0 AC rows by design (#1719): low-fidelity design companion to EPIC-022;
+     the shipped ACs live in EPIC-022's AC22.21 group. -->
+
 > **Vision Anchor**: `decision-2-event-middle-layer`, `decision-4-two-stage-review`.
 >
 > Status: **design / pre-AC** (low-fidelity, approved direction; ACs land separately).

@@ -325,12 +325,12 @@ workflow state exists.
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC19.3.3 | Frontend exposes typed workflow API helpers through `lib/api.ts` for status, events, and lifecycle patching | `workflowApi.test.ts` | P0 |
-| AC19.3.4 | Header/app-shell badge reflects unread/action-required/blocked counts from the compact workflow API and stays quiet when no attention is needed | `workflowSurfaces.test.tsx` | P0 |
-| AC19.3.5 | Event inbox groups events by workflow session timeline, keeps blocked/action-required events prominent, and supports read/archive actions and direct action links | `workflowSurfaces.test.tsx` | P0 |
-| AC19.3.6 | Dashboard status feed renders primary state, report readiness, recent automation, blocker/action severity, and an empty no-action state without raw audit-log noise | `workflowSurfaces.test.tsx`, `dashboardPage.test.tsx` | P0 |
-| AC19.3.7 | Desktop and mobile Playwright smoke covers the workflow badge/inbox/feed without layout overflow | `workflow-notifications.spec.ts` | P0 |
-| AC19.3.8 | Workflow notification UI contract is documented in the workflow-events SSOT and EPIC-019 | `test_AC19_3_8_workflow_notification_ssot_documents_frontend_surfaces` | P0 |
+| AC19.3.3 | Frontend exposes typed workflow API helpers through `lib/api.ts` for status, events, and lifecycle patching | `workflowApi.test.ts` | P0 | <!-- epic-owned: fe-only -->
+| AC19.3.4 | Header/app-shell badge reflects unread/action-required/blocked counts from the compact workflow API and stays quiet when no attention is needed | `workflowSurfaces.test.tsx` | P0 | <!-- epic-owned: fe-only -->
+| AC19.3.5 | Event inbox groups events by workflow session timeline, keeps blocked/action-required events prominent, and supports read/archive actions and direct action links | `workflowSurfaces.test.tsx` | P0 | <!-- epic-owned: fe-only -->
+| AC19.3.6 | Dashboard status feed renders primary state, report readiness, recent automation, blocker/action severity, and an empty no-action state without raw audit-log noise | `workflowSurfaces.test.tsx`, `dashboardPage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
+| AC19.3.7 | Desktop and mobile Playwright smoke covers the workflow badge/inbox/feed without layout overflow | `workflow-notifications.spec.ts` | P0 | <!-- epic-owned: fe-only -->
+| AC19.3.8 | Workflow notification UI contract is documented in the workflow-events SSOT and EPIC-019 | `test_AC19_3_8_workflow_notification_ssot_documents_frontend_surfaces` | P0 | <!-- epic-owned: horizontal -->
 
 ### AC19.4 — Upload-First Entry Surface
 
@@ -339,13 +339,13 @@ workflow state exists.
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC19.4.2 | The first dashboard viewport renders the upload-to-report workflow home before KPI, chart, and activity content | `dashboardPage.test.tsx` | P0 |
-| AC19.4.3 | The dashboard primary CTA follows `workflow.status.next_action.href` and labels upload as the default action when no higher-priority blocker/action exists | `dashboardPage.test.tsx` | P0 |
-| AC19.4.4 | Report readiness state and blocker count are visible above secondary dashboard metrics and link to the readiness/report action path | `dashboardPage.test.tsx` | P0 |
-| AC19.4.5 | Recent workflow events are visible, grouped by actionability, and routine automation is summarized without dominating the page | `dashboardPage.test.tsx` | P0 |
-| AC19.4.6 | Secondary dashboard metric API failure does not hide the workflow home; the analytics section renders an isolated retry/error state | `dashboardPage.test.tsx` | P0 |
-| AC19.4.7 | Desktop and mobile Playwright smoke covers the upload-first dashboard entry without layout overflow | `upload-first-dashboard.spec.ts` | P0 |
-| AC19.4.8 | Workflow status returns cockpit-ready `next_action.label` and `next_action.summary`, routes processing to session history, and routes ready reports directly to `/reports/package` | `test_AC19_2_1_workflow_status_schema_contract`, `test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries`, `workflowSurfaces.test.tsx`, `dashboardPage.test.tsx` | P0 |
+| AC19.4.2 | The first dashboard viewport renders the upload-to-report workflow home before KPI, chart, and activity content | `dashboardPage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
+| AC19.4.3 | The dashboard primary CTA follows `workflow.status.next_action.href` and labels upload as the default action when no higher-priority blocker/action exists | `dashboardPage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
+| AC19.4.4 | Report readiness state and blocker count are visible above secondary dashboard metrics and link to the readiness/report action path | `dashboardPage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
+| AC19.4.5 | Recent workflow events are visible, grouped by actionability, and routine automation is summarized without dominating the page | `dashboardPage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
+| AC19.4.6 | Secondary dashboard metric API failure does not hide the workflow home; the analytics section renders an isolated retry/error state | `dashboardPage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
+| AC19.4.7 | Desktop and mobile Playwright smoke covers the upload-first dashboard entry without layout overflow | `upload-first-dashboard.spec.ts` | P0 | <!-- epic-owned: fe-only -->
+| AC19.4.8 | Workflow status returns cockpit-ready `next_action.label` and `next_action.summary`, routes processing to session history, and routes ready reports directly to `/reports/package` | `test_AC19_2_1_workflow_status_schema_contract`, `test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries`, `workflowSurfaces.test.tsx`, `dashboardPage.test.tsx` | P0 | <!-- epic-owned: fe-half -->
 
 ### AC19.5 — Report Readiness and Blocker State
 
@@ -353,28 +353,19 @@ workflow state exists.
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC19.5.4 | Personal report package page renders readiness state and blocker links before package section output | `personalReportPackagePage.test.tsx` | P1 |
-| AC19.5.5 | Personal report package page renders non-blocked readiness states without stale blocker cards | `personalReportPackagePage.test.tsx` | P1 |
+| AC19.5.4 | Personal report package page renders readiness state and blocker links before package section output | `personalReportPackagePage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+| AC19.5.5 | Personal report package page renders non-blocked readiness states without stale blocker cards | `personalReportPackagePage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
 
 ### AC19.6 — Navigation Folding And Advanced Drill-Down
 
-> **Superseded by EPIC-022 AC22.21.** AC19.6.1–AC19.6.7 below describe the
+> *(AC19.6.1 removed and AC19.6.2 removed and AC19.6.3 removed and AC19.6.4 removed and AC19.6.5 removed and AC19.6.6 removed and AC19.6.7 removed — dead rows, deleted rather than migrated, #1719.)*
+>
+> This group described the
 > original primary/advanced navigation model (Upload Pipeline / Reports / AI /
-> Advanced + mobile drawer). EPIC-022 PR12 replaced it with a mobile/PWA bottom
-> tab bar (Home · Chat · Add · Audit · More); navigation IA is now owned by
-> EPIC-022 and `docs/ssot/frontend-patterns.md` §9. These rows are kept for
-> history with their Verification updated to the current tests; the live
-> navigation contract is AC22.21.x. Deep-link reachability (AC19.6.6) still holds.
-
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC19.6.1 | The workflow-events SSOT cedes navigation-IA ownership to EPIC-022 (bottom-tab) and keeps only the workflow-attention contract; the superseded primary/advanced split is no longer documented there | `test_AC19_6_1_workflow_navigation_ia_owned_by_epic022_with_attention_contract` | P0 |
-| AC19.6.2 | Frontend navigation exports separate primary workflow nav and advanced nav groups while preserving route config for all existing advanced deep links | `navigation.test.ts` | P0 |
-| AC19.6.3 | Desktop sidebar renders Upload Pipeline, Reports, AI, and Advanced as the primary surface; advanced child links remain accessible and active-state aware | `sidebarAndTabs.test.tsx` | P0 |
-| AC19.6.4 | Mobile navigation (now the bottom tab bar, per AC22.21) exposes the workflow surfaces and avoids overflow | `bottomTabBar.test.tsx`, `workflow-navigation.spec.ts` | P0 |
-| AC19.6.5 | Sidebar attention indicators are derived from `/api/workflow/status` through `lib/api.ts`; direct `/api/statements/pending-review` and stage2 queue polling are removed from Sidebar | `sidebarAndTabs.test.tsx` | P0 |
-| AC19.6.6 | Workflow event action links and workspace route labels continue to deep-link into advanced review/reconciliation/processing/report destinations | `workflowSurfaces.test.tsx`, `sidebarAndTabs.test.tsx`, `workflowActionRoutes.test.tsx` | P0 |
-| AC19.6.7 | Desktop and mobile Playwright smoke covers the folded navigation and Advanced access without horizontal overflow | `workflow-navigation.spec.ts` | P0 |
+> Advanced + mobile drawer). EPIC-022 PR12 replaced it with a mobile/PWA
+> bottom tab bar (Home · Chat · Add · Audit · More); navigation IA is owned by
+> EPIC-022 (AC22.21.x) and `docs/ssot/frontend-patterns.md` §9, and deep-link
+> reachability lives on in the AC22.21 proofs.
 
 ### AC19.7 — Framework-Aware Evidence Readiness
 
@@ -390,16 +381,18 @@ before marking US/HK personal reports trusted.
 
 ### AC19.8 — Workflow Session IA Hardening And CR Cleanup
 
-> **Partially migrated.** *(AC19.8.1 removed and AC19.8.2 removed and AC19.8.3 removed and AC19.8.9 removed — this group's backend session-model/API rows migrated to the `platform` package roadmap as `AC-platform.33.1-4`, migration closeout continuation, #1663 / #1712)*. The frontend, IA,
-> and report-readiness rows below stay with their own owners.
+> **Partially migrated.** *(AC19.8.1 removed and AC19.8.2 removed and AC19.8.3 removed and AC19.8.9 removed — this group's backend session-model/API rows migrated to the `platform` package roadmap as `AC-platform.33.1-4`, migration closeout continuation, #1663 / #1712)*. *(AC19.8.5 removed —
+> a dead row explicitly superseded by EPIC-022 AC22.21, whose AC22.21.1
+> proof owns the bottom-tab navigation contract; deleted rather than
+> migrated, #1719.)* The frontend, IA, and report-readiness rows below stay
+> with their own owners.
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC19.8.4 | Notification drawer and Events page group timestamped events by workflow session, while Upload Pipeline shows only active-session latest state plus recent timeline preview | `workflowSurfaces.test.tsx`, `workflow-notifications.spec.ts`, `upload-first-dashboard.spec.ts` | P0 |
-| AC19.8.5 | Navigation IA (superseded by EPIC-022 AC22.21): the bottom tab bar is Home, Chat, Add, Audit, More; the accounting machinery and settings are reached via the Audit hub and More, not a primary/advanced split | `navigation.test.ts`, `sidebarAndTabs.test.tsx`, `bottomTabBar.test.tsx`, `workflow-navigation.spec.ts` | P0 |
-| AC19.8.6 | `/chat` is a simple AI utility page with model selector, active conversation, and session-list drawer; it is not labeled AI Settings | `chatPanelComponent.test.tsx`, `ChatPageClient.test.tsx` | P1 |
-| AC19.8.7 | Report readiness has route-level Playwright smoke coverage before package output | `report-readiness.spec.ts` | P1 |
-| AC19.8.8 | CR cleanup fixes missing Processing FX readiness blocker coverage, stale SSOT paths, and stale navigation docs (the mixed-currency investment-schedule-fallback share migrated to the `portfolio` package roadmap as `AC-portfolio.schedule-fallback.1`, migration closeout continuation, #1663 / #1717) | `test_AC19_8_8_package_readiness_blocks_when_processing_fx_conversion_fails`, `report-readiness.spec.ts` | P0 |
+| AC19.8.4 | Notification drawer and Events page group timestamped events by workflow session, while Upload Pipeline shows only active-session latest state plus recent timeline preview | `workflowSurfaces.test.tsx`, `workflow-notifications.spec.ts`, `upload-first-dashboard.spec.ts` | P0 | <!-- epic-owned: fe-only -->
+| AC19.8.6 | `/chat` is a simple AI utility page with model selector, active conversation, and session-list drawer; it is not labeled AI Settings | `chatPanelComponent.test.tsx`, `ChatPageClient.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+| AC19.8.7 | Report readiness has route-level Playwright smoke coverage before package output | `report-readiness.spec.ts` | P1 | <!-- epic-owned: fe-only -->
+| AC19.8.8 | CR cleanup fixes missing Processing FX readiness blocker coverage, stale SSOT paths, and stale navigation docs (the mixed-currency investment-schedule-fallback share migrated to the `portfolio` package roadmap as `AC-portfolio.schedule-fallback.1`, migration closeout continuation, #1663 / #1717) | `test_AC19_8_8_package_readiness_blocks_when_processing_fx_conversion_fails`, `report-readiness.spec.ts` | P0 | <!-- epic-owned: pending-package -->
 
 ### AC19.9 — Source Trust Readiness
 
@@ -409,7 +402,7 @@ before marking US/HK personal reports trusted.
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC19.9.2 | Personal report package page renders a compact source trust summary before detailed package output | `AC19.9.2 renders compact source trust summary before traceability details` | P0 |
+| AC19.9.2 | Personal report package page renders a compact source trust summary before detailed package output | `AC19.9.2 renders compact source trust summary before traceability details` | P0 | <!-- epic-owned: fe-only -->
 
 ### AC19.10 — Typed Package Source Anchors
 
@@ -421,7 +414,7 @@ before marking US/HK personal reports trusted.
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC19.11.1 | `/review/run/{runId}` uses run-scoped Stage 2 queue and batch-approval APIs so approving a run cannot approve pending matches from another workflow session or batch. Backend half (`test_AC19_11_1_stage2_run_queue_filters_by_run_id`) migrated to the `reconciliation` package roadmap as `AC-reconciliation.run-scoped-review.1` (migration closeout continuation, #1663 / #1711); the frontend half stays here. | `AC19.11.1 run review uses run-scoped queue and approval endpoints` | P0 |
+| AC19.11.1 | `/review/run/{runId}` uses run-scoped Stage 2 queue and batch-approval APIs so approving a run cannot approve pending matches from another workflow session or batch. Backend half (`test_AC19_11_1_stage2_run_queue_filters_by_run_id`) migrated to the `reconciliation` package roadmap as `AC-reconciliation.run-scoped-review.1` (migration closeout continuation, #1663 / #1711); the frontend half stays here. | `AC19.11.1 run review uses run-scoped queue and approval endpoints` | P0 | <!-- epic-owned: fe-half -->
 
 ### AC19.12 — Lightweight Workflow Derivation Completion
 
@@ -430,7 +423,7 @@ before marking US/HK personal reports trusted.
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC19.12.5 | Dashboard status feed and event inbox render lightweight derived events as user actions while routine/internal details remain collapsed or absent | `workflowSurfaces.test.tsx` | P0 |
+| AC19.12.5 | Dashboard status feed and event inbox render lightweight derived events as user actions while routine/internal details remain collapsed or absent | `workflowSurfaces.test.tsx` | P0 | <!-- epic-owned: fe-only -->
 
 ### AC19.13 — Durable Orchestration via Prefect
 
@@ -441,8 +434,8 @@ dependency (delivery speed unaffected).
 
 | AC | Description | Test Anchor | Priority |
 |----|-------------|-------------|----------|
-| AC19.13.1 | Statement parse dispatch is config-gated: with `PREFECT_API_URL` unset, `submit_parse_pipeline` runs the existing in-process `asyncio.create_task` fallback (no Prefect import) and returns the task to track | `test_AC19_13_1_dispatch_falls_back_to_asyncio_when_prefect_unset`, `test_AC19_13_1_dispatch_registers_exception_consumer_on_fallback` | P0 |
-| AC19.13.2 | With `PREFECT_API_URL` set, `submit_parse_pipeline` submits a Prefect flow run with serializable params only (no raw bytes, no session maker — the worker re-fetches content and builds its own session) and returns None | `test_AC19_13_2_dispatch_submits_serializable_params_to_prefect` | P0 |
+| AC19.13.1 | Statement parse dispatch is config-gated: with `PREFECT_API_URL` unset, `submit_parse_pipeline` runs the existing in-process `asyncio.create_task` fallback (no Prefect import) and returns the task to track | `test_AC19_13_1_dispatch_falls_back_to_asyncio_when_prefect_unset`, `test_AC19_13_1_dispatch_registers_exception_consumer_on_fallback` | P0 | <!-- epic-owned: pending-package -->
+| AC19.13.2 | With `PREFECT_API_URL` set, `submit_parse_pipeline` submits a Prefect flow run with serializable params only (no raw bytes, no session maker — the worker re-fetches content and builds its own session) and returns None | `test_AC19_13_2_dispatch_submits_serializable_params_to_prefect` | P0 | <!-- epic-owned: pending-package -->
 
 ### AC19.14 — Workflow-event dedupe is transaction-safe (issue #1033)
 
@@ -456,11 +449,7 @@ pre-insert SELECT and both insert; the loser raised a `UniqueViolationError` on
 insert now runs inside a SAVEPOINT and recovers the existing row on conflict, mirroring the existing
 `uq_workflow_sessions_user_dedupe_key` guard.
 
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC19.14.1 | Two concurrent `upsert_workflow_event` calls for the same `(user_id, dedupe_key)` both succeed without a duplicate-key 500; exactly one row exists and both calls return it | `test_AC19_14_1_concurrent_upsert_same_dedupe_key_does_not_500` | P0 |
-| AC19.14.2 | A duplicate `(user_id, dedupe_key)` insert recovers via savepoint, returns the existing row, and leaves the outer transaction usable for subsequent reads/flushes | `test_AC19_14_2_duplicate_insert_does_not_poison_outer_transaction` | P0 |
-| AC19.14.3 | Concurrent `sync_workflow_events_for_user` runs over the same source state do not 500 on the workflow-event dedupe key and create the derived uploaded event exactly once | `test_AC19_14_3_sync_tolerates_concurrent_event_creation` | P0 |
+*(AC19.14.1 removed and AC19.14.2 removed and AC19.14.3 removed — stale duplicates of the migrated `AC-platform.35.1-3` records (same tests, same statements), deleted by the final cleanup, #1719. The contract roadmap is the single source.)*
 
 ### AC19.15 — Three-Entry Upload Intake (issue #1208)
 
@@ -485,12 +474,12 @@ independently by AC-extraction.112 over `docs/ssot/source-coverage-matrix.yaml`.
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC19.15.1 | The Upload page exposes exactly three intake entries — one primary statement uploader (the AI identifies the type; the user never pre-classifies), one CSV import, and one Manual records entry — with no per-source-class checklist | `AC19.15.1 exposes exactly three intake entries: one statement uploader plus CSV and Manual` | P1 |
-| AC19.15.2 | The CSV import and Manual records entries are folded (collapsed) by default so they stay passive, the retired per-source-class checklist does not return, and the page does not fetch report readiness merely to render intake | `AC19.15.2 keeps secondary intake passive: CSV and Manual folded, no per-class checklist, no readiness fetch` | P1 |
-| AC19.15.3 {tier:CODE-ONLY} | The primary statement uploader (`kind="statement"`) rejects `.csv` files by extension before setting a selected file, and the CSV import uploader (`kind="csv"`) rejects non-csv files and accepts `.csv` — each intake entry enforces its own kind's file-extension restriction, independent of the shared `all`-kind default | `AC19.15.3 statement uploader rejects csv and csv uploader rejects non-csv, each enforcing its own kind's extensions` | P1 |
+| AC19.15.1 | The Upload page exposes exactly three intake entries — one primary statement uploader (the AI identifies the type; the user never pre-classifies), one CSV import, and one Manual records entry — with no per-source-class checklist | `AC19.15.1 exposes exactly three intake entries: one statement uploader plus CSV and Manual` | P1 | <!-- epic-owned: fe-only -->
+| AC19.15.2 | The CSV import and Manual records entries are folded (collapsed) by default so they stay passive, the retired per-source-class checklist does not return, and the page does not fetch report readiness merely to render intake | `AC19.15.2 keeps secondary intake passive: CSV and Manual folded, no per-class checklist, no readiness fetch` | P1 | <!-- epic-owned: fe-only -->
+| AC19.15.3 {tier:CODE-ONLY} | The primary statement uploader (`kind="statement"`) rejects `.csv` files by extension before setting a selected file, and the CSV import uploader (`kind="csv"`) rejects non-csv files and accepts `.csv` — each intake entry enforces its own kind's file-extension restriction, independent of the shared `all`-kind default | `AC19.15.3 statement uploader rejects csv and csv uploader rejects non-csv, each enforcing its own kind's extensions` | P1 | <!-- epic-owned: fe-only -->
 
 Traceability note: AC19.15 is tracked in this EPIC-local product UI table.
-AC19.15.3 backfills coverage the [finance_report_ui] fix(e2e) #1542 gap exposed:
+`AC19.15.3` backfills coverage the [finance_report_ui] fix(e2e) #1542 gap exposed:
 `StatementUploader.test.tsx` only ever rendered the default `kind="all"`, and
 `statementsPage.test.tsx` mocks `StatementUploader` out entirely, so the
 per-kind extension contract that Tier-3 E2E depends on had no unit/component-tier

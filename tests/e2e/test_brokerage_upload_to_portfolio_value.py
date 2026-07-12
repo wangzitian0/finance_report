@@ -251,7 +251,7 @@ async def _wait_for_parsed_statement(
 
 
 def test_statement_poll_failure_message_flags_state_transition_stall() -> None:
-    """EPIC-003 EPIC-008 EPIC-009.
+    """EPIC-003 EPIC-008.
 
     AC-extraction.813.10/Issue #409: E2E timeout distinguishes parsed-data routing stalls.
     """
@@ -341,7 +341,7 @@ def test_portfolio_valuation_gate_failure_diagnostics_are_actionable() -> None:
 async def test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value(
     authenticated_page_unique: Page,
 ) -> None:
-    """EPIC-003 EPIC-005 EPIC-008 EPIC-009 EPIC-017.
+    """EPIC-003 EPIC-005 EPIC-008 EPIC-017.
 
     AC-extraction.813.10: two brokerage PDFs -> real OCR -> positions -> balance sheet value.
     """

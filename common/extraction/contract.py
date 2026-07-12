@@ -3111,5 +3111,27 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        # ── group 1779: journal-entry FX posting — lazy-load instead of
+        # failing closed on a missing rate (#1779) ──
+        ACRecord(
+            id="AC-extraction.1779.1",
+            statement=(
+                "Journal-entry creation for a foreign-currency transaction "
+                "resolves a missing FX rate through the same on-demand "
+                "lazy-load chain (stored inverse -> USD-bridge derivation -> "
+                "live provider fetch, persisted to fx_rates) that reporting "
+                "and internal transfers already opt into via lazy_load=True, "
+                "instead of failing closed immediately; it still fails "
+                "closed with a clear error when even that chain cannot "
+                "resolve a rate, since a posted entry cannot exist without one."
+            ),
+            test=(
+                "apps/backend/tests/reconciliation/test_review_queue.py"
+                "::test_create_entry_from_txn_lazy_loads_missing_fx_rate"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
     ],
 )
