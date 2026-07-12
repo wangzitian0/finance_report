@@ -89,6 +89,19 @@ therefore **part of the deliverable, not aftercare**:
 - **Post-merge continuation is default-on.** The user's merge is the signal to
   resync and continue the approved plan. Ask only at a genuine decision point
   or when the plan is exhausted.
+- **A subagent that backgrounds a long command and ends its turn "to wait for
+  it" has abandoned the work, not paused it.** Observed repeatedly in a single
+  session (2026-07-13): an agent runs a slow verification detached
+  (`... | tail -N &`-style, or a `run_in_background` shell), then ends its
+  turn believing something will wake it up when the command finishes. Nothing
+  does — a subagent's own subprocess completing triggers no notification to
+  anyone; only the **orchestrator** gets notified, and only when the
+  subagent's own top-level turn ends. The result is a fully "completed" turn
+  that delivered nothing, discovered only when the orchestrator inspects the
+  worktree directly. Long verification commands run **inline, synchronously,
+  in the same turn** — wait for the real exit code before doing anything
+  else, then finish the deliverable (push + open the PR) before ending the
+  turn.
 
 ---
 
@@ -228,6 +241,24 @@ Judgment, not config (vision.md, Good Taste 6):
   writers on one surface.
 - UI work: behavior is proven by tests; **visual quality is judged by human
   eyes and simulators** — no agent sign-off substitutes for either.
+- **Local verification is scoped, not exhaustive — trust TDD + CI.** A PR's
+  local pre-push check is the exact new/changed test(s) (red→green) plus the
+  fast, diff-relevant structural gates (`check_package_contract`,
+  `check_app_boundary`, and similar deterministic, seconds-scale checks) —
+  never a full-suite rerun "to be safe." Reserve full local reruns for
+  genuinely ambiguous failures you cannot otherwise diagnose. Two independent
+  reasons, both observed the same session: (1) broad reruns are frequently
+  **incapable** of catching the actual failure class — a minimal-dependency
+  CI job (e.g. the tooling-coverage job's pinned `--with` package list) can
+  reject an import that every locally-installed dev venv silently accepts,
+  and a stale path-string assertion only the one test that reads that exact
+  path will ever exercise; (2) on a machine running several concurrent
+  agent worktrees against one shared local Postgres, full suites contend for
+  the same connections and produce spurious failures that cost a rerun to
+  rule out — pure waste with no diagnostic value. Push and let CI's isolated,
+  parallel-shard infrastructure be the actual verifier, exactly as this
+  repo's own deliverable contract already states (a CI-green PR, not a
+  locally-exhaustively-verified one).
 
 ---
 
