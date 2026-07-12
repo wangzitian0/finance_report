@@ -72,6 +72,24 @@ EPIC_NAMES: dict[int, str] = {
 
 AC_PATTERN = re.compile(r"\b(AC(\d+)\.(\d+)\.(\d+))\b")
 
+# The EPIC residue vocabulary (#1719): every AC definition that stays in an
+# EPIC doc must declare WHY with a trailing ``<!-- epic-owned: CATEGORY -->``
+# marker. This is the single machine source for the category vocabulary; the
+# residue ratchet gate (tests/tooling/test_epic_residue_ratchet.py) imports it.
+#
+# - ``fe-only``          frontend-only proof (permanent residue — the
+#                        governance gate resolves Python tests only)
+# - ``fe-half``          the frontend half of a dual-proof AC whose backend
+#                        half lives in a package roadmap (in-row pointer)
+# - ``horizontal``       confirmed cross-module/infra scope (no package owner)
+# - ``pending-package``  stays EPIC-owned until a named blocker clears (e.g.
+#                        the advisor be-cutover); not permanent
+EPIC_RESIDUE_CATEGORIES = ("fe-only", "fe-half", "horizontal", "pending-package")
+
+# Row-level residue marker, e.g. ``<!-- epic-owned: fe-only -->``. Parsed and
+# stripped BEFORE any other parsing so it never leaks into a description.
+_RESIDUE_MARKER_RE = re.compile(r"<!--\s*epic-owned:\s*([a-z][a-z-]*)\s*-->")
+
 # Authority tier + proof-kind vocabulary and the tier->proof matrix all come from
 # the single machine source common/meta/base/authority_matrix.py (stdlib-only;
 # package_contract re-exports the same definitions for its model validation), so

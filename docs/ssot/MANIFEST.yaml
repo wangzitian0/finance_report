@@ -727,6 +727,18 @@ concepts:
       - tests/tooling/test_delivery_layer_ratchet.py
       - common/meta/migration-standard.md
 
+  epic_residue_baseline:
+    owner: docs/ssot/epic-residue-baseline.json
+    description: Ratchet census of the post-migration EPIC residue (#1719) - per docs/project/EPIC-*.md file, the count of AC definition lines per explicit residue category (fe-only / fe-half / horizontal / pending-package, single vocabulary source common/meta/extension/generate_ac_registry.py EPIC_RESIDUE_CATEGORIES); CI enforces unmarked EPIC AC rows == 0 (the umbrella scoreboard metric), census == baseline so residue growth is a same-PR reviewable baseline edit, a shrink-only EPIC file set, and an explicit design-doc/goal-stub justification on every zero-row EPIC file (AC-meta.residue.1).
+    family: platform
+    kind: baseline
+    parent: package_model
+    authority: machine_generated
+    cross_refs:
+      - tests/tooling/test_epic_residue_ratchet.py
+      - common/meta/extension/generate_ac_registry.py
+      - common/meta/migration-standard.md
+
   ac_score_ratchet_baseline:
     owner: docs/ssot/ac-score-baseline.jsonl
     description: Persisted AC score ratchet baseline, stored as conflict-free sorted JSONL (merge=union).
