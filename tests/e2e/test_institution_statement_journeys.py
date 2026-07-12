@@ -76,12 +76,16 @@ def _unique_pdf_copy(src: Path) -> Path:
 
 async def _default_image_model(client: httpx.AsyncClient) -> str:
     response = await client.get(_api_url("/llm/catalog?modality=image"))
-    assert response.status_code == 200, f"model catalog request failed: {response.status_code} {response.text}"
+    assert response.status_code == 200, (
+        f"model catalog request failed: {response.status_code} {response.text}"
+    )
     payload = response.json()
     return payload.get("default_model") or payload["models"][0]["id"]
 
 
-async def _upload_statement_pdf(client: httpx.AsyncClient, *, pdf_path: Path, institution: str, model: str) -> str:
+async def _upload_statement_pdf(
+    client: httpx.AsyncClient, *, pdf_path: Path, institution: str, model: str
+) -> str:
     with pdf_path.open("rb") as fh:
         response = await client.post(
             _api_url("/statements/upload"),
@@ -96,7 +100,17 @@ async def _upload_statement_pdf(client: httpx.AsyncClient, *, pdf_path: Path, in
     return str(statement_id)
 
 
-async def _wait_for_parsed(client: httpx.AsyncClient, statement_id: str, *, model: str) -> dict:
+async def _wait_for_parsed(
+    client: httpx.AsyncClient, statement_id: str, *, model: str
+) -> dict:
+    """Wait for the statement to reach a reviewable-or-further terminal state.
+
+    A high-confidence, balance-valid parse with a detected account skips
+    'parsed' entirely and lands directly on 'approved' (route_by_threshold,
+    #1780) -- this is intentional auto-post behavior (#1467), not a race, so
+    both states count as success. The caller must branch on which one it got:
+    an already-'approved' statement must not be posted again.
+    """
     deadline = asyncio.get_event_loop().time() + PARSING_TIMEOUT_MS / 1000
     last_payload: dict | None = None
     while asyncio.get_event_loop().time() < deadline:
@@ -112,12 +126,12 @@ async def _wait_for_parsed(client: httpx.AsyncClient, statement_id: str, *, mode
                 statement=last_payload,
                 model=model,
             )
-        if status == "parsed":
+        if status in ("parsed", "approved"):
             return last_payload
         await asyncio.sleep(5)
 
     pytest.fail(
-        f"statement {statement_id} never reached 'parsed' within {PARSING_TIMEOUT_MS}ms; last payload: {last_payload}"
+        f"statement {statement_id} never reached 'parsed' or 'approved' within {PARSING_TIMEOUT_MS}ms; last payload: {last_payload}"
     )
 
 
@@ -130,10 +144,15 @@ async def _run_institution_journey(
 ) -> dict:
     """Upload → parse → approve → balance sheet; returns the parsed payload."""
     headers = await _auth_headers(page)
-    async with httpx.AsyncClient(headers=headers, verify=False, timeout=120.0) as client:
+    async with httpx.AsyncClient(
+        headers=headers, verify=False, timeout=120.0
+    ) as client:
         model = await _default_image_model(client)
         statement_id = await _upload_statement_pdf(
-            client, pdf_path=_unique_pdf_copy(pdf_path), institution=institution, model=model
+            client,
+            pdf_path=_unique_pdf_copy(pdf_path),
+            institution=institution,
+            model=model,
         )
         parsed = await _wait_for_parsed(client, statement_id, model=model)
 
@@ -142,15 +161,28 @@ async def _run_institution_journey(
             f"{institution}: expected >= {min_transactions} extracted transactions, got {len(transactions)}"
         )
 
-        approve = await client.post(
-            _api_url(f"/statements/{statement_id}/review/approve"),
-            json={"create_account_if_missing": True},
-        )
-        assert approve.status_code == 200, f"{institution} approve failed: {approve.status_code} {approve.text}"
-        assert approve.json().get("journal_entries_created", 0) >= min_transactions
+        if parsed.get("status") == "approved":
+            # High-confidence auto-post (#1467) already approved and posted this
+            # statement before we ever observed 'parsed' (#1780) -- calling
+            # /review/approve again is safe (auto_create_posted_entries_for_
+            # statement is idempotent) but would report journal_entries_created=0
+            # since nothing new is left to post, which would fail the assertion
+            # below for no real reason. Nothing further to do here.
+            pass
+        else:
+            approve = await client.post(
+                _api_url(f"/statements/{statement_id}/review/approve"),
+                json={"create_account_if_missing": True},
+            )
+            assert approve.status_code == 200, (
+                f"{institution} approve failed: {approve.status_code} {approve.text}"
+            )
+            assert approve.json().get("journal_entries_created", 0) >= min_transactions
 
         report = await client.get(_api_url("/reports/balance-sheet"))
-        assert report.status_code == 200, f"{institution} balance sheet failed: {report.status_code} {report.text}"
+        assert report.status_code == 200, (
+            f"{institution} balance sheet failed: {report.status_code} {report.text}"
+        )
         assert report.json().get("is_balanced") is True
 
         return parsed
@@ -266,9 +298,13 @@ async def test_gxs_statement_journey_matches_expected_balances(
         min_transactions=expected_count,
     )
 
-    assert Decimal(str(parsed["opening_balance"])) == Decimal(expected_stmt["opening_balance"]), (
+    assert Decimal(str(parsed["opening_balance"])) == Decimal(
+        expected_stmt["opening_balance"]
+    ), (
         f"GXS opening balance drifted: {parsed['opening_balance']} != {expected_stmt['opening_balance']}"
     )
-    assert Decimal(str(parsed["closing_balance"])) == Decimal(expected_stmt["closing_balance"]), (
+    assert Decimal(str(parsed["closing_balance"])) == Decimal(
+        expected_stmt["closing_balance"]
+    ), (
         f"GXS closing balance drifted: {parsed['closing_balance']} != {expected_stmt['closing_balance']}"
     )
