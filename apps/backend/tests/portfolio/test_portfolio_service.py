@@ -84,7 +84,7 @@ async def atomic_snapshot(db: AsyncSession, test_user):
 
 
 async def test_get_holdings_happy_path(db, test_user, svc, active_position, atomic_snapshot):
-    """AC17.1.1: Holdings happy path returns correct market value, cost basis, and classification.
+    """AC-portfolio.holdings.1: AC17.1.1: Holdings happy path returns correct market value, cost basis, and classification.
 
     Verify that get_holdings returns enriched HoldingResponse with PnL and sector data.
     """
@@ -105,7 +105,7 @@ async def test_get_holdings_happy_path(db, test_user, svc, active_position, atom
 
 
 async def test_get_holdings_provenance_imported_with_source_document(db, test_user, svc, active_position):
-    """AC22.10.1: a holding backed by a source document is labelled imported."""
+    """AC-portfolio.provenance.1: AC22.10.1: a holding backed by a source document is labelled imported."""
     atom = AtomicPosition(
         user_id=test_user.id,
         snapshot_date=date.today(),
@@ -129,7 +129,7 @@ async def test_get_holdings_provenance_imported_with_source_document(db, test_us
 
 
 async def test_AC22_13_1_explicit_as_of_holdings_preserve_snapshot_provenance(db, test_user, svc, account):
-    """AC22.13.1: explicit as-of holdings carry normalized provenance from the selected snapshot."""
+    """AC-portfolio.provenance.2: AC22.13.1: explicit as-of holdings carry normalized provenance from the selected snapshot."""
     as_of_date = date(2025, 1, 31)
     position = ManagedPosition(
         user_id=test_user.id,
@@ -232,7 +232,7 @@ async def test_get_holdings_explicit_as_of_date_does_not_use_future_snapshot(db,
 
 
 async def test_get_holdings_explicit_as_of_uses_historical_atomic_snapshot(db, test_user, svc, account):
-    """AC17.9.1: Explicit as-of holdings derive quantity and value from the selected snapshot."""
+    """AC-portfolio.as-of.1: AC17.9.1: Explicit as-of holdings derive quantity and value from the selected snapshot."""
     historical_date = date(2025, 1, 31)
     current_date = date(2025, 2, 28)
     position = ManagedPosition(
@@ -676,7 +676,7 @@ async def test_realized_pnl_no_disposed(db, test_user, svc):
 
 
 async def test_realized_pnl_zero_cost(db, test_user, svc, account):
-    """AC17.2.4: Zero cost -> realized_pnl_percent = 0."""
+    """AC-portfolio.performance.4: AC17.2.4: Zero cost -> realized_pnl_percent = 0."""
     pos = ManagedPosition(
         user_id=test_user.id,
         account_id=account.id,
@@ -711,7 +711,7 @@ async def test_realized_pnl_zero_cost(db, test_user, svc, account):
 
 
 async def test_realized_pnl_fx_conversion(db, test_user, svc, account):
-    """AC17.2.5: Disposed position in non-base currency triggers FX conversion."""
+    """AC-portfolio.performance.5: AC17.2.5: Disposed position in non-base currency triggers FX conversion."""
     pos = ManagedPosition(
         user_id=test_user.id,
         account_id=account.id,
@@ -770,7 +770,7 @@ async def test_realized_pnl_fx_conversion(db, test_user, svc, account):
 
 
 async def test_unrealized_pnl_happy_path(db, test_user, svc, active_position, atomic_snapshot):
-    """AC17.2.6: Unrealized PnL happy path returns correct totals.
+    """AC-portfolio.holdings.2: AC17.1.5 (canonical; AC17.2.6 was a duplicate restatement): Unrealized PnL happy path returns correct totals.
 
     Verify that calculate_unrealized_pnl returns correct market value, cost basis, and PnL.
     """
@@ -783,7 +783,7 @@ async def test_unrealized_pnl_happy_path(db, test_user, svc, active_position, at
 
 
 async def test_unrealized_pnl_no_positions(db, test_user, svc):
-    """AC17.2.7: Unrealized PnL on empty portfolio raises PortfolioNotFoundError.
+    """AC-portfolio.performance.6: AC17.2.7: Unrealized PnL on empty portfolio raises PortfolioNotFoundError.
 
     Verify that calculate_unrealized_pnl raises when user has no active positions.
     """
@@ -792,7 +792,7 @@ async def test_unrealized_pnl_no_positions(db, test_user, svc):
 
 
 async def test_unrealized_pnl_zero_cost(db, test_user, svc, account):
-    """AC17.2.8: Zero cost -> unrealized_pnl_percent in details = 0."""
+    """AC-portfolio.performance.7: AC17.2.8: Zero cost -> unrealized_pnl_percent in details = 0."""
     pos = ManagedPosition(
         user_id=test_user.id,
         account_id=account.id,
@@ -826,7 +826,7 @@ async def test_unrealized_pnl_zero_cost(db, test_user, svc, account):
 
 
 async def test_unrealized_pnl_fx_conversion(db, test_user, svc, account):
-    """AC17.2.9: FX conversion for unrealized PnL."""
+    """AC-portfolio.performance.8: AC17.2.9: FX conversion for unrealized PnL."""
     pos = ManagedPosition(
         user_id=test_user.id,
         account_id=account.id,
@@ -885,7 +885,7 @@ async def test_unrealized_pnl_fx_conversion(db, test_user, svc, account):
 
 
 async def test_portfolio_summary_happy(db, test_user, svc, active_position, atomic_snapshot):
-    """AC17.1.7: Portfolio summary happy path returns correct counts and totals.
+    """AC-portfolio.holdings.3: AC17.1.7: Portfolio summary happy path returns correct counts and totals.
 
     Verify that get_portfolio_summary returns accurate summary with PnL.
     """
@@ -900,7 +900,7 @@ async def test_portfolio_summary_happy(db, test_user, svc, active_position, atom
 
 
 async def test_portfolio_summary_with_disposed(db, test_user, svc, account, atomic_snapshot):
-    """AC17.1.8: Summary includes both active and disposed positions."""
+    """AC-portfolio.holdings.4: AC17.1.8: Summary includes both active and disposed positions."""
     active = ManagedPosition(
         user_id=test_user.id,
         account_id=account.id,
@@ -948,7 +948,7 @@ async def test_portfolio_summary_with_disposed(db, test_user, svc, account, atom
 
 
 async def test_portfolio_summary_zero_cost(db, test_user, svc, account):
-    """AC17.1.9: Zero total cost -> net_pnl_percent = 0."""
+    """AC-portfolio.holdings.5: AC17.1.9: Zero total cost -> net_pnl_percent = 0."""
     pos = ManagedPosition(
         user_id=test_user.id,
         account_id=account.id,
@@ -1053,7 +1053,7 @@ async def test_get_latest_price_from_atomic(db, test_user, svc, active_position,
 
 
 async def test_get_latest_price_zero_quantity(db, test_user, svc, active_position):
-    """AC17.5.5: Quantity == 0 -> return market_value directly."""
+    """AC-portfolio.valuation.2: AC17.5.5: Quantity == 0 -> return market_value directly."""
     atom = AtomicPosition(
         user_id=test_user.id,
         snapshot_date=date.today(),
@@ -1073,7 +1073,7 @@ async def test_get_latest_price_zero_quantity(db, test_user, svc, active_positio
 
 
 async def test_get_latest_price_no_data(db, test_user, svc, active_position):
-    """AC17.5.6: No price data -> AssetNotFoundError."""
+    """AC-portfolio.valuation.3: AC17.5.6: No price data -> AssetNotFoundError."""
     with pytest.raises(AssetNotFoundError):
         await svc._get_latest_price(db, active_position, date.today(), test_user.id)
 
@@ -1084,7 +1084,7 @@ async def test_get_latest_price_no_data(db, test_user, svc, active_position):
 
 
 async def test_get_latest_atomic_returns_latest(db, test_user, svc):
-    """AC17.5.7: _get_latest_atomic returns the most recent snapshot.
+    """AC-portfolio.valuation.4: AC17.5.7: _get_latest_atomic returns the most recent snapshot.
 
     Verify that when multiple snapshots exist, the latest by date is returned.
     """
@@ -1121,7 +1121,7 @@ async def test_get_latest_atomic_returns_latest(db, test_user, svc):
 
 
 async def test_get_latest_atomic_none(db, test_user, svc):
-    """AC17.5.8: _get_latest_atomic returns None when no snapshots exist.
+    """AC-portfolio.valuation.5: AC17.5.8: _get_latest_atomic returns None when no snapshots exist.
 
     Verify that _get_latest_atomic returns None for unknown asset.
     """

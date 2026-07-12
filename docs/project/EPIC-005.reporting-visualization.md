@@ -110,65 +110,47 @@ Accounting Equation Verification: Reports must comply with accounting equation
 
 ### AC5.1: Balance Sheet
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC5.1.1 | Accounting Equation | `test_balance_sheet_equation` | `reporting/test_reporting.py` | P0 |
-| AC5.1.2 | FX Unrealized Gain | `test_fx_unrealized_gain_calculation` | `reporting/test_reporting_fx.py` | P0 |
-| AC5.1.3 | Multi-Currency Aggregation | `test_multi_currency_aggregation` | `reporting/test_reporting_fx.py` | P0 |
-| AC5.1.4 | Endpoint Response | `test_balance_sheet_endpoint` | `reporting/test_reports_router.py` | P0 |
+> This group's rows removed — migrated to the `reporting` package roadmap as
+> `AC-reporting.balance-sheet.1-4` (migration closeout continuation, #1663 /
+> #1716).
 
 ### AC5.2: Income Statement
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC5.2.1 | Net Income Calculation | `test_income_statement_calculation` | `reporting/test_reporting.py` | P0 |
-| AC5.2.2 | Comprehensive Income | `test_income_statement_comprehensive_income` | `reporting/test_reporting_fx.py` | P1 |
-| AC5.2.3 | Date Range Filtering | `test_income_statement_invalid_range` | `reporting/test_reporting.py` | P1 |
+> This group's rows removed — migrated to the `reporting` package roadmap as
+> `AC-reporting.income-statement.1-3` (migration closeout continuation,
+> #1663 / #1716).
 
 ### AC5.3: Cash Flow Statement
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC5.3.1 | Statement Generation | `test_cash_flow_statement` | `reporting/test_reporting.py` | P0 |
-| AC5.3.2 | Empty Period Handling | `test_cash_flow_empty_period` | `reporting/test_reporting.py` | P1 |
-| AC5.3.3 | Test getting account trend with different period. | `test_account_trend_with_period` | `api/test_reports_router.py` | P1 |
-| AC5.3.4 | Test getting category breakdown. | `test_category_breakdown_success` | `api/test_reports_router.py` | P1 |
-| AC5.3.5 | Test getting category breakdown with different period. | `test_category_breakdown_with_period` | `api/test_reports_router.py` | P1 |
+> This group's rows removed — migrated to the `reporting` package roadmap as
+> `AC-reporting.cash-flow.1-5` (migration closeout continuation, #1663 /
+> #1716).
 
 ### AC5.4: FX & Multi-Currency
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC5.4.1 | FX Fallbacks | `test_reporting_fx_fallbacks` | `reporting/test_reporting_fx.py` | P1 |
-| AC5.4.2 | Balance Sheet Net Income FX Fallback | `test_balance_sheet_net_income_fx_fallback` | `reporting/test_reporting_fx.py` | P1 |
-| AC5.4.3 | Report FX Lazy Resolution | `test_reports_lazy_resolve_missing_hkd_sgd_from_bridge_rates` | `reporting/test_reporting_fx.py` | P0 |
-| AC5.4.4 | Missing report FX rates produce explicit partial warnings instead of aborting the whole aggregation | `test_aggregate_balances_missing_fx_skips_unconvertible_currency_with_warning` | `reporting/test_reporting_fx_fallbacks.py` | P0 |
+> This group's rows removed — migrated to the `reporting` package roadmap as
+> `AC-reporting.fx.1-4` (migration closeout continuation, #1663 / #1716).
 
 ### AC5.5: Error Handling
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC5.5.1 | Report Generation Error | `test_reports_router_errors_extended` | `reporting/test_reports_errors.py` | P1 |
-| AC5.5.2 | Router Error Handling | `TestReportsRouterErrors` | `reporting/test_reports_router_errors.py` | P1 |
-| AC5.5.3 | Test that unauthenticated clients cannot access reports endpoints. | `test_unauthenticated_access` | `api/test_reports_router.py` | P1 |
-| AC5.5.4 | Reports Router Tests | `test_reports_router` | `reporting/test_reports_router.py` | P1 |
-| AC5.5.5 | GET /reports/{type}/snapshots returns persisted snapshots. | `test_list_report_snapshots_returns_created_snapshots` | `api/test_reports_router.py` | P1 |
+> This group's rows removed — migrated to the `reporting` package roadmap as
+> `AC-reporting.errors.1-5` (migration closeout continuation, #1663 / #1716).
+>
+> *(AC5.5.2 removed and AC5.5.4 removed with the group — their class/file-level citations are now representative function-level citations in the package roadmap)*
 
 ### AC5.6: Investment & Portfolio KPIs
 
+> *(AC5.6.5 removed and AC5.6.7 removed and AC5.6.8 removed and AC5.6.9 removed and AC5.6.10 removed and AC5.6.11 removed — migrated to the `reporting` package roadmap as `AC-reporting.kpis.2-7`; AC5.6.4's backend endpoint half migrated as `AC-reporting.kpis.1` while its frontend dashboard-card proof stays in the row below. Migration closeout continuation, #1663 / #1716)*
+>
+> *(AC5.6.1 removed and AC5.6.2 removed and AC5.6.3 removed and AC5.6.6
+> removed — portfolio-owned performance math that lived in this reporting
+> EPIC; migrated to the `portfolio` package roadmap as
+> `AC-portfolio.metrics.1-4`, migration closeout continuation, #1663 /
+> #1717.)*
+
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.6.1 | XIRR calculation accuracy ≤ 0.01% error vs Excel XIRR | `test_AC5_6_1_xirr_matches_single_year_excel_case` | `portfolio/test_performance_service.py` | P0 |
-| AC5.6.2 | Annualized return (TWR) computed correctly | `test_AC5_6_2_time_weighted_return_matches_snapshot_period` | `portfolio/test_performance_service.py` | P0 |
-| AC5.6.3 | Dividend yield = annual dividends / current value | `test_AC5_6_3_dividend_yield_uses_trailing_dividends_over_current_value` | `portfolio/test_performance_service.py` | P0 |
-| AC5.6.4 | Annualized income KPI is surfaced through the dashboard/reporting path and delegates calculation ownership to AC11.8.1 | `test_annualized_income_endpoint_groups_last_12_month_income`, `AC11.8.2/AC11.8.6 renders Annualized Income card with the four metric labels` | `reporting/test_income_annualized_router.py`, `frontend/src/__tests__/dashboardPage.test.tsx` | P0 |
-| AC5.6.5 | Unrealized P&L reflected in balance sheet equity | `test_reporting_dashboard_fixture_exact_totals` | `reporting/test_reporting.py` | P0 |
-| AC5.6.6 | MWR (money-weighted return) matches XIRR for single cashflow | `test_AC5_6_6_money_weighted_return_matches_xirr_for_single_cashflow` | `portfolio/test_performance_service.py` | P1 |
-| AC5.6.7 | Report output lists currencies that used average-rate spot fallback. | `test_income_statement_includes_average_rate_fallback_warning` | `reporting/test_reporting_fx_revaluation_integration.py` | P1 |
-| AC5.6.8 | Account trend raises when prefetched non-base FX rate is missing. | `test_account_trend_raises_when_prefetched_rate_missing` | `reporting/test_reporting_extreme_fallbacks.py` | P1 |
-| AC5.6.9 | Category breakdown raises when prefetched non-base FX rate is missing. | `test_category_breakdown_raises_when_prefetched_rate_missing` | `reporting/test_reporting_extreme_fallbacks.py` | P1 |
-| AC5.6.10 | Cash flow raises when start-date non-base FX rate is missing. | `test_cash_flow_raises_when_start_date_rate_missing` | `reporting/test_reporting_extreme_fallbacks.py` | P1 |
-| AC5.6.11 | Cash flow raises when end-date rate missing; FxRateError propagated. | `test_cash_flow_raises_when_end_date_rate_missing` | `reporting/test_reporting_extreme_fallbacks.py` | P1 |
+| AC5.6.4 | Annualized income KPI dashboard card renders the endpoint's figures (backend endpoint half migrated as `AC-reporting.kpis.1`; calculation ownership stays with AC11.8.1) | `AC11.8.2/AC11.8.6 renders Annualized Income card with the four metric labels` | `frontend/src/__tests__/dashboardPage.test.tsx` | P0 |
 
 ### AC5.8: Personal Report Package Investment Performance Consumption
 
@@ -179,9 +161,13 @@ package. The report section must preserve `source_links` and `notes` from the
 schedule payload so the package can explain market-data freshness, cost-basis
 method, dividends, realized/unrealized P&L, and return metric limitations.
 
+> *(AC5.8.1's backend contract half migrated to the `reporting` package
+> roadmap as `AC-reporting.package-investment.1`; the frontend render proof
+> stays in the row below. Migration closeout continuation, #1663 / #1716.)*
+
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.8.1 | Personal report package defines the `investment_performance` report section as a consumer of the EPIC-017 schedule API | `AC5.8.1 renders investment performance report schedule from the schedule API`; `test_personal_financial_report_package_post_merge_journey`; `test_AC5_8_1_personal_report_package_consumes_investment_schedule_contract` | `apps/frontend/src/__tests__/portfolioPage.test.tsx`; `tests/e2e/test_personal_financial_report_package.py`; `tests/tooling/test_investment_performance_report_contract.py` | P0 |
+| AC5.8.1 | Personal report package renders the `investment_performance` report section from the EPIC-017 schedule API (backend contract half migrated as `AC-reporting.package-investment.1`) | `AC5.8.1 renders investment performance report schedule from the schedule API` | `apps/frontend/src/__tests__/portfolioPage.test.tsx` | P0 |
 
 ### AC5.9: Personal Report Package Contract
 
@@ -193,19 +179,20 @@ Decimal-safe total field names. Supporting EPICs keep ownership of their
 calculations; this contract only describes how their outputs plug into one
 personal financial-report package.
 
+> *(AC5.9.1 removed and AC5.9.2 removed — migrated to the `reporting`
+> package roadmap as `AC-reporting.package-contract.1-2`; the frontend rows
+> below stay here. Migration closeout continuation, #1663 / #1716.)*
+
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.9.1 | Package contract endpoint defines required section IDs, labels, owners, and source endpoints | `test_AC5_9_1_package_contract_endpoint_defines_required_sections` | `api/test_personal_report_package_contract.py` | P0 |
-| AC5.9.2 | Package contract exposes Decimal-safe total fields and explicit period/as-of semantics | `test_AC5_9_2_package_contract_marks_decimal_totals_and_period_semantics` | `api/test_personal_report_package_contract.py` | P0 |
 | AC5.9.3 | Frontend personal package page renders the contract section IDs and labels from the API contract | `AC5.9.3 renders personal package contract sections from API` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
 | AC5.9.4 | Frontend/export contract surfaces stable export format and CSV columns for package consumers | `AC5.9.4 renders export contract metadata` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P1 |
 
 ### AC5.10: Financial Statement Logic Audit Fixes
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC5.10.1 | Cash-flow statement beginning cash, ending cash, and net cash flow use cumulative cash balances | `test_AC5_10_1_cash_flow_uses_cumulative_cash_balances()` | `reporting/test_financial_logic_audit.py` | P0 |
-| AC5.10.2 | Cash-flow operating, investing, and financing totals preserve inflow/outflow signs | `test_AC5_10_2_cash_flow_activity_totals_preserve_signs()` | `reporting/test_financial_logic_audit.py` | P0 |
+> This group's rows removed — migrated to the `reporting` package roadmap as
+> `AC-reporting.logic-audit.1-2` (migration closeout continuation, #1663 /
+> #1716).
 
 ### AC5.11: Personal Report Package Annualized Income Schedule Consumption
 
@@ -214,11 +201,13 @@ supplies the report-ready annualized income and long-term compensation schedule
 that plugs into the `annualized_income_long_term` package section defined by
 AC5.9. Supporting calculations remain owned by EPIC-011.
 
+> *(AC5.11.1 removed and AC5.11.3 removed — migrated to the `reporting`
+> package roadmap as `AC-reporting.package-annualized.1-2`; the frontend row
+> below stays here. Migration closeout continuation, #1663 / #1716.)*
+
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.11.1 | Package contract marks `annualized_income_long_term` as ready and points to the schedule endpoint | `test_AC5_11_1_package_contract_marks_annualized_schedule_ready` | `api/test_personal_report_package_contract.py` | P0 |
 | AC5.11.2 | Frontend personal package page renders annualized income totals and restricted treatment from the schedule endpoint | `AC5.11.2 renders annualized income schedule values and restricted treatment` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
-| AC5.11.3 | Annualized income package schedule converts mixed-currency income and restricted totals into one reporting currency | `test_AC5_11_3_AC11_11_3_annualized_schedule_converts_mixed_currency_totals` | `reporting/test_annualized_income_schedule.py` | P0 |
 
 ### AC5.12: Personal Report Package Notes and Disclosure Basis
 
@@ -229,12 +218,14 @@ basis, data freshness, restricted-asset treatment, and explicit non-compliance
 wording. The notes use standards-inspired disclosure discipline but do not
 claim statutory filing compliance.
 
+> *(AC5.12.1 removed and AC5.12.2 removed and AC5.12.4 removed — migrated to
+> the `reporting` package roadmap as `AC-reporting.package-notes.1-3`; the
+> frontend row below stays here. Migration closeout continuation, #1663 /
+> #1716.)*
+
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.12.1 | Package notes endpoint returns required note IDs, owner EPICs, source states, and non-compliance wording | `test_AC5_12_1_package_notes_endpoint_returns_required_note_taxonomy` | `api/test_personal_report_package_contract.py` | P0 |
-| AC5.12.2 | Package contract marks `notes` as ready and points to the notes endpoint | `test_AC5_12_2_package_contract_marks_notes_ready` | `api/test_personal_report_package_contract.py` | P0 |
 | AC5.12.3 | Frontend personal package page renders notes and disclosure basis from the notes endpoint | `AC5.12.3 renders package notes and disclosure basis` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
-| AC5.12.4 | Post-merge package proof asserts notes endpoint, required note IDs, and non-compliance wording | `test_personal_financial_report_package_post_merge_journey` | `tests/e2e/test_personal_financial_report_package.py` | P0 |
 
 ### AC5.13: Personal Report Package Traceability Appendix
 
@@ -245,13 +236,14 @@ traceability anchors, explicit unavailable/not-applicable states, review state,
 confidence tier, and completeness warning taxonomy that package consumers need
 to audit each report line.
 
+> *(AC5.13.1 removed and AC5.13.2 removed and AC5.13.4 removed and AC5.13.5
+> removed — migrated to the `reporting` package roadmap as
+> `AC-reporting.package-traceability.1-4`; the frontend row below stays
+> here. Migration closeout continuation, #1663 / #1716.)*
+
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.13.1 | Package traceability endpoint returns source-to-ledger anchors per report line | `test_AC5_13_1_package_traceability_endpoint_returns_section_line_anchors` | `api/test_personal_report_package_contract.py` | P0 |
-| AC5.13.2 | Traceability appendix exposes explicit completeness states where anchors are unavailable | `test_AC5_13_2_package_traceability_declares_completeness_warnings` | `api/test_personal_report_package_contract.py` | P0 |
 | AC5.13.3 | Frontend personal package page renders source, ledger, review, and confidence metadata from the appendix | `AC5.13.3 renders traceability appendix source, ledger, review, and confidence metadata` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
-| AC5.13.4 | Post-merge package proof fails trusted totals without source/ledger anchors or explicit manual inputs | `test_personal_financial_report_package_post_merge_journey` | `tests/e2e/test_personal_financial_report_package.py` | P0 |
-| AC5.13.5 | Package traceability endpoint returns current-user dynamic source identifiers and excludes unrelated-user anchors | `test_AC5_13_5_package_traceability_returns_dynamic_current_user_identifiers` | `api/test_personal_report_package_contract.py` | P0 |
 
 ### AC5.14: Framework Policy Result Consumption
 
@@ -273,9 +265,9 @@ backend Tier-1 integration proof for the multi-currency reporting cycle without
 changing the later PDF export scope tracked by
 [#205](https://github.com/wangzitian0/finance_report/issues/205).
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC5.15.1 | Multi-currency posted entries generate balanced balance sheet, income statement, and cash-flow reports in base currency | `test_AC5_15_1_multicurrency_reporting_cycle_reconciles_bs_is_cf` | `integration/test_reporting_e2e.py` | P0 |
+> This group's row removed — migrated to the `reporting` package roadmap as
+> `AC-reporting.integration.1` (migration closeout continuation, #1663 /
+> #1716).
 
 ### AC5.16: Report Trust Signals and Restricted-Asset Defaults
 
@@ -284,12 +276,16 @@ covered but did not render important trust signals already present in backend
 payloads. This group makes report default semantics and partial-data warnings
 visible to users.
 
+> *(AC5.16.4 removed — migrated to the `reporting` package roadmap as
+> `AC-reporting.trust-signals.3`; AC5.16.1-2's backend halves migrated as
+> `AC-reporting.trust-signals.1-2` while their frontend proofs stay in the
+> rows below. Migration closeout continuation, #1663 / #1716.)*
+
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.16.1 | Balance sheet defaults restricted holdings to excluded, exposes an include toggle, and renders equation component detail | `test_AC5_16_1_balance_sheet_defaults_to_excluding_restricted_holdings` / `AC16.14.2 / test_AC8_13_48 renders string totals and refetches by date` | `reporting/test_reports_router.py`, `frontend/src/__tests__/balanceSheetPage.test.tsx` | P0 |
-| AC5.16.2 | Balance sheet, income statement, and cash-flow report pages surface backend `fx_warnings` instead of silently rendering partial totals | `test_AC5_16_2_cash_flow_response_preserves_fx_warnings` / page warning assertions | `reporting/test_reports_router.py`, `frontend/src/__tests__/balanceSheetPage.test.tsx`, `frontend/src/__tests__/incomeStatementPage.test.tsx`, `frontend/src/__tests__/cashFlowPage.test.tsx` | P0 |
+| AC5.16.1 | Balance sheet page exposes the restricted-holdings include toggle and renders equation component detail (backend default-exclusion half migrated as `AC-reporting.trust-signals.1`) | `AC16.14.2 / test_AC8_13_48 renders string totals and refetches by date` | `frontend/src/__tests__/balanceSheetPage.test.tsx` | P0 |
+| AC5.16.2 | Balance sheet, income statement, and cash-flow report pages surface backend `fx_warnings` instead of silently rendering partial totals (backend fx_warnings-preservation half migrated as `AC-reporting.trust-signals.2`) | page warning assertions | `frontend/src/__tests__/balanceSheetPage.test.tsx`, `frontend/src/__tests__/incomeStatementPage.test.tsx`, `frontend/src/__tests__/cashFlowPage.test.tsx` | P0 |
 | AC5.16.3 | Personal report package traceability renders concrete source and ledger identifiers when the appendix provides them | `AC5.13.3 renders traceability appendix source, ledger, review, and confidence metadata` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
-| AC5.16.4 | Personal report package traceability lines expose source classes, proof level, anchor count, and blocker codes for report-line confidence review | `test_AC5_13_1_package_traceability_endpoint_returns_section_line_anchors`, `test_AC5_13_2_package_traceability_declares_completeness_warnings` | `api/test_personal_report_package_contract.py` | P0 |
 
 ### AC5.17: Authenticated Report CSV Exports
 
@@ -297,9 +293,13 @@ The report export workflow must preserve the authenticated API boundary and
 support every first-class financial statement page that exposes an export
 action.
 
+> *(AC5.17.1's backend export half migrated to the `reporting` package
+> roadmap as `AC-reporting.csv-export.1`; its frontend apiDownload proof
+> stays in the row below. Migration closeout continuation, #1663 / #1716.)*
+
 | AC | Acceptance Criteria | Test(s) | File(s) | Priority |
 |----|--------------------|---------|---------|----------|
-| AC5.17.1 | Balance sheet, income statement, and cash-flow pages download CSV through the authenticated API wrapper, and the backend CSV export supports cash-flow reports with date range and currency filters | `AC5.17.1 downloads cash-flow CSV through authenticated apiDownload`, `test_AC5_17_1_cash_flow_export_returns_csv` | `frontend/src/__tests__/cashFlowPage.test.tsx`, `reporting/test_reports_router.py` | P0 |
+| AC5.17.1 | Balance sheet, income statement, and cash-flow pages download CSV through the authenticated API wrapper (backend cash-flow CSV export half migrated as `AC-reporting.csv-export.1`) | `AC5.17.1 downloads cash-flow CSV through authenticated apiDownload` | `frontend/src/__tests__/cashFlowPage.test.tsx` | P0 |
 | AC5.17.2 | Personal report package page exposes an authenticated CSV export action after framework selection, using the package export contract and selected framework ID | `AC5.17.2 downloads package CSV through authenticated apiDownload` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
 
 ### AC5.18: Per-Node Confidence Tier on Balance-Sheet Payloads
@@ -311,10 +311,9 @@ Worth aggregate rolls up to the worst-input tier (see
 Rollup) — a defined rollup, not an invented number. Income statement, cash flow,
 and the monthly cards are a follow-up; provenance (#888) is the co-equal sibling axis.
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC5.18.1 | Each balance-sheet line carries the worst-input confidence tier of its contributing journal entries | `test_AC5_18_1_lines_carry_worst_input_confidence_tier()` | `reporting/test_balance_sheet_confidence.py` | P1 |
-| AC5.18.2 | The Net Worth aggregate rolls up to the worst-input tier across rated lines, and is null when nothing is rated | `test_AC5_18_2_net_worth_rolls_up_to_worst_input_tier()` | `reporting/test_balance_sheet_confidence.py` | P1 |
+> This group's rows removed — migrated to the `reporting` package roadmap as
+> `AC-reporting.confidence.1-2` (migration closeout continuation, #1663 /
+> #1716).
 
 ### AC5.19: Report Package Snapshot Artifact
 
@@ -324,18 +323,20 @@ period, currency, selected framework, readiness state, source anchors,
 traceability lines, and section payloads so the user can reopen and export the
 same package after later ledger or market-data changes.
 
+> *(AC5.19.1 removed and AC5.19.2 removed and AC5.19.3 removed — migrated to
+> the `reporting` package roadmap as `AC-reporting.package-snapshot.1-3`;
+> the frontend row below stays here. Migration closeout continuation,
+> #1663 / #1716.)*
+
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.19.1 | `POST /api/reports/package/generate` creates an immutable package snapshot that records period, currency, framework, readiness, source trust, traceability, and section payloads; blocked readiness may generate only a draft, while ready readiness generates trusted output | `test_AC5_19_1_package_generate_creates_draft_or_trusted_snapshot` | `api/test_personal_report_package_contract.py` | P0 |
-| AC5.19.2 | `GET /api/reports/package/snapshots` and `GET /api/reports/package/snapshots/{snapshot_id}` list and reopen only the current user's saved package snapshots, and reopening returns the original payload after live report inputs change | `test_AC5_19_2_package_snapshot_get_is_user_scoped_and_immutable` | `api/test_personal_report_package_contract.py` | P0 |
-| AC5.19.3 | Package JSON and CSV downloads are derived from a saved snapshot rather than recalculating live data | `test_AC5_19_3_package_snapshot_exports_are_snapshot_derived` | `api/test_personal_report_package_contract.py` | P0 |
 | AC5.19.4 | The package page shows recent snapshots, can generate a new snapshot, and downloads JSON/CSV from the saved snapshot artifact | `AC5.19.4 generates and downloads package snapshots` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
 
 ### AC5.20: Year-Scale Reporting Validation ([#951](https://github.com/wangzitian0/finance_report/issues/951))
 
-| AC ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC5.20.1 | At a full year's transaction volume (~1000 entries) the balance sheet, income statement, and cash flow tie out and generate within a generous wall-clock backstop — guarding the income-statement aggregation against a silent O(n^2) regression | `test_AC5_20_year_scale_reporting_ties_out_within_budget` | `reporting/test_year_scale_reporting.py` | P1 |
+> This group's row removed — migrated to the `reporting` package roadmap as
+> `AC-reporting.year-scale.1` (migration closeout continuation, #1663 /
+> #1716).
 
 ### AC5.32: Income Module Typed Currency + Typed-Intermediate Response ([#1009](https://github.com/wangzitian0/finance_report/issues/1009))
 
@@ -345,14 +346,9 @@ replace soft `str` currency handling with a shared validated/normalized
 (`AnnualizedIncomeTotals`) instead of a string-keyed dict, and declare an
 explicit FX-failure response model. Monetary values stay `Decimal`.
 
-| AC ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC5.32.1 | `AnnualizedIncomeResponse.currency` is the shared typed `CurrencyCode` (validated length + normalized), not a soft `str` | `test_AC5_32_1_currency_code_type_validates_and_normalizes` | `reporting/test_income_typed_currency.py` | P2 |
-| AC5.32.2 | Income totals accumulate in a typed `AnnualizedIncomeTotals` Decimal intermediate, not a string-keyed dict | `test_AC5_32_2_annualized_income_totals_is_typed_intermediate` | `reporting/test_income_typed_currency.py` | P2 |
-| AC5.32.3 | `resolve_line_currency` centralizes the `line\|\|account\|\|base` currency fallback + normalization | `test_AC5_32_3_resolve_line_currency_uses_canonical_fallback_chain` | `reporting/test_income_typed_currency.py` | P2 |
-| AC5.32.4 | An explicit FX-failure response model (`FxConversionErrorResponse`) is declared for the income endpoint | `test_AC5_32_4_fx_conversion_error_response_model_declared` | `reporting/test_income_typed_currency.py` | P2 |
-| AC5.32.5 | Currency normalization is a single shared helper (`normalize_currency_code`), not duplicated `.strip().upper()` | `test_AC5_32_5_normalize_currency_code_is_shared_helper` | `reporting/test_income_typed_currency.py` | P2 |
-| AC5.32.6 | The endpoint normalizes a soft (lower-case) base-currency setting in its response | `test_AC5_32_6_endpoint_returns_normalized_currency_for_soft_base_config` | `reporting/test_income_typed_currency.py` | P2 |
+> This group's rows removed — migrated to the `reporting` package roadmap as
+> `AC-reporting.income-typed.1-6` (migration closeout continuation, #1663 /
+> #1716).
 
 ### AC5.33: Report Page Shell + Toolbar Primitives ([#751](https://github.com/wangzitian0/finance_report/issues/751))
 
@@ -593,10 +589,9 @@ Tier 2 of #1000. `GET /reports/{report_type}/snapshots` declares a typed
 instead of a hand-rolled dict), and `report_type` is typed as the snapshot enum so
 an unknown value is rejected with 422 instead of silently returning an empty list.
 
-| AC ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC5.36.1 | An unknown `report_type` returns 422 | `test_AC5_36_1_report_snapshots_unknown_type_returns_422` | `api/test_typed_contract_sweep.py` | P2 |
-| AC5.36.2 | A valid `report_type` returns a typed list | `test_AC5_36_2_report_snapshots_valid_type_returns_typed_list` | `api/test_typed_contract_sweep.py` | P2 |
+> This group's rows removed — migrated to the `reporting` package roadmap as
+> `AC-reporting.snapshots-typed.1-2` (migration closeout continuation,
+> #1663 / #1716).
 
 ### AC5.37: Trust-First Reports Cockpit ([#1209](https://github.com/wangzitian0/finance_report/issues/1209))
 

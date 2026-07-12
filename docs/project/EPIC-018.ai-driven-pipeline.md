@@ -267,6 +267,11 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 > continuation, #1663 / #1715)*
 >
 > *(AC18.2.1 removed and AC18.2.2 removed and AC18.2.3 removed and AC18.2.4 removed and AC18.2.5 removed — migrated to the `extraction` package roadmap as `AC-extraction.1802.1-5`, migration closeout continuation, #1663 / #1715)*
+>
+> *(AC18.4.1 removed and AC18.4.2 removed and AC18.4.4 removed — migrated to
+> the `reporting` package roadmap as `AC-reporting.layer3.1-3`, migration
+> closeout continuation, #1663 / #1716. AC18.4.3 stays — it is
+> extraction-owned CSV-fallback scope, not reporting.)*
 
 | AC ID | Phase | Description |
 |-------|-------|-------------|
@@ -277,10 +282,7 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 | AC18.3.1 | 3 | `ai_semantic_score()` returns similarity for transaction description pairs. **Not migrated** — `ai_semantic_score` is a genuine LLM call, but `reconciliation` is declared `CODE-ONLY`; migrating this row trips `check_authority_reconcile.py` (a CODE-ONLY package permits no LLM-classified roadmap-AC test). Needs a tier/package-boundary decision before migration, not a silent workaround (found during migration verification, #1663 / #1711) |
 | AC18.3.2 | 3 | Hybrid scoring: `0.7 * algorithmic + 0.3 * AI` for 60-84 range only. **Untested** — no test exercises `calculate_match_score`'s hybrid-AI branch (found during migration verification, #1663 / #1711) |
 | AC18.3.3 | 3 | Feature flag `enable_ai_reconciliation` controls AI scoring. **Untested** — no test toggles `ENABLE_AI_RECONCILIATION` (found during migration verification, #1663 / #1711) |
-| AC18.4.1 | 4 | Reports read Layer 3 `TransactionClassification` for category breakdowns |
-| AC18.4.2 | 4 | `ReportSnapshot` (Layer 4) generated and queryable via API |
 | AC18.4.3 | 4 | AI CSV parsing handles unknown institutions as fallback |
-| AC18.4.4 | 4 | Income statements include applied Layer 3 classification coverage |
 
 ### AC18.7: Evidence Graph Foundation
 
@@ -380,9 +382,12 @@ Dependencies: AC18.7 Evidence Graph foundation, AC18.9 navigation API, and AC18.
 
 ### AC18.6: Framework Measurement and Disclosure Suggestions
 
-| AC ID | Phase | Description |
-|-------|-------|-------------|
-| AC18.6.1 | Framework reporting | AI-generated measurement or disclosure suggestions for US/HK personal report packages must remain structured, source-anchored, confidence-scored, and reviewed before EPIC-020 or EPIC-005 can treat them as trusted report inputs |
+AI-generated measurement or disclosure suggestions for US/HK personal
+report packages must remain
+structured, source-anchored, confidence-scored, and reviewed
+before EPIC-020 or EPIC-005 can treat them as trusted report inputs.
+
+> *(AC18.6.1 removed — duplicate, not migrated; the canonical copy is `AC-reporting.ai.1`, which was AC20.6.1 and pins exactly the criterion above. One criterion, one home — the `reporting` package roadmap, [`common/reporting/contract.py`](../../common/reporting/contract.py). Migration closeout continuation, #1663 / #1716)*
 
 ### AC18.12: North-Star Confidence Metric
 
@@ -394,12 +399,9 @@ ledger facts that back reports (tier derived from journal `source_type` via
 and surfaced read-only via the API. Recording cadence (on report-package
 generation / scheduled) and the per-report-number confidence of #913 are separate.
 
-| AC ID | Phase | Description | Test | File | Priority |
-|-------|-------|-------------|------|------|----------|
-| AC18.12.1 | Metric | The low-confidence proportion is the deterministic LOW-tier share of posted/reconciled journal entries, with a full TRUSTED/HIGH/MEDIUM/LOW breakdown and a defined zero on an empty ledger | `test_AC18_12_1_low_confidence_proportion_and_tier_breakdown_are_deterministic()` | `metrics/test_confidence_north_star_metric.py` | P1 |
-| AC18.12.2 | Trend | The metric is recorded as an append-only series — snapshots accumulate and read newest-first, never overwritten — so the trend over time is observable | `test_AC18_12_2_metric_is_recorded_as_append_only_series_showing_the_trend()` | `metrics/test_confidence_north_star_metric.py` | P1 |
-| AC18.12.3 | Surface | The current metric and its recorded series are exposed read-only via the API | `test_AC18_12_3_north_star_endpoint_returns_current_and_series()` | `metrics/test_confidence_north_star_metric.py` | P1 |
-| AC18.12.4 | Wired | A North-Star snapshot is recorded when a report package is generated, and on demand via a POST endpoint, so the trend actually accumulates in production | `test_AC18_12_4_post_records_a_snapshot_into_the_series()`, `test_generate_personal_report_package_snapshot` | `metrics/test_confidence_north_star_metric.py`, `api/test_reports_router.py` | P1 |
+> This group's rows removed — migrated to the `reporting` package roadmap as
+> `AC-reporting.north-star.1-4` (migration closeout continuation, #1663 /
+> #1716).
 
 ### AC18.13: Promotion Gate — Confidence Is Load-Bearing
 

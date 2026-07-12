@@ -120,7 +120,7 @@ async def test_aggregate_balances_with_start_date(db: AsyncSession, accounts, us
 async def test_aggregate_balances_missing_fx_skips_unconvertible_currency_with_warning(
     db: AsyncSession, accounts, user_id
 ):
-    """
+    """AC-reporting.fx.4:
     AC5.4.4: Missing FX during balance aggregation returns an explicit partial warning
     instead of aborting the whole report.
     """

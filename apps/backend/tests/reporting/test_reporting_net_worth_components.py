@@ -538,7 +538,7 @@ async def test_AC11_20_1_retirement_and_benefit_assets_are_restricted_assets_in_
     db: AsyncSession,
     test_user,
 ):
-    """AC11.20.1: Retirement and benefit account values are restricted assets in full net worth."""
+    """AC-reporting.net-worth-components.1: AC11.20.1: Retirement and benefit account values are restricted assets in full net worth."""
     report_date = date(2026, 6, 18)
     service = ValuationService()
     fixtures = [
@@ -593,7 +593,7 @@ async def test_AC11_20_2_net_worth_allocation_groups_retirement_and_benefit_asse
     db: AsyncSession,
     test_user,
 ):
-    """AC11.20.2: Retirement and benefit values have a dedicated allocation asset class."""
+    """AC-reporting.net-worth-components.2: AC11.20.2: Retirement and benefit values have a dedicated allocation asset class."""
     report_date = date(2026, 6, 18)
     fixtures = [
         (ManualValuationComponentType.RETIREMENT_ACCOUNT, "401k statement", Decimal("100000.00")),
@@ -786,7 +786,7 @@ async def test_AC17_14_2_net_worth_allocation_groups_balance_sheet_sources(
 
 
 async def test_income_statement_includes_applied_classification_breakdown(db: AsyncSession, test_user):
-    """AC18.4.4: Income statements include applied Layer 3 classification coverage."""
+    """AC-reporting.layer3.1 · AC-reporting.layer3.3: AC18.4.4: Income statements include applied Layer 3 classification coverage."""
     report_date = date(2025, 3, 31)
     income = await _create_account(db, test_user.id, name="Salary", account_type=AccountType.INCOME)
     atomic = AtomicTransaction(

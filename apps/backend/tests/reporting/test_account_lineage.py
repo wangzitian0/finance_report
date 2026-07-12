@@ -26,7 +26,7 @@ async def cash_account(db: AsyncSession, user_id):
 
 
 async def test_AC22_3_3_account_lineage_returns_posted_contributing_lines(db: AsyncSession, user_id, cash_account):
-    """AC22.3.3: account-lineage returns posted journal lines with journal_line anchors and signed totals."""
+    """AC-reporting.lineage.1: AC22.3.3: account-lineage returns posted journal lines with journal_line anchors and signed totals."""
     posted = JournalEntry(
         user_id=user_id, entry_date=date(2025, 1, 10), memo="Salary", status=JournalEntryStatus.POSTED
     )

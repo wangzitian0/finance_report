@@ -15,4 +15,4 @@
 {"ac_id": "AC-reconciliation.fx-transfer.8", "score": 1.0, "metric": "fx_conversion_model_round_trips_decimal_and_iso_currency", "provenance": "deterministic"}
 {"ac_id": "AC-reconciliation.fx-transfer.9", "score": 1.0, "metric": "income_statement_excludes_internal_transfer_legs_fee_only", "provenance": "deterministic"}
 {"ac_id": "AC-reconciliation.matching-core.4", "score": 1.0, "metric": "description_similarity_pct", "provenance": "deterministic"}
-{"ac_id": "AC8.16.1", "score": 1.0, "metric": "superseded_excluded_corrected_total_match", "provenance": "deterministic"}
+{"ac_id": "AC-reporting.augmentation.1", "score": 1.0, "metric": "superseded_excluded_corrected_total_match", "provenance": "deterministic"}

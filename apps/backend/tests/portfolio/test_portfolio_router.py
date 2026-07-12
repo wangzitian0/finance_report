@@ -243,7 +243,7 @@ async def test_update_holding_cost_basis_method_returns_404_for_missing_holding(
 
 
 async def test_get_holdings_with_date_filter(client: AsyncClient, portfolio_with_data):
-    """AC17.6.3: GET /portfolio/holdings with as_of_date filter returns 200.
+    """AC-portfolio.api.1: AC17.6.3: GET /portfolio/holdings with as_of_date filter returns 200.
 
     Verify that the holdings endpoint accepts and processes date filter.
     """
@@ -339,7 +339,7 @@ async def test_get_holdings_explicit_date_uses_historical_snapshot_quantity(
     test_user,
     investment_account,
 ):
-    """AC17.9.2: GET /portfolio/holdings with as_of_date returns historical snapshot quantity/value."""
+    """AC-portfolio.as-of.2: AC17.9.2: GET /portfolio/holdings with as_of_date returns historical snapshot quantity/value."""
     historical_date = date(2025, 1, 31)
     current_date = date(2025, 2, 28)
     position = ManagedPosition(
@@ -389,7 +389,7 @@ async def test_get_holdings_explicit_date_uses_historical_snapshot_quantity(
 
 
 async def test_get_holdings_include_disposed(client: AsyncClient, portfolio_with_data):
-    """AC17.6.4: GET /portfolio/holdings with include_disposed=true returns 200.
+    """AC-portfolio.api.2: AC17.6.4: GET /portfolio/holdings with include_disposed=true returns 200.
 
     Verify that the holdings endpoint accepts the include_disposed parameter.
     """
@@ -398,7 +398,7 @@ async def test_get_holdings_include_disposed(client: AsyncClient, portfolio_with
 
 
 async def test_get_performance_without_period(client: AsyncClient, portfolio_with_data):
-    """AC17.6.5: GET /portfolio/performance without period returns metrics.
+    """AC-portfolio.api.3: AC17.6.5: GET /portfolio/performance without period returns metrics.
 
     Verify that the performance endpoint returns xirr, twr, and mwr.
     """
@@ -411,7 +411,7 @@ async def test_get_performance_without_period(client: AsyncClient, portfolio_wit
 
 
 async def test_get_performance_with_period(client: AsyncClient, portfolio_with_data):
-    """AC17.6.6: GET /portfolio/performance with period params returns metrics.
+    """AC-portfolio.api.4: AC17.6.6: GET /portfolio/performance with period params returns metrics.
 
     Verify that the performance endpoint accepts period_start and period_end.
     """
@@ -430,7 +430,7 @@ async def test_AC17_10_1_AC17_10_2_get_investment_performance_report_schedule(
     test_user,
     portfolio_with_data,
 ):
-    """AC17.10.1 AC17.10.2 AC17.10.3: schedule exposes metrics, rows, freshness, sources, and notes."""
+    """AC-portfolio.report-schedule.1 · AC-portfolio.report-schedule.3: AC17.10.1 AC17.10.2 AC17.10.3: schedule exposes metrics, rows, freshness, sources, and notes."""
     position = portfolio_with_data["position"]
     source_id = uuid4()
     journal_entry = await create_valid_posted_entry(
@@ -509,7 +509,7 @@ async def test_AC17_10_6_investment_performance_schedule_converts_mixed_currency
     test_user,
     investment_account,
 ):
-    """AC17.10.6: Report schedule amounts are converted into presentation currency."""
+    """AC-portfolio.report-schedule.6: AC17.10.6: Report schedule amounts are converted into presentation currency."""
     period_start = date(2026, 1, 1)
     sell_date = date(2026, 3, 1)
     dividend_date = date(2026, 4, 1)
@@ -612,7 +612,7 @@ async def test_AC19_8_8_investment_schedule_fallback_holding_cost_basis_converts
     investment_account,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """AC19.8.8: Fallback holdings without ManagedPosition still convert cost basis to presentation currency."""
+    """AC-portfolio.schedule-fallback.1: AC19.8.8: Fallback holdings without ManagedPosition still convert cost basis to presentation currency."""
     period_start = date(2026, 1, 1)
     as_of_date = date(2026, 5, 20)
     db.add(
@@ -667,7 +667,7 @@ async def test_AC17_10_4_report_schedule_marks_stale_when_any_holding_price_is_s
     investment_account,
     portfolio_with_data,
 ):
-    """AC17.10.4: freshness is stale when any holding lacks current as-of-date price evidence."""
+    """AC-portfolio.report-schedule.4: AC17.10.4: freshness is stale when any holding lacks current as-of-date price evidence."""
     stale_date = date.today() - timedelta(days=7)
     position = ManagedPosition(
         user_id=test_user.id,
@@ -782,7 +782,7 @@ async def test_AC17_10_1_report_schedule_uses_manual_override_after_period_end(
 
 
 async def test_get_sector_allocation_empty(client: AsyncClient):
-    """AC17.6.7: GET /portfolio/allocation/sector on empty portfolio returns [].
+    """AC-portfolio.api.5: AC17.6.7: GET /portfolio/allocation/sector on empty portfolio returns [].
 
     Verify that the sector allocation endpoint returns empty list for no positions.
     """
@@ -792,7 +792,7 @@ async def test_get_sector_allocation_empty(client: AsyncClient):
 
 
 async def test_get_sector_allocation_with_data(client: AsyncClient, portfolio_with_data):
-    """AC17.6.8: GET /portfolio/allocation/sector with data returns breakdown.
+    """AC-portfolio.api.6: AC17.6.8: GET /portfolio/allocation/sector with data returns breakdown.
 
     Verify that the sector allocation endpoint returns category/value/percentage/count.
     """
@@ -808,7 +808,7 @@ async def test_get_sector_allocation_with_data(client: AsyncClient, portfolio_wi
 
 
 async def test_get_geography_allocation_empty(client: AsyncClient):
-    """AC17.6.9: GET /portfolio/allocation/geography on empty portfolio returns [].
+    """AC-portfolio.api.7: AC17.6.9: GET /portfolio/allocation/geography on empty portfolio returns [].
 
     Verify that the geography allocation endpoint returns empty list for no positions.
     """
@@ -818,7 +818,7 @@ async def test_get_geography_allocation_empty(client: AsyncClient):
 
 
 async def test_get_geography_allocation_with_data(client: AsyncClient, portfolio_with_data):
-    """AC17.6.10: GET /portfolio/allocation/geography with data returns breakdown.
+    """AC-portfolio.api.8: AC17.6.10: GET /portfolio/allocation/geography with data returns breakdown.
 
     Verify that the geography allocation endpoint returns grouped results.
     """
@@ -829,7 +829,7 @@ async def test_get_geography_allocation_with_data(client: AsyncClient, portfolio
 
 
 async def test_get_asset_class_allocation_empty(client: AsyncClient):
-    """AC17.6.11: GET /portfolio/allocation/asset-class on empty portfolio returns [].
+    """AC-portfolio.api.9: AC17.6.11: GET /portfolio/allocation/asset-class on empty portfolio returns [].
 
     Verify that the asset class allocation endpoint returns empty list for no positions.
     """
@@ -839,7 +839,7 @@ async def test_get_asset_class_allocation_empty(client: AsyncClient):
 
 
 async def test_get_asset_class_allocation_with_data(client: AsyncClient, portfolio_with_data):
-    """AC17.6.12: GET /portfolio/allocation/asset-class with data returns breakdown.
+    """AC-portfolio.api.10: AC17.6.12: GET /portfolio/allocation/asset-class with data returns breakdown.
 
     Verify that the asset class allocation endpoint returns grouped results.
     """
@@ -850,7 +850,7 @@ async def test_get_asset_class_allocation_with_data(client: AsyncClient, portfol
 
 
 async def test_update_prices_single(client: AsyncClient, portfolio_with_data):
-    """AC17.6.13: POST /portfolio/prices/update with single asset returns success.
+    """AC-portfolio.api.11: AC17.6.13: POST /portfolio/prices/update with single asset returns success.
 
     Verify that a single price update creates a MarketDataOverride.
     """
@@ -872,7 +872,7 @@ async def test_update_prices_single(client: AsyncClient, portfolio_with_data):
 
 
 async def test_update_prices_batch(client: AsyncClient, portfolio_with_data):
-    """AC17.6.14: POST /portfolio/prices/update with batch returns success.
+    """AC-portfolio.api.12: AC17.6.14: POST /portfolio/prices/update with batch returns success.
 
     Verify that batch price updates are processed.
     """
@@ -897,7 +897,7 @@ async def test_update_prices_batch(client: AsyncClient, portfolio_with_data):
 
 
 async def test_update_prices_invalid_payload(client: AsyncClient):
-    """AC17.6.15: POST /portfolio/prices/update with invalid payload returns 422.
+    """AC-portfolio.api.13: AC17.6.15: POST /portfolio/prices/update with invalid payload returns 422.
 
     Verify that missing required fields trigger validation error.
     """
@@ -907,7 +907,7 @@ async def test_update_prices_invalid_payload(client: AsyncClient):
 
 
 async def test_portfolio_endpoints_require_auth(public_client: AsyncClient):
-    """AC17.6.16: All portfolio endpoints require authentication.
+    """AC-portfolio.api.14: AC17.6.16: All portfolio endpoints require authentication.
 
     Verify that unauthenticated requests return 401.
     """
@@ -924,7 +924,7 @@ async def test_portfolio_endpoints_require_auth(public_client: AsyncClient):
 
 
 async def test_allocation_with_as_of_date(client: AsyncClient, portfolio_with_data):
-    """AC17.6.17: GET /portfolio/allocation/sector with as_of_date returns 200.
+    """AC-portfolio.api.15: AC17.6.17: GET /portfolio/allocation/sector with as_of_date returns 200.
 
     Verify that allocation endpoints accept as_of_date filter.
     """
@@ -934,7 +934,7 @@ async def test_allocation_with_as_of_date(client: AsyncClient, portfolio_with_da
 
 
 async def test_performance_metrics_response_format(client: AsyncClient, portfolio_with_data):
-    """AC17.6.18: GET /portfolio/performance returns string-formatted metrics.
+    """AC-portfolio.api.16: AC17.6.18: GET /portfolio/performance returns string-formatted metrics.
 
     Verify that xirr, twr, mwr are returned as strings.
     """
@@ -948,7 +948,7 @@ async def test_performance_metrics_response_format(client: AsyncClient, portfoli
 
 
 async def test_get_performance_insufficient_data(client: AsyncClient):
-    """AC17.6.19: InsufficientDataError on empty portfolio -> xirr/mwr default to 0."""
+    """AC-portfolio.api.17: AC17.6.19: InsufficientDataError on empty portfolio -> xirr/mwr default to 0."""
     response = await client.get("/portfolio/performance")
     assert response.status_code == 200
     data = response.json()
@@ -958,7 +958,7 @@ async def test_get_performance_insufficient_data(client: AsyncClient):
 
 
 async def test_get_performance_xirr_calculation_error(client: AsyncClient, portfolio_with_data, monkeypatch):
-    """AC17.6.20: PerformanceError (non-InsufficientData) on XIRR -> 422."""
+    """AC-portfolio.api.18: AC17.6.20: PerformanceError (non-InsufficientData) on XIRR -> 422."""
     from src.services.performance import XIRRCalculationError
 
     async def _raise_xirr(*args, **kwargs):
@@ -972,7 +972,7 @@ async def test_get_performance_xirr_calculation_error(client: AsyncClient, portf
 
 
 async def test_get_performance_mwr_calculation_error(client: AsyncClient, portfolio_with_data, monkeypatch):
-    """AC17.6.21: PerformanceError (non-InsufficientData) on MWR -> 422."""
+    """AC-portfolio.api.19: AC17.6.21: PerformanceError (non-InsufficientData) on MWR -> 422."""
     from src.services.performance import XIRRCalculationError
 
     async def _ok_xirr(*args, **kwargs):
@@ -1062,7 +1062,7 @@ async def test_AC17_30_1_holdings_default_cap_applied(
     investment_account,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """AC17.30.1: GET /portfolio/holdings caps results at the *default* limit when
+    """AC-portfolio.pagination.1: AC17.30.1: GET /portfolio/holdings caps results at the *default* limit when
     no `limit` param is passed.
 
     The default cap is monkeypatched to 2 and 3 holdings are seeded, so omitting
@@ -1112,7 +1112,7 @@ async def test_AC17_30_2_holdings_limit_offset_honored(
     test_user,
     investment_account,
 ):
-    """AC17.30.2: GET /portfolio/holdings honors limit and offset to page through holdings."""
+    """AC-portfolio.pagination.2: AC17.30.2: GET /portfolio/holdings honors limit and offset to page through holdings."""
     for index in range(3):
         ticker = f"PAGE{index}"
         db.add_all(
@@ -1155,7 +1155,7 @@ async def test_AC17_30_2_holdings_limit_offset_honored(
 
 
 async def test_AC17_30_3_holdings_rejects_out_of_range_pagination(client: AsyncClient):
-    """AC17.30.3: GET /portfolio/holdings rejects out-of-range limit/offset with 422."""
+    """AC-portfolio.pagination.3: AC17.30.3: GET /portfolio/holdings rejects out-of-range limit/offset with 422."""
     too_large = await client.get("/portfolio/holdings?limit=10000")
     assert too_large.status_code == 422
 
@@ -1170,7 +1170,7 @@ async def test_AC17_30_4_dividends_limit_offset_honored(
     client: AsyncClient,
     portfolio_with_many_dividends,
 ):
-    """AC17.30.4: GET /portfolio/{ticker}/dividends honors limit/offset and rejects out-of-range."""
+    """AC-portfolio.pagination.4: AC17.30.4: GET /portfolio/{ticker}/dividends honors limit/offset and rejects out-of-range."""
     ticker = portfolio_with_many_dividends["ticker"]
     total = portfolio_with_many_dividends["count"]
 
@@ -1193,7 +1193,7 @@ async def test_AC17_30_5_realized_limit_offset_honored(
     client: AsyncClient,
     portfolio_with_many_realized,
 ):
-    """AC17.30.5: GET /portfolio/{ticker}/realized honors limit/offset and rejects out-of-range."""
+    """AC-portfolio.pagination.5: AC17.30.5: GET /portfolio/{ticker}/realized honors limit/offset and rejects out-of-range."""
     ticker = portfolio_with_many_realized["ticker"]
     total = portfolio_with_many_realized["count"]
 
@@ -1216,7 +1216,7 @@ async def test_AC17_30_6_allocation_limit_offset_honored(
     client: AsyncClient,
     portfolio_with_data,
 ):
-    """AC17.30.6: GET /portfolio/allocation/* honors limit/offset and rejects out-of-range."""
+    """AC-portfolio.pagination.6: AC17.30.6: GET /portfolio/allocation/* honors limit/offset and rejects out-of-range."""
     full = await client.get("/portfolio/allocation/sector")
     assert full.status_code == 200
     full_rows = full.json()

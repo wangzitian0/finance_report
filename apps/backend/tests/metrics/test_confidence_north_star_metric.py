@@ -18,7 +18,7 @@ from tests.ledger._ledger_helpers import create_valid_posted_entry
 
 @pytest.mark.asyncio
 async def test_AC18_12_1_low_confidence_proportion_and_tier_breakdown_are_deterministic(db, test_user):
-    """AC18.12.1: The metric is the LOW-tier share of posted ledger facts, with a full tier breakdown."""
+    """AC-reporting.north-star.1: AC18.12.1: The metric is the LOW-tier share of posted ledger facts, with a full tier breakdown."""
     service = ConfidenceMetricService()
     # source_type -> confidence tier: manual=TRUSTED, user_confirmed=HIGH,
     # auto_matched=MEDIUM, auto_parsed/system=LOW.
@@ -51,7 +51,7 @@ async def test_AC18_12_1_empty_ledger_reports_zero_not_undefined(db, test_user):
 
 @pytest.mark.asyncio
 async def test_AC18_12_2_metric_is_recorded_as_append_only_series_showing_the_trend(db, test_user):
-    """AC18.12.2: Snapshots accumulate (never overwrite) and read newest-first, so the trend is observable."""
+    """AC-reporting.north-star.2: AC18.12.2: Snapshots accumulate (never overwrite) and read newest-first, so the trend is observable."""
     service = ConfidenceMetricService()
 
     await create_valid_posted_entry(db, test_user.id, source_type=JournalEntrySourceType.MANUAL)
@@ -76,7 +76,7 @@ async def test_AC18_12_2_metric_is_recorded_as_append_only_series_showing_the_tr
 
 @pytest.mark.asyncio
 async def test_AC18_12_3_north_star_endpoint_returns_current_and_series(client):
-    """AC18.12.3: The metric and its series are exposed read-only via the API."""
+    """AC-reporting.north-star.3: AC18.12.3: The metric and its series are exposed read-only via the API."""
     response = await client.get("/metrics/confidence-north-star")
     assert response.status_code == 200
     body = response.json()
@@ -88,7 +88,7 @@ async def test_AC18_12_3_north_star_endpoint_returns_current_and_series(client):
 
 @pytest.mark.asyncio
 async def test_AC18_12_4_post_records_a_snapshot_into_the_series(client):
-    """AC18.12.4: POST records a North-Star point on demand, so the trend accumulates."""
+    """AC-reporting.north-star.4: AC18.12.4: POST records a North-Star point on demand, so the trend accumulates."""
     assert (await client.get("/metrics/confidence-north-star")).json()["series"] == []
 
     created = await client.post("/metrics/confidence-north-star/snapshots")
