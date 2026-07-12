@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.journal import JournalEntry, JournalEntryStatus
 from src.models.metrics import ConfidenceMetricSnapshot
-from src.services.confidence_tier import ConfidenceTier, derive_confidence_tier
+from src.reporting.extension.confidence_tier import ConfidenceTier, derive_confidence_tier
 
 _PROPORTION_QUANT = Decimal("0.00001")
 _TIERS: tuple[ConfidenceTier, ...] = ("TRUSTED", "HIGH", "MEDIUM", "LOW")

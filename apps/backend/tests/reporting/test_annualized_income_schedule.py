@@ -15,7 +15,7 @@ from src.models.layer3 import (
     ManualValuationSnapshot,
 )
 from src.pricing.orm.market_data import FxRate
-from src.services.reporting_calc import income_bucket
+from src.reporting.extension.reporting_calc import income_bucket
 
 
 def test_AC11_11_1_income_bucket_maps_report_package_income_accounts():

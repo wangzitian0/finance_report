@@ -5,6 +5,9 @@ evidence graph) moved to the ``extraction`` package (#1421) — import it via
 ``from src.extraction import …``, not from here. The portfolio read side
 (holdings/P&L, allocation, performance, report schedule) moved to the
 ``portfolio`` package (#1643) — import it via ``from src.portfolio import …``.
+The reporting implementation (statements, package readiness/traceability,
+confidence metric/tier, snapshots) moved to the ``reporting`` package (#1666)
+— import it via ``from src.reporting import …``.
 
 Importing one service submodule must not eagerly import every backend service.
 Tooling tests and small audit CLIs intentionally run with a reduced dependency
@@ -18,27 +21,17 @@ from typing import Any
 
 _SUBMODULES = {
     "ai_advisor",
-    "confidence_tier",
     "fx",
     "market_data_scheduler",
-    "report_readiness",
-    "reporting",
-    "reporting_snapshot",
 }
 
 _EXPORTS: dict[str, tuple[str, str]] = {
     "AIAdvisorError": ("ai_advisor", "AIAdvisorError"),
     "AIAdvisorService": ("ai_advisor", "AIAdvisorService"),
     "FxRateError": ("fx", "FxRateError"),
-    "ReportError": ("reporting", "ReportError"),
     "convert_amount": ("fx", "convert_amount"),
     "convert_to_base": ("fx", "convert_to_base"),
-    "generate_balance_sheet": ("reporting", "generate_balance_sheet"),
-    "generate_cash_flow": ("reporting", "generate_cash_flow"),
-    "generate_income_statement": ("reporting", "generate_income_statement"),
-    "get_account_trend": ("reporting", "get_account_trend"),
     "get_average_rate": ("fx", "get_average_rate"),
-    "get_category_breakdown": ("reporting", "get_category_breakdown"),
     "get_exchange_rate": ("fx", "get_exchange_rate"),
 }
 

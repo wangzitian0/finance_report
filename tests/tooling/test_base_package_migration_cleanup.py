@@ -45,7 +45,7 @@ BACKEND_QUANTITY_ADAPTER_FILES = [
     Path("apps/backend/src/portfolio/extension/accounting.py"),
     Path("apps/backend/src/portfolio/extension/discovery.py"),
     Path("apps/backend/src/portfolio/extension/holdings.py"),
-    Path("apps/backend/src/services/reporting"),
+    Path("apps/backend/src/reporting"),
 ]
 
 
@@ -258,7 +258,7 @@ def test_AC12_31_7_backend_quantity_business_code_uses_value_type():
     assert "position_quantity = position.quantity_qty.quantize()" in portfolio
     assert "snapshot_quantity.is_zero()" in portfolio
 
-    reporting = _read(Path("apps/backend/src/services/reporting"))
+    reporting = _read(Path("apps/backend/src/reporting"))
     # Quantity flows via the ManagedPosition.quantity_qty accessor (#3 boundary push).
     assert "position_quantity = position.quantity_qty.quantize()" in reporting
 

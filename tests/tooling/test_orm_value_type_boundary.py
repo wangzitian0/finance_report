@@ -20,7 +20,7 @@ MIGRATED_MANAGED_POSITION_FILES = [
     "apps/backend/src/pricing/extension/valuation.py",
     "apps/backend/src/portfolio/extension/positions.py",
     "apps/backend/src/portfolio/extension/performance_report.py",
-    "apps/backend/src/services/reporting/portfolio_market.py",
+    "apps/backend/src/reporting/extension/portfolio_market.py",
 ]
 # A raw money-column READ: position.cost_basis / unrealized_pnl / realized_pnl that
 # is not the typed accessor (`_money`), not a different column (`_method`), and not
@@ -93,8 +93,9 @@ def test_AC12_35_3_portfolio_holdings_value_flows_as_money():
     assert "UnitPrice(latest_price" in src
 
     # reporting's portfolio valuation also flows Money via the same helpers
-    market = _read("apps/backend/src/services/reporting/portfolio_market.py")
-    assert "fx.convert_money(" in market
+    # (through reporting's injected FX seam since the #1666 fold)
+    market = _read("apps/backend/src/reporting/extension/portfolio_market.py")
+    assert "fx_gateway.convert_money(" in market
     assert "position.cost_basis_money" in market
     assert "position.quantity_qty" in market
 
@@ -155,7 +156,7 @@ def test_AC12_37_2_reconciliation_config_sums_lines_as_money():
 def test_AC12_37_3_income_statement_fx_is_money_native():
     """AC-audit.37.3: the income-statement slow-path FX converts journal lines via the
     Money-native `convert_money(line.money, ...)`, not raw `convert_amount(line.amount)`."""
-    src = _read("apps/backend/src/services/reporting/income_statement.py")
+    src = _read("apps/backend/src/reporting/extension/income_statement.py")
     assert "convert_money(" in src
     assert "line.money" in src
     # robust: income_statement no longer references raw convert_amount at all

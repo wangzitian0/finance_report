@@ -4,7 +4,7 @@ from datetime import date
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
-from src.services.reporting import ReportError
+from src.reporting import ReportError
 
 
 class TestReportsRouterErrors:

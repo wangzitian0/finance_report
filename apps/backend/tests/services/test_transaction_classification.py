@@ -524,6 +524,6 @@ def test_AC18_17_1_no_classify_writer_is_defined_but_uninvoked():
 def test_AC18_17_3_reports_read_only_applied_classifications():
     """AC-extraction.1817.3: AC18.17.3: reports consume exactly ONE classification source and only
     APPLIED rows — the DRAFT review band never leaks into as-reported figures."""
-    src = Path("src/services/reporting/income_statement.py").read_text(encoding="utf-8")
+    src = Path("src/reporting/extension/income_statement.py").read_text(encoding="utf-8")
     assert "ClassificationStatus.APPLIED" in src
     assert "ClassificationStatus.DRAFT" not in src and "ClassificationStatus.SUPERSEDED" not in src

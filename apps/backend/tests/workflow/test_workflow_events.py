@@ -47,13 +47,13 @@ from src.platform.extension.workflow_events import (
     update_workflow_event_status,
     upsert_workflow_event,
 )
+from src.reporting.extension.report_readiness import get_personal_report_package_readiness
 from src.schemas.workflow import (
     WorkflowEventCreate,
     WorkflowEventResponse,
     WorkflowPrimaryState,
     WorkflowReportReadinessState,
 )
-from src.services.report_readiness import get_personal_report_package_readiness
 
 ROOT_DIR = Path(__file__).resolve().parents[4]
 

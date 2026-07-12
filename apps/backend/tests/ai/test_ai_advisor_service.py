@@ -25,6 +25,7 @@ from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, 
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.prompts.ai_advisor import DISCLAIMER_EN, get_ai_advisor_prompt
+from src.reporting import ReportError
 from src.schemas.workflow import (
     WorkflowEventCountsResponse,
     WorkflowNextActionResponse,
@@ -51,7 +52,6 @@ from src.services.ai_advisor import (
     redact_sensitive,
     service as ai_advisor_service,
 )
-from src.services.reporting import ReportError
 from tests.factories import UserFactory
 
 

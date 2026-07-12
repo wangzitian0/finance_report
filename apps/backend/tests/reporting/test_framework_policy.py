@@ -7,6 +7,12 @@ from decimal import Decimal
 import pytest
 from pydantic import ValidationError
 
+from src.reporting.extension.framework_policy import (
+    _result_id,
+    _rule,
+    derive_framework_policy_result,
+    get_framework_policy_matrix,
+)
 from src.schemas.reporting import (
     FrameworkPolicyDecision,
     FrameworkPolicyEvidenceAnchor,
@@ -19,7 +25,6 @@ from src.schemas.reporting import (
     PolicyProvenance,
     PolicyReviewState,
 )
-from src.services.framework_policy import _result_id, _rule, derive_framework_policy_result, get_framework_policy_matrix
 
 pytestmark = pytest.mark.no_db
 

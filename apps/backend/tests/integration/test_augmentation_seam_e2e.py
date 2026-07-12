@@ -34,7 +34,7 @@ from src.models.account import Account, AccountType
 from src.models.journal import JournalEntrySourceType
 from src.models.layer3 import ManualValuationComponentType
 from src.pricing import ValuationService
-from src.services.reporting import generate_balance_sheet
+from src.reporting import generate_balance_sheet
 
 
 async def _account(

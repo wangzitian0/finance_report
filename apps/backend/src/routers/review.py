@@ -29,6 +29,7 @@ from src.reconciliation import (
     run_all_consistency_checks,
 )
 from src.reconciliation.orm.consistency_check import CheckStatus, CheckType
+from src.reporting import derive_reconciliation_score_tier
 from src.schemas.review import (
     BatchApproveRequest,
     BatchApproveResponse,
@@ -46,7 +47,6 @@ from src.schemas.review import (
     Stage2PendingMatch,
     Stage2ReviewQueueResponse,
 )
-from src.services.confidence_tier import derive_reconciliation_score_tier
 
 logger = get_logger(__name__)
 

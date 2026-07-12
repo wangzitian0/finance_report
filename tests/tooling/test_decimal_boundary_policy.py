@@ -66,7 +66,7 @@ def test_AC12_31_3_migrated_hotspots_use_base_packages():
         Path("apps/backend/src/portfolio/extension/positions.py"),
         Path("apps/backend/src/portfolio/extension/accounting.py"),
         Path("apps/backend/src/portfolio/extension/discovery.py"),
-        Path("apps/backend/src/services/reporting"),
+        Path("apps/backend/src/reporting"),
     ]
     naked_quantity_zero = re.compile(
         r"(?:quantity|remaining_quantity)\s*(?:==|!=|>|<|>=|<=)\s*Decimal\(\"0(?:\.0+)?\"\)"
@@ -84,7 +84,7 @@ def test_AC12_31_3_migrated_hotspots_use_base_packages():
             f"{path} has a naked Decimal quantity-zero comparison"
         )
 
-    reporting = _read(Path("apps/backend/src/services/reporting"))
+    reporting = _read(Path("apps/backend/src/reporting"))
     assert "position.quantity * latest_price" not in reporting
     # Quantity flows via the ManagedPosition.quantity_qty accessor (#3 boundary push);
     # market value is UnitPrice(price) * quantity, no raw quantity*price.

@@ -22,8 +22,8 @@ from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 from src.pricing import FxConversion
 from src.pricing.orm.market_data import FxRate
+from src.reporting import generate_balance_sheet, generate_income_statement
 from src.services.fx import clear_fx_cache
-from src.services.reporting import generate_balance_sheet, generate_income_statement
 
 # A representative cross-currency internal transfer: 1360.00 SGD leaves a SGD
 # bank account, 1000.00 USD arrives in a USD bank account, at 1.36 SGD/USD, with a

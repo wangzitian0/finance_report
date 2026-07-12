@@ -22,6 +22,9 @@ from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
 from src.pricing.orm.market_data import StockPrice
 from src.reconciliation.orm.consistency_check import CheckStatus, ConsistencyCheck
+from src.reporting.extension import fx_gateway
+from src.reporting.extension.framework_policy import derive_user_framework_policy_result
+from src.reporting.extension.fx_gateway import convert_amount
 from src.schemas.reporting import (
     FrameworkPolicyResult,
     PersonalReportingFrameworkId,
@@ -29,8 +32,6 @@ from src.schemas.reporting import (
     PolicyProvenance,
     PolicyReviewState,
 )
-from src.services.framework_policy import derive_user_framework_policy_result
-from src.services.fx import FxRateError, convert_amount
 
 PACKAGE_ID = "personal-financial-report-package"
 MARKET_DATA_STALE_AFTER_DAYS = 90
@@ -572,7 +573,7 @@ async def get_personal_report_package_readiness(
 
     try:
         processing_balance = to_money(await _processing_account_balance(db, user_id))
-    except FxRateError as exc:
+    except fx_gateway.FxRateError as exc:
         blockers.append(
             _blocker(
                 "processing_account_unresolved",

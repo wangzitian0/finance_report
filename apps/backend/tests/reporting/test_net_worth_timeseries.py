@@ -9,7 +9,7 @@ import pytest
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 from src.pricing.orm.market_data import FxRate
-from src.services.reporting import ReportError, get_net_worth_timeseries
+from src.reporting import ReportError, get_net_worth_timeseries
 
 
 async def _account(db, user_id, name: str, account_type: AccountType, currency: str = "SGD") -> Account:
@@ -181,7 +181,7 @@ async def test_net_worth_timeseries_monthly_uses_period_end_and_normalizes_curre
             "total_liabilities": Decimal("250.00"),
         }
 
-    monkeypatch.setattr("src.services.reporting.net_worth.generate_balance_sheet", fake_balance_sheet)
+    monkeypatch.setattr("src.reporting.extension.net_worth.generate_balance_sheet", fake_balance_sheet)
 
     report = await get_net_worth_timeseries(
         db,

@@ -40,6 +40,13 @@ from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
 from src.pricing.orm.market_data import FxRate
 from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
+from src.reporting.extension.report_traceability import (
+    _add_anchor_details,
+    _append_blocker,
+    _journal_source_anchor_detail,
+    _ledger_anchor_detail,
+    _source_document_details,
+)
 from src.routers.reports import (
     ExportFormat,
     ExportReportType,
@@ -56,13 +63,6 @@ from src.routers.reports import (
 )
 from src.schemas import PersonalReportingFrameworkId, PersonalReportPackageReadinessResponse
 from src.services.fx import FxRateError
-from src.services.report_traceability import (
-    _add_anchor_details,
-    _append_blocker,
-    _journal_source_anchor_detail,
-    _ledger_anchor_detail,
-    _source_document_details,
-)
 from tests.factories import UserFactory
 
 
@@ -915,7 +915,7 @@ async def test_AC19_8_8_package_readiness_blocks_when_processing_fx_conversion_f
     async def raise_fx_error(*_args, **_kwargs):
         raise FxRateError("No FX rate available for USD/SGD on 2026-05-03")
 
-    monkeypatch.setattr("src.services.report_readiness.convert_amount", raise_fx_error)
+    monkeypatch.setattr("src.reporting.extension.report_readiness.convert_amount", raise_fx_error)
 
     response = await personal_report_package_readiness(db=db, user_id=test_user.id)
     payload = response.model_dump(mode="json")

@@ -15,7 +15,7 @@ from src.models.layer3 import (
     ManualValuationLiquidityClass,
     ManualValuationSnapshot,
 )
-from src.services.reporting import (
+from src.reporting import (
     ReportError,
     generate_balance_sheet,
     generate_cash_flow,
@@ -926,7 +926,7 @@ async def test_account_trend_monthly(db: AsyncSession, chart_of_accounts, test_u
         def today(cls) -> "FixedDate":
             return cls(2025, 3, 15)
 
-    monkeypatch.setattr("src.services.reporting.net_worth.date", FixedDate)
+    monkeypatch.setattr("src.reporting.extension.net_worth.date", FixedDate)
 
     entry_one = JournalEntry(
         user_id=test_user_id,
@@ -1010,7 +1010,7 @@ async def test_category_breakdown_quarterly(db: AsyncSession, chart_of_accounts,
         def today(cls) -> "FixedDate":
             return cls(2025, 3, 15)
 
-    monkeypatch.setattr("src.services.reporting.net_worth.date", FixedDate)
+    monkeypatch.setattr("src.reporting.extension.net_worth.date", FixedDate)
 
     entry = JournalEntry(
         user_id=test_user_id,
@@ -1542,7 +1542,7 @@ def test_iter_periods_daily_limit():
     """Test that _iter_periods respects the MAX_TREND_POINTS limit."""
     from datetime import date, timedelta
 
-    from src.services.reporting_calc import MAX_TREND_POINTS, _iter_periods
+    from src.reporting.extension.reporting_calc import MAX_TREND_POINTS, _iter_periods
 
     # 1000 days span
     start = date(2020, 1, 1)

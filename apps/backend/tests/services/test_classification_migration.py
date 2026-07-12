@@ -31,7 +31,7 @@ from src.extraction.extension.transaction_classification import (
 from src.models.account import Account, AccountType
 from src.models.journal import JournalEntry, JournalLine
 from src.models.layer3 import TransactionClassification
-from src.services.reporting import generate_income_statement
+from src.reporting import generate_income_statement
 
 SALARY = Decimal("5000.00")
 RENT = Decimal("1500.00")

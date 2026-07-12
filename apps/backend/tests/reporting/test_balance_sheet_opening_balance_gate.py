@@ -22,8 +22,8 @@ from src.models.journal import (
     JournalEntryStatus,
     JournalLine,
 )
-from src.services.reporting import generate_balance_sheet
-from src.services.reporting.net_worth import get_net_worth_allocation_schedule
+from src.reporting import generate_balance_sheet
+from src.reporting.extension.net_worth import get_net_worth_allocation_schedule
 
 AS_OF = date(2026, 4, 30)
 

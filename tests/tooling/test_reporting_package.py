@@ -9,7 +9,10 @@ from pathlib import Path
 from common.meta.extension.check_package_contract import discover_packages, run
 
 REPO = Path(__file__).resolve().parents[2]
-REPORTING = REPO / "apps/backend/src/services/reporting"
+REPORTING = REPO / "apps/backend/src/reporting"
+# The pre-#1666 location: survives only as manual_valuation.py (owned by the
+# pricing cutover #1610) plus the thin shims that keep it importing.
+LEGACY_REPORTING = REPO / "apps/backend/src/services/reporting"
 
 _BACKEND_ROOT = str(REPO / "apps" / "backend")
 if _BACKEND_ROOT not in sys.path:
@@ -39,7 +42,7 @@ def test_AC_reporting_1_1_only_all_is_the_published_language():
     published = _static_all(REPORTING / "__init__.py")
     assert sorted(CONTRACT.interface) == sorted(published)
     assert CONTRACT.name == "reporting"
-    assert CONTRACT.implementations["be"] == "apps/backend/src/services/reporting"
+    assert CONTRACT.implementations["be"] == "apps/backend/src/reporting"
 
 
 def test_AC_reporting_1_2_cutover_inventory_is_declared():
@@ -47,12 +50,12 @@ def test_AC_reporting_1_2_cutover_inventory_is_declared():
     from common.reporting.contract import CONTRACT
 
     expected_modules = {
-        "balance_sheet.py",
-        "income_statement.py",
-        "cash_flow.py",
-        "_core.py",
-        "net_worth.py",
-        "lineage.py",
+        "extension/balance_sheet.py",
+        "extension/income_statement.py",
+        "extension/cash_flow.py",
+        "extension/_core.py",
+        "extension/net_worth.py",
+        "extension/lineage.py",
     }
     declared_modules = {unit.module for unit in CONTRACT.units if unit.module}
     assert expected_modules.issubset(declared_modules)
@@ -70,9 +73,13 @@ def test_AC_reporting_1_3_manual_valuation_is_not_published_reporting_surface():
 
     published = set(_static_all(REPORTING / "__init__.py"))
     assert published.isdisjoint({"manual_valuation", "record_manual_valuation"})
-    reporting_py_files = {p.name for p in REPORTING.glob("*.py")}
-    assert reporting_py_files >= {"manual_valuation.py"}, (
-        "current inventory still includes manual_valuation.py until pricing cutover removes it"
+    reporting_py_files = {p.name for p in REPORTING.rglob("*.py")}
+    assert reporting_py_files.isdisjoint({"manual_valuation.py"}), (
+        "manual_valuation.py must not fold into the reporting package (pricing owns it, #1610)"
+    )
+    assert (LEGACY_REPORTING / "manual_valuation.py").exists(), (
+        "manual_valuation.py stays behind as the sole services/reporting survivor until the "
+        "pricing cutover (#1610) re-homes it"
     )
     assert {unit.name for unit in CONTRACT.units}.isdisjoint({"ManualValuationSnapshot"})
 

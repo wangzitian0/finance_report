@@ -77,7 +77,7 @@ def test_AC12_34_3_confidence_tier_lives_in_model_layer():
     """AC-ledger.34.3: derive_confidence_tier moved to the model; service re-exports it."""
     journal = _read("apps/backend/src/models/journal.py")
     assert "def derive_confidence_tier(" in journal
-    shim = _read("apps/backend/src/services/confidence_tier.py")
+    shim = _read("apps/backend/src/reporting/extension/confidence_tier.py")
     assert (
         "from src.models.journal import ConfidenceTier, derive_confidence_tier" in shim
     )

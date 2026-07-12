@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -12,11 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.ledger import RevaluationError, calculate_unrealized_fx_gains
 from src.models.account import AccountType
 from src.observability import ErrorIds, get_logger
-from src.schemas.provenance import DataProvenance
-from src.services.fx import (
-    FxWarning,
-)
-from src.services.reporting._core import (
+from src.reporting.extension._core import (
     _aggregate_account_confidence_tiers,
     _aggregate_account_provenance,
     _aggregate_balances_sql,
@@ -26,17 +23,65 @@ from src.services.reporting._core import (
     _load_accounts,
     _strip_allocation_metadata,
 )
-from src.services.reporting.manual_valuation import _build_manual_valuation_lines
-from src.services.reporting.portfolio_market import _build_portfolio_market_adjustment_lines
-from src.services.reporting_calc import (
+from src.reporting.extension.fx_gateway import FxWarning
+from src.reporting.extension.portfolio_market import _build_portfolio_market_adjustment_lines
+from src.reporting.extension.reporting_calc import (
     ReportError,
     _combine_provenance,
     _normalize_currency,
     _quantize_money,
     _worst_confidence_tier,
 )
+from src.schemas.provenance import DataProvenance
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+    # Always called as (db, user_id, *, as_of_date=..., target_currency=...,
+    # include_restricted=...) — see _build_manual_valuation_lines below.
+    ManualValuationLinesProvider = Callable[..., "Awaitable[tuple[list[dict], list[dict]]]"]
 
 logger = get_logger(__name__)
+
+# The manual-valuation report lines are built by
+# ``src.services.reporting.manual_valuation`` — the sole ``services/`` survivor
+# of the #1666 fold, owned by the in-flight pricing cutover (#1610). A carved
+# package must not import the app remainder (``check_app_boundary``), so the
+# builder arrives by injection — the same inversion as platform's readiness
+# port (#1676): ``main.py`` registers the real function at startup; the backend
+# test conftest registers it for direct (no-app) test runs. When #1610 re-homes
+# manual valuation under ``pricing``, only the registration call sites change.
+_manual_valuation_lines_provider: ManualValuationLinesProvider | None = None
+
+
+def register_manual_valuation_lines_provider(provider: ManualValuationLinesProvider) -> None:
+    """Wire the manual-valuation balance-sheet-lines builder (see note above)."""
+    global _manual_valuation_lines_provider
+    _manual_valuation_lines_provider = provider
+
+
+async def _build_manual_valuation_lines(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    as_of_date: date,
+    target_currency: str,
+    include_restricted: bool = True,
+) -> tuple[list[dict], list[dict]]:
+    """Dispatch to the registered manual-valuation lines provider."""
+    if _manual_valuation_lines_provider is None:
+        raise RuntimeError(
+            "balance_sheet.register_manual_valuation_lines_provider() was never "
+            "called — main.py wires it at startup (#1666); a test exercising this "
+            "path without the app must call it too (the backend test conftest does)."
+        )
+    return await _manual_valuation_lines_provider(
+        db,
+        user_id,
+        as_of_date=as_of_date,
+        target_currency=target_currency,
+        include_restricted=include_restricted,
+    )
 
 
 async def generate_balance_sheet(
