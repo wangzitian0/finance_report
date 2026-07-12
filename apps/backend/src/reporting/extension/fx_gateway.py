@@ -1,17 +1,16 @@
 """Reporting's FX seam — wired at the composition root (#1666).
 
-Reporting's statement math converts through the app-layer FX service
-(``src.services.fx``: TTL cache, ``fx_warnings`` side-channel, prefetch
-batching). ``reporting`` is a carved L3 package and must not import the
-``services/`` app remainder (``check_app_boundary`` would flag a new upward
-edge), so the concrete FX callables and the two FX types arrive by injection —
-the same inversion as platform's readiness port (#1676) and the
-uploaded-document readers (#1675 D3): ``src/main.py`` registers the real
-``src.services.fx`` objects at startup; the backend test conftest registers
-them for direct (no-app) test runs.
-
-When #1610 absorbs ``services/fx.py`` into ``pricing``, only the registration
-call sites change — reporting keeps owning zero FX logic.
+Reporting's statement math converts through ``pricing``'s FX surface
+(``src.pricing``: ``get_exchange_rate``/``get_average_rate``/``convert_*``,
+``fx_warnings`` side-channel, ``PrefetchedFxRates`` batch prefetch). Rather
+than import ``pricing`` directly, the concrete FX callables and the two FX
+types arrive by injection — the same inversion as platform's readiness port
+(#1676) and the uploaded-document readers (#1675 D3): ``src/main.py``
+registers the real ``src.pricing`` objects at startup; the backend test
+conftest registers them for direct (no-app) test runs. Kept as an injection
+seam rather than a direct import even after #1610 landed (retiring
+``services/fx.py``) so reporting keeps owning zero FX logic — a rename in
+pricing's internals never touches this package's consumer modules.
 
 Two access shapes, chosen so behavior and monkeypatch surfaces survive the
 move unchanged:
@@ -34,7 +33,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
-#: Structural warning-dict alias (same shape as ``src.services.fx.FxWarning``).
+#: Structural warning-dict alias (same shape as ``src.pricing.FxWarning``).
 #: Pure annotation vocabulary — identity is irrelevant, so it is defined
 #: locally instead of injected.
 FxWarning = dict[str, str]
@@ -66,11 +65,11 @@ class _UnwiredPrefetchedFxRates:
         )
 
 
-#: The injected FX-unavailable exception class (``src.services.fx.FxRateError``
+#: The injected FX-unavailable exception class (``src.pricing.PricingError``
 #: today). Reference late-bound as ``fx_gateway.FxRateError``.
 FxRateError: type[Exception] = _FxGatewayNotRegisteredError
 
-#: The injected prefetch-batch helper class (``src.services.fx.PrefetchedFxRates``
+#: The injected prefetch-batch helper class (``src.pricing.PrefetchedFxRates``
 #: today). Reference late-bound as ``fx_gateway.PrefetchedFxRates``.
 PrefetchedFxRates: Any = _UnwiredPrefetchedFxRates
 
