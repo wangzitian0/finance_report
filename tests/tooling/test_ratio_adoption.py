@@ -15,10 +15,10 @@ from common.testing.ac_proof import ac_proof
 REPO = Path(__file__).resolve().parents[2]
 
 BACKEND_RATIO_ADOPTION_FILES = [
-    Path("apps/backend/src/services/performance.py"),
-    Path("apps/backend/src/services/portfolio.py"),
-    Path("apps/backend/src/services/allocation.py"),
-    Path("apps/backend/src/services/performance_report.py"),
+    Path("apps/backend/src/portfolio/extension/performance.py"),
+    Path("apps/backend/src/portfolio/extension/holdings.py"),
+    Path("apps/backend/src/portfolio/extension/allocation.py"),
+    Path("apps/backend/src/portfolio/extension/performance_report.py"),
     Path("apps/backend/src/services/reporting"),
     Path("apps/backend/src/reconciliation/data/stats.py"),
 ]
@@ -96,7 +96,7 @@ def test_AC12_9_3_backend_adoption_keeps_ratio_typed_until_boundary():
             f"{path} constructs Ratio and immediately unwraps it to Decimal"
         )
 
-    portfolio = _read(Path("apps/backend/src/services/portfolio.py"))
+    portfolio = _read(Path("apps/backend/src/portfolio/extension/holdings.py"))
     # the local _ratio_or_zero helper is retired in favour of the base-package
     # zero-denominator fallback (EPIC-012 AC12.33, #1253)
     assert "Ratio.fraction_or_zero(" in portfolio

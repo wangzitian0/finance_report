@@ -19,11 +19,12 @@ from src.models.layer3 import (
     PositionStatus,
 )
 from src.observability import get_logger
+from src.portfolio import AssetNotFoundError, PortfolioService
+from src.pricing import PricingError
 from src.services import fx
 from src.services.fx import (
     FxRateError,
 )
-from src.services.portfolio import AssetNotFoundError, PortfolioService
 from src.services.reporting._core import REPORTING_QUANTITY_UNIT, _single_source_currency
 from src.services.reporting_calc import (
     ReportError,
@@ -68,6 +69,10 @@ async def _portfolio_market_basis_by_account(
                 as_of_date=portfolio_eval_date.isoformat(),
             )
             continue
+        except PricingError as exc:
+            # An FX miss inside the price lookup is a report-blocking condition,
+            # same as the convert_money misses below — never a silent skip.
+            raise ReportError(str(exc)) from exc
 
         source_currency = position.currency.upper()
         # Value/cost flow as Money; convert only when source and target currencies

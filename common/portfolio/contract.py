@@ -34,17 +34,16 @@ below for how that overlap is resolved.
   (``PositionStatus``/``CostBasisMethod``/``InvestmentTransactionType``/
   ``DividendType``) are declared alongside them on the ORM model files, so
   they're taxonomy-only here too, for the same reason.
-* Cross-package edges today (#1674 contract-honesty audit, 2026-07-09): only
-  ``audit`` (Money/Quantity/UnitPrice base types) and ``ledger`` (``post_entry``
+* Cross-package edges today (updated at the #1641/#1643 read-side cutover):
+  ``audit`` (Money/Quantity/UnitPrice base types), ``ledger`` (``post_entry``
   — portfolio writes only its own aggregate in one transaction, then posts a
-  balanced ``Entry``; no shared transaction) have real imports — this is the
-  **write side only** (#1422). The design above (``pricing.resolve`` consumption,
-  ``platform`` event publish, ``observability`` logging) is real intent, not yet
-  real code: portfolio's read-side queries and pricing consumption are blocked
-  on #1641 and land in #1643/#1610 P2. ``depends_on`` declares only what is
-  wired *today*; re-add ``pricing``/``platform``/``observability`` there with
-  their first real import, not before (a declared-but-unused edge fails
-  ``check_package_contract`` as of #1674).
+  balanced ``Entry``; no shared transaction), ``observability`` (logging),
+  and ``pricing`` (the published FX surface ``convert_amount``/``convert_money``
+  with the ``lazy_load`` crawler fallback, plus ``StockPrice``/
+  ``MARKET_DATA_QUANTITY_UNIT`` — portfolio consumes prices, never fetches or
+  stores one). ``platform`` (event publish) is still intent, not code — add it
+  to ``depends_on`` with its first real import, not before (a
+  declared-but-unused edge fails ``check_package_contract`` as of #1674).
 """
 
 from __future__ import annotations
@@ -59,7 +58,7 @@ CONTRACT = PackageContract(
     # "domain" (L3).
     status="active",
     tier="CODE-ONLY",
-    depends_on=["audit", "ledger", "observability"],
+    depends_on=["audit", "ledger", "observability", "pricing"],
     roles=["base", "extension", "data"],
     units=[
         # ── base: real value objects — plain exceptions, no ORM references ──
@@ -100,48 +99,113 @@ CONTRACT = PackageContract(
             kind=Kind.DOMAIN_SERVICE,
             module="extension/accounting.py",
         ),
-        # ── extension (reserved — P3): the read-side holdings/P&L queries ──
-        # + the repository port/adapter split the issue's DoD calls for
-        # (currently raw AsyncSession in services/portfolio.py).
+        # ── extension (real — #1643): the read-side holdings/P&L query service ──
+        # get_holdings/get_portfolio_summary/calculate_realized_pnl/
+        # calculate_unrealized_pnl/update_market_prices are methods on
+        # PortfolioService (methods, not separate units — the accounting
+        # precedent above). The repository port/adapter split the issue's DoD
+        # calls for is still ahead (raw AsyncSession today), so
+        # PortfolioRepository stays reserved.
         Unit(name="PortfolioRepository", kind=Kind.REPOSITORY),
-        Unit(name="get_holdings", kind=Kind.DOMAIN_SERVICE),
-        Unit(name="get_portfolio_summary", kind=Kind.DOMAIN_SERVICE),
-        Unit(name="calculate_unrealized_pnl", kind=Kind.DOMAIN_SERVICE),
-        Unit(name="calculate_realized_pnl", kind=Kind.DOMAIN_SERVICE),
-        # ── extension (reserved — P4): allocation + performance + report assembly ──
-        Unit(name="get_sector_allocation", kind=Kind.DOMAIN_SERVICE),
-        Unit(name="get_geography_allocation", kind=Kind.DOMAIN_SERVICE),
-        Unit(name="get_asset_class_allocation", kind=Kind.DOMAIN_SERVICE),
-        Unit(name="calculate_xirr", kind=Kind.DOMAIN_SERVICE),
-        Unit(name="calculate_time_weighted_return", kind=Kind.DOMAIN_SERVICE),
-        Unit(name="calculate_money_weighted_return", kind=Kind.DOMAIN_SERVICE),
-        Unit(name="calculate_dividend_yield", kind=Kind.DOMAIN_SERVICE),
-        # ── data (reserved — P4): read-models consumed by routers/reporting ──
+        Unit(
+            name="PortfolioService",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/holdings.py",
+        ),
+        # ── extension (real — #1643): allocation + performance + report assembly ──
+        Unit(
+            name="get_sector_allocation",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/allocation.py",
+        ),
+        Unit(
+            name="get_geography_allocation",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/allocation.py",
+        ),
+        Unit(
+            name="get_asset_class_allocation",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/allocation.py",
+        ),
+        Unit(
+            name="calculate_xirr",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/performance.py",
+        ),
+        Unit(
+            name="calculate_time_weighted_return",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/performance.py",
+        ),
+        Unit(
+            name="calculate_money_weighted_return",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/performance.py",
+        ),
+        Unit(
+            name="calculate_dividend_yield",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/performance.py",
+        ),
+        Unit(
+            name="build_investment_performance_report_schedule",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/performance_report.py",
+        ),
+        # ── extension (real — #1641): market-data scope discovery reads ──
+        # "what does this user hold" — composed by the delivery layer into the
+        # scopes passed to pricing's crawl (call-convention inversion).
+        Unit(
+            name="active_stock_symbols",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/discovery.py",
+        ),
+        Unit(
+            name="position_currencies",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/discovery.py",
+        ),
+        # ── data (reserved): read-models consumed by routers/reporting — the
+        # response schemas still live in the unregistered src/schemas/. ──
         Unit(name="HoldingResponse", kind=Kind.PROJECTION),
         Unit(name="RealizedPnLResponse", kind=Kind.PROJECTION),
         Unit(name="UnrealizedPnLResponse", kind=Kind.PROJECTION),
         Unit(name="PortfolioSummaryResponse", kind=Kind.PROJECTION),
     ],
     implementations={"be": "apps/backend/src/portfolio", "fe": None},
-    # This commit's real, working surface: the 6 plain-exception error types
-    # plus InvestmentAccountingService (post_buy/post_sell/post_dividend) and
-    # its InvestmentAccountingResult. Everything else above is reserved
-    # (taxonomy-only or no module=) until a later commit moves the real
-    # implementation in — same incremental pattern the pricing cutover
-    # (#1610, PR #1617) used.
+    # The real, working surface: the plain-exception error families (base/),
+    # the write-side accounting + position services, the read-side holdings/
+    # P&L/allocation/performance queries and the report-schedule assembly
+    # (#1643), and the scope-discovery reads (#1641).
     interface=[
         "AssetNotFoundError",
         "DepreciationResult",
+        "InsufficientDataError",
         "InvalidDateRangeError",
         "InvestmentAccountingError",
         "InvestmentAccountingResult",
         "InvestmentAccountingService",
         "InvestmentAccountingValidationError",
+        "PerformanceError",
         "PortfolioError",
         "PortfolioNotFoundError",
+        "PortfolioService",
         "PositionService",
         "PositionServiceError",
         "ReconcileResult",
+        "XIRRCalculationError",
+        "active_stock_symbols",
+        "build_investment_performance_report_schedule",
+        "calculate_dividend_yield",
+        "calculate_money_weighted_return",
+        "calculate_time_weighted_return",
+        "calculate_xirr",
+        "get_asset_class_allocation",
+        "get_geography_allocation",
+        "get_sector_allocation",
+        "portfolio_service",
+        "position_currencies",
     ],
     events=[],
     invariants=[
@@ -182,8 +246,9 @@ CONTRACT = PackageContract(
     ],
     # The write-side accounting slice is real, tested, and CODE-ONLY (money/
     # ledger postings, no LLM), so the package ships active with that tier
-    # decided now; the read-side holdings/P&L cutover (still blocked on #1643)
-    # lands as reserved (taxonomy-only, no module=) units above.
+    # decided now; the read-side holdings/P&L cutover landed with #1643 (real
+    # units above). The EPIC-011/017 read-side AC rows migrate into this
+    # roadmap separately (#1717).
     roadmap=[
         ACRecord(
             id="AC-portfolio.1.1",

@@ -37,14 +37,14 @@ FRONTEND_PERCENT_FILES = [
 
 BACKEND_MONEY_ADAPTER_FILES = [
     Path("apps/backend/src/portfolio/extension/accounting.py"),
-    Path("apps/backend/src/services/performance_report.py"),
+    Path("apps/backend/src/portfolio/extension/performance_report.py"),
 ]
 
 BACKEND_QUANTITY_ADAPTER_FILES = [
     Path("apps/backend/src/portfolio/extension/positions.py"),
     Path("apps/backend/src/portfolio/extension/accounting.py"),
-    Path("apps/backend/src/services/market_data_discovery.py"),
-    Path("apps/backend/src/services/portfolio.py"),
+    Path("apps/backend/src/portfolio/extension/discovery.py"),
+    Path("apps/backend/src/portfolio/extension/holdings.py"),
     Path("apps/backend/src/services/reporting"),
 ]
 
@@ -150,7 +150,9 @@ def test_AC12_31_5_backend_money_adapters_are_not_duplicated():
             f"{path} still calls a local money adapter"
         )
 
-    performance_report = _read(Path("apps/backend/src/services/performance_report.py"))
+    performance_report = _read(
+        Path("apps/backend/src/portfolio/extension/performance_report.py")
+    )
     assert "percentage=_percent(row.percentage)" in performance_report
     assert "percentage=_money(row.percentage)" not in performance_report
 
@@ -251,7 +253,7 @@ def test_AC12_31_7_backend_quantity_business_code_uses_value_type():
     # keeping trade_quantity a Quantity object in the money calculation.
     assert "buy_price * trade_quantity" in investment
 
-    portfolio = _read(Path("apps/backend/src/services/portfolio.py"))
+    portfolio = _read(Path("apps/backend/src/portfolio/extension/holdings.py"))
     # Quantity flows via the ManagedPosition.quantity_qty accessor (#3 boundary push).
     assert "position_quantity = position.quantity_qty.quantize()" in portfolio
     assert "snapshot_quantity.is_zero()" in portfolio

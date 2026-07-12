@@ -10,9 +10,9 @@ from src.models.account import Account, AccountType
 from src.models.layer2 import AtomicPosition, AtomicTransaction, TransactionDirection
 from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.models.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
+from src.portfolio import calculate_money_weighted_return, calculate_time_weighted_return, calculate_xirr
+from src.portfolio.extension.performance_report import _source_document_links
 from src.pricing.orm.market_data import FxRate
-from src.services.performance import calculate_money_weighted_return, calculate_time_weighted_return, calculate_xirr
-from src.services.performance_report import _source_document_links
 
 
 async def _investment_position(db: AsyncSession, test_user, *, asset_identifier: str = "AUDIT") -> ManagedPosition:

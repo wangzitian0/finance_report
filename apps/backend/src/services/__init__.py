@@ -2,7 +2,9 @@
 
 The extraction domain (pipeline, validation, dedup, brokerage, prompts,
 evidence graph) moved to the ``extraction`` package (#1421) — import it via
-``from src.extraction import …``, not from here.
+``from src.extraction import …``, not from here. The portfolio read side
+(holdings/P&L, allocation, performance, report schedule) moved to the
+``portfolio`` package (#1643) — import it via ``from src.portfolio import …``.
 
 Importing one service submodule must not eagerly import every backend service.
 Tooling tests and small audit CLIs intentionally run with a reduced dependency
@@ -16,15 +18,9 @@ from typing import Any
 
 _SUBMODULES = {
     "ai_advisor",
-    "allocation",
-    "assets",
     "confidence_tier",
     "fx",
-    "investment_accounting",
-    "market_data",
     "market_data_scheduler",
-    "performance",
-    "portfolio",
     "report_readiness",
     "reporting",
     "reporting_snapshot",

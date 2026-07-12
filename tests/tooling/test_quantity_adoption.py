@@ -62,7 +62,7 @@ def test_AC12_30_4_backend_quantity_hot_paths_use_quantity_type():
     assert "unit_price=_quantized_quantity" not in investment
     assert "unit_cost=_quantized_quantity" not in investment
 
-    portfolio = _read(Path("apps/backend/src/services/portfolio.py"))
+    portfolio = _read(Path("apps/backend/src/portfolio/extension/holdings.py"))
     assert "from src.audit.quantity import Quantity" in portfolio
     # Quantity now flows via the ManagedPosition.quantity_qty accessor (#3 boundary
     # push); still the Quantity value type, just read at the ORM boundary.

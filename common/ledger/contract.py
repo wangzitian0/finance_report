@@ -131,6 +131,14 @@ CONTRACT = PackageContract(
             kind=Kind.DOMAIN_SERVICE,
             module="extension/processing.py",
         ),
+        # extension: the ledger's contribution to FX-scope discovery (#1641) —
+        # the distinct currencies used by the user's accounts + journal lines,
+        # composed by the delivery layer into pricing's crawl scopes.
+        Unit(
+            name="used_currencies",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/currencies.py",
+        ),
     ],
     implementations={"be": "apps/backend/src/ledger", "fe": None},
     interface=[
@@ -166,6 +174,7 @@ CONTRACT = PackageContract(
         "post_entry",
         "post_journal_entry",
         "post_opening_balance_entry",
+        "used_currencies",
         "validate_fx_rates",
         "validate_journal_balance",
         "validate_journal_posting_invariants",

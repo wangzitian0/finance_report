@@ -43,6 +43,9 @@ CONTRACT = PackageContract(
         "audit",
         "ledger",
         "observability",
+        # portfolio: the market-value adjustment lines read holdings via the
+        # published PortfolioService (was services.portfolio before #1643).
+        "portfolio",
         "pricing",
         "reconciliation",
     ],

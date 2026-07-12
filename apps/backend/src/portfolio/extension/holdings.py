@@ -1,4 +1,13 @@
-"""Portfolio management service - Holdings and P&L calculations."""
+"""Portfolio management service - Holdings and P&L calculations.
+
+Moved from ``services/portfolio.py`` (#1643, standard-preserving move): the
+error classes now live in ``base/errors.py`` and every FX conversion goes
+through ``pricing``'s published surface (``convert_amount``/``convert_money``
+with ``lazy_load=True`` — same crawler-fallback behavior the old
+``services/fx.py`` path had). A conversion miss therefore surfaces as
+``pricing.PricingError`` (``NoObservationError``), not the retired
+``FxRateError``.
+"""
 
 from collections.abc import Sequence
 from datetime import date
@@ -9,11 +18,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+import src.config
 from src.audit.money import Money, to_money
 from src.audit.quantity import Quantity
 from src.audit.ratio import Ratio
 from src.audit.unit_price import UnitPrice
-from src.config import settings
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
 from src.models.portfolio import (
@@ -24,7 +33,12 @@ from src.models.portfolio import (
     PriceSource,
 )
 from src.observability import get_logger
-from src.pricing.orm.market_data import StockPrice
+from src.portfolio.base.errors import (
+    AssetNotFoundError,
+    InvalidDateRangeError,
+    PortfolioNotFoundError,
+)
+from src.pricing import StockPrice, convert_amount, convert_money
 from src.schemas.portfolio import (
     HoldingResponse,
     PortfolioSummaryResponse,
@@ -34,7 +48,9 @@ from src.schemas.portfolio import (
     UnrealizedPnLResponse,
 )
 from src.schemas.provenance import DataProvenance
-from src.services import fx
+
+# Bound from the bare published root (config publishes no named symbols).
+settings = src.config.settings
 
 logger = get_logger(__name__)
 
@@ -60,30 +76,6 @@ def _derive_provenance(source_documents: object) -> DataProvenance | None:
     return None
 
 
-class PortfolioError(Exception):
-    """Base exception for portfolio service errors."""
-
-    pass
-
-
-class PortfolioNotFoundError(PortfolioError):
-    """Raised when portfolio positions are not found for a user."""
-
-    pass
-
-
-class InvalidDateRangeError(PortfolioError):
-    """Raised when date range is invalid."""
-
-    pass
-
-
-class AssetNotFoundError(PortfolioError):
-    """Raised when asset is not found."""
-
-    pass
-
-
 async def _convert_pnl(
     db: AsyncSession,
     *,
@@ -101,8 +93,8 @@ async def _convert_pnl(
     in target), optionally quantize per-value, then ``pnl = value - cost`` and the
     ``pnl / cost`` ratio. Returns ``(converted_value, converted_cost, pnl, ratio)``.
     """
-    converted_value = await fx.convert_money(db, value, target_currency, rate_date=value_rate_date, lazy_load=True)
-    converted_cost = await fx.convert_money(db, cost, target_currency, rate_date=cost_rate_date, lazy_load=True)
+    converted_value = await convert_money(db, value, target_currency, rate_date=value_rate_date, lazy_load=True)
+    converted_cost = await convert_money(db, cost, target_currency, rate_date=cost_rate_date, lazy_load=True)
     if quantize:
         converted_value = converted_value.quantize()
         converted_cost = converted_cost.quantize()
@@ -747,7 +739,7 @@ class PortfolioService:
         if synced_price is not None:
             if synced_price.currency == position.currency:
                 return synced_price.price
-            return await fx.convert_amount(
+            return await convert_amount(
                 db,
                 amount=synced_price.price,
                 currency=synced_price.currency,
@@ -852,7 +844,7 @@ class PortfolioService:
         Each transaction's realized P&L is converted to ``target_currency`` at the
         transaction date. Returns ``(by_asset, source_refs)`` where ``source_refs``
         carries journal-entry / transaction-source links for traceability. Raises
-        ``fx.FxRateError`` when a required rate is unavailable.
+        ``pricing.PricingError`` when a required rate is unavailable.
         """
         result = await db.execute(
             select(InvestmentTransaction)
@@ -864,7 +856,7 @@ class PortfolioService:
         by_asset: dict[str, Decimal] = {}
         source_refs: set[str] = set()
         for txn in result.scalars().all():
-            amount = await fx.convert_amount(
+            amount = await convert_amount(
                 db,
                 txn.realized_pnl or Decimal("0.00"),
                 txn.currency,
@@ -891,8 +883,8 @@ class PortfolioService:
         """Per-asset dividend income in ``[start_date, end_date]``.
 
         Each dividend is converted to ``target_currency`` at the payment date and
-        grouped by the owning position's asset identifier. Raises ``fx.FxRateError``
-        when a required rate is unavailable.
+        grouped by the owning position's asset identifier. Raises
+        ``pricing.PricingError`` when a required rate is unavailable.
         """
         result = await db.execute(
             select(DividendIncome, ManagedPosition)
@@ -904,7 +896,7 @@ class PortfolioService:
         )
         by_asset: dict[str, Decimal] = {}
         for dividend, position in result.all():
-            amount = await fx.convert_amount(
+            amount = await convert_amount(
                 db,
                 dividend.amount,
                 dividend.currency,

@@ -49,13 +49,25 @@ transaction — portfolio writes its own aggregate, ledger posts on receipt, no
 shared FK (Decision B). `post_sell` supports FIFO, LIFO, and AVGCOST lot
 consumption and never drives an open position's quantity below zero.
 
-## Read side (reserved — blocked on #1643)
+## Read side (real — #1643)
 
-`get_holdings`, `get_portfolio_summary`, the P&L/allocation/performance
-queries, and the `PortfolioRepository` port/adapter split are declared in
-[`contract.py`](./contract.py) as reserved units (no `module=`): the real
-implementation still lives in `apps/backend/src/services/portfolio.py` /
-`services/performance.py`, gated on the read-side migration (#1643).
+`PortfolioService` (`extension/holdings.py` — holdings, summary,
+realized/unrealized P&L, price overrides, per-asset realized-P&L/dividend
+aggregation), the allocation breakdowns (`extension/allocation.py`), the
+performance metrics (`extension/performance.py` — XIRR/TWR/MWR/dividend
+yield), and the report-schedule assembly (`extension/performance_report.py`)
+moved in from `services/`. Every FX conversion goes through `pricing`'s
+published `convert_amount`/`convert_money` (with `lazy_load=True` where the
+old `services/fx.py` path used the crawler fallback) — a conversion miss
+surfaces as `pricing.PricingError`, never the retired `FxRateError`. The
+`PortfolioRepository` port/adapter split stays a reserved unit (raw
+`AsyncSession` today).
+
+`extension/discovery.py` (#1641) publishes `active_stock_symbols` and
+`position_currencies` — portfolio's answers to "what does this user hold",
+composed by the delivery layer
+(`services/market_data_scheduler.py::observed_fx_pairs`) into the scopes
+passed to `pricing`'s crawl.
 
 ## Cross-package edges
 

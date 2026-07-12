@@ -100,6 +100,14 @@ CONTRACT = PackageContract(
             kind=Kind.DOMAIN_SERVICE,
             module="extension/evidence_graph_integration.py",
         ),
+        # extraction's contribution to FX-scope discovery (#1641) — the
+        # distinct currencies on the user's imported AtomicPosition snapshots,
+        # composed by the delivery layer into pricing's crawl scopes.
+        Unit(
+            name="snapshot_currencies",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/currencies.py",
+        ),
         # dual-write persistence verbs (upsert by dedup_hash). Declared as the
         # repository IMPL half only via taxonomy for now: carving the base
         # port out of the raw-AsyncSession verbs is the documented follow-up
@@ -167,6 +175,7 @@ CONTRACT = PackageContract(
         "resolve_transaction_currency",
         "run_parsing_supervisor",
         "set_opening_balance",
+        "snapshot_currencies",
         "submit_parse_pipeline",
         "validate_balance",
         "validate_balance_chain",
