@@ -92,7 +92,7 @@ therefore **part of the deliverable, not aftercare**:
 - **A subagent that backgrounds a long command and ends its turn "to wait for
   it" has abandoned the work, not paused it.** Observed repeatedly in a single
   session (2026-07-13): an agent runs a slow verification detached
-  (`... | tail -N &`-style, or a `run_in_background` shell), then ends its
+  (`... | tail -n <N> &`-style, or a `run_in_background` shell), then ends its
   turn believing something will wake it up when the command finishes. Nothing
   does — a subagent's own subprocess completing triggers no notification to
   anyone; only the **orchestrator** gets notified, and only when the
