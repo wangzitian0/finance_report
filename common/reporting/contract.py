@@ -144,9 +144,6 @@ CONTRACT = PackageContract(
         "_quantize_money",
         "_quarter_start",
         "_signed_amount",
-        # Published for the services/reporting/manual_valuation.py survivor's
-        # shim only; #1610 re-homes manual valuation and retires this name.
-        "_valuation_line_name",
         "_worst_confidence_tier",
         "assemble_framework_balance_sheet",
         "assemble_framework_income_statement",

@@ -12,11 +12,13 @@ Physically folded out of ``apps/backend/src/services/`` by #1666 (umbrella
 — consumers (routers, the app composition root, the advisor service) import
 from this root only. FX conversion and the manual-valuation lines builder are
 *injected* at the composition root (``register_fx_gateway`` /
-``register_manual_valuation_lines_provider``) because their implementations
-still live in the app remainder pending the pricing cutover (#1610).
+``register_manual_valuation_lines_provider``) so reporting never imports
+``pricing``'s implementation directly, even though pricing owns both
+(the FX lookup surface and manual valuation observations/staleness, #1610).
 
-``services/reporting/manual_valuation.py`` is deliberately NOT part of this
-package: pricing owns valuation observations/staleness (#1610).
+Manual valuation is deliberately NOT part of this package's own code —
+``pricing/extension/valuation.py`` owns it (#1610 re-homed it from the
+``services/reporting/manual_valuation.py`` survivor of the #1666 fold).
 """
 
 from src.reporting.base.l1_registry import is_valid_line_for_framework
@@ -27,7 +29,6 @@ from src.reporting.base.report_package_contract import (
 from src.reporting.extension._core import (
     _aggregate_balances_sql,
     _aggregate_net_income_sql,
-    _valuation_line_name,
 )
 from src.reporting.extension.balance_sheet import (
     generate_balance_sheet,
@@ -103,7 +104,6 @@ __all__ = [
     "_quantize_money",
     "_quarter_start",
     "_signed_amount",
-    "_valuation_line_name",
     "_worst_confidence_tier",
     "assemble_framework_balance_sheet",
     "assemble_framework_income_statement",

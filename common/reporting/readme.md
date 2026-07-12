@@ -21,11 +21,14 @@
 >   `confidence_metric.py`), and the injected FX seam (`fx_gateway.py`).
 > - `data/` — reserved for the declared projections (no module yet).
 >
-> Two implementations deliberately stay in the app remainder pending the
-> pricing cutover (#1610) and are reached only through composition-root
-> injection (`register_fx_gateway` / `register_manual_valuation_lines_provider`,
-> wired in `main.py` and the backend test conftest): `services/fx.py` and
-> `services/reporting/manual_valuation.py`.
+> Reporting keeps zero FX logic and zero manual-valuation logic of its own —
+> both arrive by composition-root injection (`register_fx_gateway` /
+> `register_manual_valuation_lines_provider`, wired in `main.py` and the
+> backend test conftest) rather than a direct import, so a rename inside the
+> owning package never touches reporting's consumer modules. Both ports now
+> repoint to `pricing` (#1610 retired the `services/fx.py` /
+> `services/reporting/manual_valuation.py` implementations they originally
+> pointed at).
 >
 > **Status: `active`, `tier="CODE-ONLY"`** (flipped in migration closeout
 > wave 2, #1663 — see [Status](#status) below).
@@ -80,8 +83,9 @@ reporting-calculation-extraction pair (`dry-ssot.1`/`.2`) — all `proof_kind`
 in `{exact, property}`, valid under `CODE-ONLY` (the roadmap has since
 absorbed the EPIC-005/EPIC-008 reporting rows, #1716). The physical move from
 `apps/backend/src/services/reporting/` into `apps/backend/src/reporting/`
-landed with #1666; `services/reporting/manual_valuation.py` is the sole
-survivor, owned by #1610.
+landed with #1666; `services/reporting/manual_valuation.py` was the sole
+survivor and #1610 re-homed it into `pricing/extension/valuation.py`,
+deleting the directory.
 
 ## SSOT: report calculation rules
 
