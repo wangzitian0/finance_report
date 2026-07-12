@@ -84,8 +84,10 @@ def _write_bank_fixture(tmp_path: Path, report_date: date) -> Path:
 def _get_pdf_path(source: str) -> Path:
     from datetime import datetime
 
+    from common.testing.fixtures.pdf.generate_pdf_fixtures import default_output_dir
+
     root = Path(__file__).resolve().parents[2]
-    source_dir = root / "tools" / "_lib" / "pdf_fixtures" / "output" / source
+    source_dir = default_output_dir() / source
     yymm = datetime.now().strftime("%y%m")
     prebuilt = source_dir / f"test_{source}_{yymm}.pdf"
     if prebuilt.exists():
