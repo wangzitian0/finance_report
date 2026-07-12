@@ -9,13 +9,13 @@ from fastapi import APIRouter, status
 from src.deps import CurrentUserId, DbSession
 from src.extraction import CorrectionLoopService
 from src.models.metrics import ConfidenceMetricSnapshot
+from src.reporting import ConfidenceMetricService
 from src.schemas.metrics import (
     ConfidenceMetricPoint,
     ConfidenceMetricSnapshotResponse,
     ConfidenceNorthStarResponse,
     CorrectionLoopReplayResponse,
 )
-from src.services.confidence_metric import ConfidenceMetricService
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
 _service = ConfidenceMetricService()

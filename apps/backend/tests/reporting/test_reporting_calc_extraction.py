@@ -3,14 +3,15 @@
 from datetime import date
 from decimal import Decimal
 
+from src import reporting as reporting_service
 from src.models.account import AccountType
 from src.models.journal import Direction
-from src.services import reporting as reporting_service, reporting_calc
+from src.reporting.extension import reporting_calc
 
 
 def test_reporting_calc_extraction():
-    """AC-reporting.dry-ssot.1: AC25.1.1: pure reporting math lives in ``services.reporting_calc`` and is
-    re-used by ``services.reporting`` (same objects, not copies), so accounting
+    """AC-reporting.dry-ssot.1: AC25.1.1: pure reporting math lives in ``reporting.extension.reporting_calc`` and is
+    re-used by the ``reporting`` package root (same objects, not copies), so accounting
     sign rules, period boundaries, income-bucket classification, money
     quantization, and confidence-tier rollup are unchanged."""
     # The orchestration module re-exports the extracted primitives — identical

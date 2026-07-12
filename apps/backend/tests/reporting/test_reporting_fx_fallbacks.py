@@ -12,7 +12,7 @@ from src.audit.money import Money
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.pricing.orm.market_data import FxRate
-from src.services.reporting import (
+from src.reporting import (
     ReportError,
     _aggregate_balances_sql,
     _aggregate_net_income_sql,
@@ -295,7 +295,7 @@ async def test_net_income_fx_data_consistency_error(db: AsyncSession, accounts, 
     )
     await db.commit()
 
-    with patch("src.services.reporting.balance_sheet._aggregate_net_income_sql") as mock_func:
+    with patch("src.reporting.extension.balance_sheet._aggregate_net_income_sql") as mock_func:
         mock_func.side_effect = ReportError("Missing FX rate for USD/SGD on 2025-01-15 - data consistency error")
         with pytest.raises(ReportError, match="data consistency error"):
             await generate_balance_sheet(db, user_id, as_of_date=date(2025, 1, 31), currency="SGD")
@@ -308,7 +308,7 @@ async def test_balance_sheet_sqlalchemy_error_on_aggregation(db: AsyncSession, a
     THEN ReportError is raised wrapping the DB error
     """
     with patch(
-        "src.services.reporting.balance_sheet._aggregate_balances_sql",
+        "src.reporting.extension.balance_sheet._aggregate_balances_sql",
         new_callable=AsyncMock,
     ) as mock_agg:
         mock_agg.side_effect = SQLAlchemyError("DB connection lost")
@@ -324,7 +324,7 @@ async def test_balance_sheet_sqlalchemy_error_on_net_income(db: AsyncSession, ac
     THEN ReportError is raised wrapping the DB error
     """
     with patch(
-        "src.services.reporting.balance_sheet._aggregate_net_income_sql",
+        "src.reporting.extension.balance_sheet._aggregate_net_income_sql",
         new_callable=AsyncMock,
     ) as mock_net:
         mock_net.side_effect = SQLAlchemyError("Timeout during net income calc")
@@ -383,7 +383,7 @@ async def test_income_statement_fx_average_to_spot_fallback(db: AsyncSession, ac
 
     from src.services.fx import FxRateError
 
-    with patch("src.services.reporting.income_statement.PrefetchedFxRates") as MockPrefetched:
+    with patch("src.reporting.extension.fx_gateway.PrefetchedFxRates") as MockPrefetched:
         mock_instance = AsyncMock()
         mock_instance.prefetch = AsyncMock()
 
@@ -398,7 +398,7 @@ async def test_income_statement_fx_average_to_spot_fallback(db: AsyncSession, ac
                 raise FxRateError("No average rate available")
             return Money(money.amount * Decimal("1.35"), target_currency)
 
-        with patch("src.services.reporting.income_statement.convert_money", side_effect=mock_convert):
+        with patch("src.reporting.extension.income_statement.convert_money", side_effect=mock_convert):
             report = await generate_income_statement(
                 db, user_id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31), currency="SGD"
             )
@@ -454,7 +454,7 @@ async def test_income_statement_fx_all_fallbacks_fail(db: AsyncSession, accounts
 
     from src.services.fx import FxRateError
 
-    with patch("src.services.reporting.income_statement.PrefetchedFxRates") as MockPrefetched:
+    with patch("src.reporting.extension.fx_gateway.PrefetchedFxRates") as MockPrefetched:
         mock_instance = AsyncMock()
         mock_instance.prefetch = AsyncMock()
         mock_instance.get_rate = lambda *args, **kwargs: None
@@ -463,7 +463,7 @@ async def test_income_statement_fx_all_fallbacks_fail(db: AsyncSession, accounts
         async def mock_convert_fail(db, money, target_currency, rate_date, **kwargs):
             raise FxRateError("No rate available at all")
 
-        with patch("src.services.reporting.income_statement.convert_money", side_effect=mock_convert_fail):
+        with patch("src.reporting.extension.income_statement.convert_money", side_effect=mock_convert_fail):
             with pytest.raises(ReportError, match="FX conversion failed"):
                 await generate_income_statement(
                     db, user_id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31), currency="SGD"
@@ -506,7 +506,7 @@ async def test_trend_same_currency_rate_none_fallback(db: AsyncSession, accounts
     )
     await db.commit()
 
-    with patch("src.services.reporting.net_worth.PrefetchedFxRates") as MockPrefetched:
+    with patch("src.reporting.extension.fx_gateway.PrefetchedFxRates") as MockPrefetched:
         mock_instance = AsyncMock()
         mock_instance.prefetch = AsyncMock()
         mock_instance.get_rate = lambda *args, **kwargs: None
@@ -552,7 +552,7 @@ async def test_breakdown_same_currency_rate_none_fallback(db: AsyncSession, acco
     )
     await db.commit()
 
-    with patch("src.services.reporting.net_worth.PrefetchedFxRates") as MockPrefetched:
+    with patch("src.reporting.extension.fx_gateway.PrefetchedFxRates") as MockPrefetched:
         mock_instance = AsyncMock()
         mock_instance.prefetch = AsyncMock()
         mock_instance.get_rate = lambda *args, **kwargs: None
@@ -629,7 +629,7 @@ async def test_cash_flow_same_currency_rate_none_fallback(db: AsyncSession, acco
     )
     await db.commit()
 
-    with patch("src.services.reporting.cash_flow.PrefetchedFxRates") as MockPrefetched:
+    with patch("src.reporting.extension.fx_gateway.PrefetchedFxRates") as MockPrefetched:
         mock_instance = AsyncMock()
         mock_instance.prefetch = AsyncMock()
         mock_instance.get_rate = lambda *args, **kwargs: None

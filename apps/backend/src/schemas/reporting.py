@@ -517,7 +517,7 @@ class FrameworkPolicyMatrix(BaseModel):
 
     @model_validator(mode="after")
     def validate_rules_line_mappings(self) -> "FrameworkPolicyMatrix":
-        from src.services.reporting.l1_registry import is_valid_line_for_framework
+        from src.reporting import is_valid_line_for_framework
 
         for rule in self.rules:
             for target, line_id in rule.line_mappings.items():
@@ -557,7 +557,7 @@ class FrameworkPolicyResult(BaseModel):
         if incomplete:
             raise ValueError(f"missing required policy dimensions: {', '.join(sorted(set(incomplete)))}")
 
-        from src.services.reporting.l1_registry import is_valid_line_for_framework
+        from src.reporting import is_valid_line_for_framework
 
         for decision in self.decisions:
             for target, line_id in decision.line_mappings.items():

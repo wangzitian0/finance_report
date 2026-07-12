@@ -27,7 +27,7 @@ from src.models.layer3 import (
 )
 from src.pricing import ValuationService
 from src.pricing.orm.market_data import FxRate
-from src.services.reporting import (
+from src.reporting import (
     ReportError,
     generate_balance_sheet,
     generate_income_statement,

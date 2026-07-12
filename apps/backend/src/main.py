@@ -58,6 +58,11 @@ from src.platform import (
 )
 from src.platform.orm.ping_state import PingState
 from src.pricing import subscribe_price_ingest
+from src.reporting import (
+    get_personal_report_package_readiness,
+    register_fx_gateway,
+    register_manual_valuation_lines_provider,
+)
 from src.routers import (
     accounts,
     ai_feedback,
@@ -89,8 +94,16 @@ from src.schemas.errors import (
     ErrorResponse,
     error_code_for_status,
 )
+from src.services.fx import (
+    FxRateError,
+    PrefetchedFxRates,
+    convert_amount,
+    convert_money,
+    get_average_rate,
+    get_exchange_rate,
+)
 from src.services.market_data_scheduler import run_market_data_scheduler
-from src.services.report_readiness import get_personal_report_package_readiness
+from src.services.reporting.manual_valuation import _build_manual_valuation_lines
 
 # Initialize logging early
 configure_logging()
@@ -103,6 +116,22 @@ logger = get_logger(__name__)
 # composition root does it once here, same shape as the eager model
 # registration above.
 register_readiness_provider(get_personal_report_package_readiness)
+
+# Wire reporting's FX seam and manual-valuation lines port (#1666): reporting
+# (L3) must not import the services/ app remainder, but the FX conversion
+# service and the manual-valuation builder still live there pending the
+# pricing cutover (#1610) — the composition root injects them, same inversion
+# as the readiness port above. When #1610 lands, these registrations repoint
+# to src.pricing.
+register_fx_gateway(
+    get_exchange_rate=get_exchange_rate,
+    get_average_rate=get_average_rate,
+    convert_amount=convert_amount,
+    convert_money=convert_money,
+    prefetched_fx_rates=PrefetchedFxRates,
+    fx_rate_error=FxRateError,
+)
+register_manual_valuation_lines_provider(_build_manual_valuation_lines)
 
 # Wire platform's and runtime's UploadedDocument-read ports to the real
 # extraction-domain lookups (#1675 D3): same inversion, same reason — L1

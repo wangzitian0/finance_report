@@ -8,7 +8,7 @@ import pytest
 from src.config import settings
 from src.models.account import AccountType
 from src.models.journal import Direction
-from src.services.reporting import (
+from src.reporting import (
     ReportError,
     _add_months,
     _iter_periods,

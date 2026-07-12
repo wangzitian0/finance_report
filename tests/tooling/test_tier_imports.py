@@ -64,7 +64,7 @@ def test_AC26_7_1_clean_and_lookalike_sources_are_not_flagged() -> None:
     clean = (
         "from decimal import Decimal\n"
         "from src.audit.money.money import Money\n"
-        "import src.services.reporting_calc as calc\n"
+        "import src.reporting.extension.reporting_calc as calc\n"
     )
     assert gate.forbidden_imports_in_source(clean) == []
 

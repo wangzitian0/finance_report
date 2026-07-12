@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.pricing.orm.market_data import FxRate
-from src.services.reporting import (
+from src.reporting import (
     ReportError,
     generate_balance_sheet,
     generate_cash_flow,
@@ -785,12 +785,12 @@ async def test_reporting_remaining_branches(db: AsyncSession, multi_currency_acc
     sgd_cash, _, _, salary, _ = multi_currency_accounts
 
     # 1. _quantize_money with int
-    from src.services.reporting import _quantize_money
+    from src.reporting import _quantize_money
 
     assert _quantize_money(100) == Decimal("100.00")
 
     # 2. _iter_periods limit
-    from src.services.reporting import _iter_periods
+    from src.reporting import _iter_periods
 
     spans = _iter_periods(date(2025, 1, 1), date(2030, 1, 1), "daily")
     assert len(spans) == 367  # MAX_TREND_POINTS + 1
@@ -815,7 +815,7 @@ async def test_reporting_remaining_branches(db: AsyncSession, multi_currency_acc
 
     # 6. Trend invalid period
     with pytest.raises(ReportError, match="Unsupported period"):
-        from src.services.reporting import _iter_periods
+        from src.reporting import _iter_periods
 
         _iter_periods(date(2025, 1, 1), date(2025, 1, 2), "invalid")
 

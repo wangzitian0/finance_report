@@ -23,6 +23,13 @@ from src.models.portfolio import DividendIncome, MarketDataOverride, PriceSource
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
 from src.pricing.orm.market_data import StockPrice
+from src.reporting.extension.framework_policy import (
+    _account_domain_and_instrument,
+    _manual_domain_and_instrument,
+    _position_domain_and_instrument,
+    framework_policy_facts_for_user,
+)
+from src.reporting.extension.report_readiness import framework_policy_readiness_blockers
 from src.routers.reports import (
     personal_report_package_contract,
     personal_report_package_framework_policy,
@@ -37,13 +44,6 @@ from src.schemas.reporting import (
     PolicyProvenance,
     PolicyReviewState,
 )
-from src.services.framework_policy import (
-    _account_domain_and_instrument,
-    _manual_domain_and_instrument,
-    _position_domain_and_instrument,
-    framework_policy_facts_for_user,
-)
-from src.services.report_readiness import framework_policy_readiness_blockers
 
 
 @pytest.mark.no_db

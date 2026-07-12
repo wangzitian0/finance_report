@@ -1,7 +1,7 @@
 import pytest
 
 from src.models.journal import JournalEntrySourceType
-from src.services.confidence_tier import derive_confidence_tier, derive_reconciliation_score_tier
+from src.reporting.extension.confidence_tier import derive_confidence_tier, derive_reconciliation_score_tier
 
 
 @pytest.mark.parametrize(

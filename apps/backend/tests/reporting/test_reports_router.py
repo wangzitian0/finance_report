@@ -17,8 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 from src.pricing.orm.market_data import StockPrice
+from src.reporting import ReportError
 from src.routers import reports as reports_router
-from src.services.reporting import ReportError
 
 
 @pytest.fixture

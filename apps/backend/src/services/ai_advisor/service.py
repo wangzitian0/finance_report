@@ -27,6 +27,13 @@ from src.portfolio import PortfolioNotFoundError, PortfolioService, active_stock
 from src.pricing import MarketDataScopeStatus, get_market_data_status
 from src.prompts.ai_advisor import get_ai_advisor_prompt
 from src.reconciliation import get_reconciliation_stats
+from src.reporting import (
+    ReportError,
+    generate_balance_sheet,
+    generate_income_statement,
+    get_category_breakdown,
+    get_personal_report_package_readiness,
+)
 from src.schemas.chat import AdvisorSuggestion, ChatActionChip, ChatCitation, ChatResponseMetadata
 from src.services.ai_advisor._base import CHAT_METADATA_SAFE_HREFS, CONFIDENCE_WORST_ORDER, MAX_CONTEXT_MESSAGES, logger
 from src.services.ai_advisor._cache import _CACHE
@@ -44,13 +51,6 @@ from src.services.ai_advisor._guardrails import (
     redact_sensitive,
 )
 from src.services.market_data_scheduler import observed_fx_pairs
-from src.services.report_readiness import get_personal_report_package_readiness
-from src.services.reporting import (
-    ReportError,
-    generate_balance_sheet,
-    generate_income_statement,
-    get_category_breakdown,
-)
 
 
 class AIAdvisorError(Exception):

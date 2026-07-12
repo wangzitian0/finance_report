@@ -21,8 +21,8 @@ from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntr
 from src.models.layer2 import AtomicPosition, AtomicTransaction
 from src.models.layer3 import ManualValuationLiquidityClass, ManualValuationSnapshot
 from src.models.portfolio import DividendIncome, MarketDataOverride
-from src.services.confidence_tier import derive_confidence_tier
-from src.services.reporting.report_package import PERSONAL_REPORT_PACKAGE_TRACEABILITY
+from src.reporting.base.report_package_contract import PERSONAL_REPORT_PACKAGE_TRACEABILITY
+from src.reporting.extension.confidence_tier import derive_confidence_tier
 
 
 def _identifier(prefix: str, value: object) -> str:

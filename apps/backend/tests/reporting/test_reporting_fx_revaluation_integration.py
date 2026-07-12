@@ -9,8 +9,8 @@ from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 from src.models.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass, ManualValuationSnapshot
 from src.pricing.orm.market_data import FxRate
+from src.reporting import generate_balance_sheet, generate_income_statement
 from src.services.fx import get_average_rate
-from src.services.reporting import generate_balance_sheet, generate_income_statement
 
 
 async def _account(db: AsyncSession, user_id, name: str, account_type: AccountType, currency: str) -> Account:

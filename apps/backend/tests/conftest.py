@@ -24,7 +24,32 @@ from sqlalchemy.pool import NullPool
 import src.models._registry  # noqa: F401
 from src.config import settings
 from src.observability import get_logger
-from src.services.fx import clear_fx_cache
+from src.reporting import register_fx_gateway, register_manual_valuation_lines_provider
+from src.services.fx import (
+    FxRateError,
+    PrefetchedFxRates,
+    clear_fx_cache,
+    convert_amount,
+    convert_money,
+    get_average_rate,
+    get_exchange_rate,
+)
+from src.services.reporting.manual_valuation import _build_manual_valuation_lines
+
+# Wire reporting's composition-root ports for direct (no-app) test runs — the
+# same registrations main.py performs at startup (#1666): the FX seam and the
+# manual-valuation lines builder still live in the services/ remainder pending
+# the pricing cutover (#1610), and reporting reaches them only by injection.
+# Module-top so it precedes every test module import.
+register_fx_gateway(
+    get_exchange_rate=get_exchange_rate,
+    get_average_rate=get_average_rate,
+    convert_amount=convert_amount,
+    convert_money=convert_money,
+    prefetched_fx_rates=PrefetchedFxRates,
+    fx_rate_error=FxRateError,
+)
+register_manual_valuation_lines_provider(_build_manual_valuation_lines)
 
 # Make the repo's ``common/`` importable at collection time (not just inside the
 # ``ac_evidence`` fixture). conftest.py is imported before the test modules in

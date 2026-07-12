@@ -17,7 +17,7 @@ import pytest
 from src.portfolio.extension.allocation import _build_allocation
 from src.reconciliation import _within_combination_tolerance
 from src.reconciliation.base.config import DEFAULT_CONFIG
-from src.services.reporting._core import _line_total
+from src.reporting.extension._core import _line_total
 
 
 class _Txn:

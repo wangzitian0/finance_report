@@ -2,7 +2,7 @@
 
 #1123 AC2 (live consumption). The :mod:`src.reconciliation.extension.fx_transfer` primitives can
 *pair* two already-known :class:`TransferLeg` objects, and
-:func:`src.services.reporting._internal_transfer_adjustment` can *consume* a
+:func:`src.reporting.extension.internal_transfer._internal_transfer_adjustment` can *consume* a
 pre-recorded ``fx_conversions`` row. This module closes the gap between them: it
 **auto-discovers** candidate cross-currency transfer leg pairs directly from a
 user's RAW journal ledger, so a real internal transfer booked only as journal

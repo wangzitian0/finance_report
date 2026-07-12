@@ -92,7 +92,7 @@ async def test_AC13_21_4_readiness_counts_parsed_balance_invalid(db, test_user):
     text, so a regression in the status filter would actually fail the test.
     """
     from src.models.statement_summary import StatementSummary
-    from src.services.report_readiness import get_personal_report_package_readiness
+    from src.reporting.extension.report_readiness import get_personal_report_package_readiness
 
     # The balance-invalid bank statement rests in PARSED, not UPLOADED.
     resting_status = route_by_threshold(95, balance_valid=False)

@@ -77,7 +77,7 @@ The advisor aggregates context from:
 | Source | What it reads | Where |
 |--------|--------------|-------|
 | `report_readiness` | Readiness state + blockers | `src.services.report_readiness` |
-| `reporting` | Balance sheet, income statement, category breakdown | `src.services.reporting` |
+| `reporting` | Balance sheet, income statement, category breakdown | `src.reporting` |
 | `reconciliation` | Pending review count, reconciliation stats | `src.reconciliation.extension.review_queue` (moved from `services.reconciliation`, #1423) |
 | `portfolio` | Positions, unrealised P&L | `src.portfolio` (moved from `services.portfolio`, #1643) |
 | `market_data` | Scope status, prices | `src.pricing` (scope discovery composed in `services.market_data_scheduler`, #1641) |
