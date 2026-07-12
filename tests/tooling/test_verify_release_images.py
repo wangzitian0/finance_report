@@ -93,6 +93,7 @@ def test_AC_runtime_release_images_4_max_attempts_and_delay_are_configurable() -
     """AC-runtime.release-images.4: callers can tune max_attempts/retry_delay_seconds
     (e.g. a caller with tighter time budget) instead of being locked to the default."""
     call_count = 0
+    sleeps: list[float] = []
 
     def fake_inspect(_image: str) -> tuple[int, str]:
         nonlocal call_count
@@ -106,7 +107,41 @@ def test_AC_runtime_release_images_4_max_attempts_and_delay_are_configurable() -
             version_ref="abc1234",
             inspect_image=fake_inspect,
             max_attempts=2,
-            sleep=lambda _s: None,
+            retry_delay_seconds=0.5,
+            sleep=sleeps.append,
         )
     # 2 attempts for backend before it raises -- frontend is never reached.
     assert call_count == 2
+    # Exactly 1 sleep (between attempt 1 and 2), using the configured delay --
+    # not just that a custom max_attempts was honored, but that the delay
+    # value itself actually reached sleep().
+    assert sleeps == [0.5]
+
+
+def test_AC_runtime_release_images_5_max_attempts_below_1_is_rejected() -> None:
+    """AC-runtime.release-images.5: max_attempts < 1 fails fast with a clear
+    ValueError instead of silently performing zero inspect attempts and
+    raising a confusing 'not found after 0 attempts'."""
+    with pytest.raises(ValueError, match="max_attempts must be >= 1"):
+        release_images.verify_release_images(
+            registry="ghcr.io",
+            image_prefix="example",
+            version_ref="abc1234",
+            inspect_image=lambda _i: (0, _DIGEST_OUTPUT),
+            max_attempts=0,
+            sleep=lambda _s: None,
+        )
+
+
+def test_AC_runtime_release_images_6_negative_delay_is_rejected() -> None:
+    """AC-runtime.release-images.6: a negative retry_delay_seconds fails fast
+    with a clear ValueError instead of reaching sleep() and raising there."""
+    with pytest.raises(ValueError, match="retry_delay_seconds must be >= 0"):
+        release_images.verify_release_images(
+            registry="ghcr.io",
+            image_prefix="example",
+            version_ref="abc1234",
+            inspect_image=lambda _i: (1, ""),
+            retry_delay_seconds=-1.0,
+            sleep=lambda _s: None,
+        )

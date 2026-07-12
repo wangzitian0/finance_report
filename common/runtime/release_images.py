@@ -62,24 +62,36 @@ def verify_release_images(
     closed avoids that transient flake without weakening the guarantee: an
     image that truly never appears still fails after max_attempts.
     """
+    if max_attempts < 1:
+        raise ValueError(f"max_attempts must be >= 1, got {max_attempts}")
+    if retry_delay_seconds < 0:
+        raise ValueError(f"retry_delay_seconds must be >= 0, got {retry_delay_seconds}")
+
     digests: dict[str, str] = {}
     for service in ("backend", "frontend"):
         image = f"{registry}/{image_prefix}-{service}:{version_ref}"
         digest = ""
+        rc = 0
         for attempt in range(1, max_attempts + 1):
             rc, output = inspect_image(image)
             digest = _extract_digest(output) if rc == 0 else ""
             if digest:
                 break
             if attempt < max_attempts:
+                # rc included, and no root cause asserted: a non-zero rc can be
+                # registry propagation lag, but can just as well be an auth or
+                # tooling error -- printing rc keeps that diagnosable instead
+                # of always blaming "not yet visible".
                 print(
-                    f"Image not yet visible (attempt {attempt}/{max_attempts}): "
-                    f"{image} — retrying in {retry_delay_seconds}s"
+                    f"Inspect did not return a digest (rc={rc}, attempt "
+                    f"{attempt}/{max_attempts}): {image} — retrying in "
+                    f"{retry_delay_seconds}s"
                 )
                 sleep(retry_delay_seconds)
         if not digest:
             raise RuntimeError(
-                f"Release image not found after {max_attempts} attempts: {image}"
+                f"Release image not found after {max_attempts} attempts "
+                f"(last rc={rc}): {image}"
             )
         print(f"Found {service} release image digest: {digest}")
         digests[f"{service}_digest"] = digest

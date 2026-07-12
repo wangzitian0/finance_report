@@ -895,11 +895,42 @@ CONTRACT = PackageContract(
             statement=(
                 "verify_release_images' max_attempts/retry_delay_seconds are "
                 "caller-configurable, not hardcoded, so a caller with a "
-                "tighter time budget can tune the retry envelope."
+                "tighter time budget can tune the retry envelope -- and the "
+                "configured delay value itself, not just attempt count, "
+                "actually reaches sleep()."
             ),
             test=(
                 "tests/tooling/test_verify_release_images.py"
                 "::test_AC_runtime_release_images_4_max_attempts_and_delay_are_configurable"
+            ),
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.release-images.5",
+            statement=(
+                "verify_release_images rejects max_attempts < 1 with a clear "
+                "ValueError instead of silently performing zero inspect "
+                "attempts and raising a confusing 'not found after 0 "
+                "attempts'."
+            ),
+            test=(
+                "tests/tooling/test_verify_release_images.py"
+                "::test_AC_runtime_release_images_5_max_attempts_below_1_is_rejected"
+            ),
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.release-images.6",
+            statement=(
+                "verify_release_images rejects a negative retry_delay_seconds "
+                "with a clear ValueError instead of reaching sleep() and "
+                "raising there."
+            ),
+            test=(
+                "tests/tooling/test_verify_release_images.py"
+                "::test_AC_runtime_release_images_6_negative_delay_is_rejected"
             ),
             priority="P2",
             status="done",
