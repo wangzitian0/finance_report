@@ -11,14 +11,14 @@ from sqlalchemy import select
 from src.audit.money import Money, to_money
 from src.config import settings
 from src.deps import CurrentUserId, DbSession, Pagination
-from src.ledger import Account
-from src.models.layer3 import (
+from src.extraction.orm.layer3 import (
     ManagedPosition,
     ManualValuationComponentType,
     ManualValuationLiquidityClass,
     ManualValuationSnapshot,
     PositionStatus,
 )
+from src.ledger import Account
 from src.observability import get_logger
 from src.platform import raise_bad_request, raise_internal_error, raise_not_found
 from src.portfolio import PositionService, PositionServiceError
@@ -169,7 +169,7 @@ async def list_valuation_snapshots(
     offset: int = Query(0, ge=0),
 ) -> ManualValuationSnapshotListResponse:
     """List manual valuation snapshots."""
-    from src.models.layer3 import ManualValuationComponentType
+    from src.extraction.orm.layer3 import ManualValuationComponentType
 
     parsed_component_type = None
     if component_type:

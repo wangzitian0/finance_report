@@ -18,7 +18,7 @@ from uuid import UUID
 
 from src.audit.money.currency import normalize_currency_code
 from src.config import settings
-from src.models.layer4 import ReportSnapshot
+from src.extraction.orm.layer4 import ReportSnapshot
 from src.schemas import (
     PersonalReportPackageSnapshotResponse,
     PersonalReportPackageSnapshotStatus,

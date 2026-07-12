@@ -11,7 +11,8 @@ from src.audit.money import to_money
 from src.audit.ratio import Ratio
 from src.deps import CurrentUserId, DbSession
 from src.extraction import BrokeragePositionImportService
-from src.models.layer3 import ManagedPosition, PositionStatus
+from src.extraction.orm.layer3 import ManagedPosition, PositionStatus
+from src.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
 from src.observability import get_logger
 from src.portfolio import (
     AssetNotFoundError,

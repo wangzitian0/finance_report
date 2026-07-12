@@ -8,7 +8,7 @@ from calendar import monthrange
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import TYPE_CHECKING, Any, Protocol
 from uuid import UUID
 
 from sqlalchemy import select
@@ -16,9 +16,48 @@ from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.money import to_money
+from src.extraction.orm.layer2 import AssetType, AtomicPosition
 from src.ledger import Account, AccountType
-from src.models.layer2 import AssetType, AtomicPosition
-from src.portfolio import PositionService
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+
+class PositionReconcileOutcome(Protocol):
+    """The reconcile summary the wired reconciler resolves to (duck-typed shape
+    of ``portfolio``'s ``ReconcileResult`` — no ``portfolio`` import here)."""
+
+    created: int
+    updated: int
+    disposed: int
+    skipped: int
+
+
+# ``extraction`` and ``portfolio`` are same-layer domains, but ``portfolio``
+# must import extraction's published ORM entities (ManagedPosition et al.,
+# #1675 D5c) — so this module's former ``PositionService`` import would close a
+# dependency cycle. Same inversion as the #1675 D3 / #1676 provider ports: the
+# port lives here, ``main.py`` (L4 — allowed to import everything) wires the
+# real ``portfolio`` reconciler at startup; tests wire it (or a fake) directly.
+_position_reconciler: Callable[[AsyncSession, UUID], Awaitable[PositionReconcileOutcome]] | None = None
+
+
+def register_position_reconciler(
+    reconciler: Callable[[AsyncSession, UUID], Awaitable[PositionReconcileOutcome]],
+) -> None:
+    """Wire the managed-position reconciler (see module note above)."""
+    global _position_reconciler
+    _position_reconciler = reconciler
+
+
+def _get_position_reconciler() -> Callable[[AsyncSession, UUID], Awaitable[PositionReconcileOutcome]]:
+    if _position_reconciler is None:
+        raise RuntimeError(
+            "brokerage_positions.register_position_reconciler() was never called — "
+            "main.py wires it at startup (#1675 D5c); a test exercising this path "
+            "must call it too."
+        )
+    return _position_reconciler
 
 
 @dataclass(frozen=True)
@@ -832,7 +871,7 @@ class BrokeragePositionImportService:
 
         reconcile_result = None
         if reconcile and snapshots:
-            reconcile_result = await PositionService().reconcile_positions(db, user_id)
+            reconcile_result = await _get_position_reconciler()(db, user_id)
 
         # #1484: anchor the statement to the broker account these positions
         # reconciled into. Only resolve when the payload is a single broker (one

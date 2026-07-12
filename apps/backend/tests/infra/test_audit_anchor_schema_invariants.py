@@ -16,17 +16,17 @@ from sqlalchemy.orm import selectinload
 from src.audit import JournalEntrySourceType
 from src.extraction import DocumentStatus, DocumentType, UploadedDocument
 from src.extraction.extension.evidence_graph_materialization import EvidenceGraphMaterializationService
-from src.identity import User
-from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
-from src.models.evidence import EvidenceEdge, EvidenceNode
-from src.models.layer2 import (
+from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode
+from src.extraction.orm.layer2 import (
     AtomicPosition,
     AtomicPositionSourceDocument,
     AtomicTransaction,
     AtomicTransactionSourceDocument,
     TransactionDirection,
 )
-from src.models.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
+from src.extraction.orm.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
+from src.identity import User
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
 from src.reconciliation import (

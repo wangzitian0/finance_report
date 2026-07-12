@@ -10,9 +10,9 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
+from src.extraction.orm.layer2 import AtomicPosition, AtomicTransaction, TransactionDirection
+from src.extraction.orm.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.ledger import Account, AccountType
-from src.models.layer2 import AtomicPosition, AtomicTransaction, TransactionDirection
-from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.portfolio import AssetNotFoundError, DividendIncome, InvestmentTransaction, InvestmentTransactionType
 from src.pricing.orm.market_data import FxRate
 from src.routers import portfolio as portfolio_router

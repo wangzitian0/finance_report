@@ -12,7 +12,7 @@ from src.extraction import (
     EvidenceLineageService,
     EvidenceTraversalStep,
 )
-from src.models.evidence import EvidenceEdge, EvidenceNode
+from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode
 from src.schemas.evidence import (
     EvidenceLineageBlocker,
     EvidenceLineageDirection,

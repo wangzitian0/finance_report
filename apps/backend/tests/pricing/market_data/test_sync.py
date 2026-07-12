@@ -9,9 +9,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.composition import observed_fx_pairs
+from src.extraction.orm.layer2 import AtomicPosition
+from src.extraction.orm.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalLine
-from src.models.layer2 import AtomicPosition
-from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.portfolio import PortfolioService, active_stock_symbols
 from src.pricing.extension import market_data
 from src.pricing.orm.market_data import FxRate, MarketDataSyncState, StockPrice

@@ -14,10 +14,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction.extension.evidence_lineage import EvidenceLineageService
+from src.extraction.orm.evidence import EvidenceNode
 from src.extraction.orm.layer1 import DocumentType, UploadedDocument
+from src.extraction.orm.evidence import EvidenceNode
+from src.extraction.orm.layer2 import AtomicTransaction, AtomicTransactionSourceDocument
 from src.ledger import JournalEntry, JournalLine
-from src.models.evidence import EvidenceNode
-from src.models.layer2 import AtomicTransaction, AtomicTransactionSourceDocument
 from src.models.statement_summary import StatementSummary
 
 

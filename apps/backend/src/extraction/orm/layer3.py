@@ -34,7 +34,7 @@ from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 POSITION_QUANTITY_UNIT = "units"
 
 if TYPE_CHECKING:
-    from src.models.layer2 import AtomicTransaction
+    from src.extraction.orm.layer2 import AtomicTransaction
 
 
 class RuleType(str, Enum):

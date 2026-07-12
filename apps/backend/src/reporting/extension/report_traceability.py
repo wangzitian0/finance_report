@@ -17,13 +17,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
 from src.extraction.extension.evidence_lineage import EvidenceLineageService
-from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus, JournalLine
-from src.models.layer2 import AtomicPosition, AtomicTransaction
-from src.models.layer3 import ManualValuationLiquidityClass, ManualValuationSnapshot
+from src.audit import JournalEntrySourceType
+from src.extraction.orm.layer2 import AtomicPosition, AtomicTransaction
+from src.extraction.orm.layer3 import ManualValuationLiquidityClass, ManualValuationSnapshot
+from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus, JournalLine, derive_confidence_tier
 from src.portfolio import DividendIncome
 from src.pricing import MarketDataOverride
 from src.reporting.base.report_package_contract import PERSONAL_REPORT_PACKAGE_TRACEABILITY
-from src.reporting.extension.confidence_tier import derive_confidence_tier
 
 
 def _identifier(prefix: str, value: object) -> str:

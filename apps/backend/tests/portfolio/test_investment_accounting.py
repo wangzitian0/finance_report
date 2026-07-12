@@ -9,8 +9,8 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.extraction.orm.layer3 import CostBasisMethod, PositionStatus
 from src.ledger import Account, AccountType, Direction, JournalEntryStatus
-from src.models.layer3 import CostBasisMethod, PositionStatus
 from src.portfolio import (
     DividendIncome,
     InvestmentAccountingService,

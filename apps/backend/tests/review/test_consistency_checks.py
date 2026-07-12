@@ -7,8 +7,8 @@ from uuid import uuid4
 import pytest
 
 from src.extraction import DocumentType, UploadedDocument
+from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.ledger import Account, AccountType
-from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
 from src.reconciliation.extension.consistency_checks import (

@@ -23,6 +23,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
 from src.extraction import DocumentType, UploadedDocument
+from src.audit import JournalEntrySourceType
+from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.ledger import (
     Account,
     AccountType,
@@ -31,7 +33,6 @@ from src.ledger import (
     JournalLine,
     get_or_create_processing_account,
 )
-from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
 from src.reconciliation import execute_matching

@@ -33,6 +33,7 @@ from src.extraction import (
     get_known_storage_paths,
     get_uploaded_document_filename,
     get_uploaded_document_filenames,
+    register_position_reconciler,
     register_transfer_exclusions_provider,
     run_parsing_supervisor,
 )
@@ -60,6 +61,7 @@ from src.platform import (
     register_uploaded_document_readers,
 )
 from src.platform.orm.ping_state import PingState
+from src.portfolio import PositionService
 from src.pricing import (
     PrefetchedFxRates,
     PricingError,
@@ -166,6 +168,13 @@ register_known_storage_paths_provider(get_known_storage_paths)
 # (reconciliation depends_on extraction — the reverse edge would be a cycle),
 # so the composition root closes the loop here, same shape as the ports above.
 register_transfer_exclusions_provider(accepted_transfer_txn_ids)
+
+# Wire extraction's managed-position reconciler port to the real portfolio
+# service (#1675 D5c): extraction and portfolio are same-layer domains, but
+# portfolio now imports extraction's published ORM entities, so extraction's
+# former direct PositionService import would close a dependency cycle. The
+# composition root wires the callable instead.
+register_position_reconciler(PositionService().reconcile_positions)
 
 # Wire the domain-event subscribers (#1642): the composition root owns the
 # SubscriberRegistry and the OutboxRelay that dispatches committed outbox rows

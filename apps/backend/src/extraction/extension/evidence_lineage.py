@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.evidence import EvidenceEdge, EvidenceNode
+from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode
 
 DEFAULT_MAX_DEPTH = 6
 

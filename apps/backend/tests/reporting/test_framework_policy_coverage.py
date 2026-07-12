@@ -15,14 +15,15 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.models.layer2 import AssetType
-from src.models.layer3 import ManualValuationComponentType
+from src.extraction.orm.layer2 import AssetType
+from src.extraction.orm.layer3 import ManualValuationComponentType
 from src.reporting.extension.framework_policy import (
     _find_rule,
     _manual_domain_and_instrument,
     _position_domain_and_instrument,
     get_framework_policy_matrix,
 )
+from src.schemas.reporting import PersonalReportingFrameworkId, PolicyFactDomain
 from src.schemas.reporting import PersonalReportingFrameworkId, PolicyFactDomain
 
 _FRAMEWORKS = [

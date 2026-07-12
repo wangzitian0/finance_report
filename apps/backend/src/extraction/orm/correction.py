@@ -11,7 +11,7 @@ from src.database import Base
 from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 if TYPE_CHECKING:
-    from src.models.layer2 import AtomicTransaction
+    from src.extraction.orm.layer2 import AtomicTransaction
 
 
 class CorrectionLog(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):

@@ -9,8 +9,8 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
+from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
-from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.reconciliation import (
     DEFAULT_CONFIG,
     _find_many_to_one_candidates,

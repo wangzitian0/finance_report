@@ -11,15 +11,17 @@ the pure validation/confidence calculus; ``extension/`` the parsing pipeline
 (``ExtractionService`` + format mixins), dedup + dual-write repository verbs,
 brokerage classification, prompts, and the evidence write path; ``orm/`` the
 ORM entities this package owns. ``UploadedDocument`` moved here from
-``src/models/`` (#1675 D3) — its only cross-domain coupling was a plain FK
-column (no ``relationship()``), and its two former L1-infra readers
-(``platform``/``runtime``) now go through the published read-only lookups in
-``extension/uploaded_document_reads.py`` instead of importing the ORM class,
-closing the infra-imports-domain layering violation that blocked the first
-attempt. ``AtomicTransaction``/``AtomicPosition`` (layer2.py) stay in the
-unregistered ``src/models/`` until their own genuine cross-domain
-``relationship()`` navigation (to ``Account``/``User``) is converted to id +
-explicit interface lookups (D4).
+``src/models/`` (#1675 D3) — its two former L1-infra readers
+(``platform``/``runtime``) go through the published read-only lookups in
+``extension/uploaded_document_reads.py`` instead of importing the ORM class.
+The rest of the fact family followed in #1675 D4+D5c: ``layer2``-``layer4``,
+``evidence`` and ``correction`` live in ``orm/`` with every cross-domain
+``relationship()`` (to ``Account``/``User``) replaced by bare FK id columns +
+explicit interface reads; downstream domains (reconciliation / portfolio /
+pricing) import the published entity names below. ``statement_summary`` /
+``statement_enums`` remain in the unregistered ``src/models/`` for now: their
+``platform`` (L1-infra, upward), ``ledger`` and ``identity`` (dependency-cycle)
+readers each need their own inversion first — see the #1675 D5c notes.
 
 The names re-exported below are the entire public surface (``__all__`` must
 equal ``contract.interface``). Downstream domains reference AtomicTransaction
@@ -44,6 +46,7 @@ from src.extraction.extension.brokerage_positions import (
     looks_like_brokerage_payload,
     parse_brokerage_csv_payload,
     parse_brokerage_positions,
+    register_position_reconciler,
 )
 from src.extraction.extension.brokerage_statement_payload import (
     _brokerage_import_not_ready_reason,
@@ -114,23 +117,65 @@ from src.extraction.extension.uploaded_document_reads import (
 
 # ORM models owned by this package (moved from src/models, #1675); imported
 # eagerly so importing the package registers the mappers on Base.metadata.
+# Downstream domains that read these facts import the published names below
+# (by id-column reference — Decision B); the source-document link tables and
+# rule/report internals stay unpublished.
+from src.extraction.orm.correction import CorrectionLog  # noqa: F401  (mapper registration)
+from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode
 from src.extraction.orm.layer1 import DocumentStatus, DocumentType, UploadedDocument
+from src.extraction.orm.layer2 import (
+    AssetType,
+    AtomicPosition,
+    AtomicTransaction,
+    TransactionDirection,
+)
+from src.extraction.orm.layer3 import (
+    ClassificationRule,
+    ClassificationStatus,
+    CostBasisMethod,
+    ManagedPosition,
+    ManualValuationBasis,
+    ManualValuationComponentType,
+    ManualValuationLiquidityClass,
+    ManualValuationSnapshot,
+    PositionStatus,
+    TransactionClassification,
+)
+from src.extraction.orm.layer4 import ReportSnapshot, ReportType
 
 __all__ = [
+    "AssetType",
+    "AtomicPosition",
+    "AtomicTransaction",
     "BrokeragePositionImportService",
+    "ClassificationRule",
+    "ClassificationStatus",
     "CorrectionLoopService",
+    "CostBasisMethod",
     "CurrencyUnresolvedError",
     "DEFAULT_MAX_DEPTH",
     "DeduplicationService",
     "DocumentStatus",
     "DocumentType",
+    "EvidenceEdge",
     "EvidenceGraphIntegrationService",
     "EvidenceGraphMaterializationService",
     "EvidenceLineageService",
+    "EvidenceNode",
     "EvidenceTraversalStep",
     "ExtractionError",
     "ExtractionService",
+    "ManagedPosition",
+    "ManualValuationBasis",
+    "ManualValuationComponentType",
+    "ManualValuationLiquidityClass",
+    "ManualValuationSnapshot",
+    "PositionStatus",
+    "ReportSnapshot",
+    "ReportType",
     "SYSTEM_PROMPT",
+    "TransactionClassification",
+    "TransactionDirection",
     "UploadedDocument",
     "_brokerage_import_not_ready_reason",
     "_brokerage_payload_from_persisted_extraction",
@@ -156,6 +201,7 @@ __all__ = [
     "parse_brokerage_positions",
     "pending_stage1_review_filter",
     "record_correction",
+    "register_position_reconciler",
     "reject_statement_workflow",
     "resolve_custody_account_id",
     "resolve_ingest_currency",

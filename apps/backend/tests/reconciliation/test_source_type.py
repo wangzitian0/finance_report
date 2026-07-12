@@ -10,9 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType, SourceTypeDowngradeError, promote_entry_source_type
 from src.extraction import DocumentType, UploadedDocument
+from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.identity import User
+from src.audit import JournalEntrySourceType
+from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
-from src.models.layer2 import AtomicTransaction, TransactionDirection
+from src.reconciliation import ReconciliationMatchJournalEntry
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
 from src.reconciliation import ReconciliationMatchJournalEntry, execute_matching

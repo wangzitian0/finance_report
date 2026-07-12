@@ -16,6 +16,7 @@ from pathlib import Path
 from uuid import UUID
 
 from src.audit import JournalEntrySourceType
+from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.ledger import (
     Account,
     AccountType,
@@ -25,7 +26,6 @@ from src.ledger import (
     JournalLine,
     detect_transfer_pattern,
 )
-from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.reconciliation.base.config import DEFAULT_CONFIG, ReconciliationConfig
 from src.reconciliation.extension.matching import _find_many_to_one_candidates, _find_normal_candidates
 from src.reconciliation.extension.scoring import (

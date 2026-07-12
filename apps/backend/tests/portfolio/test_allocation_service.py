@@ -6,8 +6,8 @@ from decimal import Decimal
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.extraction.orm.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.ledger import Account, AccountType
-from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.portfolio import (
     get_asset_class_allocation,
     get_geography_allocation,
@@ -34,7 +34,7 @@ async def investment_account(db: AsyncSession, test_user):
 
 @pytest.fixture
 async def tech_stock_position(db: AsyncSession, test_user, investment_account):
-    from src.models.layer2 import AtomicPosition
+    from src.extraction.orm.layer2 import AtomicPosition
 
     position = ManagedPosition(
         user_id=test_user.id,
@@ -70,7 +70,7 @@ async def tech_stock_position(db: AsyncSession, test_user, investment_account):
 
 @pytest.fixture
 async def finance_stock_position(db: AsyncSession, test_user, investment_account):
-    from src.models.layer2 import AtomicPosition
+    from src.extraction.orm.layer2 import AtomicPosition
 
     position = ManagedPosition(
         user_id=test_user.id,

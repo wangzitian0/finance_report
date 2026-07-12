@@ -11,10 +11,8 @@ from uuid import UUID
 from sqlalchemy import case, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.extraction.orm.layer3 import ManualValuationLiquidityClass
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
-from src.models.layer3 import (
-    ManualValuationLiquidityClass,
-)
 from src.observability import ErrorIds, get_logger
 from src.reporting.extension import fx_gateway
 from src.reporting.extension.confidence_tier import derive_confidence_tier

@@ -6,9 +6,9 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.extraction.orm.correction import CorrectionLog
+from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import Account
-from src.models.correction import CorrectionLog
-from src.models.layer2 import AtomicTransaction
 from src.observability import get_logger
 
 logger = get_logger(__name__)

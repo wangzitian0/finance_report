@@ -16,8 +16,8 @@ from unittest.mock import patch
 import pytest
 
 from src.extraction.extension.service import ExtractionService
+from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
-from src.models.layer2 import AtomicTransaction
 from src.reconciliation import ReconciliationStatus, execute_matching
 
 

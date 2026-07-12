@@ -12,11 +12,11 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.unit_price import UnitPrice
-from src.ledger import Account, AccountType
-from src.models.layer3 import (
+from src.extraction.orm.layer3 import (
     ManagedPosition,
     ManualValuationLiquidityClass,
 )
+from src.ledger import Account, AccountType
 from src.observability import get_logger
 from src.portfolio import AssetNotFoundError, PortfolioService
 from src.pricing import PricingError

@@ -8,8 +8,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from src.extraction.orm.layer4 import ReportType
 from src.ledger import AccountType, Direction
-from src.models.layer4 import ReportType
 from src.schemas.provenance import DataProvenance
 
 _FRAMEWORK_POLICY_LINE_MAPPING_TARGETS = frozenset({"balance_sheet", "income_statement", "cash_flow", "notes"})

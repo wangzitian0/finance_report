@@ -171,7 +171,7 @@ def test_atomic_transaction_repr():
     WHEN calling repr() on it
     THEN it returns a formatted string with date, direction, amount and currency
     """
-    from src.models.layer2 import AtomicTransaction, TransactionDirection
+    from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 
     transaction = AtomicTransaction(
         id=uuid4(),
@@ -192,7 +192,7 @@ def test_atomic_position_repr():
     WHEN calling repr() on it
     THEN it returns a formatted string with date, asset, quantity, value and currency
     """
-    from src.models.layer2 import AtomicPosition
+    from src.extraction.orm.layer2 import AtomicPosition
 
     position = AtomicPosition(
         id=uuid4(),

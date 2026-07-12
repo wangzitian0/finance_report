@@ -23,7 +23,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.correction import CorrectionLog
+from src.extraction.orm.correction import CorrectionLog
 
 _QUANT = Decimal("0.00001")
 

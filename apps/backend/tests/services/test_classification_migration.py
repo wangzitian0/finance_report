@@ -28,8 +28,8 @@ from src.extraction.extension.transaction_classification import (
     TransactionCategory,
     backfill_classifications,
 )
+from src.extraction.orm.layer3 import TransactionClassification
 from src.ledger import Account, AccountType, JournalEntry, JournalLine
-from src.models.layer3 import TransactionClassification
 from src.reporting import generate_income_statement
 
 SALARY = Decimal("5000.00")

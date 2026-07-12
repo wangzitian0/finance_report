@@ -20,6 +20,8 @@ import src.config
 from src.audit import JournalEntrySourceType, normalize_source_type
 from src.extraction.extension.currency_resolution import CurrencyUnresolvedError
 from src.extraction.orm.layer1 import DocumentType, UploadedDocument
+from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
+from src.extraction.orm.layer3 import ClassificationStatus, TransactionClassification
 from src.ledger import (
     Account,
     AccountType,
@@ -31,11 +33,8 @@ from src.ledger import (
     validate_journal_balance,
     validate_journal_posting_invariants,
 )
-from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.models.layer3 import ClassificationStatus, TransactionClassification
 from src.models.statement_summary import StatementSummary
 from src.observability import get_logger
-from src.pricing import PricingError, get_exchange_rate
 
 logger = get_logger(__name__)
 settings = src.config.settings
@@ -189,6 +188,15 @@ async def create_entry_from_txn(
     base_currency = settings.base_currency.upper()
     line_fx_rate: Decimal | None = None
     if currency != base_currency:
+        # Deferred import (#1675 D5c): ``pricing``'s extension modules import
+        # this package's published ORM entities (``extraction.orm.layer3``,
+        # e.g. ``ManualValuationSnapshot`` in repository.py/manual.py) — a
+        # module-level import of ``pricing`` here would make the two package
+        # inits mutually recursive (self-referential when this module is
+        # reached via extraction's own package init). Function-local keeps
+        # extraction's eager init free of the pricing edge.
+        from src.pricing import PricingError, get_exchange_rate
+
         try:
             # lazy_load=True (#1779): a date->rate fact is immutable once resolved, so
             # the on-demand chain (stored inverse -> USD-bridge derivation -> live

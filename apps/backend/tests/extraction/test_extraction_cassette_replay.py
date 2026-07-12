@@ -293,7 +293,7 @@ async def test_AC_llm_14_3_unreconciled_balance_quarantines_to_rejected_via_repl
     from sqlalchemy import select
 
     from src.extraction.extension.service import ExtractionService
-    from src.models.layer2 import AtomicTransaction
+    from src.extraction.orm.layer2 import AtomicTransaction
     from src.models.statement_enums import BankStatementStatus
 
     _stub_env_provider(monkeypatch)

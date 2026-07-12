@@ -18,12 +18,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit.money import Money, to_money
 from src.audit.money.currency import normalize_currency_code
 from src.audit.quantity import Quantity
+from src.extraction.orm.layer2 import AtomicPosition
+from src.extraction.orm.layer3 import ManagedPosition, PositionStatus
 from src.ledger import Account, AccountType
-from src.models.layer2 import AtomicPosition
-from src.models.layer3 import (
-    ManagedPosition,
-    PositionStatus,
-)
 from src.observability import get_logger
 
 logger = get_logger(__name__)
@@ -71,9 +68,7 @@ class PositionService:
     ) -> ManagedPosition | None:
         """Get a single managed position by ID."""
         query = (
-            select(ManagedPosition)
-            .where(ManagedPosition.id == position_id)
-            .where(ManagedPosition.user_id == user_id)
+            select(ManagedPosition).where(ManagedPosition.id == position_id).where(ManagedPosition.user_id == user_id)
         )
         result = await db.execute(query)
         return result.scalar_one_or_none()
@@ -88,9 +83,7 @@ class PositionService:
     ) -> tuple[Sequence[ManagedPosition], int]:
         """Get managed positions for a user with optional filtering and pagination."""
         query = (
-            select(ManagedPosition)
-            .where(ManagedPosition.user_id == user_id)
-            .order_by(ManagedPosition.asset_identifier)
+            select(ManagedPosition).where(ManagedPosition.user_id == user_id).order_by(ManagedPosition.asset_identifier)
         )
 
         if status_filter:

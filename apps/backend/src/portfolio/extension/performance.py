@@ -14,9 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
 from src.audit.ratio import Ratio
+from src.extraction.orm.layer2 import AtomicPosition
+from src.extraction.orm.layer3 import ManagedPosition
 from src.ledger import Account
-from src.models.layer2 import AtomicPosition
-from src.models.layer3 import ManagedPosition
 from src.observability import get_logger
 from src.portfolio.base.errors import InsufficientDataError, XIRRCalculationError
 from src.portfolio.orm.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType

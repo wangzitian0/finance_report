@@ -16,7 +16,7 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.money import to_money
-from src.models.layer3 import (
+from src.extraction.orm.layer3 import (
     ManualValuationBasis,
     ManualValuationComponentType,
     ManualValuationLiquidityClass,

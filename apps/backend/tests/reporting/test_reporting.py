@@ -9,12 +9,8 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
+from src.extraction.orm.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass, ManualValuationSnapshot
 from src.ledger import AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
-from src.models.layer3 import (
-    ManualValuationComponentType,
-    ManualValuationLiquidityClass,
-    ManualValuationSnapshot,
-)
 from src.reporting import (
     ReportError,
     generate_balance_sheet,

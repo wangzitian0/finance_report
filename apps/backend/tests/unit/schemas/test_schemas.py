@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from src.models.layer3 import PositionStatus
+from src.extraction.orm.layer3 import PositionStatus
 from src.schemas.assets import (
     DepreciationResponse,
     ManagedPositionResponse,

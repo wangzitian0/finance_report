@@ -6,8 +6,8 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.layer2 import AtomicTransaction
-from src.models.layer3 import (
+from src.extraction.orm.layer2 import AtomicTransaction
+from src.extraction.orm.layer3 import (
     ClassificationRule,
     ClassificationStatus,
     RuleType,

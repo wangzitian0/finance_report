@@ -19,7 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import normalize_currency_code
-from src.models.layer2 import AtomicPosition
+from src.extraction.orm.layer2 import AtomicPosition
 
 
 async def snapshot_currencies(db: AsyncSession, user_id: UUID | None) -> set[str]:

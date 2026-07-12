@@ -14,7 +14,7 @@ from src.schemas.base import ListResponse
 
 if TYPE_CHECKING:
     from src.extraction import UploadedDocument
-    from src.models.layer2 import AtomicTransaction
+    from src.extraction.orm.layer2 import AtomicTransaction
     from src.models.statement_summary import StatementSummary
 
 # Re-export the statement lifecycle status enum with a schema-friendly name.
