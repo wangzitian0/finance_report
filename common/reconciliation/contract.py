@@ -26,6 +26,12 @@ CONTRACT = PackageContract(
     depends_on=["audit", "extraction", "ledger", "llm", "observability", "pricing"],
     roles=["base", "extension", "data"],
     units=[
+        # ── taxonomy-only ORM units (module unset — the gate skips placement,
+        # the #1675 idiom). The mapped classes live in orm/reconciliation.py
+        # (#1675 D5): ledger's journal_entries is a bare FK column (the unused
+        # journal_entry relationship() was removed per the 2026-07-11 ruling);
+        # the atomic_transaction relationship survives until D4 moves
+        # AtomicTransaction into extraction and de-navigates it. ──
         Unit(name="ReconciliationMatch", kind=Kind.AGGREGATE_ROOT),
         Unit(name="ReconciliationMatchJournalEntry", kind=Kind.ENTITY),
         Unit(name="ReconciliationStatus", kind=Kind.VALUE_OBJECT),
@@ -144,7 +150,10 @@ CONTRACT = PackageContract(
         "MatchCandidate",
         "RECONCILIATION_SEMANTIC_PROMPT",
         "ReconciliationConfig",
+        "ReconciliationMatch",
+        "ReconciliationMatchJournalEntry",
         "ReconciliationStats",
+        "ReconciliationStatus",
         "TransferLeg",
         "_candidate_is_better",
         "_find_many_to_one_candidates",
@@ -154,6 +163,7 @@ CONTRACT = PackageContract(
         "_get_pending_layer2_transactions",
         "_within_combination_tolerance",
         "accept_match",
+        "accepted_transfer_txn_ids",
         "ai_semantic_score",
         "auto_accept",
         "batch_accept",

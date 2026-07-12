@@ -14,8 +14,7 @@ import pytest
 
 from src.ledger import Account, AccountType
 from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
-from src.reconciliation import get_reconciliation_stats
+from src.reconciliation import ReconciliationMatch, ReconciliationStatus, get_reconciliation_stats
 
 
 def _make_atomic(user_id, *, txn_date, description, amount, direction=TransactionDirection.IN):

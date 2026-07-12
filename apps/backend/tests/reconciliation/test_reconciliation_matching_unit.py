@@ -15,12 +15,13 @@ from src.extraction import DocumentType, UploadedDocument
 from src.identity import User
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.models.layer2 import AtomicTransaction
-from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_summary import StatementSummary
 from src.reconciliation import (
     DEFAULT_CONFIG,
     MatchCandidate,
     ReconciliationConfig,
+    ReconciliationMatch,
+    ReconciliationStatus,
     _candidate_is_better,
     _find_normal_candidates,
     calculate_match_score,

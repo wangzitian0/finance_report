@@ -7,6 +7,7 @@ instead of the legacy statement/transaction pair.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable, Sequence
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -18,11 +19,40 @@ from src.extraction.extension.review_queue import create_entry_from_txn
 from src.extraction.extension.statement_validation import approve_statement, resolve_statement_transactions
 from src.extraction.extension.transaction_classification import classify_by_effective_policy
 from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus
-from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
 
 HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD = 85
+
+# "Which of these atomic txns are already covered by an accepted transfer
+# match" is reconciliation-owned knowledge. extraction must not import
+# reconciliation (reconciliation already declares depends_on extraction — the
+# reverse edge would be a dependency cycle), so the read arrives through a
+# provider port: the app composition root (``src/main.py``, L4) registers
+# reconciliation's published ``accepted_transfer_txn_ids`` at startup — the
+# same inversion as ``workflow_events``' readiness provider (#1676, #1762).
+# The edge was invisible while the match ORM lived in the unregistered
+# ``src/models/`` remainder; the #1675 D5 move made it a governed import.
+TransferExclusionsProvider = Callable[[AsyncSession, Sequence[UUID]], Awaitable[set[UUID]]]
+
+_transfer_exclusions_provider: TransferExclusionsProvider | None = None
+
+
+def register_transfer_exclusions_provider(provider: TransferExclusionsProvider) -> None:
+    """Register the reconciliation-side transfer-exclusions read (composition root)."""
+    global _transfer_exclusions_provider
+    _transfer_exclusions_provider = provider
+
+
+def _get_transfer_exclusions_provider() -> TransferExclusionsProvider:
+    if _transfer_exclusions_provider is None:
+        raise RuntimeError(
+            "statement_posting.register_transfer_exclusions_provider() was never "
+            "called — the app composition root (src/main.py) registers "
+            "reconciliation's accepted_transfer_txn_ids at startup; tests that "
+            "bypass app startup must register a provider explicitly."
+        )
+    return _transfer_exclusions_provider
 
 
 def is_high_confidence_auto_approve_candidate(statement: StatementSummary) -> bool:
@@ -58,17 +88,7 @@ async def auto_create_posted_entries_for_statement(
         promote_entry_source_type(entry, JournalEntrySourceType.USER_CONFIRMED)
     existing_entry_txn_ids = {entry.source_id for entry in existing_entries}
 
-    transfer_match_result = await db.execute(
-        select(ReconciliationMatch)
-        .where(ReconciliationMatch.atomic_txn_id.in_(txn_ids))
-        .where(
-            ReconciliationMatch.status.in_([ReconciliationStatus.AUTO_ACCEPTED, ReconciliationStatus.ACCEPTED]),
-            ReconciliationMatch.superseded_by_id.is_(None),
-        )
-    )
-    transfer_txn_ids = {
-        match.atomic_txn_id for match in transfer_match_result.scalars().all() if match.journal_entry_ids
-    }
+    transfer_txn_ids = await _get_transfer_exclusions_provider()(db, txn_ids)
 
     txns_to_post = [
         txn for txn in transactions if txn.id not in existing_entry_txn_ids and txn.id not in transfer_txn_ids

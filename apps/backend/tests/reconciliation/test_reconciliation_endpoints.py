@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit import JournalEntrySourceType
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
+from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 
 
 def _atomic(user_id, *, description, amount, direction=TransactionDirection.OUT):

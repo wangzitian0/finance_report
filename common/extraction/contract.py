@@ -170,6 +170,7 @@ CONTRACT = PackageContract(
         "resolve_custody_account_id",
         "resolve_ingest_currency",
         "resolve_statement_conflicts",
+        "register_transfer_exclusions_provider",
         "resolve_statement_posting_account",
         "resolve_statement_transactions",
         "resolve_transaction_currency",

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from datetime import date, timedelta
 from decimal import Decimal
 from itertools import combinations
@@ -22,7 +22,6 @@ from src.ledger import (
     find_transfer_pairs,
 )
 from src.models.layer2 import AtomicTransaction
-from src.models.reconciliation import ReconciliationMatch, ReconciliationMatchJournalEntry, ReconciliationStatus
 from src.observability import get_logger, record_reconciliation_match_outcome
 from src.reconciliation.base.config import (  # noqa: F401
     DEFAULT_CONFIG,
@@ -52,6 +51,11 @@ from src.reconciliation.extension.scoring import (  # noqa: F401
     score_description,
     score_pattern,
     weighted_total,
+)
+from src.reconciliation.orm.reconciliation import (
+    ReconciliationMatch,
+    ReconciliationMatchJournalEntry,
+    ReconciliationStatus,
 )
 
 logger = get_logger(__name__)
@@ -253,6 +257,33 @@ async def _get_existing_active_match(
     )
     result = await db.execute(query)
     return result.scalar_one_or_none()
+
+
+async def accepted_transfer_txn_ids(
+    db: AsyncSession,
+    txn_ids: Sequence[UUID],
+) -> set[UUID]:
+    """Atomic-transaction ids covered by a live accepted match with journal entries.
+
+    The read behind extraction's transfer-exclusions provider port (#1675 D5):
+    statement posting skips txns an accepted/auto-accepted, non-superseded
+    match already anchors to journal entries. Published on the package root;
+    the app composition root (``src/main.py``) registers it into
+    ``extraction.register_transfer_exclusions_provider`` at startup
+    (reconciliation depends on extraction, never the reverse).
+    """
+    ids = list(txn_ids)
+    if not ids:
+        return set()
+    result = await db.execute(
+        select(ReconciliationMatch)
+        .where(ReconciliationMatch.atomic_txn_id.in_(ids))
+        .where(
+            ReconciliationMatch.status.in_([ReconciliationStatus.AUTO_ACCEPTED, ReconciliationStatus.ACCEPTED]),
+            ReconciliationMatch.superseded_by_id.is_(None),
+        )
+    )
+    return {match.atomic_txn_id for match in result.scalars().all() if match.journal_entry_ids}
 
 
 def _mark_auto_accepted_entry_reconciled(entry: JournalEntry) -> None:

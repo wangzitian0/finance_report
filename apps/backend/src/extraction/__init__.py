@@ -86,6 +86,7 @@ from src.extraction.extension.statement_parsing_supervisor import (
 from src.extraction.extension.statement_pipeline import submit_parse_pipeline
 from src.extraction.extension.statement_posting import (
     auto_create_posted_entries_for_statement,
+    register_transfer_exclusions_provider,
     resolve_statement_posting_account,
 )
 from src.extraction.extension.statement_summary import resolve_custody_account_id
@@ -159,6 +160,7 @@ __all__ = [
     "resolve_custody_account_id",
     "resolve_ingest_currency",
     "resolve_statement_conflicts",
+    "register_transfer_exclusions_provider",
     "resolve_statement_posting_account",
     "resolve_statement_transactions",
     "resolve_transaction_currency",

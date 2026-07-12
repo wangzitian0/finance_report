@@ -13,7 +13,7 @@ from src.identity import (
 )
 from src.models.layer2 import AtomicTransaction
 from src.models.layer3 import ClassificationStatus, TransactionClassification
-from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
+from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 
 router = APIRouter(prefix="/ai", tags=["ai-feedback"])
 

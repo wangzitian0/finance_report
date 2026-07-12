@@ -23,8 +23,8 @@ from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEnt
 from src.llm import AIStreamError
 from src.models.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.prompts.ai_advisor import DISCLAIMER_EN, get_ai_advisor_prompt
+from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.reporting import ReportError
 from src.schemas.workflow import (
     WorkflowEventCountsResponse,

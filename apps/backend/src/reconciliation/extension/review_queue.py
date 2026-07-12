@@ -17,10 +17,10 @@ from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType, promote_en
 from src.extraction import create_entry_from_txn
 from src.ledger import JournalEntry, JournalEntryStatus, JournalLine
 from src.models.layer2 import AtomicTransaction
-from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.observability import get_logger
 from src.reconciliation.base.config import entry_total_amount
 from src.reconciliation.extension.matching import sync_reconciliation_match_journal_entry_links
+from src.reconciliation.orm.reconciliation import ReconciliationMatch, ReconciliationStatus
 
 logger = get_logger(__name__)
 

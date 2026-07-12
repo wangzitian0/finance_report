@@ -33,9 +33,9 @@ from src.extraction import DocumentType, UploadedDocument
 from src.identity import User
 from src.ledger import Account, AccountType, JournalEntry
 from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
+from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.schemas.reconciliation import ReconciliationStatusEnum
 
 

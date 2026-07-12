@@ -7,8 +7,8 @@ from decimal import Decimal
 from uuid import UUID
 
 from src.ledger import AccountType, Direction, JournalEntryStatus
-from src.models.reconciliation import ReconciliationStatus
 from src.models.statement_enums import BankStatementStatus
+from src.reconciliation import ReconciliationStatus
 from tests.factories import (
     AccountFactory,
     AtomicTransactionFactory,

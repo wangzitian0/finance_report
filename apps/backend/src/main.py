@@ -31,6 +31,7 @@ from src.extraction import (
     get_known_storage_paths,
     get_uploaded_document_filename,
     get_uploaded_document_filenames,
+    register_transfer_exclusions_provider,
     run_parsing_supervisor,
 )
 from src.identity import auth_router, users_router
@@ -58,6 +59,7 @@ from src.platform import (
 )
 from src.platform.orm.ping_state import PingState
 from src.pricing import subscribe_price_ingest
+from src.reconciliation import accepted_transfer_txn_ids
 from src.reporting import (
     get_personal_report_package_readiness,
     register_fx_gateway,
@@ -142,6 +144,13 @@ register_uploaded_document_readers(
     find_filename_by_hash=find_uploaded_document_filename_by_hash,
 )
 register_known_storage_paths_provider(get_known_storage_paths)
+
+# Wire extraction's transfer-exclusions port to reconciliation's published
+# read (#1675 D5): statement posting must skip txns an accepted transfer
+# match already covers, but extraction cannot import reconciliation
+# (reconciliation depends_on extraction — the reverse edge would be a cycle),
+# so the composition root closes the loop here, same shape as the ports above.
+register_transfer_exclusions_provider(accepted_transfer_txn_ids)
 
 # Wire the domain-event subscribers (#1642): the composition root owns the
 # SubscriberRegistry and the OutboxRelay that dispatches committed outbox rows
