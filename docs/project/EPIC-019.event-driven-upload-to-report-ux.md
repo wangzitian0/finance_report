@@ -479,7 +479,7 @@ independently by AC-extraction.112 over `docs/ssot/source-coverage-matrix.yaml`.
 | AC19.15.3 {tier:CODE-ONLY} | The primary statement uploader (`kind="statement"`) rejects `.csv` files by extension before setting a selected file, and the CSV import uploader (`kind="csv"`) rejects non-csv files and accepts `.csv` — each intake entry enforces its own kind's file-extension restriction, independent of the shared `all`-kind default | `AC19.15.3 statement uploader rejects csv and csv uploader rejects non-csv, each enforcing its own kind's extensions` | P1 | <!-- epic-owned: fe-only -->
 
 Traceability note: AC19.15 is tracked in this EPIC-local product UI table.
-AC19.15.3 backfills coverage the [finance_report_ui] fix(e2e) #1542 gap exposed: <!-- epic-owned: fe-only -->
+`AC19.15.3` backfills coverage the [finance_report_ui] fix(e2e) #1542 gap exposed:
 `StatementUploader.test.tsx` only ever rendered the default `kind="all"`, and
 `statementsPage.test.tsx` mocks `StatementUploader` out entirely, so the
 per-kind extension contract that Tier-3 E2E depends on had no unit/component-tier
