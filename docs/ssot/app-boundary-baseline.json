@@ -1,7 +1,3 @@
 [
-  "in::apps/backend/src/models/_registry.py::src.identity.extension.sql::<import>",
-  "out::apps/backend/src/extraction/extension/review_queue.py::src.services.fx::FxRateError",
-  "out::apps/backend/src/extraction/extension/review_queue.py::src.services.fx::get_exchange_rate",
-  "out::apps/backend/src/ledger/extension/fx_revaluation.py::src.services.fx::FxRateError",
-  "out::apps/backend/src/ledger/extension/fx_revaluation.py::src.services.fx::get_exchange_rate"
+  "in::apps/backend/src/models/_registry.py::src.identity.extension.sql::<import>"
 ]

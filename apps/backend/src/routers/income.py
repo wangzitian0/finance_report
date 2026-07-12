@@ -11,10 +11,10 @@ from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.platform import raise_bad_request
+from src.pricing import PricingError, convert_amount
 from src.reporting import AnnualizedIncomeTotals, income_bucket, resolve_line_currency
 from src.schemas.base import normalize_currency_code
 from src.schemas.income import AnnualizedIncomeResponse, FxConversionErrorResponse
-from src.services.fx import FxRateError, convert_amount
 
 router = APIRouter(prefix="/income", tags=["income"])
 
@@ -59,7 +59,7 @@ async def get_annualized_income(
                 average_end=report_date,
                 lazy_load=True,
             )
-        except FxRateError as exc:
+        except PricingError as exc:
             raise_bad_request(str(exc), cause=exc)
         totals.add(income_bucket(account.name), signed_amount)
 

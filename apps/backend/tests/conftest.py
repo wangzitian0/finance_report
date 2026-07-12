@@ -25,33 +25,34 @@ import src.models._registry  # noqa: F401
 from src.config import settings
 from src.extraction import register_transfer_exclusions_provider
 from src.observability import get_logger
-from src.reconciliation import accepted_transfer_txn_ids
-from src.reporting import register_fx_gateway, register_manual_valuation_lines_provider
-from src.services.fx import (
-    FxRateError,
+from src.pricing import (
     PrefetchedFxRates,
-    clear_fx_cache,
+    PricingError,
+    build_manual_valuation_lines,
     convert_amount,
     convert_money,
     get_average_rate,
     get_exchange_rate,
 )
-from src.services.reporting.manual_valuation import _build_manual_valuation_lines
+from src.reconciliation import accepted_transfer_txn_ids
+from src.reporting import register_fx_gateway, register_manual_valuation_lines_provider
 
 # Wire reporting's composition-root ports for direct (no-app) test runs — the
-# same registrations main.py performs at startup (#1666): the FX seam and the
-# manual-valuation lines builder still live in the services/ remainder pending
-# the pricing cutover (#1610), and reporting reaches them only by injection.
-# Module-top so it precedes every test module import.
+# same registrations main.py performs at startup (#1666/#1610): reporting
+# reaches the FX seam and the manual-valuation lines builder only by
+# injection (a carved L3 package must not import another L3 package's
+# implementation directly), so tests exercising reporting without the full
+# app must register them too. Module-top so it precedes every test module
+# import.
 register_fx_gateway(
     get_exchange_rate=get_exchange_rate,
     get_average_rate=get_average_rate,
     convert_amount=convert_amount,
     convert_money=convert_money,
     prefetched_fx_rates=PrefetchedFxRates,
-    fx_rate_error=FxRateError,
+    fx_rate_error=PricingError,
 )
-register_manual_valuation_lines_provider(_build_manual_valuation_lines)
+register_manual_valuation_lines_provider(build_manual_valuation_lines)
 
 # Wire extraction's transfer-exclusions port to reconciliation's published
 # read, mirroring the app composition root (src/main.py, #1675 D5): tests
@@ -164,15 +165,6 @@ def mock_bootloader_checks():
         yield
 
 
-# --- FX Cache Cleanup ---
-@pytest.fixture(autouse=True)
-def cleanup_fx_cache():
-    """Clear FX cache before and after each test to ensure isolation."""
-    clear_fx_cache()
-    yield
-    clear_fx_cache()
-
-
 # --- Rate-limiter isolation (#410) ---
 @pytest.fixture(autouse=True)
 def reset_rate_limiters():
@@ -201,7 +193,7 @@ def disable_external_market_data_fetch(monkeypatch):
 # --- Advisor app-remainder read ports (#1671 Wave B) ---
 @pytest.fixture(autouse=True)
 def wire_advisor_app_reads():
-    """(Re)wire the advisor's app_reads ports to the real remainder functions.
+    """(Re)wire the advisor's app_reads ports to the real provider functions.
 
     The composition root (src/main.py) wires these at import time, but a test
     that registers a fake would otherwise leak it into the next test — this
@@ -209,15 +201,17 @@ def wire_advisor_app_reads():
     main.py does at startup.  Only the fx-pair composer and windowed fx
     conversion remain ports — #1666 folded the reporting summary trio,
     report readiness, and the income bucket classifier into the published
-    ``src.reporting`` root while this PR was in flight, so ``advisor`` now
-    imports those directly (no port needed).
+    ``src.reporting`` root, so ``advisor`` imports those directly (no port
+    needed); #1610 P2 retired ``services/fx.py`` and
+    ``services/market_data_scheduler.py``, so both ports now repoint to
+    ``src.pricing``/``src.composition``.
     """
     from src.advisor import register_fx_conversion, register_fx_pairs_read
-    from src.services.fx import FxRateError, convert_amount
-    from src.services.market_data_scheduler import observed_fx_pairs
+    from src.composition import observed_fx_pairs
+    from src.pricing import PricingError, convert_amount
 
     register_fx_pairs_read(observed_fx_pairs)
-    register_fx_conversion(convert_amount=convert_amount, error_type=FxRateError)
+    register_fx_conversion(convert_amount=convert_amount, error_type=PricingError)
 
 
 # --- Helper to ensure 127.0.0.1 consistency ---

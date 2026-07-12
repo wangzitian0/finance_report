@@ -660,7 +660,7 @@ CONTRACT = PackageContract(
                 "Was EPIC-012 AC12.31.2."
             ),
             test=(
-                "apps/backend/tests/market_data/test_fx.py"
+                "apps/backend/tests/pricing/test_convert.py"
                 "::test_AC12_31_2_convert_amount_routes_through_money_exchange_rate"
             ),
             priority="P1",

@@ -220,11 +220,11 @@ currency_to, rate, fee, fee_currency, conversion_date}`).
    days).
 4. **Implied-rate match** — `amount_from / amount_to` is within a relative
    `tolerance` (default 0.5%) of the observed market rate (quoted
-   `currency_from / currency_to`, matching `services/fx.get_exchange_rate`).
+   `currency_from / currency_to`, matching `pricing.get_exchange_rate`).
 
 Implemented by `pair_fx_legs`/`build_fx_conversion`
 (`reconciliation/extension/fx_transfer.py`); rate orientation matches
-`services/fx.py`.
+`pricing`'s FX lookup (`services/fx.py` retired into pricing, #1610 P2).
 
 **Ledger-based auto-discovery** — a transfer recorded only as RAW journal
 lines (no pre-seeded `fx_conversions` row) is still recognised.

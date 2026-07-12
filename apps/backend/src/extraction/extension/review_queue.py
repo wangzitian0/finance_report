@@ -35,7 +35,7 @@ from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.layer3 import ClassificationStatus, TransactionClassification
 from src.models.statement_summary import StatementSummary
 from src.observability import get_logger
-from src.services.fx import FxRateError, get_exchange_rate
+from src.pricing import PricingError, get_exchange_rate
 
 logger = get_logger(__name__)
 settings = src.config.settings
@@ -198,7 +198,7 @@ async def create_entry_from_txn(
             # closed below -- a journal entry cannot post without a real rate,
             # unlike a report line, which can just omit the value.
             line_fx_rate = await get_exchange_rate(db, currency, base_currency, txn.txn_date, lazy_load=True)
-        except FxRateError as exc:
+        except PricingError as exc:
             raise ValueError(f"FX rate required to create {currency} journal entry: {exc}") from exc
 
     # Use statement's linked account if available.

@@ -65,6 +65,10 @@ CONTRACT = PackageContract(
         "observability",
         "platform",
         "portfolio",
+        # FX rate lookup for review-queue journal promotion goes through
+        # pricing's published surface (#1610 P2 retired services/fx.py);
+        # sideways acyclic edge to the L3 leaf.
+        "pricing",
         "runtime",
     ],
     roles=["base", "extension", "data"],

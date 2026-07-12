@@ -81,9 +81,9 @@ def test_AC12_35_2_investment_accounting_reads_position_via_accessors():
 def test_AC12_35_3_portfolio_holdings_value_flows_as_money():
     """AC-audit.35.3: portfolio holdings valuation flows as Money end-to-end via a
     Money-native FX convert + the ManagedPosition accessors (no Decimal FX branch)."""
-    fx = _read("apps/backend/src/services/fx.py")
+    fx = _read("apps/backend/src/pricing/extension/fx.py")
     assert "async def convert_money(" in fx, (
-        "fx must expose a Money-native convert helper"
+        "pricing's fx module must expose a Money-native convert helper"
     )
     src = _read("apps/backend/src/portfolio/extension/holdings.py")
     # Money-native FX convert via pricing's published surface (#1643).

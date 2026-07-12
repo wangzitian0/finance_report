@@ -32,7 +32,7 @@ class FxConversion(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
 
     ``rate`` is quoted as ``currency_from / currency_to`` (units of the from
     currency per unit of the to currency), matching
-    :func:`src.services.fx.get_exchange_rate`. Monetary amounts are
+    :func:`src.pricing.get_exchange_rate`. Monetary amounts are
     ``DECIMAL(18, 2)``; the rate is ``DECIMAL(18, 6)`` like other FX rates.
     """
 

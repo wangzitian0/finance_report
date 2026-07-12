@@ -61,15 +61,19 @@ PROTECTED_MODULE_GLOBS: tuple[str, ...] = (
     "apps/backend/src/ledger/extension/account_service.py",
     "apps/backend/src/portfolio/extension/accounting.py",
     "apps/backend/src/extraction/extension/statement_posting.py",
-    # reporting moved to its package home (#1666); the services/reporting/
-    # glob still covers the manual_valuation.py survivor + shims until #1610.
+    # reporting moved to its package home (#1666); services/reporting/ and
+    # services/reporting_calc.py are gone (#1610 P2 re-homed manual_valuation.py
+    # into pricing and deleted the directory; reporting_calc.py moved inside
+    # the reporting package, already covered by the glob below).
     "apps/backend/src/reporting/**/*.py",
-    "apps/backend/src/services/reporting/**/*.py",
-    "apps/backend/src/services/reporting_calc.py",
+    # manual-valuation balance-sheet math (financial-truth, #1610 P2 —
+    # re-homed from the protected services/reporting/manual_valuation.py).
+    "apps/backend/src/pricing/extension/valuation.py",
     "apps/backend/src/extraction/base/validation.py",
     "apps/backend/src/extraction/extension/statement_validation.py",
-    # FX (deterministic conversion / revaluation / transfer math)
-    "apps/backend/src/services/fx.py",
+    # FX (deterministic conversion / revaluation / transfer math) — the
+    # lookup module moved into pricing (#1610 P2 retired services/fx.py)
+    "apps/backend/src/pricing/extension/fx.py",
     "apps/backend/src/ledger/extension/fx_revaluation.py",
     "apps/backend/src/reconciliation/extension/fx_transfer.py",
     "apps/backend/src/reconciliation/extension/fx_transfer_discovery.py",

@@ -65,9 +65,9 @@ surfaces as `pricing.PricingError`, never the retired `FxRateError`. The
 
 `extension/discovery.py` (#1641) publishes `active_stock_symbols` and
 `position_currencies` — portfolio's answers to "what does this user hold",
-composed by the delivery layer
-(`services/market_data_scheduler.py::observed_fx_pairs`) into the scopes
-passed to `pricing`'s crawl.
+composed by the delivery layer (`src/composition.py::observed_fx_pairs`,
+re-homed there from `services/market_data_scheduler.py` by #1610 P2) into
+the scopes passed to `pricing`'s crawl.
 
 ## Cross-package edges
 

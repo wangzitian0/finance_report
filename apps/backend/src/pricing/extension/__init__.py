@@ -8,21 +8,29 @@ tables + the ingest store), the two user-scoped write recorders
 (``record_manual_valuation``/``record_override``), the ``extraction``
 ``PriceObserved``-ingest subscriber (``extension/ingest.py`` —
 ``ingest_statement_price`` + the ``subscribe_price_ingest`` wiring the app
-composition root calls, #1642), ``get_exchange_rate`` +
-the ``convert_*`` trio + ``get_average_rate`` (thin FX-specific wrappers over
-the same subject+resolve path — caching and the crawler lazy-fallback are
-deliberately deferred, see ``extension/fx.py``), and the crawler sync
+composition root calls, #1642), the full FX lookup surface absorbed from
+``services/fx.py`` (#1610 P2 — ``get_exchange_rate`` + the ``convert_*``
+trio + ``get_average_rate`` with the ``fx_warnings`` side-channel and
+average-rate windows, plus ``PrefetchedFxRates``; see ``extension/fx.py``),
+the manual-valuation balance-sheet line builder
+(``build_manual_valuation_lines``, absorbed from
+``services/reporting/manual_valuation.py``), the crawler sync
 (``extension/market_data/`` — ``sync_fx_rates``/``sync_stock_prices``/
 ``ensure_market_data_fresh``/``get_market_data_status``/
 ``resolve_missing_fx_rate``; the many crawler-internal names in that
 subpackage's own ``__all__`` stay package-internal and are deliberately NOT
 flattened here, the same way ``reconciliation.extension.phases`` never
-bubbles up to ``reconciliation``'s top level).
+bubbles up to ``reconciliation``'s top level), and the daily crawl
+orchestrator (``extension/scheduler.py``, absorbed from
+``services/market_data_scheduler.py`` — scope discovery stays inverted
+behind the composition root's :data:`MarketDataScopeProvider`).
 """
 
 from __future__ import annotations
 
 from src.pricing.extension.fx import (
+    FxWarning,
+    PrefetchedFxRates,
     convert_amount,
     convert_money,
     convert_to_base,
@@ -43,11 +51,24 @@ from src.pricing.extension.market_data import (
 )
 from src.pricing.extension.repository import SqlObservationRepository
 from src.pricing.extension.resolve import resolve
+from src.pricing.extension.scheduler import (
+    MARKET_DATA_SYNC_TZ,
+    MarketDataScopeProvider,
+    MarketDataScopes,
+    next_market_data_sync_at,
+    run_daily_market_data_sync,
+    run_market_data_scheduler,
+)
 
 __all__ = [
+    "FxWarning",
     "MARKET_DATA_QUANTITY_UNIT",
+    "MARKET_DATA_SYNC_TZ",
+    "MarketDataScopeProvider",
     "MarketDataScopeStatus",
+    "MarketDataScopes",
     "MarketDataSyncResult",
+    "PrefetchedFxRates",
     "SqlObservationRepository",
     "convert_amount",
     "convert_money",
@@ -57,10 +78,13 @@ __all__ = [
     "get_exchange_rate",
     "get_market_data_status",
     "ingest_statement_price",
+    "next_market_data_sync_at",
     "record_manual_valuation",
     "record_override",
     "resolve",
     "resolve_missing_fx_rate",
+    "run_daily_market_data_sync",
+    "run_market_data_scheduler",
     "subscribe_price_ingest",
     "sync_fx_rates",
     "sync_stock_prices",

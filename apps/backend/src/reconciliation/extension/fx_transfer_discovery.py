@@ -66,7 +66,7 @@ _DISCOVERY_STATUSES = (JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED)
 # value, i.e. **units of quote per unit of base** (``convert_amount`` multiplies by
 # it: ``amount_in_quote = amount_in_base * rate``). Returning ``None`` means "no rate
 # available" — the candidate is skipped rather than paired on a guess. This matches
-# ``src.services.fx.get_exchange_rate``; discovery converts the orientation it needs
+# ``src.pricing.get_exchange_rate``; discovery converts the orientation it needs
 # (``currency_from`` per ``currency_to``, see :func:`pair_fx_legs`) by calling the
 # resolver with ``base=in_currency, quote=out_currency``.
 MarketRateResolver = Callable[[str, str, date], Awaitable[Decimal | None]]

@@ -88,10 +88,9 @@ explicit AC IDs for the behavior.
 | `apps/backend/tests/infra/test_rate_limit.py` | `docs/agents/red-lines.md` |
 | `apps/backend/tests/infra/test_schema_drift.py` | `docs/ssot/schema.md` |
 | `apps/backend/tests/infra/test_schema_guardrails.py` | `docs/ssot/schema.md` |
-| `apps/backend/tests/market_data/test_fx.py` | `docs/ssot/market_data.md` |
+| `apps/backend/tests/pricing/market_data/test_lazy_fx.py` | `common/pricing/contract.py` |
 | `apps/backend/tests/reconciliation/test_anomaly_service.py` | `docs/ssot/reconciliation.md` |
 | `apps/backend/tests/reconciliation/test_reconciliation_stats.py` | `docs/ssot/reconciliation.md` |
-| `apps/backend/tests/reporting/test_fx_average_rate_fallback.py` | `docs/ssot/reporting.md` |
 | `apps/backend/tests/reporting/test_net_income_average_rates.py` | `docs/ssot/reporting.md` |
 | `apps/backend/tests/reporting/test_reporting_fx_fallbacks.py` | `docs/ssot/reporting.md` |
 | `apps/backend/tests/reporting/test_reporting_helpers.py` | `docs/ssot/reporting.md` |

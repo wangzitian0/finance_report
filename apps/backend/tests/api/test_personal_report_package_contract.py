@@ -37,7 +37,7 @@ from src.models.layer4 import ReportSnapshot, ReportType
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
 from src.portfolio import DividendIncome
-from src.pricing import MarketDataOverride, PriceSource
+from src.pricing import MarketDataOverride, PriceSource, PricingError
 from src.pricing.orm.market_data import FxRate
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
@@ -63,7 +63,6 @@ from src.routers.reports import (
     personal_report_package_traceability,
 )
 from src.schemas import PersonalReportingFrameworkId, PersonalReportPackageReadinessResponse
-from src.services.fx import FxRateError
 from tests.factories import UserFactory
 
 
@@ -914,7 +913,7 @@ async def test_AC19_8_8_package_readiness_blocks_when_processing_fx_conversion_f
     await db.flush()
 
     async def raise_fx_error(*_args, **_kwargs):
-        raise FxRateError("No FX rate available for USD/SGD on 2026-05-03")
+        raise PricingError("No FX rate available for USD/SGD on 2026-05-03")
 
     monkeypatch.setattr("src.reporting.extension.report_readiness.convert_amount", raise_fx_error)
 

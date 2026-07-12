@@ -92,10 +92,12 @@ CONTRACT = PackageContract(
     # Deterministic double-entry arithmetic + persistence, no LLM: a pure-code
     # (CODE-ONLY) package.
     tier="CODE-ONLY",
-    # audit/config are the only registered packages the impl imports. Both are
-    # lower-layer (infra, L1) than ledger (domain, L3), so the edges are
-    # downward. (money folded into audit — issue #1419.)
-    depends_on=["audit", "observability"],
+    # audit/observability are lower-layer (infra, L1) than ledger (domain,
+    # L3), so those edges are downward. (money folded into audit — issue
+    # #1419.) pricing is a sideways acyclic edge to the L3 leaf: FX
+    # revaluation resolves rates through pricing's published surface
+    # (#1610 P2 retired services/fx.py).
+    depends_on=["audit", "observability", "pricing"],
     roles=["base", "extension", "data"],
     units=[
         # base — the pure double-entry core.

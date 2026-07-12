@@ -29,9 +29,9 @@ from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus, V
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
 from src.models.statement_summary import StatementSummary
+from src.pricing import PricingError
 from src.reconciliation import ReconciliationStatus
 from src.reconciliation.extension.review_queue import accept_match, batch_accept, get_pending_items, reject_match
-from src.services.fx import FxRateError
 from tests.factories import (
     AccountFactory,
     AtomicTransactionFactory,
@@ -755,7 +755,7 @@ async def test_create_entry_from_txn_still_fails_closed_when_fx_rate_unresolvabl
 
     with patch(
         "src.extraction.extension.review_queue.get_exchange_rate",
-        side_effect=FxRateError("No FX rate available for CNY/SGD on 2025-01-15"),
+        side_effect=PricingError("No FX rate available for CNY/SGD on 2025-01-15"),
     ) as mock_get_rate:
         with pytest.raises(ValueError, match="FX rate required to create CNY journal entry"):
             await create_entry_from_txn(db, txn, user_id=test_user.id)

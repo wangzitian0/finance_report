@@ -380,7 +380,7 @@ async def test_income_statement_fx_average_to_spot_fallback(db: AsyncSession, ac
     )
     await db.commit()
 
-    from src.services.fx import FxRateError
+    from src.pricing import PricingError
 
     with patch("src.reporting.extension.fx_gateway.PrefetchedFxRates") as MockPrefetched:
         mock_instance = AsyncMock()
@@ -394,7 +394,7 @@ async def test_income_statement_fx_average_to_spot_fallback(db: AsyncSession, ac
 
         async def mock_convert(db, money, target_currency, rate_date, **kwargs):
             if kwargs.get("average_start") is not None:
-                raise FxRateError("No average rate available")
+                raise PricingError("No average rate available")
             return Money(money.amount * Decimal("1.35"), target_currency)
 
         with patch("src.reporting.extension.income_statement.convert_money", side_effect=mock_convert):
@@ -451,7 +451,7 @@ async def test_income_statement_fx_all_fallbacks_fail(db: AsyncSession, accounts
     )
     await db.commit()
 
-    from src.services.fx import FxRateError
+    from src.pricing import PricingError
 
     with patch("src.reporting.extension.fx_gateway.PrefetchedFxRates") as MockPrefetched:
         mock_instance = AsyncMock()
@@ -460,7 +460,7 @@ async def test_income_statement_fx_all_fallbacks_fail(db: AsyncSession, accounts
         MockPrefetched.return_value = mock_instance
 
         async def mock_convert_fail(db, money, target_currency, rate_date, **kwargs):
-            raise FxRateError("No rate available at all")
+            raise PricingError("No rate available at all")
 
         with patch("src.reporting.extension.income_statement.convert_money", side_effect=mock_convert_fail):
             with pytest.raises(ReportError, match="FX conversion failed"):

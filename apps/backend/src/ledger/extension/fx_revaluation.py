@@ -24,7 +24,7 @@ from src.ledger import Entry, Leg
 from src.ledger.orm.account import Account, AccountType
 from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.observability import get_logger
-from src.services.fx import FxRateError, get_exchange_rate
+from src.pricing import PricingError, get_exchange_rate
 
 logger = get_logger(__name__)
 settings = src.config.settings
@@ -153,7 +153,7 @@ async def calculate_account_historical_cost(
         if row.fx_rate is None:
             try:
                 rate = await get_exchange_rate(db, account.currency, base_currency, row.entry_date)
-            except FxRateError:
+            except PricingError:
                 logger.warning(
                     "Historical FX rate missing for revaluation cost basis, falling back to revaluation-date rate",
                     account_id=str(account.id),
@@ -200,7 +200,7 @@ async def calculate_unrealized_fx_for_account(
             quote_currency=base_currency,
             rate_date=revaluation_date,
         )
-    except FxRateError as e:
+    except PricingError as e:
         raise RevaluationError(
             f"Missing FX rate for {account.currency}/{base_currency} on {revaluation_date}: {e}"
         ) from e

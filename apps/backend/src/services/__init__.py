@@ -9,7 +9,17 @@ The AI advisor (chat service, guardrails, annualized income schedule) moved
 to the ``advisor`` package (#1671) — import it via ``from src.advisor import …``.
 The reporting implementation (statements, package readiness/traceability,
 confidence metric/tier, snapshots) moved to the ``reporting`` package (#1666)
-— import it via ``from src.reporting import …``.
+— import it via ``from src.reporting import …``. The FX lookup surface
+(``fx.py``), the market-data scheduler, and the manual-valuation report
+lines moved to the ``pricing`` package (#1610) — import them via
+``from src.pricing import …`` (the ``observed_fx_pairs`` cross-domain
+composer lives at the composition root, ``src.composition``).
+
+No compatibility exports remain: every former ``services/`` submodule has
+either moved to its owning package or (``reporting_calc.py``) lost its last
+consumer and was deleted. This module is kept as an empty, importable
+placeholder rather than deleted outright, since nothing currently requires
+that extra step.
 
 Importing one service submodule must not eagerly import every backend service.
 Tooling tests and small audit CLIs intentionally run with a reduced dependency
@@ -21,18 +31,9 @@ from __future__ import annotations
 from importlib import import_module
 from typing import Any
 
-_SUBMODULES = {
-    "fx",
-    "market_data_scheduler",
-}
+_SUBMODULES: set[str] = set()
 
-_EXPORTS: dict[str, tuple[str, str]] = {
-    "FxRateError": ("fx", "FxRateError"),
-    "convert_amount": ("fx", "convert_amount"),
-    "convert_to_base": ("fx", "convert_to_base"),
-    "get_average_rate": ("fx", "get_average_rate"),
-    "get_exchange_rate": ("fx", "get_exchange_rate"),
-}
+_EXPORTS: dict[str, tuple[str, str]] = {}
 
 __all__ = sorted(_SUBMODULES | set(_EXPORTS))
 
