@@ -9,12 +9,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.account import Account, AccountType
+from src.models.journal import Direction, JournalEntry, JournalLine
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
+from src.portfolio import PortfolioService, active_stock_symbols
 from src.pricing.extension import market_data
 from src.pricing.orm.market_data import FxRate, MarketDataSyncState, StockPrice
-from src.services.market_data_discovery import active_stock_symbols, observed_fx_pairs
-from src.services.portfolio import PortfolioService
+from src.services.market_data_scheduler import observed_fx_pairs
 
 
 async def test_sync_stock_prices_inserts_missing_daily_rows_and_is_idempotent(
@@ -345,6 +346,67 @@ async def test_observed_fx_pairs_include_default_and_non_base_business_currency(
     pairs = await observed_fx_pairs(db, test_user.id)
 
     assert pairs == ["HKD/SGD", "USD/SGD"]
+
+
+async def test_observed_fx_pairs_compose_ledger_portfolio_and_extraction_reads(
+    db: AsyncSession,
+    test_user,
+) -> None:
+    """#1641: ``observed_fx_pairs`` composes the three per-domain published
+    reads — ledger used-currencies (Account + JournalLine), portfolio
+    position-currencies (ManagedPosition), extraction snapshot-currencies
+    (AtomicPosition) — plus the default counterparty, against the base."""
+    account = Account(
+        user_id=test_user.id,
+        name="HKD Cash",
+        type=AccountType.ASSET,
+        currency="HKD",
+    )
+    db.add(account)
+    await db.flush()
+    entry = JournalEntry(user_id=test_user.id, entry_date=date(2026, 1, 5), memo="JPY spend")
+    db.add(entry)
+    await db.flush()
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=account.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("100.00"),
+            currency="JPY",
+        )
+    )
+    db.add(
+        ManagedPosition(
+            user_id=test_user.id,
+            account_id=account.id,
+            asset_identifier="VWRA",
+            quantity=Decimal("2"),
+            cost_basis=Decimal("100.00"),
+            currency="EUR",
+            acquisition_date=date(2026, 1, 1),
+            status=PositionStatus.ACTIVE,
+            cost_basis_method=CostBasisMethod.FIFO,
+        )
+    )
+    db.add(
+        AtomicPosition(
+            user_id=test_user.id,
+            snapshot_date=date(2026, 1, 5),
+            asset_identifier="VWRA",
+            broker="Test Broker",
+            quantity=Decimal("2"),
+            market_value=Decimal("100.00"),
+            currency="GBP",
+            dedup_hash="vwra-gbp-snapshot",
+            source_documents={},
+        )
+    )
+    await db.commit()
+
+    pairs = await observed_fx_pairs(db, test_user.id)
+
+    assert pairs == ["EUR/SGD", "GBP/SGD", "HKD/SGD", "JPY/SGD", "USD/SGD"]
 
 
 async def test_active_stock_symbols_use_active_nonzero_holdings(

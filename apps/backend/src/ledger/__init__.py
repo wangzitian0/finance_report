@@ -61,6 +61,7 @@ if TYPE_CHECKING:
         list_processing_transfer_legs,
         post_entry,
         post_journal_entry,
+        used_currencies,
         validate_line_account_ownership,
         void_journal_entry,
     )
@@ -98,6 +99,7 @@ __all__ = [
     "post_entry",
     "post_journal_entry",
     "post_opening_balance_entry",
+    "used_currencies",
     "validate_fx_rates",
     "validate_journal_balance",
     "validate_journal_posting_invariants",
@@ -141,6 +143,7 @@ _EXTENSION_NAMES = {
     "list_processing_transfer_legs",
     "post_entry",
     "post_journal_entry",
+    "used_currencies",
     "validate_line_account_ownership",
     "void_journal_entry",
 }

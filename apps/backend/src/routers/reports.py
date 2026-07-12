@@ -22,6 +22,7 @@ from src.models.account import Account, AccountType
 from src.models.layer4 import ReportSnapshot, ReportType as SnapshotReportType
 from src.observability import get_logger, track as _track_analytics
 from src.platform import raise_bad_request, raise_not_found
+from src.portfolio import active_stock_symbols, build_investment_performance_report_schedule
 from src.pricing import ensure_market_data_fresh
 from src.pricing.orm.market_data import FxRate
 from src.schemas import (
@@ -53,10 +54,7 @@ from src.schemas.streaming import ExportStreamEnvelope, ExportStreamMediaType
 from src.services.annualized_income import generate_annualized_income_schedule
 from src.services.confidence_metric import ConfidenceMetricService
 from src.services.framework_policy import derive_user_framework_policy_result
-from src.services.market_data_discovery import active_stock_symbols, observed_fx_pairs
-from src.services.performance_report import (
-    build_investment_performance_report_schedule,
-)
+from src.services.market_data_scheduler import observed_fx_pairs
 from src.services.report_package import (
     jsonable as _jsonable,
     package_currency as _package_currency,

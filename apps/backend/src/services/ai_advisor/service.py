@@ -23,6 +23,7 @@ from src.llm import ReasoningEffort, Scene, SceneBinding, get_config_source, str
 from src.models.account import AccountType
 from src.models.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 from src.platform import get_workflow_status
+from src.portfolio import PortfolioNotFoundError, PortfolioService, active_stock_symbols
 from src.pricing import MarketDataScopeStatus, get_market_data_status
 from src.prompts.ai_advisor import get_ai_advisor_prompt
 from src.reconciliation import get_reconciliation_stats
@@ -42,8 +43,7 @@ from src.services.ai_advisor._guardrails import (
     normalize_question,
     redact_sensitive,
 )
-from src.services.market_data_discovery import active_stock_symbols, observed_fx_pairs
-from src.services.portfolio import PortfolioNotFoundError, PortfolioService
+from src.services.market_data_scheduler import observed_fx_pairs
 from src.services.report_readiness import get_personal_report_package_readiness
 from src.services.reporting import (
     ReportError,

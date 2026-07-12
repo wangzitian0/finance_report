@@ -1,4 +1,8 @@
-"""Portfolio allocation service - sector, geography, asset class breakdowns."""
+"""Portfolio allocation service - sector, geography, asset class breakdowns.
+
+Moved from ``services/allocation.py`` (#1643, standard-preserving move): FX
+conversion now goes through ``pricing``'s published ``convert_amount``.
+"""
 
 from collections import defaultdict
 from collections.abc import Callable
@@ -9,13 +13,16 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import src.config
 from src.audit.ratio import Ratio
-from src.config import settings
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
 from src.observability import get_logger
-from src.services import fx
-from src.services.performance import batch_latest_atomic_positions
+from src.portfolio.extension.performance import batch_latest_atomic_positions
+from src.pricing import convert_amount
+
+# Bound from the bare published root (config publishes no named symbols).
+settings = src.config.settings
 
 logger = get_logger(__name__)
 
@@ -64,7 +71,7 @@ async def _get_active_positions_with_atomics(
     for pos in positions:
         atomic = atomic_map.get(pos.asset_identifier)
         if atomic:
-            value_base = await fx.convert_amount(
+            value_base = await convert_amount(
                 db,
                 atomic.market_value or Decimal("0"),
                 atomic.currency,

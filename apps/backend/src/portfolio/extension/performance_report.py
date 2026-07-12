@@ -3,25 +3,37 @@
 Builds the report-ready :class:`InvestmentPerformanceReportScheduleResponse` from
 holdings, realized P&L, dividends, allocations, and market-data freshness.
 Extracted from the portfolio router so the router stays a thin HTTP layer; the
-realized-P&L and dividend aggregation now live on ``PortfolioService`` and are
-shared with the portfolio summary endpoint. Raises ``FxRateError`` on conversion
-failure (the router maps it to HTTP 422). Behavior unchanged.
+realized-P&L and dividend aggregation live on ``PortfolioService`` and are
+shared with the portfolio summary endpoint. Moved from
+``services/performance_report.py`` (#1643): FX conversion goes through
+``pricing``'s published ``convert_money`` (``lazy_load=True`` — crawler-
+fallback parity), so a conversion failure surfaces as ``pricing.PricingError``
+(the router maps it to HTTP 422). Behavior otherwise unchanged.
 """
 
 from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.money import Money, to_money
 from src.audit.ratio import Ratio
-from src.deps import CurrentUserId, DbSession
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
 from src.models.portfolio import MarketDataOverride, PriceSource
-from src.pricing.orm.market_data import StockPrice
+from src.portfolio.base.errors import (
+    AssetNotFoundError,
+    InsufficientDataError,
+    PerformanceError,
+    PortfolioNotFoundError,
+)
+from src.portfolio.extension import allocation, performance
+from src.portfolio.extension.holdings import portfolio_service
+from src.pricing import StockPrice, convert_money
 from src.schemas.portfolio import (
     HoldingResponse,
     InvestmentPerformanceAllocationRow,
@@ -29,10 +41,6 @@ from src.schemas.portfolio import (
     InvestmentPerformanceHoldingRow,
     InvestmentPerformanceReportScheduleResponse,
 )
-from src.services import allocation, performance
-from src.services.fx import convert_money
-from src.services.performance import InsufficientDataError, PerformanceError
-from src.services.portfolio import AssetNotFoundError, PortfolioNotFoundError, portfolio_service
 
 
 def _percent(value: Decimal | None) -> Decimal | None:
@@ -65,8 +73,8 @@ def _freshness_link(asset_identifier: str, source_kind: str, source_id: object, 
 
 
 async def _report_preparation_holdings(
-    db: DbSession,
-    user_id: CurrentUserId,
+    db: AsyncSession,
+    user_id: UUID,
     as_of_date: date,
 ) -> list[HoldingResponse]:
     """Load current holdings only when post-period manual prices evidence report preparation."""
@@ -98,8 +106,8 @@ async def _report_preparation_holdings(
 
 
 async def build_investment_performance_report_schedule(
-    db: DbSession,
-    user_id: CurrentUserId,
+    db: AsyncSession,
+    user_id: UUID,
     *,
     period_start: date,
     period_end: date,

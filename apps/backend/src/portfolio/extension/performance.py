@@ -1,4 +1,9 @@
-"""Portfolio performance metrics service - XIRR, TWR, MWR calculations."""
+"""Portfolio performance metrics service - XIRR, TWR, MWR calculations.
+
+Moved from ``services/performance.py`` (#1643, standard-preserving move):
+the error classes now live in ``base/errors.py`` and FX conversion goes
+through ``pricing``'s published ``convert_amount``.
+"""
 
 from datetime import date, timedelta
 from decimal import Decimal, localcontext
@@ -7,33 +12,19 @@ from uuid import UUID
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import src.config
 from src.audit.ratio import Ratio
-from src.config import settings
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
 from src.models.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
 from src.observability import get_logger
-from src.services import fx
+from src.portfolio.base.errors import InsufficientDataError, XIRRCalculationError
+from src.pricing import convert_amount
+
+# Bound from the bare published root (config publishes no named symbols).
+settings = src.config.settings
 
 logger = get_logger(__name__)
-
-
-class PerformanceError(Exception):
-    """Base exception for performance calculation errors."""
-
-    pass
-
-
-class InsufficientDataError(PerformanceError):
-    """Raised when insufficient data for performance calculation."""
-
-    pass
-
-
-class XIRRCalculationError(PerformanceError):
-    """Raised when XIRR calculation fails to converge."""
-
-    pass
 
 
 async def batch_latest_atomic_positions(
@@ -132,7 +123,7 @@ async def calculate_xirr(
     # Convert transactions to cash flows using XIRR convention:
     # BUY = negative investor cash outflow; SELL/DIVIDEND = positive inflow.
     for txn in transactions:
-        amount_base = await fx.convert_amount(
+        amount_base = await convert_amount(
             db,
             txn.gross_amount,
             txn.currency,
@@ -160,7 +151,7 @@ async def calculate_xirr(
     for pos in positions:
         atomic = atomic_map.get(pos.asset_identifier)
         if atomic:
-            value_base = await fx.convert_amount(
+            value_base = await convert_amount(
                 db,
                 atomic.market_value or Decimal("0"),
                 atomic.currency,
@@ -332,7 +323,7 @@ async def calculate_time_weighted_return(
 
     net_cash_flow = Decimal("0")
     for txn in transactions:
-        amount_base = await fx.convert_amount(
+        amount_base = await convert_amount(
             db,
             txn.gross_amount,
             txn.currency,
@@ -407,7 +398,7 @@ async def calculate_dividend_yield(
 
     annual_dividends = Decimal("0")
     for dividend in dividends:
-        annual_dividends += await fx.convert_amount(
+        annual_dividends += await convert_amount(
             db,
             dividend.amount,
             dividend.currency,
@@ -459,7 +450,7 @@ async def _get_portfolio_value(
     for pos in positions:
         atomic = atomic_map.get(pos.asset_identifier)
         if atomic:
-            value_base = await fx.convert_amount(
+            value_base = await convert_amount(
                 db,
                 atomic.market_value or Decimal("0"),
                 atomic.currency,
