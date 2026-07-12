@@ -84,6 +84,11 @@ class BalanceSheetResponse(BaseModel):
     unrealized_fx_gain_loss: Decimal = Decimal("0.00")
     net_worth_adjustment_gain_loss: Decimal = Decimal("0.00")
     fx_warnings: list[dict[str, str]] = Field(default_factory=list)
+    # Point-in-time gap (#1791 follow-up): non-empty when a portfolio position
+    # was excluded from total_assets because no price snapshot exists on or
+    # before as_of_date -- the total is still accurate, just possibly
+    # incomplete for a position with a data gap at this historical date.
+    portfolio_warnings: list[dict[str, str]] = Field(default_factory=list)
     # Opening-balance gate (AC2.16.4 / #1481): non-empty when activity exists with
     # no recorded opening balance; the total then reflects only period movement and
     # confidence_tier is degraded to LOW.
@@ -198,6 +203,10 @@ class NetWorthAllocationResponse(BaseModel):
     )
     opening_balance_warnings: list[dict[str, str]] = Field(
         default_factory=list, description="Non-empty when activity exists without a recorded opening balance."
+    )
+    portfolio_warnings: list[dict[str, str]] = Field(
+        default_factory=list,
+        description="Same portfolio point-in-time gaps as the balance sheet (#1791 follow-up).",
     )
 
 

@@ -132,6 +132,35 @@ the auditable cost-basis trail when structured brokerage transactions
 exist; snapshot-only imports fall back to market value as the cost-basis
 proxy.
 
+**Two independent temporal questions, both point-in-time (#1791)** — a
+historical `as_of_date` query about a position must answer two separate
+questions, and getting either one wrong produces a silently wrong total
+rather than an error:
+
+1. *Was it held on that date?* `ManagedPosition.acquisition_date` /
+   `disposal_date` are the position's own validity interval — held for
+   `as_of_date` iff `acquisition_date <= as_of_date < disposal_date` (or
+   `disposal_date IS NULL`). `acquisition_date` is stamped from the
+   *importing* statement's own snapshot date (`reconcile_positions`,
+   `positions.py`), not a user-entered purchase date — so a position
+   imported today has `acquisition_date = today` regardless of when the
+   underlying shares were actually bought. Querying `as_of_date` before
+   that carries no ownership claim at all, by design: reporting cannot
+   assert a holding existed before the evidence for it does.
+2. *Do we have a price for it as of that date?* Independent of (1) — see
+   `AtomicPosition` snapshot lookup above. A position can be correctly
+   "held" (question 1: yes) yet have no eligible price snapshot (question
+   2: no), e.g. a resync happened after the requested date.
+
+Querying by *current* `ManagedPosition.status` instead of question 1's
+interval is the same class of bug either way it's missed: a position
+disposed after `as_of_date` was still held on it and must count; a
+position not yet acquired as of `as_of_date` must not, even if it is
+`ACTIVE` today. `reporting`'s balance sheet and `portfolio`'s own
+`performance.py` (XIRR/TWR/dividend yield) both had this bug at different
+times — check any *new* `as_of_date`-parameterized query against both
+questions before assuming a current-status filter is equivalent.
+
 **Investment accounting pipeline** (posted through
 `InvestmentAccountingService`): Buy — debit the investment asset account,
 credit brokerage cash, create an `InvestmentTransaction` + `InvestmentLot`,

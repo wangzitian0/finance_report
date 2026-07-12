@@ -1563,6 +1563,23 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        ACRecord(
+            id="AC-portfolio.metrics.5",
+            statement=(
+                "A position's contribution to XIRR/TWR/dividend-yield portfolio "
+                "value as of a historical date is decided by whether it was held "
+                "on that date (point-in-time, via its snapshot quantity), not by "
+                "ManagedPosition.status which reflects today -- a position "
+                "disposed after the requested date still counts."
+            ),
+            test=(
+                "apps/backend/tests/portfolio/test_performance_service.py"
+                "::test_AC5_6_3_dividend_yield_counts_position_disposed_after_as_of_date"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
         # ── group schedule-fallback: mixed-currency schedule fallback (was
         # EPIC-019 AC19.8.8's portfolio share — the readiness-FX and Playwright
         # shares stay in EPIC-019; migration closeout continuation,

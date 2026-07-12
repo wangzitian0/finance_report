@@ -609,6 +609,23 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        ACRecord(
+            id="AC-reporting.balance-sheet.5",
+            statement=(
+                "A historical as_of_date balance sheet excludes a portfolio position "
+                "whose ManagedPosition.acquisition_date postdates that as_of_date "
+                "(consistent with portfolio's documented point-in-time holdings rule: "
+                "future snapshots are never used); the same position appears once "
+                "as_of_date reaches its acquisition_date."
+            ),
+            test=(
+                "tests/e2e/test_personal_financial_report_package.py"
+                "::test_personal_financial_report_package_post_merge_journey"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
         # ── group income-statement (was EPIC-005 AC5.2.1-3, migration
         # closeout continuation, #1663 / #1716) ──
         ACRecord(

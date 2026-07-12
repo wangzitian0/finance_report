@@ -796,7 +796,16 @@ async def test_personal_financial_report_package_post_merge_journey(
 
         expected_bank_cash = expected.bank_cash
         expected_manual_assets = expected.manual_asset_total
-        expected_assets = expected.total_assets(brokerage_value)
+        # AC-reporting.balance-sheet.5 (#1791): the brokerage position's own
+        # ManagedPosition.acquisition_date is stamped from the statement's
+        # snapshot date (today, since the moomoo PDF fixture is generated
+        # fresh on every run) -- so as of fixture_period_end (a fixed
+        # historical date from the bank CSV, always earlier), this position
+        # was not yet "acquired" per the ledger's own bookkeeping. A
+        # historical balance sheet correctly excludes it
+        # (common/portfolio/readme.md: "future snapshots are never used");
+        # brokerage inclusion is verified separately below at as_of_date=today.
+        expected_assets = expected.total_assets(Decimal("0.00"))
         expected_liabilities = expected.manual_liability_total
         expected_net_worth_adjustment = expected.net_worth_adjustment_gain_loss
 
@@ -833,6 +842,29 @@ async def test_personal_financial_report_package_post_merge_journey(
         assert _line_total(balance["assets"]) == money_amount(balance["total_assets"])
         assert _line_total(balance["liabilities"]) == money_amount(
             balance["total_liabilities"]
+        )
+
+        # AC-reporting.balance-sheet.5 (#1791): a *current* balance sheet (as_of
+        # today, on/after the position's own acquisition_date) must include the
+        # brokerage position's market value -- the historical check above only
+        # proves correct exclusion, not that inclusion ever actually happens.
+        current_balance_payload = await client.get(
+            _api_url(
+                f"/reports/balance-sheet?as_of_date={date.today().isoformat()}&currency=SGD&include_restricted=true"
+            )
+        )
+        assert current_balance_payload.status_code == 200, (
+            f"current balance sheet failed: {current_balance_payload.status_code} "
+            f"{current_balance_payload.text}"
+        )
+        current_balance = current_balance_payload.json()
+        expected_current_assets = expected.total_assets(brokerage_value)
+        assert money_amount(current_balance["total_assets"]) == expected_current_assets
+        assert money_amount(current_balance["total_assets"]) > money_amount(
+            balance["total_assets"]
+        ), (
+            "current balance sheet should exceed the historical one by the "
+            "brokerage position's market value"
         )
 
         income_payload = await client.get(

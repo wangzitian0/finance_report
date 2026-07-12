@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.unit_price import UnitPrice
@@ -16,13 +16,13 @@ from src.ledger import Account, AccountType
 from src.models.layer3 import (
     ManagedPosition,
     ManualValuationLiquidityClass,
-    PositionStatus,
 )
 from src.observability import get_logger
 from src.portfolio import AssetNotFoundError, PortfolioService
 from src.pricing import PricingError
 from src.reporting.extension import fx_gateway
 from src.reporting.extension._core import REPORTING_QUANTITY_UNIT, _single_source_currency
+from src.reporting.extension.fx_gateway import FxWarning
 from src.reporting.extension.reporting_calc import (
     ReportError,
     _quantize_money,
@@ -37,6 +37,7 @@ async def _portfolio_market_basis_by_account(
     *,
     as_of_date: date,
     target_currency: str,
+    warnings: list[FxWarning] | None = None,
 ) -> dict[UUID, dict[str, Any]]:
     """Return converted portfolio market/cost-basis totals by broker account."""
     portfolio_service = PortfolioService()
@@ -44,11 +45,22 @@ async def _portfolio_market_basis_by_account(
     if as_of_date == date.today():
         portfolio_eval_date = await portfolio_service._default_holdings_eval_date(db, user_id)
 
+    # Point-in-time (#1791 follow-up): a position's *current* status reflects
+    # today, not portfolio_eval_date -- a position bought before and disposed
+    # after this date was still held on it and must count. acquisition_date/
+    # disposal_date are ManagedPosition's own validity interval, so query that
+    # directly instead of the current status flag.
     result = await db.execute(
         select(ManagedPosition, Account)
         .join(Account, ManagedPosition.account_id == Account.id)
         .where(ManagedPosition.user_id == user_id)
-        .where(ManagedPosition.status == PositionStatus.ACTIVE)
+        .where(ManagedPosition.acquisition_date <= portfolio_eval_date)
+        .where(
+            or_(
+                ManagedPosition.disposal_date.is_(None),
+                ManagedPosition.disposal_date > portfolio_eval_date,
+            )
+        )
         .where(Account.user_id == user_id)
         .where(Account.is_active.is_(True))
     )
@@ -65,6 +77,19 @@ async def _portfolio_market_basis_by_account(
                 asset_identifier=position.asset_identifier,
                 as_of_date=portfolio_eval_date.isoformat(),
             )
+            if warnings is not None:
+                warnings.append(
+                    {
+                        "type": "missing_portfolio_price_as_of_date",
+                        "asset_identifier": position.asset_identifier,
+                        "account_id": str(position.account_id),
+                        "as_of_date": portfolio_eval_date.isoformat(),
+                        "message": (
+                            f"No price data available for {position.asset_identifier} on or "
+                            f"before {portfolio_eval_date.isoformat()}; excluded from this total."
+                        ),
+                    }
+                )
             continue
         except PricingError as exc:
             # An FX miss inside the price lookup is a report-blocking condition,
@@ -111,6 +136,7 @@ async def _build_portfolio_market_adjustment_lines(
     as_of_date: date,
     target_currency: str,
     asset_lines: Sequence[dict[str, Any]],
+    warnings: list[FxWarning] | None = None,
 ) -> list[dict[str, Any]]:
     """Build market-value adjustment lines for active portfolio positions.
 
@@ -126,6 +152,7 @@ async def _build_portfolio_market_adjustment_lines(
         user_id,
         as_of_date=as_of_date,
         target_currency=target_currency,
+        warnings=warnings,
     )
 
     adjustment_lines: list[dict[str, Any]] = []
