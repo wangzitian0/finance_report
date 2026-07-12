@@ -99,7 +99,7 @@ def _require(value: Any, registrar: str) -> Any:
         raise RuntimeError(
             f"advisor.extension.app_reads.{registrar}() was never called — the "
             "composition root (src/main.py) wires the real providers at startup; "
-            "tests wire them via the autouse fixture in tests/conftest.py."
+            "tests wire them via the autouse fixture in apps/backend/tests/conftest.py."
         )
     return value
 

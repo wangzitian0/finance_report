@@ -13,13 +13,14 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from decimal import Decimal
+from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
 from src.advisor.extension import app_reads
 from src.audit import normalize_currency_code, to_money
-from src.deps import CurrentUserId, DbSession
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.models.layer3 import (
@@ -40,8 +41,8 @@ settings = src.config.settings
 
 
 async def generate_annualized_income_schedule(
-    db: DbSession,
-    user_id: CurrentUserId,
+    db: AsyncSession,
+    user_id: UUID,
     *,
     as_of_date: date | None = None,
 ) -> AnnualizedIncomeScheduleResponse:
