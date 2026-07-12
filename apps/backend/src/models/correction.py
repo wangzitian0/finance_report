@@ -11,7 +11,6 @@ from src.database import Base
 from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 if TYPE_CHECKING:
-    from src.ledger import Account
     from src.models.layer2 import AtomicTransaction
 
 
@@ -60,15 +59,8 @@ class CorrectionLog(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         comment="Cached transaction description for few-shot prompt building",
     )
 
-    # Relationships
+    # Intra-family navigation only; the ledger Account references above stay
+    # bare FK id columns — no cross-domain relationship() (#1675 D4).
     transaction: Mapped["AtomicTransaction"] = relationship(
         "AtomicTransaction",
-    )
-    original_account: Mapped["Account | None"] = relationship(
-        "Account",
-        foreign_keys=[original_account_id],
-    )
-    corrected_account: Mapped["Account | None"] = relationship(
-        "Account",
-        foreign_keys=[corrected_account_id],
     )

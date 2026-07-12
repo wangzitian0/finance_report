@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from sqlalchemy import select
 
+from src.models.account import Account
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
 from src.portfolio import PositionService
@@ -46,7 +47,9 @@ class TestPositionService:
         assert pos.asset_identifier == "AAPL"
         assert pos.quantity == Decimal("10.0")
         assert pos.status == PositionStatus.ACTIVE
-        assert pos.account.name == "Moomoo"
+        # account_id is a bare FK column (#1675 D4): resolve the name explicitly.
+        account_name = await db.scalar(select(Account.name).where(Account.id == pos.account_id))
+        assert account_name == "Moomoo"
 
     async def test_reconcile_updates_position(self, db, test_user):
         """AC-portfolio.reconcile.2: AC11.1.2: Test that reconciling updates existing position quantity."""
@@ -234,8 +237,8 @@ class TestPositionService:
 
         positions, _ = await service.get_positions(db, test_user.id)
         assert len(positions) == 2
-        brokers = {p.account.name for p in positions}
-        assert brokers == {"Moomoo", "Interactive Brokers"}
+        broker_rows = await db.execute(select(Account.name).where(Account.id.in_({p.account_id for p in positions})))
+        assert set(broker_rows.scalars()) == {"Moomoo", "Interactive Brokers"}
 
     async def test_reconcile_with_null_broker(self, db, test_user):
         """AC-portfolio.reconcile.7: AC11.1.7: Test handling of null broker name."""
@@ -259,7 +262,8 @@ class TestPositionService:
 
         positions, _ = await service.get_positions(db, test_user.id)
         assert len(positions) == 1
-        assert positions[0].account.name == "Unknown Broker"
+        account_name = await db.scalar(select(Account.name).where(Account.id == positions[0].account_id))
+        assert account_name == "Unknown Broker"
 
     async def test_reconcile_reactivates_disposed_position(self, db, test_user):
         """AC-portfolio.reconcile.8: AC11.1.8: Test that disposed position can be reactivated."""

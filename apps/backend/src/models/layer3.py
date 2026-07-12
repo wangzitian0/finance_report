@@ -34,8 +34,6 @@ from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 POSITION_QUANTITY_UNIT = "units"
 
 if TYPE_CHECKING:
-    from src.identity import User
-    from src.ledger import Account
     from src.models.layer2 import AtomicTransaction
 
 
@@ -91,14 +89,14 @@ class ClassificationRule(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         nullable=True,
     )
 
+    # Cross-domain references are bare FK id columns only (#1675 D4): ledger's
+    # Account (default_account_id above) and identity's User (created_by) are
+    # resolved via explicit queries, never relationship() navigation.
     created_by: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
-
-    default_account: Mapped["Account"] = relationship("Account")
-    author: Mapped["User"] = relationship("User", foreign_keys=[created_by])
 
 
 class TransactionClassification(Base, UUIDMixin, TimestampMixin):
@@ -148,9 +146,9 @@ class TransactionClassification(Base, UUIDMixin, TimestampMixin):
         nullable=True,
     )
 
+    # Intra-family navigation stays; the ledger Account is id-only (#1675 D4).
     atomic_transaction: Mapped["AtomicTransaction"] = relationship("AtomicTransaction")
     rule_version: Mapped["ClassificationRule"] = relationship("ClassificationRule")
-    account: Mapped["Account"] = relationship("Account")
 
 
 class PositionStatus(str, Enum):
@@ -238,7 +236,8 @@ class ManagedPosition(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
 
     position_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
-    account: Mapped["Account"] = relationship("Account")
+    # No relationship() to ledger's Account (#1675 D4): consumers resolve
+    # account_id via an explicit query (see portfolio/extension/holdings.py).
 
     # ── typed read accessors (the ORM→business boundary, #3) ────────────────
     # Business code reads these and stays in value types; the raw Decimal columns

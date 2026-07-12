@@ -14,7 +14,6 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from src.audit.money import Money, to_money
 from src.audit.money.currency import normalize_currency_code
@@ -75,7 +74,6 @@ class PositionService:
             select(ManagedPosition)
             .where(ManagedPosition.id == position_id)
             .where(ManagedPosition.user_id == user_id)
-            .options(selectinload(ManagedPosition.account))
         )
         result = await db.execute(query)
         return result.scalar_one_or_none()
@@ -92,7 +90,6 @@ class PositionService:
         query = (
             select(ManagedPosition)
             .where(ManagedPosition.user_id == user_id)
-            .options(selectinload(ManagedPosition.account))
             .order_by(ManagedPosition.asset_identifier)
         )
 
