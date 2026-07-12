@@ -409,8 +409,10 @@ For each review thread the gate inspects the **first comment**:
     (case-insensitive), OR
   - the first comment is **Copilot-authored** (`author.login` in
     `copilot`, `github-copilot[bot]`,
-    `copilot-pull-request-reviewer[bot]`) AND the body is **not** explicitly
-    marked a lower severity (it does not contain `P2`, `P3`, or `nit`).
+    `copilot-pull-request-reviewer` — the actual login the GraphQL API
+    returns today, no `[bot]` suffix — or `copilot-pull-request-reviewer[bot]`)
+    AND the body is **not** explicitly marked a lower severity (it does not
+    contain `P2`, `P3`, or `nit`).
 - Every other thread is **lower severity**.
 
 ### Decision

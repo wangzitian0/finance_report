@@ -705,6 +705,23 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        ACRecord(
+            id="AC-testing.review-threads.4",
+            statement=(
+                "A Copilot thread classifies as blocking using the real "
+                "author.login the GraphQL reviewThreads API actually returns "
+                '("copilot-pull-request-reviewer", no "[bot]" suffix) -- '
+                'not only a synthetic "[bot]"-suffixed fixture value '
+                "(2026-07-12 regression: this mismatch let every real "
+                "Copilot thread silently classify as non-blocking)."
+            ),
+            test=(
+                "tests/tooling/test_check_pr_review_threads.py"
+                "::test_copilot_thread_real_login_without_bot_suffix_is_blocking"
+            ),
+            priority="P0",
+            status="done",
+        ),
         # ── group seeded-journey: seeded no-LLM statement journey (was
         # EPIC-008 AC8.21), migration closeout, #1663 / #1718 ──
         ACRecord(
