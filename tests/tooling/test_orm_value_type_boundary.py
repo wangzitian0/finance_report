@@ -43,7 +43,7 @@ def _read(path: str) -> str:
 )
 def test_AC12_35_1_managed_position_exposes_typed_accessors():
     """AC-audit.35.1: ManagedPosition exposes Money/Quantity read accessors at the ORM boundary."""
-    src = _read("apps/backend/src/models/layer3.py")
+    src = _read("apps/backend/src/extraction/orm/layer3.py")
     assert "from src.audit.money import Money" in src
     assert "from src.audit.quantity import Quantity" in src
     for accessor in (

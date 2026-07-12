@@ -94,7 +94,7 @@ consumer-wiring cutover — a manual valuation becomes a high-authority
 observation. This section describes the shipped behavior in the meantime.)*
 
 Manual snapshots (`ManualValuationSnapshot`, `manual_valuation_snapshots`
-table, `apps/backend/src/models/layer3.py`) cover property value,
+table, `apps/backend/src/extraction/orm/layer3.py`, #1675 D5c) cover property value,
 mortgage/loan balance, CPF/provident fund balances, retirement accounts,
 personal social-security account balances, long-term benefit assets,
 legacy long-term savings, tax payable/refund, insurance cash value, ESOP,

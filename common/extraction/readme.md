@@ -491,7 +491,8 @@ Coverage checks compare monthly statement periods within each account/currency:
 
 | File | Purpose |
 |------|---------|
-| `src/models/statement_enums.py`, `src/models/statement_summary.py` | SQLAlchemy models and enums |
+| `src/extraction/orm/` (`layer1.py`-`layer4.py`, `evidence.py`, `correction.py`) | Package-owned SQLAlchemy fact family (#1675 D5c); cross-domain references are bare FK id columns, never `relationship()` |
+| `src/models/statement_enums.py`, `src/models/statement_summary.py` | Statement envelope model and enums (still in the unregistered `src/models/` until their platform/ledger/identity readers are inverted — #1675 D5c notes) |
 | `src/schemas/extraction.py` | Pydantic schemas |
 | `src/extraction/extension/` (`service.py`, `_ocr.py`, `_llm_led_gate.py`, …) | Core extraction logic |
 | `src/extraction/base/validation.py` | Validation, confidence scoring, running-balance chain-break detector (`detect_balance_chain_break`) |

@@ -199,7 +199,8 @@ useful_life_years`) and double-declining balance
 
 **Data model** (mutable table/column/enum/index/FK inventory is generated
 from SQLAlchemy metadata — see the generated DB schema reference; models
-live in `apps/backend/src/models/layer3.py` and
+live in `apps/backend/src/extraction/orm/layer3.py` (extraction owns the
+fact family's ORM, #1675 D5c; portfolio imports the published entities) and
 `apps/backend/src/models/portfolio.py`):
 
 | Model | Table | Domain role |
