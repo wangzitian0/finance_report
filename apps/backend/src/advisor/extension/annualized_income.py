@@ -1,21 +1,27 @@
 """Annualized income & long-term compensation schedule generation.
 
 Computes the trailing-12-month annualized income buckets and restricted
-compensation holdings for the personal report package. Extracted from the
-reports router route so it is reusable by snapshot assembly; behavior unchanged.
+compensation holdings for the personal report package.  Moved from
+``src/services/annualized_income.py`` (#1671 Wave B, per the #1416
+disposition table); behavior unchanged.  The income bucket classifier is
+published by ``src.reporting`` (folded from ``services/reporting_calc.py``
+by #1666 while this PR was in flight); the windowed FX conversion still
+lives in the app remainder (``services/fx.py``), so it is injected through
+:mod:`src.advisor.extension.app_reads` until #1610 publishes it.
 """
 
 from __future__ import annotations
 
 from datetime import date, timedelta
 from decimal import Decimal
+from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit.money import to_money
-from src.audit.money.currency import normalize_currency_code
-from src.config import settings
-from src.deps import CurrentUserId, DbSession
+import src.config
+from src.advisor.extension import app_reads
+from src.audit import normalize_currency_code, to_money
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.models.layer3 import (
     ManualValuationComponentType,
@@ -23,23 +29,28 @@ from src.models.layer3 import (
     ManualValuationSnapshot,
 )
 from src.platform import raise_bad_request
+from src.reporting import income_bucket
 from src.schemas import (
     AnnualizedIncomeScheduleHolding,
     AnnualizedIncomeScheduleIncome,
     AnnualizedIncomeScheduleNetWorthTreatment,
     AnnualizedIncomeScheduleResponse,
 )
-from src.services.fx import FxRateError, convert_amount
-from src.services.reporting_calc import income_bucket
+
+# Bound from the bare published root (config publishes no named symbols).
+settings = src.config.settings
 
 
 async def generate_annualized_income_schedule(
-    db: DbSession,
-    user_id: CurrentUserId,
+    db: AsyncSession,
+    user_id: UUID,
     *,
     as_of_date: date | None = None,
 ) -> AnnualizedIncomeScheduleResponse:
     """Return report-ready annualized income and restricted compensation schedule."""
+    convert_amount = app_reads.convert_amount()
+    fx_error = app_reads.fx_error()
+
     report_date = as_of_date or date.today()
     start_date = report_date - timedelta(days=365)
     income_result = await db.execute(
@@ -78,7 +89,7 @@ async def generate_annualized_income_schedule(
                 average_end=report_date,
                 lazy_load=True,
             )
-        except FxRateError as exc:
+        except fx_error as exc:
             raise_bad_request(str(exc), cause=exc)
         bucket = income_bucket(account.name)
         if bucket:
@@ -130,7 +141,7 @@ async def generate_annualized_income_schedule(
                 rate_date=report_date,
                 lazy_load=True,
             )
-        except FxRateError as exc:
+        except fx_error as exc:
             raise_bad_request(str(exc), cause=exc)
     restricted_total = to_money(restricted_total)
 

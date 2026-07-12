@@ -18,12 +18,30 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.advisor import (
+    DISCLAIMER_EN,
+    AIAdvisorError,
+    AIAdvisorService,
+    ResponseCache,
+    StreamRedactor,
+    build_refusal,
+    detect_language,
+    ensure_disclaimer,
+    estimate_tokens,
+    get_ai_advisor_prompt,
+    is_non_financial,
+    is_prompt_injection,
+    is_sensitive_request,
+    is_write_request,
+    normalize_question,
+    redact_sensitive,
+)
+from src.advisor.extension import service as ai_advisor_service
+from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 from src.audit import JournalEntrySourceType
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.llm import AIStreamError
-from src.models.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.prompts.ai_advisor import DISCLAIMER_EN, get_ai_advisor_prompt
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.reporting import ReportError
 from src.schemas.workflow import (
@@ -34,23 +52,6 @@ from src.schemas.workflow import (
     WorkflowReportReadinessResponse,
     WorkflowReportReadinessState,
     WorkflowStatusResponse,
-)
-from src.services.ai_advisor import (
-    AIAdvisorError,
-    AIAdvisorService,
-    ResponseCache,
-    StreamRedactor,
-    build_refusal,
-    detect_language,
-    ensure_disclaimer,
-    estimate_tokens,
-    is_non_financial,
-    is_prompt_injection,
-    is_sensitive_request,
-    is_write_request,
-    normalize_question,
-    redact_sensitive,
-    service as ai_advisor_service,
 )
 from tests.factories import UserFactory
 
@@ -1031,7 +1032,7 @@ async def test_stream_model_yields_chunks(monkeypatch: pytest.MonkeyPatch) -> No
         yield "chunk-a"
         yield "chunk-b"
 
-    import src.services.ai_advisor.service as _mod
+    import src.advisor.extension.service as _mod
 
     monkeypatch.setattr(_mod, "stream_ai_chat", fake_stream_ai_chat)
 

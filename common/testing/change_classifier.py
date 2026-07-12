@@ -227,7 +227,9 @@ STAGING_AI_OCR_EXACT = frozenset(
     }
 )
 STAGING_AI_OCR_PREFIXES = (
-    "apps/backend/src/services/ai",
+    # The advisor package carved out of services/ai_advisor (#1671 Wave B);
+    # its chat path is provider-backed, so it stays a staging AI-OCR trigger.
+    "apps/backend/src/advisor",
     "apps/backend/src/extraction",
     "apps/backend/src/services/statement",
     "apps/backend/src/routers/ai",

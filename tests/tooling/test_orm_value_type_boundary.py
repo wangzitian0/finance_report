@@ -211,7 +211,7 @@ def test_AC12_38_2_balance_core_sums_money():
 def test_AC12_38_3_annualized_income_reads_line_money():
     """AC-audit.38.3: annualized income reads `line.money` (single SSOT) instead of the
     per-site `line.currency or account.currency or target` fallback."""
-    src = _read("apps/backend/src/services/annualized_income.py")
+    src = _read("apps/backend/src/advisor/extension/annualized_income.py")
     assert "line.money" in src
     assert "or account.currency or" not in src
 

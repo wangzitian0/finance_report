@@ -23,6 +23,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 # can resolve cross-module string relationships (replaces the former
 # ``from src.models import ...`` hub side effect; issue #1461).
 import src.models._registry  # noqa: E402, F401
+from src.advisor import register_fx_conversion, register_fx_pairs_read
 from src.boot import Bootloader, BootMode
 from src.config import settings
 from src.database import async_session_maker, engine, get_db, init_db
@@ -104,7 +105,7 @@ from src.services.fx import (
     get_average_rate,
     get_exchange_rate,
 )
-from src.services.market_data_scheduler import run_market_data_scheduler
+from src.services.market_data_scheduler import observed_fx_pairs, run_market_data_scheduler
 from src.services.reporting.manual_valuation import _build_manual_valuation_lines
 
 # Initialize logging early
@@ -118,6 +119,17 @@ logger = get_logger(__name__)
 # composition root does it once here, same shape as the eager model
 # registration above.
 register_readiness_provider(get_personal_report_package_readiness)
+
+# Wire the advisor's app-remainder read ports (#1671 Wave B): the advisor is a
+# carved package and must not import services/* itself. #1666 folded the
+# reporting summaries + readiness reads into the published src.reporting root
+# while this PR was in flight (advisor now imports those directly, no port
+# needed); the fx-pair composer's owner is still the app remainder
+# (services/market_data_scheduler.py, #1610), so it is injected here, the same
+# inversion as the platform port above. Collapses into a direct published-root
+# import once #1610 lands.
+register_fx_pairs_read(observed_fx_pairs)
+register_fx_conversion(convert_amount=convert_amount, error_type=FxRateError)
 
 # Wire reporting's FX seam and manual-valuation lines port (#1666): reporting
 # (L3) must not import the services/ app remainder, but the FX conversion

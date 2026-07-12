@@ -19,7 +19,6 @@ PROJECT_ROOT = Path(__file__).resolve().parents[4]
 SERVICE_ROOT = PROJECT_ROOT / "apps" / "backend" / "src" / "services"
 
 ALLOWED_SERVICE_COMMIT_BOUNDARIES = {
-    ("ai_advisor/service.py", "AIAdvisorService._stream_and_store"),
     ("market_data_scheduler.py", "run_daily_market_data_sync"),
     ("statement_parsing.py", "handle_parse_failure"),
     ("statement_parsing.py", "route_brokerage_for_review_if_present"),

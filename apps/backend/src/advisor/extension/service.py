@@ -1,4 +1,13 @@
-"""AIAdvisorService + chat stream/error types."""
+"""AIAdvisorService + chat stream/error types.
+
+Moved from ``src/services/ai_advisor/service.py`` (#1671 Wave B).  Cross-domain
+reads go through each package's published root (``platform`` / ``portfolio`` /
+``pricing`` / ``reconciliation`` / ``llm`` / ``audit`` / ``reporting`` — the
+last landed via #1666, folded from the app remainder while this PR was in
+flight); the observed-FX-pair composer's owner is still the app remainder
+(``services/market_data_scheduler.py``, #1610), so it is injected through
+:mod:`src.advisor.extension.app_reads`.
+"""
 
 from __future__ import annotations
 
@@ -17,27 +26,13 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit.money import to_money
-from src.config import settings
-from src.ledger import AccountType
-from src.llm import ReasoningEffort, Scene, SceneBinding, get_config_source, stream_ai_chat
-from src.models.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
-from src.platform import get_workflow_status
-from src.portfolio import PortfolioNotFoundError, PortfolioService, active_stock_symbols
-from src.pricing import MarketDataScopeStatus, get_market_data_status
-from src.prompts.ai_advisor import get_ai_advisor_prompt
-from src.reconciliation import get_reconciliation_stats
-from src.reporting import (
-    ReportError,
-    generate_balance_sheet,
-    generate_income_statement,
-    get_category_breakdown,
-    get_personal_report_package_readiness,
+import src.config
+from src.advisor.base.constants import (
+    CHAT_METADATA_SAFE_HREFS,
+    CONFIDENCE_WORST_ORDER,
+    MAX_CONTEXT_MESSAGES,
 )
-from src.schemas.chat import AdvisorSuggestion, ChatActionChip, ChatCitation, ChatResponseMetadata
-from src.services.ai_advisor._base import CHAT_METADATA_SAFE_HREFS, CONFIDENCE_WORST_ORDER, MAX_CONTEXT_MESSAGES, logger
-from src.services.ai_advisor._cache import _CACHE
-from src.services.ai_advisor._guardrails import (
+from src.advisor.base.guardrails import (
     StreamRedactor,
     build_refusal,
     detect_language,
@@ -50,7 +45,31 @@ from src.services.ai_advisor._guardrails import (
     normalize_question,
     redact_sensitive,
 )
-from src.services.market_data_scheduler import observed_fx_pairs
+from src.advisor.base.prompt import get_ai_advisor_prompt
+from src.advisor.extension import app_reads
+from src.advisor.extension.cache import _CACHE
+from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
+from src.audit import to_money
+from src.ledger import AccountType
+from src.llm import ReasoningEffort, Scene, SceneBinding, get_config_source, stream_ai_chat
+from src.observability import get_logger
+from src.platform import get_workflow_status
+from src.portfolio import PortfolioNotFoundError, PortfolioService, active_stock_symbols
+from src.pricing import MarketDataScopeStatus, get_market_data_status
+from src.reconciliation import get_reconciliation_stats
+from src.reporting import (
+    ReportError,
+    generate_balance_sheet,
+    generate_income_statement,
+    get_category_breakdown,
+    get_personal_report_package_readiness,
+)
+from src.schemas.chat import AdvisorSuggestion, ChatActionChip, ChatCitation, ChatResponseMetadata
+
+# Bound from the bare published root (config publishes no named symbols).
+settings = src.config.settings
+
+logger = get_logger("src.advisor")
 
 
 class AIAdvisorError(Exception):
@@ -330,7 +349,7 @@ class AIAdvisorService:
 
     async def _load_market_data_status(self, db: AsyncSession, user_id: UUID) -> dict[str, Any]:
         try:
-            fx_pairs = await observed_fx_pairs(db, user_id, include_default=True)
+            fx_pairs = await app_reads.fx_pairs()(db, user_id, include_default=True)
             stock_symbols = await active_stock_symbols(db, user_id)
             statuses = await get_market_data_status(db, pairs=fx_pairs, symbols=stock_symbols)
         except Exception as exc:
@@ -793,8 +812,8 @@ class AIAdvisorService:
         elif bound is not None:
             # No per-message override: prefer the user's configured advisor.chat
             # model (EPIC-023 AC23.4.5) so /settings/llm actually takes effect. The
-            # bound model is qualified (provider_id/model); ai_streaming resolves the
-            # exact provider from the qualifier.
+            # bound model is qualified (provider_id/model); the llm streaming
+            # transport resolves the exact provider from the qualifier.
             models = [bound.model_id, *models]
         last_error: Exception | None = None
 

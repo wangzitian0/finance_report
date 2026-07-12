@@ -1,12 +1,15 @@
-"""Prompt guardrails: language, injection/sensitive/non-financial checks, redaction, disclaimer."""
+"""Prompt guardrails: language, injection/sensitive/non-financial checks, redaction, disclaimer.
+
+Moved from ``src/services/ai_advisor/_guardrails.py`` (#1671 Wave B) — pure
+text predicates and transforms, no I/O, so they live in ``base/``.
+"""
 
 from __future__ import annotations
 
 import hashlib
 import re
 
-from src.prompts.ai_advisor import DISCLAIMER_EN
-from src.services.ai_advisor._base import (
+from src.advisor.base.constants import (
     DISCLAIMER_BY_LANG,
     INJECTION_PATTERNS,
     NON_FINANCIAL_PATTERNS,
@@ -14,6 +17,7 @@ from src.services.ai_advisor._base import (
     SENSITIVE_NUMBER_RE,
     SENSITIVE_PATTERNS,
 )
+from src.advisor.base.prompt import DISCLAIMER_EN
 
 
 def detect_language(message: str) -> str:

@@ -24,6 +24,7 @@ from __future__ import annotations
 
 # Packages that own their ORM (moved from here, #1675) register the mappers in
 # their root __init__; importing the published root is the whole side effect.
+import src.advisor  # noqa: F401,E402
 import src.extraction  # noqa: F401,E402
 
 # The identity package (User/AiFeedback) registers its ORM models onto
@@ -45,7 +46,6 @@ from src.observability import ConfidenceMetricSnapshot as _ConfidenceMetricSnaps
 # Imported purely for the metadata-registration side effect; ordering is
 # irrelevant because SQLAlchemy resolves relationships after all are loaded.
 from . import (  # noqa: F401
-    chat,
     correction,
     evidence,
     layer2,

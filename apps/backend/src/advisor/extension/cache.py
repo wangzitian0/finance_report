@@ -1,10 +1,15 @@
-"""Response cache (TTL) for advisor answers."""
+"""Response cache (TTL) for advisor answers.
+
+Moved from ``src/services/ai_advisor/_cache.py`` (#1671 Wave B).  A domain
+service (deterministic dedup by question + context hash + model), so it lives
+in ``extension/`` per the package model's kind table.
+"""
 
 from __future__ import annotations
 
 import time
 
-from src.services.ai_advisor._base import CACHE_TTL_SECONDS
+from src.advisor.base.constants import CACHE_TTL_SECONDS
 
 
 class ResponseCache:
