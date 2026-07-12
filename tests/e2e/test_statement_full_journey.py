@@ -165,9 +165,9 @@ async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> No
     # This avoids waiting the full PARSING_TIMEOUT_MS when the AI service fails.
     import asyncio
 
-    deadline = asyncio.get_event_loop().time() + PARSING_TIMEOUT_MS / 1000
+    deadline = asyncio.get_running_loop().time() + PARSING_TIMEOUT_MS / 1000
     last_statement: dict | None = None
-    while asyncio.get_event_loop().time() < deadline:
+    while asyncio.get_running_loop().time() < deadline:
         api_resp = await page.request.get(
             _get_url(f"/api/statements/{statement_id}"),
         )

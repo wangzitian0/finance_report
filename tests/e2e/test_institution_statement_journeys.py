@@ -111,9 +111,9 @@ async def _wait_for_parsed(
     both states count as success. The caller must branch on which one it got:
     an already-'approved' statement must not be posted again.
     """
-    deadline = asyncio.get_event_loop().time() + PARSING_TIMEOUT_MS / 1000
+    deadline = asyncio.get_running_loop().time() + PARSING_TIMEOUT_MS / 1000
     last_payload: dict | None = None
-    while asyncio.get_event_loop().time() < deadline:
+    while asyncio.get_running_loop().time() < deadline:
         response = await client.get(_api_url(f"/statements/{statement_id}"))
         assert response.status_code == 200, (
             f"statement poll failed for {statement_id}: {response.status_code} {response.text}"
