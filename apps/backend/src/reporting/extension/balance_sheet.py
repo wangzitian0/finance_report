@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.ledger import AccountType, RevaluationError, calculate_unrealized_fx_gains
 from src.observability import ErrorIds, get_logger
+from src.reporting.extension import fx_gateway
 from src.reporting.extension._core import (
     _aggregate_account_confidence_tiers,
     _aggregate_account_provenance,
@@ -22,7 +23,6 @@ from src.reporting.extension._core import (
     _load_accounts,
     _strip_allocation_metadata,
 )
-from src.reporting.extension import fx_gateway
 from src.reporting.extension.fx_gateway import FxWarning
 from src.reporting.extension.portfolio_market import _build_portfolio_market_adjustment_lines
 from src.reporting.extension.reporting_calc import (
