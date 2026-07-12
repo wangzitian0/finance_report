@@ -48,7 +48,13 @@ below for how that overlap is resolved.
 
 from __future__ import annotations
 
-from common.meta.package_contract import ACRecord, Invariant, Kind, PackageContract, Unit
+from common.meta.package_contract import (
+    ACRecord,
+    Invariant,
+    Kind,
+    PackageContract,
+    Unit,
+)
 
 CONTRACT = PackageContract(
     name="portfolio",
@@ -63,19 +69,38 @@ CONTRACT = PackageContract(
     units=[
         # ── base: real value objects — plain exceptions, no ORM references ──
         Unit(name="PortfolioError", kind=Kind.VALUE_OBJECT, module="base/errors.py"),
-        Unit(name="PortfolioNotFoundError", kind=Kind.VALUE_OBJECT, module="base/errors.py"),
-        Unit(name="InvalidDateRangeError", kind=Kind.VALUE_OBJECT, module="base/errors.py"),
-        Unit(name="AssetNotFoundError", kind=Kind.VALUE_OBJECT, module="base/errors.py"),
-        Unit(name="InvestmentAccountingError", kind=Kind.VALUE_OBJECT, module="base/errors.py"),
+        Unit(
+            name="PortfolioNotFoundError",
+            kind=Kind.VALUE_OBJECT,
+            module="base/errors.py",
+        ),
+        Unit(
+            name="InvalidDateRangeError",
+            kind=Kind.VALUE_OBJECT,
+            module="base/errors.py",
+        ),
+        Unit(
+            name="AssetNotFoundError", kind=Kind.VALUE_OBJECT, module="base/errors.py"
+        ),
+        Unit(
+            name="InvestmentAccountingError",
+            kind=Kind.VALUE_OBJECT,
+            module="base/errors.py",
+        ),
         Unit(
             name="InvestmentAccountingValidationError",
             kind=Kind.VALUE_OBJECT,
             module="base/errors.py",
         ),
-        # ── base (taxonomy-only): the ORM aggregate/entities, unregistered ──
-        # in src/models/ until Stage-4 cross-domain FK surgery (extraction/
-        # ledger precedent). No module= — the gate skips placement checks
-        # for these, same as extraction's AtomicTransaction/UploadedDocument.
+        # ── taxonomy-only ORM units (no module= — the gate skips placement
+        # checks, same as extraction's AtomicTransaction/UploadedDocument).
+        # InvestmentTransaction/InvestmentLot/DividendIncome + their enums now
+        # live in orm/portfolio.py (#1675 D5): cross-domain references
+        # (managed_positions, journal_entries) are bare FK columns; the former
+        # relationship() navigations were unused and removed per the
+        # 2026-07-11 ruling. ManagedPosition/AtomicPosition/PositionStatus/
+        # CostBasisMethod still live in the unregistered src/models/ remainder
+        # (layer3.py — extraction-bound, the parallel D4+D5c PR).
         Unit(name="ManagedPosition", kind=Kind.AGGREGATE_ROOT),
         Unit(name="InvestmentLot", kind=Kind.ENTITY),
         Unit(name="InvestmentTransaction", kind=Kind.ENTITY),
@@ -181,12 +206,17 @@ CONTRACT = PackageContract(
     interface=[
         "AssetNotFoundError",
         "DepreciationResult",
+        "DividendIncome",
+        "DividendType",
         "InsufficientDataError",
         "InvalidDateRangeError",
         "InvestmentAccountingError",
         "InvestmentAccountingResult",
         "InvestmentAccountingService",
         "InvestmentAccountingValidationError",
+        "InvestmentLot",
+        "InvestmentTransaction",
+        "InvestmentTransactionType",
         "PerformanceError",
         "PortfolioError",
         "PortfolioNotFoundError",

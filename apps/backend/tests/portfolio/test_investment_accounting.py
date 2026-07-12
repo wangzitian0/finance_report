@@ -11,8 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.ledger import Account, AccountType, Direction, JournalEntryStatus
 from src.models.layer3 import CostBasisMethod, PositionStatus
-from src.models.portfolio import DividendIncome, InvestmentLot, InvestmentTransaction
-from src.portfolio import InvestmentAccountingService, InvestmentAccountingValidationError
+from src.portfolio import (
+    DividendIncome,
+    InvestmentAccountingService,
+    InvestmentAccountingValidationError,
+    InvestmentLot,
+    InvestmentTransaction,
+)
 
 
 @pytest.fixture

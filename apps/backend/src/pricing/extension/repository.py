@@ -26,10 +26,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.layer3 import ManualValuationSnapshot
-from src.models.portfolio import MarketDataOverride
 from src.pricing.base.observation import Authority, ObservationSource, PriceObservation
 from src.pricing.base.subject import PriceableSubject, SubjectKind
 from src.pricing.orm.market_data import FxRate, StockPrice
+from src.pricing.orm.market_data_override import MarketDataOverride
 from src.pricing.orm.statement_observation import StatementPriceObservation
 
 

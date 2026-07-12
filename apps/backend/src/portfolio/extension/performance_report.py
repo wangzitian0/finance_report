@@ -24,7 +24,6 @@ from src.audit.money import Money, to_money
 from src.audit.ratio import Ratio
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
-from src.models.portfolio import MarketDataOverride, PriceSource
 from src.portfolio.base.errors import (
     AssetNotFoundError,
     InsufficientDataError,
@@ -33,7 +32,7 @@ from src.portfolio.base.errors import (
 )
 from src.portfolio.extension import allocation, performance
 from src.portfolio.extension.holdings import portfolio_service
-from src.pricing import StockPrice, convert_money
+from src.pricing import MarketDataOverride, PriceSource, StockPrice, convert_money
 from src.schemas.portfolio import (
     HoldingResponse,
     InvestmentPerformanceAllocationRow,

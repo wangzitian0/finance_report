@@ -9,13 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.ledger import Account, AccountType
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
-from src.models.portfolio import MarketDataOverride, PriceSource
 from src.portfolio import (
     AssetNotFoundError,
     InvalidDateRangeError,
     PortfolioNotFoundError,
     PortfolioService,
 )
+from src.pricing import MarketDataOverride, PriceSource
 from src.pricing.orm.market_data import FxRate
 from src.schemas.portfolio import PriceUpdateRequest
 from tests.factories import UserFactory

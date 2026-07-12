@@ -1,9 +1,18 @@
-"""Portfolio management models - investment accounting and market data."""
+"""Portfolio management models — investment accounting.
+
+Moved from ``src/models/portfolio.py`` (#1675 D5). Cross-domain references
+(``managed_positions`` — extraction-bound layer3 — and ledger's
+``journal_entries``) are bare ForeignKey **columns** only: the former
+``position`` / ``journal_entry`` ``relationship()`` navigations were unused
+and are removed per the 2026-07-11 ruling (object-graph navigation across
+domains is the coupling; the FK column is DB-level integrity). The
+``MarketDataOverride`` price-observation store moved to ``pricing`` (its
+domain owner), not here.
+"""
 
 from datetime import date
 from decimal import Decimal
 from enum import Enum
-from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import CheckConstraint, Date, Enum as SQLEnum, ForeignKey, Numeric, String
@@ -13,10 +22,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.database import Base
 from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 from src.models.layer3 import CostBasisMethod
-
-if TYPE_CHECKING:
-    from src.ledger import JournalEntry
-    from src.models.layer3 import ManagedPosition
 
 
 class InvestmentTransactionType(str, Enum):
@@ -84,8 +89,8 @@ class InvestmentTransaction(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         nullable=True,
     )
 
-    position: Mapped["ManagedPosition | None"] = relationship("ManagedPosition")
-    journal_entry: Mapped["JournalEntry | None"] = relationship("JournalEntry")
+    # No relationship() to ManagedPosition (extraction-bound) or JournalEntry
+    # (ledger): cross-domain references resolve by id (#1675 ruling).
 
 
 class InvestmentLot(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
@@ -126,7 +131,7 @@ class InvestmentLot(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     disposed_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
-    position: Mapped["ManagedPosition"] = relationship("ManagedPosition")
+    # No relationship() to ManagedPosition (extraction-bound): resolve by id.
     opening_transaction: Mapped[InvestmentTransaction] = relationship("InvestmentTransaction")
 
 
@@ -172,42 +177,3 @@ class DividendIncome(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<DividendIncome {self.payment_date} {self.amount} {self.currency}>"
-
-
-class PriceSource(str, Enum):
-    """Source of market price data."""
-
-    MANUAL = "manual"
-    API = "api"
-
-
-class MarketDataOverride(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
-    """
-    Manual price updates for portfolio valuation.
-
-    Users update prices every few months via UI. This table stores manual
-    price overrides that take precedence over API data.
-    """
-
-    __tablename__ = "market_data_override"
-    __table_args__ = (CheckConstraint("price > 0", name="ck_market_data_override_price_positive"),)
-
-    asset_identifier: Mapped[str] = mapped_column(String(100), nullable=False)
-    price_date: Mapped[date] = mapped_column(Date, nullable=False)
-    price: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False)
-
-    source: Mapped[PriceSource] = mapped_column(
-        SQLEnum(
-            PriceSource,
-            name="price_source_enum",
-            values_callable=lambda obj: [e.value for e in obj],
-        ),
-        nullable=False,
-        default=PriceSource.MANUAL,
-    )
-
-    # Relationship removed - user_id from UserOwnedMixin is sufficient for queries
-
-    def __repr__(self) -> str:
-        return f"<MarketDataOverride {self.asset_identifier} {self.price} on {self.price_date}>"

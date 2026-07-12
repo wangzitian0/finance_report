@@ -16,9 +16,9 @@ import src.config
 from src.audit.ratio import Ratio
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
-from src.models.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
 from src.observability import get_logger
 from src.portfolio.base.errors import InsufficientDataError, XIRRCalculationError
+from src.portfolio.orm.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
 from src.pricing import convert_amount
 
 # Bound from the bare published root (config publishes no named symbols).

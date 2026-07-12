@@ -13,8 +13,7 @@ from src.audit import JournalEntrySourceType
 from src.ledger import Account, AccountType
 from src.models.layer2 import AtomicPosition, AtomicTransaction, TransactionDirection
 from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
-from src.models.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
-from src.portfolio import AssetNotFoundError
+from src.portfolio import AssetNotFoundError, DividendIncome, InvestmentTransaction, InvestmentTransactionType
 from src.pricing.orm.market_data import FxRate
 from src.routers import portfolio as portfolio_router
 from src.schemas.portfolio import HoldingResponse

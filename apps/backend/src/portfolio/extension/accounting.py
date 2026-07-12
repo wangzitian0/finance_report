@@ -30,14 +30,14 @@ from src.audit.quantity import Quantity
 from src.audit.unit_price import UnitPrice
 from src.ledger import Account, AccountType, Direction, Entry, JournalEntry, Leg, post_entry
 from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
-from src.models.portfolio import (
+from src.portfolio.base.errors import InvestmentAccountingValidationError
+from src.portfolio.orm.portfolio import (
     DividendIncome,
     DividendType,
     InvestmentLot,
     InvestmentTransaction,
     InvestmentTransactionType,
 )
-from src.portfolio.base.errors import InvestmentAccountingValidationError
 
 INVESTMENT_QUANTITY_UNIT = "units"
 
