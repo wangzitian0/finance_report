@@ -1,0 +1,99 @@
+{
+  "_comment": "EPIC residue ratchet baseline (tests/tooling/test_epic_residue_ratchet.py, AC-meta.residue.1, #1719). Per docs/project/EPIC-*.md file: the count of AC definition lines per residue category (<!-- epic-owned: fe-only|fe-half|horizontal|pending-package -->). CI enforces census == baseline and a shrink-only EPIC file set: adding residue or a new EPIC file requires editing this file in the same PR (reviewable consent); migrating or deleting rows must prune it so the burndown stays visible.",
+  "version": 1,
+  "files": {
+    "EPIC-001.phase0-setup.md": {
+      "fe-only": 1,
+      "horizontal": 19
+    },
+    "EPIC-002.double-entry-core.md": {
+      "fe-only": 3,
+      "horizontal": 1
+    },
+    "EPIC-003.statement-parsing.md": {
+      "pending-package": 3
+    },
+    "EPIC-004.reconciliation-engine.md": {
+      "fe-only": 1,
+      "horizontal": 2
+    },
+    "EPIC-005.reporting-visualization.md": {
+      "fe-half": 5,
+      "fe-only": 29,
+      "horizontal": 1,
+      "pending-package": 2
+    },
+    "EPIC-006.ai-advisor.md": {
+      "pending-package": 1
+    },
+    "EPIC-007.deployment.md": {
+      "horizontal": 46
+    },
+    "EPIC-008.testing-strategy.md": {
+      "fe-only": 6,
+      "horizontal": 5,
+      "pending-package": 7
+    },
+    "EPIC-010.observability-logging.md": {
+      "horizontal": 6
+    },
+    "EPIC-011.asset-lifecycle.md": {
+      "fe-only": 10,
+      "pending-package": 13
+    },
+    "EPIC-012.foundation-libs.md": {
+      "fe-only": 3,
+      "horizontal": 9,
+      "pending-package": 1
+    },
+    "EPIC-013.statement-parsing-v2.md": {},
+    "EPIC-014.ttd-transformation.md": {},
+    "EPIC-015.processing-account.md": {
+      "fe-only": 10,
+      "pending-package": 1
+    },
+    "EPIC-016.two-stage-review-ui.md": {
+      "fe-half": 1,
+      "fe-only": 178,
+      "horizontal": 3,
+      "pending-package": 21
+    },
+    "EPIC-017.portfolio-management.md": {
+      "fe-only": 15,
+      "pending-package": 11
+    },
+    "EPIC-018.ai-driven-pipeline.md": {
+      "fe-only": 10,
+      "horizontal": 5,
+      "pending-package": 7
+    },
+    "EPIC-019.event-driven-upload-to-report-ux.md": {
+      "fe-half": 2,
+      "fe-only": 22,
+      "horizontal": 1,
+      "pending-package": 3
+    },
+    "EPIC-020.framework-aware-personal-reporting.md": {},
+    "EPIC-021.application-ai-advisor.md": {
+      "fe-only": 3,
+      "horizontal": 2
+    },
+    "EPIC-022.everyday-user-ia.md": {
+      "fe-half": 2,
+      "fe-only": 81,
+      "pending-package": 2
+    },
+    "EPIC-022.pwa-bottom-tab-ia.design.md": {},
+    "EPIC-023.llm-provider-abstraction.md": {},
+    "EPIC-024.frontend-observability.md": {
+      "fe-only": 5,
+      "horizontal": 1
+    },
+    "EPIC-025.dry-ssot-simplification.md": {
+      "fe-only": 2
+    },
+    "EPIC-026.ac-authority-tiers.md": {
+      "horizontal": 1
+    }
+  }
+}

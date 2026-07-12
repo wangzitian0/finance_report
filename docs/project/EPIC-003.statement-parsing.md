@@ -141,9 +141,9 @@ roadmap) stays registered in
 
 | AC ID | Description | Test Function | Test File | Priority |
 |-------|-------------|---------------|-----------|----------|
-| AC3.3.2 | Medium Confidence (Review) {tier:HU} {proof:evidence} | `test_medium_confidence` | `extraction/test_extraction.py` | P0 |
-| AC3.5.10 | Review queue includes reviewable parsed statements and supports approve/reject. {tier:HU} {proof:evidence} | `test_pending_review_and_decisions` | `api/test_statements_router.py` | P1 |
-| AC3.6.4 | Explicit First-Upload Account Creation {tier:HU} {proof:evidence} | `test_approve_statement_stage1_creates_account_with_explicit_confirmation` | `api/test_statements_router.py` | P0 |
+| AC3.3.2 | Medium Confidence (Review) {tier:HU} {proof:evidence} | `test_medium_confidence` | `extraction/test_extraction.py` | P0 | <!-- epic-owned: pending-package -->
+| AC3.5.10 | Review queue includes reviewable parsed statements and supports approve/reject. {tier:HU} {proof:evidence} | `test_pending_review_and_decisions` | `api/test_statements_router.py` | P1 | <!-- epic-owned: pending-package -->
+| AC3.6.4 | Explicit First-Upload Account Creation {tier:HU} {proof:evidence} | `test_approve_statement_stage1_creates_account_with_explicit_confirmation` | `api/test_statements_router.py` | P0 | <!-- epic-owned: pending-package -->
 
 ## 📚 SSOT References
 

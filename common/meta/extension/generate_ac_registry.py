@@ -135,6 +135,19 @@ def _extract_tier(text: str) -> tuple[str, str | None]:
     return cleaned, tier
 
 
+def _extract_residue(text: str) -> tuple[str, str | None]:
+    """Split a trailing ``<!-- epic-owned: CATEGORY -->`` marker out of *text*.
+
+    Returns ``(text_without_marker, category_or_None)``. The category is NOT
+    validated here (the residue ratchet gate owns the vocabulary check); the
+    marker is stripped so it never leaks into a description.
+    """
+    match = _RESIDUE_MARKER_RE.search(text)
+    if not match:
+        return text, None
+    return _RESIDUE_MARKER_RE.sub("", text), match.group(1)
+
+
 def _extract_proof(text: str) -> tuple[str, str | None]:
     """Split an inline ``{proof:KIND}`` marker out of *text*.
 
@@ -174,16 +187,19 @@ def _is_reference_only_line(line: str) -> bool:
 
 def _extract_ac_definition(
     line: str,
-) -> tuple[str, int, str, str | None, str | None] | None:
+) -> tuple[str, int, str, str | None, str | None, str | None] | None:
     """Extract one AC definition from a Markdown table, bullet, or plain line.
 
-    Returns ``(ac_id, epic, description, tier, proof_kind)`` where ``tier`` is the
-    optional authority-tier code declared via a ``{tier:XX}`` marker (one of
-    :data:`AC_TIERS`) and ``proof_kind`` the optional proof-kind code declared via
-    a ``{proof:KIND}`` marker (one of :data:`AC_PROOF_KINDS`); each is ``None``
-    when its marker is absent. Both markers are stripped from the description so
-    neither leaks into the registry text, and may appear anywhere on the line
-    (any cell of a table row).
+    Returns ``(ac_id, epic, description, tier, proof_kind, residue)`` where
+    ``tier`` is the optional authority-tier code declared via a ``{tier:XX}``
+    marker (one of :data:`AC_TIERS`), ``proof_kind`` the optional proof-kind
+    code declared via a ``{proof:KIND}`` marker (one of
+    :data:`AC_PROOF_KINDS`), and ``residue`` the ``<!-- epic-owned:
+    CATEGORY -->`` residue category (#1719 — see
+    :data:`EPIC_RESIDUE_CATEGORIES`); each is ``None`` when its marker is
+    absent. All markers are stripped from the description so none leaks into
+    the registry text, and may appear anywhere on the line (any cell of a
+    table row, or trailing a checklist bullet).
     """
     if _is_reference_only_line(line):
         return None
@@ -192,10 +208,12 @@ def _extract_ac_definition(
     if not stripped:
         return None
 
-    # Strip both definition-site markers BEFORE splitting table cells, so a
+    # Strip the definition-site markers BEFORE splitting table cells, so a
     # marker in any cell is lifted and never leaks into the description.
+    stripped, residue = _extract_residue(stripped)
     stripped, tier = _extract_tier(stripped)
     stripped, proof_kind = _extract_proof(stripped)
+    stripped = stripped.rstrip()
 
     if stripped.startswith("|"):
         cells = [cell.strip() for cell in stripped.strip("|").split("|")]
@@ -205,7 +223,7 @@ def _extract_ac_definition(
         if not match:
             return None
         desc = _clean_description(cells[1] if len(cells) > 1 else "")
-        return match.group(1), int(match.group(2)), desc, tier, proof_kind
+        return match.group(1), int(match.group(2)), desc, tier, proof_kind, residue
 
     match = re.match(
         r"^(?:[-*]\s*)?(?:\[[ xX]\]\s*)?(?:\*\*)?"
@@ -218,7 +236,7 @@ def _extract_ac_definition(
     ac_id = match.group(1)
     ac_epic = int(match.group(2))
     desc = _clean_description(match.group(5))
-    return ac_id, ac_epic, desc, tier, proof_kind
+    return ac_id, ac_epic, desc, tier, proof_kind, residue
 
 
 def _require_yaml() -> None:
@@ -310,10 +328,10 @@ def find_ac_collisions(
     return duplicate_definitions, duplicate_headings
 
 
-# Package contracts (``common/<pkg>/contract.py``) are a SECOND, additive source
-# of ACs: a package's ``roadmap`` owns its ACs directly, so they no longer need a
-# mirrored EPIC table. Discovery reuses the governance gate's scanner so the two
-# stay in lockstep.
+# Package contracts (``common/<pkg>/contract.py``) are the PRIMARY source of
+# ACs (#1719): a package's ``roadmap`` owns its ACs directly, and EPIC docs
+# feed the registry only through explicitly marked residue rows. Discovery
+# reuses the governance gate's scanner so the two stay in lockstep.
 
 
 def _repo_root_for(source_dir: Path) -> Path:
@@ -522,7 +540,15 @@ def extract_acs(
             definition = _extract_ac_definition(line)
             if definition is None:
                 continue
-            ac_id, ac_epic, desc, tier, proof_kind = definition
+            ac_id, ac_epic, desc, tier, proof_kind, residue = definition
+            # Post-migration (#1719), an EPIC doc feeds the registry ONLY
+            # through explicitly marked residue rows (<!-- epic-owned:
+            # CATEGORY -->). An unmarked definition is invisible here AND
+            # fails the residue ratchet gate
+            # (tests/tooling/test_epic_residue_ratchet.py) — defense in
+            # depth against EPIC tables silently becoming an AC source again.
+            if residue not in EPIC_RESIDUE_CATEGORIES:
+                continue
             if ac_id in all_acs:
                 continue
 
@@ -555,12 +581,14 @@ def extract_acs(
                 )
             all_acs[ac_id] = entry
 
-    # Additively fold in package-contract roadmap ACs (from the SAME repo root the
-    # EPIC scan used). EPIC-table definitions win on id collision (kept for
-    # back-compat), so this only ADDS ACs whose sole home is now a package
-    # contract — it can never drop or shadow an EPIC-sourced AC.
-    for ac_id, entry in _package_roadmap_acs(source_dir).items():
-        all_acs.setdefault(ac_id, entry)
+    # Fold in package-contract roadmap ACs (from the SAME repo root the EPIC
+    # scan used). Package roadmaps are the AUTHORITATIVE source (#1719 flipped
+    # the old EPIC-wins rule): on an id collision the roadmap record wins, so
+    # a stale EPIC row can never shadow a package's statement or tier. The
+    # dual-definition gate (check_epic_package_dual) keeps such collisions
+    # impossible in the first place; roadmap-wins is the safety net if one
+    # ever slips through.
+    all_acs.update(_package_roadmap_acs(source_dir))
 
     return all_acs
 

@@ -103,8 +103,8 @@ verifiable.
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC25.3.1 | The list-response envelope has a single `ListResponse<T>` definition and the per-entity list responses derive from it; declared OpenAPI-mirrored contract types resolve to a real generated `Schemas[...]` key (drift guard) | `contractTypes drift` | `apps/frontend/src/__tests__/contractTypes.test.ts` | P1 |
-| AC25.3.2 | `lib/api.ts` is the single raw-`fetch` boundary — no other frontend source module issues a raw `fetch(` call | `contractTypes fetch boundary` | `apps/frontend/src/__tests__/contractTypes.test.ts` | P1 |
+| AC25.3.1 | The list-response envelope has a single `ListResponse<T>` definition and the per-entity list responses derive from it; declared OpenAPI-mirrored contract types resolve to a real generated `Schemas[...]` key (drift guard) | `contractTypes drift` | `apps/frontend/src/__tests__/contractTypes.test.ts` | P1 | <!-- epic-owned: fe-only -->
+| AC25.3.2 | `lib/api.ts` is the single raw-`fetch` boundary — no other frontend source module issues a raw `fetch(` call | `contractTypes fetch boundary` | `apps/frontend/src/__tests__/contractTypes.test.ts` | P1 | <!-- epic-owned: fe-only -->
 
 ### AC25.4 — Test fixture consolidation
 

@@ -70,7 +70,7 @@ class TestExtractAcs:
         self._write_epic(
             tmp_path,
             "EPIC-001.phase0-setup.md",
-            "| AC1.1.1 | System is deployed |\n",
+            "| AC1.1.1 | System is deployed | <!-- epic-owned: horizontal -->\n",
         )
         monkeypatch.setattr(gar, "EPIC_DIR", str(tmp_path / "docs" / "project"))
         result = gar.extract_acs()
@@ -81,7 +81,7 @@ class TestExtractAcs:
         self._write_epic(
             tmp_path,
             "EPIC-002.double-entry-core.md",
-            "| AC2.1.1 | Balanced entries are stored |\n",
+            "| AC2.1.1 | Balanced entries are stored | <!-- epic-owned: horizontal -->\n",
         )
         monkeypatch.setattr(gar, "EPIC_DIR", str(tmp_path / "docs" / "project"))
         result = gar.extract_acs()
@@ -93,7 +93,7 @@ class TestExtractAcs:
         self._write_epic(
             tmp_path,
             "EPIC-011.asset-lifecycle.md",
-            "- [x] **AC11.8.5** Net worth calculation toggle stays complete\n",
+            "- [x] **AC11.8.5** Net worth calculation toggle stays complete <!-- epic-owned: horizontal -->\n",
         )
         monkeypatch.setattr(gar, "EPIC_DIR", str(tmp_path / "docs" / "project"))
         result = gar.extract_acs()
@@ -102,7 +102,10 @@ class TestExtractAcs:
         )
 
     def test_deduplicates_ac_ids(self, tmp_path, monkeypatch):
-        content = "AC1.1.1: First occurrence\nAC1.1.1: Second occurrence\n"
+        content = (
+            "AC1.1.1: First occurrence <!-- epic-owned: horizontal -->\n"
+            "AC1.1.1: Second occurrence <!-- epic-owned: horizontal -->\n"
+        )
         self._write_epic(tmp_path, "EPIC-001.phase0-setup.md", content)
         monkeypatch.setattr(gar, "EPIC_DIR", str(tmp_path / "docs" / "project"))
         result = gar.extract_acs()
@@ -130,7 +133,7 @@ class TestExtractAcs:
         self._write_epic(
             tmp_path,
             "EPIC-004.reconciliation-engine.md",
-            "AC4.1.1: Matching works\n",
+            "AC4.1.1: Matching works <!-- epic-owned: horizontal -->\n",
         )
         monkeypatch.setattr(gar, "EPIC_DIR", str(tmp_path / "docs" / "project"))
         result = gar.extract_acs()
@@ -139,8 +142,12 @@ class TestExtractAcs:
     def test_multiple_epics(self, tmp_path, monkeypatch):
         epic_dir = tmp_path / "docs" / "project"
         epic_dir.mkdir(parents=True, exist_ok=True)
-        (epic_dir / "EPIC-001.phase0-setup.md").write_text("AC1.1.1: Setup\n")
-        (epic_dir / "EPIC-002.double-entry-core.md").write_text("AC2.1.1: Accounting\n")
+        (epic_dir / "EPIC-001.phase0-setup.md").write_text(
+            "AC1.1.1: Setup <!-- epic-owned: horizontal -->\n"
+        )
+        (epic_dir / "EPIC-002.double-entry-core.md").write_text(
+            "AC2.1.1: Accounting <!-- epic-owned: horizontal -->\n"
+        )
         monkeypatch.setattr(gar, "EPIC_DIR", str(epic_dir))
         result = gar.extract_acs()
         assert "AC1.1.1" in result
@@ -149,11 +156,11 @@ class TestExtractAcs:
     def test_skips_tombstone_and_summary_lines(self, tmp_path, monkeypatch):
         """AC IDs in tombstone/removal notes and summary lines are NOT extracted."""
         content = (
-            "| AC9.1.1 | PDF analyzer exists |\n"
+            "| AC9.1.1 | PDF analyzer exists | <!-- epic-owned: horizontal -->\n"
             "*(AC9.8.1 removed \u2014 duplicate of AC9.3.x)*\n"
             "- Total AC IDs: 31 (AC9.8.2\u20139.8.10 removed as duplicates)\n"
             "*(AC10.2.1 removed \u2014 canonical copy is AC12.1.1 in EPIC-012)*\n"
-            "| AC10.1.1 | OTEL settings in config |\n"
+            "| AC10.1.1 | OTEL settings in config | <!-- epic-owned: horizontal -->\n"
         )
         self._write_epic(tmp_path, "EPIC-009.pdf-fixture-generation.md", content)
         self._write_epic(
@@ -173,7 +180,7 @@ class TestExtractAcs:
         """AC8.13.17: Registry generation must not create ghost ACs from references."""
         content = (
             "This paragraph references AC8.13.17 as historical context only.\n"
-            "| AC8.13.16 | Existing defined AC |\n"
+            "| AC8.13.16 | Existing defined AC | <!-- epic-owned: horizontal -->\n"
         )
         self._write_epic(tmp_path, "EPIC-008.testing-strategy.md", content)
         monkeypatch.setattr(gar, "EPIC_DIR", str(tmp_path / "docs" / "project"))
@@ -186,7 +193,7 @@ class TestExtractAcs:
         self._write_epic(
             tmp_path,
             "EPIC-008.testing-strategy.md",
-            "| AC8.13.17 | EPIC table text that must not overwrite registry text |\n",
+            "| AC8.13.17 | EPIC table text that must not overwrite registry text | <!-- epic-owned: horizontal -->\n",
         )
         existing = {
             "AC8.13.17": {
@@ -392,13 +399,17 @@ class TestMain:
 
     def test_main_returns_zero(self, tmp_path, monkeypatch):
         epic_dir = self._setup_epic_dir(tmp_path, monkeypatch)
-        (epic_dir / "EPIC-001.phase0-setup.md").write_text("AC1.1.1: Setup\n")
+        (epic_dir / "EPIC-001.phase0-setup.md").write_text(
+            "AC1.1.1: Setup <!-- epic-owned: horizontal -->\n"
+        )
         self._setup_outputs(tmp_path, monkeypatch)
         assert gar.main() == 0
 
     def test_main_creates_both_output_files(self, tmp_path, monkeypatch):
         epic_dir = self._setup_epic_dir(tmp_path, monkeypatch)
-        (epic_dir / "EPIC-001.phase0-setup.md").write_text("AC1.1.1: Setup\n")
+        (epic_dir / "EPIC-001.phase0-setup.md").write_text(
+            "AC1.1.1: Setup <!-- epic-owned: horizontal -->\n"
+        )
         out_feature, out_infra = self._setup_outputs(tmp_path, monkeypatch)
         gar.main()
         assert out_feature.exists()
@@ -410,8 +421,12 @@ class TestMain:
         """main() routes feature ACs to ac_registry.yaml and infra ACs to infra_registry.yaml."""
         epic_dir = self._setup_epic_dir(tmp_path, monkeypatch)
         # EPIC-001 is feature, EPIC-007 is infra
-        (epic_dir / "EPIC-001.phase0-setup.md").write_text("AC1.1.1: Feature AC\n")
-        (epic_dir / "EPIC-007.deployment.md").write_text("AC7.1.1: Infra AC\n")
+        (epic_dir / "EPIC-001.phase0-setup.md").write_text(
+            "AC1.1.1: Feature AC <!-- epic-owned: horizontal -->\n"
+        )
+        (epic_dir / "EPIC-007.deployment.md").write_text(
+            "AC7.1.1: Infra AC <!-- epic-owned: horizontal -->\n"
+        )
         out_feature, out_infra = self._setup_outputs(tmp_path, monkeypatch)
         gar.main()
         assert self._ids(out_feature) == ["AC1.1.1"]
@@ -423,9 +438,9 @@ class TestMain:
         """EPIC-016 ACs are sub-classified: group 11/13 → infra, others → feature."""
         epic_dir = self._setup_epic_dir(tmp_path, monkeypatch)
         content = (
-            "AC16.1.1: Feature UI\n"
-            "AC16.11.1: Infra tooling\n"
-            "AC16.13.1: Test lifecycle\n"
+            "AC16.1.1: Feature UI <!-- epic-owned: fe-only -->\n"
+            "AC16.11.1: Infra tooling <!-- epic-owned: horizontal -->\n"
+            "AC16.13.1: Test lifecycle <!-- epic-owned: horizontal -->\n"
         )
         (epic_dir / "EPIC-016.two-stage-review-ui.md").write_text(content)
         out_feature, out_infra = self._setup_outputs(tmp_path, monkeypatch)
@@ -439,8 +454,8 @@ class TestMain:
         """AC-testing.acgates.1: AC8.13.17: Current non-stub EPIC text and mandatory state win."""
         epic_dir = self._setup_epic_dir(tmp_path, monkeypatch)
         (epic_dir / "EPIC-008.testing-strategy.md").write_text(
-            "| AC8.13.16 | EPIC text that must not replace canonical text |\n"
-            "| AC8.13.17 | Append-only generator behavior |\n"
+            "| AC8.13.16 | EPIC text that must not replace canonical text | <!-- epic-owned: horizontal -->\n"
+            "| AC8.13.17 | Append-only generator behavior | <!-- epic-owned: horizontal -->\n"
         )
         out_feature, _out_infra = self._setup_outputs(tmp_path, monkeypatch)
         Path(gar.OVERRIDES).write_text(
@@ -473,7 +488,7 @@ class TestMain:
         """AC8.13.17: Current stub placeholders can stay non-mandatory."""
         epic_dir = self._setup_epic_dir(tmp_path, monkeypatch)
         (epic_dir / "EPIC-016.two-stage-review-ui.md").write_text(
-            "| AC16.15.7 | stub |\n"
+            "| AC16.15.7 | stub | <!-- epic-owned: fe-only -->\n"
         )
         out_feature, _out_infra = self._setup_outputs(tmp_path, monkeypatch)
         Path(gar.OVERRIDES).write_text(
@@ -503,7 +518,7 @@ class TestMain:
         """AC8.13.17: Check mode catches EPIC-defined ACs missing from registry."""
         epic_dir = self._setup_epic_dir(tmp_path, monkeypatch)
         (epic_dir / "EPIC-008.testing-strategy.md").write_text(
-            "| AC8.13.17 | Append-only generator behavior |\n"
+            "| AC8.13.17 | Append-only generator behavior | <!-- epic-owned: horizontal -->\n"
         )
         out_feature, out_infra = self._setup_outputs(tmp_path, monkeypatch)
         out_feature.write_text("version: '1.0'\ngroups: {}\n")
@@ -541,7 +556,7 @@ class TestMain:
         """AC8.13.17: Check mode rejects the legacy flat registry format."""
         epic_dir = self._setup_epic_dir(tmp_path, monkeypatch)
         (epic_dir / "EPIC-008.testing-strategy.md").write_text(
-            "| AC8.13.17 | Append-only generator behavior |\n"
+            "| AC8.13.17 | Append-only generator behavior | <!-- epic-owned: horizontal -->\n"
         )
         out_feature, out_infra = self._setup_outputs(tmp_path, monkeypatch)
         out_feature.write_text(
@@ -564,7 +579,7 @@ class TestMain:
         """AC8.13.17: Normal generation rewrites legacy registries to index format."""
         epic_dir = self._setup_epic_dir(tmp_path, monkeypatch)
         (epic_dir / "EPIC-008.testing-strategy.md").write_text(
-            "| AC8.13.17 | Append-only generator behavior |\n"
+            "| AC8.13.17 | Append-only generator behavior | <!-- epic-owned: horizontal -->\n"
         )
         out_feature, out_infra = self._setup_outputs(tmp_path, monkeypatch)
         out_feature.write_text(
@@ -592,7 +607,7 @@ class TestMain:
         """AC8.13.17: Check mode accepts current generated registry indexes."""
         epic_dir = self._setup_epic_dir(tmp_path, monkeypatch)
         (epic_dir / "EPIC-008.testing-strategy.md").write_text(
-            "| AC8.13.17 | Append-only generator behavior |\n"
+            "| AC8.13.17 | Append-only generator behavior | <!-- epic-owned: horizontal -->\n"
         )
         out_feature, out_infra = self._setup_outputs(tmp_path, monkeypatch)
         gar.write_registry_index("feature", out_feature)
@@ -606,7 +621,7 @@ class TestMain:
         """AC8.13.17: Normal mode leaves current generated indexes valid."""
         epic_dir = self._setup_epic_dir(tmp_path, monkeypatch)
         (epic_dir / "EPIC-008.testing-strategy.md").write_text(
-            "| AC8.13.17 | Append-only generator behavior |\n"
+            "| AC8.13.17 | Append-only generator behavior | <!-- epic-owned: horizontal -->\n"
         )
         out_feature, out_infra = self._setup_outputs(tmp_path, monkeypatch)
         gar.write_registry_index("feature", out_feature)
@@ -619,8 +634,12 @@ class TestMain:
     ):
         """Generated indexes materialize exactly one classified entry per AC ID."""
         epic_dir = self._setup_epic_dir(tmp_path, monkeypatch)
-        (epic_dir / "EPIC-001.phase0-setup.md").write_text("AC1.1.1: Feature\n")
-        (epic_dir / "EPIC-007.deployment.md").write_text("AC7.1.1: Infra\n")
+        (epic_dir / "EPIC-001.phase0-setup.md").write_text(
+            "AC1.1.1: Feature <!-- epic-owned: horizontal -->\n"
+        )
+        (epic_dir / "EPIC-007.deployment.md").write_text(
+            "AC7.1.1: Infra <!-- epic-owned: horizontal -->\n"
+        )
         out_feature, out_infra = self._setup_outputs(tmp_path, monkeypatch)
 
         assert gar.main() == 0
@@ -696,3 +715,85 @@ class TestFindAcCollisions:
         )
         monkeypatch.setattr(gar, "EPIC_DIR", str(epic_dir))
         assert gar.main(["--check"]) == 1
+
+
+class TestResidueMarkerFlip:
+    """#1719 'retire the center': EPIC docs feed the registry only through
+    explicitly marked residue rows, and package roadmaps are authoritative on
+    any id collision (roadmap-wins; the old EPIC-wins rule is retired)."""
+
+    def _write_epic(self, tmp_path, fname, content):
+        epic_dir = tmp_path / "docs" / "project"
+        epic_dir.mkdir(parents=True, exist_ok=True)
+        (epic_dir / fname).write_text(content)
+        return epic_dir
+
+    def test_unmarked_epic_row_does_not_feed_the_registry(
+        self, tmp_path, monkeypatch
+    ):
+        """AC-meta.residue.1: an unmarked EPIC AC row is invisible to the registry."""
+        self._write_epic(
+            tmp_path,
+            "EPIC-002.double-entry-core.md",
+            "| AC2.1.1 | Marked residue row | <!-- epic-owned: fe-only -->\n"
+            "| AC2.1.2 | Unmarked row that must not feed the registry |\n"
+            "- [x] **AC2.1.3** Unmarked checklist definition\n",
+        )
+        monkeypatch.setattr(gar, "EPIC_DIR", str(tmp_path / "docs" / "project"))
+        result = gar.extract_acs()
+        assert set(result) == {"AC2.1.1"}
+
+    def test_residue_marker_is_stripped_from_description(
+        self, tmp_path, monkeypatch
+    ):
+        self._write_epic(
+            tmp_path,
+            "EPIC-002.double-entry-core.md",
+            "- [x] **AC2.1.1** Bullet residue <!-- epic-owned: horizontal -->\n",
+        )
+        monkeypatch.setattr(gar, "EPIC_DIR", str(tmp_path / "docs" / "project"))
+        result = gar.extract_acs()
+        # Exact equality proves the marker never leaks into the description.
+        assert result["AC2.1.1"]["description"] == "Bullet residue"
+
+    def test_extract_definition_returns_residue_category(self):
+        definition = gar._extract_ac_definition(
+            "| AC2.1.1 | Row | P0 | <!-- epic-owned: fe-half -->\n"
+        )
+        assert definition is not None
+        assert definition[5] == "fe-half"
+        unmarked = gar._extract_ac_definition("| AC2.1.1 | Row | P0 |\n")
+        assert unmarked is not None
+        assert unmarked[5] is None
+
+    def test_package_roadmap_wins_on_id_collision(self, tmp_path, monkeypatch):
+        """Roadmap-wins (#1719): a stale marked EPIC row cannot shadow the
+        package contract's statement or tier."""
+        self._write_epic(
+            tmp_path,
+            "EPIC-002.double-entry-core.md",
+            "| AC2.1.1 | Stale EPIC text {tier:HU} | <!-- epic-owned: fe-only -->\n",
+        )
+        contract_dir = tmp_path / "common" / "demo"
+        contract_dir.mkdir(parents=True)
+        (contract_dir / "contract.py").write_text(
+            'CONTRACT = PackageContract(\n'
+            '    name="demo",\n'
+            '    status="active",\n'
+            '    tier="CODE-ONLY",\n'
+            '    roadmap=[\n'
+            '        ACRecord(\n'
+            '            id="AC2.1.1",\n'
+            '            statement="Roadmap statement wins",\n'
+            '            test="tests/tooling/test_x.py::test_x",\n'
+            '            priority="P1",\n'
+            '            status="done",\n'
+            '        ),\n'
+            '    ],\n'
+            ')\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(gar, "EPIC_DIR", str(tmp_path / "docs" / "project"))
+        result = gar.extract_acs()
+        assert result["AC2.1.1"]["description"] == "Roadmap statement wins"
+        assert result["AC2.1.1"]["tier"] == "CODE-ONLY"
