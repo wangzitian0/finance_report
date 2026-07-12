@@ -358,23 +358,13 @@ workflow state exists.
 
 ### AC19.6 — Navigation Folding And Advanced Drill-Down
 
-> **Superseded by EPIC-022 AC22.21.** AC19.6.1–AC19.6.7 below describe the
-> original primary/advanced navigation model (Upload Pipeline / Reports / AI /
-> Advanced + mobile drawer). EPIC-022 PR12 replaced it with a mobile/PWA bottom
-> tab bar (Home · Chat · Add · Audit · More); navigation IA is now owned by
-> EPIC-022 and `docs/ssot/frontend-patterns.md` §9. These rows are kept for
-> history with their Verification updated to the current tests; the live
-> navigation contract is AC22.21.x. Deep-link reachability (AC19.6.6) still holds.
-
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC19.6.1 | The workflow-events SSOT cedes navigation-IA ownership to EPIC-022 (bottom-tab) and keeps only the workflow-attention contract; the superseded primary/advanced split is no longer documented there | `test_AC19_6_1_workflow_navigation_ia_owned_by_epic022_with_attention_contract` | P0 |
-| AC19.6.2 | Frontend navigation exports separate primary workflow nav and advanced nav groups while preserving route config for all existing advanced deep links | `navigation.test.ts` | P0 |
-| AC19.6.3 | Desktop sidebar renders Upload Pipeline, Reports, AI, and Advanced as the primary surface; advanced child links remain accessible and active-state aware | `sidebarAndTabs.test.tsx` | P0 |
-| AC19.6.4 | Mobile navigation (now the bottom tab bar, per AC22.21) exposes the workflow surfaces and avoids overflow | `bottomTabBar.test.tsx`, `workflow-navigation.spec.ts` | P0 |
-| AC19.6.5 | Sidebar attention indicators are derived from `/api/workflow/status` through `lib/api.ts`; direct `/api/statements/pending-review` and stage2 queue polling are removed from Sidebar | `sidebarAndTabs.test.tsx` | P0 |
-| AC19.6.6 | Workflow event action links and workspace route labels continue to deep-link into advanced review/reconciliation/processing/report destinations | `workflowSurfaces.test.tsx`, `sidebarAndTabs.test.tsx`, `workflowActionRoutes.test.tsx` | P0 |
-| AC19.6.7 | Desktop and mobile Playwright smoke covers the folded navigation and Advanced access without horizontal overflow | `workflow-navigation.spec.ts` | P0 |
+> **Superseded and deleted (#1719).** AC19.6.1–AC19.6.7 described the original
+> primary/advanced navigation model (Upload Pipeline / Reports / AI / Advanced
+> + mobile drawer). EPIC-022 PR12 replaced it with a mobile/PWA bottom tab bar
+> (Home · Chat · Add · Audit · More); navigation IA is owned by EPIC-022
+> (AC22.21.x) and `docs/ssot/frontend-patterns.md` §9, and deep-link
+> reachability lives on in the AC22.21 proofs. The superseded rows were dead
+> rows, deleted rather than migrated per the migration closeout (#1719).
 
 ### AC19.7 — Framework-Aware Evidence Readiness
 
@@ -390,13 +380,15 @@ before marking US/HK personal reports trusted.
 
 ### AC19.8 — Workflow Session IA Hardening And CR Cleanup
 
-> **Partially migrated.** *(AC19.8.1 removed and AC19.8.2 removed and AC19.8.3 removed and AC19.8.9 removed — this group's backend session-model/API rows migrated to the `platform` package roadmap as `AC-platform.33.1-4`, migration closeout continuation, #1663 / #1712)*. The frontend, IA,
-> and report-readiness rows below stay with their own owners.
+> **Partially migrated.** *(AC19.8.1 removed and AC19.8.2 removed and AC19.8.3 removed and AC19.8.9 removed — this group's backend session-model/API rows migrated to the `platform` package roadmap as `AC-platform.33.1-4`, migration closeout continuation, #1663 / #1712)*. *(AC19.8.5 deleted —
+> a dead row explicitly superseded by EPIC-022 AC22.21, whose AC22.21.1
+> proof owns the bottom-tab navigation contract; deleted rather than
+> migrated, #1719.)* The frontend, IA, and report-readiness rows below stay
+> with their own owners.
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
 | AC19.8.4 | Notification drawer and Events page group timestamped events by workflow session, while Upload Pipeline shows only active-session latest state plus recent timeline preview | `workflowSurfaces.test.tsx`, `workflow-notifications.spec.ts`, `upload-first-dashboard.spec.ts` | P0 |
-| AC19.8.5 | Navigation IA (superseded by EPIC-022 AC22.21): the bottom tab bar is Home, Chat, Add, Audit, More; the accounting machinery and settings are reached via the Audit hub and More, not a primary/advanced split | `navigation.test.ts`, `sidebarAndTabs.test.tsx`, `bottomTabBar.test.tsx`, `workflow-navigation.spec.ts` | P0 |
 | AC19.8.6 | `/chat` is a simple AI utility page with model selector, active conversation, and session-list drawer; it is not labeled AI Settings | `chatPanelComponent.test.tsx`, `ChatPageClient.test.tsx` | P1 |
 | AC19.8.7 | Report readiness has route-level Playwright smoke coverage before package output | `report-readiness.spec.ts` | P1 |
 | AC19.8.8 | CR cleanup fixes missing Processing FX readiness blocker coverage, stale SSOT paths, and stale navigation docs (the mixed-currency investment-schedule-fallback share migrated to the `portfolio` package roadmap as `AC-portfolio.schedule-fallback.1`, migration closeout continuation, #1663 / #1717) | `test_AC19_8_8_package_readiness_blocks_when_processing_fx_conversion_fails`, `report-readiness.spec.ts` | P0 |
@@ -456,11 +448,10 @@ pre-insert SELECT and both insert; the loser raised a `UniqueViolationError` on
 insert now runs inside a SAVEPOINT and recovers the existing row on conflict, mirroring the existing
 `uq_workflow_sessions_user_dedupe_key` guard.
 
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC19.14.1 | Two concurrent `upsert_workflow_event` calls for the same `(user_id, dedupe_key)` both succeed without a duplicate-key 500; exactly one row exists and both calls return it | `test_AC19_14_1_concurrent_upsert_same_dedupe_key_does_not_500` | P0 |
-| AC19.14.2 | A duplicate `(user_id, dedupe_key)` insert recovers via savepoint, returns the existing row, and leaves the outer transaction usable for subsequent reads/flushes | `test_AC19_14_2_duplicate_insert_does_not_poison_outer_transaction` | P0 |
-| AC19.14.3 | Concurrent `sync_workflow_events_for_user` runs over the same source state do not 500 on the workflow-event dedupe key and create the derived uploaded event exactly once | `test_AC19_14_3_sync_tolerates_concurrent_event_creation` | P0 |
+*(The AC19.14.1–.3 rows that previously mirrored `AC-platform.35.1-3` here
+were stale duplicates of the migrated records — same tests, same statements —
+and were deleted by the final cleanup, #1719. The contract roadmap is the
+single source.)*
 
 ### AC19.15 — Three-Entry Upload Intake (issue #1208)
 

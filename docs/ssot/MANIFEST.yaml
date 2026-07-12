@@ -288,7 +288,6 @@ concepts:
     kind: concept
     description: Synthetic PDF fixture commands, local-only real-PDF handling, committed template policy, and font fallback. Internalized into the testing package.
     cross_refs:
-      - docs/project/EPIC-009.pdf-fixture-generation.md
       - common/testing/fixtures/pdf/README.md
       - common/testing/fixtures/pdf/FONT_HANDLING.md
       - common/testing/fixtures/pdf/analyzers/README.md

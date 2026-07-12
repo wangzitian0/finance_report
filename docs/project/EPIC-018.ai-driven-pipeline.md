@@ -251,8 +251,9 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 
 ## 📊 Acceptance Criteria Summary
 
-> **AC18.1.1** is already proven by `AC-extraction.104.1`
-> (`test_get_parsing_prompt_default`) — no separate migration needed.
+> *(AC18.1.1 removed — duplicate, not migrated; it was already proven by
+> `AC-extraction.104.1` (`test_get_parsing_prompt_default`), which is the
+> canonical copy. One criterion, one home — final cleanup, #1719.)*
 > **AC18.1.2** ("BankStatementTransaction has suggested_category/
 > category_confidence columns"), **AC18.1.5** ("create_entry_from_txn reads
 > classification before defaulting to Uncategorized"), and **AC18.1.6**
@@ -275,7 +276,6 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 
 | AC ID | Phase | Description |
 |-------|-------|-------------|
-| AC18.1.1 | 1 | Extraction prompt returns `suggested_category` and `category_confidence` |
 | AC18.1.2 | 1 | `BankStatementTransaction` has `suggested_category` and `category_confidence` columns |
 | AC18.1.5 | 1 | `create_entry_from_txn` reads classification before defaulting to Uncategorized |
 | AC18.1.6 | 1 | Auto-created category accounts are user-scoped and correctly typed |
@@ -427,9 +427,9 @@ proportion down. This AC owns the corpus, the measurable replay, and making that
 replay **observable** over the live corpus (mirroring how AC18.12 makes the
 thermometer observable); calibrating the promotion-gate thresholds (#930) from the
 corpus, and wiring the priors into live generation, are follow-ups. (Live
-correction grounding of extraction already exists today via the few-shot path —
-AC18.2.3 — so this AC adds the *audit* view of the loop's effect, not a second
-grounding mechanism.)
+correction grounding of extraction already exists today via the few-shot
+path, `AC-extraction.1802.3` — so this AC adds the *audit* view of the
+loop's effect, not a second grounding mechanism.)
 
 > This group's rows removed — migrated to the `extraction` package roadmap
 > as `AC-extraction.1814.1-4` (migration closeout continuation, #1663 /

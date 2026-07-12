@@ -82,7 +82,6 @@ owning source instead of copying:
 | [EPIC-006](./EPIC-006.ai-advisor.md) | AI advisor |
 | [EPIC-007](./EPIC-007.deployment.md) | Deployment |
 | [EPIC-008](./EPIC-008.testing-strategy.md) | Testing strategy & E2E gates |
-| [EPIC-009](./EPIC-009.pdf-fixture-generation.md) | PDF fixture generation |
 | [EPIC-010](./EPIC-010.observability-logging.md) | observability logging |
 | [EPIC-011](./EPIC-011.asset-lifecycle.md) | Asset lifecycle |
 | [EPIC-012](./EPIC-012.foundation-libs.md) | Foundation libraries |

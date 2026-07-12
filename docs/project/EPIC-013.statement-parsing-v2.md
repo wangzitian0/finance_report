@@ -1,5 +1,9 @@
 # EPIC-013: Statement Parsing V2
 
+<!-- epic-file: design-doc -->
+<!-- 0 AC rows by design (#1719): the delivered V2 design record; all 118 ACs
+     are owned by common/extraction/contract.py (reserved groups 101-123). -->
+
 > Status: ✅ Complete
 > Vision Anchor: `decision-2-event-middle-layer`
 > Owner: Backend + Frontend

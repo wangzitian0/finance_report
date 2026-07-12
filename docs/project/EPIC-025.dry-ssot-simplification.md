@@ -147,9 +147,10 @@ verifiable.
 > intact) but defines none of them — the contract is the single definition
 > source, per the `counter` precedent above.
 >
-> Groups 1-8 (`AC-testing.1.*`-`AC-testing.8.*`) migrated from
-> [EPIC-009](./EPIC-009.pdf-fixture-generation.md)'s PDF fixture generation
-> ACs. EPIC-023's cassette layer/streaming-bridge/integrity-gate ACs
+> Groups 1-8 (`AC-testing.1.*`-`AC-testing.8.*`) migrated from the retired
+> EPIC-009 (PDF fixture generation; deleted by #1719 — the
+> [`testing` package](../../common/testing/README.md#pdf-fixtures) owns the
+> scope) ACs. EPIC-023's cassette layer/streaming-bridge/integrity-gate ACs
 > (AC23.5/AC23.6/AC23.7) do NOT migrate here despite their EPIC-authored
 > `{tier:CODE-ONLY}` annotation: `common/meta/extension/authority_classifier.py`
 > detects any cassette/replay-harness test as the `LLM` band regardless of

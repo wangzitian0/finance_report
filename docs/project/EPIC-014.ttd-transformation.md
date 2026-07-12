@@ -1,5 +1,10 @@
 # EPIC-014: Test-Driven Documentation (TTD) Transformation
 
+<!-- epic-file: design-doc -->
+<!-- 0 AC rows by design (#1719): TTD philosophy + SSOT HLS governance design
+     doc; its clauses are proven by tests/tooling doc-governance gates, not
+     EPIC AC rows. -->
+
 > **Status ownership**: Scope owner only; live delivery status is tracked by
 > GitHub issues, AC registries, generated reports, and executable checks.
 > **Vision Anchor**: `decision-filter-accuracy-auditability`

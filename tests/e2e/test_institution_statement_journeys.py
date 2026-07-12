@@ -172,7 +172,7 @@ async def _run_institution_journey(
 @pytest.mark.critical
 @pytest.mark.llm
 async def test_cmb_statement_journey(authenticated_page_unique: Page) -> None:
-    """EPIC-003 EPIC-008 EPIC-009 / AC-llm.12.1: CMB (Chinese bank layout) journey."""
+    """EPIC-003 EPIC-008 / AC-llm.12.1: CMB (Chinese bank layout) journey."""
     await _run_institution_journey(
         authenticated_page_unique,
         pdf_path=generated_pdf_path("cmb"),
@@ -197,7 +197,7 @@ async def test_cmb_statement_journey(authenticated_page_unique: Page) -> None:
 @pytest.mark.critical
 @pytest.mark.llm
 async def test_maribank_statement_journey(authenticated_page_unique: Page) -> None:
-    """EPIC-003 EPIC-008 EPIC-009 / AC-llm.12.2: MariBank (digital bank) journey."""
+    """EPIC-003 EPIC-008 / AC-llm.12.2: MariBank (digital bank) journey."""
     await _run_institution_journey(
         authenticated_page_unique,
         pdf_path=generated_pdf_path("mari"),
@@ -222,7 +222,7 @@ async def test_maribank_statement_journey(authenticated_page_unique: Page) -> No
 @pytest.mark.critical
 @pytest.mark.llm
 async def test_pingan_statement_journey(authenticated_page_unique: Page) -> None:
-    """EPIC-003 EPIC-008 EPIC-009 / AC-llm.12.3: 平安银行 (Chinese layout) journey."""
+    """EPIC-003 EPIC-008 / AC-llm.12.3: 平安银行 (Chinese layout) journey."""
     await _run_institution_journey(
         authenticated_page_unique,
         pdf_path=generated_pdf_path("pingan"),
@@ -249,7 +249,7 @@ async def test_pingan_statement_journey(authenticated_page_unique: Page) -> None
 async def test_gxs_statement_journey_matches_expected_balances(
     authenticated_page_unique: Page,
 ) -> None:
-    """EPIC-003 EPIC-008 EPIC-009 / AC-llm.12.4: GXS journey graded against truth.
+    """EPIC-003 EPIC-008 / AC-llm.12.4: GXS journey graded against truth.
 
     GXS ships as a committed PDF + expected-JSON pair, so this journey grades
     the live extraction: opening/closing balances must match the expected
