@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.identity import User
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.layer3 import ClassificationStatus, TransactionClassification
-from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
+from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 
 pytestmark = pytest.mark.asyncio
 
@@ -89,7 +89,7 @@ async def _create_reconciliation(db: AsyncSession, user_id, *, match_score=70, s
 async def test_classification_tags_not_dict_uses_account_id(client: AsyncClient, db: AsyncSession, test_user: User):
     """If tags is not a dict, suggested_category_or_match falls back to account_id."""
     # create a real account and use its id
-    from src.models.account import Account, AccountType
+    from src.ledger import Account, AccountType
 
     acct = Account(id=uuid4(), user_id=test_user.id, name="Test acct", type=AccountType.ASSET, currency="SGD")
     db.add(acct)

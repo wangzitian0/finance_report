@@ -10,8 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.ratio import Ratio
 from src.models.layer2 import AtomicTransaction
-from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.observability import get_logger
+from src.reconciliation.orm.reconciliation import ReconciliationMatch, ReconciliationStatus
 
 logger = get_logger(__name__)
 

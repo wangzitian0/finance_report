@@ -6,9 +6,9 @@ from datetime import date
 from typing import Protocol
 from uuid import UUID
 
-from src.models.journal import JournalEntry
+from src.ledger import JournalEntry
 from src.models.layer2 import AtomicTransaction
-from src.models.reconciliation import ReconciliationMatch
+from src.reconciliation.orm.reconciliation import ReconciliationMatch
 
 
 class ReconciliationRepository(Protocol):

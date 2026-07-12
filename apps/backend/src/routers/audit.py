@@ -6,7 +6,7 @@ from fastapi import APIRouter
 from sqlalchemy import select
 
 from src.deps import CurrentUserId, DbSession
-from src.models.journal import JournalAuditLog, JournalEntry
+from src.ledger import JournalAuditLog, JournalEntry
 from src.platform import raise_not_found
 from src.schemas.audit import AuditTrailItem, AuditTrailResponse
 

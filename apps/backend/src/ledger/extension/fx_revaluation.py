@@ -18,10 +18,11 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
+from src.audit import JournalEntrySourceType
 from src.audit.money import Money
 from src.ledger import Entry, Leg
-from src.models.account import Account, AccountType
-from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
+from src.ledger.orm.account import Account, AccountType
+from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.observability import get_logger
 from src.services.fx import FxRateError, get_exchange_rate
 

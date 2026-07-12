@@ -7,12 +7,13 @@ from sqlalchemy.orm import selectinload
 
 from src.deps import CurrentUserId, DbSession
 from src.ledger import (
+    JournalEntry,
+    JournalEntryStatus,
     ValidationError,
     create_journal_entry,
     post_journal_entry,
     void_journal_entry,
 )
-from src.models.journal import JournalEntry, JournalEntryStatus
 from src.observability import get_logger, log_financial_mutation
 from src.platform import get_owned_or_404, paginate, raise_bad_request
 from src.schemas import (

@@ -11,12 +11,14 @@ from decimal import Decimal
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.account import Account, AccountType
+from src.ledger import Account, AccountType
 from src.models.layer2 import TransactionDirection
 from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
-from src.models.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
 from src.portfolio import (
+    DividendIncome,
     InsufficientDataError,
+    InvestmentTransaction,
+    InvestmentTransactionType,
     XIRRCalculationError,
     calculate_dividend_yield,
     calculate_money_weighted_return,

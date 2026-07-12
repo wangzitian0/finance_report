@@ -10,7 +10,7 @@ from uuid import UUID, uuid5
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.account import AccountType
+from src.ledger import AccountType
 from src.reporting.base.l1_registry import get_framework_ordered_lines, is_valid_line_for_framework
 from src.reporting.extension.balance_sheet import generate_balance_sheet
 from src.reporting.extension.framework_policy import derive_user_framework_policy_result

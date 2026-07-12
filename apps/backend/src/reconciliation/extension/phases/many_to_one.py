@@ -7,9 +7,9 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.journal import JournalEntry, JournalEntryStatus
+from src.ledger import JournalEntry, JournalEntryStatus
 from src.models.layer2 import AtomicTransaction
-from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
+from src.reconciliation.orm.reconciliation import ReconciliationMatch, ReconciliationStatus
 
 
 async def run_many_to_one_phase(

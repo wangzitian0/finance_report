@@ -9,8 +9,7 @@ from sqlalchemy import select
 from src.audit.money import to_money
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
-from src.models.account import Account, AccountType
-from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.platform import raise_bad_request
 from src.reporting import AnnualizedIncomeTotals, income_bucket, resolve_line_currency
 from src.schemas.base import normalize_currency_code

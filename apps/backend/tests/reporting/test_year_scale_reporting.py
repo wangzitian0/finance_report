@@ -13,8 +13,8 @@ from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.account import Account, AccountType
-from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
+from src.audit import JournalEntrySourceType
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.reporting import generate_balance_sheet, generate_cash_flow, generate_income_statement
 
 ENTRY_COUNT = 1000

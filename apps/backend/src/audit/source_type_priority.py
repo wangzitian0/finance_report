@@ -1,11 +1,46 @@
-"""Trust hierarchy helpers for journal entry source_type."""
+"""Trust hierarchy helpers for journal entry source_type.
+
+This module also *owns* :class:`JournalEntrySourceType` — the provenance/trust
+vocabulary the hierarchy ranks (moved here from ``src/models/journal.py`` in
+#1675 D5). ``audit`` (L1 infra) can never import upward into ``ledger`` (L3
+domain), so the vocabulary lives with its trust policy and the ledger ORM
+imports it downward (``from src.audit import JournalEntrySourceType``). The
+helpers accept any journal-entry-shaped object structurally (see
+:class:`SourceTypedEntry`) rather than importing the ledger ORM class.
+"""
 
 from __future__ import annotations
 
+import enum
 from collections.abc import Iterable
-from typing import Any
+from typing import Any, Protocol
 
-from src.models.journal import JournalEntry, JournalEntrySourceType
+
+class JournalEntrySourceType(str, enum.Enum):
+    """Source type of a journal entry."""
+
+    MANUAL = "manual"
+    USER_CONFIRMED = "user_confirmed"
+    AUTO_MATCHED = "auto_matched"
+    AUTO_PARSED = "auto_parsed"
+    # NOTE: the legacy ``bank_statement`` value was retired in migration 0040
+    # (#896). Data was migrated to ``auto_parsed`` in 0018 and no write path
+    # emits it. The raw string is still tolerated defensively by
+    # ``normalize_source_type`` and the immutability trigger's text guards.
+    SYSTEM = "system"
+    FX_REVALUATION = "fx_revaluation"
+
+
+class SourceTypedEntry(Protocol):
+    """Structural stand-in for ``ledger``'s ``JournalEntry`` ORM class.
+
+    audit sits below ledger in the layer topology, so these helpers depend on
+    the *shape* they need (a mutable ``source_type`` plus an ``id`` tiebreak
+    key), never on the ORM class itself.
+    """
+
+    source_type: Any
+    id: Any
 
 
 class SourceTypeDowngradeError(ValueError):
@@ -72,7 +107,7 @@ def statement_source_values() -> list[str]:
 
 
 def promote_entry_source_type(
-    entry: JournalEntry,
+    entry: SourceTypedEntry,
     target: JournalEntrySourceType | str,
     *,
     preserve_higher: bool = True,
@@ -102,7 +137,7 @@ def promote_entry_source_type(
 
 
 def promote_entries_source_type(
-    entries: Iterable[JournalEntry],
+    entries: Iterable[SourceTypedEntry],
     target: JournalEntrySourceType | str,
 ) -> None:
     """Promote all eligible entries to target, preserving higher-trust values."""
@@ -110,6 +145,6 @@ def promote_entries_source_type(
         promote_entry_source_type(entry, target)
 
 
-def source_type_tiebreak_key(entry: JournalEntry) -> tuple[int, Any]:
+def source_type_tiebreak_key(entry: SourceTypedEntry) -> tuple[int, Any]:
     """Sort key component for source-aware candidate selection."""
     return (source_type_rank(entry.source_type), entry.id)

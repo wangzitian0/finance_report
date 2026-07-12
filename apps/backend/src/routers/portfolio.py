@@ -12,15 +12,13 @@ from src.audit.ratio import Ratio
 from src.deps import CurrentUserId, DbSession
 from src.extraction import BrokeragePositionImportService
 from src.models.layer3 import ManagedPosition, PositionStatus
-from src.models.portfolio import (
-    DividendIncome,
-    InvestmentTransaction,
-    InvestmentTransactionType,
-)
 from src.observability import get_logger
 from src.portfolio import (
     AssetNotFoundError,
+    DividendIncome,
     InsufficientDataError,
+    InvestmentTransaction,
+    InvestmentTransactionType,
     PerformanceError,
     PortfolioNotFoundError,
     build_investment_performance_report_schedule,

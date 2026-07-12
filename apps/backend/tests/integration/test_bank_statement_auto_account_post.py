@@ -17,8 +17,7 @@ from sqlalchemy import select
 
 from src.extraction.extension.service import ExtractionService
 from src.extraction.extension.statement_posting import try_auto_approve_high_confidence_statement
-from src.models.account import Account, AccountType
-from src.models.journal import JournalEntry, JournalEntryStatus
+from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus
 from src.models.statement_enums import BankStatementStatus
 
 

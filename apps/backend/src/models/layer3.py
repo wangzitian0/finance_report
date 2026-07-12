@@ -35,7 +35,7 @@ POSITION_QUANTITY_UNIT = "units"
 
 if TYPE_CHECKING:
     from src.identity import User
-    from src.models.account import Account
+    from src.ledger import Account
     from src.models.layer2 import AtomicTransaction
 
 

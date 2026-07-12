@@ -10,8 +10,7 @@ from uuid import UUID
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.ledger import RevaluationError, calculate_unrealized_fx_gains
-from src.models.account import AccountType
+from src.ledger import AccountType, RevaluationError, calculate_unrealized_fx_gains
 from src.observability import ErrorIds, get_logger
 from src.reporting.extension._core import (
     _aggregate_account_confidence_tiers,

@@ -19,7 +19,7 @@ from sqlalchemy.orm import selectinload
 from src.audit.money import Money, to_money
 from src.audit.money.currency import normalize_currency_code
 from src.audit.quantity import Quantity
-from src.models.account import Account, AccountType
+from src.ledger import Account, AccountType
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import (
     ManagedPosition,

@@ -13,12 +13,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.audit import JournalEntrySourceType
 from src.extraction import DocumentStatus, DocumentType, UploadedDocument
 from src.extraction.extension.evidence_graph_materialization import EvidenceGraphMaterializationService
 from src.identity import User
-from src.models.account import Account, AccountType
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.models.evidence import EvidenceEdge, EvidenceNode
-from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 from src.models.layer2 import (
     AtomicPosition,
     AtomicPositionSourceDocument,
@@ -27,10 +27,14 @@ from src.models.layer2 import (
     TransactionDirection,
 )
 from src.models.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
-from src.models.reconciliation import ReconciliationMatch, ReconciliationMatchJournalEntry, ReconciliationStatus
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
-from src.reconciliation import sync_reconciliation_match_journal_entry_links
+from src.reconciliation import (
+    ReconciliationMatch,
+    ReconciliationMatchJournalEntry,
+    ReconciliationStatus,
+    sync_reconciliation_match_journal_entry_links,
+)
 
 BACKEND_DIR = Path(__file__).parent.parent.parent
 MIGRATION_PATH = BACKEND_DIR / "migrations" / "versions" / "0034_audit_anchor_referential_integrity.py"

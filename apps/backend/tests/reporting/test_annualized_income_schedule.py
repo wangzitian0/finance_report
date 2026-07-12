@@ -6,8 +6,7 @@ from decimal import Decimal
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.account import Account, AccountType
-from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.models.layer3 import (
     ManualValuationBasis,
     ManualValuationComponentType,

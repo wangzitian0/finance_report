@@ -13,14 +13,14 @@ from sqlalchemy import select
 from sqlalchemy.exc import MultipleResultsFound
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit import JournalEntrySourceType
 from src.deps import PaginationParams
 from src.extraction import DocumentType, UploadedDocument
 from src.extraction.extension.deduplication import dual_write_layer2
 from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
 from src.extraction.extension.review_queue import create_entry_from_txn
 from src.identity import User
-from src.models.account import Account, AccountType
-from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.models.layer2 import AssetType, AtomicPosition, AtomicTransaction, TransactionDirection
 from src.models.layer3 import (
     ClassificationRule,
@@ -34,11 +34,12 @@ from src.models.layer3 import (
     RuleType,
 )
 from src.models.layer4 import ReportSnapshot, ReportType
-from src.models.portfolio import DividendIncome, MarketDataOverride, PriceSource
-from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
+from src.portfolio import DividendIncome
+from src.pricing import MarketDataOverride, PriceSource
 from src.pricing.orm.market_data import FxRate
+from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 from src.reporting.extension.report_traceability import (
     _add_anchor_details,

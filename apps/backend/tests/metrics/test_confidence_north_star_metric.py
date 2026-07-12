@@ -11,7 +11,7 @@ from decimal import Decimal
 
 import pytest
 
-from src.models.journal import JournalEntrySourceType
+from src.audit import JournalEntrySourceType
 from src.reporting.extension.confidence_metric import ConfidenceMetricService
 from tests.ledger._ledger_helpers import create_valid_posted_entry
 

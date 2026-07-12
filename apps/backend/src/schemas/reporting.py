@@ -8,8 +8,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from src.models.account import AccountType
-from src.models.journal import Direction
+from src.ledger import AccountType, Direction
 from src.models.layer4 import ReportType
 from src.schemas.provenance import DataProvenance
 

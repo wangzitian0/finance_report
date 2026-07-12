@@ -10,8 +10,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.account import Account
-from src.models.journal import JournalEntry, JournalLine
+from src.ledger import Account, JournalEntry, JournalLine
 from src.observability import get_logger
 from src.reporting.extension._core import _REPORT_STATUSES, _get_fx_rates_map
 from src.reporting.extension.reporting_calc import (

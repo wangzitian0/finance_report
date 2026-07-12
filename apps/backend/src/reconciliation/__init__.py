@@ -40,6 +40,7 @@ from src.reconciliation.extension.matching import (
     _get_existing_active_match,
     _get_pending_layer2_transactions,
     _within_combination_tolerance,
+    accepted_transfer_txn_ids,
     auto_accept,
     build_many_to_one_groups,
     calculate_match_score,
@@ -71,6 +72,11 @@ from src.reconciliation.extension.scoring import (
 # ORM models owned by this package (moved from src/models, #1675); imported
 # eagerly so importing the package registers the mappers on Base.metadata.
 from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
+from src.reconciliation.orm.reconciliation import (
+    ReconciliationMatch,
+    ReconciliationMatchJournalEntry,
+    ReconciliationStatus,
+)
 
 __all__ = [
     "CheckStatus",
@@ -84,7 +90,10 @@ __all__ = [
     "MatchCandidate",
     "RECONCILIATION_SEMANTIC_PROMPT",
     "ReconciliationConfig",
+    "ReconciliationMatch",
+    "ReconciliationMatchJournalEntry",
     "ReconciliationStats",
+    "ReconciliationStatus",
     "TransferLeg",
     "_candidate_is_better",
     "_find_many_to_one_candidates",
@@ -94,6 +103,7 @@ __all__ = [
     "_get_pending_layer2_transactions",
     "_within_combination_tolerance",
     "accept_match",
+    "accepted_transfer_txn_ids",
     "ai_semantic_score",
     "auto_accept",
     "batch_accept",

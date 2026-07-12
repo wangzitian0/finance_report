@@ -6,7 +6,7 @@ from datetime import date
 
 import pytest
 
-from src.models.account import AccountType
+from src.ledger import AccountType
 from src.reconciliation.extension import reconciliation_audit as audit
 
 

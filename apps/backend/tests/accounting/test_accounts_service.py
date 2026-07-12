@@ -15,7 +15,7 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.account import AccountType
+from src.ledger import AccountType
 from src.routers.accounts import (
     create_account,
     get_account,

@@ -7,9 +7,17 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.ledger import ValidationError, validate_journal_balance, verify_accounting_equation
-from src.models.account import Account, AccountType
-from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger import (
+    Account,
+    AccountType,
+    Direction,
+    JournalEntry,
+    JournalEntryStatus,
+    JournalLine,
+    ValidationError,
+    validate_journal_balance,
+    verify_accounting_equation,
+)
 
 
 def test_AC2_12_1_multicurrency_entry_balances_in_base_currency(ac_evidence):

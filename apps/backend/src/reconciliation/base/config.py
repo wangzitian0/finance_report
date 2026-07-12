@@ -14,9 +14,7 @@ from src.audit import (
     source_type_rank,
 )
 from src.audit.money import Money
-from src.ledger import ValidationError, validate_journal_balance
-from src.models.account import AccountType
-from src.models.journal import Direction, JournalEntry
+from src.ledger import AccountType, Direction, JournalEntry, ValidationError, validate_journal_balance
 from src.observability import get_logger
 
 logger = get_logger(__name__)

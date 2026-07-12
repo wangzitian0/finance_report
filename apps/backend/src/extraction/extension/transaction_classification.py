@@ -30,7 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
 from src.extraction.extension.classification import ClassificationService
-from src.models.account import AccountType
+from src.ledger import AccountType
 from src.models.layer2 import AtomicTransaction
 from src.models.layer3 import (
     ClassificationRule,

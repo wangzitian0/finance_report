@@ -6,8 +6,7 @@ that are not covered in the main test files.
 from datetime import date
 from decimal import Decimal
 
-from src.models.account import Account, AccountType
-from src.models.journal import Direction, JournalEntry, JournalLine
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalLine
 
 
 class TestAccountsRouterCoverage:

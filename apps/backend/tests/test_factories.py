@@ -6,10 +6,9 @@ Validates that factories produce correct, balanced, and valid test data.
 from decimal import Decimal
 from uuid import UUID
 
-from src.models.account import AccountType
-from src.models.journal import Direction, JournalEntryStatus
-from src.models.reconciliation import ReconciliationStatus
+from src.ledger import AccountType, Direction, JournalEntryStatus
 from src.models.statement_enums import BankStatementStatus
+from src.reconciliation import ReconciliationStatus
 from tests.factories import (
     AccountFactory,
     AtomicTransactionFactory,
@@ -77,8 +76,7 @@ class TestJournalEntryFactory:
     async def test_create_balanced_returns_correct_types(self, db, test_user):
         entry, debit_acc, credit_acc = await JournalEntryFactory.create_balanced_async(db, user_id=test_user.id)
 
-        from src.models.account import Account
-        from src.models.journal import JournalEntry
+        from src.ledger import Account, JournalEntry
 
         assert isinstance(entry, JournalEntry)
         assert isinstance(debit_acc, Account)

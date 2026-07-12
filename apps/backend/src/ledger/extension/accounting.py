@@ -15,10 +15,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
+from src.audit import JournalEntrySourceType
 from src.ledger.base.validators import ValidationError
 from src.ledger.extension.repository import create_journal_entry, post_journal_entry
-from src.models.account import Account, AccountType
-from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
+from src.ledger.orm.account import Account, AccountType
+from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
 
 settings = src.config.settings
 

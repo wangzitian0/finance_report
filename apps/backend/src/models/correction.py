@@ -11,7 +11,7 @@ from src.database import Base
 from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 if TYPE_CHECKING:
-    from src.models.account import Account
+    from src.ledger import Account
     from src.models.layer2 import AtomicTransaction
 
 

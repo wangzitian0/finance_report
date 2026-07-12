@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.account import Account, AccountType
+from src.ledger import Account, AccountType
 from src.models.layer2 import AssetType, AtomicPosition, AtomicTransaction, TransactionDirection
 from src.models.layer3 import (
     ClassificationRule,
@@ -22,17 +22,10 @@ from src.models.layer3 import (
     RuleType,
 )
 from src.models.layer4 import ReportSnapshot, ReportType
-from src.models.portfolio import (
-    DividendIncome,
-    DividendType,
-    InvestmentLot,
-    InvestmentTransaction,
-    InvestmentTransactionType,
-    MarketDataOverride,
-    PriceSource,
-)
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
+from src.portfolio import DividendIncome, DividendType, InvestmentLot, InvestmentTransaction, InvestmentTransactionType
+from src.pricing import MarketDataOverride, PriceSource
 from src.pricing.extension.market_data import _load_stored_stock_price
 from src.pricing.orm.market_data import FxRate, StockPrice
 

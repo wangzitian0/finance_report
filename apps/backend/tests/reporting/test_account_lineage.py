@@ -6,8 +6,7 @@ from decimal import Decimal
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.account import Account, AccountType
-from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.reporting import ReportError, get_account_lineage
 
 

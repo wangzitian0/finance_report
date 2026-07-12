@@ -27,7 +27,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction.extension.service import ExtractionService
-from src.models.account import Account, AccountType
+from src.ledger import Account, AccountType
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
 from tests.factories import StatementSummaryFactory

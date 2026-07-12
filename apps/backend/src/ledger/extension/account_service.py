@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.account import Account, AccountType
+from src.ledger.orm.account import Account, AccountType
 from src.schemas.account import AccountCreate, AccountUpdate
 
 

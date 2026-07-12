@@ -825,7 +825,7 @@ class TestMainFunction:
         monkeypatch.setattr(
             tl,
             "_get_changed_files",
-            lambda base_branch="main": ["src.config", "src.models.account"],
+            lambda base_branch="main": ["src.config", "src.ledger.orm.account"],
         )
 
         captured_cmd = {}

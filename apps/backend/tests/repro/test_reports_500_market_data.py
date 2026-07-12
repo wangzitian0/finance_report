@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 @pytest.fixture
 async def account_with_subject(db: AsyncSession, test_user):
     """A single asset account so `_ensure_report_market_data_fresh` actually runs."""
-    from src.models.account import Account, AccountType
+    from src.ledger import Account, AccountType
 
     account = Account(
         user_id=test_user.id,

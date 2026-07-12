@@ -8,7 +8,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
-from src.models.account import AccountType
+from src.ledger import AccountType
 from src.schemas.base import BaseResponse, ListResponse, MoneyAmount
 
 
