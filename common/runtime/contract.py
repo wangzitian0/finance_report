@@ -814,6 +814,21 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        ACRecord(
+            id="AC-runtime.real-corpus-eval.6",
+            statement=(
+                "verify_real_corpus_eval raises a clear RuntimeError when the "
+                "latest completed run is missing or malformed createdAt, "
+                "instead of crashing on an unhandled KeyError/TypeError or "
+                "silently treating the run as fresh."
+            ),
+            test=(
+                "tests/tooling/test_real_corpus_eval_evidence.py"
+                "::test_AC_runtime_real_corpus_eval_6_missing_created_at_fails_closed"
+            ),
+            priority="P2",
+            status="done",
+        ),
     ],
 )
 

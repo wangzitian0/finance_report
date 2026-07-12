@@ -119,3 +119,24 @@ def test_AC_runtime_real_corpus_eval_5_picks_the_most_recent_completed_run() -> 
         repository="owner/repo", gh_json=fake_gh_json, now=_NOW
     )
     assert run_id == "200"
+
+
+def test_AC_runtime_real_corpus_eval_6_missing_created_at_fails_closed() -> None:
+    """AC-runtime.real-corpus-eval.6: a completed/successful run with no (or
+    blank) createdAt fails closed with a clear error, not an unhandled
+    KeyError/TypeError and not a silent freshness pass."""
+
+    def fake_gh_json(_args: list[str]) -> object:
+        return [
+            {
+                "databaseId": 300,
+                "status": "completed",
+                "conclusion": "success",
+                "createdAt": None,
+            }
+        ]
+
+    with pytest.raises(RuntimeError, match="missing createdAt"):
+        release_evidence.verify_real_corpus_eval(
+            repository="owner/repo", gh_json=fake_gh_json, now=_NOW
+        )
