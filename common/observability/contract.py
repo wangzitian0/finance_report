@@ -18,13 +18,22 @@ name, not an identity). The formerly flat ``src.logger`` / ``src.telemetry_metri
 / ``src.analytics`` modules, the ``ErrorIds`` vocabulary, and the PII detector
 (``pii_redaction``, folded in from ``src.services`` per #1677 — its consumers were
 this package's audit helpers and extraction's CSV path) now live inside this
-package; its one remaining import of unregistered backend infrastructure is
-``src.config``.
+package; its eagerly-imported backend infrastructure remains ``src.config``
+only. The package also owns the audit-plane North-Star metric series
+(``ConfidenceMetricSnapshot``, ``orm/metrics.py`` — moved from ``src/models``
+in #1675 D5); the ORM is published **lazily** so importing the root for
+logging never pulls ``src.database``.
 """
 
 from __future__ import annotations
 
-from common.meta.package_contract import ACRecord, Invariant, PackageContract
+from common.meta.package_contract import (
+    ACRecord,
+    Invariant,
+    Kind,
+    PackageContract,
+    Unit,
+)
 
 CONTRACT = PackageContract(
     name="observability",
@@ -32,7 +41,14 @@ CONTRACT = PackageContract(
     tier="CODE-ONLY",
     depends_on=[],
     implementations={"be": "apps/backend/src/observability", "fe": None},
+    # The one ORM entity this package owns — taxonomy-only (module unset, the
+    # #1675 idiom): the append-only North-Star confidence series lives in
+    # orm/metrics.py; FK(users.id) is the bare tenancy-anchor column.
+    units=[
+        Unit(name="ConfidenceMetricSnapshot", kind=Kind.ENTITY),
+    ],
     interface=[
+        "ConfidenceMetricSnapshot",
         "INVARIANT_VIOLATION_KINDS",
         "ErrorIds",
         "configure_database_pool_metrics",

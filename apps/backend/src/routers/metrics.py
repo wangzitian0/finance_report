@@ -8,7 +8,7 @@ from fastapi import APIRouter, status
 
 from src.deps import CurrentUserId, DbSession
 from src.extraction import CorrectionLoopService
-from src.models.metrics import ConfidenceMetricSnapshot
+from src.observability import ConfidenceMetricSnapshot
 from src.reporting import ConfidenceMetricService
 from src.schemas.metrics import (
     ConfidenceMetricPoint,

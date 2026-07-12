@@ -37,6 +37,11 @@ import src.portfolio  # noqa: F401,E402
 import src.pricing  # noqa: F401,E402
 import src.reconciliation  # noqa: F401,E402
 
+# observability publishes its one ORM class lazily (importing its root must
+# stay light for logging consumers); the published-name import below IS the
+# registration trigger for orm/metrics.py.
+from src.observability import ConfidenceMetricSnapshot as _ConfidenceMetricSnapshot  # noqa: E402, F401
+
 # Imported purely for the metadata-registration side effect; ordering is
 # irrelevant because SQLAlchemy resolves relationships after all are loaded.
 from . import (  # noqa: F401
@@ -46,7 +51,6 @@ from . import (  # noqa: F401
     layer2,
     layer3,
     layer4,
-    metrics,
     statement_enums,
     statement_summary,
 )

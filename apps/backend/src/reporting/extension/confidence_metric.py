@@ -17,7 +17,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.ledger import JournalEntry, JournalEntryStatus
-from src.models.metrics import ConfidenceMetricSnapshot
+from src.observability import ConfidenceMetricSnapshot
 from src.reporting.extension.confidence_tier import ConfidenceTier, derive_confidence_tier
 
 _PROPORTION_QUANT = Decimal("0.00001")

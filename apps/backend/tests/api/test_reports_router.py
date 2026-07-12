@@ -26,7 +26,7 @@ from src.identity import User
 from src.ledger import Account, AccountType
 from src.models.layer3 import ClassificationRule, RuleType
 from src.models.layer4 import ReportSnapshot, ReportType
-from src.models.metrics import ConfidenceMetricSnapshot
+from src.observability import ConfidenceMetricSnapshot
 
 
 class TestReportsEndpoints:
