@@ -24,8 +24,8 @@ from src.ledger.extension.fx_revaluation import (
     is_revaluation_entry,
     run_period_end_revaluation,
 )
+from src.pricing import PricingError
 from src.pricing.orm.market_data import FxRate
-from src.services.fx import FxRateError
 
 
 @pytest.fixture
@@ -452,8 +452,8 @@ class TestCalculateUnrealizedFxForAccount:
     async def test_handles_fx_rate_error_exception(
         self, mock_get_rate, db: AsyncSession, test_user_id, usd_asset_account, sgd_asset_account
     ):
-        """Test that FxRateError exception is re-raised as RevaluationError."""
-        mock_get_rate.side_effect = FxRateError("No rate found for USD/SGD")
+        """Test that a PricingError (FX miss) is re-raised as RevaluationError."""
+        mock_get_rate.side_effect = PricingError("No rate found for USD/SGD")
 
         entry = JournalEntry(
             user_id=test_user_id,

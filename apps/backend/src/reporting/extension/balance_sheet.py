@@ -22,6 +22,7 @@ from src.reporting.extension._core import (
     _load_accounts,
     _strip_allocation_metadata,
 )
+from src.reporting.extension import fx_gateway
 from src.reporting.extension.fx_gateway import FxWarning
 from src.reporting.extension.portfolio_market import _build_portfolio_market_adjustment_lines
 from src.reporting.extension.reporting_calc import (
@@ -43,13 +44,13 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 # The manual-valuation report lines are built by
-# ``src.services.reporting.manual_valuation`` — the sole ``services/`` survivor
-# of the #1666 fold, owned by the in-flight pricing cutover (#1610). A carved
-# package must not import the app remainder (``check_app_boundary``), so the
-# builder arrives by injection — the same inversion as platform's readiness
-# port (#1676): ``main.py`` registers the real function at startup; the backend
-# test conftest registers it for direct (no-app) test runs. When #1610 re-homes
-# manual valuation under ``pricing``, only the registration call sites change.
+# ``src.pricing.build_manual_valuation_lines`` (#1610: re-homed from the
+# retired ``services/reporting/manual_valuation.py``, the sole ``services/``
+# survivor of the #1666 fold). A carved package must not import another L3
+# package's implementation directly, so the builder arrives by injection —
+# the same inversion as platform's readiness port (#1676): ``main.py``
+# registers the real function at startup; the backend test conftest
+# registers it for direct (no-app) test runs.
 _manual_valuation_lines_provider: ManualValuationLinesProvider | None = None
 
 
@@ -176,13 +177,20 @@ async def generate_balance_sheet(
         target_currency=target_currency,
         asset_lines=assets,
     )
-    valuation_assets, valuation_liabilities = await _build_manual_valuation_lines(
-        db,
-        user_id,
-        as_of_date=as_of_date,
-        target_currency=target_currency,
-        include_restricted=include_restricted,
-    )
+    try:
+        valuation_assets, valuation_liabilities = await _build_manual_valuation_lines(
+            db,
+            user_id,
+            as_of_date=as_of_date,
+            target_currency=target_currency,
+            include_restricted=include_restricted,
+        )
+    except fx_gateway.FxRateError as exc:
+        # pricing.build_manual_valuation_lines (registered above) raises its
+        # own error family on an FX miss rather than catching internally —
+        # reporting owns the ReportError mapping at this boundary, same as
+        # every other fx_gateway call site in this file.
+        raise ReportError(str(exc)) from exc
     assets.extend(portfolio_adjustments)
     assets.extend(valuation_assets)
     liabilities.extend(valuation_liabilities)

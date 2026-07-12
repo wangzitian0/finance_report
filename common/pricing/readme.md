@@ -194,8 +194,13 @@ USD), (4) Yahoo Finance direct/inverse/bridge fetch when lazy fetch is
 enabled — otherwise raises `MarketDataUnavailable`.
 
 **Sync schedule** — FX rates and stock prices both sync daily at 22:00
-Asia/Singapore from the backend scheduler (`run_market_data_scheduler()`
-in FastAPI lifespan). FX pairs derive from actual business data plus a
+Asia/Singapore from pricing's own scheduler (`run_market_data_scheduler()`,
+started in the FastAPI lifespan; absorbed from
+`services/market_data_scheduler.py`, #1610 P2). The scheduler never
+discovers scopes itself: the app composition root injects a
+`MarketDataScopeProvider` (`src/composition.py::market_data_scopes`, which
+composes each domain's published currency/holdings reads) — pricing stays
+an L3 leaf. FX pairs derive from actual business data plus a
 non-empty default pair between `BASE_CURRENCY` and USD (explicit API pairs
 also accepted); stock symbols are active holdings or explicit API
 symbols. Long-lived daily history is retained — incremental sync starts
@@ -236,10 +241,13 @@ exists); `market_data_sync_state` (`kind`, `scope`, `last_success_at`,
 `convert(Money(Decimal("1000.00"), "SGD"), ExchangeRate("SGD", "USD",
 Decimal("0.741523"))).amount` → `741.52 USD`.
 
-**Caching** — in-process FX cache in `apps/backend/src/services/fx.py`,
-key `fx:{base}:{quote}:{date}`, 24h TTL, DB lookup on miss;
-`lazy_load=True` call sites may resolve a missing DB rate through inverse,
-bridge, or Yahoo Finance and persist the result to `fx_rates`.
+**Caching** — no global in-process TTL cache: the retired
+`services/fx.py` cache was deliberately not carried into pricing
+(correctness first; re-add only if load-tested need appears). Report
+builders batch-prefetch their pairs into a scope-local
+`PrefetchedFxRates` instead; `lazy_load=True` call sites may resolve a
+missing DB rate through inverse, bridge, or Yahoo Finance and persist the
+result to `fx_rates`.
 
 Design constraints: always store the source name with the rate for
 auditability; store FX rates exactly and convert amounts through
@@ -254,8 +262,10 @@ rates when direct, inverse, bridge, and provider lookup all fail.
 **Error handling** — missing direct rate → try inverse/bridge rates from
 `fx_rates`; source timeout → log a warning and continue to report error
 handling; missing rate for date → use the latest stored/provider date on
-or before the requested date; all lazy paths failed → raise `FxRateError`,
-report APIs surface a controlled `ReportError`.
+or before the requested date; all lazy paths failed → raise the pricing
+error family (`NoObservationError`, a `PricingError`, with the
+`No FX rate available for BASE/QUOTE on DATE` message), report APIs
+surface a controlled `ReportError`.
 
 **FX rate seeding (test data)** — `uv run python tools/seed_fx_rates.py
 --env local` (or `--env staging` with `DATABASE_URL` set) seeds a fixed

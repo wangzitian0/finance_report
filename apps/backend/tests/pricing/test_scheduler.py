@@ -56,7 +56,7 @@ async def test_AC_pricing_marketdata_12_daily_sync_uses_injected_scope_provider(
     calls: list[tuple[str, object, object]] = []
 
     class FakeSessionMaker:
-        def __call__(self) -> "FakeSessionMaker":
+        def __call__(self) -> FakeSessionMaker:
             return self
 
         async def __aenter__(self) -> object:

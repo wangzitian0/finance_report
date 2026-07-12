@@ -21,7 +21,7 @@ from src.models.layer3 import (
 from src.observability import get_logger
 from src.platform import raise_bad_request, raise_internal_error, raise_not_found
 from src.portfolio import PositionService, PositionServiceError
-from src.pricing import ValuationService, ValuationServiceError
+from src.pricing import PricingError, ValuationService, ValuationServiceError, convert_money
 from src.schemas.assets import (
     DepreciationResponse,
     ManagedPositionListResponse,
@@ -35,7 +35,6 @@ from src.schemas.assets import (
     ValuationComponentResponse,
     ValuationComponentsResponse,
 )
-from src.services import fx
 
 router = APIRouter(prefix="/assets", tags=["assets"])
 logger = get_logger(__name__)
@@ -57,14 +56,14 @@ async def _apply_reporting_valuation(
     an FX error must never 500 a read (the #1388 lesson).
     """
     try:
-        converted = await fx.convert_money(
+        converted = await convert_money(
             db,
             Money(position.cost_basis, position.currency),
             settings.base_currency,
             rate_date=position.acquisition_date,
             lazy_load=True,
         )
-    except fx.FxRateError as exc:
+    except PricingError as exc:
         logger.warning(
             "Reporting-currency conversion unavailable for position; returning native only",
             position_id=str(position.id),

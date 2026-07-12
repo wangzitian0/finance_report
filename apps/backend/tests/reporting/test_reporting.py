@@ -1480,8 +1480,8 @@ async def test_income_statement_combined_filters(db: AsyncSession, chart_of_acco
 
 async def test_income_statement_fallback_rate(db: AsyncSession, chart_of_accounts, test_user_id, monkeypatch):
     """Test fallback to convert_amount when PrefetchedFxRates returns None."""
+    from src.pricing import PrefetchedFxRates
     from src.pricing.orm.market_data import FxRate as FxRateModel
-    from src.services.fx import PrefetchedFxRates
 
     cash, _liability, _equity, income, _expense = chart_of_accounts
 

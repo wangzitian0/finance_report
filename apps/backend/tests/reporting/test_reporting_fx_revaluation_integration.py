@@ -8,9 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit import JournalEntrySourceType
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.models.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass, ManualValuationSnapshot
+from src.pricing import get_average_rate
 from src.pricing.orm.market_data import FxRate
 from src.reporting import generate_balance_sheet, generate_income_statement
-from src.services.fx import get_average_rate
 
 
 async def _account(db: AsyncSession, user_id, name: str, account_type: AccountType, currency: str) -> Account:

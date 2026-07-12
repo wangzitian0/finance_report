@@ -29,6 +29,11 @@ RESIDUE_MOVES = {
     "account_service.py": SRC / "ledger/extension/account_service.py",
     "account_coverage.py": SRC / "ledger/data/account_coverage.py",
     "fx_revaluation.py": SRC / "ledger/extension/fx_revaluation.py",
+    # #1610 P2: the pricing absorption (services/fx.py lookup half, the
+    # market-data scheduler, and the manual-valuation report lines).
+    "fx.py": SRC / "pricing/extension/fx.py",
+    "market_data_scheduler.py": SRC / "pricing/extension/scheduler.py",
+    "reporting/manual_valuation.py": SRC / "pricing/extension/valuation.py",
     "storage.py": SRC / "runtime/extension/storage.py",
     "source_type_priority.py": SRC / "audit/source_type_priority.py",
     "app_config.py": SRC / "config_app.py",
@@ -57,6 +62,9 @@ OLD_IMPORT_PATHS = {
     "src.services.account_service",
     "src.services.account_coverage",
     "src.services.fx_revaluation",
+    "src.services.fx",
+    "src.services.market_data_scheduler",
+    "src.services.reporting.manual_valuation",
     "src.services.storage",
     "src.services.app_config",
 }

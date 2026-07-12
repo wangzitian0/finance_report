@@ -68,8 +68,9 @@ PROTECTED_MODULE_GLOBS: tuple[str, ...] = (
     "apps/backend/src/services/reporting_calc.py",
     "apps/backend/src/extraction/base/validation.py",
     "apps/backend/src/extraction/extension/statement_validation.py",
-    # FX (deterministic conversion / revaluation / transfer math)
-    "apps/backend/src/services/fx.py",
+    # FX (deterministic conversion / revaluation / transfer math) — the
+    # lookup module moved into pricing (#1610 P2 retired services/fx.py)
+    "apps/backend/src/pricing/extension/fx.py",
     "apps/backend/src/ledger/extension/fx_revaluation.py",
     "apps/backend/src/reconciliation/extension/fx_transfer.py",
     "apps/backend/src/reconciliation/extension/fx_transfer_discovery.py",

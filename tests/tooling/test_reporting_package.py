@@ -10,8 +10,9 @@ from common.meta.extension.check_package_contract import discover_packages, run
 
 REPO = Path(__file__).resolve().parents[2]
 REPORTING = REPO / "apps/backend/src/reporting"
-# The pre-#1666 location: survives only as manual_valuation.py (owned by the
-# pricing cutover #1610) plus the thin shims that keep it importing.
+# The pre-#1666 location: manual_valuation.py survived here (plus the thin
+# import shims) until the pricing cutover (#1610 P2) re-homed it into
+# pricing/extension/valuation.py and deleted the whole directory.
 LEGACY_REPORTING = REPO / "apps/backend/src/services/reporting"
 
 _BACKEND_ROOT = str(REPO / "apps" / "backend")
@@ -77,9 +78,10 @@ def test_AC_reporting_1_3_manual_valuation_is_not_published_reporting_surface():
     assert reporting_py_files.isdisjoint({"manual_valuation.py"}), (
         "manual_valuation.py must not fold into the reporting package (pricing owns it, #1610)"
     )
-    assert (LEGACY_REPORTING / "manual_valuation.py").exists(), (
-        "manual_valuation.py stays behind as the sole services/reporting survivor until the "
-        "pricing cutover (#1610) re-homes it"
+    assert not LEGACY_REPORTING.exists(), (
+        "the pricing cutover (#1610 P2) absorbed manual_valuation.py into "
+        "pricing/extension/valuation.py; the legacy services/reporting/ "
+        "directory must not reappear"
     )
     assert {unit.name for unit in CONTRACT.units}.isdisjoint({"ManualValuationSnapshot"})
 

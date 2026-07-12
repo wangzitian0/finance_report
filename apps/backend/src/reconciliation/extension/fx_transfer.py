@@ -127,7 +127,7 @@ class TransferClassification:
 def implied_rate(out_leg: TransferLeg, in_leg: TransferLeg) -> Decimal:
     """Implied conversion rate ``amount_from / amount_to`` (ccyA per ccyB).
 
-    Mirrors :func:`src.services.fx.get_exchange_rate` orientation: the rate is
+    Mirrors :func:`src.pricing.get_exchange_rate` orientation: the rate is
     quoted as ``base/quote`` where base is the out (from) currency.
     """
     if in_leg.amount == 0:
@@ -162,7 +162,7 @@ def pair_fx_legs(
        ``tolerance`` (relative) of the observed ``market_rate``.
 
     ``market_rate`` is quoted as ``currency_from / currency_to`` (ccyA per ccyB),
-    matching :func:`src.services.fx.get_exchange_rate`'s base/quote orientation.
+    matching :func:`src.pricing.get_exchange_rate`'s base/quote orientation.
 
     Returns the :class:`FxLegPair` when the legs pair, else ``None``. Argument
     order is not assumed: the leg with ``direction == "OUT"`` is treated as the

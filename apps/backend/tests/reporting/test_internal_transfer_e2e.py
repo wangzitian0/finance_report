@@ -23,7 +23,6 @@ from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEnt
 from src.pricing import FxConversion
 from src.pricing.orm.market_data import FxRate
 from src.reporting import generate_balance_sheet, generate_income_statement
-from src.services.fx import clear_fx_cache
 
 # A representative cross-currency internal transfer: 1360.00 SGD leaves a SGD
 # bank account, 1000.00 USD arrives in a USD bank account, at 1.36 SGD/USD, with a
@@ -100,7 +99,6 @@ async def _seed_internal_transfer_scenario(db: AsyncSession, user_id) -> None:
     layer uses to net them back out. A genuine 5000 SGD salary is seeded alongside
     so the exclusion is observable in the totals.
     """
-    clear_fx_cache()
     # FX rate USD -> SGD so income-statement / balance-sheet conversion can run.
     db.add(
         FxRate(

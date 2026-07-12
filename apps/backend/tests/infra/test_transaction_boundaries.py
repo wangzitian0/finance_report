@@ -17,9 +17,10 @@ from src.pricing.orm.market_data import FxRate, StockPrice
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 SERVICE_ROOT = PROJECT_ROOT / "apps" / "backend" / "src" / "services"
+PRICING_ROOT = PROJECT_ROOT / "apps" / "backend" / "src" / "pricing"
 
 ALLOWED_SERVICE_COMMIT_BOUNDARIES = {
-    ("market_data_scheduler.py", "run_daily_market_data_sync"),
+    ("ai_advisor/service.py", "AIAdvisorService._stream_and_store"),
     ("statement_parsing.py", "handle_parse_failure"),
     ("statement_parsing.py", "route_brokerage_for_review_if_present"),
     ("statement_parsing.py", "parse_statement_background"),
@@ -29,6 +30,18 @@ ALLOWED_SERVICE_COMMIT_BOUNDARIES = {
     # transaction boundary at the service layer so the router stays thin.
     ("statement_workflow.py", "approve_statement_workflow"),
     ("statement_workflow.py", "reject_statement_workflow"),
+}
+
+# The scheduler moved into pricing (#1610 P2) and kept its documented
+# one-commit-per-run boundary: the single commit finalizes only pricing's own
+# aggregates (fx_rates/stock_prices/market_data_sync_state); the injected
+# scope provider is read-only. AC-pricing.marketdata.12 guards the inversion;
+# this gate keeps the commit inventory honest.
+ALLOWED_PRICING_COMMIT_BOUNDARIES = {
+    ("extension/scheduler.py", "run_daily_market_data_sync"),
+    # #1642: the outbox-relay subscriber owns its per-event session/commit —
+    # at-least-once delivery with an idempotent, UNIQUE-backed ingest write.
+    ("extension/ingest.py", "make_statement_price_handler._handle"),
 }
 
 
@@ -60,11 +73,11 @@ class _CommitCallVisitor(ast.NodeVisitor):
         self.stack.pop()
 
 
-def _service_commit_calls() -> list[tuple[str, str, int]]:
+def _commit_calls(root: Path) -> list[tuple[str, str, int]]:
     calls: list[tuple[str, str, int]] = []
-    for path in sorted(SERVICE_ROOT.rglob("*.py")):
+    for path in sorted(root.rglob("*.py")):
         tree = ast.parse(path.read_text(), filename=str(path))
-        visitor = _CommitCallVisitor(path.relative_to(SERVICE_ROOT).as_posix())
+        visitor = _CommitCallVisitor(path.relative_to(root).as_posix())
         visitor.visit(tree)
         calls.extend(visitor.calls)
     return calls
@@ -74,8 +87,19 @@ def test_service_commit_calls_are_documented_boundary_exceptions() -> None:
     """AC12.26.1: service commit calls are limited to documented boundary exceptions."""
     unexpected = [
         f"{filename}:{lineno} in {qualname}"
-        for filename, qualname, lineno in _service_commit_calls()
+        for filename, qualname, lineno in _commit_calls(SERVICE_ROOT)
         if (filename, qualname) not in ALLOWED_SERVICE_COMMIT_BOUNDARIES
+    ]
+
+    assert unexpected == []
+
+
+def test_pricing_commit_calls_are_documented_boundary_exceptions() -> None:
+    """AC12.26.1: pricing commit calls are limited to the scheduler's documented boundary."""
+    unexpected = [
+        f"{filename}:{lineno} in {qualname}"
+        for filename, qualname, lineno in _commit_calls(PRICING_ROOT)
+        if (filename, qualname) not in ALLOWED_PRICING_COMMIT_BOUNDARIES
     ]
 
     assert unexpected == []

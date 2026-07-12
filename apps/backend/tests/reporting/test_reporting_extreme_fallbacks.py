@@ -468,7 +468,7 @@ async def test_cash_flow_raises_when_start_date_rate_missing(db: AsyncSession, t
 
 
 async def test_cash_flow_raises_when_end_date_rate_missing(db: AsyncSession, test_user_id):
-    """AC-reporting.kpis.7: AC5.6.10 AC5.6.11: Cash flow raises when end-date rate missing; FxRateError propagated."""
+    """AC-reporting.kpis.7: AC5.6.10 AC5.6.11: Cash flow raises when end-date rate missing; PricingError propagated."""
     bank = Account(user_id=test_user_id, name="USD Cash During", type=AccountType.ASSET, currency="USD")
     offset = Account(user_id=test_user_id, name="USD Equity During", type=AccountType.EQUITY, currency="USD")
     db.add_all([bank, offset])

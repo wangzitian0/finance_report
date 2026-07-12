@@ -134,14 +134,19 @@ CONTRACT = PackageContract(
         # (a currency against itself) is a business rule that doesn't belong
         # in subject-agnostic resolve(); everything else routes through the
         # same PriceableSubject + resolve() path every other subject kind
-        # uses. Caching and the lazy crawler-fallback (fx.py's lazy_load)
-        # are deliberately deferred — see extension/fx.py's docstring.
+        # uses. #1610 P2 retired services/fx.py, making this the ONE FX
+        # lookup implementation: the lazy crawler-fallback, the fx_warnings
+        # side-channel, and average-rate windows are carried over
+        # (AC-pricing.fx.1/.3); the in-process TTL cache deliberately is NOT
+        # (PrefetchedFxRates covers the hot batch paths) — see
+        # extension/fx.py's docstring.
         Unit(
             name="get_exchange_rate", kind=Kind.DOMAIN_SERVICE, module="extension/fx.py"
         ),
         # convert_amount/convert_money/convert_to_base: thin lookup+math
-        # bridges over get_exchange_rate (lookup) + audit.money.convert
-        # (math, rate passed in — ruling 5, audit never looks up a rate).
+        # bridges over get_exchange_rate/get_average_rate (lookup) +
+        # audit.money.convert (math, rate passed in — ruling 5, audit never
+        # looks up a rate).
         Unit(name="convert_amount", kind=Kind.DOMAIN_SERVICE, module="extension/fx.py"),
         Unit(name="convert_money", kind=Kind.DOMAIN_SERVICE, module="extension/fx.py"),
         Unit(
@@ -152,6 +157,21 @@ CONTRACT = PackageContract(
         # "what observations exist"; averaging is pricing's own logic.
         Unit(
             name="get_average_rate", kind=Kind.DOMAIN_SERVICE, module="extension/fx.py"
+        ),
+        # PrefetchedFxRates (a scope-local batch cache DTO-ish helper) and
+        # FxWarning (a type alias) are published in ``interface`` below but,
+        # like the market-data DTOs, don't get their own taxonomy Unit() —
+        # units is a curated tactical-pattern annotation, not a 1:1 mirror
+        # of interface.
+        # build_manual_valuation_lines: the manual-valuation slice of the
+        # balance sheet, absorbed from services/reporting/manual_valuation.py
+        # (#1610 P2) — pricing owns the facts and the FX conversion; the
+        # reporting caller owns the ReportError mapping
+        # (AC-pricing.manualvaluation.3).
+        Unit(
+            name="build_manual_valuation_lines",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/valuation.py",
         ),
         # ── extension: crawler sync (given scopes, sync/report on them — the
         # discovery of *which* scopes lives in each domain's published reads
@@ -184,12 +204,31 @@ CONTRACT = PackageContract(
             kind=Kind.DOMAIN_SERVICE,
             module="extension/market_data/service.py",
         ),
-        # MarketDataScopeStatus/MarketDataSyncResult (DTOs) and
-        # MARKET_DATA_QUANTITY_UNIT (a plain constant) are published in
-        # ``interface`` below but, like several of audit's own published
-        # helpers (e.g. RECONCILIATION_AUTO_ACCEPT_SCORE), don't get their own
-        # taxonomy Unit() — units is a curated tactical-pattern annotation,
-        # not a 1:1 mirror of interface.
+        # run_market_data_scheduler/run_daily_market_data_sync: the daily
+        # crawl orchestrator absorbed from services/market_data_scheduler.py
+        # (#1610 P2). Scope discovery stays inverted: the composition root
+        # injects a MarketDataScopeProvider (src/composition.py composes the
+        # per-domain published reads) — pricing never reads another domain
+        # (AC-pricing.marketdata.12). One commit per run, pricing aggregates
+        # only (guarded by tests/infra/test_transaction_boundaries.py).
+        Unit(
+            name="run_market_data_scheduler",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/scheduler.py",
+        ),
+        Unit(
+            name="run_daily_market_data_sync",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/scheduler.py",
+        ),
+        # MarketDataScopeStatus/MarketDataSyncResult/MarketDataScopes (DTOs),
+        # MarketDataScopeProvider (a port type alias),
+        # next_market_data_sync_at (a pure schedule helper), and
+        # MARKET_DATA_QUANTITY_UNIT/MARKET_DATA_SYNC_TZ (plain constants) are
+        # published in ``interface`` below but, like several of audit's own
+        # published helpers (e.g. RECONCILIATION_AUTO_ACCEPT_SCORE), don't
+        # get their own taxonomy Unit() — units is a curated tactical-pattern
+        # annotation, not a 1:1 mirror of interface.
         # ── extension: the extraction event-ingest subscriber (#1642) — the
         # first cross-domain event consumer in the codebase. extraction
         # publishes PriceObserved (source=statement) through the outbox;
@@ -225,22 +264,33 @@ CONTRACT = PackageContract(
     # publish PriceObserved through the platform outbox, atomically with the
     # write — pricing is a real producer on the bus, not just a declared
     # event type), the extraction-event ingest subscriber + its wiring helper
-    # (#1642 — pricing is also the bus's first consumer), the FX lookup +
-    # convert_* + average-rate wrappers, and the crawler sync (moved in from
-    # apps/backend/src/services/market_data/, #1610 PR2 step 2). The 2 data
-    # projections are reserved units above — they join the interface once a
-    # later commit implements them for real.
+    # (#1642 — pricing is also the bus's first consumer), the full FX lookup
+    # surface absorbed from the retired services/fx.py (#1610 P2: the
+    # convert_* trio + average-rate wrappers with fx_warnings, plus
+    # PrefetchedFxRates), the manual-valuation balance-sheet line builder
+    # (absorbed from services/reporting/manual_valuation.py), the crawler
+    # sync (moved in from apps/backend/src/services/market_data/), and the
+    # daily crawl orchestrator (absorbed from
+    # services/market_data_scheduler.py — scopes injected via
+    # MarketDataScopeProvider). The 2 data projections are reserved units
+    # above — they join the interface once a later commit implements them
+    # for real.
     interface=[
         "Authority",
         "FxConversion",
         "FxRate",
+        "FxWarning",
         "MARKET_DATA_QUANTITY_UNIT",
+        "MARKET_DATA_SYNC_TZ",
         "MarketDataOverride",
+        "MarketDataScopeProvider",
         "MarketDataScopeStatus",
+        "MarketDataScopes",
         "MarketDataSyncResult",
         "MarketDataSyncState",
         "ObservationRepository",
         "ObservationSource",
+        "PrefetchedFxRates",
         "PriceObservation",
         "PriceObserved",
         "PriceSource",
@@ -254,6 +304,7 @@ CONTRACT = PackageContract(
         "ValuationComponentsResult",
         "ValuationService",
         "ValuationServiceError",
+        "build_manual_valuation_lines",
         "convert_amount",
         "convert_money",
         "convert_to_base",
@@ -262,10 +313,13 @@ CONTRACT = PackageContract(
         "get_exchange_rate",
         "get_market_data_status",
         "ingest_statement_price",
+        "next_market_data_sync_at",
         "record_manual_valuation",
         "record_override",
         "resolve",
         "resolve_missing_fx_rate",
+        "run_daily_market_data_sync",
+        "run_market_data_scheduler",
         "subscribe_price_ingest",
         "sync_fx_rates",
         "sync_stock_prices",

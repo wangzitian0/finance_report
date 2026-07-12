@@ -25,6 +25,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 import src.models._registry  # noqa: E402, F401
 from src.advisor import register_fx_conversion, register_fx_pairs_read
 from src.boot import Bootloader, BootMode
+from src.composition import market_data_scopes, observed_fx_pairs
 from src.config import settings
 from src.database import async_session_maker, engine, get_db, init_db
 from src.extraction import (
@@ -59,7 +60,17 @@ from src.platform import (
     register_uploaded_document_readers,
 )
 from src.platform.orm.ping_state import PingState
-from src.pricing import subscribe_price_ingest
+from src.pricing import (
+    PrefetchedFxRates,
+    PricingError,
+    build_manual_valuation_lines,
+    convert_amount,
+    convert_money,
+    get_average_rate,
+    get_exchange_rate,
+    run_market_data_scheduler,
+    subscribe_price_ingest,
+)
 from src.reconciliation import accepted_transfer_txn_ids
 from src.reporting import (
     get_personal_report_package_readiness,
@@ -97,16 +108,6 @@ from src.schemas.errors import (
     ErrorResponse,
     error_code_for_status,
 )
-from src.services.fx import (
-    FxRateError,
-    PrefetchedFxRates,
-    convert_amount,
-    convert_money,
-    get_average_rate,
-    get_exchange_rate,
-)
-from src.services.market_data_scheduler import observed_fx_pairs, run_market_data_scheduler
-from src.services.reporting.manual_valuation import _build_manual_valuation_lines
 
 # Initialize logging early
 configure_logging()
@@ -124,28 +125,30 @@ register_readiness_provider(get_personal_report_package_readiness)
 # carved package and must not import services/* itself. #1666 folded the
 # reporting summaries + readiness reads into the published src.reporting root
 # while this PR was in flight (advisor now imports those directly, no port
-# needed); the fx-pair composer's owner is still the app remainder
-# (services/market_data_scheduler.py, #1610), so it is injected here, the same
-# inversion as the platform port above. Collapses into a direct published-root
-# import once #1610 lands.
+# needed); the fx-pair composer is cross-domain composition at this
+# composition root (src/composition.py, #1610 P2 re-homed it from
+# services/market_data_scheduler.py) and the FX conversion is pricing's
+# published surface (#1610 P2 retired services/fx.py) — both still arrive by
+# injection, same inversion as the platform port above, so a rename inside
+# either owner never touches advisor's consumer modules.
 register_fx_pairs_read(observed_fx_pairs)
-register_fx_conversion(convert_amount=convert_amount, error_type=FxRateError)
+register_fx_conversion(convert_amount=convert_amount, error_type=PricingError)
 
 # Wire reporting's FX seam and manual-valuation lines port (#1666): reporting
-# (L3) must not import the services/ app remainder, but the FX conversion
-# service and the manual-valuation builder still live there pending the
-# pricing cutover (#1610) — the composition root injects them, same inversion
-# as the readiness port above. When #1610 lands, these registrations repoint
-# to src.pricing.
+# (L3) must not import the pricing package directly through the app
+# remainder's old services/fx.py — the composition root injects the real
+# implementations, same inversion as the readiness port above. #1610 landed:
+# both registrations now repoint to src.pricing (services/fx.py and
+# services/reporting/manual_valuation.py are deleted).
 register_fx_gateway(
     get_exchange_rate=get_exchange_rate,
     get_average_rate=get_average_rate,
     convert_amount=convert_amount,
     convert_money=convert_money,
     prefetched_fx_rates=PrefetchedFxRates,
-    fx_rate_error=FxRateError,
+    fx_rate_error=PricingError,
 )
-register_manual_valuation_lines_provider(_build_manual_valuation_lines)
+register_manual_valuation_lines_provider(build_manual_valuation_lines)
 
 # Wire platform's and runtime's UploadedDocument-read ports to the real
 # extraction-domain lookups (#1675 D3): same inversion, same reason — L1
@@ -267,7 +270,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await init_db()
     stop_event = asyncio.Event()
     supervisor_task = asyncio.create_task(run_parsing_supervisor(stop_event))
-    market_data_task = asyncio.create_task(run_market_data_scheduler(stop_event))
+    # Scope discovery is inverted (#1610 P2): pricing's scheduler receives the
+    # composition root's cross-domain scope composer instead of reading other
+    # domains itself — same inversion as the provider ports registered above.
+    market_data_task = asyncio.create_task(run_market_data_scheduler(stop_event, market_data_scopes))
     sweep_task = asyncio.create_task(run_storage_sweep(stop_event))
     outbox_relay_task = asyncio.create_task(run_outbox_relay(stop_event))
     log_observability_startup(logger)

@@ -25,33 +25,34 @@ import src.models._registry  # noqa: F401
 from src.config import settings
 from src.extraction import register_transfer_exclusions_provider
 from src.observability import get_logger
-from src.reconciliation import accepted_transfer_txn_ids
-from src.reporting import register_fx_gateway, register_manual_valuation_lines_provider
-from src.services.fx import (
-    FxRateError,
+from src.pricing import (
     PrefetchedFxRates,
-    clear_fx_cache,
+    PricingError,
+    build_manual_valuation_lines,
     convert_amount,
     convert_money,
     get_average_rate,
     get_exchange_rate,
 )
-from src.services.reporting.manual_valuation import _build_manual_valuation_lines
+from src.reconciliation import accepted_transfer_txn_ids
+from src.reporting import register_fx_gateway, register_manual_valuation_lines_provider
 
 # Wire reporting's composition-root ports for direct (no-app) test runs — the
-# same registrations main.py performs at startup (#1666): the FX seam and the
-# manual-valuation lines builder still live in the services/ remainder pending
-# the pricing cutover (#1610), and reporting reaches them only by injection.
-# Module-top so it precedes every test module import.
+# same registrations main.py performs at startup (#1666/#1610): reporting
+# reaches the FX seam and the manual-valuation lines builder only by
+# injection (a carved L3 package must not import another L3 package's
+# implementation directly), so tests exercising reporting without the full
+# app must register them too. Module-top so it precedes every test module
+# import.
 register_fx_gateway(
     get_exchange_rate=get_exchange_rate,
     get_average_rate=get_average_rate,
     convert_amount=convert_amount,
     convert_money=convert_money,
     prefetched_fx_rates=PrefetchedFxRates,
-    fx_rate_error=FxRateError,
+    fx_rate_error=PricingError,
 )
-register_manual_valuation_lines_provider(_build_manual_valuation_lines)
+register_manual_valuation_lines_provider(build_manual_valuation_lines)
 
 # Wire extraction's transfer-exclusions port to reconciliation's published
 # read, mirroring the app composition root (src/main.py, #1675 D5): tests
@@ -162,15 +163,6 @@ def mock_bootloader_checks():
         patch("src.boot.Bootloader._check_s3", new=ok_s3),
     ):
         yield
-
-
-# --- FX Cache Cleanup ---
-@pytest.fixture(autouse=True)
-def cleanup_fx_cache():
-    """Clear FX cache before and after each test to ensure isolation."""
-    clear_fx_cache()
-    yield
-    clear_fx_cache()
 
 
 # --- Rate-limiter isolation (#410) ---

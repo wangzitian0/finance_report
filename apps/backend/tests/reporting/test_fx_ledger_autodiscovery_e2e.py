@@ -27,7 +27,6 @@ from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEnt
 from src.pricing import FxConversion
 from src.pricing.orm.market_data import FxRate
 from src.reporting import generate_balance_sheet, generate_income_statement
-from src.services.fx import clear_fx_cache
 
 _OUT_SGD = Decimal("1360.00")
 _IN_USD = Decimal("1000.00")
@@ -82,7 +81,6 @@ async def _post_entry(db, user_id, *, debit_account, credit_account, amount, cur
 
 
 async def _seed_fx_rate(db) -> None:
-    clear_fx_cache()
     db.add(
         FxRate(
             base_currency="USD",

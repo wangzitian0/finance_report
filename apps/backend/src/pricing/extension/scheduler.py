@@ -1,33 +1,34 @@
-"""Background scheduler for daily market data sync — plus the FX-scope composer.
+"""The daily market-data crawl orchestrator (absorbed from
+``services/market_data_scheduler.py``, #1610 P2).
 
-``observed_fx_pairs`` is the thin delivery-layer composer that replaced the
-old ``services/market_data_discovery.py`` glue (#1641): each domain publishes
-its own currencies read (``ledger.used_currencies``,
-``portfolio.position_currencies``, ``extraction.snapshot_currencies``) and
-this composer merges them with the configured base/default-counterparty
-currencies into the ``<currency>/<base>`` pairs passed to ``pricing``'s crawl
-(call-convention inversion — pricing never discovers scopes itself). It lives
-here, not in any domain package, because it is cross-domain composition;
-#1610 absorbs this module next.
+Pricing never discovers *which* scopes to sync — deciding that requires
+reading ledger/portfolio/extraction data, and pricing is an L3 leaf (it
+imports no other domain package). The composition root composes the three
+per-domain published reads into a :class:`MarketDataScopes` provider
+(``src/composition.py::market_data_scopes``) and injects it here — the same
+call-convention inversion as the sync services themselves taking explicit
+``pairs``/``symbols`` (meta Decision B, #1641; AC-pricing.marketdata.12).
+
+The one ``session.commit()`` per run finalizes only pricing's own aggregates
+(``fx_rates``/``stock_prices``/``market_data_sync_state`` rows written by
+``sync_fx_rates``/``sync_stock_prices``) — the injected provider performs
+reads only. The commit is a documented transaction boundary, guarded by
+``tests/infra/test_transaction_boundaries.py``.
 """
 
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
 from datetime import datetime, time, timedelta
-from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.audit import normalize_currency_code
-from src.config import settings
 from src.database import async_session_maker
-from src.extraction import snapshot_currencies
-from src.ledger import used_currencies
 from src.observability import get_logger
-from src.portfolio import active_stock_symbols, position_currencies
-from src.pricing import sync_fx_rates, sync_stock_prices
+from src.pricing.extension.market_data import sync_fx_rates, sync_stock_prices
 
 logger = get_logger(__name__)
 
@@ -35,24 +36,22 @@ MARKET_DATA_SYNC_TZ = ZoneInfo("Asia/Singapore")
 MARKET_DATA_DAILY_SYNC_TIME = time(hour=22, minute=0)
 
 
-async def observed_fx_pairs(
-    db: AsyncSession,
-    user_id: UUID | None,
-    *,
-    include_default: bool = True,
-) -> list[str]:
-    """The ``<currency>/<base>`` pairs implied by every currency the user holds."""
-    base = normalize_currency_code(settings.base_currency)
-    default_counterparty = "USD" if base != "USD" else "SGD"
-    currencies: set[str] = {base}
-    if include_default:
-        currencies.add(default_counterparty)
+@dataclass(frozen=True)
+class MarketDataScopes:
+    """The crawl scopes one daily sync run covers.
 
-    currencies |= await used_currencies(db, user_id)
-    currencies |= await position_currencies(db, user_id)
-    currencies |= await snapshot_currencies(db, user_id)
+    Produced by the composition root's provider (which composes the
+    per-domain published reads); consumed verbatim by
+    :func:`run_daily_market_data_sync`.
+    """
 
-    return [f"{currency}/{base}" for currency in sorted(currencies) if currency != base]
+    fx_pairs: list[str] = field(default_factory=list)
+    stock_symbols: list[str] = field(default_factory=list)
+
+
+#: The port the composition root implements: given a session, return the
+#: scopes to sync (reads only — the scheduler owns the single commit).
+MarketDataScopeProvider = Callable[[AsyncSession], Awaitable[MarketDataScopes]]
 
 
 def next_market_data_sync_at(now: datetime) -> datetime:
@@ -65,15 +64,16 @@ def next_market_data_sync_at(now: datetime) -> datetime:
 
 
 async def run_daily_market_data_sync(
+    scopes: MarketDataScopeProvider,
+    *,
     sessionmaker: async_sessionmaker[AsyncSession] | None = None,
 ) -> None:
-    """Run one daily incremental market data sync for all observed scopes."""
+    """Run one daily incremental market data sync for the provided scopes."""
     session_factory = sessionmaker or async_session_maker
     async with session_factory() as session:
-        fx_pairs = await observed_fx_pairs(session, None)
-        stock_symbols = await active_stock_symbols(session, None)
-        fx_result = await sync_fx_rates(session, pairs=fx_pairs)
-        stock_result = await sync_stock_prices(session, symbols=stock_symbols)
+        run_scopes = await scopes(session)
+        fx_result = await sync_fx_rates(session, pairs=run_scopes.fx_pairs)
+        stock_result = await sync_stock_prices(session, symbols=run_scopes.stock_symbols)
         await session.commit()
     logger.info(
         "Daily market data sync completed",
@@ -90,6 +90,7 @@ async def run_daily_market_data_sync(
 
 async def run_market_data_scheduler(
     stop_event: asyncio.Event,
+    scopes: MarketDataScopeProvider,
     *,
     sessionmaker: async_sessionmaker[AsyncSession] | None = None,
 ) -> None:
@@ -108,6 +109,6 @@ async def run_market_data_scheduler(
             break
 
         try:
-            await run_daily_market_data_sync(sessionmaker=sessionmaker)
+            await run_daily_market_data_sync(scopes, sessionmaker=sessionmaker)
         except Exception:
             logger.exception("Daily market data sync failed")

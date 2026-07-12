@@ -7,7 +7,7 @@ that requires reading the user's ledger/portfolio/extraction data, so each
 of those domains publishes its own read (``ledger.used_currencies``,
 ``portfolio.active_stock_symbols``/``position_currencies``,
 ``extraction.snapshot_currencies``) and the delivery layer composes them
-(``services/market_data_scheduler.py::observed_fx_pairs`` — #1641).
+(``src/composition.py::observed_fx_pairs`` — #1641/#1610).
 Dependency inversion, meta Decision B: pricing must not depend on the domain
 flow; the caller (scheduler / router / advisor) discovers the scopes and
 passes them in here.
