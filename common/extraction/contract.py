@@ -3111,5 +3111,25 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        ACRecord(
+            id="AC-extraction.1779.1",
+            statement=(
+                "Journal-entry creation for a foreign-currency transaction "
+                "resolves a missing FX rate through the same on-demand "
+                "lazy-load chain (stored inverse -> USD-bridge derivation -> "
+                "live provider fetch, persisted to fx_rates) reporting, "
+                "internal transfers, and revaluation already use, instead of "
+                "failing closed immediately; it still fails closed with a "
+                "clear error when even that chain cannot resolve a rate, "
+                "since a posted entry cannot exist without one."
+            ),
+            test=(
+                "apps/backend/tests/reconciliation/test_review_queue.py"
+                "::test_create_entry_from_txn_lazy_loads_missing_fx_rate"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
     ],
 )

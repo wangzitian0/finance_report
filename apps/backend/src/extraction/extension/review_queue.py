@@ -182,7 +182,14 @@ async def create_entry_from_txn(
     line_fx_rate: Decimal | None = None
     if currency != base_currency:
         try:
-            line_fx_rate = await get_exchange_rate(db, currency, base_currency, txn.txn_date)
+            # lazy_load=True (#1779): a date->rate fact is immutable once resolved, so
+            # the on-demand chain (stored inverse -> USD-bridge derivation -> live
+            # provider fetch, all persisted to fx_rates) is safe to consult here, same
+            # as every other get_exchange_rate call site (reporting, internal
+            # transfers, revaluation). Only when that chain also comes up empty does
+            # this still fail closed below -- a journal entry cannot post without a
+            # real rate, unlike a report line, which can just omit the value.
+            line_fx_rate = await get_exchange_rate(db, currency, base_currency, txn.txn_date, lazy_load=True)
         except FxRateError as exc:
             raise ValueError(f"FX rate required to create {currency} journal entry: {exc}") from exc
 
