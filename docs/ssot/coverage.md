@@ -1,7 +1,7 @@
 # Unified Test Coverage
 
 > **SSOT Key**: `coverage`
-> **Version**: 2.0.0
+> **Version**: 2.1.0
 > **Version scope**: Coverage policy semantics only; live baseline values are
 > owned by `unified-coverage.json` and CI artifacts.
 
@@ -33,7 +33,20 @@ unified_coverage = total_covered_lines / total_executable_lines
 - AC metrics are separate by design: AC pass rate and AC traceability are behavior/reference gates, not line-coverage arithmetic.
 - `common/meta/extension/coverage/policy.py` plus policy-aware auditors ensure these exact four scopes remain the unified denominator.
 
-**Unified CI Gate**: No-regression baseline comparison (zero tolerance for drops), plus a source tree vs LCOV policy audit. No fixed minimum unified threshold is enforced.
+**Unified CI Gate** (#1810, two lanes):
+
+- **PR lane (blocking)**: **diff coverage** — the changed/added lines of the
+  PR's own diff that fall inside governed source trees must be covered by
+  tests at or above the threshold (default **85%**, override via
+  `--threshold` / `DIFF_COVERAGE_THRESHOLD`). A red verdict names the
+  uncovered `file: line-range` list. Enforced by
+  `tools/check_diff_coverage.py` in the `unified-coverage` job. The
+  component-% ratchet still runs on PRs but is **report-only**
+  (`COVERAGE_RATCHET_MODE=report`).
+- **Main lane (blocking)**: the component-% **no-regression ratchet** against
+  the committed `unified-coverage.json` baseline (raise-only floor via the
+  main-only baseline PR), plus the source tree vs LCOV policy audit. No fixed
+  minimum unified threshold is enforced.
 
 **Baseline ownership**: Component line counts, coverage percentages, and
 committed no-regression floors are generated facts. Read
@@ -185,14 +198,39 @@ jobs:
     needs: [backend, frontend]
     # Downloads all artifacts
     # Merges backend shards → coverage/backend.lcov
-    # Runs: python tools/calculate_unified_coverage.py
+    # PR only: python tools/check_diff_coverage.py (BLOCKING diff-coverage verdict, #1810)
     # Runs: python tools/check_coverage_policy.py
-    # Fails if coverage drops below baseline (no-regression gate); no fixed minimum threshold
+    # Runs: python tools/calculate_unified_coverage.py
+    #   - PR: COVERAGE_RATCHET_MODE=report — regressions reported, not blocking
+    #   - main push: block mode — fails if coverage drops below baseline
     # Uploads unified-coverage-context with all raw line-count inputs
     # Builds repository-root-relative, line-only backend + frontend + common + tools LCOV for Coveralls
 ```
 
-### Coverage Calculation
+### Diff Coverage Calculation (PR-blocking, #1810)
+
+`tools/check_diff_coverage.py` (implementation:
+`common/testing/coverage/diff_coverage.py`):
+
+1. Derives the changed lines from `git diff -U0 --diff-filter=ACMR
+   --merge-base <base> HEAD` (CI passes `--base origin/$GITHUB_BASE_REF`), or
+   from `--diff-file PATH` for deterministic/offline input
+2. Resolves each changed file against the shared component policy
+   (`common/meta/extension/coverage/policy.py`); files outside every governed
+   source root (docs, tests, configs, workflows, policy-excluded files) are
+   out of scope
+3. Reads per-line `DA:` hits from each component's LCOV; a changed line
+   absent from a present file record is non-executable and skipped
+4. Counts a changed in-scope file that is entirely absent from its
+   component's LCOV conservatively: its added non-blank, non-comment lines
+   are uncovered (the "new file with zero tests" hole)
+5. Skips a component whose LCOV artifact is entirely absent, with a loud
+   warning (lenient parity with the CI merge step)
+6. Exits 1 below the threshold, printing the uncovered `file: line-range`
+   list; exits 0 when at/above threshold or when the diff has no measurable
+   changed lines
+
+### Unified Coverage Calculation (ratchet)
 
 `tools/calculate_unified_coverage.py`:
 
@@ -202,7 +240,11 @@ jobs:
 2. Parses LCOV files (`LF:` = total executable lines, `LH:` = covered lines)
 3. Uses LCOV `LF:` as denominator (NOT filesystem line counts)
 4. Aggregates backend + frontend + common + tools covered/executable counts
-5. Reports unified percentage and exits 1 if coverage dropped below baseline
+5. Reports unified percentage and compares against the committed baseline:
+   in `block` mode (main pushes; the default) a regression exits 1, in
+   `report` mode (`--ratchet-mode report` / `COVERAGE_RATCHET_MODE=report`,
+   the PR lane) the same regression message is printed report-only and does
+   not fail the run (#1810)
 6. Lists file-level low coverage from the same component LCOV files when run
    with `--list-low-files`
 7. Writes the current `unified-coverage.json` before failing on a regression,
@@ -217,17 +259,27 @@ python tools/strip_lcov_branches.py coverage/unified.lcov coverage/coveralls-uni
 python tools/calculate_unified_coverage.py --list-low-files --threshold 90
 ```
 
-The `--threshold` flag applies only to the printed file-level low-coverage
-report. The CI pass/fail gate remains the no-regression comparison against
-`unified-coverage.json`.
+The calculator's `--threshold` flag applies only to the printed file-level
+low-coverage report. On main pushes the CI pass/fail decision remains the
+no-regression comparison against `unified-coverage.json`; on PRs it is the
+diff-coverage verdict.
 
 ---
 
 ### Coverage Gate
 
-The CI workflow uses baseline comparison to prevent coverage regressions. There is no fixed minimum threshold.
+The CI coverage gate has two lanes (#1810):
 
-- **Rationale**: No-regression is the primary gate; coverage must not drop from the committed baseline.
+- **PR lane — diff coverage (blocking)**: the unit of measurement matches the
+  unit of work. A PR passes iff its measurable changed lines are covered at or
+  above the threshold (default 85%). Deterministic per PR: no baseline, no
+  epsilon, no full-pipeline dependency, and a red verdict names the exact
+  uncovered `file: line-range` list instead of an aggregate percentage.
+- **Main lane — component ratchet (blocking water-line)**: coverage must not
+  drop from the committed `unified-coverage.json` baseline (±0.05% jitter
+  epsilon). On PRs the same ratchet still runs and prints its comparison, but
+  it is report-only. The baseline floor stays raise-only via the reviewed
+  main-only baseline PR.
 - **External reporting**: Coveralls remains enabled for historical visibility, but local deterministic gates decide whether CI fails. Coveralls status contexts are not required checks and CI does not publish synthetic GitHub statuses for them. External Coveralls failures must not fail CI or block post-merge staging.
 - **Coverage context artifact**: CI uploads `unified-coverage-context` with
   `coverage/backend.lcov`, `coverage/frontend.lcov`, `coverage/common.lcov`,
@@ -246,27 +298,42 @@ The CI workflow uses baseline comparison to prevent coverage regressions. There 
   through deterministic local jobs.
 
 #### How It Works
-1. **Primary gate**: Baseline comparison (zero tolerance for drops)
+1. **PR blocking gate**: Diff coverage (#1810)
+   - `tools/check_diff_coverage.py --base origin/$GITHUB_BASE_REF` runs in the
+     `unified-coverage` job on pull requests only, after the LCOV merge step
+   - Threshold default 85%; override per run with `--threshold` or the
+     `DIFF_COVERAGE_THRESHOLD` env var (a policy change belongs in
+     `common/testing/coverage/diff_coverage.py::DEFAULT_THRESHOLD` plus this doc)
+   - Local parity: run the tests you are already writing with `--cov` so the
+     touched component emits LCOV (backend: `apps/backend/coverage.lcov`;
+     tooling/common: `coverage-common.lcov` / `coverage-tools.lcov`; frontend:
+     `apps/frontend/coverage/lcov.info`), then run
+     `python tools/check_diff_coverage.py --base origin/main` — the same
+     verdict CI computes, in seconds, with no full-pipeline dependency
+2. **Main blocking gate**: Baseline comparison (no-regression ratchet)
    - Compares current coverage against `unified-coverage.json` baseline
-   - Fails CI if ANY component drops below baseline
+   - Fails main CI if ANY component drops below baseline (beyond the jitter
+     epsilon); on PRs the same comparison runs in report-only mode
+     (`COVERAGE_RATCHET_MODE=report`)
    - Opens or updates a baseline PR on main when coverage rises and the measured
      `unified-coverage.json` differs from the committed baseline
    - See [No-Regression Coverage Gate](./ci-cd.md#no-regression-coverage-gate) for details
-2. **Safety net**: Threshold check (optional)
+3. **Safety net**: Threshold check (optional)
    - `COVERAGE_THRESHOLD` defaults to `0` (disabled)
    - Set explicitly in CI if a minimum floor is desired
-   - Acts as fallback when baseline file doesn't exist
-#### Adjusting the Threshold
+   - Acts as fallback when baseline file doesn't exist; applies in both
+     ratchet modes
+#### Adjusting the Thresholds
 
-The threshold may be adjusted based on project needs:
-
-- **Raise threshold**: When a minimum floor is desired (e.g., set to 80 for a hard floor)
-- **Lower threshold**: Set to 0 to disable (default)
-- **Update process**:
-  1. Update `COVERAGE_THRESHOLD` in `.github/workflows/ci.yml`
-  2. Update this documentation
-  3. Ensure current coverage exceeds new threshold
-**Note**: If no threshold is set (`COVERAGE_THRESHOLD=0` or unset), only the no-regression baseline gate applies.
+- **Diff coverage threshold** (PR lane): default 85% lives in
+  `common/testing/coverage/diff_coverage.py::DEFAULT_THRESHOLD`; per-run
+  override via `--threshold` / `DIFF_COVERAGE_THRESHOLD`. Update the default
+  and this documentation together.
+- **Unified minimum floor** (`COVERAGE_THRESHOLD`): set to 0 to disable
+  (default). To raise: update `COVERAGE_THRESHOLD` in
+  `.github/workflows/ci.yml`, update this documentation, and ensure current
+  coverage exceeds the new floor.
+**Note**: If no unified floor is set (`COVERAGE_THRESHOLD=0` or unset), PRs gate on diff coverage and main pushes gate on the no-regression baseline.
 
 ---
 
@@ -284,6 +351,10 @@ cd apps/frontend && npx vitest run --coverage
 # Calculate unified coverage locally
 cp apps/frontend/coverage/lcov.info coverage/frontend.lcov
 python tools/calculate_unified_coverage.py
+
+# Check the PR-blocking diff coverage verdict locally (#1810): produce LCOV
+# for the component you touched (tests with --cov), then:
+python tools/check_diff_coverage.py --base origin/main
 ```
 
 ### Coverage Thresholds
@@ -292,7 +363,8 @@ python tools/calculate_unified_coverage.py
 |------|-------|-------|---------------|
 | Backend local/default pytest coverage | `apps/backend/pyproject.toml` | Backend unit test runs outside CI shard overrides | Developer feedback and pre-push guard |
 | Frontend local/default vitest coverage | `apps/frontend/vitest.config.ts` | Frontend unit/component runs | Developer feedback and pre-push guard |
-| Unified PR/main no-regression coverage | `tools/calculate_unified_coverage.py` + `unified-coverage.json` | Backend + frontend + common + tools LCOV | Authoritative project-level coverage merge gate |
+| Diff coverage (PR-blocking, #1810) | `tools/check_diff_coverage.py` (`common/testing/coverage/diff_coverage.py`) | Changed/added lines of the PR diff inside governed source trees | Authoritative PR coverage merge gate (threshold 85%) |
+| Unified main no-regression coverage | `tools/calculate_unified_coverage.py` + `unified-coverage.json` | Backend + frontend + common + tools LCOV | Authoritative main-push water-line; report-only on PRs |
 | Coveralls | Coveralls upload jobs | Line-only LCOV reporting contexts | Badge and trend reporting only |
 
 > **Note**: CI backend shard jobs may set `--cov-fail-under=0` to avoid unstable
@@ -388,7 +460,6 @@ cat unified-coverage.json
 
 1. **Frontend page tests**: Add tests for Next.js page components to raise frontend coverage
 2. **Coverage trends**: Track coverage over time with historical data
-3. **Per-PR coverage delta**: Report coverage change per PR (not just absolute)
 
 ---
 
@@ -407,7 +478,8 @@ statuses are not acceptance evidence.
 | Backend Tier-1 API E2E | No | No | No | Behavior-only stage; excluded from coverage denominator |
 | Frontend tests | Yes | Yes, via frontend LCOV | Frontend context | Component/UI coverage |
 | Tools/common coverage | Yes | Yes, via unified LCOV | Unified context only | Repository tooling and shared-library coverage |
-| Calculate Unified Coverage | Uses merged LCOV | Authoritative PR/main no-regression gate | Produces unified reporting artifact | Stable project-level gate |
+| Diff coverage gate (PR) | Uses merged LCOV | Authoritative PR-blocking verdict on changed lines (#1810) | No | Diff-scoped gate; runs only on pull requests |
+| Calculate Unified Coverage | Uses merged LCOV | Authoritative main no-regression gate; report-only on PRs | Produces unified reporting artifact | Stable project-level water-line |
 | Coveralls | Consumes CI LCOV | No | Reporting, badge, trend analysis | Not a merge gate |
 
 ### Source Scope Review
@@ -430,9 +502,10 @@ policy before CI can pass.
   current CI artifact.
 - `tools/check_coverage_policy.py` must fail when eligible source files are
   missing from LCOV or when unexpected files appear in LCOV.
-- Coveralls badge is reporting-only. The authoritative coverage gate is the
-  local CI calculation against `unified-coverage.json`, aggregated by `finish`.
-- The authoritative coverage gate is the deterministic local CI calculation;
+- Coveralls badge is reporting-only. The authoritative coverage gate is local
+  and deterministic in both lanes — diff coverage
+  (`tools/check_diff_coverage.py`) blocks PRs, and the calculation against
+  `unified-coverage.json` blocks main pushes — aggregated by `finish`;
   Coveralls is a main-branch external reporting baseline only.
 - Coveralls receives line-only LCOV files so its coverage percentage should
   track the local line metric for main-branch trend reporting.
@@ -458,7 +531,8 @@ When reviewing coverage gaps:
 
 ```markdown
 ## Coverage Assessment
- [ ] Unified coverage has no baseline regression (run `python tools/calculate_unified_coverage.py`)
+ [ ] Changed lines are covered at the diff threshold (run `python tools/check_diff_coverage.py --base origin/main`)
+ [ ] Unified coverage has no baseline regression on main (run `python tools/calculate_unified_coverage.py`)
 - [ ] Branch coverage verified with `--cov-branch`
 - [ ] No `pragma: no cover` without justification
 - [ ] Missing lines are truly non-testable (not just untested)
@@ -507,8 +581,8 @@ When reviewing coverage gaps:
 ## Success Criteria
 
 **Quantitative**:
- [ ] All PRs maintain or improve unified coverage from baseline
- [ ] CI fails if unified coverage drops below baseline
+ [ ] All PRs cover their measurable changed lines at or above the diff-coverage threshold
+ [ ] Main CI fails if unified coverage drops below baseline
 - [ ] Branch coverage tracked via `--cov-branch`
 - [ ] Coveralls badge reflects actual coverage
 

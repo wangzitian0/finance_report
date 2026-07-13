@@ -49,6 +49,8 @@ ownership:
     package: testing
   - path: tests/tooling/test_coverage_policy.py
     package: testing
+  - path: tests/tooling/test_diff_coverage.py
+    package: testing
   - path: tests/tooling/test_ledger_module.py
     package: ledger
   - path: tests/tooling/test_ledger_package.py
