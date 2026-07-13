@@ -339,18 +339,22 @@ def classify_columns(metadata: sa.MetaData) -> dict[str, Action]:
 
 
 def _pseudonym(secret: str, value: str, shape: str) -> str:
+    # 24 hex chars = 96 bits: collision probability stays negligible far past
+    # any realistic snapshot size, so HMAC-derived pseudonyms keep unique
+    # constraints unique. "digits4" is deliberately lossy — account_last4 is
+    # display-only and carries no uniqueness contract.
     digest = hmac.new(secret.encode(), value.encode(), sha256).hexdigest()
     if shape == "email":
-        return f"user-{digest[:12]}@anonymized.invalid"
+        return f"user-{digest[:24]}@anonymized.invalid"
     if shape == "digits4":
         return f"{int(digest[:8], 16) % 10000:04d}"
     if shape == "asset":
-        return f"AST{digest[:8].upper()}"
+        return f"AST{digest[:24].upper()}"
     if shape == "filename":
-        return f"doc-{digest[:12]}.pdf"
+        return f"doc-{digest[:24]}.pdf"
     if shape == "hash":
         return digest
-    return f"anon-{digest[:12]}"
+    return f"anon-{digest[:24]}"
 
 
 @dataclass
@@ -388,13 +392,15 @@ def anonymize(
     # system; this transform rewrites a scratch copy wholesale, so user
     # triggers are suspended for the duration (table-owner privilege — no
     # superuser needed) and restored before returning.
+    # ALTER TABLE is transactional in PostgreSQL: if the transform raises, the
+    # caller's rollback restores the triggers along with the data, so they are
+    # re-enabled explicitly only on the success path (a finally-block re-enable
+    # would run inside an aborted transaction and mask the real error).
     for table in metadata.sorted_tables:
         conn.execute(sa.text(f'ALTER TABLE "{table.name}" DISABLE TRIGGER USER'))
-    try:
-        _transform(conn, metadata, plan, secret, scale_factor, report)
-    finally:
-        for table in metadata.sorted_tables:
-            conn.execute(sa.text(f'ALTER TABLE "{table.name}" ENABLE TRIGGER USER'))
+    _transform(conn, metadata, plan, secret, scale_factor, report)
+    for table in metadata.sorted_tables:
+        conn.execute(sa.text(f'ALTER TABLE "{table.name}" ENABLE TRIGGER USER'))
     return report
 
 
@@ -424,21 +430,34 @@ def _transform(
             conn.execute(table.update().where(c.isnot(None)).values({c.name: REDACTED_SECRET}))
 
         if pseudo_cols:
+            # One narrow read (pk + pseudonym columns only) and batched
+            # executemany UPDATEs — never one round-trip per row. Memory is
+            # bounded by the pseudonym payload, which the residual scan must
+            # retain anyway (report.original_values), so a server-side cursor
+            # would buy nothing here — and an open cursor in this transaction
+            # would block the ENABLE TRIGGER statements below.
             pk_cols = list(table.primary_key.columns)
-            rows = conn.execute(sa.select(*pk_cols, *pseudo_cols)).mappings().all()
-            for row in rows:
-                updates: dict[str, str] = {}
+            shapes = {c.name: STRING_PSEUDONYM_COLUMNS[f"{table.name}.{c.name}"] for c in pseudo_cols}
+            update_stmt = (
+                table.update()
+                .where(sa.and_(*(pk == sa.bindparam(f"b_{pk.name}") for pk in pk_cols)))
+                .values({c.name: sa.bindparam(f"v_{c.name}") for c in pseudo_cols})
+            )
+            params: list[dict[str, object]] = []
+            for row in conn.execute(sa.select(*pk_cols, *pseudo_cols)).mappings():
+                row_params: dict[str, object] = {f"b_{pk.name}": row[pk.name] for pk in pk_cols}
                 for c in pseudo_cols:
                     original = row[c.name]
                     if original is None or original == "":
+                        row_params[f"v_{c.name}"] = original
                         continue
-                    shape = STRING_PSEUDONYM_COLUMNS[f"{table.name}.{c.name}"]
-                    updates[c.name] = _pseudonym(secret, original, shape)
+                    row_params[f"v_{c.name}"] = _pseudonym(secret, original, shapes[c.name])
                     if len(original) >= _RESIDUAL_MIN_LENGTH:
                         report.original_values.add(original)
                     report.values_pseudonymized += 1
-                if updates:
-                    conn.execute(table.update().where(sa.and_(*(pk == row[pk.name] for pk in pk_cols))).values(updates))
+                params.append(row_params)
+            for chunk_start in range(0, len(params), 5000):
+                conn.execute(update_stmt, params[chunk_start : chunk_start + 5000])
 
 
 def scan_for_residuals(
@@ -451,6 +470,13 @@ def scan_for_residuals(
     Returns residual locations as ``table.column`` strings (values are never
     echoed). The pipeline must treat a non-empty result as fatal and roll the
     snapshot back (fail closed) — see :class:`ResidualError`.
+
+    Cost envelope: needles are the DISTINCT pseudonymized originals (min
+    length 3), OR-batched 200 per query with a LIMIT 1 short-circuit. This is
+    an offline, once-per-snapshot verification on a scratch database of a
+    personal-finance instance — completeness is the requirement here, not
+    latency; trading scan coverage for speed would hollow out the guarantee
+    (Good Taste 5).
     """
     needles = sorted(v for v in original_values if len(v) >= _RESIDUAL_MIN_LENGTH)
     if not needles:

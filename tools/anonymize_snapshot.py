@@ -50,6 +50,16 @@ from src.runtime.extension.snapshot_anonymizer import (  # noqa: E402
 )
 
 
+def _normalize_url(url: str) -> str:
+    """Accept the backend's canonical async URL and run it sync.
+
+    The app configures ``postgresql+asyncpg://``; this offline tool uses a
+    sync engine, so the async driver marker is swapped for psycopg2 — the
+    same normalization migrations/env.py applies.
+    """
+    return url.replace("+asyncpg", "+psycopg2")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -95,7 +105,7 @@ def main(argv: list[str] | None = None) -> int:
 
     import sqlalchemy as sa
 
-    engine = sa.create_engine(args.database_url)
+    engine = sa.create_engine(_normalize_url(args.database_url))
     with engine.begin() as conn:
         report = anonymize(
             conn, Base.metadata, secret=args.secret, scale_factor=args.scale_factor
