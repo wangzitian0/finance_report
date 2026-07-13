@@ -136,8 +136,9 @@ only in `extension` and never leaks into `base`.
 case-insensitive email index `uq_users_email_normalized`; `ai_feedback(id,
 suggestion_id, user_id→users.id ON DELETE CASCADE, action, corrected_value, …)`.
 The cutover is a pure code move — the table names, columns, and indexes are
-unchanged from the pre-migration `src/models/user.py`, so no schema migration is
-required.
+unchanged from the pre-migration `src/models/user.py` (long since deleted; the
+ORM now lives at `apps/backend/src/identity/extension/sql.py`), so no schema
+migration is required.
 
 ## Security considerations
 

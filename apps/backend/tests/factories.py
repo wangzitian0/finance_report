@@ -25,10 +25,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction import DocumentType, UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
+from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
+from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
-from src.models.statement_enums import BankStatementStatus, Stage1Status
-from src.models.statement_summary import StatementSummary
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 
 T = TypeVar("T")

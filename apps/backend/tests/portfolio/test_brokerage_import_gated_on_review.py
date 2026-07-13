@@ -29,8 +29,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.extraction import DocumentType, UploadedDocument
 from src.extraction.extension.statement_parsing import route_brokerage_for_review_if_present
 from src.extraction.orm.layer2 import AtomicPosition
-from src.models.statement_enums import BankStatementStatus, Stage1Status
-from src.models.statement_summary import StatementSummary
+from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
+from src.extraction.orm.statement_summary import StatementSummary
 
 _ASSET = "GATED_TEST_STOCK"
 

@@ -19,7 +19,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "apps" / "backend"))
 
-import src.models._registry  # noqa: E402, F401  -- register all ORM mappers before relationship config
+import src.orm_registry  # noqa: E402, F401  -- register all ORM mappers before relationship config
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus  # noqa: E402
 
 

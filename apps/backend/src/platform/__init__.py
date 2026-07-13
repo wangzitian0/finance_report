@@ -44,6 +44,7 @@ from src.platform.extension import (
     RateLimiter,
     RateLimitState,
     RecordingEventBus,
+    StatementEventSource,
     get_owned_or_404,
     get_workflow_status,
     list_workflow_events_response,
@@ -58,6 +59,7 @@ from src.platform.extension import (
     raise_too_many_requests,
     raise_unauthorized,
     register_readiness_provider,
+    register_statement_reader,
     register_uploaded_document_readers,
     update_workflow_event_status,
 )
@@ -65,6 +67,7 @@ from src.platform.extension import (
 # ORM models owned by this package (moved from src/models, #1675); imported
 # eagerly so importing the package registers the mappers on Base.metadata.
 from src.platform.orm.app_config import BASE_CURRENCY_KEY, AppConfig
+from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 from src.platform.orm.ping_state import PingState
 from src.platform.orm.workflow import (
     WorkflowEvent,
@@ -91,7 +94,11 @@ __all__ = [
     "RateLimitState",
     "RateLimiter",
     "RecordingEventBus",
+    "StatementEventSource",
     "SubscriberRegistry",
+    "TimestampMixin",
+    "UUIDMixin",
+    "UserOwnedMixin",
     "WorkflowEvent",
     "WorkflowEventFamily",
     "WorkflowEventSeverity",
@@ -113,6 +120,7 @@ __all__ = [
     "raise_too_many_requests",
     "raise_unauthorized",
     "register_readiness_provider",
+    "register_statement_reader",
     "register_uploaded_document_readers",
     "update_workflow_event_status",
 ]

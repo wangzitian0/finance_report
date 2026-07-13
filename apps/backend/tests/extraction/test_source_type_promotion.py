@@ -10,9 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
 from src.extraction.orm.layer2 import TransactionDirection
+from src.extraction.orm.statement_enums import BankStatementStatus
 from src.identity import User
 from src.ledger import Account, AccountType, JournalEntry
-from src.models.statement_enums import BankStatementStatus
 from src.routers import statements as statements_router
 from tests.factories import (
     AtomicTransactionFactory,

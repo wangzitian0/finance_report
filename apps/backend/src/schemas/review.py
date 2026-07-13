@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.models.statement_enums import Stage1Status
+from src.extraction.orm.statement_enums import Stage1Status
 from src.reconciliation.orm.consistency_check import CheckStatus, CheckType
 from src.schemas.extraction import (
     AtomicTransactionResponse,

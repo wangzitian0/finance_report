@@ -15,7 +15,7 @@
 
 | Concern | Location |
 |---|---|
-| Event and session model | `apps/backend/src/models/workflow.py` |
+| Event and session model | `apps/backend/src/platform/orm/workflow.py` |
 | Event and session schemas | `apps/backend/src/schemas/workflow.py` |
 | Derivation/upsert service | `apps/backend/src/platform/extension/workflow_events.py` |
 | Compact status/events API | `apps/backend/src/routers/workflow.py` |
@@ -93,7 +93,7 @@ report.generated
 ```
 
 The code owner is `WorkflowEventFamily` in
-`apps/backend/src/models/workflow.py`.
+`apps/backend/src/platform/orm/workflow.py`.
 
 ---
 

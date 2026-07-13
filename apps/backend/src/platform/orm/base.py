@@ -1,9 +1,15 @@
-"""Base model mixins for common patterns."""
+"""Base ORM mixins shared by every package's models (moved from src/models, #1675 D6).
+
+Pure structural mixins with no platform-specific behavior — a natural fit for
+``platform`` (L1 infra, business-agnostic foundations). Every package that owns
+ORM entities imports these directly (a deep import of a published name is
+allowed, see ``common/meta/extension/check_package_contract.py``).
+"""
 
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime
+from sqlalchemy import DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -16,8 +22,6 @@ class UUIDMixin:
 
 class UserOwnedMixin:
     """Mixin for user ownership tracking."""
-
-    from sqlalchemy import ForeignKey
 
     user_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True

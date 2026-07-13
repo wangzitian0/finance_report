@@ -21,7 +21,7 @@ from sqlalchemy.pool import NullPool
 # test session — including isolated single-file or ``no_db`` runs — has all
 # mappers configured (replaces the former ``from src.models import ...`` hub
 # side effect; issue #1461).
-import src.models._registry  # noqa: F401
+import src.orm_registry  # noqa: F401
 from src.config import settings
 from src.extraction import register_fx_rate_provider, register_transfer_exclusions_provider
 from src.ledger import register_fx_revaluation_provider
@@ -384,13 +384,13 @@ async def _schema_engine(test_database_url):
 
     # Register every ORM table on Base.metadata before create_all so each
     # per-worker schema is complete regardless of which test module imported
-    # what first. ``src.models._registry`` eagerly imports all model modules
+    # what first. ``src.orm_registry`` eagerly imports all model modules
     # (replacing the former ``from src.models import ...`` hub side effect); the
     # role packages (counter_tally + the shared outbox) live outside that
     # package, so they are imported explicitly here.
     import src.counter.extension.sql  # noqa: F401
     import src.identity.extension.sql  # noqa: F401  -- User/AiFeedback
-    import src.models._registry  # noqa: F401
+    import src.orm_registry  # noqa: F401
     import src.platform.extension.sql  # noqa: F401
     from src.database import Base
 

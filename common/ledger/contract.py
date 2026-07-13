@@ -99,8 +99,15 @@ CONTRACT = PackageContract(
     # ``register_fx_revaluation_provider``, an inverted port wired by
     # main.py — pricing depends on extraction (ManualValuationSnapshot et
     # al.), and a direct ledger -> pricing edge would cycle
-    # (ledger -> pricing -> extraction -> ledger).
-    depends_on=["audit", "observability"],
+    # (ledger -> pricing -> extraction -> ledger). ``platform`` was added
+    # (#1675 D6): the base ORM mixins (UUIDMixin/UserOwnedMixin/TimestampMixin)
+    # moved from src/models/base.py to platform.orm.base, also a downward edge
+    # (platform is infra, L1). ``extraction`` is deliberately NOT declared:
+    # account_coverage.py's statement-envelope read goes through the inverted
+    # ``register_statement_coverage_reader`` port (extraction is domain, L3,
+    # same rank as ledger, and extraction already depends_on ledger — a direct
+    # edge would cycle).
+    depends_on=["audit", "observability", "platform"],
     roles=["base", "extension", "data"],
     units=[
         # base — the pure double-entry core.
@@ -180,6 +187,7 @@ CONTRACT = PackageContract(
         "ProcessingAccount",
         "RevaluationError",
         "SqlJournalRepository",
+        "StatementCoverageRow",
         "TransferPair",
         "UnbalancedEntryError",
         "ValidationError",
@@ -203,6 +211,7 @@ CONTRACT = PackageContract(
         "post_journal_entry",
         "post_opening_balance_entry",
         "register_fx_revaluation_provider",
+        "register_statement_coverage_reader",
         "used_currencies",
         "validate_fx_rates",
         "validate_journal_balance",

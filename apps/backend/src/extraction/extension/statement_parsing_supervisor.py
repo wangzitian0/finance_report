@@ -9,8 +9,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.database import async_session_maker
-from src.models.statement_enums import BankStatementStatus
-from src.models.statement_summary import StatementSummary
+from src.extraction.orm.statement_enums import BankStatementStatus
+from src.extraction.orm.statement_summary import StatementSummary
 from src.observability import get_logger
 
 logger = get_logger(__name__)

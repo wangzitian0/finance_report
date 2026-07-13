@@ -439,8 +439,9 @@ layer, so the gate starts GREEN — it is a guard against regression.
 The contract (the checker is the machine-checkable mirror of this list):
 
 - **Protected CODE-ONLY / financial-truth module set:** everything under
-  `apps/backend/src/audit/money/**` and `apps/backend/src/ledger/**`, the journal model
-  `apps/backend/src/models/journal.py`, and the deterministic services
+  `apps/backend/src/audit/money/**` and `apps/backend/src/ledger/**`
+  (including the journal model, `apps/backend/src/ledger/orm/journal.py`),
+  and the deterministic services
   `deduplication.py`, `accounting.py`, `account_service.py`,
   `investment_accounting.py`, `statement_posting.py`, the `reporting/**`
   package, `reporting_calc.py`, `reporting_snapshot.py`, `validation.py`,

@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base
-from src.models.base import TimestampMixin, UUIDMixin
+from src.platform.orm.base import TimestampMixin, UUIDMixin
 
 
 class User(Base, UUIDMixin, TimestampMixin):

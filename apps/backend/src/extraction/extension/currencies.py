@@ -7,8 +7,8 @@ own currencies read, and the delivery layer composes them into the observed FX
 pairs it passes to ``pricing``'s crawl (call-convention inversion — pricing
 never discovers scopes itself).
 
-``AtomicPosition`` still lives in the unregistered central ``src/models/``
-(#1675 relocates it later); this module reads only extraction-owned snapshots.
+``AtomicPosition`` lives in this package's own ``orm/layer2.py`` (#1675
+D4+D5c); this module reads only extraction-owned snapshots.
 """
 
 from __future__ import annotations

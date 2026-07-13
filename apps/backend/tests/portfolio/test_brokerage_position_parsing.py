@@ -22,9 +22,9 @@ from src.extraction.extension.brokerage_positions import (
 from src.extraction.extension.brokerage_statement_payload import _brokerage_payload_from_statement
 from src.extraction.orm.layer2 import AssetType, AtomicPosition, AtomicTransaction, TransactionDirection
 from src.extraction.orm.layer3 import ManagedPosition
+from src.extraction.orm.statement_enums import BankStatementStatus
+from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType
-from src.models.statement_enums import BankStatementStatus
-from src.models.statement_summary import StatementSummary
 from src.portfolio import PositionService
 from src.schemas.portfolio import BrokerageImportRequest, BrokerageImportResponse
 

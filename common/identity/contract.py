@@ -179,6 +179,7 @@ CONTRACT = PackageContract(
         "oauth2_scheme",
         "purge_test_accounts",
         "register",
+        "register_in_flight_parse_checker",
         "register_rate_limiter",
         "users_router",
         "verify_password",

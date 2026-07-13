@@ -46,6 +46,19 @@ the config-bound ``api_rate_limiter`` instance is wired in ``src.main``) — is 
 in ``infra`` (L1): a leaf the whole app builds events on. "Meta layer" describes its
 *role* (the runtime middleware capabilities of the platform substrate);
 ``infra`` is its honest DAG rank.
+
+### Base ORM mixins + the statement-event-source port (#1675 D6)
+
+``UUIDMixin``/``UserOwnedMixin``/``TimestampMixin`` (``orm/base.py``) moved here
+from the dissolved ``src/models/``: pure structural mixins with no business
+behavior, imported by every package that owns ORM entities — a natural fit for
+an ``infra`` leaf. ``StatementEventSource`` + ``register_statement_reader``
+(``extension/workflow_event_builders.py`` / ``extension/workflow_events.py``)
+are the same inversion as ``register_uploaded_document_readers`` above:
+``extraction`` (L3 domain) owns ``StatementSummary``, so this L1-infra module
+may only depend on the plain ``StatementEventSource`` read-model shape,
+registered from above by ``main.py`` at startup — never import the ORM class
+or its enum types directly.
 """
 
 from __future__ import annotations
@@ -125,7 +138,11 @@ CONTRACT = PackageContract(
         "RateLimitState",
         "RateLimiter",
         "RecordingEventBus",
+        "StatementEventSource",
         "SubscriberRegistry",
+        "TimestampMixin",
+        "UUIDMixin",
+        "UserOwnedMixin",
         "WorkflowEvent",
         "WorkflowEventFamily",
         "WorkflowEventSeverity",
@@ -147,6 +164,7 @@ CONTRACT = PackageContract(
         "raise_too_many_requests",
         "raise_unauthorized",
         "register_readiness_provider",
+        "register_statement_reader",
         "register_uploaded_document_readers",
         "update_workflow_event_status",
     ],

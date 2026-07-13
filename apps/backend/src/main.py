@@ -22,15 +22,18 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 # Eagerly register every ORM model on Base.metadata at app startup so SQLAlchemy
 # can resolve cross-module string relationships (replaces the former
 # ``from src.models import ...`` hub side effect; issue #1461).
-import src.models._registry  # noqa: E402, F401
+import src.orm_registry  # noqa: E402, F401
 from src.advisor import register_fx_conversion, register_fx_pairs_read
 from src.boot import Bootloader, BootMode
 from src.composition import market_data_scopes, observed_fx_pairs
 from src.config import settings
 from src.database import async_session_maker, engine, get_db, init_db
 from src.extraction import (
+    find_in_flight_parse_id,
     find_uploaded_document_filename_by_hash,
     get_known_storage_paths,
+    get_statement_coverage_rows,
+    get_statement_event_sources,
     get_uploaded_document_filename,
     get_uploaded_document_filenames,
     register_fx_rate_provider,
@@ -38,8 +41,8 @@ from src.extraction import (
     register_transfer_exclusions_provider,
     run_parsing_supervisor,
 )
-from src.identity import auth_router, users_router
-from src.ledger import register_fx_revaluation_provider
+from src.identity import auth_router, register_in_flight_parse_checker, users_router
+from src.ledger import register_fx_revaluation_provider, register_statement_coverage_reader
 from src.observability import (
     configure_database_pool_metrics,
     configure_logging,
@@ -60,6 +63,7 @@ from src.platform import (
     RateLimiter,
     SubscriberRegistry,
     register_readiness_provider,
+    register_statement_reader,
     register_uploaded_document_readers,
 )
 from src.platform.orm.ping_state import PingState
@@ -176,6 +180,18 @@ register_uploaded_document_readers(
     find_filename_by_hash=find_uploaded_document_filename_by_hash,
 )
 register_known_storage_paths_provider(get_known_storage_paths)
+
+# Wire platform's StatementSummary read-model port to the real
+# extraction-domain lookup (#1675 D6, final models-decentralization slice):
+# same inversion, same reason as the UploadedDocument ports above.
+register_statement_reader(get_statement_event_sources)
+
+# Wire ledger's and identity's StatementSummary read-model ports to the real
+# extraction-domain lookups (#1675 D6): same inversion, same reason as the FX
+# ports above — extraction already depends_on both ledger and identity, so a
+# direct reverse import would cycle (both are domain, L3, same rank).
+register_statement_coverage_reader(get_statement_coverage_rows)
+register_in_flight_parse_checker(find_in_flight_parse_id)
 
 # Wire extraction's transfer-exclusions port to reconciliation's published
 # read (#1675 D5): statement posting must skip txns an accepted transfer

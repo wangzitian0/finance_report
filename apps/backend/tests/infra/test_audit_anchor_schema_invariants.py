@@ -25,10 +25,10 @@ from src.extraction.orm.layer2 import (
     TransactionDirection,
 )
 from src.extraction.orm.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
+from src.extraction.orm.statement_enums import BankStatementStatus
+from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
-from src.models.statement_enums import BankStatementStatus
-from src.models.statement_summary import StatementSummary
 from src.reconciliation import (
     ReconciliationMatch,
     ReconciliationMatchJournalEntry,

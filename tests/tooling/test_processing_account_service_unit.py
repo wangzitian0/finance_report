@@ -21,7 +21,7 @@ sys.path.insert(0, str(REPO_ROOT / "apps" / "backend"))
 # the extension module so ``patch.object(..., "get_or_create_processing_account")``
 # intercepts the in-module acquisition the verbs call.
 import src.ledger.extension.processing as processing_account_module  # noqa: E402
-import src.models._registry  # noqa: E402, F401  -- register all ORM mappers before relationship config
+import src.orm_registry  # noqa: E402, F401  -- register all ORM mappers before relationship config
 from src.audit.money import Money  # noqa: E402
 from src.ledger.base.processing import _calculate_pair_confidence  # noqa: E402
 from src.ledger import (

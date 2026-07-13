@@ -26,7 +26,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.audit.money import Money
 from src.audit.quantity import Quantity
 from src.database import Base
-from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
+from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 # A managed position's quantity has no stored unit column; shares/units are the
 # implicit unit (matches PORTFOLIO_QUANTITY_UNIT / INVESTMENT_QUANTITY_UNIT in the

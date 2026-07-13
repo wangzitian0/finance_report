@@ -19,9 +19,15 @@ The rest of the fact family followed in #1675 D4+D5c: ``layer2``-``layer4``,
 ``relationship()`` (to ``Account``/``User``) replaced by bare FK id columns +
 explicit interface reads; downstream domains (reconciliation / portfolio /
 pricing) import the published entity names below. ``statement_summary`` /
-``statement_enums`` remain in the unregistered ``src/models/`` for now: their
-``platform`` (L1-infra, upward), ``ledger`` and ``identity`` (dependency-cycle)
-readers each need their own inversion first — see the #1675 D5c notes.
+``statement_enums`` completed the move in #1675 D6, the final models-
+decentralization slice: their three cross-domain readers each needed the same
+inversion as ``UploadedDocument`` above — ``platform`` (L1-infra, upward)
+reads through the registered ``StatementEventSource`` port
+(``src.platform.register_statement_reader``), and ``ledger``/``identity``
+(same-rank, dependency-cycle — both are readers extraction itself
+``depends_on``) read through their own registered ports
+(``ledger.register_statement_coverage_reader`` /
+``identity.register_in_flight_parse_checker``), each wired by ``main.py``.
 
 The names re-exported below are the entire public surface (``__all__`` must
 equal ``contract.interface``). Downstream domains reference AtomicTransaction
@@ -95,7 +101,12 @@ from src.extraction.extension.statement_posting import (
     register_transfer_exclusions_provider,
     resolve_statement_posting_account,
 )
-from src.extraction.extension.statement_summary import resolve_custody_account_id
+from src.extraction.extension.statement_summary import (
+    find_in_flight_parse_id,
+    get_statement_coverage_rows,
+    get_statement_event_sources,
+    resolve_custody_account_id,
+)
 from src.extraction.extension.statement_validation import (
     edit_and_approve,
     pending_stage1_review_filter,
@@ -145,11 +156,14 @@ from src.extraction.orm.layer3 import (
     TransactionClassification,
 )
 from src.extraction.orm.layer4 import ReportSnapshot, ReportType
+from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
+from src.extraction.orm.statement_summary import StatementSummary
 
 __all__ = [
     "AssetType",
     "AtomicPosition",
     "AtomicTransaction",
+    "BankStatementStatus",
     "BrokeragePositionImportService",
     "ClassificationRule",
     "ClassificationStatus",
@@ -177,6 +191,8 @@ __all__ = [
     "ReportSnapshot",
     "ReportType",
     "SYSTEM_PROMPT",
+    "Stage1Status",
+    "StatementSummary",
     "TransactionClassification",
     "TransactionDirection",
     "UploadedDocument",
@@ -192,10 +208,13 @@ __all__ = [
     "detect_balance_chain_break",
     "dual_write_layer2",
     "edit_and_approve",
+    "find_in_flight_parse_id",
     "find_uploaded_document_filename_by_hash",
     "get_correction_stats",
     "get_known_storage_paths",
     "get_parsing_prompt",
+    "get_statement_coverage_rows",
+    "get_statement_event_sources",
     "get_uploaded_document_filename",
     "get_uploaded_document_filenames",
     "looks_like_brokerage_document",

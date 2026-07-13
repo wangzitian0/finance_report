@@ -201,7 +201,7 @@ useful_life_years`) and double-declining balance
 from SQLAlchemy metadata — see the generated DB schema reference; models
 live in `apps/backend/src/extraction/orm/layer3.py` (extraction owns the
 fact family's ORM, #1675 D5c; portfolio imports the published entities) and
-`apps/backend/src/models/portfolio.py`):
+`apps/backend/src/portfolio/orm/portfolio.py` (#1675 D5)):
 
 | Model | Table | Domain role |
 |---|---|---|

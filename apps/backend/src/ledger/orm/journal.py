@@ -21,7 +21,7 @@ from src.audit import JournalEntrySourceType
 from src.audit.money import Money
 from src.config import settings
 from src.database import Base
-from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
+from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 if TYPE_CHECKING:
     from src.ledger.orm.account import Account

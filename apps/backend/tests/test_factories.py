@@ -6,8 +6,8 @@ Validates that factories produce correct, balanced, and valid test data.
 from decimal import Decimal
 from uuid import UUID
 
+from src.extraction.orm.statement_enums import BankStatementStatus
 from src.ledger import AccountType, Direction, JournalEntryStatus
-from src.models.statement_enums import BankStatementStatus
 from src.reconciliation import ReconciliationStatus
 from tests.factories import (
     AccountFactory,

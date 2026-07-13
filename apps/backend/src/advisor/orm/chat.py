@@ -19,7 +19,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
-from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
+from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 
 class ChatSessionStatus(str, enum.Enum):

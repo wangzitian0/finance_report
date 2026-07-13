@@ -8,8 +8,9 @@ publishes its own read, and the delivery layer composes them into the scopes
 it passes to ``pricing``'s crawl (call-convention inversion — pricing never
 discovers scopes itself).
 
-``ManagedPosition`` still lives in the unregistered central ``src/models/``
-(#1675 relocates it later); this module reads only portfolio-owned positions.
+``ManagedPosition`` lives in ``extraction``'s ``orm/layer3.py`` (#1675
+D4+D5c — extraction owns the fact family's ORM); this module reads only
+portfolio-owned positions.
 """
 
 from __future__ import annotations

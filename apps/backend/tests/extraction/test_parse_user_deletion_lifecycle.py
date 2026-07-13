@@ -25,9 +25,9 @@ from sqlalchemy.exc import PendingRollbackError
 
 from src.extraction import UploadedDocument
 from src.extraction.extension.statement_parsing import _ensure_failed_document_lineage, handle_parse_failure
+from src.extraction.orm.statement_enums import BankStatementStatus
+from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
-from src.models.statement_enums import BankStatementStatus
-from src.models.statement_summary import StatementSummary
 from tests.factories import StatementSummaryFactory
 
 pytestmark = pytest.mark.asyncio

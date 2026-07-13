@@ -17,8 +17,8 @@ from src.extraction.extension.evidence_lineage import EvidenceLineageService
 from src.extraction.orm.evidence import EvidenceNode
 from src.extraction.orm.layer1 import DocumentType, UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction, AtomicTransactionSourceDocument
+from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import JournalEntry, JournalLine
-from src.models.statement_summary import StatementSummary
 
 
 class EvidenceGraphIntegrationService:

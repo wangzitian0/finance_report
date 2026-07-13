@@ -14,7 +14,7 @@ from src.extraction.base.validation import (
     validate_balance_per_currency,
     validate_completeness,
 )
-from src.models.statement_enums import BankStatementStatus
+from src.extraction.orm.statement_enums import BankStatementStatus
 
 
 def test_validate_balance_mismatch():
@@ -91,7 +91,7 @@ async def test_AC13_21_4_readiness_counts_parsed_balance_invalid(db, test_user):
     the real readiness query against a seeded DB row rather than inspecting source
     text, so a regression in the status filter would actually fail the test.
     """
-    from src.models.statement_summary import StatementSummary
+    from src.extraction.orm.statement_summary import StatementSummary
     from src.reporting.extension.report_readiness import get_personal_report_package_readiness
 
     # The balance-invalid bank statement rests in PARSED, not UPLOADED.

@@ -20,9 +20,10 @@ from src.extraction import (
     get_uploaded_document_filename,
     get_uploaded_document_filenames,
 )
+from src.extraction.extension.statement_summary import get_statement_event_sources
+from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
+from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
-from src.models.statement_enums import BankStatementStatus, Stage1Status
-from src.models.statement_summary import StatementSummary
 from src.platform import (
     WorkflowEvent,
     WorkflowEventFamily,
@@ -42,6 +43,7 @@ from src.platform.extension.workflow_events import (
     list_workflow_events,
     list_workflow_events_response,
     register_readiness_provider,
+    register_statement_reader,
     register_uploaded_document_readers,
     sync_workflow_events_for_user,
     update_workflow_event_status,
@@ -78,6 +80,16 @@ def _wire_uploaded_document_readers() -> None:
         get_filenames=get_uploaded_document_filenames,
         find_filename_by_hash=find_uploaded_document_filename_by_hash,
     )
+
+
+@pytest.fixture(autouse=True)
+def _wire_statement_reader() -> None:
+    """workflow_events no longer imports extraction's StatementSummary itself
+    (#1675 D6 — platform must not import an L3-domain package); production wires
+    this in main.py, tests wire the same real function here so behavior is
+    unchanged. Without this, any test exercising sync_workflow_events_for_user
+    raises RuntimeError."""
+    register_statement_reader(get_statement_event_sources)
 
 
 async def _make_statement(
@@ -966,7 +978,14 @@ async def test_AC19_3_1_sync_uses_bounded_workflow_event_lookup(db, db_engine, t
         sqlalchemy_event.remove(db_engine.sync_engine, "before_cursor_execute", capture_sql)
 
     assert len(statements) <= 2
-    assert "join workflow_events" in statements[0]
+    # #1675 D6: platform reads StatementSummary through the registered
+    # StatementEventSource port (extraction's own query against
+    # statement_summaries, not workflow_events — so it never shows up in this
+    # capture); the existing-event lookup below is what must stay bounded —
+    # one `source_id IN (...)` query covering every statement at once, never
+    # one lookup per statement (the AC's actual intent, previously satisfied
+    # by a single cross-domain JOIN that #1675 D6 splits into two queries).
+    assert "source_id in (" in statements[0]
 
 
 async def test_AC19_3_2_workflow_status_uses_single_aggregate_for_badge_counts(

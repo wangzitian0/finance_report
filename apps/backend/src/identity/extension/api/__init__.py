@@ -13,12 +13,16 @@ from src.identity.extension.api.auth import (
     register,
     router as auth_router,
 )
-from src.identity.extension.api.users import router as users_router
+from src.identity.extension.api.users import (
+    register_in_flight_parse_checker,
+    router as users_router,
+)
 
 __all__ = [
     "auth_router",
     "get_me",
     "login",
     "register",
+    "register_in_flight_parse_checker",
     "users_router",
 ]

@@ -16,7 +16,7 @@ from sqlalchemy import String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base
-from src.models.base import TimestampMixin, UUIDMixin
+from src.platform.orm.base import TimestampMixin, UUIDMixin
 
 # Stable key for the base reporting currency row.
 BASE_CURRENCY_KEY = "base_currency"

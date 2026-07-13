@@ -9,7 +9,7 @@ from src.extraction.extension.statement_parsing_supervisor import (
     reset_stale_parsing_jobs,
     run_parsing_supervisor,
 )
-from src.models.statement_enums import BankStatementStatus
+from src.extraction.orm.statement_enums import BankStatementStatus
 from tests.factories import StatementSummaryFactory
 
 

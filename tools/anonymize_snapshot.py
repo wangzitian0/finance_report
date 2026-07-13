@@ -39,7 +39,7 @@ for path in (str(ROOT_DIR), str(BACKEND_DIR)):
 # Populate Base.metadata with every model (same import set as migrations/env.py).
 import src.counter.extension.sql  # noqa: E402,F401
 import src.identity.extension.sql  # noqa: E402,F401
-import src.models._registry  # noqa: E402,F401
+import src.orm_registry  # noqa: E402,F401
 import src.platform.extension.sql  # noqa: E402,F401
 from src.database import Base  # noqa: E402
 from src.runtime.extension.snapshot_anonymizer import (  # noqa: E402

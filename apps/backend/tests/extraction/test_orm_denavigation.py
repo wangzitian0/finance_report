@@ -14,7 +14,7 @@ Intra-family navigation (extraction ↔ extraction, e.g.
 ``TransactionClassification.atomic_transaction``) stays allowed.
 """
 
-import src.models._registry  # noqa: F401  (eager mapper registration)
+import src.orm_registry  # noqa: F401  (eager mapper registration)
 from src.database import Base
 
 # The extraction-owned ORM family (#1675 ownership map): layer1-4 + the

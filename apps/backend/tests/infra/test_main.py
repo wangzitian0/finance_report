@@ -203,7 +203,7 @@ class TestModels:
 
     def test_statement_summary_model_table_name(self):
         """Test StatementSummary model has correct table name."""
-        from src.models.statement_summary import StatementSummary
+        from src.extraction.orm.statement_summary import StatementSummary
 
         assert StatementSummary.__tablename__ == "statement_summaries"
 
@@ -221,14 +221,14 @@ class TestModels:
 
     def test_statement_status_enum(self):
         """Test StatementStatus enum values."""
-        from src.models.statement_enums import BankStatementStatus
+        from src.extraction.orm.statement_enums import BankStatementStatus
 
         assert BankStatementStatus.UPLOADED.value == "uploaded"
         assert BankStatementStatus.PARSED.value == "parsed"
 
     def test_statement_summary_columns(self):
         """Test StatementSummary exposes the conform envelope columns."""
-        from src.models.statement_summary import StatementSummary
+        from src.extraction.orm.statement_summary import StatementSummary
 
         assert hasattr(StatementSummary, "uploaded_document_id")
         assert hasattr(StatementSummary, "file_hash")

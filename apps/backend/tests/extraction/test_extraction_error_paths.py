@@ -13,8 +13,8 @@ from src.extraction import DocumentStatus, UploadedDocument
 from src.extraction.extension.deduplication import dual_write_layer2
 from src.extraction.extension.service import ExtractionError, ExtractionService
 from src.extraction.extension.statement_parsing import handle_parse_failure
-from src.models.statement_enums import BankStatementStatus
-from src.models.statement_summary import StatementSummary
+from src.extraction.orm.statement_enums import BankStatementStatus
+from src.extraction.orm.statement_summary import StatementSummary
 from tests.factories import StatementSummaryFactory
 
 
@@ -845,7 +845,7 @@ async def test_handle_parse_failure_after_db_error(db, test_user):
     await handle_parse_failure(statement, db, message="DB error occurred")
 
     # Rollback expires all ORM objects → re-fetch via saved PK
-    from src.models.statement_summary import StatementSummary
+    from src.extraction.orm.statement_summary import StatementSummary
 
     result = await db.get(StatementSummary, sid)
     assert result is not None

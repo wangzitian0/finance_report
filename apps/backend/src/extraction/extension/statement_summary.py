@@ -7,10 +7,21 @@ custody account from the ``StatementSummary`` conform via the source document.
 The ``StatementSummary`` conform is now written directly by the ingestion pipeline
 (``ExtractionService.parse_document`` + ``dual_write_layer2``), so the legacy
 ``BankStatement`` -> ``StatementSummary`` mirror (``sync_statement_summary``) is gone.
+
+Also holds the three registered-port implementations for ``StatementSummary``'s
+remaining cross-domain readers (#1675 D6): ``get_statement_event_sources``
+(``platform``, L1-infra — read via ``register_statement_reader``),
+``get_statement_coverage_rows`` (``ledger``, same-rank cycle — read via
+``register_statement_coverage_reader``), and ``find_in_flight_parse_id``
+(``identity``, same-rank cycle — read via
+``register_in_flight_parse_checker``). Each returns a plain read-model shape
+owned by the *reader*, never the ``StatementSummary`` ORM instance itself —
+main.py wires all three at startup.
 """
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import select
@@ -18,7 +29,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction.orm.layer1 import DocumentType, UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction
-from src.models.statement_summary import StatementSummary
+from src.extraction.orm.statement_enums import BankStatementStatus
+from src.extraction.orm.statement_summary import StatementSummary
+from src.ledger import StatementCoverageRow
+from src.platform import StatementEventSource
+
+if TYPE_CHECKING:
+    from collections.abc import Collection
 
 
 def _ordered_bank_statement_doc_ids(source_documents: object) -> list[UUID]:
@@ -99,3 +116,86 @@ async def resolve_custody_account_id(db: AsyncSession, atomic_txn: AtomicTransac
         if account_id is not None:
             return account_id
     return None
+
+
+async def get_statement_event_sources(db: AsyncSession, user_id: UUID) -> list[StatementEventSource]:
+    """Read model for platform's workflow-event derivation port (#1675 D6).
+
+    Returns every ``StatementSummary`` row for the user as the plain
+    ``StatementEventSource`` shape ``platform`` (L1-infra) accepts through its
+    registered ``register_statement_reader`` port — never the ORM class or its
+    enum types themselves. Ordered by creation so the caller (which used to
+    get this ordering from a single cross-domain JOIN, #1675 D3 precedent)
+    doesn't need a second sort.
+    """
+    result = await db.execute(
+        select(StatementSummary).where(StatementSummary.user_id == user_id).order_by(StatementSummary.created_at)
+    )
+    return [
+        StatementEventSource(
+            id=statement.id,
+            user_id=statement.user_id,
+            uploaded_document_id=statement.uploaded_document_id,
+            file_hash=statement.file_hash,
+            status=statement.status.value,
+            stage1_status=statement.stage1_status.value if statement.stage1_status is not None else None,
+            created_at=statement.created_at,
+            updated_at=statement.updated_at,
+            stage1_reviewed_at=statement.stage1_reviewed_at,
+        )
+        for statement in result.scalars().all()
+    ]
+
+
+async def get_statement_coverage_rows(
+    db: AsyncSession, user_id: UUID, account_ids: Collection[UUID]
+) -> list[StatementCoverageRow]:
+    """Read model for ledger's account-coverage port (#1675 D6).
+
+    Returns every APPROVED ``StatementSummary`` row for the given accounts as
+    the plain ``StatementCoverageRow`` shape ``ledger`` accepts through its
+    registered ``register_statement_coverage_reader`` port — the status
+    filter stays here since ``BankStatementStatus`` is this package's enum.
+    """
+    result = await db.execute(
+        select(StatementSummary)
+        .where(StatementSummary.user_id == user_id)
+        .where(StatementSummary.status == BankStatementStatus.APPROVED)
+        .where(StatementSummary.account_id.in_(account_ids))
+        .order_by(
+            StatementSummary.account_id,
+            StatementSummary.currency,
+            StatementSummary.period_start,
+            StatementSummary.id,
+        )
+    )
+    return [
+        StatementCoverageRow(
+            id=statement.id,
+            # Filtered to account_ids above, so account_id is never NULL here.
+            account_id=statement.account_id,  # type: ignore[arg-type]
+            currency=statement.currency,
+            period_start=statement.period_start,
+            period_end=statement.period_end,
+            opening_balance=statement.opening_balance,
+            closing_balance=statement.closing_balance,
+            updated_at=statement.updated_at,
+        )
+        for statement in result.scalars().all()
+    ]
+
+
+async def find_in_flight_parse_id(db: AsyncSession, user_id: UUID) -> UUID | None:
+    """Read model for identity's delete-guard port (#1675 D6).
+
+    Returns the id of a ``StatementSummary`` currently ``PARSING`` for this
+    user, or ``None``. identity's delete-user endpoint uses this (through its
+    registered ``register_in_flight_parse_checker`` port) to refuse a delete
+    that would race a still-running background parse (#1256, AC13.23.1).
+    """
+    return await db.scalar(
+        select(StatementSummary.id)
+        .where(StatementSummary.user_id == user_id)
+        .where(StatementSummary.status == BankStatementStatus.PARSING)
+        .limit(1)
+    )

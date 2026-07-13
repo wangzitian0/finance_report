@@ -4,7 +4,7 @@ import pytest
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
-import src.models._registry  # noqa: F401  -- eager-imports every model module onto Base.metadata
+import src.orm_registry  # noqa: F401  -- eager-imports every model module onto Base.metadata
 from src.database import Base
 
 # Paths relative to this test file: apps/backend/tests/infra/test_migrations.py

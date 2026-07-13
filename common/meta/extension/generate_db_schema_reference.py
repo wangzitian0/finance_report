@@ -33,7 +33,7 @@ def _load_metadata() -> MetaData:
     if str(BACKEND_ROOT) not in sys.path:
         sys.path.insert(0, str(BACKEND_ROOT))
 
-    import src.models._registry  # noqa: F401, PLC0415  -- eager-imports every model onto Base.metadata
+    import src.orm_registry  # noqa: F401, PLC0415  -- eager-imports every model onto Base.metadata
     from src.database import Base  # noqa: PLC0415
 
     return Base.metadata

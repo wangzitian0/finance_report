@@ -32,9 +32,16 @@ extracted fact to its source document.
   step: the one extraction→portfolio call (position reconciliation after a
   brokerage import) is inverted through ``register_position_reconciler``,
   wired by ``main.py``, so portfolio can import this package's entities
-  without a cycle. ``StatementSummary``/statement enums stay in the
-  unregistered ``src/models/`` until their ``platform`` (L1-infra, upward) and
-  ``ledger``/``identity`` (cycle) readers are inverted.
+  without a cycle. ``StatementSummary``/statement enums completed the move in
+  #1675 D6 (``orm/statement_summary.py`` / ``orm/statement_enums.py``), the
+  final models-decentralization slice: their three cross-domain readers each
+  needed the same inversion — ``platform`` (L1-infra, upward) reads through
+  the registered ``StatementEventSource`` port, and ``ledger``/``identity``
+  (same rank, dependency-cycle — both readers extraction itself
+  ``depends_on``) read through their own registered ports
+  (``register_statement_coverage_reader`` / ``register_in_flight_parse_checker``),
+  each wired by ``main.py``, mirroring ``register_uploaded_document_readers``
+  above.
 * ``confidence_metric`` / ``confidence_tier`` (journal-confidence metric
   snapshots) are NOT this package's — they read ledger's aggregates and stay
   in ``services/`` pending the reporting/observability re-home.
@@ -89,9 +96,7 @@ CONTRACT = PackageContract(
         # (Not declared as units: KIND_LAYER has no pure-function kind homed in
         # base — the base-layer-pure invariant is the guard instead.)
         # ── aggregates/entities: taxonomy-only (module unset — the gate skips
-        # placement checks; the mapped classes live in orm/, #1675 D5c, except
-        # StatementSummary which stays in the unregistered models/ until its
-        # platform/ledger/identity readers are inverted; see docstring) ──
+        # placement checks; the mapped classes live in orm/, #1675 D5c-D6) ──
         Unit(name="StatementSummary", kind=Kind.AGGREGATE_ROOT),
         Unit(name="UploadedDocument", kind=Kind.ENTITY),
         Unit(name="AtomicTransaction", kind=Kind.ENTITY),
@@ -155,6 +160,7 @@ CONTRACT = PackageContract(
         "AssetType",
         "AtomicPosition",
         "AtomicTransaction",
+        "BankStatementStatus",
         "BrokeragePositionImportService",
         "ClassificationRule",
         "ClassificationStatus",
@@ -182,6 +188,8 @@ CONTRACT = PackageContract(
         "ReportSnapshot",
         "ReportType",
         "SYSTEM_PROMPT",
+        "Stage1Status",
+        "StatementSummary",
         "TransactionClassification",
         "TransactionDirection",
         "UploadedDocument",
@@ -197,10 +205,13 @@ CONTRACT = PackageContract(
         "detect_balance_chain_break",
         "dual_write_layer2",
         "edit_and_approve",
+        "find_in_flight_parse_id",
         "find_uploaded_document_filename_by_hash",
         "get_correction_stats",
         "get_known_storage_paths",
         "get_parsing_prompt",
+        "get_statement_coverage_rows",
+        "get_statement_event_sources",
         "get_uploaded_document_filename",
         "get_uploaded_document_filenames",
         "looks_like_brokerage_document",
