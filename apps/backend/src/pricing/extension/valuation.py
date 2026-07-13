@@ -13,6 +13,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import Select, func, select
+from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.money import to_money
@@ -369,20 +370,31 @@ class ValuationService:
         # Disclose combos whose only snapshots postdate as_of_date: they are
         # absent from the totals below, and "we did not own it yet" vs "we had
         # not recorded it yet" is inherently ambiguous for a manual component
-        # (#1796) — so the gap is warned about, never guessed at. Liquidity
-        # class is not consulted: a combo excluded here is absent regardless of
-        # include_restricted.
+        # (#1796) — so the gap is warned about, never guessed at. A view that
+        # excludes restricted/illiquid components must not have their existence
+        # disclosed by a warning either, so the combo's latest liquidity class
+        # rides along and is filtered under include_restricted=False.
+        latest_liquidity = aggregate_order_by(
+            ManualValuationSnapshot.liquidity_class,
+            ManualValuationSnapshot.as_of_date.desc(),
+            ManualValuationSnapshot.created_at.desc(),
+        )
         gap_rows = await db.execute(
             select(
                 ManualValuationSnapshot.component_type,
                 ManualValuationSnapshot.source,
                 func.min(ManualValuationSnapshot.as_of_date).label("earliest_as_of_date"),
+                func.array_agg(latest_liquidity)[1].label("latest_liquidity_class"),
             )
             .where(ManualValuationSnapshot.user_id == user_id)
             .where(ManualValuationSnapshot.superseded_by_id.is_(None))
             .group_by(ManualValuationSnapshot.component_type, ManualValuationSnapshot.source)
             .having(func.min(ManualValuationSnapshot.as_of_date) > as_of_date)
             .order_by(ManualValuationSnapshot.component_type, ManualValuationSnapshot.source)
+        )
+        hidden_classes = (
+            ManualValuationLiquidityClass.RESTRICTED,
+            ManualValuationLiquidityClass.ILLIQUID,
         )
         warnings: list[dict[str, str]] = [
             {
@@ -398,6 +410,7 @@ class ValuationService:
                 ),
             }
             for row in gap_rows
+            if include_restricted or row.latest_liquidity_class not in hidden_classes
         ]
 
         total_assets = Decimal("0.00")

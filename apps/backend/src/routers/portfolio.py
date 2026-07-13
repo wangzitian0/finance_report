@@ -136,18 +136,20 @@ async def get_holdings(
 
     warnings: list[dict[str, str]] = []
     try:
-        holdings = await _portfolio_service.get_holdings(
-            db=db,
-            user_id=user_id,
-            as_of_date=as_of_date,
-            include_disposed=include_disposed,
-            warnings=warnings,
+        holdings = list(
+            await _portfolio_service.get_holdings(
+                db=db,
+                user_id=user_id,
+                as_of_date=as_of_date,
+                include_disposed=include_disposed,
+                warnings=warnings,
+            )
         )
     except (PortfolioNotFoundError, AssetNotFoundError):
         # No holdings found — return an empty page instead of an error
         return HoldingsListResponse(items=[], total=0, warnings=warnings)
 
-    page = list(holdings)[offset : offset + limit]
+    page = holdings[offset : offset + limit]
     logger.info("Retrieved holdings", count=len(page), total=len(holdings))
     return HoldingsListResponse(items=page, total=len(holdings), warnings=warnings)
 

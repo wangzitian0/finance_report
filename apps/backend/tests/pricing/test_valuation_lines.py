@@ -157,3 +157,17 @@ async def test_AC_pricing_manualvaluation_4_component_recorded_after_as_of_is_wa
     assert warning["as_of_date"] == "2026-05-31"
     assert warning["earliest_as_of_date"] == "2026-06-15"
     assert "cpf statement" in warning["message"]
+
+    # A view that excludes restricted/illiquid components must not disclose
+    # their existence via gap warnings either (#1796 CR follow-up): the CPF
+    # combo is RESTRICTED, so the exclusive view carries no warning for it.
+    exclusive_warnings: list[dict[str, str]] = []
+    await build_manual_valuation_lines(
+        db,
+        test_user.id,
+        as_of_date=date(2026, 5, 31),
+        target_currency="SGD",
+        include_restricted=False,
+        warnings=exclusive_warnings,
+    )
+    assert exclusive_warnings == []
