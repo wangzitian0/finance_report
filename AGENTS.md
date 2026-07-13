@@ -112,6 +112,27 @@ Details: [docs/agents/orchestration.md](docs/agents/orchestration.md) · [docs/s
 
 ---
 
+## 🛡️ Pre-Push Gate Parity
+
+- ✅ **Iron rule** — before *any* push, run
+  `apps/backend/.venv/bin/python tools/preflight.py --tier=static`
+  (seconds-level, diff-aware). Non-zero exit = do **not** push.
+- A preflight red is a deterministic preview of a CI red. The check list is
+  deliberately not enumerated here — the single source of truth is
+  `tools/preflight.py --list` (no fact duplication, #1435 discipline).
+- ✅ **Escape hatch**: if preflight itself is broken, pushing is allowed, but
+  the PR body MUST declare `preflight skipped: <reason>` — never skip silently.
+- ✅ **Cloud/sandbox agents** (Copilot etc.): additionally run FULL preflight
+  (`--tier=full`, includes the tooling suite, ~3 min) before pushing — sandbox
+  CPU does not contend with the operator's machine, and a CI retry loop costs
+  far more. If the sandbox cannot install deps, declare it in the PR body per
+  the escape-hatch rule.
+- ✅ **Coverage**: during TDD, run your tests with `--cov` scoped to the files
+  you changed to confirm your new lines are covered; do **not** run
+  full-component coverage locally (~4 min — that is CI's job).
+
+---
+
 ## 🌿 Branch & PR Rules
 
 Full policy: **[docs/contributing/branch-policy.md](docs/contributing/branch-policy.md)**

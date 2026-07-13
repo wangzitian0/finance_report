@@ -3327,6 +3327,25 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── group preflight: diff-aware pre-push dispatcher tiering
+        # (#1810 G-static-parity) ──
+        ACRecord(
+            id="AC-testing.preflight.1",
+            statement=(
+                "Preflight check tiering composes with the diff-glob selection: "
+                "--tier=static keeps exactly the seconds-level static gates "
+                "matching the diff and drops the heavy suite gates, while the "
+                "default full tier preserves the exact pre-tier selection, so "
+                "every static blocking PR gate is runnable locally in seconds "
+                "via one command (#1810 G-static-parity)."
+            ),
+            test=(
+                "tests/tooling/test_preflight.py"
+                "::test_AC_testing_preflight_1_static_tier_composes_with_glob_selection"
+            ),
+            priority="P1",
+            status="done",
+        ),
     ],
 )
 
