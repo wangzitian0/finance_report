@@ -21,7 +21,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base
 from src.llm.base import ProtocolFamily, ReasoningEffort, Scene
-from src.models.base import TimestampMixin, UUIDMixin
+from src.platform.orm.base import TimestampMixin, UUIDMixin
 
 
 def _enum_values(enum_cls: type) -> list[str]:

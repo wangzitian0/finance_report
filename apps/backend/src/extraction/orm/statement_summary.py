@@ -37,8 +37,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from src.audit.money import CurrencyBalances
 from src.database import Base
-from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
-from src.models.statement_enums import BankStatementStatus, Stage1Status
+from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
+from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 
 class StatementSummary(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):

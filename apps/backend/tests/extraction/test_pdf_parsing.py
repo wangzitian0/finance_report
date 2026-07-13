@@ -26,7 +26,7 @@ from src.extraction.base.validation import (
     validate_completeness,
 )
 from src.extraction.extension.service import ExtractionError, ExtractionService
-from src.models.statement_enums import BankStatementStatus
+from src.extraction.orm.statement_enums import BankStatementStatus
 
 
 def make_upload_file(name: str, content: bytes) -> UploadFile:
@@ -108,7 +108,7 @@ class TestInvalidParseNotPersisted:
             # persist as trusted truth, so it is quarantined to REJECTED with a typed
             # reason code preserved in validation_error (AC-extraction.2009.2 supersedes the prior
             # PARSED/review resting state).
-            from src.models.statement_enums import BankStatementStatus
+            from src.extraction.orm.statement_enums import BankStatementStatus
 
             assert stmt.status == BankStatementStatus.REJECTED
             assert stmt.balance_validated is False

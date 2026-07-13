@@ -49,9 +49,9 @@ from src.extraction.extension.deduplication import DeduplicationService, _decima
 from src.extraction.extension.prompts.statement import get_parsing_prompt
 from src.extraction.orm.layer1 import DocumentType
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
+from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
+from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType
-from src.models.statement_enums import BankStatementStatus, Stage1Status
-from src.models.statement_summary import StatementSummary
 from src.observability import record_financial_invariant_violation
 
 # Bound from the bare published root (config publishes no named symbols).

@@ -16,7 +16,7 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
-from src.models.base import TimestampMixin, UUIDMixin
+from src.platform.orm.base import TimestampMixin, UUIDMixin
 
 
 class ReconciliationStatus(str, Enum):

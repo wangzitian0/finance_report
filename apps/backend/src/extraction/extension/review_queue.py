@@ -23,6 +23,7 @@ from src.extraction.extension.currency_resolution import CurrencyUnresolvedError
 from src.extraction.orm.layer1 import DocumentType, UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.extraction.orm.layer3 import ClassificationStatus, TransactionClassification
+from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import (
     Account,
     AccountType,
@@ -34,7 +35,6 @@ from src.ledger import (
     validate_journal_balance,
     validate_journal_posting_invariants,
 )
-from src.models.statement_summary import StatementSummary
 from src.observability import get_logger
 
 if TYPE_CHECKING:

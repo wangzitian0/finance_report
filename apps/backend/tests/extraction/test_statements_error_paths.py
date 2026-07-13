@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 from sqlalchemy.exc import SQLAlchemyError
 
 from src.extraction.extension.statement_parsing import handle_parse_failure
-from src.models.statement_enums import BankStatementStatus
+from src.extraction.orm.statement_enums import BankStatementStatus
 from tests.factories import StatementSummaryFactory
 
 

@@ -27,6 +27,7 @@ _LAZY = {
     "get_me": "src.identity.extension.api",
     "login": "src.identity.extension.api",
     "register": "src.identity.extension.api",
+    "register_in_flight_parse_checker": "src.identity.extension.api",
     "users_router": "src.identity.extension.api",
     "get_current_user_id": "src.identity.extension.auth",
     "oauth2_scheme": "src.identity.extension.auth",
@@ -61,6 +62,7 @@ __all__ = [
     "oauth2_scheme",
     "purge_test_accounts",
     "register",
+    "register_in_flight_parse_checker",
     "register_rate_limiter",
     "users_router",
     "verify_password",
@@ -89,6 +91,7 @@ if TYPE_CHECKING:  # pragma: no cover - static type-checker view of the lazy exp
         get_me,
         login,
         register,
+        register_in_flight_parse_checker,
         users_router,
     )
     from src.identity.extension.auth import get_current_user_id, oauth2_scheme

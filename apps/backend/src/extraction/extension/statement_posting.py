@@ -18,9 +18,9 @@ from src.audit.money.currency import normalize_currency_code
 from src.extraction.extension.review_queue import create_entry_from_txn
 from src.extraction.extension.statement_validation import approve_statement, resolve_statement_transactions
 from src.extraction.extension.transaction_classification import classify_by_effective_policy
+from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
+from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus
-from src.models.statement_enums import BankStatementStatus, Stage1Status
-from src.models.statement_summary import StatementSummary
 
 HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD = 85
 

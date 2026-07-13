@@ -10,7 +10,7 @@ mutable table, column, enum, index, or endpoint inventory.
 |---|---|
 | Table/column/enum/index/FK inventory | [Generated DB Schema Reference](../reference/db-schema.md) |
 | Deployable schema chain | `apps/backend/migrations/` Alembic revisions |
-| Model metadata | `apps/backend/src/models/` SQLAlchemy models |
+| Model metadata | each owning package's `orm/` SQLAlchemy models (`apps/backend/src/<pkg>/orm/`), discovered via `apps/backend/src/orm_registry.py` |
 | Request/response and endpoint inventory | [Generated API Reference](../reference/api.md) |
 | Schema validation payloads | `apps/backend/src/schemas/` Pydantic schemas |
 

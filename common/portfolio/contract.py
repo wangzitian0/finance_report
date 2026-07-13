@@ -27,13 +27,14 @@ below for how that overlap is resolved.
 * **``ManagedPosition`` is portfolio's aggregate**: it owns ``InvestmentLot``
   and ``InvestmentTransaction``; the invariant is *open position quantity ≥ 0*
   plus cost-basis consistency across lots.
-* The ORM entities (``ManagedPosition``/``InvestmentLot``/
-  ``InvestmentTransaction``/``DividendIncome``/``AtomicPosition``) stay in the
-  unregistered ``src/models/`` until their cross-domain FKs are cut (Stage-4
-  scope — same deferral extraction and ledger already made). Their enums
-  (``PositionStatus``/``CostBasisMethod``/``InvestmentTransactionType``/
-  ``DividendType``) are declared alongside them on the ORM model files, so
-  they're taxonomy-only here too, for the same reason.
+* The ORM entities: ``InvestmentLot``/``InvestmentTransaction``/
+  ``DividendIncome`` live in this package's own ``orm/portfolio.py``
+  (#1675 D5); ``ManagedPosition``/``AtomicPosition`` live in ``extraction``'s
+  ``orm/layer3.py`` (#1675 D4+D5c — extraction owns the fact family's ORM;
+  portfolio imports the published entities, never the ORM class directly).
+  Their enums (``PositionStatus``/``CostBasisMethod``/
+  ``InvestmentTransactionType``/``DividendType``) are declared alongside them
+  on the ORM model files, so they're taxonomy-only here too.
 * Cross-package edges today (updated at the #1641/#1643 read-side cutover):
   ``audit`` (Money/Quantity/UnitPrice base types), ``ledger`` (``post_entry``
   — portfolio writes only its own aggregate in one transaction, then posts a
@@ -64,7 +65,11 @@ CONTRACT = PackageContract(
     # "domain" (L3).
     status="active",
     tier="CODE-ONLY",
-    depends_on=["audit", "extraction", "ledger", "observability", "pricing"],
+    # ``platform`` (#1675 D6): orm/portfolio.py's mapped classes use the base
+    # ORM mixins (UUIDMixin/UserOwnedMixin/TimestampMixin), moved from
+    # src/models/base.py to platform.orm.base — a downward edge (platform is
+    # infra, L1; portfolio is domain, L3).
+    depends_on=["audit", "extraction", "ledger", "observability", "platform", "pricing"],
     roles=["base", "extension", "data"],
     units=[
         # ── base: real value objects — plain exceptions, no ORM references ──
@@ -99,8 +104,9 @@ CONTRACT = PackageContract(
         # (managed_positions, journal_entries) are bare FK columns; the former
         # relationship() navigations were unused and removed per the
         # 2026-07-11 ruling. ManagedPosition/AtomicPosition/PositionStatus/
-        # CostBasisMethod still live in the unregistered src/models/ remainder
-        # (layer3.py — extraction-bound, the parallel D4+D5c PR).
+        # CostBasisMethod live in extraction's orm/layer3.py (#1675 D4+D5c —
+        # extraction owns the fact family's ORM; portfolio imports the
+        # published entities, never the ORM class directly).
         Unit(name="ManagedPosition", kind=Kind.AGGREGATE_ROOT),
         Unit(name="InvestmentLot", kind=Kind.ENTITY),
         Unit(name="InvestmentTransaction", kind=Kind.ENTITY),

@@ -12,7 +12,7 @@ for path in (ROOT_DIR, BACKEND_DIR):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-import src.models._registry  # noqa: E402, F401  -- register every ORM mapper before relationship config
+import src.orm_registry  # noqa: E402, F401  -- register every ORM mapper before relationship config
 from src.reconciliation.extension.reconciliation_audit import main  # noqa: E402
 
 

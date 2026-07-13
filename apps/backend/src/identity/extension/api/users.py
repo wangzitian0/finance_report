@@ -5,26 +5,55 @@ Authenticated current-user compatibility routes for the legacy ``/users`` surfac
 repointed) from the pre-migration ``src/routers/users.py`` into the package's
 single home. The ``User`` aggregate is now imported from the identity package's
 own SQL adapter; the user-CRUD wire schemas remain general ``src.schemas.user``
-types, and the in-flight-parse guard reads the ``statement_summary`` cross-domain
-read model by id.
+types, and the in-flight-parse guard reads a registered port (see below) —
+never ``extraction``'s ``StatementSummary`` ORM directly.
 """
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from fastapi import APIRouter, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.deps import CurrentUserId, DbSession
 from src.identity.extension.sql import User
-from src.models.statement_enums import BankStatementStatus
-from src.models.statement_summary import StatementSummary
 from src.platform import raise_bad_request, raise_conflict, raise_not_found
 from src.schemas import UserCreate, UserListResponse, UserResponse, UserUpdate
 
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+    # Called as (db, user_id) — see the delete_user call site below.
+    InFlightParseChecker = Callable[[AsyncSession, UUID], Awaitable["UUID | None"]]
+
 router = APIRouter(prefix="/users", tags=["users"])
+
+# ``extraction`` (L3 domain) owns ``StatementSummary``; identity is also L3
+# domain and extraction already ``depends_on`` identity, so a direct import
+# here would close a dependency cycle (same inversion as
+# ``ledger.register_statement_coverage_reader`` / #1675 D6). main.py wires the
+# real ``src.extraction.find_in_flight_parse_id`` at startup; tests register
+# a fake/the real function directly.
+_in_flight_parse_checker: InFlightParseChecker | None = None
+
+
+def register_in_flight_parse_checker(checker: InFlightParseChecker) -> None:
+    """Wire the in-flight-statement-parse check (see module note above)."""
+    global _in_flight_parse_checker
+    _in_flight_parse_checker = checker
+
+
+def _require_in_flight_parse_checker() -> InFlightParseChecker:
+    if _in_flight_parse_checker is None:
+        raise RuntimeError(
+            "users.register_in_flight_parse_checker() was never called — "
+            "main.py wires it at startup (#1675 D6); a test exercising this path must call it too."
+        )
+    return _in_flight_parse_checker
 
 
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -133,13 +162,9 @@ async def delete_user(
     # and would later write uploaded-document lineage for the now-deleted user,
     # which PostgreSQL rejects with a FK IntegrityError (and the original error gets
     # masked). The in-flight parse is queryable as StatementSummary.status == PARSING,
-    # so refuse the delete with an actionable 409 rather than racing the parse.
-    in_flight_parse = await db.scalar(
-        select(StatementSummary.id)
-        .where(StatementSummary.user_id == user_id)
-        .where(StatementSummary.status == BankStatementStatus.PARSING)
-        .limit(1)
-    )
+    # so refuse the delete with an actionable 409 rather than racing the parse
+    # (read through the registered port — see module note above).
+    in_flight_parse = await _require_in_flight_parse_checker()(db, user_id)
     if in_flight_parse is not None:
         raise_conflict(
             "Cannot delete this user account while a statement is still being parsed. "

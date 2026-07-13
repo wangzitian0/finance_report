@@ -34,7 +34,7 @@
 | Dimension | Physical Location (SSOT) | Description |
 |-----------|--------------------------|-------------|
 | **Bookkeeping Logic** | `apps/backend/src/ledger/extension/accounting.py` | Core business |
-| **Model Definition** | `apps/backend/src/models/journal.py` | ORM |
+| **Model Definition** | `apps/backend/src/ledger/orm/journal.py` | ORM |
 | **Validation Rules** | `apps/backend/src/schemas/journal.py` | Pydantic |
 
 ---
@@ -392,7 +392,7 @@ INSERT INTO accounts (
 **New Model Field**:
 
 ```python
-# apps/backend/src/models/account.py
+# apps/backend/src/ledger/orm/account.py
 class Account(Base):
     # ... existing fields ...
     is_system: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

@@ -39,7 +39,11 @@ CONTRACT = PackageContract(
     name="observability",
     status="active",
     tier="CODE-ONLY",
-    depends_on=[],
+    # ``platform`` (#1675 D6): orm/metrics.py's ConfidenceMetricSnapshot uses the
+    # base ORM mixins (UUIDMixin/UserOwnedMixin/TimestampMixin), moved from
+    # src/models/base.py to platform.orm.base. Same-rank edge (both infra, L1),
+    # acyclic — platform depends_on=[].
+    depends_on=["platform"],
     implementations={"be": "apps/backend/src/observability", "fe": None},
     # The one ORM entity this package owns — taxonomy-only (module unset, the
     # #1675 idiom): the append-only North-Star confidence series lives in

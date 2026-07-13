@@ -125,7 +125,7 @@ write path and no dual-write flag.
   multi-currency NAV therefore never collapses to a single scalar, and each
   currency reconciles on its own closed loop. (#1139 AC-B3 / EPIC-017 AC17.4.13.)
 - Enums `BankStatementStatus` and `Stage1Status` live in
-  `src/models/statement_enums.py`.
+  `src/extraction/orm/statement_enums.py`.
 
 When a parsed statement fails balance validation, `balance_validation_result`
 must preserve the mismatch note from the Decimal balance check. The statement
@@ -491,8 +491,7 @@ Coverage checks compare monthly statement periods within each account/currency:
 
 | File | Purpose |
 |------|---------|
-| `src/extraction/orm/` (`layer1.py`-`layer4.py`, `evidence.py`, `correction.py`) | Package-owned SQLAlchemy fact family (#1675 D5c); cross-domain references are bare FK id columns, never `relationship()` |
-| `src/models/statement_enums.py`, `src/models/statement_summary.py` | Statement envelope model and enums (still in the unregistered `src/models/` until their platform/ledger/identity readers are inverted — #1675 D5c notes) |
+| `src/extraction/orm/` (`layer1.py`-`layer4.py`, `evidence.py`, `correction.py`, `statement_enums.py`, `statement_summary.py`) | Package-owned SQLAlchemy fact family + statement envelope (#1675 D5c-D6); cross-domain references are bare FK id columns / registered read-model ports, never `relationship()` or a direct cross-domain import |
 | `src/schemas/extraction.py` | Pydantic schemas |
 | `src/extraction/extension/` (`service.py`, `_ocr.py`, `_llm_led_gate.py`, …) | Core extraction logic |
 | `src/extraction/base/validation.py` | Validation, confidence scoring, running-balance chain-break detector (`detect_balance_chain_break`) |

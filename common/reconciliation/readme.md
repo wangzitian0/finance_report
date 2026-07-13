@@ -308,7 +308,7 @@ pending --> flagged: Needs manual review
 
 | Dimension | Location |
 |-----------|----------|
-| Model | `apps/backend/src/models/statement_enums.py` (Stage1Status), `apps/backend/src/models/statement_summary.py` (StatementSummary) |
+| Model | `apps/backend/src/extraction/orm/statement_enums.py` (Stage1Status), `apps/backend/src/extraction/orm/statement_summary.py` (StatementSummary) |
 | Model | `apps/backend/src/reconciliation/orm/consistency_check.py` |
 | Service | `apps/backend/src/extraction/extension/statement_validation.py` |
 | Service | `apps/backend/src/reconciliation/extension/consistency_checks.py` |

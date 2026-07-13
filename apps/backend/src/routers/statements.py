@@ -33,10 +33,10 @@ from src.extraction import (
     submit_parse_pipeline,
     validate_balance_chain,
 )
+from src.extraction.orm.statement_enums import BankStatementStatus
+from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType
 from src.llm import LitellmCatalog, Modality
-from src.models.statement_enums import BankStatementStatus
-from src.models.statement_summary import StatementSummary
 from src.observability import ErrorIds, get_logger
 from src.platform import (
     get_owned_or_404,

@@ -4,7 +4,7 @@ Adapters over the ``base`` ports: the litellm transport (``client.py``, the
 single litellm chokepoint), the model catalogue (``catalog.py``), provider
 routing (``routing.py``), the env/DB config sources + layered factory, the
 input-keyed cassette record/replay subsystem, and the ORM entities
-(``sql.py``, registered on ``Base.metadata`` via ``src.models._registry``).
+(``sql.py``, registered on ``Base.metadata`` via ``src.orm_registry``).
 
 This ``__init__`` deliberately does NOT import ``client``/``catalog`` — they
 require ``litellm``, which minimal tooling environments don't install. The

@@ -97,7 +97,7 @@ SSOT copy. Lives in `audit` because it's a `confidence`/`provenance`
 concern — see [What audit governs](#what-audit-governs) above — and its
 implementation is `apps/backend/src/audit/source_type_priority.py`.)*
 
-`JournalEntrySourceType` (`apps/backend/src/models/journal.py`) is the
+`JournalEntrySourceType` (`apps/backend/src/ledger/orm/journal.py`) is the
 trust hierarchy for journal-entry provenance — which source wins when two
 sources disagree about the same transaction. Four user-data values, highest
 to lowest trust: `manual` (TRUSTED — user typed the entry directly),

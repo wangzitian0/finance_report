@@ -9,8 +9,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.extraction.orm.statement_enums import BankStatementStatus
 from src.identity import User, create_access_token
-from src.models.statement_enums import BankStatementStatus
 from tests.factories import StatementSummaryFactory
 
 pytestmark = pytest.mark.asyncio

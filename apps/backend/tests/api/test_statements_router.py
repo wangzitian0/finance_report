@@ -42,11 +42,11 @@ from src.extraction.extension.statement_posting import (
 )
 from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
+from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
+from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
 from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus
 from src.llm.base import Modality, ModelSpec
-from src.models.statement_enums import BankStatementStatus, Stage1Status
-from src.models.statement_summary import StatementSummary
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.reconciliation.extension.review_queue import accept_match as accept_match_service
 from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck

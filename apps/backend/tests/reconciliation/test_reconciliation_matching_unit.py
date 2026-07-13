@@ -13,9 +13,9 @@ from sqlalchemy.orm import selectinload
 from src.audit import JournalEntrySourceType
 from src.extraction import DocumentType, UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction
+from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
-from src.models.statement_summary import StatementSummary
 from src.reconciliation import (
     DEFAULT_CONFIG,
     MatchCandidate,

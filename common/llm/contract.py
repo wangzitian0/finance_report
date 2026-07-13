@@ -60,7 +60,10 @@ CONTRACT = PackageContract(
     # observability: get_logger/structured logs from base+extension; config:
     # bare-root settings binding (env_config/catalog/secrets). The platform
     # event bus becomes an edge only when UsageRecorded is actually published.
-    depends_on=["observability"],
+    # ``platform`` (#1675 D6): orm/config.py's LLM config ORM uses the base
+    # mixins (UUIDMixin/TimestampMixin), moved from src/models/base.py to
+    # platform.orm.base. Same-rank edge (both infra, L1), acyclic.
+    depends_on=["observability", "platform"],
     roles=["base", "extension", "data"],
     units=[
         # ── base: the frozen value language (mechanism A) ──

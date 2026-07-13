@@ -22,9 +22,9 @@ from src.extraction.orm.layer3 import (
     RuleType,
 )
 from src.extraction.orm.layer4 import ReportType
+from src.extraction.orm.statement_enums import BankStatementStatus
+from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType
-from src.models.statement_enums import BankStatementStatus
-from src.models.statement_summary import StatementSummary
 from src.portfolio import DividendIncome, DividendType, InvestmentLot, InvestmentTransaction, InvestmentTransactionType
 from src.pricing import MarketDataOverride, PriceSource
 from src.pricing.extension.market_data import _load_stored_stock_price

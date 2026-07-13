@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from src.extraction.extension.service import ExtractionError, ExtractionService
-from src.models.statement_enums import BankStatementStatus, Stage1Status
+from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 
 
 async def mock_stream_generator(content: str):

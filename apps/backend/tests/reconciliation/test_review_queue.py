@@ -27,8 +27,8 @@ from src.audit import JournalEntrySourceType
 from src.extraction.extension.review_queue import create_entry_from_txn, get_or_create_account
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.extraction.orm.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
+from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus, ValidationError
-from src.models.statement_summary import StatementSummary
 from src.pricing import PricingError
 from src.reconciliation import ReconciliationStatus
 from src.reconciliation.extension.review_queue import accept_match, batch_accept, get_pending_items, reject_match

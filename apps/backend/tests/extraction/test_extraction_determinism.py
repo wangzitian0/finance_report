@@ -32,7 +32,7 @@ from src.extraction.base.validation import (
     validate_balance_explicit,
 )
 from src.extraction.extension.service import ExtractionService
-from src.models.statement_enums import BankStatementStatus
+from src.extraction.orm.statement_enums import BankStatementStatus
 
 # Number of repeated runs/parses used to surface non-determinism. Small enough to
 # stay fast in CI, large enough that order-dependent flakiness shows up reliably.
@@ -228,7 +228,7 @@ class TestRepeatedParseDeterminism:
         truth, so it lands in the `REJECTED` terminal state with a typed reason code and
         is flagged balance-invalid.
         """
-        from src.models.statement_enums import Stage1Status
+        from src.extraction.orm.statement_enums import Stage1Status
 
         statement, _ = await self._parse_once(db, test_user.id, _BANK_BALANCE_INVALID, "ac20-9-2")
 

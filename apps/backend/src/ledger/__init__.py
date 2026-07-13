@@ -42,8 +42,10 @@ if TYPE_CHECKING:
         validate_journal_posting_invariants,
     )
     from src.ledger.data import (
+        StatementCoverageRow,
         calculate_account_balance,
         calculate_account_balances,
+        register_statement_coverage_reader,
         verify_accounting_equation,
     )
     from src.ledger.extension import (
@@ -104,6 +106,7 @@ __all__ = [
     "ProcessingAccount",
     "RevaluationError",
     "SqlJournalRepository",
+    "StatementCoverageRow",
     "TransferPair",
     "UnbalancedEntryError",
     "ValidationError",
@@ -127,6 +130,7 @@ __all__ = [
     "post_journal_entry",
     "post_opening_balance_entry",
     "register_fx_revaluation_provider",
+    "register_statement_coverage_reader",
     "used_currencies",
     "validate_fx_rates",
     "validate_journal_balance",
@@ -178,9 +182,11 @@ _EXTENSION_NAMES = {
 }
 _DATA_NAMES = {
     "DEFAULT_STALE_AFTER_DAYS",
+    "StatementCoverageRow",
     "calculate_account_balance",
     "get_account_statement_coverage",
     "calculate_account_balances",
+    "register_statement_coverage_reader",
     "verify_accounting_equation",
 }
 

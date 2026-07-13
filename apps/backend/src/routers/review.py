@@ -14,8 +14,8 @@ from src.extraction import (
     resolve_transaction_currency,
 )
 from src.extraction.orm.layer2 import AtomicTransaction
+from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import JournalEntry, JournalEntryStatus
-from src.models.statement_summary import StatementSummary
 from src.observability import get_logger
 from src.platform import get_owned_or_404, raise_conflict
 from src.reconciliation import (

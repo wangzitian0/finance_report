@@ -18,7 +18,7 @@ import pytest
 
 from src.extraction.base.validation import count_within_document_dedup_collapse
 from src.extraction.extension.service import ExtractionService
-from src.models.statement_enums import BankStatementStatus
+from src.extraction.orm.statement_enums import BankStatementStatus
 from src.observability import telemetry_metrics
 
 pytestmark = pytest.mark.no_db

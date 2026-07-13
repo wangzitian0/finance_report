@@ -3,16 +3,14 @@
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased
 
-from src.models.statement_enums import BankStatementStatus, Stage1Status
-from src.models.statement_summary import StatementSummary
 from src.platform.extension.workflow_event_builders import (  # noqa: F401
     PACKAGE_WORKFLOW_SOURCE_ID,
+    StatementEventSource,
     build_readiness_blocker_event_payload,
     build_report_state_event_payload,
     build_review_completed_event_payload,
@@ -57,6 +55,19 @@ if TYPE_CHECKING:
     DocumentFilenameProvider = Callable[[AsyncSession, UUID], Awaitable[str | None]]
     DocumentFilenamesProvider = Callable[[AsyncSession, "set[UUID]"], Awaitable[dict[UUID, str]]]
     DocumentFilenameByHashProvider = Callable[[AsyncSession, UUID, str], Awaitable[str | None]]
+
+    # Called as (db, user_id) — see sync_workflow_events_for_user's call site.
+    StatementReader = Callable[[AsyncSession, UUID], Awaitable[list[StatementEventSource]]]
+
+# Raw ``BankStatementStatus``/``Stage1Status`` .value strings (#1675 D6) — this
+# L1-infra module compares against these instead of importing the extraction-
+# owned enum types; see StatementEventSource's docstring for the inversion.
+_STATUS_REJECTED = "rejected"
+_STATUS_PARSED = "parsed"
+_STAGE1_PENDING_REVIEW = "pending_review"
+_STAGE1_APPROVED = "approved"
+_STAGE1_REJECTED = "rejected"
+_STAGE1_EDITED = "edited"
 
 # `platform` is L1 infra — it must never import reporting-domain logic directly
 # (issue #1676: this file previously imported `services.report_readiness`
@@ -134,6 +145,30 @@ def _get_document_filename_by_hash_provider() -> "DocumentFilenameByHashProvider
             "main.py wires it at startup (#1675 D3); a test exercising this path must call it too."
         )
     return _document_filename_by_hash_provider
+
+
+# Same inversion, same reason (#1675 D6): ``StatementSummary`` is owned by
+# ``extraction`` (L3 domain); this L1-infra module may only depend on the
+# plain ``StatementEventSource`` read-model shape, never import the ORM class
+# or its enum types directly. main.py wires the real
+# ``src.extraction.get_statement_event_sources`` at startup; tests register a
+# fake/the real function directly.
+_statement_reader: "StatementReader | None" = None
+
+
+def register_statement_reader(reader: "StatementReader") -> None:
+    """Wire the ``StatementSummary`` read model (see module note above)."""
+    global _statement_reader
+    _statement_reader = reader
+
+
+def _get_statement_reader() -> "StatementReader":
+    if _statement_reader is None:
+        raise RuntimeError(
+            "workflow_events.register_statement_reader() was never called — "
+            "main.py wires it at startup (#1675 D6); a test exercising this path must call it too."
+        )
+    return _statement_reader
 
 
 ACTIVE_WORKFLOW_SESSION_DEDUPE_KEY = "active-upload-to-report"
@@ -344,7 +379,7 @@ async def upsert_workflow_event(
     return event
 
 
-async def _statement_filename(db: AsyncSession, statement: StatementSummary) -> str:
+async def _statement_filename(db: AsyncSession, statement: StatementEventSource) -> str:
     """Resolve the display filename for a statement summary via its ODS document."""
     document_id = statement.uploaded_document_id
     if document_id is not None:
@@ -357,7 +392,7 @@ async def _statement_filename(db: AsyncSession, statement: StatementSummary) -> 
 
 async def derive_uploaded_statement_event(
     db: AsyncSession,
-    statement: StatementSummary,
+    statement: StatementEventSource,
     *,
     user_id: UUID,
 ) -> WorkflowEvent:
@@ -378,23 +413,25 @@ async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> d
     multi-query readiness a second time per request (#987 perf fix).
     """
     workflow_session: WorkflowSession | None = None
-    existing_event = aliased(WorkflowEvent)
-    statements = (
-        await db.execute(
-            select(StatementSummary, existing_event)
-            .outerjoin(
-                existing_event,
-                and_(
-                    existing_event.user_id == user_id,
-                    existing_event.family == WorkflowEventFamily.SOURCE_UPLOADED,
-                    existing_event.source_type == "bank_statement",
-                    existing_event.source_id == StatementSummary.id,
-                ),
-            )
-            .where(StatementSummary.user_id == user_id)
-            .order_by(StatementSummary.created_at.asc())
+    # Two queries instead of a cross-domain join (#1675 D6, same shape as the
+    # UploadedDocument inversion below): extraction owns StatementSummary;
+    # platform only reaches it through the registered StatementEventSource
+    # provider (an L1-infra module may never import an L3-domain package,
+    # #1676 precedent). The existing-event lookup stays a plain query — it's
+    # platform's own WorkflowEvent table.
+    statement_rows = await _get_statement_reader()(db, user_id)
+    if statement_rows:
+        existing_events_result = await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == user_id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.SOURCE_UPLOADED)
+            .where(WorkflowEvent.source_type == "bank_statement")
+            .where(WorkflowEvent.source_id.in_([row.id for row in statement_rows]))
         )
-    ).all()
+        existing_event_by_source_id = {event.source_id: event for event in existing_events_result.scalars().all()}
+    else:
+        existing_event_by_source_id = {}
+    statements = [(row, existing_event_by_source_id.get(row.id)) for row in statement_rows]
     # One extra query instead of a cross-domain join (#1675 D3): extraction owns
     # UploadedDocument; platform only reaches it through the registered provider
     # (an L1-infra module may never import an L3-domain package, #1676 precedent).
@@ -415,13 +452,13 @@ async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> d
             _apply_workflow_event_payload(event, payload)
             if event.session_id is None:
                 event.session_id = workflow_session.id
-        if statement.status == BankStatementStatus.REJECTED and statement.stage1_status is None:
+        if statement.status == _STATUS_REJECTED and statement.stage1_status is None:
             derived_payloads.append(build_statement_parsing_failed_event_payload(statement, filename))
-        if statement.status == BankStatementStatus.PARSED and statement.stage1_status is None:
+        if statement.status == _STATUS_PARSED and statement.stage1_status is None:
             derived_payloads.append(build_review_required_event_payload(statement, filename))
-        elif statement.stage1_status == Stage1Status.PENDING_REVIEW:
+        elif statement.stage1_status == _STAGE1_PENDING_REVIEW:
             derived_payloads.append(build_review_required_event_payload(statement, filename))
-        elif statement.stage1_status in {Stage1Status.APPROVED, Stage1Status.REJECTED, Stage1Status.EDITED}:
+        elif statement.stage1_status in {_STAGE1_APPROVED, _STAGE1_REJECTED, _STAGE1_EDITED}:
             derived_payloads.append(build_review_completed_event_payload(statement, filename))
 
     package_readiness = await _get_readiness_provider()(db, user_id=user_id)

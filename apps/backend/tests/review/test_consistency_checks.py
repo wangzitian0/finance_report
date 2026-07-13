@@ -8,9 +8,9 @@ import pytest
 
 from src.extraction import DocumentType, UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
+from src.extraction.orm.statement_enums import BankStatementStatus
+from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType
-from src.models.statement_enums import BankStatementStatus
-from src.models.statement_summary import StatementSummary
 from src.reconciliation.extension.consistency_checks import (
     detect_anomalies_batch,
     detect_duplicates,

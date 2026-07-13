@@ -17,8 +17,8 @@ from sqlalchemy import select
 
 from src.extraction.extension.service import ExtractionService
 from src.extraction.extension.statement_posting import try_auto_approve_high_confidence_statement
+from src.extraction.orm.statement_enums import BankStatementStatus
 from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus
-from src.models.statement_enums import BankStatementStatus
 
 
 def _balanced_bank_payload() -> dict:

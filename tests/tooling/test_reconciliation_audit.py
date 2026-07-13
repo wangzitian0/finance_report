@@ -13,7 +13,7 @@ for path in (ROOT, BACKEND):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-import src.models._registry  # noqa: E402, F401  -- register all ORM mappers before relationship config
+import src.orm_registry  # noqa: E402, F401  -- register all ORM mappers before relationship config
 from src.ledger import AccountType  # noqa: E402
 from src.reconciliation.extension.reconciliation_audit import (  # noqa: E402
     AUTO_ACCEPT,

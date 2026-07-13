@@ -9,13 +9,13 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from src.models.statement_enums import BankStatementStatus
+from src.extraction.orm.statement_enums import BankStatementStatus
 from src.schemas.base import ListResponse
 
 if TYPE_CHECKING:
     from src.extraction import UploadedDocument
     from src.extraction.orm.layer2 import AtomicTransaction
-    from src.models.statement_summary import StatementSummary
+    from src.extraction.orm.statement_summary import StatementSummary
 
 # Re-export the statement lifecycle status enum with a schema-friendly name.
 BankStatementStatusEnum = BankStatementStatus

@@ -23,7 +23,10 @@ CONTRACT = PackageContract(
     # signal, not a hard dependency on model correctness).
     # pricing re-added #1675: extension/fx_transfer.py + fx_transfer_discovery.py
     # read the FxConversion model, now published on pricing's root.
-    depends_on=["audit", "extraction", "ledger", "llm", "observability", "pricing"],
+    # platform re-added #1675 D6: orm/reconciliation.py + orm/consistency_check.py
+    # use the base ORM mixins (UUIDMixin/UserOwnedMixin/TimestampMixin), moved
+    # from src/models/base.py to platform.orm.base.
+    depends_on=["audit", "extraction", "ledger", "llm", "observability", "platform", "pricing"],
     roles=["base", "extension", "data"],
     units=[
         # ── taxonomy-only ORM units (module unset — the gate skips placement,

@@ -2,7 +2,7 @@ from pathlib import Path
 
 from sqlalchemy.types import Enum
 
-import src.models._registry  # noqa: F401 — registers every mapped class on Base
+import src.orm_registry  # noqa: F401 — registers every mapped class on Base
 from src.database import Base
 
 

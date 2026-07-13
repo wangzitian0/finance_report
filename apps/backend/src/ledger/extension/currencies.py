@@ -7,9 +7,8 @@ publishes its own currencies read, and the delivery layer composes them into
 the observed FX pairs it passes to ``pricing``'s crawl (call-convention
 inversion — pricing never discovers scopes itself).
 
-The ORM entities (``Account``/``JournalEntry``/``JournalLine``) still live in
-the unregistered central ``src/models/`` (#1675 relocates them later); this
-module reads only ledger-owned tables.
+The ORM entities (``Account``/``JournalEntry``/``JournalLine``) live in this
+package's own ``orm/`` (#1675); this module reads only ledger-owned tables.
 """
 
 from __future__ import annotations

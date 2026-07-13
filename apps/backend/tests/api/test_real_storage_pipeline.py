@@ -21,7 +21,7 @@ from moto import mock_aws
 
 import src.routers.statements as statements_router
 from src.config import settings
-from src.models.statement_enums import BankStatementStatus
+from src.extraction.orm.statement_enums import BankStatementStatus
 from src.runtime import StorageService
 
 REPO_ROOT = Path(__file__).resolve().parents[4]

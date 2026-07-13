@@ -20,8 +20,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 @pytest.mark.asyncio
 async def test_review_pdf_url_requests_public_endpoint(client: AsyncClient, db: AsyncSession, test_user, monkeypatch):
     from src.extraction import DocumentType, UploadedDocument
-    from src.models.statement_enums import BankStatementStatus
-    from src.models.statement_summary import StatementSummary
+    from src.extraction.orm.statement_enums import BankStatementStatus
+    from src.extraction.orm.statement_summary import StatementSummary
 
     file_hash = uuid4().hex
     statement = StatementSummary(

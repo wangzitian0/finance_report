@@ -21,8 +21,8 @@ from src.extraction.extension.statement_parsing import (
 )
 from src.extraction.orm.layer2 import AtomicPosition
 from src.extraction.orm.layer3 import ManagedPosition
-from src.models.statement_enums import BankStatementStatus, Stage1Status
-from src.models.statement_summary import StatementSummary
+from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
+from src.extraction.orm.statement_summary import StatementSummary
 from tests.factories import StatementSummaryFactory
 
 _BRIDGE_ASSET_IDENTIFIER = "BRIDGE_TEST_STOCK"

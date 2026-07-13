@@ -4,14 +4,38 @@ Pure constructors that turn statements / readiness blockers / package readiness
 into WorkflowEventCreate payloads. No DB or session logic.
 """
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import NAMESPACE_URL, UUID, uuid5
 
-from src.models.statement_summary import StatementSummary
 from src.platform.orm.workflow import WorkflowEventFamily, WorkflowEventSeverity, WorkflowReportImpact
 from src.schemas.workflow import WorkflowEventCreate
 
 PACKAGE_WORKFLOW_SOURCE_ID = uuid5(NAMESPACE_URL, "finance-report:personal-financial-report-package")
+
+
+@dataclass(frozen=True)
+class StatementEventSource:
+    """The ``StatementSummary`` fields workflow-event derivation needs (#1675 D6).
+
+    ``extraction`` owns ``StatementSummary`` (L3 domain); this L1-infra module
+    may only depend on this plain data shape, never import the ORM class or
+    its enum types directly (same inversion as the ``UploadedDocument``
+    filename ports below, #1675 D3). ``status``/``stage1_status`` are the raw
+    ``BankStatementStatus``/``Stage1Status`` ``.value`` strings — extraction's
+    registered provider (``register_statement_reader``) converts them before
+    handing rows across the port.
+    """
+
+    id: UUID
+    user_id: UUID
+    uploaded_document_id: UUID | None
+    file_hash: str
+    status: str
+    stage1_status: str | None
+    created_at: datetime
+    updated_at: datetime | None
+    stage1_reviewed_at: datetime | None
 
 
 def build_workflow_dedupe_key(*, family: WorkflowEventFamily, source_type: str, source_id: UUID) -> str:
@@ -20,7 +44,7 @@ def build_workflow_dedupe_key(*, family: WorkflowEventFamily, source_type: str, 
 
 
 def _build_statement_event_payload(
-    statement: StatementSummary,
+    statement: StatementEventSource,
     *,
     family: WorkflowEventFamily,
     occurred_at: datetime,
@@ -51,7 +75,7 @@ def _build_statement_event_payload(
     )
 
 
-def build_uploaded_statement_event_payload(statement: StatementSummary, filename: str) -> WorkflowEventCreate:
+def build_uploaded_statement_event_payload(statement: StatementEventSource, filename: str) -> WorkflowEventCreate:
     """Build the deterministic uploaded-statement workflow event payload."""
     return _build_statement_event_payload(
         statement,
@@ -65,7 +89,7 @@ def build_uploaded_statement_event_payload(statement: StatementSummary, filename
     )
 
 
-def build_statement_parsing_failed_event_payload(statement: StatementSummary, filename: str) -> WorkflowEventCreate:
+def build_statement_parsing_failed_event_payload(statement: StatementEventSource, filename: str) -> WorkflowEventCreate:
     """Build the user-action event for a failed statement parse."""
     return _build_statement_event_payload(
         statement,
@@ -79,7 +103,7 @@ def build_statement_parsing_failed_event_payload(statement: StatementSummary, fi
     )
 
 
-def build_review_required_event_payload(statement: StatementSummary, filename: str) -> WorkflowEventCreate:
+def build_review_required_event_payload(statement: StatementEventSource, filename: str) -> WorkflowEventCreate:
     """Build the user-action event for pending Stage 1 review."""
     return _build_statement_event_payload(
         statement,
@@ -96,7 +120,7 @@ def build_review_required_event_payload(statement: StatementSummary, filename: s
     )
 
 
-def build_review_completed_event_payload(statement: StatementSummary, filename: str) -> WorkflowEventCreate:
+def build_review_completed_event_payload(statement: StatementEventSource, filename: str) -> WorkflowEventCreate:
     """Build the routine success event for completed Stage 1 review."""
     return _build_statement_event_payload(
         statement,

@@ -13,8 +13,8 @@ from src.audit import STATEMENT_SOURCE_TYPES
 from src.deps import CurrentUserId, DbSession, Pagination
 from src.extraction import create_entry_from_txn
 from src.extraction.orm.layer2 import AtomicTransaction
+from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Direction, JournalEntry
-from src.models.statement_summary import StatementSummary
 from src.observability import get_logger, log_financial_mutation
 from src.platform import get_owned_or_404, raise_bad_request, raise_not_found
 from src.reconciliation import (

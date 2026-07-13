@@ -11,8 +11,8 @@ from __future__ import annotations
 
 from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction
-from src.models.statement_enums import BankStatementStatus
-from src.models.statement_summary import StatementSummary
+from src.extraction.orm.statement_enums import BankStatementStatus
+from src.extraction.orm.statement_summary import StatementSummary
 
 
 def _brokerage_payload_from_statement(
