@@ -53,12 +53,19 @@ async def test_AC_reporting_business_value_gate_1_total_matches_transactions_and
 ) -> None:
     """EPIC-005 EPIC-008.
 
-    AC-reporting.business-value-gate.1: a CSV-sourced statement's balance-sheet
-    total equals the known net of its transactions (a real business VALUE, not
-    just HTTP 200) AND — because the CSV source carried no opening balance —
-    the aggregate confidence tier reads LOW with an explicit
-    missing_opening_balance warning (#1481's invariant), never silently HIGH,
-    even though every posted line is USER_CONFIRMED."""
+    AC-reporting.business-value-gate.1 AC-audit.global-invariant.2: a
+    CSV-sourced statement's balance-sheet total equals the known net of its
+    transactions (a real business VALUE, not just HTTP 200) AND — because the
+    CSV source carried no opening balance — the aggregate confidence tier
+    reads LOW with an explicit missing_opening_balance warning (#1481's
+    invariant), never silently HIGH, even though every posted line is
+    USER_CONFIRMED.
+
+    AC-audit.global-invariant.2 (#1429): this is also the cross-package anchor
+    for "the extraction source->fact balance chain reconciles to posted ledger
+    entries" — the source CSV's transactions flow through
+    parse -> review-approve -> post, and the ledger-derived balance-sheet line
+    equals the known net of the source transactions end to end."""
     csv_content = f"Date,Description,Amount\n2026-03-01,Salary,{_SALARY}\n2026-03-05,Rent,-{_RENT}\n"
     upload_resp = await client.post(
         "/statements/upload",

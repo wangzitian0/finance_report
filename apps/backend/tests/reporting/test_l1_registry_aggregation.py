@@ -71,7 +71,12 @@ async def test_AC20_9_1_framework_balance_sheet_exact_aggregation(
     db: AsyncSession,
     test_user: User,
 ) -> None:
-    """AC-reporting.pipeline.2: AC20.9.1: Proves that L1 lines exactly aggregate their L2 constituents without plugs."""
+    """AC-reporting.pipeline.2 AC-audit.global-invariant.3: AC20.9.1: Proves that L1 lines exactly aggregate their L2 constituents without plugs.
+
+    AC-audit.global-invariant.3 (#1429): also the cross-package anchor for
+    "report lines reconcile to ledger balances" — the ledger-posted cash
+    account balance plus manual valuations aggregate exactly into the L1
+    report lines, and total_assets equals the exact sum of the asset lines."""
     as_of = date(2026, 5, 31)
 
     # 1. Create cash ledger account and equity account

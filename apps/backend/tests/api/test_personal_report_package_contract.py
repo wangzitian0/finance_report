@@ -1617,7 +1617,13 @@ async def test_AC18_8_4_AC18_8_7_package_traceability_resolves_report_line_to_so
     db: AsyncSession,
     test_user: User,
 ):
-    """AC-extraction.1808.4 AC-extraction.1808.7: AC18.8.4 AC18.8.7: Report traceability resolves a ledger-backed line to an Evidence Graph source document."""
+    """AC-extraction.1808.4 AC-extraction.1808.7 AC-audit.global-invariant.4: AC18.8.4 AC18.8.7: Report traceability resolves a ledger-backed line to an Evidence Graph source document.
+
+    AC-audit.global-invariant.4 (#1429): also the cross-package anchor for
+    "every posted number traces end-to-end to a source document" — the
+    report line's source_anchor resolves to the uploaded document and its
+    atomic transaction, and its ledger_anchor resolves to the posted journal
+    entry, the full source-document -> fact -> ledger -> report chain."""
     report_date = date(2026, 5, 31)
     bank = Account(user_id=test_user.id, name="Evidence Trace Bank", type=AccountType.ASSET, currency="SGD")
     db.add(bank)
