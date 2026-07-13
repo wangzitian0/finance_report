@@ -412,7 +412,7 @@ class TestCheckDocsSsotFilesClassified:
         with mock.patch.object(cm, "REPO_ROOT", tmp_path):
             violations = cm.check_docs_ssot_files_classified()
         assert len(violations) == 1
-        assert "is missing" in violations[0].message
+        assert violations[0].check == "check5_docs_ssot_classified"
 
     def test_multiple_unreferenced_files_all_reported(self, tmp_path: Path) -> None:
         ssot_dir = tmp_path / "docs" / "ssot"
