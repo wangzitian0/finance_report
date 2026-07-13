@@ -32,7 +32,7 @@ from src.pricing.orm.market_data import FxRate, StockPrice
 
 BACKEND_DIR = Path(__file__).parent.parent.parent
 MIGRATION_PATH = BACKEND_DIR / "migrations" / "versions" / "0033_financial_fact_constraints.py"
-RISK_PATH = BACKEND_DIR.parent.parent / "docs" / "ssot" / "migration-risk.yaml"
+RISK_PATH = BACKEND_DIR.parent.parent / "common" / "meta" / "data" / "migration-risk.yaml"
 
 
 async def _expect_integrity_error(db: AsyncSession, *objects: object) -> None:

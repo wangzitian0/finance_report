@@ -87,7 +87,7 @@ class ExecutionMatrix:
 EXCLUDED_DIRS = {"node_modules", "__pycache__", ".next", "dist", ".cache"}
 
 TEST_FILE_SUFFIXES = ("_test.py", ".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx")
-DEFAULT_EXECUTION_MATRIX = Path("docs/ssot/test-execution-matrix.yaml")
+DEFAULT_EXECUTION_MATRIX = Path("common/testing/data/test-execution-matrix.yaml")
 
 
 def load_execution_matrix(path: Path = DEFAULT_EXECUTION_MATRIX) -> ExecutionMatrix:
@@ -266,7 +266,7 @@ def traceability_failure_messages(result: TraceabilityResult) -> list[str]:
         return [
             "TRACEABILITY GATE FAILED: "
             f"{len(result.unexecuted_only)} mandatory AC(s) have real references only in non-CI-required stages.\n"
-            "  Move at least one behavioral proof into a CI-required test stage or update docs/ssot/test-execution-matrix.yaml with the matching CI workflow."
+            "  Move at least one behavioral proof into a CI-required test stage or update common/testing/data/test-execution-matrix.yaml with the matching CI workflow."
         ]
     if result.placeholder_only:
         return [

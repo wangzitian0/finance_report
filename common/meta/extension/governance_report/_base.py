@@ -14,7 +14,7 @@ REPORT_VERSION = 1
 SOURCE_ISSUE = "https://github.com/wangzitian0/finance_report/issues/822"
 HLS_ISSUE = "https://github.com/wangzitian0/finance_report/issues/821"
 GATE_ISSUE = "https://github.com/wangzitian0/finance_report/issues/823"
-GATE_EXCEPTION_PATH = Path("docs/ssot/governance-exceptions.yaml")
+GATE_EXCEPTION_PATH = Path("common/meta/data/governance-exceptions.yaml")
 GATE_HLS_RULE = (
     "HLS governance loop: promote only incremental and high-risk findings into "
     "CI gates after the report baseline is visible."

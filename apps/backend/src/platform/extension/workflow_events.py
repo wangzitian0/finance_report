@@ -72,7 +72,7 @@ _STAGE1_EDITED = "edited"
 # `platform` is L1 infra — it must never import reporting-domain logic directly
 # (issue #1676: this file previously imported `services.report_readiness`
 # module-level, the sole L1-infra→business upward edge in
-# docs/ssot/app-boundary-baseline.json). The personal-report-package readiness
+# common/meta/data/app-boundary-baseline.json). The personal-report-package readiness
 # lookup is genuinely reporting-domain logic; platform only needs *a* callable
 # with this shape, not that specific implementation. The app composition root
 # (`main.py`, itself L4 — allowed to import everything) registers the real

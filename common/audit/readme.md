@@ -82,7 +82,7 @@ Three-step sequence, each a separate merge-gated PR:
   roadmap ACs total, including the pre-existing `AC-money.22.3`/`AC-money.23.1`
   leftovers). Every `@ac_proof(ac_ids=[...])` edge, BE/FE traceability
   docstring/comment, and the tier baseline
-  (`docs/ssot/ac-tier-baseline.json`, shrunk via
+  (`common/meta/data/ac-tier-baseline.json`, shrunk via
   `check_ac_tier_baseline.py --update`) were renamed atomically; the migrated
   EPIC table rows were deleted and replaced with disclaimer paragraphs. No AC
   lives in both an EPIC table and a package roadmap (`check_epic_package_dual`

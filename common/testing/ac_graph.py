@@ -19,11 +19,11 @@ one AC key:
   via the registry loader (``build_registry_entries``).
 * proof edges come from the ``@ac_proof(...)`` decorators co-located on tests
   (reusing the static AST scan from ``generate_critical_proof_matrix``).
-* score/floor per AC comes from ``docs/ssot/ac-score-baseline.jsonl``.
+* score/floor per AC comes from ``common/testing/data/ac-score-baseline.jsonl``.
 * vision items + their required ACs/proofs come from ``vision.md`` (reusing
   ``generate_vision_proof_matrix``'s parsing).
 * macro outcomes come from the small hand-maintained
-  ``docs/ssot/critical-proof-outcomes.yaml``.
+  ``common/testing/data/critical-proof-outcomes.yaml``.
 
 The aggregate views (critical-proof matrix, vision-proof matrix, README EPIC
 status) are DERIVED on demand by the ``render_*`` projections in the existing
@@ -53,8 +53,8 @@ from common.testing.ac_proof_execution import normalize_proof_execution
 from common.testing.test_surface import default_ac_test_dirs
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_OUTCOMES = REPO_ROOT / "docs" / "ssot" / "critical-proof-outcomes.yaml"
-DEFAULT_BASELINE = REPO_ROOT / "docs" / "ssot" / "ac-score-baseline.jsonl"
+DEFAULT_OUTCOMES = REPO_ROOT / "common" / "testing" / "data" / "critical-proof-outcomes.yaml"
+DEFAULT_BASELINE = REPO_ROOT / "common" / "testing" / "data" / "ac-score-baseline.jsonl"
 
 EXCLUDED_DIRS = {"node_modules", "__pycache__", ".next", "dist", ".cache"}
 TEST_FILE_SUFFIXES = ("_test.py", ".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx")

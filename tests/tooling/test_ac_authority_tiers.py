@@ -124,7 +124,7 @@ def test_AC26_3_1_tier_ratchet_is_shrink_only_and_blocks_new_debt(tmp_path) -> N
 def test_AC26_4_1_first_batch_epics_fully_tagged_and_off_baseline() -> None:
     """AC-authority.4.1: First-batch EPIC ACs all carry a valid tier and are off the baseline."""
     entries = gar.build_registry_entries(epic_source=ROOT / "docs" / "project")
-    baseline = tier_gate.load_baseline(ROOT / "docs/ssot/ac-tier-baseline.json")
+    baseline = tier_gate.load_baseline(ROOT / "common/meta/data/ac-tier-baseline.json")
 
     batch = {
         ac_id: entry

@@ -4,7 +4,7 @@ The cross-cutting aggregate VIEWS (critical-proof matrix, vision-proof matrix,
 EPIC status) are no longer committed-materialized — they are derived on demand
 from the one AC-keyed graph and gated by ``tools/check_ac_index.py`` (covered by
 AC8.13.139 in ``test_ac_index_consistency.py``). This module now owns only the
-one PERSISTED artifact: ``docs/ssot/ac-score-baseline.jsonl`` is stored as
+one PERSISTED artifact: ``common/testing/data/ac-score-baseline.jsonl`` is stored as
 sorted, line-oriented JSONL with a ``merge=union`` gitattribute, loads into the
 shape the ratchet uses, and the ratchet still fails on regression / missing
 evidence / non-pass code.
@@ -21,7 +21,7 @@ from common.testing import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-BASELINE = REPO_ROOT / "docs" / "ssot" / "ac-score-baseline.jsonl"
+BASELINE = REPO_ROOT / "common" / "testing" / "data" / "ac-score-baseline.jsonl"
 GITATTRIBUTES = REPO_ROOT / ".gitattributes"
 
 
@@ -38,7 +38,7 @@ def test_AC8_13_138_baseline_is_sorted_jsonl_with_union_merge() -> None:
     assert len(ac_ids) == len(set(ac_ids)), "no duplicate ac_id lines"
 
     gitattrs = GITATTRIBUTES.read_text(encoding="utf-8")
-    assert "docs/ssot/ac-score-baseline.jsonl merge=union" in gitattrs
+    assert "common/testing/data/ac-score-baseline.jsonl merge=union" in gitattrs
 
 
 def test_AC8_13_138_baseline_loads_to_legacy_shape() -> None:

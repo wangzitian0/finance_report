@@ -10,7 +10,7 @@ low-confidence DOWN, do not let it pool):
    ``status="done"`` roadmap AC. If the work is done, decide the tier and ship
    the package ``active``.
 2. **Every draft is registered.** Each ``draft`` package must be listed in
-   ``docs/ssot/draft-package-baseline.json``, so adding one is a deliberate,
+   ``common/meta/data/draft-package-baseline.json``, so adding one is a deliberate,
    reviewed line in the diff rather than a silent accumulation. ``--update``
    rewrites the registry to the packages that are draft right now (pruning the
    ones that have since shipped).
@@ -28,7 +28,7 @@ from pathlib import Path
 from common.meta.extension.generate_ac_registry import package_contract_meta
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_BASELINE = REPO_ROOT / "docs" / "ssot" / "draft-package-baseline.json"
+DEFAULT_BASELINE = REPO_ROOT / "common" / "meta" / "data" / "draft-package-baseline.json"
 
 
 def _draft_packages(repo_root: Path) -> dict[str, dict]:

@@ -5,7 +5,7 @@ issue #1556):
 
 1. **Path → stage classification** (``PATH_RULES``): which execution stage a
    test path belongs to and whether that stage is CI-required. The checked-in
-   ``docs/ssot/test-execution-matrix.yaml`` is a *generated view* of these
+   ``common/testing/data/test-execution-matrix.yaml`` is a *generated view* of these
    rules (``emit_execution_matrix_yaml``); a tooling contract test fails when
    the two drift. Consumers (``common/testing/check_ac_traceability.py``) keep
    reading the generated YAML, so AC-traceability behavior is unchanged.
@@ -33,7 +33,7 @@ import shlex
 from dataclasses import dataclass
 
 # ---------------------------------------------------------------------------
-# Path → stage classification (source of docs/ssot/test-execution-matrix.yaml)
+# Path → stage classification (source of common/testing/data/test-execution-matrix.yaml)
 # ---------------------------------------------------------------------------
 
 
@@ -137,7 +137,7 @@ GENERATED_MATRIX_HEADER = (
 
 
 def emit_execution_matrix_yaml() -> str:
-    """Render the generated docs/ssot/test-execution-matrix.yaml content.
+    """Render the generated common/testing/data/test-execution-matrix.yaml content.
 
     Built by hand (no PyYAML) so the output is byte-deterministic and the
     runtime selection path stays stdlib-only.

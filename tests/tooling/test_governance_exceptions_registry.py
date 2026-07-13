@@ -2,7 +2,7 @@
 
 Issue #524: classify proof exceptions and code-owned surfaces into a registry
 the existing governance gates can read. The registry lives in
-``docs/ssot/governance-exceptions.yaml`` and is validated by
+``common/meta/data/governance-exceptions.yaml`` and is validated by
 ``tools/check_governance_exceptions.py``.
 """
 
@@ -15,7 +15,7 @@ import yaml
 from common.meta.extension import check_governance_exceptions as gec
 
 ROOT = Path(__file__).resolve().parents[2]
-REGISTRY = ROOT / "docs" / "ssot" / "governance-exceptions.yaml"
+REGISTRY = ROOT / "common" / "meta" / "data" / "governance-exceptions.yaml"
 
 
 def test_AC8_13_131_registry_separates_proof_exceptions_and_code_owned_surfaces() -> (

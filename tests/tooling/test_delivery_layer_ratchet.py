@@ -14,7 +14,7 @@ Census semantics (precise): for each of ``apps/backend/src/routers`` and
 ``apps/backend/src/schemas``, the census is the **sum over every ``*.py``
 file under that directory (recursive, ``__pycache__`` excluded) of
 ``len(text.splitlines())``**. The baseline
-(``docs/ssot/delivery-layer-baseline.json``) maps each directory to its
+(``common/meta/data/delivery-layer-baseline.json``) maps each directory to its
 sanctioned line total.
 
 What CI enforces, per directory, against ``TOLERANCE_LINES = 50``:
@@ -44,7 +44,7 @@ import json
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-BASELINE_PATH = REPO / "docs/ssot/delivery-layer-baseline.json"
+BASELINE_PATH = REPO / "common/meta/data/delivery-layer-baseline.json"
 
 #: The sanctioned delivery-layer directories, relative to the repo root.
 DELIVERY_DIRS = (
@@ -117,7 +117,7 @@ def test_AC_meta_delivery_1_delivery_layer_only_thins() -> None:
         "only shrink as packages absorb logic. Move domain behavior into the "
         "owning package's base/extension instead. If this growth is genuine "
         "delivery glue (a new endpoint's routing/DTO surface), raise "
-        "docs/ssot/delivery-layer-baseline.json in this same PR so the "
+        "common/meta/data/delivery-layer-baseline.json in this same PR so the "
         "choice is visible in review.\n"
         f"grown (baseline, actual): {grown}\n"
         f"full census: {json.dumps(census, indent=2)}"
@@ -130,7 +130,7 @@ def test_AC_meta_delivery_1_delivery_layer_only_thins() -> None:
     }
     assert not stale, (
         "the baseline over-counts — the delivery layer thinned (good!); "
-        "lower docs/ssot/delivery-layer-baseline.json to the new census in "
+        "lower common/meta/data/delivery-layer-baseline.json to the new census in "
         "the same PR so the ratchet stays tight and the burndown is "
         "visible.\n"
         f"stale (baseline, actual): {stale}\n"

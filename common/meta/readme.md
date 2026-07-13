@@ -523,7 +523,7 @@ proof is valid for the module's authority tier. They are orthogonal.
 - **Package model:** the shipped-package rule above is enforced at construction —
   no ratchet needed, because an active package physically cannot omit its tier.
 - **Legacy EPIC source:** ~1830 ACs predate this attribute, adopted via a
-  **shrink-only debt ratchet** in [`ac-tier-baseline.json`](../../docs/ssot/ac-tier-baseline.json).
+  **shrink-only debt ratchet** in [`ac-tier-baseline.json`](../../common/meta/data/ac-tier-baseline.json).
   `tools/check_ac_tier_baseline.py` is id-based: it fails only when a genuinely
   new AC (id absent from the baseline) lacks a tier; the baseline may only shrink.
   Each module that becomes a package moves its ACs into the package `roadmap`,

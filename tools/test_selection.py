@@ -24,7 +24,7 @@ if str(ROOT_DIR) not in sys.path:
 
 from common.testing import matrix  # noqa: E402
 
-MATRIX_YAML = ROOT_DIR / "docs" / "ssot" / "test-execution-matrix.yaml"
+MATRIX_YAML = ROOT_DIR / "common" / "testing" / "data" / "test-execution-matrix.yaml"
 
 
 def main() -> int:
@@ -36,12 +36,12 @@ def main() -> int:
     parser.add_argument(
         "--emit-matrix",
         action="store_true",
-        help="Write the generated docs/ssot/test-execution-matrix.yaml.",
+        help="Write the generated common/testing/data/test-execution-matrix.yaml.",
     )
     parser.add_argument(
         "--check-matrix",
         action="store_true",
-        help="Exit 1 if docs/ssot/test-execution-matrix.yaml drifted from the code.",
+        help="Exit 1 if common/testing/data/test-execution-matrix.yaml drifted from the code.",
     )
     args = parser.parse_args()
 
@@ -50,7 +50,7 @@ def main() -> int:
         actual = MATRIX_YAML.read_text(encoding="utf-8") if MATRIX_YAML.exists() else ""
         if actual != expected:
             print(
-                "ERROR: docs/ssot/test-execution-matrix.yaml drifted from "
+                "ERROR: common/testing/data/test-execution-matrix.yaml drifted from "
                 "common/testing/matrix.py.\n"
                 "  Regenerate: python tools/test_selection.py --emit-matrix",
                 file=sys.stderr,

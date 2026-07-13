@@ -121,7 +121,7 @@ The matrix `proofs` section comes from the co-located `@ac_proof(...)` decorator
 on each critical-proof test (`common/testing/ac_proof.py`), statically scanned
 into the one AC graph (`common/testing/ac_graph.py`). The macro `outcomes` section —
 the README/EPIC outcome contract — stays hand-maintained in
-`docs/ssot/critical-proof-outcomes.yaml`. The checker builds the matrix
+`common/testing/data/critical-proof-outcomes.yaml`. The checker builds the matrix
 **in-memory** from those two sharded sources and validates it; the matrix is
 never committed-materialized, so a PR anchoring a new AC edits only its own test
 file (adds the decorator), and two such PRs touching different tests never
@@ -150,7 +150,7 @@ behavioral row.
 Macro and micro proof are intentionally separate:
 
 - **Macro**: README -> EPIC -> E2E, a derived view of the AC graph (macro
-  outcome source `docs/ssot/critical-proof-outcomes.yaml` + `@ac_proof`
+  outcome source `common/testing/data/critical-proof-outcomes.yaml` + `@ac_proof`
   decorators) enforced bidirectionally by the `check_critical_proof_matrix`
   contract, now folded into the single `tools/check_ac_index.py` gate.
 - **Micro**: EPIC -> AC -> test, owned by EPIC AC tables, generated registries,
@@ -177,7 +177,7 @@ times. The final model removes that:
   proof edges from the co-located `@ac_proof(...)` decorators
   (`common/testing/ac_proof.py`), score floors from `ac-score-baseline.jsonl`,
   vision items from `vision.md`, and macro outcomes from
-  `docs/ssot/critical-proof-outcomes.yaml`.
+  `common/testing/data/critical-proof-outcomes.yaml`.
 - **Derived views, never committed.** The critical-proof matrix, the vision-proof
   matrix, and the EPIC-status table are rendered ON DEMAND from the graph
   (`tools/generate_critical_proof_matrix.py`,
@@ -188,7 +188,7 @@ times. The final model removes that:
   checker and the staging AI/OCR gate) build the matrix in-memory from the graph
   instead.
 - **One persisted artifact, conflict-free.** The only on-disk index is the
-  behavioral-score ratchet floor, `docs/ssot/ac-score-baseline.jsonl`: a floor
+  behavioral-score ratchet floor, `common/testing/data/ac-score-baseline.jsonl`: a floor
   that must survive across runs and must NOT be regenerated from current state.
   It is stored as sorted, one-AC-per-line JSONL with `merge=union` in
   `.gitattributes`, so PRs adopting *different* ACs auto-merge and only same-AC
@@ -222,7 +222,7 @@ times. The final model removes that:
     auto-merge). In CI this part runs in the dedicated
     `ac-behavioral-ratchet` job after the JUnit-emitting backend/frontend test
     stages. *Part 2* is the per-type COUNT floor over
-    `docs/ssot/protection-floor.json`: for each protection type (`has_real_ref`,
+    `common/testing/data/protection-floor.json`: for each protection type (`has_real_ref`,
     `has_proof`, `has_score`, `has_mirror`) the current count of mandatory active
     ACs must be `>=` the committed floor. `tools/check_ac_index.py` enforces this
     count floor in the fast `lint` job and can delegate Part 1 only when invoked
@@ -336,7 +336,7 @@ file into an independent HLS concept:
 
 - `docs/ssot/observability-logging.md` is a child playbook of
   `observability_logging`.
-- `docs/ssot/ac-score-baseline.jsonl` is a machine baseline artifact of
+- `common/testing/data/ac-score-baseline.jsonl` is a machine baseline artifact of
   `tdd_workflow`.
 
 The second cleanup threshold is
@@ -359,7 +359,7 @@ cleanup should stay in separate PRs unless the selected finding is explicitly a
 cross-system authority-boundary defect.
 
 Intentional temporary debt uses
-`docs/ssot/governance-exceptions.yaml`. Each exception targets one finding, for
+`common/meta/data/governance-exceptions.yaml`. Each exception targets one finding, for
 example `finance_report:manifest:temporary_concept` or
 `infra2:docs/ssot/example.md`, and links the GitHub issue that removes it. The
 exception file is reviewed like code; prose comments in PRs are not an

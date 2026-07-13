@@ -29,7 +29,7 @@ def test_authority_tier_pipeline_end_to_end_epic026() -> None:
     baseline, and the ratchet reports no NEW untagged debt (the gate is green).
     """
     entries = gar.build_registry_entries(epic_source=ROOT / "docs" / "project")
-    baseline = tier_gate.load_baseline(ROOT / "docs/ssot/ac-tier-baseline.json")
+    baseline = tier_gate.load_baseline(ROOT / "common/meta/data/ac-tier-baseline.json")
     untagged = tier_gate.current_untagged(ROOT)
 
     tagged = {ac: e["tier"] for ac, e in entries.items() if e.get("tier")}

@@ -31,7 +31,7 @@ from common.meta.extension.app_boundary import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-BASELINE = REPO_ROOT / "docs/ssot/app-boundary-baseline.json"
+BASELINE = REPO_ROOT / "common/meta/data/app-boundary-baseline.json"
 
 
 def _make_pkg(backend_src: Path, name: str, all_symbols: list[str], internal_body: str = "") -> None:
@@ -148,7 +148,7 @@ def test_gate_fails_when_a_new_edge_appears(tmp_path: Path, monkeypatch) -> None
         lambda _root: ["in::apps/backend/src/services/new_leak.py::src.extraction.extension.x::SECRET"],
     )
     (tmp_path / "docs/ssot").mkdir(parents=True)
-    (tmp_path / "docs/ssot/app-boundary-baseline.json").write_text(json.dumps([]), encoding="utf-8")
+    (tmp_path / "common/meta/data/app-boundary-baseline.json").write_text(json.dumps([]), encoding="utf-8")
     assert check_app_boundary.main(["--repo-root", str(tmp_path)]) == 1
 
 
@@ -161,7 +161,7 @@ def test_update_refuses_to_grow_an_existing_baseline(tmp_path: Path, monkeypatch
 
     edge = "in::apps/backend/src/services/x.py::src.extraction.extension.y::Z"
     monkeypatch.setattr(check_app_boundary, "discover_and_compute_edges", lambda _root: [edge])
-    base = tmp_path / "docs/ssot/app-boundary-baseline.json"
+    base = tmp_path / "common/meta/data/app-boundary-baseline.json"
     base.parent.mkdir(parents=True)
     base.write_text(json.dumps([]), encoding="utf-8")  # existing baseline, empty
     assert check_app_boundary.main(["--repo-root", str(tmp_path), "--update"]) == 1

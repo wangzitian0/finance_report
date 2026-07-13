@@ -146,7 +146,7 @@ def test_AC8_18_3_staging_workflow_runs_tier2_http_before_tier3_browser_e2e() ->
 
 def test_AC8_18_3_test_execution_matrix_names_tier2_http_stage() -> None:
     """AC8.18.3: The matrix distinguishes Tier 2 from Tier 1 and Tier 3 proof."""
-    matrix = (ROOT / "docs/ssot/test-execution-matrix.yaml").read_text(encoding="utf-8")
+    matrix = (ROOT / "common/testing/data/test-execution-matrix.yaml").read_text(encoding="utf-8")
 
     assert "path: tools/tier2_http_e2e.py" in matrix
     assert "stage: deployment_tier2_http_e2e" in matrix

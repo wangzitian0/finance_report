@@ -34,7 +34,7 @@ from pathlib import Path
 from common.testing.ac_graph import AcGraph
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_FLOOR = REPO_ROOT / "docs" / "ssot" / "protection-floor.json"
+DEFAULT_FLOOR = REPO_ROOT / "common" / "testing" / "data" / "protection-floor.json"
 
 # The protection types enforced by the count floor, in a stable display order.
 PROTECTION_TYPES = ("has_real_ref", "has_proof", "has_score", "has_mirror")

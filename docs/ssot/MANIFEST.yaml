@@ -159,7 +159,7 @@ concepts:
       - apps/backend/tests/infra/test_schema_guardrails.py
 
   migration_risk_classification:
-    owner: docs/ssot/migration-risk.yaml
+    owner: common/meta/data/migration-risk.yaml
     description: Machine-readable risk level and release proof contract for Alembic migrations.
     cross_refs:
       - docs/ssot/schema.md
@@ -233,7 +233,7 @@ concepts:
       - docs/project/EPIC-003.statement-parsing.md
 
   source_coverage_matrix:
-    owner: docs/ssot/source-coverage-matrix.yaml
+    owner: common/testing/data/source-coverage-matrix.yaml
     family: source
     kind: matrix
     description: Machine-readable source-class coverage, proof level, review requirement, and traceability target registry.
@@ -255,9 +255,9 @@ concepts:
       - tools/check_ac_index.py
     cross_refs:
       - docs/ssot/tdd.md
-      - docs/ssot/critical-proof-outcomes.yaml
-      - docs/ssot/ac-score-baseline.jsonl
-      - docs/ssot/protection-floor.json
+      - common/testing/data/critical-proof-outcomes.yaml
+      - common/testing/data/ac-score-baseline.jsonl
+      - common/testing/data/protection-floor.json
       - common/testing/protection.py
       - common/testing/ac_proof.py
       - vision.md
@@ -301,7 +301,7 @@ concepts:
       - docs/ssot/ai.md
       - docs/ssot/reporting.md
       - docs/ssot/workflow-events.md
-      - docs/ssot/source-coverage-matrix.yaml
+      - common/testing/data/source-coverage-matrix.yaml
       - docs/ssot/market_data.md
       - docs/project/EPIC-021.application-ai-advisor.md
 
@@ -569,7 +569,7 @@ concepts:
       - tests/tooling/test_ac_proof_execution_model.py
 
   ci_gate_inventory:
-    owner: docs/ssot/ci-gate-inventory.yaml
+    owner: common/meta/data/ci-gate-inventory.yaml
     family: delivery
     kind: matrix
     parent: ci_workflow
@@ -583,7 +583,7 @@ concepts:
       - .github/workflows/ci.yml
 
   github_action_runtime:
-    owner: docs/ssot/github-action-runtime.yaml
+    owner: common/testing/data/github-action-runtime.yaml
     family: delivery
     kind: matrix
     parent: ci_workflow
@@ -597,7 +597,7 @@ concepts:
       - .github/workflows/ci.yml
 
   delivery_gate_triggers:
-    owner: docs/ssot/delivery-gates.yaml
+    owner: common/meta/data/delivery-gates.yaml
     family: delivery
     kind: matrix
     description: How each delivery CI gate triggers and whether it blocks merge — the single source for trigger/blocking contracts (so a trigger change is one edit, not a fact restated across docs/tests).
@@ -637,14 +637,14 @@ concepts:
     proofs:
       - tests/tooling/test_execution_matrix_contract.py
     cross_refs:
-      - docs/ssot/test-execution-matrix.yaml
+      - common/testing/data/test-execution-matrix.yaml
       - docs/ssot/ci-cd.md
       - docs/ssot/tdd.md
       - tools/check_ac_index.py
       - tools/test_selection.py
 
   test_execution_matrix_generated_view:
-    owner: docs/ssot/test-execution-matrix.yaml
+    owner: common/testing/data/test-execution-matrix.yaml
     family: tdd
     kind: matrix
     parent: test_execution_matrix
@@ -691,7 +691,7 @@ concepts:
       - tools/check_e2e_epic_traceability.py
 
   fk_cascade_baseline:
-    owner: docs/ssot/fk-cascade-baseline.json
+    owner: common/meta/data/fk-cascade-baseline.json
     description: Ratchet census of ForeignKey(..., ondelete="CASCADE") sites under apps/backend/src, keyed by target table — a DB cascade is a hidden write below the application (across domains it breaks one-txn-per-domain and append-only, the risk the ratchet exists for); CI enforces census == baseline, so silent growth fails and adding a cascade requires a same-PR baseline edit (reviewable consent); deliberately counts all sites, not just cross-domain, until models decentralization makes ownership derivable; end-state is saga-owned deletion (AC-meta.txn.4, #1675 ruling).
     family: platform
     kind: baseline
@@ -702,7 +702,7 @@ concepts:
       - common/meta/migration-standard.md
 
   app_boundary_baseline:
-    owner: docs/ssot/app-boundary-baseline.json
+    owner: common/meta/data/app-boundary-baseline.json
     description: Monotonic shrink-only baseline of cross-boundary edges between the un-carved apps/backend/src remainder (the L4 backend super-package) and the already-carved packages — inbound (remainder → a carved package's unpublished internal) and outbound (a carved package → the app remainder, upward-layer). A new edge fails check_app_boundary; the count is the migration burndown.
     family: platform
     kind: baseline
@@ -716,7 +716,7 @@ concepts:
       - tests/tooling/test_app_boundary.py
 
   delivery_layer_baseline:
-    owner: docs/ssot/delivery-layer-baseline.json
+    owner: common/meta/data/delivery-layer-baseline.json
     description: Thin-ness ratchet census of the sanctioned app delivery layer — per-directory *.py line totals of apps/backend/src/routers (HTTP delivery adapters) and apps/backend/src/schemas (API DTOs), which are hexagonal primary adapters, not domain behavior (#1763 ruling); CI enforces the census stays within a 50-line band of the baseline, so silent growth fails and growing the delivery layer requires a same-PR baseline edit (reviewable consent), while meaningful shrink lowers the baseline in the same PR to keep the ratchet tight; the delivery layer's bulk may only shrink as packages absorb logic (AC-meta.delivery.1).
     family: platform
     kind: baseline
@@ -739,7 +739,7 @@ concepts:
       - common/meta/migration-standard.md
 
   ac_score_ratchet_baseline:
-    owner: docs/ssot/ac-score-baseline.jsonl
+    owner: common/testing/data/ac-score-baseline.jsonl
     description: Persisted AC score ratchet baseline, stored as conflict-free sorted JSONL (merge=union).
     family: tdd
     kind: baseline
@@ -757,7 +757,7 @@ concepts:
       - tests/tooling/test_ac_evidence_pipeline.py
 
   protection_count_floor:
-    owner: docs/ssot/protection-floor.json
+    owner: common/testing/data/protection-floor.json
     description: Per-type PROTECTION COUNT floor (Gate B part 2 of tools/check_ac_index.py). Monotonic raise-only floor mapping each protection type (has_real_ref, has_proof, has_score, has_mirror) to the minimum count of mandatory active ACs; bumped only by --update-floor so protection-adding PRs never edit it (conflict-safe). Default all-zero is valid.
     family: tdd
     kind: baseline
@@ -780,7 +780,7 @@ concepts:
       - README.md
       - docs/ssot/tdd.md
       - docs/ssot/ci-cd.md
-      - docs/ssot/critical-proof-outcomes.yaml
+      - common/testing/data/critical-proof-outcomes.yaml
       - common/testing/ac_graph.py
       - .github/workflows/ci.yml
       - common/testing/ac_proof.py
@@ -788,7 +788,7 @@ concepts:
       - tools/check_ac_index.py
 
   critical_proof_outcomes:
-    owner: docs/ssot/critical-proof-outcomes.yaml
+    owner: common/testing/data/critical-proof-outcomes.yaml
     description: Hand-maintained macro-outcome contract source (outcome -> owner EPICs + proof_ids) merged into the derived critical proof matrix view.
     family: tdd
     kind: registry
@@ -813,7 +813,7 @@ concepts:
       - docs/ssot/ai.md
       - common/extraction/readme.md
       - docs/project/EPIC-026.ac-authority-tiers.md
-      - docs/ssot/ac-tier-baseline.json
+      - common/meta/data/ac-tier-baseline.json
       - common/meta/extension/generate_ac_registry.py
       - common/meta/base/authority_matrix.py
       - common/meta/extension/check_ac_tier_baseline.py
@@ -825,7 +825,7 @@ concepts:
       - common/meta/extension/check_authority_reconcile.py
 
   ac_tier_baseline:
-    owner: docs/ssot/ac-tier-baseline.json
+    owner: common/meta/data/ac-tier-baseline.json
     family: tdd
     kind: baseline
     parent: authority_tiers
@@ -838,7 +838,7 @@ concepts:
       - tests/tooling/test_ac_authority_tiers.py
 
   draft_package_baseline:
-    owner: docs/ssot/draft-package-baseline.json
+    owner: common/meta/data/draft-package-baseline.json
     family: tdd
     kind: baseline
     parent: authority_tiers
@@ -867,14 +867,14 @@ concepts:
     kind: concept
     cross_refs:
       - docs/project/EPIC-014.ttd-transformation.md
-      - docs/ssot/governance-exceptions.yaml
+      - common/meta/data/governance-exceptions.yaml
       - common/meta/extension/governance_report/_gate.py
       - tools/report_ssot_governance.py
       - tests/tooling/test_ssot_governance_report.py
       - .github/workflows/ci.yml
 
   ssot_governance_exceptions:
-    owner: docs/ssot/governance-exceptions.yaml
+    owner: common/meta/data/governance-exceptions.yaml
     description: Machine-readable temporary exception registry for incremental SSOT governance gate findings.
     family: tdd
     kind: registry

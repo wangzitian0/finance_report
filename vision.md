@@ -266,7 +266,7 @@ owners:
   confidence pipeline (raw -> extracted -> validated -> confirmed -> reconciled
   -> trusted -> reports) is owned by `docs/ssot/confirmation-workflow.md`;
   supported source classes by
-  [`source_coverage_matrix`](docs/ssot/source-coverage-matrix.yaml).
+  [`source_coverage_matrix`](common/testing/data/source-coverage-matrix.yaml).
 - **Delivery scope & status** → `docs/project/` (EPICs) and `README.md`.
 - **Agent process & governance** → `AGENTS.md` and `docs/agents/`.
 

@@ -331,7 +331,7 @@ def test_AC8_13_104_staging_ai_ocr_runs_only_for_provider_risk_paths() -> None:
         "docs/ssot/ai.md",
         # The critical-proof matrix is no longer committed; its hand-curated
         # macro-outcome source is the staging trigger that replaced it.
-        "docs/ssot/critical-proof-outcomes.yaml",
+        "common/testing/data/critical-proof-outcomes.yaml",
     ):
         assert is_staging_ai_ocr_relevant(path) is True
 

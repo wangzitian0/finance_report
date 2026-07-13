@@ -31,7 +31,7 @@ the SAME code runs and no protection is weakened:
 
 * **CI-stage traceability** (``check_ac_traceability.run_traceability`` +
   ``traceability_failure_messages``): a mandatory AC's test reference must land
-  in a CI-REQUIRED execution stage (per ``docs/ssot/test-execution-matrix.yaml``),
+  in a CI-REQUIRED execution stage (per ``common/testing/data/test-execution-matrix.yaml``),
   with the placeholder-only / stub-only / unexecuted-only / missing
   classifications and their verbatim ``TRACEABILITY GATE FAILED`` wording. It
   catches every mandatory active AC with no real CI-stage test reference (the
@@ -320,13 +320,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--ratchet-baseline",
         type=Path,
         default=None,
-        help="JSONL ratchet baseline (default: docs/ssot/ac-score-baseline.jsonl).",
+        help="JSONL ratchet baseline (default: common/testing/data/ac-score-baseline.jsonl).",
     )
     parser.add_argument(
         "--floor-file",
         type=Path,
         default=None,
-        help="Per-type protection count floor (default: docs/ssot/protection-floor.json).",
+        help="Per-type protection count floor (default: common/testing/data/protection-floor.json).",
     )
     parser.add_argument(
         "--update-floor",
@@ -343,7 +343,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args([] if argv is None else argv)
     repo_root = args.repo_root.resolve()
-    floor_file = args.floor_file or (repo_root / "docs" / "ssot" / "protection-floor.json")
+    floor_file = args.floor_file or (repo_root / "common" / "testing" / "data" / "protection-floor.json")
 
     graph = build_ac_graph(repo_root)
 

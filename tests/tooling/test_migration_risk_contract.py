@@ -34,7 +34,7 @@ def test_AC7_11_1_migration_risk_manifest_covers_backend_migrations() -> None:
     assert result.ok
     assert result.errors == []
     assert len(result.migrations) >= 40
-    assert result.manifest_path == ROOT / "docs/ssot/migration-risk.yaml"
+    assert result.manifest_path == ROOT / "common/meta/data/migration-risk.yaml"
     assert all(
         record.risk in migration_risk.RISK_LEVELS
         for record in result.migrations.values()

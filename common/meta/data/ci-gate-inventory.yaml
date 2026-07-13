@@ -323,7 +323,7 @@ gates:
     task_category: behavioral_ratchet
     workflow: .github/workflows/ci.yml
     job: ac-behavioral-ratchet
-    owner: docs/ssot/ac-score-baseline.jsonl
+    owner: common/testing/data/ac-score-baseline.jsonl
     triggers: [push, pull_request, workflow_dispatch]
     required_by_finish: true
     blocks_workflow: true
@@ -341,7 +341,7 @@ gates:
     triggers: [push]
     required_by_finish: false
     blocks_workflow: false
-    inputs: [unified-coverage.json, docs/ssot/ac-score-baseline.jsonl, docs/ssot/ac-tier-baseline.json, docs/ssot/protection-floor.json]
+    inputs: [unified-coverage.json, common/testing/data/ac-score-baseline.jsonl, common/meta/data/ac-tier-baseline.json, common/testing/data/protection-floor.json]
     outputs: [evidence_bundle_json]
     artifacts: [evidence-bundle]
     failure_semantics: Non-blocking (#1690) — aggregates already-computed ratchet water-lines into one citable bundle after unified-coverage and ac-behavioral-ratchet complete; a failure here does not affect merge authority.
@@ -629,7 +629,7 @@ gates:
     owner: common/testing/evidence_bundle.py
     triggers: [schedule, workflow_dispatch]
     blocks_workflow: false
-    inputs: [ai_ocr_status, ai_ocr_exit_code, unified-coverage.json, docs/ssot/ac-score-baseline.jsonl, docs/ssot/ac-tier-baseline.json, docs/ssot/protection-floor.json]
+    inputs: [ai_ocr_status, ai_ocr_exit_code, unified-coverage.json, common/testing/data/ac-score-baseline.jsonl, common/meta/data/ac-tier-baseline.json, common/testing/data/protection-floor.json]
     outputs: [evidence_bundle_json]
     artifacts: [evidence-bundle]
     failure_semantics: Non-blocking (#1690) — runs regardless of audit-replay's own (record-only) result and bundles the staging AI/OCR gate's ai_ocr_status/ai_ocr_exit_code as provider/canary health alongside the same ratchet water-lines the main-CI producer reports.

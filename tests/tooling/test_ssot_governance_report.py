@@ -30,7 +30,7 @@ def _seed_finance_manifest(root: Path) -> None:
     for relative_path in (
         "docs/ssot/accounting.md",
         "docs/ssot/deployment.md",
-        "docs/ssot/migration-risk.yaml",
+        "common/meta/data/migration-risk.yaml",
         "docs/ssot/orphan.md",
         "docs/ssot/schema.md",
         "tools/check_deployment.py",
@@ -50,7 +50,7 @@ def _seed_finance_manifest(root: Path) -> None:
                     "description": "Intentional duplicate for report metrics.",
                 },
                 "migration_matrix": {
-                    "owner": "docs/ssot/migration-risk.yaml",
+                    "owner": "common/meta/data/migration-risk.yaml",
                     "description": "Migration risk matrix.",
                     "kind": "matrix",
                     "cross_refs": ["docs/ssot/schema.md"],
@@ -562,7 +562,7 @@ def test_AC14_1_13_incremental_gate_only_blocks_changed_ssot_debt(
     assert all("HLS" in violation["hls_rule"] for violation in gate["violations"])
 
     _write_yaml(
-        tmp_path / "docs/ssot/governance-exceptions.yaml",
+        tmp_path / "common/meta/data/governance-exceptions.yaml",
         {
             "version": 1,
             "exceptions": [
@@ -581,7 +581,7 @@ def test_AC14_1_13_incremental_gate_only_blocks_changed_ssot_debt(
         include_infra2=False,
     )
     assert gate_with_exception["exception_path"] == (
-        "docs/ssot/governance-exceptions.yaml"
+        "common/meta/data/governance-exceptions.yaml"
     )
     assert gate_with_exception["violation_count"] == gate["violation_count"] - 1
     assert gate_with_exception["exception_count"] == 1
@@ -707,12 +707,12 @@ def test_AC14_1_13_gate_helper_edges_remain_incremental(
         == "concepts: {}\n"
     )
 
-    exceptions_path = tmp_path / "docs/ssot/governance-exceptions.yaml"
+    exceptions_path = tmp_path / "common/meta/data/governance-exceptions.yaml"
     _write(exceptions_path, "[]\n")
     assert (
         governance_report._load_exception_targets(
             tmp_path,
-            Path("docs/ssot/governance-exceptions.yaml"),
+            Path("common/meta/data/governance-exceptions.yaml"),
         )
         == set()
     )
@@ -720,7 +720,7 @@ def test_AC14_1_13_gate_helper_edges_remain_incremental(
     assert (
         governance_report._load_exception_targets(
             tmp_path,
-            Path("docs/ssot/governance-exceptions.yaml"),
+            Path("common/meta/data/governance-exceptions.yaml"),
         )
         == set()
     )
@@ -740,7 +740,7 @@ def test_AC14_1_13_gate_helper_edges_remain_incremental(
     )
     assert governance_report._load_exception_targets(
         tmp_path,
-        Path("docs/ssot/governance-exceptions.yaml"),
+        Path("common/meta/data/governance-exceptions.yaml"),
     ) == {"finance_report:manifest:valid"}
 
     malformed_exceptions_path = tmp_path / "bad-governance-exceptions.yaml"
@@ -864,7 +864,7 @@ def test_AC14_1_16_ssot_governance_ratios_cannot_regress(
         "docs/ssot/shaped.md",
         "docs/ssot/legacy-kind.md",
         "docs/ssot/new-family-only.md",
-        "docs/ssot/migration-risk.yaml",
+        "common/meta/data/migration-risk.yaml",
         "docs/ssot/migration-risk-reviewed.yaml",
         "tests/tooling/test_migration_risk.py",
     ):
@@ -890,7 +890,7 @@ def test_AC14_1_16_ssot_governance_ratios_cannot_regress(
             proofs:
               - tests/tooling/test_migration_risk.py
           migration_unreviewed:
-            owner: docs/ssot/migration-risk.yaml
+            owner: common/meta/data/migration-risk.yaml
             description: Existing migration risk matrix proof debt.
             family: schema
             kind: matrix
@@ -919,7 +919,7 @@ def test_AC14_1_16_ssot_governance_ratios_cannot_regress(
                     "proofs": ["tests/tooling/test_migration_risk.py"],
                 },
                 "migration_unreviewed": {
-                    "owner": "docs/ssot/migration-risk.yaml",
+                    "owner": "common/meta/data/migration-risk.yaml",
                     "description": "Existing migration risk matrix proof debt.",
                     "family": "schema",
                     "kind": "matrix",
@@ -962,7 +962,7 @@ def test_AC14_1_16_ssot_governance_ratios_cannot_regress(
     )
 
     _write_yaml(
-        tmp_path / "docs/ssot/governance-exceptions.yaml",
+        tmp_path / "common/meta/data/governance-exceptions.yaml",
         {
             "version": 1,
             "exceptions": [
@@ -1066,7 +1066,7 @@ def test_AC14_1_14_finance_report_orphan_ssot_files_are_manifest_owned() -> None
         "observability_logging"
     )
     assert concepts["ac_score_ratchet_baseline"]["owner"] == (
-        "docs/ssot/ac-score-baseline.jsonl"
+        "common/testing/data/ac-score-baseline.jsonl"
     )
     assert concepts["ac_score_ratchet_baseline"]["parent"] == "tdd_workflow"
 
@@ -1118,7 +1118,7 @@ def test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof() ->
         ],
         "common/extraction/readme.md": [
             "[`extraction_failed_case_registry`](./audit-failed-cases.yaml)",
-            "[`source_coverage_matrix`](../../docs/ssot/source-coverage-matrix.yaml)",
+            "[`source_coverage_matrix`](../../common/testing/data/source-coverage-matrix.yaml)",
         ],
         "docs/project/EPIC-003.statement-parsing.md": [
             f"[`extraction_failed_case_registry`]({blob})",
@@ -1127,7 +1127,7 @@ def test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof() ->
             "[`source_coverage_matrix`](../ssot/source-coverage-matrix.yaml)",
         ],
         "vision.md": [
-            "[`source_coverage_matrix`](docs/ssot/source-coverage-matrix.yaml)",
+            "[`source_coverage_matrix`](common/testing/data/source-coverage-matrix.yaml)",
         ],
         "docs/ssot/tdd.md": [
             f"[`extraction_failed_case_registry`]({blob})",

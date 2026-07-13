@@ -1,7 +1,7 @@
 """Contract tests for the test execution matrix as code (EPIC-008 AC8.22).
 
 The matrix (common/testing/matrix.py) is the SSOT for path→stage
-classification and per-stage test selection; docs/ssot/test-execution-matrix.yaml
+classification and per-stage test selection; common/testing/data/test-execution-matrix.yaml
 is its generated view and .github/workflows/preview.yml its runtime consumer
 (issues #1547 / #1556).
 """
@@ -18,7 +18,7 @@ import yaml
 from common.testing import matrix
 
 ROOT = Path(__file__).resolve().parents[2]
-MATRIX_YAML = ROOT / "docs" / "ssot" / "test-execution-matrix.yaml"
+MATRIX_YAML = ROOT / "common" / "testing" / "data" / "test-execution-matrix.yaml"
 PREVIEW_WORKFLOW = ROOT / ".github" / "workflows" / "preview.yml"
 TESTING_README = ROOT / "common" / "testing" / "README.md"
 MANIFEST = ROOT / "docs" / "ssot" / "MANIFEST.yaml"
@@ -180,4 +180,4 @@ def test_AC8_22_6_charter_and_manifest_ownership() -> None:
     entry = concepts["test_execution_matrix"]
     assert entry["owner"] == "common/testing/matrix.py"
     cross_refs = entry.get("cross_refs", [])
-    assert "docs/ssot/test-execution-matrix.yaml" in cross_refs
+    assert "common/testing/data/test-execution-matrix.yaml" in cross_refs

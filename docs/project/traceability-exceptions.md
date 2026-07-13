@@ -179,7 +179,7 @@ explicit AC IDs for the behavior.
 | `apps/backend/tests/pricing/market_data/__init__.py` | Package marker |
 | `tests/tooling/test_coverage_analyzer.py` | `docs/ssot/coverage.md` |
 | `tests/tooling/test_migration_safety_gates.py` | `common/meta/readme.md` |
-| `tests/tooling/test_delivery_gates_contract.py` | `docs/ssot/delivery-gates.yaml` |
+| `tests/tooling/test_delivery_gates_contract.py` | `common/meta/data/delivery-gates.yaml` |
 | `tests/tooling/test_env_contract_boundary.py` | `docs/ssot/observability.md`, `docs/ssot/environments.md` |
 | `tests/tooling/test_github_workflow_timing_summary.py` | `docs/ssot/ci-cd.md` |
 | `tests/tooling/test_infra2_pin_is_release_tag.py` | `docs/ssot/deployment.md` |

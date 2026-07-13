@@ -305,7 +305,7 @@ entrypoint:
 1. Test migration locally with `docker-compose.yml`
 2. Ensure migration is backward-compatible (for rollback)
 3. Run `python tools/check_migration_risk.py` and review
-   `docs/ssot/migration-risk.yaml`
+   `common/meta/data/migration-risk.yaml`
 4. Use the declared risk level to choose the release proof:
    - **low**: PR Alembic contract is usually enough
    - **medium**: require staging deploy proof for the compatibility-sensitive path

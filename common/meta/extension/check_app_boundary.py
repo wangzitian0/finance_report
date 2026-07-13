@@ -47,7 +47,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args([] if argv is None else argv)
     repo_root = args.repo_root.resolve()
-    baseline_path = repo_root / "docs/ssot/app-boundary-baseline.json"
+    baseline_path = repo_root / "common/meta/data/app-boundary-baseline.json"
     current = sorted(set(discover_and_compute_edges(repo_root)))
 
     if args.update:

@@ -89,7 +89,7 @@ Integration tests and E2E tests are intentionally different in this project:
 |---|---|---|---|
 | Unified Line Coverage | `(sum covered LF) / (sum executable LF)` over unified files only | `coverage/backend.lcov`, `coverage/frontend.lcov`, `coverage/common.lcov`, `coverage/tools.lcov` after policy mapping | No-regression vs `unified-coverage.json`; line-based only |
 | AC Pass Rate | `(ACs with at least one passing qualifying test) / (Total ACs)` | Generated AC coverage audit report | Informational for behavior completeness; not a line-coverage substitute |
-| AC Traceability Gate | Real AC references in CI-required execution stages | `tools/check_ac_index.py`, `docs/ssot/test-execution-matrix.yaml`, `tools/check_e2e_epic_traceability.py` | Fail closed when mandatory AC is missing, stub-only, placeholder-only, or real-only outside required execution |
+| AC Traceability Gate | Real AC references in CI-required execution stages | `tools/check_ac_index.py`, `common/testing/data/test-execution-matrix.yaml`, `tools/check_e2e_epic_traceability.py` | Fail closed when mandatory AC is missing, stub-only, placeholder-only, or real-only outside required execution |
 
 AC rates are generated on each CI run from `python tools/analyze_test_ac_coverage.py` inputs and do not mean line coverage. If a number changes, it is an AC definition or behavior-proof change, not automatically a line-coverage baseline change.
 
@@ -486,7 +486,7 @@ is right on every axis simultaneously. Part of [#990](https://github.com/wangzit
   `common/testing/test_surface.py` and consumed by both the fail-closed gate and
   generated audit builder.
 - Critical product proof-path anchoring is owned by
-  the derived critical-proof matrix (macro outcome source `docs/ssot/critical-proof-outcomes.yaml`) and
+  the derived critical-proof matrix (macro outcome source `common/testing/data/critical-proof-outcomes.yaml`) and
   `python tools/check_ac_index.py`.
 - Do not copy generated AC totals or per-group percentages into this EPIC.
 
@@ -595,7 +595,7 @@ which runs in the full-stack `preview.yml` lane that carries the frontend bundle
 
 ### AC8.22: Test Execution Matrix as Code (testing-package governance)
 
-Which tests run where was previously scattered: `docs/ssot/test-execution-matrix.yaml`
+Which tests run where was previously scattered: `common/testing/data/test-execution-matrix.yaml`
 was hand-maintained, the PR preview E2E set was a hardcoded 2-file whitelist in
 `preview.yml`, and marker semantics lived only in inline `-m` expressions —
 so a non-LLM Tier-3 E2E gate was invisible pre-merge purely because nobody

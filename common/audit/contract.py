@@ -47,7 +47,7 @@ The value-language ACs (``AC2.19/2.20`` in EPIC-002, ``AC12.9/12.30/12.32/12.33/
 12.36`` in EPIC-012) are homed in ``roadmap`` below as ``AC-audit.<n>.<n>``
 (issue #1419 step 2/3, following the physical fold of step 1). Every
 ``@ac_proof`` edge, docstring/comment cross-reference, and the tier baseline
-(``docs/ssot/ac-tier-baseline.json``) were renamed in the same change — no AC
+(``common/meta/data/ac-tier-baseline.json``) were renamed in the same change — no AC
 may live in both an EPIC table and a package roadmap (``check_epic_package_dual``
 enforces it).
 

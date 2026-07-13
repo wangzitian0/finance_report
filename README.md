@@ -179,7 +179,7 @@ labels are the source of truth for current tracker status.
 
 Macro correctness is a DERIVED view of the one AC-keyed graph. Its hand-curated
 outcome source is
-[`docs/ssot/critical-proof-outcomes.yaml`](docs/ssot/critical-proof-outcomes.yaml)
+[`common/testing/data/critical-proof-outcomes.yaml`](common/testing/data/critical-proof-outcomes.yaml)
 (macro outcome -> owner EPICs + proof_ids); the proof paths come from the
 co-located `@ac_proof` decorators. The matrix is rendered on demand by
 `python tools/generate_critical_proof_matrix.py` (never committed) and validated
