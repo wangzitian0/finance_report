@@ -41,7 +41,11 @@ horizontal goal — the anchor is a goal reference, not the AC's home.
    - Package: append an `ACRecord(id=..., statement=...,
      test="apps/backend/tests/<pkg>/test_x.py::test_name", priority=...,
      status=...)` to the `roadmap` (schema:
-     `common/meta/base/package_contract.py`).
+     `common/meta/base/package_contract.py`). `test=` can anchor directly to a
+     frontend suite too (#1820) — `apps/frontend/**/*.test.ts::<it/test title>`
+     (also `.test.tsx`/`.spec.ts`/`.spec.tsx`) — resolved as file-exists + a
+     real vitest/Playwright `it(...)`/`test(...)` title match, no Python proxy
+     test required.
    - Legacy: add a row under the right `### ACx.y:` section of the EPIC with a
      unique `ACx.y.z` id, a one-line test case, the **exact test function
      name(s)**, the **test file path**, and a priority.

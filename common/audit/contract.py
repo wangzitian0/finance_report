@@ -350,6 +350,28 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        # Cross-runtime resolution proof (#1820): the FIRST roadmap AC whose
+        # `test=` anchors directly to a frontend vitest title — no Python
+        # proxy test — proving `check_package_contract`'s TS-ref resolution
+        # (file exists + a real `it(...)`/`test(...)` title matches) end to
+        # end against the live gate, not just its unit tests.
+        ACRecord(
+            id="AC-audit.20.2",
+            statement=(
+                "The frontend money conformance suite's rounding and convert "
+                "vector tables share one rounding vocabulary (every "
+                "RoundingName the convert vectors exercise is also a rounding "
+                "vector), so quantize() and convert() can never silently "
+                "diverge on which rounding modes the standard supports."
+            ),
+            test=(
+                "apps/frontend/src/lib/audit/money/money.conformance.test.ts"
+                "::AC-audit.20.2 quantize() and convert() share the same "
+                "rounding vocabulary"
+            ),
+            priority="P2",
+            status="done",
+        ),
         # ── group 9: Ratio / percent value type (was EPIC-012 AC12.9.*) ──
         ACRecord(
             id="AC-audit.9.1",

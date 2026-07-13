@@ -239,6 +239,164 @@ def test_resolve_test_branches(synthetic_repo: Path) -> None:
     assert _resolve_test("t/test_ok.py::test_async_real", synthetic_repo) is None
 
 
+# --- (b2) frontend (vitest/Playwright) test refs (#1820) ---------------------
+#
+# A roadmap/invariant `test=` ref may also point at a `*.test.ts`/`*.test.tsx`/
+# `*.spec.ts`/`*.spec.tsx` file. TS has no Python AST, so this resolves by file
+# existence + the test name matching a real `it(...)`/`test(...)` declaration —
+# the same "does a real declaration with this title exist" proof strength as
+# the Python branch, no stronger claim (no TS parse/compile check). The fixture
+# content below is deliberately NOT valid Python (curly-brace imports, arrow
+# functions, template literals) so a regression that still routes `.test.ts`
+# through `ast.parse` fails LOUDLY (a crash), not silently.
+
+
+def _write_ts_test_file(path: Path) -> None:
+    path.write_text(
+        textwrap.dedent(
+            """
+            import { describe, expect, it, test } from "vitest";
+
+            describe("money conformance", () => {
+              it("AC-audit.20.2 real vitest test", () => {
+                expect(1 + 1).toBe(2);
+              });
+
+              test("a real test() declaration", () => {
+                expect(true).toBe(true);
+              });
+
+              test.only(`a template-literal title with ${1 + 1} inlined`, () => {
+                expect(true).toBe(true);
+              });
+            });
+            """
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_resolve_test_frontend_branches(synthetic_repo: Path) -> None:
+    test_dir = synthetic_repo / "apps" / "frontend" / "src"
+    test_dir.mkdir(parents=True)
+    ts_file = test_dir / "money.test.ts"
+    _write_ts_test_file(ts_file)
+    rel = "apps/frontend/src/money.test.ts"
+
+    # missing file
+    assert (
+        _resolve_test("apps/frontend/src/missing.test.ts::x", synthetic_repo)
+        is not None
+    )
+    # file exists, name absent -> reported, not a crash
+    err = _resolve_test(f"{rel}::no such test", synthetic_repo)
+    assert err is not None and "not found" in err
+    # resolves: `it(...)`, `test(...)`, and `test.only(...)` all count
+    assert (
+        _resolve_test(f"{rel}::AC-audit.20.2 real vitest test", synthetic_repo) is None
+    )
+    assert _resolve_test(f"{rel}::a real test() declaration", synthetic_repo) is None
+    assert (
+        _resolve_test(
+            f"{rel}::a template-literal title with ${{1 + 1}} inlined", synthetic_repo
+        )
+        is None
+    )
+
+
+def test_resolve_test_frontend_suffix_variants_all_resolve(
+    synthetic_repo: Path,
+) -> None:
+    """``.test.tsx`` / ``.spec.ts`` / ``.spec.tsx`` all take the frontend branch."""
+    test_dir = synthetic_repo / "apps" / "frontend" / "src"
+    test_dir.mkdir(parents=True)
+    for suffix in (".test.tsx", ".spec.ts", ".spec.tsx"):
+        ts_file = test_dir / f"money{suffix}"
+        _write_ts_test_file(ts_file)
+        rel = f"apps/frontend/src/money{suffix}"
+        assert (
+            _resolve_test(f"{rel}::AC-audit.20.2 real vitest test", synthetic_repo)
+            is None
+        ), suffix
+        assert _resolve_test(f"{rel}::not a real title", synthetic_repo) is not None, (
+            suffix
+        )
+
+
+def test_unresolved_frontend_roadmap_ref_is_reported(synthetic_repo: Path) -> None:
+    """A TS ref to a nonexistent file, and one to a real file with an absent test
+    name, are both reported by ``check_package`` — not a crash, not a silent
+    pass."""
+    pkg = _write_package(
+        _src(synthetic_repo),
+        "fefrefs",
+        klass="infra",
+        all_names=["X"],
+        interface=["X"],
+        roadmap=[
+            ACRecord(
+                id="AC1",
+                statement="s",
+                test="apps/frontend/src/no/such/file.test.ts::whatever",
+                priority="P0",
+                status="open",
+            )
+        ],
+    )
+    errors = check_package(pkg, {"fefrefs": "infra"}, synthetic_repo)
+    assert any(
+        "roadmap 'AC1'" in e and "test file does not exist" in e for e in errors
+    ), errors
+
+    # Real file, absent test name.
+    test_dir = synthetic_repo / "apps" / "frontend" / "src"
+    test_dir.mkdir(parents=True, exist_ok=True)
+    _write_ts_test_file(test_dir / "money2.test.ts")
+    pkg2 = _write_package(
+        _src(synthetic_repo),
+        "fefrefs2",
+        klass="infra",
+        all_names=["Y"],
+        interface=["Y"],
+        roadmap=[
+            ACRecord(
+                id="AC2",
+                statement="s",
+                test="apps/frontend/src/money2.test.ts::not a real title",
+                priority="P0",
+                status="open",
+            )
+        ],
+    )
+    errors2 = check_package(pkg2, {"fefrefs2": "infra"}, synthetic_repo)
+    assert any("roadmap 'AC2'" in e and "not found" in e for e in errors2), errors2
+
+
+def test_resolved_frontend_roadmap_ref_passes(synthetic_repo: Path) -> None:
+    """A TS ref to a real ``it(...)`` title resolves — no roadmap error."""
+    test_dir = synthetic_repo / "apps" / "frontend" / "src"
+    test_dir.mkdir(parents=True)
+    _write_ts_test_file(test_dir / "money.test.ts")
+    pkg = _write_package(
+        _src(synthetic_repo),
+        "fefok",
+        klass="infra",
+        all_names=["X"],
+        interface=["X"],
+        roadmap=[
+            ACRecord(
+                id="AC1",
+                statement="s",
+                test="apps/frontend/src/money.test.ts::AC-audit.20.2 real vitest test",
+                priority="P0",
+                status="open",
+            )
+        ],
+    )
+    errors = check_package(pkg, {"fefok": "infra"}, synthetic_repo)
+    assert not any("roadmap 'AC1'" in e for e in errors), errors
+
+
 # --- (c) forbidden dependency edges ------------------------------------------
 
 
