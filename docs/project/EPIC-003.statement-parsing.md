@@ -155,14 +155,14 @@ roadmap) stays registered in
 
 ## 🔗 Deliverables
 
-- [x] `apps/backend/src/models/statement.py`
+- [x] `apps/backend/src/extraction/orm/` - statement models (`layer1.py`–`layer4.py`, `statement_enums.py`, `statement_summary.py`; moved from `src/models/statement.py` in #1675)
 - [x] `apps/backend/src/extraction/extension/service.py`
 - [x] `apps/backend/src/extraction/base/validation.py`
 - [x] `apps/backend/src/routers/statements.py`
 - [x] `apps/frontend/src/app/(main)/statements/page.tsx`
 - [x] `apps/frontend/src/app/(main)/statements/[id]/page.tsx`
 - [x] `apps/backend/tests/extraction/` - Test suite
-- [x] `apps/backend/tests/test_csv_parsing.py` - CSV test suite
+- [x] `apps/backend/tests/extraction/test_csv_parsing.py` - CSV test suite
 
 ---
 

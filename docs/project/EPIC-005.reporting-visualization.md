@@ -435,8 +435,8 @@ fetching and normalizing it inline. Monetary values stay decimal strings.
 
 ## 🔗 Deliverables
 
-- [x] `apps/backend/src/services/reporting.py`
-- [x] `apps/backend/src/services/fx.py`
+- [x] `apps/backend/src/reporting/extension/` - reporting engine (moved from `src/services/reporting.py` in the reporting package cutover, #1648)
+- [x] `apps/backend/src/pricing/extension/fx.py` (moved from `src/services/fx.py` in #1610)
 - [x] `apps/backend/src/routers/reports.py`
 - [x] `apps/frontend/src/app/dashboard/page.tsx`
 - [x] `apps/frontend/src/app/reports/`

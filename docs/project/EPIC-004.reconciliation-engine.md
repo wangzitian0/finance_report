@@ -204,7 +204,7 @@ See: common/ledger/readme.md#decimal-rule
 
 ## 🔗 Deliverables
 
-- [x] `apps/backend/src/models/reconciliation.py`
+- [x] `apps/backend/src/reconciliation/orm/reconciliation.py` (moved from `src/models/` in #1675)
 - [x] `apps/backend/src/reconciliation/extension/matching.py`
 - [x] `apps/backend/src/reconciliation/extension/review_queue.py`
 - [x] `apps/backend/src/reconciliation/extension/anomaly.py`
