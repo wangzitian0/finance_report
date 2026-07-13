@@ -238,8 +238,9 @@ function mockPortfolioApi(
       })
     }
     if (path.startsWith("/api/portfolio/holdings")) {
-      if (path.includes("include_disposed=true")) return Promise.resolve([mockHolding, mockHolding2])
-      return Promise.resolve(holdings)
+      if (path.includes("include_disposed=true"))
+        return Promise.resolve({ items: [mockHolding, mockHolding2], total: 2, warnings: [] })
+      return Promise.resolve({ items: holdings, total: holdings.length, warnings: [] })
     }
     return Promise.reject(new Error(`unhandled path ${path}`))
   })

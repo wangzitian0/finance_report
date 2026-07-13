@@ -23,7 +23,7 @@ describe("More overflow (EPIC-022 AC22.21.5)", () => {
     });
 
     it("lists Settings, Advanced/Accounts, and Logout, and logs out", async () => {
-        mockedApiFetch.mockResolvedValue({ holdings: [] });
+        mockedApiFetch.mockResolvedValue({ items: [], total: 0, warnings: [] });
         render(<MorePage />);
 
         expect(screen.getByRole("link", { name: /Settings/i })).toHaveAttribute("href", "/settings");
@@ -35,14 +35,14 @@ describe("More overflow (EPIC-022 AC22.21.5)", () => {
     });
 
     it("hides Portfolio when the user holds no securities", async () => {
-        mockedApiFetch.mockResolvedValue({ holdings: [] });
+        mockedApiFetch.mockResolvedValue({ items: [], total: 0, warnings: [] });
         render(<MorePage />);
         await waitFor(() => expect(mockedApiFetch).toHaveBeenCalled());
         expect(screen.queryByRole("link", { name: /Portfolio/i })).toBeNull();
     });
 
     it("shows Portfolio once the user holds securities", async () => {
-        mockedApiFetch.mockResolvedValue({ holdings: [{ ticker: "AAPL" }] });
+        mockedApiFetch.mockResolvedValue({ items: [{ ticker: "AAPL" }], total: 1, warnings: [] });
         render(<MorePage />);
         await waitFor(() =>
             expect(screen.getByRole("link", { name: /Portfolio/i })).toHaveAttribute("href", "/portfolio"),

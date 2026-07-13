@@ -68,6 +68,24 @@ class HoldingResponse(BaseResponse):
         return self.cost_basis
 
 
+class HoldingsListResponse(ListResponse[HoldingResponse]):
+    """Holdings page in the repo-standard items+total wrapper (#1796).
+
+    ``warnings`` discloses point-in-time snapshots excluded from the page (e.g.
+    no reconciled managed position as of the requested date) — previously only
+    logged, so the response silently read as complete.
+    """
+
+    warnings: list[dict[str, str]] = Field(
+        default_factory=list,
+        description=(
+            "Point-in-time snapshots excluded from the page (e.g. no reconciled "
+            "managed position as of the requested date) — disclosed instead of "
+            "silently omitted (#1796)."
+        ),
+    )
+
+
 class RealizedPnLResponse(BaseModel):
     """Schema for realized P&L response."""
 

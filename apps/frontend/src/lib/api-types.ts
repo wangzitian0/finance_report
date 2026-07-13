@@ -524,6 +524,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/classifications/backfill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Backfill Transaction Classifications
+         * @description Classify the caller's not-yet-classified transactions (duplicate-free; the tail is re-attempted).
+         */
+        post: operations["backfill_transaction_classifications_classifications_backfill_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/corrections": {
         parameters: {
             query?: never;
@@ -601,6 +621,12 @@ export interface paths {
          *
          *     Returns 200 if all critical services are healthy, 503 otherwise.
          *     This endpoint is used by Docker healthcheck and deployment verification.
+         *
+         *     The default (frequent Docker healthcheck) stays light: database + S3.
+         *     ``?full=1`` asserts the FULL manifest-declared dependency set for this
+         *     environment's tier (smoke ↔ declaration parity, invariant 6 / #1578): every
+         *     dependency in ``DEPENDENCY_MANIFEST.required_for(tier)`` must be present or
+         *     the endpoint returns 503. The smoke test calls this form.
          */
         get: operations["health_check_health_get"];
         put?: never;
@@ -1077,6 +1103,10 @@ export interface paths {
         /**
          * Get Holdings
          * @description Get portfolio holdings with P&L (bounded by limit/offset; see AC17.30).
+         *
+         *     AC-portfolio.holdings.6 (#1796): responds in the repo-standard items+total
+         *     wrapper plus ``warnings`` — a snapshot excluded from the page (no reconciled
+         *     managed position as of the date) is disclosed to the caller, not just logged.
          */
         get: operations["get_holdings_portfolio_holdings_get"];
         put?: never;
@@ -3091,6 +3121,13 @@ export interface components {
              */
             token_type: string;
         };
+        /** BackfillClassificationsResponse */
+        BackfillClassificationsResponse: {
+            /** Candidates */
+            candidates: number;
+            /** Classified */
+            classified: number;
+        };
         /**
          * BalanceSheetResponse
          * @description Balance sheet response schema.
@@ -3129,6 +3166,14 @@ export interface components {
              * @default 0.00
              */
             net_worth_adjustment_gain_loss: string;
+            /** Opening Balance Warnings */
+            opening_balance_warnings?: {
+                [key: string]: string;
+            }[];
+            /** Portfolio Warnings */
+            portfolio_warnings?: {
+                [key: string]: string;
+            }[];
             /** Total Assets */
             total_assets: string;
             /** Total Equity */
@@ -3392,6 +3437,8 @@ export interface components {
          * @description Response for brokerage position import.
          */
         BrokerageImportResponse: {
+            /** Account Id */
+            account_id?: string | null;
             /** Broker */
             broker: string;
             /** Created Atomic Positions */
@@ -4185,6 +4232,16 @@ export interface components {
             provenance?: ("imported" | "manual" | "derived") | null;
             /** Quantity */
             quantity: string;
+            /**
+             * Reporting Cost Basis
+             * @description Explicit reporting cost-basis alias of `cost_basis`.
+             */
+            readonly reporting_cost_basis: string;
+            /**
+             * Reporting Currency
+             * @description Explicit reporting-currency alias of `currency` (identical across endpoints).
+             */
+            readonly reporting_currency: string;
             /** Sector */
             sector?: string | null;
             status: components["schemas"]["PositionStatus"];
@@ -4197,6 +4254,27 @@ export interface components {
              * Format: uuid
              */
             user_id: string;
+        };
+        /**
+         * HoldingsListResponse
+         * @description Holdings page in the repo-standard items+total wrapper (#1796).
+         *
+         *     ``warnings`` discloses point-in-time snapshots excluded from the page (e.g.
+         *     no reconciled managed position as of the requested date) — previously only
+         *     logged, so the response silently read as complete.
+         */
+        HoldingsListResponse: {
+            /** Items */
+            items: components["schemas"]["HoldingResponse"][];
+            /** Total */
+            total: number;
+            /**
+             * Warnings
+             * @description Point-in-time snapshots excluded from the page (e.g. no reconciled managed position as of the requested date) — disclosed instead of silently omitted (#1796).
+             */
+            warnings?: {
+                [key: string]: string;
+            }[];
         };
         /**
          * IncomeStatementResponse
@@ -4819,6 +4897,16 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /**
+             * Native Cost Basis
+             * @description Explicit native cost-basis alias of `cost_basis`.
+             */
+            readonly native_cost_basis: string;
+            /**
+             * Native Currency
+             * @description Explicit native-currency alias of `currency` (identical across endpoints).
+             */
+            readonly native_currency: string;
             /** Position Metadata */
             position_metadata?: {
                 [key: string]: unknown;
@@ -5040,6 +5128,11 @@ export interface components {
              */
             as_of_date: string;
             /**
+             * Confidence Tier
+             * @description Aggregate confidence tier; LOW when an opening balance is missing.
+             */
+            confidence_tier?: string | null;
+            /**
              * Currency
              * @description Report presentation currency.
              */
@@ -5054,6 +5147,20 @@ export interface components {
              * @description Total assets minus total liabilities.
              */
             net_worth: string;
+            /**
+             * Opening Balance Warnings
+             * @description Non-empty when activity exists without a recorded opening balance.
+             */
+            opening_balance_warnings?: {
+                [key: string]: string;
+            }[];
+            /**
+             * Portfolio Warnings
+             * @description Same portfolio point-in-time gaps as the balance sheet (#1791 follow-up).
+             */
+            portfolio_warnings?: {
+                [key: string]: string;
+            }[];
             /**
              * Rows
              * @description Signed allocation rows that sum to net worth.
@@ -5839,10 +5946,14 @@ export interface components {
          * @description Axis 1 — the wire protocol a provider speaks.
          *
          *     Concrete vendors map onto exactly one family; e.g. Z.AI/GLM and DeepSeek are
-         *     ``OPENAI_COMPATIBLE`` (custom ``api_base``), Claude is ``ANTHROPIC_COMPATIBLE``.
+         *     ``OPENAI_COMPATIBLE`` (custom ``api_base``), Claude is ``ANTHROPIC_COMPATIBLE``,
+         *     and Google Gemini (AI Studio / Vertex) is ``GOOGLE_GEMINI`` — its native API
+         *     accepts a whole PDF as one ``file`` part (no per-page image rendering) and has
+         *     a high output ceiling, which is why it is the provider of choice for extracting
+         *     large or scanned statements.
          * @enum {string}
          */
-        ProtocolFamily: "openai-compatible" | "anthropic-compatible" | "openrouter-compatible";
+        ProtocolFamily: "openai-compatible" | "anthropic-compatible" | "openrouter-compatible" | "google-gemini";
         /**
          * ProviderDisagreementResponse
          * @description Provider disagreement payload.
@@ -6593,6 +6704,13 @@ export interface components {
             total_assets: string;
             /** Total Liabilities */
             total_liabilities: string;
+            /**
+             * Warnings
+             * @description Components excluded because their only snapshot postdates as_of_date — disclosed so a historical total never silently reads as complete (#1796).
+             */
+            warnings?: {
+                [key: string]: string;
+            }[];
         };
         /**
          * VoidJournalEntryRequest
@@ -9803,6 +9921,89 @@ export interface operations {
             };
         };
     };
+    backfill_transaction_classifications_classifications_backfill_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackfillClassificationsResponse"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     create_correction_corrections_post: {
         parameters: {
             query?: never;
@@ -10082,7 +10283,9 @@ export interface operations {
     };
     health_check_health_get: {
         parameters: {
-            query?: never;
+            query?: {
+                full?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -10096,6 +10299,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -12394,7 +12606,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HoldingResponse"][];
+                    "application/json": components["schemas"]["HoldingsListResponse"];
                 };
             };
             /** @description Bad request */

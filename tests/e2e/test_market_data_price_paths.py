@@ -166,7 +166,7 @@ async def test_market_data_provider_sync_feeds_fx_and_stock_price_paths(
         assert holdings_response.status_code == 200, (
             f"holdings failed: {holdings_response.status_code} {holdings_response.text}"
         )
-        holdings = holdings_response.json()
+        holdings = holdings_response.json()["items"]
         selected_holding = next(
             (item for item in holdings if item["asset_identifier"] == symbol), None
         )

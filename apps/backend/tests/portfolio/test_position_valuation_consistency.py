@@ -98,7 +98,7 @@ async def test_ac1_reporting_cost_basis_reconciles_on_base(client, db, test_user
 
     holdings_resp = await client.get("/portfolio/holdings")
     assert holdings_resp.status_code == 200
-    holding = _find_holding(holdings_resp.json(), str(position.id))
+    holding = _find_holding(holdings_resp.json()["items"], str(position.id))
 
     # /assets/positions exposes the base-converted cost basis ...
     assert item["reporting_currency"] == "SGD"
@@ -119,7 +119,7 @@ async def test_ac2_native_values_reconcile(client, db, test_user):
 
     holdings_resp = await client.get("/portfolio/holdings")
     assert holdings_resp.status_code == 200
-    holding = _find_holding(holdings_resp.json(), str(position.id))
+    holding = _find_holding(holdings_resp.json()["items"], str(position.id))
 
     assert item["currency"] == "HKD"
     assert Decimal(str(item["cost_basis"])) == _NATIVE_COST
@@ -166,7 +166,7 @@ async def test_native_and_reporting_currency_fields_are_identically_named_across
 
     holdings_resp = await client.get("/portfolio/holdings")
     assert holdings_resp.status_code == 200
-    holding = _find_holding(holdings_resp.json(), str(position.id))
+    holding = _find_holding(holdings_resp.json()["items"], str(position.id))
 
     # Both endpoints now carry BOTH explicit, identically-named currency fields.
     assert item["native_currency"] == holding["native_currency"] == "HKD"

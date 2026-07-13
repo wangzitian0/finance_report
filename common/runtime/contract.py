@@ -180,8 +180,7 @@ CONTRACT = PackageContract(
                 "GLM model-id form). Was EPIC-012 AC12.18.1."
             ),
             test=(
-                "apps/backend/tests/infra/test_config_contract.py"
-                "::test_primary_model_format"
+                "apps/backend/tests/infra/test_config_contract.py::test_primary_model_format"
             ),
             priority="P0",
             status="done",
@@ -193,8 +192,7 @@ CONTRACT = PackageContract(
                 "documentation (config↔docs sync). Was EPIC-012 AC12.18.2."
             ),
             test=(
-                "apps/backend/tests/infra/test_config_contract.py"
-                "::test_config_sync_with_env_example"
+                "apps/backend/tests/infra/test_config_contract.py::test_config_sync_with_env_example"
             ),
             priority="P0",
             status="done",
@@ -206,8 +204,7 @@ CONTRACT = PackageContract(
                 "alphabetic chars). Was EPIC-012 AC12.18.3."
             ),
             test=(
-                "apps/backend/tests/infra/test_config_contract.py"
-                "::test_base_currency_format"
+                "apps/backend/tests/infra/test_config_contract.py::test_base_currency_format"
             ),
             priority="P0",
             status="done",
@@ -215,12 +212,10 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-runtime.18.4",
             statement=(
-                "S3_BUCKET follows S3 naming conventions (lowercase, 3-63 chars, "
-                "hyphen-safe). Was EPIC-012 AC12.18.4."
+                "S3_BUCKET follows S3 naming conventions (lowercase, 3-63 chars, hyphen-safe). Was EPIC-012 AC12.18.4."
             ),
             test=(
-                "apps/backend/tests/infra/test_config_contract.py"
-                "::test_s3_bucket_format"
+                "apps/backend/tests/infra/test_config_contract.py::test_s3_bucket_format"
             ),
             priority="P0",
             status="done",
@@ -228,12 +223,10 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-runtime.18.5",
             statement=(
-                "JWT_ALGORITHM is one of the allowed secure algorithms "
-                "(HS256/RS256). Was EPIC-012 AC12.18.5."
+                "JWT_ALGORITHM is one of the allowed secure algorithms (HS256/RS256). Was EPIC-012 AC12.18.5."
             ),
             test=(
-                "apps/backend/tests/infra/test_config_contract.py"
-                "::test_jwt_algorithm_allowed"
+                "apps/backend/tests/infra/test_config_contract.py::test_jwt_algorithm_allowed"
             ),
             priority="P0",
             status="done",
@@ -245,8 +238,7 @@ CONTRACT = PackageContract(
                 "(postgresql+asyncpg, or sqlite for tests). Was EPIC-012 AC12.18.6."
             ),
             test=(
-                "apps/backend/tests/infra/test_config_contract.py"
-                "::test_database_url_format"
+                "apps/backend/tests/infra/test_config_contract.py::test_database_url_format"
             ),
             priority="P0",
             status="done",
@@ -254,12 +246,10 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-runtime.20.1",
             statement=(
-                "DB_POOL_SIZE config field exists with the expected default. "
-                "Was EPIC-012 AC12.20.1."
+                "DB_POOL_SIZE config field exists with the expected default. Was EPIC-012 AC12.20.1."
             ),
             test=(
-                "apps/backend/tests/infra/test_config_contract.py"
-                "::test_db_pool_size_config_default"
+                "apps/backend/tests/infra/test_config_contract.py::test_db_pool_size_config_default"
             ),
             priority="P1",
             status="done",
@@ -267,12 +257,10 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-runtime.20.2",
             statement=(
-                "DB_POOL_MAX_OVERFLOW config field exists with the expected "
-                "default. Was EPIC-012 AC12.20.2."
+                "DB_POOL_MAX_OVERFLOW config field exists with the expected default. Was EPIC-012 AC12.20.2."
             ),
             test=(
-                "apps/backend/tests/infra/test_config_contract.py"
-                "::test_db_pool_max_overflow_config_default"
+                "apps/backend/tests/infra/test_config_contract.py::test_db_pool_max_overflow_config_default"
             ),
             priority="P1",
             status="done",
@@ -284,8 +272,7 @@ CONTRACT = PackageContract(
                 "max_overflow >= 0). Was EPIC-012 AC12.20.3."
             ),
             test=(
-                "apps/backend/tests/infra/test_config_contract.py"
-                "::test_db_pool_config_valid_range"
+                "apps/backend/tests/infra/test_config_contract.py::test_db_pool_config_valid_range"
             ),
             priority="P1",
             status="done",
@@ -293,12 +280,10 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-runtime.20.4",
             statement=(
-                "The DB_POOL_SIZE env var overrides the pool-size setting. "
-                "Was EPIC-012 AC12.20.4."
+                "The DB_POOL_SIZE env var overrides the pool-size setting. Was EPIC-012 AC12.20.4."
             ),
             test=(
-                "apps/backend/tests/infra/test_config_contract.py"
-                "::test_db_pool_size_env_override"
+                "apps/backend/tests/infra/test_config_contract.py::test_db_pool_size_env_override"
             ),
             priority="P1",
             status="done",
@@ -306,12 +291,10 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-runtime.20.5",
             statement=(
-                "The DB_POOL_MAX_OVERFLOW env var overrides the max-overflow "
-                "setting. Was EPIC-012 AC12.20.5."
+                "The DB_POOL_MAX_OVERFLOW env var overrides the max-overflow setting. Was EPIC-012 AC12.20.5."
             ),
             test=(
-                "apps/backend/tests/infra/test_config_contract.py"
-                "::test_db_pool_size_env_override"
+                "apps/backend/tests/infra/test_config_contract.py::test_db_pool_size_env_override"
             ),
             priority="P1",
             status="done",
@@ -333,8 +316,7 @@ CONTRACT = PackageContract(
             id="AC-runtime.21.2",
             statement="Bootloader._check_static_config rejects a short (low-entropy) JWT secret in staging.",
             test=(
-                "apps/backend/tests/infra/test_boot.py"
-                "::test_AC1_10_1_static_config_rejects_short_secret_key_in_staging"
+                "apps/backend/tests/infra/test_boot.py::test_AC1_10_1_static_config_rejects_short_secret_key_in_staging"
             ),
             priority="P0",
             status="done",
@@ -342,12 +324,10 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-runtime.21.3",
             statement=(
-                "Bootloader._check_static_config rejects the local-"
-                "development DB default in a protected environment."
+                "Bootloader._check_static_config rejects the local-development DB default in a protected environment."
             ),
             test=(
-                "apps/backend/tests/infra/test_boot.py"
-                "::test_AC1_10_1_static_config_rejects_default_db_in_protected_env"
+                "apps/backend/tests/infra/test_boot.py::test_AC1_10_1_static_config_rejects_default_db_in_protected_env"
             ),
             priority="P0",
             status="done",
@@ -404,8 +384,7 @@ CONTRACT = PackageContract(
                 "test_AC7_19_1_pruner_requires_live_sha_exemptions)."
             ),
             test=(
-                "tests/tooling/test_ghcr_sha_retention.py"
-                "::test_AC7_19_1_retention_selects_only_stale_sha_tags"
+                "tests/tooling/test_ghcr_sha_retention.py::test_AC7_19_1_retention_selects_only_stale_sha_tags"
             ),
             priority="P0",
             status="done",
@@ -458,8 +437,7 @@ CONTRACT = PackageContract(
             id="AC-runtime.24.2",
             statement="debug.detect_environment returns LOCAL when docker ps succeeds.",
             test=(
-                "tests/tooling/test_debug.py"
-                "::test_AC16_11_2_detect_environment_local_when_docker_ok"
+                "tests/tooling/test_debug.py::test_AC16_11_2_detect_environment_local_when_docker_ok"
             ),
             priority="P1",
             status="done",
@@ -468,8 +446,7 @@ CONTRACT = PackageContract(
             id="AC-runtime.24.3",
             statement="debug.detect_environment falls back to PRODUCTION on docker failure.",
             test=(
-                "tests/tooling/test_debug.py"
-                "::test_AC16_11_3_detect_environment_fallback_production"
+                "tests/tooling/test_debug.py::test_AC16_11_3_detect_environment_fallback_production"
             ),
             priority="P1",
             status="done",
@@ -506,8 +483,7 @@ CONTRACT = PackageContract(
             id="AC-runtime.24.8",
             statement="cleanup_orphaned_dbs.extract_namespace handles worker suffixes and invalid names.",
             test=(
-                "tests/tooling/test_cleanup_orphaned_dbs.py"
-                "::test_AC16_11_8_extract_namespace_variants"
+                "tests/tooling/test_cleanup_orphaned_dbs.py::test_AC16_11_8_extract_namespace_variants"
             ),
             priority="P1",
             status="done",
@@ -516,8 +492,7 @@ CONTRACT = PackageContract(
             id="AC-runtime.24.9",
             statement="cleanup_orphaned_dbs.load_active_namespaces returns [] when the file is missing or corrupt.",
             test=(
-                "tests/tooling/test_cleanup_orphaned_dbs.py"
-                "::test_AC16_11_9_load_active_namespaces_missing"
+                "tests/tooling/test_cleanup_orphaned_dbs.py::test_AC16_11_9_load_active_namespaces_missing"
             ),
             priority="P1",
             status="done",
@@ -526,8 +501,7 @@ CONTRACT = PackageContract(
             id="AC-runtime.24.10",
             statement="cleanup_orphaned_dbs.get_container_runtime returns the first available runtime.",
             test=(
-                "tests/tooling/test_cleanup_orphaned_dbs.py"
-                "::test_AC16_11_10_get_container_runtime_prefers_podman"
+                "tests/tooling/test_cleanup_orphaned_dbs.py::test_AC16_11_10_get_container_runtime_prefers_podman"
             ),
             priority="P1",
             status="done",
@@ -536,8 +510,7 @@ CONTRACT = PackageContract(
             id="AC-runtime.24.11",
             statement="cleanup_orphaned_dbs.list_test_databases parses psql output and handles subprocess errors.",
             test=(
-                "tests/tooling/test_cleanup_orphaned_dbs.py"
-                "::test_AC16_11_11_list_test_databases_parses_rows"
+                "tests/tooling/test_cleanup_orphaned_dbs.py::test_AC16_11_11_list_test_databases_parses_rows"
             ),
             priority="P1",
             status="done",
@@ -546,8 +519,7 @@ CONTRACT = PackageContract(
             id="AC-runtime.24.12",
             statement="cleanup_orphaned_dbs.cleanup_orphaned returns an error when the container runtime is missing.",
             test=(
-                "tests/tooling/test_cleanup_orphaned_dbs.py"
-                "::test_AC16_11_12_cleanup_orphaned_runtime_missing"
+                "tests/tooling/test_cleanup_orphaned_dbs.py::test_AC16_11_12_cleanup_orphaned_runtime_missing"
             ),
             priority="P1",
             status="done",
@@ -556,8 +528,7 @@ CONTRACT = PackageContract(
             id="AC-runtime.24.13",
             statement="cleanup_orphaned_dbs.cleanup_orphaned returns success when no test databases are found.",
             test=(
-                "tests/tooling/test_cleanup_orphaned_dbs.py"
-                "::test_AC16_11_13_cleanup_orphaned_no_databases"
+                "tests/tooling/test_cleanup_orphaned_dbs.py::test_AC16_11_13_cleanup_orphaned_no_databases"
             ),
             priority="P1",
             status="done",
@@ -566,8 +537,7 @@ CONTRACT = PackageContract(
             id="AC-runtime.24.14",
             statement="cleanup_orphaned_dbs.cleanup_orphaned skips active-namespace databases.",
             test=(
-                "tests/tooling/test_cleanup_orphaned_dbs.py"
-                "::test_AC16_11_14_cleanup_orphaned_skips_active"
+                "tests/tooling/test_cleanup_orphaned_dbs.py::test_AC16_11_14_cleanup_orphaned_skips_active"
             ),
             priority="P1",
             status="done",
@@ -576,8 +546,7 @@ CONTRACT = PackageContract(
             id="AC-runtime.24.15",
             statement="cleanup_orphaned_dbs.cleanup_orphaned cleans all databases in --all mode.",
             test=(
-                "tests/tooling/test_cleanup_orphaned_dbs.py"
-                "::test_AC16_11_15_cleanup_orphaned_clean_all"
+                "tests/tooling/test_cleanup_orphaned_dbs.py::test_AC16_11_15_cleanup_orphaned_clean_all"
             ),
             priority="P1",
             status="done",
@@ -586,8 +555,7 @@ CONTRACT = PackageContract(
             id="AC-runtime.24.16",
             statement="cli.get_compose_cmd honors CONTAINER_RUNTIME, otherwise prefers podman then docker, and exits when neither is available.",
             test=(
-                "tests/tooling/test_cli_and_dev_servers.py"
-                "::test_AC16_11_16_get_compose_cmd_prefers_podman"
+                "tests/tooling/test_cli_and_dev_servers.py::test_AC16_11_16_get_compose_cmd_prefers_podman"
             ),
             priority="P1",
             status="done",
@@ -596,8 +564,7 @@ CONTRACT = PackageContract(
             id="AC-runtime.24.17",
             statement="cli.cmd_test routes frontend/e2e/perf/tests and lifecycle modes correctly.",
             test=(
-                "tests/tooling/test_cli_and_dev_servers.py"
-                "::test_AC16_11_17_cmd_test_frontend_route"
+                "tests/tooling/test_cli_and_dev_servers.py::test_AC16_11_17_cmd_test_frontend_route"
             ),
             priority="P1",
             status="done",
@@ -606,8 +573,7 @@ CONTRACT = PackageContract(
             id="AC-runtime.24.18",
             statement="cli.cmd_clean routes db/containers/default cleanup targets correctly.",
             test=(
-                "tests/tooling/test_cli_and_dev_servers.py"
-                "::test_AC16_11_18_cmd_clean_routes"
+                "tests/tooling/test_cli_and_dev_servers.py::test_AC16_11_18_cmd_clean_routes"
             ),
             priority="P1",
             status="done",
@@ -616,8 +582,7 @@ CONTRACT = PackageContract(
             id="AC-runtime.24.19",
             statement="dev_backend.check_database_ready returns false on migration subprocess errors.",
             test=(
-                "tests/tooling/test_cli_and_dev_servers.py"
-                "::test_AC16_11_19_check_database_ready_failure"
+                "tests/tooling/test_cli_and_dev_servers.py::test_AC16_11_19_check_database_ready_failure"
             ),
             priority="P1",
             status="done",
@@ -626,8 +591,7 @@ CONTRACT = PackageContract(
             id="AC-runtime.24.20",
             statement="dev_frontend.cleanup terminates the tracked process and exits cleanly.",
             test=(
-                "tests/tooling/test_cli_and_dev_servers.py"
-                "::test_AC16_11_20_dev_frontend_cleanup_terminates_and_exits"
+                "tests/tooling/test_cli_and_dev_servers.py::test_AC16_11_20_dev_frontend_cleanup_terminates_and_exits"
             ),
             priority="P1",
             status="done",
@@ -636,8 +600,7 @@ CONTRACT = PackageContract(
             id="AC-runtime.24.21",
             statement="debug.view_remote_logs_docker exits when VPS_HOST is missing.",
             test=(
-                "tests/tooling/test_debug.py"
-                "::test_AC16_11_21_view_remote_logs_docker_exits_when_vps_host_missing"
+                "tests/tooling/test_debug.py::test_AC16_11_21_view_remote_logs_docker_exits_when_vps_host_missing"
             ),
             priority="P1",
             status="done",
@@ -646,8 +609,7 @@ CONTRACT = PackageContract(
             id="AC-runtime.24.22",
             statement="debug.view_remote_logs_docker exits on invalid VPS hostnames.",
             test=(
-                "tests/tooling/test_debug.py"
-                "::test_AC16_11_22_view_remote_logs_docker_exits_on_invalid_host"
+                "tests/tooling/test_debug.py::test_AC16_11_22_view_remote_logs_docker_exits_on_invalid_host"
             ),
             priority="P1",
             status="done",
@@ -656,8 +618,7 @@ CONTRACT = PackageContract(
             id="AC-runtime.24.23",
             statement="debug.view_remote_logs_docker exits on invalid VPS usernames.",
             test=(
-                "tests/tooling/test_debug.py"
-                "::test_AC16_11_23_view_remote_logs_docker_exits_on_invalid_user"
+                "tests/tooling/test_debug.py::test_AC16_11_23_view_remote_logs_docker_exits_on_invalid_user"
             ),
             priority="P1",
             status="done",
@@ -666,8 +627,7 @@ CONTRACT = PackageContract(
             id="AC-runtime.24.24",
             statement="debug.view_local_logs builds the docker logs command with tail and follow.",
             test=(
-                "tests/tooling/test_debug.py"
-                "::test_AC16_11_24_view_local_logs_builds_docker_command"
+                "tests/tooling/test_debug.py::test_AC16_11_24_view_local_logs_builds_docker_command"
             ),
             priority="P1",
             status="done",
@@ -676,8 +636,7 @@ CONTRACT = PackageContract(
             id="AC-runtime.24.25",
             statement="debug.main routes the logs command to the observability handler when method=observability.",
             test=(
-                "tests/tooling/test_debug.py"
-                "::test_AC16_11_25_main_logs_observability_path"
+                "tests/tooling/test_debug.py::test_AC16_11_25_main_logs_observability_path"
             ),
             priority="P1",
             status="done",
@@ -700,8 +659,7 @@ CONTRACT = PackageContract(
             id="AC-runtime.24.28",
             statement="dev_backend.check_database_ready returns true when the migration subprocess succeeds.",
             test=(
-                "tests/tooling/test_cli_and_dev_servers.py"
-                "::test_AC16_11_28_check_database_ready_success"
+                "tests/tooling/test_cli_and_dev_servers.py::test_AC16_11_28_check_database_ready_success"
             ),
             priority="P1",
             status="done",
@@ -710,8 +668,7 @@ CONTRACT = PackageContract(
             id="AC-runtime.24.29",
             statement="dev_backend.cleanup terminates the tracked process and exits cleanly.",
             test=(
-                "tests/tooling/test_cli_and_dev_servers.py"
-                "::test_AC16_11_29_dev_backend_cleanup_terminates_and_exits"
+                "tests/tooling/test_cli_and_dev_servers.py::test_AC16_11_29_dev_backend_cleanup_terminates_and_exits"
             ),
             priority="P1",
             status="done",
@@ -720,8 +677,7 @@ CONTRACT = PackageContract(
             id="AC-runtime.24.30",
             statement="cleanup_orphaned_dbs.drop_database returns true in dry-run mode.",
             test=(
-                "tests/tooling/test_cleanup_orphaned_dbs.py"
-                "::test_AC16_11_30_drop_database_dry_run_returns_true"
+                "tests/tooling/test_cleanup_orphaned_dbs.py::test_AC16_11_30_drop_database_dry_run_returns_true"
             ),
             priority="P1",
             status="done",
@@ -730,10 +686,63 @@ CONTRACT = PackageContract(
             id="AC-runtime.24.31",
             statement="cleanup_orphaned_dbs.main forwards parsed flags to cleanup_orphaned.",
             test=(
-                "tests/tooling/test_cleanup_orphaned_dbs.py"
-                "::test_AC16_11_31_main_calls_cleanup_orphaned"
+                "tests/tooling/test_cleanup_orphaned_dbs.py::test_AC16_11_31_main_calls_cleanup_orphaned"
             ),
             priority="P1",
+            status="done",
+        ),
+        # ── group snapshot-anonymizer (#893, RL-DATA-2) — the data boundary of
+        # deploy(env, code, data): a prod snapshot is rewritten on a scratch
+        # copy (money scaled by one secret integer, identities pseudonymized,
+        # free-form JSON redacted) and residual-scanned before it may reach
+        # staging/rehearsal. Blob storage is never synced (RL-DATA-3). ──
+        ACRecord(
+            id="AC-runtime.snapshot-anonymizer.1",
+            statement=(
+                "Every column of the live model metadata is explicitly "
+                "classified (keep / scale / pseudonym / redact); an "
+                "unclassified column aborts the run before any data is read, "
+                "so a migration cannot silently leak a new column into a "
+                "snapshot (fail closed, RL-DATA-2)."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_snapshot_anonymizer.py"
+                "::test_AC_runtime_snapshot_anonymizer_1_every_live_column_is_classified"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.snapshot-anonymizer.2",
+            statement=(
+                "All monetary values scale by one secret integer factor — "
+                "exactly, with no rounding — so double-entry balance, "
+                "statement open+movement=close arithmetic, and "
+                "price-times-quantity derivations hold in the anonymized "
+                "copy; quantities, FX rates, and ratios are untouched."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_snapshot_anonymizer.py"
+                "::test_AC_runtime_snapshot_anonymizer_2_money_scales_and_books_still_balance"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.snapshot-anonymizer.3",
+            statement=(
+                "Identity/content-bearing strings are replaced with "
+                "deterministic HMAC pseudonyms (same original, same "
+                "pseudonym — cross-table join keys stay aligned), free-form "
+                "JSON is redacted, and the residual scan proves no original "
+                "sensitive value survives; a planted residual fails the "
+                "scan, which rolls the snapshot back."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_snapshot_anonymizer.py"
+                "::test_AC_runtime_snapshot_anonymizer_3_pseudonyms_consistent_and_no_residuals"
+            ),
+            priority="P0",
             status="done",
         ),
         # ── group real-corpus-eval (#1764 G-enforcement) — the release-evidence

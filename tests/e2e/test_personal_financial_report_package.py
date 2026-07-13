@@ -475,7 +475,7 @@ async def test_personal_financial_report_package_post_merge_journey(
         assert holdings_response.status_code == 200, (
             f"holdings check failed: {holdings_response.status_code} {holdings_response.text}"
         )
-        holdings = holdings_response.json()
+        holdings = holdings_response.json()["items"]
         assert len(holdings) >= import_payload["parsed_positions"], (
             f"missing imported holdings: {holdings}"
         )
@@ -829,8 +829,18 @@ async def test_personal_financial_report_package_post_merge_journey(
         balance = balance_payload.json()
         assert money_amount(balance["total_assets"]) == expected_assets
         assert money_amount(balance["total_liabilities"]) == expected_liabilities
+        # total_equity is the LEDGER equity accounts only (this journey books
+        # no equity entries, so it is 0.00). Manual valuations and portfolio
+        # adjustments live in net_worth_adjustment_gain_loss, and bank cash is
+        # mirrored by cumulative net_income — so the accounting equation must
+        # be asserted across ALL components. Bare equity == assets - liabilities
+        # only holds when net income and every adjustment are zero, which this
+        # journey (by construction) never satisfies.
         assert (
             money_amount(balance["total_equity"])
+            + money_amount(balance["net_income"])
+            + money_amount(balance["unrealized_fx_gain_loss"])
+            + money_amount(balance["net_worth_adjustment_gain_loss"])
             == expected_assets - expected_liabilities
         )
         assert (

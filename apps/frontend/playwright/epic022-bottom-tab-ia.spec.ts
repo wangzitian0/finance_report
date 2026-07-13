@@ -22,7 +22,7 @@ async function installMocks(page: Page) {
         } else if (path === "/api/workflow/events") {
             body = { items: [], total: 0, sessions: [] };
         } else if (path === "/api/portfolio/holdings") {
-            body = { holdings: [] };
+            body = { items: [], total: 0, warnings: [] };
         } else if (path.startsWith("/api/journal-entries")) {
             body = { items: [], total: 0 };
         } else if (path === "/api/confidence/north-star") {

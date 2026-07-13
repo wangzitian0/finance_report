@@ -132,14 +132,14 @@ async def test_AC1_AC2_pending_review_absent_from_holdings_until_explicit_import
 
     before = await client.get("/portfolio/holdings")
     assert before.status_code == 200
-    assert before.json() == [], "pending-review brokerage positions must not appear in holdings"
+    assert before.json()["items"] == [], "pending-review brokerage positions must not appear in holdings"
 
     imported = await client.post(f"/statements/{stmt.id}/brokerage/import")
     assert imported.status_code == 200, imported.text
 
     after = await client.get("/portfolio/holdings")
     assert after.status_code == 200
-    identifiers = {h.get("asset_identifier") or h.get("ticker") for h in after.json()}
+    identifiers = {h.get("asset_identifier") or h.get("ticker") for h in after.json()["items"]}
     assert _ASSET in identifiers, "explicit brokerage import should surface the positions in holdings"
 
 

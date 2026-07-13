@@ -125,6 +125,7 @@ class PortfolioService:
         user_id: UUID,
         as_of_date: date | None = None,
         include_disposed: bool = False,
+        warnings: list[dict[str, str]] | None = None,
     ) -> Sequence[HoldingResponse]:
         """
         Get portfolio holdings summary.
@@ -137,6 +138,9 @@ class PortfolioService:
             user_id: User UUID
             as_of_date: Date to evaluate positions as of (default: today)
             include_disposed: Include disposed positions in results
+            warnings: Optional accumulator; a snapshot skipped for lack of a
+                reconciled position is disclosed here instead of only logged
+                (#1796), so the caller's response never silently omits it
 
         Returns:
             List of holdings with market values and P&L calculations
@@ -150,6 +154,7 @@ class PortfolioService:
                 user_id=user_id,
                 as_of_date=as_of_date,
                 include_disposed=include_disposed,
+                warnings=warnings,
             )
 
         eval_date = await self._default_holdings_eval_date(db, user_id)
@@ -246,6 +251,7 @@ class PortfolioService:
         user_id: UUID,
         as_of_date: date,
         include_disposed: bool,
+        warnings: list[dict[str, str]] | None = None,
     ) -> Sequence[HoldingResponse]:
         """Return point-in-time holdings from immutable AtomicPosition snapshots."""
         latest_snapshot_subquery = (
@@ -289,6 +295,19 @@ class PortfolioService:
                     asset_identifier=snapshot.asset_identifier,
                     as_of_date=as_of_date.isoformat(),
                 )
+                if warnings is not None:
+                    warnings.append(
+                        {
+                            "type": "unreconciled_snapshot_skipped",
+                            "asset_identifier": snapshot.asset_identifier,
+                            "as_of_date": as_of_date.isoformat(),
+                            "message": (
+                                f"Snapshot for {snapshot.asset_identifier} has no reconciled "
+                                f"managed position and is excluded from holdings as of "
+                                f"{as_of_date.isoformat()}."
+                            ),
+                        }
+                    )
                 continue
 
             if position.account_id not in account_names:

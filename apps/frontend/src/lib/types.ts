@@ -627,6 +627,15 @@ export interface PortfolioHolding {
   provenance?: DataProvenance | null;
 }
 
+/**
+ * #1796: /portfolio/holdings responds in the repo-standard items+total wrapper;
+ * `warnings` discloses snapshots excluded from the page (e.g. no reconciled
+ * position as of the requested date) instead of omitting them silently.
+ */
+export interface HoldingsListResponse extends ListResponse<PortfolioHolding> {
+  warnings: Record<string, string>[];
+}
+
 export interface PortfolioSummaryResponse {
   total_market_value: string;
   total_cost_basis: string;

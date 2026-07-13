@@ -266,6 +266,7 @@ async def list_valuation_components(
         total_assets=result.total_assets,
         total_liabilities=result.total_liabilities,
         net_worth_delta=result.net_worth_delta,
+        warnings=result.warnings,
     )
 
 

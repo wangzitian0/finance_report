@@ -4,13 +4,16 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
 import { apiFetch } from "@/lib/api";
-import { PortfolioHolding } from "@/lib/types";
+import { HoldingsListResponse } from "@/lib/types";
 import { PriceUpdateForm } from "@/components/portfolio/PriceUpdateForm";
 
 export default function PricesPage() {
     const { data: holdings, refetch } = useQuery({
         queryKey: ["portfolio-holdings-for-prices"],
-        queryFn: () => apiFetch<PortfolioHolding[]>("/api/portfolio/holdings"),
+        queryFn: () =>
+            apiFetch<HoldingsListResponse>("/api/portfolio/holdings").then(
+                (response) => response.items,
+            ),
     });
 
     const knownTickers = holdings

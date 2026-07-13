@@ -90,23 +90,23 @@ async def portfolio_with_data(db: AsyncSession, test_user, investment_account):
 
 
 async def test_get_holdings_empty_portfolio(client: AsyncClient):
-    """AC17.6.1: GET /portfolio/holdings on empty portfolio returns 200 with empty list.
+    """AC17.6.1: GET /portfolio/holdings on empty portfolio returns 200 with empty page.
 
     Verify that the holdings endpoint gracefully handles no positions.
     """
     response = await client.get("/portfolio/holdings")
     assert response.status_code == 200
-    assert response.json() == []
+    assert response.json() == {"items": [], "total": 0, "warnings": []}
 
 
 async def test_get_holdings_with_data(client: AsyncClient, portfolio_with_data):
-    """AC17.6.2: GET /portfolio/holdings with data returns non-empty list.
+    """AC17.6.2: GET /portfolio/holdings with data returns non-empty items page.
 
     Verify that the holdings endpoint returns portfolio data when positions exist.
     """
     response = await client.get("/portfolio/holdings")
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["items"]
     assert isinstance(data, list)
     assert len(data) > 0
 
@@ -289,7 +289,7 @@ async def test_get_holdings_defaults_to_future_imported_snapshot(
     response = await client.get("/portfolio/holdings")
 
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["items"]
     assert len(data) == 1
     assert data[0]["asset_identifier"] == "FULLERTON-SGD-MMF"
     assert Decimal(data[0]["market_value"]) == Decimal("1234.00")
@@ -331,7 +331,7 @@ async def test_get_holdings_explicit_date_does_not_use_future_snapshot(
     response = await client.get(f"/portfolio/holdings?as_of_date={date.today().isoformat()}")
 
     assert response.status_code == 200
-    assert response.json() == []
+    assert response.json()["items"] == []
 
 
 async def test_get_holdings_explicit_date_uses_historical_snapshot_quantity(
@@ -382,11 +382,46 @@ async def test_get_holdings_explicit_date_uses_historical_snapshot_quantity(
     response = await client.get(f"/portfolio/holdings?as_of_date={historical_date.isoformat()}")
 
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["items"]
     assert len(data) == 1
     assert data[0]["asset_identifier"] == "VWRA"
     assert Decimal(data[0]["quantity"]) == Decimal("10.000000")
     assert Decimal(data[0]["market_value"]) == Decimal("1200.00")
+
+
+async def test_AC_portfolio_holdings_6_unreconciled_snapshot_disclosed_in_warnings(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+):
+    """AC-portfolio.holdings.6: a point-in-time snapshot with no reconciled
+    managed position is excluded from the holdings page AND disclosed in the
+    response's warnings list (#1796) — previously it was only logged, so the
+    response silently read as complete."""
+    snapshot_date = date(2025, 1, 31)
+    db.add(
+        AtomicPosition(
+            user_id=test_user.id,
+            snapshot_date=snapshot_date,
+            asset_identifier="ORPHAN-FUND",
+            broker="Test Broker",
+            quantity=Decimal("10"),
+            market_value=Decimal("1000.00"),
+            currency="SGD",
+            dedup_hash="orphan_snapshot_warning",
+            source_documents={},
+        )
+    )
+    await db.commit()
+
+    response = await client.get(f"/portfolio/holdings?as_of_date={snapshot_date.isoformat()}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["items"] == []
+    assert [w["type"] for w in body["warnings"]] == ["unreconciled_snapshot_skipped"]
+    assert body["warnings"][0]["asset_identifier"] == "ORPHAN-FUND"
+    assert body["warnings"][0]["as_of_date"] == snapshot_date.isoformat()
 
 
 async def test_get_holdings_include_disposed(client: AsyncClient, portfolio_with_data):
@@ -1104,7 +1139,10 @@ async def test_AC17_30_1_holdings_default_cap_applied(
     # No `limit` param -> the (patched) default cap of 2 must apply, not all 3.
     response = await client.get("/portfolio/holdings")
     assert response.status_code == 200
-    assert len(response.json()) == 2
+    body = response.json()
+    assert len(body["items"]) == 2
+    # total reports the full match count, not the capped page size
+    assert body["total"] == 3
 
 
 async def test_AC17_30_2_holdings_limit_offset_honored(
@@ -1146,12 +1184,12 @@ async def test_AC17_30_2_holdings_limit_offset_honored(
 
     full = await client.get("/portfolio/holdings")
     assert full.status_code == 200
-    full_assets = [row["asset_identifier"] for row in full.json()]
+    full_assets = [row["asset_identifier"] for row in full.json()["items"]]
     assert len(full_assets) == 3
 
     page = await client.get("/portfolio/holdings?limit=1&offset=1")
     assert page.status_code == 200
-    page_assets = [row["asset_identifier"] for row in page.json()]
+    page_assets = [row["asset_identifier"] for row in page.json()["items"]]
     assert page_assets == full_assets[1:2]
 
 

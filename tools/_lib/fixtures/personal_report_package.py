@@ -57,11 +57,6 @@ class ExpectedPackageOutputs:
     def total_assets(self, brokerage_value: Decimal) -> Decimal:
         return money_amount(brokerage_value + self.manual_asset_total + self.bank_cash)
 
-    def total_equity(self, brokerage_value: Decimal) -> Decimal:
-        return money_amount(
-            self.total_assets(brokerage_value) - self.manual_liability_total
-        )
-
 
 @dataclass(frozen=True)
 class RepresentativePackageFixture:

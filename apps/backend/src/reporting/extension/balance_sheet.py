@@ -67,6 +67,7 @@ async def _build_manual_valuation_lines(
     as_of_date: date,
     target_currency: str,
     include_restricted: bool = True,
+    warnings: list[FxWarning] | None = None,
 ) -> tuple[list[dict], list[dict]]:
     """Dispatch to the registered manual-valuation lines provider."""
     if _manual_valuation_lines_provider is None:
@@ -81,6 +82,7 @@ async def _build_manual_valuation_lines(
         as_of_date=as_of_date,
         target_currency=target_currency,
         include_restricted=include_restricted,
+        warnings=warnings,
     )
 
 
@@ -186,6 +188,7 @@ async def generate_balance_sheet(
             as_of_date=as_of_date,
             target_currency=target_currency,
             include_restricted=include_restricted,
+            warnings=portfolio_warnings,
         )
     except fx_gateway.FxRateError as exc:
         # pricing.build_manual_valuation_lines (registered above) raises its

@@ -167,6 +167,13 @@ class ValuationComponentsResponse(BaseModel):
     total_assets: MoneyAmount
     total_liabilities: MoneyAmount
     net_worth_delta: MoneyAmount
+    warnings: list[dict[str, str]] = Field(
+        default_factory=list,
+        description=(
+            "Components excluded because their only snapshot postdates as_of_date — "
+            "disclosed so a historical total never silently reads as complete (#1796)."
+        ),
+    )
 
 
 class RestrictedHoldingResponse(BaseModel):
