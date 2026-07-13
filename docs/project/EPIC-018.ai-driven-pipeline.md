@@ -136,7 +136,7 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 
 #### 2.1 Correction Log Model
 - [x] Create `CorrectionLog` model
-  - File: `apps/backend/src/models/correction.py` (new)
+  - File: `apps/backend/src/extraction/orm/correction.py` (new; moved from `src/models/` in #1675 D5c)
   - Fields: `id`, `user_id`, `transaction_id`, `original_category`, `corrected_category`, `original_account_id`, `corrected_account_id`, `created_at`
   - Links to: `BankStatementTransaction`, `Account`, `User`
   - Purpose: Track every user correction for few-shot learning
@@ -221,7 +221,7 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 
 #### 4.2 ReportSnapshot (Layer 4) Utilization
 - [x] Implement `ReportSnapshot` generation
-  - File: `apps/backend/src/models/layer4.py` (model exists but unused)
+  - File: `apps/backend/src/extraction/orm/layer4.py` (model exists but unused; moved from `src/models/` in #1675 D5c)
   - Generate snapshots after report computation
   - Store: report type, date range, computed data (JSONB), generated_at
   - Enable historical comparison: "This month vs last month" reports

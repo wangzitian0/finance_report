@@ -35,7 +35,7 @@ from uuid import UUID
 
 from src.extraction.base.validation import BALANCE_TOLERANCE, validate_balance
 from src.extraction.extension.deduplication import DeduplicationService
-from src.models.layer2 import TransactionDirection
+from src.extraction.orm.layer2 import TransactionDirection
 
 
 def _make_statement(opening: Decimal, ins: list[Decimal], outs: list[Decimal]) -> dict:

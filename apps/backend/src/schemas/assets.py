@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, computed_field, field_validator
 
-from src.models.layer3 import (
+from src.extraction.orm.layer3 import (
     ManualValuationBasis,
     ManualValuationComponentType,
     ManualValuationLiquidityClass,

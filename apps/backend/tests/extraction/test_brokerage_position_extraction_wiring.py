@@ -37,7 +37,7 @@ from src.extraction.extension.prompts.statement import (
 )
 from src.extraction.extension.service import ExtractionService
 from src.extraction.extension.statement_parsing import parse_statement_background, route_brokerage_for_review_if_present
-from src.models.layer2 import AtomicPosition
+from src.extraction.orm.layer2 import AtomicPosition
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
 from tests.factories import StatementSummaryFactory

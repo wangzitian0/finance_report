@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
+from src.extraction.orm.layer2 import TransactionDirection
 from src.ledger import (
     Account,
     AccountType,
@@ -18,7 +19,6 @@ from src.ledger import (
     JournalLine,
     get_or_create_processing_account,
 )
-from src.models.layer2 import TransactionDirection
 from tests.factories import UserFactory
 
 

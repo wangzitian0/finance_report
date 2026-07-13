@@ -9,7 +9,7 @@ from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.ratio import Ratio
-from src.models.layer2 import AtomicTransaction
+from src.extraction.orm.layer2 import AtomicTransaction
 from src.observability import get_logger
 from src.reconciliation.orm.reconciliation import ReconciliationMatch, ReconciliationStatus
 

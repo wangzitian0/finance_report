@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from src.models.evidence import EvidenceEdge, EvidenceNode
+from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode
 
 REPO_ROOT = Path(__file__).parents[4]
 SSOT_PATH = REPO_ROOT / "docs" / "ssot" / "evidence-lineage.md"

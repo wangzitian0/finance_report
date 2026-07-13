@@ -11,13 +11,14 @@ from sqlalchemy import select
 from src.audit.money import Money, to_money
 from src.config import settings
 from src.deps import CurrentUserId, DbSession, Pagination
-from src.models.layer3 import (
+from src.extraction.orm.layer3 import (
     ManagedPosition,
     ManualValuationComponentType,
     ManualValuationLiquidityClass,
     ManualValuationSnapshot,
     PositionStatus,
 )
+from src.ledger import Account
 from src.observability import get_logger
 from src.platform import raise_bad_request, raise_internal_error, raise_not_found
 from src.portfolio import PositionService, PositionServiceError
@@ -100,11 +101,21 @@ async def list_positions(
         db, user_id, status_filter=status_filter, limit=limit, offset=offset
     )
 
+    # ManagedPosition carries only the bare account_id FK (#1675 D4): resolve
+    # display names with one explicit user-scoped query, no ORM navigation.
+    account_names: dict[UUID, str] = {}
+    if positions:
+        rows = await db.execute(
+            select(Account.id, Account.name)
+            .where(Account.user_id == user_id)
+            .where(Account.id.in_({pos.account_id for pos in positions}))
+        )
+        account_names = dict(rows.all())
+
     items = []
     for pos in positions:
         response = ManagedPositionResponse.model_validate(pos)
-        if pos.account:
-            response.account_name = pos.account.name
+        response.account_name = account_names.get(pos.account_id)
         await _apply_reporting_valuation(db, pos, response)
         items.append(response)
 
@@ -158,7 +169,7 @@ async def list_valuation_snapshots(
     offset: int = Query(0, ge=0),
 ) -> ManualValuationSnapshotListResponse:
     """List manual valuation snapshots."""
-    from src.models.layer3 import ManualValuationComponentType
+    from src.extraction.orm.layer3 import ManualValuationComponentType
 
     parsed_component_type = None
     if component_type:
@@ -327,8 +338,10 @@ async def get_position(
         raise_not_found("Position")
 
     response = ManagedPositionResponse.model_validate(position)
-    if position.account:
-        response.account_name = position.account.name
+    # Bare FK id column, resolved explicitly (#1675 D4) — no ORM navigation.
+    response.account_name = await db.scalar(
+        select(Account.name).where(Account.user_id == user_id).where(Account.id == position.account_id)
+    )
     await _apply_reporting_valuation(db, position, response)
     return response
 

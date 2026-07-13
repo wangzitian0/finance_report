@@ -17,7 +17,7 @@ empty; discovery sites import this module explicitly instead:
 
 This is NOT a re-export facade: it publishes no symbols (``__all__`` is empty).
 Other code must import each model from its owning module
-(``from src.models.layer2 import AtomicTransaction``), never from here or the hub.
+(``from src.extraction.orm.layer2 import AtomicTransaction``), never from here or the hub.
 """
 
 from __future__ import annotations
@@ -45,12 +45,9 @@ from src.observability import ConfidenceMetricSnapshot as _ConfidenceMetricSnaps
 
 # Imported purely for the metadata-registration side effect; ordering is
 # irrelevant because SQLAlchemy resolves relationships after all are loaded.
+# (layer2-4 / evidence / correction moved to ``src.extraction.orm``, #1675
+# D5c — they register via the ``import src.extraction`` above.)
 from . import (  # noqa: F401
-    correction,
-    evidence,
-    layer2,
-    layer3,
-    layer4,
     statement_enums,
     statement_summary,
 )

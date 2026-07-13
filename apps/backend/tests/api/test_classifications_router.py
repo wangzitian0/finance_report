@@ -9,7 +9,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 
 from src.extraction.extension.transaction_classification import CategoryProposal, TransactionCategory
-from src.models.layer3 import TransactionClassification
+from src.extraction.orm.layer3 import TransactionClassification
 from tests.factories import AtomicTransactionFactory
 
 

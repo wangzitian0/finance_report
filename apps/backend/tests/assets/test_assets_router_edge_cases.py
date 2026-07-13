@@ -9,7 +9,7 @@ from decimal import Decimal
 from unittest.mock import patch
 from uuid import uuid4
 
-from src.models.layer3 import ManagedPosition, PositionStatus
+from src.extraction.orm.layer3 import ManagedPosition, PositionStatus
 from src.portfolio import PositionServiceError
 
 

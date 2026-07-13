@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, computed_field
 
-from src.models.layer3 import CostBasisMethod, PositionStatus
+from src.extraction.orm.layer3 import CostBasisMethod, PositionStatus
 from src.schemas.base import BaseResponse, ListResponse, MoneyAmount, NonNegativeMoneyAmount, Percent, Quantity
 from src.schemas.provenance import DataProvenance
 

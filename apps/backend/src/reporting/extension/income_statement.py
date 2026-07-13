@@ -312,8 +312,8 @@ async def generate_income_statement(
     # EPIC-018 Phase 4: Layer 3 classification breakdown
     classification_breakdown: list[dict[str, Any]] = []
     try:
-        from src.models.layer2 import AtomicTransaction
-        from src.models.layer3 import ClassificationStatus, TransactionClassification
+        from src.extraction.orm.layer2 import AtomicTransaction
+        from src.extraction.orm.layer3 import ClassificationStatus, TransactionClassification
 
         cls_stmt = (
             select(

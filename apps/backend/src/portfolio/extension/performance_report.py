@@ -22,8 +22,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.money import Money, to_money
 from src.audit.ratio import Ratio
-from src.models.layer2 import AtomicPosition
-from src.models.layer3 import ManagedPosition, PositionStatus
+from src.extraction.orm.layer2 import AtomicPosition
+from src.extraction.orm.layer3 import ManagedPosition, PositionStatus
 from src.portfolio.base.errors import (
     AssetNotFoundError,
     InsufficientDataError,

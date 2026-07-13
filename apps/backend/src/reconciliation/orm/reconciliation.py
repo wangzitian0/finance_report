@@ -1,18 +1,14 @@
 """Reconciliation match models.
 
-Moved from ``src/models/reconciliation.py`` (#1675 D5). Ledger's
-``journal_entries`` is referenced by bare ForeignKey **column** only — the
-former ``ReconciliationMatchJournalEntry.journal_entry`` ``relationship()``
-was unused and is removed per the 2026-07-11 ruling (cross-domain
-object-graph navigation is the coupling; the FK column is DB-level
-integrity). The ``atomic_transaction`` relationship stays for now: its
-target (``layer2.py``) is still in the unregistered ``src/models/``
-remainder — de-navigating it is D4's job (the parallel D4+D5c PR), where
-``AtomicTransaction`` moves into ``extraction``.
+Moved from ``src/models/reconciliation.py`` (#1675 D5). Both ``AtomicTransaction``
+(extraction) and ``journal_entries`` (ledger) are referenced by bare ForeignKey
+**column** only, never ``relationship()`` — cross-domain object-graph
+navigation is the coupling; the FK column is DB-level integrity (2026-07-11
+ruling). Consumers resolve ``atomic_txn_id`` via an explicit query (#1675 D4,
+now that ``AtomicTransaction`` has moved into ``extraction/orm/layer2.py``).
 """
 
 from enum import Enum
-from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import Enum as SQLEnum, ForeignKey, Index, Integer, String
@@ -21,9 +17,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
 from src.models.base import TimestampMixin, UUIDMixin
-
-if TYPE_CHECKING:
-    from src.models.layer2 import AtomicTransaction
 
 
 class ReconciliationStatus(str, Enum):
@@ -65,11 +58,8 @@ class ReconciliationMatch(Base, UUIDMixin, TimestampMixin):
         ForeignKey("reconciliation_matches.id"),
         nullable=True,
     )
-
-    atomic_transaction: Mapped["AtomicTransaction"] = relationship(
-        "AtomicTransaction",
-        foreign_keys=[atomic_txn_id],
-    )
+    # No relationship() to extraction's AtomicTransaction: resolve
+    # atomic_txn_id by an explicit query (#1675 D4 ruling).
 
 
 class ReconciliationMatchJournalEntry(Base, TimestampMixin):

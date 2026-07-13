@@ -20,8 +20,8 @@ from src.advisor import generate_annualized_income_schedule
 from src.composition import observed_fx_pairs
 from src.config import settings
 from src.deps import CurrentUserId, DbSession, Pagination
+from src.extraction.orm.layer4 import ReportSnapshot, ReportType as SnapshotReportType
 from src.ledger import Account, AccountType
-from src.models.layer4 import ReportSnapshot, ReportType as SnapshotReportType
 from src.observability import get_logger, track as _track_analytics
 from src.platform import raise_bad_request, raise_not_found
 from src.portfolio import active_stock_symbols, build_investment_performance_report_schedule
@@ -975,7 +975,7 @@ async def list_report_snapshots(
     """
     from sqlalchemy import select as sa_select
 
-    from src.models.layer4 import ReportSnapshot
+    from src.extraction.orm.layer4 import ReportSnapshot
 
     stmt = (
         sa_select(ReportSnapshot)

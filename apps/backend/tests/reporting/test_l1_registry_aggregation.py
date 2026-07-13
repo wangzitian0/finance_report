@@ -8,10 +8,8 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
-from src.identity import User
-from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
-from src.models.layer2 import AssetType, AtomicPosition
-from src.models.layer3 import (
+from src.extraction.orm.layer2 import AssetType, AtomicPosition
+from src.extraction.orm.layer3 import (
     CostBasisMethod,
     ManagedPosition,
     ManualValuationComponentType,
@@ -19,6 +17,8 @@ from src.models.layer3 import (
     ManualValuationSnapshot,
     PositionStatus,
 )
+from src.identity import User
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.reporting.base.l1_registry import (
     get_framework_ordered_lines,
     get_registered_line,

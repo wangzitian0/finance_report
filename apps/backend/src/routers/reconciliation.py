@@ -12,8 +12,8 @@ from sqlalchemy.orm import selectinload
 from src.audit import STATEMENT_SOURCE_TYPES
 from src.deps import CurrentUserId, DbSession, Pagination
 from src.extraction import create_entry_from_txn
+from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import Direction, JournalEntry
-from src.models.layer2 import AtomicTransaction
 from src.models.statement_summary import StatementSummary
 from src.observability import get_logger, log_financial_mutation
 from src.platform import get_owned_or_404, raise_bad_request, raise_not_found
@@ -155,6 +155,20 @@ async def _load_entry_summaries(
     return {str(entry.id): _build_entry_summary(entry) for entry in result.scalars().all()}
 
 
+async def _load_transactions(
+    db: AsyncSession,
+    matches: list[ReconciliationMatch],
+) -> dict[UUID, AtomicTransaction]:
+    """Batch-fetch each match's ``AtomicTransaction`` by id (#1675 D4: no
+    relationship() eager-load across the reconciliation -> extraction
+    boundary)."""
+    txn_ids = {match.atomic_txn_id for match in matches}
+    if not txn_ids:
+        return {}
+    result = await db.execute(select(AtomicTransaction).where(AtomicTransaction.id.in_(txn_ids)))
+    return {txn.id: txn for txn in result.scalars().all()}
+
+
 # Synchronous 200: matching runs inline and the response carries the completed run
 # result (matches_created/auto_accepted/pending_review/unmatched), so this is a
 # finished operation, not a 202 background job (cf. #1099 AC-platform.29.1).
@@ -262,7 +276,6 @@ async def list_matches(
         select(ReconciliationMatch)
         .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
         .where(AtomicTransaction.user_id == user_id)
-        .options(selectinload(ReconciliationMatch.atomic_transaction))
     )
     if status_filter:
         query = query.where(ReconciliationMatch.status == ReconciliationStatus(status_filter.value))
@@ -271,10 +284,11 @@ async def list_matches(
     result = await db.execute(query)
     matches = result.scalars().all()
     entry_summaries = await _load_entry_summaries(db, matches, user_id)
+    txn_map = await _load_transactions(db, matches)
     items = [
         _build_match_response(
             match,
-            transaction=match.atomic_transaction,
+            transaction=txn_map.get(match.atomic_txn_id),
             entry_summaries=entry_summaries,
         )
         for match in matches
@@ -302,10 +316,11 @@ async def pending_review_queue(
 ) -> ReconciliationMatchListResponse:
     matches = await get_pending_items(db, limit=limit, offset=offset, user_id=user_id)
     entry_summaries = await _load_entry_summaries(db, matches, user_id)
+    txn_map = await _load_transactions(db, matches)
     items = [
         _build_match_response(
             match,
-            transaction=match.atomic_transaction,
+            transaction=txn_map.get(match.atomic_txn_id),
             entry_summaries=entry_summaries,
         )
         for match in matches
@@ -337,7 +352,6 @@ async def accept_match(
         if "not found" in str(exc).lower():
             raise_not_found("Match", cause=exc)
         raise_bad_request(str(exc), cause=exc)
-    await db.refresh(match, ["atomic_transaction"])
     log_financial_mutation(
         logger,
         "reconciliation.match.accepted",
@@ -348,9 +362,10 @@ async def accept_match(
         status=match.status.value,
     )
     entry_summaries = await _load_entry_summaries(db, [match], user_id)
+    txn = await db.get(AtomicTransaction, match.atomic_txn_id)
     return _build_match_response(
         match,
-        transaction=match.atomic_transaction,
+        transaction=txn,
         entry_summaries=entry_summaries,
     )
 
@@ -369,11 +384,11 @@ async def reject_match(
         if "not found" in str(exc).lower():
             raise_not_found("Match", cause=exc)
         raise_bad_request(str(exc), cause=exc)
-    await db.refresh(match, ["atomic_transaction"])
     entry_summaries = await _load_entry_summaries(db, [match], user_id)
+    txn = await db.get(AtomicTransaction, match.atomic_txn_id)
     return _build_match_response(
         match,
-        transaction=match.atomic_transaction,
+        transaction=txn,
         entry_summaries=entry_summaries,
     )
 
@@ -401,17 +416,14 @@ async def batch_accept(
         return ReconciliationMatchListResponse(items=[], total=0)
 
     match_ids = [match.id for match in matches]
-    result = await db.execute(
-        select(ReconciliationMatch)
-        .where(ReconciliationMatch.id.in_(match_ids))
-        .options(selectinload(ReconciliationMatch.atomic_transaction))
-    )
+    result = await db.execute(select(ReconciliationMatch).where(ReconciliationMatch.id.in_(match_ids)))
     loaded_matches = result.scalars().all()
     entry_summaries = await _load_entry_summaries(db, loaded_matches, user_id)
+    txn_map = await _load_transactions(db, loaded_matches)
     items = [
         _build_match_response(
             match,
-            transaction=match.atomic_transaction,
+            transaction=txn_map.get(match.atomic_txn_id),
             entry_summaries=entry_summaries,
         )
         for match in loaded_matches

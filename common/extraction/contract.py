@@ -24,8 +24,17 @@ extracted fact to its source document.
 * ``UploadedDocument`` moved from the unregistered ``src/models/`` into
   ``orm/layer1.py`` (#1675 D3); its ``platform``/``runtime`` readers now go
   through the published ``extension/uploaded_document_reads.py`` lookups
-  instead of importing the ORM class. ``AtomicTransaction`` / ``AtomicPosition``
-  stay unregistered until their own cross-domain FKs are cut (D4).
+  instead of importing the ORM class. The rest of the fact family followed in
+  D4+D5c (``orm/layer2-4.py``, ``orm/evidence.py``, ``orm/correction.py``)
+  after every cross-domain ``relationship()`` (to ``Account``/``User``) was
+  replaced by bare FK id columns + explicit reads; downstream domains import
+  the published entity names. ``portfolio`` left ``depends_on`` in the same
+  step: the one extraction→portfolio call (position reconciliation after a
+  brokerage import) is inverted through ``register_position_reconciler``,
+  wired by ``main.py``, so portfolio can import this package's entities
+  without a cycle. ``StatementSummary``/statement enums stay in the
+  unregistered ``src/models/`` until their ``platform`` (L1-infra, upward) and
+  ``ledger``/``identity`` (cycle) readers are inverted.
 * ``confidence_metric`` / ``confidence_tier`` (journal-confidence metric
   snapshots) are NOT this package's — they read ledger's aggregates and stay
   in ``services/`` pending the reporting/observability re-home.
@@ -64,11 +73,13 @@ CONTRACT = PackageContract(
         "llm",
         "observability",
         "platform",
-        "portfolio",
-        # FX rate lookup for review-queue journal promotion goes through
-        # pricing's published surface (#1610 P2 retired services/fx.py);
-        # sideways acyclic edge to the L3 leaf.
-        "pricing",
+        # ``portfolio`` was dropped (#1675 D5c): the former direct
+        # ``PositionService`` import is now ``register_position_reconciler``,
+        # an inverted port wired by main.py. ``pricing`` was dropped the same
+        # way: the former FX-rate-lookup import (review-queue journal
+        # promotion, #1610 P2's pricing.get_exchange_rate) is now
+        # ``register_fx_rate_provider``, also wired by main.py — extraction
+        # no longer imports either package directly.
         "runtime",
     ],
     roles=["base", "extension", "data"],
@@ -77,12 +88,22 @@ CONTRACT = PackageContract(
         # base/validation.py; its functions are published via the interface.
         # (Not declared as units: KIND_LAYER has no pure-function kind homed in
         # base — the base-layer-pure invariant is the guard instead.)
-        # ── aggregates/entities: taxonomy-only (ORM in unregistered models/,
-        # FK surgery is Stage-4; see docstring) ──
+        # ── aggregates/entities: taxonomy-only (module unset — the gate skips
+        # placement checks; the mapped classes live in orm/, #1675 D5c, except
+        # StatementSummary which stays in the unregistered models/ until its
+        # platform/ledger/identity readers are inverted; see docstring) ──
         Unit(name="StatementSummary", kind=Kind.AGGREGATE_ROOT),
         Unit(name="UploadedDocument", kind=Kind.ENTITY),
         Unit(name="AtomicTransaction", kind=Kind.ENTITY),
         Unit(name="AtomicPosition", kind=Kind.ENTITY),
+        Unit(name="ClassificationRule", kind=Kind.ENTITY),
+        Unit(name="TransactionClassification", kind=Kind.ENTITY),
+        Unit(name="ManagedPosition", kind=Kind.ENTITY),
+        Unit(name="ManualValuationSnapshot", kind=Kind.ENTITY),
+        Unit(name="ReportSnapshot", kind=Kind.ENTITY),
+        Unit(name="CorrectionLog", kind=Kind.ENTITY),
+        Unit(name="EvidenceNode", kind=Kind.ENTITY),
+        Unit(name="EvidenceEdge", kind=Kind.ENTITY),
         # ── extension: the parsing pipeline + adapters ──
         Unit(
             name="ExtractionService",
@@ -131,20 +152,38 @@ CONTRACT = PackageContract(
     ],
     implementations={"be": "apps/backend/src/extraction", "fe": None},
     interface=[
+        "AssetType",
+        "AtomicPosition",
+        "AtomicTransaction",
         "BrokeragePositionImportService",
+        "ClassificationRule",
+        "ClassificationStatus",
         "CorrectionLoopService",
+        "CostBasisMethod",
         "CurrencyUnresolvedError",
         "DEFAULT_MAX_DEPTH",
         "DeduplicationService",
         "DocumentStatus",
         "DocumentType",
+        "EvidenceEdge",
         "EvidenceGraphIntegrationService",
         "EvidenceGraphMaterializationService",
         "EvidenceLineageService",
+        "EvidenceNode",
         "EvidenceTraversalStep",
         "ExtractionError",
         "ExtractionService",
+        "ManagedPosition",
+        "ManualValuationBasis",
+        "ManualValuationComponentType",
+        "ManualValuationLiquidityClass",
+        "ManualValuationSnapshot",
+        "PositionStatus",
+        "ReportSnapshot",
+        "ReportType",
         "SYSTEM_PROMPT",
+        "TransactionClassification",
+        "TransactionDirection",
         "UploadedDocument",
         "_brokerage_import_not_ready_reason",
         "_brokerage_payload_from_persisted_extraction",
@@ -170,6 +209,8 @@ CONTRACT = PackageContract(
         "parse_brokerage_positions",
         "pending_stage1_review_filter",
         "record_correction",
+        "register_fx_rate_provider",
+        "register_position_reconciler",
         "reject_statement_workflow",
         "resolve_custody_account_id",
         "resolve_ingest_currency",

@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 from uuid import UUID
 
+from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import JournalEntry
-from src.models.layer2 import AtomicTransaction
-from src.reconciliation.orm.reconciliation import ReconciliationMatch
+
+if TYPE_CHECKING:
+    # Not `from src.reconciliation import ReconciliationMatch`: this module is
+    # reached from the package root's own init (base -> base.repository), so
+    # importing back from the root at runtime would be circular. Postponed
+    # annotations (above) make this annotation-only import safe to defer.
+    from src.reconciliation.orm.reconciliation import ReconciliationMatch
 
 
 class ReconciliationRepository(Protocol):

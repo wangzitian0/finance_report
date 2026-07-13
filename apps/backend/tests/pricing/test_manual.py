@@ -14,7 +14,7 @@ import sqlalchemy as sa
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.layer3 import ManualValuationSnapshot
+from src.extraction.orm.layer3 import ManualValuationSnapshot
 from src.platform import Outbox
 from src.pricing.base.events import EVENT_TYPE
 from src.pricing.base.observation import Authority, ObservationSource

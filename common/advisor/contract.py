@@ -100,6 +100,12 @@ CONTRACT = PackageContract(
     # physically folds it (see the module docstring).
     depends_on=[
         "audit",
+        # extraction: the annualized-income schedule reads the published fact
+        # entities (ManualValuationComponentType/ManualValuationLiquidityClass
+        # /ManualValuationSnapshot, #1675 D5c) by id — surfaced as a real edge
+        # once extraction.orm.layer3 replaced src.models.layer3, mid-flight
+        # of this PR.
+        "extraction",
         "ledger",
         "llm",
         "observability",

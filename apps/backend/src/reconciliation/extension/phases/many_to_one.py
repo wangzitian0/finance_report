@@ -7,8 +7,8 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import JournalEntry, JournalEntryStatus
-from src.models.layer2 import AtomicTransaction
 from src.reconciliation.orm.reconciliation import ReconciliationMatch, ReconciliationStatus
 
 

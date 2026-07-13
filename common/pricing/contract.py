@@ -78,7 +78,7 @@ CONTRACT = PackageContract(
     # #1663 / #1710): src.config is a bare top-level module, not a registered
     # package, so it's never governed by depends_on — no other package
     # declares it either despite importing it directly.
-    depends_on=["audit", "platform", "observability"],
+    depends_on=["audit", "extraction", "platform", "observability"],
     roles=["base", "extension", "data"],
     units=[
         # ── base: the pure observation + subject-identity + policy language ──

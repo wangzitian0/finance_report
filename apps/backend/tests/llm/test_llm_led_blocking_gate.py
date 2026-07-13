@@ -27,7 +27,7 @@ from src.extraction.extension._llm_led_gate import (
     evaluate_llm_led_extraction_gate,
 )
 from src.extraction.extension.service import ExtractionService
-from src.models.layer2 import AtomicTransaction
+from src.extraction.orm.layer2 import AtomicTransaction
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
 

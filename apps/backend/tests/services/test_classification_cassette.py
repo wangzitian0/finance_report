@@ -27,7 +27,7 @@ _POLICY = POLICY_VERSIONS[0]
 
 
 def _fixed_transactions():
-    from src.models.layer2 import TransactionDirection
+    from src.extraction.orm.layer2 import TransactionDirection
 
     txns = []
     for desc, direction in _FIXED_TXNS:

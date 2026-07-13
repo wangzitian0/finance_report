@@ -17,7 +17,7 @@ from src.extraction.extension.correction_loop import (
     build_corpus_from_corrections,
     replay_low_confidence_reduction,
 )
-from src.models.correction import CorrectionLog
+from src.extraction.orm.correction import CorrectionLog
 
 
 def _correction(*, description=None, original=None, corrected="Office Supplies") -> CorrectionLog:

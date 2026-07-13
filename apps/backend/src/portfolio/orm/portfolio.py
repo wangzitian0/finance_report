@@ -20,8 +20,8 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
+from src.extraction.orm.layer3 import CostBasisMethod
 from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
-from src.models.layer3 import CostBasisMethod
 
 
 class InvestmentTransactionType(str, Enum):

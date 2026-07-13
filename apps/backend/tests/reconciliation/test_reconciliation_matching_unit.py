@@ -12,9 +12,9 @@ from sqlalchemy.orm import selectinload
 
 from src.audit import JournalEntrySourceType
 from src.extraction import DocumentType, UploadedDocument
+from src.extraction.orm.layer2 import AtomicTransaction
 from src.identity import User
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
-from src.models.layer2 import AtomicTransaction
 from src.models.statement_summary import StatementSummary
 from src.reconciliation import (
     DEFAULT_CONFIG,
@@ -1765,7 +1765,7 @@ async def test_execute_matching_layer2_atomic_txn(db: AsyncSession):
     """L2 read path: execute_matching reads pending AtomicTransactions and keys the
     match on atomic_txn_id. The enable_4_layer_read flag was removed when the read
     cutover completed (EPIC-011 Stage 3); this path is now unconditional."""
-    from src.models.layer2 import AtomicTransaction
+    from src.extraction.orm.layer2 import AtomicTransaction
 
     user_id = uuid4()
     user = User(id=user_id, email=f"layer4-{uuid4()}@example.com", hashed_password="hashed")
@@ -1839,7 +1839,7 @@ async def test_execute_matching_layer2_atomic_txn(db: AsyncSession):
 async def test_execute_matching_layer2_no_candidates(db: AsyncSession):
     """L2 read path: a pending AtomicTransaction with no candidate entries yields no
     matches (match status lives on ReconciliationMatch, not the txn)."""
-    from src.models.layer2 import AtomicTransaction
+    from src.extraction.orm.layer2 import AtomicTransaction
 
     user_id = uuid4()
     user = User(id=user_id, email=f"layer4-nocand-{uuid4()}@example.com", hashed_password="hashed")
@@ -1868,7 +1868,7 @@ async def test_execute_matching_layer2_no_candidates(db: AsyncSession):
 async def test_execute_matching_layer2_pending_review(db: AsyncSession):
     """L2 read path: a medium-confidence AtomicTransaction match lands in
     PENDING_REVIEW and is keyed on atomic_txn_id."""
-    from src.models.layer2 import AtomicTransaction
+    from src.extraction.orm.layer2 import AtomicTransaction
 
     user_id = uuid4()
     user = User(id=user_id, email=f"layer4-pending-{uuid4()}@example.com", hashed_password="hashed")
@@ -2100,7 +2100,7 @@ async def test_calculate_match_score_no_history_override(db: AsyncSession):
 
 async def test_get_pending_layer2_transactions_with_limit(db: AsyncSession):
     """Cover lines 568-581: _get_pending_layer2_transactions with limit."""
-    from src.models.layer2 import AtomicTransaction
+    from src.extraction.orm.layer2 import AtomicTransaction
     from src.reconciliation import _get_pending_layer2_transactions
 
     user_id = uuid4()
@@ -2134,7 +2134,7 @@ async def test_get_pending_layer2_transactions_with_limit(db: AsyncSession):
 
 async def test_get_existing_active_match_layer2(db: AsyncSession):
     """Cover _get_existing_active_match returning None then the active match."""
-    from src.models.layer2 import AtomicTransaction
+    from src.extraction.orm.layer2 import AtomicTransaction
     from src.reconciliation import _get_existing_active_match
 
     user_id = uuid4()
@@ -2176,7 +2176,7 @@ async def test_get_existing_active_match_layer2(db: AsyncSession):
 async def test_AC10_10_4_reconciliation_match_outcome_metric_emitted(db: AsyncSession, monkeypatch):
     """AC-observability.10.4: execute_matching emits one business metric per resolved match,
     labelled by the match's final disposition (driven through the real path)."""
-    from src.models.layer2 import AtomicTransaction
+    from src.extraction.orm.layer2 import AtomicTransaction
 
     outcomes: list[str] = []
     monkeypatch.setattr(

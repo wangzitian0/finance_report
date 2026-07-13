@@ -8,10 +8,8 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.identity import User
-from src.ledger import Account, AccountType
-from src.models.layer2 import AssetType, AtomicPosition
-from src.models.layer3 import (
+from src.extraction.orm.layer2 import AssetType, AtomicPosition
+from src.extraction.orm.layer3 import (
     CostBasisMethod,
     ManagedPosition,
     ManualValuationComponentType,
@@ -19,6 +17,8 @@ from src.models.layer3 import (
     ManualValuationSnapshot,
     PositionStatus,
 )
+from src.identity import User
+from src.ledger import Account, AccountType
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
 from src.portfolio import DividendIncome

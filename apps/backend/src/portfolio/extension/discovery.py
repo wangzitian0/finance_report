@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import normalize_currency_code
 from src.audit.quantity import Quantity
-from src.models.layer3 import ManagedPosition, PositionStatus
+from src.extraction.orm.layer3 import ManagedPosition, PositionStatus
 from src.pricing import MARKET_DATA_QUANTITY_UNIT
 
 

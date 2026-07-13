@@ -13,7 +13,7 @@ from src.database import Base
 from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 if TYPE_CHECKING:
-    from src.models.layer3 import ClassificationRule
+    from src.extraction.orm.layer3 import ClassificationRule
 
 
 class ReportType(str, Enum):

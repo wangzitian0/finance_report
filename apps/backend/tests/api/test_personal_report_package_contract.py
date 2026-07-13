@@ -15,14 +15,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
 from src.deps import PaginationParams
-from src.extraction import DocumentType, UploadedDocument
+from src.extraction import DocumentType, ReportSnapshot, UploadedDocument
 from src.extraction.extension.deduplication import dual_write_layer2
 from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
 from src.extraction.extension.review_queue import create_entry_from_txn
-from src.identity import User
-from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
-from src.models.layer2 import AssetType, AtomicPosition, AtomicTransaction, TransactionDirection
-from src.models.layer3 import (
+from src.extraction.orm.layer2 import AssetType, AtomicPosition, AtomicTransaction, TransactionDirection
+from src.extraction.orm.layer3 import (
     ClassificationRule,
     CostBasisMethod,
     ManagedPosition,
@@ -33,7 +31,9 @@ from src.models.layer3 import (
     PositionStatus,
     RuleType,
 )
-from src.models.layer4 import ReportSnapshot, ReportType
+from src.extraction.orm.layer4 import ReportType
+from src.identity import User
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
 from src.portfolio import DividendIncome

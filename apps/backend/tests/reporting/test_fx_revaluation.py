@@ -448,7 +448,12 @@ class TestCalculateUnrealizedFxForAccount:
         with pytest.raises(RevaluationError, match="Missing FX rate for EUR/SGD"):
             await calculate_unrealized_fx_for_account(db, eur_account, date(2025, 1, 31), "SGD")
 
-    @patch("src.ledger.extension.fx_revaluation.get_exchange_rate")
+    # Patches the injected port, not a module-level get_exchange_rate: #1675
+    # D5c inverted fx_revaluation.py's fx lookup into
+    # register_fx_revaluation_provider() (a real ledger -> pricing ->
+    # extraction -> ledger cycle otherwise), so conftest.py's module-top
+    # registration captures the real get_exchange_rate once at import time.
+    @patch("src.ledger.extension.fx_revaluation._get_exchange_rate")
     async def test_handles_fx_rate_error_exception(
         self, mock_get_rate, db: AsyncSession, test_user_id, usd_asset_account, sgd_asset_account
     ):

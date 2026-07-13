@@ -11,7 +11,7 @@ from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.layer3 import ManualValuationBasis, ManualValuationComponentType
+from src.extraction.orm.layer3 import ManualValuationBasis, ManualValuationComponentType
 from src.pricing import ValuationService
 from src.reporting.extension.report_readiness import get_personal_report_package_readiness
 from src.schemas.reporting import PersonalReportingFrameworkId

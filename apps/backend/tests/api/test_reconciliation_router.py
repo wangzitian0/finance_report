@@ -30,9 +30,9 @@ from sqlalchemy import select
 
 from src.audit import STATEMENT_SOURCE_TYPES
 from src.extraction import DocumentType, UploadedDocument
+from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.identity import User
 from src.ledger import Account, AccountType, JournalEntry
-from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus

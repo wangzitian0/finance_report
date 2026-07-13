@@ -23,13 +23,8 @@ from src.extraction.extension.transaction_classification import (
     classify_transactions,
     policy_for,
 )
+from src.extraction.orm.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
 from src.ledger import Account, AccountType
-from src.models.layer3 import (
-    ClassificationRule,
-    ClassificationStatus,
-    RuleType,
-    TransactionClassification,
-)
 from tests.factories import AtomicTransactionFactory
 
 MODULE_PATH = Path("src/extraction/extension/transaction_classification.py")

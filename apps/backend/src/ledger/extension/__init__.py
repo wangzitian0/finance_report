@@ -15,7 +15,11 @@ from src.ledger.extension.accounting import (
     post_opening_balance_entry,
 )
 from src.ledger.extension.currencies import used_currencies
-from src.ledger.extension.fx_revaluation import RevaluationError, calculate_unrealized_fx_gains
+from src.ledger.extension.fx_revaluation import (
+    RevaluationError,
+    calculate_unrealized_fx_gains,
+    register_fx_revaluation_provider,
+)
 from src.ledger.extension.post import post_entry
 from src.ledger.extension.processing import (
     create_transfer_in_entry,
@@ -52,6 +56,7 @@ __all__ = [
     "post_entry",
     "post_journal_entry",
     "post_opening_balance_entry",
+    "register_fx_revaluation_provider",
     "used_currencies",
     "validate_line_account_ownership",
     "void_journal_entry",

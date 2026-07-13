@@ -10,7 +10,7 @@ layer; behavior unchanged.
 from __future__ import annotations
 
 from src.extraction.orm.layer1 import UploadedDocument
-from src.models.layer2 import AtomicTransaction
+from src.extraction.orm.layer2 import AtomicTransaction
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
 

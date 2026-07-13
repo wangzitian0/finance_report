@@ -23,7 +23,8 @@ from sqlalchemy.pool import NullPool
 # side effect; issue #1461).
 import src.models._registry  # noqa: F401
 from src.config import settings
-from src.extraction import register_transfer_exclusions_provider
+from src.extraction import register_fx_rate_provider, register_transfer_exclusions_provider
+from src.ledger import register_fx_revaluation_provider
 from src.observability import get_logger
 from src.pricing import (
     PrefetchedFxRates,
@@ -53,6 +54,12 @@ register_fx_gateway(
     fx_rate_error=PricingError,
 )
 register_manual_valuation_lines_provider(build_manual_valuation_lines)
+
+# Wire extraction's and ledger's FX-rate ports (#1675 D5c), same reason as
+# the reporting gate above: pricing now depends on extraction, so a direct
+# extraction/ledger -> pricing import would cycle back through extraction.
+register_fx_rate_provider(get_exchange_rate, fx_rate_error=PricingError)
+register_fx_revaluation_provider(get_exchange_rate, fx_rate_error=PricingError)
 
 # Wire extraction's transfer-exclusions port to reconciliation's published
 # read, mirroring the app composition root (src/main.py, #1675 D5): tests

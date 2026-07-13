@@ -42,7 +42,10 @@ CONTRACT = PackageContract(
     depends_on=[
         "audit",
         # extraction: the traceability appendix reads the evidence graph via
-        # the published EvidenceLineageService (extension/report_traceability.py).
+        # the published EvidenceLineageService (extension/report_traceability.py),
+        # and report composition reads the published fact entities
+        # (AtomicTransaction/TransactionClassification/ManualValuationSnapshot,
+        # #1675 D5c) by id — extraction owns the fact family's ORM.
         "extraction",
         "ledger",
         "observability",

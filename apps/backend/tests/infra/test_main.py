@@ -209,7 +209,7 @@ class TestModels:
 
     def test_atomic_transaction_model_table_name(self):
         """Test AtomicTransaction model has correct table name."""
-        from src.models.layer2 import AtomicTransaction
+        from src.extraction.orm.layer2 import AtomicTransaction
 
         assert AtomicTransaction.__tablename__ == "atomic_transactions"
 
@@ -236,7 +236,7 @@ class TestModels:
 
     def test_atomic_transaction_columns(self):
         """AC-extraction.406.8: AtomicTransaction exposes dedup, source, and balance_after columns."""
-        from src.models.layer2 import AtomicTransaction
+        from src.extraction.orm.layer2 import AtomicTransaction
 
         assert hasattr(AtomicTransaction, "dedup_hash")
         assert hasattr(AtomicTransaction, "source_documents")

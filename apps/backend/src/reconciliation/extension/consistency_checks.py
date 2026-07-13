@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.layer2 import AtomicTransaction, TransactionDirection
+from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.reconciliation.extension.anomaly import detect_anomalies
 from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 

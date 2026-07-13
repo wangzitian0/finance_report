@@ -8,7 +8,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.dialects import postgresql
 
-from src.models.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass
+from src.extraction.orm.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass
 from src.pricing import ValuationComponentItem, ValuationService, ValuationServiceError
 from src.schemas.assets import ManualValuationSnapshotCreate, ManualValuationSnapshotUpdate
 from src.schemas.provenance import DataProvenance

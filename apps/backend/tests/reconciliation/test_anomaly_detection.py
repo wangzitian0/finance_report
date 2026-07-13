@@ -10,7 +10,7 @@ and that the detection service handles edge cases appropriately.
 from datetime import date, timedelta
 from decimal import Decimal
 
-from src.models.layer2 import TransactionDirection
+from src.extraction.orm.layer2 import TransactionDirection
 from src.reconciliation.extension.anomaly import detect_anomalies
 from tests.factories import AtomicTransactionFactory
 

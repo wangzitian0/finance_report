@@ -33,10 +33,13 @@ from src.extraction import (
     get_known_storage_paths,
     get_uploaded_document_filename,
     get_uploaded_document_filenames,
+    register_fx_rate_provider,
+    register_position_reconciler,
     register_transfer_exclusions_provider,
     run_parsing_supervisor,
 )
 from src.identity import auth_router, users_router
+from src.ledger import register_fx_revaluation_provider
 from src.observability import (
     configure_database_pool_metrics,
     configure_logging,
@@ -60,6 +63,7 @@ from src.platform import (
     register_uploaded_document_readers,
 )
 from src.platform.orm.ping_state import PingState
+from src.portfolio import PositionService
 from src.pricing import (
     PrefetchedFxRates,
     PricingError,
@@ -150,6 +154,19 @@ register_fx_gateway(
 )
 register_manual_valuation_lines_provider(build_manual_valuation_lines)
 
+# Wire extraction's FX-rate port (#1675 D5c): extraction's review-queue
+# journal-entry creation needs a currency-conversion rate, but a module-level
+# `from src.pricing import ...` there would cycle (pricing's own
+# repository/manual-valuation reads import extraction's published ORM
+# entities, ManualValuationSnapshot et al.) — same inversion as the reporting
+# gate above.
+register_fx_rate_provider(get_exchange_rate, fx_rate_error=PricingError)
+
+# Wire ledger's FX-revaluation port (#1675 D5c): same inversion, same reason
+# — pricing now depends on extraction, so a direct ledger -> pricing import
+# would cycle (ledger -> pricing -> extraction -> ledger).
+register_fx_revaluation_provider(get_exchange_rate, fx_rate_error=PricingError)
+
 # Wire platform's and runtime's UploadedDocument-read ports to the real
 # extraction-domain lookups (#1675 D3): same inversion, same reason — L1
 # infra must not import an L3-domain package.
@@ -166,6 +183,13 @@ register_known_storage_paths_provider(get_known_storage_paths)
 # (reconciliation depends_on extraction — the reverse edge would be a cycle),
 # so the composition root closes the loop here, same shape as the ports above.
 register_transfer_exclusions_provider(accepted_transfer_txn_ids)
+
+# Wire extraction's managed-position reconciler port to the real portfolio
+# service (#1675 D5c): extraction and portfolio are same-layer domains, but
+# portfolio now imports extraction's published ORM entities, so extraction's
+# former direct PositionService import would close a dependency cycle. The
+# composition root wires the callable instead.
+register_position_reconciler(PositionService().reconcile_positions)
 
 # Wire the domain-event subscribers (#1642): the composition root owns the
 # SubscriberRegistry and the OutboxRelay that dispatches committed outbox rows

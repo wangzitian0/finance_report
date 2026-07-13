@@ -12,9 +12,9 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.extraction.orm.layer2 import AssetType, AtomicPosition
+from src.extraction.orm.layer3 import ManualValuationComponentType, ManualValuationSnapshot
 from src.ledger import Account, AccountType
-from src.models.layer2 import AssetType, AtomicPosition
-from src.models.layer3 import ManualValuationComponentType, ManualValuationSnapshot
 from src.portfolio import DividendIncome
 from src.pricing import MarketDataOverride
 from src.pricing.orm.market_data import StockPrice

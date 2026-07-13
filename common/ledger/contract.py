@@ -94,10 +94,13 @@ CONTRACT = PackageContract(
     tier="CODE-ONLY",
     # audit/observability are lower-layer (infra, L1) than ledger (domain,
     # L3), so those edges are downward. (money folded into audit — issue
-    # #1419.) pricing is a sideways acyclic edge to the L3 leaf: FX
-    # revaluation resolves rates through pricing's published surface
-    # (#1610 P2 retired services/fx.py).
-    depends_on=["audit", "observability", "pricing"],
+    # #1419.) ``pricing`` was dropped (#1675 D5c): the former direct FX
+    # revaluation import (#1610 P2's pricing.get_exchange_rate) is now
+    # ``register_fx_revaluation_provider``, an inverted port wired by
+    # main.py — pricing depends on extraction (ManualValuationSnapshot et
+    # al.), and a direct ledger -> pricing edge would cycle
+    # (ledger -> pricing -> extraction -> ledger).
+    depends_on=["audit", "observability"],
     roles=["base", "extension", "data"],
     units=[
         # base — the pure double-entry core.
@@ -199,6 +202,7 @@ CONTRACT = PackageContract(
         "post_entry",
         "post_journal_entry",
         "post_opening_balance_entry",
+        "register_fx_revaluation_provider",
         "used_currencies",
         "validate_fx_rates",
         "validate_journal_balance",

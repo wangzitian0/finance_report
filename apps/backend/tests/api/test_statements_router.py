@@ -40,11 +40,11 @@ from src.extraction.extension.statement_posting import (
     is_high_confidence_auto_approve_candidate,
     try_auto_approve_high_confidence_statement,
 )
+from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode
+from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.identity import User
 from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus
 from src.llm.base import Modality, ModelSpec
-from src.models.evidence import EvidenceEdge, EvidenceNode
-from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus

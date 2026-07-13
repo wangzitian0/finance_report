@@ -64,7 +64,7 @@ CONTRACT = PackageContract(
     # "domain" (L3).
     status="active",
     tier="CODE-ONLY",
-    depends_on=["audit", "ledger", "observability", "pricing"],
+    depends_on=["audit", "extraction", "ledger", "observability", "pricing"],
     roles=["base", "extension", "data"],
     units=[
         # ── base: real value objects — plain exceptions, no ORM references ──

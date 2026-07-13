@@ -17,7 +17,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.layer3 import ManualValuationSnapshot
+from src.extraction.orm.layer3 import ManualValuationSnapshot
 from src.pricing import MarketDataOverride
 from src.pricing.base.observation import Authority, ObservationSource
 from src.pricing.base.subject import PriceableSubject

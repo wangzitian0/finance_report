@@ -16,15 +16,15 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 import src.config
 from src.audit.money import Money, to_money
 from src.audit.quantity import Quantity
 from src.audit.ratio import Ratio
 from src.audit.unit_price import UnitPrice
-from src.models.layer2 import AtomicPosition
-from src.models.layer3 import ManagedPosition, PositionStatus
+from src.extraction.orm.layer2 import AtomicPosition
+from src.extraction.orm.layer3 import ManagedPosition, PositionStatus
+from src.ledger import Account
 from src.observability import get_logger
 from src.portfolio.base.errors import (
     AssetNotFoundError,
@@ -49,6 +49,25 @@ settings = src.config.settings
 logger = get_logger(__name__)
 
 PORTFOLIO_QUANTITY_UNIT = "units"
+
+
+async def _account_names_by_id(
+    db: AsyncSession,
+    user_id: UUID,
+    account_ids: set[UUID],
+) -> dict[UUID, str]:
+    """Resolve account display names for a set of ``ManagedPosition.account_id``s.
+
+    ``ManagedPosition`` carries only the bare FK id column — no cross-domain
+    ``relationship()`` navigation into ledger's ``Account`` (#1675 D4) — so the
+    name is resolved with one explicit user-scoped query.
+    """
+    if not account_ids:
+        return {}
+    result = await db.execute(
+        select(Account.id, Account.name).where(Account.user_id == user_id).where(Account.id.in_(account_ids))
+    )
+    return dict(result.all())
 
 
 def _derive_provenance(source_documents: object) -> DataProvenance | None:
@@ -147,7 +166,6 @@ class PortfolioService:
         positions_query = (
             select(ManagedPosition)
             .where(ManagedPosition.user_id == user_id)
-            .options(selectinload(ManagedPosition.account))
             .order_by(ManagedPosition.asset_identifier, ManagedPosition.id)
         )
 
@@ -159,6 +177,8 @@ class PortfolioService:
 
         if not positions:
             raise PortfolioNotFoundError(f"No holdings found for user {user_id}")
+
+        account_names = await _account_names_by_id(db, user_id, {p.account_id for p in positions})
 
         holdings: list[HoldingResponse] = []
 
@@ -213,7 +233,7 @@ class PortfolioService:
                 disposal_date=position.disposal_date,
                 status=position.status,
                 cost_basis_method=position.cost_basis_method,
-                account_name=position.account.name if position.account else None,
+                account_name=account_names.get(position.account_id),
                 asset_type=asset_type,
                 sector=sector,
                 geography=geography,
@@ -260,6 +280,7 @@ class PortfolioService:
             raise PortfolioNotFoundError(f"No holdings found for user {user_id} as of {as_of_date}")
 
         holdings: list[HoldingResponse] = []
+        account_names: dict[UUID, str] = {}
         for snapshot in snapshots:
             snapshot_quantity = Quantity(snapshot.quantity, PORTFOLIO_QUANTITY_UNIT).quantize()
             status = PositionStatus.DISPOSED if snapshot_quantity.is_zero() else PositionStatus.ACTIVE
@@ -288,6 +309,9 @@ class PortfolioService:
                         }
                     )
                 continue
+
+            if position.account_id not in account_names:
+                account_names.update(await _account_names_by_id(db, user_id, {position.account_id}))
 
             synced_price = await self._get_latest_synced_stock_price(db, snapshot.asset_identifier, as_of_date)
             if synced_price is not None and not snapshot_quantity.is_zero():
@@ -337,7 +361,7 @@ class PortfolioService:
                     disposal_date=snapshot.snapshot_date if status == PositionStatus.DISPOSED else None,
                     status=status,
                     cost_basis_method=position.cost_basis_method,
-                    account_name=position.account.name if position.account else None,
+                    account_name=account_names.get(position.account_id),
                     asset_type=snapshot.asset_type,
                     sector=snapshot.sector,
                     geography=snapshot.geography,
@@ -363,7 +387,6 @@ class PortfolioService:
             select(ManagedPosition)
             .where(ManagedPosition.user_id == user_id)
             .where(ManagedPosition.asset_identifier == snapshot.asset_identifier)
-            .options(selectinload(ManagedPosition.account))
         )
         positions = list(result.scalars().all())
         if not positions:
@@ -371,10 +394,10 @@ class PortfolioService:
 
         broker = (snapshot.broker or "").strip().lower()
         if broker:
+            account_names = await _account_names_by_id(db, user_id, {p.account_id for p in positions})
             for position in positions:
-                account = position.account
                 metadata_broker = str((position.position_metadata or {}).get("broker", "")).strip().lower()
-                account_name = account.name.strip().lower() if account else ""
+                account_name = (account_names.get(position.account_id) or "").strip().lower()
                 if metadata_broker == broker or account_name == broker:
                     return position
 
@@ -416,7 +439,6 @@ class PortfolioService:
             .where(ManagedPosition.status == PositionStatus.DISPOSED)
             .where(ManagedPosition.disposal_date.isnot(None))
             .where(ManagedPosition.disposal_date.between(period_start, period_end))
-            .options(selectinload(ManagedPosition.account))
         )
 
         result = await db.execute(disposed_positions_query)

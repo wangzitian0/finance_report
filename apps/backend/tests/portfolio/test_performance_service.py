@@ -11,9 +11,9 @@ from decimal import Decimal
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.extraction.orm.layer2 import TransactionDirection
+from src.extraction.orm.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.ledger import Account, AccountType
-from src.models.layer2 import TransactionDirection
-from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.portfolio import (
     DividendIncome,
     InsufficientDataError,
@@ -70,7 +70,7 @@ def _buy_transaction(
 @pytest.fixture
 async def portfolio_with_transactions(db: AsyncSession, test_user, investment_account):
     """Create a portfolio with realistic transaction history."""
-    from src.models.layer2 import AtomicPosition
+    from src.extraction.orm.layer2 import AtomicPosition
 
     # Initial buy (3 months ago)
     deposit_date = date.today() - timedelta(days=90)
@@ -177,7 +177,7 @@ async def test_xirr_with_realistic_data(db: AsyncSession, test_user, portfolio_w
 
 async def test_AC5_6_1_xirr_matches_single_year_excel_case(db: AsyncSession, test_user, investment_account):
     """AC-portfolio.metrics.1: AC5.6.1: XIRR is within 0.01 percentage points of a one-year Excel case."""
-    from src.models.layer2 import AtomicPosition
+    from src.extraction.orm.layer2 import AtomicPosition
 
     start = date.today() - timedelta(days=365)
     db.add(
@@ -257,7 +257,7 @@ async def test_AC5_6_2_time_weighted_return_matches_snapshot_period(
     investment_account,
 ):
     """AC-portfolio.metrics.2: AC5.6.2: TWR computes the exact period return from start/end snapshots."""
-    from src.models.layer2 import AtomicPosition
+    from src.extraction.orm.layer2 import AtomicPosition
 
     start = date.today() - timedelta(days=30)
     end = date.today()
@@ -335,7 +335,7 @@ async def test_AC5_6_3_dividend_yield_uses_trailing_dividends_over_current_value
     investment_account,
 ):
     """AC-portfolio.metrics.3: AC5.6.3: Dividend yield equals annual dividends divided by current value."""
-    from src.models.layer2 import AtomicPosition
+    from src.extraction.orm.layer2 import AtomicPosition
 
     today = date.today()
     position = ManagedPosition(
@@ -391,7 +391,7 @@ async def test_AC5_6_3_dividend_yield_counts_position_disposed_after_as_of_date(
     as_of_date, so point-in-time inclusion must come from the snapshot
     quantity on that date (mirrors holdings.py:_get_snapshot_holdings), not
     from the position's current status."""
-    from src.models.layer2 import AtomicPosition
+    from src.extraction.orm.layer2 import AtomicPosition
 
     today = date.today()
     as_of_date = today - timedelta(days=60)
@@ -489,7 +489,7 @@ async def test_AC5_6_6_money_weighted_return_matches_xirr_for_single_cashflow(
     investment_account,
 ):
     """AC-portfolio.metrics.4: AC5.6.6: MWR matches XIRR for a single cash-flow portfolio."""
-    from src.models.layer2 import AtomicPosition
+    from src.extraction.orm.layer2 import AtomicPosition
 
     start = date.today() - timedelta(days=365)
     db.add(
@@ -566,7 +566,7 @@ async def test_performance_metrics_with_zero_positions(db: AsyncSession, test_us
 
     Verify that XIRR raises InsufficientDataError when portfolio has deposits but no positions.
     """
-    from src.models.layer2 import AtomicTransaction
+    from src.extraction.orm.layer2 import AtomicTransaction
 
     # Add cash deposit but no positions
     deposit = AtomicTransaction(
@@ -592,7 +592,7 @@ async def test_xirr_convergence_edge_case(db: AsyncSession, test_user, investmen
 
     Verify that extreme gain scenarios either produce a very high XIRR or raise InsufficientDataError.
     """
-    from src.models.layer2 import AtomicPosition
+    from src.extraction.orm.layer2 import AtomicPosition
 
     # Create scenario with extreme values that might cause convergence issues
     deposit = _buy_transaction(
@@ -706,7 +706,7 @@ async def test_xirr_calculation_error_raised(db: AsyncSession, test_user, invest
 
     Verify that monkeypatching _xirr_newton to always raise causes XIRRCalculationError.
     """
-    from src.models.layer2 import AtomicPosition
+    from src.extraction.orm.layer2 import AtomicPosition
     from src.portfolio import XIRRCalculationError
 
     deposit = _buy_transaction(

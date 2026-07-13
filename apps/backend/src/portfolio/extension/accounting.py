@@ -28,8 +28,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit.money import Money, to_money
 from src.audit.quantity import Quantity
 from src.audit.unit_price import UnitPrice
+from src.extraction.orm.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.ledger import Account, AccountType, Direction, Entry, JournalEntry, Leg, post_entry
-from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.portfolio.base.errors import InvestmentAccountingValidationError
 from src.portfolio.orm.portfolio import (
     DividendIncome,

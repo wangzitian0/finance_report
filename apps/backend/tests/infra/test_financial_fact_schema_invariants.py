@@ -9,9 +9,9 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.ledger import Account, AccountType
-from src.models.layer2 import AssetType, AtomicPosition, AtomicTransaction, TransactionDirection
-from src.models.layer3 import (
+from src.extraction import ReportSnapshot
+from src.extraction.orm.layer2 import AssetType, AtomicPosition, AtomicTransaction, TransactionDirection
+from src.extraction.orm.layer3 import (
     ClassificationRule,
     CostBasisMethod,
     ManagedPosition,
@@ -21,7 +21,8 @@ from src.models.layer3 import (
     PositionStatus,
     RuleType,
 )
-from src.models.layer4 import ReportSnapshot, ReportType
+from src.extraction.orm.layer4 import ReportType
+from src.ledger import Account, AccountType
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
 from src.portfolio import DividendIncome, DividendType, InvestmentLot, InvestmentTransaction, InvestmentTransactionType
