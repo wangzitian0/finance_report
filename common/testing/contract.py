@@ -1540,6 +1540,79 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        ACRecord(
+            id="AC-testing.deploy-gates.37",
+            statement=(
+                "Before spending the corpus budget, the staging AI/OCR gate "
+                "preflights the DEPLOYED app's health surface (manifest-required "
+                "dependency checks), after the version check and before the "
+                "corpus run; any miss records the distinct precondition-failed "
+                "status and is never counted as an extraction regression. The "
+                "preflight only reads deployed surfaces — it recomputes no "
+                "parallel environment state (#1806, #1435 lesson)."
+            ),
+            test=(
+                "tests/tooling/test_staging_ai_ocr_gate_contract.py"
+                "::test_AC_testing_deploy_gates_37_gate_preflights_before_corpus_spend"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.38",
+            statement=(
+                "Every failed corpus case is machine-attributed from its JUnit "
+                "failure text into regression | precondition (environment-data "
+                "gaps such as missing FX rates) | transient (provider timeout / "
+                "5xx), with regression-first precedence so co-occurring noise "
+                "never masks a real regression. Transient-only reds earn exactly "
+                "one bounded retry of the affected files; a reproduced transient "
+                "while a transient alert is already standing escalates to "
+                "regression-failed (#1806)."
+            ),
+            test=(
+                "tests/tooling/test_staging_ai_ocr_gate_contract.py"
+                "::test_AC_testing_deploy_gates_38_transient_classification_precedence"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.39",
+            statement=(
+                "The gate's alert-issue body is generated from the JUnit "
+                "attribution (per-class failed-case lists), never a hardcoded "
+                "parse-quality claim — the #1781 triage proved that claim wrong "
+                "for every failure it labeled (#1806)."
+            ),
+            test=(
+                "tests/tooling/test_staging_ai_ocr_gate_contract.py"
+                "::test_AC_testing_deploy_gates_39_alert_body_carries_machine_attribution"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.40",
+            statement=(
+                "A green gate run closes the loop: it auto-closes every standing "
+                "gate alert issue (regression, transient, precondition, "
+                "version-check, gate-timeout) with the run as evidence, so an "
+                "open alert can never keep asserting a regression the gate no "
+                "longer observes; per-class dedup of open alerts is preserved "
+                "(#1806, #1767)."
+            ),
+            test=(
+                "tests/tooling/test_staging_ai_ocr_gate_contract.py"
+                "::test_AC_testing_deploy_gates_40_green_run_closes_standing_alerts"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
         # ── group product-gates: product-journey hard gates & fixture
         # contracts (was EPIC-008 AC8.13 subset), migration closeout,
         # #1663 / #1718 ──

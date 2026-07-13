@@ -33,7 +33,7 @@ on:
         type: string
     outputs:
       ai_ocr_status:
-        description: "passed | regression-failed | version-check-failed | not-run"
+        description: "passed | regression-failed | provider-transient | precondition-failed | version-check-failed | gate-timeout | not-run"
         value: ${{ jobs.run.outputs.ai_ocr_status }}
       ai_ocr_exit_code:
         description: "Exit code observed by the gate (0 when passed)"
@@ -216,9 +216,18 @@ jobs:
               alert_title="[staging-ai-ocr] real-provider regression: ${ai_ocr_status}"
               existing="$(gh issue list --state open --search "in:title ${alert_title}" --json number --jq '.[0].number // empty' 2>/dev/null || true)"
               if [ -z "$existing" ]; then
-                gh issue create --title "$alert_title" --label "surface: ai-ocr" \
-                  --body "Post-merge staging AI/OCR gate regressed (\`${ai_ocr_status}\`) on ${APP_URL} at run ${GITHUB_RUN_ID:-?} (${EXPECTED_SHA:-?}). Real-provider parse quality dropped — cassette replay cannot catch this class. See the run's step summary for which corpus docs failed." \
-                  || echo "::warning::GitHub-issue alert creation failed (non-fatal)."
+                # #1806/AC-testing.deploy-gates.39: the body carries the machine
+                # attribution of every failed case (regression | precondition |
+                # transient) instead of a hardcoded parse-quality claim.
+                if [ -f test-results/staging-ai-ocr-alert-body.md ]; then
+                  gh issue create --title "$alert_title" --label "surface: ai-ocr" \
+                    --body-file test-results/staging-ai-ocr-alert-body.md \
+                    || echo "::warning::GitHub-issue alert creation failed (non-fatal)."
+                else
+                  gh issue create --title "$alert_title" --label "surface: ai-ocr" \
+                    --body "Post-merge staging AI/OCR gate failed (\`${ai_ocr_status}\`) on ${APP_URL} at run ${GITHUB_RUN_ID:-?} (${EXPECTED_SHA:-?}). No JUnit attribution is available for this failure mode. See the run's step summary." \
+                    || echo "::warning::GitHub-issue alert creation failed (non-fatal)."
+                fi
               else
                 echo "::notice::open staging-ai-ocr regression issue #${existing} already exists; not duplicating."
               fi
@@ -242,14 +251,75 @@ jobs:
             record_and_finish "$version_status" "version-check-failed"
           fi
 
+          # #1806/AC-testing.deploy-gates.37: read the deployed health surface
+          # before spending the corpus budget — an unhealthy environment fails as
+          # its own precondition class, never as an extraction regression.
+          preflight_status=0
+          run_timed_phase "Staging AI/OCR Preflight (deployed health surface)" \
+            .venv/bin/python tools/staging_ai_ocr_gate_contract.py --preflight --base-url "$APP_URL" || preflight_status=$?
+          if [ "$preflight_status" -ne 0 ]; then
+            write_staging_audit_result "$preflight_status"
+            record_and_finish "$preflight_status" "precondition-failed"
+          fi
+
           gate_status=0
           run_timed_phase "Staging AI/OCR Gate (primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL})" \
             pytest "${STAGING_AI_OCR_TESTS[@]}" \
               -v -m "llm" --junit-xml=test-results/staging-ai-ocr-gate.xml || gate_status=$?
+
+          if [ "$gate_status" -ne 0 ]; then
+            # #1806/AC-testing.deploy-gates.38: attribute every failed case from
+            # the JUnit output; transient-only reds earn exactly one retry of the
+            # affected files, and a transient red on two consecutive runs
+            # escalates so transience can never mask a standing regression.
+            AI_OCR_FAILURE_CLASS="regression-failed"
+            AI_OCR_RETRY_TESTS=()
+            eval "$(.venv/bin/python tools/staging_ai_ocr_gate_contract.py \
+              --classify-junit test-results/staging-ai-ocr-gate.xml \
+              --alert-body-out test-results/staging-ai-ocr-alert-body.md \
+              --run-id "${GITHUB_RUN_ID:-?}" --expected-sha "${EXPECTED_SHA:-?}" \
+              --app-url "$APP_URL")" || true
+
+            if [ "$AI_OCR_FAILURE_CLASS" = "provider-transient" ] && [ "${#AI_OCR_RETRY_TESTS[@]}" -gt 0 ]; then
+              retry_status=0
+              run_timed_phase "Staging AI/OCR transient retry (single, bounded)" \
+                pytest "${AI_OCR_RETRY_TESTS[@]}" \
+                  -v -m "llm" --junit-xml=test-results/staging-ai-ocr-retry.xml || retry_status=$?
+              if [ "$retry_status" -eq 0 ]; then
+                echo "::notice::transient failures recovered on the single bounded retry."
+                gate_status=0
+              else
+                transient_title="[staging-ai-ocr] real-provider regression: provider-transient"
+                prior_transient="$(gh issue list --state open --search "in:title ${transient_title}" --json number --jq '.[0].number // empty' 2>/dev/null || true)"
+                if [ -n "$prior_transient" ]; then
+                  echo "::warning::transient class reproduced with open transient alert #${prior_transient} standing; escalating to regression-failed."
+                  AI_OCR_FAILURE_CLASS="regression-failed"
+                fi
+              fi
+            fi
+          fi
+
           write_staging_audit_result "$gate_status"
           if [ "$gate_status" -ne 0 ]; then
-            record_and_finish "$gate_status" "regression-failed"
+            record_and_finish "$gate_status" "$AI_OCR_FAILURE_CLASS"
           fi
+
+          # #1806/AC-testing.deploy-gates.40: a green run closes the loop — every
+          # standing gate alert is resolved by this run's evidence, so an issue
+          # titled "regression" can never keep lying after the gate recovers.
+          for resolved_title in \
+            "[staging-ai-ocr] real-provider regression: regression-failed" \
+            "[staging-ai-ocr] real-provider regression: provider-transient" \
+            "[staging-ai-ocr] real-provider regression: precondition-failed" \
+            "[staging-ai-ocr] real-provider regression: version-check-failed" \
+            "[staging-ai-ocr] gate produced no result (likely step timeout)"; do
+            resolved_number="$(gh issue list --state open --search "in:title ${resolved_title}" --json number --jq '.[0].number // empty' 2>/dev/null || true)"
+            if [ -n "$resolved_number" ]; then
+              gh issue close "$resolved_number" \
+                --comment "Auto-closing: staging AI/OCR gate run ${GITHUB_RUN_ID:-?} (corpus=${CORPUS:-canary}, version=${EXPECTED_SHA:-?}) completed green." \
+                || echo "::warning::auto-close of alert issue #${resolved_number} failed (non-fatal)."
+            fi
+          done
 
           echo "ai_ocr_status=passed" >> "$GITHUB_OUTPUT"
           echo "ai_ocr_exit_code=0" >> "$GITHUB_OUTPUT"
