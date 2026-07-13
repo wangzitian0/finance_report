@@ -147,7 +147,7 @@ def test_gate_fails_when_a_new_edge_appears(tmp_path: Path, monkeypatch) -> None
         "discover_and_compute_edges",
         lambda _root: ["in::apps/backend/src/services/new_leak.py::src.extraction.extension.x::SECRET"],
     )
-    (tmp_path / "docs/ssot").mkdir(parents=True)
+    (tmp_path / "common/meta/data").mkdir(parents=True)
     (tmp_path / "common/meta/data/app-boundary-baseline.json").write_text(json.dumps([]), encoding="utf-8")
     assert check_app_boundary.main(["--repo-root", str(tmp_path)]) == 1
 
