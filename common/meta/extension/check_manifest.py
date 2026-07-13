@@ -3,6 +3,7 @@
 
 Validates ``docs/ssot/MANIFEST.yaml`` against the following rules:
 
+  0. Every concept value must be a YAML mapping, not null or a scalar.
   1. No two concepts may share the same owner (file + optional anchor).
   2. Every owner *file* path (ignoring ``#anchor``) MUST exist on disk.
   3. Every cross_ref *file* path (ignoring ``#anchor``) MUST exist on disk.
