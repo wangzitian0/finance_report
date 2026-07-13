@@ -4,6 +4,8 @@
 red lines, work order, branch/PR rules, and the navigation map to everything
 else.
 
+Before every commit/push, run the pre-push parity check — see AGENTS.md § Pre-Push Gate Parity.
+
 This file deliberately holds **no project facts** (stack versions, paths,
 model names, thresholds). A duplicated-facts file drifts silently and feeds
 auto-review wrong context — this one previously claimed Next.js 14, a retired

@@ -35,6 +35,12 @@ Runner = Callable[[Sequence[str], str], int]
 Git = Callable[[Sequence[str]], str]
 
 
+# Check tiers (#1810 G-static-parity): "static" gates are seconds-level file
+# parsers — the mandatory pre-push parity set; "heavy" gates run whole test or
+# build suites (minutes-level) and are opted into via --tier=heavy/full.
+TIERS: tuple[str, ...] = ("static", "heavy")
+
+
 @dataclass(frozen=True)
 class Check:
     """A named gate: run ``commands`` when a changed path matches a ``glob``.
@@ -42,6 +48,9 @@ class Check:
     ``cwd`` is the working directory (relative to the repo root) the commands run
     in. Backend gates use ``apps/backend`` so ``ruff`` discovers the backend Ruff
     config and ``pytest`` can import ``src.*`` — matching how CI invokes them.
+
+    ``tier`` classifies the gate's cost (see :data:`TIERS`): ``static`` for the
+    seconds-level checks, ``heavy`` for the expensive suite/build gates.
     """
 
     name: str
@@ -49,6 +58,7 @@ class Check:
     commands: tuple[tuple[str, ...], ...]
     why: str
     cwd: str = "."
+    tier: str = "static"
 
 
 # Ordered cheapest/most-localizing first. ``fnmatch`` treats ``*`` as matching
@@ -182,6 +192,7 @@ CHECKS: tuple[Check, ...] = (
         globs=("tools/*", "common/*"),
         commands=((PY, "-m", "pytest", "tests/tooling/", "-q", "--no-cov"),),
         why="tooling/common changed: run tests/tooling (tool-wrapper sys.path contract + dispatchers)",
+        tier="heavy",
     ),
     Check(
         name="app-boundary",
@@ -200,6 +211,7 @@ CHECKS: tuple[Check, ...] = (
         ),
         why="frontend changed: eslint + vitest coverage gate + next build (layout/route type rules)",
         cwd="apps/frontend",
+        tier="heavy",
     ),
 )
 
@@ -215,14 +227,25 @@ def _matches(path: str, glob: str) -> bool:
 
 
 def select_checks(
-    changed_files: Iterable[str], *, checks: Sequence[Check] = CHECKS
+    changed_files: Iterable[str],
+    *,
+    checks: Sequence[Check] = CHECKS,
+    tier: str = "full",
 ) -> list[Check]:
-    """Return the checks whose globs match at least one changed file (in order)."""
+    """Return the checks whose globs match at least one changed file (in order).
+
+    ``tier`` composes with the glob selection: ``"full"`` (default) keeps every
+    matching check — the exact pre-tier behavior; a named tier (:data:`TIERS`)
+    keeps only the matching checks of that tier.
+    """
+    if tier != "full" and tier not in TIERS:
+        raise ValueError(f"unknown tier {tier!r}: expected one of {('full', *TIERS)}")
     files = list(changed_files)
     return [
         check
         for check in checks
-        if any(_matches(f, g) for f in files for g in check.globs)
+        if (tier == "full" or check.tier == tier)
+        and any(_matches(f, g) for f in files for g in check.globs)
     ]
 
 
@@ -301,12 +324,22 @@ def main(
         default=None,
         help="Explicit changed-file list (overrides git; for scripting/tests).",
     )
+    parser.add_argument(
+        "--tier",
+        choices=("full", *TIERS),
+        default="full",
+        help=(
+            "Which cost tier to run: 'static' = the seconds-level pre-push "
+            "parity gates, 'heavy' = the expensive suite/build gates, "
+            "'full' (default) = both."
+        ),
+    )
     args = parser.parse_args(argv)
 
     files = (
         args.changed if args.changed is not None else changed_files(args.base, git=git)
     )
-    selected = select_checks(files)
+    selected = select_checks(files, tier=args.tier)
 
     if not selected:
         print("preflight: no relevant gates for the current diff.")
@@ -314,7 +347,7 @@ def main(
 
     if args.list:
         for check in selected:
-            print(f"  {check.name}: {check.why}")
+            print(f"  [{check.tier}] {check.name}: {check.why}")
         return 0
 
     print(

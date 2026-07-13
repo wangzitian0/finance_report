@@ -3,8 +3,9 @@
 
 Run the gate checks relevant to your current diff before pushing:
 
-    python tools/preflight.py            # run the relevant gates
-    python tools/preflight.py --list     # show what would run, don't run it
+    python tools/preflight.py                # run the relevant gates
+    python tools/preflight.py --tier=static  # seconds-level pre-push parity set
+    python tools/preflight.py --list         # show what would run, don't run it
     python tools/preflight.py --base origin/main
 
 Run it with an interpreter that has the project deps (e.g. the backend venv) so

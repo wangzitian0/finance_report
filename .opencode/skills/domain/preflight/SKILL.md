@@ -16,12 +16,28 @@ maps your **changed files** to the relevant gates and runs only those.
 
 ```bash
 # Run inside an interpreter that has project deps (the backend venv):
-apps/backend/.venv/bin/python tools/preflight.py          # run relevant gates
-apps/backend/.venv/bin/python tools/preflight.py --list   # show what would run
+apps/backend/.venv/bin/python tools/preflight.py                # run relevant gates
+apps/backend/.venv/bin/python tools/preflight.py --tier=static  # seconds-level pre-push parity set
+apps/backend/.venv/bin/python tools/preflight.py --list         # show what would run (with each check's tier)
 apps/backend/.venv/bin/python tools/preflight.py --base origin/main
 ```
 
 Exit code is non-zero if any gate fails; the summary names which one.
+
+## Tiers (#1810)
+
+Every check carries a cost tier; `--tier` composes with the diff-glob
+selection (it narrows the selected set, never widens it):
+
+- `--tier=static` — only the seconds-level file-parser gates: the mandatory
+  pre-push parity set (AGENTS.md § Pre-Push Gate Parity).
+- `--tier=heavy` — only the expensive suite/build gates (the `tests/tooling/`
+  pytest suite, ~3 min; the frontend lint+coverage+build chain).
+- `--tier=full` (default) — both tiers, exactly the pre-tier behavior.
+
+Interactive operators run `--tier=static` before every push at minimum;
+cloud/sandbox agents run the default full tier before pushing (their CPU does
+not contend with the operator's machine).
 
 ## What it maps (changed path → gate)
 

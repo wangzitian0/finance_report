@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from common.testing import preflight
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -201,6 +203,117 @@ class TestRunAndMain:
 
         rc = preflight.main([], runner=lambda argv, cwd: 0, git=fake_git)
         assert rc == 0
+
+
+# ── Tier-filtered selection (#1810 G-static-parity) ──
+# The static tier is the seconds-level pre-push parity command; the heavy
+# suites (measured in minutes) stay in the full tier. Tier filtering must
+# COMPOSE with the existing glob-based diff selection, and the default must
+# preserve the exact pre-tier behavior.
+
+
+def test_AC_testing_preflight_1_static_tier_composes_with_glob_selection():
+    """AC-testing.preflight.1: a common/*.py diff matches both static gates and
+    the heavy tooling suite; --tier=static keeps the static gates for that diff
+    and drops the heavy one, while the default (full) keeps today's selection."""
+    changed = ["common/testing/preflight.py"]
+    full_names = {c.name for c in preflight.select_checks(changed)}
+    static_selected = preflight.select_checks(changed, tier="static")
+    static_names = {c.name for c in static_selected}
+
+    # Tier filtering composes with glob selection: same diff, heavy dropped.
+    assert static_names == full_names - {"tooling"}
+    # The static gates relevant to the diff still run — tier never widens
+    # or empties the glob-based selection, it only strips the heavy checks.
+    assert static_names
+    assert all(c.tier == "static" for c in static_selected)
+
+
+class TestTierSelection:
+    """Behavioral tier-selection contracts (AC-testing.preflight.1, #1810)."""
+
+    def test_every_check_has_a_valid_tier(self):
+        assert all(c.tier in ("static", "heavy") for c in preflight.CHECKS)
+
+    def test_heavy_tier_membership_is_the_two_expensive_suites(self):
+        # The two minutes-scale checks (the tests/tooling pytest suite and the
+        # frontend lint+coverage+build chain) are the only heavy-tier members.
+        heavy = {c.name for c in preflight.CHECKS if c.tier == "heavy"}
+        assert heavy == {"tooling", "frontend"}
+
+    def test_full_tier_is_the_default_and_preserves_selection(self):
+        changed = [
+            "common/testing/preflight.py",
+            "apps/frontend/src/app/layout.tsx",
+            "docs/ssot/reporting.md",
+        ]
+        assert preflight.select_checks(changed) == preflight.select_checks(
+            changed, tier="full"
+        )
+
+    def test_frontend_diff_has_no_static_gates(self):
+        # The frontend gate is heavy-only, so a frontend-only diff selects
+        # nothing under --tier=static (nothing static maps to that path).
+        selected = preflight.select_checks(
+            ["apps/frontend/src/app/layout.tsx"], tier="static"
+        )
+        assert selected == []
+
+    def test_heavy_tier_selects_only_matching_heavy_checks(self):
+        selected = preflight.select_checks(
+            ["common/testing/preflight.py", "apps/frontend/src/app/layout.tsx"],
+            tier="heavy",
+        )
+        assert [c.name for c in selected] == ["tooling", "frontend"]
+
+    def test_unknown_tier_is_rejected(self):
+        with pytest.raises(ValueError):
+            preflight.select_checks(["common/x.py"], tier="bogus")
+
+
+class TestTierCli:
+    """CLI surface of the tier switch (AC-testing.preflight.1, #1810)."""
+
+    @staticmethod
+    def _run_and_collect(args: list[str]) -> list[list[str]]:
+        ran: list[list[str]] = []
+        rc = preflight.main(
+            [*args, "--changed", "common/testing/preflight.py"],
+            runner=lambda argv, cwd: ran.append(list(argv)) or 0,
+        )
+        assert rc == 0
+        return ran
+
+    def test_main_default_equals_tier_full(self):
+        assert self._run_and_collect([]) == self._run_and_collect(["--tier=full"])
+
+    def test_main_tier_static_runs_strictly_fewer_commands_than_full(self):
+        full_ran = self._run_and_collect([])
+        static_ran = self._run_and_collect(["--tier=static"])
+        # Static ran something (the diff-matched static gates) but skipped the
+        # heavy suite's command(s) that full runs for the same diff.
+        assert 0 < len(static_ran) < len(full_ran)
+        assert all(argv in full_ran for argv in static_ran)
+
+    def test_main_list_shows_each_selected_checks_tier(self, capsys):
+        rc = preflight.main(
+            ["--list", "--changed", "common/testing/preflight.py"],
+            runner=lambda argv, cwd: 0,
+        )
+        assert rc == 0
+        lines = capsys.readouterr().out.splitlines()
+        for check in preflight.select_checks(["common/testing/preflight.py"]):
+            assert any(check.name in line and check.tier in line for line in lines)
+
+    def test_main_list_respects_tier(self, capsys):
+        rc = preflight.main(
+            ["--list", "--tier=static", "--changed", "common/testing/preflight.py"],
+            runner=lambda argv, cwd: 0,
+        )
+        assert rc == 0
+        out = capsys.readouterr().out
+        heavy = {c.name for c in preflight.CHECKS if c.tier == "heavy"}
+        assert heavy and all(name not in out for name in heavy)
 
 
 def test_changed_files_unions_committed_staged_unstaged_and_untracked():
