@@ -44,7 +44,7 @@ main-only: unified-coverage ─→ unified-coverage-baseline-pr (not required by
 | **container-images** | Fail-closed gitleaks secret scan over each component's Docker build context (`apps/<component>`) before the build, then build backend and frontend staging images without pushing on PRs; push SHA-tagged images only on `main`. Right-moved: runs only when the build context changed (`image_build_required`), see Key CI Property 20 | `needs: [changes]` |
 | **verify-sha-image-published** | Independently re-inspect the registry for the just-built `:<sha>` image on `main` push, so a build step that reports success without actually publishing is caught at commit time. Right-moved: only runs on `main` push, see Key CI Property 20a | `needs: [container-images]` |
 | **tooling-coverage** | Run root tooling tests with common/tools coverage and upload LCOV inputs | `needs: [changes]` |
-| **unified-coverage** | Merge backend, frontend Vitest, common, and tools LCOV inputs, audit source-tree/LCOV policy, calculate unified coverage, compare to baseline, upload the coverage context artifact, and update Coveralls on `main` when heavy CI is required | `needs: [changes, backend, frontend-vitest, tooling-coverage]` |
+| **unified-coverage** | Merge backend, frontend Vitest, common, and tools LCOV inputs, run the PR-blocking diff coverage gate (`tools/check_diff_coverage.py`, #1810), audit source-tree/LCOV policy, calculate unified coverage and compare to baseline (blocking on `main` pushes, report-only on PRs), upload the coverage context artifact, and update Coveralls on `main` when heavy CI is required | `needs: [changes, backend, frontend-vitest, tooling-coverage]` |
 | **unified-coverage-baseline-pr** | Main-only automation that downloads `unified-coverage-context`, commits a changed `unified-coverage.json` to `automation/unified-coverage-baseline`, and opens or updates the reviewed baseline PR. This job owns write-scoped GitHub token permissions; PR coverage calculation remains read-only. | `needs: [changes, unified-coverage]` |
 | **ac-traceability** | Verify generated AC registries, E2E EPIC ownership, the uploaded AC traceability audit, and the reconciliation audit for all PR/main changes, including docs-only changes | None |
 | **ac-behavioral-ratchet** | Aggregate JUnit AC evidence from backend and frontend Vitest stages and enforce the persisted per-AC behavioral score floor | `needs: [changes, backend, backend-integration, backend-e2e-tier1, frontend-vitest]` |
@@ -63,7 +63,7 @@ main-only: unified-coverage ─→ unified-coverage-baseline-pr (not required by
 8. **Backend and frontend stages are explicit and split**: Backend fast-path remains shard stage (`backend`) with workflow job name `Backend Tests (Shard ${{ matrix.shard }}/5)`, 5-way `pytest-split`, `--splitting-algorithm=least_duration`, and the committed backend duration seed at `apps/backend/ci/backend-test-durations.json`. The backend job fails before pytest when the seed is missing or unexpectedly small, so CI cannot silently fall back to unseeded even splitting. Frontend PR CI is split into `frontend-build`, `frontend-vitest`, `frontend-playwright`, and `frontend-telemetry-e2e`, each starting after change classification instead of waiting on one another. Standalone gates start immediately: `lint` and `ac-traceability` have no `needs` dependency and run in parallel with change classification. Deterministic test, schema migration, browser, telemetry, and image jobs start after change classification and do not wait for lint, AC traceability, or behavior-only backend gates. Behavior-only backend gates run in parallel as explicit `backend-integration` and `backend-e2e-tier1` stages, and finish remains the authoritative aggregate gate for lint, AC traceability, AC behavioral score ratchet, schema migrations, tests, image validation, coverage, and skipped heavy-job semantics.
 9. **Coverage Debug Context Is Always Uploaded**: The `tooling-coverage` job uploads `coverage-tooling` with `coverage/common.lcov` and `coverage/tools.lcov`; the read-only `unified-coverage` job downloads that artifact and uploads `unified-coverage-context` on success and failure. The unified artifact contains `coverage/backend.lcov`, `coverage/frontend.lcov`, `coverage/common.lcov`, `coverage/tools.lcov`, the current `unified-coverage.json`, and `coverage/coverage-context.txt` with raw line-count inputs, commit/event/run metadata, toolchain versions, and input hashes. Coverage regressions must be diagnosed from these artifacts before treating a percentage delta as nondeterminism. On `push` to `main`, the separate `unified-coverage-baseline-pr` job is the only CI job with `contents: write` / `pull-requests: write` for automatic baseline PR updates; PR coverage calculation does not receive write-scoped token permissions.
 10. **CI Observability Artifacts Are Failure-Path Owned**: Backend shard, backend integration, backend Tier-1 E2E, frontend Vitest, frontend Playwright, frontend telemetry E2E, schema migrations, tooling/common coverage, AC traceability, PR preview, staging, manual AI/OCR, production release, and scheduled cleanup gates publish CI observability artifacts with `if: always()`. These artifacts include JUnit XML where pytest or Vitest can produce it, raw coverage/report inputs where relevant, and a small context file with repository/event/ref/SHA/run metadata plus target environment/version fields. Step summaries remain human-readable status pages; artifacts are the replayable evidence for both success and failure.
-11. **Coveralls Is Main-Only Reporting**: Pull requests do not call Coveralls and therefore do not publish external Coveralls status contexts. CI pass/fail is decided by local gates (`tools/check_ci_metrics_contract.py`, `tools/check_coverage_policy.py`, `tools/calculate_unified_coverage.py`) aggregated by `finish`. Main pushes upload only the unified line-only LCOV report to Coveralls for badge and trend reporting after the local coverage gate passes. Backend/frontend per-flag Coveralls uploads are intentionally absent so a single commit has one reporting denominator.
+11. **Coveralls Is Main-Only Reporting**: Pull requests do not call Coveralls and therefore do not publish external Coveralls status contexts. CI pass/fail is decided by local gates (`tools/check_ci_metrics_contract.py`, `tools/check_coverage_policy.py`, `tools/check_diff_coverage.py` on PRs, `tools/calculate_unified_coverage.py`) aggregated by `finish`. Main pushes upload only the unified line-only LCOV report to Coveralls for badge and trend reporting after the local coverage gate passes. Backend/frontend per-flag Coveralls uploads are intentionally absent so a single commit has one reporting denominator.
 12. **Single CI Metrics Contract**: `tools/check_ci_metrics_contract.py` is the single CI metrics contract. It runs in `lint` and validates that source-root discovery, `common/meta/extension/coverage/policy.py`, workflow gates, and AC traceability semantics stay aligned before coverage jobs finish.
 13. **Toolchain Contract**: `tools/check_toolchain_contract.py` runs in lint and fails when Python, Node.js, uv, Docker base images, Compose service images, or frontend engine constraints drift from `toolchain.toml`.
 13a. **Workflow Contract**: `tools/check_workflow_contract.py` runs in lint and is the mechanical guard against CI/deploy prose drift (#531). It parses `.github/workflows/*.yml` and fails when the documented job ids (e.g. the classifier job id `changes`, `lint`, `unified-coverage`, `finish`) or trigger events drift from this SSOT, when `deploy.yml` gains a branch `push`/`pull_request` path for staging (release-image tag push is allowed), or when an issue template uses a label outside the live repository taxonomy (e.g. the stale `infra`/`feature` instead of `infrastructure`/`enhancement`). It checks live job ids/triggers/labels, not mutable run status (run ids, timing, conclusions), which stay in CI artifacts.
@@ -431,12 +431,19 @@ the gate.
 
 ## No-Regression Coverage Gate
 
-The CI workflow enforces a **no-regression policy** for test coverage.
+The CI workflow enforces a **no-regression policy** for test coverage as the
+**main-push water-line**. On pull requests the blocking coverage verdict is
+the **diff coverage gate** (`tools/check_diff_coverage.py`, #1810): the PR's
+changed/added lines in governed source trees must be covered at or above the
+threshold (default 85%), with uncovered `file: line-range`s named in the
+output; the no-regression comparison still runs on PRs but is **report-only**
+(`COVERAGE_RATCHET_MODE=report`). Semantics detail:
+[coverage.md](./coverage.md#coverage-gate).
 
 ### How It Works
 
 1. **Baseline Storage**: `unified-coverage.json` at repo root.
-   - PR CI reads the committed file as the no-regression floor.
+   - CI reads the committed file as the no-regression floor (blocking on `main` pushes; report-only on PRs).
    - Main CI writes the current measured file inside the read-only `unified-coverage` job artifact. A separate main-only `unified-coverage-baseline-pr` job downloads that artifact and opens or updates an automatic baseline PR when that file differs.
    - CI never pushes directly to `main`; branch protection still requires the reviewed baseline PR to merge.
 
@@ -444,7 +451,7 @@ The CI workflow enforces a **no-regression policy** for test coverage.
    - Reads `unified-coverage.json` before calculating final coverage
    - Compares current vs baseline for **all components**: unified, backend, frontend, common, tools
    - Uses `round(x, 2)` for floating-point comparison
-   - **Zero tolerance**: `current < baseline` → CI fails immediately
+   - **Zero tolerance in block mode** (main pushes): `current < baseline` (beyond the ±0.05% jitter epsilon) → CI fails immediately; in report mode (PRs) the same regression is printed but does not fail the run
    - If baseline file missing: falls through to `COVERAGE_THRESHOLD` check (safety net)
 3. **Source-tree/LCOV Logic**:
    - `common/meta/extension/coverage/policy.py` defines the single component policy used by coverage calculation and audit checks
@@ -467,7 +474,9 @@ The CI workflow enforces a **no-regression policy** for test coverage.
 
 5. **Environment Variables**:
    - `BASELINE_FILE`: Path to baseline JSON (default: `unified-coverage.json`)
-   - `COVERAGE_THRESHOLD`: Safety net threshold (default: `0`; baseline comparison is primary gate)
+   - `COVERAGE_THRESHOLD`: Safety net threshold (default: `0`; applies in both ratchet modes)
+   - `COVERAGE_RATCHET_MODE`: `block` (default; main pushes) fails on a baseline regression, `report` (PR lane) prints it report-only (#1810)
+   - `DIFF_COVERAGE_THRESHOLD` / `DIFF_COVERAGE_BASE`: diff coverage gate overrides (defaults: `85`, `origin/main`)
 
 ### Baseline Reset / Raise
 

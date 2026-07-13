@@ -3346,6 +3346,79 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── group diff-coverage: diff-scoped PR coverage gate + ratchet
+        # demotion (#1810, metric layer: G-diff-coverage /
+        # G-ratchet-backstop). The unit of the blocking PR coverage
+        # verdict is the PR's own diff, not a component percentage. ──
+        ACRecord(
+            id="AC-testing.diff-coverage.1",
+            statement=(
+                "On a PR, the blocking coverage verdict is diff-scoped: it is "
+                "computed from the PR's own diff plus per-component test-run LCOV "
+                "(no full-pipeline dependency, no baseline epsilon) and passes "
+                "iff coverage of the measurable changed lines is at or above the "
+                "threshold (default 85%, overridable via --threshold / "
+                "DIFF_COVERAGE_THRESHOLD) (#1810 G-diff-coverage)."
+            ),
+            test=(
+                "tests/tooling/test_diff_coverage.py"
+                "::test_cli_blocks_below_threshold_and_passes_at_or_above"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.diff-coverage.2",
+            statement=(
+                "A red diff-coverage verdict names each offending file with its "
+                "uncovered changed lines as file:line ranges, and a changed "
+                "in-scope file entirely absent from its component's LCOV is "
+                "counted conservatively (added non-blank, non-comment lines are "
+                "uncovered), so a new file with zero tests cannot pass silently "
+                "(#1810 G-diff-coverage)."
+            ),
+            test=(
+                "tests/tooling/test_diff_coverage.py"
+                "::test_red_verdict_lists_uncovered_line_ranges_and_new_file_hole"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.diff-coverage.3",
+            statement=(
+                "Out-of-scope changes (docs, tests, configs, workflows, "
+                "policy-excluded files) never enter the diff-coverage "
+                "denominator; a diff with no measurable changed lines passes "
+                "explicitly; and an entirely absent component LCOV artifact "
+                "skips that component's files with a loud warning (parity with "
+                "the lenient CI merge step) (#1810 G-diff-coverage)."
+            ),
+            test=(
+                "tests/tooling/test_diff_coverage.py"
+                "::test_out_of_scope_files_and_absent_artifacts_are_lenient"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.diff-coverage.4",
+            statement=(
+                "The component-% ratchet is a main-only water-line: in report "
+                "mode (PR CI) a detected regression is printed as report-only "
+                "and does not fail the run, while block mode (main pushes; the "
+                "default when --ratchet-mode/COVERAGE_RATCHET_MODE is unset) "
+                "keeps the exact blocking behavior, with unified-coverage.json "
+                "still written and the COVERAGE_THRESHOLD safety net unchanged "
+                "in both modes (#1810 G-ratchet-backstop)."
+            ),
+            test=(
+                "tests/tooling/test_calculate_unified_coverage.py"
+                "::test_ratchet_report_mode_reports_regression_without_blocking"
+            ),
+            priority="P0",
+            status="done",
+        ),
     ],
 )
 
@@ -3355,4 +3428,5 @@ TEST_ROOTS: tuple[str, ...] = (
     "tests/tooling/test_coverage_analyzer.py",
     "tests/tooling/test_calculate_unified_coverage.py",
     "tests/tooling/test_coverage_artifact_preflight.py",
+    "tests/tooling/test_diff_coverage.py",
 )

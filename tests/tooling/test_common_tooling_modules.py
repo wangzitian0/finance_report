@@ -122,6 +122,7 @@ def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
     strip_tool = importlib.import_module("tools.strip_lcov_branches")
     policy_tool = importlib.import_module("tools.check_coverage_policy")
     metrics_tool = importlib.import_module("tools.check_ci_metrics_contract")
+    diff_tool = importlib.import_module("tools.check_diff_coverage")
 
     assert (
         build_tool.main
@@ -152,6 +153,10 @@ def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
     assert (
         metrics_tool.main
         is importlib.import_module("common.meta.extension.metrics_contract").main
+    )
+    assert (
+        diff_tool.main
+        is importlib.import_module("common.testing.coverage.diff_coverage").main
     )
 
 

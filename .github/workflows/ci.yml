@@ -1247,6 +1247,9 @@ jobs:
       - uses: actions/checkout@v7
         with:
           submodules: recursive
+          # #1810: the diff coverage gate needs history to resolve the
+          # merge-base against the PR base branch.
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -1302,6 +1305,19 @@ jobs:
           else
             echo "No tools coverage found"
           fi
+
+      # #1810 (G-diff-coverage): on PRs, the BLOCKING coverage verdict is
+      # diff-scoped — changed/added lines in governed source trees must be
+      # covered at or above the threshold (default 85%), and a red verdict
+      # names the uncovered file:line ranges. Deterministic per PR, no
+      # baseline, no epsilon, locally reproducible from the tests the author
+      # is already running (tools/check_diff_coverage.py).
+      - name: Diff coverage gate (PR)
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin "$GITHUB_BASE_REF"
+          python tools/check_diff_coverage.py --base "origin/$GITHUB_BASE_REF"
+
       - name: Audit coverage policy
         run: |
           python tools/check_coverage_policy.py
@@ -1313,15 +1329,22 @@ jobs:
         # artifact preflight (#414) is therefore opt-in here — we do NOT pass
         # --require-artifacts / COVERAGE_REQUIRED_COMPONENTS, so a legitimately
         # absent artifact is reported (as 0% for the missing component) rather
-        # than hard-aborting this always-run gate. The no-regression check still
-        # applies to whatever LCOV is present.
+        # than hard-aborting this always-run gate.
         #
-        # #1689: on a PR, only the components the PR actually touched BLOCK the
-        # run on regression; an unrelated component's regression is still
-        # reported (visible in this step's output) but does not fail the job —
-        # main-branch push always gates the full unscoped set (env unset here).
+        # #1810: on a PR the component-% ratchet is REPORT-ONLY — a detected
+        # baseline regression is printed in this step's output but does not
+        # fail the job; the blocking PR coverage verdict is the diff coverage
+        # gate step above. Main pushes run in "block" mode: the ratchet stays
+        # the main-only no-regression water-line, and the raise-only baseline
+        # floor (unified-coverage-baseline-pr) is unchanged.
+        #
+        # #1689 (still active for the report): the scoped gate-components list
+        # names which components' regressions are attributed to THIS PR in the
+        # report; main-branch push always evaluates the full unscoped set (env
+        # unset here).
         env:
           COVERAGE_GATE_COMPONENTS: ${{ github.event_name == 'pull_request' && needs.changes.outputs.coverage_gate_components || '' }}
+          COVERAGE_RATCHET_MODE: ${{ github.event_name == 'pull_request' && 'report' || 'block' }}
         run: |
           python tools/calculate_unified_coverage.py
 
@@ -1785,9 +1808,9 @@ jobs:
           {
             echo "## Coverage Gate"
             echo ""
-            echo "- Authoritative coverage gate: \`Calculate Unified Coverage\` plus \`finish\`."
+            echo "- Authoritative coverage gate: \`Calculate Unified Coverage\` plus \`finish\` — PRs block on diff coverage of changed lines (#1810); main pushes block on the component ratchet."
             echo "- Pull requests do not publish Coveralls status contexts; main pushes upload unified line coverage for badge/trend reporting only."
-            echo "- Merge readiness follows \`finish\` and the committed \`unified-coverage.json\` baseline."
+            echo "- Merge readiness follows \`finish\`; PRs gate on \`tools/check_diff_coverage.py\`, main pushes on the committed \`unified-coverage.json\` baseline."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Check job status

@@ -61,6 +61,18 @@ REQUIRED_COMPONENTS_ENV = "COVERAGE_REQUIRED_COMPONENTS"
 # Overridden by the ``--gate-components`` CLI flag when that is supplied.
 GATE_COMPONENTS_ENV = "COVERAGE_GATE_COMPONENTS"
 
+# #1810 (G-ratchet-backstop): how a detected baseline regression is enforced.
+# "block" (the default when flag and env are both unset) keeps the exact
+# historical behavior — a regression exits 1. "report" prints the same
+# regression message prefixed as report-only and does NOT fail the run: on
+# PRs the blocking coverage verdict is the diff-coverage gate
+# (tools/check_diff_coverage.py), while the component ratchet remains the
+# blocking water-line on main pushes only. unified-coverage.json is still
+# written and the COVERAGE_THRESHOLD safety net applies in both modes.
+# Overridden by the ``--ratchet-mode`` CLI flag when that is supplied.
+RATCHET_MODE_ENV = "COVERAGE_RATCHET_MODE"
+RATCHET_MODES = ("block", "report")
+
 BACKEND_DIR = ROOT_DIR / "apps" / "backend"
 FRONTEND_DIR = ROOT_DIR / "apps" / "frontend"
 TOOLS_DIR = ROOT_DIR / "tools"
@@ -542,6 +554,19 @@ def parse_args(argv: list[str] | tuple[str, ...]) -> argparse.Namespace:
             f"to the {GATE_COMPONENTS_ENV} env var."
         ),
     )
+    parser.add_argument(
+        "--ratchet-mode",
+        choices=RATCHET_MODES,
+        default=None,
+        help=(
+            "#1810: 'block' (default) fails the run when a baseline regression "
+            "is detected; 'report' prints the regression as report-only and "
+            "does not fail (PR lane — the blocking PR coverage verdict is the "
+            "diff-coverage gate). unified-coverage.json is written and the "
+            "COVERAGE_THRESHOLD safety net applies in both modes. Falls back "
+            f"to the {RATCHET_MODE_ENV} env var."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -596,6 +621,18 @@ def main(argv: list[str] | tuple[str, ...] = ()) -> None:
             sys.exit(2)
     else:
         gate_component_names = None
+
+    # #1810: resolve the ratchet enforcement mode (flag > env > "block").
+    ratchet_mode = args.ratchet_mode
+    if ratchet_mode is None:
+        ratchet_mode = os.environ.get(RATCHET_MODE_ENV, "").strip() or "block"
+    if ratchet_mode not in RATCHET_MODES:
+        print(
+            f"\n❌ Invalid --ratchet-mode/{RATCHET_MODE_ENV}: {ratchet_mode!r}; "
+            f"valid modes: {', '.join(RATCHET_MODES)}",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
     preflight_errors = required_artifacts_preflight(preflight_components, ROOT_DIR)
     if preflight_errors:
@@ -753,8 +790,23 @@ def main(argv: list[str] | tuple[str, ...] = ()) -> None:
     write_unified_coverage(unified, output_path)
 
     if regression_error:
-        print(regression_error, file=sys.stderr)
-        sys.exit(1)
+        if ratchet_mode == "report":
+            # #1810 (G-ratchet-backstop): report-only lane (PRs). The full
+            # regression message stays visible, but the blocking PR coverage
+            # verdict is the diff-coverage gate; main pushes run in "block"
+            # mode and still fail here.
+            print(
+                "📣 REPORT-ONLY (#1810): the component ratchet does not block "
+                "this run (ratchet-mode=report; PR lane). The blocking PR "
+                "coverage verdict is the diff-coverage gate "
+                "(tools/check_diff_coverage.py); main pushes still block on "
+                "this ratchet.",
+                file=sys.stderr,
+            )
+            print(regression_error, file=sys.stderr)
+        else:
+            print(regression_error, file=sys.stderr)
+            sys.exit(1)
 
     # Exit with appropriate code (safety net after baseline check)
     threshold = int(os.environ.get("COVERAGE_THRESHOLD", "0"))

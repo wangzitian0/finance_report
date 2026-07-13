@@ -1348,6 +1348,124 @@ class TestMainBaselineExceptionPaths:
 
 
 # ---------------------------------------------------------------------------
+# Ratchet mode (#1810 G-ratchet-backstop): the component-% ratchet blocks main
+# pushes (block mode, the default) and is report-only on PRs (report mode).
+# ---------------------------------------------------------------------------
+
+
+class TestRatchetMode:
+    """AC-testing.diff-coverage.4: ratchet demoted to a main-only water-line."""
+
+    def _regressing_setup(self, tmp_path, monkeypatch):
+        """Baseline 80% everywhere; current backend drops to 70%."""
+        import re as _re  # noqa: PLC0415 — local to keep module imports intact
+
+        baseline_file = tmp_path / "baseline.json"
+        baseline_file.write_text(
+            json.dumps(
+                {
+                    "coverage_percent": 80.0,
+                    "total_lines": 300,
+                    "covered_lines": 240,
+                    "breakdown": {
+                        "backend": {
+                            "total_lines": 100,
+                            "covered_lines": 80,
+                            "coverage_percent": 80.0,
+                        },
+                        "frontend": {
+                            "total_lines": 100,
+                            "covered_lines": 80,
+                            "coverage_percent": 80.0,
+                        },
+                        "tools": {
+                            "total_lines": 100,
+                            "covered_lines": 80,
+                            "coverage_percent": 80.0,
+                        },
+                    },
+                }
+            )
+        )
+        monkeypatch.setenv("BASELINE_FILE", str(baseline_file))
+        monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+        monkeypatch.delenv("COVERAGE_RATCHET_MODE", raising=False)
+        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
+        monkeypatch.setattr(
+            cuc,
+            "get_backend_coverage",
+            lambda: {"total_lines": 100, "covered_lines": 70, "coverage_percent": 70.0},
+        )
+        ok = {"total_lines": 100, "covered_lines": 80, "coverage_percent": 80.0}
+        monkeypatch.setattr(cuc, "get_frontend_coverage", lambda: ok)
+        monkeypatch.setattr(cuc, "get_tools_coverage", lambda: ok)
+        return _re
+
+    def test_ratchet_report_mode_reports_regression_without_blocking(
+        self, tmp_path, monkeypatch, capfd
+    ):
+        _re = self._regressing_setup(tmp_path, monkeypatch)
+        monkeypatch.setenv("COVERAGE_RATCHET_MODE", "report")
+
+        with pytest.raises(SystemExit) as exc:
+            cuc.main()
+
+        assert exc.value.code == 0
+        err = capfd.readouterr().err
+        # The regression is still fully reported, marked report-only.
+        assert _re.search(r"(?i)report-only", err)
+        assert _re.search(r"backend: current=70\.00% baseline=80\.00%", err)
+        # unified-coverage.json is still written in report mode.
+        assert (tmp_path / "unified-coverage.json").exists()
+
+    def test_ratchet_block_mode_flag_blocks_regression(self, tmp_path, monkeypatch):
+        self._regressing_setup(tmp_path, monkeypatch)
+
+        with pytest.raises(SystemExit) as exc:
+            cuc.main(["--ratchet-mode", "block"])
+
+        assert exc.value.code == 1
+
+    def test_ratchet_default_mode_is_block(self, tmp_path, monkeypatch):
+        self._regressing_setup(tmp_path, monkeypatch)
+
+        with pytest.raises(SystemExit) as exc:
+            cuc.main()
+
+        assert exc.value.code == 1
+
+    def test_ratchet_mode_flag_overrides_env(self, tmp_path, monkeypatch):
+        self._regressing_setup(tmp_path, monkeypatch)
+        monkeypatch.setenv("COVERAGE_RATCHET_MODE", "block")
+
+        with pytest.raises(SystemExit) as exc:
+            cuc.main(["--ratchet-mode", "report"])
+
+        assert exc.value.code == 0
+
+    def test_report_mode_keeps_threshold_safety_net(self, tmp_path, monkeypatch):
+        self._regressing_setup(tmp_path, monkeypatch)
+        monkeypatch.setenv("COVERAGE_RATCHET_MODE", "report")
+        # Unified current is 230/300 = 76.67% < 90 -> the safety net still fails
+        # the run even though the ratchet itself is report-only.
+        monkeypatch.setenv("COVERAGE_THRESHOLD", "90")
+
+        with pytest.raises(SystemExit) as exc:
+            cuc.main()
+
+        assert exc.value.code == 1
+
+    def test_invalid_ratchet_mode_env_fails_loudly(self, tmp_path, monkeypatch):
+        self._regressing_setup(tmp_path, monkeypatch)
+        monkeypatch.setenv("COVERAGE_RATCHET_MODE", "sometimes")
+
+        with pytest.raises(SystemExit) as exc:
+            cuc.main()
+
+        assert exc.value.code == 2
+
+
+# ---------------------------------------------------------------------------
 # __main__ entry point (line 327)
 # ---------------------------------------------------------------------------
 
