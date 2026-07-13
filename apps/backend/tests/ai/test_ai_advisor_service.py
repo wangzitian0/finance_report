@@ -276,8 +276,13 @@ async def test_stream_openrouter_raises_when_all_fail(
 
 async def test_chat_stream_requires_api_key(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
     """AC-advisor.stream.3: AC6.7.3: Chat stream raises error when API key not configured."""
+    # The guard is compound (EPIC-023): raise only when the instance has no key
+    # AND get_config_source(user_id).is_configured() is False. The env leg is
+    # pinned unconfigured by the tests/ai conftest fixture (#1804) and the DB leg
+    # is empty by construction (fresh test DB), so the raise is deterministic
+    # regardless of ambient ZAI/GLM/AI/OPENROUTER/GEMINI_API_KEY exports.
     service = AIAdvisorService()
-    service.api_key = None
+    assert not service.api_key  # inherited from the pinned (empty) env key
 
     async def fake_context(_db: AsyncSession, _user_id) -> dict[str, str]:
         return {"summary": "ok"}
@@ -287,6 +292,39 @@ async def test_chat_stream_requires_api_key(db: AsyncSession, test_user, monkeyp
 
     with pytest.raises(AIAdvisorError, match="AI provider API key not configured"):
         await service.chat_stream(db, test_user.id, "How much did I save this month?")
+
+
+async def test_chat_stream_configured_source_unblocks_without_env_key(
+    db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC-advisor.stream.3: the guard checks the configured surface, not just the env key.
+
+    Complement of the raise branch (EPIC-023 #1185): a user whose config source is
+    configured (BYO provider / deployment default) must NOT be blocked just because
+    the deployment has no AI_API_KEY.
+    """
+    service = AIAdvisorService()
+    assert not service.api_key  # env leg unconfigured, exactly like the raise test
+
+    async def fake_context(_db: AsyncSession, _user_id) -> dict[str, str]:
+        return {"summary": "ok"}
+
+    class _ConfiguredSource:
+        async def is_configured(self) -> bool:
+            return True
+
+        async def get_binding(self, _scene):
+            return None  # no per-user binding: fall back to env models
+
+    monkeypatch.setattr(service, "get_financial_context", fake_context)
+    monkeypatch.setattr(ai_advisor_service, "get_config_source", lambda _user_id=None: _ConfiguredSource())
+    ai_advisor_service._CACHE._store.clear()
+
+    result = await service.chat_stream(db, test_user.id, "How much did I save this month?")
+
+    assert result.cached is False
+    assert result.session_id is not None
+    await result.stream.aclose()  # never started; close to avoid a dangling async generator
 
 
 async def test_get_financial_context_handles_report_errors(
