@@ -285,8 +285,13 @@ def _package_all(src_dir: Path) -> list[str]:
 # Playwright half instead of routing every FE behavior through a Python proxy
 # test. Matches the suffix vocabulary the AC-traceability scanner already uses
 # (``common.testing.ac_graph.TEST_FILE_SUFFIXES`` /
-# ``common.testing.check_ac_traceability.TEST_FILE_SUFFIXES``) so "what counts
-# as a frontend test file" cannot drift between the two gates.
+# ``common.testing.check_ac_traceability.TEST_FILE_SUFFIXES``) — duplicated
+# here, not imported: ``meta`` (this package) declares ``depends_on=[]``, and
+# importing ``common.testing`` (``infra``, a higher layer) would be exactly the
+# upward/undeclared edge ``_check_no_forbidden_edge`` below rejects (the one
+# prior "meta imports common.testing" exception was resolved by RELOCATING the
+# code into meta, per #1679, not by keeping the edge). Keep the two lists in
+# sync by hand if either vocabulary changes.
 _FRONTEND_TEST_SUFFIXES = (".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx")
 
 # One vitest/Playwright test declaration: `it("name", ...)` / `test("name",
@@ -317,7 +322,7 @@ def _resolve_test(ref: str, repo_root: Path) -> str | None:
     if rel_path.endswith(_FRONTEND_TEST_SUFFIXES):
         names = _frontend_test_names(test_path.read_text(encoding="utf-8"))
         if func not in names:
-            return f"test {func!r} not found in {rel_path}"
+            return f"test title {func!r} not found in {rel_path}"
         return None
     tree = ast.parse(test_path.read_text(encoding="utf-8"))
     names = {
