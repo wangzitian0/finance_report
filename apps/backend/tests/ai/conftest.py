@@ -22,4 +22,6 @@ def pin_ai_key_unconfigured(monkeypatch: pytest.MonkeyPatch) -> None:
     tests that need a configured provider set ``service.api_key`` or patch
     ``get_config_source`` explicitly, which overrides this default.
     """
-    monkeypatch.setattr(settings, "ai_api_key", "", raising=False)
+    # raising=True (default): if the field is ever renamed, fail loudly instead
+    # of silently reverting this package to the ambient environment.
+    monkeypatch.setattr(settings, "ai_api_key", "")
