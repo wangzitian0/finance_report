@@ -71,7 +71,7 @@ async function installPortfolioMocks(page: Page) {
         event_counts: { unread: 0, action_required: 0, blocked: 0 },
       };
     } else if (path === "/api/portfolio/holdings") {
-      body = holdings;
+      body = { items: holdings, total: holdings.length, warnings: [] };
     } else if (path === "/api/portfolio/summary") {
       body = {
         total_market_value: "1775.00",
