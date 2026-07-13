@@ -254,9 +254,17 @@ jobs:
           # #1806/AC-testing.deploy-gates.37: read the deployed health surface
           # before spending the corpus budget — an unhealthy environment fails as
           # its own precondition class, never as an extraction regression.
+          # The contract tool comes from the corpus CHECKOUT (the deployed
+          # version), not from main: a checkout predating #1806 exits 2 on the
+          # unknown flag (argparse usage error), which must skip the preflight —
+          # only a real health miss (exit 1) is a precondition failure.
           preflight_status=0
           run_timed_phase "Staging AI/OCR Preflight (deployed health surface)" \
             .venv/bin/python tools/staging_ai_ocr_gate_contract.py --preflight --base-url "$APP_URL" || preflight_status=$?
+          if [ "$preflight_status" -eq 2 ]; then
+            echo "::notice::corpus checkout's contract tool predates --preflight; skipping the health preflight for this (older) deployed version."
+            preflight_status=0
+          fi
           if [ "$preflight_status" -ne 0 ]; then
             write_staging_audit_result "$preflight_status"
             record_and_finish "$preflight_status" "precondition-failed"

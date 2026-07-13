@@ -493,6 +493,14 @@ def test_AC_testing_deploy_gates_37_gate_preflights_before_corpus_spend() -> Non
     corpus_at = script.index('pytest "${STAGING_AI_OCR_TESTS[@]}"')
     assert version_at < preflight_at < precondition_record_at < corpus_at
 
+    # The corpus checkout (deployed version) may predate the tool's --preflight
+    # flag: argparse exits 2 on the unknown flag, and the gate must SKIP the
+    # preflight then — only a real health miss (exit 1) may record the
+    # precondition status. Otherwise every nightly between merging #1806 and
+    # deploying the next release would spuriously alert precondition-failed.
+    skip_guard_at = script.index("predates --preflight")
+    assert preflight_at < skip_guard_at < precondition_record_at
+
 
 def test_AC_testing_deploy_gates_38_transient_classification_precedence(
     tmp_path: Path,
