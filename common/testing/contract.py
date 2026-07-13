@@ -1573,7 +1573,7 @@ CONTRACT = PackageContract(
             ),
             test=(
                 "tests/tooling/test_staging_ai_ocr_gate_contract.py"
-                "::test_AC_testing_deploy_gates_38_transient_classification_precedence"
+                "::test_AC_testing_deploy_gates_38_gate_retries_transients_once_then_escalates"
             ),
             priority="P1",
             status="done",

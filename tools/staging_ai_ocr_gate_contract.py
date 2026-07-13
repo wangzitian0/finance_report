@@ -388,30 +388,42 @@ def render_alert_body(
 
 
 def emit_classification_shell(classification: dict[str, Any]) -> str:
-    """Bash assignments the gate step evals after a red corpus run."""
+    """Bash assignments the gate step evals after a red corpus run.
+
+    This adapter is only ever consumed on a RED run (pytest exited nonzero), so
+    a classification with no attributable failed cases (missing/unparseable
+    JUnit, or a crash before any case was written) must map to the safe
+    regression-failed default — never to "passed", which would let a red run
+    publish a false-green ai_ocr_status downstream.
+    """
+    status = classification["status"]
+    if status == "passed":
+        status = "regression-failed"
     quoted_targets = " ".join(
         shlex.quote(path) for path in classification["retry_targets"]
     )
     return "\n".join(
         [
-            f"AI_OCR_FAILURE_CLASS={shlex.quote(classification['status'])}",
+            f"AI_OCR_FAILURE_CLASS={shlex.quote(status)}",
             f"AI_OCR_RETRY_TESTS=({quoted_targets})",
         ]
     )
 
 
 def preflight(base_url: str, *, timeout_seconds: float = 30.0) -> tuple[bool, str]:
-    """Deployed-surface preflight (#1806): read /api/health, never recompute.
+    """Deployed-surface preflight (#1806): read /api/health?full=1, never recompute.
 
-    Queries the app's own health surface (the manifest-required dependencies
-    already fail closed there) so the gate adds no parallel environment
-    checks — the #1435 lesson. Returns (ok, reason).
+    Queries the app's own health surface so the gate adds no parallel
+    environment checks — the #1435 lesson. ``?full=1`` is load-bearing: the
+    default health form only checks database+S3 (light Docker healthcheck),
+    while ``full`` asserts the FULL manifest-declared dependency set for the
+    tier (smoke ↔ declaration parity, invariant 6). Returns (ok, reason).
     """
     import json as json_module
     import urllib.error
     import urllib.request
 
-    url = f"{base_url.rstrip('/')}/api/health"
+    url = f"{base_url.rstrip('/')}/api/health?full=1"
     try:
         with urllib.request.urlopen(url, timeout=timeout_seconds) as response:
             payload = json_module.loads(response.read().decode("utf-8"))

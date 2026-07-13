@@ -451,15 +451,20 @@ def test_AC_testing_deploy_gates_37_preflight_reads_deployed_health_surface(
     environment state of its own (the #1435 lesson)."""
     import urllib.request
 
-    monkeypatch.setattr(
-        urllib.request,
-        "urlopen",
-        lambda url, timeout: _FakeHealthResponse(
+    seen: dict[str, str] = {}
+
+    def _healthy_urlopen(url: str, timeout: float) -> _FakeHealthResponse:
+        seen["url"] = url
+        return _FakeHealthResponse(
             {"status": "healthy", "checks": {"database": True, "s3": True}}
-        ),
-    )
+        )
+
+    monkeypatch.setattr(urllib.request, "urlopen", _healthy_urlopen)
     ok, reason = contract.preflight("https://staging.example")
     assert (ok, reason) == (True, "healthy")
+    # ?full=1 is load-bearing: the default health form checks only database+S3;
+    # full asserts the whole manifest-required dependency set for the tier.
+    assert seen["url"] == "https://staging.example/api/health?full=1"
 
     monkeypatch.setattr(
         urllib.request,
@@ -554,6 +559,28 @@ def test_AC_testing_deploy_gates_38_gate_retries_transients_once_then_escalates(
         "AI_OCR_FAILURE_CLASS=provider-transient",
         "AI_OCR_RETRY_TESTS=(tests/e2e/test_statement_full_journey.py)",
     ]
+
+    # False-green guard: the shell adapter is only consumed on RED runs, so a
+    # classification with no attributable cases (missing/unparseable JUnit)
+    # must map to regression-failed — never let a red run publish "passed".
+    empty_shell = contract.emit_classification_shell(
+        contract.classify_junit([tmp_path / "does-not-exist.xml"])
+    )
+    assert empty_shell.splitlines() == [
+        "AI_OCR_FAILURE_CLASS=regression-failed",
+        "AI_OCR_RETRY_TESTS=()",
+    ]
+
+    # And the workflow only classifies when the JUnit file exists at all.
+    # rindex bounded by the classify call finds the guard INSIDE the red
+    # branch (write_staging_audit_result has an earlier, unrelated -f check).
+    script = _gate_run_script()
+    classify_at = script.index("--classify-junit")
+    red_branch_at = script.index('if [ "$gate_status" -ne 0 ]')
+    xml_guard_at = script.rindex(
+        "-f test-results/staging-ai-ocr-gate.xml", 0, classify_at
+    )
+    assert red_branch_at < xml_guard_at < classify_at
 
 
 def test_AC_testing_deploy_gates_39_alert_body_carries_machine_attribution(

@@ -282,11 +282,16 @@ jobs:
             # escalates so transience can never mask a standing regression.
             AI_OCR_FAILURE_CLASS="regression-failed"
             AI_OCR_RETRY_TESTS=()
-            eval "$(.venv/bin/python tools/staging_ai_ocr_gate_contract.py \
-              --classify-junit test-results/staging-ai-ocr-gate.xml \
-              --alert-body-out test-results/staging-ai-ocr-alert-body.md \
-              --run-id "${GITHUB_RUN_ID:-?}" --expected-sha "${EXPECTED_SHA:-?}" \
-              --app-url "$APP_URL")" || true
+            # Classify only when JUnit evidence exists: a red run with no XML
+            # (crash before any case wrote) keeps the safe regression-failed
+            # default — it can never be re-labeled, let alone go green.
+            if [ -f test-results/staging-ai-ocr-gate.xml ]; then
+              eval "$(.venv/bin/python tools/staging_ai_ocr_gate_contract.py \
+                --classify-junit test-results/staging-ai-ocr-gate.xml \
+                --alert-body-out test-results/staging-ai-ocr-alert-body.md \
+                --run-id "${GITHUB_RUN_ID:-?}" --expected-sha "${EXPECTED_SHA:-?}" \
+                --app-url "$APP_URL")" || true
+            fi
 
             if [ "$AI_OCR_FAILURE_CLASS" = "provider-transient" ] && [ "${#AI_OCR_RETRY_TESTS[@]}" -gt 0 ]; then
               retry_status=0
