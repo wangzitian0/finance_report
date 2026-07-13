@@ -797,7 +797,7 @@ async def test_database_connectivity(client, test_user):
 
 @pytest.mark.e2e
 async def test_statement_upload_csv(client, test_user):
-    """AC-testing.must-have.4:
+    """AC-testing.must-have.4: AC-extraction.804.1:
     EPIC-003 EPIC-013 / AC8.4.1: Upload bank statement (CSV format)
     AC8.10.4: Traceability — statement upload works
     GIVEN a user is authenticated
@@ -820,7 +820,7 @@ async def test_statement_upload_csv(client, test_user):
 
 @pytest.mark.e2e
 async def test_statement_list_and_get(client, test_user):
-    """
+    """AC-extraction.804.2:
     EPIC-003 EPIC-013 / AC8.4.2: List and get individual statements
     GIVEN a user has uploaded a statement
     WHEN listing statements and getting one by ID
@@ -851,7 +851,7 @@ async def test_statement_list_and_get(client, test_user):
 
 @pytest.mark.e2e
 async def test_statement_full_flow(client, test_user):
-    """
+    """AC-extraction.804.3:
     EPIC-003 EPIC-013 EPIC-018 / AC8.4.3: Full statement lifecycle — upload → list → get → approve
     GIVEN a user uploads a CSV statement
     WHEN walking through the complete lifecycle

@@ -583,7 +583,7 @@ async def test_AC21_2_1_advisor_context_degrades_to_default_suggestion_when_sour
 
 @pytest.mark.no_db
 def test_AC22_14_3_chat_grounding_metadata_links_pending_review_without_write_actions() -> None:
-    """AC22.14.1 AC22.14.3: Chat metadata cites facts and deep-links pending review actions."""
+    """AC-advisor.grounding.2: AC22.14.1 AC22.14.3: Chat metadata cites facts and deep-links pending review actions."""
     service = AIAdvisorService()
 
     metadata = service.build_chat_grounding_metadata(

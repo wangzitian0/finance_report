@@ -75,7 +75,7 @@ def _make_entry(
 
 
 class TestFindTransferCandidates:
-    """[AC12.18.7.2] _find_transfer_candidates returns transfer pairs."""
+    """AC-reconciliation.candidate-matching.1: [AC12.18.7.2] _find_transfer_candidates returns transfer pairs."""
 
     def test_find_transfer_candidates_returns_pair(self) -> None:
         """Transfer-pattern transactions are identified with score=100."""

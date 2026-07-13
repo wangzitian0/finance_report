@@ -749,7 +749,7 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, model
 
 
 async def test_stage1_reject_triggers_reparse(db, monkeypatch, storage_stub, test_user):
-    """AC16.22.2: Stage 1 reject queues a re-parse for the rejected statement."""
+    """AC-extraction.stage1-validation.9: AC16.22.2: Stage 1 reject queues a re-parse for the rejected statement."""
     statement = build_statement(test_user.id, "hash_stage1_reject_reparse", 70)
     statement.status = BankStatementStatus.PARSED
     db.add(statement)
@@ -1574,7 +1574,7 @@ async def test_get_statement_for_review(db, test_user, monkeypatch):
 
 
 async def test_AC16_33_5_get_statement_document_streams_bytes_same_origin(db, test_user, monkeypatch):
-    """AC16.33.5: the document endpoint streams the original upload, same-origin.
+    """AC-extraction.document-delivery.2: AC16.33.5: the document endpoint streams the original upload, same-origin.
 
     The Stage 1 PDF preview embeds this authenticated endpoint as a ``blob:``
     object URL instead of a cross-origin object-storage URL.
@@ -1661,7 +1661,7 @@ async def test_get_statement_for_review_storage_error(db, test_user, monkeypatch
 
 
 async def test_AC16_33_4_get_statement_for_review_uses_short_presign_ttl(db, test_user, monkeypatch):
-    """AC16.33.4: Statement review PDFs use a short-lived preview URL."""
+    """AC-extraction.document-delivery.1: AC16.33.4: Statement review PDFs use a short-lived preview URL."""
     statement = build_statement(test_user.id, "hash_review_short_presign", 75)
     db.add(statement)
     await db.flush()
@@ -2967,7 +2967,7 @@ async def test_batch_approve_matches_blocked_by_unresolved_checks(db, test_user)
 
 
 async def test_AC16_32_1_stage1_approval_blocks_unresolved_conflicts(db, test_user):
-    """AC16.32.1: Stage 1 approval cannot bypass unresolved duplicate candidates."""
+    """AC-reconciliation.conflict-resolution.1: AC16.32.1: Stage 1 approval cannot bypass unresolved duplicate candidates."""
     account = await create_statement_account(db, test_user.id, "DBS Stage 1 Conflict")
     statement = build_statement(test_user.id, "hash_stage1_conflict", 90)
     statement.status = BankStatementStatus.PARSED
@@ -3042,7 +3042,7 @@ async def test_AC16_32_1_stage1_approval_blocks_unresolved_transfer_pairs(db, te
 
 
 async def test_AC16_34_1_resolve_unblocks_stage1_approval(db, test_user):
-    """AC16.34.1: resolving the conflict candidates unblocks Stage 1 approval.
+    """AC-reconciliation.conflict-resolution.2: AC16.34.1: resolving the conflict candidates unblocks Stage 1 approval.
 
     A statement with an inherent duplicate is no longer permanently stuck in
     ``parsed`` once the reviewer confirms the rows are genuinely distinct.
@@ -3119,7 +3119,7 @@ async def test_AC16_34_1_resolve_conflicts_404_for_unknown_statement(db, test_us
 
 
 async def test_AC16_34_2_reject_clears_conflict_resolution(db, test_user):
-    """AC16.34.2: a reject/reparse clears a prior conflict resolution so the
+    """AC-reconciliation.conflict-resolution.3: AC16.34.2: a reject/reparse clears a prior conflict resolution so the
     fresh transaction set must be re-reviewed."""
     statement = build_statement(test_user.id, "hash_stage1_resolve_reset", 90)
     statement.status = BankStatementStatus.PARSED
@@ -3318,7 +3318,7 @@ async def test_batch_approve_matches_success(db, test_user):
 
 
 async def test_batch_approve_matches_reconciles_referenced_entry(db, test_user):
-    """AC16.24.4: Batch approving a pending Stage 2 match reconciles referenced ledger entries."""
+    """AC-reconciliation.stage2-batch.5: AC16.24.4: Batch approving a pending Stage 2 match reconciles referenced ledger entries."""
     account = await create_statement_account(db, test_user.id, "DBS Batch Referenced")
     statement = build_statement(test_user.id, "hash_batch_reconcile", 90)
     statement.status = BankStatementStatus.APPROVED

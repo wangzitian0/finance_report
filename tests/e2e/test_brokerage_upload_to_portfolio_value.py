@@ -273,7 +273,7 @@ def test_statement_poll_failure_message_flags_state_transition_stall() -> None:
 def test_portfolio_valuation_gate_ignores_unrelated_negative_asset_lines() -> None:
     """EPIC-005 EPIC-008 EPIC-017.
 
-    AC8.13.18/Issue #433: Gate checks portfolio valuation lines, not total assets.
+    AC-reporting.portfolio-valuation-gate.1: AC8.13.18/Issue #433: Gate checks portfolio valuation lines, not total assets.
     """
     holdings = [{"market_value": "324980.5000000"}]
     balance_sheet = {
@@ -296,7 +296,7 @@ def test_portfolio_valuation_gate_ignores_unrelated_negative_asset_lines() -> No
 def test_portfolio_valuation_gate_failure_diagnostics_are_actionable() -> None:
     """EPIC-005 EPIC-008 EPIC-017.
 
-    AC8.13.19/Issue #433: Gate failure messages expose valuation and non-portfolio totals.
+    AC-reporting.portfolio-valuation-gate.2: AC8.13.19/Issue #433: Gate failure messages expose valuation and non-portfolio totals.
     """
     holdings = [{"market_value": "100.00"}]
     balance_sheet = {

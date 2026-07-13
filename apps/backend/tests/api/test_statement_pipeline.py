@@ -37,7 +37,7 @@ def _dispatch_kwargs() -> dict:
 
 
 async def test_AC19_13_1_dispatch_falls_back_to_asyncio_when_prefect_unset(monkeypatch):
-    """AC19.13.1: PREFECT_API_URL unset → in-process asyncio fallback, no Prefect."""
+    """AC-extraction.1913.1: AC19.13.1: PREFECT_API_URL unset → in-process asyncio fallback, no Prefect."""
     monkeypatch.setattr(statement_pipeline.settings, "prefect_api_url", None)
     seen: dict = {}
 
@@ -97,7 +97,7 @@ async def test_AC19_13_1_dispatch_registers_exception_consumer_on_fallback(monke
 
 
 async def test_AC19_13_2_dispatch_submits_serializable_params_to_prefect(monkeypatch):
-    """AC19.13.2: PREFECT_API_URL set → submit flow run with serializable params only."""
+    """AC-extraction.1913.2: AC19.13.2: PREFECT_API_URL set → submit flow run with serializable params only."""
     monkeypatch.setattr(statement_pipeline.settings, "prefect_api_url", "http://prefect:4200/api")
 
     run_deployment = AsyncMock(return_value=None)

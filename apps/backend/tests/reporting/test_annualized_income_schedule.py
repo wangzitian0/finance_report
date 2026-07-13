@@ -31,7 +31,7 @@ async def test_AC11_11_1_AC11_11_2_annualized_schedule_includes_income_and_restr
     db: AsyncSession,
     test_user,
 ):
-    """AC11.11.1 AC11.11.2: Report package schedule includes income and restricted holdings."""
+    """AC-reporting.package-annualized.3/AC-reporting.package-annualized.4: AC11.11.1 AC11.11.2: Report package schedule includes income and restricted holdings."""
     salary = Account(user_id=test_user.id, name="Salary Income", type=AccountType.INCOME, currency="SGD")
     bonus = Account(user_id=test_user.id, name="Annual Bonus", type=AccountType.INCOME, currency="SGD")
     dividend = Account(user_id=test_user.id, name="Dividend Income", type=AccountType.INCOME, currency="SGD")
@@ -151,7 +151,7 @@ async def test_AC11_11_4_annualized_schedule_surfaces_structured_valuation_basis
     db: AsyncSession,
     test_user,
 ):
-    """AC11.11.4: A restricted holding surfaces its structured valuation_basis enum value.
+    """AC-reporting.package-annualized.5: AC11.11.4: A restricted holding surfaces its structured valuation_basis enum value.
 
     A snapshot captured with an explicit evidence basis must report that enum
     value in the schedule (not the hardcoded `manual_valuation_snapshot` literal);

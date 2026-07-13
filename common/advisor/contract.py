@@ -1093,5 +1093,42 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        # ── group grounding: grounded chat answers with citations/next-action
+        # chips (was EPIC-022 AC22.14.1/AC22.14.3, #1821 Wave A
+        # pending-package move) ──
+        ACRecord(
+            id="AC-advisor.grounding.1",
+            statement=(
+                "POST /api/chat exposes structured grounding metadata for "
+                "personal-data answers, including source citations with "
+                "confidence tiers, without sending or returning raw account "
+                "numbers or transaction-level PII."
+            ),
+            # was AC22.14.1
+            test=(
+                "apps/backend/tests/ai/test_chat_router.py"
+                "::test_AC22_14_1_chat_response_exposes_grounding_metadata_header"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-advisor.grounding.2",
+            statement=(
+                "A grounded chat answer that has pending reconciliation "
+                "review context exposes a 'Review N' action deep-link to the "
+                "review queue while preserving the assistant's "
+                "read-only/no-write boundary."
+            ),
+            # was AC22.14.3
+            test=(
+                "apps/backend/tests/ai/test_ai_advisor_service.py"
+                "::test_AC22_14_3_chat_grounding_metadata_links_pending_review_without_write_actions"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
     ],
 )

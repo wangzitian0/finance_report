@@ -269,10 +269,7 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 >
 > *(AC18.2.1 removed and AC18.2.2 removed and AC18.2.3 removed and AC18.2.4 removed and AC18.2.5 removed — migrated to the `extraction` package roadmap as `AC-extraction.1802.1-5`, migration closeout continuation, #1663 / #1715)*
 >
-> *(AC18.4.1 removed and AC18.4.2 removed and AC18.4.4 removed — migrated to
-> the `reporting` package roadmap as `AC-reporting.layer3.1-3`, migration
-> closeout continuation, #1663 / #1716. AC18.4.3 stays — it is
-> extraction-owned CSV-fallback scope, not reporting.)*
+> *(AC18.4.1 removed and AC18.4.2 removed and AC18.4.4 removed and AC18.4.3 removed — AC18.4.1/.4.2/.4.4 migrated to the `reporting` package roadmap as `AC-reporting.layer3.1-3` (migration closeout continuation, #1663 / #1716); AC18.4.3 migrated separately to the `extraction` package roadmap as `AC-extraction.1804.1` — extraction-owned CSV-fallback scope, not reporting, #1821 Wave A)*
 
 | AC ID | Phase | Description |
 |-------|-------|-------------|
@@ -282,7 +279,12 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 | AC18.3.1 | 3 | `ai_semantic_score()` returns similarity for transaction description pairs. **Not migrated** — `ai_semantic_score` is a genuine LLM call, but `reconciliation` is declared `CODE-ONLY`; migrating this row trips `check_authority_reconcile.py` (a CODE-ONLY package permits no LLM-classified roadmap-AC test). Needs a tier/package-boundary decision before migration, not a silent workaround (found during migration verification, #1663 / #1711) | <!-- epic-owned: pending-package -->
 | AC18.3.2 | 3 | Hybrid scoring: `0.7 * algorithmic + 0.3 * AI` for 60-84 range only. **Untested** — no test exercises `calculate_match_score`'s hybrid-AI branch (found during migration verification, #1663 / #1711) | <!-- epic-owned: pending-package -->
 | AC18.3.3 | 3 | Feature flag `enable_ai_reconciliation` controls AI scoring. **Untested** — no test toggles `ENABLE_AI_RECONCILIATION` (found during migration verification, #1663 / #1711) | <!-- epic-owned: pending-package -->
-| AC18.4.3 | 4 | AI CSV parsing handles unknown institutions as fallback | <!-- epic-owned: pending-package -->
+> (AC18.4.3 removed, canonical: migrated to the `extraction` package roadmap
+> as `AC-extraction.1804.1`, #1821 Wave A. AC18.1.2/AC18.1.5/AC18.1.6/
+> AC18.3.1/AC18.3.2/AC18.3.3 above stay pending-package — each already has a
+> documented blocker [missing test / undecided package-boundary tier
+> conflict] from the #1663/#1711/#1715 migration verification passes; #1821
+> Wave A only moves mechanically-provable rows, not open investigations.)
 
 ### AC18.7: Evidence Graph Foundation
 

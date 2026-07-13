@@ -240,10 +240,10 @@ def _line_total_by_name(lines: list[dict], token: str) -> Decimal:
     ac_ids=[
         "AC-testing.product-gates.7",
         "AC-extraction.813.10",
-        "AC5.7.3",
-        "AC11.9.1",
-        "AC11.9.2",
-        "AC11.9.3",
+        "AC-reporting.net-worth-timeseries.2",
+        "AC-pricing.manualvaluation.5",
+        "AC-pricing.manualvaluation.6",
+        "AC-pricing.manualvaluation.7",
         "AC-portfolio.valuation.1",
     ],
     scope="behavioral",
@@ -270,7 +270,8 @@ async def test_four_asset_as_of_net_worth_golden_path(
 ) -> None:
     """AC-testing.product-gates.7: EPIC-005 EPIC-008 EPIC-011 EPIC-017.
 
-    AC-testing.product-gates.7 AC-extraction.813.10 AC5.7.3 AC11.9.1 AC11.9.2 AC11.9.3
+    AC-testing.product-gates.7 AC-extraction.813.10 AC-reporting.net-worth-timeseries.2
+    AC-pricing.manualvaluation.5 AC-pricing.manualvaluation.6 AC-pricing.manualvaluation.7
     AC-portfolio.valuation.1:
     four assets produce exact as-of net worth.
     """

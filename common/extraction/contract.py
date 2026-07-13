@@ -3190,5 +3190,282 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        # ── group 804: Phase 3 statement import & parsing e2e journeys (was
+        # EPIC-008 AC8.4.1-3, #1821 Wave A pending-package move) ──
+        ACRecord(
+            id="AC-extraction.804.1",
+            statement="Statement upload (CSV) end-to-end journey.",
+            # was AC8.4.1
+            test="apps/backend/tests/e2e/test_core_journeys.py::test_statement_upload_csv",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.804.2",
+            statement="Statement list and get end-to-end journey.",
+            # was AC8.4.2
+            test="apps/backend/tests/e2e/test_core_journeys.py::test_statement_list_and_get",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.804.3",
+            statement="Statement full flow (upload -> parse -> approve) end-to-end journey.",
+            # was AC8.4.3
+            test="apps/backend/tests/e2e/test_core_journeys.py::test_statement_full_flow",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        # ── group stage1-validation: Stage 1 statement review/approval
+        # (src.extraction.extension.statement_validation), was EPIC-016
+        # AC16.1.1/AC16.3.1-6/AC16.22.1/AC16.22.2/AC16.22.5-7 (#1821 Wave A
+        # pending-package move). AC16.1.1 and AC16.22.5 both cited the same
+        # tolerance test and are merged into .1; AC16.3.6 and AC16.22.6 both
+        # cited the same ownership test and are merged into .7. AC16.3.5's
+        # original wording ("edit_and_approve raises ValueError when balance
+        # is still invalid after edits") was stale — the feature is now
+        # unconditionally unsupported; .6 states the current behavior. The
+        # EPIC's own test names for what are now .1 and .8 were also stale
+        # (test_validate_balance_chain_within_tolerance() and
+        # test_approve_statement_invalid_balance_fails do not exist); the real
+        # test functions are cited below. ──
+        ACRecord(
+            id="AC-extraction.stage1-validation.1",
+            statement=(
+                "Stage 1 balance validation tolerance is 0.001 USD, not the "
+                "looser 0.10 USD Stage 2 reconciliation-scoring tolerance."
+            ),
+            # was AC16.1.1 + AC16.22.5
+            test=(
+                "apps/backend/tests/review/test_statement_validation.py"
+                "::test_within_tolerance"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.stage1-validation.2",
+            statement="validate_balance_chain raises ValueError when the statement is not found.",
+            # was AC16.3.1
+            test=(
+                "apps/backend/tests/review/test_statement_validation.py"
+                "::test_statement_not_found_raises"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.stage1-validation.3",
+            statement=(
+                "_get_opening_balance falls back to the statement's own "
+                "opening_balance when no previous statement exists."
+            ),
+            # was AC16.3.2
+            test=(
+                "apps/backend/tests/review/test_statement_validation.py"
+                "::test_opening_balance_from_statement_when_no_manual_no_prev"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.stage1-validation.4",
+            statement=(
+                "_get_opening_balance uses the previous statement's "
+                "closing_balance when one is available."
+            ),
+            # was AC16.3.3
+            test=(
+                "apps/backend/tests/review/test_statement_validation.py"
+                "::test_opening_balance_from_prev_statement"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.stage1-validation.5",
+            statement="reject_statement without a reason clears validation_error.",
+            # was AC16.3.4
+            test=(
+                "apps/backend/tests/review/test_statement_validation.py"
+                "::test_reject_without_reason"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.stage1-validation.6",
+            statement=(
+                "edit_and_approve is unconditionally unsupported — Stage 1 "
+                "correction only happens via reject + re-parse, never a "
+                "partial field edit, regardless of the resulting balance."
+            ),
+            # was AC16.3.5 (statement corrected: the original wording
+            # described a since-removed conditional-validation path)
+            test=(
+                "apps/backend/tests/review/test_statement_validation.py"
+                "::test_edit_and_approve_is_unsupported"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.stage1-validation.7",
+            statement=(
+                "Every service method that mutates a pending_review statement "
+                "enforces user_id ownership (e.g. _get_statement_for_update "
+                "raises ValueError for a mismatched user_id)."
+            ),
+            # was AC16.3.6 + AC16.22.6
+            test=(
+                "apps/backend/tests/review/test_statement_validation.py"
+                "::test_get_statement_for_update_wrong_user_raises"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.stage1-validation.8",
+            statement=(
+                "A Stage 1 pending_review -> approved transition requires "
+                "the balance delta to be <= 0.001 USD."
+            ),
+            # was AC16.22.1
+            test=(
+                "apps/backend/tests/review/test_statement_validation.py"
+                "::test_approve_with_invalid_balance_raises"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.stage1-validation.9",
+            statement="A Stage 1 pending_review -> rejected transition triggers re-parse.",
+            # was AC16.22.2
+            test=(
+                "apps/backend/tests/api/test_statements_router.py"
+                "::test_stage1_reject_triggers_reparse"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.stage1-validation.10",
+            statement=(
+                "Stage 1 approval tolerance and extraction/reconciliation "
+                "scoring tolerance remain separate, intentionally documented "
+                "policies."
+            ),
+            # was AC16.22.7
+            test=(
+                "apps/backend/tests/review/test_tolerance_policy.py"
+                "::test_ac16_22_7_tolerance_policy_constants_are_intentional"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        # ── group document-delivery: Stage 1 PDF preview presign/streaming
+        # (was EPIC-016 AC16.33.4/AC16.33.5's backend half, #1821 Wave A
+        # pending-package move; the frontend embedding half stays fe-only) ──
+        ACRecord(
+            id="AC-extraction.document-delivery.1",
+            statement=(
+                "Stage 1 statement review PDF previews use short-lived "
+                "presigned URLs for sandboxed iframe embedding."
+            ),
+            # was AC16.33.4
+            test=(
+                "apps/backend/tests/api/test_statements_router.py"
+                "::test_AC16_33_4_get_statement_for_review_uses_short_presign_ttl"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.document-delivery.2",
+            statement=(
+                "The Stage 1 PDF preview streams bytes same-origin via "
+                "GET /api/statements/{id}/document for sandboxed blob: object "
+                "URL embedding (backend half; also proven not-found -> 404 and "
+                "storage-error -> 502 by "
+                "test_AC16_33_5_get_statement_document_404_when_no_document / "
+                "test_AC16_33_5_get_statement_document_storage_error_maps_to_502 "
+                "in the same file)."
+            ),
+            # was AC16.33.5
+            test=(
+                "apps/backend/tests/api/test_statements_router.py"
+                "::test_AC16_33_5_get_statement_document_streams_bytes_same_origin"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        # ── group 1804: AI CSV parsing fallback for unknown institutions (was
+        # EPIC-018 AC18.4.3, #1821 Wave A pending-package move) ──
+        ACRecord(
+            id="AC-extraction.1804.1",
+            statement="AI CSV parsing handles an unknown institution as a fallback column-mapping path.",
+            # was AC18.4.3
+            test=(
+                "apps/backend/tests/extraction/test_ai_csv_parsing.py"
+                "::test_ai_csv_parsing_returns_valid_mapping"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        # ── group 1913: durable orchestration via Prefect (was EPIC-019
+        # AC19.13.1/AC19.13.2, #1821 Wave A pending-package move) ──
+        ACRecord(
+            id="AC-extraction.1913.1",
+            statement=(
+                "Statement parse dispatch is config-gated: with "
+                "PREFECT_API_URL unset, submit_parse_pipeline runs the "
+                "existing in-process asyncio.create_task fallback (no Prefect "
+                "import) and returns the task to track (also proven for the "
+                "fallback's exception-consumer registration by "
+                "test_AC19_13_1_dispatch_registers_exception_consumer_on_fallback "
+                "in the same file)."
+            ),
+            # was AC19.13.1
+            test=(
+                "apps/backend/tests/api/test_statement_pipeline.py"
+                "::test_AC19_13_1_dispatch_falls_back_to_asyncio_when_prefect_unset"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.1913.2",
+            statement=(
+                "With PREFECT_API_URL set, submit_parse_pipeline submits a "
+                "Prefect flow run with serializable params only (no raw "
+                "bytes, no session maker) and returns None."
+            ),
+            # was AC19.13.2
+            test=(
+                "apps/backend/tests/api/test_statement_pipeline.py"
+                "::test_AC19_13_2_dispatch_submits_serializable_params_to_prefect"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
     ],
 )

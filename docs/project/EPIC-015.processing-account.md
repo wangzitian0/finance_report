@@ -306,7 +306,8 @@ assert abs(assets - liabilities_equity) < Decimal("0.01")  # ✅ PASSED
 
 ### Acceptance Criteria
 
-- [x] **AC15.7.1** API endpoint `GET /api/accounts/processing/summary` returns `{pending_count, pending_total, current_balance, currency, oldest_pending_date}` <!-- epic-owned: pending-package -->
+*(AC15.7.1 removed, canonical: migrated to the `ledger` package roadmap as
+`AC-ledger.processing.1`, #1821 Wave A)*
 - [x] **AC15.7.2** Dashboard "Processing / In-Transit" card renders the four fields with currency code <!-- epic-owned: fe-only -->
 - [x] **AC15.7.3** Card click-through navigates to `/processing` listing pending transfers (existing or new page) with line items `{from_account, to_account, amount, initiated_date, days_outstanding}` <!-- epic-owned: fe-only -->
 - [x] **AC15.7.4** Pending entries older than 7 days render a warning badge on the listing row <!-- epic-owned: fe-only -->

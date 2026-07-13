@@ -362,9 +362,11 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC22.14.1 | `POST /api/chat` exposes structured grounding metadata for personal-data answers, including source citations with confidence tiers, without sending or returning raw account numbers or transaction-level PII | `test_chat_router.py`, `test_ai_advisor_service.py` | P1 | <!-- epic-owned: pending-package -->
+> (AC22.14.1 removed and AC22.14.3 removed — backend halves migrated to the
+> `advisor` package roadmap as `AC-advisor.grounding.1-2`, #1821 Wave A. The
+> chatPanelComponent.test.tsx assertions are not tracked by this Python-only
+> roadmap.)
 | AC22.14.2 | `ChatPanel` renders assistant-answer citations as safe internal links and shows pending-action chips without parsing LLM prose | `chatPanelComponent.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.14.3 | A grounded chat answer that has pending reconciliation review context exposes a `Review N` action deep-link to the review queue while preserving the assistant's read-only/no-write boundary | `test_ai_advisor_service.py`, `chatPanelComponent.test.tsx` | P1 | <!-- epic-owned: pending-package -->
 
 ### AC22.15 — Settings Editor And Session Bootstrap (Surface Gaps)
 

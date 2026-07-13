@@ -131,16 +131,7 @@ be treated as current work.
 > ([`common/extraction/contract.py`](../../common/extraction/contract.py));
 > the remaining rows below stay with their own owners.
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC17.4.1 | Moomoo Statement Parsing | `test_parse_moomoo_fixture_subscription_positions` | `portfolio/test_brokerage_position_parsing.py` | P0 | <!-- epic-owned: pending-package -->
-| AC17.4.2 | Futu Statement Parsing | `test_parse_futu_fixture_aggregate_position` | `portfolio/test_brokerage_position_parsing.py` | P1 | <!-- epic-owned: pending-package -->
-| AC17.4.3 | Interactive Brokers Parsing | `test_import_interactive_brokers_positions_idempotently_reconciles` | `portfolio/test_brokerage_position_parsing.py` | P1 | <!-- epic-owned: pending-package -->
-| AC17.4.4 | Broker Auto-Detection (Moomoo) | `test_detect_broker_moomoo_futu_and_interactive_brokers` | `portfolio/test_brokerage_position_parsing.py` | P1 | <!-- epic-owned: pending-package -->
-| AC17.4.5 | Broker Auto-Detection (Futu) | `test_detect_broker_moomoo_futu_and_interactive_brokers` | `portfolio/test_brokerage_position_parsing.py` | P1 | <!-- epic-owned: pending-package -->
-| AC17.4.6 | Brokerage Import Endpoint | `test_brokerage_import_endpoint`, `test_statement_import_flows_to_holdings_and_balance_sheet` | `portfolio/test_brokerage_position_parsing.py` | P1 | <!-- epic-owned: pending-package -->
-| AC17.4.8 | Concurrent Auto/Manual Brokerage Import Idempotency | `test_AC17_4_8_brokerage_import_survives_concurrent_auto_and_manual_import` | `portfolio/test_brokerage_position_parsing.py` | P0 | <!-- epic-owned: pending-package -->
-| AC17.4.14 {tier:CODE-ONLY} | Importing brokerage positions links the statement to the broker ASSET account it reconciles into: after `POST /statements/{id}/brokerage/import` the statement's `account_id` is set to that account (was left `None`, breaking source→account traceability), so a brokerage source is anchored to its account exactly like a bank statement (#1484) | `test_AC17_4_14_brokerage_import_links_statement_to_broker_account` | `portfolio/test_brokerage_position_parsing.py` | P1 | <!-- epic-owned: pending-package -->
+> (AC17.4.1 removed and AC17.4.2 removed and AC17.4.3 removed and AC17.4.4 removed and AC17.4.5 removed and AC17.4.6 removed and AC17.4.8 removed and AC17.4.14 removed, canonical: migrated to the `portfolio` package roadmap as `AC-portfolio.brokerage-import.1` through `.7` (AC17.4.4/AC17.4.5 merged into `.4`), #1821 Wave A)
 
 ### AC17.5: Investment Accounting (Journal Entries)
 
@@ -259,7 +250,8 @@ market-value gain/loss, and price freshness.
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC17.14.1 | Portfolio page renders a unified allocation panel without claiming a portfolio-value tie-out when report and holdings currencies differ | `AC17.14.1 labels allocation and portfolio currencies instead of claiming a portfolio tie-out` | `apps/frontend/src/__tests__/portfolioPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC17.14.2 | Reports expose a net-worth allocation schedule grouped by asset class, liquidity class, and source currency, with signed rows that reconcile to net worth and retain source-line drill-through metadata | `test_AC17_14_2_net_worth_allocation_groups_balance_sheet_sources`, `test_AC17_14_2_net_worth_allocation_endpoint_returns_contract` | `apps/backend/tests/reporting/test_reporting_net_worth_components.py`, `apps/backend/tests/reporting/test_reports_router.py` | P1 | <!-- epic-owned: pending-package -->
+> (AC17.14.2 removed, canonical: migrated to the `reporting` package roadmap
+> as `AC-reporting.net-worth-components.3`, #1821 Wave A)
 | AC17.14.3 | Portfolio page consumes the report-owned net-worth allocation schedule, showing asset class, liquidity, source currency, net-worth share, source labels, and restricted-inclusion filtering | `AC17.14.3 renders net-worth allocation from the report schedule`, `AC17.14.3 shows the net-worth allocation loading state`, `AC17.14.3 shows the net-worth allocation error state`, `AC17.14.3 shows the empty net-worth allocation state`, `AC17.14.3 renders invalid net-worth allocation percentages as unavailable`, `AC17.14.3 renders missing net-worth allocation percentages as unavailable`, `AC17.14.3 refetches net-worth allocation when restricted holdings are excluded` | `apps/frontend/src/__tests__/portfolioPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
 | AC17.14.4 | The asset-dashboard performance surface leads with unrealized market-value gain/loss, a simple return on cost valued at the schedule as-of date, and a price-freshness flag; TWR/IRR/MWR are not presented as the asset-dashboard answer and stay on the reporting side as clearly-labelled analytical measures | `AC17.14.4 leads with unrealized gain/loss, return on cost, and price freshness`, `AC17.14.4 does not present TWR/IRR/MWR as the asset-dashboard answer`, `AC17.14.4 flags stale prices`, `AC17.14.4 shows N/A return when cost basis is zero` | `apps/frontend/src/__tests__/performanceCard.test.tsx`, `apps/frontend/src/__tests__/investmentPerformanceSchedule.test.tsx` | P1 | <!-- epic-owned: fe-only -->
 
@@ -306,8 +298,8 @@ EPIC-008 remains the owner of the provider-backed staging AI/OCR gate.
 | Upload Moomoo/Futu brokerage PDF through `/api/statements/upload` | EPIC-008 / EPIC-013 | AC-extraction.813.10 | `test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value` | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | Post-merge staging AI/OCR gate |
 | Background parse detects brokerage payload and imports positions without a manual API call | EPIC-017 | AC-extraction.304.7 / AC-portfolio.valuation.1 / AC-extraction.813.10 | `test_parse_statement_background_imports_brokerage_positions` | `apps/backend/tests/extraction/test_statement_brokerage_import_bridge.py` | Backend shard |
 | Brokerage-style OCR balance mismatches remain parsed and visible instead of stalling | EPIC-008 / EPIC-017 | AC-extraction.813.10 | `test_parse_document_routes_brokerage_balance_mismatch_to_parsed` | `apps/backend/tests/extraction/test_statement_brokerage_import_bridge.py` | Backend shard |
-| Concurrent auto parse import and manual statement import share the same deduped position instead of failing with a duplicate-key 500 | EPIC-017 | AC17.4.8 | `test_AC17_4_8_brokerage_import_survives_concurrent_auto_and_manual_import` | `apps/backend/tests/portfolio/test_brokerage_position_parsing.py` | Backend shard |
-| Statement-scoped import creates holdings | EPIC-017 | AC17.4.6 / AC-extraction.813.10 | `test_statement_import_flows_to_holdings_and_balance_sheet` | `apps/backend/tests/portfolio/test_brokerage_position_parsing.py` | Backend shard |
+| Concurrent auto parse import and manual statement import share the same deduped position instead of failing with a duplicate-key 500 | EPIC-017 | AC-portfolio.brokerage-import.6 | `test_AC17_4_8_brokerage_import_survives_concurrent_auto_and_manual_import` | `apps/backend/tests/portfolio/test_brokerage_position_parsing.py` | Backend shard |
+| Statement-scoped import creates holdings | EPIC-017 | AC-portfolio.brokerage-import.5 / AC-extraction.813.10 | `test_statement_import_flows_to_holdings_and_balance_sheet` | `apps/backend/tests/portfolio/test_brokerage_position_parsing.py` | Backend shard |
 | Imported holdings affect balance sheet value | EPIC-005 / EPIC-017 | AC-portfolio.valuation.1 / AC-extraction.813.10 | `test_statement_import_flows_to_holdings_and_balance_sheet` | `apps/backend/tests/portfolio/test_brokerage_position_parsing.py` | Backend shard |
 | User completes import and navigates to portfolio value | EPIC-017 | AC17.8.1 / AC17.8.2 / AC17.8.4 | `AC17.8.1 AC17.8.2 AC17.8.4 completes parsed statement import and portfolio value navigation` | `apps/frontend/src/__tests__/brokerageImportCompletionFlow.test.tsx` | Frontend test |
 
@@ -435,14 +427,12 @@ account adopts the currency of the holding that created it.
 
 > *(AC17.33.1 removed and AC17.33.2 removed — Yahoo/Stooq HK numeric-code symbol mapping migrated to the `pricing` package roadmap as `AC-pricing.providers.4-5`, migration closeout continuation, #1663 / #1710)*
 
-| AC ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC17.33.3 | An auto-created broker account adopts the holding's currency instead of a hardcoded USD {tier:CODE-ONLY} | `test_AC17_33_3_broker_account_uses_snapshot_currency_not_hardcoded_usd` | `portfolio/test_brokerage_position_parsing.py` | P1 | <!-- epic-owned: pending-package -->
+> (AC17.33.3 removed, canonical: migrated to the `portfolio` package roadmap
+> as `AC-portfolio.brokerage-import.8`, #1821 Wave A)
 
 ### AC17.34: Signed (Short) Positions ([#1448](https://github.com/wangzitian0/finance_report/issues/1448))
 
 A margin/options account holds short positions — a directly-shorted stock or a sold option — with **negative quantity AND negative market value** (e.g. sold puts). `quantity` was already unconstrained and the reconcile loop already "handles negative quantities", but two inconsistent CHECK constraints (`ck_atomic_positions_market_value_non_negative`, `ck_managed_positions_cost_basis_non_negative`) blocked the matching negative value and crashed the import with a 500. Both constraints are dropped (migration `0052_signed_positions`), so a short imports as a first-class signed position that *reduces* portfolio value. Valuation/net-worth aggregation is already sign-correct for a net-long account (price × signed quantity, summed); allocation/XIRR edge cases that arise only when a portfolio's **total** is net-negative are tracked separately. The earlier "skip the short" stop-gap (which dropped real positions) is removed.
 
-| AC ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC17.34.1 | A short position (negative quantity and negative market value) imports as a signed position — atomic and managed rows persist with negative values — instead of being skipped or violating a CHECK constraint (500) {tier:CODE-ONLY} | `test_AC17_34_1_brokerage_import_persists_short_positions_with_negative_market_value` | `portfolio/test_brokerage_position_parsing.py` | P1 | <!-- epic-owned: pending-package -->
+> (AC17.34.1 removed, canonical: migrated to the `portfolio` package roadmap
+> as `AC-portfolio.brokerage-import.9`, #1821 Wave A)

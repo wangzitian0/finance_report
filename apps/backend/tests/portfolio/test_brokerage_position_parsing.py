@@ -86,7 +86,7 @@ async def _seed_statement(
 
 
 def test_detect_broker_moomoo_futu_and_interactive_brokers():
-    """AC17.4.4/AC17.4.5: Broker auto-detection supports known broker names."""
+    """AC-portfolio.brokerage-import.4: AC17.4.4/AC17.4.5: Broker auto-detection supports known broker names."""
     assert detect_broker(filename="moomoo-2504.pdf", institution=None, text="") == "Moomoo"
     assert detect_broker(filename="statement.pdf", institution="Futu Securities", text="") == "Futu"
     assert (
@@ -142,7 +142,7 @@ def test_brokerage_import_schemas_accept_zero_count_responses():
 
 
 def test_parse_moomoo_fixture_subscription_positions():
-    """AC17.4.1: Moomoo subscription payloads produce AtomicPosition-ready snapshots."""
+    """AC-portfolio.brokerage-import.1: AC17.4.1: Moomoo subscription payloads produce AtomicPosition-ready snapshots."""
     # Synthetic Moomoo money-market subscription payload (no real account data): the
     # subscription fallback turns a "Money Market Fund" cash event into a 1-unit
     # MUTUAL_FUND snapshot valued at the event amount.
@@ -166,7 +166,7 @@ def test_parse_moomoo_fixture_subscription_positions():
 
 
 def test_parse_futu_fixture_aggregate_position():
-    """AC17.4.2: Futu parsed payloads preserve aggregate securities valuation."""
+    """AC-portfolio.brokerage-import.2: AC17.4.2: Futu parsed payloads preserve aggregate securities valuation."""
     # Synthetic Futu payload (no real account data): the aggregate fallback collapses
     # the best non-cash valuation event into a single FUTU_STOCK_AND_OPTIONS snapshot.
     payload = {
@@ -382,7 +382,7 @@ def test_parse_futu_aggregate_ignores_invalid_events_and_uses_best_value():
 
 
 async def test_import_interactive_brokers_positions_idempotently_reconciles(db, test_user):
-    """AC17.4.3: Interactive Brokers payloads import to AtomicPosition and reconcile once."""
+    """AC-portfolio.brokerage-import.3: AC17.4.3: Interactive Brokers payloads import to AtomicPosition and reconcile once."""
     service = BrokeragePositionImportService()
     payload = {
         "institution": "Interactive Brokers",
@@ -425,7 +425,7 @@ async def test_import_interactive_brokers_positions_idempotently_reconciles(db, 
 
 
 async def test_AC17_33_3_broker_account_uses_snapshot_currency_not_hardcoded_usd(db, test_user):
-    """AC17.33.3: an auto-created broker account adopts the holding's currency, not a hardcoded USD."""
+    """AC-portfolio.brokerage-import.8: AC17.33.3: an auto-created broker account adopts the holding's currency, not a hardcoded USD."""
     service = BrokeragePositionImportService()
     payload = {
         "institution": "Futu",
@@ -452,7 +452,7 @@ async def test_AC17_33_3_broker_account_uses_snapshot_currency_not_hardcoded_usd
 
 
 async def test_AC17_34_1_brokerage_import_persists_short_positions_with_negative_market_value(db, test_user):
-    """AC17.34.1: short positions import as signed positions, not skipped or crashed (#1448).
+    """AC-portfolio.brokerage-import.9: AC17.34.1: short positions import as signed positions, not skipped or crashed (#1448).
 
     A margin/options account can hold short positions — a directly-shorted stock or a
     sold option — with negative quantity AND negative market value. The non-negative
@@ -505,7 +505,7 @@ async def test_AC17_34_1_brokerage_import_persists_short_positions_with_negative
 
 
 async def test_AC17_4_8_brokerage_import_survives_concurrent_auto_and_manual_import(db_engine, test_user):
-    """AC17.4.8: Auto parse import and manual statement import race without duplicate-position 500s."""
+    """AC-portfolio.brokerage-import.6: AC17.4.8: Auto parse import and manual statement import race without duplicate-position 500s."""
     service = BrokeragePositionImportService()
     payload = {
         "institution": "Moomoo",
@@ -600,7 +600,7 @@ async def test_brokerage_import_endpoint_empty_payload_returns_zero_counts(clien
 
 
 async def test_brokerage_import_endpoint(client, db):
-    """AC17.4.6: Brokerage import endpoint returns atomic and reconciliation counts."""
+    """AC-portfolio.brokerage-import.5: AC17.4.6: Brokerage import endpoint returns atomic and reconciliation counts."""
     response = await client.post(
         "/portfolio/brokerage/import",
         json={
@@ -920,7 +920,7 @@ async def test_AC17_33_3_broker_account_currency_is_normalized_with_usd_fallback
 
 
 async def test_AC17_4_14_brokerage_import_links_statement_to_broker_account(client, db, test_user):
-    """AC17.4.14 (#1484): importing brokerage positions links the statement to the
+    """AC-portfolio.brokerage-import.7: AC17.4.14 (#1484): importing brokerage positions links the statement to the
     broker ASSET account it reconciles into, closing the source->account
     traceability gap (statement.account_id was previously left None)."""
     statement = await _seed_statement(

@@ -20,7 +20,7 @@ async def test_annualized_income_endpoint_groups_last_12_month_income(
     db: AsyncSession,
     test_user,
 ):
-    """AC-reporting.kpis.1: AC11.8.1/AC5.6.4: GET /income/annualized returns salary, bonus, dividend, total, currency, and as_of."""
+    """AC-reporting.kpis.1: AC-reporting.annualized-dashboard.1: AC11.8.1/AC5.6.4: GET /income/annualized returns salary, bonus, dividend, total, currency, and as_of."""
     salary = Account(user_id=test_user.id, name="Salary Income", type=AccountType.INCOME, currency="SGD")
     bonus = Account(user_id=test_user.id, name="Annual Bonus", type=AccountType.INCOME, currency="SGD")
     dividend = Account(user_id=test_user.id, name="Dividend Income", type=AccountType.INCOME, currency="SGD")
@@ -118,7 +118,7 @@ async def test_AC11_8_7_annualized_income_endpoint_converts_mixed_currency_total
     db: AsyncSession,
     test_user,
 ):
-    """AC11.8.7: Dashboard annualized income totals use one reporting currency."""
+    """AC-reporting.annualized-dashboard.3: AC11.8.7: Dashboard annualized income totals use one reporting currency."""
     salary = Account(user_id=test_user.id, name="Salary Income", type=AccountType.INCOME, currency="SGD")
     dividend = Account(user_id=test_user.id, name="Dividend Income", type=AccountType.INCOME, currency="USD")
     sgd_cash = Account(user_id=test_user.id, name="SGD Cash", type=AccountType.ASSET, currency="SGD")
@@ -195,7 +195,7 @@ async def test_restricted_assets_endpoint_returns_latest_locked_holdings(
     db: AsyncSession,
     test_user,
 ):
-    """AC11.8.3: GET /assets/restricted returns ESOP/RSU holdings with vesting metadata."""
+    """AC-reporting.annualized-dashboard.2: AC11.8.3: GET /assets/restricted returns ESOP/RSU holdings with vesting metadata."""
     db.add_all(
         [
             ManualValuationSnapshot(

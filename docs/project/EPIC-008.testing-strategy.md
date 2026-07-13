@@ -186,11 +186,8 @@ job inventories or scenario counts into this EPIC.
 
 ### AC8.4: Phase 3 - Statement Import & Parsing
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC8.4.1 | Statement upload (CSV) | `test_statement_upload_csv()` | `e2e/test_core_journeys.py` | P0 | <!-- epic-owned: pending-package -->
-| AC8.4.2 | Statement list and get | `test_statement_list_and_get()` | `e2e/test_core_journeys.py` | P0 | <!-- epic-owned: pending-package -->
-| AC8.4.3 | Statement full flow | `test_statement_full_flow()` | `e2e/test_core_journeys.py` | P0 | <!-- epic-owned: pending-package -->
+> (AC8.4.1 removed and AC8.4.2 removed and AC8.4.3 removed, canonical: migrated
+> to the `extraction` package roadmap as `AC-extraction.804.1-3`, #1821 Wave A.)
 
 ### AC8.5: Phase 4 - Reconciliation Engine
 
@@ -266,11 +263,11 @@ job inventories or scenario counts into this EPIC.
 > `AC-testing.<sub-theme>.<seq>` ids (migration closeout, #1663 / #1718);
 > the per-row canonical pointers are listed after the table below.
 >
-> **Rows that stay in this EPIC** (marker note, #1718):
+> **Rows that stay in this EPIC** (marker note, #1718 / #1821):
 >
-> - AC8.13.18 / AC8.13.19 are reporting-owned (brokerage portfolio valuation
->   semantics) and migrate with the reporting bucket, #1716 — not forced into
->   `testing`.
+> - (AC8.13.18 removed and AC8.13.19 removed — reporting-owned brokerage
+>   portfolio valuation semantics, migrated to the reporting bucket, #1716 /
+>   #1821.)
 > - AC8.13.48, AC8.13.76, AC8.13.82, AC8.13.90, AC8.13.92 are frontend-only
 >   (Vitest/Playwright proofs); the package governance gate resolves Python
 >   tests only, so they stay EPIC-owned for the #1719 frontend remainder.
@@ -278,16 +275,17 @@ job inventories or scenario counts into this EPIC.
 >   assert EPIC-008 residency by design (and AC8.13.61 is P3, which the
 >   package `ACRecord` priority vocabulary does not carry); they are
 >   re-homed by the final cleanup, #1719.
-> - AC8.13.164 / AC8.13.165 (evidence bundle) cite a proving test that
->   drives the cassette graded-eval corpus, which the authority classifier
->   bands LLM; the CODE-ONLY `testing` package cannot own an LLM-band
->   roadmap test (`common/testing/contract.py` docstring), so they stay for
->   the `llm`-bucket / #1719 decision.
+> - (AC8.13.164 removed and AC8.13.165 removed — evidence bundle, cites a
+>   proving test that drives the cassette graded-eval corpus, which the
+>   authority classifier bands LLM; migrated to the `llm` package instead of
+>   `testing`, #1821.)
+
+> (AC8.13.18 removed and AC8.13.19 removed, canonical: migrated to the
+> `reporting` package roadmap as `AC-reporting.portfolio-valuation-gate.1-2`,
+> #1821 Wave A.)
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC8.13.18 | Brokerage portfolio gate validates market valuation adjustment lines even when unrelated asset lines lower total assets | `test_portfolio_valuation_gate_ignores_unrelated_negative_asset_lines` / `test_portfolio_market_adjustment_survives_unrelated_negative_asset_lines` | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` / `apps/backend/tests/reporting/test_reporting_net_worth_components.py` | P0 | <!-- epic-owned: pending-package -->
-| AC8.13.19 | Brokerage portfolio gate failures include holdings, valuation adjustment, non-portfolio asset, and balance-sheet diagnostics | `test_portfolio_valuation_gate_failure_diagnostics_are_actionable` | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | P0 | <!-- epic-owned: pending-package -->
 | AC8.13.48 | Frontend gap tests cover route, component, and API helper paths so frontend LCOV line coverage reaches 99% | `test_AC8_13_48_*` | `apps/frontend/src/__tests__/stage2ReviewQueueCoverage99.test.tsx`, `apps/frontend/src/__tests__/statementReviewPage.coverage.test.tsx`, `apps/frontend/src/__tests__/statementDetailPage.coverage.test.tsx`, `apps/frontend/src/__tests__/StatementUploader.test.tsx`, `apps/frontend/src/__tests__/journalPage.test.tsx`, `apps/frontend/src/__tests__/reconciliationWorkbenchComponent.test.tsx`, `apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx`, `apps/frontend/src/__tests__/apiFunctions.test.ts`, `apps/frontend/src/__tests__/accountsPage.test.tsx`, `apps/frontend/src/__tests__/assetsPage.test.tsx`, `apps/frontend/src/__tests__/statementsPage.test.tsx`, `apps/frontend/src/__tests__/useWorkspaceHook.test.tsx`, `apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx`, `apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx`, `apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx` | P0 | <!-- epic-owned: fe-only -->
 | AC8.13.61 | Visual regression residual is explicitly owned by EPIC-008 as a P3 future testing capability | `test_AC8_13_61_visual_regression_residual_is_epic_owned` | `tests/tooling/test_archive_residual_epic_ownership.py` | P3 | <!-- epic-owned: horizontal -->
 | AC8.13.62 | Test observability residuals are explicitly owned by EPIC-008 with current replacements and future dashboard/notification/trend scope | `test_AC8_13_62_test_observability_residual_is_epic_owned` | `tests/tooling/test_archive_residual_epic_ownership.py` | P2 | <!-- epic-owned: horizontal -->
@@ -296,8 +294,15 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.82 | Playwright responsive UX coverage proves account and review layouts avoid mobile document overflow and desktop local table clipping | `AC2.17.1`, `AC16.27.2`, `AC16.27.3` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 | <!-- epic-owned: fe-only -->
 | AC8.13.90 | Frontend exposes `/frontend-version.json` with deployed `git_sha`/`version` metadata for PR preview readiness checks | `AC8.13.90 returns deployed frontend version metadata for PR preview readiness` | `frontendVersionRoute.test.ts` | P0 | <!-- epic-owned: fe-only -->
 | AC8.13.92 | Frontend Vitest coverage keeps a code-owned 98% baseline for line, statement, and function metrics plus an explicit branch floor while representative low-coverage routes and workflow surfaces stay covered | `AC8.13.92*` | `apps/frontend/src/__tests__/coverageBaseline.test.ts`, `apps/frontend/src/__tests__/personalReportPackagePage.test.tsx`, `apps/frontend/src/__tests__/workflowSurfaces.test.tsx`, `apps/frontend/src/__tests__/chatPanelComponent.test.tsx`, `apps/frontend/src/__tests__/investmentPerformanceSchedule.test.tsx`, `apps/frontend/src/__tests__/journalPage.test.tsx`, `apps/frontend/src/__tests__/sankeyChartComponent.test.tsx`, `apps/frontend/src/__tests__/toastProviderComponent.test.tsx`, `apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx` | P0 | <!-- epic-owned: fe-only -->
-| AC8.13.164 | `common.testing.evidence_bundle.build_evidence_bundle` assembles ONE evidence bundle (a gate map of lane->job->blocking, the four raise-only ratchet water-lines [unified coverage, AC behavioural score, AC authority-tier debt, protection floor], and corpus per-field accuracy from the cassette graded-eval corpus) from already-computed CI artifacts — it never re-runs a gate to get its data — with an optional `provider_health` field populated only by callers with a provider-backed gate result (#1690) {tier:CODE-ONLY} {proof:property} | `test_AC8_13_164_bundle_assembles_the_four_ratchet_water_lines_and_gate_map` | `tests/tooling/test_evidence_bundle.py` | P1 | <!-- epic-owned: pending-package -->
-| AC8.13.165 | Main-branch CI (after `unified-coverage` + `ac-behavioral-ratchet` complete) and the nightly `audit-replay.yml` run both generate the evidence bundle via the same `tools/generate_evidence_bundle.py` CLI, writing it to `$GITHUB_STEP_SUMMARY` and uploading it as a named `evidence-bundle` artifact; the nightly producer additionally supplies `--provider-status`/`--provider-exit-code` from the staging AI/OCR gate's own `ai_ocr_status`/`ai_ocr_exit_code` outputs, the main-CI producer does not (#1690) {tier:CODE-ONLY} {proof:property} | `test_AC8_13_165_both_producers_wire_the_same_generator_into_their_workflow` | `tests/tooling/test_evidence_bundle.py` | P1 | <!-- epic-owned: pending-package -->
+> (AC8.13.164 removed and AC8.13.165 removed, canonical: migrated to the `llm`
+> package roadmap as `AC-llm.evidence-bundle.1-2` — routed to `llm` not
+> `testing` because the authority classifier bands
+> tests/tooling/test_evidence_bundle.py LLM, which would trip
+> `check_authority_reconcile.py` under `testing`'s declared CODE-ONLY tier;
+> #1821 Wave A.)
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
 | AC8.13.166 | The staging AI/OCR gate's regression alerting cannot be silently skipped by its own corpus step's `timeout-minutes`: a job-level `gate_timeout_fallback` step runs `if: always()` and fires the same GitHub-issue fallback alert (deduped by a stable title) whenever the corpus step's outcome is not `success` AND it produced no `ai_ocr_status` output — i.e. it died before reaching its own `record_and_finish` — using a distinct `gate-timeout` status so the job's `ai_ocr_status` output is never the ambiguous generic `not-run` for a run that actually executed and died (#1767, closes the 5-night-red silent gap found auditing #1767) {tier:CODE-ONLY} {proof:property} | `test_AC8_13_166_gate_timeout_fallback_alerts_when_corpus_step_dies_without_output` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 | <!-- epic-owned: horizontal -->
 | AC8.13.167 | The staging AI/OCR gate's job/step `timeout-minutes` budget is sized per `corpus` input instead of one fixed value, using the corpus's total sequential parse-wait count (`tools/staging_ai_ocr_gate_contract.py` `totals()['uploads']`: canary=2, audit_replay=11, all=13 — pytest runs single-worker with no `-n` xdist, so every wait across every file is fully serial) times the 8-minute `PARSING_TIMEOUT_MS` ceiling, plus checkout/setup overhead, instead of a per-file/per-journey undercount; a full-outage night still completes the whole corpus and produces JUnit evidence instead of an ~66%-collected partial abort (#1767) {tier:CODE-ONLY} {proof:property} | `test_AC8_13_167_timeout_budget_is_sized_per_corpus_worst_case` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 | <!-- epic-owned: horizontal -->
 
@@ -728,11 +733,11 @@ Product E2E ownership index:
 | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | Critical proof: AC-extraction.813.10 |
 | `tests/e2e/test_core_journeys.py` | Deployed core journey E2E; AC references live in the test file |
 | `tests/e2e/test_e2e_flows.py` | Deployed extended flow E2E; AC references live in the test file |
-| `tests/e2e/test_four_asset_net_worth_golden_path.py` | Critical proof: AC-testing.product-gates.7, AC-extraction.813.10, AC5.7.3, AC11.9.1-AC11.9.3, AC-portfolio.valuation.1 |
+| `tests/e2e/test_four_asset_net_worth_golden_path.py` | Critical proof: AC-testing.product-gates.7, AC-extraction.813.10, AC-reporting.net-worth-timeseries.2, AC-pricing.manualvaluation.5-AC-pricing.manualvaluation.7, AC-portfolio.valuation.1 |
 | `tests/e2e/test_llm_provider_abstraction_epic023.py` | LLM provider abstraction product owner E2E; EPIC-023 / AC23.1 references live in the test file |
 | `tests/e2e/test_frontend_observability_epic024.py` | EPIC-024 frontend browser observability product owner E2E; AC24.1.1 reference lives in the test file |
 | `tests/e2e/test_market_data_price_paths.py` | Critical proof; ACs live in the `pricing` package roadmap (`AC-pricing.marketdata.7`, `AC-pricing.marketdata.11`, `common/pricing/contract.py`) |
-| `tests/e2e/test_personal_financial_report_package.py` | Critical proof: AC-reporting.balance-sheet.1, AC-reporting.balance-sheet.4, AC-reporting.income-statement.3, AC-reporting.cash-flow.1, AC5.8.1, AC-reporting.package-notes.3, AC-reporting.package-traceability.3, AC-reporting.package-traceability.4, AC11.8.3, AC11.9.1-AC11.9.3, AC11.11.1-AC11.11.2, AC-portfolio.report-schedule.1, AC-portfolio.report-schedule.2, AC-portfolio.fixtures.1, AC-portfolio.fixtures.2, AC-portfolio.fixtures.3, AC-testing.product-gates.8, AC-testing.product-gates.9, AC-testing.product-gates.10, AC-testing.product-gates.11, AC-testing.product-gates.12 |
+| `tests/e2e/test_personal_financial_report_package.py` | Critical proof: AC-reporting.balance-sheet.1, AC-reporting.balance-sheet.4, AC-reporting.income-statement.3, AC-reporting.cash-flow.1, AC5.8.1, AC-reporting.package-notes.3, AC-reporting.package-traceability.3, AC-reporting.package-traceability.4, AC-reporting.annualized-dashboard.2, AC-pricing.manualvaluation.5-AC-pricing.manualvaluation.7, AC-reporting.package-annualized.3-AC-reporting.package-annualized.4, AC-portfolio.report-schedule.1, AC-portfolio.report-schedule.2, AC-portfolio.fixtures.1, AC-portfolio.fixtures.2, AC-portfolio.fixtures.3, AC-testing.product-gates.8, AC-testing.product-gates.9, AC-testing.product-gates.10, AC-testing.product-gates.11, AC-testing.product-gates.12 |
 | `tests/e2e/test_production_readonly_smoke.py` | Production-readonly smoke E2E; AC references live in the test file |
 | `tests/e2e/test_business_value_correctness_gate.py` | #1505 Tier-2/3 deploy-gate twin (in-runner preview lane, no LLM/market-data/persistent-env dependency): `AC-reporting.business-value-gate.1`/`.2`, `common/reporting/contract.py` |
 | `tests/e2e/test_statement_full_journey.py` | Critical proof: AC-extraction.813.11 |

@@ -133,7 +133,7 @@ def test_cassette_eval_water_line_reads_the_real_committed_corpus() -> None:
 def test_AC8_13_164_bundle_assembles_the_four_ratchet_water_lines_and_gate_map(
     tmp_path: Path,
 ) -> None:
-    """AC8.13.164: build_evidence_bundle assembles the gate map, all four
+    """AC-llm.evidence-bundle.1: AC8.13.164: build_evidence_bundle assembles the gate map, all four
     ratchet water-lines, and corpus per-field accuracy from already-computed
     artifacts — never re-running the gates that produced them."""
     bundle = eb.build_evidence_bundle(tmp_path)
@@ -270,7 +270,7 @@ def test_main_omits_provider_health_when_provider_status_not_given(
 def test_AC8_13_165_both_producers_wire_the_same_generator_into_their_workflow() -> (
     None
 ):
-    """AC8.13.165: main-CI (after unified-coverage + ac-behavioral-ratchet) and
+    """AC-llm.evidence-bundle.2: AC8.13.165: main-CI (after unified-coverage + ac-behavioral-ratchet) and
     the nightly audit-replay both call tools/generate_evidence_bundle.py and
     upload an `evidence-bundle` artifact; only audit-replay supplies
     --provider-status/--provider-exit-code."""

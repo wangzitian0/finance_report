@@ -307,12 +307,12 @@ async def _create_manual_snapshot(
         "AC-reporting.package-notes.3",
         "AC-reporting.package-traceability.3",
         "AC-reporting.package-traceability.4",
-        "AC11.8.3",
-        "AC11.9.1",
-        "AC11.9.2",
-        "AC11.9.3",
-        "AC11.11.1",
-        "AC11.11.2",
+        "AC-reporting.annualized-dashboard.2",
+        "AC-pricing.manualvaluation.5",
+        "AC-pricing.manualvaluation.6",
+        "AC-pricing.manualvaluation.7",
+        "AC-reporting.package-annualized.3",
+        "AC-reporting.package-annualized.4",
         "AC-portfolio.report-schedule.1",
         "AC-portfolio.report-schedule.2",
         "AC-portfolio.fixtures.1",
@@ -353,7 +353,9 @@ async def test_personal_financial_report_package_post_merge_journey(
     AC-reporting.income-statement.3 AC-reporting.cash-flow.1 AC5.8.1
     AC-reporting.package-notes.3 AC-reporting.package-traceability.3
     AC-reporting.package-traceability.4
-    AC11.8.3 AC11.9.1 AC11.9.2 AC11.9.3 AC11.11.1 AC11.11.2
+    AC-reporting.annualized-dashboard.2 AC-pricing.manualvaluation.5
+    AC-pricing.manualvaluation.6 AC-pricing.manualvaluation.7
+    AC-reporting.package-annualized.3 AC-reporting.package-annualized.4
     AC-portfolio.report-schedule.1 AC-portfolio.report-schedule.2
     AC-portfolio.fixtures.1 AC-portfolio.fixtures.2 AC-portfolio.fixtures.3
     AC-testing.product-gates.8 AC-testing.product-gates.9 AC-testing.product-gates.10 AC-testing.product-gates.11 AC-testing.product-gates.12:

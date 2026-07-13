@@ -139,14 +139,7 @@ diverging across the codebase and across ends.
 > Migrated `AC-runtime.18.<s>` ids (homed in the package roadmap):
 > `AC-runtime.18.1` · `AC-runtime.18.2` · `AC-runtime.18.3` · `AC-runtime.18.4` · `AC-runtime.18.5` · `AC-runtime.18.6`
 
-The non-migrated **AC12.18.7** stub stays defined here: it is not a config-format
-assertion (its only live anchor is the reconciliation `[AC12.18.7.2]` tag on
-`apps/backend/tests/reconciliation/test_reconciliation_scoring_helpers.py`, a
-transfer/candidate-matching unit test — a reconciliation concern, not config).
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.18.7 | stub | — | — | — | <!-- epic-owned: pending-package -->
+> (AC12.18.7 removed, canonical: migrated to the `reconciliation` package roadmap as `AC-reconciliation.candidate-matching.1`, #1821 Wave A — its only live anchor was the reconciliation `[AC12.18.7.2]` tag on `apps/backend/tests/reconciliation/test_reconciliation_scoring_helpers.py`, a transfer/candidate-matching unit test, confirming the reconciliation-not-config home.)
 
 ### AC12.19: Infrastructure - Epic 001 Contracts — migrated to the `platform` package
 

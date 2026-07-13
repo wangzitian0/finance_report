@@ -150,7 +150,7 @@ Accounting Equation Verification: Reports must comply with accounting equation
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.6.4 | Annualized income KPI dashboard card renders the endpoint's figures (backend endpoint half migrated as `AC-reporting.kpis.1`; calculation ownership stays with AC11.8.1) | `AC11.8.2/AC11.8.6 renders Annualized Income card with the four metric labels` | `frontend/src/__tests__/dashboardPage.test.tsx` | P0 | <!-- epic-owned: fe-half -->
+| AC5.6.4 | Annualized income KPI dashboard card renders the endpoint's figures (backend endpoint half migrated as `AC-reporting.kpis.1`; calculation ownership migrated to the `reporting` package roadmap as `AC-reporting.annualized-dashboard.1`, #1821 Wave A) | `AC11.8.2/AC11.8.6 renders Annualized Income card with the four metric labels` | `frontend/src/__tests__/dashboardPage.test.tsx` | P0 | <!-- epic-owned: fe-half -->
 
 ### AC5.8: Personal Report Package Investment Performance Consumption
 
@@ -572,9 +572,8 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 
 ### Acceptance Criteria
 
-- [x] **AC5.7.1** Net worth time-series API endpoint `GET /api/reports/net-worth/timeseries?from=YYYY-MM-DD&to=YYYY-MM-DD&granularity=monthly|daily` returns `[{date, total_assets, total_liabilities, net_worth}]` <!-- epic-owned: pending-package -->
+*(AC5.7.1 removed and AC5.7.3 removed — migrated to the `reporting` package roadmap as `AC-reporting.net-worth-timeseries.1-2`, #1821 Wave A)*
 - [x] **AC5.7.2** Net worth chart component on dashboard renders ECharts line chart with date X-axis and net-worth Y-axis <!-- epic-owned: fe-only -->
-- [x] **AC5.7.3** Net worth time-series respects multi-currency: each point converted to base currency using historical FX rate per `transaction-date rate` rule <!-- epic-owned: pending-package -->
 - [x] **AC5.7.4** Time range selector (1M / 3M / 6M / 1Y / All) on dashboard toggles `from` parameter for chart <!-- epic-owned: fe-only -->
 - [x] **AC5.7.5** Empty-state placeholder rendered when fewer than 2 data points exist (cannot draw line) <!-- epic-owned: fe-only -->
 - [x] **AC5.7.6** Frontend unit test mounts NetWorthTimeSeries component and asserts chart container exists <!-- epic-owned: fe-only -->

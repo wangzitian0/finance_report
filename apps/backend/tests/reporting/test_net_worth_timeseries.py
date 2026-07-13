@@ -82,7 +82,7 @@ async def test_net_worth_timeseries_daily_points(db, test_user):
 
 
 async def test_net_worth_timeseries_uses_historical_fx_per_point(db, test_user):
-    """AC5.7.3: Each point uses the historical FX rate at that point's date."""
+    """AC-reporting.net-worth-timeseries.2: AC5.7.3: Each point uses the historical FX rate at that point's date."""
     user_id = test_user.id
     usd_cash = await _account(db, user_id, "USD Cash", AccountType.ASSET, currency="USD")
     equity = await _account(db, user_id, "Owner Equity", AccountType.EQUITY, currency="USD")
@@ -200,7 +200,7 @@ async def test_net_worth_timeseries_monthly_uses_period_end_and_normalizes_curre
 
 
 async def test_net_worth_timeseries_router(client):
-    """AC5.7.1: Router exposes the net worth time-series contract."""
+    """AC-reporting.net-worth-timeseries.1: AC5.7.1: Router exposes the net worth time-series contract."""
     response = await client.get(
         "/reports/net-worth/timeseries",
         params={"from": "2026-01-01", "to": "2026-01-31", "granularity": "monthly", "currency": "SGD"},

@@ -805,5 +805,88 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        # ── group manualvaluation (continued): valuation snapshot CRUD,
+        # net-worth aggregation, liquidity separation, structured basis, and
+        # traceability (was EPIC-011 AC11.9.1/.9.2/.9.3/.9.5/.9.10, #1821
+        # Wave A pending-package move) ──
+        ACRecord(
+            id="AC-pricing.manualvaluation.5",
+            statement=(
+                "POST/GET/PATCH/DELETE /api/assets/valuation-snapshots "
+                "records property value, mortgage/loan balance, CPF/"
+                "long-term savings, tax payable/refund, insurance cash "
+                "value, ESOP/RSU/options, source, notes, reminder cadence, "
+                "and audit timestamps."
+            ),
+            # was AC11.9.1
+            test=(
+                "apps/backend/tests/assets/test_manual_valuation_snapshots.py"
+                "::test_create_manual_valuation_snapshot_crud_api"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.manualvaluation.6",
+            statement=(
+                "Latest manual valuation snapshots aggregate into asset/"
+                "liability net-worth deltas with Decimal arithmetic."
+            ),
+            # was AC11.9.2
+            test=(
+                "apps/backend/tests/assets/test_manual_valuation_snapshots.py"
+                "::test_manual_valuation_snapshot_latest_net_worth_components"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.manualvaluation.7",
+            statement=(
+                "Restricted and illiquid manual-valuation components are "
+                "tagged separately and can be excluded from liquid "
+                "net-worth views."
+            ),
+            # was AC11.9.3
+            test=(
+                "apps/backend/tests/assets/test_manual_valuation_snapshots.py"
+                "::test_manual_valuation_snapshot_restricted_toggle"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.manualvaluation.8",
+            statement=(
+                "A current manual valuation with no structured "
+                "valuation_basis (and no legacy notes) surfaces a "
+                "missing_valuation_basis readiness blocker, replacing the "
+                "free-text-notes proxy, so an unsubstantiated value cannot "
+                "silently feed trusted totals (#706)."
+            ),
+            # was AC11.9.5
+            test=(
+                "apps/backend/tests/assets/test_manual_valuation_basis.py"
+                "::test_AC11_9_5_missing_basis_raises_then_clears_readiness_blocker"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.manualvaluation.9",
+            statement=(
+                "The package traceability appendix surfaces each manual "
+                "valuation snapshot's structured valuation_basis (the enum "
+                "value, or unspecified when no basis was captured) in its "
+                "source-anchor detail."
+            ),
+            # was AC11.9.10
+            test=(
+                "apps/backend/tests/api/test_personal_report_package_contract.py"
+                "::test_AC11_9_10_package_traceability_surfaces_manual_valuation_basis"
+            ),
+            priority="P1",
+            status="done",
+        ),
     ],
 )

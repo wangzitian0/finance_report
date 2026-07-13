@@ -392,7 +392,10 @@ before marking US/HK personal reports trusted.
 | AC19.8.4 | Notification drawer and Events page group timestamped events by workflow session, while Upload Pipeline shows only active-session latest state plus recent timeline preview | `workflowSurfaces.test.tsx`, `workflow-notifications.spec.ts`, `upload-first-dashboard.spec.ts` | P0 | <!-- epic-owned: fe-only -->
 | AC19.8.6 | `/chat` is a simple AI utility page with model selector, active conversation, and session-list drawer; it is not labeled AI Settings | `chatPanelComponent.test.tsx`, `ChatPageClient.test.tsx` | P1 | <!-- epic-owned: fe-only -->
 | AC19.8.7 | Report readiness has route-level Playwright smoke coverage before package output | `report-readiness.spec.ts` | P1 | <!-- epic-owned: fe-only -->
-| AC19.8.8 | CR cleanup fixes missing Processing FX readiness blocker coverage, stale SSOT paths, and stale navigation docs (the mixed-currency investment-schedule-fallback share migrated to the `portfolio` package roadmap as `AC-portfolio.schedule-fallback.1`, migration closeout continuation, #1663 / #1717) | `test_AC19_8_8_package_readiness_blocks_when_processing_fx_conversion_fails`, `report-readiness.spec.ts` | P0 | <!-- epic-owned: pending-package -->
+> (AC19.8.8 removed — backend half migrated to the `reporting` package
+> roadmap as `AC-reporting.readiness.7`, #1821 Wave A. The
+> report-readiness.spec.ts Playwright assertion is not tracked by this
+> Python-only roadmap.)
 
 ### AC19.9 — Source Trust Readiness
 
@@ -432,10 +435,8 @@ parsing migrates from in-process `asyncio.create_task` to durable Prefect flow
 runs, behind a config gate so CI/local/preview keep running without any Prefect
 dependency (delivery speed unaffected).
 
-| AC | Description | Test Anchor | Priority |
-|----|-------------|-------------|----------|
-| AC19.13.1 | Statement parse dispatch is config-gated: with `PREFECT_API_URL` unset, `submit_parse_pipeline` runs the existing in-process `asyncio.create_task` fallback (no Prefect import) and returns the task to track | `test_AC19_13_1_dispatch_falls_back_to_asyncio_when_prefect_unset`, `test_AC19_13_1_dispatch_registers_exception_consumer_on_fallback` | P0 | <!-- epic-owned: pending-package -->
-| AC19.13.2 | With `PREFECT_API_URL` set, `submit_parse_pipeline` submits a Prefect flow run with serializable params only (no raw bytes, no session maker — the worker re-fetches content and builds its own session) and returns None | `test_AC19_13_2_dispatch_submits_serializable_params_to_prefect` | P0 | <!-- epic-owned: pending-package -->
+> (AC19.13.1 removed and AC19.13.2 removed, canonical: migrated to the
+> `extraction` package roadmap as `AC-extraction.1913.1-2`, #1821 Wave A)
 
 ### AC19.14 — Workflow-event dedupe is transaction-safe (issue #1033)
 
