@@ -124,8 +124,8 @@ moon run :test -- --fast          # TDD mode (no coverage, fastest)
 moon run :test -- --smart         # Coverage on changed files only
 moon run :test -- --e2e           # Root deployment E2E tests under tests/e2e/
 moon run :test -- --backend-e2e   # Backend Tier-1 API E2E under apps/backend/tests/e2e/
-moon run :test -- tests/accounting/  # Run specific module
-moon run :test -- tests/accounting/test_journal_service.py  # Run specific file
+moon run :test -- tests/ledger/  # Run specific module
+moon run :test -- tests/ledger/test_journal_service.py  # Run specific file
 
 # Environment Verification (See common/runtime/readme.md for full details)
 uv run python -m src.boot --mode full  # Full Stack Check (Gate 3)

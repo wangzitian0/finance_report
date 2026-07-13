@@ -128,7 +128,7 @@ or registers it in that list via a reviewable diff. You cannot skip coverage by
 "just not registering" a folder. Exempting genuinely one-off tooling is allowed,
 but it must be an explicit, justified entry — never a silent omission.
 
-`tools/build_unified_lcov.py` rewrites component-relative LCOV paths into repository-root-relative paths before uploading the main-branch unified report to Coveralls. For example, backend `SF:src/services/example.py` becomes `SF:apps/backend/src/services/example.py`, and frontend `SF:src/app/page.tsx` becomes `SF:apps/frontend/src/app/page.tsx`.
+`tools/build_unified_lcov.py` rewrites component-relative LCOV paths into repository-root-relative paths before uploading the main-branch unified report to Coveralls. For example, backend `SF:src/ledger/example.py` becomes `SF:apps/backend/src/ledger/example.py`, and frontend `SF:src/app/page.tsx` becomes `SF:apps/frontend/src/app/page.tsx`.
 
 Coveralls upload LCOV files are line-only. CI strips `BRDA:`, `BRF:`, and
 `BRH:` records before main-branch upload so Coveralls percentages track the same

@@ -34,9 +34,9 @@ Assets = Liabilities + Equity + (Income - Expenses)
 ```
 
 - Every `JournalEntry` must have **balanced debits and credits**.  
-  Test: `apps/backend/tests/accounting/test_accounting.py::test_balanced_entry_passes`
+  Test: `apps/backend/tests/ledger/test_accounting.py::test_balanced_entry_passes`
 - Accounting equation must be satisfied at every point.  
-  Test: `apps/backend/tests/accounting/test_accounting_equation.py::test_accounting_equation_violation_detected`
+  Test: `apps/backend/tests/ledger/test_accounting_equation.py::test_accounting_equation_violation_detected`
 - Reconciliation thresholds (≥85 auto-accept; 60–84 review; <60 unmatched) must not be overridden.  
   See: [reconciliation.md](../ssot/reconciliation.md)
 

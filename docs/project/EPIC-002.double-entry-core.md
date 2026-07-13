@@ -321,8 +321,8 @@ class TestVoidRequest:         # 2 tests
 src/ledger/extension/accounting.py      91%
 src/schemas/account.py         100%
 src/schemas/journal.py         100%
-src/models/account.py           97%
-src/models/journal.py           96%
+src/ledger/orm/account.py       97%
+src/ledger/orm/journal.py       96%
 ```
 
 ### Running Tests
@@ -334,7 +334,7 @@ cd apps/backend
 podman compose -f docker-compose.yml up -d postgres
 
 # Create test database
-podman exec finance_report_db psql -U postgres -c "CREATE DATABASE finance_report_test;"
+podman exec finance-report-db psql -U postgres -c "CREATE DATABASE finance_report_test;"
 
 # Run tests
 uv run pytest -v
@@ -384,8 +384,8 @@ retained in [#548](https://github.com/wangzitian0/finance_report/issues/548):
 
 ## 🔗 Deliverables
 
-- [x] `apps/backend/src/models/account.py` - Account model
-- [x] `apps/backend/src/models/journal.py` - JournalEntry & JournalLine models
+- [x] `apps/backend/src/ledger/orm/account.py` - Account model (moved from `src/models/` in #1675)
+- [x] `apps/backend/src/ledger/orm/journal.py` - JournalEntry & JournalLine models (moved from `src/models/` in #1675)
 - [x] `apps/backend/src/ledger/extension/accounting.py` - Accounting service
 - [x] `apps/backend/src/routers/accounts.py` - Account API endpoints
 - [x] `apps/backend/src/routers/journal.py` - Journal API endpoints

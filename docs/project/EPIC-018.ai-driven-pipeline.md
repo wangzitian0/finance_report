@@ -95,7 +95,7 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
   - Categories: Food & Dining, Transport, Shopping, Utilities, Salary, Transfer, Investment, Insurance, Rent, Healthcare, Entertainment, Education, Subscriptions, Other
   - Confidence: 0.0-1.0 float returned by AI
 - [x] Add `suggested_category` VARCHAR(100) and `category_confidence` DECIMAL(3,2) columns to `BankStatementTransaction`
-  - File: `apps/backend/src/models/statement.py`
+  - File: `apps/backend/src/extraction/orm/layer2.py` (`BankStatementTransaction` superseded by `AtomicTransaction` in #827; ORM moved from `src/models/` in #1675)
   - Migration: Alembic migration with nullable columns (backward compatible)
 - [x] Update extraction service to parse and persist AI-returned category fields
   - File: `apps/backend/src/extraction/extension/service.py`
@@ -210,7 +210,7 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 
 #### 4.1 Reports Read Layer 3 Classification
 - [x] Modify `reporting.py` to read `TransactionClassification` (Layer 3) instead of raw `JournalLine`
-  - File: `apps/backend/src/services/reporting.py`
+  - File: `apps/backend/src/reporting/extension/` (moved from `src/services/reporting.py` in the reporting package cutover, #1648)
   - Current: Reports read `JournalEntry` → `JournalLine` directly, ignoring Layer 3
   - Target: Reports query `TransactionClassification` for category breakdowns
   - Fallback: If transaction has no classification, use account name as category (backward compatible)
