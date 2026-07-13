@@ -505,6 +505,17 @@ WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
         anchor="--junit-xml=test-results/staging-ai-ocr-gate.xml",
     ),
     WorkflowPytestContract(
+        stage="staging_ai_ocr_transient_retry",
+        workflow=".github/workflows/staging-ai-ocr-gate.yml",
+        marker=STAGING_AI_OCR_MARKER,
+        # #1806/AC-testing.deploy-gates.38: the single bounded retry re-runs
+        # only the transient-failed corpus files emitted by --classify-junit —
+        # a subset of the same derived corpus under the same marker, never a
+        # different selection.
+        paths=('"${AI_OCR_RETRY_TESTS[@]}"',),
+        anchor="--junit-xml=test-results/staging-ai-ocr-retry.xml",
+    ),
+    WorkflowPytestContract(
         stage="production_readonly_smoke",
         workflow=".github/workflows/release.yml",
         marker=PRODUCTION_READONLY_MARKER,
