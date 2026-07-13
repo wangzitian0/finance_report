@@ -229,7 +229,7 @@ to the safely-deliverable half instead of forcing a risky rewrite:
 | [Generated DB Schema Reference](../reference/db-schema.md) | SQLAlchemy-derived table, column, enum, index, constraint, and FK inventory |
 | `python tools/check_ac_index.py` | Bidirectional README -> EPIC -> E2E macro outcome contract, a derived view of [common/testing/data/critical-proof-outcomes.yaml](../../common/testing/data/critical-proof-outcomes.yaml) + `@ac_proof` decorators (rendered on demand by `tools/generate_critical_proof_matrix.py`, never committed) |
 | `python tools/check_ac_index.py` | One consistency gate over the AC-keyed graph: no dangling `@ac_proof`, vision item, or macro outcome; every mandatory active AC has a real test reference |
-| `python tools/check_source_coverage_matrix.py` | Source-class coverage and proof-level contract for [`source_coverage_matrix`](./source-coverage-matrix.yaml) |
+| `python tools/check_source_coverage_matrix.py` | Source-class coverage and proof-level contract for [`source_coverage_matrix`](../../common/testing/data/source-coverage-matrix.yaml) |
 | `python tools/analyze_test_ac_coverage.py --no-write --stdout` | Live local AC-to-test coverage report |
 | [unified-coverage.json](https://github.com/wangzitian0/finance_report/blob/main/unified-coverage.json) | Current committed coverage baseline |
 

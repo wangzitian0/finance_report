@@ -350,7 +350,7 @@ actively used as the source of truth:
 - [`extraction_failed_case_registry`](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/audit-failed-cases.yaml)
   declares `family: extraction`, `kind: registry`, its executable registry
   proof, and inbound links from the extraction package readme and EPIC-003.
-- [`source_coverage_matrix`](./source-coverage-matrix.yaml) declares
+- [`source_coverage_matrix`](../../common/testing/data/source-coverage-matrix.yaml) declares
   `family: source`, `kind: matrix`, and both its validator and test proof, with
   inbound links from the extraction SSOT, EPIC-013, and vision routing.
 

@@ -1114,7 +1114,7 @@ def test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof() ->
     inbound_refs = {
         "docs/ssot/README.md": [
             f"[`extraction_failed_case_registry`]({blob})",
-            "[`source_coverage_matrix`](./source-coverage-matrix.yaml)",
+            "[`source_coverage_matrix`](../../common/testing/data/source-coverage-matrix.yaml)",
         ],
         "common/extraction/readme.md": [
             "[`extraction_failed_case_registry`](./audit-failed-cases.yaml)",
@@ -1127,11 +1127,11 @@ def test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof() ->
             "[`source_coverage_matrix`](../ssot/source-coverage-matrix.yaml)",
         ],
         "vision.md": [
-            "[`source_coverage_matrix`](common/testing/data/source-coverage-matrix.yaml)",
+            "[`source_coverage_matrix`](docs/ssot/source-coverage-matrix.yaml)",
         ],
         "docs/ssot/tdd.md": [
             f"[`extraction_failed_case_registry`]({blob})",
-            "[`source_coverage_matrix`](./source-coverage-matrix.yaml)",
+            "[`source_coverage_matrix`](../../common/testing/data/source-coverage-matrix.yaml)",
         ],
     }
     for path, markers in inbound_refs.items():
