@@ -15,7 +15,7 @@ from decimal import Decimal
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass
+from src.extraction.orm.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass
 from src.pricing import PricingError, build_manual_valuation_lines, record_manual_valuation
 from src.pricing.orm.market_data import FxRate
 

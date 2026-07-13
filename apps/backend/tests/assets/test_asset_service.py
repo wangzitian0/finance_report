@@ -10,7 +10,7 @@ from sqlalchemy import select
 
 from src.extraction.orm.layer2 import AtomicPosition
 from src.extraction.orm.layer3 import ManagedPosition, PositionStatus
-from src.models.account import Account
+from src.ledger import Account
 from src.portfolio import PositionService
 
 

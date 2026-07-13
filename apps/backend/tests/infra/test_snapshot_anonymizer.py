@@ -15,13 +15,13 @@ import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import Base
-from src.ledger import JournalLine
-from src.models.layer2 import AtomicPosition, AtomicTransaction, TransactionDirection
-from src.models.layer3 import (
+from src.extraction.orm.layer2 import AtomicPosition, AtomicTransaction, TransactionDirection
+from src.extraction.orm.layer3 import (
     ManualValuationComponentType,
     ManualValuationLiquidityClass,
     ManualValuationSnapshot,
 )
+from src.ledger import JournalLine
 from src.runtime.extension.snapshot_anonymizer import (
     Action,
     anonymize,
