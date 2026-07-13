@@ -213,14 +213,19 @@ async def test_accounting_equation_holds_with_all_account_types(
     income_account,
     expense_account,
 ):
-    """
-    Verify the accounting equation holds when using all 5 account types.
+    """AC-ledger.5.2 AC-audit.global-invariant.1: Verify the accounting equation holds when using all 5 account types.
 
     Creates a realistic scenario:
     1. Initial capital contribution (Asset + Equity)
     2. Income (Asset + Income)
     3. Expense (Asset + Expense)
     4. Credit card purchase (Asset + Liability)
+
+    AC-audit.global-invariant.1 (#1429): this is the whole-ledger anchor for the
+    global accounting identity (debits == credits, restated as
+    Assets = Liabilities + Equity + Income - Expenses) — the same equation
+    holding across a full posted ledger with multiple entries and every
+    account type, not just within one balanced entry.
     """
     entries_data = [
         # Initial capital: Bank DEBIT 10000, Equity CREDIT 10000

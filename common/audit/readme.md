@@ -16,7 +16,11 @@
   records — the "governs number" core, a later fold).
 - **`audit.extension`** — reaches the financial flow (`ledger` / `extraction` /
   `portfolio` / `reporting`) to assert global numeric correctness and end-to-end
-  traceability (a later fold; closeout #1429).
+  traceability. The four cross-package invariants are formalized (closeout
+  #1429) as `AC-audit.global-invariant.1`-`.4` in `contract.py`'s `roadmap`,
+  each pinned to an already-green cross-package test in `ledger`/`reporting`/
+  the e2e suite — a physical `audit.extension` module is not required for
+  this, since the invariants are proven by tests that already span packages.
 - **`audit.data`** — confidence / provenance rollups and the trace-record index
   (a later fold).
 
@@ -86,8 +90,13 @@ Three-step sequence, each a separate merge-gated PR:
 - **Step 3 (next, separate PR)** — close out any remaining residual references
   (docs/SSOT cross-links, historical mentions) issue #1419 surfaces.
 - **Also deferred, unrelated to #1419's 3-step sequence** — audit's own base
-  value objects (invariants / confidence / provenance / trace) and the
-  `extension` reach into the financial flow.
+  value objects (confidence / provenance / trace records). The `extension`
+  reach into the financial flow is no longer fully deferred: its four
+  cross-package numeric-governance invariants are formalized as
+  `AC-audit.global-invariant.1`-`.4` (closeout #1429, see [What audit
+  governs](#what-audit-governs) above); only a *physical* `audit.extension`
+  module (as opposed to roadmap ACs pointing at tests that already live in
+  the governed packages) remains a later fold.
 
 ## Source-type trust hierarchy (provenance)
 

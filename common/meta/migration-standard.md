@@ -321,10 +321,12 @@ removes its edges from the baseline, driving it toward zero.
 ### The app delivery layer (the sanctioned L4 remainder)
 
 Not all of the L4 remainder is a holding pen. The physical remainder today is
-`routers/` + `schemas/` + the composition root (sanctioned, below) plus
-`services/` and `prompts/` (unsanctioned — still-dissolving holding pens,
-tracked by #1416's disposition table and the `prompts/` bullet below).
-`routers/` (HTTP delivery
+`routers/` + `schemas/` + the composition root (sanctioned, below). The
+formerly-unsanctioned holding pens are now fully dissolved: `services/` (its
+last tracked file, an empty `__init__.py`, was deleted by the #1429/#1677
+closeout) and `prompts/` (dissolved into its owning packages per the
+`prompts/` bullet below) — neither has any tracked file left under
+`apps/backend/src`. `routers/` (HTTP delivery
 adapters), `schemas/` (API DTOs), and the composition root (`main.py` /
 `boot.py` / `deps.py` / `config.py` / `config_app.py` / `database.py`) are the
 **sanctioned app delivery layer** (#1763 ruling): hexagonal **primary

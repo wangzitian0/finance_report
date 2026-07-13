@@ -12,9 +12,16 @@ audit's own first base value objects: the promotion gate (``InvariantResult`` /
 ``PromotionDecision`` / ``PromotionVerdict`` / ``evaluate_promotion`` /
 ``tier_rank``, relocated from ``services/promotion_gate.py`` by #1667). The rest
 of audit's own base value objects (confidence / provenance, trace records) still
-arrive in a later fold. ``audit.extension`` will then reach the financial flow
-(``ledger`` / ``extraction`` / ``portfolio`` / ``reporting``) to assert global
-numeric correctness (issue #1419, umbrella #1416; closeout #1429).
+arrive in a later fold. audit's cross-package numeric-governance reach into the
+financial flow (``ledger`` / ``extraction`` / ``portfolio`` / ``reporting``) is
+formalized in ``roadmap`` below as ``AC-audit.global-invariant.1``-``.4``
+(closeout #1429, umbrella #1416, per the 2026-07-12 scope freeze on #1429):
+each id re-homes an already-green, already-existing cross-package test as its
+resolving anchor — re-homing proofs, not building a new physical
+``audit.extension`` module. The freeze comment's fifth concern (the
+traceability-index projection) is already covered by
+``AC-reporting.package-traceability.*`` in ``common/reporting/contract.py``,
+so it is not duplicated here.
 
 Scope of THIS contract (the physical fold — see ``readme.md`` §Migration state):
 
@@ -1201,6 +1208,94 @@ CONTRACT = PackageContract(
                 "::test_AC11_18_6_migration_preflights_and_risk_contract_are_declared"
             ),
             priority="P0",
+            status="done",
+        ),
+        # ── group global-invariant: cross-package numeric-governance closeout
+        # (#1429, umbrella #1416, formalized per the 2026-07-12 scope freeze on
+        # #1429). This is audit's `extension` reach into the financial flow
+        # (ledger / extraction / reporting) — the invariants no single package
+        # owns. Per the freeze comment: "several of these invariants already
+        # exist as red-line tests — the work is largely re-homing proofs ...
+        # not building new machinery." Each id below therefore points at an
+        # already-green, already-existing cross-package test (several of which
+        # are already another package's own roadmap anchor too — a test proving
+        # a cross-package property is legitimately referenced from more than one
+        # package's roadmap; `check_package_contract` has no uniqueness rule on
+        # `test=`). The freeze comment's fifth concern — the traceability-index
+        # projection (audit's `data` concern) — is already covered by
+        # `AC-reporting.package-traceability.1`-`.4` in
+        # `common/reporting/contract.py` (the source/ledger anchors-per-line
+        # appendix), so it is not duplicated here as a fifth
+        # `AC-audit.global-invariant` id.
+        ACRecord(
+            id="AC-audit.global-invariant.1",
+            statement=(
+                "Global accounting identity: across a user's whole posted "
+                "ledger, debits == credits — proven as the accounting "
+                "equation (Assets = Liabilities + Equity + Income - Expenses) "
+                "holding across every account type after multiple entries, "
+                "not just within one balanced entry. Pinned from #1429's "
+                "2026-07-12 scope-freeze wording (umbrella #1416)."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_accounting_equation.py"
+                "::test_accounting_equation_holds_with_all_account_types"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.global-invariant.2",
+            statement=(
+                "The extraction source->fact balance chain reconciles to "
+                "posted ledger entries: a statement's source transactions "
+                "flow through parse -> review-approve -> post, and the "
+                "resulting ledger-derived balance-sheet line equals the known "
+                "net of those source transactions end to end (not just "
+                "reconciled within extraction or within the ledger alone). "
+                "Pinned from #1429's 2026-07-12 scope-freeze wording."
+            ),
+            test=(
+                "apps/backend/tests/e2e/test_business_value_correctness_gate.py"
+                "::test_AC_reporting_business_value_gate_1_total_matches_transactions_and_open_bal_missing_degrades_tier"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.global-invariant.3",
+            statement=(
+                "Report lines reconcile to ledger balances: L1 report-line "
+                "aggregation sums its ledger-backed L2 constituents exactly "
+                "(no plugs), and a framework's total assets equals the exact "
+                "sum of its own asset lines. Pinned from #1429's 2026-07-12 "
+                "scope-freeze wording."
+            ),
+            test=(
+                "apps/backend/tests/reporting/test_l1_registry_aggregation.py"
+                "::test_AC20_9_1_framework_balance_sheet_exact_aggregation"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.global-invariant.4",
+            statement=(
+                "Every posted number traces end-to-end to a source document "
+                "(record<->evidence consistency): a report line's "
+                "source_anchor resolves through the Evidence Graph to the "
+                "originating uploaded document and its atomic transaction, "
+                "and its ledger_anchor resolves to the posted journal entry "
+                "that carries that value — the full source-document -> "
+                "extracted-fact -> posted-ledger-entry -> report-line chain, "
+                "not just one hop of it. Pinned from #1429's 2026-07-12 "
+                "scope-freeze wording."
+            ),
+            test=(
+                "apps/backend/tests/api/test_personal_report_package_contract.py"
+                "::test_AC18_8_4_AC18_8_7_package_traceability_resolves_report_line_to_source_document"
+            ),
+            priority="P1",
             status="done",
         ),
     ],
