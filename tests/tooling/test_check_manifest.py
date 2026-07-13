@@ -301,7 +301,7 @@ class TestCheckAnchorRefsExist:
         ssot = tmp_path / "docs" / "ssot"
         ssot.mkdir(parents=True)
         (ssot / "accounting.md").write_text(
-            "# Accounting\n\n<a id=\"decimal-rule\"></a>\n\n## Entry Balance\n",
+            '# Accounting\n\n<a id="decimal-rule"></a>\n\n## Entry Balance\n',
             encoding="utf-8",
         )
 
@@ -399,6 +399,16 @@ class TestCheckDocsSsotFilesClassified:
         ssot_dir = tmp_path / "docs" / "ssot"
         ssot_dir.mkdir(parents=True)
         (ssot_dir / "foo.md").write_text("content")
+        with mock.patch.object(cm, "REPO_ROOT", tmp_path):
+            violations = cm.check_docs_ssot_files_classified()
+        assert len(violations) == 1
+        assert "is missing" in violations[0].message
+
+    def test_missing_ssot_dir_reports_violation_instead_of_crashing(
+        self, tmp_path: Path
+    ) -> None:
+        """docs/ssot/ absent entirely must not reach ``ssot_dir.iterdir()``."""
+        (tmp_path / "docs").mkdir()
         with mock.patch.object(cm, "REPO_ROOT", tmp_path):
             violations = cm.check_docs_ssot_files_classified()
         assert len(violations) == 1

@@ -269,7 +269,9 @@ def check_anchor_refs_exist(concepts: dict) -> list[Violation]:
 
 # Files that are the registry/index itself, not a concept the registry
 # classifies — excluded from check5 so the check doesn't self-flag.
-DOCS_SSOT_CLASSIFICATION_EXEMPT: frozenset[str] = frozenset({"README.md", "MANIFEST.yaml"})
+DOCS_SSOT_CLASSIFICATION_EXEMPT: frozenset[str] = frozenset(
+    {"README.md", "MANIFEST.yaml"}
+)
 
 
 def check_docs_ssot_files_classified() -> list[Violation]:
@@ -291,6 +293,13 @@ def check_docs_ssot_files_classified() -> list[Violation]:
     """
     violations: list[Violation] = []
     ssot_dir = REPO_ROOT / "docs" / "ssot"
+    if not ssot_dir.is_dir():
+        return [
+            Violation(
+                check="check5_docs_ssot_classified",
+                message=f"{ssot_dir.relative_to(REPO_ROOT)} is missing.",
+            )
+        ]
     readme_path = ssot_dir / "README.md"
     if not readme_path.exists():
         return [
