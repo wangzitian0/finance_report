@@ -52,3 +52,83 @@ def test_async_database_url_is_normalized_to_sync_driver() -> None:
         _normalize_url("postgresql+psycopg2://u:p@host:5432/db")
         == "postgresql+psycopg2://u:p@host:5432/db"
     )
+
+
+class _FakeConn:
+    pass
+
+
+class _FakeEngine:
+    def __init__(self):
+        self.conn = _FakeConn()
+
+    def begin(self):
+        from contextlib import contextmanager
+
+        @contextmanager
+        def _cm():
+            yield self.conn
+
+        return _cm()
+
+
+def test_transform_success_path_reports_counts(monkeypatch, capsys) -> None:
+    """The wrapper drives anonymize + residual scan in one transaction and
+    reports counts only (never values)."""
+    import sqlalchemy
+    import tools.anonymize_snapshot as cli
+
+    from src.runtime.extension.snapshot_anonymizer import AnonymizationReport
+
+    report = AnonymizationReport(
+        scale_factor=5, tables_updated=3, values_pseudonymized=7
+    )
+    monkeypatch.setattr(sqlalchemy, "create_engine", lambda url: _FakeEngine())
+    monkeypatch.setattr(
+        cli, "anonymize", lambda conn, md, *, secret, scale_factor: report
+    )
+    monkeypatch.setattr(cli, "scan_for_residuals", lambda conn, md, originals: [])
+
+    assert (
+        cli.main(
+            [
+                "--database-url",
+                "postgresql+asyncpg://u:p@localhost/scratch",
+                "--i-am-on-a-scratch-copy",
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
+
+
+def test_transform_residuals_fail_closed(monkeypatch) -> None:
+    """AC-runtime.snapshot-anonymizer.3: a surviving original aborts the
+    transaction — the wrapper raises instead of committing."""
+    import sqlalchemy
+    import tools.anonymize_snapshot as cli
+
+    from src.runtime.extension.snapshot_anonymizer import (
+        AnonymizationReport,
+        ResidualError,
+    )
+
+    report = AnonymizationReport(scale_factor=5)
+    monkeypatch.setattr(sqlalchemy, "create_engine", lambda url: _FakeEngine())
+    monkeypatch.setattr(
+        cli, "anonymize", lambda conn, md, *, secret, scale_factor: report
+    )
+    monkeypatch.setattr(
+        cli,
+        "scan_for_residuals",
+        lambda conn, md, originals: ["atomic_transactions.description"],
+    )
+
+    with pytest.raises(ResidualError):
+        cli.main(
+            [
+                "--database-url",
+                "postgresql+psycopg2://u:p@localhost/scratch",
+                "--i-am-on-a-scratch-copy",
+            ]
+        )
