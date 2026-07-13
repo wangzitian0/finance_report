@@ -11,7 +11,11 @@ asserts:
   (a) ``contract.interface`` equals the BE implementation's ``__init__.__all__``
       (the published language and the contract agree);
   (b) every ``invariants[].test`` and ``roadmap[].test`` (``"path::func"``)
-      resolves to a real test function in the repo;
+      resolves to a real test function in the repo — a Python ``def``/``async
+      def`` for a pytest path, or (#1820) a vitest/Playwright ``it(...)``/
+      ``test(...)`` title for a ``*.test.ts``/``*.test.tsx``/``*.spec.ts``/
+      ``*.spec.tsx`` path, letting a package's ``roadmap`` anchor a
+      cross-runtime AC to its frontend half without a Python proxy test;
   (c) ``depends_on`` introduces no forbidden edge — a package's implementation
       modules must not import a higher layer of the five-layer topology
       (``meta < infra < middleware < domain < app``; mirrors the spirit of
@@ -69,6 +73,7 @@ from __future__ import annotations
 import argparse
 import ast
 import importlib.util
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -275,6 +280,32 @@ def _package_all(src_dir: Path) -> list[str]:
     return []
 
 
+# Frontend test-file suffixes a ``"path::func"`` ref may also resolve against
+# (#1820): a package's roadmap can anchor a cross-runtime AC to its vitest/
+# Playwright half instead of routing every FE behavior through a Python proxy
+# test. Matches the suffix vocabulary the AC-traceability scanner already uses
+# (``common.testing.ac_graph.TEST_FILE_SUFFIXES`` /
+# ``common.testing.check_ac_traceability.TEST_FILE_SUFFIXES``) so "what counts
+# as a frontend test file" cannot drift between the two gates.
+_FRONTEND_TEST_SUFFIXES = (".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx")
+
+# One vitest/Playwright test declaration: `it("name", ...)` / `test("name",
+# ...)`, optionally `.only`/`.skip`-modified (both suites share this call
+# shape). The name is captured verbatim between the matching quote characters
+# — no escape processing — mirroring the deliberately narrow "does a real
+# declaration with this title exist" proof the Python branch below performs
+# (an AST match on a real `def`/`async def`), not a full TS parse/compile.
+_JS_TEST_DECL = re.compile(
+    r"""\b(?:it|test)(?:\.(?:only|skip))?\s*\(\s*(['"`])(?P<name>.*?)\1""",
+    re.DOTALL,
+)
+
+
+def _frontend_test_names(text: str) -> set[str]:
+    """Every `it(...)`/`test(...)` title declared in a vitest/Playwright file."""
+    return {m.group("name") for m in _JS_TEST_DECL.finditer(text)}
+
+
 def _resolve_test(ref: str, repo_root: Path) -> str | None:
     """Return an error string if ``"path::func"`` does not resolve, else None."""
     if "::" not in ref:
@@ -283,6 +314,11 @@ def _resolve_test(ref: str, repo_root: Path) -> str | None:
     test_path = repo_root / rel_path
     if not test_path.exists():
         return f"test file does not exist: {rel_path}"
+    if rel_path.endswith(_FRONTEND_TEST_SUFFIXES):
+        names = _frontend_test_names(test_path.read_text(encoding="utf-8"))
+        if func not in names:
+            return f"test {func!r} not found in {rel_path}"
+        return None
     tree = ast.parse(test_path.read_text(encoding="utf-8"))
     names = {
         node.name

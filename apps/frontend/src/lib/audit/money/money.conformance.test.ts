@@ -60,6 +60,20 @@ describe("money conformance (cross-language standard #1167)", () => {
     }
   });
 
+  // Frontend AC-gate anchor (#1820): audit's roadmap resolves this AC's
+  // `test=` directly against this vitest title (no Python proxy test) —
+  // proves the rounding and convert vector tables share one rounding
+  // vocabulary, so quantize() and convert() can never silently diverge on
+  // which RoundingName values the standard supports.
+  it("AC-audit.20.2 quantize() and convert() share the same rounding vocabulary", () => {
+    const roundingNames = new Set(VECTORS.rounding.map((c) => c.rounding));
+    const convertRoundingNames = new Set(VECTORS.convert.map((c) => c.rounding));
+    expect(convertRoundingNames.size).toBeGreaterThan(0);
+    for (const name of convertRoundingNames) {
+      expect(roundingNames.has(name)).toBe(true);
+    }
+  });
+
   it("AC-audit.30.3 matches every convert vector through ExchangeRate", () => {
     for (const c of VECTORS.convert) {
       const result = convert(
