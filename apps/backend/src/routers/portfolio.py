@@ -37,7 +37,7 @@ from src.schemas.portfolio import (
     CostBasisMethodUpdateRequest,
     CostBasisMethodUpdateResponse,
     DividendEventResponse,
-    HoldingResponse,
+    HoldingsListResponse,
     InvestmentPerformanceReportScheduleResponse,
     PortfolioSummaryDashboardResponse,
     PriceUpdateBatchResponse,
@@ -110,7 +110,7 @@ async def import_brokerage_positions(
     return BrokerageImportResponse(**result.__dict__)
 
 
-@router.get("/holdings", response_model=list[HoldingResponse])
+@router.get("/holdings", response_model=HoldingsListResponse)
 async def get_holdings(
     db: DbSession,
     user_id: CurrentUserId,
@@ -118,8 +118,13 @@ async def get_holdings(
     include_disposed: bool = Query(False, description="Include disposed positions"),
     limit: int = Query(_DEFAULT_LIST_LIMIT, ge=1, le=_MAX_LIST_LIMIT, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
-) -> list[HoldingResponse]:
-    """Get portfolio holdings with P&L (bounded by limit/offset; see AC17.30)."""
+) -> HoldingsListResponse:
+    """Get portfolio holdings with P&L (bounded by limit/offset; see AC17.30).
+
+    AC-portfolio.holdings.6 (#1796): responds in the repo-standard items+total
+    wrapper plus ``warnings`` — a snapshot excluded from the page (no reconciled
+    managed position as of the date) is disclosed to the caller, not just logged.
+    """
     logger.info(
         "Getting holdings",
         user_id=str(user_id),
@@ -129,20 +134,24 @@ async def get_holdings(
         offset=offset,
     )
 
+    warnings: list[dict[str, str]] = []
     try:
-        holdings = await _portfolio_service.get_holdings(
-            db=db,
-            user_id=user_id,
-            as_of_date=as_of_date,
-            include_disposed=include_disposed,
+        holdings = list(
+            await _portfolio_service.get_holdings(
+                db=db,
+                user_id=user_id,
+                as_of_date=as_of_date,
+                include_disposed=include_disposed,
+                warnings=warnings,
+            )
         )
     except (PortfolioNotFoundError, AssetNotFoundError):
-        # No holdings found — return empty list instead of error
-        return []
+        # No holdings found — return an empty page instead of an error
+        return HoldingsListResponse(items=[], total=0, warnings=warnings)
 
-    page = list(holdings)[offset : offset + limit]
+    page = holdings[offset : offset + limit]
     logger.info("Retrieved holdings", count=len(page), total=len(holdings))
-    return page
+    return HoldingsListResponse(items=page, total=len(holdings), warnings=warnings)
 
 
 @router.get("/summary", response_model=PortfolioSummaryDashboardResponse)

@@ -600,6 +600,24 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        ACRecord(
+            id="AC-pricing.manualvaluation.4",
+            statement=(
+                "A (component_type, source) combination whose only snapshot "
+                "postdates the requested as_of_date is absent from the "
+                "valuation components and lines, and is disclosed through the "
+                "result/accumulator warnings instead of vanishing silently "
+                "(#1796) — 'not owned yet' vs 'not recorded yet' is "
+                "inherently ambiguous for a manual component, so the gap is "
+                "warned about, never guessed at."
+            ),
+            test=(
+                "apps/backend/tests/pricing/test_valuation_lines.py"
+                "::test_AC_pricing_manualvaluation_4_component_recorded_after_as_of_is_warned"
+            ),
+            priority="P1",
+            status="done",
+        ),
         # ── group fx: the FX lookup + conversion surface absorbed from
         # services/fx.py (#1610 P2 — ONE implementation, pricing's; the
         # in-process TTL cache was deliberately NOT carried over, see

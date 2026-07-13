@@ -390,7 +390,7 @@ async def test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_p
         assert holdings_response.status_code == 200, (
             f"holdings check failed: {holdings_response.status_code} {holdings_response.text}"
         )
-        holdings = holdings_response.json()
+        holdings = holdings_response.json()["items"]
         assert len(holdings) >= int(imported_positions), (
             f"missing imported holdings: {holdings}"
         )

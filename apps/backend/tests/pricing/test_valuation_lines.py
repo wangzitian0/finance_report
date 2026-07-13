@@ -106,3 +106,68 @@ async def test_AC_pricing_manualvaluation_3_fx_miss_raises_pricing_error(db: Asy
             as_of_date=date(2026, 5, 31),
             target_currency="SGD",
         )
+
+
+async def test_AC_pricing_manualvaluation_4_component_recorded_after_as_of_is_warned(
+    db: AsyncSession, test_user
+) -> None:
+    """AC-pricing.manualvaluation.4: a (component_type, source) combination whose
+    only snapshot postdates as_of_date is absent from the lines and totals, and
+    is disclosed through the warnings accumulator instead of vanishing silently
+    (#1796); combinations with an eligible snapshot produce no warning."""
+    await record_manual_valuation(
+        db,
+        test_user.id,
+        component_type=ManualValuationComponentType.PROPERTY_VALUE,
+        liquidity_class=ManualValuationLiquidityClass.ILLIQUID,
+        as_of=date(2026, 5, 1),
+        value=Decimal("1000000.00"),
+        currency="SGD",
+        source="appraisal",
+    )
+    # Recorded for the first time only after the report date below.
+    await record_manual_valuation(
+        db,
+        test_user.id,
+        component_type=ManualValuationComponentType.CPF_BALANCE,
+        liquidity_class=ManualValuationLiquidityClass.RESTRICTED,
+        as_of=date(2026, 6, 15),
+        value=Decimal("50000.00"),
+        currency="SGD",
+        source="cpf statement",
+    )
+    await db.commit()
+
+    warnings: list[dict[str, str]] = []
+    asset_lines, liability_lines = await build_manual_valuation_lines(
+        db,
+        test_user.id,
+        as_of_date=date(2026, 5, 31),
+        target_currency="SGD",
+        warnings=warnings,
+    )
+
+    assert [line["name"] for line in asset_lines] == ["Valuation: appraisal (property value)"]
+    assert liability_lines == []
+    assert len(warnings) == 1
+    warning = warnings[0]
+    assert warning["type"] == "valuation_component_not_yet_recorded"
+    assert warning["component_type"] == "cpf_balance"
+    assert warning["source"] == "cpf statement"
+    assert warning["as_of_date"] == "2026-05-31"
+    assert warning["earliest_as_of_date"] == "2026-06-15"
+    assert "cpf statement" in warning["message"]
+
+    # A view that excludes restricted/illiquid components must not disclose
+    # their existence via gap warnings either (#1796 CR follow-up): the CPF
+    # combo is RESTRICTED, so the exclusive view carries no warning for it.
+    exclusive_warnings: list[dict[str, str]] = []
+    await build_manual_valuation_lines(
+        db,
+        test_user.id,
+        as_of_date=date(2026, 5, 31),
+        target_currency="SGD",
+        include_restricted=False,
+        warnings=exclusive_warnings,
+    )
+    assert exclusive_warnings == []

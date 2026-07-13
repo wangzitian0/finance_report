@@ -66,6 +66,8 @@ const mockHoldings: PortfolioHolding[] = [
   },
 ]
 
+const mockHoldingsResponse = { items: mockHoldings, total: mockHoldings.length, warnings: [] }
+
 describe("PricesPage", () => {
   const mockedApiFetch = vi.mocked(apiFetch)
 
@@ -79,7 +81,7 @@ describe("PricesPage", () => {
   })
 
   it("renders page header and back link", async () => {
-    mockedApiFetch.mockResolvedValue(mockHoldings)
+    mockedApiFetch.mockResolvedValue(mockHoldingsResponse)
 
     render(<PricesPage />, { wrapper: createWrapper() })
 
@@ -91,7 +93,7 @@ describe("PricesPage", () => {
   })
 
   it("renders price update form with known tickers from holdings", async () => {
-    mockedApiFetch.mockResolvedValue(mockHoldings)
+    mockedApiFetch.mockResolvedValue(mockHoldingsResponse)
 
     render(<PricesPage />, { wrapper: createWrapper() })
 
@@ -101,7 +103,7 @@ describe("PricesPage", () => {
   })
 
   it("renders ticker select with known tickers", async () => {
-    mockedApiFetch.mockResolvedValue(mockHoldings)
+    mockedApiFetch.mockResolvedValue(mockHoldingsResponse)
 
     render(<PricesPage />, { wrapper: createWrapper() })
 
@@ -114,7 +116,7 @@ describe("PricesPage", () => {
   })
 
   it("adds and removes rows", async () => {
-    mockedApiFetch.mockResolvedValue(mockHoldings)
+    mockedApiFetch.mockResolvedValue(mockHoldingsResponse)
     render(<PricesPage />, { wrapper: createWrapper() })
     await waitFor(() => {
       const options = screen.getAllByRole("option")
@@ -148,7 +150,7 @@ describe("PricesPage", () => {
       if (path === "/api/portfolio/prices/update" && options?.method === "POST") {
         return Promise.resolve(mockResponse)
       }
-      return Promise.resolve(mockHoldings)
+      return Promise.resolve(mockHoldingsResponse)
     })
 
     render(<PricesPage />, { wrapper: createWrapper() })
@@ -180,7 +182,7 @@ describe("PricesPage", () => {
   })
 
   it("shows error toast when submitting empty form", async () => {
-    mockedApiFetch.mockResolvedValue(mockHoldings)
+    mockedApiFetch.mockResolvedValue(mockHoldingsResponse)
     render(<PricesPage />, { wrapper: createWrapper() })
 
     await waitFor(() => {

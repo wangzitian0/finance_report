@@ -759,7 +759,7 @@ async def test_statement_import_flows_to_holdings_and_balance_sheet(client, db, 
     )
 
     assert holdings_response.status_code == 200
-    holdings = holdings_response.json()
+    holdings = holdings_response.json()["items"]
     assert len(holdings) == 1
     assert holdings[0]["asset_identifier"] == "Fullerton SGD Money Market Fund"
     assert holdings[0]["account_name"] == "Moomoo"

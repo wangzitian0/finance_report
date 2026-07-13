@@ -840,3 +840,31 @@ async def test_income_statement_includes_applied_classification_breakdown(db: As
             "avg_confidence": 95.0,
         }
     ]
+
+
+async def test_AC_reporting_balance_sheet_6_valuation_gap_disclosed_in_portfolio_warnings(db: AsyncSession, test_user):
+    """AC-reporting.balance-sheet.6: a manual valuation recorded only after the
+    report's as_of_date stays out of the totals AND is disclosed in
+    portfolio_warnings, so a historical balance sheet never silently reads as
+    complete (#1796)."""
+    report_date = date(2025, 3, 31)
+    await _create_valuation(
+        db,
+        test_user.id,
+        component_type=ManualValuationComponentType.PROPERTY_VALUE,
+        component_name="Singapore Condo",
+        liquidity_class=ManualValuationLiquidityClass.ILLIQUID,
+        value=Decimal("1200000.00"),
+        currency="SGD",
+        as_of_date=date(2025, 6, 30),
+    )
+    await db.commit()
+
+    report = await generate_balance_sheet(db, test_user.id, as_of_date=report_date, currency="SGD")
+
+    assert report["total_assets"] == 0
+    warnings = report["portfolio_warnings"]
+    assert [w["type"] for w in warnings] == ["valuation_component_not_yet_recorded"]
+    assert warnings[0]["component_type"] == "property_value"
+    assert warnings[0]["source"] == "Singapore Condo"
+    assert warnings[0]["earliest_as_of_date"] == "2025-06-30"

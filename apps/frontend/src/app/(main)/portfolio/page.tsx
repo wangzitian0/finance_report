@@ -7,7 +7,10 @@ import { CalendarDays, X } from "lucide-react";
 
 import { apiFetch } from "@/lib/api";
 import { useBaseCurrency } from "@/hooks/useBaseCurrency";
-import { PortfolioHolding, PortfolioSummaryResponse } from "@/lib/types";
+import {
+  HoldingsListResponse,
+  PortfolioSummaryResponse,
+} from "@/lib/types";
 import { PerformanceCard } from "@/components/portfolio/PerformanceCard";
 import { LoadingState } from "@/components/ui";
 import { HoldingsTable } from "@/components/portfolio/HoldingsTable";
@@ -89,9 +92,9 @@ export default function PortfolioPage() {
         params.set("as_of_date", asOfDate);
       }
       const query = params.toString();
-      return apiFetch<PortfolioHolding[]>(
+      return apiFetch<HoldingsListResponse>(
         `/api/portfolio/holdings${query ? `?${query}` : ""}`,
-      );
+      ).then((response) => response.items);
     },
   });
   const { data: summary } = useQuery({

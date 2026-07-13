@@ -6,13 +6,14 @@ Valuation snapshots and their versioned read models are pricing-owned facts
 """
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import Select, func, select
+from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.money import to_money
@@ -50,12 +51,19 @@ class ValuationComponentItem:
 
 @dataclass
 class ValuationComponentsResult:
-    """Aggregated latest manual valuation components."""
+    """Aggregated latest manual valuation components.
+
+    ``warnings`` discloses (component_type, source) combinations that exist for
+    the user but have no snapshot on or before the requested ``as_of_date`` —
+    their value is absent from the totals, and without the disclosure a
+    historical total would silently read as complete (#1796, Axiom B).
+    """
 
     items: list[ValuationComponentItem]
     total_assets: Decimal
     total_liabilities: Decimal
     net_worth_delta: Decimal
+    warnings: list[dict[str, str]] = field(default_factory=list)
 
 
 _DEFAULT_LIQUIDITY_CLASS: dict[ManualValuationComponentType, ManualValuationLiquidityClass] = {
@@ -359,6 +367,52 @@ class ValuationService:
         )
         snapshots = result.scalars().all()
 
+        # Disclose combos whose only snapshots postdate as_of_date: they are
+        # absent from the totals below, and "we did not own it yet" vs "we had
+        # not recorded it yet" is inherently ambiguous for a manual component
+        # (#1796) — so the gap is warned about, never guessed at. A view that
+        # excludes restricted/illiquid components must not have their existence
+        # disclosed by a warning either, so the combo's latest liquidity class
+        # rides along and is filtered under include_restricted=False.
+        latest_liquidity = aggregate_order_by(
+            ManualValuationSnapshot.liquidity_class,
+            ManualValuationSnapshot.as_of_date.desc(),
+            ManualValuationSnapshot.created_at.desc(),
+        )
+        gap_rows = await db.execute(
+            select(
+                ManualValuationSnapshot.component_type,
+                ManualValuationSnapshot.source,
+                func.min(ManualValuationSnapshot.as_of_date).label("earliest_as_of_date"),
+                func.array_agg(latest_liquidity)[1].label("latest_liquidity_class"),
+            )
+            .where(ManualValuationSnapshot.user_id == user_id)
+            .where(ManualValuationSnapshot.superseded_by_id.is_(None))
+            .group_by(ManualValuationSnapshot.component_type, ManualValuationSnapshot.source)
+            .having(func.min(ManualValuationSnapshot.as_of_date) > as_of_date)
+            .order_by(ManualValuationSnapshot.component_type, ManualValuationSnapshot.source)
+        )
+        hidden_classes = (
+            ManualValuationLiquidityClass.RESTRICTED,
+            ManualValuationLiquidityClass.ILLIQUID,
+        )
+        warnings: list[dict[str, str]] = [
+            {
+                "type": "valuation_component_not_yet_recorded",
+                "component_type": row.component_type.value,
+                "source": row.source,
+                "as_of_date": as_of_date.isoformat(),
+                "earliest_as_of_date": row.earliest_as_of_date.isoformat(),
+                "message": (
+                    f"Manual valuation '{row.source}' ({row.component_type.value}) has no "
+                    f"snapshot on or before {as_of_date.isoformat()} (earliest is "
+                    f"{row.earliest_as_of_date.isoformat()}); it is excluded from these totals."
+                ),
+            }
+            for row in gap_rows
+            if include_restricted or row.latest_liquidity_class not in hidden_classes
+        ]
+
         total_assets = Decimal("0.00")
         total_liabilities = Decimal("0.00")
         items: list[ValuationComponentItem] = []
@@ -396,6 +450,7 @@ class ValuationService:
             total_assets=total_assets,
             total_liabilities=total_liabilities,
             net_worth_delta=to_money(total_assets - total_liabilities),
+            warnings=warnings,
         )
 
 
@@ -449,8 +504,14 @@ async def build_manual_valuation_lines(
     as_of_date: date,
     target_currency: str,
     include_restricted: bool = True,
+    warnings: list[dict[str, str]] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Build balance sheet lines from latest manual valuation components.
+
+    ``warnings`` is an optional accumulator (same pattern as the portfolio
+    market-adjustment builder): components whose only snapshot postdates
+    ``as_of_date`` are absent from the lines, and the caller's report should
+    disclose that instead of presenting a silently incomplete total (#1796).
 
     Raises the pricing error family
     (:class:`~src.pricing.base.errors.PricingError`) when a required FX rate
@@ -472,6 +533,8 @@ async def build_manual_valuation_lines(
         as_of_date=as_of_date,
         include_restricted=include_restricted,
     )
+    if warnings is not None:
+        warnings.extend(components.warnings)
     asset_lines: list[dict[str, Any]] = []
     liability_lines: list[dict[str, Any]] = []
 
