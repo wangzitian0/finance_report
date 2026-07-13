@@ -24,7 +24,6 @@ from src.reporting.extension.framework_policy import (
     get_framework_policy_matrix,
 )
 from src.schemas.reporting import PersonalReportingFrameworkId, PolicyFactDomain
-from src.schemas.reporting import PersonalReportingFrameworkId, PolicyFactDomain
 
 _FRAMEWORKS = [
     PersonalReportingFrameworkId.US_GAAP_LIKE,

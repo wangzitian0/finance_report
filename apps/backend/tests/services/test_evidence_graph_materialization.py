@@ -17,9 +17,6 @@ from src.extraction.extension.evidence_graph_materialization import EvidenceGrap
 from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.identity import User
-from src.audit import JournalEntrySourceType
-from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from tests.factories import UserFactory
 

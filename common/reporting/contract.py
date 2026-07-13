@@ -112,8 +112,16 @@ CONTRACT = PackageContract(
             kind=Kind.DOMAIN_SERVICE,
             module="extension/net_worth.py",
         ),
-        Unit(name="get_account_trend", kind=Kind.DOMAIN_SERVICE, module="extension/net_worth.py"),
-        Unit(name="get_account_lineage", kind=Kind.DOMAIN_SERVICE, module="extension/lineage.py"),
+        Unit(
+            name="get_account_trend",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/net_worth.py",
+        ),
+        Unit(
+            name="get_account_lineage",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/lineage.py",
+        ),
         Unit(
             name="ReportingReadRepository",
             kind=Kind.REPOSITORY,

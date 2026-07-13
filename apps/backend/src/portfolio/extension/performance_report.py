@@ -24,7 +24,6 @@ from src.audit.money import Money, to_money
 from src.audit.ratio import Ratio
 from src.extraction.orm.layer2 import AtomicPosition
 from src.extraction.orm.layer3 import ManagedPosition, PositionStatus
-from src.pricing import MarketDataOverride, PriceSource
 from src.portfolio.base.errors import (
     AssetNotFoundError,
     InsufficientDataError,

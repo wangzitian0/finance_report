@@ -14,7 +14,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.extraction.orm.layer2 import TransactionDirection
 from src.extraction.orm.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.ledger import Account, AccountType
-from src.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
 from src.portfolio import (
     DividendIncome,
     InsufficientDataError,
@@ -392,7 +391,7 @@ async def test_AC5_6_3_dividend_yield_counts_position_disposed_after_as_of_date(
     as_of_date, so point-in-time inclusion must come from the snapshot
     quantity on that date (mirrors holdings.py:_get_snapshot_holdings), not
     from the position's current status."""
-    from src.models.layer2 import AtomicPosition
+    from src.extraction.orm.layer2 import AtomicPosition
 
     today = date.today()
     as_of_date = today - timedelta(days=60)

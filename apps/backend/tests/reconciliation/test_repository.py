@@ -10,7 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.identity import User
-from src.extraction.orm.layer2 import AtomicTransaction
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.reconciliation.extension.repository import SqlReconciliationRepository
 from tests.ledger._ledger_helpers import create_valid_posted_entry

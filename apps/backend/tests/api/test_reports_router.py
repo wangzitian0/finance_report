@@ -25,8 +25,6 @@ from sqlalchemy import select
 from src.extraction.orm.layer3 import ClassificationRule, RuleType
 from src.extraction.orm.layer4 import ReportSnapshot, ReportType
 from src.identity import User
-from src.extraction.orm.layer3 import ClassificationRule, RuleType
-from src.extraction.orm.layer4 import ReportSnapshot, ReportType
 from src.ledger import Account, AccountType
 from src.observability import ConfidenceMetricSnapshot
 

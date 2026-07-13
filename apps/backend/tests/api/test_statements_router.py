@@ -45,11 +45,6 @@ from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.identity import User
 from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus
 from src.llm.base import Modality, ModelSpec
-from src.audit import JournalEntrySourceType
-from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
-from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus
-from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus

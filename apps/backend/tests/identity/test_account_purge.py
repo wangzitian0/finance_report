@@ -22,7 +22,6 @@ from src.identity.extension.account_purge import (
     purge_test_accounts,
     select_test_user_ids,
 )
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.ledger import Account
 from tests.factories import AccountFactory, JournalEntryFactory, UserFactory
 

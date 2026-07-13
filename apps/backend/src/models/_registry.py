@@ -17,7 +17,7 @@ empty; discovery sites import this module explicitly instead:
 
 This is NOT a re-export facade: it publishes no symbols (``__all__`` is empty).
 Other code must import each model from its owning module
-(``from src.models.layer2 import AtomicTransaction``), never from here or the hub.
+(``from src.extraction.orm.layer2 import AtomicTransaction``), never from here or the hub.
 """
 
 from __future__ import annotations

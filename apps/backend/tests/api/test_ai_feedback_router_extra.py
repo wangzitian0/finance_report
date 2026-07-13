@@ -11,8 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.extraction.orm.layer3 import ClassificationStatus, TransactionClassification
 from src.identity import User
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
-from src.extraction.orm.layer3 import ClassificationStatus, TransactionClassification
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 
 pytestmark = pytest.mark.asyncio

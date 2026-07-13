@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.extraction.orm.layer2 import AtomicPosition
 from src.extraction.orm.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.ledger import Account, AccountType
-from src.pricing import MarketDataOverride, PriceSource
 from src.portfolio import (
     AssetNotFoundError,
     InvalidDateRangeError,

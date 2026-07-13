@@ -17,7 +17,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
 from src.extraction.extension.evidence_lineage import EvidenceLineageService
-from src.audit import JournalEntrySourceType
 from src.extraction.orm.layer2 import AtomicPosition, AtomicTransaction
 from src.extraction.orm.layer3 import ManualValuationLiquidityClass, ManualValuationSnapshot
 from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus, JournalLine, derive_confidence_tier

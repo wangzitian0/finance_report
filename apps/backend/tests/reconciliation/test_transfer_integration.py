@@ -23,7 +23,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
 from src.extraction import DocumentType, UploadedDocument
-from src.audit import JournalEntrySourceType
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.ledger import (
     Account,

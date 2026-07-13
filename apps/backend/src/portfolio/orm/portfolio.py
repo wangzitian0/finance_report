@@ -24,7 +24,6 @@ from src.extraction.orm.layer3 import CostBasisMethod
 from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 
-
 class InvestmentTransactionType(str, Enum):
     """Brokerage investment transaction type."""
 

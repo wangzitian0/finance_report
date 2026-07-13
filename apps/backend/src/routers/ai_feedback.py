@@ -13,8 +13,6 @@ from src.identity import (
     AiSuggestionListResponse,
     AiSuggestionResponse,
 )
-from src.extraction.orm.layer2 import AtomicTransaction
-from src.extraction.orm.layer3 import ClassificationStatus, TransactionClassification
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 
 router = APIRouter(prefix="/ai", tags=["ai-feedback"])
