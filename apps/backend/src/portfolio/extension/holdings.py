@@ -25,8 +25,6 @@ from src.audit.unit_price import UnitPrice
 from src.extraction.orm.layer2 import AtomicPosition
 from src.extraction.orm.layer3 import ManagedPosition, PositionStatus
 from src.ledger import Account
-from src.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
-from src.pricing import MarketDataOverride, PriceSource
 from src.observability import get_logger
 from src.portfolio.base.errors import (
     AssetNotFoundError,

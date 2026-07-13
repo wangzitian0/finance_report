@@ -727,14 +727,15 @@ async def test_create_entry_from_txn_lazy_loads_missing_fx_rate(db, test_user):
     await db.commit()
 
     with patch(
-        # Patches the source, not review_queue's former re-export: #1675 D5c
-        # made review_queue.py's fx import function-local (a real self-cycle
-        # through pricing -> extraction.orm.layer3 -> extraction's own
-        # package init -> review_queue.py -> pricing again), so
-        # get_exchange_rate is no longer a module-level attribute there. The
-        # function-local import resolves src.pricing.get_exchange_rate at
-        # call time, so patching the source still intercepts it.
-        "src.pricing.get_exchange_rate",
+        # Patches the injected port, not src.pricing.get_exchange_rate: #1675
+        # D5c inverted review_queue.py's fx lookup into
+        # register_fx_rate_provider() (a real ledger/extraction <-> pricing
+        # cycle otherwise, since pricing now depends on extraction's
+        # published ORM entities), so conftest.py's module-top registration
+        # captures the real get_exchange_rate once at import time. Patching
+        # src.pricing.get_exchange_rate after that has no effect on the
+        # already-bound reference; patch the module-level slot instead.
+        "src.extraction.extension.review_queue._get_exchange_rate",
     ) as mock_get_rate:
         mock_get_rate.return_value = Decimal("0.19")
         entry = await create_entry_from_txn(db, txn, user_id=test_user.id)
@@ -761,14 +762,9 @@ async def test_create_entry_from_txn_still_fails_closed_when_fx_rate_unresolvabl
     await db.commit()
 
     with patch(
-        # Patches the source, not review_queue's former re-export: #1675 D5c
-        # made review_queue.py's fx import function-local (a real self-cycle
-        # through pricing -> extraction.orm.layer3 -> extraction's own
-        # package init -> review_queue.py -> pricing again), so
-        # get_exchange_rate is no longer a module-level attribute there. The
-        # function-local import resolves src.pricing.get_exchange_rate at
-        # call time, so patching the source still intercepts it.
-        "src.pricing.get_exchange_rate",
+        # Patches the injected port, not src.pricing.get_exchange_rate: see
+        # test_create_entry_from_txn_lazy_loads_missing_fx_rate above.
+        "src.extraction.extension.review_queue._get_exchange_rate",
         side_effect=PricingError("No FX rate available for CNY/SGD on 2025-01-15"),
     ) as mock_get_rate:
         with pytest.raises(ValueError, match="FX rate required to create CNY journal entry"):

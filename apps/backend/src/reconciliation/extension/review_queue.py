@@ -15,10 +15,8 @@ from sqlalchemy.orm import selectinload
 
 from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType, promote_entry_source_type
 from src.extraction import create_entry_from_txn
-from src.audit import JournalEntrySourceType
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import JournalEntry, JournalEntryStatus, JournalLine
-from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.observability import get_logger
 from src.reconciliation.base.config import entry_total_amount
 from src.reconciliation.extension.matching import sync_reconciliation_match_journal_entry_links
@@ -43,7 +41,6 @@ async def get_pending_items(
         .order_by(ReconciliationMatch.match_score.desc())
         .limit(limit)
         .offset(offset)
-        .options(selectinload(ReconciliationMatch.atomic_transaction))
     )
     return cast(list[ReconciliationMatch], result.scalars().all())
 
@@ -71,7 +68,6 @@ async def accept_match(
         .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
         .where(ReconciliationMatch.id == match_id)
         .where(AtomicTransaction.user_id == user_id)
-        .options(selectinload(ReconciliationMatch.atomic_transaction))
         .with_for_update()
     )
     match = result.scalar_one_or_none()
@@ -81,7 +77,7 @@ async def accept_match(
     if match.status != ReconciliationStatus.PENDING_REVIEW:
         return match
 
-    txn = match.atomic_transaction
+    txn = await db.get(AtomicTransaction, match.atomic_txn_id)
 
     if txn and not match.journal_entry_ids:
         existing_entry_result = await db.execute(
@@ -151,7 +147,6 @@ async def reject_match(
         .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
         .where(ReconciliationMatch.id == match_id)
         .where(AtomicTransaction.user_id == user_id)
-        .options(selectinload(ReconciliationMatch.atomic_transaction))
         .with_for_update()
     )
     match = result.scalar_one_or_none()
@@ -179,7 +174,8 @@ async def batch_accept(
     if not match_ids:
         return []
 
-    # Optimization: join atomic transaction and load it to avoid N+1 queries later
+    # Join atomic transaction to authorize by user_id (#1675 D4: no relationship()
+    # eager-load — accept_match() below re-fetches the transaction by id itself).
     result = await db.execute(
         select(ReconciliationMatch)
         .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
@@ -187,7 +183,6 @@ async def batch_accept(
         .where(AtomicTransaction.user_id == user_id)
         .where(ReconciliationMatch.match_score >= min_score)
         .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
-        .options(selectinload(ReconciliationMatch.atomic_transaction))
         .with_for_update(of=ReconciliationMatch)
     )
     matches = result.scalars().all()
@@ -223,7 +218,6 @@ async def get_stage2_queue(
             ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW,
             AtomicTransaction.user_id == user_id,
         )
-        .options(selectinload(ReconciliationMatch.atomic_transaction))
         .limit(50)
     )
     if run_id:

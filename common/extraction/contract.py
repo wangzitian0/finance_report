@@ -73,13 +73,13 @@ CONTRACT = PackageContract(
         "llm",
         "observability",
         "platform",
-        # FX rate lookup for review-queue journal promotion goes through
-        # pricing's published surface (#1610 P2 retired services/fx.py);
-        # sideways acyclic edge to the L3 leaf. ``portfolio`` was dropped
-        # (#1675 D5c): the former direct ``PositionService`` import is now
-        # ``register_position_reconciler``, an inverted port wired by
-        # main.py, so extraction no longer imports portfolio at all.
-        "pricing",
+        # ``portfolio`` was dropped (#1675 D5c): the former direct
+        # ``PositionService`` import is now ``register_position_reconciler``,
+        # an inverted port wired by main.py. ``pricing`` was dropped the same
+        # way: the former FX-rate-lookup import (review-queue journal
+        # promotion, #1610 P2's pricing.get_exchange_rate) is now
+        # ``register_fx_rate_provider``, also wired by main.py — extraction
+        # no longer imports either package directly.
         "runtime",
     ],
     roles=["base", "extension", "data"],
@@ -209,6 +209,7 @@ CONTRACT = PackageContract(
         "parse_brokerage_positions",
         "pending_stage1_review_filter",
         "record_correction",
+        "register_fx_rate_provider",
         "register_position_reconciler",
         "reject_statement_workflow",
         "resolve_custody_account_id",

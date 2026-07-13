@@ -15,7 +15,6 @@ from src.extraction import (
 )
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import JournalEntry, JournalEntryStatus
-from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement_summary import StatementSummary
 from src.observability import get_logger
 from src.platform import get_owned_or_404, raise_conflict
@@ -186,9 +185,14 @@ async def get_stage2_review_queue(
 ) -> Stage2ReviewQueueResponse:
     """Stage 2: Get review queue (matches + checks)."""
     matches = await get_stage2_queue(db, user_id, run_id=run_id)
+    txn_ids = {match.atomic_txn_id for match in matches}
+    txn_map: dict[UUID, AtomicTransaction] = {}
+    if txn_ids:
+        txn_result = await db.execute(select(AtomicTransaction).where(AtomicTransaction.id.in_(txn_ids)))
+        txn_map = {txn.id: txn for txn in txn_result.scalars().all()}
     pending_matches = []
     for match in matches:
-        transaction = match.atomic_transaction
+        transaction = txn_map.get(match.atomic_txn_id)
         pending_matches.append(
             Stage2PendingMatch(
                 id=match.id,

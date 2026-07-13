@@ -33,11 +33,13 @@ from src.extraction import (
     get_known_storage_paths,
     get_uploaded_document_filename,
     get_uploaded_document_filenames,
+    register_fx_rate_provider,
     register_position_reconciler,
     register_transfer_exclusions_provider,
     run_parsing_supervisor,
 )
 from src.identity import auth_router, users_router
+from src.ledger import register_fx_revaluation_provider
 from src.observability import (
     configure_database_pool_metrics,
     configure_logging,
@@ -151,6 +153,19 @@ register_fx_gateway(
     fx_rate_error=PricingError,
 )
 register_manual_valuation_lines_provider(build_manual_valuation_lines)
+
+# Wire extraction's FX-rate port (#1675 D5c): extraction's review-queue
+# journal-entry creation needs a currency-conversion rate, but a module-level
+# `from src.pricing import ...` there would cycle (pricing's own
+# repository/manual-valuation reads import extraction's published ORM
+# entities, ManualValuationSnapshot et al.) — same inversion as the reporting
+# gate above.
+register_fx_rate_provider(get_exchange_rate, fx_rate_error=PricingError)
+
+# Wire ledger's FX-revaluation port (#1675 D5c): same inversion, same reason
+# — pricing now depends on extraction, so a direct ledger -> pricing import
+# would cycle (ledger -> pricing -> extraction -> ledger).
+register_fx_revaluation_provider(get_exchange_rate, fx_rate_error=PricingError)
 
 # Wire platform's and runtime's UploadedDocument-read ports to the real
 # extraction-domain lookups (#1675 D3): same inversion, same reason — L1

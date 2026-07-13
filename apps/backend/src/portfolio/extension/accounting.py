@@ -30,10 +30,10 @@ from src.audit.quantity import Quantity
 from src.audit.unit_price import UnitPrice
 from src.extraction.orm.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.ledger import Account, AccountType, Direction, Entry, JournalEntry, Leg, post_entry
-from src.portfolio import (
+from src.portfolio.base.errors import InvestmentAccountingValidationError
+from src.portfolio.orm.portfolio import (
     DividendIncome,
     DividendType,
-    InvestmentAccountingValidationError,
     InvestmentLot,
     InvestmentTransaction,
     InvestmentTransactionType,

@@ -11,6 +11,7 @@ instead, calling back into ``create_entry_from_txn`` here.
 """
 
 from decimal import Decimal
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import select
@@ -36,8 +37,57 @@ from src.ledger import (
 from src.models.statement_summary import StatementSummary
 from src.observability import get_logger
 
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+
+class _FxRateProviderNotRegisteredError(Exception):
+    """Placeholder bound to :data:`FxRateError` before wiring.
+
+    Never raised by anything, so a pre-wiring ``except FxRateError`` simply
+    matches nothing instead of crashing on a non-exception sentinel (mirrors
+    ``reporting.extension.fx_gateway``'s identical placeholder).
+    """
+
+
 logger = get_logger(__name__)
 settings = src.config.settings
+
+# ``extraction`` and ``pricing`` are both L3 domains; pricing's own
+# repository/manual-valuation reads need extraction's published ORM entities
+# (ManualValuationSnapshot, #1675 D5c), so a direct extraction -> pricing
+# import here (even function-local — the package-contract gate's cycle check
+# is a static AST scan, not a runtime-timing one) would make depends_on
+# cyclic (extraction -> pricing -> extraction). Same inversion as
+# ``reporting.extension.fx_gateway`` (#1666) and the #1675 D3 / D5c provider
+# ports: the port lives here, main.py (L4) wires the real
+# pricing.get_exchange_rate/PricingError at startup; tests wire it directly.
+_get_exchange_rate: "Callable[..., Awaitable[Decimal]] | None" = None
+
+#: The injected FX-unavailable exception class (``src.pricing.PricingError``
+#: today). Reference late-bound as ``review_queue.FxRateError``.
+FxRateError: type[Exception] = _FxRateProviderNotRegisteredError
+
+
+def register_fx_rate_provider(
+    get_exchange_rate: "Callable[..., Awaitable[Decimal]]",
+    *,
+    fx_rate_error: type[Exception],
+) -> None:
+    """Wire the FX-rate lookup (see module note above)."""
+    global _get_exchange_rate, FxRateError
+    _get_exchange_rate = get_exchange_rate
+    FxRateError = fx_rate_error
+
+
+def _require_fx_rate_provider() -> "Callable[..., Awaitable[Decimal]]":
+    if _get_exchange_rate is None:
+        raise RuntimeError(
+            "review_queue.register_fx_rate_provider() was never called — "
+            "main.py wires it at startup (#1675 D5c); a test exercising this "
+            "path must call it too."
+        )
+    return _get_exchange_rate
 
 
 def _source_document_ids(source_documents: object) -> list[UUID]:
@@ -188,15 +238,6 @@ async def create_entry_from_txn(
     base_currency = settings.base_currency.upper()
     line_fx_rate: Decimal | None = None
     if currency != base_currency:
-        # Deferred import (#1675 D5c): ``pricing``'s extension modules import
-        # this package's published ORM entities (``extraction.orm.layer3``,
-        # e.g. ``ManualValuationSnapshot`` in repository.py/manual.py) — a
-        # module-level import of ``pricing`` here would make the two package
-        # inits mutually recursive (self-referential when this module is
-        # reached via extraction's own package init). Function-local keeps
-        # extraction's eager init free of the pricing edge.
-        from src.pricing import PricingError, get_exchange_rate
-
         try:
             # lazy_load=True (#1779): a date->rate fact is immutable once resolved, so
             # the on-demand chain (stored inverse -> USD-bridge derivation -> live
@@ -205,8 +246,8 @@ async def create_entry_from_txn(
             # it. Only when that chain also comes up empty does this still fail
             # closed below -- a journal entry cannot post without a real rate,
             # unlike a report line, which can just omit the value.
-            line_fx_rate = await get_exchange_rate(db, currency, base_currency, txn.txn_date, lazy_load=True)
-        except PricingError as exc:
+            line_fx_rate = await _require_fx_rate_provider()(db, currency, base_currency, txn.txn_date, lazy_load=True)
+        except FxRateError as exc:
             raise ValueError(f"FX rate required to create {currency} journal entry: {exc}") from exc
 
     # Use statement's linked account if available.

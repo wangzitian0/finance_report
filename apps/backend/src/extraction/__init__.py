@@ -81,7 +81,10 @@ from src.extraction.extension.evidence_lineage import (
 )
 from src.extraction.extension.prompts.csv_mapping import build_csv_mapping_prompt
 from src.extraction.extension.prompts.statement import SYSTEM_PROMPT, get_parsing_prompt
-from src.extraction.extension.review_queue import create_entry_from_txn
+from src.extraction.extension.review_queue import (
+    create_entry_from_txn,
+    register_fx_rate_provider,
+)
 from src.extraction.extension.service import ExtractionError, ExtractionService
 from src.extraction.extension.statement_parsing_supervisor import (
     run_parsing_supervisor,
@@ -201,6 +204,7 @@ __all__ = [
     "parse_brokerage_positions",
     "pending_stage1_review_filter",
     "record_correction",
+    "register_fx_rate_provider",
     "register_position_reconciler",
     "reject_statement_workflow",
     "resolve_custody_account_id",
