@@ -9,11 +9,7 @@ import { advancedItems, moreItems, type NavItem } from "@/components/navigation"
 import { PageHeader } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
 import { clearUser } from "@/lib/auth";
-
-interface HoldingsResponse {
-    holdings?: unknown[];
-    items?: unknown[];
-}
+import type { HoldingsListResponse } from "@/lib/types";
 
 // EPIC-022 AC22.21.5: the More overflow holds low-frequency destinations. The
 // Portfolio entry is shown only when the user actually holds securities, so a
@@ -24,10 +20,10 @@ export default function MorePage() {
 
     useEffect(() => {
         let active = true;
-        apiFetch<HoldingsResponse>("/api/portfolio/holdings")
+        apiFetch<HoldingsListResponse>("/api/portfolio/holdings")
             .then((data) => {
-                const list = data.holdings ?? data.items ?? [];
-                if (active) setHasHoldings(Array.isArray(list) && list.length > 0);
+                const list = data.items ?? [];
+                if (active) setHasHoldings(list.length > 0);
             })
             .catch(() => {
                 if (active) setHasHoldings(false);

@@ -563,7 +563,7 @@ async def test_parse_statement_background_imports_brokerage_positions(client, db
     # Holdings stay empty until the user triggers the explicit import endpoint.
     pre_import_holdings = await client.get("/portfolio/holdings", params={"as_of_date": "2026-05-18"})
     assert pre_import_holdings.status_code == 200
-    assert pre_import_holdings.json() == []
+    assert pre_import_holdings.json()["items"] == []
 
     # #1408: the explicit, user-initiated endpoint is the only path that creates positions.
     import_response = await client.post(f"/statements/{statement_id}/brokerage/import")
@@ -583,7 +583,7 @@ async def test_parse_statement_background_imports_brokerage_positions(client, db
         params={"as_of_date": "2026-05-18"},
     )
     assert holdings_response.status_code == 200
-    holdings = holdings_response.json()
+    holdings = holdings_response.json()["items"]
     assert len(holdings) == 1
     assert holdings[0]["asset_identifier"] == _BRIDGE_ASSET_IDENTIFIER
     assert holdings[0]["account_name"] == "Moomoo"

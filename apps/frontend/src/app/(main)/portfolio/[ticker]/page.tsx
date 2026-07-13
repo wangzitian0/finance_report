@@ -6,7 +6,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { apiFetch } from "@/lib/api";
-import { DividendEvent, PortfolioHolding, RealizedLot } from "@/lib/types";
+import {
+  DividendEvent,
+  HoldingsListResponse,
+  RealizedLot,
+} from "@/lib/types";
 import { compareAmounts, formatCurrencyLocale } from "@/lib/audit/money";
 import { formatQuantity } from "@/lib/audit/quantity";
 import { formatDateDisplay } from "@/lib/date";
@@ -34,9 +38,9 @@ export default function HoldingDetailPage() {
   } = useQuery({
     queryKey: ["portfolio-holdings-all"],
     queryFn: () =>
-      apiFetch<PortfolioHolding[]>(
+      apiFetch<HoldingsListResponse>(
         "/api/portfolio/holdings?include_disposed=true",
-      ),
+      ).then((response) => response.items),
   });
   const { data: dividends = [], refetch: refetchDividends } = useQuery({
     queryKey: ["portfolio-dividends", ticker],

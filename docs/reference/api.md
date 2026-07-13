@@ -6,7 +6,7 @@
 - API title: `Finance Report API`
 - API version: `0.1.0`
 - Endpoint count: `138`
-- Schema count: `246`
+- Schema count: `247`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -181,7 +181,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/portfolio/allocation/geography` | yes | `as_of_date` (query), `limit` (query), `offset` (query) | - | `200` array[`AllocationBreakdownResponse`] | Get Geography Allocation |
 | `GET` | `/portfolio/allocation/sector` | yes | `as_of_date` (query), `limit` (query), `offset` (query) | - | `200` array[`AllocationBreakdownResponse`] | Get Sector Allocation |
 | `POST` | `/portfolio/brokerage/import` | yes | - | `BrokerageImportRequest` | `200` `BrokerageImportResponse` | Import Brokerage Positions |
-| `GET` | `/portfolio/holdings` | yes | `as_of_date` (query), `include_disposed` (query), `limit` (query), `offset` (query) | - | `200` array[`HoldingResponse`] | Get Holdings |
+| `GET` | `/portfolio/holdings` | yes | `as_of_date` (query), `include_disposed` (query), `limit` (query), `offset` (query) | - | `200` `HoldingsListResponse` | Get Holdings |
 | `GET` | `/portfolio/performance` | yes | `period_start` (query), `period_end` (query), `as_of_date` (query) | - | `200` `PerformanceMetricsResponse` | Get Performance |
 | `GET` | `/portfolio/performance/report-schedule` | yes | `period_start` (query), `period_end` (query), `as_of_date` (query), `currency` (query) | - | `200` `InvestmentPerformanceReportScheduleResponse` | Get Investment Performance Report Schedule |
 | `POST` | `/portfolio/prices/update` | yes | - | `PriceUpdateBatchRequest` | `200` `PriceUpdateBatchResponse` | Update Prices |

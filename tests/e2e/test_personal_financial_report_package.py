@@ -475,7 +475,7 @@ async def test_personal_financial_report_package_post_merge_journey(
         assert holdings_response.status_code == 200, (
             f"holdings check failed: {holdings_response.status_code} {holdings_response.text}"
         )
-        holdings = holdings_response.json()
+        holdings = holdings_response.json()["items"]
         assert len(holdings) >= import_payload["parsed_positions"], (
             f"missing imported holdings: {holdings}"
         )

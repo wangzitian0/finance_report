@@ -169,7 +169,7 @@ describe("Brokerage import completion route flow", () => {
         } as any)
       }
       if (path.startsWith("/api/portfolio/holdings")) {
-        return Promise.resolve([importedHolding] as any)
+        return Promise.resolve({ items: [importedHolding], total: 1, warnings: [] } as any)
       }
       return Promise.reject(new Error(`Unhandled API path: ${path}`))
     })

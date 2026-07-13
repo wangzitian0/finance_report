@@ -1482,6 +1482,16 @@
             "title": "Opening Balance Warnings",
             "type": "array"
           },
+          "portfolio_warnings": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Portfolio Warnings",
+            "type": "array"
+          },
           "total_assets": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Total Assets",
@@ -3921,6 +3931,39 @@
         "title": "HoldingResponse",
         "type": "object"
       },
+      "HoldingsListResponse": {
+        "description": "Holdings page in the repo-standard items+total wrapper (#1796).\n\n``warnings`` discloses point-in-time snapshots excluded from the page (e.g.\nno reconciled managed position as of the requested date) — previously only\nlogged, so the response silently read as complete.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HoldingResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "warnings": {
+            "description": "Point-in-time snapshots excluded from the page (e.g. no reconciled managed position as of the requested date) — disclosed instead of silently omitted (#1796).",
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "HoldingsListResponse",
+        "type": "object"
+      },
       "IncomeStatementResponse": {
         "description": "Income statement response schema.",
         "properties": {
@@ -6067,6 +6110,17 @@
               "type": "object"
             },
             "title": "Opening Balance Warnings",
+            "type": "array"
+          },
+          "portfolio_warnings": {
+            "description": "Same portfolio point-in-time gaps as the balance sheet (#1791 follow-up).",
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Portfolio Warnings",
             "type": "array"
           },
           "rows": {
@@ -9611,6 +9665,17 @@
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$",
             "title": "Total Liabilities",
             "type": "string"
+          },
+          "warnings": {
+            "description": "Components excluded because their only snapshot postdates as_of_date — disclosed so a historical total never silently reads as complete (#1796).",
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Warnings",
+            "type": "array"
           }
         },
         "required": [
@@ -17593,7 +17658,7 @@
     },
     "/portfolio/holdings": {
       "get": {
-        "description": "Get portfolio holdings with P&L (bounded by limit/offset; see AC17.30).",
+        "description": "Get portfolio holdings with P&L (bounded by limit/offset; see AC17.30).\n\nAC-portfolio.holdings.6 (#1796): responds in the repo-standard items+total\nwrapper plus ``warnings`` — a snapshot excluded from the page (no reconciled\nmanaged position as of the date) is disclosed to the caller, not just logged.",
         "operationId": "get_holdings_portfolio_holdings_get",
         "parameters": [
           {
@@ -17660,11 +17725,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/HoldingResponse"
-                  },
-                  "title": "Response Get Holdings Portfolio Holdings Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/HoldingsListResponse"
                 }
               }
             },

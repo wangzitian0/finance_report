@@ -93,7 +93,8 @@ function mockHoldingDetailApi(options: {
   const mockedApiFetch = vi.mocked(apiFetch)
   mockedApiFetch.mockImplementation((path: string, init?: RequestInit) => {
     if (path === "/api/portfolio/holdings?include_disposed=true") {
-      return Promise.resolve(options.holdings ?? [mockActiveHolding])
+      const items = options.holdings ?? [mockActiveHolding]
+      return Promise.resolve({ items, total: items.length, warnings: [] })
     }
     if (path === "/api/portfolio/AAPL/dividends") {
       return Promise.resolve(options.dividends ?? [mockDividend])

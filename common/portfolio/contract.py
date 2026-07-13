@@ -671,6 +671,22 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        ACRecord(
+            id="AC-portfolio.holdings.6",
+            statement=(
+                "GET /portfolio/holdings responds in the repo-standard "
+                "items+total wrapper with a warnings list: a point-in-time "
+                "snapshot excluded from the page (no reconciled managed "
+                "position as of the requested date) is disclosed to the "
+                "caller instead of only being logged (#1796)."
+            ),
+            test=(
+                "apps/backend/tests/portfolio/test_portfolio_router.py"
+                "::test_AC_portfolio_holdings_6_unreconciled_snapshot_disclosed_in_warnings"
+            ),
+            priority="P1",
+            status="done",
+        ),
         # ── group performance: XIRR/TWR/MWR + realized/unrealized P&L math
         # (was EPIC-017 AC17.2.1-5 and AC17.2.7-9; AC17.2.6 deduped into
         # AC-portfolio.holdings.2 — same test, same fact; migration closeout

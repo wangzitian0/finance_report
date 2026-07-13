@@ -109,8 +109,16 @@ CONTRACT = PackageContract(
             kind=Kind.DOMAIN_SERVICE,
             module="extension/net_worth.py",
         ),
-        Unit(name="get_account_trend", kind=Kind.DOMAIN_SERVICE, module="extension/net_worth.py"),
-        Unit(name="get_account_lineage", kind=Kind.DOMAIN_SERVICE, module="extension/lineage.py"),
+        Unit(
+            name="get_account_trend",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/net_worth.py",
+        ),
+        Unit(
+            name="get_account_lineage",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/lineage.py",
+        ),
         Unit(
             name="ReportingReadRepository",
             kind=Kind.REPOSITORY,
@@ -625,6 +633,22 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
             proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-reporting.balance-sheet.6",
+            statement=(
+                "A manual valuation component recorded only after the "
+                "report's as_of_date stays out of the balance-sheet totals "
+                "AND is disclosed in the response's portfolio_warnings, so a "
+                "historical balance sheet never silently reads as complete "
+                "(#1796)."
+            ),
+            test=(
+                "apps/backend/tests/reporting/test_reporting_net_worth_components.py"
+                "::test_AC_reporting_balance_sheet_6_valuation_gap_disclosed_in_portfolio_warnings"
+            ),
+            priority="P1",
+            status="done",
         ),
         # ── group income-statement (was EPIC-005 AC5.2.1-3, migration
         # closeout continuation, #1663 / #1716) ──
