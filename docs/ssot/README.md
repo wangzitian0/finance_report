@@ -166,6 +166,16 @@ the *computed* index (Part C of #1664) is the point at which physically
 relocating these makes sense — retiring `MANIFEST.yaml`/the registry and
 moving the gate-data files are the same cutover, not two.
 
+**Three more ratchet baselines follow the identical decision**, though they
+postdate the original 13-file enumeration above: `fk-cascade-baseline.json`
+(cross-domain FK-cascade shrink-only ratchet, read by
+`tests/tooling/test_fk_cascade_ratchet.py`), `delivery-layer-baseline.json`
+(app-delivery-layer line-count ratchet, `AC-meta.delivery.1`, read by
+`tests/tooling/test_delivery_layer_ratchet.py`), and
+[epic-residue-baseline.json](./epic-residue-baseline.json) (EPIC AC residue
+census, `AC-meta.residue.1`, referenced below). Same reasoning, same
+decision: they stay in `docs/ssot/` by name-hardcoded consumer path.
+
 ## AC Index Is Computed (migration closeout, #1719 — #1664 Part C status)
 
 Since #1719 the **AC index is fully computed** by
@@ -181,12 +191,50 @@ Since #1719 the **AC index is fully computed** by
 `docs/ac_registry.yaml` / `docs/infra_registry.yaml` are checked-in **index
 stubs only** (`generated_from_epics: true` triggers materialization on load);
 `docs/ac_registry_overrides.yaml` is empty. That completes the "reduced to
-generated artifacts of meta's data layer" half of #1664 Part C. The still-open
-half — retiring `MANIFEST.yaml` + `tools/check_manifest.py` +
-`check_ssot_ownership` in favor of computed concept ownership, turning this
-README into a pure pointer page, and the matching CLAUDE.md navigation edit
-(which requires explicit user authorization) — is the same cutover as the
-gate-data relocation above and stays tracked on #1664.
+generated artifacts of meta's data layer" half of #1664 Part C.
+
+## MANIFEST.yaml Status (migration closeout wave 3, #1664 Part C — final)
+
+The other half of Part C — retiring `MANIFEST.yaml` + `tools/check_manifest.py`
++ `check_ssot_ownership` in favor of a fully **computed** concept-ownership
+index (the same "governance computed, not authored" principle the AC index
+above now follows) — turned out to be the same class of cutover as the
+gate-data relocation: high blast-radius for a single PR. #1664 closed it out
+to the safely-deliverable half instead of forcing a risky rewrite:
+
+1. **Accuracy audit (done)** — every one of MANIFEST's 76 concepts was
+   checked against its owner: the 27 `common/<pkg>`-owned concepts all
+   correctly point at their post-migration package readme (Part A); the 46
+   `docs/ssot/`-owned concepts are all genuinely cross-cutting infra, live
+   gate data, or generated (classified in the tables above); the remaining
+   3 are governance docs outside both `docs/ssot/` and `common/`
+   (`docs/agents/red-lines.md`, `docs/agents/orchestration.md`,
+   `docs/contributing/branch-policy.md`). No stale owner found.
+2. **New anti-drift gate (done)** — `AC-meta.manifest.1`
+   (`common/meta/extension/check_manifest.py`, check5,
+   `check_docs_ssot_files_classified`): every file physically present in
+   `docs/ssot/` must be referenced by name somewhere in this README. A file
+   dropped into `docs/ssot/` without being classified here now fails CI —
+   this is what caught `fk-cascade-baseline.json` /
+   `delivery-layer-baseline.json` missing from the Gate Data Directory
+   section above during #1664 itself.
+3. **Full computed-index rewrite (deferred)** — filed as
+   [#1799](https://github.com/wangzitian0/finance_report/issues/1799).
+   `common/meta/data/projection.py` (meta's existing computed-index layer)
+   has no structured "concepts" field on `PackageContract` to project from
+   yet; adding one touches ~20 package contracts, and the ~49
+   no-package-owner concepts (cross-cutting/gate-data/generated) need a
+   residual-manifest idiom mirroring the EPIC residue markers below rather
+   than disappearing outright. Per umbrella #1416's 2026-07-12 scope-freeze
+   rule, #1799 is explicitly a post-migration backlog item, not part of the
+   frozen child set — MANIFEST.yaml is accurate and gated today, so this is
+   architecture debt, not a correctness gap.
+4. **CLAUDE.md navigation (done)** — updated in the same PR (explicit user
+   authorization for this task lifted the file's edit prohibition) to
+   describe the post-migration reality: domain concepts live in package
+   readmes, `docs/ssot/` holds cross-cutting infra docs / gate data /
+   generated artifacts, and `MANIFEST.yaml` is the ownership registry for
+   both halves rather than a claim that `docs/ssot/` itself is the source.
 
 | Report | Purpose |
 |---|---|

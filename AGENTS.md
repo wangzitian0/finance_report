@@ -29,7 +29,7 @@ question, so they never compete for ownership:
 | Concern | Question it answers | Axis |
 |---------|--------------------|------|
 | **vision.md** | *Why* — the overall product goal and culture | north star |
-| **SSOT** (`docs/ssot/`) | *In what shared language* — the canonical base elements, vocabulary, and contracts that everything else reuses | common dictionary |
+| **SSOT** | *In what shared language* — the canonical base elements, vocabulary, and contracts that everything else reuses; a package-owned concept lives in its `common/<pkg>/readme.md`, a cross-cutting/gate-data/generated one lives in `docs/ssot/` — the registry is [docs/ssot/MANIFEST.yaml](docs/ssot/MANIFEST.yaml) | common dictionary |
 | **EPIC** (`docs/project/`) | *What, horizontally* — a cross-module goal, verified via `EPIC → AC → test` | feature slice |
 | **README** (root, `apps/*`) | *What, per module* — one module's goal and how it is built | module slice |
 
@@ -65,15 +65,21 @@ implementation, or an EPIC redefining a base element that SSOT already owns).
 
 ## 📐 SSOT-First Principle
 
-`docs/ssot/` is the **authoritative source for the shared base elements and
-contracts** — the common language the rest of the repo reuses. It does not own
-goals (vision / EPICs) or module design (READMEs); it owns the *terms* they
-speak in.  
-The SSOT ownership map is: **[docs/ssot/MANIFEST.yaml](docs/ssot/MANIFEST.yaml)**
+The shared base elements and contracts — the common language the rest of the
+repo reuses — are **authoritative wherever the package-model migration puts
+them**, not always `docs/ssot/`: a concept a bounded-context package governs
+lives in that package's `common/<pkg>/readme.md`; a concept that is genuinely
+cross-cutting (spans every package), a live gate-data input, or a generated
+artifact lives in `docs/ssot/`. Neither owns goals (vision / EPICs) or module
+design (READMEs); each owns the *terms* those speak in — see
+[docs/ssot/README.md](docs/ssot/README.md) for the current file-by-file map.  
+The ownership registry (which concept lives where) is:
+**[docs/ssot/MANIFEST.yaml](docs/ssot/MANIFEST.yaml)**
 
-1. **No SSOT, no work**: Define the shared terms in `docs/ssot/` before writing code.
-2. **No hidden drift**: When code differs from SSOT, sync immediately.
-3. **Single owner**: Each concept has exactly one SSOT file; see MANIFEST.
+1. **No SSOT, no work**: Define the shared terms — in the owning package
+   readme, or `docs/ssot/` if genuinely cross-cutting — before writing code.
+2. **No hidden drift**: When code differs from its owning doc, sync immediately.
+3. **Single owner**: Each concept has exactly one owner file; see MANIFEST.
 
 ---
 
@@ -94,8 +100,10 @@ The SSOT ownership map is: **[docs/ssot/MANIFEST.yaml](docs/ssot/MANIFEST.yaml)*
 2. Define ACs where they live: a **migrated package** owns its ACs as
    `AC-<pkg>.<group>.<seq>` in that package's `contract.py` `roadmap` — never
    mirrored back into an EPIC table. Only legacy, not-yet-migrated modules
-   still register ACs in `docs/ac_registry.yaml` (feature) or
-   `docs/infra_registry.yaml` (infra)
+   still add ACs as explicitly residue-marked rows in a
+   `docs/project/EPIC-*.md` table (`<!-- epic-owned: ... -->`);
+   `docs/ac_registry.yaml` / `docs/infra_registry.yaml` are generated index
+   stubs (`tools/generate_ac_registry.py`), never hand-edited
 3. Write **failing** tests referencing AC IDs (🔴 red)
 4. Write minimal code to pass tests (🟢 green)
 5. Update the owning package contract/readme (or SSOT docs for legacy modules)
@@ -172,6 +180,6 @@ tracking. Do not duplicate phase status in this quick-reference file.
 |----------|------|---------|
 | **Agent governance** | `docs/agents/` | Red lines, orchestration |
 | **Contributor guide** | `docs/contributing/` | Branch policy, pre-commit |
-| **SSOT** | `docs/ssot/` | Shared base-element language & contracts |
+| **SSOT** | `docs/ssot/` | Cross-cutting infra docs, live gate-data inputs, generated artifacts, and the concept-ownership registry (`MANIFEST.yaml`) — package-owned concepts live in `common/<pkg>/readme.md` instead |
 | **Project EPICs** | `docs/project/` | Horizontal (cross-module) goals & tracking |
 | **Module READMEs** | `apps/*/README.md` | Per-module goal & design guide |

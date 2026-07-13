@@ -1,11 +1,13 @@
 """Tests for tools/check_manifest.py.
 
-Covers all five checks:
+Covers all six checks:
   0. Per-concept schema validation (concept value must be a mapping/dict)
   1. No duplicate owners (same file#anchor)
   2. Owner files must exist on disk
   3. Cross-ref files must exist on disk
   4. Owner and cross-ref anchors must exist in referenced Markdown files
+  5. Every docs/ssot/ file is referenced in docs/ssot/README.md
+     (AC-meta.manifest.1, anti-drift — #1664)
 
 Also covers main() and helper functions.
 """
@@ -299,7 +301,7 @@ class TestCheckAnchorRefsExist:
         ssot = tmp_path / "docs" / "ssot"
         ssot.mkdir(parents=True)
         (ssot / "accounting.md").write_text(
-            "# Accounting\n\n<a id=\"decimal-rule\"></a>\n\n## Entry Balance\n",
+            '# Accounting\n\n<a id="decimal-rule"></a>\n\n## Entry Balance\n',
             encoding="utf-8",
         )
 
@@ -355,6 +357,88 @@ class TestCheckAnchorRefsExist:
 
 
 # ---------------------------------------------------------------------------
+# Tests: check_docs_ssot_files_classified (check5, AC-meta.manifest.1)
+# ---------------------------------------------------------------------------
+
+
+class TestCheckDocsSsotFilesClassified:
+    def test_all_files_referenced_passes(self, tmp_path: Path) -> None:
+        ssot_dir = tmp_path / "docs" / "ssot"
+        ssot_dir.mkdir(parents=True)
+        (ssot_dir / "foo.md").write_text("content")
+        (ssot_dir / "bar.yaml").write_text("content")
+        (ssot_dir / "README.md").write_text(
+            "Classified here: foo.md is horizontal infra; bar.yaml is gate data.\n"
+        )
+        with mock.patch.object(cm, "REPO_ROOT", tmp_path):
+            assert cm.check_docs_ssot_files_classified() == []
+
+    def test_unreferenced_file_fails(self, tmp_path: Path) -> None:
+        ssot_dir = tmp_path / "docs" / "ssot"
+        ssot_dir.mkdir(parents=True)
+        (ssot_dir / "orphan.md").write_text("content")
+        (ssot_dir / "README.md").write_text("Nothing links to the orphan.\n")
+        with mock.patch.object(cm, "REPO_ROOT", tmp_path):
+            violations = cm.check_docs_ssot_files_classified()
+        assert len(violations) == 1
+        assert violations[0].check == "check5_docs_ssot_classified"
+        assert "orphan.md" in violations[0].message
+
+    def test_readme_and_manifest_self_exempt(self, tmp_path: Path) -> None:
+        """README.md and MANIFEST.yaml are the registry itself, not a
+        concept it classifies — they must not have to reference themselves.
+        """
+        ssot_dir = tmp_path / "docs" / "ssot"
+        ssot_dir.mkdir(parents=True)
+        (ssot_dir / "README.md").write_text("Nothing here mentions itself.\n")
+        (ssot_dir / "MANIFEST.yaml").write_text("concepts: {}\n")
+        with mock.patch.object(cm, "REPO_ROOT", tmp_path):
+            assert cm.check_docs_ssot_files_classified() == []
+
+    def test_missing_readme_fails(self, tmp_path: Path) -> None:
+        ssot_dir = tmp_path / "docs" / "ssot"
+        ssot_dir.mkdir(parents=True)
+        (ssot_dir / "foo.md").write_text("content")
+        with mock.patch.object(cm, "REPO_ROOT", tmp_path):
+            violations = cm.check_docs_ssot_files_classified()
+        assert len(violations) == 1
+        assert "is missing" in violations[0].message
+
+    def test_missing_ssot_dir_reports_violation_instead_of_crashing(
+        self, tmp_path: Path
+    ) -> None:
+        """docs/ssot/ absent entirely must not reach ``ssot_dir.iterdir()``."""
+        (tmp_path / "docs").mkdir()
+        with mock.patch.object(cm, "REPO_ROOT", tmp_path):
+            violations = cm.check_docs_ssot_files_classified()
+        assert len(violations) == 1
+        assert violations[0].check == "check5_docs_ssot_classified"
+
+    def test_multiple_unreferenced_files_all_reported(self, tmp_path: Path) -> None:
+        ssot_dir = tmp_path / "docs" / "ssot"
+        ssot_dir.mkdir(parents=True)
+        (ssot_dir / "a.md").write_text("content")
+        (ssot_dir / "b.json").write_text("{}")
+        (ssot_dir / "README.md").write_text("Neither file is mentioned.\n")
+        with mock.patch.object(cm, "REPO_ROOT", tmp_path):
+            violations = cm.check_docs_ssot_files_classified()
+        assert len(violations) == 2
+        messages = {v.message for v in violations}
+        assert any("a.md" in m for m in messages)
+        assert any("b.json" in m for m in messages)
+
+
+def test_AC_meta_manifest_1_real_docs_ssot_is_fully_classified() -> None:
+    """AC-meta.manifest.1 (#1664): every file physically present in the real
+    docs/ssot/ directory must be referenced in docs/ssot/README.md — the
+    anti-drift check that stands in for a full computed concept index
+    (tracked as a follow-up, see docs/ssot/README.md § "MANIFEST.yaml Status").
+    """
+    violations = cm.check_docs_ssot_files_classified()
+    assert violations == [], "\n".join(v.message for v in violations)
+
+
+# ---------------------------------------------------------------------------
 # Tests: _file_part helper
 # ---------------------------------------------------------------------------
 
@@ -405,6 +489,9 @@ class TestMain:
         ssot_dir.mkdir(parents=True)
         (ssot_dir / "foo.md").write_text("## Section A\n")
         (ssot_dir / "bar.md").write_text("## Section B\n")
+        # check5_docs_ssot_classified requires every docs/ssot/ file to be
+        # referenced in docs/ssot/README.md.
+        (ssot_dir / "README.md").write_text("Pointer page: foo.md, bar.md\n")
 
         manifest = tmp_path / "MANIFEST.yaml"
         manifest.write_text(
@@ -432,6 +519,9 @@ class TestMain:
         ssot_dir = tmp_path / "docs" / "ssot"
         ssot_dir.mkdir(parents=True)
         (ssot_dir / "foo.md").write_text("# Foo\n", encoding="utf-8")
+        # check5_docs_ssot_classified requires every docs/ssot/ file to be
+        # referenced in docs/ssot/README.md.
+        (ssot_dir / "README.md").write_text("Pointer page: foo.md\n", encoding="utf-8")
         manifest = tmp_path / "MANIFEST.yaml"
         manifest.write_text(
             "concepts:\n"

@@ -3,11 +3,18 @@
 
 Validates ``docs/ssot/MANIFEST.yaml`` against the following rules:
 
+  0. Every concept value must be a YAML mapping, not null or a scalar.
   1. No two concepts may share the same owner (file + optional anchor).
   2. Every owner *file* path (ignoring ``#anchor``) MUST exist on disk.
   3. Every cross_ref *file* path (ignoring ``#anchor``) MUST exist on disk.
   4. Every ``#anchor`` in owner and cross_ref entries MUST resolve to an
      explicit HTML id or Markdown heading slug in the referenced file.
+  5. (AC-meta.manifest.1) Every file physically present in ``docs/ssot/``
+     MUST be referenced by name in ``docs/ssot/README.md`` — the pointer
+     page that classifies every surviving file (cross-cutting infra, live
+     gate data, generated artifact, or migrated pointer stub, #1664). This
+     is the anti-drift check that stands in for a full computed concept
+     index (tracked as a follow-up, see docs/ssot/README.md).
 
 The script exits 0 on success and 1 on any violation.
 
@@ -261,6 +268,70 @@ def check_anchor_refs_exist(concepts: dict) -> list[Violation]:
     return violations
 
 
+# Files that are the registry/index itself, not a concept the registry
+# classifies — excluded from check5 so the check doesn't self-flag.
+DOCS_SSOT_CLASSIFICATION_EXEMPT: frozenset[str] = frozenset(
+    {"README.md", "MANIFEST.yaml"}
+)
+
+
+def check_docs_ssot_files_classified() -> list[Violation]:
+    """Rule 5 (AC-meta.manifest.1, anti-drift): every file physically present
+    in ``docs/ssot/`` must be referenced by name in ``docs/ssot/README.md``.
+
+    ``docs/ssot/README.md`` is the pointer page recording *why* each
+    surviving file is there (cross-cutting infra doc, live gate-data input,
+    generated artifact, or a migrated-domain-doc pointer stub — migration
+    closeout wave 3, #1664). A file dropped into ``docs/ssot/`` without a
+    matching README entry is exactly the silent, unclassified drift #1664
+    closed out; this check keeps it closed without requiring the full
+    computed-concept-index rewrite (tracked as a follow-up).
+
+    This does not replace ``check_owner_files_exist`` / ``check_anchor_refs_exist``
+    (which validate MANIFEST *concept* entries) — it validates the directory
+    listing directly, so it also catches a file that has no MANIFEST concept
+    pointing at it at all.
+    """
+    violations: list[Violation] = []
+    ssot_dir = REPO_ROOT / "docs" / "ssot"
+    if not ssot_dir.is_dir():
+        return [
+            Violation(
+                check="check5_docs_ssot_classified",
+                message=f"{ssot_dir.relative_to(REPO_ROOT)} is missing.",
+            )
+        ]
+    readme_path = ssot_dir / "README.md"
+    if not readme_path.exists():
+        return [
+            Violation(
+                check="check5_docs_ssot_classified",
+                message=f"{readme_path.relative_to(REPO_ROOT)} is missing.",
+            )
+        ]
+    readme_text = readme_path.read_text(encoding="utf-8", errors="ignore")
+
+    for path in sorted(ssot_dir.iterdir()):
+        if not path.is_file() or path.name in DOCS_SSOT_CLASSIFICATION_EXEMPT:
+            continue
+        if path.name not in readme_text:
+            violations.append(
+                Violation(
+                    check="check5_docs_ssot_classified",
+                    message=(
+                        f"docs/ssot/{path.name} is not referenced anywhere in "
+                        "docs/ssot/README.md. Every surviving docs/ssot/ file "
+                        "must be classified there — as cross-cutting infra "
+                        "(Cross-Cutting Classification table), live gate data "
+                        "(Gate Data Directory section), a generated artifact, "
+                        "or a migrated pointer stub — so ownership stays "
+                        "explicit and machine-greppable (#1664)."
+                    ),
+                )
+            )
+    return violations
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Validate docs/ssot/MANIFEST.yaml consistency."
@@ -286,6 +357,7 @@ def main() -> int:
     violations.extend(check_owner_files_exist(concepts))
     violations.extend(check_crossref_files_exist(concepts))
     violations.extend(check_anchor_refs_exist(concepts))
+    violations.extend(check_docs_ssot_files_classified())
 
     if args.verbose or violations:
         print("=" * 72)
