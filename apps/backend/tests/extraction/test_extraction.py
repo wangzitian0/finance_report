@@ -343,11 +343,12 @@ class TestMediaPayloadBuilder:
         pdf.drawString(72, 720, "DBS statement fixture")
         pdf.save()
 
-        payloads = self.service._render_pdf_pages_as_image_payloads(buffer.getvalue())
+        batches = self.service._render_pdf_pages_as_image_payload_batches(buffer.getvalue())
 
-        assert len(payloads) == 1
-        assert payloads[0]["type"] == "image_url"
-        assert payloads[0]["image_url"]["url"].startswith("data:image/png;base64,")
+        assert len(batches) == 1
+        assert len(batches[0]) == 1
+        assert batches[0][0]["type"] == "image_url"
+        assert batches[0][0]["image_url"]["url"].startswith("data:image/png;base64,")
 
     def test_prefer_url_rejects_private_urls_without_falling_back(self):
         """AC-extraction.105.1: Z.AI PDF URL fallback must not accept private object URLs."""

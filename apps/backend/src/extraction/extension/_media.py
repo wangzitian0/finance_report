@@ -57,8 +57,16 @@ class _MediaMixin:
             "image_url": {"url": data},
         }
 
-    def _render_pdf_pages_as_image_payloads(self, file_content: bytes) -> list[dict[str, Any]]:
-        """Render a bounded number of PDF pages to in-memory image_url payloads."""
+    def _render_pdf_pages_as_image_payload_batches(self, file_content: bytes) -> list[list[dict[str, Any]]]:
+        """Render EVERY PDF page to image_url payloads, grouped into per-call batches (#1832).
+
+        Pre-#1832 this rendered only the first ``PDF_VISION_MAX_PAGES`` pages and
+        silently dropped the rest — which made the running-balance chain
+        mathematically guaranteed to fail for any statement longer than the cap
+        and quarantined perfectly good documents. Now the cap is the per-request
+        batch size; documents above ``PDF_VISION_MAX_TOTAL_PAGES`` fail with an
+        explicit, honest error instead of truncating.
+        """
         try:
             import fitz  # type: ignore[import-untyped]
         except ImportError as e:  # pragma: no cover - dependency is installed in packaged runtime
@@ -73,9 +81,15 @@ class _MediaMixin:
             raise ExtractionError("PDF vision fallback could not open PDF content") from e
 
         try:
-            page_count = min(len(document), self.PDF_VISION_MAX_PAGES)
+            page_count = len(document)
             if page_count <= 0:
                 raise ExtractionError("PDF vision fallback could not render an empty PDF")
+            if page_count > self.PDF_VISION_MAX_TOTAL_PAGES:
+                raise ExtractionError(
+                    f"PDF has {page_count} pages, above the "
+                    f"{self.PDF_VISION_MAX_TOTAL_PAGES}-page vision-extraction limit. "
+                    "Split the document into smaller parts and upload them separately."
+                )
 
             matrix = fitz.Matrix(self.PDF_VISION_RENDER_SCALE, self.PDF_VISION_RENDER_SCALE)
             payloads: list[dict[str, Any]] = []
@@ -94,27 +108,34 @@ class _MediaMixin:
                     }
                 )
 
+            batch_size = self.PDF_VISION_MAX_PAGES
+            batches = [payloads[i : i + batch_size] for i in range(0, len(payloads), batch_size)]
             logger.info(
                 "Rendered PDF pages for vision fallback",
                 rendered_pages=page_count,
-                max_pages=self.PDF_VISION_MAX_PAGES,
+                pages_per_call=batch_size,
+                batch_count=len(batches),
                 total_image_bytes=total_bytes,
             )
-            return payloads
+            return batches
         finally:
             document.close()
 
-    def _build_vision_media_payloads(
+    def _build_vision_media_payload_batches(
         self,
         file_content: bytes | None,
         file_url: str | None,
         file_type: str,
         mime_type: str,
-    ) -> list[dict[str, Any]]:
-        """Build vision-model media payloads, rendering Z.AI PDFs to images when possible."""
+    ) -> list[list[dict[str, Any]]]:
+        """Build per-call vision media payload batches, rendering Z.AI PDFs to images when possible.
+
+        Returns one batch per model call: multi-page PDFs produce several batches
+        (all pages covered); every other input shape stays a single batch.
+        """
         if file_type == "pdf" and self._is_zai_provider() and file_content:
             try:
-                return self._render_pdf_pages_as_image_payloads(file_content)
+                return self._render_pdf_pages_as_image_payload_batches(file_content)
             except ExtractionError as render_error:
                 if file_url and self._validate_external_url(file_url):
                     logger.warning(
@@ -135,7 +156,7 @@ class _MediaMixin:
         )
         if prefer_url and not file_input.startswith(("http://", "https://")):
             raise ExtractionError("Z.AI PDF vision fallback requires file content or an external PDF URL")
-        return [self._build_media_payload(file_type=file_type, mime_type=mime_type, data=file_input)]
+        return [[self._build_media_payload(file_type=file_type, mime_type=mime_type, data=file_input)]]
 
     def _validate_external_url(self, url: str) -> bool:
         """Validate if a URL is accessible by external AI services.

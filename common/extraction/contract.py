@@ -3712,5 +3712,61 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        # ── group 1832: paginated full-document vision extraction — the
+        # per-request page cap must never silently truncate a document (#1832) ──
+        ACRecord(
+            id="AC-extraction.1832.1",
+            statement=(
+                "Vision extraction covers EVERY page of a PDF: documents "
+                "longer than the per-request page cap are rendered in full, "
+                "extracted through one model call per page batch (each call "
+                "sees only its own pages plus part-scoped prompt rules), and "
+                "the per-part payloads are merged into one whole-document "
+                "extraction — the pre-#1832 silent truncation, which made "
+                "the running-balance chain mathematically guaranteed to fail "
+                "for any statement longer than the cap, is gone."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_paged_vision_extraction.py"
+                "::TestBatchedExtractFlow"
+                "::test_AC_extraction_1832_1_multi_batch_pdf_extracts_once_per_batch_and_merges"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.1832.2",
+            statement=(
+                "Paged-extraction merge is pure and deterministic: "
+                "transactions/positions concatenate in page order, scalar "
+                "metadata takes the first non-empty part value, opening "
+                "balance comes from the first part that saw one, closing "
+                "balance from the last."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_paged_vision_extraction.py"
+                "::TestMergePagedExtractions::test_AC_extraction_1832_2_merge_semantics"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.1832.3",
+            statement=(
+                "Documents above the total-page ceiling fail with an "
+                "explicit, page-count-naming error before any model call — "
+                "an honest bound, never silent truncation."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_paged_vision_extraction.py"
+                "::TestRenderAllPagesInBatches"
+                "::test_AC_extraction_1832_3_total_page_ceiling_is_an_explicit_error"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
     ],
 )

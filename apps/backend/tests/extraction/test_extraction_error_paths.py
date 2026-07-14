@@ -241,7 +241,7 @@ async def test_extract_financial_data_shared_ocr_vision_skips_layout_parser():
         "image_url": {"url": "data:image/png;base64,iVBORw0KGgo="},
     }
 
-    with patch.object(service, "_build_vision_media_payloads", return_value=[image_payload]):
+    with patch.object(service, "_build_vision_media_payload_batches", return_value=[[image_payload]]):
         result = await service.extract_financial_data(b"content", "DBS", "pdf")
 
     assert result == {"transactions": []}
@@ -284,7 +284,7 @@ async def test_vision_path_falls_back_to_secondary_model_on_non_retryable_error(
     }
 
     with (
-        patch.object(service, "_build_vision_media_payloads", return_value=[image_payload]),
+        patch.object(service, "_build_vision_media_payload_batches", return_value=[[image_payload]]),
         patch("src.extraction.extension.service.stream_ai_json", side_effect=fake_stream_ai_json),
         patch("src.extraction.extension.service.accumulate_stream", side_effect=fake_accumulate_stream),
     ):
@@ -348,10 +348,10 @@ def test_render_pdf_pages_rejects_empty_content():
     service = ExtractionService()
 
     with pytest.raises(ExtractionError, match="requires file content"):
-        service._render_pdf_pages_as_image_payloads(b"")
+        service._render_pdf_pages_as_image_payload_batches(b"")
 
 
-def test_build_vision_media_payloads_rejects_non_url_pdf_input(monkeypatch):
+def test_build_vision_media_payload_batches_rejects_non_url_pdf_input(monkeypatch):
     """AC-extraction.812.6: Z.AI PDF vision payloads require rendered content or an external URL."""
     from src.config import settings
 
@@ -360,7 +360,7 @@ def test_build_vision_media_payloads_rejects_non_url_pdf_input(monkeypatch):
 
     with patch.object(service, "_build_ai_file_input", return_value="data:application/pdf;base64,abc"):
         with pytest.raises(ExtractionError, match="requires file content or an external PDF URL"):
-            service._build_vision_media_payloads(
+            service._build_vision_media_payload_batches(
                 file_content=None,
                 file_url="https://example.com/statement.pdf",
                 file_type="pdf",
@@ -368,7 +368,7 @@ def test_build_vision_media_payloads_rejects_non_url_pdf_input(monkeypatch):
             )
 
 
-def test_build_vision_media_payloads_gemini_sends_native_pdf_not_rendered_images(monkeypatch):
+def test_build_vision_media_payload_batches_gemini_sends_native_pdf_not_rendered_images(monkeypatch):
     """Gemini extracts the whole PDF natively: a PDF with file content yields a single
     `file` payload (base64 PDF), NOT per-page rendered `image_url` images. This is what
     lets Gemini handle large/scanned statements the z.ai image-render path truncates."""
@@ -380,22 +380,23 @@ def test_build_vision_media_payloads_gemini_sends_native_pdf_not_rendered_images
     # If this path ever tried to render images for Gemini, the test would catch it.
     with patch.object(
         service,
-        "_render_pdf_pages_as_image_payloads",
+        "_render_pdf_pages_as_image_payload_batches",
         side_effect=AssertionError("Gemini must not render PDF pages to images"),
     ):
-        payloads = service._build_vision_media_payloads(
+        batches = service._build_vision_media_payload_batches(
             file_content=b"%PDF-1.4 fake pdf bytes",
             file_url=None,
             file_type="pdf",
             mime_type="application/pdf",
         )
 
-    assert len(payloads) == 1
-    assert payloads[0]["type"] == "file"
-    assert payloads[0]["file"]["file_data"].startswith("data:application/pdf;base64,")
+    assert len(batches) == 1
+    assert len(batches[0]) == 1
+    assert batches[0][0]["type"] == "file"
+    assert batches[0][0]["file"]["file_data"].startswith("data:application/pdf;base64,")
 
 
-def test_build_vision_media_payloads_reraises_render_error_without_external_url(monkeypatch):
+def test_build_vision_media_payload_batches_reraises_render_error_without_external_url(monkeypatch):
     """AC-extraction.812.6: Render failures without a safe external URL do not silently continue."""
     from src.config import settings
 
@@ -404,11 +405,11 @@ def test_build_vision_media_payloads_reraises_render_error_without_external_url(
 
     with patch.object(
         service,
-        "_render_pdf_pages_as_image_payloads",
+        "_render_pdf_pages_as_image_payload_batches",
         side_effect=ExtractionError("render failed"),
     ):
         with pytest.raises(ExtractionError, match="render failed"):
-            service._build_vision_media_payloads(
+            service._build_vision_media_payload_batches(
                 file_content=b"pdf bytes",
                 file_url=None,
                 file_type="pdf",
@@ -506,7 +507,7 @@ async def test_extract_financial_data_dedicated_ocr_failure_falls_back_to_vision
         "image_url": {"url": "data:image/png;base64,iVBORw0KGgo="},
     }
 
-    with patch.object(service, "_build_vision_media_payloads", return_value=[image_payload]):
+    with patch.object(service, "_build_vision_media_payload_batches", return_value=[[image_payload]]):
         result = await service.extract_financial_data(b"content", "DBS", "pdf")
 
     assert result == {"transactions": []}
