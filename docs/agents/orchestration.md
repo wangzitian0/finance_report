@@ -12,9 +12,11 @@
 
 **Definition of a mergeable PR** — every item must hold:
 - On a branch, never committed to `main`
+- **No conflicts** — the branch applies cleanly onto current `main`
 - **CI passing** (all required checks green) — behavior is proven by the tests in CI
   (TDD / root-cause), **not** by manually watching a preview deploy
 - **All Copilot auto-review (CR) comments resolved** — each fixed, or justified — reply on the thread with what changed (or why not) **before** resolving it, so the resolution has a paper trail independent of the commit history
+  - **Escalate for a fresh Copilot pass after a substantial fix round**: if the review round being resolved contained any **high**-severity finding, or **3 or more medium**-severity findings, request a new Copilot review (`request_copilot_review`, or `gh pr comment <n> --body "@copilot review"`) after pushing the fixes, before reporting the PR ready — a diff that changed that much needs a fresh pass, not just its old threads marked resolved
 - **GitHub itself reports `mergeable: MERGEABLE` and `mergeStateStatus: CLEAN`** — a green CI run does not imply this; check both explicitly (see the playbook below) before reporting a PR as ready
 - Code/PR/commits in English
 

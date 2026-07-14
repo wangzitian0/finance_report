@@ -3818,5 +3818,32 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        # ── group 1832.4: a rejected parse must not leave the physical bank
+        # account it just auto-created cluttering the chart of accounts (#1832
+        # staging QA follow-up) ──
+        ACRecord(
+            id="AC-extraction.1832.4",
+            statement=(
+                "The physical bank account auto-created for a statement "
+                "(#1444) is deleted if that same parse call created it and "
+                "the extraction is then quarantined by the LLM-LED invariant "
+                "gate (REJECTED) — a rejected parse must never leave a "
+                "balance-0.00, provenance-less zombie account. An account "
+                "reused from an earlier statement (get-or-create hit) is "
+                "never deleted, even when the later statement is rejected; "
+                "the cleanup itself double-checks no other NON-REJECTED "
+                "statement or journal line references the account before "
+                "deleting it — other rejected statements sharing the "
+                "account_id carry no journal lines and no trusted data, so "
+                "they are not counted as a real reference."
+            ),
+            test=(
+                "apps/backend/tests/integration/test_statement_reject_cleans_up_orphan_account.py"
+                "::test_AC_extraction_1832_4_rejected_parse_deletes_the_account_it_just_created"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
     ],
 )
