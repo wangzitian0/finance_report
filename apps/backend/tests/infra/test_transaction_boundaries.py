@@ -16,7 +16,10 @@ from src.pricing.extension import market_data
 from src.pricing.orm.market_data import FxRate, StockPrice
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
-SERVICE_ROOT = PROJECT_ROOT / "apps" / "backend" / "src" / "services"
+# statement_parsing.py / statement_parsing_supervisor.py / statement_workflow.py
+# moved out of the deleted src/services/ into extraction (#1610/#1666); this
+# scan follows them so the boundary gate stays live instead of scanning zero files.
+SERVICE_ROOT = PROJECT_ROOT / "apps" / "backend" / "src" / "extraction" / "extension"
 PRICING_ROOT = PROJECT_ROOT / "apps" / "backend" / "src" / "pricing"
 
 ALLOWED_SERVICE_COMMIT_BOUNDARIES = {

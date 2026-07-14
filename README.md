@@ -305,8 +305,8 @@ migration path is tracked in
 | Resource | Purpose |
 |---|---|
 | [vision.md](vision.md) | Decision filter and long-term direction |
-| [docs/project/](docs/project/) | EPIC documents and project audits |
-| [docs/ssot/](docs/ssot/) | Rationale docs, code-owner links, proof references |
+| [docs/project/](docs/project/) | EPIC documents (terminal residue) and project audits |
+| [common/meta/data/MANIFEST.yaml](common/meta/data/MANIFEST.yaml) | Concept ownership registry — routes to each owning package's `readme.md` / `contract.py` |
 | `python tools/analyze_test_ac_coverage.py --no-write --stdout` | Live local AC-to-test coverage report |
 | [docs/agents/](docs/agents/) | Agent workflow and red-line rules |
 

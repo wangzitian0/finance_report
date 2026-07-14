@@ -52,7 +52,7 @@ not contend with the operator's machine).
 | `.env*` | `check_env_keys.py` |
 | `apps/backend/*.py` | `ruff check` + `ruff format --check` |
 | `apps/backend/src/config.py` | `generate_env_reference.py --check` (.env.example / env-reference drift) |
-| `apps/backend/src/services/*.py` | `test_transaction_boundaries.py` |
+| `apps/backend/src/extraction/extension/statement_*.py` | `test_transaction_boundaries.py` |
 | `tools/*`, `common/*` | `pytest tests/tooling/` (tool-wrapper sys.path contract + dispatchers) |
 | `apps/frontend/*` | `npm run lint` + `npm run test:coverage` + `npm run build` |
 
