@@ -1890,6 +1890,23 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        # ── group processing: Processing/in-transit account summary (was
+        # EPIC-015 AC15.7.1, #1821 Wave A pending-package move) ──
+        ACRecord(
+            id="AC-ledger.processing.1",
+            statement=(
+                "GET /api/accounts/processing/summary returns "
+                "{pending_count, pending_total, current_balance, currency, "
+                "oldest_pending_date}."
+            ),
+            # was AC15.7.1
+            test=(
+                "apps/backend/tests/ledger/test_processing_account_endpoints.py"
+                "::test_processing_summary_aggregates_unpaired"
+            ),
+            priority="P1",
+            status="done",
+        ),
     ],
 )
 

@@ -59,6 +59,7 @@ async def test_processing_pending_empty(client: AsyncClient) -> None:
 
 
 async def test_processing_summary_aggregates_unpaired(client: AsyncClient, db: AsyncSession, test_user) -> None:
+    """AC-ledger.processing.1: AC15.7.1: GET /api/accounts/processing/summary aggregates unpaired transfers."""
     user_id = test_user.id
     cash = await _seed_account(db, user_id, "Cash", "1001")
     savings = await _seed_account(db, user_id, "Savings", "1002")

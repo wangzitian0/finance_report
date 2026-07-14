@@ -289,16 +289,16 @@ This section retains only EPIC-owned acceptance criteria that are not already
 represented in the detailed AC tables above or below. Current proof status is
 generated from the registry and tests, not from checkboxes in this file.
 
-- **AC11.9.1 Manual Valuation Snapshot CRUD**: `POST/GET/PATCH/DELETE /api/assets/valuation-snapshots` records property value, mortgage/loan balance, CPF/long-term savings, tax payable/refund, insurance cash value, ESOP/RSU/options, source, notes, reminder cadence, and audit timestamps. <!-- epic-owned: pending-package -->
-- **AC11.9.2 Net Worth Components**: Latest manual snapshots aggregate into asset/liability deltas with `Decimal` arithmetic. <!-- epic-owned: pending-package -->
-- **AC11.9.3 Liquidity Separation**: Restricted and illiquid components are tagged separately and can be excluded from liquid net worth views. <!-- epic-owned: pending-package -->
+*(AC11.9.1 removed and AC11.9.2 removed and AC11.9.3 removed and AC11.9.5
+removed, canonical: migrated to the `pricing` package roadmap as
+`AC-pricing.manualvaluation.5-8`, #1821 Wave A)*
 - **AC11.9.4 Frontend Entry**: `/assets` exposes a manual valuation entry form and recent snapshot list using the shared API client. <!-- epic-owned: fe-only -->
-- **AC11.9.5 Structured Valuation Basis & Evidence Gate** ([#706](https://github.com/wangzitian0/finance_report/issues/706)): a manual valuation captures an optional structured `valuation_basis` (market appraisal, broker/bank/government/insurer statement, employer grant document, self-estimate); a current manual valuation that carries no structured basis (and no legacy notes) surfaces a `missing_valuation_basis` readiness blocker — replacing the free-text-notes proxy — so an unsubstantiated value cannot silently feed trusted totals. Monetary values remain `Decimal`-safe. <!-- epic-owned: pending-package -->
 - **AC11.9.6 Guided Evidence Form — required-field validation** ([#706](https://github.com/wangzitian0/finance_report/issues/706)): the shared guided evidence form for the three source classes (`esop_rsu_plan`, `property_statement`, `liability_statement`) blocks submission and shows a readiness blocker when the required `valuation_basis` or `as_of_date` is missing, never calling the API; value is carried as a `Decimal`-safe string with no float math. Proven by `apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx::AC11.9.6 *`. <!-- epic-owned: fe-only -->
 - **AC11.9.7 Guided Evidence Form — typed manual-valuation persistence** ([#706](https://github.com/wangzitian0/finance_report/issues/706)): a valid guided evidence submission persists through the existing `POST /api/assets/valuation-snapshots` endpoint via the typed `lib/api.ts` client (never raw `fetch`), mapping the chosen source class to its `component_type`, `valuation_basis`, source label, anchor, and notes, with the monetary `value` sent as a string. Proven by `apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx::AC11.9.7 *`. <!-- epic-owned: fe-only -->
 - **AC11.9.8 Manual-trusted disclosure label** ([#706](https://github.com/wangzitian0/finance_report/issues/706)): the guided evidence flow surfaces a clear "Manual-trusted" disclosure badge for manually entered evidence so users and the traceability appendix can see the source-trust state of a value. Proven by `apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx::AC11.9.8 *`. <!-- epic-owned: fe-only -->
 - **AC11.9.9 Guided Evidence Form — mobile layout** ([#706](https://github.com/wangzitian0/finance_report/issues/706)): the guided evidence form renders an accessible single-column mobile layout (and the recent-evidence list) when a mobile viewport is reported by `matchMedia`, and degrades gracefully when `matchMedia` is unavailable. Proven by `apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx::AC11.9.9 *`. <!-- epic-owned: fe-only -->
-- **AC11.9.10 Traceability appendix surfaces valuation basis** ([#706](https://github.com/wangzitian0/finance_report/issues/706)): the package traceability appendix surfaces each manual valuation snapshot's structured `valuation_basis` (the enum value, or `unspecified` when no basis was captured) in its source-anchor detail so the audit trail records how a manual-trusted value was substantiated. Proven by `test_AC11_9_10_package_traceability_surfaces_manual_valuation_basis` in `apps/backend/tests/api/test_personal_report_package_contract.py`. <!-- epic-owned: pending-package -->
+*(AC11.9.10 removed, canonical: migrated to the `pricing` package roadmap as
+`AC-pricing.manualvaluation.9`, #1821 Wave A)*
 
 Broader future scope such as depreciation schedules, ESOP grant management,
 automated journal posting, charting, and tax-lot functionality remains product
@@ -335,13 +335,15 @@ lists; it must be represented by one of these owners:
 
 ### Acceptance Criteria
 
-- [x] **AC11.8.1** API endpoint `GET /api/income/annualized` returns `{annualized_salary, annualized_bonus, annualized_dividend, annualized_total, currency, as_of}` derived from last 12 months of Income-type journal entries <!-- epic-owned: pending-package -->
+*(AC11.8.1 removed and AC11.8.7 removed, canonical: migrated to the
+`reporting` package roadmap as `AC-reporting.annualized-dashboard.1` and
+`.3`, #1821 Wave A)*
 - [x] **AC11.8.2** Dashboard "Annualized Income" card renders the four annualized figures with the currency code and `as_of` date subtitle <!-- epic-owned: fe-only -->
-- [x] **AC11.8.3** API endpoint `GET /api/assets/restricted` returns ESOP/RSU/locked holdings with `{ticker, quantity, vesting_schedule, unlock_date, fair_value}` <!-- epic-owned: pending-package -->
+*(AC11.8.3 removed, canonical: migrated to the `reporting` package roadmap
+as `AC-reporting.annualized-dashboard.2`, #1821 Wave A)*
 - [x] **AC11.8.4** Dashboard "Restricted Holdings" card lists restricted holdings separated from liquid net worth, with vesting timeline tooltip <!-- epic-owned: fe-only -->
 - [x] **AC11.8.5** Net worth calculation toggle on dashboard (`include_restricted=true|false`) re-fetches and updates total, defaulting to `false` (vision: liquid wealth is primary) <!-- epic-owned: fe-only -->
 - [x] **AC11.8.6** Frontend test mounts AnnualizedIncomeCard and asserts the four metric labels render <!-- epic-owned: fe-only -->
-- [x] **AC11.8.7** API endpoint `GET /api/income/annualized` converts mixed-currency annualized income totals into the dashboard reporting currency before aggregation <!-- epic-owned: pending-package -->
 
 **Priority**: P1 (high) — closes the largest "vision parity" gap after net worth time series.
 **Estimated effort**: 4-6 days backend (income aggregation + restricted-flag schema check) + 3-4 days frontend.
@@ -378,12 +380,7 @@ representative fixture expansion needed before the overall
 
 ### Acceptance Criteria — Report Package Annualized Income Schedule
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC11.11.1 | `GET /api/reports/package/annualized-income-schedule` returns annualized salary, bonus, dividend, total income, currency, as-of date, and trailing-period boundaries for the personal report package | `test_AC11_11_1_AC11_11_2_annualized_schedule_includes_income_and_restricted_treatment` | `reporting/test_annualized_income_schedule.py` | P0 | <!-- epic-owned: pending-package -->
-| AC11.11.2 | The schedule includes ESOP/RSU/stock-option restricted holdings with valuation basis, vesting/unlock metadata, fair value, and explicit liquid-versus-restricted net worth treatment | `test_AC11_11_1_AC11_11_2_annualized_schedule_includes_income_and_restricted_treatment` | `reporting/test_annualized_income_schedule.py` | P0 | <!-- epic-owned: pending-package -->
-| AC11.11.3 | Annualized income and restricted fair-value package totals are Decimal-safe and converted to the schedule reporting currency | `test_AC5_11_3_AC11_11_3_annualized_schedule_converts_mixed_currency_totals` | `reporting/test_annualized_income_schedule.py` | P0 | <!-- epic-owned: pending-package -->
-| AC11.11.4 | Each restricted holding's `valuation_basis` surfaces the snapshot's structured evidence basis enum value (or `unspecified` when none was captured) instead of a hardcoded source-kind literal ([#706](https://github.com/wangzitian0/finance_report/issues/706)) | `test_AC11_11_4_annualized_schedule_surfaces_structured_valuation_basis` | `reporting/test_annualized_income_schedule.py` | P0 | <!-- epic-owned: pending-package -->
+> (AC11.11.1 removed and AC11.11.2 removed and AC11.11.4 removed and AC11.11.3 removed and AC5.11.3 removed, canonical: AC11.11.1/.2/.4 migrated to the `reporting` package roadmap as `AC-reporting.package-annualized.3`, `.4`, `.5` (#1821 Wave A); AC11.11.3 and AC5.11.3 removed with no new roadmap entry — duplicates of the already-migrated `AC-reporting.package-annualized.2`, which cites the identical test and whose docstring already names both ids.)
 
 ### Acceptance Criteria — Layer 3 Classification Service
 

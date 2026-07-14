@@ -95,12 +95,10 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 
 | AC ID | Standard | Verification | Weight |
 |------|------|----------|------|
-| AC16.1.1 | **Balance validation tolerance = 0.001 USD** | `test_validate_balance_chain_within_tolerance()` | 🔴 Critical | <!-- epic-owned: pending-package -->
+> (AC16.1.1 removed, canonical: migrated to the `extraction` package roadmap as `AC-extraction.stage1-validation.1`, merged with AC16.22.5 removed, #1821 Wave A)
 | AC16.1.2 | **Stage 1 UI shows PDF + parsed split view** | Manual UI test | 🔴 Critical | <!-- epic-owned: fe-only -->
 | AC16.1.3 | **Approve button disabled if balance invalid** | Frontend unit test | Required | <!-- epic-owned: fe-only -->
-| AC16.2.1 | **Deduplication detection accuracy ≥ 95%** | `test_detect_duplicates_*()` | Required | <!-- epic-owned: pending-package -->
-| AC16.2.2 | **Transfer pair detection accuracy ≥ 90%** | `test_detect_transfer_pairs_*()` | Required | <!-- epic-owned: pending-package -->
-| AC16.2.3 | **Batch approve blocked if unresolved checks** | `test_batch_approve_requires_checks_resolved()` | Required | <!-- epic-owned: pending-package -->
+> (AC16.2.1 removed and AC16.2.2 removed, canonical: migrated to the `reconciliation` package roadmap as `AC-reconciliation.consistency-checks.8` and `.9`, #1821 Wave A. AC16.2.3 removed with no new roadmap entry — a duplicate of the already-migrated `AC-reconciliation.stage2-batch.1`, which cites the identical test test_batch_approve_matches_blocked_by_unresolved_checks.)
 | AC16.2.4 | **Stage 2 UI supports batch operations** | Manual UI test | Required | <!-- epic-owned: fe-only -->
 
 ### 🌟 Nice to Have
@@ -144,14 +142,7 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 
 ### AC16.3 — Statement Validation Service (Extended Coverage)
 
-| AC ID | Description | Status |
-|-------|-------------|--------|
-| AC16.3.1 | `validate_balance_chain` raises `ValueError` when statement not found | ⏳ | <!-- epic-owned: pending-package -->
-| AC16.3.2 | `_get_opening_balance` falls back to `opening_balance` when no prev statement exists | ⏳ | <!-- epic-owned: pending-package -->
-| AC16.3.3 | `_get_opening_balance` uses prev statement `closing_balance` when available | ⏳ | <!-- epic-owned: pending-package -->
-| AC16.3.4 | `reject_statement` without reason clears `validation_error` | ⏳ | <!-- epic-owned: pending-package -->
-| AC16.3.5 | `edit_and_approve` raises `ValueError` when balance is still invalid after edits | ⏳ | <!-- epic-owned: pending-package -->
-| AC16.3.6 | `_get_statement_for_update` raises `ValueError` when wrong `user_id` supplied | ⏳ | <!-- epic-owned: pending-package -->
+> (AC16.3.1 removed and AC16.3.2 removed and AC16.3.3 removed and AC16.3.4 removed and AC16.3.5 removed and AC16.3.6 removed, canonical: migrated to the `extraction` package roadmap as `AC-extraction.stage1-validation.2` through `.7` (AC16.3.6 merged with AC16.22.6 into `.7`; AC16.3.5's description was stale — edit_and_approve is now unconditionally unsupported, not conditionally balance-checked — `.6`'s statement reflects the current behavior), #1821 Wave A)
 
 ### AC16.4 — Consistency Checks Service (Extended Coverage)
 
@@ -407,13 +398,7 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 > #1663 / #1711)*. The Stage-1 statement-validation rows below stay with
 > their own owner.
 
-| AC ID | Description | Test Function | File | Priority |
-|-------|-------------|---------------|------|----------|
-| AC16.22.1 | Stage 1 `pending_review → approved` transition requires balance delta ≤ 0.001 USD | `test_approve_statement_invalid_balance_fails` | `review/test_statement_validation.py` | P0 | <!-- epic-owned: pending-package -->
-| AC16.22.2 | Stage 1 `pending_review → rejected` transition triggers re-parse | `test_stage1_reject_triggers_reparse` | `api/test_statements_router.py` | P0 | <!-- epic-owned: pending-package -->
-| AC16.22.5 | Stage 1 tolerance is 0.001 USD (not 0.10 USD from Stage 2) | `test_validate_balance_chain_within_tolerance` | `review/test_statement_validation.py` | P0 | <!-- epic-owned: pending-package -->
-| AC16.22.6 | All service methods mutating `pending_review` enforce `user_id` ownership | `test_get_statement_for_update_wrong_user_raises` | `review/test_statement_validation.py` | P1 | <!-- epic-owned: pending-package -->
-| AC16.22.7 | Stage 1 approval tolerance and extraction/reconciliation scoring tolerance remain separate documented policies | `test_ac16_22_7_tolerance_policy_constants_are_intentional` | `review/test_tolerance_policy.py` | P0 | <!-- epic-owned: pending-package -->
+> (AC16.22.1 removed and AC16.22.2 removed and AC16.22.5 removed and AC16.22.6 removed and AC16.22.7 removed, canonical: migrated to the `extraction` package roadmap as `AC-extraction.stage1-validation.8`, `.9`, `.1` (AC16.22.5 merged with AC16.1.1), `.7` (AC16.22.6 merged with AC16.3.6), `.10`, #1821 Wave A)
 
 ### AC16.25 — Mobile Review UX Hardening
 
@@ -467,7 +452,8 @@ The April 2026 FE/UI audit snapshot was removed from this EPIC. Current review U
 - [x] **AC16.24.1** Stage 2 run-level page at `/review/run/[runId]` summarizes duplicate, transfer-pair, and anomaly checks for a batch <!-- epic-owned: fe-only -->
 - [x] **AC16.24.2** Stage 2 run-level page shows unresolved transfer and Processing pending counts, then disables run approval while either remains unresolved <!-- epic-owned: fe-only -->
 - [x] **AC16.24.3** Stage 2 run-level approval submits all pending matches through the batch approval API after checks are resolved <!-- epic-owned: fe-only -->
-- **AC16.24.4** - Stage 2 batch approval routes accepted matches through the ledger-safe acceptance path, creating missing journal entries or reconciling referenced entries without duplicating entries on retry <!-- epic-owned: pending-package -->
+*(AC16.24.4 removed, canonical: migrated to the `reconciliation` package
+roadmap as `AC-reconciliation.stage2-batch.5`, #1821 Wave A)*
 
 ### Acceptance Criteria — Feature (group 31, review contract hardening)
 
@@ -482,14 +468,21 @@ model.
 | AC16.31.2 | Stage 1 approval is disabled unless both opening and closing balance validation match | `AC16.31.2 disables approval when opening balance validation fails` | `apps/frontend/src/__tests__/statementReviewPage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
 | AC16.31.3 | Stage 2 run review page states that it uses the shared Stage 2 queue endpoint when no run-scoped queue API exists | `AC16.24.1 and AC16.24.2 summarizes unresolved run checks and blocks approval` | `apps/frontend/src/__tests__/reviewRunPage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
 | AC16.31.4 | Unmatched transaction local flag/hide actions are labeled as local-only triage and batch create requires confirmation | `AC16.20.4 supports flag and ignore actions` / `creates all entries with batch action` | `apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx` | P0 | <!-- epic-owned: fe-only -->
-| AC16.33.4 | Stage 1 statement review PDF previews use short-lived presigned URLs and sandboxed iframe embedding (backend presign contract; frontend embedding superseded by AC16.33.5) | `test_AC16_33_4_get_statement_for_review_uses_short_presign_ttl` | `apps/backend/tests/api/test_statements_router.py` | P0 | <!-- epic-owned: pending-package -->
-| AC16.33.5 | Stage 1 PDF preview embeds the statement document via an authenticated same-origin `GET /api/statements/{id}/document` endpoint rendered as a sandboxed `blob:` object URL (CSP `frame-src 'self' blob:`), fixing the cross-origin/blocked iframe (#963) | `test_AC16_33_5_get_statement_document_streams_bytes_same_origin`, `test_AC16_33_5_get_statement_document_404_when_no_document`, `test_AC16_33_5_get_statement_document_storage_error_maps_to_502` / `AC16.33.5 embeds the document as a same-origin sandboxed blob URL`, `AC16.33.5 shows a fallback and skips the fetch when no document exists` | `apps/backend/tests/api/test_statements_router.py`, `apps/frontend/src/__tests__/reviewPages.test.tsx` | P0 | <!-- epic-owned: pending-package -->
+> (AC16.33.4 removed and AC16.33.5 removed — backend halves migrated to the
+> `extraction` package roadmap as `AC-extraction.document-delivery.1-2`,
+> #1821 Wave A. The frontend embedding assertions in
+> apps/frontend/src/__tests__/reviewPages.test.tsx are not tracked by this
+> Python-only roadmap.)
 
 ### AC16.32 — Review Workflow Hardening
 
 | AC ID | Description | Tests | Files | Priority |
 |-------|-------------|-------|-------|----------|
-| AC16.32.1 | Stage 1 approval and edit-approval are blocked while duplicate or transfer-pair conflict candidates remain unresolved | `test_AC16_32_1_stage1_approval_blocks_unresolved_conflicts`, `AC16.32.1 disables approval while conflict candidates are unresolved` | `apps/backend/tests/api/test_statements_router.py`, `apps/frontend/src/__tests__/statementReviewPage.test.tsx` | P0 | <!-- epic-owned: pending-package -->
+> (AC16.32.1 removed — backend half migrated to the `reconciliation` package
+> roadmap as `AC-reconciliation.conflict-resolution.1`, #1821 Wave A. The
+> frontend assertion in
+> apps/frontend/src/__tests__/statementReviewPage.test.tsx is not tracked by
+> this Python-only roadmap.)
 | AC16.32.2 | Stage 1 balance validation UI reports opening and closing checks separately so reviewers see the same gate enforced by the backend | `AC16.32.2 shows opening and closing balance validation states separately` | `apps/frontend/src/__tests__/statementReviewPage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
 | AC16.32.3 | Stage 2 review check lists request the full unresolved blocker set needed to unblock batch approval instead of silently truncating at the backend default page size. Backend half (`test_AC16_32_3_stage2_queue_returns_all_pending_checks`) migrated to the `reconciliation` package roadmap as `AC-reconciliation.review-hardening.1` (migration closeout continuation, #1663 / #1711); the frontend half stays here. | `AC16.32.3 requests an expanded consistency-check limit for unblockable queues` | `apps/frontend/src/__tests__/reviewQueuePage.test.tsx` | P0 | <!-- epic-owned: fe-half -->
 
@@ -503,8 +496,9 @@ pair) and unblock approval.
 
 | AC ID | Description | Tests | Files | Priority |
 |-------|-------------|-------|-------|----------|
-| AC16.34.1 | `POST /api/review/conflicts/{statement_id}/resolve` records the reviewer's resolution; the Stage-1 approval guard honors it so a previously-blocked statement with duplicate/transfer-pair candidates can be approved, and an unknown statement returns 404 | `test_AC16_34_1_resolve_unblocks_stage1_approval`, `test_AC16_34_1_resolve_conflicts_404_for_unknown_statement` | `apps/backend/tests/api/test_statements_router.py` | P0 | <!-- epic-owned: pending-package -->
-| AC16.34.2 | A reject/reparse clears a prior conflict resolution so the fresh transaction set must be re-reviewed | `test_AC16_34_2_reject_clears_conflict_resolution` | `apps/backend/tests/api/test_statements_router.py` | P0 | <!-- epic-owned: pending-package -->
+> (AC16.34.1 removed and AC16.34.2 removed, canonical: migrated to the
+> `reconciliation` package roadmap as `AC-reconciliation.conflict-resolution.2`
+> and `.3`, #1821 Wave A)
 | AC16.34.3 | The ConflictResolutionDialog `Resolve` / `Link Pair` buttons call the resolve endpoint with the matching action and disable while a resolution is in flight (previously dead, no-op buttons) | `AC16.34.3 Resolve and Link Pair buttons call onResolve with the matching action`, `AC16.34.3 disables the action buttons while a resolution is in flight` | `apps/frontend/src/__tests__/ConflictResolutionDialog.test.tsx` | P0 | <!-- epic-owned: fe-only -->
 
 ### Acceptance Criteria — Feature (group 28, frontend UI system primitives)

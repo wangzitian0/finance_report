@@ -892,5 +892,58 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        # ── group evidence-bundle: CI evidence-bundle assembly (was EPIC-008
+        # AC8.13.164/AC8.13.165, #1821 Wave A pending-package move). Routed
+        # here rather than the CODE-ONLY `testing` package: the authority
+        # classifier bands tests/tooling/test_evidence_bundle.py LLM (it
+        # drives the cassette graded-eval corpus), and `testing`'s declared
+        # CODE-ONLY tier hard-fails check_authority_reconcile.py on any
+        # LLM-classified roadmap-AC test — the EPIC's own migration note
+        # already flagged this exact blocker. `llm` is LLM-LED (not a hard
+        # end of the classifier gate) and proof_kind=property is valid under
+        # both tiers, so the move is exception-routed here instead. ──
+        ACRecord(
+            id="AC-llm.evidence-bundle.1",
+            statement=(
+                "common.testing.evidence_bundle.build_evidence_bundle "
+                "assembles ONE evidence bundle (a gate map of lane->job-"
+                ">blocking, the four raise-only ratchet water-lines, and "
+                "corpus per-field accuracy from the cassette graded-eval "
+                "corpus) from already-computed CI artifacts — it never "
+                "re-runs a gate to get its data — with an optional "
+                "provider_health field populated only by callers with a "
+                "provider-backed gate result (#1690)."
+            ),
+            # was AC8.13.164
+            test=(
+                "tests/tooling/test_evidence_bundle.py"
+                "::test_AC8_13_164_bundle_assembles_the_four_ratchet_water_lines_and_gate_map"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-llm.evidence-bundle.2",
+            statement=(
+                "Main-branch CI (after unified-coverage + ac-behavioral-"
+                "ratchet complete) and the nightly audit-replay.yml run both "
+                "generate the evidence bundle via the same "
+                "tools/generate_evidence_bundle.py CLI, writing it to "
+                "$GITHUB_STEP_SUMMARY and uploading it as a named "
+                "evidence-bundle artifact; the nightly producer additionally "
+                "supplies --provider-status/--provider-exit-code from the "
+                "staging AI/OCR gate's own outputs, the main-CI producer "
+                "does not (#1690)."
+            ),
+            # was AC8.13.165
+            test=(
+                "tests/tooling/test_evidence_bundle.py"
+                "::test_AC8_13_165_both_producers_wire_the_same_generator_into_their_workflow"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
     ],
 )

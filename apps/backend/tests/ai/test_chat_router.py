@@ -250,7 +250,7 @@ async def test_chat_with_model_name_header() -> None:
 
 @pytest.mark.no_db
 async def test_AC22_14_1_chat_response_exposes_grounding_metadata_header() -> None:
-    """AC22.14.1: Chat stream response exposes application-owned grounding metadata."""
+    """AC-advisor.grounding.1: AC22.14.1: Chat stream response exposes application-owned grounding metadata."""
     from src.routers.chat import chat_message
 
     mock_db = MagicMock()

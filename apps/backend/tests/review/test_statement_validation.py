@@ -234,7 +234,7 @@ class TestValidateBalanceChain:
         assert result["calculated_closing"] == "1100.00"
 
     async def test_within_tolerance(self, db, user_id):
-        """AC1.1.2 AC16.1.1 AC16.22.5: Verify 0.0009 USD delta passes 0.001 tolerance."""
+        """AC-extraction.stage1-validation.1: AC1.1.2 AC16.1.1 AC16.22.5: Verify 0.0009 USD delta passes 0.001 tolerance."""
         stmt = await _make_statement(
             db,
             user_id,
@@ -307,7 +307,7 @@ class TestApproveStatement:
         assert stmt.balance_validation_result["closing_match"] is True
 
     async def test_approve_with_invalid_balance_raises(self, db, user_id):
-        """AC1.2.2 AC16.22.1: Reject approval attempt when balance chain is invalid."""
+        """AC-extraction.stage1-validation.8: AC1.2.2 AC16.22.1: Reject approval attempt when balance chain is invalid."""
         stmt = await _make_statement(
             db,
             user_id,
@@ -378,7 +378,7 @@ class TestRejectStatement:
 
 class TestEditAndApprove:
     async def test_edit_and_approve_is_unsupported(self, db, statement_with_transactions, user_id):
-        """AC1.4.1 Editing parsed transactions is unsupported; reviewers must reject + re-parse."""
+        """AC-extraction.stage1-validation.6: AC1.4.1 AC16.3.5 Editing parsed transactions is unsupported; reviewers must reject + re-parse."""
         with pytest.raises(ValueError, match="unsupported"):
             await edit_and_approve(
                 db,
@@ -458,13 +458,13 @@ class TestGetPendingStage1Review:
 
 class TestValidateBalanceChainEdgeCases:
     async def test_statement_not_found_raises(self, db):
-        """AC16.3.1 validate_balance_chain raises ValueError when statement not found."""
+        """AC-extraction.stage1-validation.2: AC16.3.1 validate_balance_chain raises ValueError when statement not found."""
         non_existent_id = uuid4()
         with pytest.raises(ValueError, match="Statement not found"):
             await validate_balance_chain(db, non_existent_id)
 
     async def test_opening_balance_from_statement_when_no_manual_no_prev(self, db, user_id):
-        """AC16.3.2 _get_opening_balance falls back to opening_balance when no prev statement."""
+        """AC-extraction.stage1-validation.3: AC16.3.2 _get_opening_balance falls back to opening_balance when no prev statement."""
         stmt = await _make_statement(
             db,
             user_id,
@@ -484,7 +484,7 @@ class TestValidateBalanceChainEdgeCases:
         assert result["closing_match"] is True
 
     async def test_opening_balance_from_prev_statement(self, db, user_id):
-        """AC16.3.3 _get_opening_balance uses prev statement closing_balance when available."""
+        """AC-extraction.stage1-validation.4: AC16.3.3 _get_opening_balance uses prev statement closing_balance when available."""
         await _make_statement(
             db,
             user_id,
@@ -518,7 +518,7 @@ class TestValidateBalanceChainEdgeCases:
         assert result["closing_match"] is True
 
     async def test_get_statement_for_update_wrong_user_raises(self, db, user_id, statement_with_transactions):
-        """AC16.3.6 AC16.22.6: pending_review mutations enforce user_id ownership."""
+        """AC-extraction.stage1-validation.7: AC16.3.6 AC16.22.6: pending_review mutations enforce user_id ownership (_get_statement_for_update raises ValueError for a mismatched user_id)."""
         wrong_user_id = uuid4()
         with pytest.raises(ValueError, match="Statement not found or access denied"):
             await approve_statement(db, statement_with_transactions.id, wrong_user_id)
@@ -526,7 +526,7 @@ class TestValidateBalanceChainEdgeCases:
 
 class TestRejectStatementEdgeCases:
     async def test_reject_without_reason(self, db, statement_with_transactions, user_id):
-        """AC16.3.4 reject_statement without reason does not set validation_error."""
+        """AC-extraction.stage1-validation.5: AC16.3.4 reject_statement without reason does not set validation_error."""
         stmt = await reject_statement(db, statement_with_transactions.id, user_id)
 
         assert stmt.stage1_status == Stage1Status.REJECTED

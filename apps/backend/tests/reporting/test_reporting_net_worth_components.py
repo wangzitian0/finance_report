@@ -689,7 +689,7 @@ async def test_AC17_14_2_net_worth_allocation_groups_balance_sheet_sources(
     db: AsyncSession,
     test_user,
 ):
-    """AC17.14.2: Net-worth allocation rows group balance-sheet sources and reconcile to net worth."""
+    """AC-reporting.net-worth-components.3: AC17.14.2: Net-worth allocation rows group balance-sheet sources and reconcile to net worth."""
     report_date = date(2025, 3, 31)
     bank = await _create_account(db, test_user.id, name="Main Bank", account_type=AccountType.ASSET)
     brokerage = await _create_account(db, test_user.id, name="Moomoo", account_type=AccountType.ASSET)

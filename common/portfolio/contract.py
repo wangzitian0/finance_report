@@ -1655,5 +1655,126 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── group brokerage-import: brokerage statement parsing + import
+        # (was EPIC-017 AC17.4.1-.4.6/.4.8/.4.14, AC17.33.3, AC17.34.1, #1821
+        # Wave A pending-package move) ──
+        ACRecord(
+            id="AC-portfolio.brokerage-import.1",
+            statement="Moomoo brokerage statement parsing extracts subscription positions.",
+            # was AC17.4.1
+            test=(
+                "apps/backend/tests/portfolio/test_brokerage_position_parsing.py"
+                "::test_parse_moomoo_fixture_subscription_positions"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.brokerage-import.2",
+            statement="Futu brokerage statement parsing aggregates positions.",
+            # was AC17.4.2
+            test=(
+                "apps/backend/tests/portfolio/test_brokerage_position_parsing.py"
+                "::test_parse_futu_fixture_aggregate_position"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.brokerage-import.3",
+            statement="Interactive Brokers positions import idempotently and reconcile on re-import.",
+            # was AC17.4.3
+            test=(
+                "apps/backend/tests/portfolio/test_brokerage_position_parsing.py"
+                "::test_import_interactive_brokers_positions_idempotently_reconciles"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.brokerage-import.4",
+            statement="Broker auto-detection identifies Moomoo, Futu, and Interactive Brokers statements.",
+            # was AC17.4.4 + AC17.4.5 (same test)
+            test=(
+                "apps/backend/tests/portfolio/test_brokerage_position_parsing.py"
+                "::test_detect_broker_moomoo_futu_and_interactive_brokers"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.brokerage-import.5",
+            statement=(
+                "The brokerage import endpoint flows a statement import into "
+                "holdings and the balance sheet."
+            ),
+            # was AC17.4.6
+            test=(
+                "apps/backend/tests/portfolio/test_brokerage_position_parsing.py"
+                "::test_brokerage_import_endpoint"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.brokerage-import.6",
+            statement=(
+                "Concurrent auto and manual brokerage import survives without "
+                "duplicating positions (idempotency)."
+            ),
+            # was AC17.4.8
+            test=(
+                "apps/backend/tests/portfolio/test_brokerage_position_parsing.py"
+                "::test_AC17_4_8_brokerage_import_survives_concurrent_auto_and_manual_import"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.brokerage-import.7",
+            statement=(
+                "Importing brokerage positions links the statement to the "
+                "broker ASSET account it reconciles into: after POST "
+                "/statements/{id}/brokerage/import the statement's "
+                "account_id is set to that account (#1484)."
+            ),
+            # was AC17.4.14
+            test=(
+                "apps/backend/tests/portfolio/test_brokerage_position_parsing.py"
+                "::test_AC17_4_14_brokerage_import_links_statement_to_broker_account"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.brokerage-import.8",
+            statement=(
+                "An auto-created broker account adopts the holding's "
+                "currency instead of a hardcoded USD."
+            ),
+            # was AC17.33.3
+            test=(
+                "apps/backend/tests/portfolio/test_brokerage_position_parsing.py"
+                "::test_AC17_33_3_broker_account_uses_snapshot_currency_not_hardcoded_usd"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.brokerage-import.9",
+            statement=(
+                "A short position (negative quantity and negative market "
+                "value) imports as a signed position — atomic and managed "
+                "rows persist with negative values — instead of being "
+                "skipped or violating a CHECK constraint (500) (#1448)."
+            ),
+            # was AC17.34.1
+            test=(
+                "apps/backend/tests/portfolio/test_brokerage_position_parsing.py"
+                "::test_AC17_34_1_brokerage_import_persists_short_positions_with_negative_market_value"
+            ),
+            priority="P1",
+            status="done",
+        ),
     ],
 )

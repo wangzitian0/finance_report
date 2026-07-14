@@ -866,7 +866,7 @@ async def test_AC19_8_8_package_readiness_blocks_when_processing_fx_conversion_f
     test_user: User,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """AC19.8.8: Missing FX for Processing lines produces a clear readiness blocker."""
+    """AC-reporting.readiness.7: AC19.8.8: Missing FX for Processing lines produces a clear readiness blocker."""
     processing_account = Account(
         user_id=test_user.id,
         name="Processing",
@@ -1376,7 +1376,7 @@ async def test_AC11_9_10_package_traceability_surfaces_manual_valuation_basis(
     db: AsyncSession,
     test_user: User,
 ):
-    """AC11.9.10: Traceability appendix surfaces each manual snapshot's valuation_basis."""
+    """AC-pricing.manualvaluation.9: AC11.9.10: Traceability appendix surfaces each manual snapshot's valuation_basis."""
     report_date = date(2026, 5, 31)
 
     with_basis = ManualValuationSnapshot(

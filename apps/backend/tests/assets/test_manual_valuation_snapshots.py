@@ -15,7 +15,7 @@ from src.schemas.provenance import DataProvenance
 
 
 async def test_create_manual_valuation_snapshot_crud_api(client):
-    """AC11.9.1: Manual valuation snapshots support audited CRUD endpoints."""
+    """AC-pricing.manualvaluation.5: AC11.9.1: Manual valuation snapshots support audited CRUD endpoints."""
     payload = {
         "component_type": "property_value",
         "as_of_date": "2026-05-18",
@@ -421,7 +421,7 @@ def test_manual_valuation_snapshot_schema_normalizes_currency():
 
 
 async def test_manual_valuation_snapshot_latest_net_worth_components(db, test_user):
-    """AC11.9.2: Latest manual snapshots feed net worth components without float arithmetic."""
+    """AC-pricing.manualvaluation.6: AC11.9.2: Latest manual snapshots feed net worth components without float arithmetic."""
     service = ValuationService()
 
     await service.create_valuation_snapshot(
@@ -463,7 +463,7 @@ async def test_manual_valuation_snapshot_latest_net_worth_components(db, test_us
 
 
 async def test_manual_valuation_snapshot_restricted_toggle(db, test_user):
-    """AC11.9.3: Restricted/illiquid values can be excluded from liquid net worth views."""
+    """AC-pricing.manualvaluation.7: AC11.9.3: Restricted/illiquid values can be excluded from liquid net worth views."""
     service = ValuationService()
 
     await service.create_valuation_snapshot(

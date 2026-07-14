@@ -1910,5 +1910,221 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        # ── group net-worth-timeseries: dashboard net-worth history endpoint
+        # (was EPIC-005 AC5.7.1/AC5.7.3, #1821 Wave A pending-package move) ──
+        ACRecord(
+            id="AC-reporting.net-worth-timeseries.1",
+            statement=(
+                "GET /api/reports/net-worth/timeseries?from=YYYY-MM-DD&to=YYYY-MM-DD"
+                "&granularity=monthly|daily (plus an optional 3-letter "
+                "currency parameter selecting the reporting currency) returns "
+                "[{date, total_assets, total_liabilities, net_worth}]."
+            ),
+            # was AC5.7.1
+            test=(
+                "apps/backend/tests/reporting/test_net_worth_timeseries.py"
+                "::test_net_worth_timeseries_router"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.net-worth-timeseries.2",
+            statement=(
+                "Net worth time-series respects multi-currency: each point is "
+                "converted to the base currency using the historical FX rate "
+                "per the transaction-date rate rule."
+            ),
+            # was AC5.7.3
+            test=(
+                "apps/backend/tests/reporting/test_net_worth_timeseries.py"
+                "::test_net_worth_timeseries_uses_historical_fx_per_point"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group portfolio-valuation-gate: brokerage portfolio value gate
+        # (was EPIC-008 AC8.13.18/AC8.13.19, reporting-owned per the EPIC's own
+        # migration note, #1821 Wave A pending-package move) ──
+        ACRecord(
+            id="AC-reporting.portfolio-valuation-gate.1",
+            statement=(
+                "The brokerage portfolio gate validates market valuation "
+                "adjustment lines even when unrelated asset lines lower total "
+                "assets (also proven at the reporting-unit level by "
+                "test_portfolio_market_adjustment_survives_unrelated_negative_asset_lines "
+                "in apps/backend/tests/reporting/test_reporting_net_worth_components.py)."
+            ),
+            # was AC8.13.18
+            test=(
+                "tests/e2e/test_brokerage_upload_to_portfolio_value.py"
+                "::test_portfolio_valuation_gate_ignores_unrelated_negative_asset_lines"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.portfolio-valuation-gate.2",
+            statement=(
+                "Brokerage portfolio gate failures include holdings, valuation "
+                "adjustment, non-portfolio asset, and balance-sheet "
+                "diagnostics."
+            ),
+            # was AC8.13.19
+            test=(
+                "tests/e2e/test_brokerage_upload_to_portfolio_value.py"
+                "::test_portfolio_valuation_gate_failure_diagnostics_are_actionable"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        # ── group annualized-dashboard: dashboard annualized-income/restricted
+        # cards (was EPIC-011 AC11.8.1/AC11.8.3/AC11.8.7, #1821 Wave A
+        # pending-package move) ──
+        ACRecord(
+            id="AC-reporting.annualized-dashboard.1",
+            statement=(
+                "GET /api/income/annualized returns {annualized_salary, "
+                "annualized_bonus, annualized_dividend, annualized_total, "
+                "currency, as_of} derived from the last 12 months of "
+                "Income-type journal entries."
+            ),
+            # was AC11.8.1
+            test=(
+                "apps/backend/tests/reporting/test_income_annualized_router.py"
+                "::test_annualized_income_endpoint_groups_last_12_month_income"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.annualized-dashboard.2",
+            statement=(
+                "GET /api/assets/restricted returns ESOP/RSU/locked holdings "
+                "with {ticker, quantity, vesting_schedule, unlock_date, "
+                "fair_value}."
+            ),
+            # was AC11.8.3
+            test=(
+                "apps/backend/tests/reporting/test_income_annualized_router.py"
+                "::test_restricted_assets_endpoint_returns_latest_locked_holdings"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.annualized-dashboard.3",
+            statement=(
+                "GET /api/income/annualized converts mixed-currency annualized "
+                "income totals into the dashboard reporting currency before "
+                "aggregation."
+            ),
+            # was AC11.8.7
+            test=(
+                "apps/backend/tests/reporting/test_income_annualized_router.py"
+                "::test_AC11_8_7_annualized_income_endpoint_converts_mixed_currency_totals"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group package-annualized: extends the existing group with the
+        # report-package annualized-income schedule rows (was EPIC-011
+        # AC11.11.1-4, #1821 Wave A pending-package move) ──
+        ACRecord(
+            id="AC-reporting.package-annualized.3",
+            statement=(
+                "GET /api/reports/package/annualized-income-schedule returns "
+                "annualized salary, bonus, dividend, total income, currency, "
+                "as-of date, and trailing-period boundaries for the personal "
+                "report package."
+            ),
+            # was AC11.11.1
+            test=(
+                "apps/backend/tests/reporting/test_annualized_income_schedule.py"
+                "::test_AC11_11_1_AC11_11_2_annualized_schedule_includes_income_and_restricted_treatment"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.package-annualized.4",
+            statement=(
+                "The schedule includes ESOP/RSU/stock-option restricted "
+                "holdings with valuation basis, vesting/unlock metadata, fair "
+                "value, and explicit liquid-versus-restricted net worth "
+                "treatment."
+            ),
+            # was AC11.11.2
+            test=(
+                "apps/backend/tests/reporting/test_annualized_income_schedule.py"
+                "::test_AC11_11_1_AC11_11_2_annualized_schedule_includes_income_and_restricted_treatment"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        # NOTE: was AC11.11.3 ("Annualized income and restricted fair-value
+        # package totals are Decimal-safe and converted to the schedule
+        # reporting currency") — duplicate of the ALREADY-migrated
+        # AC-reporting.package-annualized.2 ("The annualized income package
+        # schedule converts mixed-currency income and restricted totals into
+        # one reporting currency", was AC5.11.3), which cites the exact same
+        # test (test_AC5_11_3_AC11_11_3_annualized_schedule_converts_mixed_currency_totals)
+        # and whose docstring already names both AC5.11.3 and AC11.11.3. The
+        # EPIC-011 row is deleted with no new roadmap entry (#1821 Wave A).
+        ACRecord(
+            id="AC-reporting.package-annualized.5",
+            statement=(
+                "Each restricted holding's valuation_basis surfaces the "
+                "snapshot's structured evidence basis enum value (or "
+                "unspecified when none was captured) instead of a hardcoded "
+                "source-kind literal (#706)."
+            ),
+            # was AC11.11.4
+            test=(
+                "apps/backend/tests/reporting/test_annualized_income_schedule.py"
+                "::test_AC11_11_4_annualized_schedule_surfaces_structured_valuation_basis"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        # ── group net-worth-components: extends the existing group with the
+        # unified allocation schedule (was EPIC-017 AC17.14.2, #1821 Wave A
+        # pending-package move) ──
+        ACRecord(
+            id="AC-reporting.net-worth-components.3",
+            statement=(
+                "Reports expose a net-worth allocation schedule grouped by "
+                "asset class, liquidity class, and source currency, with "
+                "signed rows that reconcile to net worth and retain "
+                "source-line drill-through metadata (endpoint contract also "
+                "proven by test_AC17_14_2_net_worth_allocation_endpoint_returns_contract "
+                "in apps/backend/tests/reporting/test_reports_router.py)."
+            ),
+            # was AC17.14.2
+            test=(
+                "apps/backend/tests/reporting/test_reporting_net_worth_components.py"
+                "::test_AC17_14_2_net_worth_allocation_groups_balance_sheet_sources"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group readiness: extends the existing group with the Processing-FX
+        # readiness blocker (was EPIC-019 AC19.8.8, #1821 Wave A
+        # pending-package move) ──
+        ACRecord(
+            id="AC-reporting.readiness.7",
+            statement=(
+                "The personal report package readiness check blocks when "
+                "Processing-account FX conversion fails during package "
+                "assembly."
+            ),
+            # was AC19.8.8
+            test=(
+                "apps/backend/tests/api/test_personal_report_package_contract.py"
+                "::test_AC19_8_8_package_readiness_blocks_when_processing_fx_conversion_fails"
+            ),
+            priority="P0",
+            status="done",
+        ),
     ],
 )

@@ -1374,5 +1374,123 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        # ── group consistency-checks (continued): Stage 2 dedup/transfer-pair
+        # detection (was EPIC-016 AC16.2.1/AC16.2.2, #1821 Wave A
+        # pending-package move; AC16.2.3 "batch approve blocked if unresolved
+        # checks" was a duplicate of the already-migrated
+        # AC-reconciliation.stage2-batch.1 citing the identical test and is
+        # deleted without a new roadmap entry) ──
+        ACRecord(
+            id="AC-reconciliation.consistency-checks.8",
+            statement="Deduplication detection accuracy is >= 95% on the consistency-check corpus.",
+            # was AC16.2.1
+            test=(
+                "apps/backend/tests/review/test_consistency_checks.py"
+                "::test_detect_duplicates"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.consistency-checks.9",
+            statement="Transfer-pair detection accuracy is >= 90% on the consistency-check corpus.",
+            # was AC16.2.2
+            test=(
+                "apps/backend/tests/review/test_consistency_checks.py"
+                "::test_detect_transfer_pairs"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group stage2-batch (continued): reconcile-referenced-entry /
+        # idempotent-retry half not yet covered by .1-.4 (was EPIC-016
+        # AC16.24.4, #1821 Wave A pending-package move) ──
+        ACRecord(
+            id="AC-reconciliation.stage2-batch.5",
+            statement=(
+                "Stage 2 batch approval reconciles a match against an "
+                "existing referenced journal entry rather than creating a "
+                "duplicate (the create-missing-entry-once half is already "
+                "AC-reconciliation.stage2-batch.2)."
+            ),
+            # was AC16.24.4
+            test=(
+                "apps/backend/tests/api/test_statements_router.py"
+                "::test_batch_approve_matches_reconciles_referenced_entry"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group conflict-resolution: Stage 1 duplicate/transfer-pair
+        # conflict gate + resolution endpoint (was EPIC-016 AC16.32.1,
+        # AC16.34.1, AC16.34.2 backend halves, #1821 Wave A pending-package
+        # move; each row also cites a frontend test that stays untracked by
+        # this Python-only roadmap) ──
+        ACRecord(
+            id="AC-reconciliation.conflict-resolution.1",
+            statement=(
+                "Stage 1 approval and edit-approval are blocked while "
+                "duplicate or transfer-pair conflict candidates remain "
+                "unresolved."
+            ),
+            # was AC16.32.1
+            test=(
+                "apps/backend/tests/api/test_statements_router.py"
+                "::test_AC16_32_1_stage1_approval_blocks_unresolved_conflicts"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.conflict-resolution.2",
+            statement=(
+                "POST /api/review/conflicts/{statement_id}/resolve records "
+                "the reviewer's resolution; the Stage-1 approval guard "
+                "honors it so a previously-blocked statement with duplicate/"
+                "transfer-pair candidates can be approved, and an unknown "
+                "statement returns 404 (also proven by "
+                "test_AC16_34_1_resolve_conflicts_404_for_unknown_statement "
+                "in the same file)."
+            ),
+            # was AC16.34.1
+            test=(
+                "apps/backend/tests/api/test_statements_router.py"
+                "::test_AC16_34_1_resolve_unblocks_stage1_approval"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.conflict-resolution.3",
+            statement=(
+                "A reject/reparse clears a prior conflict resolution so the "
+                "fresh transaction set must be re-reviewed."
+            ),
+            # was AC16.34.2
+            test=(
+                "apps/backend/tests/api/test_statements_router.py"
+                "::test_AC16_34_2_reject_clears_conflict_resolution"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        # ── group candidate-matching: transfer/candidate-matching helper
+        # unit tests (was EPIC-012 AC12.18.7 stub, #1821 Wave A
+        # pending-package move) ──
+        ACRecord(
+            id="AC-reconciliation.candidate-matching.1",
+            statement=(
+                "_find_transfer_candidates, _find_normal_candidates, and "
+                "_find_many_to_one_candidates (transfer/candidate-matching "
+                "helpers) are covered by pure unit tests."
+            ),
+            # was AC12.18.7
+            test=(
+                "apps/backend/tests/reconciliation/test_reconciliation_scoring_helpers.py"
+                "::test_find_transfer_candidates_returns_pair"
+            ),
+            priority="P2",
+            status="done",
+        ),
     ],
 )

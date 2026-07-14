@@ -104,7 +104,7 @@ async def approved_statement(db, user_id):
 
 class TestDetectDuplicates:
     async def test_detect_duplicates(self, db, user_id, approved_statement):
-        """AC16.2.1 Detect duplicate transactions for a user."""
+        """AC-reconciliation.consistency-checks.8: AC16.2.1 Detect duplicate transactions for a user."""
         await _add_txn(
             db,
             user_id,
@@ -130,7 +130,7 @@ class TestDetectDuplicates:
 
 class TestDetectTransferPairs:
     async def test_detect_transfer_pairs(self, db, user_id):
-        """AC16.2.2 Detect matching transfer pairs (OUT/IN)."""
+        """AC-reconciliation.consistency-checks.9: AC16.2.2 Detect matching transfer pairs (OUT/IN)."""
         txn_out = await _add_txn(
             db,
             user_id,

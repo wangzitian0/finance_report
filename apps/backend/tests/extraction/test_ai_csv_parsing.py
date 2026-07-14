@@ -10,7 +10,7 @@ from src.extraction.extension.service import ExtractionService
 
 
 async def test_ai_csv_parsing_returns_valid_mapping():
-    """AC18.4.3: AI CSV parsing returns valid column mapping and parses transactions."""
+    """AC-extraction.1804.1: AC18.4.3: AI CSV parsing returns valid column mapping and parses transactions."""
     service = ExtractionService()
 
     # Mock AI response with column mapping
