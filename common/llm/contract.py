@@ -971,5 +971,15 @@ CONTRACT = PackageContract(
             priority="P2",
             status="done",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
+        # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
+        ACRecord(
+            id="AC-llm.fe-ia-ai-settings.1",
+            statement="The AI Settings page renders an editable form with explicit Save and Reset controls that submits the edited flags via `patchUserSettings`, surfacing loading, submitting, success, and error states using shared UI primitives",
+            # was AC22.15.2
+            test="apps/frontend/src/__tests__/aiSettingsPage.test.tsx::AC22.15.2 renders the loaded flags and keeps Save disabled until edited",
+            priority="P1",
+            status="done",
+        ),
     ],
 )

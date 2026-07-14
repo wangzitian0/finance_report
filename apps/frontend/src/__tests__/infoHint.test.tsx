@@ -4,6 +4,7 @@ import { render, screen } from "@testing-library/react";
 import { InfoHint, GLOSSARY } from "@/components/ui/InfoHint";
 
 describe("InfoHint (EPIC-022 AC22.5.5)", () => {
+    // AC-meta.fe-ia-nav.11
     it("AC22.5.5 exposes the plain-language glossary text to assistive tech", () => {
         render(<InfoHint term="transfer_pair" label="Transfer pair" />);
         const hint = screen.getByRole("img");
@@ -25,6 +26,7 @@ describe("InfoHint (EPIC-022 AC22.5.5)", () => {
         }
     });
 
+    // AC-meta.fe-ia-nav.12
     it("AC22.9.2 exposes a single reconciliation-coverage term for the unified label", () => {
         // Home and Reports both render "Reconciliation coverage" backed by this
         // one glossary entry, replacing the old divergent "Data health" /

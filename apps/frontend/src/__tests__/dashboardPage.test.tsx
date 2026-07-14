@@ -283,6 +283,7 @@ describe("HomePage", () => {
   })
 
   // AC-reporting.fe-report-surfaces.3
+  // AC-reporting.fe-ia-reports.1
   it("AC16.12.3 AC22.1.2 renders KPI, chart, activity, and alert sections when API succeeds", async () => {
     mockDashboardApi()
 
@@ -300,6 +301,7 @@ describe("HomePage", () => {
     expect(screen.getByText("Unmatched Alerts")).toBeInTheDocument()
   })
 
+  // AC-reporting.fe-ia-reports.7
   it("AC22.4.4 defaults to a lean Home with heavy analytics behind an opt-in toggle", async () => {
     mockDashboardApi()
 
@@ -319,6 +321,7 @@ describe("HomePage", () => {
     await waitFor(() => expect(screen.getByText("BarChartMock")).toBeInTheDocument())
   })
 
+  // AC-reporting.fe-ia-reports.9 / AC-reporting.fe-ia-reports.21
   it("AC22.16.2 AC22.5.6 routes the risk radar and unmatched CTA to the unified /attention queue", async () => {
     mockDashboardApi()
 
@@ -464,6 +467,7 @@ describe("HomePage", () => {
     expect(screen.getByText("balance failed")).toBeInTheDocument()
   })
 
+  // AC-reporting.fe-viz-reports.1
   it("AC11.8.2/AC11.8.6/AC5.6.4 renders Annualized Income card with the four metric labels", async () => {
     mockDashboardApi()
 
@@ -643,6 +647,7 @@ describe("HomePage", () => {
   })
 
   // AC-reporting.fe-report-surfaces.5 / AC-reporting.fe-report-surfaces.6
+  // AC-reporting.fe-ia-reports.20
   it("AC22.16.1 AC16.12.17 AC16.12.18 renders first-time onboarding with everyday-surface links only", async () => {
     mockDashboardApi({
       balance: { ...baseBalance, assets: [], total_assets: 0, total_liabilities: 0 },

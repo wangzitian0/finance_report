@@ -41,6 +41,7 @@ beforeEach(() => {
 })
 
 describe("Account drill-down to source transactions (EPIC-022 AC22.3.4/AC22.3.5)", () => {
+  // AC-reporting.fe-ia-reports.4
   it("AC22.3.4 lists contributing journal lines and opens the lineage chain for one", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
       if (path.startsWith("/api/reports/account-lineage")) {
@@ -107,6 +108,7 @@ describe("Account drill-down to source transactions (EPIC-022 AC22.3.4/AC22.3.5)
     await waitFor(() => expect(screen.queryByText("source document")).toBeNull())
   })
 
+  // AC-reporting.fe-ia-reports.5
   it("AC22.3.5 shows an empty state when no transactions contribute", async () => {
     mockedApiFetch.mockResolvedValue({
       account_id: TARGET.accountId,

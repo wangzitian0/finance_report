@@ -92,6 +92,7 @@ test.describe("AC22.4.5 everyday-user attention journey", () => {
     { label: "desktop", width: 1440, height: 1000 },
     { label: "mobile", width: 390, height: 844 },
   ]) {
+    // AC-reconciliation.fe-ia-reconciliation.2
     test(`${label}: both Stage 1 and Stage 2 attention surface in the notification center with deep links`, async ({
       page,
     }) => {

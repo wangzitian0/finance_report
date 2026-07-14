@@ -1809,5 +1809,39 @@ CONTRACT = PackageContract(
             priority="P2",
             status="done",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
+        # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
+        ACRecord(
+            id="AC-portfolio.fe-ia-portfolio.1",
+            statement='The holdings table renders the "Imported" provenance badge only for holdings with concrete document evidence (the backend labeling half migrated to the `portfolio` package roadmap as `AC-portfolio.provenance.1`, migration closeout continuation, #1663 / #1717; the frontend badge half stays here)',
+            # was AC22.10.1
+            test="apps/frontend/src/__tests__/holdingsTable.test.tsx::AC22.10.1 AC22.13.2 shows provenance badges only when provenance is known",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.fe-ia-portfolio.2",
+            statement="Manual valuation capture uses a controlled source enum instead of free-text provenance, while existing historical source strings remain displayable in snapshot history",
+            # was AC22.10.2
+            test="apps/frontend/src/__tests__/assetsPage.test.tsx::AC11.9.4 AC22.10.2 renders manual valuation snapshots and creates a new property valuation",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.fe-ia-portfolio.3",
+            statement="Desktop and mobile Playwright smoke covers portfolio provenance badges only for imported holdings, with unproven holdings unlabeled and no document horizontal overflow",
+            # was AC22.10.3
+            test="apps/frontend/playwright/portfolio-provenance.spec.ts::${scenario.name} labels only imported holdings with provenance",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.fe-ia-portfolio.4",
+            statement="Portfolio and report surfaces render a shared Imported / Manual / Derived provenance badge; Manual is visually distinct from Imported and unlabeled values remain silent",
+            # was AC22.13.2
+            test="apps/frontend/src/__tests__/provenanceBadge.test.tsx::AC22.13.2 renders normalized Imported, Manual, and Derived badges",
+            priority="P1",
+            status="done",
+        ),
     ],
 )

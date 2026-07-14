@@ -24,6 +24,7 @@ describe("useDashboardData", () => {
     mockedApiFetch.mockReset();
   });
 
+  // AC-reporting.fe-viz-reports.24
   it("AC5.35.1 aggregates dashboard endpoints over apiFetch", async () => {
     mockedApiFetch.mockImplementation((path: string) =>
       routeResponder({
@@ -69,6 +70,7 @@ describe("useDashboardData", () => {
     );
   });
 
+  // AC-reporting.fe-viz-reports.25
   it("AC5.35.2 normalizes missing report fields to defaults", async () => {
     // Backend returns sparse payloads (only a few fields populated).
     mockedApiFetch.mockImplementation((path: string) =>
@@ -94,6 +96,7 @@ describe("useDashboardData", () => {
     expect(result.current.restrictedHoldings).toEqual([]);
   });
 
+  // AC-reporting.fe-viz-reports.26
   it("AC5.35.3 surfaces error and retries on failure", async () => {
     mockedApiFetch.mockReturnValue(Promise.reject(new Error("network down")));
 
@@ -122,6 +125,7 @@ describe("useDashboardData", () => {
     await waitFor(() => expect(result.current.error).toBeNull());
   });
 
+  // AC-reporting.fe-ia-reports.22
   it("AC22.16.3 composes the snapshot and asset-trend hooks, exposing the trend once the balance loads", async () => {
     mockedApiFetch.mockImplementation((path: string) =>
       routeResponder(
@@ -159,6 +163,7 @@ describe("useDashboardData", () => {
     );
   });
 
+  // AC-reporting.fe-viz-reports.27
   it("AC5.35.4 tolerates failing chat suggestions endpoint", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
       if (path.startsWith("/api/chat/suggestions")) {

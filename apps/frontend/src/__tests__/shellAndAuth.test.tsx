@@ -71,6 +71,7 @@ describe("AppShell and AuthGuard", () => {
     expect(screen.getByTestId("workspace-tabs").parentElement?.className).toContain("hidden md:block")
   })
 
+  // AC-meta.fe-ia-nav.14
   it("AC22.12.2 exposes a skip-to-content link targeting the main landmark", () => {
     const { container } = render(
       <AppShell>

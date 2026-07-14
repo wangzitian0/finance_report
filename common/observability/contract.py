@@ -1105,5 +1105,23 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
+        # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
+        ACRecord(
+            id="AC-observability.fe-ia-analytics.1",
+            statement="A typed `track(event, props)` analytics wrapper dispatches through the OpenPanel command queue, is strictly non-blocking (never throws, no-op when unconfigured), exposes a taxonomy of ≥6 named product events, and strips PII (emails, monetary amounts, account numbers) from event properties before sending",
+            # was AC22.18.2
+            test="apps/frontend/src/__tests__/analyticsTrack.test.ts::AC22.18.2 exposes a typed taxonomy of at least six named product events",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-observability.fe-ia-analytics.2",
+            statement="The core product funnel is instrumented through the wrapper — signup, statement upload started/succeeded/failed, Stage-1 review approved, and report generated — with tests asserting `track()` is invoked on each action",
+            # was AC22.18.3
+            test="apps/frontend/src/__tests__/StatementUploader.test.tsx::AC22.18.3 tracks UPLOAD_STARTED and UPLOAD_SUCCEEDED with non-PII props on success",
+            priority="P1",
+            status="done",
+        ),
     ],
 )

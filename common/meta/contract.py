@@ -1816,5 +1816,255 @@ CONTRACT = PackageContract(
             priority="P2",
             status="done",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
+        # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
+        ACRecord(
+            id="AC-meta.fe-ia-nav.1",
+            statement="Primary navigation renders a bottom tab bar of exactly five hit targets — Home, Chat, a center Add action, Audit, and More — mirrored by the desktop sidebar; no accounting-jargon route (Journal, Reconciliation, Accounts, Statements) and no Settings page appears as a top-level tab (superseded by AC22.21.1 for the data-model shape)",
+            # was AC22.1.1
+            test="apps/frontend/src/__tests__/navigation.test.ts::AC19.6.2 AC19.8.5 AC22.1.1 AC22.1.7 AC22.2.4 AC22.21.1 exposes a five-target bottom tab bar with distinct icons (Home, Chat, Add, Audit, More)",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.2",
+            statement="The sidebar brand links to `/` and the login flow redirects to `/` after authentication",
+            # was AC22.1.3
+            test="apps/frontend/src/__tests__/sidebarAndTabs.test.tsx::AC22.1.3 links the sidebar brand to Home",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.3",
+            statement='`/dashboard` redirects to `/` and the label "Upload Pipeline" no longer appears in the navigation model',
+            # was AC22.1.4
+            test="apps/frontend/src/__tests__/nextConfigRedirects.test.ts::AC22.1.4 redirects the legacy dashboard route to Home",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.4",
+            statement="`/events` redirects to `/notifications` and the notifications page renders the workflow event center",
+            # was AC22.1.5
+            test="apps/frontend/src/__tests__/nextConfigRedirects.test.ts::AC22.1.5 redirects /events to /notifications",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.5",
+            statement='`/assets` redirects to `/portfolio` and exactly one navigation entry is labeled "Portfolio"',
+            # was AC22.1.6
+            test="apps/frontend/src/__tests__/navigation.test.ts::AC22.1.6 lists Portfolio exactly once across the navigation model",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.6",
+            statement="Chat and AI Settings navigation entries use distinct icons",
+            # was AC22.1.7
+            test="apps/frontend/src/__tests__/navigation.test.ts::AC19.6.2 AC19.8.5 AC22.1.1 AC22.1.7 AC22.2.4 AC22.21.1 exposes a five-target bottom tab bar with distinct icons (Home, Chat, Add, Audit, More)",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.7",
+            statement="`/upload` renders both the statement uploader and upload history, and `/statements/upload` redirects to `/upload`",
+            # was AC22.1.8
+            test="apps/frontend/src/__tests__/nextConfigRedirects.test.ts::AC22.1.8 redirects legacy statement routes to /upload",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.8",
+            statement="Desktop and mobile smoke covers the five-target bottom-tab navigation (Home, Chat, Add, Audit, More) and the notification bell without layout overflow",
+            # was AC22.1.9
+            test="apps/frontend/playwright/epic022-ia-shell.spec.ts::desktop sidebar mirrors the five bottom-tab targets and the notification bell",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.9",
+            statement='The standalone Review Queue page is removed, `/review` redirects to `/notifications`, and "Review" is no longer a sidebar navigation entry',
+            # was AC22.2.4
+            test="apps/frontend/src/__tests__/navigation.test.ts::AC19.6.2 AC19.8.5 AC22.1.1 AC22.1.7 AC22.2.4 AC22.21.1 exposes a five-target bottom tab bar with distinct icons (Home, Chat, Add, Audit, More)",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.10",
+            statement="The upload, statement-detail, and statement-review pages render a shared step indicator showing the Upload → Review & approve → Reports path with the current step highlighted",
+            # was AC22.5.1
+            test="apps/frontend/src/__tests__/flowStepBanner.test.tsx::AC22.5.1 renders the Upload -> Review & approve -> Reports path",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.11",
+            statement='Core jargon terms (balance "drift"/"balanced", "needs review", transfer pair, anomaly, duplicate, consistency check, match score) expose a plain-language explanation through an accessible `InfoHint` affordance',
+            # was AC22.5.5
+            test="apps/frontend/src/__tests__/infoHint.test.tsx::AC22.5.5 exposes the plain-language glossary text to assistive tech",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.12",
+            statement='The reconciliation match-rate is shown under a single term ("Reconciliation coverage") on both Home and Reports, backed by one shared `InfoHint` glossary entry',
+            # was AC22.9.2
+            test="apps/frontend/src/__tests__/infoHint.test.tsx::AC22.9.2 exposes a single reconciliation-coverage term for the unified label",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.13",
+            statement="Global styles honor `prefers-reduced-motion: reduce` by disabling non-essential animation/transition timing and smooth scrolling across the app shell",
+            # was AC22.12.1
+            test="apps/frontend/src/__tests__/designTokens.test.tsx::AC22.12.1 AC22.12.3 AC22.13.3 defines the global accessibility baseline in SSOT and CSS",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.14",
+            statement="The authenticated shell exposes a skip-to-content link that targets the main landmark so keyboard users can bypass navigation chrome",
+            # was AC22.12.2
+            test="apps/frontend/src/__tests__/shellAndAuth.test.tsx::AC22.12.2 exposes a skip-to-content link targeting the main landmark",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.15",
+            statement="Global focus-visible styles cover links, form controls, and shared `.btn-*` controls with token-backed focus rings",
+            # was AC22.12.3
+            test="apps/frontend/src/__tests__/designTokens.test.tsx::AC22.12.1 AC22.12.3 AC22.13.3 defines the global accessibility baseline in SSOT and CSS",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.16",
+            statement="Shared toast and flow-step status affordances use Lucide icons or text instead of unicode glyph icons, and warning toast messages do not embed emoji-like status glyphs",
+            # was AC22.12.5
+            test="apps/frontend/src/__tests__/toastProviderComponent.test.tsx::AC22.12.5 uses semantic icon components instead of unicode glyph icons",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.17",
+            statement="Data-dense report and asset-table loading states reserve layout with token-backed skeleton placeholders instead of spinner-only or text-only states",
+            # was AC22.12.6
+            test="apps/frontend/src/__tests__/uiPrimitives.test.tsx::AC22.12.6 renders token-backed skeleton primitives without spinner affordances",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.18",
+            statement="Carryover accessibility review fixes keep the skip-link target covered by global focus-visible styling and keep report package table-of-contents section status in the accessible link name",
+            # was AC22.13.3
+            test="apps/frontend/src/__tests__/designTokens.test.tsx::AC22.12.1 AC22.12.3 AC22.13.3 defines the global accessibility baseline in SSOT and CSS",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.19",
+            statement="A typed `patchUserSettings` client function in `lib/api.ts` issues `PATCH /api/users/me/settings` through the shared `apiFetch` client (no raw `fetch`) and returns the effective `UserAiSettings` response",
+            # was AC22.15.1
+            test="apps/frontend/src/__tests__/apiFunctions.test.ts::AC22.15.1 fetchUserSettings GETs /api/users/me/settings via apiFetch",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.20",
+            statement="The legacy `/events` alias is removed from `ROUTE_CONFIG` so `/notifications` is the single canonical path/label; the `/events`→`/notifications` redirect is unchanged",
+            # was AC22.18.1
+            test="apps/frontend/src/__tests__/navigation.test.ts::AC22.18.1 drops the legacy /events alias so /notifications is the one canonical label",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-http-client.21",
+            statement="Balance sheet, income statement, and cash-flow pages download CSV through the authenticated API wrapper (backend cash-flow CSV export half migrated as `AC-reporting.csv-export.1`)",
+            # was AC5.17.1
+            test="apps/frontend/src/__tests__/apiFunctions.test.ts::AC5.17.1 downloads authenticated CSV blobs and preserves the server filename",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.21",
+            statement="The install manifest uses the canonical `/` app launch route, stable app identity, standalone display, and required 192/512/apple icon metadata without relying on the legacy `/dashboard` redirect",
+            # was AC22.20.1
+            test="apps/frontend/src/__tests__/pwaInstall.test.tsx::AC22.20.1 keeps install manifest on the canonical home-screen launch contract",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.22",
+            statement="The shared install hook captures Android/Chromium `beforeinstallprompt`, suppresses the browser's automatic prompt until the app-level action, invokes `prompt()`, and records dismissals so business pages do not handle install events",
+            # was AC22.20.2
+            test="apps/frontend/src/__tests__/pwaInstall.test.tsx::AC22.20.2 captures Android beforeinstallprompt and invokes the deferred native prompt",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.23",
+            statement="The global app-shell install prompt renders an Android install action when a deferred prompt is available and renders iOS Add to Home Screen guidance when the browser cannot provide a programmatic prompt",
+            # was AC22.20.3
+            test="apps/frontend/src/__tests__/pwaInstall.test.tsx::AC22.20.3 renders the Android install action from the global app-shell prompt",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.24",
+            statement="Installed or standalone sessions hide the install prompt, and the app shell uses safe-area-aware standalone styling for home-screen launch without page-level changes",
+            # was AC22.20.4
+            test="apps/frontend/src/__tests__/pwaInstall.test.tsx::AC22.20.4 detects iOS and standalone launch states without page code",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.25",
+            statement="The navigation model exposes a bottom tab bar of Home (`/`), Chat (`/chat`), Audit (`/audit`), and More (`/more`) plus a center Add action, and no longer exposes a `primaryWorkflowNavItems`/`advancedNavItems` split or any of Journal/Reconciliation/Processing/Confidence/Accounts/Settings as a navigation entry",
+            # was AC22.21.1
+            test="apps/frontend/src/__tests__/navigation.test.ts::AC19.6.2 AC19.8.5 AC22.1.1 AC22.1.7 AC22.2.4 AC22.21.1 exposes a five-target bottom tab bar with distinct icons (Home, Chat, Add, Audit, More)",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.26",
+            statement='The shell renders the bottom tab bar on mobile and mirrors the same five targets in the desktop sidebar; tapping Add opens a bottom sheet offering "Upload statement" (the statement uploader) and "Manual entry" (the guided evidence form), and Add is an action, not a route',
+            # was AC22.21.2
+            test="apps/frontend/src/__tests__/sidebarAndTabs.test.tsx::AC16.19.3 AC22.21.2 shows auth-aware sidebar actions mirroring the bottom tabs",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.27",
+            statement="`/audit` renders a verify-on-demand hub aggregating Trust (confidence), Reconciliation, Journal, and Processing as cards that deep-link to their existing pages, and those pages render a back-link to `/audit`",
+            # was AC22.21.3
+            test="apps/frontend/src/__tests__/navigation.test.ts::AC22.21.3 folds the accounting machinery into the /audit hub, out of navigation",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.28",
+            statement="`/settings` renders one page with General, AI, and LLM as tabs, and `/settings/general`, `/settings/ai`, `/settings/llm` resolve to that page with the corresponding tab active",
+            # was AC22.21.4
+            test="apps/frontend/src/__tests__/nextConfigRedirects.test.ts::AC22.21.4 redirects the legacy settings pages to the merged tabbed /settings",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.29",
+            statement="`/more` lists low-frequency destinations — Portfolio (shown only when the user holds securities), Settings, Advanced, and Logout",
+            # was AC22.21.5
+            test="apps/frontend/src/__tests__/navigation.test.ts::AC22.21.5 routes low-frequency destinations through the /more overflow",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.30",
+            statement="Desktop and mobile smoke covers the bottom tab bar, the Add sheet, the Audit hub, and the merged Settings without layout overflow, with safe-area-aware bottom-bar styling for standalone PWA sessions",
+            # was AC22.21.7
+            test="apps/frontend/playwright/epic022-bottom-tab-ia.spec.ts::the bottom bar opens the Add sheet with both ways to add",
+            priority="P1",
+            status="done",
+        ),
     ],
 )

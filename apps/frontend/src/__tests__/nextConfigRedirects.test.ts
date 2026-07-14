@@ -12,6 +12,7 @@ async function redirectMap() {
 }
 
 describe("next.config redirects (EPIC-022 route alignment)", () => {
+  // AC-meta.fe-ia-nav.3
   it("AC22.1.4 redirects the legacy dashboard route to Home", async () => {
     const map = await redirectMap();
     expect(map.get("/dashboard")).toBe("/");
@@ -19,6 +20,7 @@ describe("next.config redirects (EPIC-022 route alignment)", () => {
     expect(map.has("/")).toBe(false);
   });
 
+  // AC-meta.fe-ia-nav.4
   it("AC22.1.5 redirects /events to /notifications", async () => {
     const map = await redirectMap();
     expect(map.get("/events")).toBe("/notifications");
@@ -29,6 +31,7 @@ describe("next.config redirects (EPIC-022 route alignment)", () => {
     expect(map.get("/assets")).toBe("/portfolio");
   });
 
+  // AC-meta.fe-ia-nav.7
   it("AC22.1.8 redirects legacy statement routes to /upload", async () => {
     const map = await redirectMap();
     expect(map.get("/statements/upload")).toBe("/upload");
@@ -40,6 +43,7 @@ describe("next.config redirects (EPIC-022 route alignment)", () => {
     expect(map.get("/review")).toBe("/notifications");
   });
 
+  // AC-meta.fe-ia-nav.28
   it("AC22.21.4 redirects the legacy settings pages to the merged tabbed /settings", async () => {
     const map = await redirectMap();
     expect(map.get("/settings/general")).toBe("/settings?tab=general");

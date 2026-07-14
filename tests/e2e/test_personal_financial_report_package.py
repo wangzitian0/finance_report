@@ -303,7 +303,7 @@ async def _create_manual_snapshot(
         "AC-reporting.balance-sheet.4",
         "AC-reporting.income-statement.3",
         "AC-reporting.cash-flow.1",
-        "AC5.8.1",
+        "AC-reporting.fe-viz-reports.2",  # was AC5.8.1, #1821 Wave B
         "AC-reporting.package-notes.3",
         "AC-reporting.package-traceability.3",
         "AC-reporting.package-traceability.4",
@@ -350,7 +350,8 @@ async def test_personal_financial_report_package_post_merge_journey(
     """EPIC-005 EPIC-008 EPIC-011 EPIC-017 EPIC-020.
 
     AC-reporting.balance-sheet.1 AC-reporting.balance-sheet.4
-    AC-reporting.income-statement.3 AC-reporting.cash-flow.1 AC5.8.1
+    AC-reporting.income-statement.3 AC-reporting.cash-flow.1
+    AC-reporting.fe-viz-reports.2
     AC-reporting.package-notes.3 AC-reporting.package-traceability.3
     AC-reporting.package-traceability.4
     AC-reporting.annualized-dashboard.2 AC-pricing.manualvaluation.5

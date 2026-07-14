@@ -17,8 +17,7 @@
       "horizontal": 2
     },
     "EPIC-005.reporting-visualization.md": {
-      "fe-half": 5,
-      "fe-only": 29
+      "pending-package": 1
     },
     "EPIC-006.ai-advisor.md": {
       "pending-package": 1
@@ -64,10 +63,7 @@
       "fe-only": 3,
       "horizontal": 1
     },
-    "EPIC-022.everyday-user-ia.md": {
-      "fe-half": 2,
-      "fe-only": 81
-    },
+    "EPIC-022.everyday-user-ia.md": {},
     "EPIC-022.pwa-bottom-tab-ia.design.md": {},
     "EPIC-023.llm-provider-abstraction.md": {},
     "EPIC-024.frontend-observability.md": {

@@ -1199,5 +1199,15 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
+        # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
+        ACRecord(
+            id="AC-advisor.fe-ia-chat.1",
+            statement="`ChatPanel` renders assistant-answer citations as safe internal links and shows pending-action chips without parsing LLM prose",
+            # was AC22.14.2
+            test="apps/frontend/src/__tests__/chatPanelComponent.test.tsx::AC22.14.2 AC22.14.3 renders grounded answer citations and pending action chips",
+            priority="P1",
+            status="done",
+        ),
     ],
 )

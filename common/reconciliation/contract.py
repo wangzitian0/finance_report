@@ -1788,5 +1788,79 @@ CONTRACT = PackageContract(
             priority="P2",
             status="done",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
+        # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
+        ACRecord(
+            id="AC-reconciliation.fe-ia-reconciliation.1",
+            statement="`/review/ai-suggestions` is reachable from AI Settings, so the AI-suggestion review surface is not orphaned",
+            # was AC22.4.3
+            test="apps/frontend/src/__tests__/aiSettingsPage.test.tsx::AC22.4.3 links to the AI suggestion review surface so it is not orphaned",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-ia-reconciliation.2",
+            statement="E2E: a user with Stage 1 and Stage 2 attention sees both in the notification center and can open each detail surface",
+            # was AC22.4.5
+            test="apps/frontend/playwright/epic022-attention-journey.spec.ts::${label}: both Stage 1 and Stage 2 attention surface in the notification center with deep links",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-ia-reconciliation.3",
+            statement="The `/attention` page folds the open attention sources (Stage 1 statement review, reconciliation review, unmatched transactions, stalled processing transfers) into a single list sorted by ascending confidence, each row deep-linking to its action surface, with an all-clear empty state when nothing needs attention",
+            # was AC22.6.1
+            test="apps/frontend/src/__tests__/attention.test.ts::AC22.6.1 folds the open attention sources into one list sorted by ascending confidence",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-ia-reconciliation.4",
+            statement="The Home renders a trust meter (trusted / needs-confirmation / low-confidence counts) derived from the same attention model and linking to `/attention`, and stays silent when nothing needs attention",
+            # was AC22.6.2
+            test="apps/frontend/src/__tests__/attention.test.ts::AC22.6.2 summarizes trust into trusted / needs-confirmation / low-confidence buckets",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-ia-reconciliation.5",
+            statement="Desktop and mobile smoke covers the `/attention` queue and the Home trust meter without layout overflow",
+            # was AC22.6.4
+            test="apps/frontend/playwright/attention-surface.spec.ts::${label} renders the attention queue ranked by confidence without overflow",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-ia-reconciliation.6",
+            statement="Each attention-queue item surfaces a plain-language reason it was flagged — distinct per cause — alongside its confidence score",
+            # was AC22.11.2
+            test="apps/frontend/src/__tests__/attention.test.ts::AC22.11.2 every item explains why it was flagged",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-ia-reconciliation.7",
+            statement="Attention-origin action links preserve `from=attention`, and the linked review/processing destinations render a return link to `/attention` while direct-entry notification/statement fallbacks remain unchanged",
+            # was AC22.11.3
+            test="apps/frontend/src/__tests__/attentionQueue.test.tsx::AC22.6.1 AC22.11.3 AC22.12.4 renders the open attention items with readable reasons and action links",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-ia-reconciliation.8",
+            statement="Attention-queue reason text uses the normal muted content token, not a lower-opacity muted variant, so low-confidence explanations keep readable contrast",
+            # was AC22.12.4
+            test="apps/frontend/src/__tests__/attentionQueue.test.tsx::AC22.6.1 AC22.11.3 AC22.12.4 renders the open attention items with readable reasons and action links",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-ia-reconciliation.9",
+            statement="The Stage 2 review queue is composed from extracted sub-components (the match row/card and the queue controls) with unchanged review behavior",
+            # was AC22.17.2
+            test="apps/frontend/src/__tests__/stage2ReviewQueueParts.test.tsx::AC22.17.2 PendingMatchesPanel renders mobile + desktop rows and wires selection/batch callbacks",
+            priority="P1",
+            status="done",
+        ),
     ],
 )

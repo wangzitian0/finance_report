@@ -616,6 +616,7 @@ describe("PersonalReportPackagePage", () => {
     ).toBeInTheDocument();
   });
 
+  // AC-reporting.fe-ia-reports.16
   it("AC20.6.1 AC22.8.3 AC22.13.3 requires explicit framework selection before loading framework-scoped package output", async () => {
     mockPackageApi();
 
@@ -878,6 +879,7 @@ describe("PersonalReportPackagePage", () => {
     ).toBe(false);
   });
 
+  // AC-reporting.fe-viz-reports.11
   it("AC5.17.2 downloads package CSV through authenticated apiDownload", async () => {
     const createObjectUrl = vi
       .spyOn(URL, "createObjectURL")
@@ -907,6 +909,7 @@ describe("PersonalReportPackagePage", () => {
     revokeObjectUrl.mockRestore();
   });
 
+  // AC-reporting.fe-viz-reports.12
   it("AC5.19.4 generates and downloads package snapshots", async () => {
     const createObjectUrl = vi
       .spyOn(URL, "createObjectURL")
@@ -1189,6 +1192,7 @@ describe("PersonalReportPackagePage", () => {
     ).not.toBeInTheDocument();
   });
 
+  // AC-reporting.fe-viz-reports.3
   it("AC5.9.3 renders personal package contract sections from API", async () => {
     mockPackageApi();
 
@@ -1216,6 +1220,7 @@ describe("PersonalReportPackagePage", () => {
     ).toBeInTheDocument();
   });
 
+  // AC-reporting.fe-ia-reports.14
   it("AC22.8.1 titles package sections with human labels, not developer snake_case identifiers", async () => {
     mockPackageApi();
 
@@ -1235,6 +1240,7 @@ describe("PersonalReportPackagePage", () => {
     }
   });
 
+  // AC-reporting.fe-ia-reports.15
   it("AC22.8.2 AC22.13.3 renders a readable package cover and linked table of contents", async () => {
     mockPackageApi();
 
@@ -1390,6 +1396,7 @@ describe("PersonalReportPackagePage", () => {
     expectInsideClosedAuditDetails("missing_source_coverage, pending_review");
   });
 
+  // AC-reporting.fe-ia-reports.23
   it("AC22.19.1 renders the loaded package with reader-first labels before proof internals", async () => {
     mockPackageApi();
 
@@ -1452,6 +1459,7 @@ describe("PersonalReportPackagePage", () => {
     expect(within(traceabilitySection).queryByText("pending_review")).not.toBeInTheDocument();
   });
 
+  // AC-reporting.fe-ia-reports.24
   it("AC22.19.2 keeps proof and policy internals in keyboard-reachable audit details", async () => {
     mockPackageApi();
 
@@ -1482,6 +1490,7 @@ describe("PersonalReportPackagePage", () => {
     expect(screen.getByText("static_contract_note")).toBeInTheDocument();
   });
 
+  // AC-reporting.fe-ia-reports.25
   it("AC22.19.3 keeps export proof metadata behind a print-hidden export audit disclosure", async () => {
     mockPackageApi();
 
@@ -1499,6 +1508,7 @@ describe("PersonalReportPackagePage", () => {
     expectInsideClosedAuditDetails(/atomic_position:private-token/);
   });
 
+  // AC-reporting.fe-viz-reports.4
   it("AC5.9.4 renders export contract metadata", async () => {
     mockPackageApi();
 
@@ -1518,6 +1528,7 @@ describe("PersonalReportPackagePage", () => {
     ).toBeGreaterThanOrEqual(1);
   });
 
+  // AC-reporting.fe-viz-reports.5
   it("AC5.11.2 renders annualized income schedule values and restricted treatment", async () => {
     mockPackageApi();
 
@@ -1544,6 +1555,7 @@ describe("PersonalReportPackagePage", () => {
     ).toBeInTheDocument();
   });
 
+  // AC-reporting.fe-viz-reports.6
   it("AC5.12.3 renders package notes and disclosure basis", async () => {
     mockPackageApi();
 
@@ -1564,6 +1576,7 @@ describe("PersonalReportPackagePage", () => {
     ).toBeInTheDocument();
   });
 
+  // AC-reporting.fe-viz-reports.7 / AC-reporting.fe-viz-reports.10
   it("AC5.13.3 AC5.16.3 AC5.16.4 renders traceability appendix source, ledger, review, confidence, and identifiers", async () => {
     mockPackageApi();
 

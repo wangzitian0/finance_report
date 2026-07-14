@@ -21,6 +21,7 @@ describe("useReportFilters", () => {
     vi.clearAllMocks();
   });
 
+  // AC-reporting.fe-viz-reports.20
   it("AC5.34.3 builds query string from filter state", () => {
     const { result } = renderHook(() =>
       useReportFilters({
@@ -37,6 +38,7 @@ describe("useReportFilters", () => {
     expect(params.get("currency")).toBe("USD");
   });
 
+  // AC-reporting.fe-viz-reports.21
   it("AC5.34.4 derives csv export path for report type", () => {
     const { result } = renderHook(() =>
       useReportFilters({
@@ -53,6 +55,7 @@ describe("useReportFilters", () => {
     expect(result.current.exportPath).toContain("currency=SGD");
   });
 
+  // AC-reporting.fe-viz-reports.22
   it("AC5.34.5 updates query string when currency changes", () => {
     const { result } = renderHook(() =>
       useReportFilters({
@@ -72,6 +75,7 @@ describe("useReportFilters", () => {
     expect(new URLSearchParams(result.current.queryString).get("currency")).toBe("EUR");
   });
 
+  // AC-reporting.fe-viz-reports.23
   it("AC5.34.6 seeds initial filter state from URL query params", () => {
     urlParams = new URLSearchParams({
       as_of_date: "2026-05-31",

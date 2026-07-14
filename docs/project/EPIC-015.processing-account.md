@@ -312,7 +312,7 @@ assert abs(assets - liabilities_equity) < Decimal("0.01")  # ✅ PASSED
 - [x] **AC15.7.3** Card click-through navigates to `/processing` listing pending transfers (existing or new page) with line items `{from_account, to_account, amount, initiated_date, days_outstanding}` <!-- epic-owned: fe-only -->
 - [x] **AC15.7.4** Pending entries older than 7 days render a warning badge on the listing row <!-- epic-owned: fe-only -->
 - [x] **AC15.7.5** Frontend test mounts ProcessingSummaryCard and asserts `pending_count` + `pending_total` labels render <!-- epic-owned: fe-only -->
-- [x] **AC15.7.6** Processing is discoverable as a card in the Audit hub at `/audit` (superseded the old sidebar entry per EPIC-022 AC22.21.3) <!-- epic-owned: fe-only -->
+- [x] **AC15.7.6** Processing is discoverable as a card in the Audit hub at `/audit` (superseded the old sidebar entry per EPIC-022's bottom-tab Audit hub) <!-- epic-owned: fe-only -->
 - [x] **AC15.7.7** The Processing Account non-zero-balance warning surfaces on the Home Processing card (AC15.7.8) and the attention inbox; the old sidebar badge was removed with the Advanced drawer (EPIC-022 AC22.21) <!-- epic-owned: fe-only -->
 - [x] **AC15.7.8** Dashboard Processing card shows the signed current balance and a non-zero balance warning <!-- epic-owned: fe-only -->
 

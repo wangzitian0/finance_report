@@ -444,6 +444,7 @@ describe("AC3.5.3 StatementUploader model selection", () => {
     expect(await screen.findByText("statement.png")).toBeInTheDocument();
   });
 
+  // AC-observability.fe-ia-analytics.2
   it("AC22.18.3 tracks UPLOAD_STARTED and UPLOAD_SUCCEEDED with non-PII props on success", async () => {
     vi.mocked(fetchAiModels).mockResolvedValue({
       default_model: "google/gemini-3-flash-preview",

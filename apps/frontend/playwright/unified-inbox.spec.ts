@@ -89,6 +89,7 @@ test.describe("AC22.2.6 unified inbox smoke", () => {
     { label: "desktop", width: 1440, height: 1000 },
     { label: "mobile", width: 390, height: 844 },
   ]) {
+    // AC-platform.fe-ia-inbox.3
     test(`${label} surfaces review attention in the notification center with deep links`, async ({ page }) => {
       await page.setViewportSize({ width, height });
       await page.goto("/notifications", { waitUntil: "networkidle" });

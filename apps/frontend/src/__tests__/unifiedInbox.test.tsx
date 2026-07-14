@@ -33,6 +33,7 @@ function event(overrides: Partial<WorkflowEventResponse>): WorkflowEventResponse
 }
 
 describe("Unified notification inbox (EPIC-022 AC22.2)", () => {
+  // AC-platform.fe-ia-inbox.1
   it("AC22.2.1 surfaces Stage 1 review and Stage 2 reconciliation attention with deep links", () => {
     const events: WorkflowEventResponse[] = [
       event({ id: "review", action_href: "/statements/stmt-1/review", title: "Source review required" }),

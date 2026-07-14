@@ -1034,5 +1034,55 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
+        # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
+        ACRecord(
+            id="AC-platform.fe-ia-inbox.1",
+            statement="The unified inbox surfaces Stage 1 source-review and Stage 2 reconciliation-review attention as cards (deep-linking to their detail surfaces), so no separate Review Queue page is needed",
+            # was AC22.2.1
+            test="apps/frontend/src/__tests__/unifiedInbox.test.tsx::AC22.2.1 surfaces Stage 1 review and Stage 2 reconciliation attention with deep links",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.fe-ia-inbox.2",
+            statement="The header bell badge reflects review/reconciliation attention via the workflow event counts and stays quiet when nothing needs attention",
+            # was AC22.2.3
+            test="apps/frontend/src/__tests__/workflowSurfaces.test.tsx::AC19.3.4 AC22.2.3 shows the header badge from compact workflow counts and hides counts when quiet",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.fe-ia-inbox.3",
+            statement="Desktop and mobile smoke covers the unified inbox with review attention without layout overflow",
+            # was AC22.2.6
+            test="apps/frontend/playwright/unified-inbox.spec.ts::${label} surfaces review attention in the notification center with deep links",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.fe-ia-inbox.4",
+            statement="Deep review and reconciliation surfaces (`/review/ai-suggestions`, `/reconciliation/review-queue`, `/reconciliation`, `/reconciliation/unmatched`) render a back-link to the notification center (`/notifications`) so a user who deep-links in is never stranded",
+            # was AC22.5.3
+            test="apps/frontend/src/__tests__/reviewBackLinks.test.tsx::AC22.5.3 BackLink defaults to the notification center",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.fe-ia-inbox.5",
+            statement='User-facing review-surface headings use plain language and do not expose internal "Stage 2" or raw score-band wording in their titles',
+            # was AC22.5.4
+            test="apps/frontend/src/__tests__/reviewBackLinks.test.tsx::AC22.5.4 the review surface heading uses plain language, not internal jargon",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.fe-ia-inbox.6",
+            statement="The header notification center links to the full `/attention` queue, and the bell stays quiet (no badge) when nothing needs attention",
+            # was AC22.6.3
+            test="apps/frontend/src/__tests__/workflowSurfaces.test.tsx::AC22.6.3 links the notification center to the full confidence-ranked attention queue",
+            priority="P1",
+            status="done",
+        ),
     ],
 )

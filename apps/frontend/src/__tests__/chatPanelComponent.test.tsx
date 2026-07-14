@@ -127,6 +127,7 @@ describe("ChatPanel", () => {
     await waitFor(() => expect(mockedApiStream).toHaveBeenCalled())
   })
 
+  // AC-advisor.fe-ia-chat.1
   it("AC22.14.2 AC22.14.3 renders grounded answer citations and pending action chips", async () => {
     mockedApiStream.mockResolvedValue({
       response: streamingResponse("Your net worth is SGD 900.00", {

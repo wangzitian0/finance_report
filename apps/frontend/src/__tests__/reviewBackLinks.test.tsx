@@ -33,6 +33,7 @@ describe("Review surfaces back-link + plain copy (EPIC-022 AC22.5.3, AC22.5.4)",
         navigationState.searchParams = new URLSearchParams();
     });
 
+    // AC-platform.fe-ia-inbox.4
     it("AC22.5.3 BackLink defaults to the notification center", () => {
         render(<BackLink>Back to Notifications</BackLink>);
         expect(screen.getByRole("link", { name: /Back to Notifications/i })).toHaveAttribute(
@@ -63,6 +64,7 @@ describe("Review surfaces back-link + plain copy (EPIC-022 AC22.5.3, AC22.5.4)",
         );
     });
 
+    // AC-platform.fe-ia-inbox.5
     it("AC22.5.4 the review surface heading uses plain language, not internal jargon", async () => {
         vi.mocked(apiFetch).mockResolvedValue({ items: [] });
         render(<AiSuggestionsPage />);

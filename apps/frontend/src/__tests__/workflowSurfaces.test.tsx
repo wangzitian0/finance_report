@@ -200,6 +200,7 @@ describe("workflow notification surfaces", () => {
     vi.mocked(updateWorkflowEventStatus).mockResolvedValue(workflowEvents.items[0])
   })
 
+  // AC-platform.fe-ia-inbox.2
   it("AC19.3.4 AC22.2.3 shows the header badge from compact workflow counts and hides counts when quiet", async () => {
     renderWithQuery(<WorkflowNotificationCenter />)
 
@@ -214,6 +215,7 @@ describe("workflow notification surfaces", () => {
     await waitFor(() => expect(screen.getAllByRole("button", { name: /Workflow events/i })[1]).not.toHaveTextContent("0"))
   })
 
+  // AC-platform.fe-ia-inbox.6
   it("AC22.6.3 links the notification center to the full confidence-ranked attention queue", async () => {
     renderWithQuery(<WorkflowNotificationCenter />)
 

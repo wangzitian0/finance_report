@@ -71,6 +71,7 @@ test.describe("AC22.6.4 attention surface smoke", () => {
     { label: "desktop", width: 1440, height: 1000 },
     { label: "mobile", width: 390, height: 844 },
   ]) {
+    // AC-reconciliation.fe-ia-reconciliation.5
     test(`${label} renders the attention queue ranked by confidence without overflow`, async ({ page }) => {
       await page.setViewportSize({ width, height });
 

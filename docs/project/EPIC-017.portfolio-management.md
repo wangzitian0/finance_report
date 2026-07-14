@@ -329,9 +329,9 @@ For #521 closure, this EPIC should be sequenced as:
    - traceability appendix (`#572`)
 4. Provide deterministic fixture inputs for the package proof (`#573`).
 5. Done: extend the implemented `#565` post-merge package proof with the
-   report-ready investment schedule (`AC5.8.1`, now also
-   `AC-reporting.package-investment.1` and
-   `AC-portfolio.report-schedule.1-2` after the package-roadmap migration).
+   report-ready investment schedule, now
+   `AC-reporting.package-investment.1`, `AC-reporting.fe-viz-reports.2`, and
+   `AC-portfolio.report-schedule.1-2` after the package-roadmap migration.
 
 The post-merge proof test is owned by EPIC-008.
 
