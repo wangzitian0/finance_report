@@ -139,10 +139,7 @@ def test_AC19_1_1_workflow_event_ssot_registers_manifest_owner() -> None:
     concept = concepts["workflow_events"]
 
     assert concept["owner"] == "common/platform/workflow-events.md"
-    assert (
-        "docs/project/EPIC-019.event-driven-upload-to-report-ux.md"
-        in concept["cross_refs"]
-    )
+    assert "docs/project/EPIC-019.event-driven-upload-to-report-ux.md" in concept["cross_refs"]
 
 
 def test_AC19_3_8_workflow_notification_ssot_documents_frontend_surfaces() -> None:
