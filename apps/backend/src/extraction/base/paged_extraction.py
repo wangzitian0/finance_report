@@ -59,18 +59,27 @@ def build_paged_prompt(
     """
     if part_count <= 1:
         return base_prompt
-    context_rule = (
-        "- The FIRST image is page 1 of the document, included ONLY as context for "
-        "table headers, column meanings, account metadata, and currency. Do NOT "
-        "extract transactions from this context page — extract transactions "
-        f"exclusively from the pages {page_start}-{page_end} images that follow it.\n"
-        if has_context_page
-        else ""
-    )
+    if has_context_page:
+        header = (
+            f"IMPORTANT — PARTIAL DOCUMENT ({part_index}/{part_count}): the FIRST image below is "
+            f"page 1 of the document, included only as context; the remaining images are pages "
+            f"{page_start}-{page_end} of a {total_pages}-page statement.\n"
+        )
+        context_rule = (
+            "- The FIRST image is page 1 of the document, included ONLY as context for "
+            "table headers, column meanings, account metadata, and currency. Do NOT "
+            "extract transactions from this context page — extract transactions "
+            f"exclusively from the pages {page_start}-{page_end} images that follow it.\n"
+        )
+    else:
+        header = (
+            f"IMPORTANT — PARTIAL DOCUMENT ({part_index}/{part_count}): this request contains "
+            f"only pages {page_start}-{page_end} of a {total_pages}-page statement.\n"
+        )
+        context_rule = ""
     return (
         f"{base_prompt}\n\n"
-        f"IMPORTANT — PARTIAL DOCUMENT ({part_index}/{part_count}): this request contains "
-        f"only pages {page_start}-{page_end} of a {total_pages}-page statement.\n"
+        f"{header}"
         f"{context_rule}"
         "- Extract EVERY transaction visible on these pages, in order.\n"
         "- opening_balance: report it only if the statement-level opening balance is "

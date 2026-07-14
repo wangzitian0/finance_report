@@ -136,6 +136,11 @@ class TestPagedPrompt:
         )
         assert "ONLY as context" in with_context
         assert "Do NOT extract transactions from this context page" in with_context
+        # PR #1843 review: the header must not claim "only pages X-Y" when a
+        # leading context image is also included — that mismatch could confuse
+        # the model about the extra image it's seeing.
+        assert "only pages 6-10" not in with_context
+        assert "the FIRST image below is" in with_context
         without_context = build_paged_prompt(
             "BASE", part_index=1, part_count=3, page_start=1, page_end=5, total_pages=12
         )
