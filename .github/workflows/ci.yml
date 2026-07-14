@@ -171,7 +171,10 @@ jobs:
             git diff --name-only "$base_sha" "$head_sha" > "$RUNNER_TEMP/ssot-changed-files.txt"
           fi
 
-          uv run --with pyyaml python tools/report_ssot_governance.py \
+          # --with pydantic (#1799): report_ssot_governance.py's finance_report
+          # source now routes through check_manifest.py's computed union,
+          # which loads package contracts (pydantic-backed PackageContract).
+          uv run --with pyyaml --with pydantic python tools/report_ssot_governance.py \
             --changed-files "$RUNNER_TEMP/ssot-changed-files.txt" \
             --base-ref "$base_sha" \
             --fail-on-gate \

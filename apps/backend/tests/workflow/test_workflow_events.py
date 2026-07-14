@@ -130,13 +130,19 @@ async def _make_statement(
 
 def test_AC19_1_1_workflow_event_ssot_registers_manifest_owner() -> None:
     """AC-platform.30.1: AC19.1.1: workflow event SSOT is registered as a single manifest owner."""
-    manifest_path = ROOT_DIR / "common" / "meta" / "data" / "MANIFEST.yaml"
-    with open(manifest_path, encoding="utf-8") as fh:
-        manifest = fh.read()
+    # workflow_events is now declared in common/platform/contract.py, not
+    # hand-copied into MANIFEST.yaml (#1799) — check the computed registry.
+    from common.meta.extension.check_manifest import load_computed_concepts
 
-    assert "workflow_events:" in manifest
-    assert "owner: common/platform/workflow-events.md" in manifest
-    assert "docs/project/EPIC-019.event-driven-upload-to-report-ux.md" in manifest
+    manifest_path = ROOT_DIR / "common" / "meta" / "data" / "MANIFEST.yaml"
+    concepts = load_computed_concepts(ROOT_DIR, manifest_path)
+    concept = concepts["workflow_events"]
+
+    assert concept["owner"] == "common/platform/workflow-events.md"
+    assert (
+        "docs/project/EPIC-019.event-driven-upload-to-report-ux.md"
+        in concept["cross_refs"]
+    )
 
 
 def test_AC19_3_8_workflow_notification_ssot_documents_frontend_surfaces() -> None:
