@@ -53,7 +53,7 @@ this EPIC references that contract rather than restating it.
    register it in `docs/ssot/MANIFEST.yaml` (`authority_tiers`).
 2. Extend the EPIC AC declaration with a `{tier:XX}` marker and teach
    `tools/generate_ac_registry.py` to lift it into the AC value.
-3. Add `tools/check_ac_tier_baseline.py` + `docs/ssot/ac-tier-baseline.json`
+3. Add `tools/check_ac_tier_baseline.py` + `common/meta/data/ac-tier-baseline.json`
    (shrink-only untagged-debt baseline), wired into the AC/lint gate; add a test.
 4. Tag every AC in the first-batch EPICs and shrink the baseline accordingly.
 

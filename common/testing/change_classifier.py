@@ -216,7 +216,7 @@ STAGING_AI_OCR_EXACT = frozenset(
         # of the AC graph. Adding/removing an llm-marked post-merge @ac_proof
         # edits its OWN e2e test file, and every such file is already a staging
         # trigger below, so the staging gate still fires on the real change.
-        "docs/ssot/critical-proof-outcomes.yaml",
+        "common/testing/data/critical-proof-outcomes.yaml",
         "common/extraction/readme.md",
         "tests/e2e/test_brokerage_upload_to_portfolio_value.py",
         "tests/e2e/test_four_asset_net_worth_golden_path.py",

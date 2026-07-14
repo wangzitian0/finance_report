@@ -38,7 +38,7 @@ from src.reconciliation import (
 
 BACKEND_DIR = Path(__file__).parent.parent.parent
 MIGRATION_PATH = BACKEND_DIR / "migrations" / "versions" / "0034_audit_anchor_referential_integrity.py"
-RISK_PATH = BACKEND_DIR.parent.parent / "docs" / "ssot" / "migration-risk.yaml"
+RISK_PATH = BACKEND_DIR.parent.parent / "common" / "meta" / "data" / "migration-risk.yaml"
 
 
 async def _expect_integrity_error(db: AsyncSession, *objects: object) -> None:

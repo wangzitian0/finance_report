@@ -509,7 +509,7 @@ Closure status:
 1. Done: #565 added the behavioral post-merge package journey and provides the
    current baseline proof anchor for
    `personal-financial-report-package` in
-   the derived critical-proof matrix (source `docs/ssot/critical-proof-outcomes.yaml`).
+   the derived critical-proof matrix (source `common/testing/data/critical-proof-outcomes.yaml`).
 2. Done: #570 defines `GET /api/reports/package/contract` so backend,
    frontend, export, and E2E assertions share stable package section IDs,
    labels, period semantics, and Decimal-safe export fields.
@@ -526,7 +526,7 @@ Closure status:
    hardened the covered package proof with dynamic traceability identifiers and
    pinned brokerage/dividend/market-price fixture expected outputs.
 
-The macro outcome is `covered` in the derived critical-proof matrix (source `docs/ssot/critical-proof-outcomes.yaml`) once
+The macro outcome is `covered` in the derived critical-proof matrix (source `common/testing/data/critical-proof-outcomes.yaml`) once
 the representative fixture coverage (#573) is merged.
 
 ## 📄 Owned Documentation Surfaces

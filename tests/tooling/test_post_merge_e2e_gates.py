@@ -644,7 +644,7 @@ def test_AC8_13_160_ci_cd_distinguishes_canary_from_audit_replay() -> None:
     assert "test_brokerage_upload_to_portfolio_value.py" in ci_cd
     # The split is recorded as an intentional keep_separate decision in the
     # gate inventory.
-    inventory = yaml.safe_load(read("docs/ssot/ci-gate-inventory.yaml"))
+    inventory = yaml.safe_load(read("common/meta/data/ci-gate-inventory.yaml"))
     candidate = next(
         item
         for item in inventory["deferred_candidates"]
@@ -1628,7 +1628,7 @@ def test_AC8_13_16_workflows_opt_into_node24_actions_runtime() -> None:
         assert "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24" not in workflow, workflow_path.name
 
     ci_cd = read("docs/ssot/ci-cd.md")
-    inventory = yaml.safe_load(read("docs/ssot/github-action-runtime.yaml"))
+    inventory = yaml.safe_load(read("common/testing/data/github-action-runtime.yaml"))
     forced_actions = [
         action["uses"]
         for action in inventory["actions"]
@@ -1638,7 +1638,7 @@ def test_AC8_13_16_workflows_opt_into_node24_actions_runtime() -> None:
     assert inventory["forced_node20_metadata_count_must_be"] == 0
     assert "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24" in ci_cd
     assert "GitHub JavaScript action runtime debt is closed" in ci_cd
-    assert "docs/ssot/github-action-runtime.yaml" in ci_cd
+    assert "common/testing/data/github-action-runtime.yaml" in ci_cd
     assert not forced_actions
     assert set(forced_actions) == exceptions
 
@@ -1771,7 +1771,7 @@ def test_AC8_13_145_backend_tier1_pr_fail_fast_but_main_reports_all_failures() -
     """AC-testing.ci-structure.6: AC8.13.145: PR Tier-1 E2E is fail-fast; main push reports every failure."""
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
-    inventory = read("docs/ssot/ci-gate-inventory.yaml")
+    inventory = read("common/meta/data/ci-gate-inventory.yaml")
 
     tier1_block = workflow.split("  backend-e2e-tier1:", 1)[1].split(
         "  frontend-build:",
@@ -1907,7 +1907,7 @@ def test_AC8_13_148_backend_shards_use_seeded_5_way_split() -> None:
     workflow_text = read(".github/workflows/ci.yml")
     workflow = yaml.safe_load(workflow_text)
     backend_job = workflow["jobs"]["backend"]
-    inventory = read("docs/ssot/ci-gate-inventory.yaml")
+    inventory = read("common/meta/data/ci-gate-inventory.yaml")
     ci_cd = read("docs/ssot/ci-cd.md")
     durations = json.loads(read("apps/backend/ci/backend-test-durations.json"))
 
@@ -2045,7 +2045,7 @@ def test_AC8_13_146_report_main_dispatch_waits_for_ci_images() -> None:
     assert 'deploy_args+=(--expected-sha "$DISPATCH_SHA")' in receiver_script
     assert "--expected-sha" in read("repo/tools/deploy_v2.py")
 
-    delivery_gates = yaml.safe_load(read("docs/ssot/delivery-gates.yaml"))["gates"]
+    delivery_gates = yaml.safe_load(read("common/meta/data/delivery-gates.yaml"))["gates"]
     report_gate = next(
         gate for gate in delivery_gates if gate["id"] == "report-main-preview"
     )
@@ -2182,7 +2182,7 @@ def test_AC8_13_144_production_release_rolls_back_with_deploy_v2_after_post_depl
     """AC-testing.deploy-gates.29: AC8.13.144: production rollback uses deploy_v2 and confirms previous health."""
     workflow = read(".github/workflows/release.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
-    inventory = read("docs/ssot/ci-gate-inventory.yaml")
+    inventory = read("common/meta/data/ci-gate-inventory.yaml")
 
     rollback_block = workflow.split(
         "- name: Roll back production after post-deploy failure", 1
@@ -3045,7 +3045,7 @@ def test_AC8_13_67_backend_tier1_api_e2e_scope_excludes_browser_e2e() -> None:
     workflow = read(".github/workflows/ci.yml")
     pyproject = read("apps/backend/pyproject.toml")
     ci_cd = read("docs/ssot/ci-cd.md")
-    matrix_yaml = yaml.safe_load(read("docs/ssot/test-execution-matrix.yaml"))
+    matrix_yaml = yaml.safe_load(read("common/testing/data/test-execution-matrix.yaml"))
 
     tier1_block = workflow.split("  backend-e2e-tier1:", 1)[1].split(
         "  frontend-build:",
@@ -3175,7 +3175,7 @@ def test_AC8_13_143_unified_coverage_updates_baseline_through_pr_not_direct_main
     """AC-testing.coverage.5: AC8.13.143: main baseline updates are automated through a PR, not a direct push."""
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
-    inventory = read("docs/ssot/ci-gate-inventory.yaml")
+    inventory = read("common/meta/data/ci-gate-inventory.yaml")
 
     unified_coverage_block = workflow.split("  unified-coverage:", 1)[1].split(
         "  unified-coverage-baseline-pr:", 1

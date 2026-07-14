@@ -122,7 +122,7 @@ WORKFLOW_FORBIDDEN_PUSH_BRANCHES: dict[str, tuple[str, ...]] = {
     ".github/workflows/release.yml": ("main",),
 }
 
-ACTION_RUNTIME_INVENTORY = "docs/ssot/github-action-runtime.yaml"
+ACTION_RUNTIME_INVENTORY = "common/testing/data/github-action-runtime.yaml"
 ACTION_RUNTIME_STATUSES = {"node24_native", "forced_node20_metadata"}
 ACTION_RUNTIME_METADATA_GLOBS = (
     ".github/workflows/*.yml",

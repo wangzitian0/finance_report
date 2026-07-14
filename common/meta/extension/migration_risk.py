@@ -304,7 +304,7 @@ def validate(*, manifest_path: Path, migrations_dir: Path) -> ValidationResult:
 
 def validate_repository(repo_root: Path) -> ValidationResult:
     return validate(
-        manifest_path=repo_root / "docs" / "ssot" / "migration-risk.yaml",
+        manifest_path=repo_root / "common" / "meta" / "data" / "migration-risk.yaml",
         migrations_dir=repo_root / "apps" / "backend" / "migrations" / "versions",
     )
 
@@ -361,7 +361,7 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = args.repo_root.resolve()
     result = validate(
         manifest_path=args.manifest
-        or repo_root / "docs" / "ssot" / "migration-risk.yaml",
+        or repo_root / "common" / "meta" / "data" / "migration-risk.yaml",
         migrations_dir=args.migrations_dir
         or repo_root / "apps" / "backend" / "migrations" / "versions",
     )

@@ -31,7 +31,7 @@ _CONTRACT_INPUTS = (
     ".github/workflows/notify-infra2.yml",
     ".github/actions/setup-e2e-tests/action.yml",
     "docs/ssot/ci-cd.md",
-    "docs/ssot/github-action-runtime.yaml",
+    "common/testing/data/github-action-runtime.yaml",
     "docs/ssot/deployment.md",
     "docs/ssot/environments.md",
     ".github/ISSUE_TEMPLATE/issue.yml",
@@ -237,7 +237,7 @@ def test_action_runtime_inventory_rejects_uninventoried_workflow_actions(
     tmp_path,
 ) -> None:
     _copy_inputs(tmp_path)
-    target = tmp_path / "docs/ssot/github-action-runtime.yaml"
+    target = tmp_path / "common/testing/data/github-action-runtime.yaml"
     content = target.read_text(encoding="utf-8")
     content = content.replace(
         "  - uses: actions/checkout@v7\n"
@@ -253,7 +253,7 @@ def test_action_runtime_inventory_requires_exceptions_for_forced_node20_metadata
     tmp_path,
 ) -> None:
     _copy_inputs(tmp_path)
-    target = tmp_path / "docs/ssot/github-action-runtime.yaml"
+    target = tmp_path / "common/testing/data/github-action-runtime.yaml"
     content = target.read_text(encoding="utf-8")
     content = content.replace(
         "  - uses: actions/cache@v5\n"
@@ -269,7 +269,7 @@ def test_action_runtime_inventory_requires_exceptions_for_forced_node20_metadata
 
 def test_action_runtime_inventory_rejects_forced_count_drift(tmp_path) -> None:
     _copy_inputs(tmp_path)
-    target = tmp_path / "docs/ssot/github-action-runtime.yaml"
+    target = tmp_path / "common/testing/data/github-action-runtime.yaml"
     content = target.read_text(encoding="utf-8")
     content = content.replace(
         "forced_node20_metadata_count_must_be: 0",

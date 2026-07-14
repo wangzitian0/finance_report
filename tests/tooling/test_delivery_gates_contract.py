@@ -1,5 +1,5 @@
 """Contract: each delivery gate's workflow matches its declared trigger in
-docs/ssot/delivery-gates.yaml (the SSOT).
+common/meta/data/delivery-gates.yaml (the SSOT).
 
 This is the verifier half of the "one manifest, derive everywhere" decoupling. It
 parses each workflow's `on:`/`jobs:` STRUCTURE and checks it against the manifest, so a
@@ -32,7 +32,7 @@ _TRIGGER_ON_KEY = {
     "tag": "push",  # release tags live under on.push.tags
 }
 
-GATES = _load("docs/ssot/delivery-gates.yaml")["gates"]
+GATES = _load("common/meta/data/delivery-gates.yaml")["gates"]
 
 
 def test_every_gate_workflow_declares_its_manifest_trigger():

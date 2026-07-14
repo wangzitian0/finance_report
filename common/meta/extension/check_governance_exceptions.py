@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Validate the bottom-up proof-exception registry (issue #524).
 
-``docs/ssot/governance-exceptions.yaml`` classifies the surfaces the bottom-up
+``common/meta/data/governance-exceptions.yaml`` classifies the surfaces the bottom-up
 proof chain deliberately does not gate as normal AC proof:
 
   * ``proof_exceptions``    — budgeted or e2e-only proofs bounded by a guard or
@@ -28,7 +28,7 @@ from pathlib import Path
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_REGISTRY = REPO_ROOT / "docs" / "ssot" / "governance-exceptions.yaml"
+DEFAULT_REGISTRY = REPO_ROOT / "common" / "meta" / "data" / "governance-exceptions.yaml"
 
 CLASSIFIED_SECTIONS = ("proof_exceptions", "code_owned_surfaces")
 REQUIRED_FIELDS = ("id", "owner", "reason", "issue")

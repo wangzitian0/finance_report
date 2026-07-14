@@ -10,7 +10,7 @@ done, and a coarse ratchet that makes every new cascade a conscious,
 reviewed choice is worth more now than a precise one later.
 
 What CI enforces: the census must **equal** the checked-in baseline
-(``docs/ssot/fk-cascade-baseline.json``). Silent growth fails; adding a
+(``common/meta/data/fk-cascade-baseline.json``). Silent growth fails; adding a
 cascade is possible only by raising the baseline in the same PR, where the
 diff makes the choice reviewable (the app-boundary-baseline idiom); removed
 cascades must prune the baseline so the ratchet stays tight. The policy
@@ -31,7 +31,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 SRC = REPO / "apps/backend/src"
-BASELINE_PATH = REPO / "docs/ssot/fk-cascade-baseline.json"
+BASELINE_PATH = REPO / "common/meta/data/fk-cascade-baseline.json"
 
 
 def _cascade_census() -> Counter[str]:
@@ -108,7 +108,7 @@ def test_AC_meta_txn_4_cross_domain_cascade_only_shrinks() -> None:
     }
     assert not stale, (
         "the baseline over-counts — CASCADEs were removed (good!); prune "
-        "docs/ssot/fk-cascade-baseline.json to match in the same PR so the "
+        "common/meta/data/fk-cascade-baseline.json to match in the same PR so the "
         "ratchet stays tight.\n"
         f"stale (baseline, actual): {stale}\n"
         f"full census: {json.dumps(dict(sorted(counts.items())), indent=2)}"

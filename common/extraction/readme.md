@@ -41,7 +41,7 @@ weaken extraction confidence or balance-validation rules.
 
 Supported source classes, proof levels, review requirements, and traceability
 targets are owned by
-[`source_coverage_matrix`](../../docs/ssot/source-coverage-matrix.yaml). This document
+[`source_coverage_matrix`](../../common/testing/data/source-coverage-matrix.yaml). This document
 explains extraction behavior; source-class changes must land through the matrix
 and its EPIC -> AC -> test anchors.
 

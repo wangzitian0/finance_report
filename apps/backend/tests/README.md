@@ -17,7 +17,7 @@ uv run pytest tests/ --cov=src --cov-report=term-missing
 | Need | Source |
 |---|---|
 | EPIC -> AC -> test workflow | [tdd.md](../../../docs/ssot/tdd.md) |
-| Test execution stages | [test-execution-matrix.yaml](../../../docs/ssot/test-execution-matrix.yaml) |
+| Test execution stages | [test-execution-matrix.yaml](../../../common/testing/data/test-execution-matrix.yaml) |
 | Coverage semantics | [coverage.md](../../../docs/ssot/coverage.md) |
 | SSOT domain index | [README.md](../../../docs/ssot/README.md) |
 | Traceability exceptions | [traceability-exceptions.md](../../../docs/project/traceability-exceptions.md) |

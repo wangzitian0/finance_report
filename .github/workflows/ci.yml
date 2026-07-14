@@ -246,7 +246,7 @@ jobs:
           uv run --with pyyaml python tools/check_ac_index.py
       - name: AC Authority-Tier Ratchet
         run: |
-          # EPIC-026: shrink-only ratchet over docs/ssot/ac-tier-baseline.json.
+          # EPIC-026: shrink-only ratchet over common/meta/data/ac-tier-baseline.json.
           # Id-based: fails only when an AC whose id is absent from the baseline
           # (a genuinely new AC) lacks a {tier:XX} marker; the legacy untagged AC
           # ids in the baseline are tolerated and the debt may only shrink.

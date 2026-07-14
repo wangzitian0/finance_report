@@ -504,7 +504,7 @@ def _validate_readme_contract(repo_root: Path, outcomes: list[OutcomeResult]) ->
     # The critical proof matrix is now a derived (not committed) view of the one
     # AC-keyed graph; the README links the source-of-truth model and gate
     # instead of the retired committed YAML.
-    if "docs/ssot/critical-proof-outcomes.yaml" not in text:
+    if "common/testing/data/critical-proof-outcomes.yaml" not in text:
         errors.append("README.md missing critical proof outcomes source link")
     if "tools/check_ac_index.py" not in text:
         errors.append("README.md missing AC index consistency gate command")

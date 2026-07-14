@@ -192,11 +192,11 @@ def test_AC14_1_19_graph_vision_items_come_from_passed_root(tmp_path) -> None:
 
     anchor = _write_temp_vision_repo(tmp_path)
     # build_ac_graph also needs an outcomes doc + baseline under the temp root.
-    (tmp_path / "docs" / "ssot").mkdir(parents=True, exist_ok=True)
-    (tmp_path / "docs" / "ssot" / "critical-proof-outcomes.yaml").write_text(
+    (tmp_path / "common" / "testing" / "data").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "common" / "testing" / "data" / "critical-proof-outcomes.yaml").write_text(
         "version: '1.0'\noutcomes: []\n", encoding="utf-8"
     )
-    (tmp_path / "docs" / "ssot" / "ac-score-baseline.jsonl").write_text("", encoding="utf-8")
+    (tmp_path / "common" / "testing" / "data" / "ac-score-baseline.jsonl").write_text("", encoding="utf-8")
 
     graph = build_ac_graph(tmp_path)
     vision_anchors = {item.anchor for item in graph.vision_items}

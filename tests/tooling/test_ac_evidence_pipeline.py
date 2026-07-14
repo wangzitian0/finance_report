@@ -378,7 +378,7 @@ def test_load_json_rejects_non_object(tmp_path):
 
 def test_committed_baseline_matches_schema():
     """The seeded baseline must be loadable, sorted, and well-formed JSONL."""
-    path = REPO_ROOT / "docs" / "ssot" / "ac-score-baseline.jsonl"
+    path = REPO_ROOT / "common" / "testing" / "data" / "ac-score-baseline.jsonl"
     baseline = baseline_format.load_jsonl(path)
     assert baseline["version"] == 1
     # was AC4.1.4, migrated to the reconciliation package roadmap (#1663)

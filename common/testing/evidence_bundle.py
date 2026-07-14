@@ -37,7 +37,7 @@ BUNDLE_VERSION = 1
 # Gate map: lane -> job -> blocking?. Hand-maintained mirror of ci.yml's
 # `finish` job "Check job status" step, the canonical definition of which jobs
 # block merge in this repo (no generator exists for the CI job graph itself,
-# unlike docs/ssot/test-execution-matrix.yaml for test-file selection). Keep in
+# unlike common/testing/data/test-execution-matrix.yaml for test-file selection). Keep in
 # sync when jobs are added/removed there —
 # tests/tooling/test_evidence_bundle.py checks every listed job id still
 # exists in ci.yml.
@@ -79,7 +79,7 @@ def coverage_water_line(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
 
 
 def ac_score_water_line(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
-    """The per-AC behavioural-score floor (docs/ssot/ac-score-baseline.jsonl).
+    """The per-AC behavioural-score floor (common/testing/data/ac-score-baseline.jsonl).
 
     Unlike its cassette_eval_baseline sibling, ac_score_baseline_format.load_jsonl
     does not itself default a missing file to empty — it is a production module
@@ -89,7 +89,7 @@ def ac_score_water_line(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     """
     from common.testing.ac_score_baseline_format import load_jsonl
 
-    path = repo_root / "docs" / "ssot" / "ac-score-baseline.jsonl"
+    path = repo_root / "common" / "testing" / "data" / "ac-score-baseline.jsonl"
     payload = load_jsonl(path) if path.exists() else {"acs": {}}
     acs = payload.get("acs", {})
     scores = [float(record.get("score", 0.0)) for record in acs.values()]
@@ -103,7 +103,7 @@ def ac_tier_water_line(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     """The AC authority-tier untagged-debt ratchet (shrink-only)."""
     from common.meta.extension.check_ac_tier_baseline import load_baseline
 
-    untagged = load_baseline(repo_root / "docs" / "ssot" / "ac-tier-baseline.json")
+    untagged = load_baseline(repo_root / "common" / "meta" / "data" / "ac-tier-baseline.json")
     return {"untagged_debt_count": len(untagged)}
 
 
@@ -111,7 +111,7 @@ def protection_water_line(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     """The per-type protection count floor (has_real_ref/has_proof/has_score/has_mirror)."""
     from common.testing.protection import load_floor
 
-    return {"floor": load_floor(repo_root / "docs" / "ssot" / "protection-floor.json")}
+    return {"floor": load_floor(repo_root / "common" / "testing" / "data" / "protection-floor.json")}
 
 
 def cassette_eval_water_line() -> dict[str, Any]:

@@ -372,7 +372,7 @@ For #521 closure, this EPIC sequence is:
 `#570`, `#571`, and `#572` are shared package prerequisites with EPIC-005;
 `#566` supplies the report-ready schedule contract and the `#565` package E2E
 now proves `annualized-income-long-term` in
-the derived critical-proof matrix (source `docs/ssot/critical-proof-outcomes.yaml`). `#573` remains responsible for the
+the derived critical-proof matrix (source `common/testing/data/critical-proof-outcomes.yaml`). `#573` remains responsible for the
 representative fixture expansion needed before the overall
 `personal-financial-report-package` macro can move from `partial` to `covered`.
 

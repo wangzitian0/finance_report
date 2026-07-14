@@ -21,7 +21,7 @@ exceptions:
       in kind coverage is intentional. Remove once re-baselined on main.
 
   # Storage migration: the AC-score ratchet baseline moved from a central JSON
-  # object to conflict-free sorted JSONL (docs/ssot/ac-score-baseline.jsonl,
+  # object to conflict-free sorted JSONL (common/testing/data/ac-score-baseline.jsonl,
   # merge=union). The deleted .json shows up as a changed SSOT file with no
   # owner; this temporary exception covers only the deletion churn in this PR.
   - target: finance_report:docs/ssot/ac-score-baseline.json

@@ -13,7 +13,7 @@ from common.testing.ac_proof_execution import (
 )
 
 ROOT = Path(__file__).resolve().parents[2]
-INVENTORY = ROOT / "docs" / "ssot" / "ci-gate-inventory.yaml"
+INVENTORY = ROOT / "common" / "meta" / "data" / "ci-gate-inventory.yaml"
 WORKFLOWS = ROOT / ".github" / "workflows"
 
 EXPECTED_STAGES = set(PROOF_EXECUTION_STAGES)

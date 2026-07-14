@@ -27,7 +27,7 @@ from pathlib import Path
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-OUTCOMES_PATH = REPO_ROOT / "docs" / "ssot" / "critical-proof-outcomes.yaml"
+OUTCOMES_PATH = REPO_ROOT / "common" / "testing" / "data" / "critical-proof-outcomes.yaml"
 REGISTRY_PATH = REPO_ROOT / "docs" / "ac_registry.yaml"
 BASELINE_PATH = Path(__file__).parent / "critical-value-proof-baseline.json"
 

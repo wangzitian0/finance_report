@@ -302,7 +302,7 @@ coupling between the remainder and the already-carved packages.
 
 `check_app_boundary` (`common/meta/extension/check_app_boundary.py`) closes that
 blind spot, fail-closed, on a **monotonic baseline**
-(`docs/ssot/app-boundary-baseline.json`) of two edge kinds:
+(`common/meta/data/app-boundary-baseline.json`) of two edge kinds:
 
 - **inbound** — the remainder importing a carved package's *unpublished internal*
   (an encapsulation leak: a "completed" package silently losing its boundary);
@@ -341,7 +341,7 @@ keeps the sanction honest:
   app-boundary ratchet above holds it).
 - **Thin-ness ratchet** — routers hold no domain logic, approximated as a
   shrink-only line-count baseline for `routers/` + `schemas/`
-  (`docs/ssot/delivery-layer-baseline.json`, gate
+  (`common/meta/data/delivery-layer-baseline.json`, gate
   `tests/tooling/test_delivery_layer_ratchet.py`, AC-meta.delivery.1): the
   census must stay within a 50-line band of the baseline — silent growth fails
   CI; growing the delivery layer requires raising the baseline in the same PR,
@@ -376,7 +376,7 @@ enforced by `check_package_contract` (AC-meta.txn.3) and the cascade ratchet
    the application: one table's delete silently mutates other rows. Across
    domains that breaks one-txn-per-domain (Decision B) and append-only domains
    (Axiom A) — the case this policy exists for. The census in
-   `docs/ssot/fk-cascade-baseline.json` covers **every** CASCADE site,
+   `common/meta/data/fk-cascade-baseline.json` covers **every** CASCADE site,
    deliberately not domain-aware (table→package ownership only becomes
    trivially derivable after models decentralization, #1675 D5/D6); what CI
    enforces is census == baseline — silent growth fails, adding a cascade

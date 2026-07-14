@@ -3,7 +3,7 @@
 
 The persisted behavioural-score ratchet baseline is converted to its merge-safe
 form: ``docs/ssot/ac-score-baseline.json`` (single central JSON object) ->
-``docs/ssot/ac-score-baseline.jsonl`` (sorted, one AC per line). Each AC's
+``common/testing/data/ac-score-baseline.jsonl`` (sorted, one AC per line). Each AC's
 score/metric/provenance is carried over unchanged (scores are re-serialised
 through ``float()`` and rounded to 6 decimal places, the same normalisation the
 ratchet's own ``--update`` path already applies, so the floor never moves).
@@ -38,7 +38,7 @@ from common.testing.ac_score_baseline_format import (  # noqa: E402
 
 REPO_ROOT = ROOT_DIR
 LEGACY_BASELINE = REPO_ROOT / "docs" / "ssot" / "ac-score-baseline.json"
-JSONL_BASELINE = REPO_ROOT / "docs" / "ssot" / "ac-score-baseline.jsonl"
+JSONL_BASELINE = REPO_ROOT / "common" / "testing" / "data" / "ac-score-baseline.jsonl"
 
 
 def _raise_only_merge(existing: dict[str, dict], incoming: dict[str, dict]) -> dict[str, dict]:

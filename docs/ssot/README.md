@@ -18,7 +18,7 @@ README.md -> EPIC -> E2E
 
 That macro contract is a DERIVED (not committed) view of the one AC-keyed graph
 ([ac_graph.py](../../common/testing/ac_graph.py)): its hand-curated outcome source
-is [critical-proof-outcomes.yaml](./critical-proof-outcomes.yaml) and its proofs
+is [common/testing/data/critical-proof-outcomes.yaml](../../common/testing/data/critical-proof-outcomes.yaml) and its proofs
 come from the co-located `@ac_proof` decorators. It is validated by
 `tools/check_ac_index.py` and gated for dangling/missing links by
 `tools/check_ac_index.py`. The checker keeps the README outcome table, matrix
@@ -70,8 +70,8 @@ cleanup that backfills `family` / `kind` and binds child clauses.
 | [development.md](./development.md) | `development` | Developer workflow and command entry points |
 | [environments.md](./environments.md) | `environments` | Environment taxonomy and isolation rationale |
 | [ci-cd.md](./ci-cd.md) | `ci-cd` / `ac_proof_execution_model` | CI gate semantics, workflow references, and AC-keyed proof execution placement |
-| [ci-gate-inventory.yaml](./ci-gate-inventory.yaml) | `ci_gate_inventory` | Transitional stage/task_category job inventory and duplicate-cleanup candidate registry |
-| [github-action-runtime.yaml](./github-action-runtime.yaml) | `github_action_runtime` | GitHub JavaScript action runtime inventory and Node20 metadata exceptions |
+| [common/meta/data/ci-gate-inventory.yaml](../../common/meta/data/ci-gate-inventory.yaml) | `ci_gate_inventory` | **Moved** (#1822) — Transitional stage/task_category job inventory and duplicate-cleanup candidate registry |
+| [common/testing/data/github-action-runtime.yaml](../../common/testing/data/github-action-runtime.yaml) | `github_action_runtime` | **Moved** (#1822) — GitHub JavaScript action runtime inventory and Node20 metadata exceptions |
 | [deployment.md](./deployment.md) | `deployment` | Deployment model and release rationale |
 | [observability.md](./observability.md) | `observability` | Structured logging and OTLP rationale |
 | [runtime-incident-response.md](./runtime-incident-response.md) | `runtime_incident_response` | Runtime incident triage and stability-proof routing |
@@ -80,7 +80,7 @@ cleanup that backfills `family` / `kind` and binds child clauses.
 | [coverage.md](./coverage.md) | `coverage` | Coverage metric semantics; code owner is `common/meta/extension/coverage/policy.py` |
 | [frontend-patterns.md](./frontend-patterns.md) | `frontend-patterns` | Frontend integration rules and proof references (incl. browser auth/session) |
 | [schema.md](./schema.md) | `schema` | Data-layer rationale and migration guardrails; mutable inventory is generated |
-| [migration-risk.yaml](./migration-risk.yaml) | `migration_risk_classification` | Alembic migration risk levels and required release proof notes |
+| [common/meta/data/migration-risk.yaml](../../common/meta/data/migration-risk.yaml) | `migration_risk_classification` | **Moved** (#1822) — Alembic migration risk levels and required release proof notes |
 | [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md) | `accounting` | Double-entry rationale and invariant references — internalized into the `ledger` package (migration-standard step 3) |
 | [../../common/meta/readme.md](../../common/meta/readme.md) | `package_model` | Package = DDD bounded context; PackageContract + role model; governance computed from contracts. Self-hosted in the `common/meta` meta package. |
 | [MANIFEST.yaml](./MANIFEST.yaml) | `manifest` | Machine-readable concept owner registry |
@@ -102,7 +102,7 @@ cleanup that backfills `family` / `kind` and binds child clauses.
 | [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md) | `processing_account` | In-transit funds model and proof references — internalized into the `ledger` package (migration-standard step 3) |
 | [workflow-events.md](./workflow-events.md) | `workflow-events` | User-facing upload-to-report workflow event read model |
 | [common/extraction/audit-failed-cases.yaml](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/audit-failed-cases.yaml) | [`extraction_failed_case_registry`](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/audit-failed-cases.yaml) | Machine-readable audit-failed parsing case registry and parser-expansion boundary — internalized into the `extraction` package |
-| [source-coverage-matrix.yaml](./source-coverage-matrix.yaml) | [`source_coverage_matrix`](./source-coverage-matrix.yaml) | Machine-readable source-class coverage, proof levels, review requirements, and traceability targets |
+| [common/testing/data/source-coverage-matrix.yaml](../../common/testing/data/source-coverage-matrix.yaml) | `source_coverage_matrix` | **Moved** (#1822) — Machine-readable source-class coverage, proof levels, review requirements, and traceability targets |
 
 ## Cross-Cutting Classification (migration closeout wave 3, #1664)
 
@@ -136,45 +136,32 @@ Feature Documents table above) once its implementation was traced to
 `apps/backend/src/audit/source_type_priority.py` — the physical location
 made `audit` the correct owner rather than the `extraction` guess above.
 
-## Gate Data Directory (migration closeout wave 3, #1664, Part B)
+## Gate Data Directory (superseded — moved, #1822 Package-ization 3/4)
 
-**Decision: `docs/ssot/` stays the gate-data directory.** All 13 yaml/json
-gate-input files (`ac-score-baseline.jsonl`, `ac-tier-baseline.json`,
+**Decision reversed.** The 15 yaml/json/jsonl gate-input files formerly
+enumerated here (`ac-score-baseline.jsonl`, `ac-tier-baseline.json`,
 `app-boundary-baseline.json`, `protection-floor.json`,
 `critical-proof-outcomes.yaml`, `source-coverage-matrix.yaml`,
 `migration-risk.yaml`, `draft-package-baseline.json`,
 `governance-exceptions.yaml`, `github-action-runtime.yaml`,
 `ci-gate-inventory.yaml`, `delivery-gates.yaml`,
-`test-execution-matrix.yaml`) stay in place rather than moving into
-`common/meta/data/` or an owning package's `data/` layer.
+`test-execution-matrix.yaml`, `fk-cascade-baseline.json`,
+`delivery-layer-baseline.json`) have moved into the owning package's
+`data/` layer — `common/meta/data/` for the nine cross-cutting
+package/delivery/CI baselines, `common/testing/data/` for the six
+TDD/AC-proof baselines — per the owner-confirmed map in
+[#1822](https://github.com/wangzitian0/finance_report/issues/1822). Every
+consumer (`tools/`, `common/`, `tests/tooling/`) was repointed in the same
+PR; the `ci-gate-inventory.yaml` / `repo/docs/ssot/ci-gate-inventory.yaml`
+cross-repo path-parity convention noted in the prior revision of this
+section was confirmed independent (not cross-read) and does not block the
+move.
 
-One of them (`ci-gate-inventory.yaml`) also follows a **cross-repo shared
-convention**: the sibling `repo/` submodule keeps its own, separate
-`repo/docs/ssot/ci-gate-inventory.yaml` at the identical relative path,
-validated by its own `repo/tools/ci_gate_audit.py` against the same schema
-(`repo/docs/project/Infra-016.ci_gate_inventory.md`). The two files are
-independent (not cross-read), but relocating this repo's copy off
-`docs/ssot/<name>` would break the shared-path convention the two repos rely
-on to stay comparable — a cross-repo coordination change, not a
-single-repo doc cleanup, and explicitly out of scope for this PR.
-
-The other 11 are heavily read by `tests/tooling/` and `tools/` gate scripts
-by their current path; a move would require updating every consumer in the
-same PR with no test coverage gap, which is a large, high-blast-radius
-change for a documentation-cleanup PR to carry. `meta`'s data layer becoming
-the *computed* index (Part C of #1664) is the point at which physically
-relocating these makes sense — retiring `MANIFEST.yaml`/the registry and
-moving the gate-data files are the same cutover, not two.
-
-**Three more ratchet baselines follow the identical decision**, though they
-postdate the original 13-file enumeration above: `fk-cascade-baseline.json`
-(cross-domain FK-cascade shrink-only ratchet, read by
-`tests/tooling/test_fk_cascade_ratchet.py`), `delivery-layer-baseline.json`
-(app-delivery-layer line-count ratchet, `AC-meta.delivery.1`, read by
-`tests/tooling/test_delivery_layer_ratchet.py`), and
 [epic-residue-baseline.json](./epic-residue-baseline.json) (EPIC AC residue
-census, `AC-meta.residue.1`, referenced below). Same reasoning, same
-decision: they stay in `docs/ssot/` by name-hardcoded consumer path.
+census, `AC-meta.residue.1`) is the one ratchet baseline that stays in
+`docs/ssot/` — it retires with the EPIC tables themselves
+([#1823](https://github.com/wangzitian0/finance_report/issues/1823)), not
+into a package.
 
 ## AC Index Is Computed (migration closeout, #1719 — #1664 Part C status)
 
@@ -240,9 +227,9 @@ to the safely-deliverable half instead of forcing a risky rewrite:
 |---|---|
 | [Generated API Reference](../reference/api.md) | OpenAPI-derived endpoint inventory |
 | [Generated DB Schema Reference](../reference/db-schema.md) | SQLAlchemy-derived table, column, enum, index, constraint, and FK inventory |
-| `python tools/check_ac_index.py` | Bidirectional README -> EPIC -> E2E macro outcome contract, a derived view of [critical-proof-outcomes.yaml](./critical-proof-outcomes.yaml) + `@ac_proof` decorators (rendered on demand by `tools/generate_critical_proof_matrix.py`, never committed) |
+| `python tools/check_ac_index.py` | Bidirectional README -> EPIC -> E2E macro outcome contract, a derived view of [common/testing/data/critical-proof-outcomes.yaml](../../common/testing/data/critical-proof-outcomes.yaml) + `@ac_proof` decorators (rendered on demand by `tools/generate_critical_proof_matrix.py`, never committed) |
 | `python tools/check_ac_index.py` | One consistency gate over the AC-keyed graph: no dangling `@ac_proof`, vision item, or macro outcome; every mandatory active AC has a real test reference |
-| `python tools/check_source_coverage_matrix.py` | Source-class coverage and proof-level contract for [`source_coverage_matrix`](./source-coverage-matrix.yaml) |
+| `python tools/check_source_coverage_matrix.py` | Source-class coverage and proof-level contract for [`source_coverage_matrix`](../../common/testing/data/source-coverage-matrix.yaml) |
 | `python tools/analyze_test_ac_coverage.py --no-write --stdout` | Live local AC-to-test coverage report |
 | [unified-coverage.json](https://github.com/wangzitian0/finance_report/blob/main/unified-coverage.json) | Current committed coverage baseline |
 

@@ -7,7 +7,7 @@ value-language ACs into audit's own `roadmap` as `AC-audit.*` — `AC-audit.19.*
 `.20.*` (was EPIC-002 `AC2.19`/`AC2.20`), `AC-audit.9.*` (Ratio), `.30.*`
 (Quantity + ExchangeRate), `.32.*` (UnitPrice), `.33.*` (composite ops), `.36.*`
 (decimal scalar codec) — all renamed atomically across `@ac_proof(ac_ids=[...])`
-edges, BE/FE traceability docstrings, and `docs/ssot/ac-tier-baseline.json`
+edges, BE/FE traceability docstrings, and `common/meta/data/ac-tier-baseline.json`
 (shrunk via `check_ac_tier_baseline.py --update`).
 
 ## Next: step 3 (issue #1419 close-out)

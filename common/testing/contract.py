@@ -775,7 +775,7 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-testing.matrix.1",
             statement=(
-                "The checked-in docs/ssot/test-execution-matrix.yaml is exactly the "
+                "The checked-in common/testing/data/test-execution-matrix.yaml is exactly the "
                 "view generated from common/testing/matrix.py (byte-identical via the "
                 "--check-matrix CLI gate), and the generated YAML parses into the "
                 "same path\u2192stage/ci_required rules the AC-traceability consumer reads "
@@ -2656,7 +2656,7 @@ CONTRACT = PackageContract(
                 'record is still "managed" (managed = present in the structure, not '
                 "that it has any test); part 1 is the per-AC behavioural-score floor "
                 "(ac-score-baseline.jsonl, merge=union, unchanged); part 2 is a "
-                "per-type COUNT floor (docs/ssot/protection-floor.json) where the "
+                "per-type COUNT floor (common/testing/data/protection-floor.json) where the "
                 "current count of mandatory active ACs at each type (has_real_ref, "
                 "has_proof, has_score, has_mirror) must be >= the committed floor \u2014 "
                 "adding protection only RAISES the current count and passes without "
@@ -2679,7 +2679,7 @@ CONTRACT = PackageContract(
                 "standalone CI-stage traceability contract "
                 "(common.testing.check_ac_traceability.run_traceability: a mandatory "
                 "active AC must resolve to a real test reference in a CI-REQUIRED "
-                "execution stage per docs/ssot/test-execution-matrix.yaml, with the "
+                "execution stage per common/testing/data/test-execution-matrix.yaml, with the "
                 "placeholder-only/stub-only/unexecuted-only/missing classifications) "
                 "and critical-proof contract "
                 "(common.testing.check_critical_proof_matrix.validate_matrix_contract: "
@@ -2901,7 +2901,7 @@ CONTRACT = PackageContract(
             id="AC-testing.governance.7",
             statement=(
                 "Bottom-up proof exceptions and code-owned surfaces are classified in "
-                "docs/ssot/governance-exceptions.yaml with a typed "
+                "common/meta/data/governance-exceptions.yaml with a typed "
                 "proof_exceptions/code_owned_surfaces entry (id, owner, reason, "
                 "issue), validated by tools/check_governance_exceptions.py, leaving "
                 "the legacy SSOT governance exceptions list intact (#524) (Was "

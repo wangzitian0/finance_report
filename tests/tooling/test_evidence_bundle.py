@@ -61,7 +61,7 @@ def test_ac_score_water_line_defaults_to_empty_on_missing_baseline(
 
 
 def test_ac_score_water_line_computes_count_and_mean(tmp_path: Path) -> None:
-    baseline_dir = tmp_path / "docs" / "ssot"
+    baseline_dir = tmp_path / "common" / "testing" / "data"
     baseline_dir.mkdir(parents=True)
     lines = [
         json.dumps({"ac_id": "AC-x.1", "score": 0.8, "metric": "m", "provenance": "p"}),
@@ -81,7 +81,7 @@ def test_ac_tier_water_line_defaults_to_zero_on_missing_baseline(
 
 
 def test_ac_tier_water_line_counts_the_untagged_set(tmp_path: Path) -> None:
-    baseline_dir = tmp_path / "docs" / "ssot"
+    baseline_dir = tmp_path / "common" / "meta" / "data"
     baseline_dir.mkdir(parents=True)
     payload = {"untagged": ["AC-x.1", "AC-x.2", "AC-x.3"]}
     (baseline_dir / "ac-tier-baseline.json").write_text(json.dumps(payload))
@@ -102,7 +102,7 @@ def test_protection_water_line_defaults_to_all_zero_on_missing_floor(
 
 
 def test_protection_water_line_reads_the_committed_floor(tmp_path: Path) -> None:
-    baseline_dir = tmp_path / "docs" / "ssot"
+    baseline_dir = tmp_path / "common" / "testing" / "data"
     baseline_dir.mkdir(parents=True)
     payload = {
         "version": 1,

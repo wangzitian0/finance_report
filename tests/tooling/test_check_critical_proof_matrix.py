@@ -42,7 +42,7 @@ This EPIC owns the following macro outcomes from `docs/ssot/critical-proof-matri
 
 ## Core Proof Paths
 
-Source: docs/ssot/critical-proof-outcomes.yaml
+Source: common/testing/data/critical-proof-outcomes.yaml
 Checker: tools/check_ac_index.py
 
 | Outcome ID | Purpose |
@@ -783,7 +783,7 @@ def test_AC8_13_50_macro_outcome_contract_rejects_drift(
 
 ## Core Proof Paths
 
-Source: docs/ssot/critical-proof-outcomes.yaml
+Source: common/testing/data/critical-proof-outcomes.yaml
 Checker: tools/check_ac_index.py
 
 - asset-distribution-net-worth
@@ -868,7 +868,7 @@ def test_AC8_13_54_macro_contract_requires_readme_matrix_exact_match(
 
 ## Core Proof Paths
 
-Source: docs/ssot/critical-proof-outcomes.yaml
+Source: common/testing/data/critical-proof-outcomes.yaml
 Checker: tools/check_ac_index.py
 
 | Outcome ID | Purpose |
@@ -967,7 +967,7 @@ def test_AC8_13_54_readme_contract_reports_missing_duplicate_and_drift(
 
 ## Core Proof Paths
 
-Source: docs/ssot/critical-proof-outcomes.yaml
+Source: common/testing/data/critical-proof-outcomes.yaml
 Checker: tools/check_ac_index.py
 
 | Outcome ID | Purpose |

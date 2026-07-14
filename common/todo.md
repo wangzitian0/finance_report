@@ -77,12 +77,12 @@ never left half in both an EPIC and a roadmap.
 
 The un-carved remainder of `apps/backend/src` (`services/` / `routers/` /
 `prompts/`) is the L4 `backend` super-package. `check_app_boundary` freezes its
-coupling to the already-carved packages in `docs/ssot/app-boundary-baseline.json`
+coupling to the already-carved packages in `common/meta/data/app-boundary-baseline.json`
 (monotonic: new edges fail CI). **This count is the migration burndown** — it
 drops as each domain is carved out.
 
 - The baseline count moves as domains are carved and more edges are discovered;
-  read `docs/ssot/app-boundary-baseline.json` directly (or its generated
+  read `common/meta/data/app-boundary-baseline.json` directly (or its generated
   summary) for the live edge count and per-package breakdown rather than
   copying a snapshot number here — it goes stale immediately.
 - Outbound edges (a carved package → the app remainder, upward-layer) have
