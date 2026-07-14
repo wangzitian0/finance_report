@@ -22,6 +22,7 @@ const ACCOUNTING_JARGON_HREFS = [
 ];
 
 describe("navigation metadata", () => {
+  // AC-meta.fe-ia-nav.1 / AC-meta.fe-ia-nav.6 / AC-meta.fe-ia-nav.9 / AC-meta.fe-ia-nav.25
   it("AC19.6.2 AC19.8.5 AC22.1.1 AC22.1.7 AC22.2.4 AC22.21.1 exposes a five-target bottom tab bar with distinct icons (Home, Chat, Add, Audit, More)", () => {
     expect(bottomTabItems.map((item) => item.label)).toEqual([
       "Home",
@@ -50,6 +51,7 @@ describe("navigation metadata", () => {
     expect(new Set(icons).size).toBe(icons.length);
   });
 
+  // AC-meta.fe-ia-nav.27
   it("AC22.21.3 folds the accounting machinery into the /audit hub, out of navigation", () => {
     const auditHrefs = auditHubItems.map((item) => item.href);
     expect(auditHrefs).toEqual(
@@ -62,6 +64,7 @@ describe("navigation metadata", () => {
     }
   });
 
+  // AC-meta.fe-ia-nav.29
   it("AC22.21.5 routes low-frequency destinations through the /more overflow", () => {
     const moreHrefs = moreItems.map((item) => item.href);
     expect(moreHrefs).toEqual(expect.arrayContaining(["/portfolio", "/settings"]));
@@ -69,6 +72,7 @@ describe("navigation metadata", () => {
     expect(advancedItems.map((item) => item.href)).toContain("/accounts");
   });
 
+  // AC-meta.fe-ia-nav.5
   it("AC22.1.6 lists Portfolio exactly once across the navigation model", () => {
     const portfolioEntries = [
       ...bottomTabItems,
@@ -99,6 +103,7 @@ describe("navigation metadata", () => {
     expect(getRouteConfig("/totally-unknown-xyz").Icon).toBe(DEFAULT_ROUTE_ICON);
   });
 
+  // AC-meta.fe-ia-nav.20
   it("AC22.18.1 drops the legacy /events alias so /notifications is the one canonical label", () => {
     expect(ROUTE_CONFIG["/events"]).toBeUndefined();
     expect(getRouteConfig("/events").label).toBe("Events");

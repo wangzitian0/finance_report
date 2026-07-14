@@ -306,6 +306,7 @@ describe("StatementsPage", () => {
   })
 
   // AC-extraction.fe-stage1-review.2
+  // AC-extraction.fe-ia-extraction.2
   it("AC16.14.11 AC22.11.1 enables polling with an honest parsing state (no fabricated progress)", async () => {
     mockStatementsPageApi({
       statements: [

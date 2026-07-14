@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { CurrencyFilterControl, DateFilterControl } from "@/components/reports/ReportFilters";
 
 describe("Report filter controls", () => {
+  // AC-reporting.fe-viz-reports.18
   it("AC5.34.1 renders labelled date input and emits change", () => {
     const onChange = vi.fn();
     render(<DateFilterControl label="As of date" value="2026-06-30" onChange={onChange} />);
@@ -15,6 +16,7 @@ describe("Report filter controls", () => {
     expect(onChange).toHaveBeenCalledWith("2026-07-01");
   });
 
+  // AC-reporting.fe-viz-reports.19
   it("AC5.34.2 renders currency options and emits change", () => {
     const onChange = vi.fn();
     render(

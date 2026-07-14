@@ -601,5 +601,15 @@ CONTRACT = PackageContract(
             priority="P2",
             status="done",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
+        # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
+        ACRecord(
+            id="AC-identity.fe-ia-identity.1",
+            statement="A typed `fetchCurrentUser` client function consumes `GET /api/auth/me`, and the authenticated app shell calls it on mount to bootstrap/refresh the local session identity, clearing local session state when the endpoint reports the session is invalid",
+            # was AC22.15.3
+            test="apps/frontend/src/__tests__/appShellSessionBootstrap.test.tsx::AC22.15.3 does not call /auth/me when there is no local session",
+            priority="P1",
+            status="done",
+        ),
     ],
 )

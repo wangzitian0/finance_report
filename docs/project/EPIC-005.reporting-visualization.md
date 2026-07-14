@@ -1,5 +1,12 @@
 # EPIC-005: Financial Reports & Visualization
 
+<!-- Nearly-0 AC rows by design (#1821 Wave B): the delivered financial-reports
+     and visualization design record; all ACs migrated to the `reporting`
+     package roadmap (fe-viz-reports group; one row -- the CSV-download-
+     wrapper AC -- to meta/fe-http-client as a generic HTTP-client capability)
+     except one row, kept as a documented `pending-package` exception to back
+     this EPIC's sole-owned `non-goals-not-budgeting-app` Vision Anchor. -->
+
 > **Status**: ✅ Complete (TDD Aligned)
 > **Vision Anchor**: `non-goals-not-budgeting-app`
 > **Phase**: 4
@@ -142,15 +149,11 @@ Accounting Equation Verification: Reports must comply with accounting equation
 
 > *(AC5.6.5 removed and AC5.6.7 removed and AC5.6.8 removed and AC5.6.9 removed and AC5.6.10 removed and AC5.6.11 removed — migrated to the `reporting` package roadmap as `AC-reporting.kpis.2-7`; AC5.6.4's backend endpoint half migrated as `AC-reporting.kpis.1` while its frontend dashboard-card proof stays in the row below. Migration closeout continuation, #1663 / #1716)*
 >
-> *(AC5.6.1 removed and AC5.6.2 removed and AC5.6.3 removed and AC5.6.6
-> removed — portfolio-owned performance math that lived in this reporting
-> EPIC; migrated to the `portfolio` package roadmap as
-> `AC-portfolio.metrics.1-4`, migration closeout continuation, #1663 /
-> #1717.)*
+> *(AC5.6.1 removed and AC5.6.2 removed and AC5.6.3 removed and AC5.6.6 removed — portfolio-owned performance math that lived in this reporting EPIC; migrated to the `portfolio` package roadmap as `AC-portfolio.metrics.1-4`, migration closeout continuation, #1663 / #1717.)*
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.6.4 | Annualized income KPI dashboard card renders the endpoint's figures (backend endpoint half migrated as `AC-reporting.kpis.1`; calculation ownership migrated to the `reporting` package roadmap as `AC-reporting.annualized-dashboard.1`, #1821 Wave A) | `AC11.8.2/AC11.8.6 renders Annualized Income card with the four metric labels` | `frontend/src/__tests__/dashboardPage.test.tsx` | P0 | <!-- epic-owned: fe-half -->
+(AC5.6.4 removed, canonical: migrated to the `reporting` package roadmap as `AC-reporting.fe-viz-reports.1`, #1821 Wave B)
 
 ### AC5.8: Personal Report Package Investment Performance Consumption
 
@@ -161,13 +164,9 @@ package. The report section must preserve `source_links` and `notes` from the
 schedule payload so the package can explain market-data freshness, cost-basis
 method, dividends, realized/unrealized P&L, and return metric limitations.
 
-> *(AC5.8.1's backend contract half migrated to the `reporting` package
-> roadmap as `AC-reporting.package-investment.1`; the frontend render proof
-> stays in the row below. Migration closeout continuation, #1663 / #1716.)*
-
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.8.1 | Personal report package renders the `investment_performance` report section from the EPIC-017 schedule API (backend contract half migrated as `AC-reporting.package-investment.1`) | `AC5.8.1 renders investment performance report schedule from the schedule API` | `apps/frontend/src/__tests__/portfolioPage.test.tsx` | P0 | <!-- epic-owned: fe-half -->
+(AC5.8.1 removed, canonical: its backend contract half migrated to the `reporting` package roadmap as `AC-reporting.package-investment.1` (migration closeout continuation, #1663 / #1716) and its frontend render proof migrated to `AC-reporting.fe-viz-reports.2`, #1821 Wave B)
 
 ### AC5.9: Personal Report Package Contract
 
@@ -179,14 +178,11 @@ Decimal-safe total field names. Supporting EPICs keep ownership of their
 calculations; this contract only describes how their outputs plug into one
 personal financial-report package.
 
-> *(AC5.9.1 removed and AC5.9.2 removed — migrated to the `reporting`
-> package roadmap as `AC-reporting.package-contract.1-2`; the frontend rows
-> below stay here. Migration closeout continuation, #1663 / #1716.)*
+> *(AC5.9.1 removed and AC5.9.2 removed — migrated to the `reporting` package roadmap as `AC-reporting.package-contract.1-2`; the frontend rows below stay here. Migration closeout continuation, #1663 / #1716.)*
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.9.3 | Frontend personal package page renders the contract section IDs and labels from the API contract | `AC5.9.3 renders personal package contract sections from API` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
-| AC5.9.4 | Frontend/export contract surfaces stable export format and CSV columns for package consumers | `AC5.9.4 renders export contract metadata` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+(AC5.9.3 removed and AC5.9.4 removed, canonical: migrated to the `reporting` package roadmap as `AC-reporting.fe-viz-reports.3` through `.4`, #1821 Wave B)
 
 ### AC5.10: Financial Statement Logic Audit Fixes
 
@@ -201,13 +197,11 @@ supplies the report-ready annualized income and long-term compensation schedule
 that plugs into the `annualized_income_long_term` package section defined by
 AC5.9. Supporting calculations remain owned by EPIC-011.
 
-> *(AC5.11.1 removed and AC5.11.3 removed — migrated to the `reporting`
-> package roadmap as `AC-reporting.package-annualized.1-2`; the frontend row
-> below stays here. Migration closeout continuation, #1663 / #1716.)*
+> *(AC5.11.1 removed and AC5.11.3 removed — migrated to the `reporting` package roadmap as `AC-reporting.package-annualized.1-2`; the frontend row below stays here. Migration closeout continuation, #1663 / #1716.)*
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.11.2 | Frontend personal package page renders annualized income totals and restricted treatment from the schedule endpoint | `AC5.11.2 renders annualized income schedule values and restricted treatment` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
+(AC5.11.2 removed, canonical: migrated to the `reporting` package roadmap as `AC-reporting.fe-viz-reports.5`, #1821 Wave B)
 
 ### AC5.12: Personal Report Package Notes and Disclosure Basis
 
@@ -218,14 +212,11 @@ basis, data freshness, restricted-asset treatment, and explicit non-compliance
 wording. The notes use standards-inspired disclosure discipline but do not
 claim statutory filing compliance.
 
-> *(AC5.12.1 removed and AC5.12.2 removed and AC5.12.4 removed — migrated to
-> the `reporting` package roadmap as `AC-reporting.package-notes.1-3`; the
-> frontend row below stays here. Migration closeout continuation, #1663 /
-> #1716.)*
+> *(AC5.12.1 removed and AC5.12.2 removed and AC5.12.4 removed — migrated to the `reporting` package roadmap as `AC-reporting.package-notes.1-3`; the frontend row below stays here. Migration closeout continuation, #1663 / #1716.)*
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.12.3 | Frontend personal package page renders notes and disclosure basis from the notes endpoint | `AC5.12.3 renders package notes and disclosure basis` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
+(AC5.12.3 removed, canonical: migrated to the `reporting` package roadmap as `AC-reporting.fe-viz-reports.6`, #1821 Wave B)
 
 ### AC5.13: Personal Report Package Traceability Appendix
 
@@ -236,14 +227,11 @@ traceability anchors, explicit unavailable/not-applicable states, review state,
 confidence tier, and completeness warning taxonomy that package consumers need
 to audit each report line.
 
-> *(AC5.13.1 removed and AC5.13.2 removed and AC5.13.4 removed and AC5.13.5
-> removed — migrated to the `reporting` package roadmap as
-> `AC-reporting.package-traceability.1-4`; the frontend row below stays
-> here. Migration closeout continuation, #1663 / #1716.)*
+> *(AC5.13.1 removed and AC5.13.2 removed and AC5.13.4 removed and AC5.13.5 removed — migrated to the `reporting` package roadmap as `AC-reporting.package-traceability.1-4`; the frontend row below stays here. Migration closeout continuation, #1663 / #1716.)*
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.13.3 | Frontend personal package page renders source, ledger, review, and confidence metadata from the appendix | `AC5.13.3 renders traceability appendix source, ledger, review, and confidence metadata` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
+(AC5.13.3 removed, canonical: migrated to the `reporting` package roadmap as `AC-reporting.fe-viz-reports.7`, #1821 Wave B)
 
 ### AC5.14: Framework Policy Result Consumption
 
@@ -276,16 +264,11 @@ covered but did not render important trust signals already present in backend
 payloads. This group makes report default semantics and partial-data warnings
 visible to users.
 
-> *(AC5.16.4 removed — migrated to the `reporting` package roadmap as
-> `AC-reporting.trust-signals.3`; AC5.16.1-2's backend halves migrated as
-> `AC-reporting.trust-signals.1-2` while their frontend proofs stay in the
-> rows below. Migration closeout continuation, #1663 / #1716.)*
+> *(AC5.16.4 removed — migrated to the `reporting` package roadmap as `AC-reporting.trust-signals.3`; AC5.16.1-2's backend halves migrated as `AC-reporting.trust-signals.1-2` while their frontend proofs stay in the rows below. Migration closeout continuation, #1663 / #1716.)*
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.16.1 | Balance sheet page exposes the restricted-holdings include toggle and renders equation component detail (backend default-exclusion half migrated as `AC-reporting.trust-signals.1`; (AC16.14.2 removed, canonical: the same shared test also proves migrated to reporting package roadmap, #1821 Wave B)) | `test_AC8_13_48 renders string totals and refetches by date` | `apps/frontend/src/__tests__/balanceSheetPage.test.tsx` | P0 | <!-- epic-owned: fe-half -->
-| AC5.16.2 | Balance sheet, income statement, and cash-flow report pages surface backend `fx_warnings` instead of silently rendering partial totals (backend fx_warnings-preservation half migrated as `AC-reporting.trust-signals.2`) | page warning assertions | `apps/frontend/src/__tests__/balanceSheetPage.test.tsx`, `apps/frontend/src/__tests__/incomeStatementPage.test.tsx`, `apps/frontend/src/__tests__/cashFlowPage.test.tsx` | P0 | <!-- epic-owned: fe-half -->
-| AC5.16.3 | Personal report package traceability renders concrete source and ledger identifiers when the appendix provides them | `AC5.13.3 renders traceability appendix source, ledger, review, and confidence metadata` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
+(AC5.16.1 removed and AC5.16.2 removed and AC5.16.3 removed, canonical: migrated to the `reporting` package roadmap as `AC-reporting.fe-viz-reports.8` through `.10`, #1821 Wave B)
 
 ### AC5.17: Authenticated Report CSV Exports
 
@@ -293,14 +276,10 @@ The report export workflow must preserve the authenticated API boundary and
 support every first-class financial statement page that exposes an export
 action.
 
-> *(AC5.17.1's backend export half migrated to the `reporting` package
-> roadmap as `AC-reporting.csv-export.1`; its frontend apiDownload proof
-> stays in the row below. Migration closeout continuation, #1663 / #1716.)*
-
 | AC | Acceptance Criteria | Test(s) | File(s) | Priority |
 |----|--------------------|---------|---------|----------|
-| AC5.17.1 | Balance sheet, income statement, and cash-flow pages download CSV through the authenticated API wrapper (backend cash-flow CSV export half migrated as `AC-reporting.csv-export.1`) | `AC5.17.1 downloads cash-flow CSV through authenticated apiDownload` | `frontend/src/__tests__/cashFlowPage.test.tsx` | P0 | <!-- epic-owned: fe-half -->
-| AC5.17.2 | Personal report package page exposes an authenticated CSV export action after framework selection, using the package export contract and selected framework ID | `AC5.17.2 downloads package CSV through authenticated apiDownload` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
+(AC5.17.1 removed, canonical: its backend export half migrated to the `reporting` package roadmap as `AC-reporting.csv-export.1` (migration closeout continuation, #1663 / #1716) and its frontend apiDownload proof migrated to the `meta` package roadmap as `AC-meta.fe-http-client.21`, #1821 Wave B)
+(AC5.17.2 removed, canonical: migrated to the `reporting` package roadmap as `AC-reporting.fe-viz-reports.11`, #1821 Wave B)
 
 ### AC5.18: Per-Node Confidence Tier on Balance-Sheet Payloads
 
@@ -323,14 +302,11 @@ period, currency, selected framework, readiness state, source anchors,
 traceability lines, and section payloads so the user can reopen and export the
 same package after later ledger or market-data changes.
 
-> *(AC5.19.1 removed and AC5.19.2 removed and AC5.19.3 removed — migrated to
-> the `reporting` package roadmap as `AC-reporting.package-snapshot.1-3`;
-> the frontend row below stays here. Migration closeout continuation,
-> #1663 / #1716.)*
+> *(AC5.19.1 removed and AC5.19.2 removed and AC5.19.3 removed — migrated to the `reporting` package roadmap as `AC-reporting.package-snapshot.1-3`; the frontend row below stays here. Migration closeout continuation, #1663 / #1716.)*
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.19.4 | The package page shows recent snapshots, can generate a new snapshot, and downloads JSON/CSV from the saved snapshot artifact | `AC5.19.4 generates and downloads package snapshots` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
+(AC5.19.4 removed, canonical: migrated to the `reporting` package roadmap as `AC-reporting.fe-viz-reports.12`, #1821 Wave B)
 
 ### AC5.20: Year-Scale Reporting Validation ([#951](https://github.com/wangzitian0/finance_report/issues/951))
 
@@ -360,11 +336,7 @@ and behavior is identical across balance-sheet, income-statement, and cash-flow.
 
 | AC ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.33.1 | `ReportPageShell` renders title, description, and toolbar slot, and shows the report body when not loading or errored | `AC5.33.1 renders title, description, toolbar, and body content` | `apps/frontend/src/__tests__/reportPageShell.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC5.33.2 | `ReportPageShell` renders the loading skeleton (and not the body) while `isLoading` | `AC5.33.2 shows loading skeleton while loading` | `apps/frontend/src/__tests__/reportPageShell.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC5.33.3 | `ReportPageShell` renders the error message with a working Retry action on `isError` | `AC5.33.3 shows error message and retries on click` | `apps/frontend/src/__tests__/reportPageShell.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC5.33.4 | `ReportToolbar` composes the AI-prompt action, Home link, and CSV export action from its props | `AC5.33.4 renders AI prompt, home link, and CSV export` | `apps/frontend/src/__tests__/reportToolbar.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC5.33.5 | `AiPromptAction` links to the chat route with a URL-encoded prompt | `AC5.33.5 links to chat with url-encoded prompt` | `apps/frontend/src/__tests__/reportToolbar.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+(AC5.33.1 removed and AC5.33.2 removed and AC5.33.3 removed and AC5.33.4 removed and AC5.33.5 removed, canonical: migrated to the `reporting` package roadmap as `AC-reporting.fe-viz-reports.13` through `.17`, #1821 Wave B)
 
 ### AC5.34: Report Filter Controls + Filter Hook ([#751](https://github.com/wangzitian0/finance_report/issues/751))
 
@@ -375,12 +347,8 @@ page-level intent.
 
 | AC ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.34.1 | `DateFilterControl` renders a labelled date input and emits changes | `AC5.34.1 renders labelled date input and emits change` | `apps/frontend/src/__tests__/reportFilters.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC5.34.2 | `CurrencyFilterControl` renders a labelled currency select with the provided options and emits changes | `AC5.34.2 renders currency options and emits change` | `apps/frontend/src/__tests__/reportFilters.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC5.34.3 | `useReportFilters` builds a query string from its date and currency state | `AC5.34.3 builds query string from filter state` | `apps/frontend/src/__tests__/useReportFilters.test.ts` | P1 | <!-- epic-owned: fe-only -->
-| AC5.34.4 | `useReportFilters` derives the CSV export path for the given report type | `AC5.34.4 derives csv export path for report type` | `apps/frontend/src/__tests__/useReportFilters.test.ts` | P1 | <!-- epic-owned: fe-only -->
-| AC5.34.5 | `useReportFilters` updates the query string when the currency changes | `AC5.34.5 updates query string when currency changes` | `apps/frontend/src/__tests__/useReportFilters.test.ts` | P1 | <!-- epic-owned: fe-only -->
-| AC5.34.6 {tier:CODE-ONLY} | `useReportFilters` seeds its initial date/currency state from the URL query params (`as_of_date`/`start_date`/`end_date`/`currency`) with precedence explicit option > URL param > default, so report routes honour deep links | `AC5.34.6 seeds initial filter state from URL query params` | `apps/frontend/src/__tests__/useReportFilters.test.ts` | P1 | <!-- epic-owned: fe-only -->
+(AC5.34.1 removed and AC5.34.2 removed and AC5.34.3 removed and AC5.34.4 removed and AC5.34.5 removed and AC5.34.6 removed, canonical: migrated to the `reporting` package roadmap as `AC-reporting.fe-viz-reports.18` through `.23`,
+#1821 Wave B)
 
 ### AC5.35: Dashboard Aggregation Moved Into Hook Layer ([#751](https://github.com/wangzitian0/finance_report/issues/751))
 
@@ -391,10 +359,7 @@ fetching and normalizing it inline. Monetary values stay decimal strings.
 
 | AC ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.35.1 | `useDashboardData` aggregates the dashboard endpoints over `apiFetch` and exposes a single loading flag | `AC5.35.1 aggregates dashboard endpoints over apiFetch` | `apps/frontend/src/__tests__/useDashboardData.test.ts` | P1 | <!-- epic-owned: fe-only -->
-| AC5.35.2 | `useDashboardData` normalizes missing balance-sheet / income / annualized fields to safe decimal-string defaults | `AC5.35.2 normalizes missing report fields to defaults` | `apps/frontend/src/__tests__/useDashboardData.test.ts` | P1 | <!-- epic-owned: fe-only -->
-| AC5.35.3 | `useDashboardData` surfaces an error message and a retry that refetches when aggregation fails | `AC5.35.3 surfaces error and retries on failure` | `apps/frontend/src/__tests__/useDashboardData.test.ts` | P1 | <!-- epic-owned: fe-only -->
-| AC5.35.4 | `useDashboardData` tolerates a failing chat-suggestions endpoint without failing the whole dashboard | `AC5.35.4 tolerates failing chat suggestions endpoint` | `apps/frontend/src/__tests__/useDashboardData.test.ts` | P1 | <!-- epic-owned: fe-only -->
+(AC5.35.1 removed and AC5.35.2 removed and AC5.35.3 removed and AC5.35.4 removed, canonical: migrated to the `reporting` package roadmap as `AC-reporting.fe-viz-reports.24` through `.27`, #1821 Wave B)
 
 ## 📏 Acceptance Criteria
 
@@ -573,10 +538,7 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 ### Acceptance Criteria
 
 *(AC5.7.1 removed and AC5.7.3 removed — migrated to the `reporting` package roadmap as `AC-reporting.net-worth-timeseries.1-2`, #1821 Wave A)*
-- [x] **AC5.7.2** Net worth chart component on dashboard renders ECharts line chart with date X-axis and net-worth Y-axis <!-- epic-owned: fe-only -->
-- [x] **AC5.7.4** Time range selector (1M / 3M / 6M / 1Y / All) on dashboard toggles `from` parameter for chart <!-- epic-owned: fe-only -->
-- [x] **AC5.7.5** Empty-state placeholder rendered when fewer than 2 data points exist (cannot draw line) <!-- epic-owned: fe-only -->
-- [x] **AC5.7.6** Frontend unit test mounts NetWorthTimeSeries component and asserts chart container exists <!-- epic-owned: fe-only -->
+(AC5.7.2 removed and AC5.7.4 removed and AC5.7.5 removed and AC5.7.6 removed, canonical: migrated to the `reporting` package roadmap as `AC-reporting.fe-viz-reports.28` through `.31`, #1821 Wave B)
 
 **Priority**: P1 (high) — needed for vision parity but not blocking user adoption.
 **Estimated effort**: 3-5 days backend + 2-3 days frontend.
@@ -601,5 +563,13 @@ readiness derivation or source-trust rules in the frontend.
 
 | AC ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.37.1 | The Reports cockpit renders package readiness state, blocker count, next action, and source-gap summary before report cards | `AC5.37.1 renders trust-first readiness before report cards` | `frontend/src/__tests__/reportsCockpit.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC5.37.2 | If readiness loading fails, the Reports cockpit shows a contained unavailable state while preserving report navigation | `AC5.37.2 preserves report navigation when readiness is unavailable` | `frontend/src/__tests__/reportsCockpit.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+(AC5.37.1 removed, canonical: migrated to the `reporting` package roadmap as `AC-reporting.fe-viz-reports.32`, #1821 Wave B)
+> **Documented exception (#1821 Wave B):** AC5.37.2 stays EPIC-owned rather than
+> migrating. This EPIC's `non-goals-not-budgeting-app` Vision Anchor is owned
+> solely by EPIC-005 (`check_ac_index.py`'s `_vision_obligations` gate); the
+> vision→registry matrix (`generate_vision_proof_matrix.py`) only resolves
+> EPIC-numbered legacy ids from `docs/ac_registry.yaml`, not package-scoped
+> roadmap ids, so migrating every remaining row would orphan the anchor
+> ("backs no AC — dangling vision promise"). One row stays behind to keep it
+> backed — same pattern as EPIC-006's AC6.34.1 (#1821 Wave A).
+| AC5.37.2 | If readiness loading fails, the Reports cockpit shows a contained unavailable state while preserving report navigation | `AC5.37.2 preserves report navigation when readiness is unavailable` | `apps/frontend/src/__tests__/reportsCockpit.test.tsx` | P1 | <!-- epic-owned: pending-package -->

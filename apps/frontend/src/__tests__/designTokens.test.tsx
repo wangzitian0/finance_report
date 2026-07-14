@@ -111,6 +111,7 @@ describe("frontend design tokens", () => {
     expect(globals).not.toMatch(/alert bg-\[var\(--(error|success|warning|info)-muted\)\] text-\[var\(--(error|success|warning|info)\)\]/)
   })
 
+  // AC-meta.fe-ia-nav.13 / AC-meta.fe-ia-nav.15 / AC-meta.fe-ia-nav.18
   it("AC22.12.1 AC22.12.3 AC22.13.3 defines the global accessibility baseline in SSOT and CSS", () => {
     const ssot = readFileSync(
       resolve(process.cwd(), "../../apps/frontend/frontend-patterns.md"),

@@ -90,6 +90,7 @@ test.describe("AC22.3.6 report cockpit + drill-down smoke", () => {
     { label: "desktop", width: 1440, height: 1000 },
     { label: "mobile", width: 390, height: 844 },
   ]) {
+    // AC-reporting.fe-ia-reports.6
     test(`${label} shows the four blocks and drills a balance-sheet amount`, async ({ page }) => {
       await page.setViewportSize({ width, height });
 

@@ -17,6 +17,7 @@ beforeEach(() => {
 })
 
 describe("useSessionBootstrap (EPIC-022 AC22.15.3 / #1010)", () => {
+  // AC-identity.fe-ia-identity.1
   it("AC22.15.3 does not call /auth/me when there is no local session", async () => {
     renderHook(() => useSessionBootstrap())
     expect(mockedFetchCurrentUser).not.toHaveBeenCalled()

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ReportPageShell } from "@/components/reports/ReportPageShell";
 
 describe("ReportPageShell", () => {
+  // AC-reporting.fe-viz-reports.13
   it("AC5.33.1 renders title, description, toolbar, and body content", () => {
     render(
       <ReportPageShell
@@ -22,6 +23,7 @@ describe("ReportPageShell", () => {
     expect(screen.getByText("Report body")).toBeInTheDocument();
   });
 
+  // AC-reporting.fe-viz-reports.14
   it("AC5.33.2 shows loading skeleton while loading", () => {
     render(
       <ReportPageShell title="Cash Flow" loadingLabel="Loading cash flow" isLoading>
@@ -33,6 +35,7 @@ describe("ReportPageShell", () => {
     expect(screen.queryByText("Report body")).not.toBeInTheDocument();
   });
 
+  // AC-reporting.fe-viz-reports.15
   it("AC5.33.3 shows error message and retries on click", () => {
     const onRetry = vi.fn();
     render(

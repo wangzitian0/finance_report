@@ -3590,5 +3590,31 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
+        # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
+        ACRecord(
+            id="AC-extraction.fe-ia-extraction.1",
+            statement="When the statement-review Approve action is blocked (balance validation failed or unresolved duplicate/transfer-pair conflicts), the page shows a visible plain-language reason and an in-place action (open the conflict-resolution dialog, or re-parse the statement) without leaving the page",
+            # was AC22.5.2
+            test="apps/frontend/src/__tests__/reviewActionBar.test.tsx::AC22.5.2 enables Approve and shows no blocker when nothing is wrong",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.fe-ia-extraction.2",
+            statement="The statement-parsing state shows an honest indeterminate indicator with a typical-duration expectation, and never renders a fabricated fixed-percentage progress bar",
+            # was AC22.11.1
+            test="apps/frontend/src/__tests__/statementsPage.test.tsx::AC16.14.11 AC22.11.1 enables polling with an honest parsing state (no fabricated progress)",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.fe-ia-extraction.3",
+            statement="The statement detail page is composed from extracted sub-components (header/summary and the transactions/section blocks) with unchanged behavior",
+            # was AC22.17.3
+            test="apps/frontend/src/__tests__/statementDetailParts.test.tsx::AC22.17.3 renders title, status badge, description and review link",
+            priority="P1",
+            status="done",
+        ),
     ],
 )

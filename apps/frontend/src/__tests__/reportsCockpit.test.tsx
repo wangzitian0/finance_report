@@ -74,6 +74,7 @@ beforeEach(() => {
 })
 
 describe("Reports cockpit (EPIC-022 AC22.3)", () => {
+  // AC-reporting.fe-ia-reports.2
   it("AC22.3.1 leads with exactly the four everyday report blocks and their live figures", async () => {
     render(<ReportsPage />)
 
@@ -87,6 +88,7 @@ describe("Reports cockpit (EPIC-022 AC22.3)", () => {
     expect(screen.getByText(/120,000/)).toBeInTheDocument()
   })
 
+  // AC-reporting.fe-ia-reports.18
   it("AC22.9.1 keeps the reconciliation-coverage block in the reports context, not linked into Advanced", async () => {
     render(<ReportsPage />)
 
@@ -99,6 +101,7 @@ describe("Reports cockpit (EPIC-022 AC22.3)", () => {
     }
   })
 
+  // AC-reporting.fe-ia-reports.19
   it("AC22.9.3 makes the Annualized Income card's destination match its label", async () => {
     render(<ReportsPage />)
 
@@ -109,6 +112,7 @@ describe("Reports cockpit (EPIC-022 AC22.3)", () => {
     expect(screen.getByText(/report package/i)).toBeInTheDocument()
   })
 
+  // AC-reporting.fe-ia-reports.3
   it("AC22.3.2 keeps Cash Flow and the Personal Report Package behind the More control", async () => {
     render(<ReportsPage />)
 
@@ -122,6 +126,7 @@ describe("Reports cockpit (EPIC-022 AC22.3)", () => {
     expect(screen.getByText("Personal Report Package")).toBeInTheDocument()
   })
 
+  // AC-reporting.fe-viz-reports.32
   it("AC5.37.1 renders trust-first readiness before report cards", async () => {
     render(<ReportsPage />)
 

@@ -47,6 +47,7 @@ test.describe("AC22.21.7 mobile/PWA bottom-tab IA smoke", () => {
         await page.setViewportSize({ width: 390, height: 844 });
     });
 
+    // AC-meta.fe-ia-nav.30
     test("the bottom bar opens the Add sheet with both ways to add", async ({ page }) => {
         await page.goto("/", { waitUntil: "networkidle" });
 

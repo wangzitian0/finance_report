@@ -382,8 +382,8 @@ before marking US/HK personal reports trusted.
 ### AC19.8 — Workflow Session IA Hardening And CR Cleanup
 
 > **Partially migrated.** *(AC19.8.1 removed and AC19.8.2 removed and AC19.8.3 removed and AC19.8.9 removed — this group's backend session-model/API rows migrated to the `platform` package roadmap as `AC-platform.33.1-4`, migration closeout continuation, #1663 / #1712)*. *(AC19.8.5 removed —
-> a dead row explicitly superseded by EPIC-022 AC22.21, whose AC22.21.1
-> proof owns the bottom-tab navigation contract; deleted rather than
+> a dead row explicitly superseded by EPIC-022's bottom-tab navigation IA,
+> which owns the bottom-tab navigation contract; deleted rather than
 > migrated, #1719.)* The frontend, IA, and report-readiness rows below stay
 > with their own owners.
 

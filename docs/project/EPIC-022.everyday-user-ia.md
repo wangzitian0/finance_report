@@ -1,5 +1,11 @@
 # EPIC-022: Everyday-User Information Architecture
 
+<!-- epic-file: design-doc -->
+<!-- 0 AC rows by design (#1821 Wave B): the delivered everyday-user IA
+     design record; all ACs migrated to their owning package contract.py
+     roadmaps (mostly meta/fe-ia-nav, reporting/fe-ia-reports,
+     reconciliation/fe-ia-reconciliation, platform/fe-ia-inbox). -->
+
 > **Status**: Complete (2026-06-14) — the everyday-user IA redesign shipped
 > across PR1–PR11: 3-peer nav + smart Home + route/name alignment (PR1), unified
 > notification inbox (PR2), report cockpit + Balance Sheet / Income Statement /
@@ -134,17 +140,8 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 
 ### AC22.1 — IA Skeleton, Smart Home, And Name/Route Alignment
 
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC22.1.1 | Primary navigation renders a bottom tab bar of exactly five hit targets — Home, Chat, a center Add action, Audit, and More — mirrored by the desktop sidebar; no accounting-jargon route (Journal, Reconciliation, Accounts, Statements) and no Settings page appears as a top-level tab (superseded by AC22.21.1 for the data-model shape) | `navigation.test.ts` | P1 | <!-- epic-owned: fe-only -->
-| AC22.1.2 | The authenticated Home renders financial key numbers, an action-required summary, and a quick-upload entry | `dashboardPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.1.3 | The sidebar brand links to `/` and the login flow redirects to `/` after authentication | `sidebarAndTabs.test.tsx`, `loginPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.1.4 | `/dashboard` redirects to `/` and the label "Upload Pipeline" no longer appears in the navigation model | `nextConfigRedirects.test.ts`, `navigation.test.ts` | P1 | <!-- epic-owned: fe-only -->
-| AC22.1.5 | `/events` redirects to `/notifications` and the notifications page renders the workflow event center | `nextConfigRedirects.test.ts`, `notificationsPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.1.6 | `/assets` redirects to `/portfolio` and exactly one navigation entry is labeled "Portfolio" | `nextConfigRedirects.test.ts`, `navigation.test.ts` | P1 | <!-- epic-owned: fe-only -->
-| AC22.1.7 | Chat and AI Settings navigation entries use distinct icons | `navigation.test.ts` | P1 | <!-- epic-owned: fe-only -->
-| AC22.1.8 | `/upload` renders both the statement uploader and upload history, and `/statements/upload` redirects to `/upload` | `statementsPage.test.tsx`, `nextConfigRedirects.test.ts` | P1 | <!-- epic-owned: fe-only -->
-| AC22.1.9 | Desktop and mobile smoke covers the five-target bottom-tab navigation (Home, Chat, Add, Audit, More) and the notification bell without layout overflow | `epic022-ia-shell.spec.ts` | P1 | <!-- epic-owned: fe-only -->
+(AC22.1.1 removed and AC22.1.3 removed and AC22.1.4 removed and AC22.1.5 removed and AC22.1.6 removed and AC22.1.7 removed and AC22.1.8 removed and AC22.1.9 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.fe-ia-nav.1` through `.8`, #1821 Wave B)
+(AC22.1.2 removed, canonical: migrated to the `reporting` package roadmap as `AC-reporting.fe-ia-reports.1`, #1821 Wave B)
 
 ### AC22.2 — Unified Notification Inbox
 
@@ -159,12 +156,8 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 > The frontend rows below remain defined in this EPIC — no owning package has
 > been decided for them yet.
 
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC22.2.1 | The unified inbox surfaces Stage 1 source-review and Stage 2 reconciliation-review attention as cards (deep-linking to their detail surfaces), so no separate Review Queue page is needed | `unifiedInbox.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.2.3 | The header bell badge reflects review/reconciliation attention via the workflow event counts and stays quiet when nothing needs attention | `workflowSurfaces.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.2.4 | The standalone Review Queue page is removed, `/review` redirects to `/notifications`, and "Review" is no longer a sidebar navigation entry | `nextConfigRedirects.test.ts`, `navigation.test.ts` | P1 | <!-- epic-owned: fe-only -->
-| AC22.2.6 | Desktop and mobile smoke covers the unified inbox with review attention without layout overflow | `unified-inbox.spec.ts` | P1 | <!-- epic-owned: fe-only -->
+(AC22.2.1 removed and AC22.2.3 removed and AC22.2.6 removed, canonical: migrated to the `platform` package roadmap as `AC-platform.fe-ia-inbox.1` through `.3`, #1821 Wave B)
+(AC22.2.4 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.fe-ia-nav.9`, #1821 Wave B)
 
 ### AC22.3 — Report Cockpit And Source Drill-Down
 
@@ -176,13 +169,7 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 > `reporting` package roadmap as `AC-reporting.lineage.1`, migration
 > closeout continuation, #1663 / #1716.)*
 
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC22.3.1 | The `/reports` front section renders exactly four report blocks: Balance Sheet, Income Statement, Annualized Income, and Reconciliation coverage (reconciliation match rate / unmatched count) | `reportsCockpit.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.3.2 | All other reports (Cash Flow, Personal Report Package, and any future reports) live behind a single "More" control, not the front section | `reportsCockpit.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.3.4 | A reusable lineage drill-down component lets a user click any amount on the Balance Sheet or Income Statement, list the contributing journal lines, and open the full evidence chain (journal line → bank statement transaction → atomic transaction → source document) | `lineagePanel.test.tsx`, `balanceSheetDrilldown.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.3.5 | Accounts/amounts with no contributing lines or no graph-compatible anchor degrade gracefully with an explicit empty/"no source linked" state and no crash | `balanceSheetDrilldown.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.3.6 | Desktop and mobile smoke covers the four-block cockpit and a Balance Sheet drill-down open/close without layout overflow | `reports-cockpit.spec.ts` | P1 | <!-- epic-owned: fe-only -->
+(AC22.3.1 removed and AC22.3.2 removed and AC22.3.4 removed and AC22.3.5 removed and AC22.3.6 removed, canonical: migrated to the `reporting` package roadmap as `AC-reporting.fe-ia-reports.2` through `.6`, #1821 Wave B)
 
 ### AC22.4 — Hardening: Stage 2 Inbox, Orphan Routes, Lean Home, E2E
 
@@ -191,12 +178,8 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 > This row removed — migrated to the `platform` package roadmap as
 > `AC-platform.36.3` (migration closeout continuation, #1663 / #1712).
 
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC22.4.3 | `/review/ai-suggestions` is reachable from AI Settings, so the AI-suggestion review surface is not orphaned | `aiSettingsPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.4.4 | The Home (`/`) defaults to a lean view (action-required summary, financial key numbers, quick upload) with heavy analytics/charts behind an opt-in toggle | `dashboardPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.4.5 | E2E: a user with Stage 1 and Stage 2 attention sees both in the notification center and can open each detail surface | `epic022-attention-journey.spec.ts` | P1 | <!-- epic-owned: fe-only -->
-| AC22.4.6 | E2E: an amount on the Balance Sheet drills down to its contributing journal lines and on to the source document | `epic022-drilldown-journey.spec.ts` | P1 | <!-- epic-owned: fe-only -->
+(AC22.4.3 removed and AC22.4.5 removed, canonical: migrated to the `reconciliation` package roadmap as `AC-reconciliation.fe-ia-reconciliation.1` through `.2`, #1821 Wave B)
+(AC22.4.4 removed and AC22.4.6 removed, canonical: migrated to the `reporting` package roadmap as `AC-reporting.fe-ia-reports.7` through `.8`, #1821 Wave B)
 
 ### AC22.5 — Hardening: Everyday-User Flow Guidance And Plain Language
 
@@ -207,14 +190,10 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 > slice closes them with copy, a step indicator, in-place unblock actions, and
 > plain-language hints — no backend, routing, or page-structure changes.
 
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC22.5.1 | The upload, statement-detail, and statement-review pages render a shared step indicator showing the Upload → Review & approve → Reports path with the current step highlighted | `flowStepBanner.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.5.2 | When the statement-review Approve action is blocked (balance validation failed or unresolved duplicate/transfer-pair conflicts), the page shows a visible plain-language reason and an in-place action (open the conflict-resolution dialog, or re-parse the statement) without leaving the page | `reviewActionBar.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.5.3 | Deep review and reconciliation surfaces (`/review/ai-suggestions`, `/reconciliation/review-queue`, `/reconciliation`, `/reconciliation/unmatched`) render a back-link to the notification center (`/notifications`) so a user who deep-links in is never stranded | `reviewBackLinks.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.5.4 | User-facing review-surface headings use plain language and do not expose internal "Stage 2" or raw score-band wording in their titles | `reviewBackLinks.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.5.5 | Core jargon terms (balance "drift"/"balanced", "needs review", transfer pair, anomaly, duplicate, consistency check, match score) expose a plain-language explanation through an accessible `InfoHint` affordance | `infoHint.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.5.6 | The Home surfaces a single primary next-action with overlapping reconciliation links de-duplicated, and the Chat page heading reads "AI Advisor" | `dashboardPage.test.tsx`, `ChatPageClient.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+(AC22.5.1 removed and AC22.5.5 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.fe-ia-nav.10` through `.11`, #1821 Wave B)
+(AC22.5.2 removed, canonical: migrated to the `extraction` package roadmap as `AC-extraction.fe-ia-extraction.1`, #1821 Wave B)
+(AC22.5.3 removed and AC22.5.4 removed, canonical: migrated to the `platform` package roadmap as `AC-platform.fe-ia-inbox.4` through `.5`, #1821 Wave B)
+(AC22.5.6 removed, canonical: migrated to the `reporting` package roadmap as `AC-reporting.fe-ia-reports.9`, #1821 Wave B)
 
 ### AC22.6 — Confidence & Attention As A First-Class Surface
 
@@ -223,15 +202,11 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 > transactions, and stalled processing transfers — each with its own page and
 > vocabulary. This slice folds those existing read-API signals into one
 > confidence-ranked queue and a Home trust meter, making the low-confidence tail
-> (Axiom B) navigable. AC22.6.1–.2 shipped the queue and meter; AC22.6.3–.4 add
-> the bell connection and smoke coverage.
+> (Axiom B) navigable. The first two rows of this group shipped the queue and
+> meter; the last two add the bell connection and smoke coverage.
 
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC22.6.1 | The `/attention` page folds the open attention sources (Stage 1 statement review, reconciliation review, unmatched transactions, stalled processing transfers) into a single list sorted by ascending confidence, each row deep-linking to its action surface, with an all-clear empty state when nothing needs attention | `attention.test.ts`, `attentionQueue.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.6.2 | The Home renders a trust meter (trusted / needs-confirmation / low-confidence counts) derived from the same attention model and linking to `/attention`, and stays silent when nothing needs attention | `attention.test.ts`, `dashboardTrustMeter.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.6.3 | The header notification center links to the full `/attention` queue, and the bell stays quiet (no badge) when nothing needs attention | `workflowSurfaces.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.6.4 | Desktop and mobile smoke covers the `/attention` queue and the Home trust meter without layout overflow | `attention-surface.spec.ts` | P1 | <!-- epic-owned: fe-only -->
+(AC22.6.1 removed and AC22.6.2 removed and AC22.6.4 removed, canonical: migrated to the `reconciliation` package roadmap as `AC-reconciliation.fe-ia-reconciliation.3` through `.5`, #1821 Wave B)
+(AC22.6.3 removed, canonical: migrated to the `platform` package roadmap as `AC-platform.fe-ia-inbox.6`, #1821 Wave B)
 
 ### AC22.7 — Close The Traceability Loop
 
@@ -242,12 +217,7 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 > other statements. A desktop/mobile smoke and the readable evidence-chain path
 > view follow separately.
 
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC22.7.1 | Clicking a cash-flow amount opens the account-lineage drawer for that account's contributing journal lines (the backend account-anchor half migrated to the `reporting` package roadmap as `AC-reporting.lineage.2`, migration closeout continuation, #1663 / #1716; the frontend drawer half stays here) | `cashFlowPage.test.tsx` | P1 | <!-- epic-owned: fe-half -->
-| AC22.7.2 | The reusable lineage panel renders evidence nodes as an ordered source-to-report path with per-hop source, confidence, and version badges when those fields are available | `lineagePanel.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.7.3 | The Cash Flow statement renders a reconciliation that ties beginning cash + net cash flow to ending cash, and explicitly flags when it does not reconcile | `cashFlowPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.7.4 | Desktop and mobile Playwright smoke covers Cash Flow amount drill-down opening the account-lineage drawer without document horizontal overflow | `cash-flow-drilldown.spec.ts` | P1 | <!-- epic-owned: fe-only -->
+(AC22.7.1 removed and AC22.7.2 removed and AC22.7.3 removed and AC22.7.4 removed, canonical: migrated to the `reporting` package roadmap as `AC-reporting.fe-ia-reports.10` through `.13`, #1821 Wave B)
 
 ### AC22.8 — Readable Report Package
 
@@ -259,12 +229,7 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 > and the pinned-version export follow separately; the export engine pairs with
 > #705 (backend), so it is out of scope for this frontend-only slice.
 
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC22.8.1 | The report package titles its sections with human-readable labels (Reporting Framework, Report Readiness, Source Trust, Framework Policy, schedules, Traceability Appendix) rather than developer-facing snake_case identifiers | `personalReportPackagePage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.8.2 | The loaded report package starts with a readable cover sheet and table of contents that expose the package id, selected framework, report date, and linked human section titles | `personalReportPackagePage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.8.3 | The unselected-framework and framework-package loading states reserve the package layout with guidance or skeleton placeholders, never a blank text-only pre-selection or loading screen | `personalReportPackagePage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.8.4 | Desktop and mobile Playwright smoke covers report-package framework selection, cover, table of contents, readiness, and no document horizontal overflow | `report-readiness.spec.ts` | P1 | <!-- epic-owned: fe-only -->
+(AC22.8.1 removed and AC22.8.2 removed and AC22.8.3 removed and AC22.8.4 removed, canonical: migrated to the `reporting` package roadmap as `AC-reporting.fe-ia-reports.14` through `.17`, #1821 Wave B)
 
 ### AC22.9 — Everyday/Advanced Boundary And Naming Unification
 
@@ -276,11 +241,8 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 > and `/events` mislabels noted in review are already handled by permanent
 > redirects, so they are out of scope here.)
 
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC22.9.1 | The Reports cockpit's reconciliation-coverage block stays in the reports context and does not link into the Advanced `/reconciliation` surface | `reportsCockpit.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.9.2 | The reconciliation match-rate is shown under a single term ("Reconciliation coverage") on both Home and Reports, backed by one shared `InfoHint` glossary entry | `dashboardPage.test.tsx`, `reportsCockpit.test.tsx`, `infoHint.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.9.3 | The "Annualized Income" cockpit card's destination matches its label (it opens the report package and the caption says so), with no silent label/destination mismatch | `reportsCockpit.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+(AC22.9.1 removed and AC22.9.3 removed, canonical: migrated to the `reporting` package roadmap as `AC-reporting.fe-ia-reports.18` through `.19`, #1821 Wave B)
+(AC22.9.2 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.fe-ia-nav.12`, #1821 Wave B)
 
 ### AC22.10 — Provenance Labeling (Conservative Subset)
 
@@ -291,11 +253,7 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 > safe subset: label a holding **Imported only when it has concrete document
 > evidence**, and never infer Manual — so neither direction can be mislabeled.
 
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC22.10.1 | The holdings table renders the "Imported" provenance badge only for holdings with concrete document evidence (the backend labeling half migrated to the `portfolio` package roadmap as `AC-portfolio.provenance.1`, migration closeout continuation, #1663 / #1717; the frontend badge half stays here) | `holdingsTable.test.tsx` | P1 | <!-- epic-owned: fe-half -->
-| AC22.10.2 | Manual valuation capture uses a controlled source enum instead of free-text provenance, while existing historical source strings remain displayable in snapshot history | `assetsPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.10.3 | Desktop and mobile Playwright smoke covers portfolio provenance badges only for imported holdings, with unproven holdings unlabeled and no document horizontal overflow | `portfolio-provenance.spec.ts` | P1 | <!-- epic-owned: fe-only -->
+(AC22.10.1 removed and AC22.10.2 removed and AC22.10.3 removed, canonical: migrated to the `portfolio` package roadmap as `AC-portfolio.fe-ia-portfolio.1` through `.3`, #1821 Wave B)
 
 ### AC22.11 — Everyday-User UX Hardening
 
@@ -312,11 +270,8 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 > carry their source into the destination, and the destination renders an
 > attention-queue return link without changing direct-entry fallbacks.
 
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC22.11.1 | The statement-parsing state shows an honest indeterminate indicator with a typical-duration expectation, and never renders a fabricated fixed-percentage progress bar | `statementsPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.11.2 | Each attention-queue item surfaces a plain-language reason it was flagged — distinct per cause — alongside its confidence score | `attention.test.ts`, `attentionQueue.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.11.3 | Attention-origin action links preserve `from=attention`, and the linked review/processing destinations render a return link to `/attention` while direct-entry notification/statement fallbacks remain unchanged | `attentionQueue.test.tsx`, `reviewBackLinks.test.tsx`, `statementReviewPage.test.tsx`, `stage2ReviewQueueCoverage99.test.tsx`, `uiGapAudit.processingVisibility.test.tsx`, `unmatchedBoardComponent.test.tsx`, `attention-surface.spec.ts` | P1 | <!-- epic-owned: fe-only -->
+(AC22.11.1 removed, canonical: migrated to the `extraction` package roadmap as `AC-extraction.fe-ia-extraction.2`, #1821 Wave B)
+(AC22.11.2 removed and AC22.11.3 removed, canonical: migrated to the `reconciliation` package roadmap as `AC-reconciliation.fe-ia-reconciliation.6` through `.7`, #1821 Wave B)
 
 ### AC22.12 — Accessibility Baseline Follow-Up
 
@@ -326,14 +281,8 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 > global reduced-motion handling, consistent keyboard focus visibility, a
 > skip-to-content link, and restored contrast on attention reasons.
 
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC22.12.1 | Global styles honor `prefers-reduced-motion: reduce` by disabling non-essential animation/transition timing and smooth scrolling across the app shell | `designTokens.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.12.2 | The authenticated shell exposes a skip-to-content link that targets the main landmark so keyboard users can bypass navigation chrome | `shellAndAuth.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.12.3 | Global focus-visible styles cover links, form controls, and shared `.btn-*` controls with token-backed focus rings | `designTokens.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.12.4 | Attention-queue reason text uses the normal muted content token, not a lower-opacity muted variant, so low-confidence explanations keep readable contrast | `attentionQueue.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.12.5 | Shared toast and flow-step status affordances use Lucide icons or text instead of unicode glyph icons, and warning toast messages do not embed emoji-like status glyphs | `toastProviderComponent.test.tsx`, `flowStepBanner.test.tsx`, `assetsPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.12.6 | Data-dense report and asset-table loading states reserve layout with token-backed skeleton placeholders instead of spinner-only or text-only states | `uiPrimitives.test.tsx`, `balanceSheetPage.test.tsx`, `incomeStatementPage.test.tsx`, `cashFlowPage.test.tsx`, `assetsPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+(AC22.12.1 removed and AC22.12.2 removed and AC22.12.3 removed and AC22.12.5 removed and AC22.12.6 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.fe-ia-nav.13` through `.17`, #1821 Wave B)
+(AC22.12.4 removed, canonical: migrated to the `reconciliation` package roadmap as `AC-reconciliation.fe-ia-reconciliation.8`, #1821 Wave B)
 
 ### AC22.13 — Unified Provenance Taxonomy Follow-Up
 
@@ -347,10 +296,8 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 
 > *(AC22.13.1 removed — fully distributed; it was a three-package row: its `test_manual_valuation_snapshots.py` share migrated to `AC-pricing.provenance.1` (#1663 / #1710), its `test_portfolio_service.py` share (holdings + explicit as-of holdings) to `AC-portfolio.provenance.2` (#1663 / #1717), and its `test_reporting.py` share (report amount lines) to `AC-reporting.provenance.1` (#1663 / #1716))*
 
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC22.13.2 | Portfolio and report surfaces render a shared Imported / Manual / Derived provenance badge; Manual is visually distinct from Imported and unlabeled values remain silent | `provenanceBadge.test.tsx`, `holdingsTable.test.tsx`, `balanceSheetPage.test.tsx`, `incomeStatementPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.13.3 | Carryover accessibility review fixes keep the skip-link target covered by global focus-visible styling and keep report package table-of-contents section status in the accessible link name | `designTokens.test.tsx`, `personalReportPackagePage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+(AC22.13.2 removed, canonical: migrated to the `portfolio` package roadmap as `AC-portfolio.fe-ia-portfolio.4`, #1821 Wave B)
+(AC22.13.3 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.fe-ia-nav.18`, #1821 Wave B)
 
 ### AC22.14 — Grounded Chat Answers
 
@@ -366,7 +313,8 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 > `advisor` package roadmap as `AC-advisor.grounding.1-2`, #1821 Wave A. The
 > chatPanelComponent.test.tsx assertions are not tracked by this Python-only
 > roadmap.)
-| AC22.14.2 | `ChatPanel` renders assistant-answer citations as safe internal links and shows pending-action chips without parsing LLM prose | `chatPanelComponent.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+> (AC22.14.2 removed, canonical: migrated to the `advisor` package roadmap as
+> `AC-advisor.fe-ia-chat.1`, #1821 Wave B)
 
 ### AC22.15 — Settings Editor And Session Bootstrap (Surface Gaps)
 
@@ -380,11 +328,9 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 > longer frontend-dead. The broader `users` CRUD endpoints stay deliberately
 > deferred (no user-admin panel) — recorded in the backend README.
 
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC22.15.1 | A typed `patchUserSettings` client function in `lib/api.ts` issues `PATCH /api/users/me/settings` through the shared `apiFetch` client (no raw `fetch`) and returns the effective `UserAiSettings` response | `apiFunctions.test.ts` | P1 | <!-- epic-owned: fe-only -->
-| AC22.15.2 | The AI Settings page renders an editable form with explicit Save and Reset controls that submits the edited flags via `patchUserSettings`, surfacing loading, submitting, success, and error states using shared UI primitives | `aiSettingsPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.15.3 | A typed `fetchCurrentUser` client function consumes `GET /api/auth/me`, and the authenticated app shell calls it on mount to bootstrap/refresh the local session identity, clearing local session state when the endpoint reports the session is invalid | `apiFunctions.test.ts`, `appShellSessionBootstrap.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+(AC22.15.1 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.fe-ia-nav.19`, #1821 Wave B)
+(AC22.15.2 removed, canonical: migrated to the `llm` package roadmap as `AC-llm.fe-ia-ai-settings.1`, #1821 Wave B)
+(AC22.15.3 removed, canonical: migrated to the `identity` package roadmap as `AC-identity.fe-ia-identity.1`, #1821 Wave B)
 
 ### AC22.16 — Home Stops Leaking Internal Pipeline; Composable Dashboard Hooks
 
@@ -400,11 +346,7 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 > independently-usable hooks with the aggregate contract preserved (behavior-
 > preserving, no backend or schema change).
 
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC22.16.1 | The Home getting-started steps link only to everyday surfaces — the first step targets `/upload` and no step links to the accounting-jargon `/accounts` route | `dashboardPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.16.2 | The Home presents a single confidence-ranked attention entry point: the analytics reconciliation ("Risk radar") card and the unmatched-alerts call-to-action link to the unified `/attention` queue instead of parallel Advanced reconciliation internals (`/reconciliation`, `/reconciliation/unmatched`, `/review`) | `dashboardPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.16.3 | `useDashboardData` is composed from independently-usable hooks (`useDashboardSnapshot` for the financial/reconciliation aggregate and `useAssetTrend` for the per-account trend), each callable on its own through the shared `apiFetch` transport, while the aggregate hook preserves its existing public result contract | `useDashboardData.test.ts`, `useAssetTrend.test.ts` | P1 | <!-- epic-owned: fe-only -->
+(AC22.16.1 removed and AC22.16.2 removed and AC22.16.3 removed, canonical: migrated to the `reporting` package roadmap as `AC-reporting.fe-ia-reports.20` through `.22`, #1821 Wave B)
 
 ### AC22.17 — God-Component Decomposition (FE Structural Hygiene)
 
@@ -416,10 +358,8 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 > UX change. (The report package page, also flagged at ~1298 lines, was
 > decomposed separately by #1132, so it is out of scope here.)
 
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC22.17.2 | The Stage 2 review queue is composed from extracted sub-components (the match row/card and the queue controls) with unchanged review behavior | `reviewQueuePage.test.tsx`, `stage2ReviewQueueParts.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.17.3 | The statement detail page is composed from extracted sub-components (header/summary and the transactions/section blocks) with unchanged behavior | `statementDetailPage.test.tsx`, `statementDetailParts.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+(AC22.17.2 removed, canonical: migrated to the `reconciliation` package roadmap as `AC-reconciliation.fe-ia-reconciliation.9`, #1821 Wave B)
+(AC22.17.3 removed, canonical: migrated to the `extraction` package roadmap as `AC-extraction.fe-ia-extraction.3`, #1821 Wave B)
 
 ### AC22.18 — Nav Alias Cleanup And Product-Analytics Funnel Instrumentation
 
@@ -433,11 +373,8 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 > `OPENPANEL_CLIENT_ID` provisioning (#1109 AC1) is an infra2 task, out of scope
 > for this frontend repo.
 
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC22.18.1 | The legacy `/events` alias is removed from `ROUTE_CONFIG` so `/notifications` is the single canonical path/label; the `/events`→`/notifications` redirect is unchanged | `navigation.test.ts`, `nextConfigRedirects.test.ts` | P1 | <!-- epic-owned: fe-only -->
-| AC22.18.2 | A typed `track(event, props)` analytics wrapper dispatches through the OpenPanel command queue, is strictly non-blocking (never throws, no-op when unconfigured), exposes a taxonomy of ≥6 named product events, and strips PII (emails, monetary amounts, account numbers) from event properties before sending | `analyticsTrack.test.ts` | P1 | <!-- epic-owned: fe-only -->
-| AC22.18.3 | The core product funnel is instrumented through the wrapper — signup, statement upload started/succeeded/failed, Stage-1 review approved, and report generated — with tests asserting `track()` is invoked on each action | `loginPage.test.tsx`, `StatementUploader.test.tsx`, `statementReviewPage.test.tsx`, `personalReportPackagePage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+(AC22.18.1 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.fe-ia-nav.20`, #1821 Wave B)
+(AC22.18.2 removed and AC22.18.3 removed, canonical: migrated to the `observability` package roadmap as `AC-observability.fe-ia-analytics.1` through `.2`, #1821 Wave B)
 
 ### AC22.19 — Reader-First Report Package With Audit Details
 
@@ -446,11 +383,7 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 > remain available for audit review, but they are not the primary reading layer
 > of the loaded package.
 
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC22.19.1 | The loaded report package uses reader-facing labels for evidence coverage, reporting basis, and traceability summary, with proof-system labels such as `Deterministic PR`, `Post-merge LLM/OCR`, `Framework Policy`, raw gap codes, raw blocker codes, and policy result IDs kept out of the primary visible layer | `personalReportPackagePage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.19.2 | Explicit `Audit details` disclosures keep the same source-trust, framework-policy, traceability, blocker, matrix-version, line-id, confidence, review-state, and evidence-reference details keyboard reachable and screen-reader comprehensible | `personalReportPackagePage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.19.3 | Print/save and export metadata default to the reader-first hierarchy; raw CSV columns, policy result IDs, matrix version, and evidence bundle references are available only in an explicit audit/export-details disclosure | `personalReportPackagePage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+(AC22.19.1 removed and AC22.19.2 removed and AC22.19.3 removed, canonical: migrated to the `reporting` package roadmap as `AC-reporting.fe-ia-reports.23` through `.25`, #1821 Wave B)
 
 ### AC22.20 — Mobile Add To Home Screen Foundation
 
@@ -463,12 +396,7 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 > financial-data caching, push notifications, badging, background sync, and
 > native-app packaging remain out of scope.
 
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC22.20.1 | The install manifest uses the canonical `/` app launch route, stable app identity, standalone display, and required 192/512/apple icon metadata without relying on the legacy `/dashboard` redirect | `pwaInstall.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.20.2 | The shared install hook captures Android/Chromium `beforeinstallprompt`, suppresses the browser's automatic prompt until the app-level action, invokes `prompt()`, and records dismissals so business pages do not handle install events | `pwaInstall.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.20.3 | The global app-shell install prompt renders an Android install action when a deferred prompt is available and renders iOS Add to Home Screen guidance when the browser cannot provide a programmatic prompt | `pwaInstall.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.20.4 | Installed or standalone sessions hide the install prompt, and the app shell uses safe-area-aware standalone styling for home-screen launch without page-level changes | `pwaInstall.test.tsx`, `designTokens.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+(AC22.20.1 removed and AC22.20.2 removed and AC22.20.3 removed and AC22.20.4 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.fe-ia-nav.21` through `.24`, #1821 Wave B)
 
 ### AC22.21 — Mobile/PWA Bottom-Tab IA: Audit Hub, Add Sheet, Merged Settings
 
@@ -483,12 +411,5 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 > (the bell + `/attention`) is reused unchanged. See the low-fidelity design in
 > [EPIC-022.pwa-bottom-tab-ia.design.md](./EPIC-022.pwa-bottom-tab-ia.design.md).
 
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC22.21.1 {tier:CODE-ONLY} | The navigation model exposes a bottom tab bar of Home (`/`), Chat (`/chat`), Audit (`/audit`), and More (`/more`) plus a center Add action, and no longer exposes a `primaryWorkflowNavItems`/`advancedNavItems` split or any of Journal/Reconciliation/Processing/Confidence/Accounts/Settings as a navigation entry | `navigation.test.ts` | P1 | <!-- epic-owned: fe-only -->
-| AC22.21.2 {tier:CODE-ONLY} | The shell renders the bottom tab bar on mobile and mirrors the same five targets in the desktop sidebar; tapping Add opens a bottom sheet offering "Upload statement" (the statement uploader) and "Manual entry" (the guided evidence form), and Add is an action, not a route | `bottomTabBar.test.tsx`, `addSheet.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.21.3 {tier:CODE-ONLY} | `/audit` renders a verify-on-demand hub aggregating Trust (confidence), Reconciliation, Journal, and Processing as cards that deep-link to their existing pages, and those pages render a back-link to `/audit` | `auditHub.test.tsx`, `auditBackLinks.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.21.4 {tier:CODE-ONLY} | `/settings` renders one page with General, AI, and LLM as tabs, and `/settings/general`, `/settings/ai`, `/settings/llm` resolve to that page with the corresponding tab active | `settingsPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.21.5 {tier:CODE-ONLY} | `/more` lists low-frequency destinations — Portfolio (shown only when the user holds securities), Settings, Advanced, and Logout | `morePage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.21.6 {tier:CODE-ONLY} | The Home renders the net-worth headline, a three-statement segmented entry (Balance Sheet / Income / Cash Flow) each deep-linking to its full report, the single next-action, the attention bell, and keeps heavy charts behind an opt-in toggle | `homeStatements.test.tsx`, `dashboardPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC22.21.7 {tier:CODE-ONLY} | Desktop and mobile smoke covers the bottom tab bar, the Add sheet, the Audit hub, and the merged Settings without layout overflow, with safe-area-aware bottom-bar styling for standalone PWA sessions | `epic022-bottom-tab-ia.spec.ts` | P1 | <!-- epic-owned: fe-only -->
+(AC22.21.1 removed and AC22.21.2 removed and AC22.21.3 removed and AC22.21.4 removed and AC22.21.5 removed and AC22.21.7 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.fe-ia-nav.25` through `.30`, #1821 Wave B)
+(AC22.21.6 removed, canonical: migrated to the `reporting` package roadmap as `AC-reporting.fe-ia-reports.26`, #1821 Wave B)

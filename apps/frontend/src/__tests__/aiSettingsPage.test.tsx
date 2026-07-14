@@ -30,6 +30,7 @@ beforeEach(() => {
 })
 
 describe("AiSettingsPage (EPIC-022 AC22.4.3, AC22.15.2)", () => {
+  // AC-reconciliation.fe-ia-reconciliation.1
   it("AC22.4.3 links to the AI suggestion review surface so it is not orphaned", async () => {
     render(<AiSettingsPage />)
     await waitFor(() => expect(screen.getByText("AI Settings")).toBeInTheDocument())
@@ -39,6 +40,7 @@ describe("AiSettingsPage (EPIC-022 AC22.4.3, AC22.15.2)", () => {
     )
   })
 
+  // AC-llm.fe-ia-ai-settings.1
   it("AC22.15.2 renders the loaded flags and keeps Save disabled until edited", async () => {
     render(<AiSettingsPage />)
     await waitFor(() => expect(screen.getByText("AI Settings")).toBeInTheDocument())

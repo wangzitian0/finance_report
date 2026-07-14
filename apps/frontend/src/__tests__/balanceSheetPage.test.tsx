@@ -58,6 +58,7 @@ describe("BalanceSheetPage", () => {
   })
 
   // AC-reporting.fe-report-surfaces.11
+  // AC-reporting.fe-viz-reports.8 / AC-reporting.fe-viz-reports.9
   it("AC16.14.2 / test_AC8_13_48 renders string totals and refetches by date", async () => {
     mockedApiFetch.mockResolvedValue({
       as_of_date: "2026-02-01",

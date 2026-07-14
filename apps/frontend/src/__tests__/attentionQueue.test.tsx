@@ -37,6 +37,7 @@ function mockSources({
 describe("Attention queue (EPIC-022 AC22.6)", () => {
   beforeEach(() => mockedApiFetch.mockReset());
 
+  // AC-reconciliation.fe-ia-reconciliation.7 / AC-reconciliation.fe-ia-reconciliation.8
   it("AC22.6.1 AC22.11.3 AC22.12.4 renders the open attention items with readable reasons and action links", async () => {
     mockSources({
       statements: [

@@ -54,6 +54,7 @@ describe("LineagePanel (EPIC-022 AC22.3.4/AC22.3.5)", () => {
     expect(mockedApiFetch).toHaveBeenCalledWith(expect.stringContaining("/api/evidence/lineage?entity_type=journal_line"))
   })
 
+  // AC-reporting.fe-ia-reports.11
   it("AC22.7.2 renders an ordered lineage path with source, confidence, and version badges", async () => {
     mockedApiFetch.mockResolvedValue({
       anchor: null,

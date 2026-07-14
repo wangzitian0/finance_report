@@ -76,6 +76,7 @@ describe("UI primitives", () => {
     expect(screen.getByRole("status", { name: "Loading accounts" })).toBeInTheDocument()
   })
 
+  // AC-meta.fe-ia-nav.17
   it("AC22.12.6 renders token-backed skeleton primitives without spinner affordances", () => {
     const { container } = render(
       <div>

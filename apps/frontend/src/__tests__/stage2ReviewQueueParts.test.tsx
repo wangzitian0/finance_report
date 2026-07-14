@@ -46,6 +46,7 @@ function makeCheck(overrides: Partial<ConsistencyCheck> = {}): ConsistencyCheck 
 }
 
 describe("Stage2 extracted parts", () => {
+    // AC-reconciliation.fe-ia-reconciliation.9
     it("AC22.17.2 PendingMatchesPanel renders mobile + desktop rows and wires selection/batch callbacks", () => {
         const onToggleMatch = vi.fn();
         const onToggleAll = vi.fn();

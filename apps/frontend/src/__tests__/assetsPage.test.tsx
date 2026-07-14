@@ -375,6 +375,7 @@ describe("AssetsPage", () => {
     expect(screen.getByText(/0\.123456789 units/)).toBeInTheDocument()
   })
 
+  // AC-portfolio.fe-ia-portfolio.2
   it("AC11.9.4 AC22.10.2 renders manual valuation snapshots and creates a new property valuation", async () => {
     mockedApiFetch.mockImplementation((path: string, options?: RequestInit) => {
       if (path === "/api/assets/valuation-snapshots" && options?.method === "POST") {
