@@ -157,7 +157,7 @@ import edge).
 
 ## Application-Layer Advisor Contract (EPIC-021)
 
-*(Internalized from `docs/ssot/ai.md`, migration closeout wave 3, #1664 —
+*(Internalized from `common/llm/ai.md`, migration closeout wave 3, #1664 —
 this is now the single owner; do not re-add a separate SSOT copy.)*
 
 EPIC-021 upgrades the advisor from generic chat to product guidance: the

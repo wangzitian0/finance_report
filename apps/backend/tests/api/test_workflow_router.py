@@ -571,7 +571,7 @@ async def test_AC19_2_6_workflow_router_and_ssot_document_compact_read_path() ->
     assert "/workflow/events" in route_paths
     assert "/workflow/events/{event_id}" in route_paths
 
-    ssot = (ROOT_DIR / "docs" / "ssot" / "workflow-events.md").read_text(encoding="utf-8")
+    ssot = (ROOT_DIR / "common" / "platform" / "workflow-events.md").read_text(encoding="utf-8")
     assert "GET /workflow/status" in ssot
     assert "GET /workflow/events" in ssot
     assert "PATCH /workflow/events/{event_id}" in ssot

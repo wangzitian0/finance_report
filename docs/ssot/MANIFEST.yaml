@@ -126,7 +126,7 @@ concepts:
 
   # ── Schema / Database domain ───────────────────────────────────────────
   database_schema:
-    owner: docs/ssot/schema.md#er-model
+    owner: common/meta/schema.md#er-model
     description: PostgreSQL schema rationale, generated inventory reference, and migration rules.
     family: schema
     kind: concept
@@ -140,19 +140,21 @@ concepts:
       - tools/generate_db_schema_reference.py
       - common/meta/extension/generate_db_schema_reference.py
       - common/ledger/readme.md
-      - docs/ssot/reconciliation.md
+      - common/reconciliation/reconciliation.md
 
   data_layering:
-    owner: docs/ssot/schema.md#data-layering
+    owner: common/meta/schema.md#data-layering
     description: ODS/DWD/DWM/DWS/ADS/DIM classification of every data table and cross-layer rules.
+    family: schema
     cross_refs:
       - common/extraction/readme.md
-      - docs/ssot/reconciliation.md
+      - common/reconciliation/reconciliation.md
       - docs/project/EPIC-011.asset-lifecycle.md
 
   enum_naming:
-    owner: docs/ssot/schema.md#enum-naming
+    owner: common/meta/schema.md#enum-naming
     description: All sa.Enum instances MUST have an explicit name parameter.
+    family: schema
     cross_refs:
       - AGENTS.md
       - docs/agents/red-lines.md
@@ -162,9 +164,9 @@ concepts:
     owner: common/meta/data/migration-risk.yaml
     description: Machine-readable risk level and release proof contract for Alembic migrations.
     cross_refs:
-      - docs/ssot/schema.md
-      - docs/ssot/ci-cd.md
-      - docs/ssot/deployment.md
+      - common/meta/schema.md
+      - common/testing/ci-cd.md
+      - common/runtime/deployment.md
       - tools/check_migration_risk.py
       - common/meta/extension/migration_risk.py
       - tests/tooling/test_migration_risk_contract.py
@@ -175,26 +177,27 @@ concepts:
     description: Score ≥85 auto-accept; 60-84 review; <60 unmatched.
     cross_refs:
       - docs/agents/red-lines.md
-      - docs/ssot/reconciliation.md
+      - common/reconciliation/reconciliation.md
 
   reconciliation_state_machine:
     owner: common/reconciliation/readme.md#state-machine
     description: pending → auto_accepted | pending_review → accepted | rejected.
     cross_refs:
-      - docs/ssot/confirmation-workflow.md
-      - docs/ssot/reconciliation.md
+      - common/reconciliation/confirmation-workflow.md
+      - common/reconciliation/reconciliation.md
 
   # ── Auth / Identity ────────────────────────────────────────────────────
   # The auth/identity SSOT concept (formerly `auth_flow`, owner docs/ssot/auth.md)
   # is now owned by the `identity` package (#1428): the backend contract lives in
   # common/identity/readme.md + contract.py (referenced from `package_model` above),
-  # and the frontend/browser-security half folded into docs/ssot/frontend-patterns.md.
+  # and the frontend/browser-security half folded into apps/frontend/frontend-patterns.md.
   # No central SSOT concept mirrors it — the package contract is the single source.
 
   # ── Frontend patterns ──────────────────────────────────────────────────
   api_client_pattern:
-    owner: docs/ssot/frontend-patterns.md
+    owner: apps/frontend/frontend-patterns.md
     description: "Frontend MUST use lib/api.ts wrapper; never raw fetch()."
+    family: frontend
     cross_refs:
       - AGENTS.md
       - docs/agents/red-lines.md
@@ -209,7 +212,7 @@ concepts:
     owner: common/extraction/readme.md
     description: Gemini Vision document parsing and validation pipeline.
     cross_refs:
-      - docs/ssot/reconciliation.md
+      - common/reconciliation/reconciliation.md
       - apps/backend/tests/extraction/test_dual_write_layer2.py
 
   extraction_confidence_tiers:
@@ -219,7 +222,7 @@ concepts:
     description: Extraction confidence score weighting and ≥85 / 60-84 / <60 routing tiers.
     cross_refs:
       - common/reconciliation/readme.md#thresholds
-      - docs/ssot/confirmation-workflow.md#confidence-tier-rollup
+      - common/extraction/confirmation-workflow.md#confidence-tier-rollup
 
   extraction_failed_case_registry:
     owner: common/extraction/audit-failed-cases.yaml
@@ -254,7 +257,7 @@ concepts:
       - tests/tooling/test_ac_index_consistency.py
       - tools/check_ac_index.py
     cross_refs:
-      - docs/ssot/tdd.md
+      - common/testing/tdd.md
       - common/testing/data/critical-proof-outcomes.yaml
       - common/testing/data/ac-score-baseline.jsonl
       - common/testing/data/protection-floor.json
@@ -298,11 +301,11 @@ concepts:
     owner: common/advisor/readme.md
     description: AI advisor application-layer contract, prompt policy, context scope, and safety controls.
     cross_refs:
-      - docs/ssot/ai.md
-      - docs/ssot/reporting.md
-      - docs/ssot/workflow-events.md
+      - common/llm/ai.md
+      - common/reporting/reporting.md
+      - common/platform/workflow-events.md
       - common/testing/data/source-coverage-matrix.yaml
-      - docs/ssot/market_data.md
+      - common/pricing/market_data.md
       - docs/project/EPIC-021.application-ai-advisor.md
 
   # ── Reporting domain ───────────────────────────────────────────────────
@@ -310,15 +313,15 @@ concepts:
     owner: common/reporting/readme.md
     description: Financial reports, multi-currency consolidation, calculations.
     cross_refs:
-      - docs/ssot/reporting.md
+      - common/reporting/reporting.md
       - common/ledger/readme.md
-      - docs/ssot/market_data.md
+      - common/pricing/market_data.md
 
   framework_reporting:
-    owner: docs/ssot/framework-reporting.md
+    owner: common/reporting/framework-reporting.md
     description: US-like and HK-like target-backward policy layer for personal report packages.
     cross_refs:
-      - docs/ssot/reporting.md
+      - common/reporting/reporting.md
       - common/ledger/readme.md
       - docs/project/EPIC-020.framework-aware-personal-reporting.md
 
@@ -331,10 +334,10 @@ concepts:
       into the package readme itself, migration closeout wave 3, #1664).
     family: assets
     cross_refs:
-      - docs/ssot/assets.md
-      - docs/ssot/reporting.md
+      - common/portfolio/assets.md
+      - common/reporting/reporting.md
       - common/pricing/contract.py
-      - docs/ssot/schema.md
+      - common/meta/schema.md
 
   # ── Market data ────────────────────────────────────────────────────────
   market_data:
@@ -345,8 +348,8 @@ concepts:
       wave 3, #1664); consolidates into the unified observation model at the
       #1610 consumer-wiring cutover.
     cross_refs:
-      - docs/ssot/market_data.md
-      - docs/ssot/reporting.md
+      - common/pricing/market_data.md
+      - common/reporting/reporting.md
       - common/pricing/contract.py
 
   # ── Processing account ─────────────────────────────────────────────────
@@ -355,19 +358,19 @@ concepts:
     description: Unconfirmed in-transit funds; balance 0 means transfer paired.
     family: accounting
     cross_refs:
-      - docs/ssot/confirmation-workflow.md
-      - docs/ssot/reconciliation.md
+      - common/extraction/confirmation-workflow.md
+      - common/reconciliation/reconciliation.md
 
   # ── Confirmation workflow ──────────────────────────────────────────────
   confirmation_workflow:
-    owner: docs/ssot/confirmation-workflow.md
+    owner: common/extraction/confirmation-workflow.md
     description: Cross-cutting pending_review state machine (Stage 1 & 2).
     cross_refs:
-      - docs/ssot/reconciliation.md
+      - common/reconciliation/reconciliation.md
       - common/ledger/readme.md
 
   confirmation_workflow_states:
-    owner: docs/ssot/confirmation-workflow.md#state-machine
+    owner: common/extraction/confirmation-workflow.md#state-machine
     family: reconciliation
     kind: concept
     description: Stage 1 & Stage 2 confirmation state transitions (the cross-cutting state machine).
@@ -375,7 +378,7 @@ concepts:
       - common/reconciliation/readme.md#state-machine
 
   confidence_tier_rollup:
-    owner: docs/ssot/confirmation-workflow.md#confidence-tier-rollup
+    owner: common/extraction/confirmation-workflow.md#confidence-tier-rollup
     family: extraction
     kind: concept
     description: Confidence-tier rollup that makes extraction confidence load-bearing for promotion.
@@ -383,40 +386,40 @@ concepts:
       - common/extraction/readme.md#confidence-scoring
 
   workflow_events:
-    owner: docs/ssot/workflow-events.md
+    owner: common/platform/workflow-events.md
     description: User-facing upload-to-report workflow event read model.
     cross_refs:
       - docs/project/EPIC-019.event-driven-upload-to-report-ux.md
-      - docs/ssot/confirmation-workflow.md
-      - docs/ssot/reporting.md
+      - common/extraction/confirmation-workflow.md
+      - common/reporting/reporting.md
 
   evidence_lineage:
-    owner: docs/ssot/evidence-lineage.md
+    owner: common/extraction/evidence-lineage.md
     description: Generic Evidence Graph for source-to-ledger-to-report audit lineage.
     cross_refs:
       - docs/project/EPIC-018.ai-driven-pipeline.md
-      - docs/ssot/workflow-events.md
-      - docs/ssot/reporting.md
+      - common/platform/workflow-events.md
+      - common/reporting/reporting.md
       - apps/backend/tests/services/test_evidence_graph_materialization.py
 
   # ── Observability ──────────────────────────────────────────────────────
   observability_logging:
-    owner: docs/ssot/observability.md
+    owner: common/observability/observability.md
     description: Structured logging, OTLP export configuration.
     cross_refs:
-      - docs/ssot/development.md
+      - common/meta/development.md
 
   statement_parsing_model_selection_logging:
-    owner: docs/ssot/observability-logging.md
+    owner: common/observability/observability-logging.md
     description: Statement parsing model-selection and staging audit replay logging contract.
     family: observability
     kind: playbook
     parent: observability_logging
     authority: documented_contract
     cross_refs:
-      - docs/ssot/observability.md
+      - common/observability/observability.md
       - common/extraction/readme.md
-      - docs/ssot/ai.md
+      - common/llm/ai.md
       - docs/project/EPIC-010.observability-logging.md
       - apps/backend/tests/api/test_statements_router.py
       - apps/backend/tests/extraction/test_statement_parsing_audit_logging.py
@@ -426,14 +429,15 @@ concepts:
       - .github/workflows/deploy.yml
 
   runtime_incident_response:
-    owner: docs/ssot/runtime-incident-response.md
+    owner: common/runtime/runtime-incident-response.md
     description: App-side runtime incident triage and stability-proof routing.
     family: runtime
     kind: playbook
     cross_refs:
-      - docs/ssot/deployment.md
-      - docs/ssot/observability.md
-      - docs/ssot/ci-cd.md
+      - common/runtime/deployment.md
+      - common/observability/observability.md
+      - common/testing/ci-cd.md
+      - common/runtime/ci-cd.md
       - common/runtime/readme.md
       - docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md
       - repo/docs/ssot/ops.alerting.md
@@ -444,14 +448,15 @@ concepts:
 
   # ── Development environment ────────────────────────────────────────────
   moon_commands:
-    owner: docs/ssot/development.md#moon-commands
+    owner: common/meta/development.md#moon-commands
     description: Primary interface for dev, lint, test, and build tasks.
+    family: development
     cross_refs:
       - AGENTS.md
       - docs/contributing/branch-policy.md
 
   runtime_toolchain:
-    owner: docs/ssot/development.md#toolchain-contract
+    owner: common/meta/development.md#toolchain-contract
     description: Python, Node.js, uv, and container image versions shared by local, CI, and Docker environments.
     cross_refs:
       - toolchain.toml
@@ -466,27 +471,30 @@ concepts:
       - docker-compose.pr-preview.yml
 
   local_host_shells:
-    owner: docs/ssot/development.md#local-host-shell-matrix
+    owner: common/meta/development.md#local-host-shell-matrix
+    family: development
     description: Supported local command shells and PATH/tool-install boundaries across WSL Ubuntu, macOS/Linux, Windows PowerShell, and Codex runner contexts.
     cross_refs:
       - README.md
-      - docs/ssot/environments.md#host-shell-boundaries
+      - common/runtime/environments.md#host-shell-boundaries
       - tools/bootstrap.sh
       - tools/_lib/shell/
       - common/runtime/shell/common.sh
 
   namespace_isolation:
-    owner: docs/ssot/development.md#local-test-isolation
+    owner: common/meta/development.md#local-test-isolation
     description: Namespace-based test DB and S3 bucket isolation for parallel runs.
+    family: development
     cross_refs:
-      - docs/ssot/environments.md
+      - common/runtime/environments.md
 
   environment_variables:
-    owner: docs/ssot/development.md#environment-variables
+    owner: common/meta/development.md#environment-variables
     description: Three-layer SSOT for env vars (secrets.ctmpl / config.py / .env.example).
+    family: development
     cross_refs:
       - docs/agents/red-lines.md
-      - docs/ssot/deployment.md
+      - common/runtime/deployment.md
       - .env.example
       - apps/backend/src/config.py
       - repo/finance_report/finance_report/10.app/secrets.ctmpl
@@ -498,7 +506,7 @@ concepts:
       - .pre-commit-config.yaml
 
   env_reference_generated:
-    owner: docs/ssot/env-reference.generated.md
+    owner: common/runtime/env-reference.generated.md
     family: development
     kind: registry
     description: Generated backend env reference (rendered from config.py Settings metadata; do not edit by hand).
@@ -511,38 +519,39 @@ concepts:
 
   # ── Environments ───────────────────────────────────────────────────────
   six_environments:
-    owner: docs/ssot/environments.md#environment-overview
+    owner: common/runtime/environments.md#environment-overview
     description: "Local Dev / Local CI / GitHub CI / PR Preview / Staging / Production."
+    family: environments
     cross_refs:
-      - docs/ssot/development.md
-      - docs/ssot/ci-cd.md
-      - docs/ssot/deployment.md
+      - common/meta/development.md
+      - common/testing/ci-cd.md
+      - common/runtime/deployment.md
     proofs:
       - tests/tooling/test_issue_489_deployment_contracts.py
 
   container_naming:
-    owner: docs/ssot/environments.md#container-naming-patterns
+    owner: common/runtime/environments.md#container-naming-patterns
     description: Container name patterns per environment (hyphens vs underscores).
     family: platform
     kind: concept
     proofs:
       - tests/tooling/test_issue_489_deployment_contracts.py
     cross_refs:
-      - docs/ssot/deployment.md
+      - common/runtime/deployment.md
       - AGENTS.md
 
   # ── CI / CD ────────────────────────────────────────────────────────────
   ci_workflow:
-    owner: docs/ssot/ci-cd.md#ci-job-structure
+    owner: common/testing/ci-cd.md#ci-job-structure
     description: CI job structure (lint → backend shards → frontend → coverage) and the local guardrail tiers (pre-commit → pre-push → CI) that left-move its cheap drift gates.
     cross_refs:
-      - docs/ssot/development.md
-      - docs/ssot/coverage.md
+      - common/meta/development.md
+      - common/testing/coverage.md
       - .github/workflows/ci.yml
       - .pre-commit-config.yaml
 
   pr_review_thread_merge_gate:
-    owner: docs/ssot/ci-cd.md#pr-review-thread-merge-gate
+    owner: common/testing/ci-cd.md#pr-review-thread-merge-gate
     family: delivery
     kind: concept
     authority: documented_contract
@@ -554,7 +563,7 @@ concepts:
       - tests/tooling/test_check_pr_review_threads.py
 
   ac_proof_execution_model:
-    owner: docs/ssot/ci-cd.md#ac-proof-execution-model
+    owner: common/testing/ci-cd.md#ac-proof-execution-model
     family: delivery
     kind: concept
     parent: ci_workflow
@@ -578,7 +587,7 @@ concepts:
     proofs:
       - tests/tooling/test_ci_gate_inventory.py
     cross_refs:
-      - docs/ssot/ci-cd.md
+      - common/testing/ci-cd.md
       - docs/project/EPIC-008.testing-strategy.md
       - .github/workflows/ci.yml
 
@@ -593,7 +602,7 @@ concepts:
       - tests/tooling/test_workflow_contract.py
       - tests/tooling/test_post_merge_e2e_gates.py
     cross_refs:
-      - docs/ssot/ci-cd.md
+      - common/testing/ci-cd.md
       - .github/workflows/ci.yml
 
   delivery_gate_triggers:
@@ -602,8 +611,8 @@ concepts:
     kind: matrix
     description: How each delivery CI gate triggers and whether it blocks merge — the single source for trigger/blocking contracts (so a trigger change is one edit, not a fact restated across docs/tests).
     cross_refs:
-      - docs/ssot/ci-cd.md
-      - docs/ssot/environments.md
+      - common/testing/ci-cd.md
+      - common/runtime/environments.md
       - docs/project/EPIC-008.testing-strategy.md
       - .github/workflows/preview.yml
       - .github/workflows/deploy.yml
@@ -612,7 +621,7 @@ concepts:
       - tests/tooling/test_delivery_gates_contract.py
 
   test_optimization:
-    owner: docs/ssot/ci-cd.md#test-optimization
+    owner: common/testing/ci-cd.md#test-optimization
     description: Smart/fast/full test modes and 5-way seeded backend sharding strategy.
     family: platform
     kind: concept
@@ -620,8 +629,8 @@ concepts:
       - apps/backend/tests/unit/infra/test_test_lifecycle.py
       - tests/tooling/test_github_workflow_timing_summary.py
     cross_refs:
-      - docs/ssot/development.md
-      - docs/ssot/coverage.md
+      - common/meta/development.md
+      - common/testing/coverage.md
 
   test_execution_matrix:
     # SSOT internalized into the testing package (migration-standard step 3,
@@ -638,8 +647,8 @@ concepts:
       - tests/tooling/test_execution_matrix_contract.py
     cross_refs:
       - common/testing/data/test-execution-matrix.yaml
-      - docs/ssot/ci-cd.md
-      - docs/ssot/tdd.md
+      - common/testing/ci-cd.md
+      - common/testing/tdd.md
       - tools/check_ac_index.py
       - tools/test_selection.py
 
@@ -660,29 +669,29 @@ concepts:
 
   # ── Deployment ─────────────────────────────────────────────────────────
   deployment_architecture:
-    owner: docs/ssot/deployment.md
+    owner: common/runtime/deployment.md
     description: Dual-repo model, Vault secret injection, staging/production flow.
     cross_refs:
-      - docs/ssot/development.md
-      - docs/ssot/environments.md
+      - common/meta/development.md
+      - common/runtime/environments.md
     proofs:
       - tests/tooling/test_issue_489_deployment_contracts.py
       - tests/tooling/test_post_merge_e2e_gates.py
 
   # ── Coverage ──────────────────────────────────────────────────────────
   test_coverage:
-    owner: docs/ssot/coverage.md
+    owner: common/testing/coverage.md
     description: Unified coverage system (backend + frontend + common + tools).
     cross_refs:
-      - docs/ssot/tdd.md
-      - docs/ssot/ci-cd.md
+      - common/testing/tdd.md
+      - common/testing/ci-cd.md
     proofs:
       - tests/tooling/test_coverage_policy.py
       - tests/tooling/test_calculate_unified_coverage.py
 
   # ── TDD ───────────────────────────────────────────────────────────────
   tdd_workflow:
-    owner: docs/ssot/tdd.md
+    owner: common/testing/tdd.md
     description: EPIC → ACx.y.z → Test → Code → Doc mandatory sequence.
     cross_refs:
       - AGENTS.md
@@ -746,7 +755,7 @@ concepts:
     parent: tdd_workflow
     authority: machine_generated
     cross_refs:
-      - docs/ssot/tdd.md
+      - common/testing/tdd.md
       - common/testing/README.md
       - common/testing/ac_evidence.py
       - common/testing/ac_evidence_aggregate.py
@@ -764,7 +773,7 @@ concepts:
     parent: tdd_workflow
     authority: machine_generated
     cross_refs:
-      - docs/ssot/tdd.md
+      - common/testing/tdd.md
       - common/testing/protection.py
       - common/testing/check_ac_index.py
       - tools/check_ac_index.py
@@ -778,8 +787,8 @@ concepts:
     description: README -> EPIC -> E2E macro outcome guard and core proof-path matrix, a DERIVED (not committed) view of the one AC-keyed graph; proofs come from co-located @ac_proof decorators and macro outcomes from critical-proof-outcomes.yaml.
     cross_refs:
       - README.md
-      - docs/ssot/tdd.md
-      - docs/ssot/ci-cd.md
+      - common/testing/tdd.md
+      - common/testing/ci-cd.md
       - common/testing/data/critical-proof-outcomes.yaml
       - common/testing/ac_graph.py
       - .github/workflows/ci.yml
@@ -809,8 +818,8 @@ concepts:
     proofs:
       - tests/tooling/test_ac_authority_tiers.py
     cross_refs:
-      - docs/ssot/tdd.md
-      - docs/ssot/ai.md
+      - common/testing/tdd.md
+      - common/llm/ai.md
       - common/extraction/readme.md
       - docs/project/EPIC-026.ac-authority-tiers.md
       - common/meta/data/ac-tier-baseline.json
@@ -851,8 +860,9 @@ concepts:
       - tests/tooling/test_migration_safety_gates.py
 
   ssot_governance_metrics:
-    owner: docs/ssot/tdd.md#ssot-governance-metrics
+    owner: common/testing/tdd.md#ssot-governance-metrics
     description: Report-only governance metrics for SSOT ownership, shape, proof coverage, and future gate candidates.
+    family: tdd
     cross_refs:
       - docs/project/EPIC-014.ttd-transformation.md
       - common/meta/extension/governance_report/_metrics.py
@@ -861,7 +871,7 @@ concepts:
       - .github/workflows/ci.yml
 
   ssot_governance_gates:
-    owner: docs/ssot/tdd.md#ssot-governance-gates
+    owner: common/testing/tdd.md#ssot-governance-gates
     description: Incremental prevent-worse CI gates for changed SSOT files and changed manifest entries.
     family: tdd
     kind: concept
@@ -880,7 +890,7 @@ concepts:
     kind: registry
     parent: ssot_governance_gates
     cross_refs:
-      - docs/ssot/tdd.md
+      - common/testing/tdd.md
       - common/meta/extension/governance_report/_gate.py
       - tests/tooling/test_ssot_governance_report.py
 
@@ -909,8 +919,7 @@ concepts:
     owner: common/audit/readme.md#source-type-trust-hierarchy-provenance
     description: Data trust hierarchy and source_type enum conflict resolution.
     cross_refs:
-      - docs/ssot/source-type-priority.md
-      - docs/ssot/reconciliation.md
+      - common/reconciliation/reconciliation.md
       - common/extraction/readme.md
 
   # ── Environment smoke test ────────────────────────────────────────────
@@ -925,7 +934,7 @@ concepts:
       deployed-env dependency-presence verification (the Three Gates). Owned by
       the runtime package (common/runtime/readme.md).
     cross_refs:
-      - docs/ssot/development.md
+      - common/meta/development.md
     proofs:
       - tests/tooling/test_runtime_incident_response_ssot.py
       - tests/tooling/test_runtime_ssot_internalized.py

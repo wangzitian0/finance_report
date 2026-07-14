@@ -598,7 +598,7 @@ When reviewing coverage gaps:
 
 ### Internal
 - [tdd.md](./tdd.md) - TDD transformation plan
-- [development.md](./development.md) - Development workflow
+- [development.md](../meta/development.md) - Development workflow
 
 ### External
 - [pytest-cov documentation](https://pytest-cov.readthedocs.io/)

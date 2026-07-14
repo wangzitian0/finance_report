@@ -127,7 +127,7 @@ placeholder debt; mutable live CI/deploy run status is deliberately excluded.
 <!-- BEGIN GENERATED: epic-status -->
 
 > EPIC status is a DERIVED view of the one AC-keyed graph (see
-> [`docs/ssot/tdd.md`](docs/ssot/tdd.md) "Cross-Cutting Index Artifacts"). The
+> [`common/testing/tdd.md`](common/testing/tdd.md) "Cross-Cutting Index Artifacts"). The
 > per-EPIC completion numbers are **not committed** here, because a committed
 > snapshot churns on every AC change and is the merge-train false-sharing
 > hotspot this model removes.
@@ -276,9 +276,9 @@ Local fast feedback is advisory. PR CI is the authoritative merge gate, and
 PR Preview/staging/production provide deployed-environment proof. Use
 risk-triggered escalation for accounting, reconciliation, schema, API, shared
 tooling, Docker, workflow, environment, or deploy changes; see
-`docs/ssot/ci-cd.md`.
+`common/testing/ci-cd.md`.
 
-See `docs/ssot/development.md` for environment details and `docs/ssot/ci-cd.md`
+See `common/meta/development.md` for environment details and `common/testing/ci-cd.md`
 for CI gates.
 
 ## Architecture

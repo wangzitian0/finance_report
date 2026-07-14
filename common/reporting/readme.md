@@ -89,7 +89,7 @@ deleting the directory.
 
 ## SSOT: report calculation rules
 
-*(Internalized from `docs/ssot/reporting.md`, migration closeout wave 3,
+*(Internalized from `common/reporting/reporting.md`, migration closeout wave 3,
 #1664 — this is now the single owner; do not re-add a separate SSOT copy.)*
 
 ### Automated report preparation contract

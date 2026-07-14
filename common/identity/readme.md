@@ -10,7 +10,7 @@
 > [`apps/backend/src/identity`](../../apps/backend/src/identity)
 > (`contract.implementations["be"]`). This readme **internalizes the auth SSOT**
 > that previously lived at `docs/ssot/auth.md` (the backend half — the frontend /
-> browser-security half moved to `docs/ssot/frontend-patterns.md`, its existing
+> browser-security half moved to `apps/frontend/frontend-patterns.md`, its existing
 > owner).
 
 ## Why

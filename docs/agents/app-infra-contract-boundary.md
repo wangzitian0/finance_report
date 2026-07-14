@@ -38,8 +38,8 @@ observability contract**.
 
 ## App-side consumption docs (pointers only, not the contract)
 
-- [`docs/ssot/observability.md`](../ssot/observability.md)
-- [`docs/ssot/environments.md`](../ssot/environments.md)
+- [`common/observability/observability.md`](../../common/observability/observability.md)
+- [`common/runtime/environments.md`](../../common/runtime/environments.md)
 
 ## Anti-regression guard
 

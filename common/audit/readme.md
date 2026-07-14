@@ -100,9 +100,10 @@ Three-step sequence, each a separate merge-gated PR:
 
 ## Source-type trust hierarchy (provenance)
 
-*(Internalized from `docs/ssot/source-type-priority.md`, migration closeout
-wave 3, #1664 — this is now the single owner; do not re-add a separate
-SSOT copy. Lives in `audit` because it's a `confidence`/`provenance`
+*(Internalized from the former `docs/ssot/source-type-priority.md`, migration closeout
+wave 3, #1664; the pointer stub itself was retired in #1822 (SSOT
+dissolution) — this is the single owner and always has been; do not re-add
+a separate SSOT copy. Lives in `audit` because it's a `confidence`/`provenance`
 concern — see [What audit governs](#what-audit-governs) above — and its
 implementation is `apps/backend/src/audit/source_type_priority.py`.)*
 

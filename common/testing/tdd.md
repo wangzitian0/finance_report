@@ -29,7 +29,7 @@ the owning module has migrated onto the package model:
   keyed `AC-<pkg>.<group>.<seq>` (the `<group>` segment is an entity name **or** a
   numeric group, e.g. `AC-ledger.journal-entry.3` or `AC-counter.1.1`) and
   conforming to `meta`'s schema (see
-  [`common/meta/migration-standard.md`](../../common/meta/migration-standard.md)).
+  [`common/meta/migration-standard.md`](../meta/migration-standard.md)).
   `meta`'s data layer aggregates these into the computed index; a package AC is
   **never** mirrored into an EPIC table.
 - **Legacy module (not yet a package)** — the AC still lives in the owning EPIC
@@ -334,7 +334,7 @@ The first cleanup threshold is `finance_report.orphan_ssot_files == 0`. It
 binds existing orphan SSOT files to parent concepts instead of promoting every
 file into an independent HLS concept:
 
-- `docs/ssot/observability-logging.md` is a child playbook of
+- `common/observability/observability-logging.md` is a child playbook of
   `observability_logging`.
 - `common/testing/data/ac-score-baseline.jsonl` is a machine baseline artifact of
   `tdd_workflow`.
@@ -350,7 +350,7 @@ actively used as the source of truth:
 - [`extraction_failed_case_registry`](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/audit-failed-cases.yaml)
   declares `family: extraction`, `kind: registry`, its executable registry
   proof, and inbound links from the extraction package readme and EPIC-003.
-- [`source_coverage_matrix`](../../common/testing/data/source-coverage-matrix.yaml) declares
+- [`source_coverage_matrix`](data/source-coverage-matrix.yaml) declares
   `family: source`, `kind: matrix`, and both its validator and test proof, with
   inbound links from the extraction SSOT, EPIC-013, and vision routing.
 
@@ -400,7 +400,7 @@ python tools/check_manifest.py
 python tools/check_ssot_ownership.py
 ```
 
-Coverage is governed by `docs/ssot/coverage.md` and
+Coverage is governed by `common/testing/coverage.md` and
 `common/meta/extension/coverage/policy.py`. The current policy is no-regression from
 `unified-coverage.json`; this TDD document intentionally links to code-owned
 thresholds instead of copying mutable percentage values.

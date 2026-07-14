@@ -355,7 +355,7 @@ def test_pr_preview_follows_successful_ci_without_dokploy_deploy() -> None:
     assert "preview-teardown" in cleanup_blob
     assert "infra2/dispatches" in cleanup_blob
 
-    env_doc = read("docs/ssot/environments.md")
+    env_doc = read("common/runtime/environments.md")
     assert "pull_request" in env_doc
     assert "No automatic persistent Dokploy URL" in env_doc
 

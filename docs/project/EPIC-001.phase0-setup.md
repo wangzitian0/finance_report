@@ -251,7 +251,7 @@ Set up a runnable Monorepo development environment, complete user authentication
 
 ## 📚 SSOT References
 
-- [schema.md](../ssot/schema.md) - Database structure
+- [schema.md](../../common/meta/schema.md) - Database structure
 - [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md) - Accounting model
 
 ---
@@ -274,7 +274,7 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 - [Frontend README](https://github.com/wangzitian0/finance_report/blob/main/apps/frontend/README.md) — frontend module entry point.
 - [../reference/api-overview.md](../reference/api-overview.md) — API conventions and auth entry point.
 - [../../common/identity/readme.md](../../common/identity/readme.md) — backend authentication architecture (the `identity` package, #1428).
-- [../ssot/frontend-patterns.md](../ssot/frontend-patterns.md) — frontend integration, API-client, and browser-auth/session patterns.
+- [../ssot/frontend-patterns.md](../../apps/frontend/frontend-patterns.md) — frontend integration, API-client, and browser-auth/session patterns.
 
 ---
 

@@ -16,10 +16,10 @@ moon run :test
 | Need | Source |
 |---|---|
 | API endpoints and schemas | [Generated API reference](../../docs/reference/api.md), `/api/docs` |
-| Development workflow | [development.md](../../docs/ssot/development.md) |
-| Environment contract | [environments.md](../../docs/ssot/environments.md), [.env.example](../../.env.example) |
-| Database model | [schema.md](../../docs/ssot/schema.md), [Generated DB schema reference](../../docs/reference/db-schema.md) |
-| Test policy | [tdd.md](../../docs/ssot/tdd.md), [coverage.md](../../docs/ssot/coverage.md) |
+| Development workflow | [development.md](../../common/meta/development.md) |
+| Environment contract | [environments.md](../../common/runtime/environments.md), [.env.example](../../.env.example) |
+| Database model | [schema.md](../../common/meta/schema.md), [Generated DB schema reference](../../docs/reference/db-schema.md) |
+| Test policy | [tdd.md](../../common/testing/tdd.md), [coverage.md](../../common/testing/coverage.md) |
 
 ## Router notes
 

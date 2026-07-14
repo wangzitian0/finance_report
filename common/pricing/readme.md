@@ -86,7 +86,7 @@ consumer wiring is tracked in #1610 PR2.
 
 ## <a id="manual-valuation-snapshots"></a>Manual valuation snapshots (pre-#1610-cutover shipped model)
 
-*(Internalized from `docs/ssot/assets.md`, migration closeout wave 3, #1664
+*(Internalized from `common/portfolio/assets.md`, migration closeout wave 3, #1664
 — this is now the single owner; do not re-add a separate SSOT copy.
 `ManualValuationSnapshot` is the shipped pre-migration shape; it retires
 into the unified append-only `PriceObservation` model above at the #1610
@@ -163,7 +163,7 @@ unless it is economically liquid.
 
 ## Market data (pre-#1610-cutover shipped model)
 
-*(Internalized from `docs/ssot/market_data.md`, migration closeout wave 3,
+*(Internalized from `common/pricing/market_data.md`, migration closeout wave 3,
 #1664 — this is now the single owner; do not re-add a separate SSOT copy.
 The `FxRate`/`StockPrice`/`MarketDataOverride` split and the `fx`/
 `market_data` services are the shipped pre-migration model that

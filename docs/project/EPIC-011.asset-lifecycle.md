@@ -64,10 +64,10 @@ facts are managed by the SSOT/code surfaces below instead of being copied here:
 
 | Fact | Owner |
 |---|---|
-| Four-layer raw/atomic/logic/report architecture | [assets.md](../ssot/assets.md), [schema.md](../ssot/schema.md), models, migrations |
+| Four-layer raw/atomic/logic/report architecture | [assets.md](../../common/portfolio/assets.md), [schema.md](../../common/meta/schema.md), models, migrations |
 | Upload, extraction, and atomic record flow | [common/extraction/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md), `apps/backend/src/extraction/` |
-| Reconciliation and reporting integration | [reconciliation.md](../ssot/reconciliation.md), [reporting.md](../ssot/reporting.md) |
-| Market data sync, freshness, and provider fallback | [market_data.md](../ssot/market_data.md), `apps/backend/src/services/market_data/` (pre-migration; consolidates into the `pricing` package, #1610) |
+| Reconciliation and reporting integration | [reconciliation.md](../../common/reconciliation/reconciliation.md), [reporting.md](../../common/reporting/reporting.md) |
+| Market data sync, freshness, and provider fallback | [market_data.md](../../common/pricing/market_data.md), `apps/backend/src/services/market_data/` (pre-migration; consolidates into the `pricing` package, #1610) |
 | AC-to-test proof and current counts | `python tools/analyze_test_ac_coverage.py --no-write --stdout`, CI traceability artifact |
 
 Historical migration options, copied table schemas, and implementation-phase
@@ -276,8 +276,8 @@ its guardrails:
 |---|---|
 | Service/router/session conventions | Existing backend modules and `apps/backend/README.md` |
 | Monetary precision and enum naming | [red-lines.md](../agents/red-lines.md), schema guardrail tests |
-| Frontend API access and component conventions | [frontend-patterns.md](../ssot/frontend-patterns.md), `apps/frontend/src/lib/api.ts` |
-| Test ownership and execution stage | [test-execution-matrix.yaml](../ssot/test-execution-matrix.yaml), AC traceability artifact |
+| Frontend API access and component conventions | [frontend-patterns.md](../../apps/frontend/frontend-patterns.md), `apps/frontend/src/lib/api.ts` |
+| Test ownership and execution stage | [test-execution-matrix.yaml](../../common/testing/data/test-execution-matrix.yaml), AC traceability artifact |
 
 End-to-end user workflows are represented as ACs plus executable tests. Keep new
 workflow detail in tests, critical proof matrix rows, or SSOT rationale instead
@@ -309,10 +309,10 @@ listed below.
 ## 📚 Related Documentation
 
 - [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md) — Double-entry rules
-- [schema.md](../ssot/schema.md) — Database models
-- [reporting.md](../ssot/reporting.md) — Financial reports
-- [market_data.md](../ssot/market_data.md) — Market data sources
-- [assets.md](../ssot/assets.md) — Asset lifecycle rationale and proof references
+- [schema.md](../../common/meta/schema.md) — Database models
+- [reporting.md](../../common/reporting/reporting.md) — Financial reports
+- [market_data.md](../../common/pricing/market_data.md) — Market data sources
+- [assets.md](../../common/portfolio/assets.md) — Asset lifecycle rationale and proof references
 
 ---
 
@@ -324,7 +324,7 @@ lists; it must be represented by one of these owners:
 
 | Scope | Owner |
 |---|---|
-| Asset lifecycle rationale and data-model links | [assets.md](../ssot/assets.md), [schema.md](../ssot/schema.md) |
+| Asset lifecycle rationale and data-model links | [assets.md](../../common/portfolio/assets.md), [schema.md](../../common/meta/schema.md) |
 | Annualized income / restricted holdings UI gap | AC11.8 below |
 | Personal report package annualized-income schedule | AC11.11 below and EPIC-005 package contract |
 | Layer 3 classification service | AC11.12 below and extraction service tests |

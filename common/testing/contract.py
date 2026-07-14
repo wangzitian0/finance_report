@@ -1508,7 +1508,7 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-testing.deploy-gates.35",
             statement=(
-                "SSOT docs/ssot/ci-cd.md clearly distinguishes the blocking, minimal "
+                "SSOT common/testing/ci-cd.md clearly distinguishes the blocking, minimal "
                 "AI/OCR Canary from the nightly/manual, comprehensive Audit Replay, "
                 "and records the canary-vs-audit split as a deliberate keep_separate "
                 "decision in the gate inventory (Was EPIC-008 AC8.13.160)."
@@ -2873,7 +2873,7 @@ CONTRACT = PackageContract(
             id="AC-testing.governance.5",
             statement=(
                 "Critical-path timeouts and retries are documented in "
-                "docs/ssot/ci-cd.md (Was EPIC-008 AC8.13.118)."
+                "common/testing/ci-cd.md and common/runtime/ci-cd.md (Was EPIC-008 AC8.13.118)."
             ),
             test=(
                 "tests/tooling/test_post_merge_e2e_gates.py"

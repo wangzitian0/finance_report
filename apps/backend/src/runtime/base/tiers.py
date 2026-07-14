@@ -1,6 +1,6 @@
 """`EnvTier` — the six environments a dependency can be declared for.
 
-Mirrors `docs/ssot/environments.md#environment-overview` (the `six_environments`
+Mirrors `common/runtime/environments.md#environment-overview` (the `six_environments`
 SSOT). CI and Preview run light substitutes (Preview = same as CI but
 persistent); Staging and Production run real backends. Local Dev / Local CI /
 GitHub CI are the app-owned tiers (self-hosted via docker compose); Preview /

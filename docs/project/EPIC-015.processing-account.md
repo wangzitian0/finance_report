@@ -160,9 +160,9 @@ Balance ≠ 0  → Pending Review ⚠️
 ## 📚 SSOT References
 
 - [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md) - Full specification (processing account folded into ledger)
-- [schema.md](../ssot/schema.md) - Account model with is_system flag
+- [schema.md](../../common/meta/schema.md) - Account model with is_system flag
 - [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md) - Double-entry rules
-- [reconciliation.md](../ssot/reconciliation.md) - Matching thresholds
+- [reconciliation.md](../../common/reconciliation/reconciliation.md) - Matching thresholds
 
 ---
 

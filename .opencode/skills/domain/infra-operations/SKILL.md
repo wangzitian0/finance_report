@@ -55,7 +55,7 @@ python tools/debug.py logs backend --env production --method observability
 
 ⚠️ **Staging & Production use underscore**: `finance_report-{service}${ENV_SUFFIX}`
 (from the infra2 IaC compose, not the local `docker-compose.yml`). DB service is
-`postgres`, not `db`. SSOT: [environments.md](../../../docs/ssot/environments.md).
+`postgres`, not `db`. SSOT: [environments.md](../../../../common/runtime/environments.md).
 
 | Environment | Backend | PostgreSQL | Redis |
 |-------------|---------|------------|-------|
@@ -401,7 +401,7 @@ curl https://report.zitian.party/health
 
 ## Related Docs
 
-- [AGENTS.md](../../../AGENTS.md) — Behavioral guidelines
-- [development.md](../../../docs/ssot/development.md) — Dev workflows
-- [observability.md](../../../docs/ssot/observability.md) — Logging
+- [AGENTS.md](../../../../AGENTS.md) — Behavioral guidelines
+- [development.md](../../../../common/meta/development.md) — Dev workflows
+- [observability.md](../../../../common/observability/observability.md) — Logging
 - [secrets-management](../secrets-management/SKILL.md) — Env vars

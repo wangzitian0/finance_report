@@ -2855,7 +2855,7 @@ def test_AC7_13_4_existing_compose_rolls_back_to_last_known_good_on_env_drift(
 def test_AC7_13_5_ci_cd_docs_describe_failure_modes() -> None:
     """AC7.13.5: ci-cd SSOT documents both the no-new-deployment fail-fast mode
     and the half-update rollback / safe-to-reconcile recovery path."""
-    ci_cd = (ROOT / "docs/ssot/ci-cd.md").read_text()
+    ci_cd = ((ROOT / "common/testing/ci-cd.md").read_text() + (ROOT / "common/runtime/ci-cd.md").read_text())
     assert "dokploy-worker-or-deployment-record" in ci_cd
     assert "safe-to-reconcile" in ci_cd
     lowered = ci_cd.lower()

@@ -207,6 +207,6 @@ verifiable.
 ## 🔗 References
 
 - Issue: #1158
-- SSOT Reporting: [../ssot/schema.md](../ssot/schema.md)
+- SSOT Reporting: [../ssot/schema.md](../../common/meta/schema.md)
 - Reporting EPIC: [EPIC-005.*](.) · Statement workflow EPIC: [EPIC-003.*](.)
 - FE typed contract: `apps/frontend/src/lib/api-schema.ts`

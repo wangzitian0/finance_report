@@ -24,7 +24,7 @@ def test_AC8_13_20_docs_and_docs_workflow_are_lightweight() -> None:
     result = classify_changed_paths(
         [
             "README.md",
-            "docs/ssot/ci-cd.md",
+            "docs/ssot/README.md",
             ".github/workflows/docs.yml",
             ".github/ISSUE_TEMPLATE/bug.md",
         ]
@@ -103,7 +103,7 @@ def test_AC8_13_20_multi_commit_runtime_path_requires_heavy_ci() -> None:
     """AC8.13.20: Multi-commit push ranges stay heavy when any runtime path changes."""
     result = classify_changed_paths(
         [
-            "docs/ssot/ci-cd.md",
+            "docs/ssot/README.md",
             "apps/backend/src/services/reporting.py",
             "apps/frontend/src/app/page.tsx",
         ]
@@ -222,7 +222,7 @@ def test_AC8_13_20_pr_preview_only_runs_for_app_e2e_or_compose_changes() -> None
     result = classify_changed_paths(
         [
             "common/testing/ac_traceability_refs.py",
-            "docs/ssot/ci-cd.md",
+            "docs/ssot/README.md",
             ".github/workflows/ci.yml",
         ]
     )
@@ -263,7 +263,7 @@ def test_AC8_13_96_pr_preview_classifier_includes_preview_infrastructure_paths()
         assert is_pr_preview_relevant(path) is True
 
     for path in (
-        "docs/ssot/ci-cd.md",
+        "docs/ssot/README.md",
         "docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md",
         "apps/backend/tests/reporting/test_reports.py",
         "apps/frontend/src/lib/api.test.ts",
@@ -272,7 +272,7 @@ def test_AC8_13_96_pr_preview_classifier_includes_preview_infrastructure_paths()
 
     result = classify_changed_paths(
         [
-            "docs/ssot/ci-cd.md",
+            "docs/ssot/README.md",
             ".github/workflows/preview.yml",
             "tools/_lib/dev/pr_preview_lifecycle.py",
         ]
@@ -328,7 +328,7 @@ def test_AC8_13_104_staging_ai_ocr_runs_only_for_provider_risk_paths() -> None:
         "tests/e2e/test_personal_financial_report_package.py",
         "tools/staging_ai_ocr_gate_contract.py",
         "common/testing/fixtures/pdf/generators/moomoo_generator.py",
-        "docs/ssot/ai.md",
+        "common/llm/ai.md",
         # The critical-proof matrix is no longer committed; its hand-curated
         # macro-outcome source is the staging trigger that replaced it.
         "common/testing/data/critical-proof-outcomes.yaml",
@@ -344,7 +344,7 @@ def test_AC8_13_104_staging_ai_ocr_runs_only_for_provider_risk_paths() -> None:
         "repo",
         "repo/tools/deploy_v2.py",
         "tools/health_check.sh",
-        "docs/ssot/ci-cd.md",
+        "docs/ssot/README.md",
     ):
         assert is_staging_ai_ocr_relevant(path) is False
 
@@ -411,7 +411,7 @@ def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None
         "apps/frontend/src/components/__tests__/ProcessingSummaryCard.test.tsx",
         "apps/frontend/README.md",
         "docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md",
-        "docs/ssot/ci-cd.md",
+        "docs/ssot/README.md",
         "common/meta/extension/check_ssot_ownership.py",
         "common/testing/build_ac_traceability.py",
         "tests/tooling/test_check_ssot_ownership.py",
@@ -425,7 +425,7 @@ def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None
     result = classify_changed_paths(
         [
             "docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md",
-            "docs/ssot/ci-cd.md",
+            "docs/ssot/README.md",
             "common/meta/extension/check_ssot_ownership.py",
             "tests/tooling/test_check_ssot_ownership.py",
         ]
@@ -442,7 +442,7 @@ def test_AC8_13_20_github_outputs_and_summary_include_heavy_files(
 ) -> None:
     """AC8.13.20: Classifier writes GitHub outputs and actionable summaries."""
     result = classify_changed_paths(
-        ["docs/ssot/ci-cd.md", "tools/ci_change_classifier.py"]
+        ["docs/ssot/README.md", "tools/ci_change_classifier.py"]
     )
     output = tmp_path / "github-output.txt"
     summary = tmp_path / "github-summary.md"
@@ -509,7 +509,7 @@ def test_AC8_13_20_cli_writes_outputs_summary_and_stdout(
     github_output = tmp_path / "github-output.txt"
     github_summary = tmp_path / "github-summary.md"
     changed_files.write_text(
-        "docs/ssot/ci-cd.md\n.github/workflows/docs.yml\n", encoding="utf-8"
+        "docs/ssot/README.md\n.github/workflows/docs.yml\n", encoding="utf-8"
     )
     monkeypatch.setattr(
         sys,
@@ -607,7 +607,7 @@ def test_AC8_13_110_github_outputs_include_structured_env_stage_matrix(
         [
             "apps/backend/src/services/reporting.py",
             ".github/workflows/preview.yml",
-            "docs/ssot/ci-cd.md",
+            "docs/ssot/README.md",
         ]
     )
     output = tmp_path / "github-output.txt"
@@ -650,7 +650,7 @@ def test_AC8_13_110_github_outputs_include_structured_env_stage_matrix(
         "local": [
             "apps/backend/src/services/reporting.py",
             ".github/workflows/preview.yml",
-            "docs/ssot/ci-cd.md",
+            "docs/ssot/README.md",
         ],
         "pr": [
             "apps/backend/src/services/reporting.py",
@@ -676,7 +676,7 @@ def test_AC8_13_111_structured_env_stage_outputs_cover_complete_environment_axis
     None
 ):
     """AC8.13.111: Structured Env x Stage outputs cover every environment."""
-    result = classify_changed_paths(["docs/ssot/ci-cd.md"])
+    result = classify_changed_paths(["docs/ssot/README.md"])
     required = classifier._env_stage_required(result)
     reasons = classifier._env_stage_reasons(result)
     files = classifier._env_stage_files(result)
@@ -692,7 +692,7 @@ def test_AC8_13_111_structured_env_stage_outputs_cover_complete_environment_axis
     assert reasons["local"] == "local-advisory-default"
     assert reasons["pr"] == "lightweight-docs-or-docs-workflow-only"
     assert reasons["prd"] == "production-release-dispatch-only"
-    assert files["local"] == ["docs/ssot/ci-cd.md"]
+    assert files["local"] == ["docs/ssot/README.md"]
     assert files["pr"] == []
 
 
@@ -704,7 +704,7 @@ def test_AC8_13_111_static_stage_rejects_non_static_environments() -> None:
 
 def test_AC8_13_110_summary_prints_env_stage_matrix(tmp_path: Path) -> None:
     """AC8.13.110: Summaries make env/stage decisions visible as a matrix."""
-    result = classify_changed_paths(["docs/ssot/ci-cd.md"])
+    result = classify_changed_paths(["docs/ssot/README.md"])
     summary = tmp_path / "github-summary.md"
 
     classifier.write_github_summary(result, summary)

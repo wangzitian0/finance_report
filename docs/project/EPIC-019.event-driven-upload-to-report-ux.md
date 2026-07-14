@@ -364,7 +364,7 @@ workflow state exists.
 > original primary/advanced navigation model (Upload Pipeline / Reports / AI /
 > Advanced + mobile drawer). EPIC-022 PR12 replaced it with a mobile/PWA
 > bottom tab bar (Home · Chat · Add · Audit · More); navigation IA is owned by
-> EPIC-022 (AC22.21.x) and `docs/ssot/frontend-patterns.md` §9, and deep-link
+> EPIC-022 (AC22.21.x) and `apps/frontend/frontend-patterns.md` §9, and deep-link
 > reachability lives on in the AC22.21 proofs.
 
 ### AC19.7 — Framework-Aware Evidence Readiness
@@ -527,10 +527,10 @@ app/(main)/dashboard/page.tsx or app/(main)/upload/page.tsx
 Add or update SSOT before implementation:
 
 ```text
-docs/ssot/workflow-events.md
-docs/ssot/frontend-patterns.md
-docs/ssot/confirmation-workflow.md
-docs/ssot/reporting.md
+common/platform/workflow-events.md
+apps/frontend/frontend-patterns.md
+common/extraction/confirmation-workflow.md
+common/reporting/reporting.md
 ```
 
 The SSOT must define:

@@ -197,8 +197,8 @@ See: common/ledger/readme.md#decimal-rule
 
 ## 📚 SSOT References
 
-- [schema.md](../ssot/schema.md) - ReconciliationMatch table
-- [reconciliation.md](../ssot/reconciliation.md) - Reconciliation rules
+- [schema.md](../../common/meta/schema.md) - ReconciliationMatch table
+- [reconciliation.md](../../common/reconciliation/reconciliation.md) - Reconciliation rules
 
 ---
 
@@ -369,6 +369,6 @@ Generalized invariant: **net worth changes only via external in/out + market
 moves + FX revaluation; internal transfers cancel (minus fees).**
 See: `common/reconciliation/readme.md#fx-cross-currency-transfer-pairing`,
 `common/reporting/readme.md#internal-transfer-net-worth-neutrality`,
-docs/ssot/schema.md (`fx_conversions`).
+common/meta/schema.md (`fx_conversions`).
 
 > Migrated to [`common/reconciliation/contract.py`](../../common/reconciliation/contract.py)'s `roadmap` (migration closeout wave 2, #1663): `AC-reconciliation.fx-transfer.1` through `.14`.

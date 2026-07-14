@@ -10,8 +10,8 @@ def read(path: str) -> str:
 
 
 EPIC_021 = "docs/project/EPIC-021.application-ai-advisor.md"
-# Migrated from docs/ssot/ai.md into the advisor package readme (migration
-# closeout wave 3, #1664); docs/ssot/ai.md is now a pointer stub.
+# Migrated from common/llm/ai.md into the advisor package readme (migration
+# closeout wave 3, #1664); common/llm/ai.md is now a pointer stub.
 AI_SSOT = "common/advisor/readme.md"
 
 

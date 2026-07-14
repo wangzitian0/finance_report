@@ -165,6 +165,6 @@ real the observability backend/OpenPanel contacted).
 
 ## 🔗 References
 
-- SSOT Observability: [../ssot/observability.md](../ssot/observability.md)
+- SSOT Observability: [../ssot/observability.md](../../common/observability/observability.md)
 - Backend observability logging: [EPIC-010.observability-logging.md](EPIC-010.observability-logging.md)
 - Product analytics wrapper: `apps/frontend/src/components/Analytics.tsx`

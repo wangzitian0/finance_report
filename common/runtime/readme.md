@@ -100,7 +100,7 @@ at container entrypoint (`main.py`), Gate 3 via the load balancer hitting
 ("can the app reach its dependencies?"); `tools/smoke_test.sh` proves *external
 availability* ("can a user reach the app?"). Deployed-service incident routing
 (502/503, stale version, secrets, flapping) lives in
-[`docs/ssot/runtime-incident-response.md`](../../docs/ssot/runtime-incident-response.md).
+[`common/runtime/runtime-incident-response.md`](../../common/runtime/runtime-incident-response.md).
 
 ## Boundaries with neighbouring packages
 

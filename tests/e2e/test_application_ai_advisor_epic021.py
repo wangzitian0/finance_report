@@ -14,8 +14,8 @@ def read(path: str) -> str:
 def test_application_ai_advisor_epic021_product_owner_contract() -> None:
     """EPIC-021 / AC21.1.1 AC21.1.2: Advisor value layer has a product E2E owner."""
     epic = read("docs/project/EPIC-021.application-ai-advisor.md")
-    # Migrated from docs/ssot/ai.md into the advisor package readme (migration
-    # closeout wave 3, #1664); docs/ssot/ai.md is now a pointer stub.
+    # Migrated from common/llm/ai.md into the advisor package readme (migration
+    # closeout wave 3, #1664); common/llm/ai.md is now a pointer stub.
     ssot = read("common/advisor/readme.md")
 
     assert "Advisor Brief" in epic

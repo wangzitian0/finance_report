@@ -521,7 +521,7 @@ def test_AC8_13_12_ai_ocr_gate_failure_includes_statement_context() -> None:
 def test_AC8_13_13_staging_deploy_fast_fail_guardrails() -> None:
     """AC-testing.deploy-gates.4 AC-testing.deploy-gates.21: AC8.13.13 AC8.13.105: Staging deploy is a singleton post-merge train."""
     workflow = read(".github/workflows/deploy.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
 
     assert "concurrency:" in workflow
     assert "inputs.target == 'staging' && 'staging-deploy'" in workflow
@@ -561,7 +561,7 @@ def test_AC8_13_13_staging_deploy_fast_fail_guardrails() -> None:
 def test_AC8_13_13_main_ci_keeps_each_merge_commit_run() -> None:
     """AC8.13.13: Main push CI uses SHA-scoped concurrency."""
     workflow = read(".github/workflows/ci.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
 
     assert (
         "group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.event_name == 'push' && github.sha || github.run_id }}"
@@ -609,7 +609,7 @@ def test_AC8_13_157_audit_replay_workflow_is_nightly_and_nonblocking() -> None:
     assert deploy["jobs"]["ai-ocr-gate"]["with"]["corpus"] == "canary"
 
     # SSOT names the audit-replay job as separate and non-blocking.
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
     assert "audit-replay.yml" in ci_cd
 
 
@@ -635,7 +635,7 @@ def test_AC8_13_158_canary_transient_classification_owned_by_provider_gate() -> 
 def test_AC8_13_160_ci_cd_distinguishes_canary_from_audit_replay() -> None:
     """AC-testing.deploy-gates.35: AC8.13.160: SSOT distinguishes the blocking minimal AI/OCR Canary from the
     nightly comprehensive Audit Replay, and the split is a recorded decision."""
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
 
     assert "AI/OCR Canary" in ci_cd
     assert "Audit Replay" in ci_cd
@@ -657,7 +657,7 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
     """AC-testing.deploy-gates.5: AC8.13.14: Provider-backed AI/OCR gate runs outside deploy health."""
     deploy_workflow = read(".github/workflows/deploy.yml")
     reusable = read(".github/workflows/staging-ai-ocr-gate.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
 
     # Inline caller in deploy.yml delegates to the reusable gate (AC8.13.153).
     assert "ai-ocr-gate:" in deploy_workflow
@@ -930,7 +930,7 @@ def test_AC8_13_49_staging_ai_ocr_gate_publishes_audit_inventory_and_summary() -
     # The gate body — and therefore its audit replay inventory/summary — lives
     # once in the reusable workflow shared by both entrances (AC8.13.153).
     workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
-    observability = read("docs/ssot/observability-logging.md")
+    observability = read("common/observability/observability-logging.md")
 
     assert "write_staging_audit_inventory()" in workflow
     assert "write_staging_audit_result()" in workflow
@@ -1037,7 +1037,7 @@ def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
     ai_gate = read(".github/workflows/staging-ai-ocr-gate.yml")
     production = read(".github/workflows/release.yml")
     cleanup = read(".github/workflows/maintenance.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
 
     for token in (
         "backend-shard-${{ matrix.shard }}-test-context",
@@ -1110,7 +1110,7 @@ def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
 def test_AC8_13_51_staging_deploy_is_manual_dispatch_only() -> None:
     """AC-testing.deploy-gates.12: AC8.13.51: Staging deploy is manual (`workflow_dispatch`) only; it does not auto-follow main CI."""
     workflow = read(".github/workflows/deploy.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
 
     parsed = yaml.safe_load(workflow)
     # PyYAML parses the bare `on:` key as the boolean True.
@@ -1144,7 +1144,7 @@ def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates()
 ):
     """AC-testing.deploy-gates.20: AC8.13.103/AC8.13.108: Delivery aggregates gates and failure context."""
     workflow = read(".github/workflows/deploy.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
     epic = read("docs/project/EPIC-008.testing-strategy.md")
 
     assert "post-merge-delivery:" in workflow
@@ -1222,7 +1222,7 @@ def test_AC8_13_55_post_merge_staging_is_scoped_to_deploy_relevant_paths() -> No
     workflow = read(".github/workflows/deploy.yml")
     classifier = read("common/testing/change_classifier.py")
     classifier_tests = read("tests/tooling/test_ci_change_classifier.py")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
 
     assert "classify-staging:" not in workflow
     assert "name: Classify staging and AI/OCR relevance" in workflow
@@ -1266,7 +1266,7 @@ def test_AC8_13_60_deploy_workflows_have_no_nonblocking_noop_gates() -> None:
         read(".github/workflows/deploy.yml"),
         read(".github/workflows/preview.yml"),
     ]
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
 
     for workflow in workflows:
         assert "Check Deployment Dependencies" not in workflow
@@ -1283,7 +1283,7 @@ def test_AC8_13_52_production_release_dry_run_does_not_mutate_production() -> No
     workflow = read(".github/workflows/release.yml")
     release_evidence = read("common/runtime/release_evidence.py")
     release_images = read("common/runtime/release_images.py")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
 
     assert "dry_run:" in workflow
     assert "version_ref:" in workflow
@@ -1562,8 +1562,8 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     workflow = read(".github/workflows/ci.yml")
     pr_workflow = read(".github/workflows/preview.yml")
     classifier = read("common/testing/change_classifier.py")
-    ci_cd = read("docs/ssot/ci-cd.md")
-    environments = read("docs/ssot/environments.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
+    environments = read("common/runtime/environments.md")
 
     assert "name: Classify Changes" in workflow
     assert "pr_required: ${{ steps.gates.outputs.pr_required }}" in workflow
@@ -1627,7 +1627,7 @@ def test_AC8_13_16_workflows_opt_into_node24_actions_runtime() -> None:
         workflow = workflow_path.read_text(encoding="utf-8")
         assert "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24" not in workflow, workflow_path.name
 
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
     inventory = yaml.safe_load(read("common/testing/data/github-action-runtime.yaml"))
     forced_actions = [
         action["uses"]
@@ -1653,7 +1653,7 @@ def test_AC8_13_17_ac_traceability_runs_registry_generation_check() -> None:
     audit artifact.
     """
     workflow = read(".github/workflows/ci.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
 
     assert (
         "uv run --with pyyaml python tools/generate_ac_registry.py --check" in workflow
@@ -1676,7 +1676,7 @@ def test_AC8_13_17_ac_traceability_runs_registry_generation_check() -> None:
 def test_AC8_13_53_generated_api_reference_is_ci_checked() -> None:
     """AC8.13.53: API reference docs are generated contract output in CI."""
     workflow = read(".github/workflows/ci.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
 
     assert "Generated API Reference Check" in workflow
     assert "uv run python ../../tools/generate_api_reference.py --check" in workflow
@@ -1690,7 +1690,7 @@ def test_AC8_13_53_generated_api_reference_is_ci_checked() -> None:
 def test_AC14_1_17_generated_db_schema_reference_is_ci_checked() -> None:
     """AC14.1.17: DB schema reference docs are generated contract output in CI."""
     workflow = read(".github/workflows/ci.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
 
     assert "Generated DB Schema Reference Check" in workflow
     assert (
@@ -1712,7 +1712,7 @@ def test_AC14_1_17_generated_db_schema_reference_is_ci_checked() -> None:
 def test_AC8_13_53_pr_ci_avoids_moon_bootstrap_for_direct_gates() -> None:
     """AC8.13.53: PR CI avoids Moon bootstrap when direct commands suffice."""
     workflow = read(".github/workflows/ci.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
 
     assert "moonrepo/setup-toolchain@v0" not in workflow
     assert "moon run :build" not in workflow
@@ -1770,7 +1770,7 @@ def test_AC8_13_53_pr_ci_avoids_moon_bootstrap_for_direct_gates() -> None:
 def test_AC8_13_145_backend_tier1_pr_fail_fast_but_main_reports_all_failures() -> None:
     """AC-testing.ci-structure.6: AC8.13.145: PR Tier-1 E2E is fail-fast; main push reports every failure."""
     workflow = read(".github/workflows/ci.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
     inventory = read("common/meta/data/ci-gate-inventory.yaml")
 
     tier1_block = workflow.split("  backend-e2e-tier1:", 1)[1].split(
@@ -1908,7 +1908,7 @@ def test_AC8_13_148_backend_shards_use_seeded_5_way_split() -> None:
     workflow = yaml.safe_load(workflow_text)
     backend_job = workflow["jobs"]["backend"]
     inventory = read("common/meta/data/ci-gate-inventory.yaml")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
     durations = json.loads(read("apps/backend/ci/backend-test-durations.json"))
 
     assert backend_job["name"] == "Backend Tests (Shard ${{ matrix.shard }}/5)"
@@ -2112,8 +2112,8 @@ def test_AC_testing_deploy_gates_36_every_main_commit_image_is_independently_ver
 def test_AC8_13_68_ci_runs_e2e_epic_traceability_gate() -> None:
     """AC8.13.68: CI gates product E2E tests and project EPIC ownership."""
     workflow = read(".github/workflows/ci.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
-    tdd = read("docs/ssot/tdd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
+    tdd = read("common/testing/tdd.md")
 
     assert (
         "uv run --with pyyaml python tools/check_e2e_epic_traceability.py --output"
@@ -2132,8 +2132,8 @@ def test_AC8_13_68_ci_runs_e2e_epic_traceability_gate() -> None:
 
 def test_AC8_13_70_ci_documents_closed_e2e_traceability_system() -> None:
     """AC8.13.70: E2E traceability documents README and asset closure."""
-    ci_cd = read("docs/ssot/ci-cd.md")
-    tdd = read("docs/ssot/tdd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
+    tdd = read("common/testing/tdd.md")
     readme = read("README.md")
     checker = read("common/testing/check_e2e_epic_traceability.py")
 
@@ -2181,7 +2181,7 @@ def test_AC8_13_144_production_release_rolls_back_with_deploy_v2_after_post_depl
 ):
     """AC-testing.deploy-gates.29: AC8.13.144: production rollback uses deploy_v2 and confirms previous health."""
     workflow = read(".github/workflows/release.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
     inventory = read("common/meta/data/ci-gate-inventory.yaml")
 
     rollback_block = workflow.split(
@@ -2295,8 +2295,8 @@ def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
     # release.yml (#1354 / AC8.13.154).
     release_images = read(".github/workflows/deploy.yml")
     release_image_tool = read("common/runtime/release_images.py")
-    ci_cd = read("docs/ssot/ci-cd.md")
-    deployment = read("docs/ssot/deployment.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
+    deployment = read("common/runtime/deployment.md")
 
     # AC7.10.1: deploy.yml promotes main-CI SHA images instead of rebuilding.
     assert (
@@ -2395,7 +2395,7 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     assert '"AI_JSON_TIMEOUT_SECONDS": "360"' in preview_lifecycle
     assert '"AI_JSON_MAX_TOKENS": "8192"' in preview_lifecycle
     assert '"AI_JSON_DISABLE_THINKING": "true"' in preview_lifecycle
-    assert "https://api.z.ai/api/coding/paas/v4" in read("docs/ssot/ci-cd.md")
+    assert "https://api.z.ai/api/coding/paas/v4" in (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
     # The preview marker expression is derived from the execution matrix at
     # runtime (#1547/#1556); the llm exclusion is asserted on the SSOT value.
     assert '-m "$PR_PREVIEW_E2E_MARKER"' in pr_workflow
@@ -2446,7 +2446,7 @@ def test_AC8_13_21_staging_ai_ocr_gate_runs_under_manual_dispatch() -> None:
 def test_AC8_13_120_staging_runs_lightweight_provider_connectivity_smoke() -> None:
     """AC-testing.deploy-gates.27: AC8.13.120: provider-risk staging changes prove a provider round trip."""
     workflow = read(".github/workflows/deploy.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
     provider_test = read("tests/e2e/test_ai_provider_connectivity.py")
 
     assert "provider-gate:" in workflow
@@ -2640,7 +2640,7 @@ def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
     release_workflow = read(".github/workflows/deploy.yml")
     deploy_workflow = read(".github/workflows/deploy.yml")
     resolver = read("common/runtime/release_coordinate.py")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
 
     assert "container-images:" in ci_workflow
     assert "name: Build Staging Images" in ci_workflow
@@ -2716,7 +2716,7 @@ def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
 def test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge() -> None:
     """AC-testing.deploy-gates.10: AC8.13.40: PR CI dry-runs staging image builds before merge."""
     workflow = read(".github/workflows/ci.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
 
     container_block = workflow.split("  container-images:", 1)[1].split(
         "  tooling-coverage:", 1
@@ -2754,7 +2754,7 @@ def test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds() -> None:
     """AC-testing.preview.7: AC8.13.89: the in-runner e2e gate runs synchronously on pull_request (independent
     of CI) and does not build/push PR images."""
     workflow = read(".github/workflows/preview.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
     compose = read("docker-compose.yml")
     frontend_dockerfile = read("apps/frontend/Dockerfile")
     frontend_version_route = read(
@@ -2837,7 +2837,7 @@ def test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit() -> None:
     """AC-testing.deploy-gates.8: AC8.13.23: Deploy health and provider gate share one serialized workflow unit."""
     deploy_workflow = read(".github/workflows/deploy.yml")
     ai_workflow = read(".github/workflows/deploy.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
 
     assert "post-merge-train-turn:" not in deploy_workflow
     assert "name: Classify staging and AI/OCR relevance" in deploy_workflow
@@ -2885,7 +2885,7 @@ def test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate
     """AC-testing.acgates.2: AC8.13.24: CI uploads traceability audit instead of gating stale snapshots."""
     workflow = read(".github/workflows/ci.yml")
     audit_builder = read("common/testing/build_ac_traceability.py")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
     project_readme = read("docs/project/README.md")
 
     assert (
@@ -2907,7 +2907,7 @@ def test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate
 def test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates() -> None:
     """AC-testing.ci-structure.1: AC8.13.25: Full CI starts tests early while finish aggregates every gate."""
     workflow = read(".github/workflows/ci.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
 
     backend_block = workflow.split("  backend:", 1)[1].split(
         "  frontend-build:",
@@ -2950,7 +2950,7 @@ def test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates() -> No
 def test_AC8_13_86_fast_feedback_jobs_do_not_wait_for_behavior_gates() -> None:
     """AC-testing.ci-structure.5: AC8.13.86: CI fast feedback jobs preserve actual workflow dependency semantics."""
     workflow = read(".github/workflows/ci.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
 
     lint_block = workflow.split("  lint:", 1)[1].split("  backend:", 1)[0]
     backend_block = workflow.split("  backend:", 1)[1].split(
@@ -2984,8 +2984,8 @@ def test_AC8_13_86_fast_feedback_jobs_do_not_wait_for_behavior_gates() -> None:
 
 def test_AC8_13_94_env_and_pipeline_stage_contract_is_documented() -> None:
     """AC-testing.governance.3: AC8.13.94: environments and pipeline stages are separate matrix axes."""
-    ci_cd = read("docs/ssot/ci-cd.md")
-    environments = read("docs/ssot/environments.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
+    environments = read("common/runtime/environments.md")
     readme = read("README.md")
 
     for token in (
@@ -3018,8 +3018,8 @@ def test_AC8_13_94_env_and_pipeline_stage_contract_is_documented() -> None:
 
 def test_AC8_13_95_local_fast_gate_and_escalation_policy_are_documented() -> None:
     """AC-testing.governance.4: AC8.13.95: local defaults stay fast but escalate for high-risk paths."""
-    ci_cd = read("docs/ssot/ci-cd.md")
-    development = read("docs/ssot/development.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
+    development = read("common/meta/development.md")
     readme = read("README.md")
 
     for token in (
@@ -3044,7 +3044,7 @@ def test_AC8_13_67_backend_tier1_api_e2e_scope_excludes_browser_e2e() -> None:
     """AC8.13.67: Tier-1 backend API E2E does not collect Playwright browser E2E."""
     workflow = read(".github/workflows/ci.yml")
     pyproject = read("apps/backend/pyproject.toml")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
     matrix_yaml = yaml.safe_load(read("common/testing/data/test-execution-matrix.yaml"))
 
     tier1_block = workflow.split("  backend-e2e-tier1:", 1)[1].split(
@@ -3060,7 +3060,7 @@ def test_AC8_13_67_backend_tier1_api_e2e_scope_excludes_browser_e2e() -> None:
         "e2e: End-to-end tests, including backend API scenarios and browser UI flows"
         in pyproject
     )
-    # #1682: docs/ssot/ci-cd.md no longer hand-enumerates the Tier-1 file set
+    # #1682: common/testing/ci-cd.md no longer hand-enumerates the Tier-1 file set
     # (that duplicated common/testing/matrix.py and drifted); it points at the
     # generated matrix view instead. Check the doc references that SSOT, and
     # check the SSOT itself for the actual path + stage — the real fact lives
@@ -3078,8 +3078,8 @@ def test_AC8_13_67_backend_tier1_api_e2e_scope_excludes_browser_e2e() -> None:
 def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
     """AC-testing.coverage.2: AC8.13.27: PR CI has no external Coveralls status surface."""
     workflow = read(".github/workflows/ci.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
-    coverage = read("docs/ssot/coverage.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
+    coverage = read("common/testing/coverage.md")
     readme = read("README.md")
 
     unified_block = workflow.split(
@@ -3134,8 +3134,8 @@ def test_AC8_13_75_coverage_gate_summary_is_nonblocking() -> None:
 def test_AC8_13_75_unified_coverage_uploads_debug_context() -> None:
     """AC8.13.75: Unified coverage preserves line-level debug inputs."""
     workflow = read(".github/workflows/ci.yml")
-    coverage = read("docs/ssot/coverage.md")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    coverage = read("common/testing/coverage.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
 
     tooling_coverage_block = workflow.split("  tooling-coverage:", 1)[1].split(
         "  unified-coverage:", 1
@@ -3174,7 +3174,7 @@ def test_AC8_13_143_unified_coverage_updates_baseline_through_pr_not_direct_main
 ):
     """AC-testing.coverage.5: AC8.13.143: main baseline updates are automated through a PR, not a direct push."""
     workflow = read(".github/workflows/ci.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
     inventory = read("common/meta/data/ci-gate-inventory.yaml")
 
     unified_coverage_block = workflow.split("  unified-coverage:", 1)[1].split(
@@ -3225,8 +3225,8 @@ def test_AC8_13_143_unified_coverage_updates_baseline_through_pr_not_direct_main
 def test_AC8_13_66_coveralls_uploads_use_line_only_lcov() -> None:
     """AC8.13.66: Main Coveralls reporting uses the unified line-only metric."""
     workflow = read(".github/workflows/ci.yml")
-    coverage = read("docs/ssot/coverage.md")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    coverage = read("common/testing/coverage.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
 
     assert (
         "tools/build_unified_lcov.py coverage/coveralls-unified.lcov --strip-branches"
@@ -3247,8 +3247,8 @@ def test_AC8_13_66_coveralls_uploads_use_line_only_lcov() -> None:
 def test_AC8_13_93_staging_promotion_requires_manual_dispatch() -> None:
     """AC-testing.deploy-gates.19 AC-testing.deploy-gates.22: AC8.13.93: Staging is mutated only by an explicit manual dispatch; no auto path."""
     workflow = read(".github/workflows/deploy.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
-    deployment = read("docs/ssot/deployment.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
+    deployment = read("common/runtime/deployment.md")
 
     parsed = yaml.safe_load(workflow)
     # PyYAML parses the bare `on:` key as the boolean True.
@@ -3300,8 +3300,8 @@ def test_AC8_13_93_staging_promotion_requires_manual_dispatch() -> None:
 def test_AC8_13_45_make_test_routes_through_root_moon_test() -> None:
     """AC8.13.45: make test uses the root Moon verification entry point."""
     makefile = read("Makefile")
-    development = read("docs/ssot/development.md")
-    environments = read("docs/ssot/environments.md")
+    development = read("common/meta/development.md")
+    environments = read("common/runtime/environments.md")
 
     assert "\n\tmoon run :test\n" in makefile
     assert "moon run backend:test" not in makefile
@@ -3319,7 +3319,7 @@ def test_AC8_13_45_root_moon_tasks_do_not_hash_repo_submodule() -> None:
     assert "common/**/*" in workspace_inputs
     assert "tools/**/*" in workspace_inputs
     assert "uncached wrappers with explicit workspace inputs" in read(
-        "docs/ssot/development.md"
+        "common/meta/development.md"
     )
 
     for task_name in ("setup", "dev", "test", "lint", "build", "clean"):
@@ -3333,7 +3333,7 @@ def test_AC8_13_46_pr_preview_non_llm_gate_matches_staging_strict_parallelism() 
     """AC-testing.preview.2: AC8.13.46: PR preview keeps strictness while narrowing to preview scope."""
     preview = read(".github/workflows/preview.yml")
     staging = read(".github/workflows/deploy.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
 
     preview_block = preview.split("- name: End-to-End Tests", 1)[1].split(
         "- name: Rollback on E2E Failure", 1
@@ -3372,7 +3372,7 @@ def test_AC8_13_38_pr_preview_dokploy_responses_are_not_logged() -> None:
     """AC8.13.38: preview DEPLOY parses Dokploy responses without raw logs; the app
     runs no Dokploy reclaim — PR close dispatches a teardown signal to infra2."""
     preview = read(".github/workflows/preview.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
     lifecycle = read("tools/_lib/dev/pr_preview_lifecycle")
 
     assert (
@@ -3406,7 +3406,7 @@ def test_AC8_13_72_staging_dokploy_noop_after_redeploy_fails_before_health() -> 
     """AC8.13.72: staging fails when Dokploy accepts deploys without rollout records."""
     primitive = deploy_primitive_source(ROOT)
     workflow = read(".github/workflows/deploy.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
 
     assert "deploy rollout did not finish within {timeout}s" in primitive
     assert "raise TimeoutError" in primitive
@@ -3473,7 +3473,7 @@ def test_AC8_13_47_delivery_engine_recommendations_are_tracked() -> None:
     """AC-testing.governance.1: AC8.13.47: remaining delivery-engine work is captured outside mutable SSOT."""
     recommendation = read("docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md")
     project_readme = read("docs/project/README.md")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
 
     for token in (
         "Coveralls reporting split",
@@ -3499,7 +3499,7 @@ def test_AC8_13_47_delivery_engine_recommendations_are_tracked() -> None:
 def test_AC8_13_112_sparse_matrix_recommendation_tracks_simplification_path() -> None:
     """AC-testing.classifier.8: AC8.13.112: sparse-matrix audit keeps the simplification path explicit."""
     recommendation = read("docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
     classifier = read("common/testing/change_classifier.py")
 
     for token in (
@@ -3605,7 +3605,7 @@ def test_AC8_13_152_workflow_consumers_keep_classification_single_owned() -> Non
     """AC-testing.classifier.9: AC8.13.152: downstream workflow jobs do not reclassify changed paths."""
     ci_workflow = read(".github/workflows/ci.yml")
     pr_workflow = read(".github/workflows/preview.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
     ci_jobs = yaml.safe_load(ci_workflow)["jobs"]
     pr_jobs = yaml.safe_load(pr_workflow)["jobs"]
 
@@ -3939,7 +3939,7 @@ def test_AC8_13_30_vision_hard_gate_waits_for_stage2_queue_page_payload() -> Non
 def test_AC8_13_32_vision_hard_gate_proves_trusted_reporting_totals() -> None:
     """AC-testing.product-gates.6: AC8.13.32: deterministic vision gate asserts exact trusted accounting/report totals."""
     gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
 
     for token in (
         "journal_entries_created",
@@ -3968,7 +3968,7 @@ def test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical() -> 
     ai_workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
     matrix = critical_matrix_text()
     contract = read("common/testing/contract.py")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
 
     for token in (
         "@pytest.mark.e2e",
@@ -4015,7 +4015,7 @@ def test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical() -> 
 def test_AC8_13_33_e2e_setup_caches_virtualenv_and_playwright_browsers() -> None:
     """AC-testing.ci-structure.3: AC8.13.33: shared E2E setup caches Python and Playwright install work."""
     action = read(".github/actions/setup-e2e-tests/action.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
 
     assert "Cache E2E virtualenv" in action
     assert "path: .venv" in action
@@ -4043,7 +4043,7 @@ def test_AC8_13_34_ci_and_post_merge_write_timing_summaries() -> None:
     ci_workflow = read(".github/workflows/ci.yml")
     deploy_workflow = read(".github/workflows/deploy.yml")
     timing_script = read("common/testing/github_workflow_timing_summary.py")
-    ci_cd = read("docs/ssot/ci-cd.md")
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
 
     assert "Write CI timing summary" in ci_workflow
     assert "tools/github_workflow_timing_summary.py" in ci_workflow
@@ -4153,8 +4153,8 @@ def test_AC8_13_116_skip_heavy_ci_on_main_push() -> None:
 
 
 def test_AC8_13_118_timeouts_and_retries_documented() -> None:
-    """AC-testing.governance.5: AC8.13.118: Critical-path timeouts and retries are documented in docs/ssot/ci-cd.md."""
-    ci_cd = read("docs/ssot/ci-cd.md")
+    """AC-testing.governance.5: AC8.13.118: Critical-path timeouts and retries are documented in common/runtime/ci-cd.md."""
+    ci_cd = (read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"))
     # The staging FIFO train wait is retired with the manual-only model; staging is
     # serialized by the workflow concurrency group, so no FIFO timeout is documented.
     assert "STAGING_FIFO_TIMEOUT_SECONDS" not in ci_cd

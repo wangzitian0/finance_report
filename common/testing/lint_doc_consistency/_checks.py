@@ -507,7 +507,7 @@ def check_frontend_raw_fetch_usage(
 def check_proof_placement_policy(ci_cd_path: Path | None = None) -> list[Violation]:
     """Check #7: CI/CD SSOT defines pre-merge vs post-merge proof placement."""
     if ci_cd_path is None:
-        ci_cd_path = _base.REPO_ROOT / "docs" / "ssot" / "ci-cd.md"
+        ci_cd_path = _base.REPO_ROOT / "common" / "testing" / "ci-cd.md"
     try:
         text = ci_cd_path.read_text(encoding="utf-8")
     except OSError as exc:

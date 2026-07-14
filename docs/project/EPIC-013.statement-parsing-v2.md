@@ -109,7 +109,7 @@ Expected routing behavior remains threshold-based (See: `common/reconciliation/r
 
 > Machine-owned SSOT anchor (governance report requirement): source coverage
 > tracking stays registered in
-> [`source_coverage_matrix`](../ssot/source-coverage-matrix.yaml).
+> [`source_coverage_matrix`](../../common/testing/data/source-coverage-matrix.yaml).
 
 ## 📌 Future Work (from Vision Recovery Audit)
 

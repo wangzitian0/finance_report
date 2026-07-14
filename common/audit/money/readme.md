@@ -72,7 +72,7 @@ owned by the EPIC-002 table; moving that AC ownership into the contract `roadmap
 - **Rule A3 — Money value types (narrow waist)**: The application-layer money
   primitives live in **`common/audit/money/`** (the shared waist). They sit *above* the
   DB double-entry invariant floor (`fr_validate_journal_entry_invariants`,
-  [schema.md](../../../docs/ssot/schema.md)) and make bad money states unrepresentable
+  [schema.md](../../../common/meta/schema.md)) and make bad money states unrepresentable
   rather than merely tested-against (#1167). Dependency-light (stdlib + `Decimal`
   only) so backend, e2e, frontend helpers and tooling can share one definition. The
   backend ships its own self-contained copy at **`apps/backend/src/audit/money/`** (the

@@ -163,7 +163,7 @@ def emit_execution_matrix_yaml() -> str:
 
 # Dependency classes an E2E spec may need beyond the ephemeral in-runner
 # stack. These are the *real* exclusion criteria already stated in
-# docs/ssot/ci-cd.md (provider quota, staging-only secrets/providers,
+# common/runtime/ci-cd.md (provider quota, staging-only secrets/providers,
 # state-sensitivity) — not a hand-picked file list.
 NEEDS_LLM_PROVIDER = "llm_provider"  # spends real AI/OCR quota (llm marker)
 NEEDS_MARKET_DATA = "market_data"  # calls a real market-data provider

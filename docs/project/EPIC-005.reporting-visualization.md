@@ -307,7 +307,7 @@ action.
 Axiom B makes confidence a first-class, measured property. Each balance-sheet
 line carries the confidence tier of its contributing ledger facts, and the Net
 Worth aggregate rolls up to the worst-input tier (see
-[confirmation-workflow.md](../ssot/confirmation-workflow.md) → Confidence Tier
+[confirmation-workflow.md](../../common/extraction/confirmation-workflow.md) → Confidence Tier
 Rollup) — a defined rollup, not an invented number. Income statement, cash flow,
 and the monthly cards are a follow-up; provenance (#888) is the co-equal sibling axis.
 
@@ -427,9 +427,9 @@ fetching and normalizing it inline. Monetary values stay decimal strings.
 
 ## 📚 SSOT References
 
-- [schema.md](../ssot/schema.md) - Account and journal entry tables
-- [reporting.md](../ssot/reporting.md) - Report calculation rules
-- [market_data.md](../ssot/market_data.md) - Exchange rate data source (pre-migration; internalizes into the `pricing` package, #1610)
+- [schema.md](../../common/meta/schema.md) - Account and journal entry tables
+- [reporting.md](../../common/reporting/reporting.md) - Report calculation rules
+- [market_data.md](../../common/pricing/market_data.md) - Exchange rate data source (pre-migration; internalizes into the `pricing` package, #1610)
 
 ---
 

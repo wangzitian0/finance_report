@@ -90,7 +90,7 @@ no upward import edge).
 
 ## Atomic-to-managed reconciliation (`PositionService`, shipped, pre-#1643 read side)
 
-*(Internalized from `docs/ssot/assets.md`, migration closeout wave 3, #1664 —
+*(Internalized from `common/portfolio/assets.md`, migration closeout wave 3, #1664 —
 this is now the single owner; do not re-add a separate SSOT copy. This
 describes the currently-shipped `apps/backend/src/portfolio/extension/positions.py` (was `services/assets.py`, split per #1677)
 behavior, which the #1643 read-side migration folds into this package's
@@ -174,7 +174,7 @@ credit dividend income, persist `DividendIncome`, link the event via
 `source_type=system` for deterministic postings, preserving any upstream
 parser/source identifier in `source_id`; user-entered/parsed/matched/
 confirmed statement entries follow the trust hierarchy in
-[`docs/ssot/source-type-priority.md`](../../docs/ssot/source-type-priority.md).
+[`common/audit/readme.md#source-type-trust-hierarchy-provenance`](../audit/readme.md#source-type-trust-hierarchy-provenance).
 
 **Portfolio performance cash flows** use investment-domain cash flows
 only: XIRR and money-weighted return use `InvestmentTransaction` rows up

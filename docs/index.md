@@ -130,12 +130,12 @@ Rationale docs with links to code owners, generated contracts, and proof tests:
 
 - [Architecture Overview](ssot/README.md) — System architecture and design principles
 - [Ledger (double-entry) model](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md) — Double-entry bookkeeping rules
-- [Reconciliation Engine](ssot/reconciliation.md) — Matching algorithms
+- [Reconciliation Engine](../common/reconciliation/reconciliation.md) — Matching algorithms
 - [Statement Extraction](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md) — AI parsing pipeline
-- [Reporting](ssot/reporting.md) — Report generation logic
-- [AI Advisor](ssot/ai.md) — AI advisor implementation
-- [Database Schema](ssot/schema.md) — Data-layer rules and migration guardrails
-- [Development Guide](ssot/development.md) — Development environment setup
+- [Reporting](../common/reporting/reporting.md) — Report generation logic
+- [AI Advisor](../common/llm/ai.md) — AI advisor implementation
+- [Database Schema](../common/meta/schema.md) — Data-layer rules and migration guardrails
+- [Development Guide](../common/meta/development.md) — Development environment setup
 
 ### Development & Project Management
 Project tracking and development guides:
@@ -181,7 +181,7 @@ For detailed architecture documentation, see [Architecture Overview](ssot/README
 
 Interested in contributing? Check out:
 
-- [Development Guide](ssot/development.md) — Setup your development environment
+- [Development Guide](../common/meta/development.md) — Setup your development environment
 - [Project Overview](project/README.md) — Understand the project structure and roadmap
 
 ## 📄 License

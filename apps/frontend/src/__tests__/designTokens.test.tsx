@@ -78,7 +78,7 @@ describe("frontend design tokens", () => {
 
   it("AC16.29.2 AC16.29.4 documents token usage and page-local visual decisions in SSOT", () => {
     const ssot = readFileSync(
-      resolve(process.cwd(), "../../docs/ssot/frontend-patterns.md"),
+      resolve(process.cwd(), "../../apps/frontend/frontend-patterns.md"),
       "utf8",
     )
 
@@ -91,7 +91,7 @@ describe("frontend design tokens", () => {
 
   it("AC16.30.2 AC16.30.6 keeps SSOT and CSS recipes on semantic border and status tokens", () => {
     const ssot = readFileSync(
-      resolve(process.cwd(), "../../docs/ssot/frontend-patterns.md"),
+      resolve(process.cwd(), "../../apps/frontend/frontend-patterns.md"),
       "utf8",
     )
     const globals = readFileSync(resolve(process.cwd(), "src/app/globals.css"), "utf8")
@@ -110,7 +110,7 @@ describe("frontend design tokens", () => {
 
   it("AC22.12.1 AC22.12.3 AC22.13.3 defines the global accessibility baseline in SSOT and CSS", () => {
     const ssot = readFileSync(
-      resolve(process.cwd(), "../../docs/ssot/frontend-patterns.md"),
+      resolve(process.cwd(), "../../apps/frontend/frontend-patterns.md"),
       "utf8",
     )
     const globals = readFileSync(resolve(process.cwd(), "src/app/globals.css"), "utf8")
@@ -134,7 +134,7 @@ describe("frontend design tokens", () => {
 
   it("AC22.20.4 defines the mobile standalone safe-area baseline in SSOT and CSS", () => {
     const ssot = readFileSync(
-      resolve(process.cwd(), "../../docs/ssot/frontend-patterns.md"),
+      resolve(process.cwd(), "../../apps/frontend/frontend-patterns.md"),
       "utf8",
     )
     const globals = readFileSync(resolve(process.cwd(), "src/app/globals.css"), "utf8")

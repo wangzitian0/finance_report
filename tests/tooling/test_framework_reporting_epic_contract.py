@@ -7,7 +7,7 @@ def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
-FRAMEWORK_SSOT = "docs/ssot/framework-reporting.md"
+FRAMEWORK_SSOT = "common/reporting/framework-reporting.md"
 EPIC_020 = "docs/project/EPIC-020.framework-aware-personal-reporting.md"
 
 

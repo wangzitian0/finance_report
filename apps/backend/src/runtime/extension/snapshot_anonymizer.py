@@ -1,6 +1,6 @@
 """Prod-snapshot anonymizer — the data boundary of ``deploy(env, code, data)`` (#893).
 
-RL-DATA-2 (``docs/ssot/environments.md``): real data never leaves the prod
+RL-DATA-2 (``common/runtime/environments.md``): real data never leaves the prod
 boundary un-anonymized. This module is the mechanism: it rewrites a *scratch
 copy* of a prod database in place so the result is safe to load into
 staging/rehearsal, then scans its own output for residuals and fails closed.

@@ -152,7 +152,7 @@ Risk-triggered local escalation is required for accounting, posting,
 reconciliation, money, balance, schema, migrations, API contract, OpenAPI,
 shared common/tooling, Docker, workflow, environment, and deploy changes. Use
 the focused domain, migration, API, downstream tooling, or static contract gates
-listed in [ci-cd.md](./ci-cd.md#path-risk-to-local-gate-matrix), then rely on
+listed in [ci-cd.md](../testing/ci-cd.md#path-risk-to-local-gate-matrix), then rely on
 PR CI and deployed gates for full consistency proof.
 
 For schema and migration changes, run the same deterministic Alembic proof that
@@ -187,7 +187,7 @@ mkdocs serve                          # Serve locally → http://127.0.0.1:8000
 mkdocs build                          # Build static site → site/
 ```
 
-MkDocs generates build-time reference pages through [docs/hooks.py](../hooks.py).
+MkDocs generates build-time reference pages through [docs/hooks.py](../../docs/hooks.py).
 `docs/reference/db-schema.md` is intentionally gitignored; it is generated from
 SQLAlchemy metadata during `mkdocs serve` / `mkdocs build` and in the GitHub
 Pages workflow.
@@ -198,7 +198,7 @@ Live docs: [wangzitian0.github.io/finance_report](https://wangzitian0.github.io/
 
 ## Six Environments
 
-> **See dedicated file** → **[docs/ssot/environments.md](./environments.md)**
+> **See dedicated file** → **[common/runtime/environments.md](../runtime/environments.md)**
 >
 > Covers: Local Dev / Local CI / GitHub CI / PR Preview / Staging / Production,
 > container naming patterns, and isolation details.
@@ -273,7 +273,7 @@ Integration points:
 
 ## Test Optimization
 
-> **See dedicated file** → **[docs/ssot/ci-cd.md](./ci-cd.md)**
+> **See dedicated files** → **[common/testing/ci-cd.md](../testing/ci-cd.md)** (test pipeline) and **[common/runtime/ci-cd.md](../runtime/ci-cd.md)** (deploy)
 >
 > Covers: smart/fast/full test modes, 4-way local test parallelism,
 > GitHub CI sharding, no-regression coverage gate,
@@ -314,8 +314,9 @@ Endpoints tested: `/`, `/api/health`, `/api/docs`, `/ping-pong`, `/reconciliatio
 ## CI Workflows & Deployment
 
 > **See dedicated files** →
-> - **[docs/ssot/ci-cd.md](./ci-cd.md)** — CI job structure, coverage gate
-> - **[docs/ssot/deployment.md](./deployment.md)** — Vault, staging/production workflows
+> - **[common/testing/ci-cd.md](../testing/ci-cd.md)** — CI job structure, coverage gate (test pipeline)
+> - **[common/runtime/ci-cd.md](../runtime/ci-cd.md)** — deploy/release workflows (deploy half)
+> - **[common/runtime/deployment.md](../runtime/deployment.md)** — Vault, staging/production workflows
 
 ---
 
@@ -424,9 +425,9 @@ gh workflow run maintenance.yml -f task=ghcr-sha-retention -f ghcr_dry_run=true
 
 | Document | Content |
 |----------|---------|
-| [environments.md](./environments.md) | Six environments, container naming, isolation |
-| [ci-cd.md](./ci-cd.md) | CI job structure, coverage gate, test modes |
-| [deployment.md](./deployment.md) | Deployment workflows, Vault, release process |
-| [coverage.md](./coverage.md) | Unified coverage system |
-| [tdd.md](./tdd.md) | TDD workflow |
-| [MANIFEST.yaml](./MANIFEST.yaml) | Concept ownership registry |
+| [environments.md](../runtime/environments.md) | Six environments, container naming, isolation |
+| [ci-cd.md](../testing/ci-cd.md) | CI job structure, coverage gate, test modes |
+| [deployment.md](../runtime/deployment.md) | Deployment workflows, Vault, release process |
+| [coverage.md](../testing/coverage.md) | Unified coverage system |
+| [tdd.md](../testing/tdd.md) | TDD workflow |
+| [MANIFEST.yaml](../../docs/ssot/MANIFEST.yaml) | Concept ownership registry |

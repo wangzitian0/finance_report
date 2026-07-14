@@ -22,7 +22,7 @@ def test_AC8_13_150_ac_proof_execution_model_is_ac_keyed_and_backward_compatible
     tmp_path: Path,
 ) -> None:
     """AC-testing.gate-inventory.2: AC8.13.150: proof placement is metadata on the AC proof edge."""
-    ci_cd = (ROOT / "docs" / "ssot" / "ci-cd.md").read_text(encoding="utf-8")
+    ci_cd = (ROOT / "common" / "testing" / "ci-cd.md").read_text(encoding="utf-8")
 
     assert "AC -> proof(name, stage, task_category)" in ci_cd
     assert "The AC id remains the only coverage key" in ci_cd

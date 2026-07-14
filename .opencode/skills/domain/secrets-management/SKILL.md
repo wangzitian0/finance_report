@@ -10,10 +10,10 @@ not restate it here (#1658):
 
 - Three-layer secret contract (Vault `secrets.ctmpl` → `config.py` →
   `.env.example`), vault-agent injection flow, and cross-repo seam →
-  [`docs/ssot/deployment.md`](../../../../docs/ssot/deployment.md)
+  [`common/runtime/deployment.md`](../../../../common/runtime/deployment.md)
 - Environment taxonomy (names, suffixes, isolation) →
-  [`docs/ssot/environments.md`](../../../../docs/ssot/environments.md)
-- CI gates on env consistency → [`docs/ssot/ci-cd.md`](../../../../docs/ssot/ci-cd.md)
+  [`common/runtime/environments.md`](../../../../common/runtime/environments.md)
+- CI gates on env consistency → [`common/testing/ci-cd.md`](../../../../common/testing/ci-cd.md)
 - Env-var red lines (`NEXT_PUBLIC_` Dockerfile bake, config.py typing) →
   [`docs/agents/red-lines.md`](../../../../docs/agents/red-lines.md)
 

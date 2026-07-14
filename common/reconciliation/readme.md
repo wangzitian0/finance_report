@@ -59,7 +59,7 @@ reference resolves, no upward import edge).
 
 ## Scoring, thresholds, and the state machine
 
-*(Internalized from `docs/ssot/reconciliation.md`, migration closeout wave 3,
+*(Internalized from `common/reconciliation/reconciliation.md`, migration closeout wave 3,
 #1664 — this is now the single owner; do not re-add a separate SSOT copy.)*
 
 ### <a id="thresholds"></a>Thresholds
@@ -153,7 +153,7 @@ in `contract.py`).
 
 ## EPIC-016 two-stage review (frontend-owned surface)
 
-*(Internalized from `docs/ssot/reconciliation.md` §7, wave 3, #1664. This
+*(Internalized from `common/reconciliation/reconciliation.md` §7, wave 3, #1664. This
 surface's ACs stay in `docs/project/EPIC-016.two-stage-review-ui.md` — see
 [Governance](#governance) above — because the governance gate's AST-based
 `_resolve_test()` cannot resolve the `.tsx`/frontend test paths that prove

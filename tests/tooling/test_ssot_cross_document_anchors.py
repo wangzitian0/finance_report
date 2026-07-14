@@ -35,11 +35,11 @@ REQUIRED_CONCEPTS: dict[str, tuple[str, str]] = {
         "confidence-scoring",
     ),
     "confirmation_workflow_states": (
-        "docs/ssot/confirmation-workflow.md",
+        "common/extraction/confirmation-workflow.md",
         "state-machine",
     ),
     "confidence_tier_rollup": (
-        "docs/ssot/confirmation-workflow.md",
+        "common/extraction/confirmation-workflow.md",
         "confidence-tier-rollup",
     ),
 }

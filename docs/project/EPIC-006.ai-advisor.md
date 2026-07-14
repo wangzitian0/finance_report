@@ -272,8 +272,8 @@ The above analysis is for reference only.
 
 ## 📚 SSOT References
 
-- [reporting.md](../ssot/reporting.md) - Report data
-- [reconciliation.md](../ssot/reconciliation.md) - Reconciliation status
+- [reporting.md](../../common/reporting/reporting.md) - Report data
+- [reconciliation.md](../../common/reconciliation/reconciliation.md) - Reconciliation status
 
 ---
 
@@ -310,7 +310,7 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 
 - [../user-guide/ai-advisor.md](../user-guide/ai-advisor.md) — AI advisor user guide.
 - [../reference/api.md](../reference/api.md) — generated AI advisor API reference.
-- [../ssot/ai.md](../ssot/ai.md) — AI model policy, safety, and fallback rationale.
+- [../ssot/ai.md](../../common/llm/ai.md) — AI model policy, safety, and fallback rationale.
 
 ---
 
@@ -466,7 +466,7 @@ that FastAPI cannot describe with a `response_model`. Their out-of-band payload
 Pydantic envelopes (`ChatStreamEnvelope`, `ExportStreamEnvelope`) so the stream's
 structure is validated and testable **without changing the wire bytes** clients
 depend on. `X-Advisor-Metadata` is validated against `ChatResponseMetadata`
-before serialization. See `docs/ssot/ai.md` (chat) and `docs/ssot/reporting.md`
+before serialization. See `common/llm/ai.md` (chat) and `common/reporting/reporting.md`
 (export).
 
 > **Chat-side rows migrated** to [`common/advisor/contract.py`](../../common/advisor/contract.py)'s `roadmap` (migration closeout wave 2, #1663): `AC-advisor.envelope.1` through `.5` (`.1`-`.4` new, `.7` renumbered `.5`). **Export-side rows migrated** to [`common/reporting/contract.py`](../../common/reporting/contract.py)'s `roadmap` (migration closeout wave 3, #1416): `AC-reporting.export-envelope.1` through `.4`.

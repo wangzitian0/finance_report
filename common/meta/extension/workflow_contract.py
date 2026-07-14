@@ -2,8 +2,8 @@
 """Validate that CI/deploy SSOT prose and issue templates match workflows.
 
 This contract is the mechanical guard for issue #531: prose in
-``docs/ssot/ci-cd.md``, ``docs/ssot/deployment.md``, and
-``docs/ssot/environments.md`` must not drift from the actual
+``common/testing/ci-cd.md``, ``common/runtime/deployment.md``, and
+``common/runtime/environments.md`` must not drift from the actual
 ``.github/workflows/*.yml`` job ids and triggers, and issue templates must only
 use labels that exist in the repository's label taxonomy.
 
@@ -134,7 +134,7 @@ ACTION_RUNTIME_METADATA_GLOBS = (
 # Stale prose that must never reappear in the CI/deploy SSOT, keyed by file.
 # Each entry is (forbidden substring, explanation of the correct fact).
 SSOT_FORBIDDEN_PROSE: dict[str, tuple[tuple[str, str], ...]] = {
-    "docs/ssot/ci-cd.md": (
+    "common/testing/ci-cd.md": (
         (
             "classify-changes",
             "the CI classifier job id is `changes`, not `classify-changes`",
@@ -144,13 +144,13 @@ SSOT_FORBIDDEN_PROSE: dict[str, tuple[tuple[str, str], ...]] = {
             "the backend fast path uses 5 seeded shards, not 8 shards",
         ),
     ),
-    "docs/ssot/deployment.md": (
+    "common/runtime/deployment.md": (
         (
             "Push to main (apps/** changed)",
             "deploy.yml triggers on workflow_dispatch only, not push",
         ),
     ),
-    "docs/ssot/environments.md": (
+    "common/runtime/environments.md": (
         (
             "classify-changes",
             "the CI classifier job id is `changes`, not `classify-changes`",
@@ -167,15 +167,15 @@ SSOT_FORBIDDEN_PROSE: dict[str, tuple[tuple[str, str], ...]] = {
 # Prose the CI/deploy SSOT MUST contain so the docs positively reference the
 # live job ids / triggers (not just avoid the stale strings).
 SSOT_REQUIRED_PROSE: dict[str, tuple[str, ...]] = {
-    "docs/ssot/ci-cd.md": (
+    "common/testing/ci-cd.md": (
         "`.github/workflows/ci.yml`",
         "single CI metrics contract",
     ),
-    "docs/ssot/deployment.md": (
+    "common/runtime/deployment.md": (
         "Manual dispatch only",
         "workflow_dispatch",
     ),
-    "docs/ssot/environments.md": (
+    "common/runtime/environments.md": (
         "same gate family",
         "workflow_dispatch",
     ),

@@ -22,7 +22,10 @@ class TestSelectChecks:
         assert "ac-traceability" in names
 
     def test_ssot_edit_selects_ownership_and_doc_consistency(self):
-        names = [c.name for c in preflight.select_checks(["docs/ssot/reporting.md"])]
+        # docs/ssot/ now holds only MANIFEST.yaml/README.md/epic-residue-baseline.json
+        # (#1822 SSOT dissolution) — MANIFEST.yaml is a stable example of an edit
+        # under that glob.
+        names = [c.name for c in preflight.select_checks(["docs/ssot/MANIFEST.yaml"])]
         assert "ssot-ownership" in names
         assert "doc-consistency" in names  # docs/* also matches
 
@@ -245,7 +248,7 @@ class TestTierSelection:
         changed = [
             "common/testing/preflight.py",
             "apps/frontend/src/app/layout.tsx",
-            "docs/ssot/reporting.md",
+            "common/reporting/reporting.md",
         ]
         assert preflight.select_checks(changed) == preflight.select_checks(
             changed, tier="full"

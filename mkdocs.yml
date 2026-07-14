@@ -82,30 +82,13 @@ nav:
       - Generated DB Schema Reference: reference/db-schema.md
       - Router Contract Maturity: reference/router-contract-maturity.md
   - Technical Docs:
+      # #1822 (SSOT dissolution, Package-ization 3/4) moved every prose/gate-data
+      # doc formerly nav'd here out of docs/ssot/ into its owning package
+      # (common/<pkg>/, outside MkDocs' docs_dir) — see MANIFEST.yaml for the
+      # current owner of each concept. docs/ssot/README.md is now a tombstone
+      # pointer, not a technical doc itself.
       - Architecture: ssot/README.md
-      - Development Guide: ssot/development.md
-      - Environment Reference: ssot/env-reference.generated.md
-      - Environments: ssot/environments.md
-      - CI/CD: ssot/ci-cd.md
-      - Coverage: ssot/coverage.md
-      - Deployment: ssot/deployment.md
-      - Runtime Incident Response: ssot/runtime-incident-response.md
-      - TDD Workflow: ssot/tdd.md
-      - Reconciliation Engine: ssot/reconciliation.md
-      - Confirmation Workflow: ssot/confirmation-workflow.md
-      - Reporting: ssot/reporting.md
-      - Framework Reporting: ssot/framework-reporting.md
-      - AI Advisor: ssot/ai.md
-      - Assets: ssot/assets.md
-      - Market Data: ssot/market_data.md
-      - Source Type Priority: ssot/source-type-priority.md
-      - Workflow Events: ssot/workflow-events.md
-      - Evidence Lineage: ssot/evidence-lineage.md
-      - Database Schema: ssot/schema.md
-      - Observability: ssot/observability.md
-      - Observability Logging: ssot/observability-logging.md
       - Product Analytics Events: reference/analytics-events.md
-      - Frontend Patterns: ssot/frontend-patterns.md
   - Governance:
       - Agent Orchestration: agents/orchestration.md
       - Red Lines: agents/red-lines.md

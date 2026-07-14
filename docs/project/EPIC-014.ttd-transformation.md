@@ -72,12 +72,12 @@ were snapshots, not current truth.
 
 | Fact | Owner |
 |---|---|
-| Mandatory work order and agent workflow | [orchestration.md](../agents/orchestration.md), [tdd.md](../ssot/tdd.md) |
+| Mandatory work order and agent workflow | [orchestration.md](../agents/orchestration.md), [tdd.md](../../common/testing/tdd.md) |
 | Security and engineering red lines | [red-lines.md](../agents/red-lines.md), executable guardrail tests |
 | AC registry generation and orphan/stub checks | `tools/generate_ac_registry.py`, `tools/lint_doc_consistency.py` |
 | AC proof quality | `tools/check_ac_index.py`, CI traceability artifact |
-| Coverage policy | [coverage.md](../ssot/coverage.md), `common/meta/extension/coverage/policy.py` |
-| Development and SOP commands | [development.md](../ssot/development.md), `make`, `moon`, and `tools/` entry points |
+| Coverage policy | [coverage.md](../../common/testing/coverage.md), `common/meta/extension/coverage/policy.py` |
+| Development and SOP commands | [development.md](../../common/meta/development.md), `make`, `moon`, and `tools/` entry points |
 
 Historical details remain available in git history and removed-archive issue
 [#548](https://github.com/wangzitian0/finance_report/issues/548). New TTD work
@@ -233,7 +233,7 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 - [./AUDITS.md](./AUDITS.md) — audit index and retired standalone report notes.
 - [./AC-AUDIT-2026-05-04.md](./AC-AUDIT-2026-05-04.md) — historical consistency audit snapshot.
 - [./DECISIONS.md](./DECISIONS.md) — project decision log.
-- [../ssot/tdd.md](../ssot/tdd.md) — canonical EPIC -> AC -> test workflow.
+- [../ssot/tdd.md](../../common/testing/tdd.md) — canonical EPIC -> AC -> test workflow.
 - [../agents/orchestration.md](../agents/orchestration.md) — agent workflow governance.
 - [../agents/red-lines.md](../agents/red-lines.md) — security and engineering hard stops.
 - [../contributing/branch-policy.md](../contributing/branch-policy.md) — branch and PR workflow.
@@ -249,11 +249,11 @@ Current SOP coverage is intentionally tool-owned:
 
 | Area | Tool or doc owner |
 |---|---|
-| Development setup | `make install`, `moon run :dev`, [development.md](../ssot/development.md) |
+| Development setup | `make install`, `moon run :dev`, [development.md](../../common/meta/development.md) |
 | Code quality | pre-commit, Ruff, mypy, CI lint |
-| Testing and coverage | `moon run :test`, [coverage.md](../ssot/coverage.md), coverage tooling |
+| Testing and coverage | `moon run :test`, [coverage.md](../../common/testing/coverage.md), coverage tooling |
 | Environment consistency | `tools/check_env_keys.py`, schema validation tooling |
-| Deployment and smoke checks | [deployment.md](../ssot/deployment.md), [ci-cd.md](../ssot/ci-cd.md), `tools/smoke_test.sh` |
+| Deployment and smoke checks | [deployment.md](../../common/runtime/deployment.md), [ci-cd.md](../../common/testing/ci-cd.md), `tools/smoke_test.sh` |
 | Project/AC traceability | registry generation, AC traceability, E2E EPIC traceability |
 
 Do not use this EPIC as a live progress dashboard. Current counts, CI state,

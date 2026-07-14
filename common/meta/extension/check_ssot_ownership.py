@@ -57,7 +57,7 @@ MUST_BE_ABSENT: list[Path] = [
     REPO_ROOT / "docs" / "project" / "archive",
     # EPIC-016 implementation plan merged into EPIC-016.two-stage-review-ui.md
     REPO_ROOT / "docs" / "project" / "EPIC-016-IMPLEMENTATION-PLAN.md",
-    # coverage-verification.md merged into docs/ssot/coverage.md
+    # coverage-verification.md merged into common/testing/coverage.md
     REPO_ROOT / "docs" / "ssot" / "coverage-verification.md",
     # observability.logging-improvements.md renamed to observability-logging.md
     REPO_ROOT / "docs" / "ssot" / "observability.logging-improvements.md",
@@ -94,6 +94,11 @@ MUST_BE_ABSENT: list[Path] = [
     # over the llm package's cassette layer, per migration-standard step 3
     # "SSOT internalized" (Stage-2 precursor to the code cutover #1426).
     REPO_ROOT / "docs" / "ssot" / "cassette-graded-eval.md",
+    # source-type-priority.md was already a pointer stub (content internalized
+    # into common/audit/readme.md#source-type-trust-hierarchy-provenance in
+    # migration closeout wave 3, #1664); the stub itself was retired in #1822
+    # (SSOT dissolution, Package-ization 3/4).
+    REPO_ROOT / "docs" / "ssot" / "source-type-priority.md",
 ]
 
 # ---------------------------------------------------------------------------
@@ -125,7 +130,7 @@ RULE_KEYWORDS: list[tuple[str, re.Pattern[str], str, str]] = [
     (
         "sa.Enum explicit name= rule",
         re.compile(r"sa\.Enum.*name=|Enum.*name=.*explicit", re.IGNORECASE),
-        "docs/ssot/schema.md",
+        "common/meta/schema.md",
         "#enum-naming",
     ),
     (

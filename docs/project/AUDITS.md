@@ -41,7 +41,7 @@ generated AC-to-EPIC mismatch output.
 
 The root `TESTING_GAP_ANALYSIS.md` report was retired during the 2026-05-20
 documentation cleanup. Its old hand-written testing narrative duplicated
-`docs/ssot/tdd.md`, `docs/ssot/coverage.md`, `docs/ssot/ci-cd.md`, and the
+`common/testing/tdd.md`, `common/testing/coverage.md`, `common/testing/ci-cd.md`, and the
 AC tooling and CI artifacts. Current testing gaps are tracked by issues
 [#454](https://github.com/wangzitian0/finance_report/issues/454) and
 [#456](https://github.com/wangzitian0/finance_report/issues/456).
