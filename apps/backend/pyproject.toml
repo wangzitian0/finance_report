@@ -30,13 +30,13 @@ dependencies = [
     "pymupdf>=1.24.0",
     "cryptography>=42.0.0",
     "litellm>=1.55.0",
-]
-
-[project.optional-dependencies]
-# EPIC-019: installed (`pip install .[prefect]`) by any process that runs with
-# PREFECT_API_URL set — the API (to submit flow runs) AND the worker (to execute
-# them). The base image / CI / local fallback run in-process without Prefect.
-prefect = [
+    # EPIC-019: a base dependency, not an optional extra — the repo's
+    # promote-not-rebuild release model ships ONE image to every environment,
+    # and that same image now runs both roles: the API (submits flow runs when
+    # PREFECT_API_URL is set) and the durable-parse worker (executes them).
+    # CI/local/preview still run in-process (no PREFECT_API_URL => fail-soft
+    # fallback in statement_pipeline.py), so installing the client there is
+    # inert, not wasted: it's the same image either way.
     "prefect>=3.7.0",
 ]
 

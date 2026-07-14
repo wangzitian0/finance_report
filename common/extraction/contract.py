@@ -3478,6 +3478,29 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        ACRecord(
+            id="AC-extraction.1913.3",
+            statement=(
+                "The durable-parse deployment the worker registers "
+                "(scripts/register_prefect_deployment.py) resolves to "
+                "exactly the (flow, deployment) name PARSE_DEPLOYMENT that "
+                "the API submits runs to — a name drift between the two "
+                "would make every submitted run silently unrunnable. The "
+                "script deploys from LOCAL source (code already baked into "
+                "the worker's own image, promote-not-rebuild) against the "
+                "process-type 'default' work pool, with no Docker "
+                "build/push step; the worker's container entrypoint runs "
+                "this registration (idempotent — upserts by name) before "
+                "polling for work."
+            ),
+            test=(
+                "apps/backend/tests/tooling/test_prefect_deployment_registration.py"
+                "::test_AC_extraction_1913_3_registration_script_targets_the_deployment_api_submits_to"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
         # ── group api-vectors: backend-owned API response conformance
         # vectors (#1827 G-contract-reddens, pattern from #1167). The wire
         # shape of the POST /api/statements/upload 202 envelope and the
