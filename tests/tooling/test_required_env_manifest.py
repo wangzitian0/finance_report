@@ -123,8 +123,10 @@ def test_check_mode_reds_on_stale_manifest(tmp_path, monkeypatch, capsys):
 
 def test_manifest_carries_the_consumer_contract_fields():
     """Each manifest entry carries what infra2's template check needs: the
-    config field name, the canonical env key, aliases, vault tagging, and
-    whether the app has a default (i.e. whether injection is load-bearing)."""
+    config field name, the canonical env var, aliases, vault tagging, and
+    ``has_default`` (whether ``Settings`` defines a default value — no
+    deploy-time semantics implied; protected runtimes may still reject
+    specific development defaults at boot)."""
     committed = _committed_manifest()
 
     assert committed["source"] == "apps/backend/src/config.py::Settings"

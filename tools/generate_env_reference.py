@@ -252,9 +252,11 @@ def render_required_env_manifest(fields: list[dict]) -> str:
     var (``env`` — named so no JSON line is shaped like a key/secret
     assignment, which keeps secret scanners quiet on this generated file),
     accepted aliases, vault tagging (does infra2's ``secrets.ctmpl`` have to
-    inject it?), and whether the app carries a default (i.e. whether the
-    injection is load-bearing). Deterministic ordering so the artifact diffs
-    cleanly.
+    inject it?), and ``has_default`` — whether ``Settings`` defines a default
+    value for the field. Note ``has_default`` carries no deploy-time
+    semantics: protected runtimes may still reject specific development
+    defaults at boot (``Bootloader._check_static_config``). Deterministic
+    ordering so the artifact diffs cleanly.
     """
     import json
 
