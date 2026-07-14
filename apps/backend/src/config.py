@@ -460,12 +460,16 @@ class Settings(BaseSettings):
 
         In staging/production, if OTEL export is enabled, the resource MUST carry a
         ``deployment.environment`` tag (issued by infra2 at deploy — see
-        repo/docs/ssot/core.environments.md#telemetry-identity). This catches the
-        "untagged production telemetry" class before it reaches the OTLP collector.
-        Non-deployed environments (local/CI/preview) and telemetry-off deploys are
-        exempt, so this never trips local, tests, or a telemetry-off deploy.
+        repo/docs/ssot/core.environments.md#telemetry-identity) whose value EQUALS
+        ``settings.environment`` (#1828 G-telemetry-tag-consistent: presence alone
+        let "prod telemetry tagged as staging" boot healthy). This catches the
+        "untagged or mistagged production telemetry" class before it reaches the
+        OTLP collector. Non-deployed environments (local/CI/preview) and
+        telemetry-off deploys are exempt, so this never trips local, tests, or a
+        telemetry-off deploy.
         """
-        if self.environment.strip().lower() not in PROTECTED_ENVIRONMENTS:
+        environment = self.environment.strip().lower()
+        if environment not in PROTECTED_ENVIRONMENTS:
             return self
         if not self.otel_exporter_otlp_endpoint:
             return self
@@ -476,6 +480,15 @@ class Settings(BaseSettings):
                 "environment but OTEL_RESOURCE_ATTRIBUTES has no "
                 "deployment.environment tag. infra2 must issue it; see "
                 "repo/docs/ssot/core.environments.md#telemetry-identity."
+            )
+        declared = attrs["deployment.environment"].strip().lower()
+        if declared != environment:
+            raise ValueError(
+                "Telemetry contract violation: OTEL_RESOURCE_ATTRIBUTES declares "
+                f"deployment.environment={declared!r} but the running environment is "
+                f"{environment!r} — telemetry would be attributed to the wrong tier "
+                "(#1828 G-telemetry-tag-consistent). infra2 issues the tag at deploy; "
+                "see repo/docs/ssot/core.environments.md#telemetry-identity."
             )
         return self
 

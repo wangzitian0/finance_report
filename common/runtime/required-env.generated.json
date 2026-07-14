@@ -1,0 +1,492 @@
+{
+  "generated_by": "tools/generate_env_reference.py — do not edit",
+  "source": "apps/backend/src/config.py::Settings",
+  "consumer": "infra2 CI checks secrets.ctmpl against this manifest (wangzitian0/finance_report#1828 G-injection-drift-gate)",
+  "fields": [
+    {
+      "field": "access_token_expire_minutes",
+      "env": "ACCESS_TOKEN_EXPIRE_MINUTES",
+      "aliases": [],
+      "group": "Security",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "ai_base_url",
+      "env": "AI_BASE_URL",
+      "aliases": [],
+      "group": "AI Provider",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "ai_chat_completions_path",
+      "env": "AI_CHAT_COMPLETIONS_PATH",
+      "aliases": [],
+      "group": "AI Provider",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "ai_extract_max_attempts",
+      "env": "AI_EXTRACT_MAX_ATTEMPTS",
+      "aliases": [],
+      "group": "AI Provider",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "ai_json_disable_thinking",
+      "env": "AI_JSON_DISABLE_THINKING",
+      "aliases": [],
+      "group": "AI Provider",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "ai_json_max_tokens",
+      "env": "AI_JSON_MAX_TOKENS",
+      "aliases": [],
+      "group": "AI Provider",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "ai_json_seed",
+      "env": "AI_JSON_SEED",
+      "aliases": [],
+      "group": "AI Provider",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "ai_json_timeout_seconds",
+      "env": "AI_JSON_TIMEOUT_SECONDS",
+      "aliases": [],
+      "group": "AI Provider",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "ai_layout_parsing_path",
+      "env": "AI_LAYOUT_PARSING_PATH",
+      "aliases": [],
+      "group": "AI Provider",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "ai_provider",
+      "env": "AI_PROVIDER",
+      "aliases": [],
+      "group": "AI Provider",
+      "vault": true,
+      "has_default": true
+    },
+    {
+      "field": "api_rate_limit_requests",
+      "env": "API_RATE_LIMIT_REQUESTS",
+      "aliases": [],
+      "group": "Rate Limiting",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "api_rate_limit_window",
+      "env": "API_RATE_LIMIT_WINDOW",
+      "aliases": [],
+      "group": "Rate Limiting",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "base_currency",
+      "env": "BASE_CURRENCY",
+      "aliases": [],
+      "group": "App Settings",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "cors_origins_str",
+      "env": "CORS_ORIGINS",
+      "aliases": [],
+      "group": "Security",
+      "vault": true,
+      "has_default": true
+    },
+    {
+      "field": "cors_origin_regex",
+      "env": "CORS_ORIGIN_REGEX",
+      "aliases": [],
+      "group": "Security",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "database_url",
+      "env": "DATABASE_URL",
+      "aliases": [],
+      "group": "Database",
+      "vault": true,
+      "has_default": true
+    },
+    {
+      "field": "db_pool_max_overflow",
+      "env": "DB_POOL_MAX_OVERFLOW",
+      "aliases": [],
+      "group": "Database",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "db_pool_size",
+      "env": "DB_POOL_SIZE",
+      "aliases": [],
+      "group": "Database",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "debug",
+      "env": "DEBUG",
+      "aliases": [],
+      "group": "App Settings",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "enable_ai_classification",
+      "env": "ENABLE_AI_CLASSIFICATION",
+      "aliases": [],
+      "group": "Feature Flags",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "enable_ai_reconciliation",
+      "env": "ENABLE_AI_RECONCILIATION",
+      "aliases": [],
+      "group": "Feature Flags",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "enable_storage_sweep",
+      "env": "ENABLE_STORAGE_SWEEP",
+      "aliases": [],
+      "group": "Feature Flags",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "environment",
+      "env": "ENVIRONMENT",
+      "aliases": [
+        "ENV"
+      ],
+      "group": "App Settings",
+      "vault": true,
+      "has_default": true
+    },
+    {
+      "field": "fallback_models_str",
+      "env": "FALLBACK_MODELS",
+      "aliases": [],
+      "group": "AI Provider",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "git_commit_sha",
+      "env": "GIT_COMMIT_SHA",
+      "aliases": [],
+      "group": "Deployment metadata",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "jwt_algorithm",
+      "env": "JWT_ALGORITHM",
+      "aliases": [],
+      "group": "Security",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "llm_encryption_keys",
+      "env": "LLM_ENCRYPTION_KEYS",
+      "aliases": [],
+      "group": "AI Provider",
+      "vault": true,
+      "has_default": true
+    },
+    {
+      "field": "market_data_fx_bridge_currency",
+      "env": "MARKET_DATA_FX_BRIDGE_CURRENCY",
+      "aliases": [],
+      "group": "App Settings",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "market_data_lazy_fetch_enabled",
+      "env": "MARKET_DATA_LAZY_FETCH_ENABLED",
+      "aliases": [],
+      "group": "App Settings",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "market_data_yahoo_timeout_seconds",
+      "env": "MARKET_DATA_YAHOO_TIMEOUT_SECONDS",
+      "aliases": [],
+      "group": "App Settings",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "next_public_app_url",
+      "env": "NEXT_PUBLIC_APP_URL",
+      "aliases": [],
+      "group": "App Settings",
+      "vault": true,
+      "has_default": true
+    },
+    {
+      "field": "ocr_model",
+      "env": "OCR_MODEL",
+      "aliases": [],
+      "group": "AI Provider",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "openpanel_api_url",
+      "env": "OPENPANEL_API_URL",
+      "aliases": [],
+      "group": "Observability",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "openpanel_client_id",
+      "env": "OPENPANEL_CLIENT_ID",
+      "aliases": [],
+      "group": "Observability",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "openpanel_environment",
+      "env": "OPENPANEL_ENVIRONMENT",
+      "aliases": [],
+      "group": "Observability",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "otel_exporter_otlp_endpoint",
+      "env": "OTEL_EXPORTER_OTLP_ENDPOINT",
+      "aliases": [],
+      "group": "Observability",
+      "vault": true,
+      "has_default": true
+    },
+    {
+      "field": "otel_resource_attributes",
+      "env": "OTEL_RESOURCE_ATTRIBUTES",
+      "aliases": [],
+      "group": "Observability",
+      "vault": true,
+      "has_default": true
+    },
+    {
+      "field": "otel_service_name",
+      "env": "OTEL_SERVICE_NAME",
+      "aliases": [],
+      "group": "Observability",
+      "vault": true,
+      "has_default": true
+    },
+    {
+      "field": "prefect_api_url",
+      "env": "PREFECT_API_URL",
+      "aliases": [],
+      "group": "AI Provider",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "primary_model",
+      "env": "PRIMARY_MODEL",
+      "aliases": [],
+      "group": "AI Provider",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "redis_url",
+      "env": "REDIS_URL",
+      "aliases": [],
+      "group": "App Settings",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "register_rate_limit_requests",
+      "env": "REGISTER_RATE_LIMIT_REQUESTS",
+      "aliases": [],
+      "group": "Rate Limiting",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "register_rate_limit_window",
+      "env": "REGISTER_RATE_LIMIT_WINDOW",
+      "aliases": [],
+      "group": "Rate Limiting",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "s3_access_key",
+      "env": "S3_ACCESS_KEY",
+      "aliases": [],
+      "group": "S3 / MinIO Storage",
+      "vault": true,
+      "has_default": true
+    },
+    {
+      "field": "s3_bucket",
+      "env": "S3_BUCKET",
+      "aliases": [],
+      "group": "S3 / MinIO Storage",
+      "vault": true,
+      "has_default": true
+    },
+    {
+      "field": "s3_endpoint",
+      "env": "S3_ENDPOINT",
+      "aliases": [],
+      "group": "S3 / MinIO Storage",
+      "vault": true,
+      "has_default": true
+    },
+    {
+      "field": "s3_presign_expiry_seconds",
+      "env": "S3_PRESIGN_EXPIRY_SECONDS",
+      "aliases": [],
+      "group": "S3 / MinIO Storage",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "s3_public_access_key",
+      "env": "S3_PUBLIC_ACCESS_KEY",
+      "aliases": [],
+      "group": "S3 / MinIO Storage",
+      "vault": true,
+      "has_default": true
+    },
+    {
+      "field": "s3_public_bucket",
+      "env": "S3_PUBLIC_BUCKET",
+      "aliases": [],
+      "group": "S3 / MinIO Storage",
+      "vault": true,
+      "has_default": true
+    },
+    {
+      "field": "s3_public_endpoint",
+      "env": "S3_PUBLIC_ENDPOINT",
+      "aliases": [],
+      "group": "S3 / MinIO Storage",
+      "vault": true,
+      "has_default": true
+    },
+    {
+      "field": "s3_public_secret_key",
+      "env": "S3_PUBLIC_SECRET_KEY",
+      "aliases": [],
+      "group": "S3 / MinIO Storage",
+      "vault": true,
+      "has_default": true
+    },
+    {
+      "field": "s3_region",
+      "env": "S3_REGION",
+      "aliases": [],
+      "group": "S3 / MinIO Storage",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "s3_secret_key",
+      "env": "S3_SECRET_KEY",
+      "aliases": [],
+      "group": "S3 / MinIO Storage",
+      "vault": true,
+      "has_default": true
+    },
+    {
+      "field": "secret_key",
+      "env": "SECRET_KEY",
+      "aliases": [],
+      "group": "Security",
+      "vault": true,
+      "has_default": true
+    },
+    {
+      "field": "statement_review_presign_expiry_seconds",
+      "env": "STATEMENT_REVIEW_PRESIGN_EXPIRY_SECONDS",
+      "aliases": [],
+      "group": "S3 / MinIO Storage",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "storage_sweep_grace_period_hours",
+      "env": "STORAGE_SWEEP_GRACE_PERIOD_HOURS",
+      "aliases": [],
+      "group": "Feature Flags",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "storage_sweep_interval_seconds",
+      "env": "STORAGE_SWEEP_INTERVAL_SECONDS",
+      "aliases": [],
+      "group": "Feature Flags",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "vision_fallback_models_str",
+      "env": "VISION_FALLBACK_MODELS",
+      "aliases": [],
+      "group": "AI Provider",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "vision_model",
+      "env": "VISION_MODEL",
+      "aliases": [],
+      "group": "AI Provider",
+      "vault": false,
+      "has_default": true
+    },
+    {
+      "field": "ai_api_key",
+      "env": "ZAI_API_KEY",
+      "aliases": [
+        "AI_API_KEY",
+        "GEMINI_API_KEY"
+      ],
+      "group": "AI Provider",
+      "vault": true,
+      "has_default": true
+    }
+  ]
+}

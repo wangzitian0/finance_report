@@ -72,6 +72,51 @@ def test_telemetry_contract_fast_fails_in_deployed_env_without_tag(monkeypatch) 
     assert Settings(_env_file=None).environment == "development"
 
 
+@pytest.mark.parametrize(
+    ("environment", "declared"),
+    [
+        ("production", "staging"),
+        ("staging", "production"),
+        ("production", "development"),
+    ],
+)
+def test_AC_runtime_guard_proofs_7_telemetry_tag_value_mismatch_fails_boot(
+    monkeypatch, environment: str, declared: str
+) -> None:
+    """AC-runtime.guard-proofs.7 (#1828 G-telemetry-tag-consistent): when OTEL
+    export is enabled in a protected env, a ``deployment.environment`` resource
+    attribute whose VALUE differs from ``settings.environment`` fails config
+    load — presence alone is not enough (closes the "prod telemetry tagged as
+    staging" case)."""
+    monkeypatch.setenv("ENVIRONMENT", environment)
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector:4318")
+    monkeypatch.setenv("OTEL_RESOURCE_ATTRIBUTES", f"deployment.environment={declared}")
+
+    with pytest.raises(ValidationError, match="deployment.environment"):
+        Settings(_env_file=None)
+
+
+@pytest.mark.parametrize("environment", ["staging", "production"])
+def test_AC_runtime_guard_proofs_8_telemetry_tag_value_match_boots(monkeypatch, environment: str) -> None:
+    """AC-runtime.guard-proofs.8 (#1828 G-telemetry-tag-consistent): the accept
+    branch — a ``deployment.environment`` tag equal to ``settings.environment``
+    loads cleanly in a protected env (case/whitespace-insensitively), and
+    non-protected envs stay exempt from the value check."""
+    monkeypatch.setenv("ENVIRONMENT", environment)
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector:4318")
+    monkeypatch.setenv("OTEL_RESOURCE_ATTRIBUTES", f"deployment.environment={environment}")
+    assert Settings(_env_file=None).environment == environment
+
+    # Value comparison is normalized, not literal.
+    monkeypatch.setenv("OTEL_RESOURCE_ATTRIBUTES", f"deployment.environment= {environment.upper()}")
+    assert Settings(_env_file=None).environment == environment
+
+    # Non-protected envs never evaluate the value check (mismatch tolerated).
+    monkeypatch.setenv("ENVIRONMENT", "development")
+    monkeypatch.setenv("OTEL_RESOURCE_ATTRIBUTES", "deployment.environment=production")
+    assert Settings(_env_file=None).environment == "development"
+
+
 def test_observability_ssot_and_env_docs_are_linked() -> None:
     """AC-observability.17.1 / AC-observability.17.2 / AC-observability.17.3 / AC-observability.17.4: AC10.5.1 AC10.5.2 AC10.5.3 AC10.7.5: Observability docs are anchored."""
     observability = _read(REPO_ROOT / "common" / "observability" / "observability.md")

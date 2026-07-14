@@ -962,6 +962,196 @@ CONTRACT = PackageContract(
             priority="P2",
             status="done",
         ),
+        # ── guard-layer proofs (#1828): the code between CI-green and users
+        # being served — boot fail-closed, honest health, telemetry identity,
+        # config injection — gets executed proof instead of production-first
+        # execution. G-entrypoint-preprod-contact lands via #1809, not here. ──
+        ACRecord(
+            id="AC-runtime.guard-proofs.1",
+            statement=(
+                "G-reject-path-proven: every development default (dev SECRET_KEY, "
+                "default DATABASE_URL, default S3 secret) is rejected by "
+                "_check_static_config under every protected-runtime trigger "
+                "(staging env, production env, unknown env fails closed, public "
+                "https URL) — the full reject matrix, not sampled cells."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_boot.py"
+                "::test_AC_runtime_guard_proofs_1_every_default_is_rejected_under_every_protected_trigger"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.guard-proofs.2",
+            statement=(
+                "G-reject-path-proven accept branch: all development defaults "
+                "together remain bootable in every local environment "
+                "(development/test/ci) with a localhost app URL — the gate "
+                "rejects protected-runtime defaults, not local development."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_boot.py"
+                "::test_AC_runtime_guard_proofs_2_development_defaults_accepted_in_local_environments"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.guard-proofs.3",
+            statement=(
+                "G-reject-path-proven: the protected-runtime classifier itself is "
+                "proven cell-by-cell — protected envs, unknown envs (fail closed) "
+                "and public https app URLs classify as protected; local envs and "
+                "localhost URLs do not."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_boot.py"
+                "::test_AC_runtime_guard_proofs_3_protected_runtime_classification"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.guard-proofs.4",
+            statement=(
+                "G-health-honest-somewhere: the blocking backend-integration lane "
+                "runs the REAL _check_database (re-patched over the suite-wide "
+                "autouse mock) against the lane's live Postgres and it reports ok "
+                "— structure-locked: the returned message must not be the autouse "
+                "stub's 'Mocked for tests', so a leaked mock reds the lane."
+            ),
+            test=(
+                "apps/backend/tests/integration/test_bootloader_real_checks.py"
+                "::test_AC_runtime_guard_proofs_4_real_database_check_passes_against_live_service"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.guard-proofs.5",
+            statement=(
+                "G-health-honest-somewhere: the same lane runs the REAL _check_s3 "
+                "(HEAD bucket) against the lane's live MinIO and it reports ok, "
+                "with the same anti-mock structure lock."
+            ),
+            test=(
+                "apps/backend/tests/integration/test_bootloader_real_checks.py"
+                "::test_AC_runtime_guard_proofs_5_real_s3_check_passes_against_live_service"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.guard-proofs.6",
+            statement=(
+                "G-health-honest-somewhere red-team canary: pointed at a dead "
+                "port, the REAL _check_database reports error — the autouse stub "
+                "would report ok here, so this test failing-closed proves the "
+                "real code path is exercised (permanent mock-leak detector)."
+            ),
+            test=(
+                "apps/backend/tests/integration/test_bootloader_real_checks.py"
+                "::test_AC_runtime_guard_proofs_6_real_database_check_reds_on_dead_port"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.guard-proofs.7",
+            statement=(
+                "G-telemetry-tag-consistent: when OTEL export is enabled in a "
+                "protected env, a deployment.environment resource attribute whose "
+                "value differs from settings.environment fails config load "
+                "(ValueError at boot) — presence alone no longer passes, closing "
+                "the 'prod telemetry tagged as staging' case."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_observability_contract.py"
+                "::test_AC_runtime_guard_proofs_7_telemetry_tag_value_mismatch_fails_boot"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.guard-proofs.8",
+            statement=(
+                "G-telemetry-tag-consistent accept branch: a matching "
+                "deployment.environment value loads cleanly in protected envs "
+                "(normalized comparison), and non-protected envs stay exempt "
+                "from the value check."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_observability_contract.py"
+                "::test_AC_runtime_guard_proofs_8_telemetry_tag_value_match_boots"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.guard-proofs.9",
+            statement=(
+                "G-staleness-watchdog-visible (operator-decided 2026-07-14: "
+                "detection only): a stale vault secrets file flips the "
+                "informational vault_secrets.stale signal in /health?full=1 "
+                "while the verdict and the checks parity set stay unchanged — "
+                "boot semantics untouched; the #1653 watchdog axis consumes it."
+            ),
+            test=(
+                "apps/backend/tests/runtime/test_health_parity.py"
+                "::test_AC_runtime_guard_proofs_9_full_health_exposes_stale_vault_secrets_signal"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.guard-proofs.10",
+            statement=(
+                "G-staleness-watchdog-visible: a missing secrets file is exposed "
+                "as present=False (age/stale null) in /health?full=1, still "
+                "without affecting the verdict — absence is a watchdog signal, "
+                "not a health failure."
+            ),
+            test=(
+                "apps/backend/tests/runtime/test_health_parity.py"
+                "::test_AC_runtime_guard_proofs_10_full_health_reports_absent_vault_secrets_file"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.guard-proofs.11",
+            statement=(
+                "G-injection-drift-gate: the committed required-env manifest "
+                "(common/runtime/required-env.generated.json, emitted by "
+                "tools/generate_env_reference.py from config.py) equals the "
+                "manifest rendered from live Settings metadata — exact equality "
+                "reds both drift directions (unregenerated new field, stale "
+                "entry for a removed field)."
+            ),
+            test=(
+                "tests/tooling/test_required_env_manifest.py"
+                "::test_AC_runtime_guard_proofs_11_manifest_matches_live_config_bidirectionally"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.guard-proofs.12",
+            statement=(
+                "G-injection-drift-gate: every vault-tagged config field appears "
+                "in the committed manifest (vault=true) AND as a key in "
+                ".env.example, and every manifest entry maps back to a live "
+                "config field — the app-side half of the #876 artifact boundary "
+                "that infra2's secrets.ctmpl check consumes."
+            ),
+            test=(
+                "tests/tooling/test_required_env_manifest.py"
+                "::test_AC_runtime_guard_proofs_12_every_vault_field_reaches_manifest_and_env_example"
+            ),
+            priority="P1",
+            status="done",
+        ),
     ],
 )
 
