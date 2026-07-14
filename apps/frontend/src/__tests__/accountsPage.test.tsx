@@ -8,6 +8,9 @@ import AccountsPage from "@/app/(main)/accounts/page"
 import { apiFetch } from "@/lib/api"
 import type { Account, AccountListResponse } from "@/lib/types"
 
+import { accountsListVector } from "./fixtures/apiVectors"
+import { createInvalidationProbe } from "./fixtures/invalidationProbe"
+
 const showToastMock = vi.fn()
 
 vi.mock("@/components/ui/Toast", () => ({
@@ -86,22 +89,23 @@ describe("AccountsPage", () => {
   })
 
   it("AC16.15.2 renders grouped accounts and supports type filters", async () => {
-    mockedApiFetch.mockResolvedValue({
-      items: [
-        { id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000", code: "1000" },
-        { id: "a2", name: "Salary", type: "INCOME", currency: "SGD", is_active: true, balance: "2000", code: "4000" },
-      ],
-      total: 2,
-    } satisfies AccountListResponse)
+    // AC-ledger.api-vectors.2 (#1827): the mock is the committed
+    // backend-owned conformance vector, not hand-written JSON — a
+    // regenerated breaking shape reds this test (G-contract-reddens).
+    const vector = accountsListVector()
+    expect(vector.total).toBe(3)
+    mockedApiFetch.mockResolvedValue(vector)
 
     render(<AccountsPage />, { wrapper: createWrapper() })
 
-    await waitFor(() => expect(screen.queryByText("Cash")).not.toBeNull())
-    expect(screen.queryByText("Salary")).not.toBeNull()
+    await waitFor(() => expect(screen.queryByText("Vector Checking")).not.toBeNull())
+    expect(screen.queryByText("Vector Credit Card")).not.toBeNull()
+    expect(screen.queryByText("Vector Opening Balance Equity")).not.toBeNull()
 
-    fireEvent.click(screen.getByRole("button", { name: "INCOME" }))
-    expect(screen.queryByText("Cash")).toBeNull()
-    expect(screen.queryByText("Salary")).not.toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "LIABILITY" }))
+    expect(screen.queryByText("Vector Checking")).toBeNull()
+    expect(screen.queryByText("Vector Opening Balance Equity")).toBeNull()
+    expect(screen.queryByText("Vector Credit Card")).not.toBeNull()
   })
 
   it("AC16.15.3 delete action confirms and calls delete API with success toast", async () => {
@@ -126,6 +130,34 @@ describe("AccountsPage", () => {
     })
     expect(showToastMock).toHaveBeenCalledWith("Account deleted successfully", "success")
     await waitFor(() => expect(screen.queryByText("Cash")).toBeNull())
+  })
+
+  it("AC-testing.fe-async.2 delete flow invalidates the matrix-declared query keys against a real QueryClient", async () => {
+    // #1827 G-async-seam: only the network fn is mocked; react-query runs
+    // for real. Red-team: removing the invalidateQueries call in
+    // accounts/page.tsx reds this test.
+    const probe = createInvalidationProbe("accounts.delete")
+    mockedApiFetch.mockImplementation((path: string, opts?: RequestInit) => {
+      if (path === "/api/accounts/opening-balance-readiness") return Promise.resolve({ needs_opening_balance: false })
+      if (opts?.method === "DELETE") return Promise.resolve(undefined)
+      return Promise.resolve({
+        items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
+        total: 1,
+      } satisfies AccountListResponse)
+    })
+
+    render(<AccountsPage />, { wrapper: probe.wrapper })
+
+    await waitFor(() => expect(screen.queryByText("Cash")).not.toBeNull())
+    probe.expectNothingInvalidated()
+    fireEvent.click(screen.getByTitle("Delete Account"))
+    await waitFor(() => expect(screen.getByTestId("confirm-dialog")).toBeInTheDocument())
+    fireEvent.click(screen.getByText("Confirm Delete"))
+
+    await waitFor(() => {
+      expect(mockedApiFetch).toHaveBeenCalledWith("/api/accounts/a1", { method: "DELETE" })
+    })
+    await waitFor(() => probe.expectDeclaredInvalidated())
   })
 
   it("AC16.15.4 delete error shows error toast", async () => {

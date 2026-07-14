@@ -7,6 +7,8 @@ import { fetchAiModels } from "@/lib/aiModels";
 import { apiUpload } from "@/lib/api";
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 
+import { statementUploadAcceptedVector } from "./fixtures/apiVectors";
+
 vi.mock("@/lib/aiModels", () => ({
   fetchAiModels: vi.fn(),
 }));
@@ -409,7 +411,13 @@ describe("AC3.5.3 StatementUploader model selection", () => {
       fallback_models: [],
       models: baseModels,
     });
-    vi.mocked(apiUpload).mockResolvedValue({});
+    // AC-extraction.api-vectors.2 (#1827): the resolved upload body is the
+    // committed backend-owned 202 conformance vector, not hand-written JSON —
+    // a regenerated breaking shape reds this test (G-contract-reddens).
+    const vector = statementUploadAcceptedVector();
+    expect(vector.status).toBe("parsing");
+    expect(vector.transactions).toEqual([]);
+    vi.mocked(apiUpload).mockResolvedValue(vector);
     const onUploadComplete = vi.fn();
 
     render(<StatementUploader onUploadComplete={onUploadComplete} />);
@@ -450,7 +458,7 @@ describe("AC3.5.3 StatementUploader model selection", () => {
       fallback_models: [],
       models: baseModels,
     });
-    vi.mocked(apiUpload).mockResolvedValue({});
+    vi.mocked(apiUpload).mockResolvedValue(statementUploadAcceptedVector());
 
     render(<StatementUploader />);
 

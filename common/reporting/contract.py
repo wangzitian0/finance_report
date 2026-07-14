@@ -2126,5 +2126,43 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        # ── group api-vectors: backend-owned API response conformance
+        # vectors (#1827 G-contract-reddens, pattern from #1167). The wire
+        # shape of GET /api/reports/balance-sheet is committed as
+        # common/reporting/conformance/vectors.json; the backend drift test
+        # recomputes it and the frontend loads the same file as mock data. ──
+        ACRecord(
+            id="AC-reporting.api-vectors.1",
+            statement=(
+                "The serialized GET /api/reports/balance-sheet response "
+                "(BalanceSheetResponse wire shape, decimal-string amounts, "
+                "real fx-warning keys) recomputed from fixed deterministic "
+                "inputs equals the committed "
+                "common/reporting/conformance/vectors.json, so a serializer "
+                "change without vector regeneration reds CI (#1827)."
+            ),
+            test=(
+                "apps/backend/tests/schemas/test_api_response_vectors.py"
+                "::test_AC_reporting_api_vectors_1_balance_sheet_matches_committed_vector"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.api-vectors.2",
+            statement=(
+                "The frontend balance-sheet page test consumes the committed "
+                "reporting conformance vector verbatim as its mock data (via "
+                "the shared fixture helper), so a regenerated breaking wire "
+                "shape reds the frontend suite (#1827)."
+            ),
+            test=(
+                "apps/frontend/src/__tests__/balanceSheetPage.test.tsx"
+                "::AC16.14.2 / test_AC8_13_48 renders string totals and "
+                "refetches by date"
+            ),
+            priority="P1",
+            status="done",
+        ),
     ],
 )

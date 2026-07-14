@@ -1,0 +1,82 @@
+{
+  "_comment": "Backend-owned API response conformance vectors (#1827, pattern from #1167). Regenerated ONLY by tools/api_response_vectors.py from fixed sanitized inputs; the backend drift test recomputes and compares, and the frontend fixture helper (apps/frontend/src/__tests__/fixtures/apiVectors.ts) loads this exact file as mock data. Hand-editing or committing real financial data here is forbidden.",
+  "endpoints": {
+    "statement_upload_accepted": {
+      "method": "POST",
+      "fe_path": "/api/statements/upload",
+      "response_model": "src.schemas.extraction.BankStatementResponse",
+      "response": {
+        "id": "00000000-0000-4000-8000-000000000601",
+        "user_id": "00000000-0000-4000-8000-00000000000a",
+        "account_id": null,
+        "file_path": "uploads/vector/vector-bank-2026-01.pdf",
+        "original_filename": "vector-bank-2026-01.pdf",
+        "institution": "Vector Bank",
+        "account_last4": "1234",
+        "currency": null,
+        "period_start": null,
+        "period_end": null,
+        "opening_balance": null,
+        "closing_balance": null,
+        "status": "parsing",
+        "confidence_score": null,
+        "balance_validated": null,
+        "validation_error": null,
+        "created_at": "2026-01-15T08:30:00Z",
+        "updated_at": "2026-01-15T08:30:00Z",
+        "transactions": []
+      }
+    },
+    "statement_parsed": {
+      "method": "GET",
+      "fe_path": "/api/statements/{id}",
+      "response_model": "src.schemas.extraction.BankStatementResponse",
+      "response": {
+        "id": "00000000-0000-4000-8000-000000000602",
+        "user_id": "00000000-0000-4000-8000-00000000000a",
+        "account_id": "00000000-0000-4000-8000-000000000401",
+        "file_path": "uploads/vector/vector-bank-2026-01.pdf",
+        "original_filename": "vector-bank-2026-01.pdf",
+        "institution": "Vector Bank",
+        "account_last4": "1234",
+        "currency": "SGD",
+        "period_start": "2026-01-01",
+        "period_end": "2026-01-31",
+        "opening_balance": "1000.00",
+        "closing_balance": "1150.50",
+        "status": "parsed",
+        "confidence_score": 92,
+        "balance_validated": true,
+        "validation_error": null,
+        "created_at": "2026-01-15T08:30:00Z",
+        "updated_at": "2026-01-31T09:00:00Z",
+        "transactions": [
+          {
+            "id": "00000000-0000-4000-8000-000000000621",
+            "statement_id": "00000000-0000-4000-8000-000000000602",
+            "txn_date": "2026-01-10",
+            "description": "VECTOR PAYROLL",
+            "amount": "200.50",
+            "direction": "IN",
+            "reference": null,
+            "currency": "SGD",
+            "created_at": "2026-01-15T08:30:00Z",
+            "updated_at": "2026-01-15T08:30:00Z"
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000622",
+            "statement_id": "00000000-0000-4000-8000-000000000602",
+            "txn_date": "2026-01-20",
+            "description": "VECTOR GROCERY",
+            "amount": "50.00",
+            "direction": "OUT",
+            "reference": "REF-0001",
+            "currency": "SGD",
+            "created_at": "2026-01-15T08:30:00Z",
+            "updated_at": "2026-01-15T08:30:00Z"
+          }
+        ]
+      }
+    }
+  }
+}

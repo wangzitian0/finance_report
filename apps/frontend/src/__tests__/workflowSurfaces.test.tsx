@@ -21,6 +21,8 @@ import type {
   WorkflowStatusResponse,
 } from "@/lib/types"
 
+import { createInvalidationProbe } from "./fixtures/invalidationProbe"
+
 vi.mock("next/link", () => ({
   default: ({ href, children, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; children: ReactNode }) => (
     <a href={href} {...props}>
@@ -249,6 +251,25 @@ describe("workflow notification surfaces", () => {
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Close panel" }))
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Workflow events" })).not.toBeInTheDocument())
+  })
+
+  it("AC-testing.fe-async.2 event lifecycle flow invalidates the matrix-declared query keys against a real QueryClient", async () => {
+    // #1827 G-async-seam: only the network fns are mocked; react-query runs
+    // for real. Red-team: removing either invalidateQueries call in
+    // useWorkflowLifecycleMutation reds this test.
+    const probe = createInvalidationProbe("workflow.event-lifecycle")
+    render(<WorkflowNotificationCenter />, { wrapper: probe.wrapper })
+
+    fireEvent.click(await screen.findByRole("button", { name: /Workflow events/i }))
+    const dialog = await screen.findByRole("dialog", { name: "Workflow events" })
+    await waitFor(() =>
+      expect(within(dialog).getAllByRole("button", { name: "Mark as read" }).length).toBeGreaterThan(0),
+    )
+    probe.expectNothingInvalidated()
+
+    fireEvent.click(within(dialog).getAllByRole("button", { name: "Mark as read" })[0])
+    await waitFor(() => expect(updateWorkflowEventStatus).toHaveBeenCalledWith("blocked-event", "read"))
+    await waitFor(() => probe.expectDeclaredInvalidated())
   })
 
   it("AC19.3.5 shows drawer event load failures without hiding status", async () => {

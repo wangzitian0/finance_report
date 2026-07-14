@@ -13,6 +13,8 @@ import type {
   ReconcilePositionsResponse,
 } from "@/lib/types"
 
+import { createInvalidationProbe } from "./fixtures/invalidationProbe"
+
 const showToastMock = vi.fn()
 
 vi.mock("@/components/ui/Toast", () => ({
@@ -184,6 +186,42 @@ describe("AssetsPage", () => {
     })
     expect(showToastMock).toHaveBeenCalledWith("Reconciled 3 positions (1 created, 2 updated, 0 disposed)", "success")
     await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith(expect.stringContaining("/api/assets/positions")))
+  })
+
+  it("AC-testing.fe-async.2 reconcile flow invalidates the matrix-declared query keys against a real QueryClient", async () => {
+    // #1827 G-async-seam: only apiFetch is mocked; react-query runs for real.
+    const probe = createInvalidationProbe("assets.reconcile")
+
+    render(<AssetsPage />, { wrapper: probe.wrapper })
+
+    await waitFor(() => expect(screen.queryByText("No positions found")).not.toBeNull())
+    probe.expectNothingInvalidated()
+    fireEvent.click(screen.getByRole("button", { name: "Reconcile Positions" }))
+
+    await waitFor(() => {
+      expect(mockedApiFetch).toHaveBeenCalledWith("/api/assets/reconcile", { method: "POST" })
+    })
+    await waitFor(() => probe.expectDeclaredInvalidated())
+  })
+
+  it("AC-testing.fe-async.2 create-valuation flow invalidates the matrix-declared query keys against a real QueryClient", async () => {
+    const probe = createInvalidationProbe("assets.create-valuation")
+
+    render(<AssetsPage />, { wrapper: probe.wrapper })
+
+    await waitFor(() => expect(screen.getByLabelText("Value")).toBeInTheDocument())
+    probe.expectNothingInvalidated()
+    fireEvent.change(screen.getByLabelText("As of date"), { target: { value: "2026-05-18" } })
+    fireEvent.change(screen.getByLabelText("Value"), { target: { value: "1250000.00" } })
+    fireEvent.click(screen.getByRole("button", { name: "Add valuation" }))
+
+    await waitFor(() => {
+      expect(mockedApiFetch).toHaveBeenCalledWith(
+        "/api/assets/valuation-snapshots",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+    await waitFor(() => probe.expectDeclaredInvalidated())
   })
 
   it("AC16.23.3 renders portfolio KPI cards when positions are loaded", async () => {
