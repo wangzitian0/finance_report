@@ -18,11 +18,11 @@ Closes #<!-- issue number -->
 
 ## SSOT Changes
 
-<!-- List every docs/ssot/ file changed or created in this PR. Write "None" if purely code changes with existing SSOT coverage. -->
+<!-- List every package readme.md/contract.py concept changed or created in this PR. Write "None" if purely code changes with existing coverage. -->
 
-- [ ] `docs/ssot/MANIFEST.yaml` — added/updated concept(s): _list them_
-- [ ] `docs/ssot/<file>.md` — _describe change_
-- [ ] None — existing SSOT already covers this change
+- [ ] `common/meta/data/MANIFEST.yaml` — added/updated concept(s): _list them_
+- [ ] `common/<pkg>/readme.md` — _describe change_
+- [ ] None — existing package docs already cover this change
 
 ---
 

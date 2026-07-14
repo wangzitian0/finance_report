@@ -179,7 +179,7 @@ def _manifest_sources(
         ManifestSource(
             system="finance_report",
             source_root=repo_root,
-            manifest_path=repo_root / "docs" / "ssot" / "MANIFEST.yaml",
+            manifest_path=repo_root / "common" / "meta" / "data" / "MANIFEST.yaml",
             entry_key="concepts",
         )
     ]

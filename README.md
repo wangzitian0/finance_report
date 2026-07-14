@@ -49,7 +49,7 @@ from project intent to executable proof without reading archive fragments.
 | Project tracking | `docs/project/README.md` | EPIC directory and non-EPIC documentation ownership | Active markdown ownership sweep |
 | EPIC scope | `docs/project/EPIC-*.md` | Scope, ACs, owned docs, known gaps | AC registries |
 | AC registry | `docs/ac_registry.yaml`, `docs/infra_registry.yaml`, `docs/ac_registry_overrides.yaml` | Generated acceptance criteria inventory and explicit non-derived overrides | `tools/generate_ac_registry.py --check` |
-| SSOT index | `docs/ssot/README.md`, `docs/ssot/MANIFEST.yaml` | Technical truth ownership map | `tools/check_ssot_ownership.py` |
+| Concept ownership registry | `common/meta/data/MANIFEST.yaml` | Technical truth ownership map (which package owns which concept) | `tools/check_manifest.py`, `tools/check_ssot_ownership.py` |
 | Testing proof | CI traceability artifact, `unified-coverage.json` | AC-to-test proof and coverage baseline | `tools/check_ac_index.py`, `tools/check_coverage_policy.py` |
 
 Implementation facts should be code-owned where possible. Prose SSOT documents
@@ -290,9 +290,10 @@ apps/
 
 common/          # The package model: per-domain packages (meta, testing, runtime,
                  # ledger, extraction, llm, ...) each owning its contract + roadmap ACs
+                 # and prose readme.md; meta/data/ holds cross-cutting gate data
+                 # (MANIFEST.yaml, the concept-ownership registry)
 tools/           # Command entry points that delegate to common libraries
-docs/project/    # EPICs and project audit reports
-docs/ssot/       # Rationale docs that link to code owners and proof tests
+docs/project/    # EPICs (terminal, shrink-only residue) and project audit reports
 ```
 
 Code-owned facts should live in code or generated contracts, not prose. The

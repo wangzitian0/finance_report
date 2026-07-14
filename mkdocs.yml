@@ -84,10 +84,11 @@ nav:
   - Technical Docs:
       # #1822 (SSOT dissolution, Package-ization 3/4) moved every prose/gate-data
       # doc formerly nav'd here out of docs/ssot/ into its owning package
-      # (common/<pkg>/, outside MkDocs' docs_dir) — see MANIFEST.yaml for the
-      # current owner of each concept. docs/ssot/README.md is now a tombstone
-      # pointer, not a technical doc itself.
-      - Architecture: ssot/README.md
+      # (common/<pkg>/, outside MkDocs' docs_dir) — see
+      # common/meta/data/MANIFEST.yaml for the current owner of each concept.
+      # docs/ssot/ itself (including its README.md tombstone) was retired
+      # entirely in #1823 (Package-ization 4/4, terminal); no page replaces
+      # it here since the content is package-scattered, not mkdocs-rendered.
       - Product Analytics Events: reference/analytics-events.md
   - Governance:
       - Agent Orchestration: agents/orchestration.md

@@ -23,7 +23,7 @@ What CI enforces:
 
 1. **Unmarked EPIC AC rows == 0** (hard, not baselined) — the umbrella's
    scoreboard metric. A definition line without a valid category marker fails.
-2. **Census == baseline** (``docs/ssot/epic-residue-baseline.json``): per
+2. **Census == baseline** (``common/meta/data/epic-residue-baseline.json``): per
    EPIC file, the per-category marked-row counts must equal the checked-in
    baseline exactly (the fk-cascade idiom). Silent growth is impossible;
    adding residue requires raising the baseline in the same PR, where the
@@ -57,7 +57,7 @@ from common.meta.extension.generate_ac_registry import (
 )
 
 REPO = Path(__file__).resolve().parents[2]
-BASELINE_PATH = REPO / "docs/ssot/epic-residue-baseline.json"
+BASELINE_PATH = REPO / "common/meta/data/epic-residue-baseline.json"
 
 #: Row-level residue marker. Kept in sync with the generator's parser by
 #: sourcing the CATEGORY vocabulary from the same module constant.
@@ -154,7 +154,7 @@ def test_AC_meta_residue_1_unmarked_epic_ac_rows_is_zero() -> None:
 def test_AC_meta_residue_1_census_equals_baseline_and_files_only_shrink() -> None:
     assert BASELINE_PATH.exists(), (
         f"missing {BASELINE_PATH.name}: check in the residue baseline "
-        "(docs/ssot/epic-residue-baseline.json) so the census is ratcheted"
+        "(common/meta/data/epic-residue-baseline.json) so the census is ratcheted"
     )
     payload = json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
     baseline: dict[str, dict[str, int]] = payload["files"]
@@ -165,13 +165,13 @@ def test_AC_meta_residue_1_census_equals_baseline_and_files_only_shrink() -> Non
         "new EPIC file(s) — the EPIC file set may only shrink from the "
         "#1719 sanction (new ACs belong in a package contract.py roadmap, "
         "never a new EPIC table). If this file is genuinely sanctioned, add "
-        "it to docs/ssot/epic-residue-baseline.json in this same PR so the "
+        "it to common/meta/data/epic-residue-baseline.json in this same PR so the "
         f"choice is visible in review.\nnew: {new_files}"
     )
     stale_files = sorted(set(baseline) - set(per_file))
     assert not stale_files, (
         "the baseline over-counts — EPIC file(s) were deleted (good!); "
-        "prune docs/ssot/epic-residue-baseline.json in the same PR so the "
+        "prune common/meta/data/epic-residue-baseline.json in the same PR so the "
         f"ratchet stays tight.\nstale: {stale_files}"
     )
 
@@ -182,7 +182,7 @@ def test_AC_meta_residue_1_census_equals_baseline_and_files_only_shrink() -> Non
     }
     assert not drift, (
         "the marked-residue census drifted from "
-        "docs/ssot/epic-residue-baseline.json — update the baseline in this "
+        "common/meta/data/epic-residue-baseline.json — update the baseline in this "
         "same PR so residue growth is a reviewable choice and migration "
         "shrink stays visible (AC-meta.residue.1).\n"
         f"drift (baseline, actual): {json.dumps(drift, indent=2)}"

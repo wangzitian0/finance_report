@@ -273,4 +273,4 @@ label so a reword cannot silently drop it.
 - [development.md](../meta/development.md) — Moon commands and local setup
 - [ci-cd.md](../testing/ci-cd.md) — CI job structure and test optimization
 - [deployment.md](./deployment.md) — Deployment architecture and workflows
-- [docs/ssot/MANIFEST.yaml](../../docs/ssot/MANIFEST.yaml) — Concept ownership registry
+- [MANIFEST.yaml](../meta/data/MANIFEST.yaml) — Concept ownership registry

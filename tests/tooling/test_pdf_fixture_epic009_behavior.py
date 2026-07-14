@@ -204,7 +204,7 @@ def test_AC9_4_readmes_document_analysis_generation_templates_and_examples() -> 
     tool_readme = (PDF_FIXTURES / "README.md").read_text()
     font_entry = (PDF_FIXTURES / "FONT_HANDLING.md").read_text()
     ssot = (REPO_ROOT / "common" / "testing" / "README.md").read_text()
-    manifest = (REPO_ROOT / "docs" / "ssot" / "MANIFEST.yaml").read_text()
+    manifest = (REPO_ROOT / "common" / "meta" / "data" / "MANIFEST.yaml").read_text()
 
     assert "PDF Format Analysis" in analyzer_readme
     assert "python tools/analyze_pdf_fixture.py" in analyzer_readme

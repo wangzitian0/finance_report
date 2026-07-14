@@ -37,7 +37,7 @@ def test_AC26_1_1_ssot_defines_five_tiers_and_proof_matrix() -> None:
     """
     doc = (ROOT / "common/meta/readme.md").read_text(encoding="utf-8")
     manifest = yaml.safe_load(
-        (ROOT / "docs/ssot/MANIFEST.yaml").read_text(encoding="utf-8")
+        (ROOT / "common/meta/data/MANIFEST.yaml").read_text(encoding="utf-8")
     )
 
     # The retired central SSOT file is gone — the package readme is the owner.

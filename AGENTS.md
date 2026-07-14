@@ -29,13 +29,13 @@ question, so they never compete for ownership:
 | Concern | Question it answers | Axis |
 |---------|--------------------|------|
 | **vision.md** | *Why* — the overall product goal and culture | north star |
-| **SSOT** | *In what shared language* — the canonical base elements, vocabulary, and contracts that everything else reuses; a package-owned concept lives in its `common/<pkg>/readme.md`, a cross-cutting/gate-data/generated one lives in `docs/ssot/` — the registry is [docs/ssot/MANIFEST.yaml](docs/ssot/MANIFEST.yaml) | common dictionary |
-| **EPIC** (`docs/project/`) | *What, horizontally* — a cross-module goal, verified via `EPIC → AC → test` | feature slice |
+| **SSOT** | *In what shared language* — the canonical base elements, vocabulary, and contracts that everything else reuses; every concept lives in its owning package's `common/<pkg>/readme.md` / `contract.py`, and `meta` owns cross-cutting governance data (`common/meta/data/`) — the cross-package registry is [common/meta/data/MANIFEST.yaml](common/meta/data/MANIFEST.yaml) | common dictionary |
+| **EPIC** (`docs/project/`) | *Terminal residue* — a closed, shrink-only home for genuinely-non-package-owned horizontal/fe-exception ACs, verified via `EPIC → AC → test`; not a growing feature-slice axis — new work goes to a package's `contract.py` roadmap per `ac-workflow`, full stop | closed residue |
 | **README** (root, `apps/*`) | *What, per module* — one module's goal and how it is built | module slice |
 
 Because they slice the project on different axes, the **same fact appearing in
 more than one is not drift** — each states it in its own register: vision as
-direction, SSOT as a defined term, EPIC as a horizontal goal, README as a module
+direction, SSOT as a defined term, EPIC as terminal residue, README as a module
 goal. Drift is only when a doc adopts another axis's *job* (e.g. vision dictating
 implementation, or an EPIC redefining a base element that SSOT already owns).
 
@@ -47,18 +47,18 @@ implementation, or an EPIC redefining a base element that SSOT already owns).
 |------|-------|
 | Project vision & decisions | [vision.md](vision.md) |
 | Tech stack, quick start | [README.md](README.md) |
-| **All SSOT docs** | [docs/ssot/README.md](docs/ssot/README.md) |
+| Concept ownership registry (which package owns what) | [common/meta/data/MANIFEST.yaml](common/meta/data/MANIFEST.yaml) |
 | Project tracking & EPICs | [docs/project/README.md](docs/project/README.md) |
 | Agent skills | [.opencode/skills/](.opencode/skills/) |
 | Copilot-specific settings | [.github/copilot-instructions.md](.github/copilot-instructions.md) |
 
 **Routing Rules**:
 - Product goal, direction & culture → [vision.md](vision.md)
-- Moon commands / environment setup → [docs/ssot/development.md](docs/ssot/development.md)
-- Six environments (naming, isolation) → [docs/ssot/environments.md](docs/ssot/environments.md)
-- CI job structure / test strategy → [docs/ssot/ci-cd.md](docs/ssot/ci-cd.md)
-- Deployment / Vault / staging → [docs/ssot/deployment.md](docs/ssot/deployment.md)
-- Data model → [docs/ssot/schema.md](docs/ssot/schema.md)
+- Moon commands / environment setup → [common/meta/development.md](common/meta/development.md)
+- Six environments (naming, isolation) → [common/runtime/environments.md](common/runtime/environments.md)
+- CI job structure / test strategy → [common/runtime/ci-cd.md](common/runtime/ci-cd.md)
+- Deployment / Vault / staging → [common/runtime/deployment.md](common/runtime/deployment.md)
+- Data model → [common/meta/schema.md](common/meta/schema.md)
 - Current work → [docs/project/](docs/project/)
 
 ---
@@ -67,17 +67,21 @@ implementation, or an EPIC redefining a base element that SSOT already owns).
 
 The shared base elements and contracts — the common language the rest of the
 repo reuses — are **authoritative wherever the package-model migration puts
-them**, not always `docs/ssot/`: a concept a bounded-context package governs
-lives in that package's `common/<pkg>/readme.md`; a concept that is genuinely
+them**: a concept a bounded-context package governs lives in that package's
+`common/<pkg>/readme.md` / `contract.py`; a concept that is genuinely
 cross-cutting (spans every package), a live gate-data input, or a generated
-artifact lives in `docs/ssot/`. Neither owns goals (vision / EPICs) or module
-design (READMEs); each owns the *terms* those speak in — see
-[docs/ssot/README.md](docs/ssot/README.md) for the current file-by-file map.  
+artifact lives in the owning cross-cutting package's `data/` dir — `meta`
+(`common/meta/data/`), `testing` (`common/testing/data/`), or `runtime`
+(`common/runtime/`), whichever package's governance the data serves. Nothing
+defaults to `docs/ssot/` anymore — that directory is retired
+(Package-ization 4/4, #1823). Neither owns goals (vision / EPICs) or module
+design (READMEs); each owns the *terms* those speak in.  
 The ownership registry (which concept lives where) is:
-**[docs/ssot/MANIFEST.yaml](docs/ssot/MANIFEST.yaml)**
+**[common/meta/data/MANIFEST.yaml](common/meta/data/MANIFEST.yaml)**
 
-1. **No SSOT, no work**: Define the shared terms — in the owning package
-   readme, or `docs/ssot/` if genuinely cross-cutting — before writing code.
+1. **No SSOT, no work**: Define the shared terms — in the owning package's
+   readme/contract, or `common/meta/data/` if genuinely cross-cutting —
+   before writing code.
 2. **No hidden drift**: When code differs from its owning doc, sync immediately.
 3. **Single owner**: Each concept has exactly one owner file; see MANIFEST.
 
@@ -99,16 +103,20 @@ The ownership registry (which concept lives where) is:
 1. Anchor to an EPIC in `docs/project/` (the horizontal goal)
 2. Define ACs where they live: a **migrated package** owns its ACs as
    `AC-<pkg>.<group>.<seq>` in that package's `contract.py` `roadmap` — never
-   mirrored back into an EPIC table. Only legacy, not-yet-migrated modules
-   still add ACs as explicitly residue-marked rows in a
-   `docs/project/EPIC-*.md` table (`<!-- epic-owned: ... -->`);
+   mirrored back into an EPIC table. `docs/project/EPIC-*.md` is terminal,
+   shrink-only residue: only its existing residue-marked rows
+   (`<!-- epic-owned: fe-only|fe-half|horizontal|pending-package -->`,
+   genuinely horizontal/fe-exception content with no package owner) stay
+   EPIC-defined, and adding a new one requires a same-PR baseline edit
+   (`tests/tooling/test_epic_residue_ratchet.py`) — new work always starts in
+   a package;
    `docs/ac_registry.yaml` / `docs/infra_registry.yaml` are generated index
    stubs (`tools/generate_ac_registry.py`), never hand-edited
 3. Write **failing** tests referencing AC IDs (🔴 red)
 4. Write minimal code to pass tests (🟢 green)
-5. Update the owning package contract/readme (or SSOT docs for legacy modules)
+5. Update the owning package's contract/readme
 
-Details: [docs/agents/orchestration.md](docs/agents/orchestration.md) · [docs/ssot/tdd.md](docs/ssot/tdd.md)
+Details: [docs/agents/orchestration.md](docs/agents/orchestration.md) · [common/testing/tdd.md](common/testing/tdd.md)
 
 ---
 
@@ -201,6 +209,6 @@ tracking. Do not duplicate phase status in this quick-reference file.
 |----------|------|---------|
 | **Agent governance** | `docs/agents/` | Red lines, orchestration |
 | **Contributor guide** | `docs/contributing/` | Branch policy, pre-commit |
-| **SSOT** | `docs/ssot/` | Cross-cutting infra docs, live gate-data inputs, generated artifacts, and the concept-ownership registry (`MANIFEST.yaml`) — package-owned concepts live in `common/<pkg>/readme.md` instead |
-| **Project EPICs** | `docs/project/` | Horizontal (cross-module) goals & tracking |
+| **Cross-cutting governance data** | `common/meta/data/`, `common/testing/data/`, `common/runtime/` | Live gate-data inputs, generated artifacts, and the concept-ownership registry (`common/meta/data/MANIFEST.yaml`) — package-owned concepts live in `common/<pkg>/readme.md` instead; `docs/ssot/` is retired |
+| **Project EPICs (terminal residue)** | `docs/project/` | Closed, shrink-only home for genuinely-non-package-owned horizontal/fe-exception ACs — not a growing feature-slice axis |
 | **Module READMEs** | `apps/*/README.md` | Per-module goal & design guide |

@@ -60,6 +60,28 @@ SSOT_FILE_EXCLUDES = {
     "market_data.md",
     "source-type-priority.md",
 }
+# Roots the governance report treats as "SSOT territory" for per-file
+# owner/orphan/high-risk scanning. ``docs/ssot`` is the legacy convention
+# (still live for the infra2 source, whose own docs/ssot/ is untouched by
+# #1823); finance report's own concept registry (MANIFEST.yaml,
+# epic-residue-baseline.json) relocated to ``common/meta/data/`` in #1823
+# (Package-ization 4/4, terminal — docs/ssot/ retired entirely), so that root
+# is territory too. This is a narrow, exact mirror of what moved — it does
+# not extend territory to every package's own data/ dir (most package
+# readmes/data files were never under docs/ssot/ to begin with; that is a
+# pre-existing, #1822-era scoping choice this report has always had, not
+# something #1823 changes).
+SSOT_TERRITORY_ROOTS: tuple[tuple[str, ...], ...] = (
+    ("docs", "ssot"),
+    ("common", "meta", "data"),
+)
+
+
+def in_ssot_territory(rel: Path) -> bool:
+    parts = rel.parts
+    return any(parts[: len(root)] == root for root in SSOT_TERRITORY_ROOTS)
+
+
 RATIO_EPSILON = 1e-9
 PROTECTED_RATIO_LABELS = {
     "manifest_family_coverage": "Manifest family coverage",

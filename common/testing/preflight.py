@@ -82,12 +82,15 @@ CHECKS: tuple[Check, ...] = (
     ),
     Check(
         name="ssot-ownership",
-        globs=("docs/ssot/*",),
+        # docs/ssot/ is retired (#1823); the concept registry lives at
+        # common/meta/data/MANIFEST.yaml now, so that path (not the dead
+        # directory) is what should re-trigger this gate.
+        globs=("common/meta/data/MANIFEST.yaml",),
         commands=(
             (PY, "tools/check_ssot_ownership.py"),
             (PY, "tools/check_manifest.py"),
         ),
-        why="SSOT changed: enforce single-owner + manifest integrity",
+        why="Concept registry changed: enforce single-owner + manifest integrity",
     ),
     Check(
         name="doc-consistency",
@@ -97,7 +100,13 @@ CHECKS: tuple[Check, ...] = (
     ),
     Check(
         name="taxonomy-drift",
-        globs=("*.md", "docs/ssot/*.yaml", "tests/*.py", "common/*.py", "tools/*.py"),
+        globs=(
+            "*.md",
+            "common/meta/data/*.yaml",
+            "tests/*.py",
+            "common/*.py",
+            "tools/*.py",
+        ),
         commands=((PY, "tools/check_taxonomy_drift.py"),),
         why="prose/tests changed: retired package-taxonomy vocabulary must not be presented as current (AC-meta.vocab.1)",
     ),

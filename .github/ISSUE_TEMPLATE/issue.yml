@@ -8,7 +8,7 @@ body:
       value: |
         Use this for **a problem that needs fixing**. For planned work use **Task**,
         for a proposal use **Idea**, for a failure in a running environment use **Incident**.
-        Check the relevant [SSOT](../../docs/ssot/) and [red lines](../../docs/agents/red-lines.md) first.
+        Check the relevant package readme (routed by [MANIFEST.yaml](../../common/meta/data/MANIFEST.yaml)) and [red lines](../../docs/agents/red-lines.md) first.
   - type: textarea
     id: problem
     attributes:

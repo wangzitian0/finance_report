@@ -38,7 +38,7 @@ def _seed_finance_manifest(root: Path) -> None:
         _write(root / relative_path)
 
     _write_yaml(
-        root / "docs/ssot/MANIFEST.yaml",
+        root / "common/meta/data/MANIFEST.yaml",
         {
             "concepts": {
                 "decimal_rule": {
@@ -350,6 +350,14 @@ def test_AC14_1_12_helper_and_error_branches_stay_report_only(
     _write(tmp_path / "docs/ssot/README.md")
     assert governance_report._orphan_ssot_files(missing_source, [], tmp_path) == []
 
+    # main() resolves the finance_report source's manifest at its real default
+    # (common/meta/data/MANIFEST.yaml, #1823) — write content there too so the
+    # yaml-missing branch below is actually reached (a not-found manifest short
+    # -circuits before ever calling yaml.safe_load).
+    _write_yaml(
+        tmp_path / "common/meta/data/MANIFEST.yaml",
+        {"concepts": {"bad_entry": None}},
+    )
     monkeypatch.setattr(governance_report._base, "yaml", None)
     assert governance_report.main(["--repo-root", str(tmp_path), "--no-infra2"]) == 1
     captured = capsys.readouterr()
@@ -465,7 +473,7 @@ def test_AC14_1_13_incremental_gate_only_blocks_changed_ssot_debt(
     _write(tmp_path / "tests/tooling/test_new_owned.py")
     _write(tmp_path / "tests/tooling/test_migration_risk.py")
     _write_yaml(
-        tmp_path / "docs/ssot/MANIFEST.yaml",
+        tmp_path / "common/meta/data/MANIFEST.yaml",
         {
             "concepts": {
                 "legacy_without_family": {
@@ -519,7 +527,7 @@ def test_AC14_1_13_incremental_gate_only_blocks_changed_ssot_debt(
         """
     ).lstrip()
     changed_files = [
-        "docs/ssot/MANIFEST.yaml",
+        "common/meta/data/MANIFEST.yaml",
         "docs/ssot/new-orphan.md",
         "docs/ssot/new-owned.md",
         "docs/ssot/migration-risk.md",
@@ -753,7 +761,7 @@ def test_AC14_1_13_gate_helper_edges_remain_incremental(
 
     _write(tmp_path / "docs/ssot/deployment.md")
     _write_yaml(
-        tmp_path / "docs/ssot/MANIFEST.yaml",
+        tmp_path / "common/meta/data/MANIFEST.yaml",
         {
             "concepts": {
                 "deployment_policy": {
@@ -766,7 +774,7 @@ def test_AC14_1_13_gate_helper_edges_remain_incremental(
     )
     gate = governance_report.evaluate_incremental_gate(
         tmp_path,
-        ["docs/ssot/deployment.md", "docs/ssot/MANIFEST.yaml"],
+        ["docs/ssot/deployment.md", "common/meta/data/MANIFEST.yaml"],
         include_infra2=False,
     )
     assert gate["violation_count"] == 1
@@ -897,7 +905,7 @@ def test_AC14_1_16_ssot_governance_ratios_cannot_regress(
         """
     ).lstrip()
     _write_yaml(
-        tmp_path / "docs/ssot/MANIFEST.yaml",
+        tmp_path / "common/meta/data/MANIFEST.yaml",
         {
             "concepts": {
                 "shaped": {
@@ -935,7 +943,7 @@ def test_AC14_1_16_ssot_governance_ratios_cannot_regress(
 
     gate = governance_report.evaluate_incremental_gate(
         tmp_path,
-        ["docs/ssot/MANIFEST.yaml", "docs/ssot/new-family-only.md"],
+        ["common/meta/data/MANIFEST.yaml", "docs/ssot/new-family-only.md"],
         base_manifest_texts={"finance_report": base_manifest},
         include_infra2=False,
     )
@@ -981,7 +989,7 @@ def test_AC14_1_16_ssot_governance_ratios_cannot_regress(
     )
     gate_with_exceptions = governance_report.evaluate_incremental_gate(
         tmp_path,
-        ["docs/ssot/MANIFEST.yaml", "docs/ssot/new-family-only.md"],
+        ["common/meta/data/MANIFEST.yaml", "docs/ssot/new-family-only.md"],
         base_manifest_texts={"finance_report": base_manifest},
         include_infra2=False,
     )
@@ -1055,7 +1063,7 @@ def test_AC14_1_14_finance_report_orphan_ssot_files_are_manifest_owned() -> None
     assert orphan_candidate["count"] == 0
 
     manifest = yaml.safe_load(
-        (ROOT / "docs/ssot/MANIFEST.yaml").read_text(encoding="utf-8")
+        (ROOT / "common/meta/data/MANIFEST.yaml").read_text(encoding="utf-8")
     )
     concepts = manifest["concepts"]
 
@@ -1089,7 +1097,7 @@ def test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof() ->
     assert machine_candidate["count"] == 0
 
     manifest = yaml.safe_load(
-        (ROOT / "docs/ssot/MANIFEST.yaml").read_text(encoding="utf-8")
+        (ROOT / "common/meta/data/MANIFEST.yaml").read_text(encoding="utf-8")
     )
     concepts = manifest["concepts"]
 
@@ -1127,7 +1135,7 @@ def test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof() ->
             "[`source_coverage_matrix`](../../common/testing/data/source-coverage-matrix.yaml)",
         ],
         "vision.md": [
-            "[`source_coverage_matrix`](docs/ssot/source-coverage-matrix.yaml)",
+            "[`source_coverage_matrix`](common/testing/data/source-coverage-matrix.yaml)",
         ],
         "common/testing/tdd.md": [
             f"[`extraction_failed_case_registry`]({blob})",
@@ -1166,7 +1174,7 @@ def test_AC14_1_23_high_risk_ssot_entries_bind_proof_under_platform_family() -> 
     assert high_risk_candidate["count"] == 0
 
     manifest = yaml.safe_load(
-        (ROOT / "docs/ssot/MANIFEST.yaml").read_text(encoding="utf-8")
+        (ROOT / "common/meta/data/MANIFEST.yaml").read_text(encoding="utf-8")
     )
     concepts = manifest["concepts"]
 
