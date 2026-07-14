@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from tools.api_response_vectors import REPO_ROOT, build_vector_files
+from tools.api_response_vectors import ROOT_DIR, build_vector_files
 
 
 def _committed(path: Path) -> dict:
@@ -25,7 +25,7 @@ def _committed(path: Path) -> dict:
 
 
 def _vector_file(pkg: str) -> Path:
-    return REPO_ROOT / "common" / pkg / "conformance" / "vectors.json"
+    return ROOT_DIR / "common" / pkg / "conformance" / "vectors.json"
 
 
 def _regenerated(pkg: str) -> dict:

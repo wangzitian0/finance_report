@@ -76,7 +76,7 @@ describe("useApiQuery (#1827 G-core-hook-tested)", () => {
 
     const { result } = renderHook(() =>
       useApiQuery<{ items: number[]; total: number }>(["with-select"], "/api/with-select", {
-        select: (data) => data.total,
+        select: (data: { items: number[]; total: number }) => data.total,
       } as never),
     );
 

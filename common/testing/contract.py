@@ -3770,7 +3770,7 @@ CONTRACT = PackageContract(
                 "passthrough, and per-key caching (#1827 G-core-hook-tested)."
             ),
             test=(
-                "apps/frontend/src/hooks/__tests__/useApiQuery.test.tsx"
+                "apps/frontend/src/__tests__/useApiQuery.test.tsx"
                 "::AC-testing.fe-async.1 fetches the given path through "
                 "apiFetch and exposes the data"
             ),

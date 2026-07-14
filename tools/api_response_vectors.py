@@ -32,10 +32,14 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-BACKEND_ROOT = REPO_ROOT / "apps" / "backend"
+ROOT_DIR = Path(__file__).resolve().parents[1]
+BACKEND_ROOT = ROOT_DIR / "apps" / "backend"
+# Wrapper contract (AC8.13.56): repo root stays at sys.path[0] when a tools/
+# script runs directly; the backend package root rides behind it.
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 if str(BACKEND_ROOT) not in sys.path:
-    sys.path.insert(0, str(BACKEND_ROOT))
+    sys.path.insert(1, str(BACKEND_ROOT))
 
 from src.ledger import AccountType  # noqa: E402
 from src.schemas.account import AccountListResponse, AccountResponse  # noqa: E402
@@ -294,15 +298,15 @@ _COMMENT = (
 def build_vector_files() -> dict[Path, dict[str, Any]]:
     """Map each committed vectors.json path to its full regenerated payload."""
     return {
-        REPO_ROOT / "common" / "reporting" / "conformance" / "vectors.json": {
+        ROOT_DIR / "common" / "reporting" / "conformance" / "vectors.json": {
             "_comment": _COMMENT,
             "endpoints": {"balance_sheet": build_balance_sheet_vector()},
         },
-        REPO_ROOT / "common" / "ledger" / "conformance" / "vectors.json": {
+        ROOT_DIR / "common" / "ledger" / "conformance" / "vectors.json": {
             "_comment": _COMMENT,
             "endpoints": {"accounts_list": build_accounts_list_vector()},
         },
-        REPO_ROOT / "common" / "extraction" / "conformance" / "vectors.json": {
+        ROOT_DIR / "common" / "extraction" / "conformance" / "vectors.json": {
             "_comment": _COMMENT,
             "endpoints": {
                 "statement_upload_accepted": build_statement_upload_accepted_vector(),
@@ -316,7 +320,7 @@ def main() -> int:
     for path, payload in build_vector_files().items():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-        print(f"wrote {path.relative_to(REPO_ROOT)}")
+        print(f"wrote {path.relative_to(ROOT_DIR)}")
     return 0
 
 
