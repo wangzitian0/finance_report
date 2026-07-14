@@ -3728,7 +3728,6 @@ CONTRACT = PackageContract(
             ),
             test=(
                 "apps/backend/tests/extraction/test_paged_vision_extraction.py"
-                "::TestBatchedExtractFlow"
                 "::test_AC_extraction_1832_1_multi_batch_pdf_extracts_once_per_batch_and_merges"
             ),
             priority="P0",
@@ -3746,7 +3745,7 @@ CONTRACT = PackageContract(
             ),
             test=(
                 "apps/backend/tests/extraction/test_paged_vision_extraction.py"
-                "::TestMergePagedExtractions::test_AC_extraction_1832_2_merge_semantics"
+                "::test_AC_extraction_1832_2_merge_semantics"
             ),
             priority="P1",
             status="done",
@@ -3761,7 +3760,6 @@ CONTRACT = PackageContract(
             ),
             test=(
                 "apps/backend/tests/extraction/test_paged_vision_extraction.py"
-                "::TestRenderAllPagesInBatches"
                 "::test_AC_extraction_1832_3_total_page_ceiling_is_an_explicit_error"
             ),
             priority="P1",
