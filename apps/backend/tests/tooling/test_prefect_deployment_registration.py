@@ -8,6 +8,13 @@ registration script's structural correctness so that gap can't silently
 reopen (e.g. the flow/deployment name drifting out of sync with
 ``PARSE_DEPLOYMENT`` in ``statement_pipeline.py``, which the API side uses to
 submit runs by name).
+
+Second staging investigation (2026-07-14, same day): registering onto the
+"default" work pool made our flow runs race the platform's shared generic
+worker (which also polls "default" but has no finance_report app code) —
+whichever worker won the race for a given run decided whether it completed or
+crashed with ``FileNotFoundError: /app``, orphaning the statement in
+"parsing" forever. Pinning a dedicated pool name closes that reopening too.
 """
 
 from __future__ import annotations
@@ -26,7 +33,9 @@ def test_AC_extraction_1913_3_registration_script_targets_the_deployment_api_sub
 
     registered_as = f"{parse_statement_flow.name}/{registration_module.DEPLOYMENT_NAME}"
     assert registered_as == PARSE_DEPLOYMENT
-    assert registration_module.WORK_POOL_NAME == "default"
+    # Must NOT be "default": that pool is shared with the platform's generic
+    # worker, which has no app code and crashes any run it wins the race for.
+    assert registration_module.WORK_POOL_NAME == "finance-report"
 
 
 def test_AC_extraction_1913_3_registration_script_deploys_from_local_source(monkeypatch):
@@ -51,12 +60,18 @@ def test_AC_extraction_1913_3_registration_script_deploys_from_local_source(monk
 
     from scripts import register_prefect_deployment
 
+    async def _fake_ensure_pool(name: str) -> None:
+        calls["ensured_pool"] = name
+
+    monkeypatch.setattr(register_prefect_deployment, "_ensure_work_pool_exists", _fake_ensure_pool)
+
     assert register_prefect_deployment.main() == 0
 
     assert calls["source"] == str(register_prefect_deployment.BACKEND_ROOT)
     assert calls["entrypoint"] == "src/extraction/extension/statement_flow.py:parse_statement_flow"
     assert calls["name"] == "parse-statement"
-    assert calls["work_pool_name"] == "default"
+    assert calls["work_pool_name"] == "finance-report"
+    assert calls["ensured_pool"] == "finance-report"
 
 
 def test_AC_extraction_1913_3_worker_entrypoint_registers_before_starting_the_worker():
@@ -69,4 +84,5 @@ def test_AC_extraction_1913_3_worker_entrypoint_registers_before_starting_the_wo
     register_line = entrypoint.index("register_prefect_deployment.py")
     worker_start_line = entrypoint.index("prefect worker start")
     assert register_line < worker_start_line
-    assert "--pool default" in entrypoint
+    assert "--pool finance-report" in entrypoint
+    assert "--pool default" not in entrypoint

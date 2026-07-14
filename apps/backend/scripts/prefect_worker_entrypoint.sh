@@ -34,5 +34,8 @@ set +a
 # than duplicating it, so re-running on every container start/restart is safe.
 python3 scripts/register_prefect_deployment.py
 
-echo "🎬 Starting Prefect worker (pool: default)..."
-exec prefect worker start --pool default
+echo "🎬 Starting Prefect worker (pool: finance-report)..."
+# --type process: belt-and-suspenders auto-create if the pool is somehow
+# missing (registration above already creates it) — non-interactive per
+# Prefect's documented `worker start --pool <name> --type <type>` behavior.
+exec prefect worker start --pool finance-report --type process
