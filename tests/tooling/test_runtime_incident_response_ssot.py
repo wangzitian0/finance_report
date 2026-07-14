@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import yaml
-
+from common.meta.extension.check_manifest import load_computed_concepts
 
 ROOT = Path(__file__).resolve().parents[2]
+MANIFEST = ROOT / "common" / "meta" / "data" / "MANIFEST.yaml"
 
 
 def read(path: str) -> str:
@@ -46,8 +46,8 @@ def test_AC8_13_126_runtime_incident_response_ssot_centralizes_triage() -> None:
     for token in required_runtime_tokens:
         assert token in runtime
 
-    manifest = yaml.safe_load(read("common/meta/data/MANIFEST.yaml"))
-    concept = manifest["concepts"]["runtime_incident_response"]
+    concepts = load_computed_concepts(ROOT, MANIFEST)
+    concept = concepts["runtime_incident_response"]
     assert concept["owner"] == "common/runtime/runtime-incident-response.md"
     assert concept["family"] == "runtime"
     assert concept["kind"] == "playbook"
@@ -65,7 +65,7 @@ def test_AC8_13_126_runtime_incident_response_ssot_centralizes_triage() -> None:
     }
     assert (
         "tests/tooling/test_runtime_incident_response_ssot.py"
-        in manifest["concepts"]["env_smoke_test"]["proofs"]
+        in concepts["env_smoke_test"]["proofs"]
     )
 
     # docs/ssot/ (including its README.md tombstone) was retired entirely in

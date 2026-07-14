@@ -44,6 +44,7 @@ from __future__ import annotations
 
 from common.meta.package_contract import (
     ACRecord,
+    ConceptRecord,
     Invariant,
     Kind,
     PackageContract,
@@ -3913,6 +3914,345 @@ CONTRACT = PackageContract(
             test="apps/frontend/src/__tests__/coverageBaseline.test.ts::AC8.13.92 keeps the frontend Vitest threshold baseline code-owned",
             priority="P0",
             status="done",
+        ),
+    ],
+    concepts=[
+        ConceptRecord(
+            key="ac_graph",
+            owner="common/testing/ac_graph.py",
+            description=(
+                "The one AC-keyed graph (EPIC -> AC -> Proof -> score -> vision). All "
+                "cross-cutting proof/vision/status indexes are DERIVED views of this single "
+                "model, rendered on demand and never committed-materialized; consistency is "
+                "gated by tools/check_ac_index.py."
+            ),
+            cross_refs=[
+                "common/testing/tdd.md",
+                "common/testing/data/critical-proof-outcomes.yaml",
+                "common/testing/data/ac-score-baseline.jsonl",
+                "common/testing/data/protection-floor.json",
+                "common/testing/protection.py",
+                "common/testing/ac_proof.py",
+                "vision.md",
+                ".github/workflows/ci.yml",
+            ],
+            proofs=[
+                "tests/tooling/test_ac_index_consistency.py",
+                "tools/check_ac_index.py",
+            ],
+            family="tdd",
+            kind="model",
+        ),
+        ConceptRecord(
+            key="ac_proof_execution_model",
+            owner="common/testing/ci-cd.md#ac-proof-execution-model",
+            description=(
+                "AC-keyed proof execution placement model; stage and task_category are "
+                "metadata on proof edges, not extra coverage keys."
+            ),
+            cross_refs=[
+                "common/testing/ac_proof_execution.py",
+                "common/testing/ac_proof.py",
+                "common/testing/ac_graph.py",
+                "docs/project/EPIC-008.testing-strategy.md",
+            ],
+            proofs=["tests/tooling/test_ac_proof_execution_model.py"],
+            family="delivery",
+            kind="concept",
+            authority="documented_contract",
+            parent="ci_workflow",
+        ),
+        ConceptRecord(
+            key="ac_score_ratchet_baseline",
+            owner="common/testing/data/ac-score-baseline.jsonl",
+            description=(
+                "Persisted AC score ratchet baseline, stored as conflict-free sorted JSONL "
+                "(merge=union)."
+            ),
+            cross_refs=[
+                "common/testing/tdd.md",
+                "common/testing/README.md",
+                "common/testing/ac_evidence.py",
+                "common/testing/ac_evidence_aggregate.py",
+                "common/testing/ac_score_baseline_format.py",
+                "common/testing/check_ac_score_baseline.py",
+                "tools/check_ac_score_baseline.py",
+                "tools/migrate_proof_index_storage.py",
+                "tests/tooling/test_ac_evidence_pipeline.py",
+            ],
+            family="tdd",
+            kind="baseline",
+            authority="machine_generated",
+            parent="tdd_workflow",
+        ),
+        ConceptRecord(
+            key="ci_workflow",
+            owner="common/testing/ci-cd.md#ci-job-structure",
+            description=(
+                "CI job structure (lint → backend shards → frontend → coverage) and the local "
+                "guardrail tiers (pre-commit → pre-push → CI) that left-move its cheap drift "
+                "gates."
+            ),
+            cross_refs=[
+                "common/meta/development.md",
+                "common/testing/coverage.md",
+                ".github/workflows/ci.yml",
+                ".pre-commit-config.yaml",
+            ],
+        ),
+        ConceptRecord(
+            key="critical_proof_matrix",
+            owner="common/testing/generate_critical_proof_matrix.py",
+            description=(
+                "README -> EPIC -> E2E macro outcome guard and core proof-path matrix, a "
+                "DERIVED (not committed) view of the one AC-keyed graph; proofs come from "
+                "co-located @ac_proof decorators and macro outcomes from "
+                "critical-proof-outcomes.yaml."
+            ),
+            cross_refs=[
+                "README.md",
+                "common/testing/tdd.md",
+                "common/testing/ci-cd.md",
+                "common/testing/data/critical-proof-outcomes.yaml",
+                "common/testing/ac_graph.py",
+                ".github/workflows/ci.yml",
+                "common/testing/ac_proof.py",
+                "tools/generate_critical_proof_matrix.py",
+                "tools/check_ac_index.py",
+            ],
+            family="tdd",
+            kind="matrix",
+            parent="ac_graph",
+        ),
+        ConceptRecord(
+            key="critical_proof_outcomes",
+            owner="common/testing/data/critical-proof-outcomes.yaml",
+            description=(
+                "Hand-maintained macro-outcome contract source (outcome -> owner EPICs + "
+                "proof_ids) merged into the derived critical proof matrix view."
+            ),
+            cross_refs=[
+                "common/testing/ac_graph.py",
+                "common/testing/generate_critical_proof_matrix.py",
+                "tools/generate_critical_proof_matrix.py",
+            ],
+            family="tdd",
+            kind="registry",
+            authority="human_curated",
+            parent="critical_proof_matrix",
+        ),
+        ConceptRecord(
+            key="github_action_runtime",
+            owner="common/testing/data/github-action-runtime.yaml",
+            description=(
+                "External GitHub JavaScript action runtime inventory, including forced Node20 "
+                "metadata exceptions while workflows validate under Node24."
+            ),
+            cross_refs=["common/testing/ci-cd.md", ".github/workflows/ci.yml"],
+            proofs=[
+                "tests/tooling/test_workflow_contract.py",
+                "tests/tooling/test_post_merge_e2e_gates.py",
+            ],
+            family="delivery",
+            kind="matrix",
+            authority="human_curated",
+            parent="ci_workflow",
+        ),
+        ConceptRecord(
+            key="pdf_fixtures",
+            owner="common/testing/README.md#pdf-fixtures",
+            description=(
+                "Synthetic PDF fixture commands, local-only real-PDF handling, committed "
+                "template policy, and font fallback. Internalized into the testing package."
+            ),
+            cross_refs=[
+                "common/testing/fixtures/pdf/README.md",
+                "common/testing/fixtures/pdf/FONT_HANDLING.md",
+                "common/testing/fixtures/pdf/analyzers/README.md",
+                "tests/tooling/test_pdf_fixture_epic009_behavior.py",
+                "tests/tooling/test_pdf_fixture_parseable.py",
+            ],
+            family="pdf",
+            kind="concept",
+        ),
+        ConceptRecord(
+            key="pr_review_thread_merge_gate",
+            owner="common/testing/ci-cd.md#pr-review-thread-merge-gate",
+            description=(
+                "Merge-time gate that blocks unresolved P0/P1 (and Copilot-authored) PR "
+                "review threads, and the documented severity classification rule."
+            ),
+            cross_refs=[
+                "docs/project/EPIC-008.testing-strategy.md",
+                ".github/workflows/ci.yml",
+            ],
+            proofs=["tests/tooling/test_check_pr_review_threads.py"],
+            family="delivery",
+            kind="concept",
+            authority="documented_contract",
+        ),
+        ConceptRecord(
+            key="protection_count_floor",
+            owner="common/testing/data/protection-floor.json",
+            description=(
+                "Per-type PROTECTION COUNT floor (Gate B part 2 of tools/check_ac_index.py). "
+                "Monotonic raise-only floor mapping each protection type (has_real_ref, "
+                "has_proof, has_score, has_mirror) to the minimum count of mandatory active "
+                "ACs; bumped only by --update-floor so protection-adding PRs never edit it "
+                "(conflict-safe). Default all-zero is valid."
+            ),
+            cross_refs=[
+                "common/testing/tdd.md",
+                "common/testing/protection.py",
+                "common/testing/check_ac_index.py",
+                "tools/check_ac_index.py",
+                "tests/tooling/test_ac_index_consistency.py",
+            ],
+            family="tdd",
+            kind="baseline",
+            authority="machine_generated",
+            parent="tdd_workflow",
+        ),
+        ConceptRecord(
+            key="source_coverage_matrix",
+            owner="common/testing/data/source-coverage-matrix.yaml",
+            description=(
+                "Machine-readable source-class coverage, proof level, review requirement, and "
+                "traceability target registry."
+            ),
+            cross_refs=[
+                "vision.md",
+                "common/extraction/readme.md",
+                "docs/project/EPIC-013.statement-parsing-v2.md",
+            ],
+            proofs=[
+                "tests/tooling/test_source_coverage_matrix.py",
+                "tools/check_source_coverage_matrix.py",
+            ],
+            family="source",
+            kind="matrix",
+        ),
+        ConceptRecord(
+            key="ssot_governance_gates",
+            owner="common/testing/tdd.md#ssot-governance-gates",
+            description=(
+                "Incremental prevent-worse CI gates for changed SSOT files and changed "
+                "manifest entries."
+            ),
+            cross_refs=[
+                "docs/project/EPIC-014.ttd-transformation.md",
+                "common/meta/data/governance-exceptions.yaml",
+                "common/meta/extension/governance_report/_gate.py",
+                "tools/report_ssot_governance.py",
+                "tests/tooling/test_ssot_governance_report.py",
+                ".github/workflows/ci.yml",
+            ],
+            family="tdd",
+            kind="concept",
+        ),
+        ConceptRecord(
+            key="ssot_governance_metrics",
+            owner="common/testing/tdd.md#ssot-governance-metrics",
+            description=(
+                "Report-only governance metrics for SSOT ownership, shape, proof coverage, "
+                "and future gate candidates."
+            ),
+            cross_refs=[
+                "docs/project/EPIC-014.ttd-transformation.md",
+                "common/meta/extension/governance_report/_metrics.py",
+                "tools/report_ssot_governance.py",
+                "tests/tooling/test_ssot_governance_report.py",
+                ".github/workflows/ci.yml",
+            ],
+            family="tdd",
+        ),
+        ConceptRecord(
+            key="tdd_workflow",
+            owner="common/testing/tdd.md",
+            description="EPIC → ACx.y.z → Test → Code → Doc mandatory sequence.",
+            cross_refs=[
+                "AGENTS.md",
+                "docs/agents/orchestration.md",
+                ".github/workflows/ci.yml",
+                "tools/check_e2e_epic_traceability.py",
+            ],
+        ),
+        ConceptRecord(
+            key="test_coverage",
+            owner="common/testing/coverage.md",
+            description="Unified coverage system (backend + frontend + common + tools).",
+            cross_refs=["common/testing/tdd.md", "common/testing/ci-cd.md"],
+            proofs=[
+                "tests/tooling/test_coverage_policy.py",
+                "tests/tooling/test_calculate_unified_coverage.py",
+            ],
+        ),
+        ConceptRecord(
+            key="test_execution_matrix",
+            owner="common/testing/matrix.py",
+            description=(
+                "Test placement and selection SSOT: path-to-stage mapping for AC traceability "
+                "execution proof plus per-stage runtime test selection (consumed by workflows "
+                "via tools/test_selection.py)."
+            ),
+            cross_refs=[
+                "common/testing/data/test-execution-matrix.yaml",
+                "common/testing/ci-cd.md",
+                "common/testing/tdd.md",
+                "tools/check_ac_index.py",
+                "tools/test_selection.py",
+            ],
+            proofs=["tests/tooling/test_execution_matrix_contract.py"],
+            family="tdd",
+            kind="matrix",
+        ),
+        ConceptRecord(
+            key="test_execution_matrix_generated_view",
+            owner="common/testing/data/test-execution-matrix.yaml",
+            description=(
+                "Generated view of common/testing/matrix.py kept for AC-traceability "
+                "consumers; never hand-edit — regenerate via tools/test_selection.py "
+                "--emit-matrix (drift-gated in CI)."
+            ),
+            cross_refs=["common/testing/matrix.py", "tools/test_selection.py"],
+            proofs=["tests/tooling/test_execution_matrix_contract.py"],
+            family="tdd",
+            kind="matrix",
+            parent="test_execution_matrix",
+        ),
+        ConceptRecord(
+            key="test_optimization",
+            owner="common/testing/ci-cd.md#test-optimization",
+            description="Smart/fast/full test modes and 5-way seeded backend sharding strategy.",
+            cross_refs=["common/meta/development.md", "common/testing/coverage.md"],
+            proofs=[
+                "apps/backend/tests/unit/infra/test_test_lifecycle.py",
+                "tests/tooling/test_github_workflow_timing_summary.py",
+            ],
+            family="platform",
+            kind="concept",
+        ),
+        ConceptRecord(
+            key="vision_proof_matrix",
+            owner="common/testing/generate_vision_proof_matrix.py",
+            description=(
+                "Vision-anchor -> EPIC -> AC -> test proof matrix, a DERIVED (not committed) "
+                "view of the one AC-keyed graph, rendered on demand and gated by "
+                "tools/check_ac_index.py (supersedes #442/#480)."
+            ),
+            cross_refs=[
+                "vision.md",
+                "common/testing/ac_graph.py",
+                "docs/project/EPIC-014.ttd-transformation.md",
+                ".github/workflows/ci.yml",
+            ],
+            proofs=[
+                "tests/tooling/test_generate_vision_proof_matrix.py",
+                "tools/generate_vision_proof_matrix.py",
+            ],
+            family="tdd",
+            kind="matrix",
+            parent="ac_graph",
         ),
     ],
 )

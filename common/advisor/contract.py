@@ -75,6 +75,7 @@ from __future__ import annotations
 
 from common.meta.package_contract import (
     ACRecord,
+    ConceptRecord,
     Kind,
     PackageContract,
     Unit,
@@ -1242,6 +1243,24 @@ CONTRACT = PackageContract(
             test="apps/frontend/playwright/advisor-brief.spec.ts::${scenario.name} advisor-brief desktop and mobile layouts avoid horizontal overflow",
             priority="P1",
             status="done",
+        ),
+    ],
+    concepts=[
+        ConceptRecord(
+            key="ai_advisor_policy",
+            owner="common/advisor/readme.md",
+            description=(
+                "AI advisor application-layer contract, prompt policy, context scope, and "
+                "safety controls."
+            ),
+            cross_refs=[
+                "common/llm/ai.md",
+                "common/reporting/reporting.md",
+                "common/platform/workflow-events.md",
+                "common/testing/data/source-coverage-matrix.yaml",
+                "common/pricing/market_data.md",
+                "docs/project/EPIC-021.application-ai-advisor.md",
+            ],
         ),
     ],
 )

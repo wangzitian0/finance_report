@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from common.meta.package_contract import (
     ACRecord,
+    ConceptRecord,
     Invariant,
     Kind,
     PackageContract,
@@ -63,10 +64,12 @@ CONTRACT = PackageContract(
     implementations={"be": "common/meta", "fe": None},
     interface=[
         "ACRecord",
+        "ConceptRecord",
         "Invariant",
         "Kind",
         "PackageContract",
         "Unit",
+        "concept_index",
         "contract_index",
     ],
     events=[],
@@ -1052,19 +1055,32 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-meta.manifest.1",
             statement=(
-                "The cross-package concept-ownership registry lives at "
-                "common/meta/data/MANIFEST.yaml — a package's cross-cutting "
-                "gate-data home, not a hand-classified docs/ssot/ (retired). "
-                "check_manifest.py validates it: no two concepts share an "
-                "owner, every owner/cross_ref file and #anchor resolves on "
-                "disk. This stands in for the full computed "
-                "concept-ownership index (no `concepts` field exists on "
-                "PackageContract yet to project from — follow-up #1799) "
-                "without forcing that larger rewrite under time pressure."
+                "The residual (no-owning-package) concept-ownership registry "
+                "lives at common/meta/data/MANIFEST.yaml — a package's "
+                "cross-cutting gate-data home, not a hand-classified "
+                "docs/ssot/ (retired)."
             ),
             test=(
                 "tests/tooling/test_check_manifest.py"
                 "::test_AC_meta_manifest_1_manifest_relocated_and_ssot_retired"
+            ),
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.manifest.2",
+            statement=(
+                "check_manifest.py validates the computed UNION of the "
+                "residual MANIFEST.yaml and every package's own "
+                "`concepts=[ConceptRecord(...), ...]` declaration "
+                "(`concept_index`, the concept-registry mirror of "
+                "`contract_index`'s `ac_index` for roadmap ACs, #1799): no "
+                "two concepts (from either source) share an owner or a key, "
+                "every owner/cross_ref file and #anchor resolves on disk."
+            ),
+            test=(
+                "tests/tooling/test_check_manifest.py"
+                "::test_AC_meta_manifest_2_concept_from_package_contract_is_validated"
             ),
             priority="P2",
             status="done",
@@ -2132,6 +2148,392 @@ CONTRACT = PackageContract(
             test="apps/frontend/src/__tests__/contractTypes.test.ts::AC25.3.2: lib/api.ts is the single raw-fetch boundary in the frontend",
             priority="P1",
             status="done",
+        ),
+    ],
+    concepts=[
+        ConceptRecord(
+            key="ac_tier_baseline",
+            owner="common/meta/data/ac-tier-baseline.json",
+            description=(
+                "Shrink-only untagged-AC debt baseline for the authority-tier ratchet "
+                "(tools/check_ac_tier_baseline.py); lists ACs that predate the tier attribute "
+                "and may stay untagged, so new/changed ACs must declare a tier while legacy "
+                "debt ratchets down."
+            ),
+            cross_refs=[
+                "common/meta/readme.md",
+                "common/meta/extension/check_ac_tier_baseline.py",
+                "tools/check_ac_tier_baseline.py",
+                "tests/tooling/test_ac_authority_tiers.py",
+            ],
+            family="tdd",
+            kind="baseline",
+            authority="machine_generated",
+            parent="authority_tiers",
+        ),
+        ConceptRecord(
+            key="app_boundary_baseline",
+            owner="common/meta/data/app-boundary-baseline.json",
+            description=(
+                "Monotonic shrink-only baseline of cross-boundary edges between the un-carved "
+                "apps/backend/src remainder (the L4 backend super-package) and the "
+                "already-carved packages — inbound (remainder → a carved package's "
+                "unpublished internal) and outbound (a carved package → the app remainder, "
+                "upward-layer). A new edge fails check_app_boundary; the count is the "
+                "migration burndown."
+            ),
+            cross_refs=[
+                "common/meta/migration-standard.md",
+                "common/meta/extension/app_boundary.py",
+                "common/meta/extension/check_app_boundary.py",
+                "tools/check_app_boundary.py",
+                "tests/tooling/test_app_boundary.py",
+            ],
+            family="platform",
+            kind="baseline",
+            authority="machine_generated",
+            parent="package_model",
+        ),
+        ConceptRecord(
+            key="authority_tiers",
+            owner="common/meta/readme.md",
+            description=(
+                "The five AC authority tiers (CODE-ONLY/CODE-LED/HU/LLM-LED/LLM-ONLY), the "
+                "cross-tier MUST rules, and the tier->valid-proof matrix; one AC = one tier, "
+                "declared via a {tier:XX} marker at the AC definition site and ratcheted by a "
+                "shrink-only untagged-debt baseline. Internalized into the authority package "
+                "(migration-standard step 3); the central docs/ssot/authority-tiers.md is "
+                "retired."
+            ),
+            cross_refs=[
+                "common/testing/tdd.md",
+                "common/llm/ai.md",
+                "common/extraction/readme.md",
+                "docs/project/EPIC-026.ac-authority-tiers.md",
+                "common/meta/data/ac-tier-baseline.json",
+                "common/meta/extension/generate_ac_registry.py",
+                "common/meta/base/authority_matrix.py",
+                "common/meta/extension/check_ac_tier_baseline.py",
+                "tools/check_ac_tier_baseline.py",
+                "common/meta/extension/check_tier_ast_literal.py",
+                "common/meta/extension/check_epic_package_dual.py",
+                "common/meta/extension/check_draft_packages.py",
+                "common/meta/extension/authority_classifier.py",
+                "common/meta/extension/check_authority_reconcile.py",
+            ],
+            proofs=["tests/tooling/test_ac_authority_tiers.py"],
+            family="tdd",
+            kind="concept",
+            authority="documented_contract",
+            parent="tdd_workflow",
+        ),
+        ConceptRecord(
+            key="ci_gate_inventory",
+            owner="common/meta/data/ci-gate-inventory.yaml",
+            description=(
+                "Transitional workflow-job inventory mapping current gates to proof stage and "
+                "task_category, plus finish fan-in ownership and duplicate cleanup "
+                "candidates."
+            ),
+            cross_refs=[
+                "common/testing/ci-cd.md",
+                "docs/project/EPIC-008.testing-strategy.md",
+                ".github/workflows/ci.yml",
+            ],
+            proofs=["tests/tooling/test_ci_gate_inventory.py"],
+            family="delivery",
+            kind="matrix",
+            authority="human_curated",
+            parent="ci_workflow",
+        ),
+        ConceptRecord(
+            key="data_layering",
+            owner="common/meta/schema.md#data-layering",
+            description=(
+                "ODS/DWD/DWM/DWS/ADS/DIM classification of every data table and cross-layer "
+                "rules."
+            ),
+            cross_refs=[
+                "common/extraction/readme.md",
+                "common/reconciliation/reconciliation.md",
+                "docs/project/EPIC-011.asset-lifecycle.md",
+            ],
+            family="schema",
+        ),
+        ConceptRecord(
+            key="database_schema",
+            owner="common/meta/schema.md#er-model",
+            description=(
+                "PostgreSQL schema rationale, generated inventory reference, and migration "
+                "rules."
+            ),
+            cross_refs=[
+                "docs/reference/api-overview.md",
+                "docs/hooks.py",
+                "tools/generate_db_schema_reference.py",
+                "common/meta/extension/generate_db_schema_reference.py",
+                "common/ledger/readme.md",
+                "common/reconciliation/reconciliation.md",
+            ],
+            proofs=[
+                "tests/tooling/test_generate_db_schema_reference.py",
+                "apps/backend/tests/infra/test_schema_guardrails.py",
+            ],
+            family="schema",
+            kind="concept",
+            authority="documented_contract",
+        ),
+        ConceptRecord(
+            key="delivery_gate_triggers",
+            owner="common/meta/data/delivery-gates.yaml",
+            description=(
+                "How each delivery CI gate triggers and whether it blocks merge — the single "
+                "source for trigger/blocking contracts (so a trigger change is one edit, not "
+                "a fact restated across docs/tests)."
+            ),
+            cross_refs=[
+                "common/testing/ci-cd.md",
+                "common/runtime/environments.md",
+                "docs/project/EPIC-008.testing-strategy.md",
+                ".github/workflows/preview.yml",
+                ".github/workflows/deploy.yml",
+                ".github/workflows/deploy.yml",
+            ],
+            proofs=["tests/tooling/test_delivery_gates_contract.py"],
+            family="delivery",
+            kind="matrix",
+        ),
+        ConceptRecord(
+            key="delivery_layer_baseline",
+            owner="common/meta/data/delivery-layer-baseline.json",
+            description=(
+                "Thin-ness ratchet census of the sanctioned app delivery layer — "
+                "per-directory *.py line totals of apps/backend/src/routers (HTTP delivery "
+                "adapters) and apps/backend/src/schemas (API DTOs), which are hexagonal "
+                "primary adapters, not domain behavior (#1763 ruling); CI enforces the census "
+                "stays within a 50-line band of the baseline, so silent growth fails and "
+                "growing the delivery layer requires a same-PR baseline edit (reviewable "
+                "consent), while meaningful shrink lowers the baseline in the same PR to keep "
+                "the ratchet tight; the delivery layer's bulk may only shrink as packages "
+                "absorb logic (AC-meta.delivery.1)."
+            ),
+            cross_refs=[
+                "tests/tooling/test_delivery_layer_ratchet.py",
+                "common/meta/migration-standard.md",
+            ],
+            family="platform",
+            kind="baseline",
+            authority="machine_generated",
+            parent="package_model",
+        ),
+        ConceptRecord(
+            key="draft_package_baseline",
+            owner="common/meta/data/draft-package-baseline.json",
+            description=(
+                "Registered draft packages for the migration-safety draft gate "
+                "(tools/check_draft_packages.py); a draft package leaves its authority tier "
+                "undecided, so listing it here makes adding one a reviewed act and a draft "
+                "must carry no done ACs."
+            ),
+            cross_refs=[
+                "common/meta/readme.md",
+                "common/meta/extension/check_draft_packages.py",
+                "tools/check_draft_packages.py",
+                "tests/tooling/test_migration_safety_gates.py",
+            ],
+            family="tdd",
+            kind="baseline",
+            authority="machine_generated",
+            parent="authority_tiers",
+        ),
+        ConceptRecord(
+            key="enum_naming",
+            owner="common/meta/schema.md#enum-naming",
+            description="All sa.Enum instances MUST have an explicit name parameter.",
+            cross_refs=[
+                "AGENTS.md",
+                "docs/agents/red-lines.md",
+                "apps/backend/tests/infra/test_schema_guardrails.py",
+            ],
+            family="schema",
+        ),
+        ConceptRecord(
+            key="environment_variables",
+            owner="common/meta/development.md#environment-variables",
+            description="Three-layer SSOT for env vars (secrets.ctmpl / config.py / .env.example).",
+            cross_refs=[
+                "docs/agents/red-lines.md",
+                "common/runtime/deployment.md",
+                ".env.example",
+                "apps/backend/src/config.py",
+                "repo/finance_report/finance_report/10.app/secrets.ctmpl",
+                "apps/backend/src/runtime/extension/env_keys.py",
+                "apps/backend/src/runtime/extension/schema_validation.py",
+                "tools/check_env_keys.py",
+                "tools/validate_schemas.py",
+                "tools/generate_env_reference.py",
+                ".pre-commit-config.yaml",
+            ],
+            family="development",
+        ),
+        ConceptRecord(
+            key="epic_residue_baseline",
+            owner="common/meta/data/epic-residue-baseline.json",
+            description=(
+                "Ratchet census of the post-migration EPIC residue (#1719) - per "
+                "docs/project/EPIC-*.md file, the count of AC definition lines per explicit "
+                "residue category (fe-only / fe-half / horizontal / pending-package, single "
+                "vocabulary source common/meta/extension/generate_ac_registry.py "
+                "EPIC_RESIDUE_CATEGORIES); CI enforces unmarked EPIC AC rows == 0 (the "
+                "umbrella scoreboard metric), census == baseline so residue growth is a "
+                "same-PR reviewable baseline edit, a shrink-only EPIC file set, and an "
+                "explicit design-doc/goal-stub justification on every zero-row EPIC file "
+                "(AC-meta.residue.1)."
+            ),
+            cross_refs=[
+                "tests/tooling/test_epic_residue_ratchet.py",
+                "common/meta/extension/generate_ac_registry.py",
+                "common/meta/migration-standard.md",
+            ],
+            family="platform",
+            kind="baseline",
+            authority="machine_generated",
+            parent="package_model",
+        ),
+        ConceptRecord(
+            key="fk_cascade_baseline",
+            owner="common/meta/data/fk-cascade-baseline.json",
+            description=(
+                'Ratchet census of ForeignKey(..., ondelete="CASCADE") sites under '
+                "apps/backend/src, keyed by target table — a DB cascade is a hidden write "
+                "below the application (across domains it breaks one-txn-per-domain and "
+                "append-only, the risk the ratchet exists for); CI enforces census == "
+                "baseline, so silent growth fails and adding a cascade requires a same-PR "
+                "baseline edit (reviewable consent); deliberately counts all sites, not just "
+                "cross-domain, until models decentralization makes ownership derivable; "
+                "end-state is saga-owned deletion (AC-meta.txn.4, #1675 ruling)."
+            ),
+            cross_refs=[
+                "tests/tooling/test_fk_cascade_ratchet.py",
+                "common/meta/migration-standard.md",
+            ],
+            family="platform",
+            kind="baseline",
+            authority="machine_generated",
+            parent="package_model",
+        ),
+        ConceptRecord(
+            key="local_host_shells",
+            owner="common/meta/development.md#local-host-shell-matrix",
+            description=(
+                "Supported local command shells and PATH/tool-install boundaries across WSL "
+                "Ubuntu, macOS/Linux, Windows PowerShell, and Codex runner contexts."
+            ),
+            cross_refs=[
+                "README.md",
+                "common/runtime/environments.md#host-shell-boundaries",
+                "tools/bootstrap.sh",
+                "tools/_lib/shell/",
+                "common/runtime/shell/common.sh",
+            ],
+            family="development",
+        ),
+        ConceptRecord(
+            key="migration_risk_classification",
+            owner="common/meta/data/migration-risk.yaml",
+            description=(
+                "Machine-readable risk level and release proof contract for Alembic "
+                "migrations."
+            ),
+            cross_refs=[
+                "common/meta/schema.md",
+                "common/testing/ci-cd.md",
+                "common/runtime/deployment.md",
+                "tools/check_migration_risk.py",
+                "common/meta/extension/migration_risk.py",
+                "tests/tooling/test_migration_risk_contract.py",
+            ],
+        ),
+        ConceptRecord(
+            key="moon_commands",
+            owner="common/meta/development.md#moon-commands",
+            description="Primary interface for dev, lint, test, and build tasks.",
+            cross_refs=["AGENTS.md", "docs/contributing/branch-policy.md"],
+            family="development",
+        ),
+        ConceptRecord(
+            key="namespace_isolation",
+            owner="common/meta/development.md#local-test-isolation",
+            description="Namespace-based test DB and S3 bucket isolation for parallel runs.",
+            cross_refs=["common/runtime/environments.md"],
+            family="development",
+        ),
+        ConceptRecord(
+            key="package_model",
+            owner="common/meta/readme.md#package-model",
+            description=(
+                "A package = a DDD bounded context (readme.md + PackageContract + "
+                "base/extension/data layers carrying DDD building-block units + __all__ "
+                "published language); placement resolved from the central five-layer map "
+                "`PACKAGE_LAYER` (`meta < infra < middleware < domain < app`; defined in "
+                "`common/meta/base/layering.py`); governance is computed from contracts by "
+                "check_package_contract. The model self-hosts in the common/meta package "
+                "(base = model, extension = gate, data = projection)."
+            ),
+            cross_refs=[
+                "common/meta/base/package_contract.py",
+                "common/meta/extension/check_package_contract.py",
+                "common/meta/data/projection.py",
+                "common/meta/contract.py",
+                "common/counter/readme.md",
+                "common/counter/contract.py",
+                "apps/backend/src/counter/__init__.py",
+                "common/identity/readme.md",
+                "common/identity/contract.py",
+                "apps/backend/src/identity/__init__.py",
+                "common/ledger/contract.py",
+                "docs/project/EPIC-025.dry-ssot-simplification.md",
+            ],
+            proofs=["tests/tooling/test_counter_package.py"],
+            family="platform",
+            kind="concept",
+            authority="documented_contract",
+        ),
+        ConceptRecord(
+            key="runtime_toolchain",
+            owner="common/meta/development.md#toolchain-contract",
+            description=(
+                "Python, Node.js, uv, and container image versions shared by local, CI, and "
+                "Docker environments."
+            ),
+            cross_refs=[
+                "toolchain.toml",
+                "tools/bootstrap.sh",
+                "tools/_lib/shell/bootstrap.sh",
+                "common/runtime/shell/common.sh",
+                "tools/check_toolchain_contract.py",
+                "common/runtime/check_toolchain_contract.py",
+                ".moon/toolchain.yml",
+                ".github/workflows/ci.yml",
+                "docker-compose.yml",
+                "docker-compose.pr-preview.yml",
+            ],
+        ),
+        ConceptRecord(
+            key="ssot_governance_exceptions",
+            owner="common/meta/data/governance-exceptions.yaml",
+            description=(
+                "Machine-readable temporary exception registry for incremental SSOT "
+                "governance gate findings."
+            ),
+            cross_refs=[
+                "common/testing/tdd.md",
+                "common/meta/extension/governance_report/_gate.py",
+                "tests/tooling/test_ssot_governance_report.py",
+            ],
+            family="tdd",
+            kind="registry",
+            parent="ssot_governance_gates",
         ),
     ],
 )

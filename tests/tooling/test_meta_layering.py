@@ -23,9 +23,11 @@ import pytest
 import common.meta.extension.check_package_contract as cpc
 from common.meta import (
     ACRecord,
+    ConceptRecord,
     Kind,
     PackageContract,
     Unit,
+    concept_index,
     contract_index,
 )
 from common.meta.extension.check_package_contract import DiscoveredPackage
@@ -253,6 +255,48 @@ def test_contract_index_rejects_duplicate_ac_id():
     b = _contract("b", roadmap=[dup])
     with pytest.raises(ValueError, match="claimed by two packages"):
         contract_index([a, b])
+
+
+def test_AC_meta_concept_1_concept_index_is_pure(tmp_path: Path):
+    """AC-meta.concept.1: concept_index is a pure projection over its inputs (#1799)."""
+    a = _contract(
+        "a",
+        concepts=[
+            ConceptRecord(
+                key="widget_shape",
+                owner="common/a/readme.md#widget-shape",
+                description="What a widget is.",
+                cross_refs=["AGENTS.md"],
+                proofs=["tests/a/test_widget.py"],
+                family="platform",
+            )
+        ],
+    )
+    b = _contract("b", klass="middleware", depends_on=["a"])
+    idx = concept_index([a, b])
+    assert idx == {
+        "widget_shape": {
+            "owner": "common/a/readme.md#widget-shape",
+            "description": "What a widget is.",
+            "cross_refs": ["AGENTS.md"],
+            "proofs": ["tests/a/test_widget.py"],
+            "family": "platform",
+            "kind": None,
+            "authority": None,
+            "parent": None,
+        }
+    }
+    # pure: identical inputs -> identical output, no I/O.
+    assert concept_index([a, b]) == idx
+
+
+def test_concept_index_rejects_duplicate_concept_key():
+    """concept_index surfaces a concept key claimed by two packages, never overwrites."""
+    dup = ConceptRecord(key="dup_concept", owner="common/a/readme.md", description="d")
+    a = _contract("a", concepts=[dup])
+    b = _contract("b", concepts=[dup])
+    with pytest.raises(ValueError, match="claimed by two packages"):
+        concept_index([a, b])
 
 
 def test_AC_meta_kind_4_value_type_packages_pass(

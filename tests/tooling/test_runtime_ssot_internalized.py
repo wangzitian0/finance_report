@@ -15,8 +15,10 @@ from pathlib import Path
 
 import yaml
 
+from common.meta.extension.check_manifest import load_computed_concepts
 
 ROOT = Path(__file__).resolve().parents[2]
+MANIFEST = ROOT / "common" / "meta" / "data" / "MANIFEST.yaml"
 
 
 def read(path: str) -> str:
@@ -45,11 +47,11 @@ def test_runtime_readme_owns_the_three_gates() -> None:
 
 def test_manifest_env_smoke_test_owner_is_the_package() -> None:
     """MANIFEST repoints the env_smoke_test concept to the package readme (owner), not a central doc."""
-    manifest = yaml.safe_load(read("common/meta/data/MANIFEST.yaml"))
-    owner = manifest["concepts"]["env_smoke_test"]["owner"]
+    concepts = load_computed_concepts(ROOT, MANIFEST)
+    owner = concepts["env_smoke_test"]["owner"]
     assert owner.startswith("common/runtime/readme.md")
     # No cross_ref (or owner) may resurrect the retired central doc.
-    assert "docs/ssot/env_smoke_test.md" not in yaml.dump(manifest)
+    assert "docs/ssot/env_smoke_test.md" not in yaml.dump(concepts)
 
 
 def test_no_ssot_or_epic_doc_references_the_retired_doc() -> None:

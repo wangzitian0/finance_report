@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import yaml
+from common.meta.extension.check_manifest import load_computed_concepts
 
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "common" / "meta" / "data" / "MANIFEST.yaml"
@@ -52,8 +52,7 @@ def _explicit_anchors(path: Path) -> set[str]:
 
 def test_AC8_13_133_concepts_registered_in_manifest_with_anchored_owner() -> None:
     """AC-testing.governance.9: AC8.13.133: each cross-document concept owns an anchored MANIFEST entry."""
-    data = yaml.safe_load(MANIFEST.read_text(encoding="utf-8"))
-    concepts = data["concepts"]
+    concepts = load_computed_concepts(ROOT, MANIFEST)
     for key, (owner_path, anchor) in REQUIRED_CONCEPTS.items():
         assert key in concepts, f"MANIFEST missing concept '{key}'"
         owner = concepts[key]["owner"]

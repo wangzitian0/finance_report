@@ -81,6 +81,24 @@ def _load_manifest_entries_from_text(
 def _load_manifest_entries(
     source: ManifestSource,
 ) -> tuple[list[GovernanceEntry], list[str]]:
+    # finance_report's concept registry is now the computed union of the
+    # residual MANIFEST.yaml and every package's own declared `concepts`
+    # (#1799) — same source `check_manifest.py` validates. infra2 (and any
+    # synthetic test fixture) keeps reading its manifest file as plain YAML;
+    # only the real finance_report system, at its real source_root, has
+    # package contracts to discover.
+    if source.system == "finance_report" and (source.source_root / "common").exists():
+        # check_manifest.py does its own independent `import yaml` (needed
+        # regardless of this branch), so route through the same
+        # _require_yaml() gate the plain-YAML path below uses — otherwise a
+        # simulated "PyYAML missing" run would silently succeed here instead
+        # of failing the same way for both branches.
+        _require_yaml()
+        from common.meta.extension.check_manifest import load_computed_concepts
+
+        computed = load_computed_concepts(source.source_root, source.manifest_path)
+        return _entries_from_manifest_data(source, {source.entry_key: computed})
+
     if not source.manifest_path.exists():
         manifest = _source_relative_path(source.manifest_path, source.source_root)
         return [], [f"{source.system}: manifest not found: {manifest}"]

@@ -12,12 +12,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import yaml
-
 from common.meta.extension import check_ac_tier_baseline as tier_gate
 from common.meta.extension import generate_ac_registry as gar
+from common.meta.extension.check_manifest import load_computed_concepts
 
 ROOT = Path(__file__).resolve().parents[2]
+MANIFEST = ROOT / "common" / "meta" / "data" / "MANIFEST.yaml"
 
 FIRST_BATCH_EPICS = (3, 6, 21, 23)
 
@@ -36,9 +36,7 @@ def test_AC26_1_1_ssot_defines_five_tiers_and_proof_matrix() -> None:
     ``common/meta/readme.md`` and the manifest concept points at the package.
     """
     doc = (ROOT / "common/meta/readme.md").read_text(encoding="utf-8")
-    manifest = yaml.safe_load(
-        (ROOT / "common/meta/data/MANIFEST.yaml").read_text(encoding="utf-8")
-    )
+    concepts = load_computed_concepts(ROOT, MANIFEST)
 
     # The retired central SSOT file is gone — the package readme is the owner.
     assert not (ROOT / "docs/ssot/authority-tiers.md").exists()
@@ -57,7 +55,7 @@ def test_AC26_1_1_ssot_defines_five_tiers_and_proof_matrix() -> None:
     assert "golden" in doc.lower()  # LLM-LED: golden assertions are NOT valid
 
     # Single owner registered in the manifest now points at the package.
-    concept = manifest["concepts"]["authority_tiers"]
+    concept = concepts["authority_tiers"]
     assert concept["owner"] == "common/meta/readme.md"
 
 

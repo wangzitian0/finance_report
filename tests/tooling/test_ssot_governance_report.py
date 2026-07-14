@@ -9,6 +9,7 @@ import pytest
 import yaml
 
 from common.meta.extension import governance_report
+from common.meta.extension.check_manifest import load_computed_concepts
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -1062,10 +1063,7 @@ def test_AC14_1_14_finance_report_orphan_ssot_files_are_manifest_owned() -> None
     )
     assert orphan_candidate["count"] == 0
 
-    manifest = yaml.safe_load(
-        (ROOT / "common/meta/data/MANIFEST.yaml").read_text(encoding="utf-8")
-    )
-    concepts = manifest["concepts"]
+    concepts = load_computed_concepts(ROOT, ROOT / "common/meta/data/MANIFEST.yaml")
 
     assert concepts["statement_parsing_model_selection_logging"]["owner"] == (
         "common/observability/observability-logging.md"
@@ -1096,10 +1094,7 @@ def test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof() ->
     )
     assert machine_candidate["count"] == 0
 
-    manifest = yaml.safe_load(
-        (ROOT / "common/meta/data/MANIFEST.yaml").read_text(encoding="utf-8")
-    )
-    concepts = manifest["concepts"]
+    concepts = load_computed_concepts(ROOT, ROOT / "common/meta/data/MANIFEST.yaml")
 
     assert concepts["extraction_failed_case_registry"]["family"] == "extraction"
     assert concepts["extraction_failed_case_registry"]["kind"] == "registry"
@@ -1173,10 +1168,7 @@ def test_AC14_1_23_high_risk_ssot_entries_bind_proof_under_platform_family() -> 
     )
     assert high_risk_candidate["count"] == 0
 
-    manifest = yaml.safe_load(
-        (ROOT / "common/meta/data/MANIFEST.yaml").read_text(encoding="utf-8")
-    )
-    concepts = manifest["concepts"]
+    concepts = load_computed_concepts(ROOT, ROOT / "common/meta/data/MANIFEST.yaml")
 
     # container_naming: high-risk ("environment") platform concept now proven.
     container_naming = concepts["container_naming"]

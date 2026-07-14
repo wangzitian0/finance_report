@@ -18,6 +18,8 @@ from pathlib import Path
 import pytest
 import yaml
 
+from common.meta.extension.check_manifest import load_computed_concepts
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PDF_FIXTURES = REPO_ROOT / "common" / "testing" / "fixtures" / "pdf"
 
@@ -204,7 +206,11 @@ def test_AC9_4_readmes_document_analysis_generation_templates_and_examples() -> 
     tool_readme = (PDF_FIXTURES / "README.md").read_text()
     font_entry = (PDF_FIXTURES / "FONT_HANDLING.md").read_text()
     ssot = (REPO_ROOT / "common" / "testing" / "README.md").read_text()
-    manifest = (REPO_ROOT / "common" / "meta" / "data" / "MANIFEST.yaml").read_text()
+    # pdf_fixtures is now declared in common/testing/contract.py, not
+    # hand-copied into MANIFEST.yaml (#1799) — check the computed registry.
+    concepts = load_computed_concepts(
+        REPO_ROOT, REPO_ROOT / "common" / "meta" / "data" / "MANIFEST.yaml"
+    )
 
     assert "PDF Format Analysis" in analyzer_readme
     assert "python tools/analyze_pdf_fixture.py" in analyzer_readme
@@ -219,7 +225,7 @@ def test_AC9_4_readmes_document_analysis_generation_templates_and_examples() -> 
     assert "templates/*.yaml" in ssot
     assert "input/" in ssot and "gitignored" in ssot
     assert "register_chinese_fonts()" in ssot
-    assert "owner: common/testing/README.md#pdf-fixtures" in manifest
+    assert concepts["pdf_fixtures"]["owner"] == "common/testing/README.md#pdf-fixtures"
 
 
 def test_AC9_5_git_contract_tracks_safe_sources_only() -> None:

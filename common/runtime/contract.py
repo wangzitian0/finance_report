@@ -25,7 +25,7 @@ parity — see ``todo.md``.
 
 from __future__ import annotations
 
-from common.meta.package_contract import ACRecord, Invariant, PackageContract
+from common.meta.package_contract import ACRecord, ConceptRecord, Invariant, PackageContract
 
 CONTRACT = PackageContract(
     name="runtime",
@@ -1198,6 +1198,107 @@ CONTRACT = PackageContract(
             ),
             priority="P1",
             status="done",
+        ),
+    ],
+    concepts=[
+        ConceptRecord(
+            key="container_naming",
+            owner="common/runtime/environments.md#container-naming-patterns",
+            description="Container name patterns per environment (hyphens vs underscores).",
+            cross_refs=["common/runtime/deployment.md", "AGENTS.md"],
+            proofs=["tests/tooling/test_issue_489_deployment_contracts.py"],
+            family="platform",
+            kind="concept",
+        ),
+        ConceptRecord(
+            key="deployment_architecture",
+            owner="common/runtime/deployment.md",
+            description="Dual-repo model, Vault secret injection, staging/production flow.",
+            cross_refs=["common/meta/development.md", "common/runtime/environments.md"],
+            proofs=[
+                "tests/tooling/test_issue_489_deployment_contracts.py",
+                "tests/tooling/test_post_merge_e2e_gates.py",
+            ],
+        ),
+        ConceptRecord(
+            key="env_reference_generated",
+            owner="common/runtime/env-reference.generated.md",
+            description=(
+                "Generated backend env reference (rendered from config.py Settings metadata; "
+                "do not edit by hand)."
+            ),
+            cross_refs=[
+                "apps/backend/src/config.py",
+                "tools/generate_env_reference.py",
+                ".env.example",
+            ],
+            proofs=["tests/tooling/test_env_reference.py"],
+            family="development",
+            kind="registry",
+        ),
+        ConceptRecord(
+            key="env_smoke_test",
+            owner="common/runtime/readme.md#environment-verification-the-three-gates",
+            description=(
+                "Environment smoke testing via real boot operations — runtime's deployed-env "
+                "dependency-presence verification (the Three Gates). Owned by the runtime "
+                "package (common/runtime/readme.md)."
+            ),
+            cross_refs=["common/meta/development.md"],
+            proofs=[
+                "tests/tooling/test_runtime_incident_response_ssot.py",
+                "tests/tooling/test_runtime_ssot_internalized.py",
+            ],
+        ),
+        ConceptRecord(
+            key="required_env_manifest_generated",
+            owner="common/runtime/required-env.generated.json",
+            description=(
+                "Generated machine-readable required-env manifest (same config.py source of "
+                "truth as .env.example; infra2 CI consumes it against secrets.ctmpl — #1828 "
+                "G-injection-drift-gate over the #876 artifact boundary; do not edit by "
+                "hand)."
+            ),
+            cross_refs=[
+                "apps/backend/src/config.py",
+                "tools/generate_env_reference.py",
+                ".env.example",
+                "repo/finance_report/finance_report/10.app/secrets.ctmpl",
+            ],
+            proofs=["tests/tooling/test_required_env_manifest.py"],
+            family="development",
+            kind="registry",
+        ),
+        ConceptRecord(
+            key="runtime_incident_response",
+            owner="common/runtime/runtime-incident-response.md",
+            description="App-side runtime incident triage and stability-proof routing.",
+            cross_refs=[
+                "common/runtime/deployment.md",
+                "common/observability/observability.md",
+                "common/testing/ci-cd.md",
+                "common/runtime/ci-cd.md",
+                "common/runtime/readme.md",
+                "docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md",
+                "repo/docs/ssot/ops.alerting.md",
+                "repo/docs/ssot/ops.availability-ledger.md",
+                "repo/docs/ssot/ops.recovery.md",
+            ],
+            proofs=["tests/tooling/test_runtime_incident_response_ssot.py"],
+            family="runtime",
+            kind="playbook",
+        ),
+        ConceptRecord(
+            key="six_environments",
+            owner="common/runtime/environments.md#environment-overview",
+            description="Local Dev / Local CI / GitHub CI / PR Preview / Staging / Production.",
+            cross_refs=[
+                "common/meta/development.md",
+                "common/testing/ci-cd.md",
+                "common/runtime/deployment.md",
+            ],
+            proofs=["tests/tooling/test_issue_489_deployment_contracts.py"],
+            family="environments",
         ),
     ],
 )

@@ -22,6 +22,7 @@ from pathlib import Path
 import yaml
 
 from common.meta.extension import governance_report
+from common.meta.extension.check_manifest import load_computed_concepts
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -71,6 +72,10 @@ def _declared_families(text: str) -> list[str]:
 def _manifest_inferred_families(manifest_path: Path, entry_key: str) -> set[str]:
     data = yaml.safe_load(_read(manifest_path)) or {}
     raw_entries = data.get(entry_key) or {}
+    return _entries_inferred_families(raw_entries)
+
+
+def _entries_inferred_families(raw_entries: dict) -> set[str]:
     families: set[str] = set()
     for key, raw in raw_entries.items():
         entry = governance_report.GovernanceEntry(
@@ -138,7 +143,10 @@ def test_AC14_1_18_fr_hls_family_model_is_documented_and_consistent() -> None:
     assert "clause" in section.lower(), "family model must state clause boundary"
     assert "MANIFEST.yaml" in section, "family model must reference MANIFEST.yaml"
 
-    inferred = _manifest_inferred_families(FR_MANIFEST, "concepts")
+    # #1799: most concepts now live in package contracts, not the residual
+    # MANIFEST.yaml — use the computed union (same source check_manifest.py
+    # validates) so the family-map coverage check still sees all of them.
+    inferred = _entries_inferred_families(load_computed_concepts(ROOT, FR_MANIFEST))
     uncovered = _family_map_coverage(section, inferred)
     assert not uncovered, (
         "FR family map must bind each manifest-inferred family to exactly one "

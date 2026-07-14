@@ -57,6 +57,7 @@ from common.meta.base.layering import LAYER_RANK, PACKAGE_LAYER, PackageClass
 
 __all__ = [
     "ACRecord",
+    "ConceptRecord",
     "Invariant",
     "Kind",
     "KIND_LAYER",
@@ -220,6 +221,38 @@ class ACRecord(BaseModel):
     proof_kind: ACProofKind | None = None
 
 
+class ConceptRecord(BaseModel):
+    """One SSOT concept this package owns, in the package-model concept registry.
+
+    The package-owned half of ``common/meta/data/MANIFEST.yaml`` (#1799): a
+    concept whose owner file lives inside this package declares itself here
+    instead of being hand-copied into the central manifest, so
+    ``concept_index`` (the ``data``-layer mirror of ``ac_index``) can compute
+    the registry from contracts. ``owner`` is a repo-relative path with an
+    optional ``#anchor``, exactly like ``MarketDataOverride``'s MANIFEST
+    entry — ``check_manifest.py``'s existing checks (duplicate-owner,
+    file-exists, anchor-resolves) run unchanged against the computed union of
+    every package's ``concepts`` plus the residual (no-owning-package) entries
+    still hand-kept in ``MANIFEST.yaml``.
+
+    ``family``/``kind``/``authority``/``parent`` mirror the optional
+    classification fields the hand-authored manifest already carries (used by
+    the SSOT governance report, not by the structural checks) — kept optional
+    so a package can adopt the field without inventing values it doesn't have
+    an opinion on yet.
+    """
+
+    key: str
+    owner: str
+    description: str
+    cross_refs: list[str] = []
+    proofs: list[str] = []
+    family: str | None = None
+    kind: str | None = None
+    authority: str | None = None
+    parent: str | None = None
+
+
 class PackageContract(BaseModel):
     """The contract a package publishes — the unit the governance gate checks.
 
@@ -248,6 +281,9 @@ class PackageContract(BaseModel):
         events:          domain event type names this package publishes.
         invariants:      guaranteed properties, each pinned to a proving test.
         roadmap:         the ACs this package owns (the package-model AC registry).
+        concepts:        the SSOT concepts this package owns (the package-model
+                         concept registry, #1799) — the computed counterpart to
+                         the hand-authored ``common/meta/data/MANIFEST.yaml``.
     """
 
     name: str
@@ -269,6 +305,7 @@ class PackageContract(BaseModel):
     roles: list[str] = []
     units: list[Unit] = []
     implementations: dict[str, str | None] = {}
+    concepts: list[ConceptRecord] = []
 
     @model_validator(mode="after")
     def _layer_resolves_from_the_central_map(self) -> PackageContract:
