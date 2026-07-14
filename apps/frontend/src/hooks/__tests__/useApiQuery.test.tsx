@@ -41,13 +41,13 @@ describe("useApiQuery (#1827 G-core-hook-tested)", () => {
     mockedApiFetch.mockResolvedValue({ items: [], total: 0 });
 
     const { result } = renderHook(() =>
-      useApiQuery<{ items: unknown[]; total: number }>(["accounts"], "/api/accounts"),
+      useApiQuery<{ items: unknown[]; total: number }>(["examples"], "/api/examples"),
     );
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toEqual({ items: [], total: 0 });
     expect(mockedApiFetch).toHaveBeenCalledTimes(1);
-    expect(mockedApiFetch).toHaveBeenCalledWith("/api/accounts");
+    expect(mockedApiFetch).toHaveBeenCalledWith("/api/examples");
   });
 
   it("AC-testing.fe-async.1 surfaces apiFetch failures as the query error", async () => {

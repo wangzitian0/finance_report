@@ -16,6 +16,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   MUTATION_INVALIDATION_MATRIX,
+  declaredInvalidations,
   declaredMutationCountByFile,
 } from "@/lib/queryInvalidation";
 
@@ -75,6 +76,13 @@ describe("mutation invalidation matrix lock (#1827 G-no-undeclared-mutations)", 
           "useMutation call sites — remove or update the stale declaration",
       ).toBe(count);
     }
+  });
+
+  it("AC-testing.fe-async.3 declaredInvalidations resolves known flows and rejects unknown ones", () => {
+    expect(declaredInvalidations("accounts.delete")).toEqual([["accounts"]]);
+    expect(() => declaredInvalidations("not-a-flow")).toThrow(
+      /not declared in MUTATION_INVALIDATION_MATRIX/,
+    );
   });
 
   it("AC-testing.fe-async.3 flows are unique and empty invalidations carry a reason", () => {
