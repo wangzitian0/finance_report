@@ -954,8 +954,10 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-observability.17.2",
             statement=(
-                "common/observability/observability.md is linked from the SSOT index at "
-                "docs/ssot/README.md. Was EPIC-010 AC10.5.2."
+                "common/observability/observability.md is anchored as the concept "
+                "owner in docs/ssot/MANIFEST.yaml (the ownership registry the "
+                "docs/ssot/README.md tombstone points at since #1822). "
+                "Was EPIC-010 AC10.5.2."
             ),
             test=(
                 "apps/backend/tests/infra/test_observability_contract.py"

@@ -30,7 +30,7 @@ def _seed_finance_manifest(root: Path) -> None:
     for relative_path in (
         "docs/ssot/accounting.md",
         "docs/ssot/deployment.md",
-        "docs/ssot/migration-risk.yaml",
+        "common/meta/data/migration-risk.yaml",
         "docs/ssot/orphan.md",
         "docs/ssot/schema.md",
         "tools/check_deployment.py",
@@ -50,7 +50,7 @@ def _seed_finance_manifest(root: Path) -> None:
                     "description": "Intentional duplicate for report metrics.",
                 },
                 "migration_matrix": {
-                    "owner": "docs/ssot/migration-risk.yaml",
+                    "owner": "common/meta/data/migration-risk.yaml",
                     "description": "Migration risk matrix.",
                     "kind": "matrix",
                     "cross_refs": ["docs/ssot/schema.md"],
@@ -864,7 +864,7 @@ def test_AC14_1_16_ssot_governance_ratios_cannot_regress(
         "docs/ssot/shaped.md",
         "docs/ssot/legacy-kind.md",
         "docs/ssot/new-family-only.md",
-        "docs/ssot/migration-risk.yaml",
+        "common/meta/data/migration-risk.yaml",
         "docs/ssot/migration-risk-reviewed.yaml",
         "tests/tooling/test_migration_risk.py",
     ):
@@ -890,7 +890,7 @@ def test_AC14_1_16_ssot_governance_ratios_cannot_regress(
             proofs:
               - tests/tooling/test_migration_risk.py
           migration_unreviewed:
-            owner: docs/ssot/migration-risk.yaml
+            owner: common/meta/data/migration-risk.yaml
             description: Existing migration risk matrix proof debt.
             family: schema
             kind: matrix
@@ -919,7 +919,7 @@ def test_AC14_1_16_ssot_governance_ratios_cannot_regress(
                     "proofs": ["tests/tooling/test_migration_risk.py"],
                 },
                 "migration_unreviewed": {
-                    "owner": "docs/ssot/migration-risk.yaml",
+                    "owner": "common/meta/data/migration-risk.yaml",
                     "description": "Existing migration risk matrix proof debt.",
                     "family": "schema",
                     "kind": "matrix",
