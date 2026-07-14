@@ -1020,7 +1020,7 @@ CONTRACT = PackageContract(
                 "is determinable. Was EPIC-012 AC12.40.1."
             ),
             test=(
-                "apps/backend/tests/services/test_currency_resolution.py"
+                "apps/backend/tests/audit/test_currency_resolution.py"
                 "::test_AC12_40_1_attaches_explicit_currency"
             ),
             priority="P0",
@@ -1035,7 +1035,7 @@ CONTRACT = PackageContract(
                 "AC12.40.2."
             ),
             test=(
-                "apps/backend/tests/services/test_currency_resolution.py"
+                "apps/backend/tests/audit/test_currency_resolution.py"
                 "::test_AC12_40_2_flags_unresolved_instead_of_silent_default"
             ),
             priority="P0",
@@ -1050,7 +1050,7 @@ CONTRACT = PackageContract(
                 "Was EPIC-012 AC12.40.3."
             ),
             test=(
-                "apps/backend/tests/services/test_currency_resolution.py"
+                "apps/backend/tests/audit/test_currency_resolution.py"
                 "::test_AC12_40_3_reviewer_resolves_currency_with_audit"
             ),
             priority="P0",
@@ -1065,7 +1065,7 @@ CONTRACT = PackageContract(
                 "AC12.40.4."
             ),
             test=(
-                "apps/backend/tests/services/test_currency_resolution.py"
+                "apps/backend/tests/audit/test_currency_resolution.py"
                 "::test_AC12_40_4_promotion_gate_blocks_unresolved_currency"
             ),
             priority="P0",

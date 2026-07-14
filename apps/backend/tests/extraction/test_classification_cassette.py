@@ -7,7 +7,7 @@ with the layer refresh knob:
 
     AI_PROVIDER=zai AI_BASE_URL=https://api.z.ai/api/coding/paas/v4 \
     AI_API_KEY=$GLM_CODING_TOKEN PRIMARY_MODEL=glm-5.2 \
-    make llm-record ARGS='tests/services/test_classification_cassette.py'
+    make llm-record ARGS='tests/extraction/test_classification_cassette.py'
 """
 
 from __future__ import annotations

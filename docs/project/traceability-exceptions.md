@@ -103,7 +103,7 @@ explicit AC IDs for the behavior.
 | `apps/backend/tests/schemas/test_ai_feedback_schema.py` | `common/llm/ai.md` |
 | `apps/backend/tests/schemas/test_audit_schema.py` | `common/meta/schema.md` |
 | `apps/backend/tests/schemas/test_user_schema.py` | `common/identity/readme.md` |
-| `apps/backend/tests/services/test_confidence_tier.py` | `common/audit/readme.md#source-type-trust-hierarchy-provenance` |
+| `apps/backend/tests/reporting/test_confidence_tier.py` | `common/audit/readme.md#source-type-trust-hierarchy-provenance` |
 | `apps/backend/tests/unit/schemas/test_schemas.py` | `common/meta/schema.md` |
 | `apps/backend/tests/unit/services/test_source_type_priority.py` | `common/audit/readme.md#source-type-trust-hierarchy-provenance` |
 | `apps/backend/tests/unit/platform/test_exceptions.py` | `common/meta/development.md` |

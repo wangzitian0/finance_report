@@ -400,7 +400,7 @@ concepts:
       - docs/project/EPIC-018.ai-driven-pipeline.md
       - common/platform/workflow-events.md
       - common/reporting/reporting.md
-      - apps/backend/tests/services/test_evidence_graph_materialization.py
+      - apps/backend/tests/extraction/test_evidence_graph_materialization.py
 
   # ── Observability ──────────────────────────────────────────────────────
   observability_logging:
