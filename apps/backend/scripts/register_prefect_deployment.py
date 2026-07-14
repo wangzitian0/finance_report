@@ -38,13 +38,21 @@ DEPLOYMENT_NAME = "parse-statement"
 async def _ensure_work_pool_exists(name: str) -> None:
     from prefect.client.orchestration import get_client
     from prefect.client.schemas.actions import WorkPoolCreate
-    from prefect.exceptions import ObjectNotFound
+    from prefect.exceptions import ObjectAlreadyExists, ObjectNotFound
 
     async with get_client() as client:
         try:
             await client.read_work_pool(name)
         except ObjectNotFound:
-            await client.create_work_pool(WorkPoolCreate(name=name, type="process"))
+            try:
+                await client.create_work_pool(WorkPoolCreate(name=name, type="process"))
+            except ObjectAlreadyExists:
+                # A concurrent worker start (e.g. old+new containers briefly
+                # overlapping during a rolling restart) can also observe
+                # ObjectNotFound and win the create race first — the pool
+                # existing either way is the desired end state (review finding
+                # on PR #1857).
+                pass
 
 
 def main() -> int:

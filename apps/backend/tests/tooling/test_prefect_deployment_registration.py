@@ -74,6 +74,41 @@ def test_AC_extraction_1913_3_registration_script_deploys_from_local_source(monk
     assert calls["ensured_pool"] == "finance-report"
 
 
+def test_AC_extraction_1913_3_ensure_work_pool_exists_swallows_concurrent_create_race(monkeypatch):
+    """Two worker containers starting concurrently (e.g. old+new briefly
+    overlapping during a rolling restart) can both observe the pool missing
+    and both attempt to create it — the loser's 409 must not crash the
+    container (review finding on PR #1857)."""
+    import asyncio
+    from contextlib import asynccontextmanager
+
+    from prefect.exceptions import ObjectAlreadyExists, ObjectNotFound
+
+    calls = {"create": 0}
+
+    class _FakeClient:
+        async def read_work_pool(self, name: str) -> None:
+            raise ObjectNotFound(http_exc=Exception("404"))
+
+        async def create_work_pool(self, work_pool) -> None:
+            calls["create"] += 1
+            raise ObjectAlreadyExists(http_exc=Exception("409"))
+
+    @asynccontextmanager
+    async def fake_get_client():
+        yield _FakeClient()
+
+    import prefect.client.orchestration as orchestration_module
+
+    monkeypatch.setattr(orchestration_module, "get_client", fake_get_client)
+
+    from scripts.register_prefect_deployment import _ensure_work_pool_exists
+
+    asyncio.run(_ensure_work_pool_exists("finance-report"))  # must not raise
+
+    assert calls["create"] == 1
+
+
 def test_AC_extraction_1913_3_worker_entrypoint_registers_before_starting_the_worker():
     """The worker container must register the deployment BEFORE polling for
     work — otherwise the worker starts against a server with no matching
