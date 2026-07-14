@@ -2855,7 +2855,7 @@ CONTRACT = PackageContract(
                 "(#1826)."
             ),
             test=(
-                "tests/tooling/test_evidence_bundle.py"
+                "tests/tooling/test_evidence_bundle_baseline_inventory.py"
                 "::test_AC_testing_evidence_1_inventory_discovers_new_baselines_by_glob"
             ),
             priority="P0",
