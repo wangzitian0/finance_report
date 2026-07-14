@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest"
 import { Providers } from "@/app/providers"
 
 describe("Providers", () => {
+  // AC-meta.fe-app-shell.7
   it("AC16.17.6 wraps children with QueryClientProvider", () => {
     render(
       <Providers>

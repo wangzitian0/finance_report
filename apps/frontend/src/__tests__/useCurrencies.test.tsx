@@ -12,6 +12,7 @@ describe("useCurrencies", () => {
         vi.clearAllMocks();
     });
 
+    // AC-pricing.fe-currencies.1
     it("AC16.9.1 returns default currencies while loading", () => {
         vi.mocked(api.apiFetch).mockReturnValue(new Promise(() => {}));
 
@@ -21,6 +22,7 @@ describe("useCurrencies", () => {
         expect(result.current.currencies).toEqual(["SGD", "USD", "EUR"]);
     });
 
+    // AC-pricing.fe-currencies.2
     it("AC16.9.2 updates currencies from API response", async () => {
         vi.mocked(api.apiFetch).mockResolvedValue(["SGD", "USD", "EUR", "GBP"]);
 
@@ -30,6 +32,7 @@ describe("useCurrencies", () => {
         expect(result.current.currencies).toEqual(["SGD", "USD", "EUR", "GBP"]);
     });
 
+    // AC-pricing.fe-currencies.3
     it("AC16.9.3 falls back to defaults when API returns empty array", async () => {
         vi.mocked(api.apiFetch).mockResolvedValue([]);
 

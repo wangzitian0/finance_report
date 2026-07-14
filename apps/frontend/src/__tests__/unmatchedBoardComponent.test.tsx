@@ -44,6 +44,7 @@ describe("UnmatchedBoard", () => {
     status: "unmatched",
   }
 
+  // AC-reconciliation.fe-stage2-review.9
   it("AC16.20.3 loads unmatched items and creates entry", async () => {
     mockedApiFetch
       .mockResolvedValueOnce({
@@ -92,6 +93,7 @@ describe("UnmatchedBoard", () => {
     expect(backLink).toHaveAttribute("href", "/attention")
   })
 
+  // AC-reconciliation.fe-stage2-review.10 / AC-reconciliation.fe-stage2-review.25
   it("AC16.20.4 AC16.31.4 supports local flag and hide actions", async () => {
     mockedApiFetch.mockResolvedValueOnce({
       items: [

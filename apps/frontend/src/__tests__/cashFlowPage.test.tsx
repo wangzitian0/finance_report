@@ -40,6 +40,7 @@ describe("CashFlowPage", () => {
     }))
   })
 
+  // AC-reporting.fe-report-surfaces.16
   it("AC16.14.7 renders loading and error retry states", async () => {
     mockedApiFetch.mockRejectedValue(new Error("cashflow failed"))
 
@@ -53,6 +54,7 @@ describe("CashFlowPage", () => {
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument()
   })
 
+  // AC-reporting.fe-report-surfaces.17
   it("AC16.14.8 / test_AC8_13_48 renders string summary and activity sections", async () => {
     mockedApiFetch.mockResolvedValue({
       start_date: "2026-01-01",
@@ -176,6 +178,7 @@ describe("CashFlowPage", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
   })
 
+  // AC-reporting.fe-report-surfaces.18
   it("AC16.14.9 renders sankey chart when summary exists", async () => {
     mockedApiFetch.mockResolvedValue({
       start_date: "2026-01-01",

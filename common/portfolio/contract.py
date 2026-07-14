@@ -69,7 +69,14 @@ CONTRACT = PackageContract(
     # ORM mixins (UUIDMixin/UserOwnedMixin/TimestampMixin), moved from
     # src/models/base.py to platform.orm.base — a downward edge (platform is
     # infra, L1; portfolio is domain, L3).
-    depends_on=["audit", "extraction", "ledger", "observability", "platform", "pricing"],
+    depends_on=[
+        "audit",
+        "extraction",
+        "ledger",
+        "observability",
+        "platform",
+        "pricing",
+    ],
     roles=["base", "extension", "data"],
     units=[
         # ── base: real value objects — plain exceptions, no ORM references ──
@@ -1774,6 +1781,32 @@ CONTRACT = PackageContract(
                 "::test_AC17_34_1_brokerage_import_persists_short_positions_with_negative_market_value"
             ),
             priority="P1",
+            status="done",
+        ),
+        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-016
+        # (two-stage-review-ui) ──
+        ACRecord(
+            id="AC-portfolio.fe-assets.1",
+            statement="Assets page renders loading and error retry states",
+            # was AC16.15.4
+            test="apps/frontend/src/__tests__/assetsPage.test.tsx::AC16.15.4 renders loading and error retry states",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.fe-assets.2",
+            statement="Assets page renders grouped positions and status filters on successful fetch",
+            # was AC16.15.5
+            test="apps/frontend/src/__tests__/assetsPage.test.tsx::AC16.15.5 renders grouped positions and supports status filters",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.fe-assets.3",
+            statement="Assets page reconcile action calls API and shows toast summary",
+            # was AC16.15.6
+            test="apps/frontend/src/__tests__/assetsPage.test.tsx::AC16.15.6 reconcile action calls API and shows toast summary",
+            priority="P2",
             status="done",
         ),
     ],

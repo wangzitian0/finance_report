@@ -95,6 +95,7 @@ describe("ChatPanel", () => {
     vi.unstubAllGlobals()
   })
 
+  // AC-advisor.fe-chat.4
   it("AC16.20.5 loads suggestions/history and streams reply", async () => {
     render(<ChatPanel variant="page" />)
 
@@ -316,6 +317,7 @@ describe("ChatPanel", () => {
     })))
   })
 
+  // AC-advisor.fe-chat.5
   it("AC16.20.7 handles missing stream reader", async () => {
     mockedApiStream.mockResolvedValue({ response: { body: null } as any, sessionId: "sess-3" })
     render(<ChatPanel variant="page" />)

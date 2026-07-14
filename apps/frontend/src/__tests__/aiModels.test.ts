@@ -13,6 +13,7 @@ describe("fetchAiModels", () => {
         vi.clearAllMocks();
     });
 
+    // AC-llm.fe-ai-models-catalog.1
     it("AC16.8.1 calls /api/llm/catalog with no query when no options provided", async () => {
         vi.mocked(api.apiFetch).mockResolvedValue(emptyCatalog);
 
@@ -21,6 +22,7 @@ describe("fetchAiModels", () => {
         expect(api.apiFetch).toHaveBeenCalledWith("/api/llm/catalog");
     });
 
+    // AC-llm.fe-ai-models-catalog.2
     it("AC16.8.2 appends modality query param when provided", async () => {
         vi.mocked(api.apiFetch).mockResolvedValue(emptyCatalog);
 
@@ -29,6 +31,7 @@ describe("fetchAiModels", () => {
         expect(api.apiFetch).toHaveBeenCalledWith("/api/llm/catalog?modality=image");
     });
 
+    // AC-llm.fe-ai-models-catalog.3
     it("AC16.8.3 appends free_only=true when freeOnly is set", async () => {
         vi.mocked(api.apiFetch).mockResolvedValue(emptyCatalog);
 

@@ -42,6 +42,7 @@ describe("BalanceSheetPage", () => {
     window.history.replaceState({}, "", "/reports/balance-sheet")
   })
 
+  // AC-reporting.fe-report-surfaces.10
   it("AC16.14.1 renders loading and error retry states", async () => {
     mockedApiFetch.mockRejectedValue(new Error("balance failed"))
 
@@ -56,6 +57,7 @@ describe("BalanceSheetPage", () => {
     expect(mockedApiFetch).toHaveBeenCalled()
   })
 
+  // AC-reporting.fe-report-surfaces.11
   it("AC16.14.2 / test_AC8_13_48 renders string totals and refetches by date", async () => {
     mockedApiFetch.mockResolvedValue({
       as_of_date: "2026-02-01",
@@ -183,6 +185,7 @@ describe("BalanceSheetPage", () => {
     await waitFor(() => expect(screen.queryByText("Opening deposit")).toBeNull())
   })
 
+  // AC-reporting.fe-report-surfaces.12
   it("AC16.14.3 toggles tree expansion controls", async () => {
     mockedApiFetch.mockResolvedValue({
       as_of_date: "2026-02-01",

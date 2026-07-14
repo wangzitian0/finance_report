@@ -22,6 +22,7 @@ vi.mock("@/app/providers", () => ({
 }))
 
 describe("RootLayout", () => {
+  // AC-meta.fe-app-shell.6
   it("AC16.17.5 composes Providers and AuthGuard around children", () => {
     render(
       <RootLayout>
@@ -67,6 +68,7 @@ describe("RootLayout", () => {
     expect(analyticsClientIdMissingInDeployedEnv("abc-123", "https://report.zitian.party")).toBe(false)
   })
 
+  // AC-meta.fe-app-shell.21
   it("AC16.25.4 root layout metadata keeps viewport-only theme color", () => {
     expect(metadata).not.toHaveProperty("themeColor")
     expect(viewport.themeColor).toBe("#7c3aed")

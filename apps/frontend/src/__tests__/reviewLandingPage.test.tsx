@@ -64,6 +64,7 @@ describe("dedicated /review surface (#1001)", () => {
         });
     });
 
+    // AC-reconciliation.fe-stage2-review.28
     it("AC16.36.1 renders the Stage-2 review queue as a standalone page", async () => {
         renderReviewComponent(<ReviewPage />);
 
@@ -72,6 +73,7 @@ describe("dedicated /review surface (#1001)", () => {
         await waitFor(() => expect(screen.getAllByText("Salary transfer").length).toBeGreaterThan(0));
     });
 
+    // AC-reconciliation.fe-stage2-review.29
     it("AC16.36.2 loads the global queue (no run filter) on the dedicated route", async () => {
         renderReviewComponent(<ReviewPage />);
 

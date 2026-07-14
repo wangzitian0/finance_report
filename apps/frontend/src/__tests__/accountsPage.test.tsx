@@ -72,6 +72,7 @@ describe("AccountsPage", () => {
     showToastMock.mockReset()
   })
 
+  // AC-ledger.fe-accounts-journal.1
   it("AC16.15.1 renders loading and error retry states", async () => {
     const accountsCalls = () =>
       mockedApiFetch.mock.calls.filter((c) => c[0] === "/api/accounts?include_balance=true").length
@@ -85,6 +86,7 @@ describe("AccountsPage", () => {
     await waitFor(() => expect(accountsCalls()).toBeGreaterThan(before))
   })
 
+  // AC-ledger.fe-accounts-journal.2
   it("AC16.15.2 renders grouped accounts and supports type filters", async () => {
     mockedApiFetch.mockResolvedValue({
       items: [
@@ -104,6 +106,7 @@ describe("AccountsPage", () => {
     expect(screen.queryByText("Salary")).not.toBeNull()
   })
 
+  // AC-ledger.fe-accounts-journal.3
   it("AC16.15.3 delete action confirms and calls delete API with success toast", async () => {
     mockedApiFetch
       .mockResolvedValueOnce({
@@ -183,6 +186,7 @@ describe("AccountsPage", () => {
     expect(mockedApiFetch).not.toHaveBeenCalledWith("/api/accounts/a1", { method: "DELETE" })
   })
 
+  // AC-ledger.fe-accounts-journal.4
   it("AC16.15.7 edit button opens modal with account data", async () => {
     mockedApiFetch.mockResolvedValueOnce({
       items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
@@ -196,6 +200,7 @@ describe("AccountsPage", () => {
     expect(screen.getByText("Edit:Cash")).toBeInTheDocument()
   })
 
+  // AC-meta.fe-app-shell.24
   it("AC16.28.2 AC16.28.3 exposes account row icon actions with accessible labels", async () => {
     mockedApiFetch.mockResolvedValueOnce({
       items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
@@ -209,6 +214,7 @@ describe("AccountsPage", () => {
     expect(screen.getByRole("button", { name: "Delete Account" })).toBeInTheDocument()
   })
 
+  // AC-ledger.fe-accounts-journal.5
   it("AC16.15.8 Add Account button opens create modal", async () => {
     mockedApiFetch.mockResolvedValueOnce({
       items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
@@ -222,6 +228,7 @@ describe("AccountsPage", () => {
     expect(screen.getByText("Create Account Modal")).toBeInTheDocument()
   })
 
+  // AC-ledger.fe-accounts-journal.6
   it("AC16.15.9 modal onSuccess triggers account list refresh", async () => {
     let accountsCall = 0
     mockedApiFetch.mockImplementation((path: string) => {
@@ -247,6 +254,7 @@ describe("AccountsPage", () => {
     await waitFor(() => expect(screen.getByText("Savings")).toBeInTheDocument())
   })
 
+  // AC-ledger.fe-accounts-journal.7
   it("AC16.15.10 modal onClose closes modal and clears editing state", async () => {
     mockedApiFetch.mockResolvedValueOnce({
       items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],

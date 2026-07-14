@@ -21,6 +21,7 @@ describe("theme utilities", () => {
     });
 
     describe("getTheme", () => {
+        // AC-meta.fe-utils.5
         it("AC16.7.1 returns stored dark theme from localStorage", () => {
             localStorage.setItem("theme", "dark");
             expect(getTheme()).toBe("dark");
@@ -67,6 +68,7 @@ describe("theme utilities", () => {
     });
 
     describe("setTheme", () => {
+        // AC-meta.fe-utils.6
         it("AC16.7.2 adds dark class when setting dark theme", () => {
             setTheme("dark");
             expect(document.documentElement.classList.contains("dark")).toBe(true);
@@ -82,6 +84,7 @@ describe("theme utilities", () => {
     });
 
     describe("toggleTheme", () => {
+        // AC-meta.fe-utils.7
         it("AC16.7.3 toggles from light to dark", () => {
             localStorage.setItem("theme", "light");
             const result = toggleTheme();
@@ -98,6 +101,7 @@ describe("theme utilities", () => {
     });
 
     describe("initTheme", () => {
+        // AC-meta.fe-utils.8
         it("AC16.7.4 initializes theme from stored value", () => {
             localStorage.setItem("theme", "dark");
             initTheme();

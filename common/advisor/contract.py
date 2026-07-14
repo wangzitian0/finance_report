@@ -1157,5 +1157,47 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-016
+        # (two-stage-review-ui) ──
+        ACRecord(
+            id="AC-advisor.fe-chat.1",
+            statement="Chat page renders advisor client within suspense boundary",
+            # was AC16.16.3
+            test="apps/frontend/src/__tests__/chatPage.test.tsx::AC16.16.3 renders advisor client",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-advisor.fe-chat.2",
+            statement="Chat page client enforces disclaimer consent and passes initial prompt into chat panel",
+            # was AC16.19.5
+            test="apps/frontend/src/__tests__/chatComponents.test.tsx::AC16.19.5 enforces disclaimer consent and passes initial prompt",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-advisor.fe-chat.3",
+            statement="Chat widget hides on chat route and toggles panel visibility elsewhere",
+            # was AC16.19.6
+            test="apps/frontend/src/__tests__/chatComponents.test.tsx::AC16.19.6 hides widget on chat route and toggles elsewhere",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-advisor.fe-chat.4",
+            statement="Chat panel sends streaming responses, loads suggestions/history, and clears session",
+            # was AC16.20.5
+            test="apps/frontend/src/__tests__/chatPanelComponent.test.tsx::AC16.20.5 loads suggestions/history and streams reply",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-advisor.fe-chat.5",
+            statement="Handles missing stream reader",
+            # was AC16.20.7
+            test="apps/frontend/src/__tests__/chatPanelComponent.test.tsx::AC16.20.7 handles missing stream reader",
+            priority="P1",
+            status="done",
+        ),
     ],
 )

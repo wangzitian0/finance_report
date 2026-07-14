@@ -60,6 +60,7 @@ describe("StatementDetailPage", () => {
     mockSearchParams.delete("entriesCreated")
   })
 
+  // AC-extraction.fe-stage1-review.4
   it("AC16.18.1 loads detail data and renders transactions", async () => {
     mockedApiFetch.mockResolvedValueOnce(parsedStatement)
 
@@ -70,6 +71,7 @@ describe("StatementDetailPage", () => {
     expect(screen.getByRole("link", { name: "Start Review →" })).toHaveAttribute("href", "/statements/s1/review")
   })
 
+  // AC-extraction.fe-stage1-review.5
   it("AC16.18.2 detail page is read-only for approval actions", async () => {
     mockedApiFetch.mockResolvedValueOnce(parsedStatement)
 
@@ -89,6 +91,7 @@ describe("StatementDetailPage", () => {
     )
   })
 
+  // AC-extraction.fe-stage1-review.6
   it("AC16.18.3 retry parse posts retry API and refreshes", async () => {
     const rejectedStatement = { ...parsedStatement, status: "rejected", validation_error: "parse failed" }
     mockedApiFetch.mockResolvedValueOnce(rejectedStatement).mockResolvedValueOnce(undefined).mockResolvedValueOnce(parsedStatement)

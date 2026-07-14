@@ -3467,5 +3467,128 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-016
+        # (two-stage-review-ui) ──
+        ACRecord(
+            id="AC-extraction.fe-stage1-review.1",
+            statement="Statements page renders loading, error, empty, and populated states",
+            # was AC16.14.10
+            test="apps/frontend/src/__tests__/statementsPage.test.tsx::AC16.14.10 AC22.1.8 renders the uploader and upload history (loading, error, empty, populated)",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.fe-stage1-review.2",
+            statement="Statements page enables polling when parsing status is present",
+            # was AC16.14.11
+            test="apps/frontend/src/__tests__/statementsPage.test.tsx::AC16.14.11 AC22.11.1 enables polling with an honest parsing state (no fabricated progress)",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.fe-stage1-review.3",
+            statement="Statements page delete action calls delete API and toast on confirm",
+            # was AC16.14.12
+            test="apps/frontend/src/__tests__/statementsPage.test.tsx::AC16.14.12 delete action calls delete API and toast",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.fe-stage1-review.4",
+            statement="Statement detail page loads statement data and renders parsed transactions summary",
+            # was AC16.18.1
+            test="apps/frontend/src/__tests__/statementDetailPage.test.tsx::AC16.18.1 loads detail data and renders transactions",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.fe-stage1-review.5",
+            # Corrected from the stale EPIC-016 row text (#1821 Wave B CR fix):
+            # the real current behavior is the opposite of the original claim
+            # -- the statement detail page is read-only, with no Approve/Reject
+            # buttons and no approve/reject API calls (correction happens via
+            # reject + re-parse on the statement review page instead).
+            statement=(
+                "Statement detail page is read-only for approval actions: no "
+                "Approve/Reject buttons render, and it never calls the "
+                "approve/reject APIs"
+            ),
+            # was AC16.18.2
+            test="apps/frontend/src/__tests__/statementDetailPage.test.tsx::AC16.18.2 detail page is read-only for approval actions",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.fe-stage1-review.6",
+            statement="Statement detail page retry action posts retry API and refreshes data",
+            # was AC16.18.3
+            test="apps/frontend/src/__tests__/statementDetailPage.test.tsx::AC16.18.3 retry parse posts retry API and refreshes",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.fe-stage1-review.7",
+            statement="Statement review page shows error fallback and supports retry",
+            # was AC16.18.4
+            test="apps/frontend/src/__tests__/statementReviewPage.test.tsx::AC16.18.4 shows loading feedback while review data is pending",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.fe-stage1-review.8",
+            statement="Statement review page disables approve when balance validation fails",
+            # was AC16.18.5
+            test="apps/frontend/src/__tests__/statementReviewPage.test.tsx::AC16.18.5 disables approve when balance validation fails",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.fe-stage1-review.9",
+            statement="Statement review page approve and reject actions call APIs and navigate back to statements",
+            # was AC16.18.6
+            test="apps/frontend/src/__tests__/statementReviewPage.test.tsx::AC16.18.6 approves the statement and routes back to statement detail",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.fe-stage1-review.10",
+            statement="Stage 1 statement review shows read-only transaction cards on phone widths (inline editing was removed in EPIC-011 Stage 3; correct a mis-parse via reject + re-parse), with approve and reject actions visible without horizontal dragging",
+            # was AC16.26.1
+            test="apps/frontend/playwright/mobile-ux.spec.ts::AC16.26.1 stage 1 mobile review exposes read-only transaction cards and completion actions",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.fe-stage1-review.11",
+            statement="Stage 1 desktop review keeps the transaction review surface readable at 1440px with the sidebar visible without local horizontal clipping",
+            # was AC16.27.2
+            test="apps/frontend/playwright/mobile-ux.spec.ts::AC8.13.82/AC16.27.2 desktop stage 1 review keeps transaction table readable at 1440px",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.fe-stage1-review.12",
+            statement="Frontend tests mount each new component (PdfPreviewPane, TransactionTable, ConflictResolutionDialog, BottomTabBar) and assert primary affordance renders",
+            # was AC16.23.6
+            test="apps/frontend/src/__tests__/epic016Components.test.tsx::mounts PdfPreviewPane and asserts primary affordance (AC16.23.6)",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.fe-stage1-review.13",
+            statement="Stage 1 approval is disabled unless both opening and closing balance validation match",
+            # was AC16.31.2
+            test="apps/frontend/src/__tests__/statementReviewPage.test.tsx::AC16.31.2 disables approval when opening balance validation fails",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.fe-stage1-review.14",
+            statement="Stage 1 balance validation UI reports opening and closing checks separately so reviewers see the same gate enforced by the backend",
+            # was AC16.32.2
+            test="apps/frontend/src/__tests__/statementReviewPage.test.tsx::AC16.32.2 shows opening and closing balance validation states separately",
+            priority="P0",
+            status="done",
+        ),
     ],
 )
