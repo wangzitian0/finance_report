@@ -684,7 +684,7 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.8.1",
             statement="Delete old orphaned storage objects",  # was AC3.8.1
-            test="apps/backend/tests/services/test_storage_sweep.py::test_sweep_deletes_orphaned_object",
+            test="apps/backend/tests/extraction/test_storage_sweep.py::test_sweep_deletes_orphaned_object",
             priority="P1",
             status="done",
             proof_kind="property",
@@ -692,7 +692,7 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.8.2",
             statement="Preserve objects with DB records",  # was AC3.8.2
-            test="apps/backend/tests/services/test_storage_sweep.py::test_sweep_skips_known_db_objects",
+            test="apps/backend/tests/extraction/test_storage_sweep.py::test_sweep_skips_known_db_objects",
             priority="P1",
             status="done",
             proof_kind="property",
@@ -700,7 +700,7 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.8.3",
             statement="Skip recent in-flight uploads",  # was AC3.8.3
-            test="apps/backend/tests/services/test_storage_sweep.py::test_sweep_skips_recent_objects",
+            test="apps/backend/tests/extraction/test_storage_sweep.py::test_sweep_skips_recent_objects",
             priority="P1",
             status="done",
             proof_kind="property",
@@ -708,7 +708,7 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.8.4",
             statement="No-op without configured S3 bucket",  # was AC3.8.4
-            test="apps/backend/tests/services/test_storage_sweep.py::test_sweep_skips_when_no_bucket_configured",
+            test="apps/backend/tests/extraction/test_storage_sweep.py::test_sweep_skips_when_no_bucket_configured",
             priority="P1",
             status="done",
             proof_kind="property",
@@ -716,7 +716,7 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.8.5",
             statement="Return zero for empty statement prefix",  # was AC3.8.5
-            test="apps/backend/tests/services/test_storage_sweep.py::test_sweep_returns_zero_when_no_objects",
+            test="apps/backend/tests/extraction/test_storage_sweep.py::test_sweep_returns_zero_when_no_objects",
             priority="P1",
             status="done",
             proof_kind="property",
@@ -724,7 +724,7 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.8.6",
             statement="Handle storage listing errors",  # was AC3.8.6
-            test="apps/backend/tests/services/test_storage_sweep.py::test_sweep_handles_storage_list_error",
+            test="apps/backend/tests/extraction/test_storage_sweep.py::test_sweep_handles_storage_list_error",
             priority="P1",
             status="done",
             proof_kind="property",
@@ -732,7 +732,7 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.8.7",
             statement="Handle object delete errors",  # was AC3.8.7
-            test="apps/backend/tests/services/test_storage_sweep.py::test_sweep_handles_delete_error",
+            test="apps/backend/tests/extraction/test_storage_sweep.py::test_sweep_handles_delete_error",
             priority="P1",
             status="done",
             proof_kind="property",
@@ -740,7 +740,7 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.8.8",
             statement="Paginate storage keys and normalize timestamps",  # was AC3.8.8
-            test="apps/backend/tests/services/test_storage_sweep.py::test_list_storage_keys_returns_paginated_keys_and_normalizes_timestamps",
+            test="apps/backend/tests/extraction/test_storage_sweep.py::test_list_storage_keys_returns_paginated_keys_and_normalizes_timestamps",
             priority="P1",
             status="done",
             proof_kind="property",
@@ -748,7 +748,7 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.8.9",
             statement="Convert storage client listing errors",  # was AC3.8.9
-            test="apps/backend/tests/services/test_storage_sweep.py::test_list_storage_keys_raises_on_client_error",
+            test="apps/backend/tests/extraction/test_storage_sweep.py::test_list_storage_keys_raises_on_client_error",
             priority="P1",
             status="done",
             proof_kind="property",
@@ -756,7 +756,7 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.8.10",
             statement="Exit runner on stop event",  # was AC3.8.10
-            test="apps/backend/tests/services/test_storage_sweep.py::test_run_storage_sweep_exits_on_stop_event",
+            test="apps/backend/tests/extraction/test_storage_sweep.py::test_run_storage_sweep_exits_on_stop_event",
             priority="P1",
             status="done",
             proof_kind="property",
@@ -764,7 +764,7 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.8.11",
             statement="Log runner deletion counts",  # was AC3.8.11
-            test="apps/backend/tests/services/test_storage_sweep.py::test_run_storage_sweep_logs_when_objects_deleted",
+            test="apps/backend/tests/extraction/test_storage_sweep.py::test_run_storage_sweep_logs_when_objects_deleted",
             priority="P1",
             status="done",
             proof_kind="property",
@@ -772,7 +772,7 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.8.12",
             statement="Continue runner after unexpected sweep exception",  # was AC3.8.12
-            test="apps/backend/tests/services/test_storage_sweep.py::test_run_storage_sweep_handles_exception",
+            test="apps/backend/tests/extraction/test_storage_sweep.py::test_run_storage_sweep_handles_exception",
             priority="P1",
             status="done",
             proof_kind="property",
@@ -780,7 +780,7 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.8.13",
             statement="Disable runner by feature flag",  # was AC3.8.13
-            test="apps/backend/tests/services/test_storage_sweep.py::test_run_storage_sweep_disabled_by_feature_flag",
+            test="apps/backend/tests/extraction/test_storage_sweep.py::test_run_storage_sweep_disabled_by_feature_flag",
             priority="P1",
             status="done",
             proof_kind="property",
@@ -788,7 +788,7 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.8.14",
             statement="Grace period + interval config defaults match issue #356 (24h / daily)",  # was AC3.8.14
-            test="apps/backend/tests/services/test_storage_sweep.py::test_grace_period_and_interval_defaults_match_issue_356",
+            test="apps/backend/tests/extraction/test_storage_sweep.py::test_grace_period_and_interval_defaults_match_issue_356",
             priority="P1",
             status="done",
             proof_kind="property",
@@ -796,7 +796,7 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.8.15",
             statement="Sweep grace-period cutoff is config-driven, not a hardcoded constant",  # was AC3.8.15
-            test="apps/backend/tests/services/test_storage_sweep.py::test_sweep_reads_grace_period_from_config",
+            test="apps/backend/tests/extraction/test_storage_sweep.py::test_sweep_reads_grace_period_from_config",
             priority="P1",
             status="done",
             proof_kind="property",
@@ -804,7 +804,7 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.8.16",
             statement="Sweep runner wait interval is read from config",  # was AC3.8.16
-            test="apps/backend/tests/services/test_storage_sweep.py::test_run_storage_sweep_reads_interval_from_config",
+            test="apps/backend/tests/extraction/test_storage_sweep.py::test_run_storage_sweep_reads_interval_from_config",
             priority="P1",
             status="done",
             proof_kind="property",
@@ -2438,7 +2438,7 @@ CONTRACT = PackageContract(
                 "relation, and edge endpoints."
             ),
             test=(
-                "apps/backend/tests/services/test_evidence_lineage.py"
+                "apps/backend/tests/extraction/test_evidence_lineage.py"
                 "::test_AC18_7_4_node_and_edge_upserts_are_idempotent"
             ),
             priority="P1",
@@ -2452,7 +2452,7 @@ CONTRACT = PackageContract(
                 "authenticated user's scope."
             ),
             test=(
-                "apps/backend/tests/services/test_evidence_lineage.py"
+                "apps/backend/tests/extraction/test_evidence_lineage.py"
                 "::test_AC18_7_5_traversal_resolves_upstream_and_downstream_by_entity"
             ),
             priority="P0",
@@ -2465,7 +2465,7 @@ CONTRACT = PackageContract(
                 "depth and never walks unbounded graphs."
             ),
             test=(
-                "apps/backend/tests/services/test_evidence_lineage.py"
+                "apps/backend/tests/extraction/test_evidence_lineage.py"
                 "::test_AC18_7_6_traversal_enforces_depth_limit"
             ),
             priority="P1",
@@ -2480,7 +2480,7 @@ CONTRACT = PackageContract(
                 "isolation."
             ),
             test=(
-                "apps/backend/tests/services/test_evidence_lineage.py"
+                "apps/backend/tests/extraction/test_evidence_lineage.py"
                 "::test_AC18_7_5_cross_user_edges_and_traversal_are_blocked"
             ),
             priority="P0",
@@ -2498,7 +2498,7 @@ CONTRACT = PackageContract(
                 "Stage 3 with the bank_statements tables."
             ),
             test=(
-                "apps/backend/tests/services/test_evidence_graph_materialization.py"
+                "apps/backend/tests/extraction/test_evidence_graph_materialization.py"
                 "::test_AC18_10_4_direct_entity_materialization_branches_are_idempotent"
             ),
             priority="P1",
@@ -2512,7 +2512,7 @@ CONTRACT = PackageContract(
                 "source_document (uploaded document) that produced them."
             ),
             test=(
-                "apps/backend/tests/services/test_evidence_graph_materialization.py"
+                "apps/backend/tests/extraction/test_evidence_graph_materialization.py"
                 "::test_AC18_10_4_direct_entity_materialization_branches_are_idempotent"
             ),
             priority="P1",
@@ -2646,7 +2646,7 @@ CONTRACT = PackageContract(
                 "blocker taxonomy for drift states."
             ),
             test=(
-                "apps/backend/tests/services/test_evidence_graph_materialization.py"
+                "apps/backend/tests/extraction/test_evidence_graph_materialization.py"
                 "::test_AC18_10_5_detector_reports_missing_orphan_and_cross_user_drift"
             ),
             priority="P1",
@@ -2660,7 +2660,7 @@ CONTRACT = PackageContract(
                 "owning business facts."
             ),
             test=(
-                "apps/backend/tests/services/test_evidence_graph_materialization.py"
+                "apps/backend/tests/extraction/test_evidence_graph_materialization.py"
                 "::test_AC18_10_2_graph_writes_share_the_business_transaction"
             ),
             priority="P1",
@@ -2690,7 +2690,7 @@ CONTRACT = PackageContract(
                 "similarity."
             ),
             test=(
-                "apps/backend/tests/services/test_evidence_graph_materialization.py"
+                "apps/backend/tests/extraction/test_evidence_graph_materialization.py"
                 "::test_AC18_10_4_AC18_10_6_lazy_materialization_is_idempotent_and_preserves_accounting_facts"
             ),
             priority="P0",
@@ -2705,7 +2705,7 @@ CONTRACT = PackageContract(
                 "ambiguous or unsupported provenance."
             ),
             test=(
-                "apps/backend/tests/services/test_evidence_graph_materialization.py"
+                "apps/backend/tests/extraction/test_evidence_graph_materialization.py"
                 "::test_AC18_10_5_detector_reports_missing_orphan_and_cross_user_drift"
             ),
             priority="P0",
@@ -2719,7 +2719,7 @@ CONTRACT = PackageContract(
                 "JournalEntry.source_type/source_id values."
             ),
             test=(
-                "apps/backend/tests/services/test_evidence_graph_materialization.py"
+                "apps/backend/tests/extraction/test_evidence_graph_materialization.py"
                 "::test_AC18_10_4_AC18_10_6_lazy_materialization_is_idempotent_and_preserves_accounting_facts"
             ),
             priority="P0",
@@ -2734,7 +2734,7 @@ CONTRACT = PackageContract(
                 "detection, and request-level write caps."
             ),
             test=(
-                "apps/backend/tests/services/test_evidence_graph_materialization.py"
+                "apps/backend/tests/extraction/test_evidence_graph_materialization.py"
                 "::test_AC18_10_7_materialization_caps_and_unknown_sources_return_blockers"
             ),
             priority="P1",
@@ -2876,7 +2876,7 @@ CONTRACT = PackageContract(
                 "proposed vs corrected."
             ),
             test=(
-                "apps/backend/tests/services/test_correction_loop.py"
+                "apps/backend/tests/extraction/test_correction_loop.py"
                 "::test_AC18_14_1_corpus_is_derived_from_corrections_keyed_by_pattern"
             ),
             priority="P1",
@@ -2890,7 +2890,7 @@ CONTRACT = PackageContract(
                 "patterns recur, and invents no reduction when they do not."
             ),
             test=(
-                "apps/backend/tests/services/test_correction_loop.py"
+                "apps/backend/tests/extraction/test_correction_loop.py"
                 "::test_AC18_14_2_replay_lowers_low_confidence_proportion_when_patterns_recur"
             ),
             priority="P1",
@@ -2900,7 +2900,7 @@ CONTRACT = PackageContract(
             id="AC-extraction.1814.3",
             statement="The service builds the corpus from the persisted correction store, scoped to the user.",
             test=(
-                "apps/backend/tests/services/test_correction_loop.py"
+                "apps/backend/tests/extraction/test_correction_loop.py"
                 "::test_AC18_14_3_service_builds_corpus_from_persisted_corrections"
             ),
             priority="P1",
@@ -2915,7 +2915,7 @@ CONTRACT = PackageContract(
                 "proportion provably drops."
             ),
             test=(
-                "apps/backend/tests/services/test_correction_loop.py"
+                "apps/backend/tests/extraction/test_correction_loop.py"
                 "::test_AC18_14_4_service_replay_measures_held_out_reduction"
             ),
             priority="P1",
@@ -2933,7 +2933,7 @@ CONTRACT = PackageContract(
                 "effective version can never be mutated."
             ),
             test=(
-                "apps/backend/tests/services/test_transaction_classification.py"
+                "apps/backend/tests/extraction/test_transaction_classification.py"
                 "::test_AC18_15_1_policy_is_effective_dated_and_immutable"
             ),
             priority="P1",
@@ -2948,7 +2948,7 @@ CONTRACT = PackageContract(
                 "stamped with the policy version."
             ),
             test=(
-                "apps/backend/tests/services/test_transaction_classification.py"
+                "apps/backend/tests/extraction/test_transaction_classification.py"
                 "::test_AC18_15_2_classify_is_reproducible_for_same_inputs"
             ),
             priority="P1",
@@ -2964,7 +2964,7 @@ CONTRACT = PackageContract(
                 "clamping and a graceful per-transaction None fallback."
             ),
             test=(
-                "apps/backend/tests/services/test_transaction_classification.py"
+                "apps/backend/tests/extraction/test_transaction_classification.py"
                 "::test_AC18_15_3_off_catalog_proposal_is_rejected_never_applied"
             ),
             priority="P1",
@@ -2980,7 +2980,7 @@ CONTRACT = PackageContract(
                 "queue, below stays in the genuine Uncategorized tail."
             ),
             test=(
-                "apps/backend/tests/services/test_transaction_classification.py"
+                "apps/backend/tests/extraction/test_transaction_classification.py"
                 "::test_AC18_15_4_confidence_gate_applies_reviews_or_tails"
             ),
             priority="P1",
@@ -2996,7 +2996,7 @@ CONTRACT = PackageContract(
                 "untouched."
             ),
             test=(
-                "apps/backend/tests/services/test_transaction_classification.py"
+                "apps/backend/tests/extraction/test_transaction_classification.py"
                 "::test_AC18_15_5_model_never_touches_money"
             ),
             priority="P0",
@@ -3011,7 +3011,7 @@ CONTRACT = PackageContract(
                 "classifications, no policy rules, no accounts."
             ),
             test=(
-                "apps/backend/tests/services/test_transaction_classification.py"
+                "apps/backend/tests/extraction/test_transaction_classification.py"
                 "::test_AC18_15_6_pro_forma_writes_nothing"
             ),
             priority="P1",
@@ -3026,7 +3026,7 @@ CONTRACT = PackageContract(
                 "an error."
             ),
             test=(
-                "apps/backend/tests/services/test_transaction_classification.py"
+                "apps/backend/tests/extraction/test_transaction_classification.py"
                 "::test_AC18_15_7_user_rule_prepass_wins_over_model"
             ),
             priority="P1",
@@ -3043,7 +3043,7 @@ CONTRACT = PackageContract(
                 "into classification."
             ),
             test=(
-                "apps/backend/tests/services/test_transaction_classification.py"
+                "apps/backend/tests/extraction/test_transaction_classification.py"
                 "::test_AC18_15_8_flag_off_is_a_noop"
             ),
             priority="P1",
@@ -3062,7 +3062,7 @@ CONTRACT = PackageContract(
                 "recompute after publishing stays prospective."
             ),
             test=(
-                "apps/backend/tests/services/test_classification_migration.py"
+                "apps/backend/tests/extraction/test_classification_migration.py"
                 "::test_AC18_16_1_new_policy_version_never_restates_covered_periods"
             ),
             priority="P0",
@@ -3078,7 +3078,7 @@ CONTRACT = PackageContract(
                 "confidence tier."
             ),
             test=(
-                "apps/backend/tests/services/test_classification_migration.py"
+                "apps/backend/tests/extraction/test_classification_migration.py"
                 "::test_AC18_16_2_import_produces_categorized_income_statement"
             ),
             priority="P0",
@@ -3093,7 +3093,7 @@ CONTRACT = PackageContract(
                 "the two Uncategorized buckets, zero classification rows."
             ),
             test=(
-                "apps/backend/tests/services/test_classification_migration.py"
+                "apps/backend/tests/extraction/test_classification_migration.py"
                 "::test_AC18_16_3_flag_off_is_byte_identical_to_today"
             ),
             priority="P1",
@@ -3108,7 +3108,7 @@ CONTRACT = PackageContract(
                 "re-run is a no-op (idempotent, dated, append-only)."
             ),
             test=(
-                "apps/backend/tests/services/test_classification_migration.py"
+                "apps/backend/tests/extraction/test_classification_migration.py"
                 "::test_AC18_16_4_backfill_is_idempotent_dated_append_only"
             ),
             priority="P1",
@@ -3123,7 +3123,7 @@ CONTRACT = PackageContract(
                 "immutable ledger, not an edit of it."
             ),
             test=(
-                "apps/backend/tests/services/test_classification_migration.py"
+                "apps/backend/tests/extraction/test_classification_migration.py"
                 "::test_AC18_16_5_reclassification_never_rewrites_posted_entries"
             ),
             priority="P0",
@@ -3140,7 +3140,7 @@ CONTRACT = PackageContract(
                 "gate) — a defined-but-uninvoked classify writer fails CI."
             ),
             test=(
-                "apps/backend/tests/services/test_transaction_classification.py"
+                "apps/backend/tests/extraction/test_transaction_classification.py"
                 "::test_AC18_17_1_no_classify_writer_is_defined_but_uninvoked"
             ),
             priority="P0",
@@ -3172,7 +3172,7 @@ CONTRACT = PackageContract(
                 "history never leak into as-reported figures."
             ),
             test=(
-                "apps/backend/tests/services/test_transaction_classification.py"
+                "apps/backend/tests/extraction/test_transaction_classification.py"
                 "::test_AC18_17_3_reports_read_only_applied_classifications"
             ),
             priority="P0",

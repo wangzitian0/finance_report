@@ -797,7 +797,7 @@ CONTRACT = PackageContract(
                 "None), MEDIUM (60-84), or HIGH (>=85)."
             ),
             test=(
-                "apps/backend/tests/services/test_confidence_tier.py"
+                "apps/backend/tests/reporting/test_confidence_tier.py"
                 "::test_ac4_9_4_derive_reconciliation_score_tier"
             ),
             priority="P1",
