@@ -79,7 +79,7 @@ Not owned here:
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC21.1.1 | EPIC-021 and AI SSOT define AI Advisor as a read-only application layer that consumes deterministic application facts and is not the source of record {tier:CODE-ONLY} | `test_AC21_1_1_ai_advisor_is_application_layer_contract`, `test_application_ai_advisor_epic021_product_owner_contract` | `tests/tooling/test_application_ai_advisor_epic021_contract.py`, `tests/e2e/test_application_ai_advisor_epic021.py` | P0 | <!-- epic-owned: horizontal -->
-| AC21.1.2 | Scale coverage and confidence work is explicitly routed to existing EPICs and issues instead of being re-owned by EPIC-021 {tier:CODE-ONLY} | `test_AC21_1_2_scale_and_confidence_work_stays_in_existing_epics`, `test_application_ai_advisor_epic021_product_owner_contract` | `tests/tooling/test_application_ai_advisor_epic021_contract.py`, `tests/e2e/test_application_ai_advisor_epic021.py` | P0 | <!-- epic-owned: horizontal -->
+> (AC21.1.2 removed, canonical: migrated to the `advisor` package roadmap as `AC-advisor.application-layer.1`, #1821 Wave A. AC21.1.1 above stays horizontal: its own proving test hard-asserts the legacy registry id `AC21.1.1` with `epic_name="application-ai-advisor"`, which a package-scoped migration would break without a test edit beyond a pure move.)
 
 ### AC21.2: Backend Advisor Context and Suggestions
 

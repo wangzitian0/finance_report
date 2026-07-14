@@ -97,7 +97,7 @@ async def test_ping_initial_state(client: AsyncClient) -> None:
 
 
 async def test_ping_toggle(client: AsyncClient) -> None:
-    """Test toggle endpoint."""
+    """AC-meta.phase0.17: Test toggle endpoint."""
     # First toggle - should go from ping to pong
     response = await client.post("/ping/toggle")
     assert response.status_code == 200

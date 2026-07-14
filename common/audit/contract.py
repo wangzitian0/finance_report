@@ -1320,5 +1320,82 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── group anchor-invariants: tenant-scoped audit-anchor schema
+        # invariants (was EPIC-018 AC18.11.2-.6, #1821 Wave A horizontal
+        # move) ──
+        ACRecord(
+            id="AC-audit.anchor-invariants.1",
+            statement=(
+                "Atomic transaction and position source-document anchors "
+                "are represented by normalized link tables that reject "
+                "missing or cross-user uploaded documents."
+            ),
+            # was AC18.11.2
+            test=(
+                "apps/backend/tests/infra/test_audit_anchor_schema_invariants.py"
+                "::test_AC18_11_2_atomic_source_links_reject_missing_and_cross_user_documents"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.anchor-invariants.2",
+            statement=(
+                "Evidence Graph edges are tenant-scoped at the database "
+                "boundary and cannot connect nodes owned by different "
+                "users."
+            ),
+            # was AC18.11.3
+            test=(
+                "apps/backend/tests/infra/test_audit_anchor_schema_invariants.py"
+                "::test_AC18_11_3_evidence_edges_reject_cross_user_endpoints"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.anchor-invariants.3",
+            statement=(
+                "Journal lines, approved statement summaries, and "
+                "transaction classifications reject cross-user account "
+                "references at the database boundary."
+            ),
+            # was AC18.11.4
+            test=(
+                "apps/backend/tests/infra/test_audit_anchor_schema_invariants.py"
+                "::test_AC18_11_4_account_references_reject_cross_user_accounts"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.anchor-invariants.4",
+            statement=(
+                "Unresolved legacy source UUIDs remain explicit blockers "
+                "and are never promoted to trusted source anchors."
+            ),
+            # was AC18.11.5
+            test=(
+                "apps/backend/tests/infra/test_audit_anchor_schema_invariants.py"
+                "::test_AC18_11_5_unresolved_legacy_source_ids_remain_blockers"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.anchor-invariants.5",
+            statement=(
+                "The audit-anchor migration declares preflights, backfills "
+                "resolvable legacy anchors, preserves unresolved hints, and "
+                "is registered in migration-risk metadata."
+            ),
+            # was AC18.11.6
+            test=(
+                "apps/backend/tests/infra/test_audit_anchor_schema_invariants.py"
+                "::test_AC18_11_6_migration_preflights_and_risk_contract_are_declared"
+            ),
+            priority="P0",
+            status="done",
+        ),
     ],
 )

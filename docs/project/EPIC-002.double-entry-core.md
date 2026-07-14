@@ -105,7 +105,8 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 > the contract is the single definition source. The **non-double-entry** rows of
 > the AC2.13–AC2.23 range stay defined below, because they are not ledger ACs: the
 > frontend UI ACs `AC2.15.8` / `AC2.16.3` / `AC2.17.1` (the ledger package is
-> `fe=None`), the cross-EPIC framework-boundary doc-contract `AC2.18.1`, and the
+> `fe=None`), the cross-EPIC framework-boundary doc-contract (now
+> `AC-meta.framework-neutrality.1`, #1821 Wave A), and the
 > Money value-type extension `AC2.19.*`–`AC2.22.*` (owned by the `money` kernel).
 > Slice 3c-iii is the final AC batch of the #1420 cutover. *(AC2.16 group's
 > reporting-layer row and AC2.12's stream-redaction row removed — migration
@@ -416,7 +417,7 @@ disclosure decisions must not be embedded into posting logic.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC2.18.1 | Canonical ledger documentation declares that double-entry posting is framework-neutral and that US/HK policy decisions belong to EPIC-020 | `test_AC2_18_1_canonical_ledger_is_framework_neutral` | `tests/tooling/test_framework_reporting_epic_contract.py` | P0 | <!-- epic-owned: horizontal -->
+> (AC2.18.1 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.framework-neutrality.1`, #1821 Wave A)
 
 ---
 

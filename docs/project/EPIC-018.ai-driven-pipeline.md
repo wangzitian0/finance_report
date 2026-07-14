@@ -362,11 +362,7 @@ Dependencies: AC18.7 Evidence Graph foundation, AC18.8 source-to-report integrat
 
 | AC ID | Phase | Description | Test | File | Priority |
 |-------|-------|-------------|------|------|----------|
-| AC18.11.2 | Audit anchors | Atomic transaction and position source-document anchors are represented by normalized link tables that reject missing or cross-user uploaded documents | `test_AC18_11_2_atomic_source_links_reject_missing_and_cross_user_documents()` | `infra/test_audit_anchor_schema_invariants.py` | P0 | <!-- epic-owned: horizontal -->
-| AC18.11.3 | Evidence lineage | Evidence Graph edges are tenant-scoped at the database boundary and cannot connect nodes owned by different users | `test_AC18_11_3_evidence_edges_reject_cross_user_endpoints()` | `infra/test_audit_anchor_schema_invariants.py` | P0 | <!-- epic-owned: horizontal -->
-| AC18.11.4 | Tenant scope | Journal lines, approved statement summaries, and transaction classifications reject cross-user account references at the database boundary | `test_AC18_11_4_account_references_reject_cross_user_accounts()` | `infra/test_audit_anchor_schema_invariants.py` | P0 | <!-- epic-owned: horizontal -->
-| AC18.11.5 | Blocker semantics | Unresolved legacy source UUIDs remain explicit blockers and are never promoted to trusted source anchors | `test_AC18_11_5_unresolved_legacy_source_ids_remain_blockers()` | `infra/test_audit_anchor_schema_invariants.py` | P0 | <!-- epic-owned: horizontal -->
-| AC18.11.6 | Migration safety | The audit-anchor migration declares preflights, backfills resolvable legacy anchors, preserves unresolved hints, and is registered in migration-risk metadata | `test_AC18_11_6_migration_preflights_and_risk_contract_are_declared()` | `infra/test_audit_anchor_schema_invariants.py` | P0 | <!-- epic-owned: horizontal -->
+> (AC18.11.2 removed and AC18.11.3 removed and AC18.11.4 removed and AC18.11.5 removed and AC18.11.6 removed, canonical: migrated to the `audit` package roadmap as `AC-audit.anchor-invariants.1` through `.5`, #1821 Wave A)
 
 ### AC18.31: Evidence Graph Typed Properties and Fail-Fast Materialization
 

@@ -553,8 +553,7 @@ the shared UI-system contract.
 
 ### Acceptance Criteria — Infra (group 13, conflict resolution backend contract)
 
-- [x] **AC16.13.13** Backend exposes `GET /api/review/conflicts/{statement_id}` returning `{duplicates: [...], transfer_pairs: [...]}` consumed by ConflictResolutionDialog <!-- epic-owned: horizontal -->
-- [x] **AC16.13.14** Contract test asserts response schema and 404 when statement_id not found <!-- epic-owned: horizontal -->
+> (AC16.13.13 removed and AC16.13.14 removed, canonical: migrated to the `reconciliation` package roadmap as `AC-reconciliation.conflict-resolution.4` and `.5`, #1821 Wave A)
 
 **Priority**: P0 — Stage 1 monolith is the #1 reported UX blocker.
 **Estimated effort**: 6-8 days frontend (component split + inline edit + conflict dialog + mobile nav) + 2-3 days backend (conflicts endpoint) + 1-2 days test infra.

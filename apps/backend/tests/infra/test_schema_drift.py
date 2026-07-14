@@ -4,7 +4,7 @@ ROOT = Path(__file__).resolve().parents[4]
 
 
 def test_missing_migrations_check():
-    """
+    """AC-meta.phase0.6:
     Guardrail: PR CI owns Alembic migration drift proof against real Postgres.
 
     Backend unit tests use isolated schemas for speed. The hard schema contract

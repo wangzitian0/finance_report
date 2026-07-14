@@ -26,7 +26,7 @@ def test_AC23_1_4_cli_module_and_help_smoke() -> None:
 
 
 def test_AC23_1_4_api_key_read_from_env_not_args() -> None:
-    """AC24.1.4: the API key comes from OPENPANEL_API_KEY, never a CLI flag."""
+    """AC-observability.openpanel-query.1: AC24.1.4: the API key comes from OPENPANEL_API_KEY, never a CLI flag."""
     assert "--api-key" not in cli.build_parser().format_help()
     assert cli.resolve_api_key({"OPENPANEL_API_KEY": "abc"}) == "abc"
     with pytest.raises(SystemExit):

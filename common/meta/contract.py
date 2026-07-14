@@ -1044,5 +1044,271 @@ CONTRACT = PackageContract(
             priority="P2",
             status="done",
         ),
+        # ── group phase0: EPIC-001 phase-0 scaffolding + EPIC-007 static infra
+        # contracts (was EPIC-001 AC1.1.1-1.6.1 and EPIC-007 AC7.8.1-3, #1821
+        # Wave A horizontal move). AC1.4.1/AC7.8.2 shared one test (Docker
+        # compose integrity) and are merged into `.11`; AC1.5.1/AC7.8.3 shared
+        # one test (moon project graph contract) and are merged into `.15`. ──
+        ACRecord(
+            id="AC-meta.phase0.1",
+            statement="Root moon.yml exists.",
+            test="apps/backend/tests/infra/test_epic_001_contracts.py::test_epic_001_moon_workspace_configs_exist",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.2",
+            statement="apps/backend/moon.yml exists.",
+            test="apps/backend/tests/infra/test_epic_001_contracts.py::test_epic_001_moon_workspace_configs_exist",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.3",
+            statement="apps/frontend/moon.yml exists.",
+            test="apps/backend/tests/infra/test_epic_001_contracts.py::test_epic_001_moon_workspace_configs_exist",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.4",
+            statement="tools/infra.sh local infrastructure command exists.",
+            test="apps/backend/tests/infra/test_epic_001_contracts.py::test_epic_001_moon_workspace_configs_exist",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.5",
+            statement="The FastAPI project structure exists (apps/backend skeleton).",
+            test="apps/backend/tests/infra/test_epic_001_contracts.py::test_epic_001_backend_skeleton_exists",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.6",
+            statement=(
+                "SQLAlchemy + Alembic config is valid: no missing migrations "
+                "and a single Alembic head (also proven by test_single_head "
+                "in apps/backend/tests/infra/test_migrations.py)."
+            ),
+            test="apps/backend/tests/infra/test_schema_drift.py::test_missing_migrations_check",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.7",
+            statement="Next.js App Router files exist.",
+            test="apps/backend/tests/infra/test_epic_001_contracts.py::test_epic_001_frontend_skeleton_exists",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.8",
+            statement="TailwindCSS configuration exists.",
+            test="apps/backend/tests/infra/test_epic_001_contracts.py::test_epic_001_frontend_skeleton_exists",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.9",
+            statement="The ping-pong page exists.",
+            test="apps/backend/tests/infra/test_epic_001_contracts.py::test_epic_001_frontend_skeleton_exists",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.10",
+            statement="TanStack Query dependency is configured.",
+            test="apps/backend/tests/infra/test_epic_001_contracts.py::test_epic_001_frontend_uses_react_query",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.11",
+            statement="docker-compose.yml integrity is valid.",
+            # was AC1.4.1 + AC7.8.2 (identical test, merged)
+            test="apps/backend/tests/infra/test_ci_config.py::test_docker_compose_integrity",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.12",
+            statement="PostgreSQL 15 container is defined in docker-compose.",
+            test="apps/backend/tests/infra/test_epic_001_contracts.py::test_epic_001_docker_compose_contract",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.13",
+            statement="Redis 7 container is defined in docker-compose.",
+            test="apps/backend/tests/infra/test_epic_001_contracts.py::test_epic_001_docker_compose_contract",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.14",
+            statement="Data volumes are configured in docker-compose.",
+            test="apps/backend/tests/infra/test_epic_001_contracts.py::test_epic_001_docker_compose_contract",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.15",
+            statement=(
+                "The Moon project graph contract is declared in repo config "
+                "(backend startup command path resolves through it)."
+            ),
+            # was AC1.5.1 + AC7.8.3 (identical test, merged)
+            test="apps/backend/tests/infra/test_ci_config.py::test_moon_project_graph_static_contract",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.16",
+            statement="The frontend startup command path is valid (Moon task configured).",
+            test="apps/backend/tests/infra/test_epic_001_contracts.py::test_epic_001_frontend_moon_tasks_configured",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.17",
+            statement="The backend ping-pong endpoint toggles state correctly.",
+            test="apps/backend/tests/infra/test_main.py::test_ping_toggle",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.18",
+            statement="Pre-commit hooks configuration is present.",
+            test="apps/backend/tests/infra/test_epic_001_contracts.py::test_epic_001_pre_commit_config_exists",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.19",
+            statement=(
+                "The Moon local CLI contract is versioned without a PR CI "
+                "bootstrap dependency."
+            ),
+            # was AC7.8.1
+            test="apps/backend/tests/infra/test_ci_config.py::test_moon_cli_static_contract_available",
+            priority="P1",
+            status="done",
+        ),
+        # ── group framework-neutrality: canonical ledger/reporting stay
+        # US/HK-framework-neutral, policy decisions belong to EPIC-020 (was
+        # EPIC-002 AC2.18.1 and EPIC-005 AC5.14.1, #1821 Wave A horizontal
+        # move) ──
+        ACRecord(
+            id="AC-meta.framework-neutrality.1",
+            statement=(
+                "Canonical ledger documentation declares that double-entry "
+                "posting is framework-neutral and that US/HK policy "
+                "decisions belong to EPIC-020."
+            ),
+            # was AC2.18.1
+            test=(
+                "tests/tooling/test_framework_reporting_epic_contract.py"
+                "::test_AC2_18_1_canonical_ledger_is_framework_neutral"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.framework-neutrality.2",
+            statement=(
+                "Reporting docs declare that EPIC-005 consumes framework "
+                "policy results for US/HK package output and does not own "
+                "framework-specific accounting decisions."
+            ),
+            # was AC5.14.1
+            test=(
+                "tests/tooling/test_framework_reporting_epic_contract.py"
+                "::test_AC5_14_1_reporting_assembles_framework_policy_results_only"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # NOTE: the "archive-residual" rows (was EPIC-004 AC4.8.1, EPIC-008
+        # AC8.13.61-.63, EPIC-012 AC12.25.1) were evaluated for this move and
+        # REJECTED: their own proving test
+        # (tests/tooling/test_archive_residual_epic_ownership.py) asserts
+        # that the AC id and description text are still literally present
+        # IN THE EPIC DOC (e.g. `assert "AC8.13.61" in epic`) — the test's
+        # entire purpose is confirming the row stays EPIC-owned. Deleting the
+        # row to migrate it would make the test that is supposed to prove
+        # "this is intentionally still EPIC-owned" fail. These rows are left
+        # untouched as `horizontal` (#1821 Wave A).
+        # ── group transaction-boundary: cross-service commit/flush boundary
+        # discipline (was EPIC-012 AC12.26.1-.3, #1821 Wave A horizontal
+        # move) ──
+        ACRecord(
+            id="AC-meta.transaction-boundary.1",
+            statement=(
+                "Service modules only call commit() in documented "
+                "background-task or streaming-response transaction-boundary "
+                "exceptions."
+            ),
+            # was AC12.26.1
+            test=(
+                "apps/backend/tests/infra/test_transaction_boundaries.py"
+                "::test_service_commit_calls_are_documented_boundary_exceptions"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.transaction-boundary.2",
+            statement=(
+                "Market-data persistence helpers use flush() so router/"
+                "report/scheduler boundaries can roll back or commit "
+                "atomically."
+            ),
+            # was AC12.26.2
+            test=(
+                "apps/backend/tests/infra/test_transaction_boundaries.py"
+                "::test_market_data_fx_persistence_is_rollbackable_until_boundary_commit"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.transaction-boundary.3",
+            statement=(
+                "Market-data HTTP sync endpoints finalize service writes at "
+                "the router boundary."
+            ),
+            # was AC12.26.3
+            test=(
+                "apps/backend/tests/infra/test_transaction_boundaries.py"
+                "::test_market_data_sync_endpoint_commits_service_writes_at_router_boundary"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group workflow-events: workflow-events SSOT documents frontend
+        # surfaces (was EPIC-019 AC19.3.8, #1821 Wave A horizontal move) ──
+        ACRecord(
+            id="AC-meta.workflow-events.1",
+            statement=(
+                "The workflow notification UI contract is documented in the "
+                "workflow-events SSOT and EPIC-019."
+            ),
+            # was AC19.3.8
+            test=(
+                "apps/backend/tests/workflow/test_workflow_events.py"
+                "::test_AC19_3_8_workflow_notification_ssot_documents_frontend_surfaces"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # NOTE: AC26.9.1 (the CODE/LLM band classifier's own test) was
+        # evaluated for this move and REJECTED, confirming EPIC-026's own
+        # documented reasoning: its proving test is itself marker-laden (it
+        # exercises cassette detection), so `check_authority_reconcile.py`
+        # detects the roadmap as CODE-LED (1 LLM-classified test) the moment
+        # it is added to `meta`'s roadmap, tripping meta's declared
+        # CODE-ONLY tier (verified: `code=88 llm=1` after a trial add).
+        # AC26.9.1 is left untouched as `horizontal` (#1821 Wave A).
     ],
 )

@@ -1,5 +1,9 @@
 # EPIC-010: Observability Logging (vendor-neutral OTEL)
 
+<!-- epic-file: design-doc -->
+<!-- 0 AC rows by design (#1821 Wave A): the delivered OTEL observability
+     design record; all ACs migrated to common/observability/contract.py. -->
+
 > **Status**: ✅ Complete
 > **Vision Anchor**: `decision-7-tech-stack`
 > **Owner**: Platform / Backend
@@ -111,12 +115,12 @@ Enable production-grade log observability via OpenTelemetry/OTLP, while keeping 
 > rows (were the AC10.5.* group and the AC10.7 group's doc-linkage row)
 > migrated too (migration closeout
 > wave 2, #1663) into the same package roadmap as `AC-observability.17.1`
-> through `.4`. The **non-runtime** rows below stay defined here because they
-> are cross-cutting infra governance, not backend observability: the infra2
-> deploy-template rows (were the AC10.6.* group and AC10.7.6; Vault
-> `secrets.ctmpl` / `compose.yaml` / app README under the `repo/` infra2
-> submodule), and the Dokploy deploy-failure-snapshot tooling row (was
-> AC10.9's retired row).
+> through `.4`. The remaining infra2 deploy-template and deploy-tooling rows
+> migrated too (#1821 Wave A): the AC10.6.* group (Vault `secrets.ctmpl` /
+> `compose.yaml` / app README under the `repo/` infra2 submodule) is now
+> `AC-observability.6.1` through `.4` (its AC10.7 deploy-template row removed
+> as a duplicate of `.1`), and the Dokploy deploy-failure-snapshot tooling
+> row (AC10.9's retired row) is now `AC-observability.9.4`.
 
 Migrated `AC-observability.<g>.<s>` ids (homed in the package roadmap):
 
@@ -160,10 +164,7 @@ Migrated `AC-observability.<g>.<s>` ids (homed in the package roadmap):
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC10.6.1 | OTEL keys in app secrets template | `test_vault_template_exposes_otel_keys_with_safe_quoting()` | `infra/test_observability_contract.py` | P0 | <!-- epic-owned: horizontal -->
-| AC10.6.2 | OTEL keys documented in app README | `test_app_readme_and_compose_document_observability_rollout()` | `infra/test_observability_contract.py` | P0 | <!-- epic-owned: horizontal -->
-| AC10.6.3 | IAC_CONFIG_HASH in compose.yaml | `test_app_readme_and_compose_document_observability_rollout()` | `infra/test_observability_contract.py` | P0 | <!-- epic-owned: horizontal -->
-| AC10.6.4 | Template helpers use printf not default | `test_vault_template_exposes_otel_keys_with_safe_quoting()` | `infra/test_observability_contract.py` | P0 | <!-- epic-owned: horizontal -->
+> (AC10.6.1 removed and AC10.6.2 removed and AC10.6.3 removed and AC10.6.4 removed, canonical: migrated to the `observability` package roadmap as `AC-observability.6.1` through `.4`, #1821 Wave A)
 
 ### AC10.7: Must-Have Acceptance Criteria Traceability — retained doc/infra rows
 
@@ -177,7 +178,7 @@ Migrated `AC-observability.<g>.<s>` ids (homed in the package roadmap):
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC10.7.6 | Vault templates include OTEL keys | `test_vault_template_exposes_otel_keys_with_safe_quoting()` | `infra/test_observability_contract.py` | P0 | <!-- epic-owned: horizontal -->
+> (AC10.7.6 removed with no new roadmap entry — a duplicate of the already-migrated `AC-observability.6.1`, which cites the identical test, #1821 Wave A)
 
 ### AC10.9: Production Observability Runtime Contract — retained deploy-tooling row
 
@@ -190,7 +191,7 @@ Migrated `AC-observability.<g>.<s>` ids (homed in the package roadmap):
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC10.9.5 | RETIRED (App/Infra boundary #876): deploy failure snapshots are infra2-owned end to end — the app ships no Dokploy failure-snapshot tool and never reaches the Dokploy API for platform diagnostics (the app copy was an orphan duplicating infra2's `deploy_failure_snapshot`, which runs inside the deploy_v2 front door). The boundary intent stands: the app builds no observability-backend pivot links {tier:CODE-LED} {proof:property} | `test_AC10_9_5_app_side_snapshot_is_retired()`, `test_AC10_9_5_infra2_owns_deploy_failure_snapshots()` | `tests/tooling/test_dokploy_snapshot_retired.py` | P0 | <!-- epic-owned: horizontal -->
+> (AC10.9.5 removed, canonical: migrated to the `observability` package roadmap as `AC-observability.9.4`, #1821 Wave A)
 
 ## 📏 Acceptance Criteria
 

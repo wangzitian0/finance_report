@@ -125,7 +125,7 @@ triaging issues.
 | AC24.1.1 | The browser OTel module is config-gated (complete no-op until `NEXT_PUBLIC_OTEL_EXPORTER_OTLP_ENDPOINT` is set), non-blocking, idempotent, and swallows SDK errors so it never throws into the app | `otel.test.ts`, `frontendTelemetry.test.tsx` | P1 | <!-- epic-owned: fe-only -->
 | AC24.1.2 | The PII scrub strips query strings and fragments from captured URLs and drops sensitive attributes (emails, amounts, account numbers) before any span is emitted | `otel.test.ts` | P1 | <!-- epic-owned: fe-only -->
 | AC24.1.3 | Uncaught errors (`window.onerror`) and unhandled promise rejections are captured as span exceptions with a scrubbed page URL | `otel.test.ts` | P1 | <!-- epic-owned: fe-only -->
-| AC24.1.4 | The OpenPanel query CLI exists, reads its API key from `OPENPANEL_API_KEY` (never a CLI flag), and supports events/funnels with an `--env` filter | `test_openpanel_query.py` | P1 | <!-- epic-owned: horizontal -->
+> (AC24.1.4 removed, canonical: migrated to the `observability` package roadmap as `AC-observability.openpanel-query.1`, #1821 Wave A)
 
 ### AC24.2: FE Telemetry + Analytics Emission Is Proven by an Automated Test
 

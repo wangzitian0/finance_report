@@ -254,7 +254,7 @@ recognition, measurement, or classification rules.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.14.1 | Reporting docs declare that EPIC-005 consumes framework policy results for US/HK package output and does not own framework-specific accounting decisions | `test_AC5_14_1_reporting_assembles_framework_policy_results_only` | `tests/tooling/test_framework_reporting_epic_contract.py` | P0 | <!-- epic-owned: horizontal -->
+> (AC5.14.1 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.framework-neutrality.2`, #1821 Wave A)
 
 ### AC5.15: Backend Reporting Integration Journey
 
