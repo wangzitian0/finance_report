@@ -27,25 +27,37 @@ from pathlib import Path
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-OUTCOMES_PATH = REPO_ROOT / "common" / "testing" / "data" / "critical-proof-outcomes.yaml"
-REGISTRY_PATH = REPO_ROOT / "docs" / "ac_registry.yaml"
+OUTCOMES_PATH = (
+    REPO_ROOT / "common" / "testing" / "data" / "critical-proof-outcomes.yaml"
+)
 BASELINE_PATH = Path(__file__).parent / "critical-value-proof-baseline.json"
 
 VALUE_ASSERTING_KINDS = {"exact", "property", "invariant", "eval"}
 
 
-def _registry_proof_kinds() -> dict[str, str | None]:
-    reg = yaml.safe_load(REGISTRY_PATH.read_text(encoding="utf-8"))
-    entries = reg.get("acs", reg) if isinstance(reg, dict) else reg
+def _registry_proof_kinds(repo_root: Path = REPO_ROOT) -> dict[str, str | None]:
+    """EXPLICIT ``proof_kind`` declarations per AC id, from the LIVE source.
+
+    ``docs/ac_registry.yaml`` is a checked-in pointer stub (no per-AC entries),
+    so reading it here silently degraded this ratchet to "no AC is
+    value-asserting" — exactly the silent-safety-net failure #1826 targets.
+    Read the authoritative source instead: every package contract roadmap's
+    ``ACRecord(proof_kind=...)`` literal (AST scan via the registry
+    generator's own reader, no contract import).
+
+    Deliberately EXPLICIT-only: a tier's canonical default kind (e.g.
+    CODE-ONLY -> exact) is a vocabulary fallback, not evidence that the
+    backing test asserts a business value — counting defaults would clear the
+    whole critical-value baseline for free the moment a package declares a
+    tier. Legacy EPIC-owned ACs (no package home yet) are likewise counted as
+    non-value-asserting until they migrate — over-strict fails safe.
+    """
+    from common.meta.extension.generate_ac_registry import _roadmap_acs_from_contract
+
     kinds: dict[str, str | None] = {}
-    if isinstance(entries, dict):
-        for ac_id, v in entries.items():
-            if isinstance(v, dict):
-                kinds[ac_id] = v.get("proof_kind")
-    elif isinstance(entries, list):
-        for v in entries:
-            if isinstance(v, dict) and "id" in v:
-                kinds[str(v["id"])] = v.get("proof_kind")
+    for contract_path in sorted((repo_root / "common").glob("*/contract.py")):
+        for record in _roadmap_acs_from_contract(contract_path):
+            kinds[record["id"]] = record["proof_kind"]
     return kinds
 
 

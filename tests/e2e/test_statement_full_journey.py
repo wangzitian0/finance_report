@@ -10,17 +10,20 @@ Run from repo root: pytest -m e2e tests/e2e/
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
 import tempfile
 import time
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
+from common.testing import money_amount
 from common.testing.ac_proof import ac_proof
 from conftest import fail_or_skip_ai_ocr_gate
-from pdf_fixture_paths import generated_pdf_path
+from pdf_fixture_paths import committed_fixture_pdf
 from playwright.async_api import Page, expect
 
 APP_URL: str = os.getenv("APP_URL", "http://localhost:3000")
@@ -30,6 +33,24 @@ PARSING_TIMEOUT_MS: int = int(os.getenv("PARSING_TIMEOUT_MS", "120000"))
 
 INSTITUTION_LABEL: str = "DBS E2E Full Journey"
 PARSED_STATUS_BADGE_RE = re.compile(r"^(Parsed|Ready to review)$", re.I)
+
+# Ground truth for the COMMITTED DBS fixture (#1826 G-value-oracle): the
+# expected-JSON pair describes the PDF's true source values, independent of
+# whatever the extraction pipeline outputs. The balances below are hand-pinned
+# from that source document; test_dbs_ground_truth_balances_stay_pinned locks
+# them against the committed expected file and re-sums its event chain.
+DBS_EXPECTED_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "common"
+    / "testing"
+    / "fixtures"
+    / "pdf"
+    / "generated"
+    / "dbs_statement_fixture_expected.json"
+)
+DBS_EXPECTED_OPENING_BALANCE = Decimal("12000.00")
+DBS_EXPECTED_CLOSING_BALANCE = Decimal("15242.05")
+DBS_EXPECTED_CURRENCY = "SGD"
 
 
 def _get_url(path: str) -> str:
@@ -52,13 +73,43 @@ def test_parsed_status_badge_pattern_accepts_user_facing_ready_to_review_label()
 
 
 def _get_dbs_pdf_path() -> Path:
-    """Locate (or generate) the DBS mock PDF via the shared path helper.
+    """The COMMITTED DBS fixture PDF (paired with its expected-JSON file).
 
-    The previous inline copy globbed the retired tools/_lib/pdf_fixtures
-    output path, so the runtime-generation fallback wrote files the glob
-    never saw and the journey silently skipped (#1541 fixture migration).
+    Runtime-generated builds (``generated_pdf_path``) have randomized
+    amounts, so no ground truth can exist for them — the committed pair is
+    what lets this journey grade extraction against exact expected values
+    (#1826 G-value-oracle; same pattern as the GXS graded journey).
     """
-    return generated_pdf_path("dbs")
+    return committed_fixture_pdf("dbs_statement_fixture.pdf")
+
+
+def test_dbs_ground_truth_balances_stay_pinned() -> None:
+    """AC-extraction.813.11: EPIC-003 EPIC-004 EPIC-008 EPIC-013 EPIC-016 EPIC-018.
+
+    The hand-pinned oracle constants match the committed ground-truth file,
+    and its event chain re-sums exactly from opening to closing balance —
+    the oracle is internally consistent before any implementation runs
+    (#1826 G-value-oracle).
+    """
+    expected = json.loads(DBS_EXPECTED_PATH.read_text(encoding="utf-8"))
+    stmt = expected["statement"]
+    assert Decimal(stmt["opening_balance"]) == DBS_EXPECTED_OPENING_BALANCE
+    assert Decimal(stmt["closing_balance"]) == DBS_EXPECTED_CLOSING_BALANCE
+    assert stmt["currency"] == DBS_EXPECTED_CURRENCY
+    assert stmt["balance_validated"] is True
+
+    signed_movement = sum(
+        (
+            Decimal(event["amount"])
+            if event["direction"] == "IN"
+            else -Decimal(event["amount"])
+            for event in expected["events"]
+        ),
+        Decimal("0.00"),
+    )
+    assert (
+        DBS_EXPECTED_OPENING_BALANCE + signed_movement == DBS_EXPECTED_CLOSING_BALANCE
+    )
 
 
 def _unique_pdf_copy(src: Path) -> Path:
@@ -250,6 +301,73 @@ async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> No
     await expect(
         approved_row.locator("span.badge", has_text=re.compile(r"^Approved$", re.I))
     ).to_be_visible(timeout=15_000)
+
+    # === #1826 G-value-oracle: grade extraction against the committed ground
+    # truth (source-ledger-report-traceability must carry the NUMBER, not just
+    # the flow). Same committed-pair grading pattern as the GXS journey. ===
+    expected = json.loads(DBS_EXPECTED_PATH.read_text(encoding="utf-8"))
+    expected_stmt = expected["statement"]
+    detail_resp = await page.request.get(_get_url(f"/api/statements/{statement_id}"))
+    assert detail_resp.status == 200, (
+        f"statement detail failed: {detail_resp.status} {await detail_resp.text()}"
+    )
+    detail = await detail_resp.json()
+    assert money_amount(detail["opening_balance"]) == DBS_EXPECTED_OPENING_BALANCE, (
+        f"DBS opening balance drifted from ground truth: "
+        f"{detail['opening_balance']} != {DBS_EXPECTED_OPENING_BALANCE}"
+    )
+    assert money_amount(detail["closing_balance"]) == DBS_EXPECTED_CLOSING_BALANCE, (
+        f"DBS closing balance drifted from ground truth: "
+        f"{detail['closing_balance']} != {DBS_EXPECTED_CLOSING_BALANCE}"
+    )
+    assert (detail.get("currency") or "").upper() == DBS_EXPECTED_CURRENCY
+    assert len(detail.get("transactions") or []) >= len(expected["events"]), (
+        f"extracted {len(detail.get('transactions') or [])} transactions, ground "
+        f"truth has {len(expected['events'])}"
+    )
+    account_id = detail.get("account_id")
+    assert account_id, (
+        f"approved statement has no linked account (auto-create failed): {detail}"
+    )
+
+    # Record the statement's true opening balance through the product's guided
+    # flow, then the balance sheet must report the ACTUAL closing balance —
+    # not the period's net flow (the 2026-06-29 staging P0 class).
+    opening_resp = await page.request.post(
+        _get_url("/api/accounts/opening-balances"),
+        data=json.dumps(
+            {
+                "entry_date": expected_stmt["period_start"],
+                "balances": {account_id: str(DBS_EXPECTED_OPENING_BALANCE)},
+                "currency": DBS_EXPECTED_CURRENCY,
+                "memo": "DBS E2E opening balance",
+            }
+        ),
+        headers={"Content-Type": "application/json"},
+    )
+    assert opening_resp.status == 201, (
+        f"opening-balance posting failed: {opening_resp.status} "
+        f"{await opening_resp.text()}"
+    )
+
+    report_resp = await page.request.get(
+        _get_url(
+            f"/api/reports/balance-sheet?as_of_date={expected_stmt['period_end']}"
+            f"&currency={DBS_EXPECTED_CURRENCY}"
+        )
+    )
+    assert report_resp.status == 200, (
+        f"balance sheet failed: {report_resp.status} {await report_resp.text()}"
+    )
+    report = await report_resp.json()
+    assert money_amount(report["total_assets"]) == DBS_EXPECTED_CLOSING_BALANCE, (
+        f"balance sheet must report the statement's actual closing balance "
+        f"({DBS_EXPECTED_CLOSING_BALANCE}), got {report['total_assets']} — "
+        f"net-flow-instead-of-balance regression"
+    )
+    assert report.get("opening_balance_warnings") == []
+    assert money_amount(report["equation_delta"]) == Decimal("0.00")
+    assert report["is_balanced"] is True
 
     # === AC8.13.5: Balance sheet report loads ===
     await page.goto(_get_url("/reports/balance-sheet"))

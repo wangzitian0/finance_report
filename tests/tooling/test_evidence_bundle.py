@@ -344,3 +344,6 @@ def test_gate_map_job_ids_exist_in_the_live_ci_workflow() -> None:
 def test_gate_map_has_no_duplicate_job_entries() -> None:
     jobs = [entry["job"] for entry in eb.GATE_MAP]
     assert len(jobs) == len(set(jobs))
+
+
+# --------------------------------------------------------------------------- #

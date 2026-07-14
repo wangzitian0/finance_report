@@ -2049,7 +2049,13 @@ CONTRACT = PackageContract(
             id="AC-extraction.813.10",
             statement=(
                 "Multi-brokerage PDF upload → position import → latest portfolio "
-                "value. Was EPIC-008 AC8.13.10."
+                "value, with value consistency asserted (#1826 G-value-oracle): "
+                "every imported holding carries a positive quantity and market "
+                "value, and the balance sheet's market-valuation lines cover the "
+                "holdings' total market value. The generated PDFs randomize "
+                "amounts, so the exact-Decimal oracle for this proof lives in "
+                "the blocking twin (AC-portfolio.valuation.1). Was EPIC-008 "
+                "AC8.13.10."
             ),
             test=(
                 "tests/e2e/test_brokerage_upload_to_portfolio_value.py"
@@ -2057,6 +2063,8 @@ CONTRACT = PackageContract(
             ),
             priority="P0",
             status="done",
+            # LLM-LED lane: consistency property over a randomized live parse.
+            proof_kind="property",
         ),
         ACRecord(
             id="AC-extraction.813.11",
@@ -2065,9 +2073,12 @@ CONTRACT = PackageContract(
                 "explicit OCR model selection, poll until parsed (failing/skipping "
                 "on a rejected AI/OCR status rather than hanging), the detail page "
                 "shows transactions, Start Review -> Approve transitions the "
-                "statement to approved, and the balance sheet report loads "
-                "afterward. Was EPIC-008 AC8.13.1-.5 / .7 (migration closeout wave "
-                "3, #1663)."
+                "statement to approved, and the journey grades extraction against "
+                "the committed fixture's ground truth (#1826 G-value-oracle): "
+                "opening/closing balances equal the expected-JSON values exactly, "
+                "and after the guided opening-balance flow the balance sheet "
+                "reports the ACTUAL closing balance, not the period's net flow. "
+                "Was EPIC-008 AC8.13.1-.5 / .7 (migration closeout wave 3, #1663)."
             ),
             test=(
                 "tests/e2e/test_statement_full_journey.py"

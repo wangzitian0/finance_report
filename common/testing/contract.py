@@ -1705,7 +1705,8 @@ CONTRACT = PackageContract(
             id="AC-testing.product-gates.3",
             statement=(
                 "Stage 1 review auto-posts journal entries from the deterministic "
-                "fixture (Was EPIC-008 AC8.13.29)."
+                "fixture: entry count and memos equal the fixture rows exactly "
+                "(Was EPIC-008 AC8.13.29)."
             ),
             test=(
                 "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py"
@@ -1713,12 +1714,16 @@ CONTRACT = PackageContract(
             ),
             priority="P0",
             status="done",
+            # #1826 G-value-oracle: the e2e asserts exact posted-entry counts and
+            # memo sets against the fixture's own rows (independent oracle).
+            proof_kind="exact",
         ),
         ACRecord(
             id="AC-testing.product-gates.4",
             statement=(
                 "Reconciliation rerun is idempotent and Stage 2 run review reaches a "
-                "cleared completion state (Was EPIC-008 AC8.13.30)."
+                "cleared completion state, with exact match/auto-accept counts and "
+                "a 100.0 match rate (Was EPIC-008 AC8.13.30)."
             ),
             test=(
                 "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py"
@@ -1726,6 +1731,9 @@ CONTRACT = PackageContract(
             ),
             priority="P0",
             status="done",
+            # #1826 G-value-oracle: run results and reconciliation stats are
+            # asserted as exact payload equality, not just status flags.
+            proof_kind="exact",
         ),
         ACRecord(
             id="AC-testing.product-gates.5",
@@ -1744,8 +1752,10 @@ CONTRACT = PackageContract(
             id="AC-testing.product-gates.6",
             statement=(
                 "Dashboard, balance sheet, income statement, and cash-flow totals "
-                "exactly match the deterministic upload fixture (Was EPIC-008 "
-                "AC8.13.32)."
+                "exactly match the deterministic upload fixture, per-bucket line "
+                "sums re-add to every pinned total, and the per-row category "
+                "amounts stay pinned to hand-derived fixture ground truth (Was "
+                "EPIC-008 AC8.13.32)."
             ),
             test=(
                 "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py"
@@ -1753,12 +1763,19 @@ CONTRACT = PackageContract(
             ),
             priority="P0",
             status="done",
+            # #1826 G-value-oracle: exact-Decimal report totals + bucket line
+            # sums + per-category pins derived from the source CSV fixture.
+            proof_kind="exact",
         ),
         ACRecord(
             id="AC-testing.product-gates.7",
             statement=(
-                "Four-asset as-of net worth golden path runs as a critical fresh-user "
-                "post-merge E2E (Was EPIC-008 AC8.13.42)."
+                "Four-asset as-of net worth golden path proves exact values: bank "
+                "cash, property, mortgage, and ESOP components equal hand-derived "
+                "fixture constants; the brokerage market value reaches reporting "
+                "exactly; the accounting equation closes to zero; and the "
+                "net-worth timeseries reports the same exact as-of numbers and "
+                "currency as the balance sheet (Was EPIC-008 AC8.13.42)."
             ),
             test=(
                 "tests/e2e/test_four_asset_net_worth_golden_path.py"
@@ -1766,6 +1783,10 @@ CONTRACT = PackageContract(
             ),
             priority="P0",
             status="done",
+            # #1826 G-value-oracle: exact component pins + cross-surface value
+            # agreement; "property" (not "exact") because the brokerage leg is
+            # measured from a randomized fixture and locked by consistency.
+            proof_kind="property",
         ),
         ACRecord(
             id="AC-testing.product-gates.8",
@@ -1782,6 +1803,8 @@ CONTRACT = PackageContract(
             ),
             priority="P0",
             status="done",
+            # #1826 G-value-oracle: fixture contract pins exact Decimal expected outputs.
+            proof_kind="exact",
         ),
         ACRecord(
             id="AC-testing.product-gates.9",
@@ -1796,6 +1819,8 @@ CONTRACT = PackageContract(
             ),
             priority="P0",
             status="done",
+            # #1826 G-value-oracle: e2e consumes the fixture contract, never inline constants.
+            proof_kind="exact",
         ),
         ACRecord(
             id="AC-testing.product-gates.10",
@@ -1824,6 +1849,8 @@ CONTRACT = PackageContract(
             ),
             priority="P0",
             status="done",
+            # #1826 G-value-oracle: brokerage/dividend/market-price outputs pinned as Decimals.
+            proof_kind="exact",
         ),
         ACRecord(
             id="AC-testing.product-gates.12",
@@ -1838,6 +1865,8 @@ CONTRACT = PackageContract(
             ),
             priority="P0",
             status="done",
+            # #1826 G-value-oracle: e2e consumes the audit-grade expected outputs.
+            proof_kind="exact",
         ),
         # ── group preview: PR-preview lifecycle & Dokploy semantics
         # (was EPIC-008 AC8.13 subset), migration closeout, #1663 /
@@ -2952,6 +2981,26 @@ CONTRACT = PackageContract(
                 "::test_AC8_13_155_pr_preview_reclaim_is_dispatched_to_infra2"
             ),
             priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        # ── group evidence: shared CI/nightly evidence bundle (#1690) —
+        # baseline-aging meta-lock (#1826 G-no-silent-baseline-aging) ──
+        ACRecord(
+            id="AC-testing.evidence.1",
+            statement=(
+                "Every ratchet baseline/exceptions/floor file under common/ and "
+                "docs/ is glob-discovered into the evidence bundle with its entry "
+                "count and last-shrink date: a NEW baseline file appears with zero "
+                "code changes, and omitting a discovered one from the bundle reds "
+                "the tooling gate, so frozen debt stays visible instead of eternal "
+                "(#1826)."
+            ),
+            test=(
+                "tests/tooling/test_evidence_bundle_baseline_inventory.py"
+                "::test_AC_testing_evidence_1_inventory_discovers_new_baselines_by_glob"
+            ),
+            priority="P0",
             status="done",
             proof_kind="property",
         ),

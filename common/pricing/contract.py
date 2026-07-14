@@ -552,6 +552,28 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        ACRecord(
+            id="AC-pricing.marketdata.13",
+            statement=(
+                "The real FX/market-data path proves an exact converted VALUE "
+                "in the blocking lane (#1826 G-fx-real-path): with lazy fetch "
+                "explicitly enabled and genuinely recorded provider payloads "
+                "replayed at the provider-response seam (no live network), a "
+                "stale USD position is repriced through report-time freshness "
+                "sync -> provider parse -> persistence -> FX conversion, and "
+                "the SGD balance sheet carries the exact hand-derived "
+                "converted amount (2 x 165.279999 USD x 1.345000 -> 444.60)."
+            ),
+            test=(
+                "apps/backend/tests/pricing/market_data/test_recorded_provider_price_path.py"
+                "::test_recorded_provider_fx_and_stock_path_converts_exactly"
+            ),
+            priority="P0",
+            status="done",
+            # #1826 G-fx-real-path / G-value-oracle: deterministic recorded
+            # replay with an exact-Decimal converted-value oracle.
+            proof_kind="exact",
+        ),
         # ── group manualvaluation: append-only manual valuation facts,
         # Axiom A (was EPIC-011 AC11.19, migration closeout continuation,
         # #1663 / #1710) ──
