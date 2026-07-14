@@ -27,11 +27,12 @@ describe("auth utilities", () => {
     });
 
     describe("getUserId", () => {
-        // AC-identity.fe-auth.1 / AC-identity.fe-auth.2
+        // AC-identity.fe-auth.1
         it("AC16.5.1/AC16.5.2 returns null when key is not set", () => {
             expect(getUserId()).toBeNull();
         });
 
+        // AC-identity.fe-auth.2
         it("AC16.5.2 returns stored userId from localStorage", () => {
             localStorage.setItem("finance_user_id", "user-123");
             expect(getUserId()).toBe("user-123");
@@ -97,11 +98,11 @@ describe("auth utilities", () => {
     });
 
     describe("isAuthenticated", () => {
-        // AC-identity.fe-auth.5
         it("AC16.5.5 returns false when no local session marker is stored", () => {
             expect(isAuthenticated()).toBe(false);
         });
 
+        // AC-identity.fe-auth.5
         it("AC16.5.5 returns true when non-secret user session metadata exists", () => {
             setUser("user-456", "alice@example.com", "valid-token");
             expect(isAuthenticated()).toBe(true);

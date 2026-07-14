@@ -1558,25 +1558,41 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-reconciliation.fe-stage2-review.3",
+            # Anchor corrected (#1821 Wave B CR fix): was pointing at the
+            # loading-state test; the real error-fallback+retry proof is a
+            # separate, more specific test in the same file.
             statement="Stage 2 review queue shows failure fallback and supports retry",
             # was AC16.17.1
-            test="apps/frontend/src/__tests__/reviewQueuePage.test.tsx::AC16.17.1 AC16.11.32 shows loading feedback while the Stage 2 queue is pending via the shared review harness",
+            test="apps/frontend/src/__tests__/reviewQueuePage.test.tsx::AC16.17.1 shows an error fallback and retries the Stage 2 queue fetch",
             priority="P2",
             status="done",
         ),
         ACRecord(
             id="AC-reconciliation.fe-stage2-review.4",
+            # Anchor corrected (#1821 Wave B CR fix): was pointing at the
+            # empty-states test; the real unresolved-checks-disable-approval
+            # proof is a separate, more specific test in the same file.
             statement="Stage 2 review queue indicates unresolved checks and disables batch approval",
             # was AC16.17.2
-            test="apps/frontend/src/__tests__/reviewQueuePage.test.tsx::AC16.17.2 renders empty states when no checks or matches remain",
+            test="apps/frontend/src/__tests__/reviewQueuePage.test.tsx::AC16.2.3/AC16.17.2 disables batch approval while unresolved checks remain",
             priority="P2",
             status="done",
         ),
         ACRecord(
             id="AC-reconciliation.fe-stage2-review.5",
-            statement="Stage 2 review queue performs batch reject and approve API workflows",
+            # Anchor + statement corrected (#1821 Wave B CR fix): the original
+            # statement claimed both reject and approve, but the anchored test
+            # only proved approve (and duplicated the exact test already cited
+            # by AC-reconciliation.fe-stage2-review.1 / was AC16.2.4). Narrowed
+            # to the reject half, proven by its own distinct test; the approve
+            # half stays proven by fe-stage2-review.1.
+            statement=(
+                "Stage 2 review queue rejects selected matches through the "
+                "batch rejection API (the batch approve half of this "
+                "workflow is proven by AC-reconciliation.fe-stage2-review.1)"
+            ),
             # was AC16.17.3
-            test="apps/frontend/src/__tests__/reviewQueuePage.test.tsx::AC16.2.4/AC16.17.3 approves selected matches through the batch approval API",
+            test="apps/frontend/src/__tests__/reviewQueuePage.test.tsx::AC16.17.3 rejects selected matches through the batch rejection API",
             priority="P2",
             status="done",
         ),

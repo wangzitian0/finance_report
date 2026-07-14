@@ -3503,7 +3503,16 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-extraction.fe-stage1-review.5",
-            statement="Statement detail page approve and reject actions call corresponding APIs",
+            # Corrected from the stale EPIC-016 row text (#1821 Wave B CR fix):
+            # the real current behavior is the opposite of the original claim
+            # -- the statement detail page is read-only, with no Approve/Reject
+            # buttons and no approve/reject API calls (correction happens via
+            # reject + re-parse on the statement review page instead).
+            statement=(
+                "Statement detail page is read-only for approval actions: no "
+                "Approve/Reject buttons render, and it never calls the "
+                "approve/reject APIs"
+            ),
             # was AC16.18.2
             test="apps/frontend/src/__tests__/statementDetailPage.test.tsx::AC16.18.2 detail page is read-only for approval actions",
             priority="P2",

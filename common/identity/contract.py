@@ -488,13 +488,20 @@ CONTRACT = PackageContract(
             id="AC-identity.fe-auth.2",
             statement="`getUserId` returns stored `userId` from `localStorage`",
             # was AC16.5.2
-            test="apps/frontend/src/__tests__/auth.test.ts::AC16.5.1/AC16.5.2 returns null when key is not set",
+            test="apps/frontend/src/__tests__/auth.test.ts::AC16.5.2 returns stored userId from localStorage",
             priority="P2",
             status="done",
         ),
         ACRecord(
             id="AC-identity.fe-auth.3",
-            statement="`setUser` stores `userId`, `email`, and optional `token`",
+            # Corrected from the stale EPIC-016 row text (#1821 Wave B CR fix):
+            # the real current behavior never persists a bearer token -- the
+            # login response's token is explicitly cleared/dropped, not stored.
+            statement=(
+                "`setUser` stores `userId` and `email` in `localStorage`; it "
+                "never persists a bearer token, even when the caller provides "
+                "one (a stale token is actively cleared)"
+            ),
             # was AC16.5.3
             test="apps/frontend/src/__tests__/auth.test.ts::AC16.5.3 stores userId and email",
             priority="P2",
@@ -510,9 +517,15 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-identity.fe-auth.5",
-            statement="`isAuthenticated` returns `false` when no token, `true` when token exists",
+            # Corrected from the stale EPIC-016 row text (#1821 Wave B CR fix):
+            # isAuthenticated checks a stored userId session marker, not a
+            # token; anchored to the true-case test per the statement's claim.
+            statement=(
+                "`isAuthenticated` returns `true` when a local session marker "
+                "(userId) is stored, `false` when none exists"
+            ),
             # was AC16.5.5
-            test="apps/frontend/src/__tests__/auth.test.ts::AC16.5.5 returns false when no local session marker is stored",
+            test="apps/frontend/src/__tests__/auth.test.ts::AC16.5.5 returns true when non-secret user session metadata exists",
             priority="P2",
             status="done",
         ),
