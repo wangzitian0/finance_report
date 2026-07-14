@@ -136,6 +136,60 @@ async def test_AC10_8_2_parse_checkpoints_and_failure_logs_are_structured(db, te
     assert failed["error_type"] == "ExtractionError"
     assert failed["safe_error_message"] == "provider failed without raw document content"
     assert "secret source bytes" not in failed["safe_error_message"]
+    # AC-observability.11.4 (#1655): the original #1652 regression — this expected,
+    # user-input parse failure must never ALSO log at ERROR. The assertion above
+    # only proved the WARNING fired; it did not prove ERROR stayed silent, so a
+    # future re-add of a logger.error() on this exact path would have passed
+    # undetected.
+    mock_error.assert_not_called()
+
+
+async def test_AC_observability_11_4_expected_parse_failure_never_logs_at_error(db, test_user, monkeypatch):
+    """AC-observability.11.4 (#1655, generalizes #1652, finance_report#1851 G3).
+
+    A statement that fails extraction because the source document itself is bad
+    (not a system fault) is an expected, routine outcome — logging it at ERROR
+    is exactly what let one bad user upload fire a zero-threshold critical Lark
+    alert before #1652 shipped. This is a dedicated contract test (distinct from
+    AC-observability.8.2's "logs are structured" assertion above) so the
+    log-level contract itself — not just log content — has its own named,
+    discoverable proof.
+    """
+    user_id = test_user.id
+    statement = await _create_statement(db, user_id, file_hash="contract-hash")
+    mock_error = MagicMock()
+    mock_warning = MagicMock()
+
+    async def fail_parse_document(*_args, **_kwargs):
+        raise ExtractionError("could not read a bank statement from this document")
+
+    monkeypatch.setattr(statement_parsing.logger, "error", mock_error)
+    monkeypatch.setattr(statement_parsing.logger, "warning", mock_warning)
+    monkeypatch.setattr(statement_parsing.ExtractionService, "parse_document", fail_parse_document)
+    monkeypatch.setattr(
+        statement_parsing.StorageService,
+        "generate_presigned_url",
+        lambda *_args, **_kwargs: "https://example.com/contract.pdf",
+    )
+
+    await parse_statement_background(
+        statement_id=statement.id,
+        filename="contract.pdf",
+        institution="DBS",
+        user_id=user_id,
+        account_id=None,
+        file_hash="contract-hash",
+        storage_key="statements/contract.pdf",
+        content=b"%PDF-1.7",
+        model="glm-5.1",
+        session_maker=create_session_maker_from_db(db),
+        request_id="req-contract",
+    )
+
+    mock_error.assert_not_called()
+    assert any(call.args[0] == "statement.parse.failed" for call in mock_warning.call_args_list), (
+        "expected the routine statement.parse.failed WARNING to fire"
+    )
 
 
 async def test_AC10_8_3_brokerage_review_routing_audit_checkpoints(db, test_user, monkeypatch):

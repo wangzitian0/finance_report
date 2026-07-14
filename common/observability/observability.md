@@ -39,7 +39,7 @@
 | Runtime contract | `apps/backend/src/observability/runtime.py` | Redacted observability status for health checks, startup logs, and alert triage |
 | Env settings | `apps/backend/src/config.py` | OTEL environment variables |
 | Env documentation | `.env.example` | Developer guidance for OTEL variables |
-| Infra reference | `repo/docs/ssot/ops.observability.md`, `repo/docs/ssot/ops.alerting.md` | the observability backend platform, collector, alert rule, and Lark delivery details |
+| Infra reference | `repo/docs/ssot/ops.observability.md` | the observability backend platform, collector, alert rule, and Lark delivery details |
 
 ---
 
@@ -205,9 +205,31 @@ uv run python -m invoke alerting.shared.ensure-log-error-rule \
 ```
 
 The shared owner for the observability backend channels, bridge deployment, and Lark delivery is
-`repo/docs/ssot/ops.alerting.md`. This application must not duplicate that
+`repo/docs/ssot/ops.observability.md`. This application must not duplicate that
 automation; it only declares the service metadata and emits structured logs that
 the shared rule can query.
+
+#### 7.2.1 Log-level semantics (AC-observability.11.4, #1655)
+
+**打点是 app 的事情,要求准;告警是 infra 的事情,风格可以不同.** (2026-07-07
+decision.) This application owns instrumentation *accuracy* — which level a
+given outcome logs at; infra2 owns alerting *policy* — rules, thresholds,
+dedup, routing, runbooks. Changing an alert must be an infra2-only deploy; it
+must never require an app release.
+
+| Level | Meaning | Example |
+|---|---|---|
+| `ERROR` | An actionable system fault — something *this service* is responsible for fixing (a crashed dependency, an unhandled exception, data corruption risk). Feeds `FinanceReportBackendErrorLogs` (zero-threshold — every ERROR is expected to be individually actionable). | Unresolvable statement id after rollback; unhandled exception in a request handler. |
+| `WARNING` | An expected, routine, or user-input-driven outcome — nothing for an operator to act on. A bad upload, a degraded-but-recovered fallback, an unmet-but-tracked business condition. | A statement fails extraction because the source document is unparseable (`statement.parse.failed`); auth/rate-limit rejection. |
+
+Before #1652, a routine statement-parse failure (bad user upload — always
+expected to happen at some rate) logged at `ERROR`, so a single bad upload
+fired the zero-threshold `FinanceReportBackendErrorLogs` alert. The correct
+signal for *volume* of routine parse failures is the dedicated business metric
++ its own threshold rule (`FinanceReportStatementParseFailureSpike`, >3/15m —
+see `alert_rules.json`), not the ERROR-log channel. `AC-observability.11.4`
+locks this in behaviorally (an expected parse failure must never also log at
+ERROR) so the next regression is caught at PR time, not as Lark noise.
 
 ### 7.3 Manual Verification
 
@@ -230,7 +252,7 @@ metadata used by the shared alert rule.
 
 Use the runtime incident SSOT for missing logs, wrong environment labels,
 502/503 responses, route failures, stale deployed versions, and flapping
-recovery proof. Use `repo/docs/ssot/ops.alerting.md` for shared the observability backend alert
+recovery proof. Use `repo/docs/ssot/ops.observability.md` for shared the observability backend alert
 automation, bridge delivery, and Lark channel behavior.
 
 ---
