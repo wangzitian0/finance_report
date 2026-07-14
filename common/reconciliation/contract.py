@@ -1492,5 +1492,44 @@ CONTRACT = PackageContract(
             priority="P2",
             status="done",
         ),
+        # ── group conflict-resolution (continued): the conflicts endpoint's
+        # response contract (was EPIC-016 AC16.13.13/AC16.13.14, #1821 Wave
+        # A horizontal move) ──
+        ACRecord(
+            id="AC-reconciliation.conflict-resolution.4",
+            statement=(
+                "GET /api/review/conflicts/{statement_id} returns "
+                "{duplicates: [...], transfer_pairs: [...]}, consumed by "
+                "ConflictResolutionDialog."
+            ),
+            # was AC16.13.13
+            test=(
+                "apps/backend/tests/review/test_review_conflicts_router.py"
+                "::test_review_conflicts_returns_duplicate_and_transfer_candidates"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.conflict-resolution.5",
+            statement=(
+                "The conflicts endpoint returns 404 when the statement_id "
+                "is not found."
+            ),
+            # was AC16.13.14
+            test=(
+                "apps/backend/tests/review/test_review_conflicts_router.py"
+                "::test_review_conflicts_returns_404_for_missing_statement"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        # NOTE: AC4.10.3 (CI hard-gates the reconciliation audit thresholds)
+        # was evaluated for the #1821 Wave A horizontal move and REJECTED,
+        # per EPIC-004's own pre-existing "Retained" note: its proving test
+        # asserts a literal substring of the EPIC file's own text
+        # ("10,000-transaction runtime targets"), making it a doc-governance
+        # self-check, not reconciliation package behavior. Left as
+        # `horizontal` in EPIC-004.
     ],
 )

@@ -19,7 +19,7 @@ async def test_review_conflicts_returns_duplicate_and_transfer_candidates(
     db: AsyncSession,
     test_user,
 ):
-    """AC16.13.13: GET /review/conflicts/{statement_id} returns duplicates and transfer_pairs."""
+    """AC-reconciliation.conflict-resolution.4: AC16.13.13: GET /review/conflicts/{statement_id} returns duplicates and transfer_pairs."""
     account = Account(
         user_id=test_user.id,
         name=f"Conflict Account {uuid4()}",
@@ -107,7 +107,7 @@ async def test_review_conflicts_returns_duplicate_and_transfer_candidates(
 
 
 async def test_review_conflicts_returns_404_for_missing_statement(client: AsyncClient):
-    """AC16.13.14: Conflicts endpoint returns 404 when statement_id does not exist."""
+    """AC-reconciliation.conflict-resolution.5: AC16.13.14: Conflicts endpoint returns 404 when statement_id does not exist."""
     response = await client.get("/review/conflicts/00000000-0000-0000-0000-000000000000")
 
     assert response.status_code == 404

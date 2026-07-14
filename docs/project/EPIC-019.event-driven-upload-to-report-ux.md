@@ -330,7 +330,7 @@ workflow state exists.
 | AC19.3.5 | Event inbox groups events by workflow session timeline, keeps blocked/action-required events prominent, and supports read/archive actions and direct action links | `workflowSurfaces.test.tsx` | P0 | <!-- epic-owned: fe-only -->
 | AC19.3.6 | Dashboard status feed renders primary state, report readiness, recent automation, blocker/action severity, and an empty no-action state without raw audit-log noise | `workflowSurfaces.test.tsx`, `dashboardPage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
 | AC19.3.7 | Desktop and mobile Playwright smoke covers the workflow badge/inbox/feed without layout overflow | `workflow-notifications.spec.ts` | P0 | <!-- epic-owned: fe-only -->
-| AC19.3.8 | Workflow notification UI contract is documented in the workflow-events SSOT and EPIC-019 | `test_AC19_3_8_workflow_notification_ssot_documents_frontend_surfaces` | P0 | <!-- epic-owned: horizontal -->
+> (AC19.3.8 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.workflow-events.1`, #1821 Wave A)
 
 ### AC19.4 — Upload-First Entry Surface
 

@@ -288,9 +288,7 @@ diverging across the codebase and across ends.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC12.26.1 | Service modules only call `commit()` in documented background-task or streaming-response transaction-boundary exceptions | `test_service_commit_calls_are_documented_boundary_exceptions` | `infra/test_transaction_boundaries.py` | P0 | <!-- epic-owned: horizontal -->
-| AC12.26.2 | Market-data persistence helpers use `flush()` so router/report/scheduler boundaries can roll back or commit atomically | `test_market_data_fx_persistence_is_rollbackable_until_boundary_commit` | `infra/test_transaction_boundaries.py` | P0 | <!-- epic-owned: horizontal -->
-| AC12.26.3 | Market-data HTTP sync endpoints finalize service writes at the router boundary | `test_market_data_sync_endpoint_commits_service_writes_at_router_boundary` | `infra/test_transaction_boundaries.py` | P0 | <!-- epic-owned: horizontal -->
+> (AC12.26.1 removed and AC12.26.2 removed and AC12.26.3 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.transaction-boundary.1` through `.3`, #1821 Wave A)
 
 ## 📊 Progress Tracking
 

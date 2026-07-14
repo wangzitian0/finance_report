@@ -209,7 +209,7 @@ async def test_AC18_11_2_atomic_source_links_reject_missing_and_cross_user_docum
     db: AsyncSession,
     test_user: User,
 ) -> None:
-    """AC18.11.2: Trusted atomic source-document anchors are normalized and tenant-scoped."""
+    """AC-audit.anchor-invariants.1: AC18.11.2: Trusted atomic source-document anchors are normalized and tenant-scoped."""
     other_user = await _make_user(db, email_prefix="anchor-doc-other")
     transaction = await _make_atomic_transaction(db, test_user.id)
     position = await _make_atomic_position(db, test_user.id)
@@ -264,7 +264,7 @@ async def test_AC18_11_3_evidence_edges_reject_cross_user_endpoints(
     db: AsyncSession,
     test_user: User,
 ) -> None:
-    """AC18.11.3: Evidence Graph edges cannot connect nodes across tenants."""
+    """AC-audit.anchor-invariants.2: AC18.11.3: Evidence Graph edges cannot connect nodes across tenants."""
     other_user = await _make_user(db, email_prefix="anchor-edge-other")
     source = EvidenceNode(
         user_id=test_user.id,
@@ -371,7 +371,7 @@ async def test_AC18_11_4_account_references_reject_cross_user_accounts(
     db: AsyncSession,
     test_user: User,
 ) -> None:
-    """AC18.11.4: Account-bearing facts reject cross-user account references."""
+    """AC-audit.anchor-invariants.3: AC18.11.4: Account-bearing facts reject cross-user account references."""
     test_user_id = test_user.id
     other_user = await _make_user(db, email_prefix="anchor-account-other")
     own_account = await _make_account(db, test_user_id)
@@ -436,7 +436,7 @@ async def test_AC18_11_5_unresolved_legacy_source_ids_remain_blockers(
     db: AsyncSession,
     test_user: User,
 ) -> None:
-    """AC18.11.5: Unresolved legacy source UUIDs remain blockers, not trusted anchors."""
+    """AC-audit.anchor-invariants.4: AC18.11.5: Unresolved legacy source UUIDs remain blockers, not trusted anchors."""
     entry = JournalEntry(
         user_id=test_user.id,
         entry_date=date(2026, 3, 1),
@@ -478,7 +478,7 @@ async def test_AC18_11_5_unresolved_legacy_source_ids_remain_blockers(
 
 
 def test_AC18_11_6_migration_preflights_and_risk_contract_are_declared() -> None:
-    """AC18.11.6: Migration declares compatibility preflights, backfills, and risk metadata."""
+    """AC-audit.anchor-invariants.5: AC18.11.6: Migration declares compatibility preflights, backfills, and risk metadata."""
     migration_source = MIGRATION_PATH.read_text()
     risk_source = RISK_PATH.read_text()
 

@@ -42,6 +42,7 @@ def _secret_scan_step(job: dict) -> dict:
 
 
 def test_AC7_18_1_container_images_job_has_build_context_secret_scan() -> None:
+    """AC-testing.secret-scan.2: AC7.18.1: container-images job runs a build-context secret scan, fail-closed."""
     job = _container_images_job()
     step = _secret_scan_step(job)
     run = str(step.get("run", ""))

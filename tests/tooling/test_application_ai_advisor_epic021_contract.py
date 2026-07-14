@@ -31,7 +31,7 @@ def test_AC21_1_1_ai_advisor_is_application_layer_contract() -> None:
 
 
 def test_AC21_1_2_scale_and_confidence_work_stays_in_existing_epics() -> None:
-    """AC21.1.2: Scale coverage and confidence work is routed to existing owned EPICs."""
+    """AC-advisor.application-layer.1: AC21.1.2: Scale coverage and confidence work is routed to existing owned EPICs."""
     epic = read(EPIC_021)
     ssot = read(AI_SSOT)
     root_readme = read("README.md")

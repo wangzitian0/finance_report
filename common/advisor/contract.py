@@ -1130,5 +1130,32 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        # NOTE: AC21.1.1 was evaluated for this move and REJECTED: its own
+        # proving test (test_AC21_1_1_ai_advisor_is_application_layer_contract)
+        # hard-asserts `registry_entries["AC21.1.1"]["epic_name"] ==
+        # "application-ai-advisor"` — a package-scoped id's registry entry
+        # gets `epic_name="pkg-advisor"` instead (see
+        # generate_ac_registry.py's `_package_roadmap_acs`), so migrating
+        # would require also editing this assertion, not a pure "move".
+        # AC21.1.1 is left untouched as `horizontal` (#1821 Wave A).
+        # ── group application-layer: the advisor is a read-only application
+        # layer, not the source of record (was EPIC-021 AC21.1.2, #1821 Wave
+        # A horizontal move) ──
+        ACRecord(
+            id="AC-advisor.application-layer.1",
+            statement=(
+                "Scale coverage and confidence work is explicitly routed to "
+                "existing EPICs and issues instead of being re-owned by "
+                "EPIC-021."
+            ),
+            # was AC21.1.2
+            test=(
+                "tests/tooling/test_application_ai_advisor_epic021_contract.py"
+                "::test_AC21_1_2_scale_and_confidence_work_stays_in_existing_epics"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
     ],
 )

@@ -96,7 +96,7 @@ def test_observability_ssot_and_env_docs_are_linked() -> None:
 
 
 def test_vault_template_exposes_otel_keys_with_safe_quoting() -> None:
-    """AC10.6.1 AC10.6.4 AC10.7.6: Vault template renders OTEL keys safely."""
+    """AC-observability.6.1 AC-observability.6.4: AC10.6.1 AC10.6.4 AC10.7.6: Vault template renders OTEL keys safely."""
     template = _read(APP_IAC / "secrets.ctmpl")
 
     for key in (
@@ -111,7 +111,7 @@ def test_vault_template_exposes_otel_keys_with_safe_quoting() -> None:
 
 
 def test_app_readme_and_compose_document_observability_rollout() -> None:
-    """AC10.6.2 AC10.6.3: App docs and compose expose OTEL rollout controls."""
+    """AC-observability.6.2 AC-observability.6.3: AC10.6.2 AC10.6.3: App docs and compose expose OTEL rollout controls."""
     readme = _read(APP_IAC / "README.md")
     compose = _read(APP_IAC / "compose.yaml")
 
