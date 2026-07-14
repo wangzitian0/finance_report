@@ -3650,5 +3650,45 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── group 1833: auto-approve posts the chain-validated opening
+        # balance so the balance sheet shows balances, not net flow (#1833) ──
+        ACRecord(
+            id="AC-extraction.1833.1",
+            statement=(
+                "When a high-confidence statement auto-approves (its "
+                "running-balance chain reconciled), the extracted opening "
+                "balance is posted as a guided opening-balance entry against "
+                "the system Opening Balance Equity account, so the asset "
+                "account's ledger balance equals the statement's closing "
+                "balance — never the period net flow. A zero/absent opening "
+                "balance posts no opening entry; non-base currencies and "
+                "other post_opening_balance_entry rejections skip fail-soft "
+                "without disturbing the posted transactions."
+            ),
+            test=(
+                "apps/backend/tests/integration/test_statement_opening_balance_auto_post.py"
+                "::test_AC_extraction_1833_1_auto_approve_posts_validated_opening_balance"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.1833.2",
+            statement=(
+                "A follow-up period import for the same account posts its "
+                "transactions but never a second opening-balance entry: "
+                "prior posted activity before the new period start makes "
+                "the guided opening post reject, and that rejection is "
+                "absorbed fail-soft."
+            ),
+            test=(
+                "apps/backend/tests/integration/test_statement_opening_balance_auto_post.py"
+                "::test_AC_extraction_1833_2_second_import_does_not_duplicate_opening_balance"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
     ],
 )

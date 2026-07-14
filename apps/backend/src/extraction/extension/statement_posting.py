@@ -20,7 +20,10 @@ from src.extraction.extension.statement_validation import approve_statement, res
 from src.extraction.extension.transaction_classification import classify_by_effective_policy
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
-from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus
+from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus, ValidationError
+from src.observability import get_logger
+
+logger = get_logger(__name__)
 
 HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD = 85
 
@@ -227,6 +230,55 @@ async def validate_statement_period_unique(
         )
 
 
+async def try_auto_post_statement_opening_balance(
+    db: AsyncSession,
+    statement: StatementSummary,
+    user_id: UUID,
+) -> bool:
+    """Post the statement's chain-validated opening balance as a guided opening entry (#1833).
+
+    Auto-approval already trusted the extracted opening balance to the same standard
+    it trusted the transactions (the running-balance chain reconciled), so the
+    starting position is posted against the system Opening Balance Equity account —
+    otherwise the account's ledger balance is the period net flow, not the closing
+    balance, and the balance sheet headline is wrong until a manual fix.
+
+    Fail-soft by design: ``post_opening_balance_entry`` rejects non-base currencies,
+    non-positive amounts, and accounts with prior activity (a follow-up month's
+    import). Any such rejection skips the opening entry without disturbing the
+    already-posted transactions.
+    """
+    from src.ledger import post_opening_balance_entry
+
+    opening_balance = statement.opening_balance
+    if (
+        opening_balance is None
+        or opening_balance <= 0
+        or statement.period_start is None
+        or statement.account_id is None
+    ):
+        return False
+
+    try:
+        async with db.begin_nested():
+            await post_opening_balance_entry(
+                db,
+                user_id,
+                entry_date=statement.period_start,
+                balances={statement.account_id: opening_balance},
+                currency=normalize_currency_code(statement.currency or ""),
+                memo="Opening balance (statement import)",
+            )
+        return True
+    except (ValidationError, ValueError) as exc:
+        logger.info(
+            "statement.opening_balance.auto_post_skipped",
+            statement_id=str(statement.id),
+            reason=str(exc)[:200],
+        )
+        return False
+
+
 async def try_auto_approve_high_confidence_statement(
     db: AsyncSession,
     statement_id: UUID,
@@ -249,7 +301,6 @@ async def try_auto_approve_high_confidence_statement(
             approved = await approve_statement(db, statement_id, user_id)
             created_count = await auto_create_posted_entries_for_statement(db, approved, user_id)
             await db.flush()
-        return created_count
     except ValueError as exc:
         refreshed = await db.get(StatementSummary, statement_id)
         if refreshed is not None:
@@ -258,3 +309,7 @@ async def try_auto_approve_high_confidence_statement(
             refreshed.validation_error = str(exc)[:500]
             await db.flush()
         return 0
+
+    if created_count:
+        await try_auto_post_statement_opening_balance(db, statement, user_id)
+    return created_count
