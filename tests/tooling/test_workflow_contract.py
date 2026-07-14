@@ -59,7 +59,6 @@ def _write_infra2_workflow_set(target_root: Path) -> None:
 
 def test_AC7_15_1_real_repo_passes_the_workflow_contract() -> None:
     """AC-testing.governance.11: AC7.15.1: The real CI/deploy SSOT matches the live workflow contract."""
-    """AC7.15.1: The real CI/deploy SSOT matches the live workflow contract."""
     assert contract.run_contract(ROOT) == 0
 
 
