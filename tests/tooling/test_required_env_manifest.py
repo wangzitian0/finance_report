@@ -86,6 +86,41 @@ def test_AC_runtime_guard_proofs_12_every_vault_field_reaches_manifest_and_env_e
         assert entry["field"] == live_by_key[entry["env"]]["field"]
 
 
+def test_write_mode_emits_the_manifest_artifact(tmp_path, monkeypatch):
+    """The generator's write mode materializes the manifest next to the other
+    generated env artifacts, byte-identical to the rendered form (so `--check`
+    and write can never disagree)."""
+    # ROOT_DIR only feeds the relative-path prints here; BACKEND_DIR (used to
+    # load Settings) was bound at import time and stays real.
+    monkeypatch.setattr(gen, "ROOT_DIR", tmp_path)
+    monkeypatch.setattr(gen, "ENV_EXAMPLE_PATH", tmp_path / ".env.example")
+    monkeypatch.setattr(
+        gen, "ENV_REFERENCE_DOC_PATH", tmp_path / "env-reference.generated.md"
+    )
+    monkeypatch.setattr(
+        gen, "REQUIRED_ENV_MANIFEST_PATH", tmp_path / "required-env.generated.json"
+    )
+    monkeypatch.setattr(sys, "argv", ["generate_env_reference.py"])
+
+    assert gen.main() == 0
+
+    written = (tmp_path / "required-env.generated.json").read_text(encoding="utf-8")
+    assert written == gen.render_required_env_manifest(gen.collect_backend_fields())
+    assert json.loads(written)["fields"]
+
+
+def test_check_mode_reds_on_stale_manifest(tmp_path, monkeypatch, capsys):
+    """`--check` exits 1 (with a diff) when the committed manifest is stale —
+    the CLI form of the drift gate (red-team path, permanently locked)."""
+    stale = tmp_path / "required-env.generated.json"
+    stale.write_text('{"fields": []}\n', encoding="utf-8")
+    monkeypatch.setattr(gen, "REQUIRED_ENV_MANIFEST_PATH", stale)
+    monkeypatch.setattr(sys, "argv", ["generate_env_reference.py", "--check"])
+
+    assert gen.main() == 1
+    assert "required-env.generated.json" in capsys.readouterr().out
+
+
 def test_manifest_carries_the_consumer_contract_fields():
     """Each manifest entry carries what infra2's template check needs: the
     config field name, the canonical env key, aliases, vault tagging, and
