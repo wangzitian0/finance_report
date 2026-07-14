@@ -1711,8 +1711,12 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-testing.product-gates.7",
             statement=(
-                "Four-asset as-of net worth golden path runs as a critical fresh-user "
-                "post-merge E2E (Was EPIC-008 AC8.13.42)."
+                "Four-asset as-of net worth golden path proves exact values: bank "
+                "cash, property, mortgage, and ESOP components equal hand-derived "
+                "fixture constants; the brokerage market value reaches reporting "
+                "exactly; the accounting equation closes to zero; and the "
+                "net-worth timeseries reports the same exact as-of numbers and "
+                "currency as the balance sheet (Was EPIC-008 AC8.13.42)."
             ),
             test=(
                 "tests/e2e/test_four_asset_net_worth_golden_path.py"
@@ -1720,6 +1724,10 @@ CONTRACT = PackageContract(
             ),
             priority="P0",
             status="done",
+            # #1826 G-value-oracle: exact component pins + cross-surface value
+            # agreement; "property" (not "exact") because the brokerage leg is
+            # measured from a randomized fixture and locked by consistency.
+            proof_kind="property",
         ),
         ACRecord(
             id="AC-testing.product-gates.8",

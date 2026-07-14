@@ -2065,9 +2065,12 @@ CONTRACT = PackageContract(
                 "explicit OCR model selection, poll until parsed (failing/skipping "
                 "on a rejected AI/OCR status rather than hanging), the detail page "
                 "shows transactions, Start Review -> Approve transitions the "
-                "statement to approved, and the balance sheet report loads "
-                "afterward. Was EPIC-008 AC8.13.1-.5 / .7 (migration closeout wave "
-                "3, #1663)."
+                "statement to approved, and the journey grades extraction against "
+                "the committed fixture's ground truth (#1826 G-value-oracle): "
+                "opening/closing balances equal the expected-JSON values exactly, "
+                "and after the guided opening-balance flow the balance sheet "
+                "reports the ACTUAL closing balance, not the period's net flow. "
+                "Was EPIC-008 AC8.13.1-.5 / .7 (migration closeout wave 3, #1663)."
             ),
             test=(
                 "tests/e2e/test_statement_full_journey.py"
