@@ -166,7 +166,7 @@ CHECKS: tuple[Check, ...] = (
     ),
     Check(
         name="transaction-boundary",
-        globs=("apps/backend/src/services/*.py",),
+        globs=("apps/backend/src/extraction/extension/statement_*.py",),
         commands=(
             (
                 PY,

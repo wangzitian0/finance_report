@@ -1,12 +1,14 @@
-"""Injection ports for reads whose owners still live in the app remainder.
+"""Injection ports for reads across a domain boundary the app-boundary gate forbids.
 
-The advisor's bounded read context includes two facts whose owning domain has
-not physically migrated out of ``apps/backend/src/services/`` yet:
+The advisor's bounded read context includes two facts no longer reachable by
+a direct import now that ``apps/backend/src/services/`` is deleted (#1610):
 
-* the observed-FX-pair composer — ``services/market_data_scheduler.py``
-  (cross-domain delivery-layer composition; #1610 absorbs it);
+* the observed-FX-pair composer — ``src.composition.observed_fx_pairs``
+  (cross-domain delivery-layer composition, re-homed from the deleted
+  ``services/market_data_scheduler.py`` to the composition root);
 * windowed FX conversion (used by the annualized-income schedule) —
-  ``services/fx.py`` (also #1610).
+  ``src.pricing.extension.fx.convert_amount`` (pricing's published surface,
+  re-homed from the deleted ``services/fx.py``).
 
 (The reporting summary trio, report-package readiness, and the income bucket
 classifier were originally ported here too, but #1666 folded their owner —
@@ -14,14 +16,12 @@ classifier were originally ported here too, but #1666 folded their owner —
 this PR was in flight; the advisor now imports them directly from that root
 instead, so those three ports were removed.)
 
-A carved package may not import ``src.services.*`` (the app-boundary gate is
-shrink-only), so these two reads are inverted the same way #1676 inverted
-``platform → report_readiness``: the package exposes module-scoped provider
-slots, and the composition root (``src/main.py`` — L4, allowed to import
-everything) wires the real functions at startup; tests wire them via the
-autouse fixture in ``apps/backend/tests/conftest.py``.  When #1610 lands,
-each port collapses into a direct published-root import plus a
-``depends_on`` edge.
+``advisor`` may not import ``src.composition`` or ``src.pricing.*`` directly
+(the app-boundary gate is shrink-only), so these two reads are inverted the
+same way #1676 inverted ``platform → report_readiness``: the package exposes
+module-scoped provider slots, and the composition root (``src/main.py`` —
+L4, allowed to import everything) wires the real functions at startup; tests
+wire them via the autouse fixture in ``apps/backend/tests/conftest.py``.
 """
 
 from __future__ import annotations

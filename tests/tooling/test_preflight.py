@@ -38,9 +38,13 @@ class TestSelectChecks:
         assert "taxonomy-drift" in names
 
     def test_service_edit_selects_format_and_transaction_boundary(self):
+        # apps/backend/src/services/ is retired (#1610/#1666); the watched
+        # commit-boundary files live under extraction/extension/ now.
         names = [
             c.name
-            for c in preflight.select_checks(["apps/backend/src/services/foo.py"])
+            for c in preflight.select_checks(
+                ["apps/backend/src/extraction/extension/statement_parsing.py"]
+            )
         ]
         assert "backend-format" in names
         assert "transaction-boundary" in names

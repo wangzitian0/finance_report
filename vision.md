@@ -271,4 +271,5 @@ owners:
 - **Agent process & governance** → `AGENTS.md` and `docs/agents/`.
 
 Vision changes should be rare and directional. Implementation belongs in
-EPIC -> AC -> test, or in code-owned contracts referenced by `docs/ssot/`.
+contract -> AC -> test, in each concept's owning package `readme.md` /
+`contract.py` routed by `common/meta/data/MANIFEST.yaml`.

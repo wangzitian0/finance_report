@@ -231,7 +231,6 @@ STAGING_AI_OCR_PREFIXES = (
     # its chat path is provider-backed, so it stays a staging AI-OCR trigger.
     "apps/backend/src/advisor",
     "apps/backend/src/extraction",
-    "apps/backend/src/services/statement",
     "apps/backend/src/routers/ai",
     "apps/backend/src/routers/statements",
     "common/testing/fixtures/pdf/data/",
