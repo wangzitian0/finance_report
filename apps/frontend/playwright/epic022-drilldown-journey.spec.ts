@@ -87,6 +87,7 @@ test.describe("AC22.4.6 report drill-down to source journey", () => {
     { label: "desktop", width: 1440, height: 1000 },
     { label: "mobile", width: 390, height: 844 },
   ]) {
+    // AC-reporting.fe-ia-reports.8
     test(`${label}: a Balance Sheet amount drills to its contributing line and on to the source document`, async ({
       page,
     }) => {

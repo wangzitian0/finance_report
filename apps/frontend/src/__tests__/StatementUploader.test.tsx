@@ -374,6 +374,7 @@ describe("AC3.5.3 StatementUploader model selection", () => {
     expect(apiUpload).not.toHaveBeenCalled();
   });
 
+  // AC-extraction.fe-remainder-extraction.4
   it("AC19.15.3 statement uploader rejects csv and csv uploader rejects non-csv, each enforcing its own kind's extensions", async () => {
     vi.mocked(fetchAiModels).mockResolvedValue({
       default_model: "google/gemini-3-flash-preview",
@@ -452,6 +453,7 @@ describe("AC3.5.3 StatementUploader model selection", () => {
     expect(await screen.findByText("statement.png")).toBeInTheDocument();
   });
 
+  // AC-observability.fe-ia-analytics.2
   it("AC22.18.3 tracks UPLOAD_STARTED and UPLOAD_SUCCEEDED with non-PII props on success", async () => {
     vi.mocked(fetchAiModels).mockResolvedValue({
       default_model: "google/gemini-3-flash-preview",

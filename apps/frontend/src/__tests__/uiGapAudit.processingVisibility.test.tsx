@@ -62,6 +62,7 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
     });
   });
 
+  // AC-ledger.fe-processing.1
   it('AC15.7.2 / AC15.7.8 — ProcessingSummaryCard renders fields and current balance warning', async () => {
     mockedApiFetch.mockResolvedValue({
       pending_count: 3,
@@ -82,6 +83,7 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
     });
   });
 
+  // AC-ledger.fe-processing.2
   it('AC15.7.3 — /processing listing renders pending transfers', async () => {
     mockedApiFetch.mockResolvedValue({
       items: [
@@ -122,6 +124,7 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
     });
   });
 
+  // AC-ledger.fe-processing.3
   it('AC15.7.4 — warning badge for >7 day pending', async () => {
     mockedApiFetch.mockResolvedValue({
       items: [
@@ -180,6 +183,7 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
     expect(backLink).toHaveAttribute("href", "/attention");
   });
 
+  // AC-ledger.fe-processing.4
   it('AC15.7.5 — ProcessingSummaryCard mount test', async () => {
     mockedApiFetch.mockImplementation((path) => {
       if (path === '/api/accounts/processing/summary') {

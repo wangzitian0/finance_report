@@ -130,7 +130,7 @@ async def _make_statement(
 
 def test_AC19_1_1_workflow_event_ssot_registers_manifest_owner() -> None:
     """AC-platform.30.1: AC19.1.1: workflow event SSOT is registered as a single manifest owner."""
-    manifest_path = ROOT_DIR / "docs" / "ssot" / "MANIFEST.yaml"
+    manifest_path = ROOT_DIR / "common" / "meta" / "data" / "MANIFEST.yaml"
     with open(manifest_path, encoding="utf-8") as fh:
         manifest = fh.read()
 

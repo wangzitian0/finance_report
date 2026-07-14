@@ -15,7 +15,7 @@
 #     instead of re-stating the mechanism.
 #
 # Validated by: tests/tooling/test_delivery_gates_contract.py
-# Owner concept in docs/ssot/MANIFEST.yaml: delivery_gate_triggers
+# Owner concept in common/meta/data/MANIFEST.yaml: delivery_gate_triggers
 #
 # trigger values:
 #   pull_request      — synchronous PR check (cannot be outrun by a fast/auto merge)

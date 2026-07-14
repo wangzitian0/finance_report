@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest"
 import { ProvenanceBadge } from "@/components/ui/ProvenanceBadge"
 
 describe("ProvenanceBadge", () => {
+  // AC-portfolio.fe-ia-portfolio.4
   it("AC22.13.2 renders normalized Imported, Manual, and Derived badges", () => {
     render(
       <div>

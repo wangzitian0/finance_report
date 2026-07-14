@@ -19,6 +19,7 @@ from common.meta.extension.governance_report._base import (
     SSOT_FILE_EXCLUDES,
     SSOT_FILE_SUFFIXES,
     _require_yaml,
+    in_ssot_territory,
     yaml,
 )
 from common.meta.extension.governance_report._manifest import (
@@ -71,7 +72,7 @@ def _changed_ssot_files(source_changed_files: list[str]) -> list[str]:
     files: list[str] = []
     for path in source_changed_files:
         rel = Path(path)
-        if len(rel.parts) < 3 or rel.parts[0] != "docs" or rel.parts[1] != "ssot":
+        if len(rel.parts) < 3 or not in_ssot_territory(rel):
             continue
         if rel.name in SSOT_FILE_EXCLUDES or rel.suffix not in SSOT_FILE_SUFFIXES:
             continue
@@ -80,10 +81,7 @@ def _changed_ssot_files(source_changed_files: list[str]) -> list[str]:
 
 
 def _source_has_ssot_change(source_changed_files: list[str]) -> bool:
-    return any(
-        path == "docs/ssot" or path.startswith("docs/ssot/")
-        for path in source_changed_files
-    )
+    return any(in_ssot_territory(Path(path)) for path in source_changed_files)
 
 
 def _load_changed_files(path: Path | None) -> list[str]:

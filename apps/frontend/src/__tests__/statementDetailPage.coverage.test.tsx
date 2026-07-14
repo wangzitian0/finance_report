@@ -119,6 +119,7 @@ describe("StatementDetailPage - coverage additions", () => {
         expect(portfolioLink).toHaveAttribute("href", "/portfolio");
     });
 
+    // AC-portfolio.fe-assets2.13
     it("AC17.8.3 shows actionable import error banner without exposing sensitive data", async () => {
         mockedApi
             .mockResolvedValueOnce(parsedBrokerageStatement as any)
@@ -164,6 +165,7 @@ describe("StatementDetailPage - coverage additions", () => {
         expect(screen.getByText(/\[URL\]/)).toBeInTheDocument();
     });
 
+    // AC-portfolio.fe-assets2.15
     it("AC17.8.5 does not show Import to Portfolio for non-parsed statements", async () => {
         const uploadedStatement = {
             ...parsedBrokerageStatement,

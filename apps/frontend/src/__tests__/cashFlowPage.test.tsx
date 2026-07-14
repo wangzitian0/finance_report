@@ -104,6 +104,7 @@ describe("CashFlowPage", () => {
     expect(reconciliation).toHaveTextContent("✓ Reconciles")
   })
 
+  // AC-reporting.fe-ia-reports.12
   it("AC22.7.3 flags cash that does not tie (beginning + net != ending)", async () => {
     mockedApiFetch.mockResolvedValue({
       start_date: "2026-01-01",
@@ -133,6 +134,7 @@ describe("CashFlowPage", () => {
     expect(reconciliation).not.toHaveTextContent("-")
   })
 
+  // AC-reporting.fe-ia-reports.10
   it("AC22.7.1 drills a cash-flow amount down to its account lineage", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
       if (path.startsWith("/api/reports/cash-flow")) {

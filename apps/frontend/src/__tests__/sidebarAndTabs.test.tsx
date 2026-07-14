@@ -95,6 +95,7 @@ describe("Sidebar and WorkspaceTabs", () => {
   })
 
   // AC-meta.fe-app-shell.8
+  // AC-meta.fe-ia-nav.26
   it("AC16.19.3 AC22.21.2 shows auth-aware sidebar actions mirroring the bottom tabs", async () => {
     render(<Sidebar />)
 
@@ -111,6 +112,7 @@ describe("Sidebar and WorkspaceTabs", () => {
     expect(pushMock).toHaveBeenCalledWith("/login")
   })
 
+  // AC-meta.fe-ia-nav.2
   it("AC22.1.3 links the sidebar brand to Home", async () => {
     render(<Sidebar />)
     const brand = await screen.findByRole("link", { name: /Finance Report home/i })
@@ -118,6 +120,7 @@ describe("Sidebar and WorkspaceTabs", () => {
   })
 
   // AC-meta.fe-app-shell.13
+  // AC-ledger.fe-processing.6
   it("AC15.7.7 AC16.19.12 AC19.6.3 AC19.6.4 AC19.6.5 AC22.21.1 keeps the accounting machinery, sidebar badges and settings out of the sidebar (supersedes the Advanced drawer)", async () => {
     render(<Sidebar />)
 

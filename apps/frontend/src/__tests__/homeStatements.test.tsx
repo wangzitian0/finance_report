@@ -4,6 +4,7 @@ import { render, screen } from "@testing-library/react";
 import { ThreeStatementNav } from "@/components/home/ThreeStatementNav";
 
 describe("Home three-statement entry (EPIC-022 AC22.21.6)", () => {
+    // AC-reporting.fe-ia-reports.26
     it("deep-links each of the three statements to its full report", () => {
         render(<ThreeStatementNav />);
 

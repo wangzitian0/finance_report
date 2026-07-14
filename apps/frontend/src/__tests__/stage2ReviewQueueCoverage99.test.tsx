@@ -259,6 +259,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
   })
 
   // AC-reconciliation.fe-stage2-review.19
+  // AC-testing.fe-coverage.1
   it("AC16.23.4/AC8.13.48 persists Stage 2 filters in the URL while approving after filter changes", async () => {
     navState.pathname = "/review/run/run%201"
     navState.searchParams = new URLSearchParams("check_type=duplicate&status=pending&severity=high,medium&min_score=60")

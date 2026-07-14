@@ -265,7 +265,9 @@ An EPIC is horizontal and a package is vertical, so they do not map 1:1. The
 2. **EPIC deleted** — only once **all** of an EPIC's ACs have been distributed
    into packages (a horizontal-only EPIC is reduced to a thin goal stub or removed).
 3. **SSOT internalized** — the package's owned SSOT doc/concept moves into the
-   package (readme/contract) and is removed from `docs/ssot/` + `MANIFEST.yaml`.
+   package (readme/contract); `docs/ssot/` itself is retired (#1823) — the
+   concept's `owner:` in `common/meta/data/MANIFEST.yaml` points at the
+   package, never a central doc.
 4. **Tests migrated** — tests live with the package; every `invariants[].test` /
    `roadmap[].test` resolves.
 5. **Consumers repointed** — importers use the package's published `interface`

@@ -17,7 +17,7 @@ def test_AC3_9_1_extraction_failed_case_registry_preserves_audit_cases_without_p
         (ROOT / "common/extraction/audit-failed-cases.yaml").read_text()
     )
     epic = (ROOT / "docs/project/EPIC-003.statement-parsing.md").read_text()
-    manifest = (ROOT / "docs/ssot/MANIFEST.yaml").read_text()
+    manifest = (ROOT / "common/meta/data/MANIFEST.yaml").read_text()
 
     assert registry["kind"] == "extraction_audit_failed_case_registry"
     assert registry["owner_epic"] == "EPIC-003"

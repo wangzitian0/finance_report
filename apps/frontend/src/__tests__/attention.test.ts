@@ -42,6 +42,7 @@ const sources: AttentionSources = {
 };
 
 describe("attention model (EPIC-022 AC22.6)", () => {
+  // AC-reconciliation.fe-ia-reconciliation.3
   it("AC22.6.1 folds the open attention sources into one list sorted by ascending confidence", () => {
     const items = buildAttentionItems(sources);
 
@@ -66,6 +67,7 @@ describe("attention model (EPIC-022 AC22.6)", () => {
     expect(byId["processing:stalled"]).toBe("/processing");
   });
 
+  // AC-reconciliation.fe-ia-reconciliation.6
   it("AC22.11.2 every item explains why it was flagged", () => {
     const items = buildAttentionItems(sources);
     const byId = Object.fromEntries(items.map((i) => [i.id, i.reason]));
@@ -90,6 +92,7 @@ describe("attention model (EPIC-022 AC22.6)", () => {
     ).toEqual([]);
   });
 
+  // AC-reconciliation.fe-ia-reconciliation.4
   it("AC22.6.2 summarizes trust into trusted / needs-confirmation / low-confidence buckets", () => {
     const items = buildAttentionItems(sources);
     const summary = summarizeTrust(items, sources.stats);

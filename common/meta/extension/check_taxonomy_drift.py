@@ -95,7 +95,13 @@ def _in_scope(path: str) -> bool:
         return False
     if path.endswith(".md"):
         return True
-    if path.startswith("docs/ssot/") and path.endswith((".yaml", ".yml")):
+    # docs/ssot/ is the legacy convention (now retired, #1823); finance
+    # report's own gate-data yaml (delivery-gates.yaml, MANIFEST.yaml, ...)
+    # relocated to common/meta/data/ in #1822/#1823, so that root is in
+    # scope too — a narrow, exact mirror of what moved.
+    if path.startswith(("docs/ssot/", "common/meta/data/")) and path.endswith(
+        (".yaml", ".yml")
+    ):
         return True
     if path.endswith(".py") and path.startswith(("tests/", "common/", "tools/")):
         return True

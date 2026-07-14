@@ -60,6 +60,7 @@ describe("BalanceSheetPage", () => {
   })
 
   // AC-reporting.fe-report-surfaces.11
+  // AC-reporting.fe-viz-reports.8 / AC-reporting.fe-viz-reports.9
   it("AC16.14.2 / test_AC8_13_48 renders string totals and refetches by date", async () => {
     // AC-reporting.api-vectors.2 (#1827): the mock is the committed
     // backend-owned conformance vector, not hand-written JSON — a

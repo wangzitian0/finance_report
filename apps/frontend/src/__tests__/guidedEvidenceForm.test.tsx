@@ -126,6 +126,7 @@ describe("GuidedEvidenceForm", () => {
 
   // ── AC11.9.6 — required-field validation ────────────────────────────
   describe("AC11.9.6 required-field validation", () => {
+    // AC-portfolio.fe-assets2.3
     it("AC11.9.6 validateEvidenceForm flags missing basis and as-of date", () => {
       const { errors, blockers } = validateEvidenceForm({
         source_class: "esop_rsu_plan",
@@ -266,6 +267,7 @@ describe("GuidedEvidenceForm", () => {
 
   // ── AC11.9.7 — typed manual-valuation persistence ───────────────────
   describe("AC11.9.7 typed persistence", () => {
+    // AC-portfolio.fe-assets2.4
     it("AC11.9.7 valid submit posts a Decimal-safe payload through the typed client", async () => {
       mockedApiFetch.mockImplementation((path: string, options?: RequestInit) => {
         if (path.startsWith("/api/assets/valuation-snapshots") && !options) {
@@ -426,6 +428,7 @@ describe("GuidedEvidenceForm", () => {
 
   // ── AC11.9.8 — manual-trusted disclosure label ──────────────────────
   describe("AC11.9.8 manual-trusted disclosure", () => {
+    // AC-portfolio.fe-assets2.5
     it("AC11.9.8 form shows a manual-trusted badge", () => {
       mockListOnly()
       render(<GuidedEvidenceForm />, { wrapper: createWrapper() })
@@ -470,6 +473,7 @@ describe("GuidedEvidenceForm", () => {
 
   // ── AC11.9.9 — mobile layout ────────────────────────────────────────
   describe("AC11.9.9 mobile layout", () => {
+    // AC-portfolio.fe-assets2.6
     it("AC11.9.9 renders accessible single-column form on a mobile viewport", async () => {
       mockMobileViewport()
       mockListOnly()

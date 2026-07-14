@@ -2342,5 +2342,585 @@ CONTRACT = PackageContract(
             priority="P2",
             status="done",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
+        # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.1",
+            statement="Annualized income KPI dashboard card renders the endpoint's figures (backend endpoint half migrated as `AC-reporting.kpis.1`; calculation ownership migrated to the `reporting` package roadmap as `AC-reporting.annualized-dashboard.1`, #1821 Wave A)",
+            # was AC5.6.4
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC11.8.2/AC11.8.6/AC5.6.4 renders Annualized Income card with the four metric labels",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-ia-reports.1",
+            statement="The authenticated Home renders financial key numbers, an action-required summary, and a quick-upload entry",
+            # was AC22.1.2
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC16.12.3 AC22.1.2 renders KPI, chart, activity, and alert sections when API succeeds",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.2",
+            statement="Personal report package renders the `investment_performance` report section from the EPIC-017 schedule API (backend contract half migrated as `AC-reporting.package-investment.1`)",
+            # was AC5.8.1
+            test="apps/frontend/src/__tests__/portfolioPage.test.tsx::AC5.8.1 renders investment performance report schedule from the schedule API",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-ia-reports.2",
+            statement="The `/reports` front section renders exactly four report blocks: Balance Sheet, Income Statement, Annualized Income, and Reconciliation coverage (reconciliation match rate / unmatched count)",
+            # was AC22.3.1
+            test="apps/frontend/src/__tests__/reportsCockpit.test.tsx::AC22.3.1 leads with exactly the four everyday report blocks and their live figures",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.3",
+            statement="Frontend personal package page renders the contract section IDs and labels from the API contract",
+            # was AC5.9.3
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC5.9.3 renders personal package contract sections from API",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-ia-reports.3",
+            statement='All other reports (Cash Flow, Personal Report Package, and any future reports) live behind a single "More" control, not the front section',
+            # was AC22.3.2
+            test="apps/frontend/src/__tests__/reportsCockpit.test.tsx::AC22.3.2 keeps Cash Flow and the Personal Report Package behind the More control",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.4",
+            statement="Frontend/export contract surfaces stable export format and CSV columns for package consumers",
+            # was AC5.9.4
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC5.9.4 renders export contract metadata",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-ia-reports.4",
+            statement="A reusable lineage drill-down component lets a user click any amount on the Balance Sheet or Income Statement, list the contributing journal lines, and open the full evidence chain (journal line → bank statement transaction → atomic transaction → source document)",
+            # was AC22.3.4
+            test="apps/frontend/src/__tests__/balanceSheetDrilldown.test.tsx::AC22.3.4 lists contributing journal lines and opens the lineage chain for one",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.5",
+            statement="Frontend personal package page renders annualized income totals and restricted treatment from the schedule endpoint",
+            # was AC5.11.2
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC5.11.2 renders annualized income schedule values and restricted treatment",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-ia-reports.5",
+            statement='Accounts/amounts with no contributing lines or no graph-compatible anchor degrade gracefully with an explicit empty/"no source linked" state and no crash',
+            # was AC22.3.5
+            test="apps/frontend/src/__tests__/balanceSheetDrilldown.test.tsx::AC22.3.5 shows an empty state when no transactions contribute",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.6",
+            statement="Frontend personal package page renders notes and disclosure basis from the notes endpoint",
+            # was AC5.12.3
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC5.12.3 renders package notes and disclosure basis",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-ia-reports.6",
+            statement="Desktop and mobile smoke covers the four-block cockpit and a Balance Sheet drill-down open/close without layout overflow",
+            # was AC22.3.6
+            test="apps/frontend/playwright/reports-cockpit.spec.ts::${label} shows the four blocks and drills a balance-sheet amount",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.7",
+            statement="Frontend personal package page renders source, ledger, review, and confidence metadata from the appendix",
+            # was AC5.13.3
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC5.13.3 AC5.16.3 AC5.16.4 renders traceability appendix source, ledger, review, confidence, and identifiers",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-ia-reports.7",
+            statement="The Home (`/`) defaults to a lean view (action-required summary, financial key numbers, quick upload) with heavy analytics/charts behind an opt-in toggle",
+            # was AC22.4.4
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC22.4.4 defaults to a lean Home with heavy analytics behind an opt-in toggle",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.8",
+            statement="Balance sheet page exposes the restricted-holdings include toggle and renders equation component detail (backend default-exclusion half migrated as `AC-reporting.trust-signals.1`; (AC16.14.2 removed, canonical: the same shared test also proves migrated to reporting package roadmap, #1821 Wave B))",
+            # was AC5.16.1
+            test="apps/frontend/src/__tests__/balanceSheetPage.test.tsx::AC16.14.2 / test_AC8_13_48 renders string totals and refetches by date",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-ia-reports.8",
+            statement="E2E: an amount on the Balance Sheet drills down to its contributing journal lines and on to the source document",
+            # was AC22.4.6
+            test="apps/frontend/playwright/epic022-drilldown-journey.spec.ts::${label}: a Balance Sheet amount drills to its contributing line and on to the source document",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.9",
+            statement="Balance sheet, income statement, and cash-flow report pages surface backend `fx_warnings` instead of silently rendering partial totals (backend fx_warnings-preservation half migrated as `AC-reporting.trust-signals.2`)",
+            # was AC5.16.2
+            test="apps/frontend/src/__tests__/balanceSheetPage.test.tsx::AC16.14.2 / test_AC8_13_48 renders string totals and refetches by date",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-ia-reports.9",
+            statement='The Home surfaces a single primary next-action with overlapping reconciliation links de-duplicated, and the Chat page heading reads "AI Advisor"',
+            # was AC22.5.6
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC22.16.2 AC22.5.6 routes the risk radar and unmatched CTA to the unified /attention queue",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.10",
+            statement="Personal report package traceability renders concrete source and ledger identifiers when the appendix provides them",
+            # was AC5.16.3
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC5.13.3 AC5.16.3 AC5.16.4 renders traceability appendix source, ledger, review, confidence, and identifiers",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-ia-reports.10",
+            statement="Clicking a cash-flow amount opens the account-lineage drawer for that account's contributing journal lines (the backend account-anchor half migrated to the `reporting` package roadmap as `AC-reporting.lineage.2`, migration closeout continuation, #1663 / #1716; the frontend drawer half stays here)",
+            # was AC22.7.1
+            test="apps/frontend/src/__tests__/cashFlowPage.test.tsx::AC22.7.1 drills a cash-flow amount down to its account lineage",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.11",
+            statement="Personal report package page exposes an authenticated CSV export action after framework selection, using the package export contract and selected framework ID",
+            # was AC5.17.2
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC5.17.2 downloads package CSV through authenticated apiDownload",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-ia-reports.11",
+            statement="The reusable lineage panel renders evidence nodes as an ordered source-to-report path with per-hop source, confidence, and version badges when those fields are available",
+            # was AC22.7.2
+            test="apps/frontend/src/__tests__/lineagePanel.test.tsx::AC22.7.2 renders an ordered lineage path with source, confidence, and version badges",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.12",
+            statement="The package page shows recent snapshots, can generate a new snapshot, and downloads JSON/CSV from the saved snapshot artifact",
+            # was AC5.19.4
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC5.19.4 generates and downloads package snapshots",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-ia-reports.12",
+            statement="The Cash Flow statement renders a reconciliation that ties beginning cash + net cash flow to ending cash, and explicitly flags when it does not reconcile",
+            # was AC22.7.3
+            test="apps/frontend/src/__tests__/cashFlowPage.test.tsx::AC22.7.3 flags cash that does not tie (beginning + net != ending)",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.13",
+            statement="`ReportPageShell` renders title, description, and toolbar slot, and shows the report body when not loading or errored",
+            # was AC5.33.1
+            test="apps/frontend/src/__tests__/reportPageShell.test.tsx::AC5.33.1 renders title, description, toolbar, and body content",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-ia-reports.13",
+            statement="Desktop and mobile Playwright smoke covers Cash Flow amount drill-down opening the account-lineage drawer without document horizontal overflow",
+            # was AC22.7.4
+            test="apps/frontend/playwright/cash-flow-drilldown.spec.ts::${scenario.name} opens account-lineage drawer from a cash-flow amount",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.14",
+            statement="`ReportPageShell` renders the loading skeleton (and not the body) while `isLoading`",
+            # was AC5.33.2
+            test="apps/frontend/src/__tests__/reportPageShell.test.tsx::AC5.33.2 shows loading skeleton while loading",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-ia-reports.14",
+            statement="The report package titles its sections with human-readable labels (Reporting Framework, Report Readiness, Source Trust, Framework Policy, schedules, Traceability Appendix) rather than developer-facing snake_case identifiers",
+            # was AC22.8.1
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC22.8.1 titles package sections with human labels, not developer snake_case identifiers",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.15",
+            statement="`ReportPageShell` renders the error message with a working Retry action on `isError`",
+            # was AC5.33.3
+            test="apps/frontend/src/__tests__/reportPageShell.test.tsx::AC5.33.3 shows error message and retries on click",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-ia-reports.15",
+            statement="The loaded report package starts with a readable cover sheet and table of contents that expose the package id, selected framework, report date, and linked human section titles",
+            # was AC22.8.2
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC22.8.2 AC22.13.3 renders a readable package cover and linked table of contents",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.16",
+            statement="`ReportToolbar` composes the AI-prompt action, Home link, and CSV export action from its props",
+            # was AC5.33.4
+            test="apps/frontend/src/__tests__/reportToolbar.test.tsx::AC5.33.4 renders AI prompt, home link, and caller-provided export control",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-ia-reports.16",
+            statement="The unselected-framework and framework-package loading states reserve the package layout with guidance or skeleton placeholders, never a blank text-only pre-selection or loading screen",
+            # was AC22.8.3
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC20.6.1 AC22.8.3 AC22.13.3 requires explicit framework selection before loading framework-scoped package output",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.17",
+            statement="`AiPromptAction` links to the chat route with a URL-encoded prompt",
+            # was AC5.33.5
+            test="apps/frontend/src/__tests__/reportToolbar.test.tsx::AC5.33.5 links to chat with url-encoded prompt",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-ia-reports.17",
+            statement="Desktop and mobile Playwright smoke covers report-package framework selection, cover, table of contents, readiness, and no document horizontal overflow",
+            # was AC22.8.4
+            test="apps/frontend/playwright/report-readiness.spec.ts::${scenario.name} renders cover, contents, and readiness before package output",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.18",
+            statement="`DateFilterControl` renders a labelled date input and emits changes",
+            # was AC5.34.1
+            test="apps/frontend/src/__tests__/reportFilters.test.tsx::AC5.34.1 renders labelled date input and emits change",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-ia-reports.18",
+            statement="The Reports cockpit's reconciliation-coverage block stays in the reports context and does not link into the Advanced `/reconciliation` surface",
+            # was AC22.9.1
+            test="apps/frontend/src/__tests__/reportsCockpit.test.tsx::AC22.9.1 keeps the reconciliation-coverage block in the reports context, not linked into Advanced",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.19",
+            statement="`CurrencyFilterControl` renders a labelled currency select with the provided options and emits changes",
+            # was AC5.34.2
+            test="apps/frontend/src/__tests__/reportFilters.test.tsx::AC5.34.2 renders currency options and emits change",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-ia-reports.19",
+            statement='The "Annualized Income" cockpit card\'s destination matches its label (it opens the report package and the caption says so), with no silent label/destination mismatch',
+            # was AC22.9.3
+            test="apps/frontend/src/__tests__/reportsCockpit.test.tsx::AC22.9.3 makes the Annualized Income card's destination match its label",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.20",
+            statement="`useReportFilters` builds a query string from its date and currency state",
+            # was AC5.34.3
+            test="apps/frontend/src/__tests__/useReportFilters.test.ts::AC5.34.3 builds query string from filter state",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-ia-reports.20",
+            statement="The Home getting-started steps link only to everyday surfaces — the first step targets `/upload` and no step links to the accounting-jargon `/accounts` route",
+            # was AC22.16.1
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC22.16.1 AC16.12.17 AC16.12.18 renders first-time onboarding with everyday-surface links only",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.21",
+            statement="`useReportFilters` derives the CSV export path for the given report type",
+            # was AC5.34.4
+            test="apps/frontend/src/__tests__/useReportFilters.test.ts::AC5.34.4 derives csv export path for report type",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-ia-reports.21",
+            statement='The Home presents a single confidence-ranked attention entry point: the analytics reconciliation ("Risk radar") card and the unmatched-alerts call-to-action link to the unified `/attention` queue instead of parallel Advanced reconciliation internals (`/reconciliation`, `/reconciliation/unmatched`, `/review`)',
+            # was AC22.16.2
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC22.16.2 AC22.5.6 routes the risk radar and unmatched CTA to the unified /attention queue",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.22",
+            statement="`useReportFilters` updates the query string when the currency changes",
+            # was AC5.34.5
+            test="apps/frontend/src/__tests__/useReportFilters.test.ts::AC5.34.5 updates query string when currency changes",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-ia-reports.22",
+            statement="`useDashboardData` is composed from independently-usable hooks (`useDashboardSnapshot` for the financial/reconciliation aggregate and `useAssetTrend` for the per-account trend), each callable on its own through the shared `apiFetch` transport, while the aggregate hook preserves its existing public result contract",
+            # was AC22.16.3
+            test="apps/frontend/src/__tests__/useDashboardData.test.ts::AC22.16.3 composes the snapshot and asset-trend hooks, exposing the trend once the balance loads",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.23",
+            statement="`useReportFilters` seeds its initial date/currency state from the URL query params (`as_of_date`/`start_date`/`end_date`/`currency`) with precedence explicit option > URL param > default, so report routes honour deep links",
+            # was AC5.34.6
+            test="apps/frontend/src/__tests__/useReportFilters.test.ts::AC5.34.6 seeds initial filter state from URL query params",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-ia-reports.23",
+            statement="The loaded report package uses reader-facing labels for evidence coverage, reporting basis, and traceability summary, with proof-system labels such as `Deterministic PR`, `Post-merge LLM/OCR`, `Framework Policy`, raw gap codes, raw blocker codes, and policy result IDs kept out of the primary visible layer",
+            # was AC22.19.1
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC22.19.1 renders the loaded package with reader-first labels before proof internals",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.24",
+            statement="`useDashboardData` aggregates the dashboard endpoints over `apiFetch` and exposes a single loading flag",
+            # was AC5.35.1
+            test="apps/frontend/src/__tests__/useDashboardData.test.ts::AC5.35.1 aggregates dashboard endpoints over apiFetch",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-ia-reports.24",
+            statement="Explicit `Audit details` disclosures keep the same source-trust, framework-policy, traceability, blocker, matrix-version, line-id, confidence, review-state, and evidence-reference details keyboard reachable and screen-reader comprehensible",
+            # was AC22.19.2
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC22.19.2 keeps proof and policy internals in keyboard-reachable audit details",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.25",
+            statement="`useDashboardData` normalizes missing balance-sheet / income / annualized fields to safe decimal-string defaults",
+            # was AC5.35.2
+            test="apps/frontend/src/__tests__/useDashboardData.test.ts::AC5.35.2 normalizes missing report fields to defaults",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-ia-reports.25",
+            statement="Print/save and export metadata default to the reader-first hierarchy; raw CSV columns, policy result IDs, matrix version, and evidence bundle references are available only in an explicit audit/export-details disclosure",
+            # was AC22.19.3
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC22.19.3 keeps export proof metadata behind a print-hidden export audit disclosure",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.26",
+            statement="`useDashboardData` surfaces an error message and a retry that refetches when aggregation fails",
+            # was AC5.35.3
+            test="apps/frontend/src/__tests__/useDashboardData.test.ts::AC5.35.3 surfaces error and retries on failure",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-ia-reports.26",
+            statement="The Home renders the net-worth headline, a three-statement segmented entry (Balance Sheet / Income / Cash Flow) each deep-linking to its full report, the single next-action, the attention bell, and keeps heavy charts behind an opt-in toggle",
+            # was AC22.21.6
+            test="apps/frontend/src/__tests__/homeStatements.test.tsx::deep-links each of the three statements to its full report",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.27",
+            statement="`useDashboardData` tolerates a failing chat-suggestions endpoint without failing the whole dashboard",
+            # was AC5.35.4
+            test="apps/frontend/src/__tests__/useDashboardData.test.ts::AC5.35.4 tolerates failing chat suggestions endpoint",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.28",
+            statement="Net worth chart component on dashboard renders ECharts line chart with date X-axis and net-worth Y-axis",
+            # was AC5.7.2
+            test="apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx::AC5.7.2/AC5.7.6 mounts an ECharts-backed net worth line chart",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.29",
+            statement="Time range selector (1M / 3M / 6M / 1Y / All) on dashboard toggles `from` parameter for chart",
+            # was AC5.7.4
+            test="apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx::AC5.7.4 range selector toggles the from parameter and re-fetches",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.30",
+            statement="Empty-state placeholder rendered when fewer than 2 data points exist (cannot draw line)",
+            # was AC5.7.5
+            test="apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx::AC5.7.5 renders an empty state when fewer than two points exist",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.31",
+            statement="Frontend unit test mounts NetWorthTimeSeries component and asserts chart container exists",
+            # was AC5.7.6
+            test="apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx::AC5.7.2/AC5.7.6 mounts an ECharts-backed net worth line chart",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.32",
+            statement="The Reports cockpit renders package readiness state, blocker count, next action, and source-gap summary before report cards",
+            # was AC5.37.1
+            test="apps/frontend/src/__tests__/reportsCockpit.test.tsx::AC5.37.1 renders trust-first readiness before report cards",
+            priority="P1",
+            status="done",
+        ),
+        # ── Wave B (#1821): frontend-proof rows migrated from the
+        # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
+        ACRecord(
+            id="AC-reporting.fe-remainder-reports.1",
+            statement="The report package traceability surface exposes a lineage panel from at least one report traceability row",
+            # was AC18.9.4
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC18.9.4 AC18.9.5 AC18.9.6 opens an Evidence Graph lineage panel from report traceability",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-remainder-reports.2",
+            statement="The lineage panel renders source document, extracted record, atomic fact, ledger entry, ledger line, and report-line anchors when present",
+            # was AC18.9.5
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC18.9.4 AC18.9.5 AC18.9.6 opens an Evidence Graph lineage panel from report traceability",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-remainder-reports.3",
+            statement="Tests cover report line to source document navigation and source document to impacted ledger/report navigation",
+            # was AC18.9.6
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC18.9.4 AC18.9.5 AC18.9.6 opens an Evidence Graph lineage panel from report traceability",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-remainder-reports.4",
+            statement="Dashboard status feed renders primary state, report readiness, recent automation, blocker/action severity, and an empty no-action state without raw audit-log noise",
+            # was AC19.3.6
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC19.3.6 renders the workflow status feed on the dashboard landing surface",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-remainder-reports.5",
+            statement="The first dashboard viewport renders the upload-to-report workflow home before KPI, chart, and activity content",
+            # was AC19.4.2
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC19.4.2 AC16.16.1 renders the upload-to-report home before secondary dashboard metrics",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-remainder-reports.6",
+            statement="The dashboard primary CTA follows `workflow.status.next_action.href` and labels upload as the default action when no higher-priority blocker/action exists",
+            # was AC19.4.3
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC19.4.3 follows workflow next_action for blocker and upload primary CTAs",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-remainder-reports.7",
+            statement="Report readiness state and blocker count are visible above secondary dashboard metrics and link to the readiness/report action path",
+            # was AC19.4.4
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC19.4.4 renders report readiness above analytics with blocker count and link",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-remainder-reports.8",
+            statement="Recent workflow events are visible, grouped by actionability, and routine automation is summarized without dominating the page",
+            # was AC19.4.5
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC19.4.5 shows actionable recent events and summarizes routine automation",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-remainder-reports.9",
+            statement="Secondary dashboard metric API failure does not hide the workflow home; the analytics section renders an isolated retry/error state",
+            # was AC19.4.6
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC19.4.6 keeps upload-to-report home visible when secondary analytics fail",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-remainder-reports.10",
+            statement="Desktop and mobile Playwright smoke covers the upload-first dashboard entry without layout overflow",
+            # was AC19.4.7
+            test="apps/frontend/playwright/upload-first-dashboard.spec.ts::${scenario.name} renders upload-to-report home before secondary analytics",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-remainder-reports.11",
+            statement="Personal report package page renders readiness state and blocker links before package section output",
+            # was AC19.5.4
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC19.5.4 renders package readiness before report package output",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-remainder-reports.12",
+            statement="Personal report package page renders non-blocked readiness states without stale blocker cards",
+            # was AC19.5.5
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC19.5.5 renders non-blocked readiness states without blocker cards",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-remainder-reports.13",
+            statement="Report readiness has route-level Playwright smoke coverage before package output",
+            # was AC19.8.7
+            test="apps/frontend/playwright/report-readiness.spec.ts::${scenario.name} renders cover, contents, and readiness before package output",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-remainder-reports.14",
+            statement="Personal report package page renders a compact source trust summary before detailed package output",
+            # was AC19.9.2
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC19.9.2 renders compact source trust summary before traceability details",
+            priority="P0",
+            status="done",
+        ),
     ],
 )

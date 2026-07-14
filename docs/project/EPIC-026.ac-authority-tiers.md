@@ -50,7 +50,7 @@ this EPIC references that contract rather than restating it.
 ### Actions
 1. Author the tier vocabulary (now internalized into the `meta` package
    after the #1626 authority→meta converge, [common/meta/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/meta/readme.md));
-   register it in `docs/ssot/MANIFEST.yaml` (`authority_tiers`).
+   register it in `common/meta/data/MANIFEST.yaml` (`authority_tiers`).
 2. Extend the EPIC AC declaration with a `{tier:XX}` marker and teach
    `tools/generate_ac_registry.py` to lift it into the AC value.
 3. Add `tools/check_ac_tier_baseline.py` + `common/meta/data/ac-tier-baseline.json`

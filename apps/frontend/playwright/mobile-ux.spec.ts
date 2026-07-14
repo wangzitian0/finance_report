@@ -269,6 +269,7 @@ test("AC16.26.3 stage 2 run review preserves mobile approval gate and match work
   await expectNoDocumentHorizontalScroll(page);
 });
 
+// AC-ledger.fe-accounts2.1
 test("AC2.17.1 mobile accounts avoids document horizontal scroll and overlapping row controls", async ({ page }) => {
   await gotoReady(page, "/accounts");
 
@@ -301,6 +302,7 @@ test.describe("375px mobile review proof", () => {
     hasTouch: true,
   });
 
+  // AC-testing.fe-coverage.2
   test("AC8.13.76 stage 1 and stage 2 review routes remain usable at 375px", async ({ page }) => {
     await gotoReady(page, "/statements/stmt-mobile/review");
     await expect(page.getByTestId("stage1-mobile-transaction-card-txn-mobile-1")).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
@@ -327,6 +329,7 @@ test.describe("1440px desktop review proof", () => {
   });
 
   // AC-extraction.fe-stage1-review.11
+  // AC-testing.fe-coverage.3
   test("AC8.13.82/AC16.27.2 desktop stage 1 review keeps transaction table readable at 1440px", async ({ page }) => {
     await gotoReady(page, "/statements/stmt-mobile/review");
 

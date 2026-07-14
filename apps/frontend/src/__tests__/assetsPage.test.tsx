@@ -413,6 +413,8 @@ describe("AssetsPage", () => {
     expect(screen.getByText(/0\.123456789 units/)).toBeInTheDocument()
   })
 
+  // AC-portfolio.fe-ia-portfolio.2
+  // AC-portfolio.fe-assets2.2
   it("AC11.9.4 AC22.10.2 renders manual valuation snapshots and creates a new property valuation", async () => {
     mockedApiFetch.mockImplementation((path: string, options?: RequestInit) => {
       if (path === "/api/assets/valuation-snapshots" && options?.method === "POST") {
@@ -498,6 +500,7 @@ describe("AssetsPage", () => {
     expect(showToastMock).toHaveBeenCalledWith("Manual valuation saved", "success")
   })
 
+  // AC-portfolio.fe-assets2.1
   it("AC11.20.3 test_AC11_20_3_assets_page_surfaces_retirement_and_benefit_asset_labels", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
       if (path.startsWith("/api/assets/valuation-snapshots")) {

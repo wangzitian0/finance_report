@@ -420,7 +420,7 @@ Tier 1 of #1000. Stage-2 review gets a first-class `/review` route instead of be
 reachable only via `/reconciliation/review-queue` (nested under the reconciliation
 workbench — "parasitic on statements"). The Attention center and the home Risk-radar
 deep-link to `/review`; the run-scoped variant stays at `/review/run/[runId]`. Per the
-EPIC-022 IA (AC22.2.4) review stays out of the sidebar — it is reached from the
+EPIC-022 IA, review stays out of the sidebar — it is reached from the
 attention/notification flow, not a standalone nav peer.
 
 > (AC16.36.1 removed and AC16.36.2 removed, canonical: migrated to the `reconciliation` package roadmap as `AC-reconciliation.fe-stage2-review.28` and `.29`, #1821 Wave B)

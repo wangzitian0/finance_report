@@ -76,6 +76,7 @@ function renderHeader(overrides: Partial<React.ComponentProps<typeof StatementHe
 }
 
 describe("StatementHeader", () => {
+    // AC-extraction.fe-ia-extraction.3
     it("AC22.17.3 renders title, status badge, description and review link", () => {
         renderHeader();
         expect(screen.getByText("statement-jan.pdf")).toBeInTheDocument();

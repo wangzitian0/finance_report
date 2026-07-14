@@ -93,6 +93,7 @@ afterEach(() => {
 })
 
 describe("scrubUrl (AC24.1.2 — PII scrub)", () => {
+  // AC-observability.fe-telemetry.2
   it("AC24.1.2 strips query string and fragment from an absolute URL", () => {
     expect(scrubUrl("https://app.example.com/reports?email=a@b.com&amount=1000#frag")).toBe(
       "https://app.example.com/reports",
@@ -333,6 +334,7 @@ describe("makeDocumentLoadScrubHook (AC24.1.2)", () => {
 })
 
 describe("redactException (AC24.1.3)", () => {
+  // AC-observability.fe-telemetry.3
   it("AC24.1.3 keeps the error type but redacts the message/stack", () => {
     const err = new Error("user a@b.com owes $1,234 on account 999")
     expect(redactException(err)).toEqual({ name: "Error", message: "[redacted]" })

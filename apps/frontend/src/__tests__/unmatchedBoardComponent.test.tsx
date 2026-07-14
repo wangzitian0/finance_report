@@ -282,6 +282,7 @@ describe("UnmatchedBoard", () => {
     expect(screen.getByRole("button", { name: "Create Entry" })).toBeEnabled()
   })
 
+  // AC-reconciliation.fe-remainder-reconciliation.1
   it("AC4.11.1 renders unmatched monetary amounts with Decimal-safe currency formatting", async () => {
     mockedApiFetch
       .mockResolvedValueOnce({

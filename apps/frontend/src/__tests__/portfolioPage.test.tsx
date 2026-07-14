@@ -325,6 +325,7 @@ describe("PortfolioPage", () => {
     expect(mockedApiFetch).toHaveBeenCalledWith("/api/portfolio/holdings?include_disposed=true")
   })
 
+  // AC-portfolio.fe-assets2.16
   it("AC17.9.3 passes selected as-of date to holdings API", async () => {
     mockPortfolioApi()
 
@@ -364,6 +365,7 @@ describe("PortfolioPage", () => {
     expect(screen.getByTestId("total-portfolio-value")).toHaveTextContent("1,800")
   })
 
+  // AC-portfolio.fe-assets2.24
   it("AC17.7.5 renders realized P&L YTD and dividend income YTD from portfolio summary", async () => {
     mockPortfolioApi()
 
@@ -375,6 +377,7 @@ describe("PortfolioPage", () => {
     expect(screen.getAllByText("$42.50").length).toBeGreaterThanOrEqual(1)
   })
 
+  // AC-reporting.fe-viz-reports.2
   it("AC5.8.1 renders investment performance report schedule from the schedule API", async () => {
     mockPortfolioApi()
 
@@ -388,6 +391,7 @@ describe("PortfolioPage", () => {
     expect(screen.getByText("Cost basis uses FIFO where available.")).toBeInTheDocument()
   })
 
+  // AC-portfolio.fe-assets2.18
   it("AC17.14.3 renders net-worth allocation from the report schedule", async () => {
     mockPortfolioApi()
 
@@ -452,6 +456,7 @@ describe("PortfolioPage", () => {
     expect(await within(panel).findByText("No allocation rows available")).toBeInTheDocument()
   })
 
+  // AC-portfolio.fe-assets2.17
   it("AC17.14.1 labels allocation and portfolio currencies instead of claiming a portfolio tie-out", async () => {
     mockPortfolioApi([mockHolding], "100.00", "SGD")
 

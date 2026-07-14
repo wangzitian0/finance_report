@@ -179,6 +179,7 @@ describe("Brokerage import completion route flow", () => {
     vi.unstubAllGlobals()
   })
 
+  // AC-portfolio.fe-assets2.11 / AC-portfolio.fe-assets2.12 / AC-portfolio.fe-assets2.14
   it("AC17.8.1 AC17.8.2 AC17.8.4 completes parsed statement import and portfolio value navigation", async () => {
     const user = userEvent.setup()
 

@@ -25,6 +25,7 @@ beforeEach(() => {
 })
 
 describe("GeneralSettingsPage (EPIC-012 AC12.39.3)", () => {
+  // AC-pricing.fe-settings.1
   it("AC12.39.3 renders the effective base currency and keeps Save disabled until edited", async () => {
     render(<GeneralSettingsPage />)
     await waitFor(() => expect(screen.getByText("General Settings")).toBeInTheDocument())

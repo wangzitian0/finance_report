@@ -998,16 +998,17 @@ CONTRACT = PackageContract(
                 "pending-package -->) declaring why it is not in a package "
                 "roadmap; unmarked EPIC AC rows == 0 is the umbrella "
                 "scoreboard metric. The per-file per-category census must "
-                "equal docs/ssot/epic-residue-baseline.json (the fk-cascade "
-                "idiom): silent residue growth fails CI and adding residue "
-                "requires raising the baseline in the same PR, where the "
-                "diff makes the choice reviewable; the EPIC file set may "
-                "only shrink (a new EPIC file fails; a deleted one must "
-                "prune the baseline); an EPIC file with zero marked rows "
-                "must carry an explicit <!-- epic-file: design-doc|"
-                "goal-stub --> justification. The registry generator feeds "
-                "the AC registry from marked rows only, so an unmarked row "
-                "is invisible to the registry AND fails the gate."
+                "equal common/meta/data/epic-residue-baseline.json (the "
+                "fk-cascade idiom): silent residue growth fails CI and "
+                "adding residue requires raising the baseline in the same "
+                "PR, where the diff makes the choice reviewable; the EPIC "
+                "file set may only shrink (a new EPIC file fails; a deleted "
+                "one must prune the baseline); an EPIC file with zero "
+                "marked rows must carry an explicit <!-- epic-file: "
+                "design-doc|goal-stub --> justification. The registry "
+                "generator feeds the AC registry from marked rows only, so "
+                "an unmarked row is invisible to the registry AND fails the "
+                "gate."
             ),
             test=(
                 "tests/tooling/test_epic_residue_ratchet.py"
@@ -1016,30 +1017,54 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
-        # ── manifest: docs/ssot/MANIFEST.yaml stays hand-authored (a full
-        # computed concept index is a follow-up, #1799), but every file it
-        # governs must be explicitly classified — anti-drift in the same
-        # spirit as the residue markers above (#1664 "retire the center",
-        # Part C). ──
+        # ── terminal: both retired centers (docs/ssot/ entirely, and
+        # docs/project/'s file set) cannot silently regrow (#1823,
+        # Package-ization 4/4, FINAL — "retire the center" closeout). ──
+        ACRecord(
+            id="AC-meta.residue.2",
+            statement=(
+                "docs/ssot/ does not exist (retired in #1823: MANIFEST.yaml "
+                "and epic-residue-baseline.json relocated to "
+                "common/meta/data/, README.md tombstone retired), and "
+                "docs/project/'s directory listing is frozen to an explicit, "
+                "checked-in allowlist — the EPIC-*.md half sourced from "
+                "AC-meta.residue.1's own baseline (single source, no "
+                "duplicated vocabulary), the non-EPIC half a hardcoded "
+                "frozenset. Either directory growing outside its allowlist "
+                "fails CI; a deliberate addition requires a same-PR edit "
+                "here, making the choice reviewable — the same fk-cascade "
+                "idiom AC-meta.residue.1 uses for EPIC file counts."
+            ),
+            test=(
+                "tests/tooling/test_terminal_centers_allowlist.py"
+                "::test_docs_project_directory_listing_is_frozen"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── manifest: common/meta/data/MANIFEST.yaml stays hand-authored (a
+        # full computed concept index is a follow-up, #1799). Relocated from
+        # docs/ssot/ in #1823 (Package-ization 4/4); the former per-file
+        # docs/ssot/ classification check (#1664 "retire the center", Part C)
+        # is superseded by AC-meta.residue.2's docs/ssot-absence assertion,
+        # which is strictly stronger (nothing can exist there uncatalogued,
+        # vs. everything that exists must be catalogued). ──
         ACRecord(
             id="AC-meta.manifest.1",
             statement=(
-                "Every file physically present in docs/ssot/ is referenced "
-                "by name in docs/ssot/README.md — the pointer page "
-                "classifying each surviving file as cross-cutting infra "
-                "(Cross-Cutting Classification table), live gate data (Gate "
-                "Data Directory section), a generated artifact, or a "
-                "migrated pointer stub. A file dropped into docs/ssot/ "
-                "without a matching README entry is silent, unclassified "
-                "drift and fails CI. This stands in for the full computed "
+                "The cross-package concept-ownership registry lives at "
+                "common/meta/data/MANIFEST.yaml — a package's cross-cutting "
+                "gate-data home, not a hand-classified docs/ssot/ (retired). "
+                "check_manifest.py validates it: no two concepts share an "
+                "owner, every owner/cross_ref file and #anchor resolves on "
+                "disk. This stands in for the full computed "
                 "concept-ownership index (no `concepts` field exists on "
-                "PackageContract yet to project from — see docs/ssot/"
-                "README.md § 'MANIFEST.yaml Status' and follow-up #1799) "
+                "PackageContract yet to project from — follow-up #1799) "
                 "without forcing that larger rewrite under time pressure."
             ),
             test=(
                 "tests/tooling/test_check_manifest.py"
-                "::test_AC_meta_manifest_1_real_docs_ssot_is_fully_classified"
+                "::test_AC_meta_manifest_1_manifest_relocated_and_ssot_retired"
             ),
             priority="P2",
             status="done",
@@ -1814,6 +1839,298 @@ CONTRACT = PackageContract(
             # was AC16.30.6
             test="apps/frontend/src/__tests__/designTokens.test.tsx::AC16.30.2 AC16.30.6 keeps SSOT and CSS recipes on semantic border and status tokens",
             priority="P2",
+            status="done",
+        ),
+        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
+        # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
+        ACRecord(
+            id="AC-meta.fe-ia-nav.1",
+            statement="Primary navigation renders a bottom tab bar of exactly five hit targets — Home, Chat, a center Add action, Audit, and More — mirrored by the desktop sidebar; no accounting-jargon route (Journal, Reconciliation, Accounts, Statements) and no Settings page appears as a top-level tab (superseded by AC22.21.1 for the data-model shape)",
+            # was AC22.1.1
+            test="apps/frontend/src/__tests__/navigation.test.ts::AC19.6.2 AC19.8.5 AC22.1.1 AC22.1.7 AC22.2.4 AC22.21.1 exposes a five-target bottom tab bar with distinct icons (Home, Chat, Add, Audit, More)",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.2",
+            statement="The sidebar brand links to `/` and the login flow redirects to `/` after authentication",
+            # was AC22.1.3
+            test="apps/frontend/src/__tests__/sidebarAndTabs.test.tsx::AC22.1.3 links the sidebar brand to Home",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.3",
+            statement='`/dashboard` redirects to `/` and the label "Upload Pipeline" no longer appears in the navigation model',
+            # was AC22.1.4
+            test="apps/frontend/src/__tests__/nextConfigRedirects.test.ts::AC22.1.4 redirects the legacy dashboard route to Home",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.4",
+            statement="`/events` redirects to `/notifications` and the notifications page renders the workflow event center",
+            # was AC22.1.5
+            test="apps/frontend/src/__tests__/nextConfigRedirects.test.ts::AC22.1.5 redirects /events to /notifications",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.5",
+            statement='`/assets` redirects to `/portfolio` and exactly one navigation entry is labeled "Portfolio"',
+            # was AC22.1.6
+            test="apps/frontend/src/__tests__/navigation.test.ts::AC22.1.6 lists Portfolio exactly once across the navigation model",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.6",
+            statement="Chat and AI Settings navigation entries use distinct icons",
+            # was AC22.1.7
+            test="apps/frontend/src/__tests__/navigation.test.ts::AC19.6.2 AC19.8.5 AC22.1.1 AC22.1.7 AC22.2.4 AC22.21.1 exposes a five-target bottom tab bar with distinct icons (Home, Chat, Add, Audit, More)",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.7",
+            statement="`/upload` renders both the statement uploader and upload history, and `/statements/upload` redirects to `/upload`",
+            # was AC22.1.8
+            test="apps/frontend/src/__tests__/nextConfigRedirects.test.ts::AC22.1.8 redirects legacy statement routes to /upload",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.8",
+            statement="Desktop and mobile smoke covers the five-target bottom-tab navigation (Home, Chat, Add, Audit, More) and the notification bell without layout overflow",
+            # was AC22.1.9
+            test="apps/frontend/playwright/epic022-ia-shell.spec.ts::desktop sidebar mirrors the five bottom-tab targets and the notification bell",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.9",
+            statement='The standalone Review Queue page is removed, `/review` redirects to `/notifications`, and "Review" is no longer a sidebar navigation entry',
+            # was AC22.2.4
+            test="apps/frontend/src/__tests__/navigation.test.ts::AC19.6.2 AC19.8.5 AC22.1.1 AC22.1.7 AC22.2.4 AC22.21.1 exposes a five-target bottom tab bar with distinct icons (Home, Chat, Add, Audit, More)",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.10",
+            statement="The upload, statement-detail, and statement-review pages render a shared step indicator showing the Upload → Review & approve → Reports path with the current step highlighted",
+            # was AC22.5.1
+            test="apps/frontend/src/__tests__/flowStepBanner.test.tsx::AC22.5.1 renders the Upload -> Review & approve -> Reports path",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.11",
+            statement='Core jargon terms (balance "drift"/"balanced", "needs review", transfer pair, anomaly, duplicate, consistency check, match score) expose a plain-language explanation through an accessible `InfoHint` affordance',
+            # was AC22.5.5
+            test="apps/frontend/src/__tests__/infoHint.test.tsx::AC22.5.5 exposes the plain-language glossary text to assistive tech",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.12",
+            statement='The reconciliation match-rate is shown under a single term ("Reconciliation coverage") on both Home and Reports, backed by one shared `InfoHint` glossary entry',
+            # was AC22.9.2
+            test="apps/frontend/src/__tests__/infoHint.test.tsx::AC22.9.2 exposes a single reconciliation-coverage term for the unified label",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.13",
+            statement="Global styles honor `prefers-reduced-motion: reduce` by disabling non-essential animation/transition timing and smooth scrolling across the app shell",
+            # was AC22.12.1
+            test="apps/frontend/src/__tests__/designTokens.test.tsx::AC22.12.1 AC22.12.3 AC22.13.3 defines the global accessibility baseline in SSOT and CSS",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.14",
+            statement="The authenticated shell exposes a skip-to-content link that targets the main landmark so keyboard users can bypass navigation chrome",
+            # was AC22.12.2
+            test="apps/frontend/src/__tests__/shellAndAuth.test.tsx::AC22.12.2 exposes a skip-to-content link targeting the main landmark",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.15",
+            statement="Global focus-visible styles cover links, form controls, and shared `.btn-*` controls with token-backed focus rings",
+            # was AC22.12.3
+            test="apps/frontend/src/__tests__/designTokens.test.tsx::AC22.12.1 AC22.12.3 AC22.13.3 defines the global accessibility baseline in SSOT and CSS",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.16",
+            statement="Shared toast and flow-step status affordances use Lucide icons or text instead of unicode glyph icons, and warning toast messages do not embed emoji-like status glyphs",
+            # was AC22.12.5
+            test="apps/frontend/src/__tests__/toastProviderComponent.test.tsx::AC22.12.5 uses semantic icon components instead of unicode glyph icons",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.17",
+            statement="Data-dense report and asset-table loading states reserve layout with token-backed skeleton placeholders instead of spinner-only or text-only states",
+            # was AC22.12.6
+            test="apps/frontend/src/__tests__/uiPrimitives.test.tsx::AC22.12.6 renders token-backed skeleton primitives without spinner affordances",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.18",
+            statement="Carryover accessibility review fixes keep the skip-link target covered by global focus-visible styling and keep report package table-of-contents section status in the accessible link name",
+            # was AC22.13.3
+            test="apps/frontend/src/__tests__/designTokens.test.tsx::AC22.12.1 AC22.12.3 AC22.13.3 defines the global accessibility baseline in SSOT and CSS",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.19",
+            statement="A typed `patchUserSettings` client function in `lib/api.ts` issues `PATCH /api/users/me/settings` through the shared `apiFetch` client (no raw `fetch`) and returns the effective `UserAiSettings` response",
+            # was AC22.15.1
+            test="apps/frontend/src/__tests__/apiFunctions.test.ts::AC22.15.1 fetchUserSettings GETs /api/users/me/settings via apiFetch",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.20",
+            statement="The legacy `/events` alias is removed from `ROUTE_CONFIG` so `/notifications` is the single canonical path/label; the `/events`→`/notifications` redirect is unchanged",
+            # was AC22.18.1
+            test="apps/frontend/src/__tests__/navigation.test.ts::AC22.18.1 drops the legacy /events alias so /notifications is the one canonical label",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-http-client.21",
+            statement="Balance sheet, income statement, and cash-flow pages download CSV through the authenticated API wrapper (backend cash-flow CSV export half migrated as `AC-reporting.csv-export.1`)",
+            # was AC5.17.1
+            test="apps/frontend/src/__tests__/apiFunctions.test.ts::AC5.17.1 downloads authenticated CSV blobs and preserves the server filename",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.21",
+            statement="The install manifest uses the canonical `/` app launch route, stable app identity, standalone display, and required 192/512/apple icon metadata without relying on the legacy `/dashboard` redirect",
+            # was AC22.20.1
+            test="apps/frontend/src/__tests__/pwaInstall.test.tsx::AC22.20.1 keeps install manifest on the canonical home-screen launch contract",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.22",
+            statement="The shared install hook captures Android/Chromium `beforeinstallprompt`, suppresses the browser's automatic prompt until the app-level action, invokes `prompt()`, and records dismissals so business pages do not handle install events",
+            # was AC22.20.2
+            test="apps/frontend/src/__tests__/pwaInstall.test.tsx::AC22.20.2 captures Android beforeinstallprompt and invokes the deferred native prompt",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.23",
+            statement="The global app-shell install prompt renders an Android install action when a deferred prompt is available and renders iOS Add to Home Screen guidance when the browser cannot provide a programmatic prompt",
+            # was AC22.20.3
+            test="apps/frontend/src/__tests__/pwaInstall.test.tsx::AC22.20.3 renders the Android install action from the global app-shell prompt",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.24",
+            statement="Installed or standalone sessions hide the install prompt, and the app shell uses safe-area-aware standalone styling for home-screen launch without page-level changes",
+            # was AC22.20.4
+            test="apps/frontend/src/__tests__/pwaInstall.test.tsx::AC22.20.4 detects iOS and standalone launch states without page code",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.25",
+            statement="The navigation model exposes a bottom tab bar of Home (`/`), Chat (`/chat`), Audit (`/audit`), and More (`/more`) plus a center Add action, and no longer exposes a `primaryWorkflowNavItems`/`advancedNavItems` split or any of Journal/Reconciliation/Processing/Confidence/Accounts/Settings as a navigation entry",
+            # was AC22.21.1
+            test="apps/frontend/src/__tests__/navigation.test.ts::AC19.6.2 AC19.8.5 AC22.1.1 AC22.1.7 AC22.2.4 AC22.21.1 exposes a five-target bottom tab bar with distinct icons (Home, Chat, Add, Audit, More)",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.26",
+            statement='The shell renders the bottom tab bar on mobile and mirrors the same five targets in the desktop sidebar; tapping Add opens a bottom sheet offering "Upload statement" (the statement uploader) and "Manual entry" (the guided evidence form), and Add is an action, not a route',
+            # was AC22.21.2
+            test="apps/frontend/src/__tests__/sidebarAndTabs.test.tsx::AC16.19.3 AC22.21.2 shows auth-aware sidebar actions mirroring the bottom tabs",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.27",
+            statement="`/audit` renders a verify-on-demand hub aggregating Trust (confidence), Reconciliation, Journal, and Processing as cards that deep-link to their existing pages, and those pages render a back-link to `/audit`",
+            # was AC22.21.3
+            test="apps/frontend/src/__tests__/navigation.test.ts::AC22.21.3 folds the accounting machinery into the /audit hub, out of navigation",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.28",
+            statement="`/settings` renders one page with General, AI, and LLM as tabs, and `/settings/general`, `/settings/ai`, `/settings/llm` resolve to that page with the corresponding tab active",
+            # was AC22.21.4
+            test="apps/frontend/src/__tests__/nextConfigRedirects.test.ts::AC22.21.4 redirects the legacy settings pages to the merged tabbed /settings",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.29",
+            statement="`/more` lists low-frequency destinations — Portfolio (shown only when the user holds securities), Settings, Advanced, and Logout",
+            # was AC22.21.5
+            test="apps/frontend/src/__tests__/navigation.test.ts::AC22.21.5 routes low-frequency destinations through the /more overflow",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.30",
+            statement="Desktop and mobile smoke covers the bottom tab bar, the Add sheet, the Audit hub, and the merged Settings without layout overflow, with safe-area-aware bottom-bar styling for standalone PWA sessions",
+            # was AC22.21.7
+            test="apps/frontend/playwright/epic022-bottom-tab-ia.spec.ts::the bottom bar opens the Add sheet with both ways to add",
+            priority="P1",
+            status="done",
+        ),
+        # ── Wave B (#1821): frontend-proof rows migrated from the
+        # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
+        ACRecord(
+            id="AC-meta.fe-http-client.1",
+            statement="Frontend `apiFetch` throws `ApiError` carrying the parsed `errorId`",
+            # was AC12.27.3
+            test="apps/frontend/src/__tests__/apiErrorStructured.test.ts::test_AC12_27_3_api_error_carries_error_id parses error_id from the body",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell2.1",
+            statement="`<ConfidenceBadge />` component renders `TRUSTED` / `HIGH` / `MEDIUM` / `LOW` pill with consistent color tokens (green / blue / amber / gray) and tooltip explaining source-type priority",
+            # was AC18.5.1
+            test="apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx::AC18.5.1 — ConfidenceBadge renders confidence tier labels",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-contract-types.1",
+            statement="The list-response envelope has a single `ListResponse<T>` definition and the per-entity list responses derive from it; declared OpenAPI-mirrored contract types resolve to a real generated `Schemas[...]` key (drift guard)",
+            # was AC25.3.1
+            test="apps/frontend/src/__tests__/contractTypes.test.ts::AC25.3.1: every list response derives from the single ListResponse<T> envelope",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-http-client.2",
+            statement="High-traffic call sites type responses against the generated schema",
+            # was AC12.28.3
+            test="apps/frontend/src/__tests__/apiTypedClient.test.ts::test_AC12_28_3_types_stage2_batch_responses_against_generated_schema",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-contract-types.2",
+            statement="`lib/api.ts` is the single raw-`fetch` boundary — no other frontend source module issues a raw `fetch(` call",
+            # was AC25.3.2
+            test="apps/frontend/src/__tests__/contractTypes.test.ts::AC25.3.2: lib/api.ts is the single raw-fetch boundary in the frontend",
+            priority="P1",
             status="done",
         ),
     ],

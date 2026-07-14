@@ -3631,5 +3631,127 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
+        # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
+        ACRecord(
+            id="AC-extraction.fe-ia-extraction.1",
+            statement="When the statement-review Approve action is blocked (balance validation failed or unresolved duplicate/transfer-pair conflicts), the page shows a visible plain-language reason and an in-place action (open the conflict-resolution dialog, or re-parse the statement) without leaving the page",
+            # was AC22.5.2
+            test="apps/frontend/src/__tests__/reviewActionBar.test.tsx::AC22.5.2 enables Approve and shows no blocker when nothing is wrong",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.fe-ia-extraction.2",
+            statement="The statement-parsing state shows an honest indeterminate indicator with a typical-duration expectation, and never renders a fabricated fixed-percentage progress bar",
+            # was AC22.11.1
+            test="apps/frontend/src/__tests__/statementsPage.test.tsx::AC16.14.11 AC22.11.1 enables polling with an honest parsing state (no fabricated progress)",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.fe-ia-extraction.3",
+            statement="The statement detail page is composed from extracted sub-components (header/summary and the transactions/section blocks) with unchanged behavior",
+            # was AC22.17.3
+            test="apps/frontend/src/__tests__/statementDetailParts.test.tsx::AC22.17.3 renders title, status badge, description and review link",
+            priority="P1",
+            status="done",
+        ),
+        # ── Wave B (#1821): frontend-proof rows migrated from the
+        # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
+        ACRecord(
+            id="AC-extraction.fe-remainder-extraction.1",
+            statement="Audit Trail panel on transaction detail page lists chronological `{timestamp, actor, action, old_value, new_value}` from `GET /api/transactions/{id}/audit`, including AI-applied changes labeled with actor `ai`",
+            # was AC18.5.6
+            test="apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx::AC18.5.6 — Audit Trail panel renders provenance",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.fe-remainder-extraction.2",
+            statement="The Upload page exposes exactly three intake entries — one primary statement uploader (the AI identifies the type; the user never pre-classifies), one CSV import, and one Manual records entry — with no per-source-class checklist",
+            # was AC19.15.1
+            test="apps/frontend/src/__tests__/statementsPage.test.tsx::AC19.15.1 exposes exactly three intake entries: one statement uploader plus CSV and Manual",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.fe-remainder-extraction.3",
+            statement="The CSV import and Manual records entries are folded (collapsed) by default so they stay passive, the retired per-source-class checklist does not return, and the page does not fetch report readiness merely to render intake",
+            # was AC19.15.2
+            test="apps/frontend/src/__tests__/statementsPage.test.tsx::AC19.15.2 keeps secondary intake passive: CSV and Manual folded, no per-class checklist, no readiness fetch",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.fe-remainder-extraction.4",
+            statement='The primary statement uploader (`kind="statement"`) rejects `.csv` files by extension before setting a selected file, and the CSV import uploader (`kind="csv"`) rejects non-csv files and accepts `.csv` — each intake entry enforces its own kind\'s file-extension restriction, independent of the shared `all`-kind default',
+            # was AC19.15.3
+            test="apps/frontend/src/__tests__/StatementUploader.test.tsx::AC19.15.3 statement uploader rejects csv and csv uploader rejects non-csv, each enforcing its own kind's extensions",
+            priority="P1",
+            status="done",
+        ),
+        # ── group 1833: auto-approve posts the chain-validated opening
+        # balance so the balance sheet shows balances, not net flow (#1833) ──
+        ACRecord(
+            id="AC-extraction.1833.1",
+            statement=(
+                "When a high-confidence statement auto-approves (its "
+                "running-balance chain reconciled), the extracted opening "
+                "balance is posted as a guided opening-balance entry against "
+                "the system Opening Balance Equity account, so the asset "
+                "account's ledger balance equals the statement's closing "
+                "balance — never the period net flow. A zero/absent opening "
+                "balance posts no opening entry; non-base currencies and "
+                "other post_opening_balance_entry rejections skip fail-soft "
+                "without disturbing the posted transactions."
+            ),
+            test=(
+                "apps/backend/tests/integration/test_statement_opening_balance_auto_post.py"
+                "::test_AC_extraction_1833_1_auto_approve_posts_validated_opening_balance"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.1833.2",
+            statement=(
+                "A follow-up period import for the same account posts its "
+                "transactions but never a second opening-balance entry: "
+                "prior posted activity before the new period start makes "
+                "the guided opening post reject, and that rejection is "
+                "absorbed fail-soft."
+            ),
+            test=(
+                "apps/backend/tests/integration/test_statement_opening_balance_auto_post.py"
+                "::test_AC_extraction_1833_2_second_import_does_not_duplicate_opening_balance"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.1833.3",
+            statement=(
+                "The opening-balance post is never gated on created_count: a "
+                "high-confidence, balance-validated statement whose "
+                "transactions are all excluded from posting (internal-transfer "
+                "matches, or already posted by a prior call) still gets its "
+                "opening balance posted. Idempotency against re-posting is "
+                "enforced per-account (does this account already have an "
+                "opening-balance-equity line), not by created_count or by "
+                "date-ordering alone — covering two statements that share the "
+                "same period_start, where date-ordering alone would not catch "
+                "a re-attempt."
+            ),
+            test=(
+                "apps/backend/tests/integration/test_statement_opening_balance_auto_post.py"
+                "::test_AC_extraction_1833_3_zero_created_count_still_posts_opening_balance"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
     ],
 )

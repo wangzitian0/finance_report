@@ -152,6 +152,7 @@ describe("HoldingDetailPage", () => {
     expect(screen.getByText("AAPL")).toBeInTheDocument()
   })
 
+  // AC-portfolio.fe-assets2.20
   it("AC17.7.1 renders Overview, Dividends, and Realized P&L tabs", async () => {
     mockHoldingDetailApi()
 
@@ -176,6 +177,7 @@ describe("HoldingDetailPage", () => {
     expect(screen.getAllByText("10.123456789").length).toBeGreaterThanOrEqual(1)
   })
 
+  // AC-portfolio.fe-assets2.21
   it("AC17.7.2/AC17.7.6 switches to Dividends tab and renders dividend row labels", async () => {
     mockHoldingDetailApi()
 
@@ -192,6 +194,7 @@ describe("HoldingDetailPage", () => {
     expect(screen.getByText("$42.50")).toBeInTheDocument()
   })
 
+  // AC-portfolio.fe-assets2.22
   it("AC17.7.3 persists cost-basis method and refetches realized P&L", async () => {
     mockHoldingDetailApi()
 
@@ -212,6 +215,7 @@ describe("HoldingDetailPage", () => {
     expect(mockedApiFetch).toHaveBeenCalledWith("/api/portfolio/AAPL/realized")
   })
 
+  // AC-portfolio.fe-assets2.23
   it("AC17.7.4 renders lot-level realized P&L table", async () => {
     mockHoldingDetailApi()
 

@@ -1788,5 +1788,105 @@ CONTRACT = PackageContract(
             priority="P2",
             status="done",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
+        # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
+        ACRecord(
+            id="AC-reconciliation.fe-ia-reconciliation.1",
+            statement="`/review/ai-suggestions` is reachable from AI Settings, so the AI-suggestion review surface is not orphaned",
+            # was AC22.4.3
+            test="apps/frontend/src/__tests__/aiSettingsPage.test.tsx::AC22.4.3 links to the AI suggestion review surface so it is not orphaned",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-ia-reconciliation.2",
+            statement="E2E: a user with Stage 1 and Stage 2 attention sees both in the notification center and can open each detail surface",
+            # was AC22.4.5
+            test="apps/frontend/playwright/epic022-attention-journey.spec.ts::${label}: both Stage 1 and Stage 2 attention surface in the notification center with deep links",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-ia-reconciliation.3",
+            statement="The `/attention` page folds the open attention sources (Stage 1 statement review, reconciliation review, unmatched transactions, stalled processing transfers) into a single list sorted by ascending confidence, each row deep-linking to its action surface, with an all-clear empty state when nothing needs attention",
+            # was AC22.6.1
+            test="apps/frontend/src/__tests__/attention.test.ts::AC22.6.1 folds the open attention sources into one list sorted by ascending confidence",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-ia-reconciliation.4",
+            statement="The Home renders a trust meter (trusted / needs-confirmation / low-confidence counts) derived from the same attention model and linking to `/attention`, and stays silent when nothing needs attention",
+            # was AC22.6.2
+            test="apps/frontend/src/__tests__/attention.test.ts::AC22.6.2 summarizes trust into trusted / needs-confirmation / low-confidence buckets",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-ia-reconciliation.5",
+            statement="Desktop and mobile smoke covers the `/attention` queue and the Home trust meter without layout overflow",
+            # was AC22.6.4
+            test="apps/frontend/playwright/attention-surface.spec.ts::${label} renders the attention queue ranked by confidence without overflow",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-ia-reconciliation.6",
+            statement="Each attention-queue item surfaces a plain-language reason it was flagged — distinct per cause — alongside its confidence score",
+            # was AC22.11.2
+            test="apps/frontend/src/__tests__/attention.test.ts::AC22.11.2 every item explains why it was flagged",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-ia-reconciliation.7",
+            statement="Attention-origin action links preserve `from=attention`, and the linked review/processing destinations render a return link to `/attention` while direct-entry notification/statement fallbacks remain unchanged",
+            # was AC22.11.3
+            test="apps/frontend/src/__tests__/attentionQueue.test.tsx::AC22.6.1 AC22.11.3 AC22.12.4 renders the open attention items with readable reasons and action links",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-ia-reconciliation.8",
+            statement="Attention-queue reason text uses the normal muted content token, not a lower-opacity muted variant, so low-confidence explanations keep readable contrast",
+            # was AC22.12.4
+            test="apps/frontend/src/__tests__/attentionQueue.test.tsx::AC22.6.1 AC22.11.3 AC22.12.4 renders the open attention items with readable reasons and action links",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-ia-reconciliation.9",
+            statement="The Stage 2 review queue is composed from extracted sub-components (the match row/card and the queue controls) with unchanged review behavior",
+            # was AC22.17.2
+            test="apps/frontend/src/__tests__/stage2ReviewQueueParts.test.tsx::AC22.17.2 PendingMatchesPanel renders mobile + desktop rows and wires selection/batch callbacks",
+            priority="P1",
+            status="done",
+        ),
+        # ── Wave B (#1821): frontend-proof rows migrated from the
+        # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
+        ACRecord(
+            id="AC-reconciliation.fe-remainder-reconciliation.1",
+            statement="The unmatched transaction board models unmatched amounts as shared `MoneyValue` payloads and renders queue/detail/created-entry amounts through Decimal-safe currency formatting, not JavaScript number locale formatting",
+            # was AC4.11.1
+            test="apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx::AC4.11.1 renders unmatched monetary amounts with Decimal-safe currency formatting",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-remainder-reconciliation.2",
+            statement="AI Suggestion Review Queue page `/review/ai-suggestions` lists pending AI classifications and AI reconciliation matches in score band 60-84 with `{transaction, suggested_category_or_match, ai_score, ai_reasoning}`",
+            # was AC18.5.3
+            test="apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx::AC18.5.3 — AI Suggestion Review Queue page renders suggestions",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-remainder-reconciliation.3",
+            statement="Queue actions: `Accept`, `Reject`, `Edit-then-Accept`; each action calls `POST /api/ai/feedback` with `{suggestion_id, action, corrected_value?}` to feed the feedback loop",
+            # was AC18.5.4
+            test="apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx::AC18.5.4 — feedback POST on accept/reject/edit",
+            priority="P2",
+            status="done",
+        ),
     ],
 )

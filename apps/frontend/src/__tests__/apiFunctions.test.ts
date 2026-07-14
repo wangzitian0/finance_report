@@ -121,6 +121,7 @@ describe('apiFetch', () => {
     expect(calledHeaders['Authorization']).toBe('Bearer test-jwt-token');
   });
 
+  // AC-identity.fe-auth2.1
   it('AC1.10.3 sends HttpOnly auth cookies by default', async () => {
     const fetchMock = makeFetchMock(200, {});
     vi.stubGlobal('fetch', fetchMock);
@@ -426,6 +427,7 @@ describe('user settings & session bootstrap client (EPIC-022 AC22.15 / #1010)', 
     vi.stubGlobal('localStorage', localStorageMock);
   });
 
+  // AC-meta.fe-ia-nav.19
   it('AC22.15.1 fetchUserSettings GETs /api/users/me/settings via apiFetch', async () => {
     const fetchMock = makeFetchMock(200, {
       enable_ai_reconciliation: true,
@@ -495,6 +497,7 @@ describe('apiDownload', () => {
     vi.stubGlobal('localStorage', localStorageMock);
   });
 
+  // AC-meta.fe-http-client.21
   it('AC5.17.1 downloads authenticated CSV blobs and preserves the server filename', async () => {
     localStorageMock.setItem('finance_access_token', 'download-token');
     const csvBlob = new Blob(['section,account,amount\nAssets,Cash,100.00\n'], { type: 'text/csv' });

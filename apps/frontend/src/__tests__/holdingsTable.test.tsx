@@ -125,6 +125,7 @@ describe("HoldingsTable", () => {
     expect(screen.getByText("Unknown")).toBeInTheDocument()
   })
 
+  // AC-portfolio.fe-ia-portfolio.1
   it("AC22.10.1 AC22.13.2 shows provenance badges only when provenance is known", () => {
     const imported: PortfolioHolding = { ...fractional, id: "imp", asset_identifier: "IMP", provenance: "imported" }
     const manual: PortfolioHolding = { ...fractional, id: "man", asset_identifier: "MAN", provenance: "manual" }
