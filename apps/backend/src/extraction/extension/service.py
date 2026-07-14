@@ -150,9 +150,14 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
         """Delete a just-created bank account left behind by a rejected parse (#1832).
 
         Only ever called for an account this same call created (never a reused
-        one), but double-checks it is still unreferenced before deleting: a
-        concurrent statement could in principle have attached to it between
-        creation and this rejection.
+        one), but double-checks it has no OTHER non-rejected statement or
+        journal line referencing it before deleting: a concurrent statement
+        could in principle have attached to it between creation and this
+        rejection. Other REJECTED statements sharing this account_id (this one
+        included) do not count as a reference: a rejected statement carries no
+        journal lines and no trusted data, so it is not a real use of the
+        account — the JournalLine check is what actually detects real economic
+        activity tied to the account.
         """
         other_statement = (
             await db.execute(

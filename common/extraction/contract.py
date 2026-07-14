@@ -3831,8 +3831,11 @@ CONTRACT = PackageContract(
                 "balance-0.00, provenance-less zombie account. An account "
                 "reused from an earlier statement (get-or-create hit) is "
                 "never deleted, even when the later statement is rejected; "
-                "the cleanup itself double-checks no other statement or "
-                "journal line references the account before deleting it."
+                "the cleanup itself double-checks no other NON-REJECTED "
+                "statement or journal line references the account before "
+                "deleting it — other rejected statements sharing the "
+                "account_id carry no journal lines and no trusted data, so "
+                "they are not counted as a real reference."
             ),
             test=(
                 "apps/backend/tests/integration/test_statement_reject_cleans_up_orphan_account.py"
