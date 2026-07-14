@@ -20,7 +20,10 @@ from unittest.mock import AsyncMock
 from sqlalchemy import select
 
 from src.extraction.extension.service import ExtractionService
-from src.extraction.extension.statement_posting import try_auto_approve_high_confidence_statement
+from src.extraction.extension.statement_posting import (
+    try_auto_approve_high_confidence_statement,
+    try_auto_post_statement_opening_balance,
+)
 from src.extraction.orm.statement_enums import BankStatementStatus
 from src.ledger import Account, JournalEntry, JournalEntryStatus, JournalLine
 
@@ -178,3 +181,75 @@ async def test_AC_extraction_1833_1_zero_or_absent_opening_balance_posts_no_open
     assert await _opening_equity_line_count(db, test_user.id) == 0
     balance = await _account_ledger_balance(db, statement.account_id)
     assert balance == Decimal("-48777.68")
+
+
+async def test_AC_extraction_1833_3_zero_created_count_still_posts_opening_balance(db, test_user, monkeypatch):
+    """AC-extraction.1833.3 (PR #1842 review): created_count == 0 must not block
+    the opening-balance post.
+
+    created_count reaching 0 for a HIGH-CONFIDENCE, balance-validated statement is
+    realistic — e.g. every transaction in the period turns out to be an internal
+    transfer excluded via the reconciliation transfer-exclusions provider, or the
+    statement is re-processed after its transactions were already posted. (A
+    literally-empty extracted payload, by contrast, cannot reach this path: the
+    confidence-scoring formula's txn-count/balance-progression components need
+    >=1 transaction, so a genuinely empty statement scores below the 85
+    auto-approve threshold and never reaches this function — verified empirically
+    while writing this test.) This test isolates the orchestration contract
+    directly: given created_count == 0 for any reason, the opening balance must
+    still be posted.
+    """
+    from src.extraction.extension import statement_posting as statement_posting_module
+
+    service = ExtractionService()
+    service.extract_financial_data = AsyncMock(return_value=_drawdown_statement_payload())
+    statement, _txns = await service.parse_document(
+        file_path=Path("ac-1833-4.pdf"),
+        institution="GXS",
+        user_id=test_user.id,
+        file_content=b"%PDF-1.7",
+        file_hash="ac-1833-4",
+        db=db,
+    )
+    await db.flush()
+    assert statement.status == BankStatementStatus.APPROVED
+
+    # Force created_count == 0 as if every transaction were excluded (internal
+    # transfer match, or already posted by a prior call) — the scenario the
+    # created_count gate could not distinguish from "genuinely nothing to post".
+    monkeypatch.setattr(statement_posting_module, "auto_create_posted_entries_for_statement", AsyncMock(return_value=0))
+
+    posted = await try_auto_approve_high_confidence_statement(db, statement.id, test_user.id)
+    assert posted == 0
+
+    assert await _opening_equity_line_count(db, test_user.id) == 1
+    balance = await _account_ledger_balance(db, statement.account_id)
+    assert balance == Decimal("51730.82")  # opening balance posted; no transactions posted
+
+
+async def test_same_period_start_second_import_does_not_duplicate_opening_balance(db, test_user):
+    """Hardening beyond PR #1842's review: two statements sharing the exact same
+    period_start (so post_opening_balance_entry's date-ordering guard alone would
+    not catch a re-attempt) must still only post the opening balance once —
+    enforced by the per-account _account_has_opening_balance_entry check."""
+    first = await _parse_and_auto_post(db, test_user, _drawdown_statement_payload(), "ac-1833-5a")
+
+    # Same account (same institution/last4/currency), same period_start as `first`.
+    duplicate_period_payload = _drawdown_statement_payload()
+    duplicate_period_payload["opening_balance"] = "51730.82"
+    service = ExtractionService()
+    service.extract_financial_data = AsyncMock(return_value=duplicate_period_payload)
+    statement, _txns = await service.parse_document(
+        file_path=Path("ac-1833-5b.pdf"),
+        institution="GXS",
+        user_id=test_user.id,
+        file_content=b"%PDF-1.7",
+        file_hash="ac-1833-5b",
+        account_id=first.account_id,
+        db=db,
+    )
+    await db.flush()
+
+    await try_auto_post_statement_opening_balance(db, statement, test_user.id)
+
+    assert await _opening_equity_line_count(db, test_user.id) == 1

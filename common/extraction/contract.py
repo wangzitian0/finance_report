@@ -3690,5 +3690,27 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        ACRecord(
+            id="AC-extraction.1833.3",
+            statement=(
+                "The opening-balance post is never gated on created_count: a "
+                "high-confidence, balance-validated statement whose "
+                "transactions are all excluded from posting (internal-transfer "
+                "matches, or already posted by a prior call) still gets its "
+                "opening balance posted. Idempotency against re-posting is "
+                "enforced per-account (does this account already have an "
+                "opening-balance-equity line), not by created_count or by "
+                "date-ordering alone — covering two statements that share the "
+                "same period_start, where date-ordering alone would not catch "
+                "a re-attempt."
+            ),
+            test=(
+                "apps/backend/tests/integration/test_statement_opening_balance_auto_post.py"
+                "::test_AC_extraction_1833_3_zero_created_count_still_posts_opening_balance"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
     ],
 )
