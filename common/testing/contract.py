@@ -864,8 +864,8 @@ CONTRACT = PackageContract(
                 "The testing-package governance charter (execution matrix, package "
                 "declaration protocol, E2E extension layer, fast interception, "
                 "responsibility table) exists in common/testing/README.md, and "
-                "docs/ssot/MANIFEST.yaml records common/testing/matrix.py as the "
-                "test_execution_matrix owner with the generated YAML as a cross-ref "
+                "common/meta/data/MANIFEST.yaml records common/testing/matrix.py as "
+                "the test_execution_matrix owner with the generated YAML as a cross-ref "
                 "(Was EPIC-008 AC8.22.6)."
             ),
             test=(
@@ -3077,8 +3077,8 @@ CONTRACT = PackageContract(
                 "Cross-document SSOT concepts (reconciliation thresholds, "
                 "reconciliation/confirmation state machines, extraction confidence "
                 "tiers, confidence-tier rollup) are registered in "
-                "docs/ssot/MANIFEST.yaml with anchored owners backed by explicit <a "
-                "id> anchors (#340) (Was EPIC-008 AC8.13.133)."
+                "common/meta/data/MANIFEST.yaml with anchored owners backed by "
+                "explicit <a id> anchors (#340) (Was EPIC-008 AC8.13.133)."
             ),
             test=(
                 "tests/tooling/test_ssot_cross_document_anchors.py"

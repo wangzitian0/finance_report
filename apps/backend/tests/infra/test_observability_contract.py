@@ -120,16 +120,15 @@ def test_AC_runtime_guard_proofs_8_telemetry_tag_value_match_boots(monkeypatch, 
 def test_observability_ssot_and_env_docs_are_linked() -> None:
     """AC-observability.17.1 / AC-observability.17.2 / AC-observability.17.3 / AC-observability.17.4: AC10.5.1 AC10.5.2 AC10.5.3 AC10.7.5: Observability docs are anchored."""
     observability = _read(REPO_ROOT / "common" / "observability" / "observability.md")
-    manifest = _read(REPO_ROOT / "docs" / "ssot" / "MANIFEST.yaml")
-    ssot_index = _read(REPO_ROOT / "docs" / "ssot" / "README.md")
+    manifest = _read(REPO_ROOT / "common" / "meta" / "data" / "MANIFEST.yaml")
     env_example = _read(REPO_ROOT / ".env.example")
 
     assert "SSOT Key" in observability
     assert "observability" in observability
-    # docs/ssot/README.md is a tombstone since #1822 (SSOT dissolution); the
-    # concept-ownership anchor is MANIFEST.yaml, which the tombstone points at.
+    # docs/ssot/ (including its README.md tombstone) was retired entirely in
+    # #1823 (Package-ization 4/4, terminal); the concept-ownership anchor is
+    # now common/meta/data/MANIFEST.yaml.
     assert "owner: common/observability/observability.md" in manifest
-    assert "MANIFEST.yaml" in ssot_index
 
     for key in (
         "OTEL_EXPORTER_OTLP_ENDPOINT",

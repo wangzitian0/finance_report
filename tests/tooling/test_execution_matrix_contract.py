@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[2]
 MATRIX_YAML = ROOT / "common" / "testing" / "data" / "test-execution-matrix.yaml"
 PREVIEW_WORKFLOW = ROOT / ".github" / "workflows" / "preview.yml"
 TESTING_README = ROOT / "common" / "testing" / "README.md"
-MANIFEST = ROOT / "docs" / "ssot" / "MANIFEST.yaml"
+MANIFEST = ROOT / "common" / "meta" / "data" / "MANIFEST.yaml"
 
 
 def _preview_e2e_run_step() -> str:

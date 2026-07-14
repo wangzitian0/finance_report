@@ -955,9 +955,9 @@ CONTRACT = PackageContract(
             id="AC-observability.17.2",
             statement=(
                 "common/observability/observability.md is anchored as the concept "
-                "owner in docs/ssot/MANIFEST.yaml (the ownership registry the "
-                "docs/ssot/README.md tombstone points at since #1822). "
-                "Was EPIC-010 AC10.5.2."
+                "owner in common/meta/data/MANIFEST.yaml (the cross-package "
+                "concept-ownership registry; relocated from the retired "
+                "docs/ssot/ in #1823). Was EPIC-010 AC10.5.2."
             ),
             test=(
                 "apps/backend/tests/infra/test_observability_contract.py"

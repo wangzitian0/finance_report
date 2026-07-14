@@ -46,7 +46,7 @@ def test_AC8_13_126_runtime_incident_response_ssot_centralizes_triage() -> None:
     for token in required_runtime_tokens:
         assert token in runtime
 
-    manifest = yaml.safe_load(read("docs/ssot/MANIFEST.yaml"))
+    manifest = yaml.safe_load(read("common/meta/data/MANIFEST.yaml"))
     concept = manifest["concepts"]["runtime_incident_response"]
     assert concept["owner"] == "common/runtime/runtime-incident-response.md"
     assert concept["family"] == "runtime"
@@ -68,14 +68,11 @@ def test_AC8_13_126_runtime_incident_response_ssot_centralizes_triage() -> None:
         in manifest["concepts"]["env_smoke_test"]["proofs"]
     )
 
-    # docs/ssot/README.md was reduced to a two-line tombstone by #1822 (SSOT
-    # dissolution) — it no longer indexes individual docs by name; it points
-    # readers at MANIFEST.yaml, which does own the runtime_incident_response
-    # concept (asserted above).
-    index = read("docs/ssot/README.md")
-    assert "MANIFEST.yaml" in index
-    assert "retired" in index.lower()
-
+    # docs/ssot/ (including its README.md tombstone) was retired entirely in
+    # #1823 (Package-ization 4/4, terminal) — see
+    # tests/tooling/test_terminal_centers_allowlist.py. MANIFEST.yaml (which
+    # does own the runtime_incident_response concept, asserted above) now
+    # lives at common/meta/data/MANIFEST.yaml.
     deployment = read("common/runtime/deployment.md")
     assert "(./runtime-incident-response.md)" in deployment
     assert (

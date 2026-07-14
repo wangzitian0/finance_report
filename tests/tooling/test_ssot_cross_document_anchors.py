@@ -1,15 +1,15 @@
 """Contract: cross-document SSOT concepts are anchored and registered (issue #340).
 
 Five cross-document concepts must each be (a) registered in
-``docs/ssot/MANIFEST.yaml`` with an anchored owner and (b) backed by an explicit
-``<a id="...">`` HTML anchor in the owning document, so links survive
+``common/meta/data/MANIFEST.yaml`` with an anchored owner and (b) backed by an
+explicit ``<a id="...">`` HTML anchor in the owning document, so links survive
 heading edits. ``tools/check_manifest.py`` already proves anchor *resolution*;
 this test pins the specific cross-document concepts the issue calls out.
 
-The owner is a repo-relative path; most live in ``docs/ssot/`` but a concept may
-own its anchor from a package readme once its SSOT is internalized into the
-package (migration-standard step 3) — e.g. ``extraction_confidence_tiers`` now
-owns ``common/extraction/readme.md#confidence-scoring``.
+The owner is a repo-relative path; every concept now owns its anchor from a
+package readme (the former central ``docs/ssot/`` is retired, #1823) — e.g.
+``extraction_confidence_tiers`` owns
+``common/extraction/readme.md#confidence-scoring``.
 """
 
 from __future__ import annotations
@@ -20,8 +20,7 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-SSOT = ROOT / "docs" / "ssot"
-MANIFEST = SSOT / "MANIFEST.yaml"
+MANIFEST = ROOT / "common" / "meta" / "data" / "MANIFEST.yaml"
 
 # concept key -> (owner path relative to repo root, required explicit anchor id)
 REQUIRED_CONCEPTS: dict[str, tuple[str, str]] = {

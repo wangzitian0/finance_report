@@ -45,7 +45,7 @@ def test_runtime_readme_owns_the_three_gates() -> None:
 
 def test_manifest_env_smoke_test_owner_is_the_package() -> None:
     """MANIFEST repoints the env_smoke_test concept to the package readme (owner), not a central doc."""
-    manifest = yaml.safe_load(read("docs/ssot/MANIFEST.yaml"))
+    manifest = yaml.safe_load(read("common/meta/data/MANIFEST.yaml"))
     owner = manifest["concepts"]["env_smoke_test"]["owner"]
     assert owner.startswith("common/runtime/readme.md")
     # No cross_ref (or owner) may resurrect the retired central doc.
