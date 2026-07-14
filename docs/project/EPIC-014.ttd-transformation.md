@@ -91,7 +91,7 @@ GitHub issues, generated reports, and CI gates own live status.
 
 As-is:
 
-- SSOT documents and `docs/ssot/MANIFEST.yaml` define ownership, but the
+- SSOT documents and `common/meta/data/MANIFEST.yaml` define ownership, but the
   family/concept/clause design model is still implicit.
 - Some child parameters, machine tables, and baselines can be reviewed as if
   they were independent SSOT concepts instead of bound clauses or artifacts.
@@ -132,9 +132,9 @@ This is the FR high-level structure (HLS) family model defined by
 [#821](https://github.com/wangzitian0/finance_report/issues/821). It is the
 **foundation for the [#824](https://github.com/wangzitian0/finance_report/issues/824)
 threshold cleanup**: it groups the existing FR SSOT concepts in
-[`docs/ssot/MANIFEST.yaml`](../ssot/MANIFEST.yaml) into 6-8 reader-facing
-families so cleanup PRs can backfill `family` / `kind` and bind child artifacts
-deterministically.
+[`common/meta/data/MANIFEST.yaml`](../../common/meta/data/MANIFEST.yaml) into
+6-8 reader-facing families so cleanup PRs can backfill `family` / `kind` and
+bind child artifacts deterministically.
 
 This step is **documentation only**. It does not move, rename, merge, or
 re-own any concept; `MANIFEST.yaml` remains the single owner registry. The
@@ -217,7 +217,10 @@ macro domain doc -> generated MkDocs reference -> code/tool/CI gate
 
 The simplification pass is effective when:
 
-- `docs/ssot/README.md` routes readers by family before individual concept.
+- ~~`docs/ssot/README.md` routes readers by family before individual concept.~~
+  Superseded: `docs/ssot/` retired entirely (#1823, Package-ization 4/4);
+  routing is now per-package (`common/<pkg>/readme.md`) with
+  `common/meta/data/MANIFEST.yaml` as the single concept-to-owner index.
 - Generated references are visible in MkDocs navigation and checked by CI or a
   build-time generator.
 - The highest-load SSOT docs no longer copy mutable endpoint, env, DB, enum, or

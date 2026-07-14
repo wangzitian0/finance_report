@@ -12,8 +12,8 @@ auto-review wrong context — this one previously claimed Next.js 14, a retired
 auth library, and non-existent frontend paths. Facts live with their owners:
 
 - Product goal & culture → [`vision.md`](../vision.md)
-- Shared contracts & vocabulary → [`docs/ssot/`](../docs/ssot/README.md)
-  (routed by `docs/ssot/MANIFEST.yaml`)
+- Shared contracts & vocabulary → each package's `common/<pkg>/readme.md`
+  (routed by [`common/meta/data/MANIFEST.yaml`](../common/meta/data/MANIFEST.yaml))
 - Security & integrity hard stops → [`docs/agents/red-lines.md`](../docs/agents/red-lines.md)
 - Tech stack & commands → [`README.md`](../README.md)
 

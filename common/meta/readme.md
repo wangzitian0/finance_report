@@ -245,8 +245,10 @@ The recipe for moving a module (and its EPIC-table ACs) into the package model.
    `registry_to_epic`); a prose mention satisfies it, a table row would re-trip
    `check_epic_package_dual`. (See EPIC-025/EPIC-026 for the pattern.)
 
-8. **Register & classify.** Add any new `docs/ssot/` files to
-   [`MANIFEST.yaml`](../../docs/ssot/MANIFEST.yaml) (with `family`+`kind`);
+8. **Register & classify.** Register any new concept in
+   [`MANIFEST.yaml`](data/MANIFEST.yaml) (owner path + `family`+`kind`) —
+   `docs/ssot/` is retired (#1823); the owner is always a package file
+   (`common/<pkg>/readme.md`, `contract.py`, or a `data/` gate-data file);
    classify tooling tests in
    [`traceability-exceptions.md`](../../docs/project/traceability-exceptions.md).
 

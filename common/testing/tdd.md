@@ -267,7 +267,9 @@ manifest schema, then publishes advisory metrics in CI.
 The report measures:
 
 - total entries and owner count by system
-- duplicate owners and orphan files under `docs/ssot/`
+- duplicate owners and orphan files under SSOT territory (`docs/ssot/` — the
+  legacy convention, still live for infra2 — plus `common/meta/data/`, where
+  finance_report's own concept registry relocated in #1823)
 - explicit `family`, `kind`, `parent`, and `authority` field coverage
 - inferred family distribution for legacy entries without explicit fields
 - machine-owned entries that do not yet have proof links
@@ -295,8 +297,8 @@ legacy debt.
 The gate has two layers. The changed-surface layer enforces hard rules on files
 and manifest entries touched by the current PR:
 
-- changed SSOT files under `docs/ssot/` are expected to be owned by the current
-  manifest
+- changed SSOT-territory files (see above) are expected to be owned by the
+  current manifest
 - newly added manifest entries are expected to declare `family`
 - newly added entries with `kind: clause` are expected to declare `parent`
 - changed high-risk or machine-owned manifest entries are expected to include a
