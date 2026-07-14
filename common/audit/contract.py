@@ -62,6 +62,7 @@ from __future__ import annotations
 
 from common.meta.package_contract import (
     ACRecord,
+    ConceptRecord,
     Invariant,
     Kind,
     PackageContract,
@@ -1396,6 +1397,74 @@ CONTRACT = PackageContract(
             ),
             priority="P0",
             status="done",
+        ),
+    ],
+    concepts=[
+        ConceptRecord(
+            key="base_packages",
+            owner="common/audit/readme.md#base-packages",
+            description=(
+                "The family of value-type narrow-waist base packages (money, ratio, quantity, "
+                "unit_price) and the canonical structure each follows (#1167 / AC12.30). "
+                "Internalized into the audit package (the number-governor that declares the "
+                "value family)."
+            ),
+            cross_refs=[
+                "common/audit/ratio/__init__.py",
+                "common/audit/ratio/contract/ratio.contract.md",
+                "common/audit/ratio/conformance/vectors.json",
+                "common/audit/quantity/__init__.py",
+                "common/audit/quantity/contract/quantity.contract.md",
+                "common/audit/quantity/conformance/vectors.json",
+                "apps/backend/src/audit/ratio/__init__.py",
+                "apps/backend/src/audit/quantity/__init__.py",
+                "apps/frontend/src/lib/audit/ratio/index.ts",
+                "apps/frontend/src/lib/audit/quantity/index.ts",
+                "docs/project/EPIC-012.foundation-libs.md",
+            ],
+            proofs=[
+                "tests/tooling/test_ratio_value_type.py",
+                "tests/tooling/test_ratio_conformance.py",
+                "tests/tooling/test_ratio_api_parity.py",
+                "tests/tooling/test_quantity_value_type.py",
+                "tests/tooling/test_quantity_conformance.py",
+                "tests/tooling/test_quantity_api_parity.py",
+            ],
+            family="platform",
+            kind="concept",
+            authority="documented_contract",
+        ),
+        ConceptRecord(
+            key="money_value_type",
+            owner="common/audit/money/readme.md#money-type",
+            description=(
+                "Money/Currency/ExchangeRate/convert/CurrencyBalances value types in "
+                "common/audit/money/ make bad money states unrepresentable (#1167)."
+            ),
+            cross_refs=[
+                "docs/project/EPIC-002.double-entry-core.md",
+                "common/audit/money/__init__.py",
+                "common/audit/money/contract/money.contract.md",
+                "common/audit/money/conformance/vectors.json",
+                "apps/backend/src/audit/money/__init__.py",
+                "apps/frontend/src/lib/audit/money/index.ts",
+            ],
+            proofs=[
+                "tests/tooling/test_money_value_type.py",
+                "tests/tooling/test_money_conformance.py",
+            ],
+            family="accounting",
+            kind="concept",
+            authority="documented_contract",
+        ),
+        ConceptRecord(
+            key="source_type_priority",
+            owner="common/audit/readme.md#source-type-trust-hierarchy-provenance",
+            description="Data trust hierarchy and source_type enum conflict resolution.",
+            cross_refs=[
+                "common/reconciliation/reconciliation.md",
+                "common/extraction/readme.md",
+            ],
         ),
     ],
 )

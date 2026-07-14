@@ -29,6 +29,7 @@ from __future__ import annotations
 
 from common.meta.package_contract import (
     ACRecord,
+    ConceptRecord,
     Invariant,
     Kind,
     PackageContract,
@@ -1194,6 +1195,37 @@ CONTRACT = PackageContract(
             test="apps/frontend/src/__tests__/telemetryEmission.test.ts::dispatches an OpenPanel event via window.op when configured (AC24.2.2)",
             priority="P1",
             status="done",
+        ),
+    ],
+    concepts=[
+        ConceptRecord(
+            key="observability_logging",
+            owner="common/observability/observability.md",
+            description="Structured logging, OTLP export configuration.",
+            cross_refs=["common/meta/development.md"],
+        ),
+        ConceptRecord(
+            key="statement_parsing_model_selection_logging",
+            owner="common/observability/observability-logging.md",
+            description=(
+                "Statement parsing model-selection and staging audit replay logging contract."
+            ),
+            cross_refs=[
+                "common/observability/observability.md",
+                "common/extraction/readme.md",
+                "common/llm/ai.md",
+                "docs/project/EPIC-010.observability-logging.md",
+                "apps/backend/tests/api/test_statements_router.py",
+                "apps/backend/tests/extraction/test_statement_parsing_audit_logging.py",
+                "apps/backend/tests/reconciliation/test_reconciliation_router_additional.py",
+                "tests/tooling/test_post_merge_e2e_gates.py",
+                ".github/workflows/deploy.yml",
+                ".github/workflows/deploy.yml",
+            ],
+            family="observability",
+            kind="playbook",
+            authority="documented_contract",
+            parent="observability_logging",
         ),
     ],
 )

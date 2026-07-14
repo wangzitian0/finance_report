@@ -137,7 +137,7 @@ repos:
     hooks:
       - id: ssot-manifest-check
         name: SSOT manifest check (CI parity)
-        entry: uv run --with pyyaml python tools/check_manifest.py
+        entry: uv run --with pyyaml --with pydantic python tools/check_manifest.py
         language: system
         pass_filenames: false
         always_run: true

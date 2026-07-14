@@ -412,11 +412,16 @@ class TestMain:
     def test_empty_concepts_exits_1(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
+        """Empty residual file AND no package contracts to discover -> exit 1."""
         manifest = tmp_path / "MANIFEST.yaml"
         manifest.write_text("concepts: {}\n")
         with (
             mock.patch("sys.argv", ["check_manifest.py"]),
             mock.patch.object(cm, "MANIFEST_PATH", manifest),
+            # No common/*/contract.py under tmp_path, so discover_packages()
+            # finds nothing and package_concepts is empty too (#1799: concepts
+            # can come from either source, so both must be empty to hit this).
+            mock.patch.object(cm, "REPO_ROOT", tmp_path),
         ):
             result = cm.main()
         assert result == 1
@@ -498,6 +503,112 @@ class TestMain:
         with mock.patch("sys.argv", ["check_manifest.py"]):
             result = cm.main()
         assert result == 0
+
+    def test_AC_meta_manifest_2_concept_from_package_contract_is_validated(
+        self, tmp_path: Path
+    ) -> None:
+        """AC-meta.manifest.2 (#1799): a concept declared in a package's own
+        ``contract.py`` (not hand-copied into MANIFEST.yaml) is picked up by
+        ``check_manifest.py`` via ``discover_packages`` + ``concept_index``,
+        and its owner/cross_ref files are validated exactly like a residual
+        MANIFEST.yaml entry.
+        """
+        (tmp_path / "docs").mkdir()
+        (tmp_path / "docs" / "widget.md").write_text("# Widget\n", encoding="utf-8")
+
+        pkg_dir = tmp_path / "common" / "widget"
+        pkg_dir.mkdir(parents=True)
+        (pkg_dir / "contract.py").write_text(
+            "from common.meta.package_contract import ConceptRecord, PackageContract\n"
+            "\n"
+            "CONTRACT = PackageContract(\n"
+            '    name="widget",\n'
+            '    klass="domain",\n'
+            '    status="draft",\n'
+            "    depends_on=[],\n"
+            "    interface=[],\n"
+            "    events=[],\n"
+            "    invariants=[],\n"
+            "    roadmap=[],\n"
+            "    concepts=[\n"
+            "        ConceptRecord(\n"
+            '            key="widget_shape",\n'
+            '            owner="docs/widget.md",\n'
+            '            description="What a widget is.",\n'
+            "        ),\n"
+            "    ],\n"
+            ")\n",
+            encoding="utf-8",
+        )
+
+        manifest = tmp_path / "MANIFEST.yaml"
+        manifest.write_text("concepts: {}\n")
+
+        with (
+            mock.patch("sys.argv", ["check_manifest.py"]),
+            mock.patch.object(cm, "MANIFEST_PATH", manifest),
+            mock.patch.object(cm, "REPO_ROOT", tmp_path),
+        ):
+            concepts = cm.load_computed_concepts(tmp_path, manifest)
+            result = cm.main()
+
+        assert concepts == {
+            "widget_shape": {
+                "owner": "docs/widget.md",
+                "description": "What a widget is.",
+                "cross_refs": [],
+                "proofs": [],
+                "family": None,
+                "kind": None,
+                "authority": None,
+                "parent": None,
+            }
+        }
+        assert result == 0
+
+    def test_concept_key_in_both_residual_and_package_exits_1(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A concept key claimed by both the residual file and a package contract fails."""
+        pkg_dir = tmp_path / "common" / "widget"
+        pkg_dir.mkdir(parents=True)
+        (pkg_dir / "contract.py").write_text(
+            "from common.meta.package_contract import ConceptRecord, PackageContract\n"
+            "\n"
+            "CONTRACT = PackageContract(\n"
+            '    name="widget",\n'
+            '    klass="domain",\n'
+            '    status="draft",\n'
+            "    depends_on=[],\n"
+            "    interface=[],\n"
+            "    events=[],\n"
+            "    invariants=[],\n"
+            "    roadmap=[],\n"
+            "    concepts=[\n"
+            "        ConceptRecord(\n"
+            '            key="dup_concept",\n'
+            '            owner="common/widget/x.md",\n'
+            '            description="d",\n'
+            "        ),\n"
+            "    ],\n"
+            ")\n",
+            encoding="utf-8",
+        )
+        manifest = tmp_path / "MANIFEST.yaml"
+        manifest.write_text(
+            "concepts:\n  dup_concept:\n    owner: docs/other.md\n    description: also d\n"
+        )
+
+        with (
+            mock.patch("sys.argv", ["check_manifest.py"]),
+            mock.patch.object(cm, "MANIFEST_PATH", manifest),
+            mock.patch.object(cm, "REPO_ROOT", tmp_path),
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                cm.load_computed_concepts(tmp_path, manifest)
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "dup_concept" in captured.err
 
     def test_null_concept_value_fails(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]

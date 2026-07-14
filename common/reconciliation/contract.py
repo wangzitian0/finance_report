@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from common.meta.package_contract import (
     ACRecord,
+    ConceptRecord,
     Invariant,
     Kind,
     PackageContract,
@@ -1887,6 +1888,26 @@ CONTRACT = PackageContract(
             test="apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx::AC18.5.4 — feedback POST on accept/reject/edit",
             priority="P2",
             status="done",
+        ),
+    ],
+    concepts=[
+        ConceptRecord(
+            key="reconciliation_state_machine",
+            owner="common/reconciliation/readme.md#state-machine",
+            description="pending → auto_accepted | pending_review → accepted | rejected.",
+            cross_refs=[
+                "common/reconciliation/confirmation-workflow.md",
+                "common/reconciliation/reconciliation.md",
+            ],
+        ),
+        ConceptRecord(
+            key="reconciliation_thresholds",
+            owner="common/reconciliation/readme.md#thresholds",
+            description="Score ≥85 auto-accept; 60-84 review; <60 unmatched.",
+            cross_refs=[
+                "docs/agents/red-lines.md",
+                "common/reconciliation/reconciliation.md",
+            ],
         ),
     ],
 )

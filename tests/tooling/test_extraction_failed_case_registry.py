@@ -6,6 +6,8 @@ from pathlib import Path
 
 import yaml
 
+from common.meta.extension.check_manifest import load_computed_concepts
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -17,7 +19,10 @@ def test_AC3_9_1_extraction_failed_case_registry_preserves_audit_cases_without_p
         (ROOT / "common/extraction/audit-failed-cases.yaml").read_text()
     )
     epic = (ROOT / "docs/project/EPIC-003.statement-parsing.md").read_text()
-    manifest = (ROOT / "common/meta/data/MANIFEST.yaml").read_text()
+    # extraction_failed_case_registry is now declared in
+    # common/extraction/contract.py, not hand-copied into MANIFEST.yaml
+    # (#1799) — check the computed registry.
+    concepts = load_computed_concepts(ROOT, ROOT / "common/meta/data/MANIFEST.yaml")
 
     assert registry["kind"] == "extraction_audit_failed_case_registry"
     assert registry["owner_epic"] == "EPIC-003"
@@ -27,4 +32,4 @@ def test_AC3_9_1_extraction_failed_case_registry_preserves_audit_cases_without_p
     assert "provider_shape_changed" in registry["policy"]["allowed_failure_categories"]
     assert registry["cases"] == []
     assert "AC-extraction.9.1" in epic
-    assert "extraction_failed_case_registry" in manifest
+    assert "extraction_failed_case_registry" in concepts

@@ -1,9 +1,18 @@
 #!/usr/bin/env python3
 """Concept-ownership Manifest consistency checker (closes meta-issue horizontal-axis).
 
-Validates ``common/meta/data/MANIFEST.yaml`` — the cross-package
-concept-ownership registry (relocated from the retired ``docs/ssot/`` in
-#1823, Package-ization 4/4) — against the following rules:
+Validates the computed union of two sources (#1799):
+
+  * ``common/meta/data/MANIFEST.yaml`` — the RESIDUAL concepts with no owning
+    package (governance docs, the one frontend-app-local doc);
+  * every package's own ``concepts=[ConceptRecord(...), ...]`` declaration in
+    its ``contract.py``, projected by ``common.meta.data.projection.
+    concept_index`` (mirrors how ``contract_index`` computes ``ac_index``
+    from ``roadmap`` instead of a hand-kept AC list).
+
+Before #1799 this validated a single hand-authored file; the concept registry
+is now computed from contracts wherever a package owns the concept, same as
+the AC registry. The checks themselves are unchanged:
 
   0. Every concept value must be a YAML mapping, not null or a scalar.
   1. No two concepts may share the same owner (file + optional anchor).
@@ -26,7 +35,9 @@ Usage::
     python tools/check_manifest.py
     python tools/check_manifest.py --verbose
 
-Run in CI alongside ``tools/lint_doc_consistency.py``.
+Run in CI alongside ``tools/lint_doc_consistency.py``. Needs ``pydantic`` (to
+load package contracts), not just ``pyyaml`` — its isolated CI/pre-commit
+invocations pass ``--with pydantic`` accordingly.
 """
 
 from __future__ import annotations
@@ -42,6 +53,8 @@ try:
 except ImportError:  # pragma: no cover
     print("ERROR: PyYAML not installed. Run: pip install pyyaml", file=sys.stderr)
     sys.exit(1)
+
+from common.meta.extension.check_package_contract import discover_packages
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 MANIFEST_PATH = REPO_ROOT / "common" / "meta" / "data" / "MANIFEST.yaml"
@@ -106,6 +119,62 @@ def load_manifest(path: Path) -> dict:
     with open(path, encoding="utf-8") as fh:
         data = yaml.safe_load(fh) or {}
     return data
+
+
+def _concept_record_dict(concept: object) -> dict:
+    """A ConceptRecord's fields as a plain dict, matching a MANIFEST.yaml entry's shape."""
+    return {
+        "owner": concept.owner,
+        "description": concept.description,
+        "cross_refs": list(concept.cross_refs),
+        "proofs": list(concept.proofs),
+        "family": concept.family,
+        "kind": concept.kind,
+        "authority": concept.authority,
+        "parent": concept.parent,
+    }
+
+
+def load_computed_concepts(repo_root: Path, manifest_path: Path) -> dict:
+    """The concept registry to validate: residual MANIFEST.yaml + every
+    package's declared ``concepts`` (#1799), unioned like ``ac_index`` unions
+    roadmap ACs across packages.
+
+    Deliberately does NOT go through ``common.meta.data.projection.
+    concept_index`` — that's a ``data``-layer projection, and this module
+    lives in ``extension/``; a package's own ``extension`` may never import
+    its own ``data`` (the read-model is a downstream sink, mechanism A/#1675
+    idiom — ``check_package_contract``'s ``_check_data_is_sink`` enforces
+    this structurally). ``concept_index`` stays available for external
+    consumers who want the package-only half; this walks
+    ``discover_packages()``'s contracts directly instead, mirroring
+    ``concept_index``'s per-record shape without importing it.
+
+    A concept key claimed by both the residual file and a package (or by two
+    packages) is a "no concept owned twice" violation, reported the same way
+    a malformed YAML file is (a clear error, exit 1) rather than silently
+    letting a dict merge overwrite one owner with another.
+    """
+    residual = load_manifest(manifest_path).get("concepts", {})
+    packages = discover_packages(repo_root)
+
+    concepts: dict = dict(residual)
+    owner_source: dict[str, str] = {key: "MANIFEST.yaml (residual)" for key in residual}
+    for pkg in packages:
+        for concept in pkg.contract.concepts:
+            existing = owner_source.get(concept.key)
+            if existing is not None:
+                print(
+                    f"ERROR: concept key {concept.key!r} is declared both in "
+                    f"{existing} and package {pkg.name!r} — no concept may be "
+                    "owned twice.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            owner_source[concept.key] = f"package {pkg.name!r}"
+            concepts[concept.key] = _concept_record_dict(concept)
+
+    return concepts
 
 
 def check_concept_schema(concepts: dict) -> list[Violation]:
@@ -283,11 +352,10 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    data = load_manifest(MANIFEST_PATH)
-    concepts: dict = data.get("concepts", {})
+    concepts = load_computed_concepts(REPO_ROOT, MANIFEST_PATH)
 
     if not concepts:
-        print("ERROR: No concepts found in MANIFEST.yaml.", file=sys.stderr)
+        print("ERROR: No concepts found (MANIFEST.yaml + package contracts).", file=sys.stderr)
         return 1
 
     violations: list[Violation] = []

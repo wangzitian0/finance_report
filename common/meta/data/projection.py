@@ -18,11 +18,21 @@ The index answers the questions the standard's ``data`` layer is meant to:
   ``base`` / ``extension`` / ``data`` (the extension fan-out / anti-mud-ball
   metric: a package whose ``extension`` count balloons is drifting toward a mud
   ball).
+
+A sibling projection, :func:`concept_index`, answers the same question for
+SSOT concepts (#1799) that :func:`contract_index`'s ``ac_index`` answers for
+ACs: every package-declared concept key -> its owner/description/cross_refs,
+computed instead of hand-copied into ``common/meta/data/MANIFEST.yaml``.
 """
 
 from __future__ import annotations
 
-from common.meta.base.package_contract import KIND_LAYER, SPLIT, PackageContract
+from common.meta.base.package_contract import (
+    KIND_LAYER,
+    SPLIT,
+    ConceptRecord,
+    PackageContract,
+)
 
 
 def contract_index(contracts: list[PackageContract]) -> dict[str, dict]:
@@ -78,3 +88,45 @@ def contract_index(contracts: list[PackageContract]) -> dict[str, dict]:
         "consumers": consumers,
         "units_by_layer": units_by_layer,
     }
+
+
+def _concept_dict(concept: ConceptRecord) -> dict:
+    return {
+        "owner": concept.owner,
+        "description": concept.description,
+        "cross_refs": list(concept.cross_refs),
+        "proofs": list(concept.proofs),
+        "family": concept.family,
+        "kind": concept.kind,
+        "authority": concept.authority,
+        "parent": concept.parent,
+    }
+
+
+def concept_index(contracts: list[PackageContract]) -> dict[str, dict]:
+    """Project package-declared concepts into the computed concept registry.
+
+    Pure: the result is a function of ``contracts`` alone, mirroring
+    :func:`contract_index`'s ``ac_index``. The returned shape matches a
+    ``common/meta/data/MANIFEST.yaml`` concept entry exactly (``owner``,
+    ``description``, ``cross_refs``, plus the optional classification
+    fields), so a caller can merge it with the residual (no-owning-package)
+    entries still hand-kept in ``MANIFEST.yaml`` and hand the union straight
+    to ``check_manifest.py``'s existing checks.
+    """
+    concepts: dict[str, dict] = {}
+    owner_package: dict[str, str] = {}
+    for c in contracts:
+        for concept in c.concepts:
+            existing = owner_package.get(concept.key)
+            if existing is not None and existing != c.name:
+                # No concept is owned twice. A duplicate key across packages is
+                # a contract-integrity violation; surface it instead of
+                # silently overwriting the owner mapping.
+                raise ValueError(
+                    f"concept {concept.key!r} is claimed by two packages: "
+                    f"{existing!r} and {c.name!r}"
+                )
+            owner_package[concept.key] = c.name
+            concepts[concept.key] = _concept_dict(concept)
+    return concepts

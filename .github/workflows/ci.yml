@@ -139,13 +139,17 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       # Fast-fail (left-move): these SSOT/contract gates are app-independent
-      # (`uv run --with pyyaml`, no backend sync / npm) and are the drift classes
-      # behind most CI failures. Running them BEFORE the expensive `uv sync` +
-      # `npm ci` means a drift fails in ~20s instead of after ~50s of setup. Same
-      # checks, no coverage change; ordering only.
+      # (`uv run --with pyyaml[--with pydantic]`, no backend sync / npm) and are
+      # the drift classes behind most CI failures. Running them BEFORE the
+      # expensive `uv sync` + `npm ci` means a drift fails in ~20s instead of
+      # after ~50s of setup. Same checks, no coverage change; ordering only.
+      # (SSOT Manifest Check also needs `pydantic` since #1799: it loads every
+      # package's PackageContract to project package-declared concepts, not
+      # just the residual MANIFEST.yaml — still one isolated `--with` overlay,
+      # not the full backend `uv sync`.)
       - name: SSOT Manifest Check
         run: |
-          uv run --with pyyaml python tools/check_manifest.py
+          uv run --with pyyaml --with pydantic python tools/check_manifest.py
       - name: SSOT Governance Exceptions Check
         run: |
           uv run --with pyyaml python tools/check_governance_exceptions.py

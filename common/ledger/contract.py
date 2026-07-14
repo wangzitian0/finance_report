@@ -80,6 +80,7 @@ from __future__ import annotations
 
 from common.meta.package_contract import (
     ACRecord,
+    ConceptRecord,
     Invariant,
     Kind,
     PackageContract,
@@ -2171,6 +2172,66 @@ CONTRACT = PackageContract(
             test="apps/frontend/src/__tests__/sidebarAndTabs.test.tsx::AC15.7.7 AC16.19.12 AC19.6.3 AC19.6.4 AC19.6.5 AC22.21.1 keeps the accounting machinery, sidebar badges and settings out of the sidebar (supersedes the Advanced drawer)",
             priority="P1",
             status="done",
+        ),
+    ],
+    concepts=[
+        ConceptRecord(
+            key="accounting_equation",
+            owner="common/ledger/readme.md#accounting-equation",
+            description="Assets = Liabilities + Equity + (Income - Expenses) invariant.",
+            cross_refs=[
+                "docs/agents/red-lines.md",
+                "apps/backend/tests/ledger/test_accounting_equation.py",
+            ],
+            family="accounting",
+        ),
+        ConceptRecord(
+            key="decimal_monetary_rule",
+            owner="common/ledger/readme.md#decimal-rule",
+            description=(
+                "All monetary amounts MUST use Python Decimal, never float; money rounds via "
+                "banker's HALF_EVEN."
+            ),
+            cross_refs=[
+                "AGENTS.md",
+                "docs/agents/red-lines.md",
+                "apps/backend/tests/accounting/test_decimal_safety.py",
+            ],
+            proofs=[
+                "apps/backend/tests/accounting/test_decimal_safety.py",
+                "apps/backend/tests/audit/money/test_money.py",
+            ],
+            family="accounting",
+        ),
+        ConceptRecord(
+            key="double_entry_bookkeeping",
+            owner="common/ledger/readme.md#entry-balance",
+            description="Every JournalEntry must have balanced debits and credits.",
+            cross_refs=[
+                "docs/agents/red-lines.md",
+                "apps/backend/tests/ledger/test_accounting.py",
+            ],
+            family="accounting",
+        ),
+        ConceptRecord(
+            key="processing_account",
+            owner="common/ledger/readme.md",
+            description="Unconfirmed in-transit funds; balance 0 means transfer paired.",
+            cross_refs=[
+                "common/extraction/confirmation-workflow.md",
+                "common/reconciliation/reconciliation.md",
+            ],
+            family="accounting",
+        ),
+        ConceptRecord(
+            key="transaction_boundary",
+            owner="common/ledger/readme.md#async-tx-boundary",
+            description="Routers commit(); Services flush() only.",
+            cross_refs=[
+                "docs/agents/red-lines.md",
+                "apps/backend/tests/ledger/test_accounting_integration.py",
+            ],
+            family="accounting",
         ),
     ],
 )

@@ -59,6 +59,7 @@ from __future__ import annotations
 
 from common.meta.package_contract import (
     ACRecord,
+    ConceptRecord,
     Invariant,
     Kind,
     PackageContract,
@@ -3844,6 +3845,85 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
             proof_kind="property",
+        ),
+    ],
+    concepts=[
+        ConceptRecord(
+            key="confidence_tier_rollup",
+            owner="common/extraction/confirmation-workflow.md#confidence-tier-rollup",
+            description=(
+                "Confidence-tier rollup that makes extraction confidence load-bearing for "
+                "promotion."
+            ),
+            cross_refs=["common/extraction/readme.md#confidence-scoring"],
+            family="extraction",
+            kind="concept",
+        ),
+        ConceptRecord(
+            key="confirmation_workflow",
+            owner="common/extraction/confirmation-workflow.md",
+            description="Cross-cutting pending_review state machine (Stage 1 & 2).",
+            cross_refs=[
+                "common/reconciliation/reconciliation.md",
+                "common/ledger/readme.md",
+            ],
+        ),
+        ConceptRecord(
+            key="confirmation_workflow_states",
+            owner="common/extraction/confirmation-workflow.md#state-machine",
+            description=(
+                "Stage 1 & Stage 2 confirmation state transitions (the cross-cutting state "
+                "machine)."
+            ),
+            cross_refs=["common/reconciliation/readme.md#state-machine"],
+            family="reconciliation",
+            kind="concept",
+        ),
+        ConceptRecord(
+            key="evidence_lineage",
+            owner="common/extraction/evidence-lineage.md",
+            description="Generic Evidence Graph for source-to-ledger-to-report audit lineage.",
+            cross_refs=[
+                "docs/project/EPIC-018.ai-driven-pipeline.md",
+                "common/platform/workflow-events.md",
+                "common/reporting/reporting.md",
+                "apps/backend/tests/extraction/test_evidence_graph_materialization.py",
+            ],
+        ),
+        ConceptRecord(
+            key="extraction_confidence_tiers",
+            owner="common/extraction/readme.md#confidence-scoring",
+            description="Extraction confidence score weighting and ≥85 / 60-84 / <60 routing tiers.",
+            cross_refs=[
+                "common/reconciliation/readme.md#thresholds",
+                "common/extraction/confirmation-workflow.md#confidence-tier-rollup",
+            ],
+            family="extraction",
+            kind="concept",
+        ),
+        ConceptRecord(
+            key="extraction_failed_case_registry",
+            owner="common/extraction/audit-failed-cases.yaml",
+            description=(
+                "Sanitized registry for parsing cases that fail audit without expanding "
+                "deterministic parser scope."
+            ),
+            cross_refs=[
+                "common/extraction/readme.md",
+                "docs/project/EPIC-003.statement-parsing.md",
+            ],
+            proofs=["tests/tooling/test_extraction_failed_case_registry.py"],
+            family="extraction",
+            kind="registry",
+        ),
+        ConceptRecord(
+            key="extraction_pipeline",
+            owner="common/extraction/readme.md",
+            description="Gemini Vision document parsing and validation pipeline.",
+            cross_refs=[
+                "common/reconciliation/reconciliation.md",
+                "apps/backend/tests/extraction/test_dual_write_layer2.py",
+            ],
         ),
     ],
 )

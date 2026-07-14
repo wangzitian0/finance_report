@@ -61,6 +61,7 @@ from __future__ import annotations
 
 from common.meta.package_contract import (
     ACRecord,
+    ConceptRecord,
     Invariant,
     Kind,
     PackageContract,
@@ -945,6 +946,40 @@ CONTRACT = PackageContract(
             test="apps/frontend/src/__tests__/generalSettingsPage.test.tsx::AC12.39.3 renders the effective base currency and keeps Save disabled until edited",
             priority="P1",
             status="done",
+        ),
+    ],
+    concepts=[
+        ConceptRecord(
+            key="market_data",
+            owner="common/pricing/readme.md#market-data-pre-1610-cutover-shipped-model",
+            description=(
+                "FX rates, stock prices, data sources, and sync schedule. Legacy model; "
+                "internalized into the pricing package readme (migration closeout wave 3, "
+                "#1664); consolidates into the unified observation model at the #1610 "
+                "consumer-wiring cutover."
+            ),
+            cross_refs=[
+                "common/pricing/market_data.md",
+                "common/reporting/reporting.md",
+                "common/pricing/contract.py",
+            ],
+        ),
+        ConceptRecord(
+            key="net_worth_valuation_snapshots",
+            owner="common/pricing/readme.md#manual-valuation-snapshots",
+            description=(
+                "Point-in-time manual valuation snapshots for non-ledger net worth "
+                "components. Legacy model; retires into the pricing package's unified "
+                "observation model (#1610) at the consumer-wiring cutover (internalized into "
+                "the package readme itself, migration closeout wave 3, #1664)."
+            ),
+            cross_refs=[
+                "common/portfolio/assets.md",
+                "common/reporting/reporting.md",
+                "common/pricing/contract.py",
+                "common/meta/schema.md",
+            ],
+            family="assets",
         ),
     ],
 )

@@ -43,6 +43,7 @@ from __future__ import annotations
 
 from common.meta.package_contract import (
     ACRecord,
+    ConceptRecord,
     Invariant,
     Kind,
     PackageContract,
@@ -998,6 +999,51 @@ CONTRACT = PackageContract(
             test="apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx::AC18.5.7 — AI settings mount reflects saved toggles",
             priority="P2",
             status="done",
+        ),
+    ],
+    concepts=[
+        ConceptRecord(
+            key="cassette_graded_eval",
+            owner="common/llm/readme.md#cassette-graded-eval",
+            description=(
+                "Graded per-field accuracy eval over committed cassettes with a ratcheted "
+                "per-case score floor (EPIC-023 AC23.8) — the accuracy oracle complementing "
+                "the AC23.7 balance-chain consistency gate. Internalized into the llm "
+                "package."
+            ),
+            cross_refs=[
+                "common/llm/readme.md#cassettes",
+                "docs/project/EPIC-023.llm-provider-abstraction.md",
+                "common/testing/cassette_graded_eval.py",
+                "common/testing/check_cassette_graded_eval.py",
+                "common/testing/fixtures/cassette-eval-baseline.jsonl",
+                "common/testing/fixtures/llm_cassettes/",
+            ],
+            proofs=["tests/tooling/test_cassette_graded_eval.py"],
+            family="llm",
+            kind="concept",
+        ),
+        ConceptRecord(
+            key="llm_provider_abstraction",
+            owner="common/llm/readme.md#axes",
+            description=(
+                "LLM layer's three orthogonal axes (protocol family x model x scene), "
+                "scene->model binding, and at-rest provider-secret encryption."
+            ),
+            cross_refs=[
+                "common/extraction/readme.md",
+                "docs/project/EPIC-023.llm-provider-abstraction.md",
+                "apps/backend/src/llm/base/types.py",
+                "apps/backend/src/llm/base/secrets.py",
+                "apps/backend/src/llm/extension/cassette.py",
+            ],
+            proofs=[
+                "apps/backend/tests/llm/test_secrets.py",
+                "apps/backend/tests/llm/test_types.py",
+                "apps/backend/tests/llm/test_cassette.py",
+            ],
+            family="llm",
+            kind="concept",
         ),
     ],
 )

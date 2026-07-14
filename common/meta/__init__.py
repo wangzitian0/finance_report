@@ -31,10 +31,12 @@ from __future__ import annotations
 
 __all__ = [
     "ACRecord",
+    "ConceptRecord",
     "Invariant",
     "Kind",
     "PackageContract",
     "Unit",
+    "concept_index",
     "contract_index",
 ]
 
@@ -44,10 +46,14 @@ __all__ = [
 # common.meta.* submodule always runs this __init__ first, so an eager import
 # of the pydantic-backed base/data layers here would drag pydantic into every
 # one of those lightweight gates. __getattr__ defers the import until a caller
-# actually reaches for ACRecord/Invariant/Kind/PackageContract/Unit/
-# contract_index, so check_package_contract.py (which does need the model)
-# still gets it, while the stdlib-only gates never pay the cost.
-_BASE_NAMES = {"ACRecord", "Invariant", "Kind", "PackageContract", "Unit"}
+# actually reaches for ACRecord/ConceptRecord/Invariant/Kind/PackageContract/
+# Unit/contract_index/concept_index, so check_package_contract.py (which does
+# need the model) still gets it, while the stdlib-only gates never pay the
+# cost. (check_manifest.py itself now needs the model too — #1799 — but reaches
+# it via a direct `common.meta.extension.check_package_contract` import rather
+# than through this lazy attribute, so its CI invocation adds `--with pydantic`
+# explicitly instead of relying on this shield.)
+_BASE_NAMES = {"ACRecord", "ConceptRecord", "Invariant", "Kind", "PackageContract", "Unit"}
 
 
 def __getattr__(name: str):
@@ -59,4 +65,8 @@ def __getattr__(name: str):
         from common.meta.data.projection import contract_index
 
         return contract_index
+    if name == "concept_index":
+        from common.meta.data.projection import concept_index
+
+        return concept_index
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

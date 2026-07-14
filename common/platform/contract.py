@@ -65,6 +65,7 @@ from __future__ import annotations
 
 from common.meta.package_contract import (
     ACRecord,
+    ConceptRecord,
     Invariant,
     Kind,
     PackageContract,
@@ -1141,6 +1142,18 @@ CONTRACT = PackageContract(
             test="apps/frontend/src/__tests__/workflowSurfaces.test.tsx::AC19.12.5 renders lightweight derived workflow events as user actions, not internal logs",
             priority="P0",
             status="done",
+        ),
+    ],
+    concepts=[
+        ConceptRecord(
+            key="workflow_events",
+            owner="common/platform/workflow-events.md",
+            description="User-facing upload-to-report workflow event read model.",
+            cross_refs=[
+                "docs/project/EPIC-019.event-driven-upload-to-report-ux.md",
+                "common/extraction/confirmation-workflow.md",
+                "common/reporting/reporting.md",
+            ],
         ),
     ],
 )

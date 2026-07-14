@@ -29,6 +29,7 @@ from __future__ import annotations
 
 from common.meta.package_contract import (
     ACRecord,
+    ConceptRecord,
     Invariant,
     Kind,
     PackageContract,
@@ -2921,6 +2922,31 @@ CONTRACT = PackageContract(
             test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC19.9.2 renders compact source trust summary before traceability details",
             priority="P0",
             status="done",
+        ),
+    ],
+    concepts=[
+        ConceptRecord(
+            key="framework_reporting",
+            owner="common/reporting/framework-reporting.md",
+            description=(
+                "US-like and HK-like target-backward policy layer for personal report "
+                "packages."
+            ),
+            cross_refs=[
+                "common/reporting/reporting.md",
+                "common/ledger/readme.md",
+                "docs/project/EPIC-020.framework-aware-personal-reporting.md",
+            ],
+        ),
+        ConceptRecord(
+            key="reporting_calculations",
+            owner="common/reporting/readme.md",
+            description="Financial reports, multi-currency consolidation, calculations.",
+            cross_refs=[
+                "common/reporting/reporting.md",
+                "common/ledger/readme.md",
+                "common/pricing/market_data.md",
+            ],
         ),
     ],
 )

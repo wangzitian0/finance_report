@@ -15,6 +15,7 @@ from pathlib import Path
 
 import yaml
 
+from common.meta.extension.check_manifest import load_computed_concepts
 from common.testing import matrix
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -175,8 +176,7 @@ def test_AC8_22_6_charter_and_manifest_ownership() -> None:
     ):
         assert section in readme, f"charter section missing: {section}"
 
-    manifest = yaml.safe_load(MANIFEST.read_text(encoding="utf-8"))
-    concepts = manifest.get("concepts", manifest)
+    concepts = load_computed_concepts(ROOT, MANIFEST)
     entry = concepts["test_execution_matrix"]
     assert entry["owner"] == "common/testing/matrix.py"
     cross_refs = entry.get("cross_refs", [])
