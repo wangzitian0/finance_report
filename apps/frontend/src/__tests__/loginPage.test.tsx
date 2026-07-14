@@ -36,6 +36,7 @@ describe("LoginPage", () => {
     vi.mocked(track).mockReset()
   })
 
+  // AC-identity.fe-auth.6
   it("AC16.12.5 AC22.1.3 submits login payload and redirects to Home", async () => {
     mockedApiFetch.mockResolvedValueOnce({
       id: "u1",
@@ -67,6 +68,7 @@ describe("LoginPage", () => {
     expect(pushMock).toHaveBeenCalledWith("/")
   })
 
+  // AC-identity.fe-auth.7
   it("AC16.12.6 switches to register mode and uses register endpoint", async () => {
     mockedApiFetch.mockResolvedValueOnce({
       id: "u2",
@@ -171,6 +173,7 @@ describe("LoginPage", () => {
     expect(vi.mocked(track)).not.toHaveBeenCalledWith(ANALYTICS_EVENTS.SIGNUP)
   })
 
+  // AC-identity.fe-auth.8
   it("AC16.12.7 shows API error and exits loading state", async () => {
     mockedApiFetch.mockRejectedValueOnce(new Error("invalid credentials"))
 
@@ -190,6 +193,7 @@ describe("LoginPage", () => {
     expect(screen.getByRole("button", { name: "Sign In" })).toBeInTheDocument()
   })
 
+  // AC-identity.fe-auth.9
   it("AC16.12.13 toggles password visibility", () => {
     render(<LoginPage />)
 
@@ -206,6 +210,7 @@ describe("LoginPage", () => {
     expect(passwordInput.type).toBe("password")
   })
 
+  // AC-identity.fe-auth.10
   it("AC16.12.14 shows error with alert role and aria-live", async () => {
     mockedApiFetch.mockRejectedValueOnce(new Error("bad request"))
     render(<LoginPage />)
@@ -221,6 +226,7 @@ describe("LoginPage", () => {
     })
   })
 
+  // AC-identity.fe-auth.11
   it("AC16.12.15 shows mode toggle links", () => {
     render(<LoginPage />)
     const toggleParagraph = screen.getByText("Don't have an account?").closest("p")!
@@ -232,6 +238,7 @@ describe("LoginPage", () => {
     expect(screen.getByText("Don't have an account?")).toBeInTheDocument()
   })
 
+  // AC-identity.fe-auth.12
   it("AC16.12.16 shows loading spinner during submission", async () => {
     let resolvePromise: (v: unknown) => void
     mockedApiFetch.mockReturnValueOnce(new Promise((r) => { resolvePromise = r }))

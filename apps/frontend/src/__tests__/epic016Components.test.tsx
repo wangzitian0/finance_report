@@ -16,6 +16,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 describe("EPIC-016 Componentization Tests", () => {
+    // AC-extraction.fe-stage1-review.12
     it("mounts PdfPreviewPane and asserts primary affordance (AC16.23.6)", () => {
         // statementId=null keeps the pane idle (no document fetch); the panel
         // header is the stable affordance across all preview states.

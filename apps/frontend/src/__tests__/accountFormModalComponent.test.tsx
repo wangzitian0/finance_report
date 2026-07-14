@@ -19,6 +19,7 @@ describe("AccountFormModal", () => {
     onSuccess.mockReset()
   })
 
+  // AC-ledger.fe-accounts-journal.12
   it("AC16.21.1 create mode submits normalized payload and closes on success", async () => {
     mockedApiFetch.mockResolvedValueOnce({ id: "a1" })
 
@@ -50,6 +51,7 @@ describe("AccountFormModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  // AC-ledger.fe-accounts-journal.13
   it("AC16.21.2 edit mode pre-fills values and submits update payload", async () => {
     mockedApiFetch.mockResolvedValueOnce({ id: "a1" })
 
@@ -90,6 +92,7 @@ describe("AccountFormModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  // AC-ledger.fe-accounts-journal.14
   it("AC16.21.3 shows validation and API errors in create flow", async () => {
     mockedApiFetch.mockRejectedValueOnce(new Error("create failed"))
 

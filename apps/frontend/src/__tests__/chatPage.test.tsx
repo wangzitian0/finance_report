@@ -8,6 +8,7 @@ vi.mock("@/components/ChatPageClient", () => ({
 }))
 
 describe("ChatPage", () => {
+  // AC-advisor.fe-chat.1
   it("AC16.16.3 renders advisor client", () => {
     render(<ChatPage />)
     expect(screen.getByText("Advisor Client")).toBeInTheDocument()

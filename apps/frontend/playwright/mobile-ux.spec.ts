@@ -204,6 +204,7 @@ test.beforeEach(async ({ page }) => {
   await installMobileApiMocks(page);
 });
 
+// AC-reconciliation.fe-stage2-review.12
 test("AC16.25.1 mobile review routes avoid document horizontal scrolling", async ({ page }) => {
   await gotoReady(page, "/review/ai-suggestions");
   await expect(page.getByTestId("ai-suggestions-mobile-list")).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
@@ -218,6 +219,7 @@ test("AC16.25.1 mobile review routes avoid document horizontal scrolling", async
   await expectNoDocumentHorizontalScroll(page);
 });
 
+// AC-reconciliation.fe-stage2-review.13
 test("AC16.25.2 AI suggestions mobile cards expose feedback actions", async ({ page }) => {
   await gotoReady(page, "/review/ai-suggestions");
 
@@ -231,6 +233,7 @@ test("AC16.25.2 AI suggestions mobile cards expose feedback actions", async ({ p
   await expectNoDocumentHorizontalScroll(page);
 });
 
+// AC-extraction.fe-stage1-review.10
 test("AC16.26.1 stage 1 mobile review exposes read-only transaction cards and completion actions", async ({ page }) => {
   await gotoReady(page, "/statements/stmt-mobile/review");
 
@@ -323,6 +326,7 @@ test.describe("1440px desktop review proof", () => {
     hasTouch: false,
   });
 
+  // AC-extraction.fe-stage1-review.11
   test("AC8.13.82/AC16.27.2 desktop stage 1 review keeps transaction table readable at 1440px", async ({ page }) => {
     await gotoReady(page, "/statements/stmt-mobile/review");
 

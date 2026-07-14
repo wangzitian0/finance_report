@@ -81,6 +81,7 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
         navigationState.searchParams = new URLSearchParams();
     });
 
+    // AC-extraction.fe-stage1-review.7
     it("AC16.18.4 shows loading feedback while review data is pending", () => {
         mockedApi.mockImplementation((path: string) => {
             if (path === "/api/statements/s1/review") {
@@ -130,6 +131,7 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
         expect(reviewAttempts).toBe(2);
     });
 
+    // AC-extraction.fe-stage1-review.8
     it("AC16.18.5 disables approve when balance validation fails", async () => {
         mockedApi.mockImplementation((path: string) => {
             if (path === "/api/statements/s1/review") {
@@ -159,6 +161,7 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
         expect(approveButton).toBeDisabled();
     });
 
+    // AC-extraction.fe-stage1-review.9
     it("AC16.18.6 approves the statement and routes back to statement detail", async () => {
         mockedApi.mockImplementation((path: string, options?: RequestInit) => {
             if (path === "/api/statements/s1/review") {
@@ -450,6 +453,7 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
         });
     });
 
+    // AC-reconciliation.fe-stage2-review.18 / AC-reconciliation.fe-stage2-review.23
     it("AC16.23.3 AC16.31.1 opens the conflict dialog when duplicate or transfer-pair candidates exist", async () => {
         mockedApi.mockImplementation((path: string) => {
             if (path === "/api/statements/s1/review") {
@@ -490,6 +494,7 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
         expect(mockedApi).toHaveBeenCalledWith("/api/review/conflicts/s1");
     });
 
+    // AC-extraction.fe-stage1-review.13
     it("AC16.31.2 disables approval when opening balance validation fails", async () => {
         mockedApi.mockImplementation((path: string) => {
             if (path === "/api/statements/s1/review") {
@@ -569,6 +574,7 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
         expect(await screen.findByRole("dialog", { name: "Resolve Conflicts" })).toBeInTheDocument();
     });
 
+    // AC-extraction.fe-stage1-review.14
     it("AC16.32.2 shows opening and closing balance validation states separately", async () => {
         mockedApi.mockImplementation((path: string) => {
             if (path === "/api/statements/s1/review") {

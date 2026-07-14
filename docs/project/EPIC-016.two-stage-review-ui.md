@@ -96,10 +96,16 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 | AC ID | Standard | Verification | Weight |
 |------|------|----------|------|
 > (AC16.1.1 removed, canonical: migrated to the `extraction` package roadmap as `AC-extraction.stage1-validation.1`, merged with AC16.22.5 removed, #1821 Wave A)
+> **Documented exception (#1821 Wave B):** no automated split-view assertion exists for
+> this row's own standard. The nearest evidence (`epic016Components.test.tsx`'s
+> `PdfPreviewPane` mount test, migrated as `AC-extraction.fe-stage1-review.12`) only
+> asserts the pane mounts in isolation, not that PDF+parsed panes render side by side —
+> not real proof of this specific claim, so this row stays `fe-only` residue rather than
+> migrating on weak evidence.
 | AC16.1.2 | **Stage 1 UI shows PDF + parsed split view** | Manual UI test | 🔴 Critical | <!-- epic-owned: fe-only -->
-| AC16.1.3 | **Approve button disabled if balance invalid** | Frontend unit test | Required | <!-- epic-owned: fe-only -->
+> (AC16.1.3 removed with no new roadmap entry — a duplicate of `AC16.18.5` ("disables approve when balance validation fails"), migrated under extraction as `AC-extraction.fe-stage1-review.8`, #1821 Wave B)
 > (AC16.2.1 removed and AC16.2.2 removed, canonical: migrated to the `reconciliation` package roadmap as `AC-reconciliation.consistency-checks.8` and `.9`, #1821 Wave A. AC16.2.3 removed with no new roadmap entry — a duplicate of the already-migrated `AC-reconciliation.stage2-batch.1`, which cites the identical test test_batch_approve_matches_blocked_by_unresolved_checks.)
-| AC16.2.4 | **Stage 2 UI supports batch operations** | Manual UI test | Required | <!-- epic-owned: fe-only -->
+> (AC16.2.4 removed, canonical: migrated to the `reconciliation` package roadmap as `AC-reconciliation.fe-stage2-review.1`, #1821 Wave B)
 
 ### 🌟 Nice to Have
 | Standard | Verification | Status |
@@ -152,71 +158,27 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 
 ### AC16.5 — Frontend Auth Utility (`lib/auth`)
 
-| AC ID | Description | Status |
-|-------|-------------|--------|
-| AC16.5.1 | `getUserId` returns `null` when not set | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.5.2 | `getUserId` returns stored `userId` from `localStorage` | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.5.3 | `setUser` stores `userId`, `email`, and optional `token` | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.5.4 | `clearUser` removes all auth keys from `localStorage` | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.5.5 | `isAuthenticated` returns `false` when no token, `true` when token exists | ⏳ | <!-- epic-owned: fe-only -->
+> (AC16.5.1 removed and AC16.5.2 removed and AC16.5.3 removed and AC16.5.4 removed and AC16.5.5 removed, canonical: migrated to the `identity` package roadmap as `AC-identity.fe-auth.1` through `.5`, #1821 Wave B)
 
 ### AC16.6 — Frontend Date Utility (`lib/date`)
 
-| AC ID | Description | Status |
-|-------|-------------|--------|
-| AC16.6.1 | `formatDateInput` formats `Date` as `YYYY-MM-DD` with zero-padded month and day | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.6.2 | formats a Date object to en-US short date", () => { | `date.test` | `__tests__/date.test.ts` | P1 | <!-- epic-owned: fe-only -->
-| AC16.6.3 | formats a Date object with date and time", () => { | `date.test` | `__tests__/date.test.ts` | P1 | <!-- epic-owned: fe-only -->
-| AC16.6.4 | returns short month name from date string", () => { | `date.test` | `__tests__/date.test.ts` | P1 | <!-- epic-owned: fe-only -->
+> (AC16.6.1 removed and AC16.6.2 removed and AC16.6.3 removed and AC16.6.4 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.fe-utils.1` through `.4`, #1821 Wave B)
 
 ### AC16.7 — Frontend Theme Utility (`lib/theme`)
 
-| AC ID | Description | Status |
-|-------|-------------|--------|
-| AC16.7.1 | `getTheme` returns stored value or system preference | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.7.2 | `setTheme` adds/removes `dark` CSS class and saves to `localStorage` | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.7.3 | `toggleTheme` switches between dark and light | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.7.4 | `initTheme` applies stored or system theme on load | ⏳ | <!-- epic-owned: fe-only -->
+> (AC16.7.1 removed and AC16.7.2 removed and AC16.7.3 removed and AC16.7.4 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.fe-utils.5` through `.8`, #1821 Wave B)
 
 ### AC16.8 — Frontend AI Models Utility (`lib/aiModels`)
 
-| AC ID | Description | Status |
-|-------|-------------|--------|
-| AC16.8.1 | `fetchAiModels` calls `/api/llm/catalog` with no params when no options provided _(EPIC-023: repointed from the retired `/api/ai/models` to the local catalogue)_ | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.8.2 | `fetchAiModels` appends `modality` query param when provided | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.8.3 | `fetchAiModels` appends `free_only=true` when `freeOnly` is set | ⏳ | <!-- epic-owned: fe-only -->
+> (AC16.8.1 removed and AC16.8.2 removed and AC16.8.3 removed, canonical: migrated to the `llm` package roadmap as `AC-llm.fe-ai-models-catalog.1` through `.3`, #1821 Wave B)
 
 ### AC16.9 — Frontend Currencies Hook (`hooks/useCurrencies`)
 
-| AC ID | Description | Status |
-|-------|-------------|--------|
-| AC16.9.1 | `useCurrencies` returns default currencies while loading | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.9.2 | `useCurrencies` updates currencies from API response | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.9.3 | `useCurrencies` falls back to defaults on API error | ⏳ | <!-- epic-owned: fe-only -->
+> (AC16.9.1 removed and AC16.9.2 removed and AC16.9.3 removed, canonical: migrated to the `pricing` package roadmap as `AC-pricing.fe-currencies.1` through `.3`, #1821 Wave B)
 
 ### AC16.10 — Frontend API Client (`lib/api`)
 
-| AC ID | Description | Status |
-|-------|-------------|--------|
-| AC16.10.1 | `apiFetch` returns JSON on `200` response | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.10.2 | `apiFetch` returns `undefined` on `204 No Content` | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.10.3 | `apiFetch` throws error with `detail` message on non-ok response | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.10.4 | `apiFetch` throws on non-JSON error text | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.10.5 | `apiFetch` calls `handle401Redirect` on `401` response | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.10.6 | `resetRedirectGuard` resets the redirect guard state | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.10.7 | `apiDelete` succeeds on `200` response | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.10.8 | `apiDelete` throws on non-ok response | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.10.9 | `apiStream` returns response and `sessionId` on success | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.10.10 | `apiStream` throws on non-ok response | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.10.11 | `apiUpload` returns JSON on `200` response | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.10.12 | `apiUpload` returns `undefined` on `204 No Content` | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.10.13 | `apiFetch` normalizes path without leading slash | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.10.14 | `apiFetch` includes `Authorization` header when token is present | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.10.15 | handles 401 redirect in apiDelete', async () => { | `apiFunctions.test` | `__tests__/apiFunctions.test.ts` | P1 | <!-- epic-owned: fe-only -->
-| AC16.10.16 | includes Authorization header when token present', async () => { | `apiFunctions.test` | `__tests__/apiFunctions.test.ts` | P1 | <!-- epic-owned: fe-only -->
-| AC16.10.17 | handles 401 redirect in apiUpload', async () => { | `apiFunctions.test` | `__tests__/apiFunctions.test.ts` | P1 | <!-- epic-owned: fe-only -->
-| AC16.10.18 | throws with detail message on JSON error response', async () => { | `apiFunctions.test` | `__tests__/apiFunctions.test.ts` | P1 | <!-- epic-owned: fe-only -->
-| AC16.10.19 | throws with raw text on non-JSON error response', async () => { | `apiFunctions.test` | `__tests__/apiFunctions.test.ts` | P1 | <!-- epic-owned: fe-only -->
+> (AC16.10.1 removed and AC16.10.2 removed and AC16.10.3 removed and AC16.10.4 removed and AC16.10.5 removed and AC16.10.6 removed and AC16.10.7 removed and AC16.10.8 removed and AC16.10.9 removed and AC16.10.10 removed and AC16.10.11 removed and AC16.10.12 removed and AC16.10.13 removed and AC16.10.14 removed and AC16.10.15 removed and AC16.10.16 removed and AC16.10.17 removed and AC16.10.18 removed and AC16.10.19 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.fe-http-client.1` through `.19`, #1821 Wave B (`.20` comes from AC16.17.7 below, same group))
 
 ### AC16.11 — Dev Tooling / Infra Commands (Infra)
 
@@ -228,27 +190,9 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 
 ### AC16.12 — Frontend Pages (Core Pages Coverage)
 
-| AC ID | Description | Status |
-|-------|-------------|--------|
-| AC16.12.1 | Dashboard page shows loading state before API responses resolve | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.12.2 | Dashboard page renders error fallback and retry action when API request fails | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.12.3 | Dashboard page renders KPI, charts, and recent activity when API requests succeed | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.12.4 | Dashboard page renders empty-state copy when trend or activity datasets are empty | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.12.17 | Dashboard page renders first-time onboarding when accounts, statements, or posted review output are missing | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.12.18 | Dashboard onboarding links users to Accounts, Statements upload, and Review in one click | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.12.19 | Dashboard hides onboarding once an approved statement and posted journal entry exist | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.12.5 | Login page submits login payload and redirects on success | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.12.6 | Login page toggles register mode and switches endpoint for submit | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.12.7 | Login page shows API error messages and resets loading state on failure | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.12.8 | Ping-pong page loads initial state and displays current ping/pong value | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.12.9 | Ping-pong page toggles state and updates toggle count on button click | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.12.10 | Ping-pong page renders retry flow when initial load fails | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.12.11 | Reports page renders all report cards with links for available reports | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.12.12 | Reports page displays accounting equation section content | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.12.13 | toggles password visibility", () => { | `loginPage.test` | `__tests__/loginPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC16.12.14 | shows error with alert role and aria-live", async () => { | `loginPage.test` | `__tests__/loginPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC16.12.15 | shows mode toggle links", () => { | `loginPage.test` | `__tests__/loginPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC16.12.16 | shows loading spinner during submission", async () => { | `loginPage.test` | `__tests__/loginPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+> (AC16.12.1 removed and AC16.12.2 removed and AC16.12.3 removed and AC16.12.4 removed and AC16.12.17 removed and AC16.12.18 removed and AC16.12.19 removed and AC16.12.11 removed and AC16.12.12 removed, canonical: migrated (Dashboard + Reports pages) to the `reporting` package roadmap as `AC-reporting.fe-report-surfaces.1` through `.9`, #1821 Wave B)
+> (AC16.12.5 removed and AC16.12.6 removed and AC16.12.7 removed and AC16.12.13 removed and AC16.12.14 removed and AC16.12.15 removed and AC16.12.16 removed, canonical: migrated (Login page) to the `identity` package roadmap as `AC-identity.fe-auth.6` through `.12`, #1821 Wave B)
+> (AC16.12.8 removed and AC16.12.9 removed and AC16.12.10 removed, canonical: migrated (Ping-pong demo page) to the `meta` package roadmap as `AC-meta.fe-app-shell.1` through `.3`, #1821 Wave B)
 
 ### AC16.13 — Test Lifecycle Infrastructure (Infra)
 
@@ -273,120 +217,48 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 
 ### AC16.14 — Frontend Report Pages and Statements Page
 
-| AC ID | Description | Status |
-|-------|-------------|--------|
-| AC16.14.1 | Balance-sheet page renders loading and error retry states | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.14.2 | Balance-sheet page renders totals and account sections on successful fetch | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.14.3 | Balance-sheet page toggles account tree expansion controls | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.14.4 | Income-statement page renders loading and error retry states | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.14.5 | Income-statement page renders KPI cards and category lists on success | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.14.6 | Income-statement page tag filters can be selected and cleared | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.14.7 | Cash-flow page renders loading and error retry states | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.14.8 | Cash-flow page renders summary and section cards on success | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.14.9 | Cash-flow page renders sankey chart when summary exists | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.14.10 | Statements page renders loading, error, empty, and populated states | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.14.11 | Statements page enables polling when parsing status is present | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.14.12 | Statements page delete action calls delete API and toast on confirm | ⏳ | <!-- epic-owned: fe-only -->
+> (AC16.14.1 removed and AC16.14.2 removed and AC16.14.3 removed and AC16.14.4 removed and AC16.14.5 removed and AC16.14.6 removed and AC16.14.7 removed and AC16.14.8 removed and AC16.14.9 removed, canonical: migrated (Balance-sheet, Income-statement, Cash-flow pages) to the `reporting` package roadmap as `AC-reporting.fe-report-surfaces.10` through `.18`, #1821 Wave B)
+> (AC16.14.10 removed and AC16.14.11 removed and AC16.14.12 removed, canonical: migrated (Statements page) to the `extraction` package roadmap as `AC-extraction.fe-stage1-review.1` through `.3`, #1821 Wave B)
 
 ### AC16.15 — Frontend Accounts and Assets Pages
 
-| AC ID | Description | Status |
-|-------|-------------|--------|
-| AC16.15.1 | Accounts page renders loading and error retry states | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.15.2 | Accounts page renders grouped account cards and type filters on successful fetch | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.15.3 | Accounts page delete action confirms and calls delete API with success toast | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.15.4 | Assets page renders loading and error retry states | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.15.5 | Assets page renders grouped positions and status filters on successful fetch | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.15.6 | Assets page reconcile action calls API and shows toast summary | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.15.7 | stub | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.15.8 | stub | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.15.9 | stub | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.15.10 | stub | ⏳ | <!-- epic-owned: fe-only -->
+> (AC16.15.1 removed and AC16.15.2 removed and AC16.15.3 removed and AC16.15.7 removed and AC16.15.8 removed and AC16.15.9 removed and AC16.15.10 removed, canonical: migrated (Accounts page — the `.7-10` rows were undocumented "stub" placeholders; their real proof is `accountsPage.test.tsx`'s edit/add/modal-lifecycle tests) to the `ledger` package roadmap as `AC-ledger.fe-accounts-journal.1` through `.7`, #1821 Wave B)
+> (AC16.15.4 removed and AC16.15.5 removed and AC16.15.6 removed, canonical: migrated (Assets page) to the `portfolio` package roadmap as `AC-portfolio.fe-assets.1` through `.3`, #1821 Wave B)
 
 ### AC16.16 — Frontend App Structure (Root, Layout, Journal Page)
 
-| AC ID | Description | Status |
-|-------|-------------|--------|
-| AC16.16.1 | Root resolves to the authenticated Home entry (superseded by EPIC-022) | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.16.2 | Main layout renders children through `AppShell` wrapper | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.16.3 | Chat page renders advisor client within suspense boundary | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.16.4 | Reconciliation entry pages render workbench and unmatched board components | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.16.5 | Journal page renders error state and retries loading entries | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.16.6 | Journal page filters entries by status and renders totals | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.16.7 | Journal page draft actions post and delete entries with API calls | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.16.8 | Journal page void flow submits reason and refreshes entries | ⏳ | <!-- epic-owned: fe-only -->
+> (AC16.16.1 removed and AC16.16.2 removed, canonical: migrated (Root/Main layout, app-shell chrome) to the `meta` package roadmap as `AC-meta.fe-app-shell.4` and `.5`, #1821 Wave B)
+> (AC16.16.3 removed, canonical: migrated (Chat page) to the `advisor` package roadmap as `AC-advisor.fe-chat.1`, #1821 Wave B)
+> (AC16.16.4 removed, canonical: migrated (Reconciliation entry pages) to the `reconciliation` package roadmap as `AC-reconciliation.fe-stage2-review.2`, #1821 Wave B)
+> (AC16.16.5 removed and AC16.16.6 removed and AC16.16.7 removed and AC16.16.8 removed, canonical: migrated (Journal page) to the `ledger` package roadmap as `AC-ledger.fe-accounts-journal.8` through `.11`, #1821 Wave B)
 
 ### AC16.17 — Stage 2 Review Queue Page and Root Layout
 
-| AC ID | Description | Status |
-|-------|-------------|--------|
-| AC16.17.1 | Stage 2 review queue shows failure fallback and supports retry | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.17.2 | Stage 2 review queue indicates unresolved checks and disables batch approval | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.17.3 | Stage 2 review queue performs batch reject and approve API workflows | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.17.4 | Stage 2 review queue resolves consistency checks through dialog actions | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.17.5 | Root layout composes `Providers` and `AuthGuard` around children | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.17.6 | `Providers` wraps children with `QueryClientProvider` | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.17.7 | API catch-all handlers return JSON `503` for all HTTP methods | ⏳ | <!-- epic-owned: fe-only -->
+> (AC16.17.1 removed and AC16.17.2 removed and AC16.17.3 removed and AC16.17.4 removed, canonical: migrated (Stage 2 review queue) to the `reconciliation` package roadmap as `AC-reconciliation.fe-stage2-review.3` through `.6`, #1821 Wave B)
+> (AC16.17.5 removed and AC16.17.6 removed, canonical: migrated (Root layout composition) to the `meta` package roadmap as `AC-meta.fe-app-shell.6` and `.7`, #1821 Wave B)
+> (AC16.17.7 removed, canonical: migrated (API catch-all route) to the `meta` package roadmap as `AC-meta.fe-http-client.20`, #1821 Wave B)
 
 ### AC16.18 — Statement Detail and Stage 1 Review Pages
 
-| AC ID | Description | Status |
-|-------|-------------|--------|
-| AC16.18.1 | Statement detail page loads statement data and renders parsed transactions summary | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.18.2 | Statement detail page approve and reject actions call corresponding APIs | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.18.3 | Statement detail page retry action posts retry API and refreshes data | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.18.4 | Statement review page shows error fallback and supports retry | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.18.5 | Statement review page disables approve when balance validation fails | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.18.6 | Statement review page approve and reject actions call APIs and navigate back to statements | ⏳ | <!-- epic-owned: fe-only -->
+> (AC16.18.1 removed and AC16.18.2 removed and AC16.18.3 removed and AC16.18.4 removed and AC16.18.5 removed and AC16.18.6 removed, canonical: migrated to the `extraction` package roadmap as `AC-extraction.fe-stage1-review.4` through `.9`, #1821 Wave B)
 
 ### AC16.19 — App Shell, Auth, Shared Components, and Chat
 
-| AC ID | Description | Status |
-|-------|-------------|--------|
-| AC16.19.1 | App shell renders workspace providers and main content with collapse-aware layout | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.19.2 | Auth guard redirects unauthenticated protected routes and allows public routes | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.19.3 | Sidebar shows auth-aware actions and logout triggers `clearUser` plus login redirect | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.19.4 | Workspace tabs derive route labels and invoke add/set/remove tab handlers | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.19.5 | Chat page client enforces disclaimer consent and passes initial prompt into chat panel | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.19.6 | Chat widget hides on chat route and toggles panel visibility elsewhere | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.19.7 | Confirm dialog handles required input, cancel, and confirm interactions | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.19.8 | Confirm dialog responds to escape key and backdrop click when not loading | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.19.9 | Toast provider shows, dismisses, and auto-expires notifications | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.19.10 | Bar and pie chart components render semantic labels and filtered data | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.19.11 | Trend chart renders line/area paths and point labels for provided series | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.19.12 | sidebar nav shows Portfolio label for /assets route", async () => { | `sidebarAndTabs.test` | `__tests__/sidebarAndTabs.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC16.19.13 | WorkspaceTabs labels /assets tab as Portfolio from ROUTE_CONFIG", async () => { | `sidebarAndTabs.test` | `__tests__/sidebarAndTabs.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC16.19.14 | WorkspaceTabs section header is Open Tabs in both empty and active states", () => { | `sidebarAndTabs.test` | `__tests__/sidebarAndTabs.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC16.19.15 | navigates workspace pages with ArrowRight keyboard", () => { | `sidebarAndTabs.test` | `__tests__/sidebarAndTabs.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC16.19.16 | renders dialog with ARIA attributes", () => { | `confirmDialogComponent.test` | `__tests__/confirmDialogComponent.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC16.19.17 | traps focus with Tab and Shift+Tab", () => { | `confirmDialogComponent.test` | `__tests__/confirmDialogComponent.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+> (AC16.19.1 removed and AC16.19.2 removed, canonical: migrated (auth guard / auth-aware session) to the `identity` package roadmap as `AC-identity.fe-auth.13` through `.14`, #1821 Wave B)
+> (AC16.19.3 removed and AC16.19.4 removed and AC16.19.7 removed and AC16.19.8 removed and AC16.19.9 removed and AC16.19.12 removed and AC16.19.13 removed and AC16.19.14 removed and AC16.19.15 removed and AC16.19.16 removed and AC16.19.17 removed, canonical: migrated (sidebar/workspace-tabs/confirm-dialog/toast app-shell chrome) to the `meta` package roadmap as `AC-meta.fe-app-shell.8` through `.18`, #1821 Wave B)
+> (AC16.19.5 removed and AC16.19.6 removed, canonical: migrated (chat) to the `advisor` package roadmap as `AC-advisor.fe-chat.2` through `.3`, #1821 Wave B)
+> (AC16.19.10 removed and AC16.19.11 removed, canonical: migrated (bar/pie/trend charts) to the `reporting` package roadmap as `AC-reporting.fe-report-surfaces.19` through `.20`, #1821 Wave B)
 
 ### AC16.20 — Reconciliation Workbench and Chat Panel Components
 
-| AC ID | Description | Status |
-|-------|-------------|--------|
-| AC16.20.1 | Reconciliation workbench loads stats and pending queue with default selection | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.20.2 | Reconciliation workbench triggers run, accept, reject, and batch accept APIs | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.20.3 | Unmatched board loads transactions and creates journal entry for selected item | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.20.4 | Unmatched board flag and ignore actions update list and local state | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.20.5 | Chat panel sends streaming responses, loads suggestions/history, and clears session | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.20.6 | score distribution renders 0% height for buckets with value 0", async () => { | `reconciliationWorkbenchComponent.test` | `__tests__/reconciliationWorkbenchComponent.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC16.20.7 | handles missing stream reader", async () => { | `chatPanelComponent.test` | `__tests__/chatPanelComponent.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+> (AC16.20.1 removed and AC16.20.2 removed and AC16.20.3 removed and AC16.20.4 removed and AC16.20.6 removed, canonical: migrated (reconciliation workbench / unmatched board) to the `reconciliation` package roadmap as `AC-reconciliation.fe-stage2-review.7` through `.11`, #1821 Wave B)
+> (AC16.20.5 removed and AC16.20.7 removed, canonical: migrated (chat panel) to the `advisor` package roadmap as `AC-advisor.fe-chat.4` through `.5`, #1821 Wave B)
 
 ### AC16.21 — Account Form, Journal Entry Form, Sankey Chart, Workspace Provider
 
-| AC ID | Description | Status |
-|-------|-------------|--------|
-| AC16.21.1 | Account form modal create mode submits normalized payload and closes on success | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.21.2 | Account form modal edit mode pre-fills values and submits update payload | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.21.3 | Account form modal surfaces API errors and field validation feedback | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.21.4 | Journal entry form loads account options and enforces balanced double-entry totals | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.21.5 | Journal entry form creates draft entries with normalized line amounts and optional posting | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.21.6 | Journal entry form supports dynamic line add/remove and submit-time error handling | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.21.7 | Sankey chart builds empty-state and data-state options for inflow and outflow links | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.21.8 | Sankey chart recomputes theme-aware colors when root theme attributes change | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.21.9 | Workspace provider restores tabs from storage and persists active workspace updates | ⏳ | <!-- epic-owned: fe-only -->
-| AC16.21.10 | Workspace provider handles tab deduplication, removal, and cross-tab storage sync | ⏳ | <!-- epic-owned: fe-only -->
+> (AC16.21.1 removed and AC16.21.2 removed and AC16.21.3 removed and AC16.21.4 removed and AC16.21.5 removed and AC16.21.6 removed, canonical: migrated (account/journal entry forms) to the `ledger` package roadmap as `AC-ledger.fe-accounts-journal.12` through `.17`, #1821 Wave B)
+> (AC16.21.7 removed and AC16.21.8 removed, canonical: migrated (sankey chart) to the `reporting` package roadmap as `AC-reporting.fe-report-surfaces.21` through `.22`, #1821 Wave B)
+> (AC16.21.9 removed and AC16.21.10 removed, canonical: migrated (workspace provider) to the `meta` package roadmap as `AC-meta.fe-app-shell.19` through `.20`, #1821 Wave B)
 
 ### AC16.22 — Confirmation Workflow (cross-cutting `pending_review` state machine)
 
@@ -402,28 +274,19 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 
 ### AC16.25 — Mobile Review UX Hardening
 
-| AC ID | Description | Test Function | File | Priority |
-|-------|-------------|---------------|------|----------|
-| AC16.25.1 | Review, journal details, and mobile navigation surfaces do not create document-level horizontal scrolling at phone widths | `AC16.25.1 mobile review routes avoid document horizontal scrolling` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 | <!-- epic-owned: fe-only -->
-| AC16.25.2 | AI suggestion review queue exposes accept, reject, correction, and edit-accept actions directly in a mobile card layout | `AC16.25.2 AI suggestions mobile cards expose feedback actions` | `apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx` | P0 | <!-- epic-owned: fe-only -->
-| AC16.25.3 | Journal entry details expose line account, direction, amount, and currency as mobile line cards | `AC16.25.3 journal entry details mobile line cards expose all line fields` | `apps/frontend/src/__tests__/detailViewComponents.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC16.25.4 | Root layout keeps theme color in the viewport export and avoids duplicate iOS web-app capability metadata | `AC16.25.4 root layout metadata keeps viewport-only theme color` | `apps/frontend/src/__tests__/rootLayout.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+> (AC16.25.1 removed and AC16.25.2 removed, canonical: migrated (mobile review navigation, AI suggestion queue) to the `reconciliation` package roadmap as `AC-reconciliation.fe-stage2-review.12` through `.13`, #1821 Wave B)
+> (AC16.25.3 removed, canonical: migrated (journal entry mobile cards) to the `ledger` package roadmap as `AC-ledger.fe-accounts-journal.18`, #1821 Wave B)
+> (AC16.25.4 removed, canonical: migrated (root layout theme color) to the `meta` package roadmap as `AC-meta.fe-app-shell.21`, #1821 Wave B)
 
 ### AC16.26 — Mobile Review Workflow Completion
 
-| AC ID | Description | Test Function | File | Priority |
-|-------|-------------|---------------|------|----------|
-| AC16.26.1 | Stage 1 statement review shows read-only transaction cards on phone widths (inline editing was removed in EPIC-011 Stage 3; correct a mis-parse via reject + re-parse), with approve and reject actions visible without horizontal dragging | `AC16.26.1 stage 1 mobile review exposes read-only transaction cards and completion actions` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 | <!-- epic-owned: fe-only -->
-| AC16.26.2 | Stage 2 pending matches use selectable mobile cards with direct reject and approve selected actions visible without horizontal dragging | `AC16.26.2 stage 2 mobile queue exposes selectable match cards and batch actions` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 | <!-- epic-owned: fe-only -->
-| AC16.26.3 | Stage 2 run review keeps the run approval gate and pending match workflow usable at phone widths without document-level horizontal scrolling | `AC16.26.3 stage 2 run review preserves mobile approval gate and match workflow` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 | <!-- epic-owned: fe-only -->
+> (AC16.26.1 removed, canonical: migrated (Stage 1 mobile review) to the `extraction` package roadmap as `AC-extraction.fe-stage1-review.10`, #1821 Wave B)
+> (AC16.26.2 removed and AC16.26.3 removed, canonical: migrated (Stage 2 mobile queue/run review) to the `reconciliation` package roadmap as `AC-reconciliation.fe-stage2-review.14` through `.15`, #1821 Wave B)
 
 ### AC16.27 — Responsive Review Layout Completion
 
-| AC ID | Description | Test Function | File | Priority |
-|-------|-------------|---------------|------|----------|
-| AC16.27.1 | Stage 1 and Stage 2 mobile review lists render without JavaScript breakpoint gating that can create first-paint blank content | `AC16.27.1 mobile review lists are present without matchMedia gating` | `apps/frontend/src/__tests__/TransactionTable.test.tsx`, `apps/frontend/src/__tests__/stage2ReviewQueueCoverage99.test.tsx` | P0 | <!-- epic-owned: fe-only -->
-| AC16.27.2 | Stage 1 desktop review keeps the transaction review surface readable at 1440px with the sidebar visible without local horizontal clipping | `AC16.27.2 desktop stage 1 review keeps transaction table readable at 1440px` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 | <!-- epic-owned: fe-only -->
-| AC16.27.3 | Stage 2 desktop review keeps pending match rows readable at 1440px with the sidebar visible without local horizontal clipping | `AC16.27.3 desktop stage 2 review keeps pending matches readable at 1440px` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 | <!-- epic-owned: fe-only -->
+> (AC16.27.1 removed and AC16.27.3 removed, canonical: migrated (Stage 2 mobile/ desktop review) to the `reconciliation` package roadmap as `AC-reconciliation.fe-stage2-review.16` through `.17` (`.1`'s real proof is `stage2ReviewQueueCoverage99.test.tsx`, not the stale `TransactionTable.test.tsx` citation this row previously carried), #1821 Wave B)
+> (AC16.27.2 removed, canonical: migrated (Stage 1 desktop review) to the `extraction` package roadmap as `AC-extraction.fe-stage1-review.11`, #1821 Wave B)
 
 
 ---
@@ -440,18 +303,22 @@ The April 2026 FE/UI audit snapshot was removed from this EPIC. Current review U
 
 ### Acceptance Criteria — Feature (group 23)
 
+> **Documented exceptions (#1821 Wave B):** the `AC16.23.1`, `AC16.23.2`, and
+> `AC16.23.5` ids below are each coincidentally reused by an unrelated later test
+> (dashboardPage.test.tsx's "This Month KPI" tests for `.1`/`.2`; reportsPage.test.tsx's
+> "renders SVG icons for report cards" for `.5`) that does not verify this row's own
+> stated standard. No real test proves the original claim, so these three stay
+> `fe-only` residue rather than migrating on a false anchor.
 - [x] **AC16.23.1** Stage 1 page split into `<PdfPreviewPane />`, `<TransactionTable />`, `<ReviewActionBar />`, `<BalanceIndicator />` components, each independently mountable <!-- epic-owned: fe-only -->
 - [x] **AC16.23.2** TransactionTable supports inline edit of `amount`, `description`, `date` with optimistic update + server confirm; failed write reverts row and shows error toast <!-- epic-owned: fe-only -->
-- [x] **AC16.23.3** Conflict resolution dialog `<ConflictResolutionDialog />` opens when backend returns duplicate or transfer-pair candidates; user can pick canonical row or link the pair <!-- epic-owned: fe-only -->
-- [x] **AC16.23.4** Stage 2 listing exposes severity filter, check-type filter, and score-range slider; filters persist in URL query string <!-- epic-owned: fe-only -->
+> (AC16.23.3 removed, canonical: migrated to the `reconciliation` package roadmap as `AC-reconciliation.fe-stage2-review.18`, #1821 Wave B)
+> (AC16.23.4 removed, canonical: migrated to the `reconciliation` package roadmap as `AC-reconciliation.fe-stage2-review.19`, #1821 Wave B)
 - [x] **AC16.23.5** Mobile navigation renders below 768 px (originally the `<MobileNav />` drawer; replaced by the `<BottomTabBar />` bottom tab bar per EPIC-022 AC22.21); the desktop sidebar is hidden on mobile <!-- epic-owned: fe-only -->
-- [x] **AC16.23.6** Frontend tests mount each new component (PdfPreviewPane, TransactionTable, ConflictResolutionDialog, BottomTabBar) and assert primary affordance renders <!-- epic-owned: fe-only -->
+> (AC16.23.6 removed, canonical: migrated to the `extraction` package roadmap as `AC-extraction.fe-stage1-review.12`, #1821 Wave B)
 
 ### Acceptance Criteria — Feature (group 24, run-level Stage 2)
 
-- [x] **AC16.24.1** Stage 2 run-level page at `/review/run/[runId]` summarizes duplicate, transfer-pair, and anomaly checks for a batch <!-- epic-owned: fe-only -->
-- [x] **AC16.24.2** Stage 2 run-level page shows unresolved transfer and Processing pending counts, then disables run approval while either remains unresolved <!-- epic-owned: fe-only -->
-- [x] **AC16.24.3** Stage 2 run-level approval submits all pending matches through the batch approval API after checks are resolved <!-- epic-owned: fe-only -->
+> (AC16.24.1 removed, AC16.24.2 removed, and AC16.24.3 removed, canonical: migrated to the `reconciliation` package roadmap as `AC-reconciliation.fe-stage2-review.20` through `.22`, #1821 Wave B)
 *(AC16.24.4 removed, canonical: migrated to the `reconciliation` package
 roadmap as `AC-reconciliation.stage2-batch.5`, #1821 Wave A)*
 
@@ -462,29 +329,19 @@ validated mocked UI-only state rather than backend-owned review contracts.
 These ACs close those gaps without changing the underlying reconciliation data
 model.
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC16.31.1 | Stage 1 conflict dialog loads duplicate and transfer-pair candidates from `GET /api/review/conflicts/{statement_id}` instead of fake review payload fields | `AC16.23.3 opens the conflict dialog when duplicate or transfer-pair candidates exist` / `opens conflict dialog when duplicate/transfer candidates present` | `apps/frontend/src/__tests__/statementReviewPage.test.tsx`, `apps/frontend/src/__tests__/statementReviewPage.coverage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
-| AC16.31.2 | Stage 1 approval is disabled unless both opening and closing balance validation match | `AC16.31.2 disables approval when opening balance validation fails` | `apps/frontend/src/__tests__/statementReviewPage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
-| AC16.31.3 | Stage 2 run review page states that it uses the shared Stage 2 queue endpoint when no run-scoped queue API exists | `AC16.24.1 and AC16.24.2 summarizes unresolved run checks and blocks approval` | `apps/frontend/src/__tests__/reviewRunPage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
-| AC16.31.4 | Unmatched transaction local flag/hide actions are labeled as local-only triage and batch create requires confirmation | `AC16.20.4 supports flag and ignore actions` / `creates all entries with batch action` | `apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx` | P0 | <!-- epic-owned: fe-only -->
-> (AC16.33.4 removed and AC16.33.5 removed — backend halves migrated to the
-> `extraction` package roadmap as `AC-extraction.document-delivery.1-2`,
-> #1821 Wave A. The frontend embedding assertions in
-> apps/frontend/src/__tests__/reviewPages.test.tsx are not tracked by this
-> Python-only roadmap.)
+> (AC16.31.1 removed, canonical: migrated to the `reconciliation` package roadmap as `AC-reconciliation.fe-stage2-review.23`, #1821 Wave B)
+> (AC16.31.2 removed, canonical: migrated to the `extraction` package roadmap as `AC-extraction.fe-stage1-review.13`, #1821 Wave B)
+> (AC16.31.3 removed, canonical: migrated to the `reconciliation` package roadmap as `AC-reconciliation.fe-stage2-review.24`, #1821 Wave B)
+> (AC16.31.4 removed, canonical: migrated to the `reconciliation` package roadmap as `AC-reconciliation.fe-stage2-review.25`, #1821 Wave B)
+> (AC16.33.4 removed and AC16.33.5 removed — backend halves migrated to the `extraction` package roadmap as `AC-extraction.document-delivery.1-2`, #1821 Wave A. The frontend embedding assertions in apps/frontend/src/__tests__/reviewPages.test.tsx are not tracked by this Python-only roadmap.)
 
 ### AC16.32 — Review Workflow Hardening
 
 | AC ID | Description | Tests | Files | Priority |
 |-------|-------------|-------|-------|----------|
-> (AC16.32.1 removed — backend half migrated to the `reconciliation` package
-> roadmap as `AC-reconciliation.conflict-resolution.1`, #1821 Wave A. The
-> frontend assertion in
-> apps/frontend/src/__tests__/statementReviewPage.test.tsx is not tracked by
-> this Python-only roadmap.)
-| AC16.32.2 | Stage 1 balance validation UI reports opening and closing checks separately so reviewers see the same gate enforced by the backend | `AC16.32.2 shows opening and closing balance validation states separately` | `apps/frontend/src/__tests__/statementReviewPage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
-| AC16.32.3 | Stage 2 review check lists request the full unresolved blocker set needed to unblock batch approval instead of silently truncating at the backend default page size. Backend half (`test_AC16_32_3_stage2_queue_returns_all_pending_checks`) migrated to the `reconciliation` package roadmap as `AC-reconciliation.review-hardening.1` (migration closeout continuation, #1663 / #1711); the frontend half stays here. | `AC16.32.3 requests an expanded consistency-check limit for unblockable queues` | `apps/frontend/src/__tests__/reviewQueuePage.test.tsx` | P0 | <!-- epic-owned: fe-half -->
+> (AC16.32.1 removed — backend half migrated to the `reconciliation` package roadmap as `AC-reconciliation.conflict-resolution.1`, #1821 Wave A. The frontend assertion in apps/frontend/src/__tests__/statementReviewPage.test.tsx is not tracked by this Python-only roadmap.)
+> (AC16.32.2 removed, canonical: migrated to the `extraction` package roadmap as `AC-extraction.fe-stage1-review.14`, #1821 Wave B)
+> (AC16.32.3 removed — frontend half migrated to the `reconciliation` package roadmap as `AC-reconciliation.fe-stage2-review.26` (backend half already `AC-reconciliation.review-hardening.1`), #1821 Wave B)
 
 ### AC16.34 — Stage-1 Conflict Resolution ([#962](https://github.com/wangzitian0/finance_report/issues/962))
 
@@ -496,10 +353,8 @@ pair) and unblock approval.
 
 | AC ID | Description | Tests | Files | Priority |
 |-------|-------------|-------|-------|----------|
-> (AC16.34.1 removed and AC16.34.2 removed, canonical: migrated to the
-> `reconciliation` package roadmap as `AC-reconciliation.conflict-resolution.2`
-> and `.3`, #1821 Wave A)
-| AC16.34.3 | The ConflictResolutionDialog `Resolve` / `Link Pair` buttons call the resolve endpoint with the matching action and disable while a resolution is in flight (previously dead, no-op buttons) | `AC16.34.3 Resolve and Link Pair buttons call onResolve with the matching action`, `AC16.34.3 disables the action buttons while a resolution is in flight` | `apps/frontend/src/__tests__/ConflictResolutionDialog.test.tsx` | P0 | <!-- epic-owned: fe-only -->
+> (AC16.34.1 removed and AC16.34.2 removed, canonical: migrated to the `reconciliation` package roadmap as `AC-reconciliation.conflict-resolution.2` and `.3`, #1821 Wave A)
+> (AC16.34.3 removed, canonical: migrated to the `reconciliation` package roadmap as `AC-reconciliation.fe-stage2-review.27`, #1821 Wave B)
 
 ### Acceptance Criteria — Feature (group 28, frontend UI system primitives)
 
@@ -511,10 +366,7 @@ This group is intentionally conservative: it creates a React-level primitive
 layer while preserving the existing visual language and leaving the deeper token
 and visual-regression follow-ups to issues #613 and #614.
 
-- [x] **AC16.28.1** Shared React UI primitives live under `apps/frontend/src/components/ui/` and cover button, icon button, badge, alert, empty state, loading state, and page header usage without requiring page-local class recipes <!-- epic-owned: fe-only -->
-- [x] **AC16.28.2** Icon-only actions require an accessible label through the primitive API and representative account/statement delete-edit actions use those labels <!-- epic-owned: fe-only -->
-- [x] **AC16.28.3** At least two representative frontend pages are migrated to the primitive layer without changing their existing workflows or API calls <!-- epic-owned: fe-only -->
-- [x] **AC16.28.4** Primitive component tests cover variants, accessibility-facing props, and the migrated loading/error/empty states <!-- epic-owned: fe-only -->
+> (AC16.28.1 removed, AC16.28.2 removed, AC16.28.3 removed, and AC16.28.4 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.fe-app-shell.22` through `.25`, #1821 Wave B)
 
 ### Acceptance Criteria — Feature (group 29, frontend design tokens)
 
@@ -525,10 +377,7 @@ review, account, report, and AI surfaces can share semantic colors, spacing,
 radius, elevation, z-index, motion, and chart palette decisions without
 hardcoded Tailwind palette drift.
 
-- [x] **AC16.29.1** Tailwind theme extension maps frontend CSS-variable tokens for semantic color, radius, shadow/elevation, z-index, motion, typography, and chart palette usage <!-- epic-owned: fe-only -->
-- [x] **AC16.29.2** Frontend CSS and SSOT document the design-token model, including token usage rules and intentional page-local visual choices such as login/dashboard gradients, shadows, and radius <!-- epic-owned: fe-only -->
-- [x] **AC16.29.3** Confidence and status UI components use semantic token-backed primitives instead of hardcoded Tailwind palette utilities across all confidence/status variants <!-- epic-owned: fe-only -->
-- [x] **AC16.29.4** Frontend tests cover the token configuration contract and at least one tokenized semantic component across multiple variants <!-- epic-owned: fe-only -->
+> (AC16.29.1 removed, AC16.29.2 removed, AC16.29.3 removed, and AC16.29.4 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.fe-app-shell.26` through `.29`, #1821 Wave B)
 
 ### Acceptance Criteria — Feature (group 30, frontend verification hardening)
 
@@ -539,12 +388,7 @@ navigation and accessibility coverage, and adds representative visual smoke
 coverage so future review, account, statement, and shell changes cannot bypass
 the shared UI-system contract.
 
-- [x] **AC16.30.1** `IconButton` keeps its required `label` as the authoritative accessible name so callers cannot override or remove it through passthrough props <!-- epic-owned: fe-only -->
-- [x] **AC16.30.2** The design-token follow-ups from issues #612 and #613 are resolved: border tokens are documented, core recipes use `border-border`, alert variants use semantic status token classes, and SSOT examples use accurate fence language <!-- epic-owned: fe-only -->
-- [x] **AC16.30.3** `WorkspaceTabs` uses one coherent navigation/list semantic model with `aria-current` for the active route while preserving keyboard navigation between open workspace pages <!-- epic-owned: fe-only -->
-- [x] **AC16.30.4** Component tests cover keyboard and ARIA behavior for dialog, sheet, toast, workspace navigation, and icon-only controls <!-- epic-owned: fe-only -->
-- [x] **AC16.30.5** Playwright visual smoke covers desktop and mobile representative app-shell, accounts, statements, and review pages with stable visual anchors and nonblank screenshots <!-- epic-owned: fe-only -->
-- [x] **AC16.30.6** Frontend SSOT documents the accessibility and visual-verification workflow required for future UI-system changes <!-- epic-owned: fe-only -->
+> (AC16.30.1 removed, AC16.30.2 removed, AC16.30.3 removed, AC16.30.4 removed, AC16.30.5 removed, and AC16.30.6 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.fe-app-shell.30` through `.35`, #1821 Wave B)
 
 ### Acceptance Criteria — Infra (group 11, test infra extension)
 
@@ -579,10 +423,7 @@ deep-link to `/review`; the run-scoped variant stays at `/review/run/[runId]`. P
 EPIC-022 IA (AC22.2.4) review stays out of the sidebar — it is reached from the
 attention/notification flow, not a standalone nav peer.
 
-| AC ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC16.36.1 | The dedicated `/review` route renders the Stage-2 review queue standalone | `AC16.36.1 renders the Stage-2 review queue as a standalone page` | `__tests__/reviewLandingPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC16.36.2 | The dedicated route loads the global queue (no run filter) | `AC16.36.2 loads the global queue (no run filter) on the dedicated route` | `__tests__/reviewLandingPage.test.tsx` | P2 | <!-- epic-owned: fe-only -->
+> (AC16.36.1 removed and AC16.36.2 removed, canonical: migrated to the `reconciliation` package roadmap as `AC-reconciliation.fe-stage2-review.28` and `.29`, #1821 Wave B)
 
 ---
 

@@ -58,6 +58,7 @@ describe("SankeyChart", () => {
     )
   })
 
+  // AC-reporting.fe-report-surfaces.21
   it("AC16.21.7 renders empty-state option when no series data is provided", () => {
     render(<SankeyChart title="Cash Flow" height={320} />)
 
@@ -132,6 +133,7 @@ describe("SankeyChart", () => {
     expect(formatter({ data: { name: "Operating", value: 12 } })).toBe("Operating: 12")
   })
 
+  // AC-reporting.fe-report-surfaces.22
   it("AC16.21.8 recomputes theme-driven colors on root attribute change", async () => {
     render(
       <SankeyChart

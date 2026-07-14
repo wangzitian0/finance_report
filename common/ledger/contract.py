@@ -1944,6 +1944,152 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-016
+        # (two-stage-review-ui) ──
+        ACRecord(
+            id="AC-ledger.fe-accounts-journal.1",
+            statement="Accounts page renders loading and error retry states",
+            # was AC16.15.1
+            test="apps/frontend/src/__tests__/accountsPage.test.tsx::AC16.15.1 renders loading and error retry states",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.fe-accounts-journal.2",
+            statement="Accounts page renders grouped account cards and type filters on successful fetch",
+            # was AC16.15.2
+            test="apps/frontend/src/__tests__/accountsPage.test.tsx::AC16.15.2 renders grouped accounts and supports type filters",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.fe-accounts-journal.3",
+            statement="Accounts page delete action confirms and calls delete API with success toast",
+            # was AC16.15.3
+            test="apps/frontend/src/__tests__/accountsPage.test.tsx::AC16.15.3 delete action confirms and calls delete API with success toast",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.fe-accounts-journal.4",
+            statement="Edit button opens modal with account data",
+            # was AC16.15.7
+            test="apps/frontend/src/__tests__/accountsPage.test.tsx::AC16.15.7 edit button opens modal with account data",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.fe-accounts-journal.5",
+            statement="Add Account button opens create modal",
+            # was AC16.15.8
+            test="apps/frontend/src/__tests__/accountsPage.test.tsx::AC16.15.8 Add Account button opens create modal",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.fe-accounts-journal.6",
+            statement="Modal onSuccess triggers account list refresh",
+            # was AC16.15.9
+            test="apps/frontend/src/__tests__/accountsPage.test.tsx::AC16.15.9 modal onSuccess triggers account list refresh",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.fe-accounts-journal.7",
+            statement="Modal onClose closes modal and clears editing state",
+            # was AC16.15.10
+            test="apps/frontend/src/__tests__/accountsPage.test.tsx::AC16.15.10 modal onClose closes modal and clears editing state",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.fe-accounts-journal.8",
+            statement="Journal page renders error state and retries loading entries",
+            # was AC16.16.5
+            test="apps/frontend/src/__tests__/journalPage.test.tsx::AC16.16.5 renders error state and retries loading entries",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.fe-accounts-journal.9",
+            statement="Journal page filters entries by status and renders totals",
+            # was AC16.16.6
+            test="apps/frontend/src/__tests__/journalPage.test.tsx::AC16.16.6 filters entries by status and renders totals",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.fe-accounts-journal.10",
+            statement="Journal page draft actions post and delete entries with API calls",
+            # was AC16.16.7
+            test="apps/frontend/src/__tests__/journalPage.test.tsx::AC16.16.7 and AC16.16.8 handles draft post/delete and posted void flows",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.fe-accounts-journal.11",
+            statement="Journal page void flow submits reason and refreshes entries",
+            # was AC16.16.8
+            test="apps/frontend/src/__tests__/journalPage.test.tsx::AC16.16.7 and AC16.16.8 handles draft post/delete and posted void flows",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.fe-accounts-journal.12",
+            statement="Account form modal create mode submits normalized payload and closes on success",
+            # was AC16.21.1
+            test="apps/frontend/src/__tests__/accountFormModalComponent.test.tsx::AC16.21.1 create mode submits normalized payload and closes on success",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.fe-accounts-journal.13",
+            statement="Account form modal edit mode pre-fills values and submits update payload",
+            # was AC16.21.2
+            test="apps/frontend/src/__tests__/accountFormModalComponent.test.tsx::AC16.21.2 edit mode pre-fills values and submits update payload",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.fe-accounts-journal.14",
+            statement="Account form modal surfaces API errors and field validation feedback",
+            # was AC16.21.3
+            test="apps/frontend/src/__tests__/accountFormModalComponent.test.tsx::AC16.21.3 shows validation and API errors in create flow",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.fe-accounts-journal.15",
+            statement="Journal entry form loads account options and enforces balanced double-entry totals",
+            # was AC16.21.4
+            test="apps/frontend/src/__tests__/journalEntryFormComponent.test.tsx::AC16.21.4 loads account options and shows balanced/unbalanced state",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.fe-accounts-journal.16",
+            statement="Journal entry form creates draft entries with normalized line amounts and optional posting",
+            # was AC16.21.5
+            test="apps/frontend/src/__tests__/journalEntryFormComponent.test.tsx::AC16.21.5 submits create-draft payload with normalized amounts",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.fe-accounts-journal.17",
+            statement="Journal entry form supports dynamic line add/remove and submit-time error handling",
+            # was AC16.21.6
+            test="apps/frontend/src/__tests__/journalEntryFormComponent.test.tsx::AC16.21.6 supports add and remove line interactions",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.fe-accounts-journal.18",
+            statement="Journal entry details expose line account, direction, amount, and currency as mobile line cards",
+            # was AC16.25.3
+            test="apps/frontend/src/__tests__/detailViewComponents.test.tsx::AC16.25.3 journal entry details mobile line cards expose all line fields",
+            priority="P1",
+            status="done",
+        ),
     ],
 )
 

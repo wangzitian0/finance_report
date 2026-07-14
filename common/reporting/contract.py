@@ -2164,5 +2164,183 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-016
+        # (two-stage-review-ui) ──
+        ACRecord(
+            id="AC-reporting.fe-report-surfaces.1",
+            statement="Dashboard page shows loading state before API responses resolve",
+            # was AC16.12.1
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC16.12.1 shows loading state before dashboard data resolves",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-report-surfaces.2",
+            statement="Dashboard page renders error fallback and retry action when API request fails",
+            # was AC16.12.2
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC16.12.2 renders error fallback and retry action on failure",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-report-surfaces.3",
+            statement="Dashboard page renders KPI, charts, and recent activity when API requests succeed",
+            # was AC16.12.3
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC16.12.3 AC22.1.2 renders KPI, chart, activity, and alert sections when API succeeds",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-report-surfaces.4",
+            statement="Dashboard page renders empty-state copy when trend or activity datasets are empty",
+            # was AC16.12.4
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC16.12.4 renders empty-state messages for missing datasets",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-report-surfaces.5",
+            statement="Dashboard page renders first-time onboarding when accounts, statements, or posted review output are missing",
+            # was AC16.12.17
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC22.16.1 AC16.12.17 AC16.12.18 renders first-time onboarding with everyday-surface links only",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-report-surfaces.6",
+            statement="Dashboard onboarding links users to Accounts, Statements upload, and Review in one click",
+            # was AC16.12.18
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC22.16.1 AC16.12.17 AC16.12.18 renders first-time onboarding with everyday-surface links only",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-report-surfaces.7",
+            statement="Dashboard hides onboarding once an approved statement and posted journal entry exist",
+            # was AC16.12.19
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC16.12.19 hides first-time onboarding after approved statement and posted journal entry exist",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-report-surfaces.8",
+            statement="Reports page renders all report cards with links for available reports",
+            # was AC16.12.11
+            test="apps/frontend/src/__tests__/reportsPage.test.tsx::AC16.12.11 renders the four front reports and the More reports with links",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-report-surfaces.9",
+            statement="Reports page displays accounting equation section content",
+            # was AC16.12.12
+            test="apps/frontend/src/__tests__/reportsPage.test.tsx::AC16.12.12 displays accounting equation section",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-report-surfaces.10",
+            statement="Balance-sheet page renders loading and error retry states",
+            # was AC16.14.1
+            test="apps/frontend/src/__tests__/balanceSheetPage.test.tsx::AC16.14.1 renders loading and error retry states",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-report-surfaces.11",
+            statement="Balance-sheet page renders totals and account sections on successful fetch",
+            # was AC16.14.2
+            test="apps/frontend/src/__tests__/balanceSheetPage.test.tsx::AC16.14.2 / test_AC8_13_48 renders string totals and refetches by date",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-report-surfaces.12",
+            statement="Balance-sheet page toggles account tree expansion controls",
+            # was AC16.14.3
+            test="apps/frontend/src/__tests__/balanceSheetPage.test.tsx::AC16.14.3 toggles tree expansion controls",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-report-surfaces.13",
+            statement="Income-statement page renders loading and error retry states",
+            # was AC16.14.4
+            test="apps/frontend/src/__tests__/incomeStatementPage.test.tsx::AC16.14.4 renders loading and error retry states",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-report-surfaces.14",
+            statement="Income-statement page renders KPI cards and category lists on success",
+            # was AC16.14.5
+            test="apps/frontend/src/__tests__/incomeStatementPage.test.tsx::AC16.14.5 / test_AC8_13_48 renders string KPI cards and category lists",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-report-surfaces.15",
+            statement="Income-statement page tag filters can be selected and cleared",
+            # was AC16.14.6
+            test="apps/frontend/src/__tests__/incomeStatementPage.test.tsx::AC16.14.6 supports selecting and clearing tags",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-report-surfaces.16",
+            statement="Cash-flow page renders loading and error retry states",
+            # was AC16.14.7
+            test="apps/frontend/src/__tests__/cashFlowPage.test.tsx::AC16.14.7 renders loading and error retry states",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-report-surfaces.17",
+            statement="Cash-flow page renders summary and section cards on success",
+            # was AC16.14.8
+            test="apps/frontend/src/__tests__/cashFlowPage.test.tsx::AC16.14.8 / test_AC8_13_48 renders string summary and activity sections",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-report-surfaces.18",
+            statement="Cash-flow page renders sankey chart when summary exists",
+            # was AC16.14.9
+            test="apps/frontend/src/__tests__/cashFlowPage.test.tsx::AC16.14.9 renders sankey chart when summary exists",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-report-surfaces.19",
+            statement="Bar and pie chart components render semantic labels and filtered data",
+            # was AC16.19.10
+            test="apps/frontend/src/__tests__/chartsComponents.test.tsx::AC16.19.10 bar chart and pie chart render labels and filtered segments",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-report-surfaces.20",
+            statement="Trend chart renders line/area paths and point labels for provided series",
+            # was AC16.19.11
+            test="apps/frontend/src/__tests__/chartsComponents.test.tsx::AC16.19.11 trend chart renders point labels and svg paths",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-report-surfaces.21",
+            statement="Sankey chart builds empty-state and data-state options for inflow and outflow links",
+            # was AC16.21.7
+            test="apps/frontend/src/__tests__/sankeyChartComponent.test.tsx::AC16.21.7 renders empty-state option when no series data is provided",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-report-surfaces.22",
+            statement="Sankey chart recomputes theme-aware colors when root theme attributes change",
+            # was AC16.21.8
+            test="apps/frontend/src/__tests__/sankeyChartComponent.test.tsx::AC16.21.8 recomputes theme-driven colors on root attribute change",
+            priority="P2",
+            status="done",
+        ),
     ],
 )

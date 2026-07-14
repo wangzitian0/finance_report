@@ -43,6 +43,7 @@ describe("Chat components", () => {
     vi.unstubAllGlobals()
   })
 
+  // AC-advisor.fe-chat.2
   it("AC16.19.5 enforces disclaimer consent and passes initial prompt", async () => {
     render(<ChatPageClient />)
 
@@ -55,6 +56,7 @@ describe("Chat components", () => {
     expect(localStorage.getItem("ai_advisor_disclaimer_v1")).toBe("accepted")
   })
 
+  // AC-advisor.fe-chat.3
   it("AC16.19.6 hides widget on chat route and toggles elsewhere", async () => {
     pathnameMock = "/chat"
     const { rerender } = render(<ChatWidget />)

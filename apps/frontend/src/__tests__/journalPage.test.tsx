@@ -42,6 +42,7 @@ describe("JournalPage", () => {
     vi.unstubAllGlobals()
   })
 
+  // AC-ledger.fe-accounts-journal.8
   it("AC16.16.5 renders error state and retries loading entries", async () => {
     mockedApiFetch.mockRejectedValueOnce(new Error("journal failed")).mockResolvedValueOnce({ items: [] })
 
@@ -52,6 +53,7 @@ describe("JournalPage", () => {
     await waitFor(() => expect(screen.getByText("No journal entries yet")).toBeInTheDocument())
   })
 
+  // AC-ledger.fe-accounts-journal.9
   it("AC16.16.6 filters entries by status and renders totals", async () => {
     mockedApiFetch
       .mockResolvedValueOnce({
@@ -112,6 +114,7 @@ describe("JournalPage", () => {
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Journal Entry Details" })).not.toBeInTheDocument())
   })
 
+  // AC-ledger.fe-accounts-journal.10 / AC-ledger.fe-accounts-journal.11
   it("AC16.16.7 and AC16.16.8 handles draft post/delete and posted void flows", async () => {
     const entriesResponse = {
       items: [

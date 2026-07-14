@@ -112,6 +112,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     })
   })
 
+  // AC-reconciliation.fe-stage2-review.14
   it("AC8.13.76/AC16.26.2 mobile queue renders selectable match cards and batch actions", async () => {
     mockMobileViewport()
 
@@ -163,6 +164,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     )
   })
 
+  // AC-reconciliation.fe-stage2-review.15
   it("AC16.26.3 mobile run review preserves approval gate and pending match workflow", async () => {
     mockMobileViewport()
     navState.pathname = "/review/run/mobile-run"
@@ -211,6 +213,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     expect(screen.getAllByText("Salary transfer").length).toBeGreaterThan(0)
   })
 
+  // AC-reconciliation.fe-stage2-review.16
   it("AC16.27.1 keeps mobile pending-match cards in the DOM without matchMedia gating", async () => {
     Object.defineProperty(window, "matchMedia", {
       configurable: true,
@@ -234,6 +237,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     expect(screen.getAllByText("Salary transfer").length).toBeGreaterThan(0)
   })
 
+  // AC-reconciliation.fe-stage2-review.17
   it("AC8.13.82/AC16.27.3 exposes a fixed desktop pending-match region for responsive UX proofs", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
       if (path.startsWith("/api/statements/stage2/queue")) {
@@ -254,6 +258,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     expect(table).toHaveStyle({ width: "calc(100% - 4px)" })
   })
 
+  // AC-reconciliation.fe-stage2-review.19
   it("AC16.23.4/AC8.13.48 persists Stage 2 filters in the URL while approving after filter changes", async () => {
     navState.pathname = "/review/run/run%201"
     navState.searchParams = new URLSearchParams("check_type=duplicate&status=pending&severity=high,medium&min_score=60")

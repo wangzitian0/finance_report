@@ -59,6 +59,7 @@ describe("ReconciliationWorkbench", () => {
     score_breakdown: { amount: 50, date: 20, description: 15 },
   }
 
+  // AC-reconciliation.fe-stage2-review.7
   it("AC16.20.1 loads stats and pending queue with default selection", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
       const url = String(path)
@@ -101,6 +102,7 @@ describe("ReconciliationWorkbench", () => {
     await waitFor(() => expect(screen.getByText("Anomaly Signals")).toBeInTheDocument())
   })
 
+  // AC-reconciliation.fe-stage2-review.8
   it("AC16.20.2 triggers run, batch, accept, and reject APIs", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
       const url = String(path)
@@ -157,6 +159,7 @@ describe("ReconciliationWorkbench", () => {
     await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/reconciliation/matches/m1/reject", { method: "POST" }))
   })
 
+  // AC-reconciliation.fe-stage2-review.11
   it("AC16.20.6 score distribution renders 0% height for buckets with value 0", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
       const url = String(path)

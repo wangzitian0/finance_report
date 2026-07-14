@@ -178,6 +178,7 @@ test.describe("AC16.30.5 desktop visual smoke", () => {
     await installVisualApiMocks(page);
   });
 
+  // AC-meta.fe-app-shell.34
   test("captures representative app-shell, accounts, statements, and review pages", async ({ page }) => {
     await expectVisualSmokePage(page, "/accounts", "Accounts", false);
     await expect(page.getByText("Operating Cash")).toBeVisible();

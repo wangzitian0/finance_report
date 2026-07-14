@@ -13,6 +13,7 @@ vi.mock("@/components/reconciliation/UnmatchedBoard", () => ({
 }))
 
 describe("Reconciliation entry pages", () => {
+  // AC-reconciliation.fe-stage2-review.2
   it("AC16.16.4 renders workbench in reconciliation page", () => {
     render(<ReconciliationPage />)
     expect(screen.getByText("Mock Workbench")).toBeInTheDocument()

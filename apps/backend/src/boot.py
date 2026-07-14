@@ -344,6 +344,34 @@ class Bootloader:
         return ServiceStatus("market_data", status, result.detail, result.duration_ms)
 
     @staticmethod
+    def vault_secrets_snapshot() -> dict:
+        """Informational freshness snapshot of the vault-agent secrets file.
+
+        #1828 G-staleness-watchdog-visible (operator-decided 2026-07-14:
+        detection only). Exposed via ``/health?full=1`` for the out-of-band
+        watchdog axis (#1653) — NEVER part of the health verdict or the
+        required-dependency evaluation, and boot semantics are unchanged
+        (``_check_vault_secrets`` still only warns in FULL mode).
+        """
+        snapshot: dict = {
+            "present": False,
+            "age_seconds": None,
+            "stale": None,
+            "threshold_seconds": VAULT_SECRETS_STALENESS_THRESHOLD_SECONDS,
+        }
+        try:
+            stat = os.stat(VAULT_SECRETS_FILE_PATH)
+        except OSError:
+            return snapshot
+        age_seconds = max(0, int(time.time() - stat.st_mtime))
+        snapshot.update(
+            present=True,
+            age_seconds=age_seconds,
+            stale=age_seconds > VAULT_SECRETS_STALENESS_THRESHOLD_SECONDS,
+        )
+        return snapshot
+
+    @staticmethod
     def _check_vault_secrets() -> ServiceStatus:
         """Check if Vault secrets file exists and is fresh (staging/production only)."""
         start = time.perf_counter()

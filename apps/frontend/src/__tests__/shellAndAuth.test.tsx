@@ -54,6 +54,7 @@ describe("AppShell and AuthGuard", () => {
     pathnameMock = "/dashboard"
   })
 
+  // AC-identity.fe-auth.13
   it("AC16.19.1 renders providers and collapse-aware shell layout", () => {
     const { container } = render(
       <AppShell>
@@ -87,6 +88,7 @@ describe("AppShell and AuthGuard", () => {
     expect(main).toHaveAttribute("tabIndex", "-1")
   })
 
+  // AC-identity.fe-auth.14
   it("AC16.19.2 redirects unauthenticated protected routes", async () => {
     isAuthenticatedMock.mockReturnValue(false)
 
