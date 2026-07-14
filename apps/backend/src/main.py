@@ -628,6 +628,11 @@ async def health_check(full: bool = False, db: AsyncSession = Depends(get_db)) -
         }
         if tier is not None:
             content["tier"] = tier.value
+            # #1828 G-staleness-watchdog-visible: informational only — computed
+            # AFTER the verdict, never in ``checks`` (the manifest-parity set)
+            # and never an input to ``all_healthy``. The out-of-band watchdog
+            # axis (#1653) reads it; boot semantics are unchanged.
+            content["vault_secrets"] = Bootloader.vault_secrets_snapshot()
         return JSONResponse(status_code=status_code, content=content)
     except Exception as e:
         logger.error(
