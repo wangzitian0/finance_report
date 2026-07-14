@@ -30,7 +30,7 @@ def test_zai_pdf_fallback_uses_image_url_and_redacts_presigned_urls() -> None:
     extraction = read("apps/backend/src/extraction/extension")
     storage = read("apps/backend/src/runtime/extension/storage.py")
 
-    assert "def _render_pdf_pages_as_image_payloads" in extraction
+    assert "def _render_pdf_pages_as_image_payload_batches" in extraction
     assert "PDF_VISION_MAX_PAGES = 5" in extraction
     assert '"type": "image_url"' in extraction
     assert '"image_url": {"url": data}' in extraction

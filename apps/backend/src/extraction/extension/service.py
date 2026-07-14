@@ -13,6 +13,7 @@ from sqlalchemy import select
 
 import src.config
 from src.audit.money.currency import normalize_currency_code
+from src.extraction.base.paged_extraction import build_paged_prompt, merge_paged_extractions
 from src.extraction.base.validation import (
     bank_currency_balances,
     compute_confidence_score,
@@ -78,7 +79,11 @@ def _institution_class(*, is_brokerage: bool) -> str:
 class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _CsvMixin):
     """Service for extracting structured data from financial documents."""
 
+    # Pages per vision request (provider payload bound), NOT a document cap: longer
+    # PDFs are extracted in several calls and merged (#1832). The total cap is the
+    # honest ceiling — exceeding it errors explicitly instead of truncating.
     PDF_VISION_MAX_PAGES = 5
+    PDF_VISION_MAX_TOTAL_PAGES = 30
     PDF_VISION_RENDER_SCALE = 1.6
 
     def __init__(self) -> None:
@@ -1113,24 +1118,15 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             )
         prompt = get_parsing_prompt(institution, document_kind=document_kind)
         if force_model:
-            media_payloads = await asyncio.to_thread(
-                self._build_vision_media_payloads,
+            media_batches = await asyncio.to_thread(
+                self._build_vision_media_payload_batches,
                 file_content,
                 file_url,
                 file_type,
                 mime_type,
             )
-            messages = [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        *media_payloads,
-                    ],
-                }
-            ]
-            return await self._extract_json_with_models(
-                messages=messages,
+            return await self._extract_json_from_media_batches(
+                media_batches=media_batches,
                 models=[force_model],
                 prompt=prompt,
                 institution=institution,
@@ -1181,24 +1177,15 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
         if not vision_models:
             raise ExtractionError("Extraction failed after all retries")
 
-        media_payloads = await asyncio.to_thread(
-            self._build_vision_media_payloads,
+        media_batches = await asyncio.to_thread(
+            self._build_vision_media_payload_batches,
             file_content,
             file_url,
             file_type,
             mime_type,
         )
-        vision_messages = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    *media_payloads,
-                ],
-            }
-        ]
-        return await self._extract_json_with_models(
-            messages=vision_messages,
+        return await self._extract_json_from_media_batches(
+            media_batches=media_batches,
             models=vision_models,
             prompt=prompt,
             institution=institution,
@@ -1209,3 +1196,100 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             seed_override=seed_override,
             user_id=user_id,
         )
+
+    async def _extract_json_from_media_batches(
+        self,
+        *,
+        media_batches: list[list[dict[str, Any]]],
+        models: list[str],
+        prompt: str,
+        institution: str | None,
+        file_type: str,
+        return_raw: bool,
+        has_content: bool,
+        has_url: bool,
+        seed_override: int | None,
+        user_id: UUID | None,
+    ) -> dict[str, Any]:
+        """Run one model call per media batch and merge the payloads (#1832).
+
+        Single-batch documents keep the exact pre-#1832 call shape (including
+        ``return_raw`` passthrough). Multi-batch documents get a per-part prompt
+        (transactions from own pages only; statement-level balances only when
+        explicitly stated), concurrent part calls, and a pure merge; ``return_raw``
+        is not meaningful across parts and is ignored there.
+        """
+
+        def _messages(part_prompt: str, media: list[dict[str, Any]]) -> list[dict[str, Any]]:
+            return [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": part_prompt},
+                        *media,
+                    ],
+                }
+            ]
+
+        if len(media_batches) == 1:
+            return await self._extract_json_with_models(
+                messages=_messages(prompt, media_batches[0]),
+                models=models,
+                prompt=prompt,
+                institution=institution,
+                file_type=file_type,
+                return_raw=return_raw,
+                has_content=has_content,
+                has_url=has_url,
+                seed_override=seed_override,
+                user_id=user_id,
+            )
+
+        part_count = len(media_batches)
+        pages_per_call = self.PDF_VISION_MAX_PAGES
+        total_pages = sum(len(media) for media in media_batches)
+
+        # Non-first parts carry page 1 as a leading context image: scanned
+        # statements and some brokers do not repeat table headers on
+        # continuation pages, so a bare batch cannot tell which column is
+        # withdrawal vs deposit or which currency applies (#1832).
+        context_page = media_batches[0][0]
+
+        async def _extract_part(part_index: int, media: list[dict[str, Any]]) -> dict[str, Any]:
+            page_start = (part_index - 1) * pages_per_call + 1
+            page_end = page_start + len(media) - 1
+            has_context_page = part_index > 1
+            part_prompt = build_paged_prompt(
+                prompt,
+                part_index=part_index,
+                part_count=part_count,
+                page_start=page_start,
+                page_end=page_end,
+                total_pages=total_pages,
+                has_context_page=has_context_page,
+            )
+            part_media = [context_page, *media] if has_context_page else media
+            return await self._extract_json_with_models(
+                messages=_messages(part_prompt, part_media),
+                models=models,
+                prompt=part_prompt,
+                institution=institution,
+                file_type=file_type,
+                return_raw=False,
+                has_content=has_content,
+                has_url=has_url,
+                seed_override=seed_override,
+                user_id=user_id,
+            )
+
+        parts = await asyncio.gather(
+            *(_extract_part(index, media) for index, media in enumerate(media_batches, start=1))
+        )
+        merged = merge_paged_extractions(list(parts))
+        logger.info(
+            "Merged paged vision extraction",
+            part_count=part_count,
+            transactions=len(merged.get("transactions") or []),
+            positions=len(merged.get("positions") or []),
+        )
+        return merged

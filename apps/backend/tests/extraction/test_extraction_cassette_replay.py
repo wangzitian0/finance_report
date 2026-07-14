@@ -218,8 +218,8 @@ def _stub_env_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     role/messages/decode_params, never on which provider was resolved, so this does
     not affect what gets replayed.
 
-    A non-"zai" ``ai_provider`` also steers ``_build_vision_media_payloads`` away
-    from ``_render_pdf_pages_as_image_payloads`` (PyMuPDF rasterizes the PDF to a
+    A non-"zai" ``ai_provider`` also steers ``_build_vision_media_payload_batches`` away
+    from ``_render_pdf_pages_as_image_payload_batches`` (PyMuPDF rasterizes the PDF to a
     PNG — the exact pixels are not guaranteed byte-identical across host platforms,
     which produced a CI-only cassette MISS despite a passing local run) and onto the
     raw-base64-PDF-bytes ``file`` payload branch instead, which is a pure function of

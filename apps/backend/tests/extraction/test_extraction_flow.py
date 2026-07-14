@@ -275,7 +275,9 @@ class TestExtractionServiceFlow:
         json_content = json.dumps({"success": True})
 
         with (
-            patch.object(service, "_render_pdf_pages_as_image_payloads", return_value=[image_payload]) as mock_render,
+            patch.object(
+                service, "_render_pdf_pages_as_image_payload_batches", return_value=[[image_payload]]
+            ) as mock_render,
             patch("src.extraction.extension.service.stream_ai_json") as mock_stream,
         ):
             mock_stream.return_value = mock_stream_generator(json_content)
@@ -298,7 +300,9 @@ class TestExtractionServiceFlow:
         json_content = json.dumps({"success": True})
 
         with (
-            patch.object(service, "_render_pdf_pages_as_image_payloads", return_value=[image_payload]) as mock_render,
+            patch.object(
+                service, "_render_pdf_pages_as_image_payload_batches", return_value=[[image_payload]]
+            ) as mock_render,
             patch("src.extraction.extension.service.stream_ai_json") as mock_stream,
         ):
             mock_stream.return_value = mock_stream_generator(json_content)
@@ -328,7 +332,9 @@ class TestExtractionServiceFlow:
         json_content = json.dumps({"success": True})
 
         with (
-            patch.object(service, "_render_pdf_pages_as_image_payloads", return_value=[image_payload]) as mock_render,
+            patch.object(
+                service, "_render_pdf_pages_as_image_payload_batches", return_value=[[image_payload]]
+            ) as mock_render,
             patch("src.extraction.extension.service.stream_ai_json") as mock_stream,
         ):
             mock_stream.return_value = mock_stream_generator(json_content)

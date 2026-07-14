@@ -59,12 +59,14 @@ QUARANTINE_MESSAGE: dict[LlmLedQuarantineReason, str] = {
     LlmLedQuarantineReason.BALANCE_CHAIN_UNRECONCILED: (
         "Extraction blocked: the running-balance chain does not reconcile "
         "(opening + inflows - outflows != closing). The parsed figures are internally "
-        "inconsistent and cannot be trusted; re-upload a clearer source."
+        "inconsistent, so the statement was not imported. Retry parsing; if it "
+        "still fails, this document layout is not fully supported yet."
     ),
     LlmLedQuarantineReason.DEDUP_CONSERVATION_VIOLATION: (
         "Extraction blocked: within-document dedup conservation failed (two distinct rows "
-        "collapsed into one). The transaction set is incomplete and cannot be trusted; "
-        "re-upload a clearer source."
+        "collapsed into one). The transaction set is incomplete, so the statement was "
+        "not imported. Retry parsing; if it still fails, this document layout is "
+        "not fully supported yet."
     ),
     LlmLedQuarantineReason.BALANCE_INVARIANT_UNEVALUABLE: (
         "Extraction blocked: the balance invariant could not be evaluated because an "
