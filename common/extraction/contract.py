@@ -3616,5 +3616,39 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from the
+        # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
+        ACRecord(
+            id="AC-extraction.fe-remainder-extraction.1",
+            statement="Audit Trail panel on transaction detail page lists chronological `{timestamp, actor, action, old_value, new_value}` from `GET /api/transactions/{id}/audit`, including AI-applied changes labeled with actor `ai`",
+            # was AC18.5.6
+            test="apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx::AC18.5.6 — Audit Trail panel renders provenance",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.fe-remainder-extraction.2",
+            statement="The Upload page exposes exactly three intake entries — one primary statement uploader (the AI identifies the type; the user never pre-classifies), one CSV import, and one Manual records entry — with no per-source-class checklist",
+            # was AC19.15.1
+            test="apps/frontend/src/__tests__/statementsPage.test.tsx::AC19.15.1 exposes exactly three intake entries: one statement uploader plus CSV and Manual",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.fe-remainder-extraction.3",
+            statement="The CSV import and Manual records entries are folded (collapsed) by default so they stay passive, the retired per-source-class checklist does not return, and the page does not fetch report readiness merely to render intake",
+            # was AC19.15.2
+            test="apps/frontend/src/__tests__/statementsPage.test.tsx::AC19.15.2 keeps secondary intake passive: CSV and Manual folded, no per-class checklist, no readiness fetch",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.fe-remainder-extraction.4",
+            statement='The primary statement uploader (`kind="statement"`) rejects `.csv` files by extension before setting a selected file, and the CSV import uploader (`kind="csv"`) rejects non-csv files and accepts `.csv` — each intake entry enforces its own kind\'s file-extension restriction, independent of the shared `all`-kind default',
+            # was AC19.15.3
+            test="apps/frontend/src/__tests__/StatementUploader.test.tsx::AC19.15.3 statement uploader rejects csv and csv uploader rejects non-csv, each enforcing its own kind's extensions",
+            priority="P1",
+            status="done",
+        ),
     ],
 )

@@ -201,6 +201,7 @@ describe("workflow notification surfaces", () => {
   })
 
   // AC-platform.fe-ia-inbox.2
+  // AC-platform.fe-workflow.2
   it("AC19.3.4 AC22.2.3 shows the header badge from compact workflow counts and hides counts when quiet", async () => {
     renderWithQuery(<WorkflowNotificationCenter />)
 
@@ -230,6 +231,7 @@ describe("workflow notification surfaces", () => {
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Workflow events" })).not.toBeInTheDocument())
   })
 
+  // AC-platform.fe-workflow.6
   it("AC19.3.5 AC19.8.4 groups inbox events by workflow session timeline and supports lifecycle actions", async () => {
     renderWithQuery(<WorkflowNotificationCenter />)
 
@@ -313,6 +315,7 @@ describe("workflow notification surfaces", () => {
     expect(screen.getByRole("link", { name: "Upload statements" })).toHaveAttribute("href", "/statements/upload")
   })
 
+  // AC-platform.fe-workflow.7
   it("AC19.12.5 renders lightweight derived workflow events as user actions, not internal logs", () => {
     render(<WorkflowStatusFeed status={statusNeedsAction} events={workflowEvents.items} />)
 
@@ -422,6 +425,7 @@ describe("workflow notification surfaces", () => {
     expect(screen.getByText("1 blocker")).toBeInTheDocument()
   })
 
+  // AC-platform.fe-workflow.5
   it("AC19.4.8 AC19.12.5 does not duplicate the workflow-state sentence when next-action summary is absent", () => {
     render(
       <UploadToReportHome

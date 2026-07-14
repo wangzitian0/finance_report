@@ -28,6 +28,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     mockedPatchUserSettings.mockReset();
   });
 
+  // AC-meta.fe-app-shell2.1
   it("AC18.5.1 — ConfidenceBadge renders confidence tier labels", () => {
     const tiers = ["TRUSTED", "HIGH", "MEDIUM", "LOW"] as const;
 
@@ -49,6 +50,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     }
   });
 
+  // AC-ledger.fe-accounts2.4
   it("AC18.5.2 — Journal page surfaces ConfidenceBadge tier", async () => {
     mockedApiFetch.mockResolvedValueOnce({
       items: [
@@ -73,6 +75,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     expect(screen.getByText("LOW")).toBeInTheDocument();
   });
 
+  // AC-reconciliation.fe-remainder-reconciliation.2
   it("AC18.5.3 — AI Suggestion Review Queue page renders suggestions", async () => {
     mockedApiFetch.mockResolvedValueOnce({
       items: [
@@ -94,6 +97,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     expect(screen.getAllByText("Merchant name indicates dining.").length).toBeGreaterThan(0);
   });
 
+  // AC-reconciliation.fe-remainder-reconciliation.3
   it("AC18.5.4 — feedback POST on accept/reject/edit", async () => {
     mockedApiFetch
       .mockResolvedValueOnce({
@@ -187,6 +191,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     expect(await screen.findByText("suggestions unavailable")).toBeInTheDocument();
   });
 
+  // AC-llm.fe-ai-settings2.1
   it("AC18.5.5 — Settings AI toggles persist", async () => {
     mockedFetchUserSettings.mockResolvedValue({ enable_ai_reconciliation: true, enable_ai_classification: false });
     mockedPatchUserSettings.mockResolvedValue({ enable_ai_reconciliation: true, enable_ai_classification: true });
@@ -209,6 +214,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     );
   });
 
+  // AC-extraction.fe-remainder-extraction.1
   it("AC18.5.6 — Audit Trail panel renders provenance", async () => {
     mockedApiFetch.mockResolvedValueOnce({
       items: [
@@ -230,6 +236,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     expect(screen.getByText(/Food & Dining/)).toBeInTheDocument();
   });
 
+  // AC-llm.fe-ai-settings2.2
   it("AC18.5.7 — AI settings mount reflects saved toggles", async () => {
     mockedFetchUserSettings.mockResolvedValue({ enable_ai_reconciliation: false, enable_ai_classification: true });
 

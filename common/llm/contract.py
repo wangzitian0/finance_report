@@ -981,5 +981,23 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from the
+        # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
+        ACRecord(
+            id="AC-llm.fe-ai-settings2.1",
+            statement="Settings page `/settings/ai` exposes toggles for `enable_ai_reconciliation`, `enable_ai_classification`, persisted via `PATCH /api/users/me/settings`; toggle reflects backend feature-flag state on load",
+            # was AC18.5.5
+            test="apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx::AC18.5.5 — Settings AI toggles persist",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-llm.fe-ai-settings2.2",
+            statement="Frontend tests: mount ConfidenceBadge for each tier; mount AI Suggestion Queue and assert Accept/Reject buttons render; mount Settings AI toggles and assert default state matches API",
+            # was AC18.5.7
+            test="apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx::AC18.5.7 — AI settings mount reflects saved toggles",
+            priority="P2",
+            status="done",
+        ),
     ],
 )

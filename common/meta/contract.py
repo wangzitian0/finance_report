@@ -2066,5 +2066,47 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from the
+        # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
+        ACRecord(
+            id="AC-meta.fe-http-client.1",
+            statement="Frontend `apiFetch` throws `ApiError` carrying the parsed `errorId`",
+            # was AC12.27.3
+            test="apps/frontend/src/__tests__/apiErrorStructured.test.ts::test_AC12_27_3_api_error_carries_error_id parses error_id from the body",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell2.1",
+            statement="`<ConfidenceBadge />` component renders `TRUSTED` / `HIGH` / `MEDIUM` / `LOW` pill with consistent color tokens (green / blue / amber / gray) and tooltip explaining source-type priority",
+            # was AC18.5.1
+            test="apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx::AC18.5.1 — ConfidenceBadge renders confidence tier labels",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-contract-types.1",
+            statement="The list-response envelope has a single `ListResponse<T>` definition and the per-entity list responses derive from it; declared OpenAPI-mirrored contract types resolve to a real generated `Schemas[...]` key (drift guard)",
+            # was AC25.3.1
+            test="apps/frontend/src/__tests__/contractTypes.test.ts::AC25.3.1: every list response derives from the single ListResponse<T> envelope",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-http-client.2",
+            statement="High-traffic call sites type responses against the generated schema",
+            # was AC12.28.3
+            test="apps/frontend/src/__tests__/apiTypedClient.test.ts::test_AC12_28_3_types_stage2_batch_responses_against_generated_schema",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-contract-types.2",
+            statement="`lib/api.ts` is the single raw-`fetch` boundary — no other frontend source module issues a raw `fetch(` call",
+            # was AC25.3.2
+            test="apps/frontend/src/__tests__/contractTypes.test.ts::AC25.3.2: lib/api.ts is the single raw-fetch boundary in the frontend",
+            priority="P1",
+            status="done",
+        ),
     ],
 )

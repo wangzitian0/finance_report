@@ -1,5 +1,10 @@
 # EPIC-002: Double-Entry Bookkeeping Core
 
+<!-- epic-file: design-doc -->
+<!-- 0 AC rows by design (#1821 Wave B): the delivered double-entry-core
+     design record; all ACs migrated to their owning package contract.py
+     roadmaps (mostly ledger, plus reporting/pricing/audit slices). -->
+
 > **Status**: ✅ Complete  
 > **Vision Anchor**: `decision-filter-accuracy-auditability`  
 > **Phase**: 1  
@@ -103,10 +108,10 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 > so the AC index counts them without an EPIC-table mirror. This note references
 > the new ids (keeping the registry↔EPIC link intact) but defines none of them —
 > the contract is the single definition source. The **non-double-entry** rows of
-> the AC2.13–AC2.23 range stay defined below, because they are not ledger ACs: the
-> frontend UI ACs `AC2.15.8` / `AC2.16.3` / `AC2.17.1` (the ledger package is
-> `fe=None`), the cross-EPIC framework-boundary doc-contract (now
-> `AC-meta.framework-neutrality.1`, #1821 Wave A), and the
+> the AC2.13–AC2.23 range are not ledger ACs: the three frontend UI ACs (the
+> ledger package is `fe=None`) migrated in #1821 Wave B once the governance gate
+> gained TS test-ref resolution (below), the cross-EPIC framework-boundary
+> doc-contract (now `AC-meta.framework-neutrality.1`, #1821 Wave A), and the
 > Money value-type extension `AC2.19.*`–`AC2.22.*` (owned by the `money` kernel).
 > Slice 3c-iii is the final AC batch of the #1420 cutover. *(AC2.16 group's
 > reporting-layer row and AC2.12's stream-redaction row removed — migration
@@ -170,10 +175,10 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 > **Database ledger invariant floor** (was AC2.14.*):
 > `AC-ledger.14.1` · `AC-ledger.14.2` · `AC-ledger.14.3` · `AC-ledger.14.4` · `AC-ledger.14.5` · `AC-ledger.14.6`
 >
-> **Guided opening balances — backend** (was the AC2.15.* backend rows; the frontend `AC2.15.8` stays in EPIC-002):
+> **Guided opening balances — backend** (was the AC2.15.* backend rows; the frontend row migrated separately to `AC-ledger.fe-accounts2.2`, #1821 Wave B):
 > `AC-ledger.15.1` · `AC-ledger.15.2` · `AC-ledger.15.3` · `AC-ledger.15.4` · `AC-ledger.15.5` · `AC-ledger.15.6` · `AC-ledger.15.7`
 >
-> **Opening-balance readiness — backend** (was the AC2.16.* backend detection rows; the frontend `AC2.16.3` stays in EPIC-002; *the AC2.16 group's reporting-layer row removed* — migrated to `reporting`, #1663):
+> **Opening-balance readiness — backend** (was the AC2.16.* backend detection rows; the frontend row migrated separately to `AC-ledger.fe-accounts2.3`, #1821 Wave B; *the AC2.16 group's reporting-layer row removed* — migrated to `reporting`, #1663):
 > `AC-ledger.16.1` · `AC-ledger.16.2`
 
 ### AC2.17: Account Management UI Responsiveness
@@ -181,9 +186,7 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 > Renumbered from a second `AC2.12` group that collided with AC2.12 (Multi-Currency
 > Ledger Integrity); the AC IDs are unique, the namespaces were not.
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC2.17.1 | Accounts page mobile filters and account rows avoid document-level horizontal scroll and content overlap | `AC2.17.1 mobile accounts avoids document horizontal scroll and overlapping row controls` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 | <!-- epic-owned: fe-only -->
+(AC2.17.1 removed, canonical: migrated to the `ledger` package roadmap as `AC-ledger.fe-accounts2.1`, #1821 Wave B)
 
 > The groups AC2.7–AC2.12 (API router & error handling, decimal safety, the data
 > model + endpoint checklists, must-have traceability, and multi-currency ledger
@@ -213,13 +216,11 @@ A user with pre-existing assets/liabilities can establish year-start balances vi
 
 > The backend opening-balance ACs in the `AC2.15.*` range (which post and validate
 > the balanced double-entry) migrated into the `ledger` package as
-> `AC-ledger.15.*` (#1420 slice 3c-iii). Only the **frontend** guided-flow AC
-> `AC2.15.8` stays here, because the ledger package is `fe=None` (the same rule
-> that kept EPIC-015's `AC15.7.*` frontend rows in their EPIC).
+> `AC-ledger.15.*` (#1420 slice 3c-iii). The **frontend** guided-flow AC could not
+> be homed there directly (the ledger package is `fe=None`) until #1820/#1825
+> gave the governance gate TS test-ref resolution, letting it migrate below.
 
-| AC ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC2.15.8 | The Accounts page offers a guided opening-balance flow: a non-accountant enters an as-of date and a starting balance per eligible (active, non-income/expense) account, and the UI posts the balances map to `POST /api/accounts/opening-balances` — never hand-written journal lines — validating positive two-decimal amounts and surfacing backend errors instead of silently closing | `AC2.15.8 lists only eligible accounts and hides income/expense and inactive ones`, `AC2.15.8 posts a balances map without requiring hand-written journal lines`, `AC2.15.8 blocks submission until at least one positive balance is entered`, `AC2.15.8 rejects non-positive or over-precise amounts before calling the API`, `AC2.15.8 surfaces a backend error instead of closing` | `apps/frontend/src/__tests__/openingBalanceModal.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+(AC2.15.8 removed, canonical: migrated to the `ledger` package roadmap as `AC-ledger.fe-accounts2.2`, #1821 Wave B)
 
 ### AC2.16: Opening-Balance Readiness Nudge ([#949](https://github.com/wangzitian0/finance_report/issues/949)) — frontend AC only
 
@@ -230,14 +231,13 @@ that gap before the numbers are trusted.
 
 > The backend ledger-activity detection ACs in the `AC2.16.*` range migrated into
 > the `ledger` package as `AC-ledger.16.*` (#1420 slice 3c-iii). The **frontend**
-> nudge `AC2.16.3` stays here (ledger is `fe=None`). *(The AC2.16 group's
-> reporting-layer row removed — a report-assembly property, not a
-> double-entry posting one; migrated to `reporting`, migration closeout
+> nudge could not be homed there directly (ledger is `fe=None`) until #1820/#1825
+> gave the governance gate TS test-ref resolution, letting it migrate below.
+> *(The AC2.16 group's reporting-layer row removed — a report-assembly property,
+> not a double-entry posting one; migrated to `reporting`, migration closeout
 > wave 2, #1663 — see below.)*
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC2.16.3 | The Accounts page shows a warning nudge (with a CTA that opens the guided flow) when opening balances are missing, and hides it once they are recorded | `AC2.16.3 shows a readiness nudge and opens the modal when opening balances are missing`, `AC2.16.3 hides the readiness nudge when opening balances are already recorded` | `apps/frontend/src/__tests__/accountsPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+(AC2.16.3 removed, canonical: migrated to the `ledger` package roadmap as `AC-ledger.fe-accounts2.3`, #1821 Wave B)
 
 > **Migrated**: the balance sheet and net-worth allocation confidence-tier
 > degrade (was the AC2.16 group's reporting-layer row) is report assembly,

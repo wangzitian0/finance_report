@@ -7,6 +7,7 @@ interface CoverageConfigWithThresholds {
 }
 
 describe("frontend coverage baseline", () => {
+  // AC-testing.fe-coverage.4
   it("AC8.13.92 keeps the frontend Vitest threshold baseline code-owned", () => {
     const coverage = vitestConfig.test?.coverage as CoverageConfigWithThresholds | undefined
     const thresholds = coverage?.thresholds

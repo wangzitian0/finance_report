@@ -156,13 +156,7 @@ be treated as current work.
 
 ### AC17.8: Brokerage Import Completion UI
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC17.8.1 | Import to Portfolio button visible for parsed/approved statements | `AC17.8.1 shows Import to Portfolio button for parsed statement` | `frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
-| AC17.8.2 | Import result banner with stats and portfolio link shown on success | `AC17.8.2 shows import result banner and portfolio link on success` | `frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
-| AC17.8.3 | Import failure shows actionable error without sensitive data | `AC17.8.3 shows actionable import error banner without exposing sensitive data` | `frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
-| AC17.8.4 | Portfolio page shows total portfolio value prominently after import | `AC17.8.4 shows total portfolio value banner when active holdings are loaded` | `frontend/src/__tests__/portfolioPage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
-| AC17.8.5 | Import button hidden for non-parsed/approved statements (partial batch) | `AC17.8.5 does not show Import to Portfolio for non-parsed statements` | `frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
+(AC17.8.1 removed and AC17.8.2 removed and AC17.8.3 removed and AC17.8.4 removed and AC17.8.5 removed, canonical: migrated to the `portfolio` package roadmap as `AC-portfolio.fe-assets2.11` through `.15`, #1821 Wave B)
 
 ### AC17.9: Point-in-Time Portfolio Snapshots
 
@@ -170,9 +164,7 @@ be treated as current work.
 > package roadmap as `AC-portfolio.as-of.1-2`; the frontend row below stays
 > here. Migration closeout continuation, #1663 / #1717.)*
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC17.9.3 | Portfolio page exposes an as-of date selector and passes it to `/api/portfolio/holdings` | `AC17.9.3 passes selected as-of date to holdings API` | `frontend/src/__tests__/portfolioPage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
+(AC17.9.3 removed, canonical: migrated to the `portfolio` package roadmap as `AC-portfolio.fe-assets2.16`, #1821 Wave B)
 
 ### AC17.10: Investment Performance Report Schedule API
 
@@ -247,13 +239,9 @@ net-worth allocation schedule for the allocation surface. The investment
 performance schedule remains the source for period return, unrealized
 market-value gain/loss, and price freshness.
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC17.14.1 | Portfolio page renders a unified allocation panel without claiming a portfolio-value tie-out when report and holdings currencies differ | `AC17.14.1 labels allocation and portfolio currencies instead of claiming a portfolio tie-out` | `apps/frontend/src/__tests__/portfolioPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+(AC17.14.1 removed and AC17.14.3 removed and AC17.14.4 removed, canonical: migrated to the `portfolio` package roadmap as `AC-portfolio.fe-assets2.17` through `.19`, #1821 Wave B)
 > (AC17.14.2 removed, canonical: migrated to the `reporting` package roadmap
 > as `AC-reporting.net-worth-components.3`, #1821 Wave A)
-| AC17.14.3 | Portfolio page consumes the report-owned net-worth allocation schedule, showing asset class, liquidity, source currency, net-worth share, source labels, and restricted-inclusion filtering | `AC17.14.3 renders net-worth allocation from the report schedule`, `AC17.14.3 shows the net-worth allocation loading state`, `AC17.14.3 shows the net-worth allocation error state`, `AC17.14.3 shows the empty net-worth allocation state`, `AC17.14.3 renders invalid net-worth allocation percentages as unavailable`, `AC17.14.3 renders missing net-worth allocation percentages as unavailable`, `AC17.14.3 refetches net-worth allocation when restricted holdings are excluded` | `apps/frontend/src/__tests__/portfolioPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC17.14.4 | The asset-dashboard performance surface leads with unrealized market-value gain/loss, a simple return on cost valued at the schedule as-of date, and a price-freshness flag; TWR/IRR/MWR are not presented as the asset-dashboard answer and stay on the reporting side as clearly-labelled analytical measures | `AC17.14.4 leads with unrealized gain/loss, return on cost, and price freshness`, `AC17.14.4 does not present TWR/IRR/MWR as the asset-dashboard answer`, `AC17.14.4 flags stale prices`, `AC17.14.4 shows N/A return when cost basis is zero` | `apps/frontend/src/__tests__/performanceCard.test.tsx`, `apps/frontend/src/__tests__/investmentPerformanceSchedule.test.tsx` | P1 | <!-- epic-owned: fe-only -->
 
 ### AC17.15: Non-Ticker Identifier Guard
 
@@ -301,7 +289,7 @@ EPIC-008 remains the owner of the provider-backed staging AI/OCR gate.
 | Concurrent auto parse import and manual statement import share the same deduped position instead of failing with a duplicate-key 500 | EPIC-017 | AC-portfolio.brokerage-import.6 | `test_AC17_4_8_brokerage_import_survives_concurrent_auto_and_manual_import` | `apps/backend/tests/portfolio/test_brokerage_position_parsing.py` | Backend shard |
 | Statement-scoped import creates holdings | EPIC-017 | AC-portfolio.brokerage-import.5 / AC-extraction.813.10 | `test_statement_import_flows_to_holdings_and_balance_sheet` | `apps/backend/tests/portfolio/test_brokerage_position_parsing.py` | Backend shard |
 | Imported holdings affect balance sheet value | EPIC-005 / EPIC-017 | AC-portfolio.valuation.1 / AC-extraction.813.10 | `test_statement_import_flows_to_holdings_and_balance_sheet` | `apps/backend/tests/portfolio/test_brokerage_position_parsing.py` | Backend shard |
-| User completes import and navigates to portfolio value | EPIC-017 | AC17.8.1 / AC17.8.2 / AC17.8.4 | `AC17.8.1 AC17.8.2 AC17.8.4 completes parsed statement import and portfolio value navigation` | `apps/frontend/src/__tests__/brokerageImportCompletionFlow.test.tsx` | Frontend test |
+| User completes import and navigates to portfolio value | EPIC-017 | AC-portfolio.fe-assets2.11 / `.12` / `.14` | completes parsed statement import and portfolio value navigation (exact title in the package roadmap `test=`) | `apps/frontend/src/__tests__/brokerageImportCompletionFlow.test.tsx` | Frontend test |
 
 Provider-backed gate details live in
 [EPIC-008](EPIC-008.testing-strategy.md#ac813-tier-3-browser-e2e-full-statement-journey) and
@@ -366,12 +354,20 @@ The April 2026 FE/UI audit snapshot was removed from this EPIC. Current portfoli
 
 ### Acceptance Criteria
 
-- [x] **AC17.7.1** Holding detail page `/portfolio/[ticker]` renders three tabs: `Overview`, `Dividends`, `Realized P&L` <!-- epic-owned: fe-only -->
-- [x] **AC17.7.2** Dividends tab lists historical dividend events `{ex_date, pay_date, amount, currency, reinvested}` from `GET /api/portfolio/{ticker}/dividends` <!-- epic-owned: fe-only -->
-- [x] **AC17.7.3** Cost-basis method selector (`FIFO` / `LIFO` / `AvgCost`) on holding detail page persists per-holding via `PATCH /api/portfolio/{ticker}` and re-fetches realized P&L <!-- epic-owned: fe-only -->
-- [x] **AC17.7.4** Realized P&L tab shows lot-level table `{lot_id, acquired_date, sold_date, quantity, basis, proceeds, gain_loss, holding_period}` from `GET /api/portfolio/{ticker}/realized` <!-- epic-owned: fe-only -->
-- [x] **AC17.7.5** Portfolio summary card on dashboard adds `realized_pnl_ytd` and `dividend_income_ytd` figures from `GET /api/portfolio/summary` <!-- epic-owned: fe-only -->
-- [x] **AC17.7.6** Frontend test mounts HoldingDetailPage, switches to Dividends tab, and asserts dividend row labels render <!-- epic-owned: fe-only -->
+(AC17.7.1 removed and AC17.7.2 removed and AC17.7.3 removed and AC17.7.4 removed and AC17.7.5 removed, canonical: migrated to the `portfolio` package roadmap as `AC-portfolio.fe-assets2.20` through `.24`, #1821 Wave B)
+
+> **Documented exception (#1821 Wave B):** AC17.7.6 stays EPIC-owned rather
+> than migrating. This EPIC's `decision-1-portfolio-self-developed` Vision
+> Anchor is owned solely by EPIC-017 (`check_ac_index.py`'s
+> `_vision_obligations` gate), and the vision→registry matrix only resolves
+> EPIC-numbered legacy ids, not package-scoped roadmap ids — migrating every
+> remaining row would orphan the anchor ("backs no AC — dangling vision
+> promise"). One row stays behind to keep it backed, mirroring EPIC-006's
+> `AC6.34.1` exception from Wave A and EPIC-005's `AC5.37.2` from Wave B-2.
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC17.7.6 | Frontend test mounts HoldingDetailPage, switches to Dividends tab, and asserts dividend row labels render | switches to Dividends tab and renders dividend row labels (shared test title also carries the now-migrated `AC-portfolio.fe-assets2.21`) | `apps/frontend/src/__tests__/holdingDetailPage.test.tsx` | P2 | <!-- epic-owned: pending-package -->
 
 **Priority**: P1 — depends on backend portfolio API delivery; surfaces vision-critical metrics.
 **Estimated effort**: 5-7 days frontend (3 tabs + cost-basis selector + summary additions); backend dividend/realized endpoints tracked in core EPIC-017 scope.

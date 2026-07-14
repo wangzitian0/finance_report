@@ -3,17 +3,13 @@
   "version": 1,
   "files": {
     "EPIC-001.phase0-setup.md": {
-      "fe-only": 1,
       "horizontal": 1
     },
-    "EPIC-002.double-entry-core.md": {
-      "fe-only": 3
-    },
+    "EPIC-002.double-entry-core.md": {},
     "EPIC-003.statement-parsing.md": {
       "pending-package": 3
     },
     "EPIC-004.reconciliation-engine.md": {
-      "fe-only": 1,
       "horizontal": 2
     },
     "EPIC-005.reporting-visualization.md": {
@@ -26,52 +22,42 @@
       "horizontal": 31
     },
     "EPIC-008.testing-strategy.md": {
-      "fe-only": 6,
       "horizontal": 3
     },
     "EPIC-010.observability-logging.md": {},
     "EPIC-011.asset-lifecycle.md": {
-      "fe-only": 10,
       "pending-package": 1
     },
     "EPIC-012.foundation-libs.md": {
-      "fe-only": 3,
       "horizontal": 6
     },
     "EPIC-013.statement-parsing-v2.md": {},
     "EPIC-014.ttd-transformation.md": {},
     "EPIC-015.processing-account.md": {
-      "fe-only": 10
+      "pending-package": 1
     },
     "EPIC-016.two-stage-review-ui.md": {
       "fe-only": 4,
       "horizontal": 1
     },
     "EPIC-017.portfolio-management.md": {
-      "fe-only": 15
+      "pending-package": 1
     },
     "EPIC-018.ai-driven-pipeline.md": {
-      "fe-only": 10,
       "pending-package": 6
     },
     "EPIC-019.event-driven-upload-to-report-ux.md": {
-      "fe-half": 2,
-      "fe-only": 21
+      "fe-half": 1
     },
     "EPIC-020.framework-aware-personal-reporting.md": {},
     "EPIC-021.application-ai-advisor.md": {
-      "fe-only": 3,
       "horizontal": 1
     },
     "EPIC-022.everyday-user-ia.md": {},
     "EPIC-022.pwa-bottom-tab-ia.design.md": {},
     "EPIC-023.llm-provider-abstraction.md": {},
-    "EPIC-024.frontend-observability.md": {
-      "fe-only": 5
-    },
-    "EPIC-025.dry-ssot-simplification.md": {
-      "fe-only": 2
-    },
+    "EPIC-024.frontend-observability.md": {},
+    "EPIC-025.dry-ssot-simplification.md": {},
     "EPIC-026.ac-authority-tiers.md": {
       "horizontal": 1
     }

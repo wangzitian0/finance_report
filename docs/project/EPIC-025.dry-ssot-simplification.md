@@ -1,5 +1,11 @@
 # EPIC-025: DRY/SSOT Simplification — Reporting, Statements, FE Contracts, Tests
 
+<!-- epic-file: design-doc -->
+<!-- 0 AC rows by design (#1821 Wave B): every registered AC migrated to the
+     `meta` package roadmap (fe-contract-types group); remaining/future scope
+     for this EPIC is tracked by GitHub issues + owning package contracts,
+     not new EPIC-table rows. -->
+
 > **Status**: 🚧 In Progress
 > **Vision Anchor**: `decision-7-tech-stack`
 > **Owner**: Platform / Backend / Frontend
@@ -99,12 +105,11 @@ verifiable.
 
 ### AC25.3 — Frontend contract consolidation
 
-> **Retained** — both rows are `.test.ts` frontend tests; the governance gate's `_resolve_test()` (AST-based, Python-only) cannot resolve a non-Python test path, same limitation as EPIC-012's `AC12.27.3`/`AC12.28.3`.
+> Both rows were `.test.ts` frontend tests; #1820/#1825 later gave the
+> governance gate TS test-ref resolution, so they migrated too (below)
+> instead of staying blocked on the old Python-only limitation.
 
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC25.3.1 | The list-response envelope has a single `ListResponse<T>` definition and the per-entity list responses derive from it; declared OpenAPI-mirrored contract types resolve to a real generated `Schemas[...]` key (drift guard) | `contractTypes drift` | `apps/frontend/src/__tests__/contractTypes.test.ts` | P1 | <!-- epic-owned: fe-only -->
-| AC25.3.2 | `lib/api.ts` is the single raw-`fetch` boundary — no other frontend source module issues a raw `fetch(` call | `contractTypes fetch boundary` | `apps/frontend/src/__tests__/contractTypes.test.ts` | P1 | <!-- epic-owned: fe-only -->
+(AC25.3.1 removed and AC25.3.2 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.fe-contract-types.1` through `.2`, #1821 Wave B)
 
 ### AC25.4 — Test fixture consolidation
 

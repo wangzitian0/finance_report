@@ -129,6 +129,7 @@ test.describe("AC19.4.7 upload-first dashboard smoke", () => {
     { name: "desktop", viewport: { width: 1440, height: 1000 } },
     { name: "mobile", viewport: { width: 390, height: 844 } },
   ]) {
+    // AC-reporting.fe-remainder-reports.10
     test(`${scenario.name} renders upload-to-report home before secondary analytics`, async ({ page }) => {
       await page.setViewportSize(scenario.viewport);
       await installDashboardMocks(page);

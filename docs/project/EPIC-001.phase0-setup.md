@@ -188,14 +188,12 @@ Set up a runnable Monorepo development environment, complete user authentication
 > [`common/runtime/contract.py`](../../common/runtime/contract.py)'s
 > `roadmap`, migration closeout wave 3, #1663.)
 >
-> **AC1.10.3**'s backend half (`test_AC1_10_3_get_me_accepts_httponly_cookie`)
+> This row's backend half (`test_AC1_10_3_get_me_accepts_httponly_cookie`)
 > migrated to [`common/identity/contract.py`](../../common/identity/contract.py)'s
 > `roadmap` as **`AC-identity.2.5`** (migration closeout wave 3, #1663). The
-> row's frontend-storage half stays here (no backend package home):
+> row's frontend-storage half migrated separately below (#1821 Wave B):
 
-| ID | Requirement | Test Function | File |
-|----|-------------|---------------|------|
-| AC1.10.3 | Frontend storage keeps only non-secret user metadata, relying on the HttpOnly session cookie rather than localStorage for the bearer token | `AC1.10.3 sends HttpOnly auth cookies by default` / `auth.test.ts` session tests | `src/__tests__/apiFunctions.test.ts`, `src/__tests__/auth.test.ts` | <!-- epic-owned: fe-only -->
+(AC1.10.3 removed, canonical: migrated to the `identity` package roadmap as `AC-identity.fe-auth2.1`, #1821 Wave B)
 
 > **The former email-normalization criterion (the AC1.10 normalize-email row) is
 > no longer defined here.** It migrated into the `identity` package (#1428) as

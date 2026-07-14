@@ -163,7 +163,7 @@ See: common/ledger/readme.md#decimal-rule
 
 | AC | Acceptance Criteria | Test(s) | File(s) | Priority |
 |----|--------------------|---------|---------|----------|
-| AC4.11.1 | The unmatched transaction board models unmatched amounts as shared `MoneyValue` payloads and renders queue/detail/created-entry amounts through Decimal-safe currency formatting, not JavaScript number locale formatting | `AC4.11.1 renders unmatched monetary amounts with Decimal-safe currency formatting` | `frontend/src/__tests__/unmatchedBoardComponent.test.tsx` | P0 | <!-- epic-owned: fe-only -->
+(AC4.11.1 removed, canonical: migrated to the `reconciliation` package roadmap as `AC-reconciliation.fe-remainder-reconciliation.1`, #1821 Wave B)
 
 ## 📏 Acceptance Criteria
 

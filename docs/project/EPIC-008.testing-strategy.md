@@ -268,9 +268,10 @@ job inventories or scenario counts into this EPIC.
 > - (AC8.13.18 removed and AC8.13.19 removed — reporting-owned brokerage
 >   portfolio valuation semantics, migrated to the reporting bucket, #1716 /
 >   #1821.)
-> - AC8.13.48, AC8.13.76, AC8.13.82, AC8.13.90, AC8.13.92 are frontend-only
->   (Vitest/Playwright proofs); the package governance gate resolves Python
->   tests only, so they stay EPIC-owned for the #1719 frontend remainder.
+> - The five frontend-only (Vitest/Playwright) coverage/deploy-metadata rows
+>   in this group migrated to `testing`/`runtime` in #1821 Wave B once
+>   #1820/#1825 gave the governance gate TS test-ref resolution (see the
+>   migration note below).
 > - AC8.13.61 - AC8.13.63 are archive-residual ownership rows whose proofs
 >   assert EPIC-008 residency by design (and AC8.13.61 is P3, which the
 >   package `ACRecord` priority vocabulary does not carry); they are
@@ -284,16 +285,11 @@ job inventories or scenario counts into this EPIC.
 > `reporting` package roadmap as `AC-reporting.portfolio-valuation-gate.1-2`,
 > #1821 Wave A.)
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC8.13.48 | Frontend gap tests cover route, component, and API helper paths so frontend LCOV line coverage reaches 99% | `test_AC8_13_48_*` | `apps/frontend/src/__tests__/stage2ReviewQueueCoverage99.test.tsx`, `apps/frontend/src/__tests__/statementReviewPage.coverage.test.tsx`, `apps/frontend/src/__tests__/statementDetailPage.coverage.test.tsx`, `apps/frontend/src/__tests__/StatementUploader.test.tsx`, `apps/frontend/src/__tests__/journalPage.test.tsx`, `apps/frontend/src/__tests__/reconciliationWorkbenchComponent.test.tsx`, `apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx`, `apps/frontend/src/__tests__/apiFunctions.test.ts`, `apps/frontend/src/__tests__/accountsPage.test.tsx`, `apps/frontend/src/__tests__/assetsPage.test.tsx`, `apps/frontend/src/__tests__/statementsPage.test.tsx`, `apps/frontend/src/__tests__/useWorkspaceHook.test.tsx`, `apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx`, `apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx`, `apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx` | P0 | <!-- epic-owned: fe-only -->
+(AC8.13.48 removed and AC8.13.76 removed and AC8.13.82 removed and AC8.13.92 removed, canonical: migrated to the `testing` package roadmap as `AC-testing.fe-coverage.1` through `.4`, #1821 Wave B)
 | AC8.13.61 | Visual regression residual is explicitly owned by EPIC-008 as a P3 future testing capability | `test_AC8_13_61_visual_regression_residual_is_epic_owned` | `tests/tooling/test_archive_residual_epic_ownership.py` | P3 | <!-- epic-owned: horizontal -->
 | AC8.13.62 | Test observability residuals are explicitly owned by EPIC-008 with current replacements and future dashboard/notification/trend scope | `test_AC8_13_62_test_observability_residual_is_epic_owned` | `tests/tooling/test_archive_residual_epic_ownership.py` | P2 | <!-- epic-owned: horizontal -->
 | AC8.13.63 | Performance testing residual is explicitly owned by EPIC-008 with current Locust/staging coverage and future P95 trend gate scope | `test_AC8_13_63_performance_testing_residual_is_epic_owned` | `tests/tooling/test_archive_residual_epic_ownership.py` | P2 | <!-- epic-owned: horizontal -->
-| AC8.13.76 | Playwright mobile UX coverage proves Stage 1 and Stage 2 review workflows avoid document-level horizontal scroll and expose direct completion actions at phone widths | `AC16.26.*` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 | <!-- epic-owned: fe-only -->
-| AC8.13.82 | Playwright responsive UX coverage proves account and review layouts avoid mobile document overflow and desktop local table clipping (AC16.27.2 removed and AC16.27.3 removed, canonical: the same shared spec also proves `AC-extraction.fe-stage1-review.11` and `AC-reconciliation.fe-stage2-review.17`, #1821 Wave B) | `AC2.17.1` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 | <!-- epic-owned: fe-only -->
-| AC8.13.90 | Frontend exposes `/frontend-version.json` with deployed `git_sha`/`version` metadata for PR preview readiness checks | `AC8.13.90 returns deployed frontend version metadata for PR preview readiness` | `frontendVersionRoute.test.ts` | P0 | <!-- epic-owned: fe-only -->
-| AC8.13.92 | Frontend Vitest coverage keeps a code-owned 98% baseline for line, statement, and function metrics plus an explicit branch floor while representative low-coverage routes and workflow surfaces stay covered | `AC8.13.92*` | `apps/frontend/src/__tests__/coverageBaseline.test.ts`, `apps/frontend/src/__tests__/personalReportPackagePage.test.tsx`, `apps/frontend/src/__tests__/workflowSurfaces.test.tsx`, `apps/frontend/src/__tests__/chatPanelComponent.test.tsx`, `apps/frontend/src/__tests__/investmentPerformanceSchedule.test.tsx`, `apps/frontend/src/__tests__/journalPage.test.tsx`, `apps/frontend/src/__tests__/sankeyChartComponent.test.tsx`, `apps/frontend/src/__tests__/toastProviderComponent.test.tsx`, `apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx` | P0 | <!-- epic-owned: fe-only -->
+(AC8.13.90 removed, canonical: migrated to the `runtime` package roadmap as `AC-runtime.fe-deploy.1`, #1821 Wave B)
 > (AC8.13.164 removed and AC8.13.165 removed, canonical: migrated to the `llm`
 > package roadmap as `AC-llm.evidence-bundle.1-2` — routed to `llm` not
 > `testing` because the authority classifier bands
@@ -547,9 +543,7 @@ ACs require each control to carry a distinct, stable test hook and require the
 registration E2E to target the mode toggle unambiguously, with no visible-copy
 regression.
 
-| AC ID | Test Case | Test Function | File | Priority |
-|---|---|---|---|---|
-| AC8.19.1 | Login auth controls (mode-toggle register button and inline register CTA) expose distinct `data-testid` hooks and accessible names, so no duplicate accessible-name ambiguity remains while the visible text stays "Register" | `AC8.19.1 login register controls expose distinct test ids and accessible names` | `apps/frontend/src/__tests__/loginPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+(AC8.19.1 removed, canonical: migrated to the `identity` package roadmap as `AC-identity.fe-auth2.2`, #1821 Wave B)
 
 > This group's second row removed — migrated to the `identity` package
 > roadmap as `AC-identity.journeys.5` (migration closeout continuation,
@@ -734,7 +728,7 @@ Product E2E ownership index:
 | `tests/e2e/test_e2e_flows.py` | Deployed extended flow E2E; AC references live in the test file |
 | `tests/e2e/test_four_asset_net_worth_golden_path.py` | Critical proof: AC-testing.product-gates.7, AC-extraction.813.10, AC-reporting.net-worth-timeseries.2, AC-pricing.manualvaluation.5, AC-pricing.manualvaluation.6, AC-pricing.manualvaluation.7, AC-portfolio.valuation.1 |
 | `tests/e2e/test_llm_provider_abstraction_epic023.py` | LLM provider abstraction product owner E2E; EPIC-023 / AC23.1 references live in the test file |
-| `tests/e2e/test_frontend_observability_epic024.py` | EPIC-024 frontend browser observability product owner E2E; AC24.1.1 reference lives in the test file |
+| `tests/e2e/test_frontend_observability_epic024.py` | EPIC-024 frontend browser observability product owner E2E |
 | `tests/e2e/test_market_data_price_paths.py` | Critical proof; ACs live in the `pricing` package roadmap (`AC-pricing.marketdata.7`, `AC-pricing.marketdata.11`, `common/pricing/contract.py`) |
 | `tests/e2e/test_personal_financial_report_package.py` | Critical proof: AC-reporting.balance-sheet.1, AC-reporting.balance-sheet.4, AC-reporting.income-statement.3, AC-reporting.cash-flow.1, AC-reporting.fe-viz-reports.2, AC-reporting.package-notes.3, AC-reporting.package-traceability.3, AC-reporting.package-traceability.4, AC-reporting.annualized-dashboard.2, AC-pricing.manualvaluation.5, AC-pricing.manualvaluation.6, AC-pricing.manualvaluation.7, AC-reporting.package-annualized.3, AC-reporting.package-annualized.4, AC-portfolio.report-schedule.1, AC-portfolio.report-schedule.2, AC-portfolio.fixtures.1, AC-portfolio.fixtures.2, AC-portfolio.fixtures.3, AC-testing.product-gates.8, AC-testing.product-gates.9, AC-testing.product-gates.10, AC-testing.product-gates.11, AC-testing.product-gates.12 |
 | `tests/e2e/test_production_readonly_smoke.py` | Production-readonly smoke E2E; AC references live in the test file |

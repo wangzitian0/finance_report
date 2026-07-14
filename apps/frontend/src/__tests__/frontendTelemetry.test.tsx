@@ -8,6 +8,7 @@ vi.mock("@/lib/otel", () => ({ initOtel }))
 import { FrontendTelemetry } from "@/components/FrontendTelemetry"
 
 describe("FrontendTelemetry (AC24.1.1)", () => {
+  // AC-observability.fe-telemetry.1
   it("AC24.1.1 renders nothing and forwards runtime props to initOtel as the env map", () => {
     initOtel.mockClear()
     const { container } = render(

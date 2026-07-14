@@ -324,9 +324,7 @@ Dependencies: AC18.7 Evidence Graph foundation and AC18.8 first production sourc
 
 | AC ID | Phase | Description |
 |-------|-------|-------------|
-| AC18.9.4 | Evidence navigation UI | The report package traceability surface exposes a lineage panel from at least one report traceability row | <!-- epic-owned: fe-only -->
-| AC18.9.5 | Evidence navigation UI | The lineage panel renders source document, extracted record, atomic fact, ledger entry, ledger line, and report-line anchors when present | <!-- epic-owned: fe-only -->
-| AC18.9.6 | Evidence navigation proof | Tests cover report line to source document navigation and source document to impacted ledger/report navigation | <!-- epic-owned: fe-only -->
+(AC18.9.4 removed and AC18.9.5 removed and AC18.9.6 removed, canonical: migrated to the `reporting` package roadmap as `AC-reporting.fe-remainder-reports.1` through `.3`, #1821 Wave B)
 
 ### AC18.10: Evidence Graph Lazy Materialization and Consistency Guardrails
 
@@ -534,13 +532,11 @@ rather than duplicated.
 
 ### Acceptance Criteria — Phase 5 (Confidence & AI Suggestion UI)
 
-- [x] **AC18.5.1** `<ConfidenceBadge />` component renders `TRUSTED` / `HIGH` / `MEDIUM` / `LOW` pill with consistent color tokens (green / blue / amber / gray) and tooltip explaining source-type priority <!-- epic-owned: fe-only -->
-- [x] **AC18.5.2** ConfidenceBadge mounted on every transaction row in Stage 1 review, Stage 2 listing, and processing-account listing; reads `confidence_tier` from API response <!-- epic-owned: fe-only -->
-- [x] **AC18.5.3** AI Suggestion Review Queue page `/review/ai-suggestions` lists pending AI classifications and AI reconciliation matches in score band 60-84 with `{transaction, suggested_category_or_match, ai_score, ai_reasoning}` <!-- epic-owned: fe-only -->
-- [x] **AC18.5.4** Queue actions: `Accept`, `Reject`, `Edit-then-Accept`; each action calls `POST /api/ai/feedback` with `{suggestion_id, action, corrected_value?}` to feed the feedback loop <!-- epic-owned: fe-only -->
-- [x] **AC18.5.5** Settings page `/settings/ai` exposes toggles for `enable_ai_reconciliation`, `enable_ai_classification`, persisted via `PATCH /api/users/me/settings`; toggle reflects backend feature-flag state on load <!-- epic-owned: fe-only -->
-- [x] **AC18.5.6** Audit Trail panel on transaction detail page lists chronological `{timestamp, actor, action, old_value, new_value}` from `GET /api/transactions/{id}/audit`, including AI-applied changes labeled with actor `ai` <!-- epic-owned: fe-only -->
-- [x] **AC18.5.7** Frontend tests: mount ConfidenceBadge for each tier; mount AI Suggestion Queue and assert Accept/Reject buttons render; mount Settings AI toggles and assert default state matches API <!-- epic-owned: fe-only -->
+(AC18.5.1 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.fe-app-shell2.1`, #1821 Wave B)
+(AC18.5.2 removed, canonical: migrated to the `ledger` package roadmap as `AC-ledger.fe-accounts2.4`, #1821 Wave B)
+(AC18.5.3 removed and AC18.5.4 removed, canonical: migrated to the `reconciliation` package roadmap as `AC-reconciliation.fe-remainder-reconciliation.2` through `.3`, #1821 Wave B)
+(AC18.5.5 removed and AC18.5.7 removed, canonical: migrated to the `llm` package roadmap as `AC-llm.fe-ai-settings2.1` through `.2`, #1821 Wave B)
+(AC18.5.6 removed, canonical: migrated to the `extraction` package roadmap as `AC-extraction.fe-remainder-extraction.1`, #1821 Wave B)
 
 **Priority**: P0 — confidence visibility is a vision-critical trust signal; AI review queue is the human-in-the-loop hinge for the entire AI pipeline.
 **Estimated effort**: 2 days ConfidenceBadge + integration • 4-5 days AI Suggestion Queue • 2 days Settings AI toggles • 2-3 days Audit Trail panel • 1-2 days frontend tests. **Total ~11-14 days frontend**, assumes Phase 1-4 backend endpoints from this EPIC are landed.

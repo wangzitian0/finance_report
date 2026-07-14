@@ -2053,6 +2053,88 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from the
+        # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
+        ACRecord(
+            id="AC-ledger.fe-accounts2.1",
+            statement="Accounts page mobile filters and account rows avoid document-level horizontal scroll and content overlap",
+            # was AC2.17.1
+            test="apps/frontend/playwright/mobile-ux.spec.ts::AC2.17.1 mobile accounts avoids document horizontal scroll and overlapping row controls",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.fe-processing.1",
+            statement='Dashboard "Processing / In-Transit" card renders the four fields with currency code',
+            # was AC15.7.2
+            test="apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx::AC15.7.2 / AC15.7.8 — ProcessingSummaryCard renders fields and current balance warning",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.fe-accounts2.2",
+            statement="The Accounts page offers a guided opening-balance flow: a non-accountant enters an as-of date and a starting balance per eligible (active, non-income/expense) account, and the UI posts the balances map to `POST /api/accounts/opening-balances` — never hand-written journal lines — validating positive two-decimal amounts and surfacing backend errors instead of silently closing",
+            # was AC2.15.8
+            test="apps/frontend/src/__tests__/accountsPage.test.tsx::AC2.15.8 opens the guided opening-balance modal and refreshes on success",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.fe-processing.2",
+            statement="Card click-through navigates to `/processing` listing pending transfers (existing or new page) with line items `{from_account, to_account, amount, initiated_date, days_outstanding}`",
+            # was AC15.7.3
+            test="apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx::AC15.7.3 — /processing listing renders pending transfers",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.fe-accounts2.3",
+            statement="The Accounts page shows a warning nudge (with a CTA that opens the guided flow) when opening balances are missing, and hides it once they are recorded",
+            # was AC2.16.3
+            test="apps/frontend/src/__tests__/accountsPage.test.tsx::AC2.16.3 shows a readiness nudge and opens the modal when opening balances are missing",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.fe-processing.3",
+            statement="Pending entries older than 7 days render a warning badge on the listing row",
+            # was AC15.7.4
+            test="apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx::AC15.7.4 — warning badge for >7 day pending",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.fe-processing.4",
+            statement="Frontend test mounts ProcessingSummaryCard and asserts `pending_count` + `pending_total` labels render",
+            # was AC15.7.5
+            test="apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx::AC15.7.5 — ProcessingSummaryCard mount test",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.fe-accounts2.4",
+            statement="ConfidenceBadge mounted on every transaction row in Stage 1 review, Stage 2 listing, and processing-account listing; reads `confidence_tier` from API response",
+            # was AC18.5.2
+            test="apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx::AC18.5.2 — Journal page surfaces ConfidenceBadge tier",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.fe-processing.5",
+            statement="Processing is discoverable as a card in the Audit hub (`/audit`), superseding the old sidebar entry",
+            # was AC15.7.6
+            test="apps/frontend/src/__tests__/auditHub.test.tsx::AC15.7.6 aggregates the verify-on-demand machinery (incl. Processing) as deep-linking cards",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.fe-processing.6",
+            statement="The sidebar Processing badge was removed with the Advanced drawer; the non-zero-balance warning is carried by the Home Processing card and attention inbox",
+            # was AC15.7.7
+            test="apps/frontend/src/__tests__/sidebarAndTabs.test.tsx::AC15.7.7 AC16.19.12 AC19.6.3 AC19.6.4 AC19.6.5 AC22.21.1 keeps the accounting machinery, sidebar badges and settings out of the sidebar (supersedes the Advanced drawer)",
+            priority="P1",
+            status="done",
+        ),
     ],
 )
 

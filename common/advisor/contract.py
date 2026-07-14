@@ -1209,5 +1209,39 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from the
+        # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
+        ACRecord(
+            id="AC-advisor.fe-remainder-chat.1",
+            statement="`/chat` is a simple AI utility page with model selector, active conversation, and session-list drawer; it is not labeled AI Settings",
+            # was AC19.8.6
+            test="apps/frontend/src/__tests__/chatPanelComponent.test.tsx::AC19.8.6 shows chat sessions inside the AI page without workflow ownership",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-advisor.fe-remainder-chat.2",
+            statement="Advisor Brief renders blocked, ready, review-required, and stale-market-data cards with source basis, limitation, and safe internal action links",
+            # was AC21.3.2
+            test="apps/frontend/src/__tests__/advisorBrief.test.tsx::AC21.3.2 test_AC21_3_2_advisor_brief_renders_structured_cards_and_safe_routes",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-advisor.fe-remainder-chat.3",
+            statement="Chat and dashboard surfaces expose contextual Ask AI links that seed a scoped prompt without losing existing chat behavior",
+            # was AC21.3.3
+            test="apps/frontend/src/__tests__/chatPanelComponent.test.tsx::AC21.3.3 test_AC21_3_3_chat_panel_renders_contextual_advisor_brief",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-advisor.fe-remainder-chat.4",
+            statement="Advisor Brief keeps desktop and mobile layouts free of horizontal overflow",
+            # was AC21.3.4
+            test="apps/frontend/playwright/advisor-brief.spec.ts::${scenario.name} advisor-brief desktop and mobile layouts avoid horizontal overflow",
+            priority="P1",
+            status="done",
+        ),
     ],
 )
