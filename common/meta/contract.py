@@ -1064,7 +1064,7 @@ CONTRACT = PackageContract(
             ),
             test=(
                 "tests/tooling/test_check_manifest.py"
-                "::test_AC_meta_manifest_1_manifest_lives_in_meta_data_and_docs_ssot_is_retired"
+                "::test_AC_meta_manifest_1_manifest_relocated_and_ssot_retired"
             ),
             priority="P2",
             status="done",

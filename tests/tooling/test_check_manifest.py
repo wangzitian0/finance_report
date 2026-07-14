@@ -360,9 +360,7 @@ class TestCheckAnchorRefsExist:
         assert violations == []
 
 
-def test_AC_meta_manifest_1_manifest_lives_in_meta_data_and_docs_ssot_is_retired() -> (
-    None
-):
+def test_AC_meta_manifest_1_manifest_relocated_and_ssot_retired() -> None:
     """AC-meta.manifest.1 (#1823, Package-ization 4/4, terminal): the
     concept-ownership registry lives at ``common/meta/data/MANIFEST.yaml`` (a
     package's cross-cutting gate-data home, not a hand-classified
