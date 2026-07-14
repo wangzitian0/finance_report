@@ -1159,7 +1159,13 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-observability.fe-telemetry.5",
-            statement="With the OpenPanel client id configured, the analytics layer actually dispatches an OpenPanel event/page-view (`window.op('track'\\",
+            statement=(
+                "With the OpenPanel client id configured, the analytics "
+                "layer actually dispatches an OpenPanel event/page-view "
+                "(`window.op('track'` or `'screenView', ...)` invoked); "
+                "asserted against a stubbed `window.op`/endpoint so the "
+                "test is hermetic"
+            ),
             # was AC24.2.2
             test="apps/frontend/src/__tests__/telemetryEmission.test.ts::dispatches an OpenPanel event via window.op when configured (AC24.2.2)",
             priority="P1",
