@@ -231,6 +231,9 @@ def ratchet_baseline_inventory(repo_root: Path = REPO_ROOT) -> list[dict[str, An
         for path in repo_root.glob(pattern)
         if path.is_file()
     }
+    # Check once instead of spawning a `git log` per file — outside a git
+    # working tree (e.g. a tmp_path in tests) every one of those would fail.
+    is_git_repo = (repo_root / ".git").exists()
     inventory: list[dict[str, Any]] = []
     for path in sorted(found):
         rel = path.relative_to(repo_root).as_posix()
@@ -238,7 +241,9 @@ def ratchet_baseline_inventory(repo_root: Path = REPO_ROOT) -> list[dict[str, An
             {
                 "file": rel,
                 "entry_count": _baseline_entry_count(path),
-                "last_shrink": _last_shrink_date(repo_root, rel),
+                "last_shrink": (
+                    _last_shrink_date(repo_root, rel) if is_git_repo else None
+                ),
             }
         )
     return inventory

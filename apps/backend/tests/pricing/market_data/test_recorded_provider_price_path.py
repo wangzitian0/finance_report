@@ -34,7 +34,7 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import UTC, date, datetime
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
 import httpx
@@ -197,12 +197,19 @@ def test_recorded_payloads_carry_the_pinned_closes() -> None:
                 return Decimal(str(close))
         raise AssertionError(f"no close for {target} in recorded payload")
 
-    assert close_on(usdsgd, AS_OF).quantize(Decimal("0.000001")) == (EXPECTED_USD_SGD_RATE)
-    assert close_on(ibm, AS_OF).quantize(Decimal("0.000001")) == EXPECTED_IBM_CLOSE
+    assert close_on(usdsgd, AS_OF).quantize(
+        Decimal("0.000001"), rounding=ROUND_HALF_UP
+    ) == (EXPECTED_USD_SGD_RATE)
+    assert close_on(ibm, AS_OF).quantize(
+        Decimal("0.000001"), rounding=ROUND_HALF_UP
+    ) == EXPECTED_IBM_CLOSE
     assert (
         POSITION_QUANTITY == "2"
-        and (Decimal(POSITION_QUANTITY) * EXPECTED_IBM_CLOSE).quantize(Decimal("0.01")) == EXPECTED_POSITION_VALUE_USD
+        and (Decimal(POSITION_QUANTITY) * EXPECTED_IBM_CLOSE).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+        == EXPECTED_POSITION_VALUE_USD
     )
     assert (Decimal(POSITION_QUANTITY) * EXPECTED_IBM_CLOSE * EXPECTED_USD_SGD_RATE).quantize(
-        Decimal("0.01")
+        Decimal("0.01"), rounding=ROUND_HALF_UP
     ) == EXPECTED_POSITION_VALUE_SGD
