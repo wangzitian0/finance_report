@@ -2353,7 +2353,7 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     assert "post-merge-train-turn:" not in workflow
     assert "wait_post_merge_train_turn.py" not in workflow
     assert "workflow_dispatch:" in workflow
-    assert "STAGING_E2E_PRIMARY_MODEL: glm-5.1" in workflow
+    assert "STAGING_E2E_PRIMARY_MODEL: glm-5.2" in workflow
     assert "STAGING_E2E_OCR_MODEL: glm-4.6v" in workflow
     assert "STAGING_E2E_VISION_MODEL: glm-4.6v" in workflow
     assert (
